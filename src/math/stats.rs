@@ -1,6 +1,5 @@
 use crate::math::histogram::{compute_bin_counts, compute_bins};
-use crate::math::logger::Logger;
-use crate::math::types::{Bin, Distinct, FeatureStat, Infinity, Stats};
+use crate::types::types::{Bin, Distinct, FeatureStat, Infinity, Stats};
 use anyhow::{Context, Result};
 use medians::{MStats, Median, Medianf64};
 use ndarray::prelude::*;
@@ -11,6 +10,7 @@ use num_traits::Float;
 use numpy::ndarray::{aview1, ArrayView1, ArrayView2};
 use rayon::prelude::*;
 use std::collections::HashSet;
+use tracing::{debug, error, info, span, warn, Level};
 
 /// Compute quantiles for a 2D array.
 ///
@@ -39,10 +39,10 @@ pub fn compute_quantiles(array: &ArrayView2<f64>) -> Result<Array2<N64>, anyhow:
 /// # Returns
 ///
 /// A 1D array of f64 values.
-pub fn compute_mean(array: &ArrayView2<f64>) -> Result<Array1<f64>, anyhow::Error> {
+pub fn compute_mean(array: &ArrayView2<f64>) -> Result<Array1<f64>> {
     array
         .mean_axis(Axis(0))
-        .with_context(|| "Failed to calculate mean")
+        .with_context(|| "Failed to compute mean")
 }
 
 /// Compute the stddev for a 2D array.
@@ -54,10 +54,8 @@ pub fn compute_mean(array: &ArrayView2<f64>) -> Result<Array1<f64>, anyhow::Erro
 /// # Returns
 ///
 /// A 1D array of f64 values.
-pub fn compute_stddev(array: &ArrayView2<f64>) -> Result<Array1<f64>, anyhow::Error> {
-    array
-        .std_axis(Axis(0), 1.0)
-        .with_context(|| "Failed to calculate stddev")
+pub fn compute_stddev(array: &ArrayView2<f64>) -> Result<Array1<f64>> {
+    Ok(array.std_axis(Axis(0), 1.0))
 }
 
 /// Compute the min for a 2D array.
@@ -69,10 +67,8 @@ pub fn compute_stddev(array: &ArrayView2<f64>) -> Result<Array1<f64>, anyhow::Er
 /// # Returns
 ///
 /// A 1D array of f64 values.
-pub fn compute_min(array: &ArrayView2<f64>) -> Result<Array1<f64>, anyhow::Error> {
-    array
-        .map_axis(Axis(0), |view| *view.min().unwrap())
-        .with_context(|| "Failed to calculate min")
+pub fn compute_min(array: &ArrayView2<f64>) -> Result<Array1<f64>> {
+    Ok(array.map_axis(Axis(0), |view| *view.min().unwrap()))
 }
 
 /// Compute the max for a 2D array.
@@ -84,10 +80,8 @@ pub fn compute_min(array: &ArrayView2<f64>) -> Result<Array1<f64>, anyhow::Error
 /// # Returns
 ///
 /// A 1D array of f64 values.
-pub fn compute_max(array: &ArrayView2<f64>) -> Result<Array1<f64>, anyhow::Error> {
-    array
-        .map_axis(Axis(0), |view| *view.max().unwrap())
-        .with_context(|| "Failed to calculate max")
+pub fn compute_max(array: &ArrayView2<f64>) -> Result<Array1<f64>> {
+    Ok(array.map_axis(Axis(0), |view| *view.max().unwrap()))
 }
 
 /// Compute the number of distinct values in a 1d array of data
@@ -111,6 +105,77 @@ pub fn count_distinct<T: Send + Sync + std::fmt::Display>(
     Ok(Distinct {
         count,
         percent: count_perc,
+    })
+}
+
+/// Compute the number of missing values in a 1d array of data
+///
+/// # Arguments
+///
+/// * `feature_array` - A 1d array of data
+///
+/// # Returns
+/// A 1D array of f64 values.
+pub fn count_missing_perc(array: &ArrayView2<f64>) -> Result<Array1<usize>> {
+    let count = array.map_axis(Axis(0), |view| view.iter().filter(|x| x.is_nan()).count());
+    let total_count = array.len_of(Axis(0));
+
+    Ok(count / total_count)
+}
+
+/// Compute the number of infinite values in a 1d array of data
+///
+/// # Arguments
+///
+/// * `feature_array` - A 1d array of data
+///
+/// # Returns
+/// * `Result<(f64, f64), String>` - A tuple containing the number of infinite values and the percentage of infinite values
+pub fn count_infinity(feature_array: &ArrayView1<f64>) -> Result<Infinity, String> {
+    let count = feature_array
+        .into_par_iter()
+        .filter(|x| x.is_infinite())
+        .count();
+
+    let count_perc = count as f64 / feature_array.len() as f64;
+
+    Ok(Infinity {
+        count: count,
+        percent: count_perc,
+    })
+}
+
+/// Compute the base stats for a 1d array of data
+///
+/// # Arguments
+///
+/// * `feature_array` - A 1d array of data
+pub fn compute_base_stats(feature_array: &ArrayView1<f64>) -> Result<Stats, String> {
+    let computed_mean = feature_array.mean().unwrap();
+    let computed_stddev = feature_array.std(1.0);
+    let computed_median = feature_array.to_vec().as_slice().medstats().unwrap();
+
+    let inf_meta = count_infinity(feature_array).unwrap();
+    let distinct_meta = count_distinct(feature_array).unwrap();
+
+    feature_array
+        .to_vec()
+        .sort_by(|a, b| a.partial_cmp(b).unwrap());
+
+    let min = feature_array[0];
+    let max = feature_array[feature_array.len() - 1];
+
+    // calculate infinity
+
+    Ok(Stats {
+        median: computed_median.centre,
+        mean: computed_mean,
+        standard_dev: computed_stddev,
+        min,
+        max,
+        distinct: distinct_meta,
+        infinity: inf_meta,
+        missing: None,
     })
 }
 
