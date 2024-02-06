@@ -11,6 +11,29 @@ use std::collections::HashMap;
 ///
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Quantiles {
+    #[pyo3(get, set)]
+    pub quant_25: f64,
+
+    #[pyo3(get, set)]
+    pub quant_50: f64,
+
+    #[pyo3(get, set)]
+    pub quant_75: f64,
+
+    #[pyo3(get, set)]
+    pub quant_99: f64,
+}
+
+/// Python class for a feature bin
+///
+/// # Arguments
+///
+/// * `bins` - A vector of bins
+/// * `bin_counts` - A vector of bin counts
+///
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Bin {
     #[pyo3(get, set)]
     pub bins: Vec<f64>,
@@ -85,9 +108,6 @@ pub struct Missing {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Stats {
-    #[pyo3(get, set)]
-    pub median: f64,
-
     #[pyo3(get, set)]
     pub mean: f64,
 

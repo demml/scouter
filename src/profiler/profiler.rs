@@ -1,7 +1,5 @@
 use crate::math::histogram::{compute_bin_counts, compute_bins};
-use crate::math::stats::{
-    compute_max, compute_mean, compute_min, compute_quantiles, compute_stddev,
-};
+use crate::math::stats::{compute_max, compute_mean, compute_min, compute_stddev};
 use crate::types::types::{Bin, Distinct, FeatureStat, Infinity, Stats};
 use anyhow::{Context, Result};
 use ndarray::prelude::*;
@@ -30,14 +28,14 @@ impl<'a> DataProfiler<'a> {
         }
     }
 
-    pub fn compute_profile(&self) -> Result<()> {
-        info!("Computing data stats");
-        let funcs = [compute_max, compute_min, compute_mean, compute_stddev];
-        let base_stats = funcs
-            .par_iter()
-            .map(|func| func(&self.array_data))
-            .collect::<Vec<_>>();
-        let quantiles = compute_quantiles(&self.array_data);
-        Ok(())
-    }
+    //pub fn compute_profile(&self) -> Result<()> {
+    //    info!("Computing data stats");
+    //    let funcs = [compute_max, compute_min, compute_mean, compute_stddev];
+    //    let base_stats = funcs
+    //        .par_iter()
+    //        .map(|func| func(&self.array_data))
+    //        .collect::<Vec<_>>();
+    //    let quantiles = compute_quantiles(&self.array_data);
+    //    Ok(())
+    //}
 }

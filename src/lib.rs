@@ -1,5 +1,3 @@
-extern crate blas_src;
-
 mod logging;
 mod math;
 mod profiler;
