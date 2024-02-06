@@ -4,7 +4,6 @@ use crate::math::stats::{
 };
 use crate::types::types::{Bin, Distinct, FeatureStat, Infinity, Stats};
 use anyhow::{Context, Result};
-use medians::{MStats, Median, Medianf64};
 use ndarray::prelude::*;
 use ndarray_stats::{interpolate::Nearest, QuantileExt};
 use noisy_float::prelude::*;

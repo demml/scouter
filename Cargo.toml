@@ -24,8 +24,8 @@ tracing = "0.1.37"
 tracing-subscriber = {version = "0.3.17", features = ["json"]}
 ndarray-stats = "0.5.1"
 noisy_float = "0.2.0"
-medians = "2.3.1"
 anyhow = "1.0.79"
 
 [dev-dependencies]
+approx = "0.5.1"
 ndarray-rand = "0.14.0"
