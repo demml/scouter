@@ -104,6 +104,8 @@ pub struct Missing {
 /// * `max` - The maximum value
 /// * `distinct` - The distinct data metadata
 /// * `infinity` - The infinity data metadata
+/// * `missing` - The missing data metadata
+/// * `quantiles` - The quantiles data metadata
 ///
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -127,7 +129,10 @@ pub struct Stats {
     pub infinity: Infinity,
 
     #[pyo3(get, set)]
-    pub missing: Option<Missing>,
+    pub missing: Missing,
+
+    #[pyo3(get, set)]
+    pub quantiles: Quantiles,
 }
 
 /// Python class for holding feature metadata

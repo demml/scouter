@@ -173,6 +173,82 @@ pub fn count_infinity_perc(array: &ArrayView1<f64>) -> Result<Infinity> {
     })
 }
 
+/// Compute the base stats for a 1D array of data
+///
+/// # Arguments
+///
+/// * `array` - A 1D array of f64 values
+///  
+/// # Returns
+///
+/// A tuple containing the mean, standard deviation, min, max, distinct, and quantiles
+pub fn compute_base_stats(
+    array: &ArrayView1<f64>,
+) -> Result<(f64, f64, f64, f64, Distinct, Quantiles)> {
+    let mean = compute_mean(&array).with_context(|| "Failed to compute mean")?;
+    let stddev = compute_stddev(&array).with_context(|| "Failed to compute stddev")?;
+    let min = compute_min(&array).with_context(|| "Failed to compute min")?;
+    let max = compute_max(&array).with_context(|| "Failed to compute max")?;
+    let distinct = compute_distinct(&array).with_context(|| "Failed to compute distinct")?;
+    let quantiles = compute_quantiles(&array).with_context(|| "Failed to compute quantiles")?;
+
+    Ok((mean, stddev, min, max, distinct, quantiles))
+}
+
+/// Compute the stats for a 1D array of data
+///
+/// # Arguments
+///
+/// * `array` - A 1D array of f64 values
+///
+/// # Returns
+///
+/// A struct containing the mean, standard deviation, min, max, distinct, infinity, missing, and quantiles
+pub fn compute_array_stats(array: &ArrayView1<f64>) -> Result<Stats, anyhow::Error> {
+    let missing = count_missing_perc(&array).with_context(|| "Failed to compute missing")?;
+    let infinity = count_infinity_perc(&array).with_context(|| "Failed to compute infinity")?;
+
+    // check if array has missing or infinite values remove them
+    if missing.count > 0 || infinity.count > 0 {
+        // remove missing and infinite values from array1
+        let array = array
+            .into_par_iter()
+            .map(|x| x.to_owned())
+            .filter(|x| !x.is_nan() && !x.is_infinite())
+            .collect::<Vec<_>>();
+
+        // convert vec to array
+        let array = Array::from(array);
+        let (mean, stddev, min, max, distinct, quantiles) =
+            compute_base_stats(&array.view()).with_context(|| "Failed to compute base stats")?;
+
+        Ok(Stats {
+            mean: mean,
+            standard_dev: stddev,
+            min: min,
+            max: max,
+            distinct: distinct,
+            infinity: infinity,
+            quantiles: quantiles,
+            missing: missing,
+        })
+    } else {
+        let (mean, stddev, min, max, distinct, quantiles) =
+            compute_base_stats(&array).with_context(|| "Failed to compute base stats")?;
+
+        Ok(Stats {
+            mean: mean,
+            standard_dev: stddev,
+            min: min,
+            max: max,
+            distinct: distinct,
+            infinity: infinity,
+            quantiles: quantiles,
+            missing: missing,
+        })
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -243,5 +319,93 @@ mod tests {
 
         assert_eq!(infinity.count, 0);
         assert_eq!(infinity.percent, 0.0);
+    }
+
+    #[test]
+    fn test_array_stats() {
+        // create 2d array
+        let array = Array::random((100, 1), Uniform::new(0., 10.));
+
+        let stats = compute_array_stats(&array.column(0).view()).unwrap();
+
+        assert!(relative_eq!(stats.mean, 5.0, max_relative = 1.0));
+        assert!(relative_eq!(stats.standard_dev, 2.89, max_relative = 1.0));
+        assert!(relative_eq!(stats.min, 0.0, max_relative = 1.0));
+        assert!(relative_eq!(stats.max, 9.9, max_relative = 1.0));
+        assert_eq!(stats.distinct.count, 100);
+        assert_eq!(stats.distinct.percent, 1.0);
+        assert_eq!(stats.missing.count, 0);
+        assert_eq!(stats.missing.percent, 0.0);
+        assert_eq!(stats.infinity.count, 0);
+        assert_eq!(stats.infinity.percent, 0.0);
+    }
+
+    #[test]
+    fn test_array_stats_with_missing() {
+        // create 2d array
+        let mut array = Array::random((100, 1), Uniform::new(0., 10.));
+
+        // add missing values
+        array[[0, 0]] = std::f64::NAN;
+        array[[1, 0]] = std::f64::NAN;
+
+        let stats = compute_array_stats(&array.column(0).view()).unwrap();
+
+        assert!(relative_eq!(stats.mean, 5.0, max_relative = 1.0));
+        assert!(relative_eq!(stats.standard_dev, 2.89, max_relative = 1.0));
+        assert!(relative_eq!(stats.min, 0.0, max_relative = 1.0));
+        assert!(relative_eq!(stats.max, 9.9, max_relative = 1.0));
+        assert_eq!(stats.distinct.count, 98);
+        assert_eq!(stats.distinct.percent, 1.0);
+        assert_eq!(stats.missing.count, 2);
+        assert_eq!(stats.missing.percent, 0.02);
+        assert_eq!(stats.infinity.count, 0);
+        assert_eq!(stats.infinity.percent, 0.0);
+    }
+
+    #[test]
+    fn test_array_stats_with_infinity() {
+        // create 2d array
+        let mut array = Array::random((100, 1), Uniform::new(0., 10.));
+
+        // add infinite values
+        array[[0, 0]] = std::f64::INFINITY;
+        array[[1, 0]] = std::f64::NEG_INFINITY;
+
+        let stats = compute_array_stats(&array.column(0).view()).unwrap();
+
+        assert!(relative_eq!(stats.mean, 5.0, max_relative = 1.0));
+        assert!(relative_eq!(stats.standard_dev, 2.89, max_relative = 1.0));
+        assert!(relative_eq!(stats.min, 0.0, max_relative = 1.0));
+        assert!(relative_eq!(stats.max, 9.9, max_relative = 1.0));
+        assert_eq!(stats.distinct.count, 98);
+        assert_eq!(stats.distinct.percent, 1.0);
+        assert_eq!(stats.missing.count, 0);
+        assert_eq!(stats.missing.percent, 0.0);
+        assert_eq!(stats.infinity.count, 2);
+        assert_eq!(stats.infinity.percent, 0.02);
+    }
+
+    #[test]
+    fn test_array_stats_with_missing_and_infinity() {
+        // create 2d array
+        let mut array = Array::random((100, 1), Uniform::new(0., 10.));
+
+        // add missing and infinite values
+        array[[0, 0]] = std::f64::NAN;
+        array[[1, 0]] = std::f64::INFINITY;
+
+        let stats = compute_array_stats(&array.column(0).view()).unwrap();
+
+        assert!(relative_eq!(stats.mean, 5.0, max_relative = 1.0));
+        assert!(relative_eq!(stats.standard_dev, 2.89, max_relative = 1.0));
+        assert!(relative_eq!(stats.min, 0.0, max_relative = 1.0));
+        assert!(relative_eq!(stats.max, 9.9, max_relative = 1.0));
+        assert_eq!(stats.distinct.count, 98);
+        assert_eq!(stats.distinct.percent, 1.0);
+        assert_eq!(stats.missing.count, 1);
+        assert_eq!(stats.missing.percent, 0.01);
+        assert_eq!(stats.infinity.count, 1);
+        assert_eq!(stats.infinity.percent, 0.01);
     }
 }
