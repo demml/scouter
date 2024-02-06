@@ -2,12 +2,35 @@ use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
-/// Python class for a feature bin
+/// Python class for a monitoring profile
 ///
 /// # Arguments
 ///
-/// * `bins` - A vector of bins
-/// * `bin_counts` - A vector of bin counts
+/// * `center` - The center value
+/// * `ucl` - The upper control limit
+/// * `lcl` - The lower control limit
+///
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MonitorProfile {
+    #[pyo3(get, set)]
+    pub center: f64,
+
+    #[pyo3(get, set)]
+    pub ucl: f64,
+
+    #[pyo3(get, set)]
+    pub lcl: f64,
+}
+
+/// Python class for quantiles
+///
+/// # Arguments
+///
+/// * `quant_25` - The 25th percentile
+/// * `quant_50` - The 50th percentile
+/// * `quant_75` - The 75th percentile
+/// * `quant_99` - The 99th percentile
 ///
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]

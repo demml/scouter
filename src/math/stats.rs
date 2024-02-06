@@ -1,5 +1,7 @@
 use crate::math::histogram::{compute_bin_counts, compute_bins};
-use crate::types::types::{Bin, Distinct, FeatureStat, Infinity, Missing, Quantiles, Stats};
+use crate::types::types::{
+    Bin, Distinct, FeatureStat, Infinity, Missing, MonitorProfile, Quantiles, Stats,
+};
 use anyhow::{Context, Result};
 use ndarray::prelude::*;
 use ndarray::DataMut;
@@ -9,7 +11,7 @@ use noisy_float::prelude::*;
 use noisy_float::types::n64;
 use num_traits::Float;
 use numpy::ndarray::{aview1, ArrayView1, ArrayView2};
-use rayon::prelude::*;
+use rayon::{prelude::*, vec};
 use std::collections::HashSet;
 use tracing::{debug, error, info, span, warn, Level};
 /// Compute quantiles for a 1D array.
@@ -249,6 +251,29 @@ pub fn compute_array_stats(array: &ArrayView1<f64>) -> Result<Stats, anyhow::Err
     }
 }
 
+pub fn create_monitor_profile(array: &ArrayView1<f64>, sample_size: usize) -> Result<()> {
+    // create a 2d array of chunks (xbar, sigma) and return 2d array of xbar and sigma
+
+    let sample_data = array
+        .axis_chunks_iter(Axis(0), sample_size)
+        .into_par_iter()
+        .filter(|x| x.len() == sample_size)
+        .map(|x| {
+            let mean = compute_mean(&x).unwrap();
+            let stddev = compute_stddev(&x).unwrap();
+            vec![mean, stddev]
+        })
+        .collect::<Vec<_>>()
+        .concat();
+
+    // create 2d array of xbar and sigma
+    let sample_data = Array::from_shape_vec((sample_data.len() / 2, 2), sample_data).unwrap();
+
+    MonitorProfile {
+        center: sample_data.column(0).mean().unwrap(),
+    };
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -407,5 +432,14 @@ mod tests {
         assert_eq!(stats.missing.percent, 0.01);
         assert_eq!(stats.infinity.count, 1);
         assert_eq!(stats.infinity.percent, 0.01);
+    }
+
+    #[test]
+    fn test_create_monitor_profile() {
+        // create 2d array
+        let array = Array::random((100, 1), Uniform::new(0., 10.));
+
+        create_monitor_profile(&array.column(0).view(), 10).unwrap();
+        assert_eq!(2, 1);
     }
 }
