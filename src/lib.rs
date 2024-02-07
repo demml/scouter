@@ -23,7 +23,7 @@ pub fn create_data_profile(array: PyReadonlyArray2<f64>) -> PyResult<()> {
 
 /// Python implementation for the Rusty Logger
 #[pymodule]
-fn _rusty_logger(_py: Python, m: &PyModule) -> PyResult<()> {
+fn _scouter(_py: Python, m: &PyModule) -> PyResult<()> {
     m.add_class::<DataProfiler>()?;
     m.add_function(wrap_pyfunction!(create_data_profile, m)?)?;
     Ok(())

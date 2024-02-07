@@ -6,13 +6,76 @@ authors = ["Thorrester <steven.forrester@shipt.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.10"
+python = ">=3.9,<3.12"
 numpy = "^1.26.4"
 polars = "^0.20.7"
 pandas = "^2.2.0"
 
-[tool.poetry.group.develop.dependencies]
+[tool.poetry.group.dev]
+optional = true
+
+[tool.poetry.group.dev.dependencies]
 maturin = "^1.4.0"
+pytest = "^7"
+ruff = "^0.1"
+mypy = "^1"
+black = "22.3.0"
+pylint = "^2.17.5"
+pytest-lazy-fixture = "^0.6.3"
+psutil = "^5.9.8"
+
+[tool.isort]
+profile = "black"
+
+[tool.black]
+line-length = 120
+target-version = ['py310']
+include = '\.pyi?$'
+
+[tool.pylint.MASTER]
+load-plugins = ["pylint.extensions.docparams"]
+
+[tool.pylint.messages_control]
+max-line-length = 120
+disable = [
+    "too-few-public-methods",
+    "design",
+    "duplicate-code",
+    "missing-class-docstring",
+    "missing-function-docstring",
+    "missing-module-docstring",
+    "too-many-nested-blocks",
+    "unused-argument",
+    "fixme",
+    "import-outside-toplevel"
+]
+
+
+[tool.flake8]
+# This section is just a doc placeholder..see setup.cfg
+max-complexity = 10
+format = "pylint"
+statistics = "True"
+max-line-length = 125
+# ignore non-PEP8 lints
+ignore = ["E203", "W503", "W0511"]
+
+[tool.pytest.ini_options]
+log_cli = true
+log_cli_level = "INFO"
+testpaths = ["tests"]
+
+
+[tool.mypy]
+# platform configuration
+python_version = "3.9"
+platform = "linux"
+mypy_path = "stubs"
+ignore_missing_imports = true
+plugins = [
+    "numpy.typing.mypy_plugin",
+]
+
 
 [project]
 name = "scouter"

@@ -34,6 +34,8 @@ impl DataProfiler {
             .map(|x| compute_array_stats(&x))
             .collect::<Vec<_>>();
 
+        println!("{:?}", stat_vec);
+
         Ok(())
     }
 }
