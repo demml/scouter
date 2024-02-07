@@ -1,5 +1,7 @@
 use crate::math::histogram::{compute_bin_counts, compute_bins};
-use crate::math::stats::{compute_max, compute_mean, compute_min, compute_stddev};
+use crate::math::stats::{
+    compute_array_stats, compute_max, compute_mean, compute_min, compute_stddev,
+};
 use crate::types::types::{Bin, Distinct, FeatureStat, Infinity, Stats};
 use anyhow::{Context, Result};
 use ndarray::prelude::*;
@@ -8,34 +10,30 @@ use noisy_float::prelude::*;
 use noisy_float::types::n64;
 use num_traits::Float;
 use numpy::ndarray::{aview1, ArrayView1, ArrayView2};
+use numpy::PyReadonlyArray2;
+use pyo3::prelude::*;
 use rayon::prelude::*;
 use std::collections::HashSet;
 use tracing::{debug, error, info, span, warn, Level};
 
-struct DataProfiler<'a> {
-    array_data: &'a ArrayView2<'a, f64>,
-    feature_names: &'a [String],
-}
+#[pyclass]
+pub struct DataProfiler {}
 
-impl<'a> DataProfiler<'a> {
-    pub fn new(
-        array_data: &'a ArrayView2<'a, f64>,
-        feature_names: &'a [String],
-    ) -> DataProfiler<'a> {
-        DataProfiler {
-            array_data: array_data,
-            feature_names: feature_names,
-        }
+#[pymethods]
+impl DataProfiler {
+    #[new]
+    pub fn new() -> Self {
+        DataProfiler {}
     }
 
-    //pub fn compute_profile(&self) -> Result<()> {
-    //    info!("Computing data stats");
-    //    let funcs = [compute_max, compute_min, compute_mean, compute_stddev];
-    //    let base_stats = funcs
-    //        .par_iter()
-    //        .map(|func| func(&self.array_data))
-    //        .collect::<Vec<_>>();
-    //    let quantiles = compute_quantiles(&self.array_data);
-    //    Ok(())
-    //}
+    pub fn create_data_profile(&self, array: PyReadonlyArray2<f64>) -> PyResult<()> {
+        let array = array.as_array();
+        let stat_vec = array
+            .axis_iter(Axis(1))
+            .into_par_iter()
+            .map(|x| compute_array_stats(&x))
+            .collect::<Vec<_>>();
+
+        Ok(())
+    }
 }

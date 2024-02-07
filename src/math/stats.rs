@@ -269,9 +269,7 @@ pub fn create_monitor_profile(array: &ArrayView1<f64>, sample_size: usize) -> Re
     // create 2d array of xbar and sigma
     let sample_data = Array::from_shape_vec((sample_data.len() / 2, 2), sample_data).unwrap();
 
-    MonitorProfile {
-        center: sample_data.column(0).mean().unwrap(),
-    };
+    Ok(())
 }
 
 #[cfg(test)]
