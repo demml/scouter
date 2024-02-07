@@ -9,11 +9,12 @@ use ndarray::ViewRepr;
 use ndarray_stats::{interpolate::Nearest, QuantileExt};
 use noisy_float::prelude::*;
 use noisy_float::types::n64;
-use num_traits::Float;
+use num::Float;
 use numpy::ndarray::{aview1, ArrayView1, ArrayView2};
 use rayon::{prelude::*, vec};
 use std::collections::HashSet;
 use tracing::{debug, error, info, span, warn, Level};
+
 /// Compute quantiles for a 1D array.
 ///
 /// # Arguments
@@ -23,7 +24,12 @@ use tracing::{debug, error, info, span, warn, Level};
 /// # Returns
 ///
 /// A 2D array of noisy floats.
-pub fn compute_quantiles(array: &ArrayView1<f64>) -> Result<Quantiles> {
+pub fn compute_quantiles<T>(array: &ArrayView1<T>) -> Result<Quantiles>
+where
+    T: Float + ndarray_stats::MaybeNan + std::marker::Send + Sync,
+    <T as ndarray_stats::MaybeNan>::NotNan: Clone,
+    <T as ndarray_stats::MaybeNan>::NotNan: Ord,
+{
     let axis = Axis(0);
     let qs = &[n64(0.25), n64(0.5), n64(0.75), n64(0.99)];
 
@@ -35,6 +41,8 @@ pub fn compute_quantiles(array: &ArrayView1<f64>) -> Result<Quantiles> {
                 .quantile_axis_skipnan_mut(axis, *q, &Nearest)
                 .unwrap()
                 .into_scalar()
+                .to_f64()
+                .unwrap()
         })
         .collect::<Vec<_>>();
 
@@ -55,7 +63,10 @@ pub fn compute_quantiles(array: &ArrayView1<f64>) -> Result<Quantiles> {
 /// # Returns
 ///
 /// A 1D array of f64 values.
-pub fn compute_mean(array: &ArrayView1<f64>) -> Result<f64, anyhow::Error> {
+pub fn compute_mean<T>(array: &ArrayView1<T>) -> Result<T, anyhow::Error>
+where
+    T: Float + num_traits::FromPrimitive,
+{
     array.mean().with_context(|| "Failed to compute mean")
 }
 
@@ -68,7 +79,7 @@ pub fn compute_mean(array: &ArrayView1<f64>) -> Result<f64, anyhow::Error> {
 /// # Returns
 ///
 /// A 1D array of f64 values.
-pub fn compute_stddev(array: &ArrayView1<f64>) -> Result<f64> {
+pub fn compute_stddev(array: &ArrayView1<T>) -> Result<f64> {
     Ok(array.std(1.0))
 }
 
@@ -206,7 +217,7 @@ pub fn compute_base_stats(
 /// # Returns
 ///
 /// A struct containing the mean, standard deviation, min, max, distinct, infinity, missing, and quantiles
-pub fn compute_array_stats(array: &ArrayView1<f64>) -> Result<Stats, anyhow::Error> {
+pub fn compute_array_stats<T>(array: &ArrayView1<T>) -> Result<Stats, anyhow::Error> {
     let missing = count_missing_perc(&array).with_context(|| "Failed to compute missing")?;
     let infinity = count_infinity_perc(&array).with_context(|| "Failed to compute infinity")?;
 
