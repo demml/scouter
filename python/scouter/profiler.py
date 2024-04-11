@@ -3,7 +3,7 @@ from numpy.typing import NDArray
 import polars as pl
 import pandas as pd
 
-from ._scouter import create_data_profile  # pylint: disable=no-name-in-module
+from ._scouter import DataProfiler  # pylint: disable=no-name-in-module
 
 
 class Profiler:
@@ -18,10 +18,9 @@ class Profiler:
             num_bins:
                 Number of bins to use for the histogram.
         """
+        self._profiler = DataProfiler()
 
-    def _convert_data_to_array(
-        self, data: Union[pl.DataFrame, pd.DataFrame, NDArray]
-    ) -> NDArray:
+    def _convert_data_to_array(self, data: Union[pl.DataFrame, pd.DataFrame, NDArray]) -> NDArray:
         if isinstance(data, pl.DataFrame):
             return data.to_numpy()
         if isinstance(data, pd.DataFrame):
@@ -34,4 +33,4 @@ class Profiler:
     ) -> None:
         array = self._convert_data_to_array(data)
 
-        return create_data_profile(array=array)
+        return self._profiler.create_data_profile(array=array)

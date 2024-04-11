@@ -1,1 +1,1 @@
-pub mod profiler;
+pub mod _profiler;

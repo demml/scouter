@@ -1,5 +1,10 @@
+use std::clone::Clone;
+use std::marker::Copy;
+
+#[derive(Copy, Clone)]
 pub struct Logger {}
 
+#[allow(dead_code)]
 impl Logger {
     pub fn new() -> Logger {
         tracing_subscriber::fmt()

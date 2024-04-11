@@ -2,6 +2,11 @@ PROJECT=scouter
 PYTHON_VERSION=3.11.2
 SOURCE_OBJECTS=python/scouter
 
+cargo.format:
+	cargo fmt
+
+cargo.lints:
+	cargo clippy --workspace --all-targets -- -D warnings
 
 format.black:
 	poetry run black ${SOURCE_OBJECTS}

@@ -1,20 +1,15 @@
 use crate::math::histogram::{compute_bin_counts, compute_bins};
-use crate::types::types::{
+use crate::types::_types::{
     Bin, Distinct, FeatureStat, Infinity, Missing, MonitorProfile, Quantiles, Stats,
 };
 use anyhow::{Context, Result};
-use itertools::TakeWhileRef;
 use ndarray::prelude::*;
-use ndarray::DataMut;
-use ndarray::ViewRepr;
 use ndarray_stats::{interpolate::Nearest, QuantileExt};
-use noisy_float::prelude::*;
 use noisy_float::types::n64;
 use num::Float;
-use numpy::ndarray::{aview1, ArrayView1, ArrayView2};
-use rayon::{prelude::*, vec};
+use numpy::ndarray::ArrayView1;
+use rayon::prelude::*;
 use std::collections::HashSet;
-use tracing::{debug, error, info, span, warn, Level};
 
 /// Compute quantiles for a 1D array.
 ///
@@ -162,13 +157,7 @@ where
 {
     let count = array
         .into_par_iter()
-        .map(|x| {
-            if x.is_nan() {
-                return 1.0;
-            } else {
-                return 0.0;
-            }
-        })
+        .map(|x| if x.is_nan() { 1.0 } else { 0.0 })
         .to_owned()
         .sum::<f64>();
 
@@ -176,7 +165,7 @@ where
 
     Ok(Missing {
         count: count as usize,
-        percent: count / total_count as f64,
+        percent: count / total_count,
     })
 }
 
@@ -194,13 +183,7 @@ where
 {
     let count = array
         .into_par_iter()
-        .map(|x| {
-            if x.is_infinite() {
-                return 1.0;
-            } else {
-                return 0.0;
-            }
-        })
+        .map(|x| if x.is_infinite() { 1.0 } else { 0.0 })
         .to_owned()
         .sum::<f64>();
 
@@ -208,7 +191,7 @@ where
 
     Ok(Infinity {
         count: count as usize,
-        percent: count / total_count as f64,
+        percent: count / total_count,
     })
 }
 
@@ -235,12 +218,12 @@ where
     <T as ndarray_stats::MaybeNan>::NotNan: Clone,
     <T as ndarray_stats::MaybeNan>::NotNan: Ord,
 {
-    let mean = compute_mean(&array).with_context(|| "Failed to compute mean")?;
-    let stddev = compute_stddev(&array).with_context(|| "Failed to compute stddev")?;
-    let min = compute_min(&array).with_context(|| "Failed to compute min")?;
-    let max = compute_max(&array).with_context(|| "Failed to compute max")?;
-    let distinct = compute_distinct(&array).with_context(|| "Failed to compute distinct")?;
-    let quantiles = compute_quantiles(&array).with_context(|| "Failed to compute quantiles")?;
+    let mean = compute_mean(array).with_context(|| "Failed to compute mean")?;
+    let stddev = compute_stddev(array).with_context(|| "Failed to compute stddev")?;
+    let min = compute_min(array).with_context(|| "Failed to compute min")?;
+    let max = compute_max(array).with_context(|| "Failed to compute max")?;
+    let distinct = compute_distinct(array).with_context(|| "Failed to compute distinct")?;
+    let quantiles = compute_quantiles(array).with_context(|| "Failed to compute quantiles")?;
 
     Ok((mean, stddev, min, max, distinct, quantiles))
 }
@@ -266,8 +249,8 @@ where
     <T as ndarray_stats::MaybeNan>::NotNan: Clone,
     <T as ndarray_stats::MaybeNan>::NotNan: Ord,
 {
-    let missing = count_missing_perc(&array).with_context(|| "Failed to compute missing")?;
-    let infinity = count_infinity_perc(&array).with_context(|| "Failed to compute infinity")?;
+    let missing = count_missing_perc(array).with_context(|| "Failed to compute missing")?;
+    let infinity = count_infinity_perc(array).with_context(|| "Failed to compute infinity")?;
 
     // check if array has missing or infinite values remove them
     if missing.count > 0 || infinity.count > 0 {
@@ -304,7 +287,7 @@ where
         })
     } else {
         let (mean, stddev, min, max, distinct, quantiles) =
-            compute_base_stats(&array).with_context(|| "Failed to compute base stats")?;
+            compute_base_stats(array).with_context(|| "Failed to compute base stats")?;
 
         Ok(Stats {
             mean: mean

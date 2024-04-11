@@ -1,15 +1,9 @@
 from numpy.typing import NDArray
 
-def create_data_profile(
-    array: NDArray,
-) -> None:
-    """Parse a numpy array and return a list of FeatureBin objects.
-
-    Args:
-        array:
-            Two dimensional numpy array to parse.
-
-    Returns:
-        None
-    """
-    ...
+class DataProfiler:
+    def __init__(self):
+        """Create a data profiler object."""
+        ...
+    def create_data_profile(self, array: NDArray) -> None:
+        """Create a data profile from a numpy array."""
+        ...
