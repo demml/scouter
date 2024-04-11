@@ -10,19 +10,7 @@ use pyo3::prelude::*;
 use rayon::prelude::*;
 
 #[pyfunction]
-pub fn create_data_profile_f64(array: PyReadonlyArray2<f64>) -> PyResult<()> {
-    let array = array.as_array();
-    let stat_vec = array
-        .axis_iter(Axis(1))
-        .into_par_iter()
-        .map(|x| compute_array_stats(&x))
-        .collect::<Vec<_>>();
-
-    Ok(())
-}
-
-#[pyfunction]
-pub fn create_data_profile_f32(array: PyReadonlyArray2<f32>) -> PyResult<()> {
+pub fn create_data_profile(array: PyReadonlyArray2<f64>) -> PyResult<()> {
     let array = array.as_array();
     let stat_vec = array
         .axis_iter(Axis(1))

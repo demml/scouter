@@ -3,6 +3,7 @@ use crate::types::types::{
     Bin, Distinct, FeatureStat, Infinity, Missing, MonitorProfile, Quantiles, Stats,
 };
 use anyhow::{Context, Result};
+use itertools::TakeWhileRef;
 use ndarray::prelude::*;
 use ndarray::DataMut;
 use ndarray::ViewRepr;
@@ -24,9 +25,13 @@ use tracing::{debug, error, info, span, warn, Level};
 /// # Returns
 ///
 /// A 2D array of noisy floats.
-pub fn compute_quantiles<T>(array: &ArrayView1<T>) -> Result<Quantiles>
+pub fn compute_quantiles<T: num::Num>(array: &ArrayView1<T>) -> Result<Quantiles>
 where
-    T: Float + ndarray_stats::MaybeNan + std::marker::Send + Sync,
+    T: ndarray_stats::MaybeNan
+        + std::marker::Send
+        + Sync
+        + std::clone::Clone
+        + num_traits::ToPrimitive,
     <T as ndarray_stats::MaybeNan>::NotNan: Clone,
     <T as ndarray_stats::MaybeNan>::NotNan: Ord,
 {
@@ -96,7 +101,11 @@ where
 /// # Returns
 ///
 /// A 1D array of f64 values.
-pub fn compute_min(array: &ArrayView1<f64>) -> Result<f64, anyhow::Error> {
+pub fn compute_min<T>(array: &ArrayView1<T>) -> Result<T, anyhow::Error>
+where
+    T: Float + ndarray_stats::MaybeNan,
+    <T as ndarray_stats::MaybeNan>::NotNan: Ord,
+{
     Ok(array.min_skipnan().to_owned())
 }
 
@@ -109,7 +118,11 @@ pub fn compute_min(array: &ArrayView1<f64>) -> Result<f64, anyhow::Error> {
 /// # Returns
 ///
 /// A 1D array of f64 values.
-pub fn compute_max(array: &ArrayView1<f64>) -> Result<f64, anyhow::Error> {
+pub fn compute_max<T>(array: &ArrayView1<T>) -> Result<T, anyhow::Error>
+where
+    T: Float + ndarray_stats::MaybeNan,
+    <T as ndarray_stats::MaybeNan>::NotNan: Ord,
+{
     Ok(array.max_skipnan().to_owned())
 }
 
@@ -122,7 +135,10 @@ pub fn compute_max(array: &ArrayView1<f64>) -> Result<f64, anyhow::Error> {
 /// # Returns
 ///
 /// A 1D array of f64 values.
-pub fn compute_distinct(array: &ArrayView1<f64>) -> Result<Distinct> {
+pub fn compute_distinct<T>(array: &ArrayView1<T>) -> Result<Distinct>
+where
+    T: ToString,
+{
     let unique: HashSet<String> = array.iter().map(|x| x.to_string()).collect();
     let count = unique.len() as f64;
 
@@ -140,7 +156,10 @@ pub fn compute_distinct(array: &ArrayView1<f64>) -> Result<Distinct> {
 ///
 /// # Returns
 /// A 1D array of f64 values.
-pub fn count_missing_perc(array: &ArrayView1<f64>) -> Result<Missing> {
+pub fn count_missing_perc<T: num::Num>(array: &ArrayView1<T>) -> Result<Missing>
+where
+    T: std::marker::Send + Sync + ndarray_stats::MaybeNan,
+{
     let count = array
         .into_par_iter()
         .map(|x| {
@@ -169,7 +188,10 @@ pub fn count_missing_perc(array: &ArrayView1<f64>) -> Result<Missing> {
 ///
 /// # Returns
 /// * `Result<(f64, f64), String>` - A tuple containing the number of infinite values and the percentage of infinite values
-pub fn count_infinity_perc(array: &ArrayView1<f64>) -> Result<Infinity> {
+pub fn count_infinity_perc<T: num::Num>(array: &ArrayView1<T>) -> Result<Infinity>
+where
+    T: std::marker::Send + Sync + Float,
+{
     let count = array
         .into_par_iter()
         .map(|x| {
@@ -199,9 +221,20 @@ pub fn count_infinity_perc(array: &ArrayView1<f64>) -> Result<Infinity> {
 /// # Returns
 ///
 /// A tuple containing the mean, standard deviation, min, max, distinct, and quantiles
-pub fn compute_base_stats(
-    array: &ArrayView1<f64>,
-) -> Result<(f64, f64, f64, f64, Distinct, Quantiles)> {
+pub fn compute_base_stats<T: num::Num>(
+    array: &ArrayView1<T>,
+) -> Result<(T, T, T, T, Distinct, Quantiles)>
+where
+    T: Float
+        + ndarray_stats::MaybeNan
+        + std::marker::Send
+        + Sync
+        + num_traits::FromPrimitive
+        + std::convert::From<f64>
+        + std::fmt::Display,
+    <T as ndarray_stats::MaybeNan>::NotNan: Clone,
+    <T as ndarray_stats::MaybeNan>::NotNan: Ord,
+{
     let mean = compute_mean(&array).with_context(|| "Failed to compute mean")?;
     let stddev = compute_stddev(&array).with_context(|| "Failed to compute stddev")?;
     let min = compute_min(&array).with_context(|| "Failed to compute min")?;
@@ -221,7 +254,18 @@ pub fn compute_base_stats(
 /// # Returns
 ///
 /// A struct containing the mean, standard deviation, min, max, distinct, infinity, missing, and quantiles
-pub fn compute_array_stats<T>(array: &ArrayView1<T>) -> Result<Stats, anyhow::Error> {
+pub fn compute_array_stats<T: num::Num>(array: &ArrayView1<T>) -> Result<Stats, anyhow::Error>
+where
+    T: Float
+        + Sync
+        + Send
+        + ndarray_stats::MaybeNan
+        + num_traits::FromPrimitive
+        + std::convert::From<f64>
+        + std::fmt::Display,
+    <T as ndarray_stats::MaybeNan>::NotNan: Clone,
+    <T as ndarray_stats::MaybeNan>::NotNan: Ord,
+{
     let missing = count_missing_perc(&array).with_context(|| "Failed to compute missing")?;
     let infinity = count_infinity_perc(&array).with_context(|| "Failed to compute infinity")?;
 
@@ -239,11 +283,20 @@ pub fn compute_array_stats<T>(array: &ArrayView1<T>) -> Result<Stats, anyhow::Er
         let (mean, stddev, min, max, distinct, quantiles) =
             compute_base_stats(&array.view()).with_context(|| "Failed to compute base stats")?;
 
+        // need to convert because pyo3 doesn't support generic types
         Ok(Stats {
-            mean: mean,
-            standard_dev: stddev,
-            min: min,
-            max: max,
+            mean: mean
+                .to_f64()
+                .with_context(|| "failed to convert stat to float")?,
+            standard_dev: stddev
+                .to_f64()
+                .with_context(|| "failed to convert stat to float")?,
+            min: min
+                .to_f64()
+                .with_context(|| "failed to convert stat to float")?,
+            max: max
+                .to_f64()
+                .with_context(|| "failed to convert stat to float")?,
             distinct: distinct,
             infinity: infinity,
             quantiles: quantiles,
@@ -254,10 +307,18 @@ pub fn compute_array_stats<T>(array: &ArrayView1<T>) -> Result<Stats, anyhow::Er
             compute_base_stats(&array).with_context(|| "Failed to compute base stats")?;
 
         Ok(Stats {
-            mean: mean,
-            standard_dev: stddev,
-            min: min,
-            max: max,
+            mean: mean
+                .to_f64()
+                .with_context(|| "failed to convert stat to float")?,
+            standard_dev: stddev
+                .to_f64()
+                .with_context(|| "failed to convert stat to float")?,
+            min: min
+                .to_f64()
+                .with_context(|| "failed to convert stat to float")?,
+            max: max
+                .to_f64()
+                .with_context(|| "failed to convert stat to float")?,
             distinct: distinct,
             infinity: infinity,
             quantiles: quantiles,
@@ -266,7 +327,10 @@ pub fn compute_array_stats<T>(array: &ArrayView1<T>) -> Result<Stats, anyhow::Er
     }
 }
 
-pub fn create_monitor_profile(array: &ArrayView1<f64>, sample_size: usize) -> Result<()> {
+pub fn create_monitor_profile<T: num::Num>(array: &ArrayView1<T>, sample_size: usize) -> Result<()>
+where
+    T: Float + std::marker::Send + Sync + num_traits::FromPrimitive + std::convert::From<f64>,
+{
     // create a 2d array of chunks (xbar, sigma) and return 2d array of xbar and sigma
 
     let sample_data = array
