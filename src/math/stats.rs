@@ -79,8 +79,12 @@ where
 /// # Returns
 ///
 /// A 1D array of f64 values.
-pub fn compute_stddev(array: &ArrayView1<T>) -> Result<f64> {
-    Ok(array.std(1.0))
+pub fn compute_stddev<T>(array: &ArrayView1<T>) -> Result<T>
+where
+    T: Float + num_traits::FromPrimitive,
+    f64: Into<T>,
+{
+    Ok(array.std(1.0.into()))
 }
 
 /// Compute the min for a 1D array.
