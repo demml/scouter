@@ -1,13 +1,13 @@
 mod logging;
 mod math;
-mod profiler;
+mod scouter;
 mod types;
-use profiler::_profiler::DataProfiler;
 use pyo3::prelude::*;
+use scouter::_scouter::Scouter;
 
 /// Python implementation for the Rusty Logger
 #[pymodule]
 fn _scouter(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_class::<DataProfiler>()?;
+    m.add_class::<Scouter>()?;
     Ok(())
 }

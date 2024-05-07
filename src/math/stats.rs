@@ -1,4 +1,4 @@
-use crate::types::_types::{Distinct, Infinity, Missing, Quantiles, Stats};
+use crate::types::_types::{Distinct, Infinity, Missing, MonitorProfile, Quantiles, Stats};
 use anyhow::{Context, Result};
 use ndarray::prelude::*;
 use ndarray_stats::{interpolate::Nearest, QuantileExt};
@@ -236,7 +236,44 @@ pub fn compute_array_stats(array: &ArrayView1<f64>) -> Result<Stats, anyhow::Err
     }
 }
 
-pub fn create_monitor_profile(array: &ArrayView1<f64>, sample_size: usize) -> Result<()> {
+fn compute_c4(number: usize) -> f64 {
+    //c4 is asymptotically equivalent to (4n-3)/(4n-4)
+    let n = number as f64;
+    let left = 4.0 * n - 4.0;
+    let right = 4.0 * n - 3.0;
+    let c4 = left / right;
+
+    c4
+}
+
+fn compute_control_limits(
+    sample_size: usize,
+    sample_data: &ArrayView2<f64>,
+) -> Result<MonitorProfile, anyhow::Error> {
+    let c4 = compute_c4(sample_size) as f64;
+
+    // get mean of 1st col
+    let sample_xbar =
+        compute_mean(&sample_data.column(0)).with_context(|| "Failed to compute sample xbar")?;
+
+    // get std of 2nd col
+    let sample_sigma =
+        compute_stddev(&sample_data.column(1)).with_context(|| "Failed to compute sample sigma")?;
+
+    // compute xbar ucl
+    let right = 3.0 * (sample_sigma / (c4 * (sample_size as f64).sqrt()));
+
+    Ok(MonitorProfile {
+        ucl: sample_xbar + right,
+        lcl: sample_xbar - right,
+        center: sample_xbar,
+    })
+}
+
+pub fn create_monitor_profile(
+    array: &ArrayView1<f64>,
+    sample_size: usize,
+) -> Result<MonitorProfile, anyhow::Error> {
     // create a 2d array of chunks (xbar, sigma) and return 2d array of xbar and sigma
 
     let sample_data = array
@@ -254,7 +291,10 @@ pub fn create_monitor_profile(array: &ArrayView1<f64>, sample_size: usize) -> Re
     // create 2d array of xbar and sigma
     let _sample_data = Array::from_shape_vec((sample_data.len() / 2, 2), sample_data).unwrap();
 
-    Ok(())
+    let profile = compute_control_limits(sample_size, &_sample_data.view())
+        .with_context(|| "Failed to compute control limits")?;
+
+    Ok(profile)
 }
 
 #[cfg(test)]
@@ -422,7 +462,10 @@ mod tests {
         // create 2d array
         let array = Array::random((100, 1), Uniform::new(0., 10.));
 
-        create_monitor_profile(&array.column(0).view(), 10).unwrap();
-        assert_eq!(2, 1);
+        let profile = create_monitor_profile(&array.column(0).view(), 10).unwrap();
+        println!("{:?}", profile);
+        assert!(relative_eq!(profile.ucl, 5.0, max_relative = 1.0));
+        assert!(relative_eq!(profile.lcl, 5.0, max_relative = 1.0));
+        assert!(relative_eq!(profile.center, 5.0, max_relative = 1.0));
     }
 }
