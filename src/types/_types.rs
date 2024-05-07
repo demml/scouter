@@ -189,10 +189,6 @@ pub struct FeatureStats {
 impl FeatureStat {
     #[new]
     fn new(name: String, bins: Bin, stats: Stats) -> Self {
-        Self {
-            name: name,
-            bins: bins,
-            stats: stats,
-        }
+        Self { name, bins, stats }
     }
 }

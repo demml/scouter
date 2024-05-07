@@ -11,6 +11,7 @@ use std::sync::{Arc, Mutex};
 ///
 /// # Returns
 /// * `Vec<f64>` - A vector of bins
+#[allow(dead_code)]
 pub fn compute_bins(data: &ArrayView1<f64>, num_bins: u32) -> Vec<f64> {
     // find the min and max of the data
 
@@ -41,6 +42,7 @@ pub fn compute_bins(data: &ArrayView1<f64>, num_bins: u32) -> Vec<f64> {
 ///
 /// # Returns
 /// * `Vec<i32>` - A vector of bin counts
+#[allow(dead_code)]
 pub fn compute_bin_counts(data: &ArrayView1<f64>, bins: &[f64]) -> Vec<i32> {
     // create a vector to hold the bin counts
     let bin_counts = Arc::new(Mutex::new(vec![0; bins.len()]));

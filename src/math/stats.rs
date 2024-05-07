@@ -1,12 +1,8 @@
-use crate::math::histogram::{compute_bin_counts, compute_bins};
-use crate::types::_types::{
-    Bin, Distinct, FeatureStat, Infinity, Missing, MonitorProfile, Quantiles, Stats,
-};
+use crate::types::_types::{Distinct, Infinity, Missing, Quantiles, Stats};
 use anyhow::{Context, Result};
 use ndarray::prelude::*;
 use ndarray_stats::{interpolate::Nearest, QuantileExt};
 use noisy_float::types::n64;
-use num::Float;
 use numpy::ndarray::ArrayView1;
 use rayon::prelude::*;
 use std::collections::HashSet;
@@ -20,16 +16,7 @@ use std::collections::HashSet;
 /// # Returns
 ///
 /// A 2D array of noisy floats.
-pub fn compute_quantiles<T: num::Num>(array: &ArrayView1<T>) -> Result<Quantiles>
-where
-    T: ndarray_stats::MaybeNan
-        + std::marker::Send
-        + Sync
-        + std::clone::Clone
-        + num_traits::ToPrimitive,
-    <T as ndarray_stats::MaybeNan>::NotNan: Clone,
-    <T as ndarray_stats::MaybeNan>::NotNan: Ord,
-{
+pub fn compute_quantiles(array: &ArrayView1<f64>) -> Result<Quantiles> {
     let axis = Axis(0);
     let qs = &[n64(0.25), n64(0.5), n64(0.75), n64(0.99)];
 
@@ -41,8 +28,6 @@ where
                 .quantile_axis_skipnan_mut(axis, *q, &Nearest)
                 .unwrap()
                 .into_scalar()
-                .to_f64()
-                .unwrap()
         })
         .collect::<Vec<_>>();
 
@@ -63,10 +48,7 @@ where
 /// # Returns
 ///
 /// A 1D array of f64 values.
-pub fn compute_mean<T>(array: &ArrayView1<T>) -> Result<T, anyhow::Error>
-where
-    T: Float + num_traits::FromPrimitive,
-{
+pub fn compute_mean(array: &ArrayView1<f64>) -> Result<f64, anyhow::Error> {
     array.mean().with_context(|| "Failed to compute mean")
 }
 
@@ -79,12 +61,8 @@ where
 /// # Returns
 ///
 /// A 1D array of f64 values.
-pub fn compute_stddev<T>(array: &ArrayView1<T>) -> Result<T>
-where
-    T: Float + num_traits::FromPrimitive,
-    f64: Into<T>,
-{
-    Ok(array.std(1.0.into()))
+pub fn compute_stddev(array: &ArrayView1<f64>) -> Result<f64> {
+    Ok(array.std(1.0))
 }
 
 /// Compute the min for a 1D array.
@@ -96,11 +74,7 @@ where
 /// # Returns
 ///
 /// A 1D array of f64 values.
-pub fn compute_min<T>(array: &ArrayView1<T>) -> Result<T, anyhow::Error>
-where
-    T: Float + ndarray_stats::MaybeNan,
-    <T as ndarray_stats::MaybeNan>::NotNan: Ord,
-{
+pub fn compute_min(array: &ArrayView1<f64>) -> Result<f64, anyhow::Error> {
     Ok(array.min_skipnan().to_owned())
 }
 
@@ -113,11 +87,7 @@ where
 /// # Returns
 ///
 /// A 1D array of f64 values.
-pub fn compute_max<T>(array: &ArrayView1<T>) -> Result<T, anyhow::Error>
-where
-    T: Float + ndarray_stats::MaybeNan,
-    <T as ndarray_stats::MaybeNan>::NotNan: Ord,
-{
+pub fn compute_max(array: &ArrayView1<f64>) -> Result<f64, anyhow::Error> {
     Ok(array.max_skipnan().to_owned())
 }
 
@@ -130,10 +100,7 @@ where
 /// # Returns
 ///
 /// A 1D array of f64 values.
-pub fn compute_distinct<T>(array: &ArrayView1<T>) -> Result<Distinct>
-where
-    T: ToString,
-{
+pub fn compute_distinct(array: &ArrayView1<f64>) -> Result<Distinct> {
     let unique: HashSet<String> = array.iter().map(|x| x.to_string()).collect();
     let count = unique.len() as f64;
 
@@ -151,10 +118,7 @@ where
 ///
 /// # Returns
 /// A 1D array of f64 values.
-pub fn count_missing_perc<T: num::Num>(array: &ArrayView1<T>) -> Result<Missing>
-where
-    T: std::marker::Send + Sync + ndarray_stats::MaybeNan,
-{
+pub fn count_missing_perc(array: &ArrayView1<f64>) -> Result<Missing> {
     let count = array
         .into_par_iter()
         .map(|x| if x.is_nan() { 1.0 } else { 0.0 })
@@ -177,10 +141,7 @@ where
 ///
 /// # Returns
 /// * `Result<(f64, f64), String>` - A tuple containing the number of infinite values and the percentage of infinite values
-pub fn count_infinity_perc<T: num::Num>(array: &ArrayView1<T>) -> Result<Infinity>
-where
-    T: std::marker::Send + Sync + Float,
-{
+pub fn count_infinity_perc(array: &ArrayView1<f64>) -> Result<Infinity> {
     let count = array
         .into_par_iter()
         .map(|x| if x.is_infinite() { 1.0 } else { 0.0 })
@@ -204,20 +165,9 @@ where
 /// # Returns
 ///
 /// A tuple containing the mean, standard deviation, min, max, distinct, and quantiles
-pub fn compute_base_stats<T: num::Num>(
-    array: &ArrayView1<T>,
-) -> Result<(T, T, T, T, Distinct, Quantiles)>
-where
-    T: Float
-        + ndarray_stats::MaybeNan
-        + std::marker::Send
-        + Sync
-        + num_traits::FromPrimitive
-        + std::convert::From<f64>
-        + std::fmt::Display,
-    <T as ndarray_stats::MaybeNan>::NotNan: Clone,
-    <T as ndarray_stats::MaybeNan>::NotNan: Ord,
-{
+pub fn compute_base_stats(
+    array: &ArrayView1<f64>,
+) -> Result<(f64, f64, f64, f64, Distinct, Quantiles)> {
     let mean = compute_mean(array).with_context(|| "Failed to compute mean")?;
     let stddev = compute_stddev(array).with_context(|| "Failed to compute stddev")?;
     let min = compute_min(array).with_context(|| "Failed to compute min")?;
@@ -237,18 +187,7 @@ where
 /// # Returns
 ///
 /// A struct containing the mean, standard deviation, min, max, distinct, infinity, missing, and quantiles
-pub fn compute_array_stats<T: num::Num>(array: &ArrayView1<T>) -> Result<Stats, anyhow::Error>
-where
-    T: Float
-        + Sync
-        + Send
-        + ndarray_stats::MaybeNan
-        + num_traits::FromPrimitive
-        + std::convert::From<f64>
-        + std::fmt::Display,
-    <T as ndarray_stats::MaybeNan>::NotNan: Clone,
-    <T as ndarray_stats::MaybeNan>::NotNan: Ord,
-{
+pub fn compute_array_stats(array: &ArrayView1<f64>) -> Result<Stats, anyhow::Error> {
     let missing = count_missing_perc(array).with_context(|| "Failed to compute missing")?;
     let infinity = count_infinity_perc(array).with_context(|| "Failed to compute infinity")?;
 
@@ -266,54 +205,38 @@ where
         let (mean, stddev, min, max, distinct, quantiles) =
             compute_base_stats(&array.view()).with_context(|| "Failed to compute base stats")?;
 
-        // need to convert because pyo3 doesn't support generic types
         Ok(Stats {
-            mean: mean
-                .to_f64()
-                .with_context(|| "failed to convert stat to float")?,
-            standard_dev: stddev
-                .to_f64()
-                .with_context(|| "failed to convert stat to float")?,
-            min: min
-                .to_f64()
-                .with_context(|| "failed to convert stat to float")?,
-            max: max
-                .to_f64()
-                .with_context(|| "failed to convert stat to float")?,
-            distinct: distinct,
-            infinity: infinity,
-            quantiles: quantiles,
-            missing: missing,
+            mean,
+
+            standard_dev: stddev,
+
+            min,
+
+            max,
+
+            distinct,
+            infinity,
+            quantiles,
+            missing,
         })
     } else {
         let (mean, stddev, min, max, distinct, quantiles) =
             compute_base_stats(array).with_context(|| "Failed to compute base stats")?;
 
         Ok(Stats {
-            mean: mean
-                .to_f64()
-                .with_context(|| "failed to convert stat to float")?,
-            standard_dev: stddev
-                .to_f64()
-                .with_context(|| "failed to convert stat to float")?,
-            min: min
-                .to_f64()
-                .with_context(|| "failed to convert stat to float")?,
-            max: max
-                .to_f64()
-                .with_context(|| "failed to convert stat to float")?,
-            distinct: distinct,
-            infinity: infinity,
-            quantiles: quantiles,
-            missing: missing,
+            mean,
+            standard_dev: stddev,
+            min,
+            max,
+            distinct,
+            infinity,
+            quantiles,
+            missing,
         })
     }
 }
 
-pub fn create_monitor_profile<T: num::Num>(array: &ArrayView1<T>, sample_size: usize) -> Result<()>
-where
-    T: Float + std::marker::Send + Sync + num_traits::FromPrimitive + std::convert::From<f64>,
-{
+pub fn create_monitor_profile(array: &ArrayView1<f64>, sample_size: usize) -> Result<()> {
     // create a 2d array of chunks (xbar, sigma) and return 2d array of xbar and sigma
 
     let sample_data = array
@@ -329,7 +252,7 @@ where
         .concat();
 
     // create 2d array of xbar and sigma
-    let sample_data = Array::from_shape_vec((sample_data.len() / 2, 2), sample_data).unwrap();
+    let _sample_data = Array::from_shape_vec((sample_data.len() / 2, 2), sample_data).unwrap();
 
     Ok(())
 }
