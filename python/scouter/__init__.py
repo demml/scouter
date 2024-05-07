@@ -1,5 +1,5 @@
 # pylint: disable=no-name-in-module
 
-from .profiler import Profiler
+from .scouter import Scouter
 
-__all__ = ["Profiler"]
+__all__ = ["Scouter"]

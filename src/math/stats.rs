@@ -7,6 +7,23 @@ use numpy::ndarray::ArrayView1;
 use rayon::prelude::*;
 use std::collections::HashSet;
 
+// Checks if features are provided, if not, generate feature names
+pub fn check_features(
+    features: &Vec<String>,
+    array: ArrayView2<f64>,
+) -> Result<Vec<String>, anyhow::Error> {
+    if features.is_empty() {
+        let mut feature_names = Vec::new();
+        for i in 0..array.ncols() {
+            feature_names.push(format!("feature_{}", i));
+        }
+
+        Ok(feature_names)
+    } else {
+        Ok(features.to_owned())
+    }
+}
+
 /// Compute quantiles for a 1D array.
 ///
 /// # Arguments
