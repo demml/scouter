@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::logging::logger::Logger;
 use crate::math::stats::{check_features, compute_array_stats, create_2d_monitor_profile};
 use crate::types::_types::MonitorProfile;
@@ -24,18 +22,41 @@ impl RustScouter {
     pub fn new(features: Option<Vec<String>>) -> Self {
         Self {
             logger: Logger::new(),
-            features: features.unwrap_or(Vec::new()),
+            features: features.unwrap_or_default(),
         }
     }
 
-    pub fn create_data_profile(&mut self, array: PyReadonlyArray2<f64>) -> PyResult<()> {
+    pub fn create_data_profilef32(&mut self, array: PyReadonlyArray2<f32>) -> PyResult<()> {
         self.logger.info("Creating data profile");
 
         let array = array.as_array();
 
         self.features = match check_features(&self.features, array) {
             Ok(features) => features,
-            Err(e) => {
+            Err(_e) => {
+                return Err(PyValueError::new_err("Failed to check features"));
+            }
+        };
+
+        let stat_vec = array
+            .axis_iter(Axis(1))
+            .into_par_iter()
+            .map(|x| compute_array_stats(&x))
+            .collect::<Vec<_>>();
+
+        println!("{:?}", stat_vec);
+
+        Ok(())
+    }
+
+    pub fn create_data_profilef64(&mut self, array: PyReadonlyArray2<f64>) -> PyResult<()> {
+        self.logger.info("Creating data profile");
+
+        let array = array.as_array();
+
+        self.features = match check_features(&self.features, array) {
+            Ok(features) => features,
+            Err(_e) => {
                 return Err(PyValueError::new_err("Failed to check features"));
             }
         };

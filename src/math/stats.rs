@@ -313,9 +313,7 @@ fn compute_c4(number: usize) -> f64 {
     let n = number as f64;
     let left = 4.0 * n - 4.0;
     let right = 4.0 * n - 3.0;
-    let c4 = left / right;
-
-    c4
+    left / right
 }
 
 fn compute_control_limits<F>(
@@ -339,8 +337,8 @@ where
         .with_context(|| "Failed to compute sample sigma")?
         .into();
 
-    let denominator: f64 = (sample_size as f64).sqrt().into();
-    let x: f64 = (sample_sigma / (c4 * denominator)).into();
+    let denominator: f64 = (sample_size as f64).sqrt();
+    let x: f64 = sample_sigma / (c4 * denominator);
 
     // compute xbar ucl
     let right = 3.0 * x;
@@ -420,7 +418,7 @@ where
             Ok(monitor) => {
                 monitor_profile.insert(arr_features[i].clone(), monitor.clone());
             }
-            Err(e) => {
+            Err(_e) => {
                 return Err(anyhow::Error::msg("Failed to create monitor profile"));
             }
         }

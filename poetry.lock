@@ -643,6 +643,105 @@ files = [
 ]
 
 [[package]]
+name = "rusty-logger"
+version = "0.3.0"
+description = "Super fast logging for python"
+optional = false
+python-versions = ">=3.8, <3.13"
+files = [
+    {file = "rusty_logger-0.3.0-cp310-cp310-macosx_10_12_x86_64.whl", hash = "sha256:2b8f5cfe4a452a421cd7ca16181c7614105e6ca0eda85f8f231e931acfc8ceb2"},
+    {file = "rusty_logger-0.3.0-cp310-cp310-macosx_11_0_arm64.whl", hash = "sha256:c440838ae9e40d7b1cce953ba791980136bde82366ccb7d22f1b8ad2fa9fbd6b"},
+    {file = "rusty_logger-0.3.0-cp310-cp310-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:162533aff2fa7a53e92286eafd1d6e50c17b9eb5c5925a3e95eeeb6e450e54ea"},
+    {file = "rusty_logger-0.3.0-cp310-cp310-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:9c6c8c8d6b230cc781662b0009bb2f5f4ba552932f3b48b09621e2e82fb6f662"},
+    {file = "rusty_logger-0.3.0-cp310-cp310-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:451960cabd8c237a9cc2956a766cfa68852b1f38b1170a8574dd2406dd74f50c"},
+    {file = "rusty_logger-0.3.0-cp310-cp310-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:123269f9e199819628f0a50d2f923f404459c2ed2889a991151c4b6feb8c7b42"},
+    {file = "rusty_logger-0.3.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6f06ab30d92a049f2c08802e0b3f15004ac9155b4ed8c182f909df0c6225f020"},
+    {file = "rusty_logger-0.3.0-cp310-cp310-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:b1adf46c1a950e5237177292eb7e3978421475e44a2657468b6a9625a829cbec"},
+    {file = "rusty_logger-0.3.0-cp310-cp310-musllinux_1_1_aarch64.whl", hash = "sha256:9326a5553c7098b3b4a4adebc590b9ddd3e141014779ed0c5490aa6a0c023456"},
+    {file = "rusty_logger-0.3.0-cp310-cp310-musllinux_1_1_x86_64.whl", hash = "sha256:c9cab7b5718083777051a214ad557cd8d7569633ece3c64ebadd4eb9f6847aac"},
+    {file = "rusty_logger-0.3.0-cp310-none-win32.whl", hash = "sha256:9c0138caa9729cd5d1043981f21bf0f34cbe0b96b5b3a8a04a5aa69b356395e2"},
+    {file = "rusty_logger-0.3.0-cp310-none-win_amd64.whl", hash = "sha256:98da3ea41545023d3309957676e3c2af7e60360213c23756c8561a1637d7b487"},
+    {file = "rusty_logger-0.3.0-cp311-cp311-macosx_10_12_x86_64.whl", hash = "sha256:f03448872a882da91f8df237e0726357567ca99225a305f6af57042b5bd843da"},
+    {file = "rusty_logger-0.3.0-cp311-cp311-macosx_11_0_arm64.whl", hash = "sha256:c57e1081adcec425d3875447a0e48a50e248267caffb0ad31b0f154c160b3305"},
+    {file = "rusty_logger-0.3.0-cp311-cp311-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:2823ae4f66d03f56a2d77aebc795c628fd0ed6e4469ab8e384ff436815d7bcc1"},
+    {file = "rusty_logger-0.3.0-cp311-cp311-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:711a611bae82946d9054db473e6aff3ae5f5d06f512ea2e8b41edc81c82f023b"},
+    {file = "rusty_logger-0.3.0-cp311-cp311-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:8ec7eb3a51688394b508d5b7c10de663117c92b195349e6c2da1952c30301ba0"},
+    {file = "rusty_logger-0.3.0-cp311-cp311-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:84f6739026386614c84cfe7f9d51b7d06d20fdfb68be2e537f80012386c58b78"},
+    {file = "rusty_logger-0.3.0-cp311-cp311-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:5b12679a75c51769ab8c5d5adac37391b218bfd13752ffe9fb955a49530f86ac"},
+    {file = "rusty_logger-0.3.0-cp311-cp311-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:80e3ac275688ff5cb9d026dc08e5b79cd5935600659337e253ba2dc29faf3a92"},
+    {file = "rusty_logger-0.3.0-cp311-cp311-musllinux_1_1_aarch64.whl", hash = "sha256:276614b048f60a7a01848315879aaa45e0fd8b692658f9e5ebd208d9c07f5178"},
+    {file = "rusty_logger-0.3.0-cp311-cp311-musllinux_1_1_x86_64.whl", hash = "sha256:47204a5a62789a8b1ce43c8be166b48bf339e5b62df55d7ed07dd71ee7c8c7c6"},
+    {file = "rusty_logger-0.3.0-cp311-none-win32.whl", hash = "sha256:10c6cf9c3ec82a21e79a51024abaf41c975ab5092734670b3d261381a463b446"},
+    {file = "rusty_logger-0.3.0-cp311-none-win_amd64.whl", hash = "sha256:2ef4161ce41b6e49e8661470418a7f2f2ef6bb755723e1adb4b46bd16e52494f"},
+    {file = "rusty_logger-0.3.0-cp312-cp312-macosx_10_12_x86_64.whl", hash = "sha256:b5f3810a752227885079088de1a7738afca93f051aded1bdbdf9d49ff2d5fe77"},
+    {file = "rusty_logger-0.3.0-cp312-cp312-macosx_11_0_arm64.whl", hash = "sha256:a938520225e7304560c1c585bdea096664a587d8d2f92584a38b1ce5b19f3c35"},
+    {file = "rusty_logger-0.3.0-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:4ac8e7e3687325e91da5846a81baed5750b2fe3fb129ed575ddeeafbe027d744"},
+    {file = "rusty_logger-0.3.0-cp312-cp312-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:2ed3609b49aa0c8834ef47bde530ca72352de7dd8dccbbb4b2055fec6678e891"},
+    {file = "rusty_logger-0.3.0-cp312-cp312-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:ecb011c5911a5bc50ca206967c03191a34a8e6bfead0badc738c74a51733acaa"},
+    {file = "rusty_logger-0.3.0-cp312-cp312-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:3473c5a6949d210e2dafb5ddd67927c05e858f3a2a9b3fffb3b30769cb86e0ee"},
+    {file = "rusty_logger-0.3.0-cp312-cp312-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:7b34ade87868069931dac2eb88c2c41361ae5ff1afebedd9253eed3a924939af"},
+    {file = "rusty_logger-0.3.0-cp312-cp312-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:c5d016b2590c2d3e9ac6e1e533b5d3c2f58355b9a33c0bb1c127ab68928d6b11"},
+    {file = "rusty_logger-0.3.0-cp312-cp312-musllinux_1_1_aarch64.whl", hash = "sha256:2c76146c50d775ee9b5efa0777625bea50a7adf8ef7b74175a58de348b58a39d"},
+    {file = "rusty_logger-0.3.0-cp312-cp312-musllinux_1_1_x86_64.whl", hash = "sha256:49b072397ab039fadfe471c2b32005f5eda65bdc904459ff881a5e774c7686ca"},
+    {file = "rusty_logger-0.3.0-cp312-none-win32.whl", hash = "sha256:c4d6dd892fa8b0cab8cffb622806c1c808d93531920226326207269c45422a7e"},
+    {file = "rusty_logger-0.3.0-cp312-none-win_amd64.whl", hash = "sha256:9ee59fb631c0e605f2616abb10bf808ea50ca41c76694909d6a632195e107d6a"},
+    {file = "rusty_logger-0.3.0-cp38-cp38-macosx_10_12_x86_64.whl", hash = "sha256:daba876339fe3e58e9a4e81e35d55f867f2a8606ee29fef0b889b1cb228dc475"},
+    {file = "rusty_logger-0.3.0-cp38-cp38-macosx_11_0_arm64.whl", hash = "sha256:51e98bd763e82174411b586b665c2435b0825a64a1d9bbd37b3e86f0f99dcfc6"},
+    {file = "rusty_logger-0.3.0-cp38-cp38-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:2ce0ae994102706572172cba22e8d4244816fe6de9b9356bdf09b724f04f19f3"},
+    {file = "rusty_logger-0.3.0-cp38-cp38-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:eed176525ec3e0a759eb66cecf3bf4c5554d6b9241810d482687521ed2b34643"},
+    {file = "rusty_logger-0.3.0-cp38-cp38-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:08c53d1e8a8f5b6fbd2fdb3540c3ee1efd8e1c988be4bf5391142ca7cb05966e"},
+    {file = "rusty_logger-0.3.0-cp38-cp38-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:2368ed12357958646c57a1c02873dd6e9bee92d5f90639e18581e73a5656b270"},
+    {file = "rusty_logger-0.3.0-cp38-cp38-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:b5e22b365494865b8a90cf915ea8badaa0d932b6a8c143b33a27977bf9f40c45"},
+    {file = "rusty_logger-0.3.0-cp38-cp38-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:3438a2d223110b11175e0f19e96b8a943e17e4e3b0dfd25cfa514fbab112d864"},
+    {file = "rusty_logger-0.3.0-cp38-cp38-musllinux_1_1_aarch64.whl", hash = "sha256:6cf020f4acc0ac78ea41180ac213345b6514440abf98631e7c9e4781cf9f7f02"},
+    {file = "rusty_logger-0.3.0-cp38-cp38-musllinux_1_1_x86_64.whl", hash = "sha256:15063d0762e6a5a3962804d8151a164550f7d60090e8557d051bf776307a296b"},
+    {file = "rusty_logger-0.3.0-cp38-none-win32.whl", hash = "sha256:b2af078acc109c927348453a8edbcd4cca33069b4fd34c35ffe129f2b207a3a7"},
+    {file = "rusty_logger-0.3.0-cp38-none-win_amd64.whl", hash = "sha256:8abd724f492ba0c5a725c6fdb5b0c6a031001a0dd978f94544d6a1f3a2e827dc"},
+    {file = "rusty_logger-0.3.0-cp39-cp39-macosx_10_12_x86_64.whl", hash = "sha256:9aa2a1040fff400e1aacf953712527d9563fb6876fc4b2fb18298dda0d40e065"},
+    {file = "rusty_logger-0.3.0-cp39-cp39-macosx_11_0_arm64.whl", hash = "sha256:77b8da347f8d1dfa0ddd68ec839b712f199b69702f82405bdd7dd79930e8762d"},
+    {file = "rusty_logger-0.3.0-cp39-cp39-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a55938fc0db344072790908d54a6e30c00a3be869427d38716df08ed1043710b"},
+    {file = "rusty_logger-0.3.0-cp39-cp39-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:d6c870d9776b9e002cf985f87b0d2ced22e6edfc4b371a73643635a409353e2a"},
+    {file = "rusty_logger-0.3.0-cp39-cp39-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:448501700bb5ac3a49d1dd264320ef9f2695fadbea13a783380ed54c91147373"},
+    {file = "rusty_logger-0.3.0-cp39-cp39-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:8b541ff265b061a7e7294a474637ca4802946ac65efc813941c3109518d8b720"},
+    {file = "rusty_logger-0.3.0-cp39-cp39-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:bab3edef827f4e1c253d9268c38cba357c84ee9212a80e5b536cfab9e3e279d7"},
+    {file = "rusty_logger-0.3.0-cp39-cp39-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:ae7784888b61858bbe53d6aa56da1104b556eb32e63196337e0b45efa00576b2"},
+    {file = "rusty_logger-0.3.0-cp39-cp39-musllinux_1_1_aarch64.whl", hash = "sha256:e696b56a22adec7866fbc7bbc7d12e7bd425d2f1a8b48ea0123471915ce13bd2"},
+    {file = "rusty_logger-0.3.0-cp39-cp39-musllinux_1_1_x86_64.whl", hash = "sha256:64bba2f262ea9524cac144f176e587829488ed13aa85439e8f2c525c7a8df7b3"},
+    {file = "rusty_logger-0.3.0-cp39-none-win32.whl", hash = "sha256:fb5998b3d1337dba4570a17a2ce0ad47df330b0372ba26363537986a524b3941"},
+    {file = "rusty_logger-0.3.0-cp39-none-win_amd64.whl", hash = "sha256:72724fac76e18491e4f9fabda86ab7a824cd771906a396d11b534a58a7f3ae7d"},
+    {file = "rusty_logger-0.3.0-pp310-pypy310_pp73-macosx_10_12_x86_64.whl", hash = "sha256:bfc483e401935b81abc7e8d8ae534792e6aebbe09bbfa0ee68e5219d0dec5482"},
+    {file = "rusty_logger-0.3.0-pp310-pypy310_pp73-macosx_11_0_arm64.whl", hash = "sha256:0b2e9b86c3b64adc51115801100c61d47d789c6781068fb8a413b392d7fa92d1"},
+    {file = "rusty_logger-0.3.0-pp310-pypy310_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:61e00bda9b1e7dd65015cee148d7ab126b488a9b090b73279d61b071a6dd0e2b"},
+    {file = "rusty_logger-0.3.0-pp310-pypy310_pp73-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:c628b3e01da367c18584700aa32d893d15ee88cf911386067aa3d9e050cb6773"},
+    {file = "rusty_logger-0.3.0-pp310-pypy310_pp73-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:2b0c5a33acc174044508e9375961724baf9f806aeb71f1f8ee7036d833addfb9"},
+    {file = "rusty_logger-0.3.0-pp310-pypy310_pp73-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:1620937e0216fb9b3c991d4d872bee21bcc79fb8dbf3f13b2dcc5a4d85a561ed"},
+    {file = "rusty_logger-0.3.0-pp310-pypy310_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:35a217755becc13f03744766f7bed6c65374b26c869eca6619b70a9411bce022"},
+    {file = "rusty_logger-0.3.0-pp310-pypy310_pp73-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:0e326ca7eb542655546c281ef0a52d2722544ab4248e17bdaa3d956afbd0c83b"},
+    {file = "rusty_logger-0.3.0-pp310-pypy310_pp73-musllinux_1_1_aarch64.whl", hash = "sha256:f5ce30dc3ce1b1bcf4dedfd72362cfc270b469b754c2d100f70be65a739b557f"},
+    {file = "rusty_logger-0.3.0-pp310-pypy310_pp73-musllinux_1_1_x86_64.whl", hash = "sha256:196e5389c1cf31862f0c52a9d0b4929dacebda23bcdc563cfa5dae42340e57f9"},
+    {file = "rusty_logger-0.3.0-pp38-pypy38_pp73-macosx_10_12_x86_64.whl", hash = "sha256:069092a9a69c2859a83c29c88428ee4bf52e89f929be0e960a78f6e58f459dd6"},
+    {file = "rusty_logger-0.3.0-pp38-pypy38_pp73-macosx_11_0_arm64.whl", hash = "sha256:84ee884a991d01eea2e75da2defd2d65b5ef8137fd385891848637ddf7dbdc63"},
+    {file = "rusty_logger-0.3.0-pp38-pypy38_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:e2ac1cfaf59715be50c020e2fde2ea835f6f890f2fdff8afd7cbcf3395b51b06"},
+    {file = "rusty_logger-0.3.0-pp38-pypy38_pp73-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:5fb80a86204f6fdd92efd990c365e3789ba88c430de68671251707425ffe257a"},
+    {file = "rusty_logger-0.3.0-pp38-pypy38_pp73-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:62586709f8bdb0263c8cd84274787b665ccf3abefa594941312891c070aaea9d"},
+    {file = "rusty_logger-0.3.0-pp38-pypy38_pp73-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:0515b3d74135281fd0ee2a64b21a9413c5ab068fbf9b268f58b001ea938a77b7"},
+    {file = "rusty_logger-0.3.0-pp38-pypy38_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d10a140c27c329f31c1dbf48fee9ae730f6638744268370b766519911811300d"},
+    {file = "rusty_logger-0.3.0-pp38-pypy38_pp73-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:254dc9797d455dc605390bcfe2f342eb6f5ca6c0dcf064208c254aebd2dd2c06"},
+    {file = "rusty_logger-0.3.0-pp38-pypy38_pp73-musllinux_1_1_aarch64.whl", hash = "sha256:05b55eb1262bfb08ab43c975ebec1401c7bac29d66d3dbcbd4985516bc2ac047"},
+    {file = "rusty_logger-0.3.0-pp38-pypy38_pp73-musllinux_1_1_x86_64.whl", hash = "sha256:58fe375b58e7a5c18b08baacb348e8d3d95fbe11be91f0f408c75b891f2eac72"},
+    {file = "rusty_logger-0.3.0-pp39-pypy39_pp73-macosx_10_12_x86_64.whl", hash = "sha256:d2374de8e0aa5a3f8daa0ac8bca295aeb5b9a850b8754b3075941eca2b6d9630"},
+    {file = "rusty_logger-0.3.0-pp39-pypy39_pp73-macosx_11_0_arm64.whl", hash = "sha256:f407eca7ecaeb7eea42c9a7b459e4e24649bac67fb809b1d4b2d4f8e4a2fdaeb"},
+    {file = "rusty_logger-0.3.0-pp39-pypy39_pp73-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:a249e9513b8884f49698d6d232e63b767d5fb7a0ea7819f2c873e1b1f1972b05"},
+    {file = "rusty_logger-0.3.0-pp39-pypy39_pp73-manylinux_2_17_armv7l.manylinux2014_armv7l.whl", hash = "sha256:c30bc1e75bb0e8924b079148d85fd5ec1e4994e2af728575488d9a4d896226ae"},
+    {file = "rusty_logger-0.3.0-pp39-pypy39_pp73-manylinux_2_17_ppc64le.manylinux2014_ppc64le.whl", hash = "sha256:9fbfc0304966c661c000a0c5133f3126090c6a1c537ea3675691a62895e2309f"},
+    {file = "rusty_logger-0.3.0-pp39-pypy39_pp73-manylinux_2_17_s390x.manylinux2014_s390x.whl", hash = "sha256:61e501c840235b4f6f766342347bb72464012e5de54fd81a212f4f3f801b6371"},
+    {file = "rusty_logger-0.3.0-pp39-pypy39_pp73-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:ded27716ca764e16b13b12414ed149bcd1c24e71df5805d3bf1a9e23f184b0af"},
+    {file = "rusty_logger-0.3.0-pp39-pypy39_pp73-manylinux_2_5_i686.manylinux1_i686.whl", hash = "sha256:870ade7637c8cce54f5be735c1c455d80323f3510e996d6eb89358611eb26698"},
+    {file = "rusty_logger-0.3.0-pp39-pypy39_pp73-musllinux_1_1_aarch64.whl", hash = "sha256:8c2d5a83ccc9f6d4fb15bb3b35cc2146b5449329deff7d29ce2dd04622563076"},
+    {file = "rusty_logger-0.3.0-pp39-pypy39_pp73-musllinux_1_1_x86_64.whl", hash = "sha256:7a5fcac840ec0f788fab8d4c37e483d18dc3aef99d127f4fca7828021b6506ed"},
+]
+
+[[package]]
 name = "six"
 version = "1.16.0"
 description = "Python 2 and 3 compatibility utilities"
@@ -779,4 +878,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.12"
-content-hash = "445b5a5c476c029a3d16a7538be38c32732d4e1deac85d63f498d6cb838fbdf8"
+content-hash = "40d6c044116ed729cfb05451cc3781c5aa2e589e67e0ffd4720fc55ce58110cd"

@@ -8,6 +8,9 @@ cargo.format:
 cargo.lints:
 	cargo clippy --workspace --all-targets -- -D warnings
 
+cargo.test:
+	cargo test
+
 format.black:
 	poetry run black ${SOURCE_OBJECTS}
 format.ruff:

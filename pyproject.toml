@@ -10,6 +10,7 @@ python = ">=3.9,<3.12"
 numpy = "^1.26.4"
 polars = "^0.20.7"
 pandas = "^2.2.0"
+rusty-logger = "^0.3.0"
 
 [tool.poetry.group.dev]
 optional = true
