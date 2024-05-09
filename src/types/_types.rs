@@ -1,18 +1,22 @@
+use std::collections::HashMap;
+
+use num_traits::Num;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 
 /// Python class for a monitoring profile
 ///
 /// # Arguments
 ///
+/// * `id` - The id value
 /// * `center` - The center value
 /// * `ucl` - The upper control limit
 /// * `lcl` - The lower control limit
+/// * `timestamp` - The timestamp value
 ///
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct MonitorProfile {
+pub struct FeatureMonitorProfile {
     #[pyo3(get, set)]
     pub id: String,
 
@@ -24,6 +28,16 @@ pub struct MonitorProfile {
 
     #[pyo3(get, set)]
     pub lcl: f64,
+
+    #[pyo3(get, set)]
+    pub timestamp: String,
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MonitorProfile {
+    #[pyo3(get, set)]
+    pub features: HashMap<String, FeatureMonitorProfile>,
 }
 
 /// Python class for quantiles
@@ -35,20 +49,19 @@ pub struct MonitorProfile {
 /// * `quant_75` - The 75th percentile
 /// * `quant_99` - The 99th percentile
 ///
-#[pyclass]
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Quantiles {
-    #[pyo3(get, set)]
-    pub quant_25: f64,
+pub struct Quantiles<F>
+where
+    F: Num,
+{
+    pub quant_25: F,
 
-    #[pyo3(get, set)]
-    pub quant_50: f64,
+    pub quant_50: F,
 
-    #[pyo3(get, set)]
-    pub quant_75: f64,
+    pub quant_75: F,
 
-    #[pyo3(get, set)]
-    pub quant_99: f64,
+    pub quant_99: F,
 }
 
 /// Python class for a feature bin
@@ -58,13 +71,11 @@ pub struct Quantiles {
 /// * `bins` - A vector of bins
 /// * `bin_counts` - A vector of bin counts
 ///
-#[pyclass]
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Bin {
-    #[pyo3(get, set)]
     pub bins: Vec<f64>,
 
-    #[pyo3(get, set)]
     pub bin_counts: Vec<i32>,
 }
 
@@ -75,13 +86,11 @@ pub struct Bin {
 /// * `count` - The number of distinct values
 /// * `percent` - The percentage of distinct values
 ///
-#[pyclass]
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Distinct {
-    #[pyo3(get, set)]
     pub count: usize,
 
-    #[pyo3(get, set)]
     pub percent: f64,
 }
 
@@ -92,13 +101,11 @@ pub struct Distinct {
 /// * `count` - The number of infinite values
 /// * `percent` - The percentage of infinite values
 ///
-#[pyclass]
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Infinity {
-    #[pyo3(get, set)]
     pub count: usize,
 
-    #[pyo3(get, set)]
     pub percent: f64,
 }
 
@@ -109,13 +116,10 @@ pub struct Infinity {
 /// * `count` - The number of missing values
 /// * `percent` - The percentage of missing values
 ///
-#[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Missing {
-    #[pyo3(get, set)]
     pub count: usize,
 
-    #[pyo3(get, set)]
     pub percent: f64,
 }
 
@@ -133,32 +137,24 @@ pub struct Missing {
 /// * `missing` - The missing data metadata
 /// * `quantiles` - The quantiles data metadata
 ///
-#[pyclass]
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Stats {
-    #[pyo3(get, set)]
+pub struct Stats<F: Num> {
     pub mean: f64,
 
-    #[pyo3(get, set)]
     pub standard_dev: f64,
 
-    #[pyo3(get, set)]
     pub min: f64,
 
-    #[pyo3(get, set)]
     pub max: f64,
 
-    #[pyo3(get, set)]
     pub distinct: Distinct,
 
-    #[pyo3(get, set)]
     pub infinity: Infinity,
 
-    #[pyo3(get, set)]
     pub missing: Missing,
 
-    #[pyo3(get, set)]
-    pub quantiles: Quantiles,
+    pub quantiles: Quantiles<F>,
 }
 
 /// Python class for holding feature metadata
@@ -169,29 +165,12 @@ pub struct Stats {
 /// * `bins` - The bins of the feature
 /// * `stats` - The stats of the feature
 ///
-#[pyclass]
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct FeatureStat {
-    #[pyo3(get, set)]
+pub struct FeatureStat<F: Num> {
     pub name: String,
 
-    #[pyo3(get, set)]
     pub bins: Bin,
 
-    #[pyo3(get, set)]
-    pub stats: Stats,
-}
-
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct FeatureStats {
-    pub feature: HashMap<String, FeatureStat>,
-}
-
-#[pymethods]
-impl FeatureStat {
-    #[new]
-    fn new(name: String, bins: Bin, stats: Stats) -> Self {
-        Self { name, bins, stats }
-    }
+    pub stats: Stats<F>,
 }

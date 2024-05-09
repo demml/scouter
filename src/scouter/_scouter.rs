@@ -12,14 +12,14 @@ use pyo3::prelude::*;
 use rayon::prelude::*;
 
 #[pyclass]
-pub struct Scouter {
+pub struct RustScouter {
     logger: Logger,
     features: Vec<String>,
 }
 
 #[pymethods]
 #[allow(clippy::new_without_default)]
-impl Scouter {
+impl RustScouter {
     #[new]
     pub fn new(features: Option<Vec<String>>) -> Self {
         Self {
@@ -51,10 +51,28 @@ impl Scouter {
         Ok(())
     }
 
-    pub fn create_2d_monitor_profile(
+    pub fn create_monitor_profile_f32(
+        &mut self,
+        array: PyReadonlyArray2<f32>,
+    ) -> PyResult<MonitorProfile> {
+        self.logger.info("Creating monitor profile");
+
+        let array = array.as_array();
+
+        let profile = match create_2d_monitor_profile(&self.features, array) {
+            Ok(profile) => profile,
+            Err(_e) => {
+                return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
+            }
+        };
+
+        Ok(profile)
+    }
+
+    pub fn create_monitor_profile_f64(
         &mut self,
         array: PyReadonlyArray2<f64>,
-    ) -> PyResult<HashMap<String, MonitorProfile>> {
+    ) -> PyResult<MonitorProfile> {
         self.logger.info("Creating monitor profile");
 
         let array = array.as_array();

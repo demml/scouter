@@ -3,11 +3,10 @@ mod math;
 mod scouter;
 mod types;
 use pyo3::prelude::*;
-use scouter::_scouter::Scouter;
+use scouter::_scouter::RustScouter;
 
-/// Python implementation for the Rusty Logger
 #[pymodule]
-fn _scouter(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_class::<Scouter>()?;
+fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<RustScouter>()?;
     Ok(())
 }

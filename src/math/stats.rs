@@ -1,16 +1,22 @@
-use crate::types::_types::{Distinct, Infinity, Missing, MonitorProfile, Quantiles, Stats};
+use crate::types::_types::{
+    Distinct, FeatureMonitorProfile, Infinity, Missing, MonitorProfile, Quantiles, Stats,
+};
 use anyhow::{Context, Result};
+use chrono::Utc;
 use ndarray::prelude::*;
+use ndarray_stats::MaybeNan;
 use ndarray_stats::{interpolate::Nearest, QuantileExt};
 use noisy_float::types::n64;
+use num_traits::{Float, FromPrimitive, Num};
 use numpy::ndarray::ArrayView1;
 use rayon::prelude::*;
+use std::cmp::Ord;
 use std::collections::{HashMap, HashSet};
 
 // Checks if features are provided, if not, generate feature names
-pub fn check_features(
+pub fn check_features<F>(
     features: &Vec<String>,
-    array: ArrayView2<f64>,
+    array: ArrayView2<F>,
 ) -> Result<Vec<String>, anyhow::Error> {
     if features.is_empty() {
         let mut feature_names = Vec::new();
@@ -33,7 +39,12 @@ pub fn check_features(
 /// # Returns
 ///
 /// A 2D array of noisy floats.
-pub fn compute_quantiles(array: &ArrayView1<f64>) -> Result<Quantiles> {
+pub fn compute_quantiles<F>(array: &ArrayView1<F>) -> Result<Quantiles<F>>
+where
+    F: Num + ndarray_stats::MaybeNan + std::marker::Send + Sync + Clone + Copy,
+    <F as ndarray_stats::MaybeNan>::NotNan: Clone,
+    <F as ndarray_stats::MaybeNan>::NotNan: Ord,
+{
     let axis = Axis(0);
     let qs = &[n64(0.25), n64(0.5), n64(0.75), n64(0.99)];
 
@@ -65,8 +76,13 @@ pub fn compute_quantiles(array: &ArrayView1<f64>) -> Result<Quantiles> {
 /// # Returns
 ///
 /// A 1D array of f64 values.
-pub fn compute_mean(array: &ArrayView1<f64>) -> Result<f64, anyhow::Error> {
-    array.mean().with_context(|| "Failed to compute mean")
+pub fn compute_mean<F>(array: &ArrayView1<F>) -> Result<F, anyhow::Error>
+where
+    F: FromPrimitive + Num + Clone,
+{
+    let mean: F = array.mean().with_context(|| "Failed to compute mean")?;
+
+    Ok(mean)
 }
 
 /// Compute the stddev for a 2D array.
@@ -78,8 +94,12 @@ pub fn compute_mean(array: &ArrayView1<f64>) -> Result<f64, anyhow::Error> {
 /// # Returns
 ///
 /// A 1D array of f64 values.
-pub fn compute_stddev(array: &ArrayView1<f64>) -> Result<f64> {
-    Ok(array.std(1.0))
+pub fn compute_stddev<F>(array: &ArrayView1<F>) -> Result<F>
+where
+    F: FromPrimitive + Num + Float,
+{
+    let ddof = F::from(1.0).unwrap();
+    Ok(array.std(ddof))
 }
 
 /// Compute the min for a 1D array.
@@ -91,8 +111,14 @@ pub fn compute_stddev(array: &ArrayView1<f64>) -> Result<f64> {
 /// # Returns
 ///
 /// A 1D array of f64 values.
-pub fn compute_min(array: &ArrayView1<f64>) -> Result<f64, anyhow::Error> {
-    Ok(array.min_skipnan().to_owned())
+pub fn compute_min<F>(array: &ArrayView1<F>) -> Result<F, anyhow::Error>
+where
+    F: MaybeNan + Num + Clone,
+    <F as MaybeNan>::NotNan: Ord,
+    F: Into<f64>,
+{
+    let min = array.min_skipnan().to_owned();
+    Ok(min)
 }
 
 /// Compute the max for a 1D array.
@@ -104,7 +130,11 @@ pub fn compute_min(array: &ArrayView1<f64>) -> Result<f64, anyhow::Error> {
 /// # Returns
 ///
 /// A 1D array of f64 values.
-pub fn compute_max(array: &ArrayView1<f64>) -> Result<f64, anyhow::Error> {
+pub fn compute_max<F>(array: &ArrayView1<F>) -> Result<F, anyhow::Error>
+where
+    F: MaybeNan + Num + Clone,
+    <F as MaybeNan>::NotNan: Ord,
+{
     Ok(array.max_skipnan().to_owned())
 }
 
@@ -117,7 +147,10 @@ pub fn compute_max(array: &ArrayView1<f64>) -> Result<f64, anyhow::Error> {
 /// # Returns
 ///
 /// A 1D array of f64 values.
-pub fn compute_distinct(array: &ArrayView1<f64>) -> Result<Distinct> {
+pub fn compute_distinct<F>(array: &ArrayView1<F>) -> Result<Distinct>
+where
+    F: std::fmt::Display + Num,
+{
     let unique: HashSet<String> = array.iter().map(|x| x.to_string()).collect();
     let count = unique.len() as f64;
 
@@ -135,7 +168,10 @@ pub fn compute_distinct(array: &ArrayView1<f64>) -> Result<Distinct> {
 ///
 /// # Returns
 /// A 1D array of f64 values.
-pub fn count_missing_perc(array: &ArrayView1<f64>) -> Result<Missing> {
+pub fn count_missing_perc<F>(array: &ArrayView1<F>) -> Result<Missing>
+where
+    F: Sync + Num + MaybeNan,
+{
     let count = array
         .into_par_iter()
         .map(|x| if x.is_nan() { 1.0 } else { 0.0 })
@@ -158,7 +194,10 @@ pub fn count_missing_perc(array: &ArrayView1<f64>) -> Result<Missing> {
 ///
 /// # Returns
 /// * `Result<(f64, f64), String>` - A tuple containing the number of infinite values and the percentage of infinite values
-pub fn count_infinity_perc(array: &ArrayView1<f64>) -> Result<Infinity> {
+pub fn count_infinity_perc<F>(array: &ArrayView1<F>) -> Result<Infinity>
+where
+    F: Sync + Num + Float,
+{
     let count = array
         .into_par_iter()
         .map(|x| if x.is_infinite() { 1.0 } else { 0.0 })
@@ -182,9 +221,16 @@ pub fn count_infinity_perc(array: &ArrayView1<f64>) -> Result<Infinity> {
 /// # Returns
 ///
 /// A tuple containing the mean, standard deviation, min, max, distinct, and quantiles
-pub fn compute_base_stats(
-    array: &ArrayView1<f64>,
-) -> Result<(f64, f64, f64, f64, Distinct, Quantiles)> {
+pub fn compute_base_stats<F>(
+    array: &ArrayView1<F>,
+) -> Result<(f64, f64, f64, f64, Distinct, Quantiles<F>)>
+where
+    F: Float + MaybeNan + FromPrimitive + std::fmt::Display + Sync + Send + Num + Clone,
+    F: Into<f64>,
+    <F as MaybeNan>::NotNan: Ord,
+    f64: From<F>,
+    <F as MaybeNan>::NotNan: Clone,
+{
     let mean = compute_mean(array).with_context(|| "Failed to compute mean")?;
     let stddev = compute_stddev(array).with_context(|| "Failed to compute stddev")?;
     let min = compute_min(array).with_context(|| "Failed to compute min")?;
@@ -192,7 +238,14 @@ pub fn compute_base_stats(
     let distinct = compute_distinct(array).with_context(|| "Failed to compute distinct")?;
     let quantiles = compute_quantiles(array).with_context(|| "Failed to compute quantiles")?;
 
-    Ok((mean, stddev, min, max, distinct, quantiles))
+    Ok((
+        mean.into(),
+        stddev.into(),
+        min.into(),
+        max.into(),
+        distinct,
+        quantiles,
+    ))
 }
 
 /// Compute the stats for a 1D array of data
@@ -204,7 +257,13 @@ pub fn compute_base_stats(
 /// # Returns
 ///
 /// A struct containing the mean, standard deviation, min, max, distinct, infinity, missing, and quantiles
-pub fn compute_array_stats(array: &ArrayView1<f64>) -> Result<Stats, anyhow::Error> {
+pub fn compute_array_stats<F>(array: &ArrayView1<F>) -> Result<Stats<F>, anyhow::Error>
+where
+    F: Num + Sync + MaybeNan + FromPrimitive + std::fmt::Display + Send + Float,
+    <F as MaybeNan>::NotNan: Ord,
+    f64: From<F>,
+    <F as MaybeNan>::NotNan: Clone,
+{
     let missing = count_missing_perc(array).with_context(|| "Failed to compute missing")?;
     let infinity = count_infinity_perc(array).with_context(|| "Failed to compute infinity")?;
 
@@ -224,13 +283,9 @@ pub fn compute_array_stats(array: &ArrayView1<f64>) -> Result<Stats, anyhow::Err
 
         Ok(Stats {
             mean,
-
             standard_dev: stddev,
-
             min,
-
             max,
-
             distinct,
             infinity,
             quantiles,
@@ -263,37 +318,51 @@ fn compute_c4(number: usize) -> f64 {
     c4
 }
 
-fn compute_control_limits(
+fn compute_control_limits<F>(
     id: &str,
     sample_size: usize,
-    sample_data: &ArrayView2<f64>,
-) -> Result<MonitorProfile, anyhow::Error> {
-    let c4 = compute_c4(sample_size) as f64;
+    sample_data: &ArrayView2<F>,
+) -> Result<FeatureMonitorProfile, anyhow::Error>
+where
+    F: FromPrimitive + Num + Clone + Float,
+    F: Into<f64>,
+{
+    let c4 = compute_c4(sample_size);
 
     // get mean of 1st col
-    let sample_xbar =
-        compute_mean(&sample_data.column(0)).with_context(|| "Failed to compute sample xbar")?;
+    let sample_xbar: f64 = compute_mean(&sample_data.column(0))
+        .with_context(|| "Failed to compute sample xbar")?
+        .into();
 
     // get std of 2nd col
-    let sample_sigma =
-        compute_stddev(&sample_data.column(1)).with_context(|| "Failed to compute sample sigma")?;
+    let sample_sigma: f64 = compute_stddev(&sample_data.column(1))
+        .with_context(|| "Failed to compute sample sigma")?
+        .into();
+
+    let denominator: f64 = (sample_size as f64).sqrt().into();
+    let x: f64 = (sample_sigma / (c4 * denominator)).into();
 
     // compute xbar ucl
-    let right = 3.0 * (sample_sigma / (c4 * (sample_size as f64).sqrt()));
+    let right = 3.0 * x;
 
-    Ok(MonitorProfile {
+    Ok(FeatureMonitorProfile {
         id: id.to_string(),
         ucl: sample_xbar + right,
         lcl: sample_xbar - right,
         center: sample_xbar,
+        timestamp: Utc::now().to_string(),
     })
 }
 
-pub fn create_1d_monitor_profile(
+pub fn create_1d_monitor_profile<F>(
     id: &str,
-    array: &ArrayView1<f64>,
+    array: &ArrayView1<F>,
     sample_size: usize,
-) -> Result<MonitorProfile, anyhow::Error> {
+) -> Result<FeatureMonitorProfile, anyhow::Error>
+where
+    F: Float + Sync + FromPrimitive + Send + Num,
+    F: Into<f64>,
+{
     // create a 2d array of chunks (xbar, sigma) and return 2d array of xbar and sigma
 
     let sample_data = array
@@ -317,10 +386,14 @@ pub fn create_1d_monitor_profile(
     Ok(profile)
 }
 
-pub fn create_2d_monitor_profile(
+pub fn create_2d_monitor_profile<F>(
     features: &Vec<String>,
-    array: ArrayView2<f64>,
-) -> Result<HashMap<String, MonitorProfile>, anyhow::Error> {
+    array: ArrayView2<F>,
+) -> Result<MonitorProfile, anyhow::Error>
+where
+    F: Float + Sync + FromPrimitive + Send + Num,
+    F: Into<f64>,
+{
     let arr_features =
         check_features(features, array).with_context(|| "Failed to get feature names")?;
 
@@ -336,7 +409,7 @@ pub fn create_2d_monitor_profile(
         .axis_iter(Axis(1))
         .into_par_iter()
         .enumerate()
-        .map(|(idx, x)| create_1d_monitor_profile(&arr_features[idx], &x, 25))
+        .map(|(idx, x)| create_1d_monitor_profile(&arr_features[idx], &x, sample_size))
         .collect::<Vec<_>>();
 
     let mut monitor_profile = HashMap::new();
@@ -353,7 +426,9 @@ pub fn create_2d_monitor_profile(
         }
     }
 
-    Ok(monitor_profile)
+    Ok(MonitorProfile {
+        features: monitor_profile,
+    })
 }
 
 #[cfg(test)]
@@ -377,6 +452,10 @@ mod tests {
         assert!(relative_eq!(quantiles.quant_50, 5.0, max_relative = 1.0));
         assert!(relative_eq!(quantiles.quant_75, 7.5, max_relative = 1.0));
         assert!(relative_eq!(quantiles.quant_99, 9.9, max_relative = 1.0));
+
+        // cast to f32
+        let f32_array = array.mapv(|x| x as f32);
+        let _quantiles = compute_quantiles(&f32_array.column(0).view()).unwrap();
     }
 
     #[test]
@@ -388,6 +467,18 @@ mod tests {
         let stddev = compute_stddev(&array.column(0).view()).unwrap();
         let min = compute_min(&array.column(0).view()).unwrap();
         let max = compute_max(&array.column(0).view()).unwrap();
+
+        assert!(relative_eq!(mean, 5.0, max_relative = 1.0));
+        assert!(relative_eq!(stddev, 2.89, max_relative = 1.0));
+        assert!(relative_eq!(min, 0.0, max_relative = 1.0));
+        assert!(relative_eq!(max, 9.9, max_relative = 1.0));
+
+        // cast to f32
+        let f32_array = array.mapv(|x| x as f32);
+        let mean = compute_mean(&f32_array.column(0).view()).unwrap();
+        let stddev = compute_stddev(&f32_array.column(0).view()).unwrap();
+        let min = compute_min(&f32_array.column(0).view()).unwrap();
+        let max = compute_max(&f32_array.column(0).view()).unwrap();
 
         assert!(relative_eq!(mean, 5.0, max_relative = 1.0));
         assert!(relative_eq!(stddev, 2.89, max_relative = 1.0));
@@ -522,7 +613,6 @@ mod tests {
         let array = Array::random((100, 3), Uniform::new(0., 10.));
 
         let profile = create_1d_monitor_profile("feature", &array.column(0).view(), 10).unwrap();
-        println!("{:?}", profile);
         assert!(relative_eq!(profile.ucl, 5.0, max_relative = 1.0));
         assert!(relative_eq!(profile.lcl, 5.0, max_relative = 1.0));
         assert!(relative_eq!(profile.center, 5.0, max_relative = 1.0));
@@ -531,7 +621,10 @@ mod tests {
     #[test]
     fn test_create_2d_monitor_profile() {
         // create 2d array
-        let array = Array::random((100, 3), Uniform::new(0., 10.));
+        let array = Array::random((10000, 3), Uniform::new(0., 10.));
+
+        // cast array to f32
+        let array = array.mapv(|x| x as f32);
 
         let features = vec![
             "feature_1".to_string(),
@@ -540,7 +633,6 @@ mod tests {
         ];
 
         let profile = create_2d_monitor_profile(&features, array.view()).unwrap();
-        println!("{:?}", profile);
-        assert!(profile.len() == 3);
+        assert_eq!(profile.features.len(), 3);
     }
 }
