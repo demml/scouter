@@ -24,9 +24,8 @@ tracing-subscriber = {version = "0.3.17", features = ["json"]}
 ndarray-stats = "0.5.1"
 noisy_float = "0.2.0"
 anyhow = "1.0.79"
-num-traits = "0.2.19"
-num = "0.4.3"
 chrono = "0.4.38"
+num-traits = "0.2.19"
 
 [dev-dependencies]
 approx = "0.5.1"
