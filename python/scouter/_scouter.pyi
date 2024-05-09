@@ -1,6 +1,6 @@
 from numpy.typing import NDArray
 
-class DataProfiler:
+class Scouter:
     def __init__(self):
         """Create a data profiler object."""
         ...
