@@ -14,6 +14,9 @@ use std::collections::HashMap;
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MonitorProfile {
     #[pyo3(get, set)]
+    pub id: String,
+
+    #[pyo3(get, set)]
     pub center: f64,
 
     #[pyo3(get, set)]

@@ -5,7 +5,7 @@ use ndarray_stats::{interpolate::Nearest, QuantileExt};
 use noisy_float::types::n64;
 use numpy::ndarray::ArrayView1;
 use rayon::prelude::*;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
 
 // Checks if features are provided, if not, generate feature names
 pub fn check_features(
@@ -264,6 +264,7 @@ fn compute_c4(number: usize) -> f64 {
 }
 
 fn compute_control_limits(
+    id: &str,
     sample_size: usize,
     sample_data: &ArrayView2<f64>,
 ) -> Result<MonitorProfile, anyhow::Error> {
@@ -281,13 +282,15 @@ fn compute_control_limits(
     let right = 3.0 * (sample_sigma / (c4 * (sample_size as f64).sqrt()));
 
     Ok(MonitorProfile {
+        id: id.to_string(),
         ucl: sample_xbar + right,
         lcl: sample_xbar - right,
         center: sample_xbar,
     })
 }
 
-pub fn create_monitor_profile(
+pub fn create_1d_monitor_profile(
+    id: &str,
     array: &ArrayView1<f64>,
     sample_size: usize,
 ) -> Result<MonitorProfile, anyhow::Error> {
@@ -308,10 +311,49 @@ pub fn create_monitor_profile(
     // create 2d array of xbar and sigma
     let _sample_data = Array::from_shape_vec((sample_data.len() / 2, 2), sample_data).unwrap();
 
-    let profile = compute_control_limits(sample_size, &_sample_data.view())
+    let profile = compute_control_limits(id, sample_size, &_sample_data.view())
         .with_context(|| "Failed to compute control limits")?;
 
     Ok(profile)
+}
+
+pub fn create_2d_monitor_profile(
+    features: &Vec<String>,
+    array: ArrayView2<f64>,
+) -> Result<HashMap<String, MonitorProfile>, anyhow::Error> {
+    let arr_features =
+        check_features(features, array).with_context(|| "Failed to get feature names")?;
+
+    // get sample size (we can refine this later on)
+    let sample_size = if array.len_of(Axis(0)) < 1000 {
+        100
+    } else {
+        25
+    };
+
+    // iterate through each column and create a monitor profile
+    let monitor_vec = array
+        .axis_iter(Axis(1))
+        .into_par_iter()
+        .enumerate()
+        .map(|(idx, x)| create_1d_monitor_profile(&arr_features[idx], &x, 25))
+        .collect::<Vec<_>>();
+
+    let mut monitor_profile = HashMap::new();
+
+    // iterate over the monitor_vec and add the monitor profile to the hashmap
+    for (i, monitor) in monitor_vec.iter().enumerate() {
+        match monitor {
+            Ok(monitor) => {
+                monitor_profile.insert(arr_features[i].clone(), monitor.clone());
+            }
+            Err(e) => {
+                return Err(anyhow::Error::msg("Failed to create monitor profile"));
+            }
+        }
+    }
+
+    Ok(monitor_profile)
 }
 
 #[cfg(test)]
@@ -477,12 +519,28 @@ mod tests {
     #[test]
     fn test_create_monitor_profile() {
         // create 2d array
-        let array = Array::random((100, 1), Uniform::new(0., 10.));
+        let array = Array::random((100, 3), Uniform::new(0., 10.));
 
-        let profile = create_monitor_profile(&array.column(0).view(), 10).unwrap();
+        let profile = create_1d_monitor_profile("feature", &array.column(0).view(), 10).unwrap();
         println!("{:?}", profile);
         assert!(relative_eq!(profile.ucl, 5.0, max_relative = 1.0));
         assert!(relative_eq!(profile.lcl, 5.0, max_relative = 1.0));
         assert!(relative_eq!(profile.center, 5.0, max_relative = 1.0));
+    }
+
+    #[test]
+    fn test_create_2d_monitor_profile() {
+        // create 2d array
+        let array = Array::random((100, 3), Uniform::new(0., 10.));
+
+        let features = vec![
+            "feature_1".to_string(),
+            "feature_2".to_string(),
+            "feature_3".to_string(),
+        ];
+
+        let profile = create_2d_monitor_profile(&features, array.view()).unwrap();
+        println!("{:?}", profile);
+        assert!(profile.len() == 3);
     }
 }
