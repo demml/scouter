@@ -3,15 +3,20 @@ use crate::types::_types::{
 };
 use anyhow::{Context, Result};
 use chrono::Utc;
+use ndarray::arr3;
 use ndarray::prelude::*;
-use ndarray_stats::MaybeNan;
+use ndarray::OwnedRepr;
+use ndarray::{arr2, concatenate, Axis};
 use ndarray_stats::{interpolate::Nearest, QuantileExt};
+use ndarray_stats::{MaybeNan, MaybeNanExt};
 use noisy_float::types::n64;
 use num_traits::{Float, FromPrimitive, Num};
 use numpy::ndarray::ArrayView1;
 use rayon::prelude::*;
+use serde_json::to_vec;
 use std::cmp::Ord;
 use std::collections::{HashMap, HashSet};
+use std::fmt::Debug;
 
 // Checks if features are provided, if not, generate feature names
 pub fn check_features<F>(
@@ -323,10 +328,14 @@ fn compute_control_limits<F>(
     c4: f64,
 ) -> Result<FeatureMonitorProfile, anyhow::Error>
 where
-    F: FromPrimitive + Num + Clone + Float,
+    F: FromPrimitive + Num + Clone + Float + Debug,
     F: Into<f64>,
 {
     // get mean of 1st col
+    let means = sample_data.mean_axis(Axis(0)).unwrap();
+
+    println!("{:?}", means);
+
     let sample_xbar: f64 = compute_mean(&sample_data.column(0))
         .with_context(|| "Failed to compute sample xbar")?
         .into();
@@ -351,45 +360,12 @@ where
     })
 }
 
-pub fn create_1d_monitor_profile<F>(
-    id: &str,
-    array: &ArrayView1<F>,
-    sample_size: usize,
-    c4: f64,
-) -> Result<FeatureMonitorProfile, anyhow::Error>
-where
-    F: Float + Sync + FromPrimitive + Send + Num,
-    F: Into<f64>,
-{
-    // create a 2d array of chunks (xbar, sigma) and return 2d array of xbar and sigma
-
-    let sample_data = array
-        .axis_chunks_iter(Axis(0), sample_size)
-        .into_par_iter()
-        .filter(|x| x.len() == sample_size)
-        .map(|x| {
-            let mean = compute_mean(&x).unwrap();
-            let stddev = compute_stddev(&x).unwrap();
-            vec![mean, stddev]
-        })
-        .collect::<Vec<_>>()
-        .concat();
-
-    // create 2d array of xbar and sigma
-    let _sample_data = Array::from_shape_vec((sample_data.len() / 2, 2), sample_data).unwrap();
-
-    let profile = compute_control_limits(id, sample_size, &_sample_data.view(), c4)
-        .with_context(|| "Failed to compute control limits")?;
-
-    Ok(profile)
-}
-
 pub fn create_2d_monitor_profile<F>(
     features: &Vec<String>,
     array: ArrayView2<F>,
 ) -> Result<MonitorProfile, anyhow::Error>
 where
-    F: Float + Sync + FromPrimitive + Send + Num,
+    F: Float + Sync + FromPrimitive + Send + Num + Debug + num_traits::Zero,
     F: Into<f64>,
 {
     let arr_features =
@@ -404,31 +380,62 @@ where
 
     let c4 = compute_c4(sample_size);
 
-    // iterate through each column and create a monitor profile
-    let monitor_vec = array
-        .axis_iter(Axis(1))
+    // iterate through each feature
+    let sample_vec = array
+        .axis_chunks_iter(Axis(0), sample_size)
         .into_par_iter()
-        .enumerate()
-        .map(|(idx, x)| create_1d_monitor_profile(&arr_features[idx], &x, sample_size, c4))
+        .map(|x| {
+            let mut mean = x.mean_axis(Axis(0)).unwrap().to_vec();
+            let mut stddev = x.std_axis(Axis(0), F::from(1.0).unwrap()).to_vec();
+
+            // concatenate vecs
+            mean.append(&mut stddev);
+
+            mean
+        })
         .collect::<Vec<_>>();
 
-    // iterate over the monitor_vec and add the monitor profile to the hashmap
-    let monitor_profile: HashMap<String, FeatureMonitorProfile> = monitor_vec
-        .into_iter()
-        .map(|profile| {
-            // matching doesn't seem to work here
-            if profile.is_err() {
-                panic!("Failed to create monitor profile")
-            } else {
-                let prof = profile.unwrap();
-                (prof.id.clone(), prof)
-            }
-        })
-        .collect();
+    let sample_data = Array::from_shape_vec(
+        (sample_vec.len(), arr_features.len() * 2),
+        sample_vec.concat(),
+    )
+    .unwrap();
 
-    Ok(MonitorProfile {
-        features: monitor_profile,
-    })
+    println!("{:?}", sample_data);
+
+    let sample_mean = sample_data.mean_axis(Axis(0));
+
+    let slice = sample_data
+        .slice_axis(
+            Axis(1),
+            ndarray::Slice {
+                start: 3,
+                end: Some(6),
+                step: 1,
+            },
+        )
+        .mean_axis(Axis(0));
+    println!("{:?}", sample_mean);
+
+    // iterate through each column and create a monitor profile
+
+    //let sample_vec = array
+    //    .axis_chunks_iter(Axis(0), sample_size)
+    //    .into_par_iter()
+    //    .map(|x| {
+    //        let mean = x.mean_axis(Axis(0)).unwrap();
+    //        let stddev = x.std_axis(Axis(0), F::from(1.0).unwrap());
+    //
+    //        vec![mean, stddev]
+    //    })
+    //    .collect::<Vec<_>>()
+    //    .concat();
+    //
+    //// create 2d array of mean and stddev
+    //let sample_data = Array::from_shape_vec((sample_vec.len() / 2, 2), sample_vec).unwrap();
+
+    let a = HashMap::new();
+    Ok(MonitorProfile { features: a })
 }
 
 #[cfg(test)]
@@ -608,23 +615,9 @@ mod tests {
     }
 
     #[test]
-    fn test_create_monitor_profile() {
-        // create 2d array
-        let array = Array::random((100, 3), Uniform::new(0., 10.));
-
-        let c4 = compute_c4(100);
-
-        let profile =
-            create_1d_monitor_profile("feature", &array.column(0).view(), 10, c4).unwrap();
-        assert!(relative_eq!(profile.ucl, 5.0, max_relative = 1.0));
-        assert!(relative_eq!(profile.lcl, 5.0, max_relative = 1.0));
-        assert!(relative_eq!(profile.center, 5.0, max_relative = 1.0));
-    }
-
-    #[test]
     fn test_create_2d_monitor_profile() {
         // create 2d array
-        let array = Array::random((10000, 3), Uniform::new(0., 10.));
+        let array = Array::random((1030, 3), Uniform::new(0., 10.));
 
         // cast array to f32
         let array = array.mapv(|x| x as f32);
@@ -637,5 +630,26 @@ mod tests {
 
         let profile = create_2d_monitor_profile(&features, array.view()).unwrap();
         assert_eq!(profile.features.len(), 3);
+    }
+
+    #[test]
+    fn test_iter_axis_chunks() {
+        // create 2d array
+        let array = arr2(&[
+            [1., 2., 3.],
+            [1., f64::NAN, 6.],
+            [1., 8., 9.],
+            [1., 11., 12.],
+        ]);
+
+        array.axis_chunks_iter(Axis(0), 3).for_each(|x| {
+            println!("{:?}", x);
+
+            let mean = x.mean_axis(Axis(0)).unwrap();
+            let stddev = x.std_axis(Axis(0), 1.0);
+
+            println!("mean {:?}", mean);
+        });
+        assert_eq!(2, 3);
     }
 }

@@ -87,9 +87,11 @@ class NumpyScouter:
                 )
             )
 
+            {f"feat{i}": result for i, result in enumerate(results)}
+
 
 if __name__ == "__main__":
     import numpy as np
 
-    array = np.random.rand(1_000_000, 200)
+    array = np.random.rand(4_000_000, 200)
     NumpyScouter().create_monitoring_profile(array)
