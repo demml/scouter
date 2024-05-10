@@ -91,5 +91,5 @@ class NumpyScouter:
 if __name__ == "__main__":
     import numpy as np
 
-    array = np.random.rand(1_000_000, 100)
+    array = np.random.rand(1_000_000, 200)
     NumpyScouter().create_monitoring_profile(array)

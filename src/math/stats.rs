@@ -412,19 +412,19 @@ where
         .map(|(idx, x)| create_1d_monitor_profile(&arr_features[idx], &x, sample_size, c4))
         .collect::<Vec<_>>();
 
-    let mut monitor_profile = HashMap::new();
-
     // iterate over the monitor_vec and add the monitor profile to the hashmap
-    for (i, monitor) in monitor_vec.iter().enumerate() {
-        match monitor {
-            Ok(monitor) => {
-                monitor_profile.insert(arr_features[i].clone(), monitor.clone());
+    let monitor_profile: HashMap<String, FeatureMonitorProfile> = monitor_vec
+        .into_iter()
+        .map(|profile| {
+            // matching doesn't seem to work here
+            if profile.is_err() {
+                panic!("Failed to create monitor profile")
+            } else {
+                let prof = profile.unwrap();
+                (prof.id.clone(), prof)
             }
-            Err(_e) => {
-                return Err(anyhow::Error::msg("Failed to create monitor profile"));
-            }
-        }
-    }
+        })
+        .collect();
 
     Ok(MonitorProfile {
         features: monitor_profile,

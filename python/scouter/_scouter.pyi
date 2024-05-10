@@ -8,18 +8,18 @@ class RustScouter:
     ) -> None:
         """Create a data profiler object."""
         ...
-    def create_data_profile32(self, array: NDArray) -> None:
+    def create_data_profile_f32(self, array: NDArray) -> None:
         """Create a data profile from a f32 numpy array."""
         ...
 
-    def create_data_profile64(self, array: NDArray) -> None:
+    def create_data_profile_f64(self, array: NDArray) -> None:
         """Create a data profile from a f32 numpy array."""
         ...
 
-    def create_monitoring_profile32(self, array: NDArray) -> None:
+    def create_monitor_profile_f32(self, array: NDArray) -> None:
         """Create a monitoring profile from a f64 numpy array."""
         ...
 
-    def create_monitoring_profile64(self, array: NDArray) -> None:
+    def create_monitor_profile_f64(self, array: NDArray) -> None:
         """Create a monitoring profile from a f64 numpy array."""
         ...

@@ -12,6 +12,7 @@ polars = {version = "^0.20.7", platform = "linux" }
 polars-lts-cpu = {version = "^0.20.7", platform = "darwin" }
 pandas = "^2.2.0"
 rusty-logger = "^0.3.0"
+pydantic = "^2.7.1"
 
 [tool.poetry.group.dev]
 optional = true

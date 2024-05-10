@@ -14,29 +14,22 @@ use serde::{Deserialize, Serialize};
 /// * `lcl` - The lower control limit
 /// * `timestamp` - The timestamp value
 ///
-#[pyclass]
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FeatureMonitorProfile {
-    #[pyo3(get, set)]
     pub id: String,
 
-    #[pyo3(get, set)]
     pub center: f64,
 
-    #[pyo3(get, set)]
     pub ucl: f64,
 
-    #[pyo3(get, set)]
     pub lcl: f64,
 
-    #[pyo3(get, set)]
     pub timestamp: String,
 }
 
-#[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MonitorProfile {
-    #[pyo3(get, set)]
     pub features: HashMap<String, FeatureMonitorProfile>,
 }
 

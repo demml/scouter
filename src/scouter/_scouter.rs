@@ -1,10 +1,10 @@
-use crate::logging::logger::Logger;
 use crate::math::stats::{check_features, compute_array_stats, create_2d_monitor_profile};
 use crate::types::_types::MonitorProfile;
 
 use ndarray::prelude::*;
 use numpy::PyReadonlyArray2;
 use pyo3::exceptions::PyValueError;
+use pyo3::types::PyDict;
 
 use pyo3::prelude::*;
 use rayon::prelude::*;
@@ -24,7 +24,7 @@ impl RustScouter {
         }
     }
 
-    pub fn create_data_profilef32(&mut self, array: PyReadonlyArray2<f32>) -> PyResult<()> {
+    pub fn create_data_profile_f32(&mut self, array: PyReadonlyArray2<f32>) -> PyResult<()> {
         let array = array.as_array();
 
         self.features = match check_features(&self.features, array) {
@@ -45,7 +45,7 @@ impl RustScouter {
         Ok(())
     }
 
-    pub fn create_data_profilef64(&mut self, array: PyReadonlyArray2<f64>) -> PyResult<()> {
+    pub fn create_data_profile_f64(&mut self, array: PyReadonlyArray2<f64>) -> PyResult<()> {
         let array = array.as_array();
 
         self.features = match check_features(&self.features, array) {
@@ -66,10 +66,7 @@ impl RustScouter {
         Ok(())
     }
 
-    pub fn create_monitor_profile_f32(
-        &mut self,
-        array: PyReadonlyArray2<f32>,
-    ) -> PyResult<MonitorProfile> {
+    pub fn create_monitor_profile_f32(&mut self, array: PyReadonlyArray2<f32>) -> PyResult<String> {
         let array = array.as_array();
 
         let profile = match create_2d_monitor_profile(&self.features, array) {
@@ -79,13 +76,12 @@ impl RustScouter {
             }
         };
 
-        Ok(profile)
+        let msg = serde_json::to_string(&profile).unwrap();
+
+        Ok(msg)
     }
 
-    pub fn create_monitor_profile_f64(
-        &mut self,
-        array: PyReadonlyArray2<f64>,
-    ) -> PyResult<MonitorProfile> {
+    pub fn create_monitor_profile_f64(&mut self, array: PyReadonlyArray2<f64>) -> PyResult<String> {
         let array = array.as_array();
 
         let profile = match create_2d_monitor_profile(&self.features, array) {
@@ -95,6 +91,8 @@ impl RustScouter {
             }
         };
 
-        Ok(profile)
+        let msg = serde_json::to_string(&profile).unwrap();
+
+        Ok(msg)
     }
 }
