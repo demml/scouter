@@ -1,5 +1,5 @@
 mod logging;
-mod math;
+pub mod math;
 mod scouter;
 mod types;
 use pyo3::prelude::*;

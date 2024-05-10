@@ -401,8 +401,6 @@ where
     )
     .unwrap();
 
-    println!("{:?}", sample_data);
-
     let sample_mean = sample_data.mean_axis(Axis(0));
 
     let slice = sample_data
@@ -415,7 +413,6 @@ where
             },
         )
         .mean_axis(Axis(0));
-    println!("{:?}", sample_mean);
 
     // iterate through each column and create a monitor profile
 
