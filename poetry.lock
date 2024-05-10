@@ -460,17 +460,57 @@ testing = ["pytest", "pytest-benchmark"]
 
 [[package]]
 name = "polars"
-version = "0.20.24"
+version = "0.20.25"
 description = "Blazingly fast DataFrame library"
 optional = false
 python-versions = ">=3.8"
 files = [
-    {file = "polars-0.20.24-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:a2c7282e0c81f038c9800ec4e1d97fe53dcacbba9632baf31a633e8bf12caab3"},
-    {file = "polars-0.20.24-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:02587e12435e583693351c4757cf571b90165ceb53b031e891aadf2c816cc59d"},
-    {file = "polars-0.20.24-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:dfbb129941dd0cfa05f0fb5ef1cde341fed336b4dfcb81c3bef6f3f6b899cb17"},
-    {file = "polars-0.20.24-cp38-abi3-manylinux_2_24_aarch64.whl", hash = "sha256:9921df98cee040903d35aef2c7237182240451e1ad413116a82e1e166d8fe943"},
-    {file = "polars-0.20.24-cp38-abi3-win_amd64.whl", hash = "sha256:dc0fb1169d3d0b286793421a6919c6a9f06235b9f93c1e00f01f199e038d3681"},
-    {file = "polars-0.20.24.tar.gz", hash = "sha256:a0c11f3b5e756bab7ba164ed73104c96fa9c861efce157fe8991b3eafeb4b0b8"},
+    {file = "polars-0.20.25-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:126e3b7d9394e4b23b4cc48919b7188203feeeb35d861ad808f281eaa06d76e2"},
+    {file = "polars-0.20.25-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:3bda62b681726538714a1159638ab7c9eeca6b8633fd778d84810c3e13b9c7e3"},
+    {file = "polars-0.20.25-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:62c8826e81c759f07bf5c0ae00f57a537644ae05fe68737185666b8ad8430664"},
+    {file = "polars-0.20.25-cp38-abi3-manylinux_2_24_aarch64.whl", hash = "sha256:0fb5e7a4a9831fba742f1c706e01656607089b6362a5e6f8d579b134a99795ce"},
+    {file = "polars-0.20.25-cp38-abi3-win_amd64.whl", hash = "sha256:9eaeb9080c853e11b207d191025e0ba8fd59ea06a36c22d410a48f2f124e18cd"},
+    {file = "polars-0.20.25.tar.gz", hash = "sha256:4308d63f956874bac9ae040bdd6d62b2992d0b1e1349301bc7a3b59458189108"},
+]
+
+[package.extras]
+adbc = ["adbc-driver-manager", "adbc-driver-sqlite"]
+all = ["polars[adbc,async,cloudpickle,connectorx,deltalake,fastexcel,fsspec,gevent,numpy,pandas,plot,pyarrow,pydantic,pyiceberg,sqlalchemy,timezone,torch,xlsx2csv,xlsxwriter]"]
+async = ["nest-asyncio"]
+cloudpickle = ["cloudpickle"]
+connectorx = ["connectorx (>=0.3.2)"]
+deltalake = ["deltalake (>=0.15.0)"]
+fastexcel = ["fastexcel (>=0.9)"]
+fsspec = ["fsspec"]
+gevent = ["gevent"]
+matplotlib = ["matplotlib"]
+numpy = ["numpy (>=1.16.0)"]
+openpyxl = ["openpyxl (>=3.0.0)"]
+pandas = ["pandas", "pyarrow (>=7.0.0)"]
+plot = ["hvplot (>=0.9.1)"]
+pyarrow = ["pyarrow (>=7.0.0)"]
+pydantic = ["pydantic"]
+pyiceberg = ["pyiceberg (>=0.5.0)"]
+pyxlsb = ["pyxlsb (>=1.0)"]
+sqlalchemy = ["pandas", "sqlalchemy"]
+timezone = ["backports-zoneinfo", "tzdata"]
+torch = ["torch"]
+xlsx2csv = ["xlsx2csv (>=0.8.0)"]
+xlsxwriter = ["xlsxwriter"]
+
+[[package]]
+name = "polars-lts-cpu"
+version = "0.20.25"
+description = "Blazingly fast DataFrame library"
+optional = false
+python-versions = ">=3.8"
+files = [
+    {file = "polars_lts_cpu-0.20.25-cp38-abi3-macosx_10_12_x86_64.whl", hash = "sha256:ef3a7d9f20c7d6c31b3c04872de25ccb6d483aa6d4eb85a4010d633f8c91fba6"},
+    {file = "polars_lts_cpu-0.20.25-cp38-abi3-macosx_11_0_arm64.whl", hash = "sha256:43294248e030651b8c7298e992209dc0106830b428555e38d722ab3a95242020"},
+    {file = "polars_lts_cpu-0.20.25-cp38-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:f16087d45793f01b8f198a9a0aab659b1075a0ee9f5e16fc0bc5ceca45468cb2"},
+    {file = "polars_lts_cpu-0.20.25-cp38-abi3-manylinux_2_24_aarch64.whl", hash = "sha256:88415568a9e516121c1891f79e418243da85e372604cb01a240dc3403bbbecb3"},
+    {file = "polars_lts_cpu-0.20.25-cp38-abi3-win_amd64.whl", hash = "sha256:f28b221005504c7c8b777ced30144268a79addbfd68a9c432e616f1920239376"},
+    {file = "polars_lts_cpu-0.20.25.tar.gz", hash = "sha256:99453b49fa6f566a9165e93c08ad5ef9abdea617bb380c8661de1efc7c90ea63"},
 ]
 
 [package.extras]
@@ -765,13 +805,13 @@ files = [
 
 [[package]]
 name = "tomlkit"
-version = "0.12.4"
+version = "0.12.5"
 description = "Style preserving TOML library"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "tomlkit-0.12.4-py3-none-any.whl", hash = "sha256:5cd82d48a3dd89dee1f9d64420aa20ae65cfbd00668d6f094d7578a78efbb77b"},
-    {file = "tomlkit-0.12.4.tar.gz", hash = "sha256:7ca1cfc12232806517a8515047ba66a19369e71edf2439d0f5824f91032b6cc3"},
+    {file = "tomlkit-0.12.5-py3-none-any.whl", hash = "sha256:af914f5a9c59ed9d0762c7b64d3b5d5df007448eb9cd2edc8a46b1eafead172f"},
+    {file = "tomlkit-0.12.5.tar.gz", hash = "sha256:eef34fba39834d4d6b73c9ba7f3e4d1c417a4e56f89a7e96e090dd0d24b8fb3c"},
 ]
 
 [[package]]
@@ -878,4 +918,4 @@ files = [
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.12"
-content-hash = "40d6c044116ed729cfb05451cc3781c5aa2e589e67e0ffd4720fc55ce58110cd"
+content-hash = "c5a675b2a3822599cbc4f7eb8d46b0f85815bf7377b17cb802f0ead0a90be0d5"

@@ -1,6 +1,7 @@
-from typing import Union
-from numpy.typing import NDArray, Optional, List
-import polars as pl
+from typing import Union, Optional, List
+from numpy.typing import NDArray
+
+# import polars as pl
 import pandas as pd
 from scouter.utils.logger import ScouterLogger
 
@@ -22,18 +23,16 @@ class Scouter:
         """
         self._scouter = RustScouter(features)
 
-    def _convert_data_to_array(
-        self, data: Union[pl.DataFrame, pd.DataFrame, NDArray]
-    ) -> NDArray:
-        if isinstance(data, pl.DataFrame):
-            return data.to_numpy()
+    def _convert_data_to_array(self, data: Union[pd.DataFrame, NDArray]) -> NDArray:
+        # if isinstance(data, pl.DataFrame):
+        # return data.to_numpy()
         if isinstance(data, pd.DataFrame):
             return data.to_numpy()
         return data
 
     def create_data_profile(
         self,
-        data: Union[pl.DataFrame, pd.DataFrame, NDArray],
+        data: Union[pd.DataFrame, NDArray],
     ) -> None:
         array = self._convert_data_to_array(data)
 
@@ -41,7 +40,7 @@ class Scouter:
 
     def create_monitoring_profile(
         self,
-        data: Union[pl.DataFrame, pd.DataFrame, NDArray],
+        data: Union[pd.DataFrame, NDArray],
     ) -> None:
         # convert data to numpy array
         array = self._convert_data_to_array(data)

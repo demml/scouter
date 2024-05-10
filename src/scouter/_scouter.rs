@@ -11,7 +11,6 @@ use rayon::prelude::*;
 
 #[pyclass]
 pub struct RustScouter {
-    logger: Logger,
     features: Vec<String>,
 }
 
@@ -21,14 +20,11 @@ impl RustScouter {
     #[new]
     pub fn new(features: Option<Vec<String>>) -> Self {
         Self {
-            logger: Logger::new(),
             features: features.unwrap_or_default(),
         }
     }
 
     pub fn create_data_profilef32(&mut self, array: PyReadonlyArray2<f32>) -> PyResult<()> {
-        self.logger.info("Creating data profile");
-
         let array = array.as_array();
 
         self.features = match check_features(&self.features, array) {
@@ -50,8 +46,6 @@ impl RustScouter {
     }
 
     pub fn create_data_profilef64(&mut self, array: PyReadonlyArray2<f64>) -> PyResult<()> {
-        self.logger.info("Creating data profile");
-
         let array = array.as_array();
 
         self.features = match check_features(&self.features, array) {
@@ -76,8 +70,6 @@ impl RustScouter {
         &mut self,
         array: PyReadonlyArray2<f32>,
     ) -> PyResult<MonitorProfile> {
-        self.logger.info("Creating monitor profile");
-
         let array = array.as_array();
 
         let profile = match create_2d_monitor_profile(&self.features, array) {
@@ -94,8 +86,6 @@ impl RustScouter {
         &mut self,
         array: PyReadonlyArray2<f64>,
     ) -> PyResult<MonitorProfile> {
-        self.logger.info("Creating monitor profile");
-
         let array = array.as_array();
 
         let profile = match create_2d_monitor_profile(&self.features, array) {

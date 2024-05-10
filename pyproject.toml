@@ -2,13 +2,14 @@
 name = "scouter"
 version = "0.1.0"
 description = ""
-authors = ["Thorrester <steven.forrester@shipt.com>"]
+authors = ["Thorrester <support@demmlai.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.12"
 numpy = "^1.26.4"
-polars = "^0.20.7"
+polars = {version = "^0.20.7", platform = "linux" }
+polars-lts-cpu = {version = "^0.20.7", platform = "darwin" }
 pandas = "^2.2.0"
 rusty-logger = "^0.3.0"
 

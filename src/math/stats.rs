@@ -309,7 +309,7 @@ where
 }
 
 fn compute_c4(number: usize) -> f64 {
-    //c4 is asymptotically equivalent to (4n-3)/(4n-4)
+    //c4 is asymptotically equivalent to (4n-4)/(4n-3)
     let n = number as f64;
     let left = 4.0 * n - 4.0;
     let right = 4.0 * n - 3.0;
@@ -320,13 +320,12 @@ fn compute_control_limits<F>(
     id: &str,
     sample_size: usize,
     sample_data: &ArrayView2<F>,
+    c4: f64,
 ) -> Result<FeatureMonitorProfile, anyhow::Error>
 where
     F: FromPrimitive + Num + Clone + Float,
     F: Into<f64>,
 {
-    let c4 = compute_c4(sample_size);
-
     // get mean of 1st col
     let sample_xbar: f64 = compute_mean(&sample_data.column(0))
         .with_context(|| "Failed to compute sample xbar")?
@@ -356,6 +355,7 @@ pub fn create_1d_monitor_profile<F>(
     id: &str,
     array: &ArrayView1<F>,
     sample_size: usize,
+    c4: f64,
 ) -> Result<FeatureMonitorProfile, anyhow::Error>
 where
     F: Float + Sync + FromPrimitive + Send + Num,
@@ -378,7 +378,7 @@ where
     // create 2d array of xbar and sigma
     let _sample_data = Array::from_shape_vec((sample_data.len() / 2, 2), sample_data).unwrap();
 
-    let profile = compute_control_limits(id, sample_size, &_sample_data.view())
+    let profile = compute_control_limits(id, sample_size, &_sample_data.view(), c4)
         .with_context(|| "Failed to compute control limits")?;
 
     Ok(profile)
@@ -402,12 +402,14 @@ where
         25
     };
 
+    let c4 = compute_c4(sample_size);
+
     // iterate through each column and create a monitor profile
     let monitor_vec = array
         .axis_iter(Axis(1))
         .into_par_iter()
         .enumerate()
-        .map(|(idx, x)| create_1d_monitor_profile(&arr_features[idx], &x, sample_size))
+        .map(|(idx, x)| create_1d_monitor_profile(&arr_features[idx], &x, sample_size, c4))
         .collect::<Vec<_>>();
 
     let mut monitor_profile = HashMap::new();
@@ -610,7 +612,10 @@ mod tests {
         // create 2d array
         let array = Array::random((100, 3), Uniform::new(0., 10.));
 
-        let profile = create_1d_monitor_profile("feature", &array.column(0).view(), 10).unwrap();
+        let c4 = compute_c4(100);
+
+        let profile =
+            create_1d_monitor_profile("feature", &array.column(0).view(), 10, c4).unwrap();
         assert!(relative_eq!(profile.ucl, 5.0, max_relative = 1.0));
         assert!(relative_eq!(profile.lcl, 5.0, max_relative = 1.0));
         assert!(relative_eq!(profile.center, 5.0, max_relative = 1.0));
