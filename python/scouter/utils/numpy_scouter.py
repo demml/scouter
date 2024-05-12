@@ -4,6 +4,20 @@ import numpy as np
 from typing import Dict, Union
 import polars as pl
 import pandas as pd
+from pydantic import BaseModel
+from datetime import datetime
+
+
+class FeatureMonitorProfile(BaseModel):
+    id: str
+    center: float
+    lcl: float
+    ucl: float
+    timestamp: str
+
+
+class MonitoringProfile(BaseModel):
+    features: Dict[str, FeatureMonitorProfile]
 
 
 def _compute_c4(sample_size: int) -> float:
@@ -37,9 +51,11 @@ def _create_monitoring_profile(array: NDArray) -> Dict[str, float]:
     lcl = mean - 3 * sd
 
     return {
-        "mean": mean,
+        "id": "1",
+        "center": mean,
         "ucl": ucl,
         "lcl": lcl,
+        "timestamp": datetime.now().strftime("%H:%M:%S"),
     }
 
 
@@ -75,7 +91,7 @@ class NumpyScouter:
         if rows < 100:
             sample_size = 25
         else:
-            sample_size = 100
+            sample_size = 100_000
 
         _ = _compute_c4(sample_size)
 
@@ -87,7 +103,9 @@ class NumpyScouter:
                 )
             )
 
-            {f"feat{i}": result for i, result in enumerate(results)}
+            MonitoringProfile(
+                features={f"feat{i}": result for i, result in enumerate(results)}
+            )
 
 
 if __name__ == "__main__":

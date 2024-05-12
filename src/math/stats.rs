@@ -3,17 +3,14 @@ use crate::types::_types::{
 };
 use anyhow::{Context, Result};
 use chrono::Utc;
-use ndarray::arr3;
 use ndarray::prelude::*;
-use ndarray::OwnedRepr;
-use ndarray::{arr2, concatenate, Axis};
+use ndarray::Axis;
+use ndarray_stats::MaybeNan;
 use ndarray_stats::{interpolate::Nearest, QuantileExt};
-use ndarray_stats::{MaybeNan, MaybeNanExt};
 use noisy_float::types::n64;
 use num_traits::{Float, FromPrimitive, Num};
 use numpy::ndarray::ArrayView1;
 use rayon::prelude::*;
-use serde_json::to_vec;
 use std::cmp::Ord;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
@@ -313,9 +310,9 @@ where
     }
 }
 
-fn compute_c4(number: usize) -> f64 {
+fn compute_c4(number: usize) -> f32 {
     //c4 is asymptotically equivalent to (4n-4)/(4n-3)
-    let n = number as f64;
+    let n = number as f32;
     let left = 4.0 * n - 4.0;
     let right = 4.0 * n - 3.0;
     left / right
@@ -333,8 +330,6 @@ where
 {
     // get mean of 1st col
     let means = sample_data.mean_axis(Axis(0)).unwrap();
-
-    println!("{:?}", means);
 
     let sample_xbar: f64 = compute_mean(&sample_data.column(0))
         .with_context(|| "Failed to compute sample xbar")?
@@ -365,15 +360,34 @@ pub fn create_2d_monitor_profile<F>(
     array: ArrayView2<F>,
 ) -> Result<MonitorProfile, anyhow::Error>
 where
-    F: Float + Sync + FromPrimitive + Send + Num + Debug + num_traits::Zero,
+    F: Float
+        + Sync
+        + FromPrimitive
+        + Send
+        + Num
+        + Debug
+        + num_traits::Zero
+        + ndarray::ScalarOperand,
     F: Into<f64>,
 {
+    let shape = array.shape()[0];
     let arr_features =
         check_features(features, array).with_context(|| "Failed to get feature names")?;
 
+    let num_features = arr_features.len();
+
     // get sample size (we can refine this later on)
-    let sample_size = if array.len_of(Axis(0)) < 1000 {
+    //print shape
+    let sample_size = if shape < 1000 {
+        25
+    } else if shape >= 1000 && shape < 10000 {
         100
+    } else if shape >= 10000 && shape < 100000 {
+        1000
+    } else if shape >= 100000 && shape < 1000000 {
+        10000
+    } else if shape >= 1000000 {
+        100000
     } else {
         25
     };
@@ -385,13 +399,14 @@ where
         .axis_chunks_iter(Axis(0), sample_size)
         .into_par_iter()
         .map(|x| {
-            let mut mean = x.mean_axis(Axis(0)).unwrap().to_vec();
-            let mut stddev = x.std_axis(Axis(0), F::from(1.0).unwrap()).to_vec();
+            let mean = x.mean_axis(Axis(0)).unwrap();
+            let stddev = x.std_axis(Axis(0), F::from(1.0).unwrap());
 
-            // concatenate vecs
-            mean.append(&mut stddev);
+            // append stddev to mean
+            let combined = ndarray::concatenate![Axis(0), mean, stddev];
+            //mean.remove_axis(Axis(1));
 
-            mean
+            combined.to_vec()
         })
         .collect::<Vec<_>>();
 
@@ -399,40 +414,61 @@ where
         (sample_vec.len(), arr_features.len() * 2),
         sample_vec.concat(),
     )
-    .unwrap();
+    .with_context(|| "Failed to create 2D array")?;
 
-    let sample_mean = sample_data.mean_axis(Axis(0));
+    let sample_mean = sample_data
+        .mean_axis(Axis(0))
+        .with_context(|| "Failed to compute mean")?;
 
-    let slice = sample_data
-        .slice_axis(
-            Axis(1),
-            ndarray::Slice {
-                start: 3,
-                end: Some(6),
-                step: 1,
+    let means = sample_mean.slice_axis(
+        Axis(0),
+        ndarray::Slice {
+            start: 0,
+            end: Some(num_features as isize),
+            step: 1,
+        },
+    );
+
+    //let means = sample_mean.slice(s![0..num_features]);
+    //let stdev = sample_mean.slice(s![num_features..]);
+
+    let stdev = sample_mean.slice_axis(
+        Axis(0),
+        ndarray::Slice {
+            start: num_features as isize,
+            end: None,
+            step: 1,
+        },
+    );
+
+    // calculate control limits
+    let denominator: F = F::from((sample_size as f64).sqrt()).unwrap();
+    let mult_fact = F::from(c4).unwrap() * denominator;
+
+    let base = &stdev / mult_fact;
+    let right = &base * F::from(3.0).unwrap();
+
+    let lcl = &means - &right;
+    let ucl = &means + &right;
+    let center = &means;
+
+    // create monitor profile
+    let mut features = HashMap::new();
+
+    for (i, feature) in arr_features.iter().enumerate() {
+        features.insert(
+            feature.to_string(),
+            FeatureMonitorProfile {
+                id: feature.to_string(),
+                center: center[i].into(),
+                ucl: ucl[i].into(),
+                lcl: lcl[i].into(),
+                timestamp: Utc::now().to_string(),
             },
-        )
-        .mean_axis(Axis(0));
+        );
+    }
 
-    // iterate through each column and create a monitor profile
-
-    //let sample_vec = array
-    //    .axis_chunks_iter(Axis(0), sample_size)
-    //    .into_par_iter()
-    //    .map(|x| {
-    //        let mean = x.mean_axis(Axis(0)).unwrap();
-    //        let stddev = x.std_axis(Axis(0), F::from(1.0).unwrap());
-    //
-    //        vec![mean, stddev]
-    //    })
-    //    .collect::<Vec<_>>()
-    //    .concat();
-    //
-    //// create 2d array of mean and stddev
-    //let sample_data = Array::from_shape_vec((sample_vec.len() / 2, 2), sample_vec).unwrap();
-
-    let a = HashMap::new();
-    Ok(MonitorProfile { features: a })
+    Ok(MonitorProfile { features: features })
 }
 
 #[cfg(test)]
@@ -627,26 +663,5 @@ mod tests {
 
         let profile = create_2d_monitor_profile(&features, array.view()).unwrap();
         assert_eq!(profile.features.len(), 3);
-    }
-
-    #[test]
-    fn test_iter_axis_chunks() {
-        // create 2d array
-        let array = arr2(&[
-            [1., 2., 3.],
-            [1., f64::NAN, 6.],
-            [1., 8., 9.],
-            [1., 11., 12.],
-        ]);
-
-        array.axis_chunks_iter(Axis(0), 3).for_each(|x| {
-            println!("{:?}", x);
-
-            let mean = x.mean_axis(Axis(0)).unwrap();
-            let stddev = x.std_axis(Axis(0), 1.0);
-
-            println!("mean {:?}", mean);
-        });
-        assert_eq!(2, 3);
     }
 }
