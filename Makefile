@@ -4,13 +4,13 @@ SOURCE_OBJECTS=python/scouter
 
 cargo.format:
 	cargo fmt
-
 cargo.lints:
 	cargo clippy --workspace --all-targets -- -D warnings
-
 cargo.test:
 	cargo test
-
+	
+format.isort:
+	poetry run isort ${FORMAT_OBJECTS}
 format.black:
 	poetry run black ${SOURCE_OBJECTS}
 format.ruff:
