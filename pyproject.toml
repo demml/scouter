@@ -36,6 +36,7 @@ target-version = ['py310']
 include = '\.pyi?$'
 
 [tool.pylint.MASTER]
+ignore-paths = ["python/scouter/utils/comparison/*"]
 load-plugins = ["pylint.extensions.docparams"]
 
 [tool.pylint.messages_control]
@@ -77,6 +78,9 @@ mypy_path = "stubs"
 ignore_missing_imports = true
 plugins = [
     "numpy.typing.mypy_plugin",
+]
+exclude = [
+    "python/scouter/utils/comparison/*",
 ]
 
 

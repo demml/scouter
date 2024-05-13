@@ -121,6 +121,6 @@ class Scouter:
         """
         try:
             return self._get_monitoring_profile(features, data)
-        except Exception as e:  # type: ignore
-            logger.error(f"Failed to create monitoring profile: {e}")
-            raise ValueError(f"Failed to create monitoring profile: {e}")
+        except Exception as exc:  # type: ignore
+            logger.error(f"Failed to create monitoring profile: {exc}")
+            raise ValueError(f"Failed to create monitoring profile: {exc}") from exc

@@ -1,5 +1,5 @@
 from numpy.typing import NDArray
-from typing import List, Optional, Dict
+from typing import List, Dict
 
 class FeatureMonitorProfile:
     @property
