@@ -299,9 +299,6 @@ impl Monitor {
     pub fn new() -> Self {
         Monitor {}
     }
-    pub fn default() -> Self {
-        Monitor {}
-    }
 
     //
 
@@ -438,7 +435,7 @@ impl Monitor {
     /// A monitor profile
     pub fn create_2d_monitor_profile<F>(
         &self,
-        features: &Vec<String>,
+        features: &[String],
         array: ArrayView2<F>,
     ) -> Result<MonitorProfile, anyhow::Error>
     where
@@ -482,6 +479,12 @@ impl Monitor {
             .with_context(|| "Failed to compute control limits")?;
 
         Ok(monitor_profile)
+    }
+}
+
+impl Default for Monitor {
+    fn default() -> Self {
+        Monitor::new()
     }
 }
 

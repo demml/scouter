@@ -10,7 +10,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     let array = Array::random((10000, 10), Uniform::new(0., 10.));
     let features: Vec<String> = (0..200).map(|x| x.to_string()).collect();
     group.bench_function("fib 20", |b| {
-        b.iter(|| monitor.create_2d_monitor_profile(&features, black_box(array.view().clone())))
+        b.iter(|| monitor.create_2d_monitor_profile(&features, black_box(array.view())))
     });
     group.sample_size(10);
     group.finish();
