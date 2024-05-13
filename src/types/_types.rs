@@ -1,8 +1,7 @@
-use std::collections::HashMap;
-
 use num_traits::Num;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 
 /// Python class for a monitoring profile
 ///
@@ -14,23 +13,38 @@ use serde::{Deserialize, Serialize};
 /// * `lcl` - The lower control limit
 /// * `timestamp` - The timestamp value
 ///
-
+#[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FeatureMonitorProfile {
+    #[pyo3(get, set)]
     pub id: String,
 
+    #[pyo3(get, set)]
     pub center: f64,
 
+    #[pyo3(get, set)]
     pub ucl: f64,
 
+    #[pyo3(get, set)]
     pub lcl: f64,
 
+    #[pyo3(get, set)]
     pub timestamp: String,
 }
 
+#[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MonitorProfile {
+    #[pyo3(get, set)]
     pub features: HashMap<String, FeatureMonitorProfile>,
+}
+
+#[pymethods]
+impl MonitorProfile {
+    fn __str__(&self) -> String {
+        // serialize the struct to a string
+        serde_json::to_string_pretty(&self).unwrap()
+    }
 }
 
 /// Python class for quantiles
@@ -42,7 +56,7 @@ pub struct MonitorProfile {
 /// * `quant_75` - The 75th percentile
 /// * `quant_99` - The 99th percentile
 ///
-
+///
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Quantiles<F>
 where

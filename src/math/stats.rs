@@ -15,23 +15,6 @@ use std::cmp::Ord;
 use std::collections::{HashMap, HashSet};
 use std::fmt::Debug;
 
-// Checks if features are provided, if not, generate feature names
-pub fn check_features<F>(
-    features: &Vec<String>,
-    array: ArrayView2<F>,
-) -> Result<Vec<String>, anyhow::Error> {
-    if features.is_empty() {
-        let mut feature_names = Vec::new();
-        for i in 0..array.ncols() {
-            feature_names.push(format!("feature_{}", i));
-        }
-
-        Ok(feature_names)
-    } else {
-        Ok(features.to_owned())
-    }
-}
-
 /// Compute quantiles for a 1D array.
 ///
 /// # Arguments
@@ -310,165 +293,191 @@ where
     }
 }
 
-fn compute_c4(number: usize) -> f32 {
-    //c4 is asymptotically equivalent to (4n-4)/(4n-3)
-    let n = number as f32;
-    let left = 4.0 * n - 4.0;
-    let right = 4.0 * n - 3.0;
-    left / right
-}
+pub struct Monitor {}
 
-fn compute_control_limits<F>(
-    id: &str,
-    sample_size: usize,
-    sample_data: &ArrayView2<F>,
-    c4: f64,
-) -> Result<FeatureMonitorProfile, anyhow::Error>
-where
-    F: FromPrimitive + Num + Clone + Float + Debug,
-    F: Into<f64>,
-{
-    // get mean of 1st col
-    let means = sample_data.mean_axis(Axis(0)).unwrap();
-
-    let sample_xbar: f64 = compute_mean(&sample_data.column(0))
-        .with_context(|| "Failed to compute sample xbar")?
-        .into();
-
-    // get std of 2nd col
-    let sample_sigma: f64 = compute_stddev(&sample_data.column(1))
-        .with_context(|| "Failed to compute sample sigma")?
-        .into();
-
-    let denominator: f64 = (sample_size as f64).sqrt();
-    let x: f64 = sample_sigma / (c4 * denominator);
-
-    // compute xbar ucl
-    let right = 3.0 * x;
-
-    Ok(FeatureMonitorProfile {
-        id: id.to_string(),
-        ucl: sample_xbar + right,
-        lcl: sample_xbar - right,
-        center: sample_xbar,
-        timestamp: Utc::now().to_string(),
-    })
-}
-
-pub fn create_2d_monitor_profile<F>(
-    features: &Vec<String>,
-    array: ArrayView2<F>,
-) -> Result<MonitorProfile, anyhow::Error>
-where
-    F: Float
-        + Sync
-        + FromPrimitive
-        + Send
-        + Num
-        + Debug
-        + num_traits::Zero
-        + ndarray::ScalarOperand,
-    F: Into<f64>,
-{
-    let shape = array.shape()[0];
-    let arr_features =
-        check_features(features, array).with_context(|| "Failed to get feature names")?;
-
-    let num_features = arr_features.len();
-
-    // get sample size (we can refine this later on)
-    //print shape
-    let sample_size = if shape < 1000 {
-        25
-    } else if shape >= 1000 && shape < 10000 {
-        100
-    } else if shape >= 10000 && shape < 100000 {
-        1000
-    } else if shape >= 100000 && shape < 1000000 {
-        10000
-    } else if shape >= 1000000 {
-        100000
-    } else {
-        25
-    };
-
-    let c4 = compute_c4(sample_size);
-
-    // iterate through each feature
-    let sample_vec = array
-        .axis_chunks_iter(Axis(0), sample_size)
-        .into_par_iter()
-        .map(|x| {
-            let mean = x.mean_axis(Axis(0)).unwrap();
-            let stddev = x.std_axis(Axis(0), F::from(1.0).unwrap());
-
-            // append stddev to mean
-            let combined = ndarray::concatenate![Axis(0), mean, stddev];
-            //mean.remove_axis(Axis(1));
-
-            combined.to_vec()
-        })
-        .collect::<Vec<_>>();
-
-    let sample_data = Array::from_shape_vec(
-        (sample_vec.len(), arr_features.len() * 2),
-        sample_vec.concat(),
-    )
-    .with_context(|| "Failed to create 2D array")?;
-
-    let sample_mean = sample_data
-        .mean_axis(Axis(0))
-        .with_context(|| "Failed to compute mean")?;
-
-    let means = sample_mean.slice_axis(
-        Axis(0),
-        ndarray::Slice {
-            start: 0,
-            end: Some(num_features as isize),
-            step: 1,
-        },
-    );
-
-    //let means = sample_mean.slice(s![0..num_features]);
-    //let stdev = sample_mean.slice(s![num_features..]);
-
-    let stdev = sample_mean.slice_axis(
-        Axis(0),
-        ndarray::Slice {
-            start: num_features as isize,
-            end: None,
-            step: 1,
-        },
-    );
-
-    // calculate control limits
-    let denominator: F = F::from((sample_size as f64).sqrt()).unwrap();
-    let mult_fact = F::from(c4).unwrap() * denominator;
-
-    let base = &stdev / mult_fact;
-    let right = &base * F::from(3.0).unwrap();
-
-    let lcl = &means - &right;
-    let ucl = &means + &right;
-    let center = &means;
-
-    // create monitor profile
-    let mut features = HashMap::new();
-
-    for (i, feature) in arr_features.iter().enumerate() {
-        features.insert(
-            feature.to_string(),
-            FeatureMonitorProfile {
-                id: feature.to_string(),
-                center: center[i].into(),
-                ucl: ucl[i].into(),
-                lcl: lcl[i].into(),
-                timestamp: Utc::now().to_string(),
-            },
-        );
+impl Monitor {
+    pub fn new() -> Self {
+        Monitor {}
     }
 
-    Ok(MonitorProfile { features: features })
+    /// Compute c4 for control limits
+    ///
+    /// # Arguments
+    ///
+    /// * `number` - The sample size
+    ///
+    /// # Returns
+    ///
+    /// The c4 value
+    fn compute_c4(&self, number: usize) -> f32 {
+        //c4 is asymptotically equivalent to (4n-4)/(4n-3)
+        let n = number as f32;
+        let left = 4.0 * n - 4.0;
+        let right = 4.0 * n - 3.0;
+        left / right
+    }
+
+    /// Set the sample size based on the shape of the array
+    ///
+    /// # Arguments
+    ///
+    /// * `shape` - The shape of the array
+    ///
+    /// # Returns
+    ///
+    /// The sample size
+    fn set_sample_size(&self, shape: usize) -> usize {
+        if shape < 1000 {
+            25
+        } else if shape >= 1000 && shape < 10000 {
+            100
+        } else if shape >= 10000 && shape < 100000 {
+            1000
+        } else if shape >= 100000 && shape < 1000000 {
+            10000
+        } else if shape >= 1000000 {
+            100000
+        } else {
+            25
+        }
+    }
+
+    /// Compute the mean for a 2D array
+    ///
+    /// # Arguments
+    ///
+    /// * `x` - A 2D array of f64 values
+    ///
+    /// # Returns
+    ///
+    /// A 1D array of f64 values
+    pub fn compute_array_mean<F>(&self, x: &ArrayView2<F>) -> Result<Array1<F>, anyhow::Error>
+    where
+        F: Float
+            + Sync
+            + FromPrimitive
+            + Send
+            + Num
+            + Debug
+            + num_traits::Zero
+            + ndarray::ScalarOperand,
+        F: Into<f64>,
+    {
+        let means = x
+            .mean_axis(Axis(0))
+            .with_context(|| "Failed to compute mean")?;
+
+        Ok(means)
+    }
+
+    fn compute_control_limits<F>(
+        &self,
+        sample_size: usize,
+        sample_data: &ArrayView2<F>,
+        num_features: usize,
+        features: &Vec<String>,
+    ) -> Result<MonitorProfile, anyhow::Error>
+    where
+        F: FromPrimitive + Num + Clone + Float + Debug + Sync + Send + ndarray::ScalarOperand,
+
+        F: Into<f64>,
+    {
+        let c4 = self.compute_c4(sample_size);
+        let sample_mean = self
+            .compute_array_mean(sample_data)
+            .with_context(|| "Failed to compute mean")?;
+
+        let means = sample_mean.slice(s![0..num_features]);
+        let stdev = sample_mean.slice(s![num_features..]);
+        // calculate control limit arrays
+        let denominator: F = F::from((sample_size as f64).sqrt()).unwrap();
+        let mult_fact = F::from(c4).unwrap() * denominator;
+
+        let base = &stdev / mult_fact;
+        let right = &base * F::from(3.0).unwrap();
+
+        let lcl = &means - &right;
+        let ucl = &means + &right;
+        let center = &means;
+
+        // create monitor profile
+        let mut feat_profile = HashMap::new();
+
+        for (i, feature) in features.iter().enumerate() {
+            feat_profile.insert(
+                feature.to_string(),
+                FeatureMonitorProfile {
+                    id: feature.to_string(),
+                    center: center[i].into(),
+                    ucl: ucl[i].into(),
+                    lcl: lcl[i].into(),
+                    timestamp: Utc::now().to_string(),
+                },
+            );
+        }
+
+        Ok(MonitorProfile {
+            features: feat_profile,
+        })
+    }
+
+    /// Create a 2D monitor profile
+    ///
+    /// # Arguments
+    ///
+    /// * `features` - A vector of feature names
+    /// * `array` - A 2D array of f64 values
+    ///
+    /// # Returns
+    ///
+    /// A monitor profile
+    pub fn create_2d_monitor_profile<F>(
+        &self,
+        features: &Vec<String>,
+        array: ArrayView2<F>,
+    ) -> Result<MonitorProfile, anyhow::Error>
+    where
+        F: Float
+            + Sync
+            + FromPrimitive
+            + Send
+            + Num
+            + Debug
+            + num_traits::Zero
+            + ndarray::ScalarOperand,
+        F: Into<f64>,
+    {
+        let shape = array.shape()[0];
+        let num_features = features.len();
+        let sample_size = self.set_sample_size(shape);
+
+        // iterate through each feature
+        let sample_vec = array
+            .axis_chunks_iter(Axis(0), sample_size)
+            .into_par_iter()
+            .map(|x| {
+                let mean = x.mean_axis(Axis(0)).unwrap();
+                let stddev = x.std_axis(Axis(0), F::from(1.0).unwrap());
+
+                // append stddev to mean
+                let combined = ndarray::concatenate![Axis(0), mean, stddev];
+                //mean.remove_axis(Axis(1));
+
+                combined.to_vec()
+            })
+            .collect::<Vec<_>>();
+
+        // reshape vec to 2D array
+        let sample_data =
+            Array::from_shape_vec((sample_vec.len(), features.len() * 2), sample_vec.concat())
+                .with_context(|| "Failed to create 2D array")?;
+
+        let monitor_profile = self
+            .compute_control_limits(sample_size, &sample_data.view(), num_features, &features)
+            .with_context(|| "Failed to compute control limits")?;
+
+        Ok(monitor_profile)
+    }
 }
 
 #[cfg(test)]
@@ -661,7 +670,26 @@ mod tests {
             "feature_3".to_string(),
         ];
 
-        let profile = create_2d_monitor_profile(&features, array.view()).unwrap();
+        let monitor = Monitor::new();
+
+        let profile = monitor
+            .create_2d_monitor_profile(&features, array.view())
+            .unwrap();
         assert_eq!(profile.features.len(), 3);
+    }
+
+    #[test]
+    fn test_raise_error() {
+        // create 2d array
+        let mut array = Array::random((100, 1), Uniform::new(0., 10.));
+
+        // add missing and infinite values
+        array[[0, 0]] = std::f64::NAN;
+        array[[1, 0]] = std::f64::INFINITY;
+
+        let monitor = Monitor::new();
+        let result =
+            monitor.create_2d_monitor_profile(&vec!["feature_1".to_string()], array.view());
+        assert!(result.is_err());
     }
 }

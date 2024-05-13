@@ -1,25 +1,17 @@
 import pytest
 import polars as pl
 import numpy as np
+from numpy.typing import NDArray
 
 
-@pytest.fixture(scope="module")
-def test_polars_dataframe():
-    df = pl.DataFrame(
-        {
-            "int": [1, 2, 3, 4, 5, 6],
-            "str": ["a", "b", "c", "d", "e", "f"],
-            "float": [1.0, 2.0, 3.0, 4.0, 5.0, 6.0],
-        }
-    )
-    return df
+@pytest.fixture(scope="function")
+def array() -> NDArray:
+    array = np.random.rand(1000, 3)
+    # add 1 to first column
+    array[:, 0] += 1
+    # add 2 to second column
+    array[:, 1] += 2
+    # add 3 to third column
+    array[:, 2] += 3
 
-
-@pytest.fixture(scope="module")
-def test_pandas_dataframe(test_polars_dataframe):
-    return test_polars_dataframe.to_pandas()
-
-
-@pytest.fixture(scope="module")
-def test_numpy_array():
-    return np.random.rand(1_000, 3)
+    return array

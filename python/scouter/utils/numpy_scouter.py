@@ -64,9 +64,7 @@ class NumpyScouter:
     def __init__(self):
         self.features = "hello"
 
-    def _convert_data_to_array(
-        self, data: Union[pl.DataFrame, pd.DataFrame, NDArray]
-    ) -> NDArray:
+    def _convert_data_to_array(self, data: Union[pl.DataFrame, pd.DataFrame, NDArray]) -> NDArray:
         if isinstance(data, pl.DataFrame):
             return data.to_numpy()
         if isinstance(data, pd.DataFrame):
@@ -97,15 +95,9 @@ class NumpyScouter:
 
         # create a monitoring profile for each feature
         with ThreadPoolExecutor() as executor:
-            results = list(
-                executor.map(
-                    _create_monitoring_profile, [array[:, i] for i in range(feats)]
-                )
-            )
+            results = list(executor.map(_create_monitoring_profile, [array[:, i] for i in range(feats)]))
 
-            MonitoringProfile(
-                features={f"feat{i}": result for i, result in enumerate(results)}
-            )
+            MonitoringProfile(features={f"feat{i}": result for i, result in enumerate(results)})
 
 
 if __name__ == "__main__":
