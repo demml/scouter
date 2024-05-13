@@ -4,6 +4,7 @@ ignore:
   - "tests"
   - "python/scouter/version.py"
   - "python/scouter/utils/comparison/*"
+  - "python/scouter/version.py"
 
 coverage:
   range: "70...100"
