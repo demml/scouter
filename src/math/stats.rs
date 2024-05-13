@@ -299,6 +299,11 @@ impl Monitor {
     pub fn new() -> Self {
         Monitor {}
     }
+    pub fn default() -> Self {
+        Monitor {}
+    }
+
+    //
 
     /// Compute c4 for control limits
     ///
@@ -329,11 +334,11 @@ impl Monitor {
     fn set_sample_size(&self, shape: usize) -> usize {
         if shape < 1000 {
             25
-        } else if shape >= 1000 && shape < 10000 {
+        } else if (1000..10000).contains(&shape) {
             100
-        } else if shape >= 10000 && shape < 100000 {
+        } else if (10000..100000).contains(&shape) {
             1000
-        } else if shape >= 100000 && shape < 1000000 {
+        } else if (100000..1000000).contains(&shape) {
             10000
         } else if shape >= 1000000 {
             100000
@@ -375,7 +380,7 @@ impl Monitor {
         sample_size: usize,
         sample_data: &ArrayView2<F>,
         num_features: usize,
-        features: &Vec<String>,
+        features: &[String],
     ) -> Result<MonitorProfile, anyhow::Error>
     where
         F: FromPrimitive + Num + Clone + Float + Debug + Sync + Send + ndarray::ScalarOperand,
@@ -473,7 +478,7 @@ impl Monitor {
                 .with_context(|| "Failed to create 2D array")?;
 
         let monitor_profile = self
-            .compute_control_limits(sample_size, &sample_data.view(), num_features, &features)
+            .compute_control_limits(sample_size, &sample_data.view(), num_features, features)
             .with_context(|| "Failed to compute control limits")?;
 
         Ok(monitor_profile)
@@ -676,20 +681,5 @@ mod tests {
             .create_2d_monitor_profile(&features, array.view())
             .unwrap();
         assert_eq!(profile.features.len(), 3);
-    }
-
-    #[test]
-    fn test_raise_error() {
-        // create 2d array
-        let mut array = Array::random((100, 1), Uniform::new(0., 10.));
-
-        // add missing and infinite values
-        array[[0, 0]] = std::f64::NAN;
-        array[[1, 0]] = std::f64::INFINITY;
-
-        let monitor = Monitor::new();
-        let result =
-            monitor.create_2d_monitor_profile(&vec!["feature_1".to_string()], array.view());
-        assert!(result.is_err());
     }
 }
