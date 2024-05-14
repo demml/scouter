@@ -83,6 +83,9 @@ pub struct FeatureProfile {
 
     #[pyo3(get, set)]
     pub quantiles: Quantiles,
+
+    #[pyo3(get, set)]
+    pub histogram: Histogram,
 }
 
 #[pyclass]
@@ -126,17 +129,19 @@ pub struct Quantiles {
     pub q99: f64,
 }
 
-/// Python class for a feature bin
+/// Python class for a feature histogram
 ///
 /// # Arguments
 ///
 /// * `bins` - A vector of bins
 /// * `bin_counts` - A vector of bin counts
 ///
-
+#[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Bin {
+pub struct Histogram {
+    #[pyo3(get, set)]
     pub bins: Vec<f64>,
 
+    #[pyo3(get, set)]
     pub bin_counts: Vec<i32>,
 }

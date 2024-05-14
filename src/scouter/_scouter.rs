@@ -2,7 +2,7 @@ use core::f32;
 
 use crate::math::monitor::Monitor;
 use crate::math::profiler::Profiler;
-use crate::types::_types::MonitorProfile;
+use crate::types::_types::{DataProfile, MonitorProfile};
 
 use ndarray::prelude::*;
 
@@ -22,10 +22,16 @@ pub struct RustScouter {
 #[allow(clippy::new_without_default)]
 impl RustScouter {
     #[new]
-    pub fn new() -> Self {
+    pub fn new(bin_size: Option<usize>) -> Self {
+        let profiler = if bin_size.is_some() {
+            Profiler::new(bin_size.unwrap())
+        } else {
+            Profiler::default()
+        };
+
         Self {
             monitor: Monitor::new(),
-            profiler: Profiler::new(),
+            profiler,
         }
     }
 
@@ -33,24 +39,38 @@ impl RustScouter {
         &mut self,
         array: PyReadonlyArray2<f32>,
         features: Vec<String>,
-    ) -> PyResult<()> {
+    ) -> PyResult<DataProfile> {
         let array = array.as_array();
 
-        self.profiler.compute_stats(&array, &features);
+        let profile = match self.profiler.compute_stats(&array, &features) {
+            Ok(profile) => profile,
+            Err(_e) => {
+                return Err(PyValueError::new_err(
+                    "Failed to create feature data profile",
+                ));
+            }
+        };
 
-        Ok(())
+        Ok(profile)
     }
 
     pub fn create_data_profile_f64(
         &mut self,
         array: PyReadonlyArray2<f64>,
         features: Vec<String>,
-    ) -> PyResult<()> {
+    ) -> PyResult<DataProfile> {
         let array = array.as_array();
 
-        self.profiler.compute_stats(&array, &features);
+        let profile = match self.profiler.compute_stats(&array, &features) {
+            Ok(profile) => profile,
+            Err(_e) => {
+                return Err(PyValueError::new_err(
+                    "Failed to create feature data profile",
+                ));
+            }
+        };
 
-        Ok(())
+        Ok(profile)
     }
 
     pub fn create_monitor_profile_f32(

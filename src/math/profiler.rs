@@ -1,9 +1,10 @@
-use crate::types::_types::{DataProfile, Distinct, FeatureProfile, Quantiles};
+use crate::types::_types::{DataProfile, Distinct, FeatureProfile, Histogram, Quantiles};
 use anyhow::{Context, Result};
 use chrono::Utc;
 use ndarray::prelude::*;
 use ndarray::Axis;
 use ndarray_stats::MaybeNan;
+
 use ndarray_stats::{interpolate::Nearest, QuantileExt};
 use noisy_float::types::n64;
 use num_traits::{Float, FromPrimitive, Num};
@@ -12,11 +13,13 @@ use std::cmp::Ord;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-pub struct Profiler {}
+pub struct Profiler {
+    bin_size: usize,
+}
 
 impl Profiler {
-    pub fn new() -> Self {
-        Profiler {}
+    pub fn new(bin_size: usize) -> Self {
+        Profiler { bin_size: bin_size }
     }
 
     /// Compute quantiles for a 2D array.
@@ -154,6 +157,123 @@ impl Profiler {
         Ok(unique)
     }
 
+    /// Compute the histogram and bins from a 2D matrix.
+    ///
+    /// # Arguments
+    ///
+    /// * `array` - A 2D array of values.
+    ///
+    /// # Returns
+    ///
+    pub fn compute_bins<F>(&self, array: &ArrayView1<F>) -> Result<Vec<f64>, anyhow::Error>
+    where
+        F: Float + Num + core::ops::Sub,
+        f64: From<F>,
+    {
+        // find the min and max of the data
+
+        let max: f64 = array
+            .max()
+            .with_context(|| "Failed to compute max")?
+            .to_owned()
+            .into();
+        let min: f64 = array
+            .min()
+            .with_context(|| "Failed to compute min")?
+            .to_owned()
+            .into();
+
+        // create a vector of bins
+        let mut bins = Vec::<f64>::with_capacity(self.bin_size);
+
+        // compute the bin width
+        let bin_width = (max - min) / self.bin_size as f64;
+
+        // create the bins
+        for i in 0..self.bin_size {
+            bins.push(min + bin_width * i as f64);
+        }
+
+        // return the bins
+        Ok(bins)
+    }
+
+    pub fn compute_bin_counts<F>(
+        &self,
+        array: &ArrayView1<F>,
+        bins: &[f64],
+    ) -> Result<Vec<i32>, anyhow::Error>
+    where
+        F: Num + ndarray_stats::MaybeNan + std::marker::Send + Sync + Clone + Copy,
+        f64: From<F>,
+    {
+        // create a vector of size bins
+        let mut bin_counts = vec![0; bins.len()];
+        let max_bin = bins.last().unwrap();
+
+        array.map(|datum| {
+            // iterate over the bins
+            for (i, bin) in bins.iter().enumerate() {
+                let val: f64 = datum.to_owned().into();
+
+                if bin != max_bin {
+                    // check if datum is between bin and next bin
+                    if &val >= bin && val < bins[i + 1] {
+                        bin_counts[i] += 1;
+                        break;
+                    }
+                    continue;
+                } else if bin == max_bin {
+                    if &val > bin {
+                        bin_counts[i] += 1;
+                        break;
+                    }
+                    continue;
+                } else {
+                    continue;
+                }
+            }
+        });
+
+        Ok(bin_counts)
+    }
+
+    pub fn compute_histogram<F>(
+        &self,
+        array: &ArrayView2<F>,
+        features: &[String],
+    ) -> Result<HashMap<String, Histogram>, anyhow::Error>
+    where
+        F: Num
+            + ndarray_stats::MaybeNan
+            + std::marker::Send
+            + Sync
+            + Clone
+            + Copy
+            + num_traits::Float,
+        f64: From<F>,
+    {
+        let hist: HashMap<String, Histogram> = array
+            .axis_iter(Axis(1))
+            .into_par_iter()
+            .enumerate()
+            .map(|(idx, x)| {
+                let bins = self
+                    .compute_bins(&x)
+                    .with_context(|| "Failed to compute bins")
+                    .unwrap();
+                let bin_counts = self
+                    .compute_bin_counts(&x, &bins)
+                    .with_context(|| "Failed to compute bin counts")
+                    .unwrap();
+                (features[idx].clone(), Histogram { bins, bin_counts })
+                // return
+            })
+            .collect();
+
+        Ok(hist)
+    }
+
     /// Compute the base stats for a 1D array of data
     ///
     /// # Arguments
@@ -202,6 +322,10 @@ impl Profiler {
             .compute_distinct(array)
             .with_context(|| "Failed to compute distinct")?;
 
+        let hist = self
+            .compute_histogram(array, features)
+            .with_context(|| "Failed to compute histogram")?;
+
         // loop over list
         let mut profiles = HashMap::new();
         for i in 0..features.len() {
@@ -232,6 +356,7 @@ impl Profiler {
                     q75: f64::from(*q75),
                     q99: f64::from(*q99),
                 },
+                histogram: hist[&features[i]].clone(),
             };
 
             profiles.insert(features[i].clone(), profile);
@@ -241,17 +366,22 @@ impl Profiler {
     }
 }
 
+impl Default for Profiler {
+    fn default() -> Self {
+        Profiler::new(20)
+    }
+}
+
 #[cfg(test)]
 mod tests {
 
     use super::*;
     use ndarray::Array;
-    use ndarray::{arr2, concatenate, Axis};
+    use ndarray::{concatenate, Axis};
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
 
     use approx::relative_eq;
-    use numpy::npyffi::array;
 
     #[test]
     fn test_profile_creation() {
@@ -267,9 +397,11 @@ mod tests {
             "feature_3".to_string(),
         ];
 
-        let profiler = Profiler::new();
+        let profiler = Profiler::default();
 
         let profile = profiler.compute_stats(&array.view(), &features).unwrap();
+
+        println!("{:?}", profile);
 
         assert_eq!(profile.features.len(), 3);
         assert_eq!(profile.features["feature_1"].id, "feature_1");
@@ -314,5 +446,7 @@ mod tests {
             0.99,
             epsilon = 0.05
         ));
+
+        assert!(1.0 == 2.0);
     }
 }
