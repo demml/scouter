@@ -1,7 +1,12 @@
+use anyhow::{Context, Ok};
+use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::types::IntoPyDict;
+use pyo3::types::PyDict;
+use pyo3::types::PyList;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
-
 /// Python class for a monitoring profile
 ///
 /// # Arguments
@@ -87,6 +92,14 @@ pub struct FeatureDataProfile {
     pub histogram: Histogram,
 }
 
+#[pymethods]
+impl FeatureDataProfile {
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        serde_json::to_string_pretty(&self).unwrap()
+    }
+}
+
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DataProfile {
@@ -99,6 +112,11 @@ impl DataProfile {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         serde_json::to_string_pretty(&self).unwrap()
+    }
+
+    pub fn json_dump(&self) -> String {
+        // serialize the struct to a string
+        self.__str__()
     }
 }
 

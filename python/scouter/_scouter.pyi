@@ -87,6 +87,10 @@ class DataProfile:
     @property
     def features(self) -> Dict[str, FeatureDataProfile]:
         """Returns dictionary of features and their data profiles"""
+    def __str__(self) -> str:
+        """Return string representation of the data profile"""
+    def json_dump(self) -> str:
+        """Return json representation of the data profile"""
 
 class RustScouter:
     def __init__(self, bin_size: Optional[int]) -> None:

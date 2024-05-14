@@ -1,18 +1,17 @@
 from typing import Union, Optional, List
 from numpy.typing import NDArray
 import polars as pl
-
-# import polars as pl
 import pandas as pd
 from scouter.utils.logger import ScouterLogger
 
 from ._scouter import RustScouter, MonitorProfile, DataProfile  # pylint: disable=no-name-in-module
 
+
 logger = ScouterLogger.get_logger()
 
 
 class Scouter:
-    def __init__(self, bin_size: Optional[int]) -> None:
+    def __init__(self, bin_size: Optional[int] = None) -> None:
         """
         Scouter generates data profiles and monitoring profiles from arrays. Accepted
         array types include numpy arrays, polars dataframes and pandas dataframes.
@@ -24,7 +23,9 @@ class Scouter:
         """
         self._scouter = RustScouter(bin_size=bin_size)
 
-    def _convert_data_to_array(self, data: Union[pd.DataFrame, pl.DataFrame, NDArray]) -> NDArray:
+    def _convert_data_to_array(
+        self, data: Union[pd.DataFrame, pl.DataFrame, NDArray]
+    ) -> NDArray:
         """Convert data to numpy array.
 
         Args:
@@ -90,14 +91,18 @@ class Scouter:
 
         # if numpy array is integer, convert to float32
         if dtype in ["int8", "int16", "int32", "int64"]:
-            logger.warning("Scouter only supports float32 and float64 arrays. Converting integer array to float32.")
+            logger.warning(
+                "Scouter only supports float32 and float64 arrays. Converting integer array to float32."
+            )
             array = array.astype("float32")
             return self._scouter.create_monitor_profile_f32(
                 features=features,
                 array=array,
             )
 
-        raise ValueError(f"Unsupported numpy array type. Cannot create monitoring profile: {dtype}")
+        raise ValueError(
+            f"Unsupported numpy array type. Cannot create monitoring profile: {dtype}"
+        )
 
     def _get_data_profile(
         self,
@@ -126,14 +131,18 @@ class Scouter:
 
         # if numpy array is integer, convert to float32
         if dtype in ["int8", "int16", "int32", "int64"]:
-            logger.warning("Scouter only supports float32 and float64 arrays. Converting integer array to float32.")
+            logger.warning(
+                "Scouter only supports float32 and float64 arrays. Converting integer array to float32."
+            )
             array = array.astype("float32")
             return self._scouter.create_data_profile_f32(
                 features=features,
                 array=array,
             )
 
-        raise ValueError(f"Unsupported numpy array type. Cannot create data profile: {dtype}")
+        raise ValueError(
+            f"Unsupported numpy array type. Cannot create data profile: {dtype}"
+        )
 
     def create_monitoring_profile(
         self,
