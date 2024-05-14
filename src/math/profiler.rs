@@ -1,4 +1,4 @@
-use crate::types::_types::{DataProfile, Distinct, FeatureProfile, Histogram, Quantiles};
+use crate::types::_types::{DataProfile, Distinct, FeatureDataProfile, Histogram, Quantiles};
 use anyhow::{Context, Result};
 use chrono::Utc;
 use ndarray::prelude::*;
@@ -339,7 +339,7 @@ impl Profiler {
             let q99 = &quantiles[3][i];
             let dist = &distinct[i];
 
-            let profile = FeatureProfile {
+            let profile = FeatureDataProfile {
                 id: features[i].clone(),
                 mean: f64::from(*mean),
                 stddev: f64::from(*stddev),

@@ -1,4 +1,3 @@
-use num_traits::Num;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -59,7 +58,7 @@ pub struct Distinct {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct FeatureProfile {
+pub struct FeatureDataProfile {
     #[pyo3(get, set)]
     pub id: String,
 
@@ -92,7 +91,7 @@ pub struct FeatureProfile {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DataProfile {
     #[pyo3(get, set)]
-    pub features: HashMap<String, FeatureProfile>,
+    pub features: HashMap<String, FeatureDataProfile>,
 }
 
 #[pymethods]

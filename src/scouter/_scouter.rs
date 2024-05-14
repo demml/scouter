@@ -4,13 +4,10 @@ use crate::math::monitor::Monitor;
 use crate::math::profiler::Profiler;
 use crate::types::_types::{DataProfile, MonitorProfile};
 
-use ndarray::prelude::*;
-
 use numpy::PyReadonlyArray2;
 use pyo3::exceptions::PyValueError;
 
 use pyo3::prelude::*;
-use rayon::prelude::*;
 
 #[pyclass]
 pub struct RustScouter {
