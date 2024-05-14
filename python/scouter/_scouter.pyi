@@ -1,4 +1,4 @@
-from typing import List, Dict
+from typing import List, Dict, Optional
 from numpy.typing import NDArray
 
 class FeatureMonitorProfile:
@@ -23,14 +23,84 @@ class MonitorProfile:
     def features(self) -> Dict[str, FeatureMonitorProfile]:
         """Return the list of features."""
 
+class Distinct:
+    @property
+    def count(self) -> int:
+        """total unqiue value counts"""
+    @property
+    def percent(self) -> float:
+        """percent value uniqueness"""
+
+class Quantiles:
+    @property
+    def q25(self) -> float:
+        """25th quantile"""
+    @property
+    def q50(self) -> float:
+        """50th quantile"""
+    @property
+    def q75(self) -> float:
+        """75th quantile"""
+    @property
+    def q99(self) -> float:
+        """99th quantile"""
+
+class Histogram:
+    @property
+    def bins(self) -> List[float]:
+        """Bin values"""
+    def bin_counts(self) -> List[int]:
+        """Bin counts"""
+
+class FeatureDataProfile:
+    @property
+    def id(self) -> str:
+        """Return the id."""
+    @property
+    def mean(self) -> float:
+        """Return the mean."""
+    @property
+    def stddev(self) -> float:
+        """Return the stddev."""
+    @property
+    def min(self) -> float:
+        """Return the min."""
+    @property
+    def max(self) -> float:
+        """Return the max."""
+    @property
+    def timestamp(self) -> str:
+        """Return the timestamp."""
+    @property
+    def distinct(self) -> Distinct:
+        """Distinct value counts"""
+    @property
+    def quantiles(self) -> Quantiles:
+        """Value quantiles"""
+    @property
+    def histogram(self) -> Histogram:
+        """Value histograms"""
+
+class DataProfile:
+    """Data profile of features"""
+
+    @property
+    def features(self) -> Dict[str, FeatureDataProfile]:
+        """Returns dictionary of features and their data profiles"""
+
 class RustScouter:
-    def __init__(self) -> None:
-        """Create a data profiler object."""
+    def __init__(self, bin_size: Optional[int]) -> None:
+        """Create a data profiler object.
+
+        Args:
+            bin_size:
+                Optional bin size for histograms.
+        """
     def create_data_profile_f32(
         self,
         features: List[str],
         array: NDArray,
-    ) -> None:
+    ) -> DataProfile:
         """Create a data profile from a f32 numpy array.
 
         Args:
@@ -46,7 +116,7 @@ class RustScouter:
         self,
         features: List[str],
         array: NDArray,
-    ) -> None:
+    ) -> DataProfile:
         """Create a data profile from a f32 numpy array.
 
         Args:

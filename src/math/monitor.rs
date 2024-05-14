@@ -151,7 +151,7 @@ impl Monitor {
     pub fn create_2d_monitor_profile<F>(
         &self,
         features: &[String],
-        array: ArrayView2<F>,
+        array: &ArrayView2<F>,
     ) -> Result<MonitorProfile, anyhow::Error>
     where
         F: Float
@@ -212,7 +212,7 @@ mod tests {
     use ndarray_rand::RandomExt;
 
     #[test]
-    fn test_create_2d_monitor_profile() {
+    fn test_create_2d_monitor_profile_f32() {
         // create 2d array
         let array = Array::random((1030, 3), Uniform::new(0., 10.));
 
@@ -228,7 +228,26 @@ mod tests {
         let monitor = Monitor::new();
 
         let profile = monitor
-            .create_2d_monitor_profile(&features, array.view())
+            .create_2d_monitor_profile(&features, &array.view())
+            .unwrap();
+        assert_eq!(profile.features.len(), 3);
+    }
+
+    #[test]
+    fn test_create_2d_monitor_profile_f64() {
+        // create 2d array
+        let array = Array::random((1030, 3), Uniform::new(0., 10.));
+
+        let features = vec![
+            "feature_1".to_string(),
+            "feature_2".to_string(),
+            "feature_3".to_string(),
+        ];
+
+        let monitor = Monitor::new();
+
+        let profile = monitor
+            .create_2d_monitor_profile(&features, &array.view())
             .unwrap();
         assert_eq!(profile.features.len(), 3);
     }

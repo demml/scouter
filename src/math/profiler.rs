@@ -285,8 +285,8 @@ impl Profiler {
     /// A tuple containing the mean, standard deviation, min, max, distinct, and quantiles
     pub fn compute_stats<F>(
         &self,
-        array: &ArrayView2<F>,
         features: &[String],
+        array: &ArrayView2<F>,
     ) -> Result<DataProfile, anyhow::Error>
     where
         F: Float
@@ -384,7 +384,7 @@ mod tests {
     use approx::relative_eq;
 
     #[test]
-    fn test_profile_creation() {
+    fn test_profile_creation_f64() {
         // create 2d array
         let array1 = Array::random((1000, 1), Uniform::new(0., 1.));
         let array2 = Array::random((1000, 1), Uniform::new(1., 2.));
@@ -399,7 +399,77 @@ mod tests {
 
         let profiler = Profiler::default();
 
-        let profile = profiler.compute_stats(&array.view(), &features).unwrap();
+        let profile = profiler.compute_stats(&features, &array.view()).unwrap();
+
+        println!("{:?}", profile);
+
+        assert_eq!(profile.features.len(), 3);
+        assert_eq!(profile.features["feature_1"].id, "feature_1");
+        assert_eq!(profile.features["feature_2"].id, "feature_2");
+        assert_eq!(profile.features["feature_3"].id, "feature_3");
+
+        // check mean
+        assert!(relative_eq!(
+            profile.features["feature_1"].mean,
+            0.5,
+            epsilon = 0.05
+        ));
+        assert!(relative_eq!(
+            profile.features["feature_2"].mean,
+            1.5,
+            epsilon = 0.05
+        ));
+        assert!(relative_eq!(
+            profile.features["feature_3"].mean,
+            2.5,
+            epsilon = 0.05
+        ));
+
+        // check quantiles
+        assert!(relative_eq!(
+            profile.features["feature_1"].quantiles.q25,
+            0.25,
+            epsilon = 0.05
+        ));
+        assert!(relative_eq!(
+            profile.features["feature_1"].quantiles.q50,
+            0.5,
+            epsilon = 0.05
+        ));
+        assert!(relative_eq!(
+            profile.features["feature_1"].quantiles.q75,
+            0.75,
+            epsilon = 0.05
+        ));
+        assert!(relative_eq!(
+            profile.features["feature_1"].quantiles.q99,
+            0.99,
+            epsilon = 0.05
+        ));
+
+        assert!(1.0 == 2.0);
+    }
+
+    #[test]
+    fn test_profile_creation_f32() {
+        // create 2d array
+        let array1 = Array::random((1000, 1), Uniform::new(0., 1.));
+        let array2 = Array::random((1000, 1), Uniform::new(1., 2.));
+        let array3 = Array::random((1000, 1), Uniform::new(2., 3.));
+
+        let array = concatenate![Axis(1), array1, array2, array3];
+        let features = vec![
+            "feature_1".to_string(),
+            "feature_2".to_string(),
+            "feature_3".to_string(),
+        ];
+
+        // cast array to f32
+        let array = array.mapv(|x| x as f32);
+
+        let profiler = Profiler::default();
+
+        let profile = profiler.compute_stats(&features, &array.view()).unwrap();
 
         println!("{:?}", profile);
 

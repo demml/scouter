@@ -39,7 +39,7 @@ impl RustScouter {
     ) -> PyResult<DataProfile> {
         let array = array.as_array();
 
-        let profile = match self.profiler.compute_stats(&array, &features) {
+        let profile = match self.profiler.compute_stats(&features, &array) {
             Ok(profile) => profile,
             Err(_e) => {
                 return Err(PyValueError::new_err(
@@ -58,7 +58,7 @@ impl RustScouter {
     ) -> PyResult<DataProfile> {
         let array = array.as_array();
 
-        let profile = match self.profiler.compute_stats(&array, &features) {
+        let profile = match self.profiler.compute_stats(&features, &array) {
             Ok(profile) => profile,
             Err(_e) => {
                 return Err(PyValueError::new_err(
@@ -77,7 +77,7 @@ impl RustScouter {
     ) -> PyResult<MonitorProfile> {
         let array = array.as_array();
 
-        let profile = match self.monitor.create_2d_monitor_profile(&features, array) {
+        let profile = match self.monitor.create_2d_monitor_profile(&features, &array) {
             Ok(profile) => profile,
             Err(_e) => {
                 return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
@@ -94,7 +94,7 @@ impl RustScouter {
     ) -> PyResult<MonitorProfile> {
         let array = array.as_array();
 
-        let profile = match self.monitor.create_2d_monitor_profile(&features, array) {
+        let profile = match self.monitor.create_2d_monitor_profile(&features, &array) {
             Ok(profile) => profile,
             Err(_e) => {
                 return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
