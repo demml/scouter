@@ -1,6 +1,7 @@
 use core::f32;
 
-use crate::math::stats::{compute_array_stats, Monitor};
+use crate::math::monitor::Monitor;
+use crate::math::profiler::Profiler;
 use crate::types::_types::MonitorProfile;
 
 use ndarray::prelude::*;
@@ -14,6 +15,7 @@ use rayon::prelude::*;
 #[pyclass]
 pub struct RustScouter {
     monitor: Monitor,
+    profiler: Profiler,
 }
 
 #[pymethods]
@@ -23,33 +25,30 @@ impl RustScouter {
     pub fn new() -> Self {
         Self {
             monitor: Monitor::new(),
+            profiler: Profiler::new(),
         }
     }
 
-    pub fn create_data_profile_f32(&mut self, array: PyReadonlyArray2<f32>) -> PyResult<()> {
+    pub fn create_data_profile_f32(
+        &mut self,
+        array: PyReadonlyArray2<f32>,
+        features: Vec<String>,
+    ) -> PyResult<()> {
         let array = array.as_array();
 
-        let stat_vec = array
-            .axis_iter(Axis(1))
-            .into_par_iter()
-            .map(|x| compute_array_stats(&x))
-            .collect::<Vec<_>>();
-
-        println!("{:?}", stat_vec);
+        self.profiler.compute_stats(&array, &features);
 
         Ok(())
     }
 
-    pub fn create_data_profile_f64(&mut self, array: PyReadonlyArray2<f64>) -> PyResult<()> {
+    pub fn create_data_profile_f64(
+        &mut self,
+        array: PyReadonlyArray2<f64>,
+        features: Vec<String>,
+    ) -> PyResult<()> {
         let array = array.as_array();
 
-        let stat_vec = array
-            .axis_iter(Axis(1))
-            .into_par_iter()
-            .map(|x| compute_array_stats(&x))
-            .collect::<Vec<_>>();
-
-        println!("{:?}", stat_vec);
+        self.profiler.compute_stats(&array, &features);
 
         Ok(())
     }

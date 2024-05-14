@@ -2,7 +2,7 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use ndarray::Array;
 use ndarray_rand::rand_distr::Uniform;
 use ndarray_rand::RandomExt;
-use scouter::math::stats::Monitor;
+use scouter::math::monitor::Monitor;
 
 fn criterion_benchmark(c: &mut Criterion) {
     let monitor = Monitor::new();
