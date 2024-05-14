@@ -1,4 +1,3 @@
-mod logging;
 pub mod math;
 mod scouter;
 mod types;
