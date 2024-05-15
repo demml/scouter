@@ -1,13 +1,14 @@
-use crate::types::_types::{FeatureMonitorProfile, MonitorProfile};
+use crate::types::_types::{DriftMap, FeatureDrift, FeatureMonitorProfile, MonitorProfile};
+use anyhow::Ok;
 use anyhow::{Context, Result};
 use chrono::Utc;
+use indicatif::{ProgressBar, ProgressStyle};
 use ndarray::prelude::*;
 use ndarray::Axis;
 use num_traits::{Float, FromPrimitive, Num};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fmt::Debug;
-
 pub struct Monitor {}
 
 impl Monitor {
@@ -168,6 +169,9 @@ impl Monitor {
         let num_features = features.len();
         let sample_size = self.set_sample_size(shape);
 
+        let nbr_chunks = shape / sample_size;
+        let pb = ProgressBar::new(nbr_chunks as u64);
+
         // iterate through each feature
         let sample_vec = array
             .axis_chunks_iter(Axis(0), sample_size)
@@ -179,7 +183,7 @@ impl Monitor {
                 // append stddev to mean
                 let combined = ndarray::concatenate![Axis(0), mean, stddev];
                 //mean.remove_axis(Axis(1));
-
+                pb.inc(1);
                 combined.to_vec()
             })
             .collect::<Vec<_>>();
@@ -195,6 +199,95 @@ impl Monitor {
 
         Ok(monitor_profile)
     }
+
+    pub fn compute_drift<F>(
+        &self,
+        features: &[String],
+        array: &ArrayView2<F>,
+        monitor_profile: &MonitorProfile,
+        sample: bool,
+    ) -> Result<DriftMap, anyhow::Error>
+    where
+        F: Float
+            + Sync
+            + FromPrimitive
+            + Send
+            + Num
+            + Debug
+            + num_traits::Zero
+            + ndarray::ScalarOperand,
+        F: Into<f64>,
+    {
+        let shape = array.shape()[0];
+        let num_features = features.len();
+
+        let sample_size = if sample {
+            self.set_sample_size(shape)
+        } else {
+            shape
+        };
+
+        // iterate through each feature
+        let sample_vec: Vec<Vec<f64>> = array
+            .axis_chunks_iter(Axis(0), sample_size)
+            .into_par_iter()
+            .map(|x| {
+                let mean = x.mean_axis(Axis(0)).unwrap();
+                // convert to f64
+                let mean = mean.mapv(|x| x.into());
+                mean.to_vec()
+            })
+            .collect::<Vec<_>>();
+
+        // reshape vec to 2D array
+        let sample_data =
+            Array::from_shape_vec((sample_vec.len(), features.len()), sample_vec.concat())
+                .with_context(|| "Failed to create 2D array")?;
+
+        // iterate through each row of samples
+        let drift_array = sample_data
+            .axis_iter(Axis(0))
+            .into_par_iter()
+            .map(|x| {
+                let mut drift: Vec<f64> = vec![0.0; num_features];
+                for (i, feature) in features.iter().enumerate() {
+                    let feature_profile = monitor_profile.features.get(feature).unwrap();
+                    let ucl = feature_profile.ucl;
+                    let lcl = feature_profile.lcl;
+
+                    let value = x[i];
+
+                    if value > ucl || value < lcl {
+                        // insert into zero array
+                        drift[i] = 1.0;
+                    }
+                }
+
+                drift
+            })
+            .collect::<Vec<_>>();
+
+        // convert drift array to 2D array
+        let drift_array =
+            Array::from_shape_vec((drift_array.len(), num_features), drift_array.concat())
+                .with_context(|| "Failed to create 2D array")?;
+
+        let mut drift_map = DriftMap::new();
+
+        for (i, feature) in features.iter().enumerate() {
+            let drift = drift_array.column(i);
+            let sample = sample_data.column(i);
+
+            let feature_drift = FeatureDrift {
+                samples: sample.to_vec(),
+                drift: drift.to_vec(),
+            };
+
+            drift_map.add_feature(feature.to_string(), feature_drift);
+        }
+
+        Ok(drift_map)
+    }
 }
 
 impl Default for Monitor {
@@ -207,10 +300,10 @@ impl Default for Monitor {
 mod tests {
 
     use super::*;
+    use approx::relative_eq;
     use ndarray::Array;
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
-
     #[test]
     fn test_create_2d_monitor_profile_f32() {
         // create 2d array
@@ -250,5 +343,37 @@ mod tests {
             .create_2d_monitor_profile(&features, &array.view())
             .unwrap();
         assert_eq!(profile.features.len(), 3);
+    }
+
+    #[test]
+    fn test_drift_detect() {
+        // create 2d array
+        let array = Array::random((1030, 3), Uniform::new(0., 10.));
+
+        let features = vec![
+            "feature_1".to_string(),
+            "feature_2".to_string(),
+            "feature_3".to_string(),
+        ];
+
+        let monitor = Monitor::new();
+
+        let profile = monitor
+            .create_2d_monitor_profile(&features, &array.view())
+            .unwrap();
+        assert_eq!(profile.features.len(), 3);
+
+        // change first 100 rows to 100 at index 1
+        let mut array = array.to_owned();
+        array.slice_mut(s![0..100, 1]).fill(100.0);
+
+        let drift_profile = monitor
+            .compute_drift(&features, &array.view(), &profile, true)
+            .unwrap();
+
+        // assert relative
+        let feature_1 = drift_profile.features.get("feature_1").unwrap();
+
+        assert!(relative_eq!(feature_1.samples[0], 5.0, epsilon = 2.0));
     }
 }

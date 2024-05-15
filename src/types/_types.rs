@@ -162,3 +162,47 @@ pub struct Histogram {
     #[pyo3(get, set)]
     pub bin_counts: Vec<i32>,
 }
+
+/// Python class for a feature drift
+///
+/// # Arguments
+///
+/// * `samples` - A vector of samples
+/// * `drift` - A vector of drift values
+///
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FeatureDrift {
+    #[pyo3(get, set)]
+    pub samples: Vec<f64>,
+
+    #[pyo3(get, set)]
+    pub drift: Vec<f64>,
+}
+
+/// Python class for a Drift map of features with calculated drift
+///
+/// # Arguments
+///
+/// * `features` - A hashmap of feature names and their drift
+///
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DriftMap {
+    #[pyo3(get, set)]
+    pub features: HashMap<String, FeatureDrift>,
+}
+
+#[pymethods]
+impl DriftMap {
+    #[new]
+    pub fn new() -> Self {
+        Self {
+            features: HashMap::new(),
+        }
+    }
+
+    pub fn add_feature(&mut self, feature: String, profile: FeatureDrift) {
+        self.features.insert(feature, profile);
+    }
+}

@@ -22,6 +22,7 @@ anyhow = "1.0.79"
 chrono = "0.4.38"
 num-traits = "0.2.19"
 serde_json = "1.0.117"
+indicatif = "0.17.8"
 
 [dev-dependencies]
 approx = "0.5.1"
