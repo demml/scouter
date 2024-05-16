@@ -1,11 +1,5 @@
-use anyhow::{Context, Ok};
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use pyo3::types::IntoPyDict;
-use pyo3::types::PyDict;
-use pyo3::types::PyList;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use std::collections::HashMap;
 /// Python class for a monitoring profile
 ///
@@ -194,6 +188,7 @@ pub struct DriftMap {
 }
 
 #[pymethods]
+#[allow(clippy::new_without_default)]
 impl DriftMap {
     #[new]
     pub fn new() -> Self {

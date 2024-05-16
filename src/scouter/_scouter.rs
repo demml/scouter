@@ -20,10 +20,9 @@ pub struct RustScouter {
 impl RustScouter {
     #[new]
     pub fn new(bin_size: Option<usize>) -> Self {
-        let profiler = if bin_size.is_some() {
-            Profiler::new(bin_size.unwrap())
-        } else {
-            Profiler::default()
+        let profiler = match bin_size {
+            Some(size) => Profiler::new(size),
+            None => Profiler::default(),
         };
 
         Self {

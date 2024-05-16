@@ -2,7 +2,7 @@ use crate::types::_types::{DriftMap, FeatureDrift, FeatureMonitorProfile, Monito
 use anyhow::Ok;
 use anyhow::{Context, Result};
 use chrono::Utc;
-use indicatif::{ProgressBar, ProgressStyle};
+use indicatif::ProgressBar;
 use ndarray::prelude::*;
 use ndarray::Axis;
 use num_traits::{Float, FromPrimitive, Num};
@@ -368,7 +368,7 @@ mod tests {
         array.slice_mut(s![0..100, 1]).fill(100.0);
 
         let drift_profile = monitor
-            .compute_drift(&features, &array.view(), &profile, true)
+            .compute_drift(&features, &array.view(), &profile, &true)
             .unwrap();
 
         // assert relative

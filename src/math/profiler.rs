@@ -19,7 +19,7 @@ pub struct Profiler {
 
 impl Profiler {
     pub fn new(bin_size: usize) -> Self {
-        Profiler { bin_size: bin_size }
+        Profiler { bin_size }
     }
 
     /// Compute quantiles for a 2D array.
@@ -446,8 +446,6 @@ mod tests {
             0.99,
             epsilon = 0.05
         ));
-
-        assert!(1.0 == 2.0);
     }
 
     #[test]
@@ -516,7 +514,5 @@ mod tests {
             0.99,
             epsilon = 0.05
         ));
-
-        assert!(1.0 == 2.0);
     }
 }
