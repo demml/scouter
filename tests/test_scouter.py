@@ -124,3 +124,55 @@ def test_data_profile_pandas(array: NDArray):
     assert profile.features["0"].quantiles.q25 == pytest.approx(1.25, 0.1)
     assert profile.features["0"].histogram.bins[0] == pytest.approx(1.00, 0.1)
     assert len(profile.features["0"].histogram.bin_counts) == 20
+
+
+def test_drift_f64(array: NDArray):
+    scouter = Scouter()
+    profile: MonitorProfile = scouter.create_monitoring_profile(array)
+
+    # assert features are relatively centered
+    assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)
+    assert profile.features["feature_1"].center == pytest.approx(2.5, 0.1)
+    assert profile.features["feature_2"].center == pytest.approx(3.5, 0.1)
+
+    features = ["feature_0", "feature_1", "feature_2"]
+    drift_map = scouter.compute_drift(array, profile, True, features)
+
+
+def test_drift_f32(array: NDArray):
+    array = array.astype("float32")
+    scouter = Scouter()
+    profile: MonitorProfile = scouter.create_monitoring_profile(array)
+
+    # assert features are relatively centered
+    assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)
+    assert profile.features["feature_1"].center == pytest.approx(2.5, 0.1)
+    assert profile.features["feature_2"].center == pytest.approx(3.5, 0.1)
+
+    features = ["feature_0", "feature_1", "feature_2"]
+    drift_map = scouter.compute_drift(array, profile, True, features)
+
+
+def test_drift_int(array: NDArray):
+    # convert to int32
+    array = array.astype("int32")
+
+    scouter = Scouter()
+    profile: MonitorProfile = scouter.create_monitoring_profile(array)
+
+    # assert features are relatively centered
+    assert profile.features["feature_0"].center == pytest.approx(1.0, 0.1)
+    assert profile.features["feature_1"].center == pytest.approx(2.0, 0.1)
+    assert profile.features["feature_2"].center == pytest.approx(3.0, 0.1)
+
+    features = ["feature_0", "feature_1", "feature_2"]
+    drift_map = scouter.compute_drift(array, profile, True, features)
+
+
+def test_driftt_fail(array: NDArray):
+    scouter = Scouter()
+    profile: MonitorProfile = scouter.create_monitoring_profile(array)
+    features = ["feature_0", "feature_1", "feature_2"]
+
+    with pytest.raises(ValueError):
+        scouter.compute_drift(array.astype("str"), profile, True, features)

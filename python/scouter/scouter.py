@@ -21,10 +21,11 @@ class DataType(str, Enum):
 
     @staticmethod
     def str_to_bits(dtype: str) -> str:
-        return {
+        bits = {
             "float32": "32",
             "float64": "64",
-        }[dtype]
+        }
+        return bits[dtype]
 
 
 class Scouter:
@@ -92,7 +93,7 @@ class Scouter:
         features = self._get_feature_names(features, data)
 
         # get numpy array type
-        dtype = array.dtype
+        dtype = str(array.dtype)
 
         if dtype in [
             DataType.INT8.value,
@@ -104,17 +105,17 @@ class Scouter:
                 "Scouter only supports float32 and float64 arrays. Converting integer array to float32."
             )
             array = array.astype("float32")
-            return getattr(self._scouter, f"create_{profile_type}_f32")(
+            return getattr(self._scouter, f"create_{profile_type}_profile_f32")(
                 features=features, array=array
             )
 
         try:
-            # check if numpy array is float32
             bits = DataType.str_to_bits(dtype)
-            return getattr(self._scouter, f"create_{profile_type}_f{bits}")(
+            return getattr(self._scouter, f"create_{profile_type}_profile_f{bits}")(
                 features=features, array=array
             )
         except KeyError as exc:
+            print()
             raise ValueError(f"Unsupported data type: {dtype}") from exc
 
     def create_monitoring_profile(
@@ -201,27 +202,14 @@ class Scouter:
             features = self._get_feature_names(features, data)
 
             # get numpy array type
-            dtype = array.dtype
+            dtype = str(array.dtype)
 
-            # check if numpy array is float32
-            if dtype == "float32":
-                return self._scouter.compute_drift_f32(
-                    features=features,
-                    array=array,
-                    monitor_profile=monitor_profile,
-                    sample=sample,
-                )
-
-            if dtype == "float64":
-                return self._scouter.compute_drift_f64(
-                    features=features,
-                    array=array,
-                    monitor_profile=monitor_profile,
-                    sample=sample,
-                )
-
-            # if numpy array is integer, convert to float32
-            if dtype in ["int8", "int16", "int32", "int64"]:
+            if dtype in [
+                DataType.INT8.value,
+                DataType.INT16.value,
+                DataType.INT32.value,
+                DataType.INT64.value,
+            ]:
                 logger.warning(
                     "Scouter only supports float32 and float64 arrays. Converting integer array to float32."
                 )
@@ -233,6 +221,13 @@ class Scouter:
                     sample=sample,
                 )
 
-        except Exception as exc:  # type: ignore
+            bits = DataType.str_to_bits(dtype)
+            return getattr(self._scouter, f"compute_drift_f{bits}")(
+                features=features,
+                array=array,
+                monitor_profile=monitor_profile,
+                sample=sample,
+            )
+        except KeyError as exc:
             logger.error(f"Failed to compute drift: {exc}")
             raise ValueError(f"Failed to compute drift: {exc}") from exc
