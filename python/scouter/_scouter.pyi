@@ -164,3 +164,42 @@ class RustScouter:
         Returns:
             Monitoring profile.
         """
+
+    def compute_drift_f32(
+        self,
+        features: List[str],
+        array: NDArray,
+        monitor_profile: MonitorProfile,
+        sample: bool,
+    ) -> DataProfile:
+        """Compute drift from a f32 numpy array.
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                Numpy array to profile.
+
+
+        Returns:
+            Monitoring profile.
+        """
+
+    def compute_drift_f64(
+        self,
+        features: List[str],
+        array: NDArray,
+        monitor_profile: MonitorProfile,
+        sample: bool,
+    ) -> DataProfile:
+        """Compute drift from a f64 numpy array.
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                Numpy array to profile.
+
+        Returns:
+            Monitoring profile.
+        """

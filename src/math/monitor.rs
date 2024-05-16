@@ -205,7 +205,7 @@ impl Monitor {
         features: &[String],
         array: &ArrayView2<F>,
         monitor_profile: &MonitorProfile,
-        sample: bool,
+        sample: &bool,
     ) -> Result<DriftMap, anyhow::Error>
     where
         F: Float
@@ -221,7 +221,7 @@ impl Monitor {
         let shape = array.shape()[0];
         let num_features = features.len();
 
-        let sample_size = if sample {
+        let sample_size = if *sample {
             self.set_sample_size(shape)
         } else {
             shape

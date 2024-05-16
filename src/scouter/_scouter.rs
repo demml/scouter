@@ -2,7 +2,7 @@ use core::f32;
 
 use crate::math::monitor::Monitor;
 use crate::math::profiler::Profiler;
-use crate::types::_types::{DataProfile, MonitorProfile};
+use crate::types::_types::{DataProfile, DriftMap, MonitorProfile};
 
 use numpy::PyReadonlyArray2;
 use pyo3::exceptions::PyValueError;
@@ -102,5 +102,51 @@ impl RustScouter {
         };
 
         Ok(profile)
+    }
+
+    pub fn compute_drift_f32(
+        &mut self,
+        array: PyReadonlyArray2<f32>,
+        features: Vec<String>,
+        monitor_profile: MonitorProfile,
+        sample: bool,
+    ) -> PyResult<DriftMap> {
+        let array = array.as_array();
+
+        let drift_map =
+            match self
+                .monitor
+                .compute_drift(&features, &array, &monitor_profile, &sample)
+            {
+                Ok(drift_map) => drift_map,
+                Err(_e) => {
+                    return Err(PyValueError::new_err("Failed to compute drift"));
+                }
+            };
+
+        Ok(drift_map)
+    }
+
+    pub fn compute_drift_f64(
+        &mut self,
+        array: PyReadonlyArray2<f64>,
+        features: Vec<String>,
+        monitor_profile: MonitorProfile,
+        sample: bool,
+    ) -> PyResult<DriftMap> {
+        let array = array.as_array();
+
+        let drift_map =
+            match self
+                .monitor
+                .compute_drift(&features, &array, &monitor_profile, &sample)
+            {
+                Ok(drift_map) => drift_map,
+                Err(_e) => {
+                    return Err(PyValueError::new_err("Failed to compute drift"));
+                }
+            };
+
+        Ok(drift_map)
     }
 }
