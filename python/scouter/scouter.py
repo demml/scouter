@@ -5,7 +5,7 @@ import pandas as pd
 from enum import Enum
 from scouter.utils.logger import ScouterLogger
 
-from ._scouter import RustScouter, MonitorProfile, DataProfile  # pylint: disable=no-name-in-module
+from ._scouter import RustScouter, MonitorProfile, DataProfile, DriftMap  # pylint: disable=no-name-in-module
 
 
 logger = ScouterLogger.get_logger()
@@ -41,9 +41,7 @@ class Scouter:
         """
         self._scouter = RustScouter(bin_size=bin_size)
 
-    def _convert_data_to_array(
-        self, data: Union[pd.DataFrame, pl.DataFrame, NDArray]
-    ) -> NDArray:
+    def _convert_data_to_array(self, data: Union[pd.DataFrame, pl.DataFrame, NDArray]) -> NDArray:
         """Convert data to numpy array.
 
         Args:
@@ -101,19 +99,13 @@ class Scouter:
             DataType.INT32.value,
             DataType.INT64.value,
         ]:
-            logger.warning(
-                "Scouter only supports float32 and float64 arrays. Converting integer array to float32."
-            )
+            logger.warning("Scouter only supports float32 and float64 arrays. Converting integer array to float32.")
             array = array.astype("float32")
-            return getattr(self._scouter, f"create_{profile_type}_profile_f32")(
-                features=features, array=array
-            )
+            return getattr(self._scouter, f"create_{profile_type}_profile_f32")(features=features, array=array)
 
         try:
             bits = DataType.str_to_bits(dtype)
-            return getattr(self._scouter, f"create_{profile_type}_profile_f{bits}")(
-                features=features, array=array
-            )
+            return getattr(self._scouter, f"create_{profile_type}_profile_f{bits}")(features=features, array=array)
         except KeyError as exc:
             print()
             raise ValueError(f"Unsupported data type: {dtype}") from exc
@@ -180,7 +172,7 @@ class Scouter:
         monitor_profile: MonitorProfile,
         sample: bool,
         features: Optional[List[str]] = None,
-    ) -> MonitorProfile:
+    ) -> DriftMap:
         """Compute drift from data and monitoring profile.
 
         Args:
@@ -210,9 +202,7 @@ class Scouter:
                 DataType.INT32.value,
                 DataType.INT64.value,
             ]:
-                logger.warning(
-                    "Scouter only supports float32 and float64 arrays. Converting integer array to float32."
-                )
+                logger.warning("Scouter only supports float32 and float64 arrays. Converting integer array to float32.")
                 array = array.astype("float32")
                 return self._scouter.compute_drift_f32(
                     features=features,

@@ -168,6 +168,8 @@ def test_drift_int(array: NDArray):
     features = ["feature_0", "feature_1", "feature_2"]
     drift_map = scouter.compute_drift(array, profile, True, features)
 
+    assert drift_map.features["feature_0"].drift[0] == 0.0
+
 
 def test_driftt_fail(array: NDArray):
     scouter = Scouter()

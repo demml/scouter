@@ -92,6 +92,27 @@ class DataProfile:
     def json_dump(self) -> str:
         """Return json representation of the data profile"""
 
+class FeatureDrift:
+    @property
+    def samples(self) -> List[float]:
+        """Return list of samples"""
+    @property
+    def drift(self) -> List[float]:
+        """Return list of drift values"""
+    def __str__(self) -> str:
+        """Return string representation of feature drift"""
+
+class DriftMap:
+    """Drift map of features"""
+
+    @property
+    def features(self) -> Dict[str, FeatureDrift]:
+        """Returns dictionary of features and their data profiles"""
+    def __str__(self) -> str:
+        """Return string representation of data drift"""
+    def json_dump(self) -> str:
+        """Return json representation of data drift"""
+
 class RustScouter:
     def __init__(self, bin_size: Optional[int]) -> None:
         """Create a data profiler object.
@@ -164,14 +185,13 @@ class RustScouter:
         Returns:
             Monitoring profile.
         """
-
     def compute_drift_f32(
         self,
         features: List[str],
         array: NDArray,
         monitor_profile: MonitorProfile,
         sample: bool,
-    ) -> DataProfile:
+    ) -> DriftMap:
         """Compute drift from a f32 numpy array.
 
         Args:
@@ -179,19 +199,22 @@ class RustScouter:
                 List of feature names.
             array:
                 Numpy array to profile.
+            monitor_profile:
+                Monitoring profile.
+            sample:
+                Whether to sample the data.
 
 
         Returns:
             Monitoring profile.
         """
-
     def compute_drift_f64(
         self,
         features: List[str],
         array: NDArray,
         monitor_profile: MonitorProfile,
         sample: bool,
-    ) -> DataProfile:
+    ) -> DriftMap:
         """Compute drift from a f64 numpy array.
 
         Args:
@@ -199,6 +222,10 @@ class RustScouter:
                 List of feature names.
             array:
                 Numpy array to profile.
+            monitor_profile:
+                Monitoring profile.
+            sample:
+                Whether to sample the data.
 
         Returns:
             Monitoring profile.

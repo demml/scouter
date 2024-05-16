@@ -174,6 +174,13 @@ pub struct FeatureDrift {
     pub drift: Vec<f64>,
 }
 
+impl FeatureDrift {
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        serde_json::to_string_pretty(&self).unwrap()
+    }
+}
+
 /// Python class for a Drift map of features with calculated drift
 ///
 /// # Arguments
@@ -199,5 +206,15 @@ impl DriftMap {
 
     pub fn add_feature(&mut self, feature: String, profile: FeatureDrift) {
         self.features.insert(feature, profile);
+    }
+
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        serde_json::to_string_pretty(&self).unwrap()
+    }
+
+    pub fn json_dump(&self) -> String {
+        // serialize the struct to a string
+        self.__str__()
     }
 }
