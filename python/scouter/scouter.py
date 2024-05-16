@@ -1,8 +1,8 @@
 from typing import Union, Optional, List
+from enum import Enum
 from numpy.typing import NDArray
 import polars as pl
 import pandas as pd
-from enum import Enum
 from scouter.utils.logger import ScouterLogger
 
 from ._scouter import RustScouter, MonitorProfile, DataProfile, DriftMap  # pylint: disable=no-name-in-module
@@ -41,7 +41,9 @@ class Scouter:
         """
         self._scouter = RustScouter(bin_size=bin_size)
 
-    def _convert_data_to_array(self, data: Union[pd.DataFrame, pl.DataFrame, NDArray]) -> NDArray:
+    def _convert_data_to_array(
+        self, data: Union[pd.DataFrame, pl.DataFrame, NDArray]
+    ) -> NDArray:
         """Convert data to numpy array.
 
         Args:
@@ -99,13 +101,19 @@ class Scouter:
             DataType.INT32.value,
             DataType.INT64.value,
         ]:
-            logger.warning("Scouter only supports float32 and float64 arrays. Converting integer array to float32.")
+            logger.warning(
+                "Scouter only supports float32 and float64 arrays. Converting integer array to float32."
+            )
             array = array.astype("float32")
-            return getattr(self._scouter, f"create_{profile_type}_profile_f32")(features=features, array=array)
+            return getattr(self._scouter, f"create_{profile_type}_profile_f32")(
+                features=features, array=array
+            )
 
         try:
             bits = DataType.str_to_bits(dtype)
-            return getattr(self._scouter, f"create_{profile_type}_profile_f{bits}")(features=features, array=array)
+            return getattr(self._scouter, f"create_{profile_type}_profile_f{bits}")(
+                features=features, array=array
+            )
         except KeyError as exc:
             print()
             raise ValueError(f"Unsupported data type: {dtype}") from exc
@@ -132,7 +140,8 @@ class Scouter:
         """
         try:
             logger.info("Creating monitoring profile.")
-            profile: MonitorProfile = self._get_profile(features, data, "monitor")
+            profile = self._get_profile(features, data, "monitor")
+            assert isinstance(profile, MonitorProfile)
             return profile
         except Exception as exc:  # type: ignore
             logger.error(f"Failed to create monitoring profile: {exc}")
@@ -160,7 +169,10 @@ class Scouter:
         """
         try:
             logger.info("Creating data profile.")
-            profile: DataProfile = self._get_profile(features, data, "data")
+            profile = self._get_profile(features, data, "data")
+            assert isinstance(
+                profile, DataProfile
+            ), f"Expected DataProfile, got {type(profile)}"
             return profile
         except Exception as exc:  # type: ignore
             logger.error(f"Failed to create data profile: {exc}")
@@ -202,7 +214,9 @@ class Scouter:
                 DataType.INT32.value,
                 DataType.INT64.value,
             ]:
-                logger.warning("Scouter only supports float32 and float64 arrays. Converting integer array to float32.")
+                logger.warning(
+                    "Scouter only supports float32 and float64 arrays. Converting integer array to float32."
+                )
                 array = array.astype("float32")
                 return self._scouter.compute_drift_f32(
                     features=features,
