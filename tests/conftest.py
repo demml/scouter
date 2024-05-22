@@ -1,11 +1,23 @@
 import pytest
-import polars as pl
+import shutil
+from typing import TypeVar, Generator
 import numpy as np
 from numpy.typing import NDArray
 
 
+T = TypeVar("T")
+YieldFixture = Generator[T, None, None]
+
+
+def cleanup() -> None:
+    """Removes temp files"""
+
+    # delete lightning_logs
+    shutil.rmtree("assets", ignore_errors=True)
+
+
 @pytest.fixture(scope="function")
-def array() -> NDArray:
+def array() -> YieldFixture[NDArray]:
     array = np.random.rand(1000, 3)
     # add 1 to first column
     array[:, 0] += 1
@@ -14,4 +26,6 @@ def array() -> NDArray:
     # add 3 to third column
     array[:, 2] += 3
 
-    return array
+    yield array
+
+    cleanup()

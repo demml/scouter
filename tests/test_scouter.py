@@ -6,7 +6,7 @@ from numpy.typing import NDArray
 import pytest
 from scouter._scouter import MonitorProfile, DriftMap
 from scouter import DataProfile
-import json
+from pathlib import Path
 
 
 def test_monitor_f64(array: NDArray):
@@ -94,6 +94,14 @@ def test_data_profile_f64(array: NDArray):
     loaded_profile = DataProfile.load_from_json(json_str)
 
     assert loaded_profile.features["feature_0"].mean == pytest.approx(1.5, 0.1)
+
+    # save to json
+    loaded_profile.save_to_json(Path("assets/data_profile.json"))
+    assert Path("assets/data_profile.json").exists()
+
+    # save to different path, should be converted to json
+    loaded_profile.save_to_json(Path("assets/data1_profile.joblib"))
+    assert Path("assets/data1_profile.json").exists()
 
 
 def test_data_profile_f32(array: NDArray):
@@ -186,7 +194,16 @@ def test_drift_int(array: NDArray):
     assert loaded_model.features["feature_0"].drift[0] == 0.0
 
     # save to json
-    drift_map.save_to_json()
+    # saves to drift_map.json
+    drift_map.save_to_json(Path("assets/drift_map.json"))
+
+    # assert file exists
+    assert Path("assets/drift_map.json").exists()
+
+    # save to different path, should be converted to json
+    drift_map.save_to_json(Path("assets/model.joblib"))
+
+    assert Path("assets/model.json").exists()
 
 
 def test_drift_fail(array: NDArray):

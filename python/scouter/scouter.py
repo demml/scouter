@@ -1,12 +1,17 @@
-from typing import Union, Optional, List
 from enum import Enum
-from numpy.typing import NDArray
-import polars as pl
+from typing import List, Optional, Union
+
 import pandas as pd
+import polars as pl
+from numpy.typing import NDArray
 from scouter.utils.logger import ScouterLogger
 
-from ._scouter import RustScouter, MonitorProfile, DataProfile, DriftMap  # pylint: disable=no-name-in-module
-
+from ._scouter import (  # pylint: disable=no-name-in-module
+    DataProfile,
+    DriftMap,
+    MonitorProfile,
+    RustScouter,
+)
 
 logger = ScouterLogger.get_logger()
 

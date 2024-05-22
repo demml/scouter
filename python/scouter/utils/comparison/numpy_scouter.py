@@ -1,11 +1,12 @@
-from numpy.typing import NDArray
 from concurrent.futures import ThreadPoolExecutor
-import numpy as np
-from typing import Dict, Union
-import polars as pl
-import pandas as pd
-from pydantic import BaseModel
 from datetime import datetime
+from typing import Dict, Union
+
+import numpy as np
+import pandas as pd
+import polars as pl
+from numpy.typing import NDArray
+from pydantic import BaseModel
 
 
 class FeatureMonitorProfile(BaseModel):

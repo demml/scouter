@@ -1,6 +1,7 @@
-from typing import List, Dict, Optional
-from numpy.typing import NDArray
 from pathlib import Path
+from typing import Dict, List, Optional
+
+from numpy.typing import NDArray
 
 class FeatureMonitorProfile:
     @property
@@ -93,8 +94,17 @@ class DataProfile:
     def model_dump_json(self) -> str:
         """Return json representation of data profile"""
     @staticmethod
-    def load_from_json(model: str) -> "DriftMap":
+    def load_from_json(model: str) -> "DataProfile":
         """Load drift map from json"""
+
+    def save_to_json(self, path: Optional[Path] = None) -> None:
+        """Save data profile to json file
+
+        Args:
+            path:
+                Optional path to save the data profile. If None, outputs to "data_profile.json.
+
+        """
 
 class FeatureDrift:
     @property
@@ -119,7 +129,6 @@ class DriftMap:
     @staticmethod
     def load_from_json(model: str) -> "DriftMap":
         """Load drift map from json"""
-
     def save_to_json(self, path: Optional[Path] = None) -> None:
         """Save drift map to json file
 

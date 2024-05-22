@@ -2,6 +2,52 @@ use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
+
+enum FileName {
+    Drift,
+    Profile,
+}
+
+impl FileName {
+    fn as_str(&self) -> &'static str {
+        match self {
+            FileName::Drift => "drift_map.json",
+            FileName::Profile => "data_profile.json",
+        }
+    }
+}
+
+fn save_to_json<T>(model: T, path: Option<PathBuf>, filename: &str) -> PyResult<()>
+where
+    T: Serialize,
+{
+    // serialize the struct to a string
+    let json = serde_json::to_string_pretty(&model).unwrap();
+
+    // check if path is provided
+    let write_path = if path.is_some() {
+        let mut new_path = PathBuf::from(path.unwrap());
+
+        // ensure .json extension
+        new_path.set_extension("json");
+
+        // ensure path exists, create if not
+        if !new_path.exists() {
+            std::fs::create_dir_all(&new_path.parent().unwrap())
+                .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
+        }
+
+        new_path
+    } else {
+        PathBuf::from(filename)
+    };
+
+    std::fs::write(write_path, json)
+        .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
+
+    Ok(())
+}
+
 /// Python class for a monitoring profile
 ///
 /// # Arguments
@@ -120,6 +166,10 @@ impl DataProfile {
         let profile: DataProfile = serde_json::from_str(&model).unwrap();
         profile
     }
+
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> PyResult<()> {
+        save_to_json(self, path, FileName::Profile.as_str())
+    }
 }
 
 /// Python class for quantiles
@@ -234,24 +284,6 @@ impl DriftMap {
     }
 
     pub fn save_to_json(&self, path: Option<PathBuf>) -> PyResult<()> {
-        // serialize the struct to a string
-        let json = serde_json::to_string_pretty(&self).unwrap();
-
-        // check if path is provided
-        let write_path = if path.is_some() {
-            let mut new_path = PathBuf::from(path.unwrap());
-
-            // ensure .json extension
-            new_path.set_extension(".json");
-
-            new_path
-        } else {
-            PathBuf::from("drift_map.json")
-        };
-
-        std::fs::write(write_path, json)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
-
-        Ok(())
+        save_to_json(self, path, FileName::Drift.as_str())
     }
 }

@@ -8,14 +8,14 @@ cargo.lints:
 	cargo clippy --workspace --all-targets -- -D warnings
 cargo.test:
 	cargo test
-	
+
 format.isort:
-	poetry run isort ${FORMAT_OBJECTS}
+	poetry run isort ${SOURCE_OBJECTS}
 format.black:
 	poetry run black ${SOURCE_OBJECTS}
 format.ruff:
 	poetry run ruff check --silent --exit-zero ${SOURCE_OBJECTS}
-format: format.ruff format.black
+format: format.isort format.ruff format.black
 
 lints.format_check:
 	poetry run black --check ${SOURCE_OBJECTS}
