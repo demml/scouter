@@ -1,3 +1,4 @@
+use anyhow::Context;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -17,7 +18,7 @@ impl FileName {
     }
 }
 
-fn save_to_json<T>(model: T, path: Option<PathBuf>, filename: &str) -> PyResult<()>
+fn save_to_json<T>(model: T, path: Option<PathBuf>, filename: &str) -> Result<(), anyhow::Error>
 where
     T: Serialize,
 {
@@ -26,15 +27,18 @@ where
 
     // check if path is provided
     let write_path = if path.is_some() {
-        let mut new_path = PathBuf::from(path.unwrap());
+        let mut new_path = path.with_context(|| "Failed to get path")?;
 
         // ensure .json extension
         new_path.set_extension("json");
 
-        // ensure path exists, create if not
         if !new_path.exists() {
-            std::fs::create_dir_all(&new_path.parent().unwrap())
-                .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
+            // ensure path exists, create if not
+            let parent_path = new_path
+                .parent()
+                .with_context(|| "Failed to get parent path")?;
+
+            std::fs::create_dir_all(parent_path).with_context(|| "Failed to create directory")?;
         }
 
         new_path
@@ -168,7 +172,8 @@ impl DataProfile {
     }
 
     pub fn save_to_json(&self, path: Option<PathBuf>) -> PyResult<()> {
-        save_to_json(self, path, FileName::Profile.as_str())
+        let result = save_to_json(self, path, FileName::Profile.as_str());
+        result.map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
     }
 }
 
@@ -284,6 +289,7 @@ impl DriftMap {
     }
 
     pub fn save_to_json(&self, path: Option<PathBuf>) -> PyResult<()> {
-        save_to_json(self, path, FileName::Drift.as_str())
+        let result = save_to_json(self, path, FileName::Drift.as_str());
+        result.map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
     }
 }

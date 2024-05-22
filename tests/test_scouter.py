@@ -103,6 +103,11 @@ def test_data_profile_f64(array: NDArray):
     loaded_profile.save_to_json(Path("assets/data1_profile.joblib"))
     assert Path("assets/data1_profile.json").exists()
 
+    loaded_profile.save_to_json()
+
+    assert Path("data_profile.json").exists()
+    Path("data_profile.json").unlink()
+
 
 def test_data_profile_f32(array: NDArray):
     array = array.astype("float32")

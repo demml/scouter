@@ -96,7 +96,6 @@ class DataProfile:
     @staticmethod
     def load_from_json(model: str) -> "DataProfile":
         """Load drift map from json"""
-
     def save_to_json(self, path: Optional[Path] = None) -> None:
         """Save data profile to json file
 
