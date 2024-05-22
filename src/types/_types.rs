@@ -108,9 +108,16 @@ impl DataProfile {
         serde_json::to_string_pretty(&self).unwrap()
     }
 
-    pub fn json_dump(&self) -> String {
+    pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
         self.__str__()
+    }
+
+    #[staticmethod]
+    pub fn load_from_json(model: String) -> DataProfile {
+        // deserialize the string to a struct
+        let profile: DataProfile = serde_json::from_str(&model).unwrap();
+        profile
     }
 }
 
@@ -213,8 +220,15 @@ impl DriftMap {
         serde_json::to_string_pretty(&self).unwrap()
     }
 
-    pub fn json_dump(&self) -> String {
+    pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
         self.__str__()
+    }
+
+    #[staticmethod]
+    pub fn load_from_json(model: String) -> DriftMap {
+        // deserialize the string to a struct
+        let map: DriftMap = serde_json::from_str(&model).unwrap();
+        map
     }
 }

@@ -89,8 +89,11 @@ class DataProfile:
         """Returns dictionary of features and their data profiles"""
     def __str__(self) -> str:
         """Return string representation of the data profile"""
-    def json_dump(self) -> str:
-        """Return json representation of the data profile"""
+    def model_dump_json(self) -> str:
+        """Return json representation of data profile"""
+    @staticmethod
+    def load_from_json(model: str) -> "DriftMap":
+        """Load drift map from json"""
 
 class FeatureDrift:
     @property
@@ -110,8 +113,11 @@ class DriftMap:
         """Returns dictionary of features and their data profiles"""
     def __str__(self) -> str:
         """Return string representation of data drift"""
-    def json_dump(self) -> str:
+    def model_dump_json(self) -> str:
         """Return json representation of data drift"""
+    @staticmethod
+    def load_from_json(model: str) -> "DriftMap":
+        """Load drift map from json"""
 
 class RustScouter:
     def __init__(self, bin_size: Optional[int]) -> None:

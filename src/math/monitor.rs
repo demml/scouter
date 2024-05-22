@@ -375,5 +375,8 @@ mod tests {
         let feature_1 = drift_profile.features.get("feature_1").unwrap();
 
         assert!(relative_eq!(feature_1.samples[0], 5.0, epsilon = 2.0));
+
+        // convert profile to json and load it back
+        let _ = drift_profile.model_dump_json();
     }
 }
