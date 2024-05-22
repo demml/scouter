@@ -2,12 +2,23 @@ PROJECT=scouter
 PYTHON_VERSION=3.11.2
 SOURCE_OBJECTS=python/scouter
 
+cargo.format:
+	cargo fmt
+cargo.lints:
+	cargo clippy --workspace --all-targets -- -D warnings
+cargo.test:
+	cargo test
 
+cargo.bench:
+	cargo bench
+
+format.isort:
+	poetry run isort ${SOURCE_OBJECTS}
 format.black:
 	poetry run black ${SOURCE_OBJECTS}
 format.ruff:
 	poetry run ruff check --silent --exit-zero ${SOURCE_OBJECTS}
-format: format.ruff format.black
+format: format.isort format.ruff format.black
 
 lints.format_check:
 	poetry run black --check ${SOURCE_OBJECTS}

@@ -1,42 +1,23 @@
-mod logging;
-mod math;
-mod profiler;
+pub mod math;
+mod scouter;
 mod types;
-use math::stats::compute_array_stats;
-use ndarray::Axis;
-use numpy::PyReadonlyArray2;
-use profiler::profiler::DataProfiler;
 use pyo3::prelude::*;
-use rayon::prelude::*;
+use scouter::_scouter::RustScouter;
+use types::_types::{
+    DataProfile, Distinct, DriftMap, FeatureDataProfile, FeatureDrift, FeatureMonitorProfile,
+    Histogram, MonitorProfile,
+};
 
-#[pyfunction]
-pub fn create_data_profile_f64(array: PyReadonlyArray2<f64>) -> PyResult<()> {
-    let array = array.as_array();
-    let stat_vec = array
-        .axis_iter(Axis(1))
-        .into_par_iter()
-        .map(|x| compute_array_stats(&x))
-        .collect::<Vec<_>>();
-
-    Ok(())
-}
-
-#[pyfunction]
-pub fn create_data_profile_f32(array: PyReadonlyArray2<f32>) -> PyResult<()> {
-    let array = array.as_array();
-    let stat_vec = array
-        .axis_iter(Axis(1))
-        .into_par_iter()
-        .map(|x| compute_array_stats(&x))
-        .collect::<Vec<_>>();
-
-    Ok(())
-}
-
-/// Python implementation for the Rusty Logger
 #[pymodule]
-fn _scouter(_py: Python, m: &PyModule) -> PyResult<()> {
-    m.add_class::<DataProfiler>()?;
-    m.add_function(wrap_pyfunction!(create_data_profile, m)?)?;
+fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<RustScouter>()?;
+    m.add_class::<MonitorProfile>()?;
+    m.add_class::<FeatureMonitorProfile>()?;
+    m.add_class::<DataProfile>()?;
+    m.add_class::<FeatureDataProfile>()?;
+    m.add_class::<Distinct>()?;
+    m.add_class::<Histogram>()?;
+    m.add_class::<DriftMap>()?;
+    m.add_class::<FeatureDrift>()?;
     Ok(())
 }

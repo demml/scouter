@@ -2,14 +2,20 @@
 name = "scouter"
 version = "0.1.0"
 description = ""
-authors = ["Thorrester <steven.forrester@shipt.com>"]
+authors = ["Thorrester <support@demmlai.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.9,<3.12"
+python = ">=3.9,<3.13"
 numpy = "^1.26.4"
-polars = "^0.20.7"
+polars = [
+        {version = "^0.20.7", platform = "win32" },
+        {version = "^0.20.7", platform = "linux" }
+    ]
+polars-lts-cpu = {version = "^0.20.7", platform = "darwin" }
 pandas = "^2.2.0"
+rusty-logger = "^0.3.0"
+pydantic = "^2.7.1"
 
 [tool.poetry.group.dev]
 optional = true
@@ -17,12 +23,14 @@ optional = true
 [tool.poetry.group.dev.dependencies]
 maturin = "^1.4.0"
 pytest = "^7"
+pytest-cov = "^5.0.0"
 ruff = "^0.1"
 mypy = "^1"
 black = "22.3.0"
-pylint = "^2.17.5"
+pylint = "^3"
 pytest-lazy-fixture = "^0.6.3"
 psutil = "^5.9.8"
+isort = "^5.13.2"
 
 [tool.isort]
 profile = "black"
@@ -33,6 +41,7 @@ target-version = ['py310']
 include = '\.pyi?$'
 
 [tool.pylint.MASTER]
+ignore-paths = ["python/scouter/utils/comparison/*"]
 load-plugins = ["pylint.extensions.docparams"]
 
 [tool.pylint.messages_control]
@@ -74,6 +83,9 @@ mypy_path = "stubs"
 ignore_missing_imports = true
 plugins = [
     "numpy.typing.mypy_plugin",
+]
+exclude = [
+    "python/scouter/utils/comparison/*",
 ]
 
 
