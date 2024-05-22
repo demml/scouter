@@ -185,6 +185,9 @@ def test_drift_int(array: NDArray):
 
     assert loaded_model.features["feature_0"].drift[0] == 0.0
 
+    # save to json
+    drift_map.save_to_json()
+
 
 def test_drift_fail(array: NDArray):
     scouter = Scouter()

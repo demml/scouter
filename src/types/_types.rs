@@ -1,6 +1,7 @@
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::path::PathBuf;
 /// Python class for a monitoring profile
 ///
 /// # Arguments
@@ -230,5 +231,27 @@ impl DriftMap {
         // deserialize the string to a struct
         let map: DriftMap = serde_json::from_str(&model).unwrap();
         map
+    }
+
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> PyResult<()> {
+        // serialize the struct to a string
+        let json = serde_json::to_string_pretty(&self).unwrap();
+
+        // check if path is provided
+        let write_path = if path.is_some() {
+            let mut new_path = PathBuf::from(path.unwrap());
+
+            // ensure .json extension
+            new_path.set_extension(".json");
+
+            new_path
+        } else {
+            PathBuf::from("drift_map.json")
+        };
+
+        std::fs::write(write_path, json)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
+
+        Ok(())
     }
 }

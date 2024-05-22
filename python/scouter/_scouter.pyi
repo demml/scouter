@@ -1,5 +1,6 @@
 from typing import List, Dict, Optional
 from numpy.typing import NDArray
+from pathlib import Path
 
 class FeatureMonitorProfile:
     @property
@@ -118,6 +119,15 @@ class DriftMap:
     @staticmethod
     def load_from_json(model: str) -> "DriftMap":
         """Load drift map from json"""
+
+    def save_to_json(self, path: Optional[Path] = None) -> None:
+        """Save drift map to json file
+
+        Args:
+            path:
+                Optional path to save the drift map. If None, outputs to "drift_map.json.
+
+        """
 
 class RustScouter:
     def __init__(self, bin_size: Optional[int]) -> None:
