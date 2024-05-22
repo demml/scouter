@@ -9,6 +9,9 @@ cargo.lints:
 cargo.test:
 	cargo test
 
+cargo.bench:
+	cargo bench
+
 format.isort:
 	poetry run isort ${SOURCE_OBJECTS}
 format.black:
