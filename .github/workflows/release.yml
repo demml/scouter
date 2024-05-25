@@ -332,9 +332,9 @@ jobs:
             python3 -m venv venv
             source venv/bin/activate
             python3 -m pip install -r tests/requirements.txt
-            python3 -m pip install rusty_logger --no-index --no-deps --find-links dist --force-reinstall
+            python3 -m pip install scouter --no-index --no-deps --find-links dist --force-reinstall
             python3 -m pytest
-            python3 -c 'import rusty_logger; print(rusty_logger.__version__)'
+            python3 -c 'import scouter; print(scouter.__version__)'
 
   test-builds-os:
     name: test build on ${{ matrix.os }}
@@ -366,7 +366,7 @@ jobs:
           path: dist
 
       - run: pip install -r tests/requirements.txt
-      - run: pip install rusty_logger --no-index --no-deps --find-links dist --force-reinstall
+      - run: pip install scouter --no-index --no-deps --find-links dist --force-reinstall
       - run: pytest
 
 
