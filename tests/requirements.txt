@@ -3,3 +3,4 @@ pytest-cov==5.0.0
 numpy==1.26.4
 polars-lts-cpu==0.20.7
 pandas==2.2.2
+rusty-logger
