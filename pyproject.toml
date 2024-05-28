@@ -9,8 +9,8 @@ readme = "README.md"
 python = ">=3.9,<3.13"
 numpy = "^1.26.4"
 polars = [
-    {version = "^0.20.7", platform = "win32" },
-    {version = "^0.20.7", platform = "linux" }
+    {version = "^0.20.30", platform = "win32" },
+    {version = "^0.20.30", platform = "linux" }
 ]
 polars-lts-cpu = {version = "^0.20.7", platform = "darwin" }
 pandas = "^2.2.0"
@@ -103,7 +103,7 @@ dependencies = [
     'rusty_logger>=0.3.0',
     'numpy>=1.26.4',
     'pydantic>=2.7.1',
-    'polars >= 0.20.7',
+    'polars>=0.20.30',
     ]
 
 [build-system]
