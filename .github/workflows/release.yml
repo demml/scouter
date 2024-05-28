@@ -28,7 +28,7 @@ jobs:
       - name: Upload sdist
         uses: actions/upload-artifact@v4
         with:
-          name: wheels
+          name: pypi_sdist
           path: dist
 
   build-ubuntu:
@@ -65,7 +65,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: pypi_files
+          name: pypi_files_linux_${{ matrix.target }}_${{ env.INTERPRETER || 'all' }}_${{ matrix.manylinux }}
           path: dist
 
   build-ubuntu-musllinux:
@@ -103,7 +103,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: pypi_files
+          name: pypi_files_linux_${{ matrix.target }}_${{ env.INTERPRETER || 'all' }}_${{ matrix.manylinux }}
           path: dist
 
 
@@ -139,7 +139,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: pypi_files
+          name: pypi_files_macos_${{ matrix.target }}_${{ env.INTERPRETER || 'all' }}
           path: dist
 
   build-windows:
@@ -188,7 +188,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: pypi_files
+          name: pypi_files_windows_${{ matrix.target }}_${{ env.INTERPRETER || 'all' }}
           path: dist
 
   inspect-pypi-assets:
@@ -199,9 +199,10 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: get dist artifacts
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
-          name: pypi_files
+          pattern: pypi_files_*
+          merge-multiple: true
           path: dist
 
       - name: list dist files
@@ -231,7 +232,8 @@ jobs:
       - name: get dist artifacts
         uses: actions/download-artifact@v4
         with:
-          name: pypi_files
+          pattern: pypi_files_linux_*
+          merge-multiple: true
           path: dist
 
       - uses: uraimo/run-on-arch-action@v2.7.2
@@ -271,7 +273,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu, macos, windows]
+        os: [linux, macos, windows]
 
     runs-on: ${{ matrix.os }}-latest
     steps:
@@ -290,7 +292,8 @@ jobs:
       - name: get dist artifacts
         uses: actions/download-artifact@v4
         with:
-          name: pypi_files
+          pattern: pypi_files_${{ matrix.os }}_*
+          merge-multiple: true
           path: dist
 
       - run: python3 -m pip install scouter --no-deps --no-index --force-reinstall --find-links dist
