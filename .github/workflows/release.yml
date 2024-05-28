@@ -255,7 +255,9 @@ jobs:
             set -x
             python3 -m venv venv
             source venv/bin/activate
-            python3 -m pip install scouter --force-reinstall --find-links dist
+            python3 -m pip install scouter --no-index --force-reinstall --find-links dist
+            python3 -m pip install -r tests/requirements.txt
+            python3 -m pytest
             python3 -c 'import scouter; print(scouter.__version__)'
 
   test-builds-os:
@@ -287,8 +289,9 @@ jobs:
           name: pypi_files
           path: dist
 
-      - run: python3 -m pip install scouter --force-reinstall --find-links dist
-      - run: python3 -c 'import scouter; print(scouter.__version__)'
+      - run: python3 -m pip install scouter --no-index --force-reinstall --find-links dist
+      - run: pip install -r tests/requirements.txt
+      - run: pytest
 
 
   release:
