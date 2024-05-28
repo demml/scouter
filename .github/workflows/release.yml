@@ -256,7 +256,7 @@ jobs:
             python3 -m venv venv
             source venv/bin/activate
             python3 -m pip install -r tests/requirements.txt
-            python3 -m pip install scouter --no-index --find-links dist --force-reinstall
+            python3 -m pip install scouter --find-links dist --force-reinstall
             python3 -m pytest
             python3 -c 'import scouter; print(scouter.__version__)'
 
@@ -290,7 +290,7 @@ jobs:
           path: dist
 
       - run: pip install -r tests/requirements.txt
-      - run: pip install scouter --no-index --find-links dist --force-reinstall
+      - run: pip install scouter --find-links dist --force-reinstall
       - run: pytest
 
 
