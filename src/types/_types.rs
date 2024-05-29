@@ -1,4 +1,5 @@
 use anyhow::Context;
+use numpy::PyReadonlyArray2;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;

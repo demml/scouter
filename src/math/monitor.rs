@@ -298,7 +298,35 @@ impl Monitor {
 
         Ok(drift_map)
     }
+
+    pub fn compute_many_drift<F>(
+        &self,
+        data: Vec<(Vec<String>, ArrayView2<F>, MonitorProfile, String)>,
+        sample: &bool,
+        sample_size: Option<usize>,
+    ) where
+        F: Float
+            + Sync
+            + FromPrimitive
+            + Send
+            + Num
+            + Debug
+            + num_traits::Zero
+            + ndarray::ScalarOperand,
+        F: Into<f64>,
+    {
+        data.into_par_iter()
+            .for_each(|(features, array, profile, service_name)| {
+                let drift_map = self
+                    .compute_drift(&features, &array, &profile, &sample, sample_size)
+                    .unwrap();
+
+                // save drift sample to file
+            })
+    }
 }
+
+// convert drift array to 2D array
 
 impl Default for Monitor {
     fn default() -> Self {

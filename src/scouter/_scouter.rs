@@ -1,4 +1,5 @@
 use core::f32;
+use std::collections::HashMap;
 
 use crate::math::monitor::Monitor;
 use crate::math::profiler::Profiler;
@@ -7,7 +8,11 @@ use crate::types::_types::{DataProfile, DriftMap, MonitorProfile};
 use numpy::PyReadonlyArray2;
 use pyo3::exceptions::PyValueError;
 
+use ndarray::Dim;
+use numpy::PyReadonlyArray;
 use pyo3::prelude::*;
+use pyo3::types::PyList;
+use rayon::iter::IntoParallelIterator;
 
 #[pyclass]
 pub struct RustScouter {
@@ -153,5 +158,27 @@ impl RustScouter {
         };
 
         Ok(drift_map)
+    }
+    pub fn compute_many_driftf64(
+        &self,
+        data: Vec<(Vec<String>, PyReadonlyArray2<f64>, MonitorProfile, String)>,
+        sample: bool,
+        sample_size: Option<usize>,
+    ) -> PyResult<()> {
+        // convert to array
+        let new_data = data
+            .iter()
+            .map(|ele| {
+                let features = ele.0.clone();
+                let array = ele.1.as_array();
+                let monitor_profile = ele.2.clone();
+                let sample = ele.3.clone();
+                (features, array, monitor_profile, sample)
+            })
+            .collect::<Vec<_>>();
+
+        self.monitor
+            .compute_many_drift(new_data, &sample, sample_size);
+        Ok(())
     }
 }
