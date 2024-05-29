@@ -241,7 +241,7 @@ jobs:
           merge-multiple: true
           path: dist
 
-      - run: python3 -m pip install scouter --no-deps --no-index --force-reinstall --find-links dist
+      - run: python3 -m pip install scouter-ml --no-deps --no-index --force-reinstall --find-links dist
       - run: pip install -r tests/requirements.txt
       - run: pytest
 
