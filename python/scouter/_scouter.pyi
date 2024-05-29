@@ -215,6 +215,7 @@ class RustScouter:
         array: NDArray,
         monitor_profile: MonitorProfile,
         sample: bool,
+        sample_size: Optional[int] = None,
     ) -> DriftMap:
         """Compute drift from a f32 numpy array.
 
@@ -227,6 +228,8 @@ class RustScouter:
                 Monitoring profile.
             sample:
                 Whether to sample the data.
+            sample_size:
+                Optional sample size.
 
 
         Returns:
@@ -238,6 +241,7 @@ class RustScouter:
         array: NDArray,
         monitor_profile: MonitorProfile,
         sample: bool,
+        sample_size: Optional[int] = None,
     ) -> DriftMap:
         """Compute drift from a f64 numpy array.
 
@@ -250,6 +254,8 @@ class RustScouter:
                 Monitoring profile.
             sample:
                 Whether to sample the data.
+            sample_size:
+                Optional sample size.
 
         Returns:
             Monitoring profile.

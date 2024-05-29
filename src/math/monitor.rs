@@ -206,6 +206,7 @@ impl Monitor {
         array: &ArrayView2<F>,
         monitor_profile: &MonitorProfile,
         sample: &bool,
+        sample_size: Option<usize>,
     ) -> Result<DriftMap, anyhow::Error>
     where
         F: Float
@@ -222,7 +223,11 @@ impl Monitor {
         let num_features = features.len();
 
         let sample_size = if *sample {
-            self.set_sample_size(shape)
+            if sample_size.is_none() {
+                self.set_sample_size(shape)
+            } else {
+                sample_size.unwrap()
+            }
         } else {
             shape
         };
@@ -251,6 +256,11 @@ impl Monitor {
             .map(|x| {
                 let mut drift: Vec<f64> = vec![0.0; num_features];
                 for (i, feature) in features.iter().enumerate() {
+                    // check if feature exists
+                    if monitor_profile.features.get(feature).is_none() {
+                        continue;
+                    }
+
                     let feature_profile = monitor_profile.features.get(feature).unwrap();
                     let ucl = feature_profile.ucl;
                     let lcl = feature_profile.lcl;
@@ -368,7 +378,7 @@ mod tests {
         array.slice_mut(s![0..100, 1]).fill(100.0);
 
         let drift_profile = monitor
-            .compute_drift(&features, &array.view(), &profile, &true)
+            .compute_drift(&features, &array.view(), &profile, &true, None)
             .unwrap();
 
         // assert relative

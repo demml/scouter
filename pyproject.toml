@@ -12,7 +12,7 @@ polars = [
     {version = "^0.20.30", platform = "win32" },
     {version = "^0.20.30", platform = "linux" }
 ]
-polars-lts-cpu = {version = "^0.20.7", platform = "darwin" }
+polars-lts-cpu = {version = "^0.20.30", platform = "darwin" }
 pandas = "^2.2.0"
 rusty-logger = "^0.3.0"
 pydantic = "^2.7.1"

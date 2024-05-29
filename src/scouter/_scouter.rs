@@ -109,19 +109,22 @@ impl RustScouter {
         features: Vec<String>,
         monitor_profile: MonitorProfile,
         sample: bool,
+        sample_size: Option<usize>,
     ) -> PyResult<DriftMap> {
         let array = array.as_array();
 
-        let drift_map =
-            match self
-                .monitor
-                .compute_drift(&features, &array, &monitor_profile, &sample)
-            {
-                Ok(drift_map) => drift_map,
-                Err(_e) => {
-                    return Err(PyValueError::new_err("Failed to compute drift"));
-                }
-            };
+        let drift_map = match self.monitor.compute_drift(
+            &features,
+            &array,
+            &monitor_profile,
+            &sample,
+            sample_size,
+        ) {
+            Ok(drift_map) => drift_map,
+            Err(_e) => {
+                return Err(PyValueError::new_err("Failed to compute drift"));
+            }
+        };
 
         Ok(drift_map)
     }
@@ -132,19 +135,22 @@ impl RustScouter {
         features: Vec<String>,
         monitor_profile: MonitorProfile,
         sample: bool,
+        sample_size: Option<usize>,
     ) -> PyResult<DriftMap> {
         let array = array.as_array();
 
-        let drift_map =
-            match self
-                .monitor
-                .compute_drift(&features, &array, &monitor_profile, &sample)
-            {
-                Ok(drift_map) => drift_map,
-                Err(_e) => {
-                    return Err(PyValueError::new_err("Failed to compute drift"));
-                }
-            };
+        let drift_map = match self.monitor.compute_drift(
+            &features,
+            &array,
+            &monitor_profile,
+            &sample,
+            sample_size,
+        ) {
+            Ok(drift_map) => drift_map,
+            Err(_e) => {
+                return Err(PyValueError::new_err("Failed to compute drift"));
+            }
+        };
 
         Ok(drift_map)
     }

@@ -4,9 +4,12 @@ import polars as pl
 import pandas as pd
 from numpy.typing import NDArray
 import pytest
+import numpy as np
 from scouter._scouter import MonitorProfile, DriftMap
 from scouter import DataProfile
 from pathlib import Path
+import time
+from datetime import datetime
 
 
 def test_monitor_f64(array: NDArray):
@@ -158,7 +161,7 @@ def test_drift_f64(array: NDArray):
     assert profile.features["feature_2"].center == pytest.approx(3.5, 0.1)
 
     features = ["feature_0", "feature_1", "feature_2"]
-    _ = scouter.compute_drift(array, profile, True, features)
+    _ = scouter.compute_drift(array, profile, True, None, features)
 
 
 def test_drift_f32(array: NDArray):
@@ -172,7 +175,7 @@ def test_drift_f32(array: NDArray):
     assert profile.features["feature_2"].center == pytest.approx(3.5, 0.1)
 
     features = ["feature_0", "feature_1", "feature_2"]
-    _ = scouter.compute_drift(array, profile, True, features)
+    _ = scouter.compute_drift(array, profile, True, None, features)
 
 
 def test_drift_int(array: NDArray):
@@ -218,3 +221,32 @@ def test_drift_fail(array: NDArray):
 
     with pytest.raises(ValueError):
         scouter.compute_drift(array.astype("str"), profile, True, features)
+
+
+def test_timestamp():
+    scouter = Scouter()
+
+    arrays = []
+
+    for i in range(3):
+        temp_array = np.random.rand(10, 2) + i
+
+        # date
+        timestamp = np.array([datetime.now().timestamp()] * 10).reshape(-1, 1)
+
+        # add to array
+        temp_array = np.concatenate((temp_array, timestamp), axis=1)
+
+        arrays.append(temp_array)
+
+        time.sleep(0.5)
+
+    # concatenate arrays
+    array = np.concatenate(arrays)
+
+    profile = scouter.create_monitoring_profile(array[:, :2])
+
+    # timestamp not in orginal features
+    _ = scouter.compute_drift(
+        array[:, :3], profile, True, 5, ["feature_0", "feature_1", "timestamp"]
+    )
