@@ -1,5 +1,5 @@
 use anyhow::Context;
-use numpy::PyReadonlyArray2;
+
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -15,6 +15,18 @@ impl FileName {
         match self {
             FileName::Drift => "drift_map.json",
             FileName::Profile => "data_profile.json",
+        }
+    }
+}
+
+pub enum AlertRules {
+    Standard,
+}
+
+impl AlertRules {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            AlertRules::Standard => "8 16 4 8 2 4 1",
         }
     }
 }
@@ -73,13 +85,97 @@ pub struct FeatureMonitorProfile {
     pub center: f64,
 
     #[pyo3(get, set)]
-    pub ucl: f64,
+    pub one_ucl: f64,
 
     #[pyo3(get, set)]
-    pub lcl: f64,
+    pub one_lcl: f64,
+
+    #[pyo3(get, set)]
+    pub two_ucl: f64,
+
+    #[pyo3(get, set)]
+    pub two_lcl: f64,
+
+    #[pyo3(get, set)]
+    pub three_ucl: f64,
+
+    #[pyo3(get, set)]
+    pub three_lcl: f64,
 
     #[pyo3(get, set)]
     pub timestamp: String,
+}
+
+/// Python class for a monitoring configuration
+///
+/// # Arguments
+///
+/// * `sample_size` - The sample size
+/// * `sample` - Whether to sample data or not, Default is true
+/// * `service_name` - The service name. This is required if pushing metrics to a db or prometheus
+/// * `alerting_rule` - The alerting rule to use for monitoring
+///
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MonitorConfig {
+    #[pyo3(get, set)]
+    pub sample_size: usize,
+
+    #[pyo3(get, set)]
+    pub sample: bool,
+
+    #[pyo3(get, set)]
+    pub service_name: Option<String>,
+
+    #[pyo3(get, set)]
+    pub alerting_rule: String,
+}
+
+#[pymethods]
+impl MonitorConfig {
+    #[new]
+    pub fn new(
+        alerting_rule: String,
+        sample: bool,
+        sample_size: usize,
+        service_name: Option<String>,
+    ) -> Self {
+        let service_name = match service_name {
+            Some(name) => Some(name),
+            None => None,
+        };
+
+        Self {
+            sample_size,
+            sample,
+            service_name,
+            alerting_rule,
+        }
+    }
+
+    pub fn set_config(
+        &mut self,
+        sample: Option<bool>,
+        sample_size: Option<usize>,
+        service_name: Option<String>,
+        alerting_rule: Option<String>,
+    ) {
+        if sample.is_some() {
+            self.sample = sample.unwrap();
+        }
+
+        if sample_size.is_some() {
+            self.sample_size = sample_size.unwrap();
+        }
+
+        if service_name.is_some() {
+            self.service_name = service_name;
+        }
+
+        if alerting_rule.is_some() {
+            self.alerting_rule = alerting_rule.unwrap();
+        }
+    }
 }
 
 #[pyclass]
@@ -87,6 +183,9 @@ pub struct FeatureMonitorProfile {
 pub struct MonitorProfile {
     #[pyo3(get, set)]
     pub features: HashMap<String, FeatureMonitorProfile>,
+
+    #[pyo3(get, set)]
+    pub config: MonitorConfig,
 }
 
 #[pymethods]
@@ -236,6 +335,12 @@ pub struct FeatureDrift {
 
     #[pyo3(get, set)]
     pub drift: Vec<f64>,
+
+    #[pyo3(get, set)]
+    pub alert: bool,
+
+    #[pyo3(get, set)]
+    pub alert_type: String,
 }
 
 impl FeatureDrift {
@@ -256,15 +361,22 @@ impl FeatureDrift {
 pub struct DriftMap {
     #[pyo3(get, set)]
     pub features: HashMap<String, FeatureDrift>,
+    pub service_name: Option<String>,
 }
 
 #[pymethods]
 #[allow(clippy::new_without_default)]
 impl DriftMap {
     #[new]
-    pub fn new() -> Self {
+    pub fn new(service_name: Option<String>) -> Self {
+        let service_name = match service_name {
+            Some(name) => Some(name),
+            None => None,
+        };
+
         Self {
             features: HashMap::new(),
+            service_name,
         }
     }
 

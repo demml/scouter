@@ -1,4 +1,6 @@
-use crate::types::_types::{DriftMap, FeatureDrift, FeatureMonitorProfile, MonitorProfile};
+use crate::types::_types::{
+    AlertRules, DriftMap, FeatureDrift, FeatureMonitorProfile, MonitorConfig, MonitorProfile,
+};
 use anyhow::Ok;
 use anyhow::{Context, Result};
 use chrono::Utc;
@@ -112,10 +114,19 @@ impl Monitor {
         let mult_fact = F::from(c4).unwrap() * denominator;
 
         let base = &stdev / mult_fact;
-        let right = &base * F::from(3.0).unwrap();
+        let one_sigma = &base * F::from(1.0).unwrap();
+        let two_sigma = &base * F::from(2.0).unwrap();
+        let three_sigma = &base * F::from(3.0).unwrap();
 
-        let lcl = &means - &right;
-        let ucl = &means + &right;
+        // calculate control limits for each zone
+        let one_lcl = &means - &one_sigma;
+        let one_ucl = &means + &one_sigma;
+
+        let two_lcl = &means - &two_sigma;
+        let two_ucl = &means + &two_sigma;
+
+        let three_lcl = &means - &three_sigma;
+        let three_ucl = &means + &three_sigma;
         let center = &means;
 
         // create monitor profile
@@ -127,8 +138,12 @@ impl Monitor {
                 FeatureMonitorProfile {
                     id: feature.to_string(),
                     center: center[i].into(),
-                    ucl: ucl[i].into(),
-                    lcl: lcl[i].into(),
+                    one_ucl: one_ucl[i].into(),
+                    one_lcl: one_lcl[i].into(),
+                    two_ucl: two_ucl[i].into(),
+                    two_lcl: two_lcl[i].into(),
+                    three_ucl: three_ucl[i].into(),
+                    three_lcl: three_lcl[i].into(),
                     timestamp: Utc::now().to_string(),
                 },
             );
@@ -136,6 +151,7 @@ impl Monitor {
 
         Ok(MonitorProfile {
             features: feat_profile,
+            config: MonitorConfig::new(AlertRules::Standard.as_str().to_string(), true, 5, None),
         })
     }
 
@@ -207,6 +223,7 @@ impl Monitor {
         monitor_profile: &MonitorProfile,
         sample: &bool,
         sample_size: Option<usize>,
+        service_name: Option<String>,
     ) -> Result<DriftMap, anyhow::Error>
     where
         F: Float
@@ -262,14 +279,28 @@ impl Monitor {
                     }
 
                     let feature_profile = monitor_profile.features.get(feature).unwrap();
-                    let ucl = feature_profile.ucl;
-                    let lcl = feature_profile.lcl;
 
                     let value = x[i];
 
-                    if value > ucl || value < lcl {
+                    if value > feature_profile.three_ucl {
                         // insert into zero array
+                        drift[i] = 4.0;
+                    } else if value < feature_profile.three_lcl {
+                        drift[i] = -4.0;
+                    } else if value < feature_profile.three_ucl && value >= feature_profile.two_ucl
+                    {
+                        drift[i] = 3.0;
+                    } else if value < feature_profile.two_ucl && value >= feature_profile.one_ucl {
+                        drift[i] = 2.0;
+                    } else if value < feature_profile.one_ucl && value > feature_profile.center {
                         drift[i] = 1.0;
+                    } else if value > feature_profile.three_lcl && value <= feature_profile.two_lcl
+                    {
+                        drift[i] = -3.0;
+                    } else if value > feature_profile.two_lcl && value <= feature_profile.one_lcl {
+                        drift[i] = -2.0;
+                    } else if value > feature_profile.one_lcl && value < feature_profile.center {
+                        drift[i] = -1.0;
                     }
                 }
 
@@ -282,7 +313,7 @@ impl Monitor {
             Array::from_shape_vec((drift_array.len(), num_features), drift_array.concat())
                 .with_context(|| "Failed to create 2D array")?;
 
-        let mut drift_map = DriftMap::new();
+        let mut drift_map = DriftMap::new(service_name);
 
         for (i, feature) in features.iter().enumerate() {
             let drift = drift_array.column(i);
@@ -301,7 +332,7 @@ impl Monitor {
 
     pub fn compute_many_drift<F>(
         &self,
-        data: Vec<(Vec<String>, ArrayView2<F>, MonitorProfile, String)>,
+        data: Vec<(Vec<String>, ArrayView2<F>, MonitorProfile, Option<String>)>,
         sample: &bool,
         sample_size: Option<usize>,
     ) where
@@ -315,14 +346,23 @@ impl Monitor {
             + ndarray::ScalarOperand,
         F: Into<f64>,
     {
-        data.into_par_iter()
-            .for_each(|(features, array, profile, service_name)| {
-                let drift_map = self
-                    .compute_drift(&features, &array, &profile, &sample, sample_size)
+        let drifts = data
+            .into_par_iter()
+            .map(|(features, array, profile, service_name)| {
+                let drift = self
+                    .compute_drift(
+                        &features,
+                        &array,
+                        &profile,
+                        &sample,
+                        sample_size,
+                        service_name,
+                    )
                     .unwrap();
-
+                drift
                 // save drift sample to file
             })
+            .collect::<Vec<_>>();
     }
 }
 
@@ -406,7 +446,7 @@ mod tests {
         array.slice_mut(s![0..100, 1]).fill(100.0);
 
         let drift_profile = monitor
-            .compute_drift(&features, &array.view(), &profile, &true, None)
+            .compute_drift(&features, &array.view(), &profile, &true, None, None)
             .unwrap();
 
         // assert relative
