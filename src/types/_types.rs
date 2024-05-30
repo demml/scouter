@@ -24,10 +24,73 @@ pub enum AlertRules {
 }
 
 impl AlertRules {
-    pub fn as_str(&self) -> &'static str {
+    pub fn as_str(&self) -> String {
         match self {
-            AlertRules::Standard => "8 16 4 8 2 4 1",
+            AlertRules::Standard => "8 16 4 8 2 4 1".to_string(),
         }
+    }
+}
+
+#[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub enum AlertZone {
+    Zone1,
+    Zone2,
+    Zone3,
+    OutOfBounds,
+    NotApplicable,
+}
+
+#[pymethods]
+impl AlertZone {
+    pub fn as_str(&self) -> String {
+        match self {
+            AlertZone::Zone1 => "Zone 1".to_string(),
+            AlertZone::Zone2 => "Zone 2".to_string(),
+            AlertZone::Zone3 => "Zone 3".to_string(),
+            AlertZone::OutOfBounds => "Out of bounds".to_string(),
+            AlertZone::NotApplicable => "NA".to_string(),
+        }
+    }
+}
+
+#[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub enum AlertType {
+    OutOfBounds,
+    Consecutive,
+    Alternating,
+    AllGood,
+}
+
+#[pymethods]
+impl AlertType {
+    pub fn as_str(&self) -> String {
+        match self {
+            AlertType::OutOfBounds => "Out of bounds".to_string(),
+            AlertType::Consecutive => "Consecutive".to_string(),
+            AlertType::Alternating => "Alternating".to_string(),
+            AlertType::AllGood => "All good".to_string(),
+        }
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Alert {
+    #[pyo3(get, set)]
+    pub alert_type: String,
+
+    #[pyo3(get, set)]
+    pub zone: String,
+}
+
+#[pymethods]
+#[allow(clippy::new_without_default)]
+impl Alert {
+    #[new]
+    pub fn new(alert_type: String, zone: String) -> Self {
+        Self { alert_type, zone }
     }
 }
 
@@ -337,10 +400,7 @@ pub struct FeatureDrift {
     pub drift: Vec<f64>,
 
     #[pyo3(get, set)]
-    pub alert: bool,
-
-    #[pyo3(get, set)]
-    pub alert_type: String,
+    pub alert: Alert,
 }
 
 impl FeatureDrift {

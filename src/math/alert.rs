@@ -1,7 +1,10 @@
+use crate::types::_types::{Alert, AlertType, AlertZone};
 use anyhow::{Context, Result};
+use ndarray::s;
+use ndarray::ArrayView1;
 
 pub fn check_zone_consecutive(
-    drift_array: &[f64],
+    drift_array: &ArrayView1<f64>,
     zone_consecutive_rule: usize,
     threshold: f64,
 ) -> Result<bool, anyhow::Error> {
@@ -17,7 +20,7 @@ pub fn check_zone_consecutive(
 }
 
 pub fn check_zone_alternating(
-    drift_array: &[f64],
+    drift_array: &ArrayView1<f64>,
     zone_alt_rule: usize,
     threshold: f64,
 ) -> Result<bool, anyhow::Error> {
@@ -31,8 +34,8 @@ pub fn check_zone_alternating(
             last_val = 0.0;
             alt_count = 0;
             continue;
-        } else if drift_array[i] != last_val && drift_array[i] == threshold
-            || drift_array[i] == -threshold
+        } else if drift_array[i] != last_val
+            && (drift_array[i] == threshold || drift_array[i] == -threshold)
         {
             alt_count += 1;
             if alt_count >= zone_alt_rule {
@@ -53,36 +56,39 @@ pub fn check_zone_alternating(
 pub fn check_zone(
     value: f64,
     idx: usize,
-    drift_array: &[f64],
+    drift_array: &ArrayView1<f64>,
     consecutive_rule: usize,
     alternating_rule: usize,
     threshold: f64,
-) -> Result<bool, anyhow::Error> {
+) -> Result<AlertType, anyhow::Error> {
     if (value == threshold || value == -threshold)
         && idx + 1 >= consecutive_rule as usize
         && consecutive_rule > 0
     {
         let start = idx + 1 - consecutive_rule as usize;
         let consecutive_alert =
-            check_zone_consecutive(&drift_array[start..=idx], consecutive_rule, 2.0)?;
+            check_zone_consecutive(&drift_array.slice(s![start..=idx]), consecutive_rule, 2.0)?;
 
         if consecutive_alert {
-            return Ok(true);
+            return Ok(AlertType::Consecutive);
         }
     } else if (value == threshold || value == -threshold)
         && idx + 1 >= alternating_rule as usize
         && alternating_rule > 0
     {
         let start = idx + 1 - alternating_rule as usize;
-        let alternating_alert =
-            check_zone_alternating(&drift_array[start..=idx], alternating_rule as usize, 2.0)?;
+        let alternating_alert = check_zone_alternating(
+            &drift_array.slice(s![start..=idx]),
+            alternating_rule as usize,
+            2.0,
+        )?;
 
         if alternating_alert {
-            return Ok(true);
+            return Ok(AlertType::Alternating);
         }
     }
 
-    Ok(false)
+    Ok(AlertType::AllGood)
 }
 
 pub fn convert_rules_to_vec(rule: String) -> Result<Vec<i32>, anyhow::Error> {
@@ -106,7 +112,7 @@ pub fn convert_rules_to_vec(rule: String) -> Result<Vec<i32>, anyhow::Error> {
     Ok(rule_vec)
 }
 
-pub fn check_rule(drift_array: &Vec<f64>, rule: String) -> Result<(bool, String), anyhow::Error> {
+pub fn check_rule(drift_array: &ArrayView1<f64>, rule: String) -> Result<Alert, anyhow::Error> {
     let rule_vec = convert_rules_to_vec(rule)?;
 
     let zone1_consecutive_rule = rule_vec[0];
@@ -126,7 +132,10 @@ pub fn check_rule(drift_array: &Vec<f64>, rule: String) -> Result<(bool, String)
         if *value == 4.0 || *value == -4.0 {
             out_of_bounds_count += 1;
             if out_of_bounds_count >= out_of_bounds {
-                return Ok((true, "out of bounds".to_string()));
+                return Ok(Alert::new(
+                    AlertType::OutOfBounds.as_str(),
+                    AlertZone::OutOfBounds.as_str(),
+                ));
             }
 
             // check zone 2
@@ -141,8 +150,8 @@ pub fn check_rule(drift_array: &Vec<f64>, rule: String) -> Result<(bool, String)
             2.0,
         )?;
 
-        if zone3_alert {
-            return Ok((true, "zone3".to_string()));
+        if zone3_alert != AlertType::AllGood {
+            return Ok(Alert::new(zone3_alert.as_str(), AlertZone::Zone3.as_str()));
         }
 
         // check zone 1
@@ -155,8 +164,8 @@ pub fn check_rule(drift_array: &Vec<f64>, rule: String) -> Result<(bool, String)
             1.0,
         )?;
 
-        if zone2_alert {
-            return Ok(true);
+        if zone2_alert != AlertType::AllGood {
+            return Ok(Alert::new(zone2_alert.as_str(), AlertZone::Zone2.as_str()));
         }
 
         // check zone 0
@@ -169,12 +178,15 @@ pub fn check_rule(drift_array: &Vec<f64>, rule: String) -> Result<(bool, String)
             0.0,
         )?;
 
-        if zone1_alert {
-            return Ok(true);
+        if zone1_alert != AlertType::AllGood {
+            return Ok(Alert::new(zone1_alert.as_str(), AlertZone::Zone1.as_str()));
         }
     }
 
     // convert
 
-    Ok(false)
+    return Ok(Alert::new(
+        AlertType::AllGood.as_str(),
+        AlertZone::NotApplicable.as_str(),
+    ));
 }

@@ -1,3 +1,4 @@
+use crate::math::alert::check_rule;
 use crate::types::_types::{
     AlertRules, DriftMap, FeatureDrift, FeatureMonitorProfile, MonitorConfig, MonitorProfile,
 };
@@ -319,9 +320,17 @@ impl Monitor {
             let drift = drift_array.column(i);
             let sample = sample_data.column(i);
 
+            // check drift for alert
+            let alert = check_rule(
+                &Array::from_iter(drift_array.iter().cloned()).view(),
+                monitor_profile.config.alerting_rule,
+            )
+            .with_context(|| "Failed to check rule")?;
+
             let feature_drift = FeatureDrift {
                 samples: sample.to_vec(),
                 drift: drift.to_vec(),
+                alert: alert,
             };
 
             drift_map.add_feature(feature.to_string(), feature_drift);
