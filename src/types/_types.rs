@@ -1,5 +1,7 @@
 use anyhow::Context;
 
+use numpy::PyArray2;
+use numpy::PyReadonlyArray2;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -464,5 +466,43 @@ impl DriftMap {
     pub fn save_to_json(&self, path: Option<PathBuf>) -> PyResult<()> {
         let result = save_to_json(self, path, FileName::Drift.as_str());
         result.map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
+    }
+}
+
+// Drift config to use when calculating drift on a new sample of data
+#[pyclass]
+#[derive(Debug, Clone)]
+pub struct DriftConfig {
+    #[pyo3(get, set)]
+    pub features: Vec<String>,
+    pub monitor_profile: MonitorProfile,
+    pub sample: bool,
+    pub sample_size: Option<usize>,
+    pub service_name: Option<String>,
+}
+
+#[pymethods]
+#[allow(clippy::new_without_default)]
+impl DriftConfig {
+    #[new]
+    pub fn new(
+        features: Vec<String>,
+        monitor_profile: MonitorProfile,
+        sample: Option<bool>,
+        sample_size: Option<usize>,
+        service_name: Option<String>,
+    ) -> Self {
+        let sample = match sample {
+            Some(s) => s,
+            None => true,
+        };
+
+        Self {
+            features,
+            monitor_profile,
+            sample,
+            sample_size,
+            service_name,
+        }
     }
 }

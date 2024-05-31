@@ -3,12 +3,12 @@ use std::collections::HashMap;
 
 use crate::math::monitor::Monitor;
 use crate::math::profiler::Profiler;
-use crate::types::_types::{DataProfile, DriftMap, MonitorProfile};
+use crate::types::_types::{DataProfile, DriftConfig, DriftMap, MonitorProfile};
 
 use numpy::PyReadonlyArray2;
 use pyo3::exceptions::PyValueError;
 
-use ndarray::Dim;
+use ndarray::{ArrayView2, Dim};
 use numpy::PyReadonlyArray;
 use pyo3::prelude::*;
 use pyo3::types::PyList;
@@ -110,21 +110,13 @@ impl RustScouter {
 
     pub fn compute_drift_f32(
         &mut self,
-        array: PyReadonlyArray2<f32>,
-        features: Vec<String>,
-        monitor_profile: MonitorProfile,
-        sample: bool,
-        sample_size: Option<usize>,
+        drift_sample: (PyReadonlyArray2<f32>, DriftConfig),
     ) -> PyResult<DriftMap> {
-        let array = array.as_array();
+        // get arrayview from py,pyarray2<f32>
+        let array = drift_sample.0.as_array();
+        let config = drift_sample.1;
 
-        let drift_map = match self.monitor.compute_drift(
-            &features,
-            &array,
-            &monitor_profile,
-            &sample,
-            sample_size,
-        ) {
+        let drift_map = match self.monitor.compute_drift(&array, &config) {
             Ok(drift_map) => drift_map,
             Err(_e) => {
                 return Err(PyValueError::new_err("Failed to compute drift"));
@@ -136,21 +128,12 @@ impl RustScouter {
 
     pub fn compute_drift_f64(
         &mut self,
-        array: PyReadonlyArray2<f64>,
-        features: Vec<String>,
-        monitor_profile: MonitorProfile,
-        sample: bool,
-        sample_size: Option<usize>,
+        drift_sample: (PyReadonlyArray2<f64>, DriftConfig),
     ) -> PyResult<DriftMap> {
-        let array = array.as_array();
+        let array = drift_sample.0.as_array();
+        let config = drift_sample.1;
 
-        let drift_map = match self.monitor.compute_drift(
-            &features,
-            &array,
-            &monitor_profile,
-            &sample,
-            sample_size,
-        ) {
+        let drift_map = match self.monitor.compute_drift(&array, &config) {
             Ok(drift_map) => drift_map,
             Err(_e) => {
                 return Err(PyValueError::new_err("Failed to compute drift"));
@@ -161,24 +144,29 @@ impl RustScouter {
     }
     pub fn compute_many_driftf64(
         &self,
-        data: Vec<(Vec<String>, PyReadonlyArray2<f64>, MonitorProfile, String)>,
-        sample: bool,
-        sample_size: Option<usize>,
+        data: Vec<(PyReadonlyArray2<f64>, DriftConfig)>,
     ) -> PyResult<()> {
         // convert to array
         let new_data = data
             .iter()
-            .map(|ele| {
-                let features = ele.0.clone();
-                let array = ele.1.as_array();
-                let monitor_profile = ele.2.clone();
-                let sample = ele.3.clone();
-                (features, array, monitor_profile, sample)
-            })
+            .map(|(array, config)| (array.as_array(), config.to_owned()))
             .collect::<Vec<_>>();
 
-        self.monitor
-            .compute_many_drift(new_data, &sample, sample_size);
+        self.monitor.compute_many_drift(new_data);
+        Ok(())
+    }
+
+    pub fn compute_many_driftf32(
+        &self,
+        data: Vec<(PyReadonlyArray2<f32>, DriftConfig)>,
+    ) -> PyResult<()> {
+        // convert to array
+        let new_data = data
+            .iter()
+            .map(|(array, config)| (array.as_array(), config.to_owned()))
+            .collect::<Vec<_>>();
+
+        self.monitor.compute_many_drift(new_data);
         Ok(())
     }
 }

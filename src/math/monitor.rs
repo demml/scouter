@@ -1,6 +1,7 @@
 use crate::math::alert::check_rule;
 use crate::types::_types::{
-    AlertRules, DriftMap, FeatureDrift, FeatureMonitorProfile, MonitorConfig, MonitorProfile,
+    AlertRules, DriftConfig, DriftMap, FeatureDrift, FeatureMonitorProfile, MonitorConfig,
+    MonitorProfile,
 };
 use anyhow::Ok;
 use anyhow::{Context, Result};
@@ -219,12 +220,8 @@ impl Monitor {
 
     pub fn compute_drift<F>(
         &self,
-        features: &[String],
         array: &ArrayView2<F>,
-        monitor_profile: &MonitorProfile,
-        sample: &bool,
-        sample_size: Option<usize>,
-        service_name: Option<String>,
+        config: &DriftConfig,
     ) -> Result<DriftMap, anyhow::Error>
     where
         F: Float
@@ -238,13 +235,14 @@ impl Monitor {
         F: Into<f64>,
     {
         let shape = array.shape()[0];
-        let num_features = features.len();
 
-        let sample_size = if *sample {
-            if sample_size.is_none() {
+        let num_features = config.features.len();
+
+        let sample_size = if config.sample {
+            if config.sample_size.is_none() {
                 self.set_sample_size(shape)
             } else {
-                sample_size.unwrap()
+                config.sample_size.unwrap()
             }
         } else {
             shape
@@ -263,9 +261,11 @@ impl Monitor {
             .collect::<Vec<_>>();
 
         // reshape vec to 2D array
-        let sample_data =
-            Array::from_shape_vec((sample_vec.len(), features.len()), sample_vec.concat())
-                .with_context(|| "Failed to create 2D array")?;
+        let sample_data = Array::from_shape_vec(
+            (sample_vec.len(), config.features.len()),
+            sample_vec.concat(),
+        )
+        .with_context(|| "Failed to create 2D array")?;
 
         // iterate through each row of samples
         let drift_array = sample_data
@@ -273,13 +273,13 @@ impl Monitor {
             .into_par_iter()
             .map(|x| {
                 let mut drift: Vec<f64> = vec![0.0; num_features];
-                for (i, feature) in features.iter().enumerate() {
+                for (i, feature) in config.features.iter().enumerate() {
                     // check if feature exists
-                    if monitor_profile.features.get(feature).is_none() {
+                    if config.monitor_profile.features.get(feature).is_none() {
                         continue;
                     }
 
-                    let feature_profile = monitor_profile.features.get(feature).unwrap();
+                    let feature_profile = config.monitor_profile.features.get(feature).unwrap();
 
                     let value = x[i];
 
@@ -314,16 +314,16 @@ impl Monitor {
             Array::from_shape_vec((drift_array.len(), num_features), drift_array.concat())
                 .with_context(|| "Failed to create 2D array")?;
 
-        let mut drift_map = DriftMap::new(service_name);
+        let mut drift_map = DriftMap::new(config.service_name.clone());
 
-        for (i, feature) in features.iter().enumerate() {
+        for (i, feature) in config.features.iter().enumerate() {
             let drift = drift_array.column(i);
             let sample = sample_data.column(i);
 
             // check drift for alert
             let alert = check_rule(
                 &Array::from_iter(drift_array.iter().cloned()).view(),
-                monitor_profile.config.alerting_rule,
+                config.monitor_profile.config.alerting_rule.clone(),
             )
             .with_context(|| "Failed to check rule")?;
 
@@ -339,12 +339,8 @@ impl Monitor {
         Ok(drift_map)
     }
 
-    pub fn compute_many_drift<F>(
-        &self,
-        data: Vec<(Vec<String>, ArrayView2<F>, MonitorProfile, Option<String>)>,
-        sample: &bool,
-        sample_size: Option<usize>,
-    ) where
+    pub fn compute_many_drift<F>(&self, data: Vec<(ArrayView2<F>, DriftConfig)>)
+    where
         F: Float
             + Sync
             + FromPrimitive
@@ -357,17 +353,8 @@ impl Monitor {
     {
         let drifts = data
             .into_par_iter()
-            .map(|(features, array, profile, service_name)| {
-                let drift = self
-                    .compute_drift(
-                        &features,
-                        &array,
-                        &profile,
-                        &sample,
-                        sample_size,
-                        service_name,
-                    )
-                    .unwrap();
+            .map(|(array, config)| {
+                let drift = self.compute_drift(&array, &config).unwrap();
                 drift
                 // save drift sample to file
             })
@@ -454,9 +441,15 @@ mod tests {
         let mut array = array.to_owned();
         array.slice_mut(s![0..100, 1]).fill(100.0);
 
-        let drift_profile = monitor
-            .compute_drift(&features, &array.view(), &profile, &true, None, None)
-            .unwrap();
+        let config = DriftConfig {
+            service_name: None,
+            features: features,
+            monitor_profile: profile,
+            sample: true,
+            sample_size: None,
+        };
+
+        let drift_profile = monitor.compute_drift(&array.view(), &config).unwrap();
 
         // assert relative
         let feature_1 = drift_profile.features.get("feature_1").unwrap();
