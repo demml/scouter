@@ -98,6 +98,7 @@ impl Monitor {
         sample_data: &ArrayView2<F>,
         num_features: usize,
         features: &[String],
+        monitor_config: Option<MonitorConfig>,
     ) -> Result<MonitorProfile, anyhow::Error>
     where
         F: FromPrimitive + Num + Clone + Float + Debug + Sync + Send + ndarray::ScalarOperand,
@@ -151,9 +152,13 @@ impl Monitor {
             );
         }
 
+        let config = match monitor_config {
+            Some(config) => config,
+            None => MonitorConfig::new(AlertRules::Standard.as_str(), None, None, None),
+        };
         Ok(MonitorProfile {
             features: feat_profile,
-            config: MonitorConfig::new(AlertRules::Standard.as_str().to_string(), true, 5, None),
+            config: config,
         })
     }
 
@@ -171,6 +176,7 @@ impl Monitor {
         &self,
         features: &[String],
         array: &ArrayView2<F>,
+        monitor_config: Option<MonitorConfig>,
     ) -> Result<MonitorProfile, anyhow::Error>
     where
         F: Float
@@ -212,7 +218,13 @@ impl Monitor {
                 .with_context(|| "Failed to create 2D array")?;
 
         let monitor_profile = self
-            .compute_control_limits(sample_size, &sample_data.view(), num_features, features)
+            .compute_control_limits(
+                sample_size,
+                &sample_data.view(),
+                num_features,
+                features,
+                monitor_config,
+            )
             .with_context(|| "Failed to compute control limits")?;
 
         Ok(monitor_profile)
@@ -234,23 +246,11 @@ impl Monitor {
             + ndarray::ScalarOperand,
         F: Into<f64>,
     {
-        let shape = array.shape()[0];
-
         let num_features = config.features.len();
-
-        let sample_size = if config.sample {
-            if config.sample_size.is_none() {
-                self.set_sample_size(shape)
-            } else {
-                config.sample_size.unwrap()
-            }
-        } else {
-            shape
-        };
 
         // iterate through each feature
         let sample_vec: Vec<Vec<f64>> = array
-            .axis_chunks_iter(Axis(0), sample_size)
+            .axis_chunks_iter(Axis(0), config.monitor_profile.config.sample_size)
             .into_par_iter()
             .map(|x| {
                 let mean = x.mean_axis(Axis(0)).unwrap();
@@ -323,7 +323,7 @@ impl Monitor {
             // check drift for alert
             let alert = check_rule(
                 &Array::from_iter(drift_array.iter().cloned()).view(),
-                config.monitor_profile.config.alerting_rule.clone(),
+                config.monitor_profile.config.alert_rule.clone(),
             )
             .with_context(|| "Failed to check rule")?;
 
@@ -395,7 +395,7 @@ mod tests {
         let monitor = Monitor::new();
 
         let profile = monitor
-            .create_2d_monitor_profile(&features, &array.view())
+            .create_2d_monitor_profile(&features, &array.view(), None)
             .unwrap();
         assert_eq!(profile.features.len(), 3);
     }
@@ -414,7 +414,7 @@ mod tests {
         let monitor = Monitor::new();
 
         let profile = monitor
-            .create_2d_monitor_profile(&features, &array.view())
+            .create_2d_monitor_profile(&features, &array.view(), None)
             .unwrap();
         assert_eq!(profile.features.len(), 3);
     }
@@ -433,7 +433,7 @@ mod tests {
         let monitor = Monitor::new();
 
         let profile = monitor
-            .create_2d_monitor_profile(&features, &array.view())
+            .create_2d_monitor_profile(&features, &array.view(), None)
             .unwrap();
         assert_eq!(profile.features.len(), 3);
 
@@ -445,8 +445,6 @@ mod tests {
             service_name: None,
             features: features,
             monitor_profile: profile,
-            sample: true,
-            sample_size: None,
         };
 
         let drift_profile = monitor.compute_drift(&array.view(), &config).unwrap();

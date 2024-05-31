@@ -1,18 +1,13 @@
 use core::f32;
-use std::collections::HashMap;
 
 use crate::math::monitor::Monitor;
 use crate::math::profiler::Profiler;
-use crate::types::_types::{DataProfile, DriftConfig, DriftMap, MonitorProfile};
+use crate::types::_types::{DataProfile, DriftConfig, DriftMap, MonitorConfig, MonitorProfile};
 
 use numpy::PyReadonlyArray2;
 use pyo3::exceptions::PyValueError;
 
-use ndarray::{ArrayView2, Dim};
-use numpy::PyReadonlyArray;
 use pyo3::prelude::*;
-use pyo3::types::PyList;
-use rayon::iter::IntoParallelIterator;
 
 #[pyclass]
 pub struct RustScouter {
@@ -78,15 +73,20 @@ impl RustScouter {
         &mut self,
         array: PyReadonlyArray2<f32>,
         features: Vec<String>,
+        monitor_config: Option<MonitorConfig>,
     ) -> PyResult<MonitorProfile> {
         let array = array.as_array();
 
-        let profile = match self.monitor.create_2d_monitor_profile(&features, &array) {
-            Ok(profile) => profile,
-            Err(_e) => {
-                return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
-            }
-        };
+        let profile =
+            match self
+                .monitor
+                .create_2d_monitor_profile(&features, &array, monitor_config)
+            {
+                Ok(profile) => profile,
+                Err(_e) => {
+                    return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
+                }
+            };
 
         Ok(profile)
     }
@@ -95,15 +95,20 @@ impl RustScouter {
         &mut self,
         array: PyReadonlyArray2<f64>,
         features: Vec<String>,
+        monitor_config: Option<MonitorConfig>,
     ) -> PyResult<MonitorProfile> {
         let array = array.as_array();
 
-        let profile = match self.monitor.create_2d_monitor_profile(&features, &array) {
-            Ok(profile) => profile,
-            Err(_e) => {
-                return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
-            }
-        };
+        let profile =
+            match self
+                .monitor
+                .create_2d_monitor_profile(&features, &array, monitor_config)
+            {
+                Ok(profile) => profile,
+                Err(_e) => {
+                    return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
+                }
+            };
 
         Ok(profile)
     }

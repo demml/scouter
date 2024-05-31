@@ -1,7 +1,5 @@
 use anyhow::Context;
 
-use numpy::PyArray2;
-use numpy::PyReadonlyArray2;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -21,10 +19,13 @@ impl FileName {
     }
 }
 
+#[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AlertRules {
     Standard,
 }
 
+#[pymethods]
 impl AlertRules {
     pub fn as_str(&self) -> String {
         match self {
@@ -193,16 +194,16 @@ pub struct MonitorConfig {
     pub service_name: Option<String>,
 
     #[pyo3(get, set)]
-    pub alerting_rule: String,
+    pub alert_rule: String,
 }
 
 #[pymethods]
 impl MonitorConfig {
     #[new]
     pub fn new(
-        alerting_rule: String,
-        sample: bool,
-        sample_size: usize,
+        alert_rule: String,
+        sample: Option<bool>,
+        sample_size: Option<usize>,
         service_name: Option<String>,
     ) -> Self {
         let service_name = match service_name {
@@ -210,11 +211,21 @@ impl MonitorConfig {
             None => None,
         };
 
+        let sample = match sample {
+            Some(s) => s,
+            None => true,
+        };
+
+        let sample_size = match sample_size {
+            Some(size) => size,
+            None => 5,
+        };
+
         Self {
             sample_size,
             sample,
             service_name,
-            alerting_rule,
+            alert_rule,
         }
     }
 
@@ -223,7 +234,7 @@ impl MonitorConfig {
         sample: Option<bool>,
         sample_size: Option<usize>,
         service_name: Option<String>,
-        alerting_rule: Option<String>,
+        alert_rule: Option<String>,
     ) {
         if sample.is_some() {
             self.sample = sample.unwrap();
@@ -237,8 +248,8 @@ impl MonitorConfig {
             self.service_name = service_name;
         }
 
-        if alerting_rule.is_some() {
-            self.alerting_rule = alerting_rule.unwrap();
+        if alert_rule.is_some() {
+            self.alert_rule = alert_rule.unwrap();
         }
     }
 }
@@ -471,13 +482,11 @@ impl DriftMap {
 
 // Drift config to use when calculating drift on a new sample of data
 #[pyclass]
-#[derive(Debug, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DriftConfig {
     #[pyo3(get, set)]
     pub features: Vec<String>,
     pub monitor_profile: MonitorProfile,
-    pub sample: bool,
-    pub sample_size: Option<usize>,
     pub service_name: Option<String>,
 }
 
@@ -488,21 +497,17 @@ impl DriftConfig {
     pub fn new(
         features: Vec<String>,
         monitor_profile: MonitorProfile,
-        sample: Option<bool>,
-        sample_size: Option<usize>,
         service_name: Option<String>,
     ) -> Self {
-        let sample = match sample {
-            Some(s) => s,
-            None => true,
-        };
-
         Self {
             features,
             monitor_profile,
-            sample,
-            sample_size,
             service_name,
         }
+    }
+
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        serde_json::to_string_pretty(&self).unwrap()
     }
 }

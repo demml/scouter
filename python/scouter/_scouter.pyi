@@ -3,6 +3,25 @@ from typing import Dict, List, Optional
 
 from numpy.typing import NDArray
 
+class AlertRules:
+    @property
+    def Standard(self) -> str:
+        """Standard Alert rule for process control charts"""
+
+    def as_str(self) -> str:
+        "Convert value to string"
+
+class Alert:
+    def __init__(self, alert_type: str, zone: str):
+        """Initialize alert"""
+    @property
+    def alert_type(self) -> str:
+        """Alert type"""
+
+    @property
+    def zone(self) -> str:
+        """Zone associated with alert"""
+
 class FeatureMonitorProfile:
     @property
     def id(self) -> str:
@@ -11,19 +30,72 @@ class FeatureMonitorProfile:
     def center(self) -> float:
         """Return the center."""
     @property
-    def lcl(self) -> float:
-        """Return the lcl."""
+    def one_ucl(self) -> float:
+        """Return the zone 1 ucl."""
     @property
-    def ucl(self) -> float:
-        """Return the ucl."""
+    def one_lcl(self) -> float:
+        """Return the zone 1 lcl."""
+    @property
+    def two_ucl(self) -> float:
+        """Return the zone 2 ucl."""
+    @property
+    def two_lcl(self) -> float:
+        """Return the zone 2 lcl."""
+    @property
+    def three_ucl(self) -> float:
+        """Return the zone 3 ucl."""
+    @property
+    def three_lcl(self) -> float:
+        """Return the zone 3 lcl."""
     @property
     def timestamp(self) -> str:
         """Return the timestamp."""
+
+class MonitorConfig:
+    def __init__(
+        self,
+        alert_rule: str,
+        sample: Optional[bool],
+        sample_size: Optional[int],
+        service_name: Optional[str],
+    ):
+        """Initialize monitor config"""
+
+    @property
+    def sample_size(self) -> int:
+        """Return the sample size."""
+
+    @property
+    def sample(self) -> bool:
+        """Whether to sample or not"""
+
+    @property
+    def service_name(self) -> Optional[str]:
+        """Optional service name"""
+
+    @property
+    def alert_rule(self) -> str:
+        """Alert rule to use"""
+
+    def set_config(
+        self,
+        sample: Optional[bool],
+        sample_size: Optional[int],
+        service_name: Optional[str],
+    ) -> None:
+        """Set the monitor config"""
 
 class MonitorProfile:
     @property
     def features(self) -> Dict[str, FeatureMonitorProfile]:
         """Return the list of features."""
+
+    @property
+    def config(self) -> MonitorConfig:
+        """Return the monitor config."""
+
+    def __str__(self) -> str:
+        """Sting representation of MonitorProfile"""
 
 class Distinct:
     @property
@@ -112,22 +184,39 @@ class FeatureDrift:
     @property
     def drift(self) -> List[float]:
         """Return list of drift values"""
+
     def __str__(self) -> str:
         """Return string representation of feature drift"""
 
 class DriftMap:
     """Drift map of features"""
 
+    def __init__(self, service_name: Optional[str]) -> None:
+        """Initialize data profile
+
+        Args:
+            service_name:
+                Optional name of service associated with drift map
+        """
+
+    @property
+    def service_name(self) -> Optional[str]:
+        """Optional service name to associate with drift map"""
+
     @property
     def features(self) -> Dict[str, FeatureDrift]:
         """Returns dictionary of features and their data profiles"""
+
     def __str__(self) -> str:
         """Return string representation of data drift"""
+
     def model_dump_json(self) -> str:
         """Return json representation of data drift"""
+
     @staticmethod
     def load_from_json(model: str) -> "DriftMap":
         """Load drift map from json"""
+
     def save_to_json(self, path: Optional[Path] = None) -> None:
         """Save drift map to json file
 
@@ -136,6 +225,40 @@ class DriftMap:
                 Optional path to save the drift map. If None, outputs to "drift_map.json.
 
         """
+
+class DriftConfig:
+    """Config to associate with new sample of data to compute drift on"""
+    def __init__(
+        self,
+        features: List[str],
+        monitor_profile: MonitorProfile,
+        service_name: Optional[str],
+    ) -> None:
+        """Initialize drift config
+
+        Args:
+            features:
+                List of feature names.
+            monitor_profile:
+                Monitoring profile.
+            service_name:
+                Optional service name.
+        """
+
+    @property
+    def features(self) -> List[str]:
+        """Features"""
+
+    @property
+    def monitor_profile(self) -> MonitorProfile:
+        """Monitor profile to use when computing drift"""
+
+    @property
+    def service_name(self) -> Optional[str]:
+        """Optional service name to associate with drift"""
+
+    def __str__(self) -> str:
+        """Return string representation of drift config"""
 
 class RustScouter:
     def __init__(self, bin_size: Optional[int]) -> None:
