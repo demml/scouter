@@ -205,6 +205,47 @@ pub fn check_rule(
     Ok((alerts, alert_positions))
 }
 
+pub fn has_overlap(
+    last_entry: &Vec<usize>,
+    start: usize,
+    end: usize,
+) -> Result<bool, anyhow::Error> {
+    let last_start = last_entry[0];
+    let last_end = last_entry[1];
+
+    let has_overlap = last_start <= end && start <= last_end;
+
+    Ok(has_overlap)
+}
+
+pub fn insert_alert(
+    alert_positions: &HashMap<usize, Vec<Vec<usize>>>,
+    key: usize,
+    start: usize,
+    end: usize,
+) -> Result<HashMap<usize, Vec<Vec<usize>>>, anyhow::Error> {
+    let mut positions = alert_positions.clone();
+    if alert_positions.contains_key(&key) {
+        // check if the last alert position is the same as the current start position
+        let last_alert = positions.get_mut(&key).unwrap().last().unwrap();
+        let last_start = last_alert[0];
+
+        if has_overlap(last_alert, start, end).with_context(|| "Failed to check overlap")? {
+            let new_vec = vec![last_start, end];
+            positions.get_mut(&key).unwrap().pop();
+            positions.get_mut(&key).unwrap().push(new_vec);
+        }
+    } else {
+        // push new alert position
+        positions
+            .entry(key)
+            .or_insert_with(Vec::new)
+            .push(vec![start, end]);
+    }
+
+    Ok(positions)
+}
+
 pub fn check_trend(
     drift_samples: &ArrayView1<f64>,
 ) -> Result<(Vec<Alert>, HashMap<usize, Vec<Vec<usize>>>), anyhow::Error> {
@@ -220,55 +261,28 @@ pub fn check_trend(
             let mut increasing = 0;
             let mut decreasing = 0;
 
-            for i in 0..window.len() {
-                if window[i] < window[i + 1] {
+            // iterate through
+            for i in 1..window.len() {
+                if window[i] > window[i - 1] {
                     increasing += 1;
-                } else if window[i] > window[i + 1] {
+                } else if window[i] < window[i - 1] {
                     decreasing += 1;
                 }
             }
-
-            // check if increasing or decreasing values are greater than 7
-            if increasing >= 7 || decreasing >= 7 {
-                // check if increasing or decreasing values are greater than 7
+            if increasing >= 6 || decreasing >= 6 {
+                if alerts.len() == 0 {
+                    alerts.push(Alert {
+                        zone: AlertZone::NotApplicable.to_str(),
+                        alert_type: AlertType::Trend.to_str(),
+                    });
+                }
                 let start = count;
                 let end = count + 6;
 
-                // check if alert_positions already has a vector for the index
-                if alert_positions.contains_key(&7) {
-                    // check if the last alert position is the same as the current start position
-                    let last_alert = alert_positions.get_mut(&7).unwrap().last().unwrap();
-                    let last_start = last_alert[0];
-                    let last_end = last_alert[1];
-
-                    // check if last alert overlaps with current alert and merge if they do
-                    if last_start <= end && start <= last_end {
-                        // merge index positions
-                        let new_vec = vec![last_start, end];
-                        // update last alert
-                        alert_positions.get_mut(&7).unwrap().pop();
-                        alert_positions.get_mut(&7).unwrap().push(new_vec);
-                    } else {
-                        // push new alert position
-                        alert_positions
-                            .entry(7)
-                            .or_insert_with(Vec::new)
-                            .push(vec![start, end]);
-                    }
-                } else {
-                    // push new alert position
-                    alert_positions
-                        .entry(7)
-                        .or_insert_with(Vec::new)
-                        .push(vec![start, end]);
-
-                    // match zone
-                    let zone = AlertZone::NotApplicable.to_str();
-
-                    alerts.push(Alert {
-                        zone: zone.to_string(),
-                        alert_type: AlertType::Trend.to_str(),
-                    });
+                if increasing >= 6 {
+                    alert_positions = insert_alert(&alert_positions, 0, start, end).unwrap();
+                } else if decreasing >= 6 {
+                    alert_positions = insert_alert(&alert_positions, 1, start, end).unwrap();
                 }
             }
         });
@@ -341,5 +355,19 @@ mod tests {
 
         assert_eq!(alert.0.len(), 3);
         assert_eq!(alert.1.get(&(1 as usize)), Some(&vec![vec![1, 10]]));
+    }
+
+    #[test]
+    fn test_check_trend() {
+        let values = [
+            0.0, 0.0, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1,
+        ];
+        let drift_samples = Array::from_vec(values.to_vec());
+
+        let alert = check_trend(&drift_samples.view()).unwrap();
+
+        println!("{:?}", alert);
+
+        assert_eq!(alert.0.len(), 3);
     }
 }
