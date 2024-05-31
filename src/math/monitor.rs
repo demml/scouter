@@ -13,6 +13,8 @@ use num_traits::{Float, FromPrimitive, Num};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fmt::Debug;
+
+use super::alert::check_trend;
 pub struct Monitor {}
 
 impl Monitor {
@@ -154,7 +156,7 @@ impl Monitor {
 
         let config = match monitor_config {
             Some(config) => config,
-            None => MonitorConfig::new(AlertRules::Standard.as_str(), None, None, None),
+            None => MonitorConfig::new(AlertRules::Standard.to_str(), None, None, None),
         };
         Ok(MonitorProfile {
             features: feat_profile,
@@ -322,15 +324,20 @@ impl Monitor {
 
             // check drift for alert
             let alert = check_rule(
-                &Array::from_iter(drift_array.iter().cloned()).view(),
+                &Array::from_iter(drift.iter().cloned()).view(),
                 config.monitor_profile.config.alert_rule.clone(),
             )
             .with_context(|| "Failed to check rule")?;
 
+            let trend_alert = check_trend(&Array::from_iter(sample.iter().cloned()).view())
+                .with_context(|| "Failed to check trend")?;
+
+            println!("Trend Alert: {:?}", trend_alert);
+
             let feature_drift = FeatureDrift {
                 samples: sample.to_vec(),
                 drift: drift.to_vec(),
-                alert: alert,
+                alert: alert.0,
             };
 
             drift_map.add_feature(feature.to_string(), feature_drift);
@@ -351,7 +358,7 @@ impl Monitor {
             + ndarray::ScalarOperand,
         F: Into<f64>,
     {
-        let drifts = data
+        let _drifts = data
             .into_par_iter()
             .map(|(array, config)| {
                 let drift = self.compute_drift(&array, &config).unwrap();

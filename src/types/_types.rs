@@ -11,7 +11,7 @@ enum FileName {
 }
 
 impl FileName {
-    fn as_str(&self) -> &'static str {
+    fn to_str(&self) -> &'static str {
         match self {
             FileName::Drift => "drift_map.json",
             FileName::Profile => "data_profile.json",
@@ -27,15 +27,15 @@ pub enum AlertRules {
 
 #[pymethods]
 impl AlertRules {
-    pub fn as_str(&self) -> String {
+    pub fn to_str(&self) -> String {
         match self {
-            AlertRules::Standard => "8 16 4 8 2 4 1".to_string(),
+            AlertRules::Standard => "8 16 4 8 2 4 1 1".to_string(),
         }
     }
 }
 
 #[pyclass]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, std::cmp::Eq, Hash)]
 pub enum AlertZone {
     Zone1,
     Zone2,
@@ -46,7 +46,7 @@ pub enum AlertZone {
 
 #[pymethods]
 impl AlertZone {
-    pub fn as_str(&self) -> String {
+    pub fn to_str(&self) -> String {
         match self {
             AlertZone::Zone1 => "Zone 1".to_string(),
             AlertZone::Zone2 => "Zone 2".to_string(),
@@ -64,16 +64,18 @@ pub enum AlertType {
     Consecutive,
     Alternating,
     AllGood,
+    Trend,
 }
 
 #[pymethods]
 impl AlertType {
-    pub fn as_str(&self) -> String {
+    pub fn to_str(&self) -> String {
         match self {
             AlertType::OutOfBounds => "Out of bounds".to_string(),
             AlertType::Consecutive => "Consecutive".to_string(),
             AlertType::Alternating => "Alternating".to_string(),
             AlertType::AllGood => "All good".to_string(),
+            AlertType::Trend => "Trend".to_string(),
         }
     }
 }
@@ -348,7 +350,7 @@ impl DataProfile {
     }
 
     pub fn save_to_json(&self, path: Option<PathBuf>) -> PyResult<()> {
-        let result = save_to_json(self, path, FileName::Profile.as_str());
+        let result = save_to_json(self, path, FileName::Profile.to_str());
         result.map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
     }
 }
@@ -413,7 +415,7 @@ pub struct FeatureDrift {
     pub drift: Vec<f64>,
 
     #[pyo3(get, set)]
-    pub alert: Alert,
+    pub alert: Vec<Alert>,
 }
 
 impl FeatureDrift {
@@ -475,7 +477,7 @@ impl DriftMap {
     }
 
     pub fn save_to_json(&self, path: Option<PathBuf>) -> PyResult<()> {
-        let result = save_to_json(self, path, FileName::Drift.as_str());
+        let result = save_to_json(self, path, FileName::Drift.to_str());
         result.map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
     }
 }
@@ -509,5 +511,26 @@ impl DriftConfig {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         serde_json::to_string_pretty(&self).unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    #[test]
+    fn test_types() {
+        // write tests for all alerts
+        assert_eq!(AlertRules::Standard.to_str(), "8 16 4 8 2 4 1");
+        assert_eq!(AlertZone::NotApplicable.to_str(), "NA");
+        assert_eq!(AlertZone::Zone1.to_str(), "Zone 1");
+        assert_eq!(AlertZone::Zone2.to_str(), "Zone 2");
+        assert_eq!(AlertZone::Zone3.to_str(), "Zone 3");
+        assert_eq!(AlertZone::OutOfBounds.to_str(), "Out of bounds");
+        assert_eq!(AlertType::AllGood.to_str(), "All good");
+        assert_eq!(AlertType::Consecutive.to_str(), "Consecutive");
+        assert_eq!(AlertType::Alternating.to_str(), "Alternating");
+        assert_eq!(AlertType::OutOfBounds.to_str(), "Out of bounds");
     }
 }
