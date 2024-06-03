@@ -3,8 +3,8 @@ use anyhow::Context;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::path::PathBuf;
-
 enum FileName {
     Drift,
     Profile,
@@ -81,7 +81,7 @@ impl AlertType {
 }
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Eq, Hash, PartialEq)]
 pub struct Alert {
     #[pyo3(get, set)]
     pub alert_type: String,
@@ -415,7 +415,7 @@ pub struct FeatureDrift {
     pub drift: Vec<f64>,
 
     #[pyo3(get, set)]
-    pub alert: Vec<Alert>,
+    pub alert: HashSet<Alert>,
 }
 
 impl FeatureDrift {
