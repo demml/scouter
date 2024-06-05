@@ -19,7 +19,7 @@ pub struct RustScouter {
 #[allow(clippy::new_without_default)]
 impl RustScouter {
     #[new]
-    pub fn new(bin_size: Option<usize>) -> Self {
+    pub fn new(bin_size: Option<usize>, monitor_config: Option<MonitorConfig>) -> Self {
         let profiler = match bin_size {
             Some(size) => Profiler::new(size),
             None => Profiler::default(),
@@ -147,31 +147,10 @@ impl RustScouter {
 
         Ok(drift_map)
     }
-    pub fn compute_many_driftf64(
-        &self,
-        data: Vec<(PyReadonlyArray2<f64>, DriftConfig)>,
-    ) -> PyResult<()> {
-        // convert to array
-        let new_data = data
-            .iter()
-            .map(|(array, config)| (array.as_array(), config.to_owned()))
-            .collect::<Vec<_>>();
+}
 
-        self.monitor.compute_many_drift(new_data);
-        Ok(())
-    }
-
-    pub fn compute_many_driftf32(
-        &self,
-        data: Vec<(PyReadonlyArray2<f32>, DriftConfig)>,
-    ) -> PyResult<()> {
-        // convert to array
-        let new_data = data
-            .iter()
-            .map(|(array, config)| (array.as_array(), config.to_owned()))
-            .collect::<Vec<_>>();
-
-        self.monitor.compute_many_drift(new_data);
-        Ok(())
-    }
+#[pyclass]
+pub struct Drifter {
+    monitor: Monitor,
+    monitor_profile: MonitorProfile,
 }

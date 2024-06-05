@@ -58,7 +58,7 @@ impl AlertZone {
 }
 
 #[pyclass]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
 pub enum AlertType {
     OutOfBounds,
     Consecutive,
@@ -220,7 +220,7 @@ impl MonitorConfig {
 
         let sample_size = match sample_size {
             Some(size) => size,
-            None => 5,
+            None => 10,
         };
 
         Self {
@@ -413,9 +413,6 @@ pub struct FeatureDrift {
 
     #[pyo3(get, set)]
     pub drift: Vec<f64>,
-
-    #[pyo3(get, set)]
-    pub alert: HashSet<Alert>,
 }
 
 impl FeatureDrift {
