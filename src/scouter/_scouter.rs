@@ -153,4 +153,5 @@ impl RustScouter {
 pub struct Drifter {
     monitor: Monitor,
     monitor_profile: MonitorProfile,
+    drift_queue: Vec<D>,
 }
