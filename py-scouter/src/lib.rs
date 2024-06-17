@@ -1,9 +1,7 @@
-pub mod math;
-mod scouter;
-mod types;
+mod py_scouter;
+use py_scouter::_scouter::RustScouter;
 use pyo3::prelude::*;
-use scouter::_scouter::RustScouter;
-use types::_types::{
+use scouter::types::_types::{
     Alert, AlertRules, AlertType, AlertZone, DataProfile, Distinct, DriftConfig, DriftMap,
     FeatureDataProfile, FeatureDrift, FeatureMonitorProfile, Histogram, MonitorConfig,
     MonitorProfile,

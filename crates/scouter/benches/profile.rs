@@ -13,7 +13,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     let array = Array::random((1000, 10), Uniform::new(0., 10.));
     let features: Vec<String> = (0..10).map(|x| x.to_string()).collect();
     group.bench_function("monitor", |b| {
-        b.iter(|| monitor.create_2d_monitor_profile(&features, black_box(&array.view())))
+        b.iter(|| monitor.create_2d_monitor_profile(&features, black_box(&array.view()), None))
     });
     group.bench_function("profile", |b| {
         b.iter(|| profiler.compute_stats(&features, black_box(&array.view())))

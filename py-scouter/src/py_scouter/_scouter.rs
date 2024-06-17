@@ -1,8 +1,8 @@
 use core::f32;
 
-use crate::math::monitor::Monitor;
-use crate::math::profiler::Profiler;
-use crate::types::_types::{DataProfile, DriftConfig, DriftMap, MonitorConfig, MonitorProfile};
+use scouter::math::monitor::Monitor;
+use scouter::math::profiler::Profiler;
+use scouter::types::_types::{DataProfile, DriftConfig, DriftMap, MonitorConfig, MonitorProfile};
 
 use numpy::PyReadonlyArray2;
 use pyo3::exceptions::PyValueError;
