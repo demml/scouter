@@ -180,7 +180,8 @@ pub struct FeatureMonitorProfile {
 ///
 /// * `sample_size` - The sample size
 /// * `sample` - Whether to sample data or not, Default is true
-/// * `service_name` - The service name. This is required if pushing metrics to a db or prometheus
+/// * `name` - The name of the model
+/// * `repository` - The repository associated with the model
 /// * `alerting_rule` - The alerting rule to use for monitoring
 ///
 #[pyclass]
@@ -193,7 +194,13 @@ pub struct MonitorConfig {
     pub sample: bool,
 
     #[pyo3(get, set)]
-    pub service_name: Option<String>,
+    pub name: String,
+
+    #[pyo3(get, set)]
+    pub repository: String,
+
+    #[pyo3(get, set)]
+    pub version: String,
 
     #[pyo3(get, set)]
     pub alert_rule: String,
@@ -204,15 +211,12 @@ impl MonitorConfig {
     #[new]
     pub fn new(
         alert_rule: String,
+        name: String,
+        repository: String,
+        version: String,
         sample: Option<bool>,
         sample_size: Option<usize>,
-        service_name: Option<String>,
     ) -> Self {
-        let service_name = match service_name {
-            Some(name) => Some(name),
-            None => None,
-        };
-
         let sample = match sample {
             Some(s) => s,
             None => true,
@@ -226,7 +230,9 @@ impl MonitorConfig {
         Self {
             sample_size,
             sample,
-            service_name,
+            name,
+            repository,
+            version,
             alert_rule,
         }
     }
@@ -235,7 +241,8 @@ impl MonitorConfig {
         &mut self,
         sample: Option<bool>,
         sample_size: Option<usize>,
-        service_name: Option<String>,
+        name: Option<String>,
+        repository: Option<String>,
         alert_rule: Option<String>,
     ) {
         if sample.is_some() {
@@ -246,8 +253,12 @@ impl MonitorConfig {
             self.sample_size = sample_size.unwrap();
         }
 
-        if service_name.is_some() {
-            self.service_name = service_name;
+        if name.is_some() {
+            self.name = name.unwrap();
+        }
+
+        if repository.is_some() {
+            self.repository = repository.unwrap();
         }
 
         if alert_rule.is_some() {
@@ -433,22 +444,21 @@ impl FeatureDrift {
 pub struct DriftMap {
     #[pyo3(get, set)]
     pub features: HashMap<String, FeatureDrift>,
-    pub service_name: Option<String>,
+    pub name: String,
+    pub repository: String,
+    pub version: String,
 }
 
 #[pymethods]
 #[allow(clippy::new_without_default)]
 impl DriftMap {
     #[new]
-    pub fn new(service_name: Option<String>) -> Self {
-        let service_name = match service_name {
-            Some(name) => Some(name),
-            None => None,
-        };
-
+    pub fn new(name: String, repository: String, version: String) -> Self {
         Self {
             features: HashMap::new(),
-            service_name,
+            name,
+            repository,
+            version,
         }
     }
 

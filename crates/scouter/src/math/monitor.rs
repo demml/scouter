@@ -95,7 +95,7 @@ impl Monitor {
         sample_data: &ArrayView2<F>,
         num_features: usize,
         features: &[String],
-        monitor_config: Option<MonitorConfig>,
+        monitor_config: MonitorConfig,
     ) -> Result<MonitorProfile, anyhow::Error>
     where
         F: FromPrimitive + Num + Clone + Float + Debug + Sync + Send + ndarray::ScalarOperand,
@@ -149,13 +149,9 @@ impl Monitor {
             );
         }
 
-        let config = match monitor_config {
-            Some(config) => config,
-            None => MonitorConfig::new(AlertRules::Standard.to_str(), None, None, None),
-        };
         Ok(MonitorProfile {
             features: feat_profile,
-            config: config,
+            config: monitor_config,
         })
     }
 
@@ -173,7 +169,7 @@ impl Monitor {
         &self,
         features: &[String],
         array: &ArrayView2<F>,
-        monitor_config: Option<MonitorConfig>,
+        monitor_config: MonitorConfig,
     ) -> Result<MonitorProfile, anyhow::Error>
     where
         F: Float
@@ -351,9 +347,13 @@ impl Monitor {
             Array::from_shape_vec((drift_array.len(), num_features), drift_array.concat())
                 .with_context(|| "Failed to create 2D array")?;
 
-        let mut drift_map = DriftMap::new(monitor_profile.config.service_name.clone());
+        let mut drift_map = DriftMap::new(
+            monitor_profile.config.name.clone(),
+            monitor_profile.config.repository.clone(),
+            monitor_profile.config.version.clone(),
+        );
 
-        for (i, (feature, profile)) in monitor_profile.features.iter().enumerate() {
+        for (i, (feature, _profile)) in monitor_profile.features.iter().enumerate() {
             let drift = drift_array.column(i);
             let sample = sample_data.column(i);
 
