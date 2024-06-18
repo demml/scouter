@@ -17,7 +17,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         AlertRules::Standard.to_str(),
         "name".to_string(),
         "repo".to_string(),
-        "0.1.0".to_string(),
+        None,
         None,
         None,
     );

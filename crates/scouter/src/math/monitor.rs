@@ -1,5 +1,5 @@
 use crate::types::_types::{
-    AlertRules, DriftMap, FeatureDrift, FeatureMonitorProfile, MonitorConfig, MonitorProfile,
+    DriftMap, FeatureDrift, FeatureMonitorProfile, MonitorConfig, MonitorProfile,
 };
 use anyhow::Ok;
 use anyhow::{Context, Result};
@@ -144,7 +144,7 @@ impl Monitor {
                     two_lcl: two_lcl[i].into(),
                     three_ucl: three_ucl[i].into(),
                     three_lcl: three_lcl[i].into(),
-                    timestamp: Utc::now().to_string(),
+                    timestamp: chrono::Utc::now().naive_utc(),
                 },
             );
         }
@@ -273,6 +273,7 @@ impl Monitor {
     // # Arguments
     //
     // * `array` - A 2D array of f64 values
+    // * `features` - A vector of feature names that is mapped to the array (order of features in the order in the array)
     // * `monitor_profile` - A monitor profile
     //
     // # Returns
@@ -280,6 +281,7 @@ impl Monitor {
     pub fn compute_drift<F>(
         &self,
         array: &ArrayView2<F>, // n x m data array (features and predictions)
+        features: &[String],
         monitor_profile: &MonitorProfile,
     ) -> Result<DriftMap, anyhow::Error>
     where
@@ -306,7 +308,7 @@ impl Monitor {
             .into_par_iter()
             .map(|x| {
                 let mut drift: Vec<f64> = vec![0.0; num_features];
-                for (i, (feature, _profile)) in monitor_profile.features.iter().enumerate() {
+                for (i, feature) in features.iter().enumerate() {
                     // check if feature exists
                     if monitor_profile.features.get(feature).is_none() {
                         continue;
@@ -353,7 +355,7 @@ impl Monitor {
             monitor_profile.config.version.clone(),
         );
 
-        for (i, (feature, _profile)) in monitor_profile.features.iter().enumerate() {
+        for (i, feature) in features.iter().enumerate() {
             let drift = drift_array.column(i);
             let sample = sample_data.column(i);
 
@@ -381,6 +383,7 @@ impl Default for Monitor {
 mod tests {
 
     use super::*;
+    use crate::types::_types::AlertRules;
     use approx::relative_eq;
     use ndarray::Array;
     use ndarray_rand::rand_distr::Uniform;
@@ -404,7 +407,7 @@ mod tests {
             AlertRules::Standard.to_str(),
             "name".to_string(),
             "repo".to_string(),
-            "0.1.0".to_string(),
+            None,
             None,
             None,
         );
@@ -431,7 +434,7 @@ mod tests {
             AlertRules::Standard.to_str(),
             "name".to_string(),
             "repo".to_string(),
-            "0.1.0".to_string(),
+            None,
             None,
             None,
         );
@@ -457,7 +460,7 @@ mod tests {
             AlertRules::Standard.to_str(),
             "name".to_string(),
             "repo".to_string(),
-            "0.1.0".to_string(),
+            None,
             None,
             None,
         );
@@ -471,14 +474,15 @@ mod tests {
 
         // change first 100 rows to 100 at index 1
         let mut array = array.to_owned();
-        array.slice_mut(s![0..100, 1]).fill(100.0);
+        array.slice_mut(s![0..200, 1]).fill(100.0);
 
-        let drift_profile = monitor.compute_drift(&array.view(), &profile).unwrap();
+        let drift_profile = monitor
+            .compute_drift(&array.view(), &features, &profile)
+            .unwrap();
 
         // assert relative
-        let feature_1 = drift_profile.features.get("feature_1").unwrap();
-
-        assert!(relative_eq!(feature_1.samples[0], 5.0, epsilon = 2.0));
+        let feature_1 = drift_profile.features.get("feature_2").unwrap();
+        assert!(relative_eq!(feature_1.samples[0], 100.0, epsilon = 2.0));
 
         // convert profile to json and load it back
         let _ = drift_profile.model_dump_json();

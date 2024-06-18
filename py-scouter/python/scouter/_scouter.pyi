@@ -3,14 +3,6 @@ from typing import Dict, List, Optional
 
 from numpy.typing import NDArray
 
-class AlertRules:
-    @property
-    def Standard(self) -> str:
-        """Standard Alert rule for process control charts"""
-
-    def as_str(self) -> str:
-        "Convert value to string"
-
 class Alert:
     def __init__(self, alert_type: str, zone: str):
         """Initialize alert"""
@@ -55,11 +47,28 @@ class MonitorConfig:
     def __init__(
         self,
         alert_rule: str,
+        name: str,
+        repository: str,
+        version: Optional[str],
         sample: Optional[bool],
         sample_size: Optional[int],
-        service_name: Optional[str],
     ):
-        """Initialize monitor config"""
+        """Initialize monitor config
+
+        Args:
+            alert_rule:
+                Alert rule to use
+            name:
+                Model name
+            repository:
+                Model repository
+            version:
+                Model version. Defaults to 0.1.0
+            sample:
+                Whether to sample or not
+            sample_size:
+                Sample size
+        """
 
     @property
     def sample_size(self) -> int:
@@ -70,8 +79,16 @@ class MonitorConfig:
         """Whether to sample or not"""
 
     @property
-    def service_name(self) -> Optional[str]:
-        """Optional service name"""
+    def name(self) -> str:
+        """Model Name"""
+
+    @property
+    def repository(self) -> str:
+        """Model repository"""
+
+    @property
+    def version(self) -> str:
+        """Model version"""
 
     @property
     def alert_rule(self) -> str:
@@ -81,9 +98,24 @@ class MonitorConfig:
         self,
         sample: Optional[bool],
         sample_size: Optional[int],
-        service_name: Optional[str],
+        name: Optional[str],
+        repository: Optional[str],
+        version: Optional[str],
     ) -> None:
-        """Set the monitor config"""
+        """Set the monitor config
+
+        Args:
+            sample:
+                Whether to sample or not
+            sample_size:
+                Sample size
+            name:
+                Model name
+            repository:
+                Model repository
+            version:
+                Model version
+        """
 
 class MonitorProfile:
     @property

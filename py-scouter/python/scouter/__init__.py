@@ -5,7 +5,9 @@ from ._scouter import (
     FeatureDataProfile,
     FeatureMonitorProfile,
     MonitorProfile,
+    Alert,
 )
+from scouter.utils.types import AlertType, AlertRules, AlertZone
 from .scouter import Scouter
 from .version import __version__
 
@@ -16,4 +18,8 @@ __all__ = [
     "MonitorProfile",
     "FeatureMonitorProfile",
     "FeatureDataProfile",
+    "Alert",
+    "AlertType",
+    "AlertRules",
+    "AlertZone",
 ]

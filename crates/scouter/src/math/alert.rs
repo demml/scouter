@@ -408,8 +408,7 @@ mod tests {
         assert_eq!(alert.get(&3).unwrap(), &vec![vec![15, 17], vec![20, 26]]);
         assert_eq!(alert.get(&4).unwrap(), &vec![vec![18, 18], vec![20, 20]]);
 
-        println!("{:?}", alert);
-        assert_eq!(alerter.alerts.len(), 10);
+        assert_eq!(alerter.alerts.len(), 4);
     }
 
     #[test]
@@ -422,6 +421,11 @@ mod tests {
         let drift_samples = Array::from_vec(values.to_vec());
 
         alerter.check_trend(&drift_samples.view()).unwrap();
-        assert_eq!(10, 1);
+
+        // get first alert
+        let alert = alerter.alerts.iter().next().unwrap();
+
+        assert_eq!(alert.zone, "NA");
+        assert_eq!(alert.alert_type, "Trend");
     }
 }

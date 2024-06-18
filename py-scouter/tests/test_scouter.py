@@ -5,7 +5,7 @@ import pandas as pd
 from numpy.typing import NDArray
 import pytest
 import numpy as np
-from scouter._scouter import MonitorProfile, DriftMap
+from scouter._scouter import MonitorProfile, DriftMap, AlertRules
 from scouter import DataProfile
 from pathlib import Path
 import time

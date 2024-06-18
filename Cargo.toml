@@ -17,6 +17,12 @@ repository = "https://github.com/demml/scouter"
 
 
 [workspace.dependencies]
-pyo3 = { version = "0.21", features = ["extension-module"] }
+pyo3 = { version = "0.21", features = ["extension-module", "chrono"] }
 numpy = "0.21.0"
 scouter = { path = "crates/scouter" }
+
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true

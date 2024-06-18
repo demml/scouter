@@ -1,9 +1,8 @@
 use anyhow::Context;
-
+use chrono::naive::serde::ts_microseconds::serialize as to_micro_ts;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::path::PathBuf;
 enum FileName {
     Drift,
@@ -171,7 +170,8 @@ pub struct FeatureMonitorProfile {
     pub three_lcl: f64,
 
     #[pyo3(get, set)]
-    pub timestamp: String,
+    #[serde(serialize_with = "to_micro_ts")]
+    pub timestamp: chrono::NaiveDateTime,
 }
 
 /// Python class for a monitoring configuration
@@ -213,7 +213,7 @@ impl MonitorConfig {
         alert_rule: String,
         name: String,
         repository: String,
-        version: String,
+        version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
     ) -> Self {
@@ -224,7 +224,12 @@ impl MonitorConfig {
 
         let sample_size = match sample_size {
             Some(size) => size,
-            None => 10,
+            None => 25,
+        };
+
+        let version = match version {
+            Some(v) => v,
+            None => "0.1.0".to_string(),
         };
 
         Self {
@@ -243,6 +248,7 @@ impl MonitorConfig {
         sample_size: Option<usize>,
         name: Option<String>,
         repository: Option<String>,
+        version: Option<String>,
         alert_rule: Option<String>,
     ) {
         if sample.is_some() {
@@ -263,6 +269,10 @@ impl MonitorConfig {
 
         if alert_rule.is_some() {
             self.alert_rule = alert_rule.unwrap();
+        }
+
+        if version.is_some() {
+            self.version = version.unwrap();
         }
     }
 }
@@ -314,7 +324,8 @@ pub struct FeatureDataProfile {
     pub max: f64,
 
     #[pyo3(get, set)]
-    pub timestamp: String,
+    #[serde(serialize_with = "to_micro_ts")]
+    pub timestamp: chrono::NaiveDateTime,
 
     #[pyo3(get, set)]
     pub distinct: Distinct,
@@ -529,7 +540,7 @@ mod tests {
     #[test]
     fn test_types() {
         // write tests for all alerts
-        assert_eq!(AlertRules::Standard.to_str(), "8 16 4 8 2 4 1");
+        assert_eq!(AlertRules::Standard.to_str(), "8 16 4 8 2 4 1 1");
         assert_eq!(AlertZone::NotApplicable.to_str(), "NA");
         assert_eq!(AlertZone::Zone1.to_str(), "Zone 1");
         assert_eq!(AlertZone::Zone2.to_str(), "Zone 2");

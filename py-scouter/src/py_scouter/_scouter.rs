@@ -115,13 +115,16 @@ impl RustScouter {
 
     pub fn compute_drift_f32(
         &mut self,
-        drift_sample: (PyReadonlyArray2<f32>, MonitorProfile),
+        drift_array: PyReadonlyArray2<f32>,
+        features: Vec<String>,
+        monitor_profile: MonitorProfile,
     ) -> PyResult<DriftMap> {
-        // get arrayview from py,pyarray2<f32>
-        let array = drift_sample.0.as_array();
-        let profile = drift_sample.1;
+        let array = drift_array.as_array();
 
-        let drift_map = match self.monitor.compute_drift(&array, &profile) {
+        let drift_map = match self
+            .monitor
+            .compute_drift(&array, &features, &monitor_profile)
+        {
             Ok(drift_map) => drift_map,
             Err(_e) => {
                 return Err(PyValueError::new_err("Failed to compute drift"));
@@ -133,12 +136,16 @@ impl RustScouter {
 
     pub fn compute_drift_f64(
         &mut self,
-        drift_sample: (PyReadonlyArray2<f64>, MonitorProfile),
+        drift_array: PyReadonlyArray2<f64>,
+        features: Vec<String>,
+        monitor_profile: MonitorProfile,
     ) -> PyResult<DriftMap> {
-        let array = drift_sample.0.as_array();
-        let profile = drift_sample.1;
+        let array = drift_array.as_array();
 
-        let drift_map = match self.monitor.compute_drift(&array, &profile) {
+        let drift_map = match self
+            .monitor
+            .compute_drift(&array, &features, &monitor_profile)
+        {
             Ok(drift_map) => drift_map,
             Err(_e) => {
                 return Err(PyValueError::new_err("Failed to compute drift"));

@@ -345,7 +345,7 @@ impl Profiler {
                 stddev: f64::from(*stddev),
                 min: f64::from(*min),
                 max: f64::from(*max),
-                timestamp: Utc::now().to_string(),
+                timestamp: chrono::Utc::now().naive_utc(),
                 distinct: Distinct {
                     count: dist.count,
                     percent: dist.percent,
@@ -400,8 +400,6 @@ mod tests {
         let profiler = Profiler::default();
 
         let profile = profiler.compute_stats(&features, &array.view()).unwrap();
-
-        println!("{:?}", profile);
 
         assert_eq!(profile.features.len(), 3);
         assert_eq!(profile.features["feature_1"].id, "feature_1");
@@ -468,8 +466,6 @@ mod tests {
         let profiler = Profiler::default();
 
         let profile = profiler.compute_stats(&features, &array.view()).unwrap();
-
-        println!("{:?}", profile);
 
         assert_eq!(profile.features.len(), 3);
         assert_eq!(profile.features["feature_1"].id, "feature_1");
