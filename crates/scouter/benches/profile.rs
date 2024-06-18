@@ -5,6 +5,7 @@ use ndarray_rand::RandomExt;
 use scouter::math::monitor::Monitor;
 
 use scouter::math::profiler::Profiler;
+use scouter::types::_types::{AlertRules, MonitorConfig};
 
 fn criterion_benchmark(c: &mut Criterion) {
     let monitor = Monitor::new();
@@ -12,8 +13,16 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("sample-size-example");
     let array = Array::random((1000, 10), Uniform::new(0., 10.));
     let features: Vec<String> = (0..10).map(|x| x.to_string()).collect();
+    let config = MonitorConfig::new(
+        AlertRules::Standard.to_str(),
+        "name".to_string(),
+        "repo".to_string(),
+        "0.1.0".to_string(),
+        None,
+        None,
+    );
     group.bench_function("monitor", |b| {
-        b.iter(|| monitor.create_2d_monitor_profile(&features, black_box(&array.view()), None))
+        b.iter(|| monitor.create_2d_monitor_profile(&features, black_box(&array.view()), &config))
     });
     group.bench_function("profile", |b| {
         b.iter(|| profiler.compute_stats(&features, black_box(&array.view())))

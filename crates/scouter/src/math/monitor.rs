@@ -95,7 +95,7 @@ impl Monitor {
         sample_data: &ArrayView2<F>,
         num_features: usize,
         features: &[String],
-        monitor_config: MonitorConfig,
+        monitor_config: &MonitorConfig,
     ) -> Result<MonitorProfile, anyhow::Error>
     where
         F: FromPrimitive + Num + Clone + Float + Debug + Sync + Send + ndarray::ScalarOperand,
@@ -151,7 +151,7 @@ impl Monitor {
 
         Ok(MonitorProfile {
             features: feat_profile,
-            config: monitor_config,
+            config: monitor_config.clone(),
         })
     }
 
@@ -169,7 +169,7 @@ impl Monitor {
         &self,
         features: &[String],
         array: &ArrayView2<F>,
-        monitor_config: MonitorConfig,
+        monitor_config: &MonitorConfig,
     ) -> Result<MonitorProfile, anyhow::Error>
     where
         F: Float
@@ -306,7 +306,7 @@ impl Monitor {
             .into_par_iter()
             .map(|x| {
                 let mut drift: Vec<f64> = vec![0.0; num_features];
-                for (i, (feature, profile)) in monitor_profile.features.iter().enumerate() {
+                for (i, (feature, _profile)) in monitor_profile.features.iter().enumerate() {
                     // check if feature exists
                     if monitor_profile.features.get(feature).is_none() {
                         continue;
@@ -400,9 +400,17 @@ mod tests {
         ];
 
         let monitor = Monitor::new();
+        let config = MonitorConfig::new(
+            AlertRules::Standard.to_str(),
+            "name".to_string(),
+            "repo".to_string(),
+            "0.1.0".to_string(),
+            None,
+            None,
+        );
 
         let profile = monitor
-            .create_2d_monitor_profile(&features, &array.view(), None)
+            .create_2d_monitor_profile(&features, &array.view(), &config)
             .unwrap();
         assert_eq!(profile.features.len(), 3);
     }
@@ -419,9 +427,17 @@ mod tests {
         ];
 
         let monitor = Monitor::new();
+        let config = MonitorConfig::new(
+            AlertRules::Standard.to_str(),
+            "name".to_string(),
+            "repo".to_string(),
+            "0.1.0".to_string(),
+            None,
+            None,
+        );
 
         let profile = monitor
-            .create_2d_monitor_profile(&features, &array.view(), None)
+            .create_2d_monitor_profile(&features, &array.view(), &config)
             .unwrap();
         assert_eq!(profile.features.len(), 3);
     }
@@ -437,10 +453,19 @@ mod tests {
             "feature_3".to_string(),
         ];
 
+        let config = MonitorConfig::new(
+            AlertRules::Standard.to_str(),
+            "name".to_string(),
+            "repo".to_string(),
+            "0.1.0".to_string(),
+            None,
+            None,
+        );
+
         let monitor = Monitor::new();
 
         let profile = monitor
-            .create_2d_monitor_profile(&features, &array.view(), None)
+            .create_2d_monitor_profile(&features, &array.view(), &config)
             .unwrap();
         assert_eq!(profile.features.len(), 3);
 
