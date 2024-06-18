@@ -2,7 +2,7 @@ use core::f32;
 
 use scouter::math::monitor::Monitor;
 use scouter::math::profiler::Profiler;
-use scouter::types::_types::{DataProfile, DriftConfig, DriftMap, MonitorConfig, MonitorProfile};
+use scouter::types::_types::{DataProfile, DriftMap, MonitorConfig, MonitorProfile};
 
 use numpy::PyReadonlyArray2;
 use pyo3::exceptions::PyValueError;
@@ -73,14 +73,14 @@ impl RustScouter {
         &mut self,
         array: PyReadonlyArray2<f32>,
         features: Vec<String>,
-        monitor_config: Option<MonitorConfig>,
+        monitor_config: MonitorConfig,
     ) -> PyResult<MonitorProfile> {
         let array = array.as_array();
 
         let profile =
             match self
                 .monitor
-                .create_2d_monitor_profile(&features, &array, monitor_config)
+                .create_2d_monitor_profile(&features, &array, &monitor_config)
             {
                 Ok(profile) => profile,
                 Err(_e) => {
@@ -95,14 +95,14 @@ impl RustScouter {
         &mut self,
         array: PyReadonlyArray2<f64>,
         features: Vec<String>,
-        monitor_config: Option<MonitorConfig>,
+        monitor_config: MonitorConfig,
     ) -> PyResult<MonitorProfile> {
         let array = array.as_array();
 
         let profile =
             match self
                 .monitor
-                .create_2d_monitor_profile(&features, &array, monitor_config)
+                .create_2d_monitor_profile(&features, &array, &monitor_config)
             {
                 Ok(profile) => profile,
                 Err(_e) => {
