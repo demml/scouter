@@ -382,7 +382,6 @@ impl Default for Monitor {
 mod tests {
 
     use super::*;
-    use crate::types::_types::AlertRules;
     use approx::relative_eq;
     use ndarray::Array;
     use ndarray_rand::rand_distr::Uniform;
@@ -403,9 +402,9 @@ mod tests {
 
         let monitor = Monitor::new();
         let config = MonitorConfig::new(
-            AlertRules::Standard.to_str(),
             "name".to_string(),
             "repo".to_string(),
+            None,
             None,
             None,
             None,
@@ -430,9 +429,9 @@ mod tests {
 
         let monitor = Monitor::new();
         let config = MonitorConfig::new(
-            AlertRules::Standard.to_str(),
             "name".to_string(),
             "repo".to_string(),
+            None,
             None,
             None,
             None,
@@ -456,9 +455,9 @@ mod tests {
         ];
 
         let config = MonitorConfig::new(
-            AlertRules::Standard.to_str(),
             "name".to_string(),
             "repo".to_string(),
+            None,
             None,
             None,
             None,

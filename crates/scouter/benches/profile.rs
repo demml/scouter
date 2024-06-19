@@ -5,7 +5,7 @@ use ndarray_rand::RandomExt;
 use scouter::core::monitor::Monitor;
 
 use scouter::core::profiler::Profiler;
-use scouter::types::_types::{AlertRules, MonitorConfig};
+use scouter::types::_types::MonitorConfig;
 
 fn criterion_benchmark(c: &mut Criterion) {
     let monitor = Monitor::new();
@@ -14,9 +14,9 @@ fn criterion_benchmark(c: &mut Criterion) {
     let array = Array::random((1000, 10), Uniform::new(0., 10.));
     let features: Vec<String> = (0..10).map(|x| x.to_string()).collect();
     let config = MonitorConfig::new(
-        AlertRules::Standard.to_str(),
         "name".to_string(),
         "repo".to_string(),
+        None,
         None,
         None,
         None,

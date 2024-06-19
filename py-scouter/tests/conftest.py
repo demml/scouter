@@ -3,6 +3,7 @@ import shutil
 from typing import TypeVar, Generator
 import numpy as np
 from numpy.typing import NDArray
+from scouter._scouter import MonitorConfig
 
 
 T = TypeVar("T")
@@ -29,3 +30,9 @@ def array() -> YieldFixture[NDArray]:
     yield array
 
     cleanup()
+
+
+@pytest.fixture(scope="function")
+def monitor_config() -> YieldFixture[MonitorConfig]:
+    config = MonitorConfig(name="test", repository="test")
+    yield config

@@ -1,5 +1,6 @@
 from pathlib import Path
 from typing import Dict, List, Optional
+from scouter.utils.types import AlertRules
 
 from numpy.typing import NDArray
 
@@ -46,18 +47,16 @@ class FeatureMonitorProfile:
 class MonitorConfig:
     def __init__(
         self,
-        alert_rule: str,
         name: str,
         repository: str,
-        version: Optional[str],
-        sample: Optional[bool],
-        sample_size: Optional[int],
+        version: str = "0.1.0",
+        sample: bool = True,
+        sample_size: int = 25,
+        alert_rule: str = AlertRules.Standard.value,
     ):
         """Initialize monitor config
 
         Args:
-            alert_rule:
-                Alert rule to use
             name:
                 Model name
             repository:
@@ -68,6 +67,8 @@ class MonitorConfig:
                 Whether to sample or not
             sample_size:
                 Sample size
+            alert_rule:
+                Alert rule to use. Defaults to Standard
         """
 
     @property

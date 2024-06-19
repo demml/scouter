@@ -210,12 +210,12 @@ pub struct MonitorConfig {
 impl MonitorConfig {
     #[new]
     pub fn new(
-        alert_rule: String,
         name: String,
         repository: String,
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
+        alert_rule: Option<String>,
     ) -> Self {
         let sample = match sample {
             Some(s) => s,
@@ -230,6 +230,11 @@ impl MonitorConfig {
         let version = match version {
             Some(v) => v,
             None => "0.1.0".to_string(),
+        };
+
+        let alert_rule = match alert_rule {
+            Some(rule) => rule,
+            None => AlertRules::Standard.to_str(),
         };
 
         Self {

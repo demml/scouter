@@ -8,9 +8,9 @@ import pytest
 from scouter._scouter import MonitorProfile, MonitorConfig
 
 
-def test_monitor_f64(array: NDArray):
+def test_monitor_f64(array: NDArray, monitor_config: MonitorConfig):
     scouter = Scouter()
-    profile: MonitorProfile = scouter.create_monitoring_profile(array)
+    profile: MonitorProfile = scouter.create_monitoring_profile(array, monitor_config)
 
     # assert features are relatively centered
     assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)
@@ -18,12 +18,13 @@ def test_monitor_f64(array: NDArray):
     assert profile.features["feature_2"].center == pytest.approx(3.5, 0.1)
 
 
-def test_monitor_f32(array: NDArray):
+def test_monitor_f32(array: NDArray, monitor_config: MonitorConfig):
     # convert to float32
     array = array.astype("float32")
 
     scouter = Scouter()
-    profile: MonitorProfile = scouter.create_monitoring_profile(array)
+
+    profile: MonitorProfile = scouter.create_monitoring_profile(array, monitor_config)
 
     # assert features are relatively centered
     assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)
@@ -31,10 +32,11 @@ def test_monitor_f32(array: NDArray):
     assert profile.features["feature_2"].center == pytest.approx(3.5, 0.1)
 
 
-def test_monitor_polars(array: NDArray):
+def test_monitor_polars(array: NDArray, monitor_config: MonitorConfig):
     df = pl.from_numpy(array)
     scouter = Scouter()
-    profile: MonitorProfile = scouter.create_monitoring_profile(df)
+
+    profile: MonitorProfile = scouter.create_monitoring_profile(df, monitor_config)
 
     # assert features are relatively centered
     assert profile.features["column_0"].center == pytest.approx(1.5, 0.1)
@@ -42,10 +44,10 @@ def test_monitor_polars(array: NDArray):
     assert profile.features["column_2"].center == pytest.approx(3.5, 0.1)
 
 
-def test_monitor_pandas(array: NDArray):
+def test_monitor_pandas(array: NDArray, monitor_config: MonitorConfig):
     df = pd.DataFrame(array)
     scouter = Scouter()
-    profile: MonitorProfile = scouter.create_monitoring_profile(df)
+    profile: MonitorProfile = scouter.create_monitoring_profile(df, monitor_config)
 
     # assert features are relatively centered
     assert profile.features["0"].center == pytest.approx(1.5, 0.1)
@@ -53,13 +55,15 @@ def test_monitor_pandas(array: NDArray):
     assert profile.features["2"].center == pytest.approx(3.5, 0.1)
 
 
-def test_fail(array: NDArray):
+def test_fail(array: NDArray, monitor_config: MonitorConfig):
     scouter = Scouter()
     with pytest.raises(ValueError):
-        scouter.create_monitoring_profile(data="fail")
+        scouter.create_monitoring_profile(data="fail", monitor_config=monitor_config)
 
     with pytest.raises(ValueError):
-        scouter.create_monitoring_profile(array.astype("str"))
+        scouter.create_monitoring_profile(
+            array.astype("str"), monitor_config=monitor_config
+        )
 
 
 def test_int(array: NDArray):
