@@ -414,6 +414,13 @@ mod tests {
             .create_2d_monitor_profile(&features, &array.view(), &config)
             .unwrap();
         assert_eq!(profile.features.len(), 3);
+
+        // test extra funcs that are used in python
+        profile.__str__();
+        let model_string = profile.model_dump_json();
+
+        let loaded_profile = MonitorProfile::load_from_json(model_string).unwrap();
+        assert_eq!(loaded_profile.features.len(), 3);
     }
 
     #[test]

@@ -267,7 +267,7 @@ impl Alerter {
         if threshold == 4 {
             self.alerts.insert(Alert {
                 zone: AlertZone::OutOfBounds.to_str(),
-                alert_type: AlertType::OutOfBounds.to_str(),
+                kind: AlertType::OutOfBounds.to_str(),
             });
         } else {
             let zone = match threshold {
@@ -279,7 +279,7 @@ impl Alerter {
 
             self.alerts.insert(Alert {
                 zone: zone.to_string(),
-                alert_type: alert.to_str(),
+                kind: alert.to_str(),
             });
         }
 
@@ -308,7 +308,7 @@ impl Alerter {
                 if increasing >= 6 || decreasing >= 6 {
                     self.alerts.insert(Alert {
                         zone: AlertZone::NotApplicable.to_str(),
-                        alert_type: AlertType::Trend.to_str(),
+                        kind: AlertType::Trend.to_str(),
                     });
 
                     let start = count;
@@ -426,6 +426,6 @@ mod tests {
         let alert = alerter.alerts.iter().next().unwrap();
 
         assert_eq!(alert.zone, "NA");
-        assert_eq!(alert.alert_type, "Trend");
+        assert_eq!(alert.kind, "Trend");
     }
 }
