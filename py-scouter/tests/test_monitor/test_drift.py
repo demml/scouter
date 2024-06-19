@@ -3,11 +3,8 @@ from scouter import Scouter
 
 from numpy.typing import NDArray
 import pytest
-import numpy as np
 from scouter._scouter import MonitorProfile, DriftMap, MonitorConfig
 from pathlib import Path
-import time
-from datetime import datetime
 
 
 def test_drift_f64(array: NDArray, monitor_config: MonitorConfig):

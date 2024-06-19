@@ -517,7 +517,7 @@ impl DriftMap {
     }
 
     pub fn save_to_json(&self, path: Option<PathBuf>) -> PyResult<()> {
-        ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
+        ProfileFuncs::save_to_json(self, path, FileName::Drift.to_str())
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
     }
 }

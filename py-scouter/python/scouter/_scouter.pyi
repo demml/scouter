@@ -156,6 +156,8 @@ class Histogram:
     @property
     def bins(self) -> List[float]:
         """Bin values"""
+
+    @property
     def bin_counts(self) -> List[int]:
         """Bin counts"""
 

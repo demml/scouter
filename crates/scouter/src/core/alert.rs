@@ -1,10 +1,8 @@
 use std::collections::HashMap;
 
 use crate::types::_types::{Alert, AlertType, AlertZone};
-
 use anyhow::Ok;
 use anyhow::{Context, Result};
-
 use ndarray::s;
 use ndarray::ArrayView1;
 
@@ -199,7 +197,7 @@ impl Alerter {
         Ok(())
     }
 
-    pub fn convert_rules_to_vec(&self, rule: String) -> Result<Vec<i32>, anyhow::Error> {
+    pub fn convert_rules_to_vec(&self, rule: &str) -> Result<Vec<i32>, anyhow::Error> {
         let rule_chars = rule.split(" ");
 
         let rule_vec = rule_chars
@@ -223,7 +221,7 @@ impl Alerter {
     pub fn check_rule_for_alert(
         &mut self,
         drift_array: &ArrayView1<f64>,
-        rule: String,
+        rule: &str,
     ) -> Result<(), anyhow::Error> {
         let rule_vec = self.convert_rules_to_vec(rule)?;
 
@@ -326,6 +324,53 @@ impl Alerter {
     }
 }
 
+//pub fn generate_alert(
+//    drift_array: &ArrayView1<f64>,
+//    rule: &str,
+//) -> Result<(HashSet<Alert>, HashMap<usize, Vec<Vec<usize>>>), anyhow::Error> {
+//    let mut alerter = Alerter::new();
+//
+//    // check for alerts
+//    alerter
+//        .check_rule_for_alert(&drift_array.view(), rule)
+//        .with_context(|| "Failed to check rule for alert")?;
+//
+//    // check for trend
+//    alerter
+//        .check_trend(&drift_array.view())
+//        .with_context(|| "Failed to check trend")?;
+//
+//    Ok((alerter.alerts, alerter.alert_positions))
+//}
+//
+//pub fn generate_alerts(
+//    drift_array: &ArrayView2<f64>,
+//    features: Vec<String>,
+//    alert_rule: String,
+//) -> Result<HashMap<String, (HashSet<Alert>, HashMap<usize, Vec<Vec<usize>>>)>, anyhow::Error> {
+//    let mut alert_map = HashMap::new();
+//
+//    // check for alerts
+//    let alerts = drift_array
+//        .axis_iter(Axis(1))
+//        .into_par_iter()
+//        .map(|col| {
+//            // check for alerts and errors
+//            Ok(generate_alert(&col, &alert_rule)
+//                .with_context(|| "Failed to check rule for alert")?)
+//        })
+//        .collect::<Vec<Result<(HashSet<Alert>, HashMap<usize, Vec<Vec<usize>>>), anyhow::Error>>>();
+//
+//    //zip the alerts with the features
+//    for (feature, alert) in features.iter().zip(alerts.iter()) {
+//        // unwrap the alert, should should have already been checked
+//        let result = alert.as_ref().unwrap();
+//        alert_map.insert(feature.to_string(), result.clone());
+//    }
+//
+//    Ok(alert_map)
+//}
+
 #[cfg(test)]
 mod tests {
 
@@ -383,7 +428,7 @@ mod tests {
     fn test_convert_rule() {
         let alerter = Alerter::new();
         let vec_of_ints = alerter
-            .convert_rules_to_vec(AlertRules::Standard.to_str())
+            .convert_rules_to_vec(&AlertRules::Standard.to_str())
             .unwrap();
         assert_eq!(vec_of_ints, [8, 16, 4, 8, 2, 4, 1, 1,]);
     }
@@ -399,7 +444,7 @@ mod tests {
         let rule = AlertRules::Standard.to_str();
 
         alerter
-            .check_rule_for_alert(&drift_array.view(), rule)
+            .check_rule_for_alert(&drift_array.view(), &rule)
             .unwrap();
 
         let alert = alerter.alert_positions;
@@ -427,5 +472,33 @@ mod tests {
 
         assert_eq!(alert.zone, "NA");
         assert_eq!(alert.kind, "Trend");
+    }
+
+    #[test]
+    fn test_generate_alerts() {
+        // has alerts
+        // create 20, 3 vector
+
+        let vec = [
+            [0.0, 0.0, 4.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, -1.0],
+            [0.0, 0.0, 2.0],
+            [0.0, 0.0, -2.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, 1.0],
+            [0.0, 0.0, 1.0],
+        ];
+
+        // combine all 3 into array
+        let drift_samples = Array::from_shape_vec((20, 3), vec.to_vec());
+
+        println!("{:?}", drift_samples);
     }
 }
