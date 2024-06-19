@@ -1,45 +1,45 @@
 from scouter import Alert, AlertType, AlertZone, AlertRules
 
 
-def test_alert_types():
+def test_kinds():
     alert = Alert(
-        alert_type=AlertType.OutOfBounds.value,
-        alert_zone=AlertZone.OutOfBounds.value,
+        kind=AlertType.OutOfBounds.value,
+        zone=AlertZone.OutOfBounds.value,
     )
 
-    assert alert.alert_type == AlertType.OutOfBounds.value
+    assert alert.kind == AlertType.OutOfBounds.value
     assert alert.zone == AlertZone.OutOfBounds.value
 
     alert = Alert(
-        alert_type=AlertType.Consecutive.value,
-        alert_zone=AlertZone.Zone1.value,
+        kind=AlertType.Consecutive.value,
+        zone=AlertZone.Zone1.value,
     )
 
-    assert alert.alert_type == AlertType.Consecutive.value
+    assert alert.kind == AlertType.Consecutive.value
     assert alert.zone == AlertZone.Zone1.value
 
     alert = Alert(
-        alert_type=AlertType.Alternating.value,
-        alert_zone=AlertZone.Zone2.value,
+        kind=AlertType.Alternating.value,
+        zone=AlertZone.Zone2.value,
     )
 
-    assert alert.alert_type == AlertType.Alternating.value
+    assert alert.kind == AlertType.Alternating.value
     assert alert.zone == AlertZone.Zone2.value
 
     alert = Alert(
-        alert_type=AlertType.AllGood.value,
-        alert_zone=AlertZone.Zone3.value,
+        kind=AlertType.AllGood.value,
+        zone=AlertZone.Zone3.value,
     )
 
-    assert alert.alert_type == AlertType.AllGood.value
+    assert alert.kind == AlertType.AllGood.value
     assert alert.zone == AlertZone.Zone3.value
 
     alert = Alert(
-        alert_type=AlertType.Trend.value,
-        alert_zone=AlertZone.NotApplicable.value,
+        kind=AlertType.Trend.value,
+        zone=AlertZone.NotApplicable.value,
     )
 
-    assert alert.alert_type == AlertType.Trend.value
+    assert alert.kind == AlertType.Trend.value
     assert alert.zone == AlertZone.NotApplicable.value
 
 

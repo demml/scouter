@@ -1,15 +1,15 @@
 from pathlib import Path
 from typing import Dict, List, Optional
 from scouter.utils.types import AlertRules
-
+import datetime
 from numpy.typing import NDArray
 
 class Alert:
     def __init__(self, alert_type: str, zone: str):
         """Initialize alert"""
     @property
-    def alert_type(self) -> str:
-        """Alert type"""
+    def kind(self) -> str:
+        """Alert kind"""
 
     @property
     def zone(self) -> str:
@@ -176,7 +176,7 @@ class FeatureDataProfile:
     def max(self) -> float:
         """Return the max."""
     @property
-    def timestamp(self) -> str:
+    def timestamp(self) -> datetime.datetime:
         """Return the timestamp."""
     @property
     def distinct(self) -> Distinct:

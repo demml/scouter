@@ -1,5 +1,5 @@
+use anyhow::anyhow;
 use anyhow::Context;
-use chrono::naive::serde::ts_microseconds::serialize as to_micro_ts;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -83,7 +83,7 @@ impl AlertType {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, Hash, PartialEq)]
 pub struct Alert {
     #[pyo3(get, set)]
-    pub alert_type: String,
+    pub kind: String,
 
     #[pyo3(get, set)]
     pub zone: String,
@@ -93,43 +93,53 @@ pub struct Alert {
 #[allow(clippy::new_without_default)]
 impl Alert {
     #[new]
-    pub fn new(alert_type: String, zone: String) -> Self {
-        Self { alert_type, zone }
+    pub fn new(kind: String, zone: String) -> Self {
+        Self { kind, zone }
     }
 }
 
-fn save_to_json<T>(model: T, path: Option<PathBuf>, filename: &str) -> Result<(), anyhow::Error>
-where
-    T: Serialize,
-{
-    // serialize the struct to a string
-    let json = serde_json::to_string_pretty(&model).unwrap();
+struct ProfileFuncs {}
 
-    // check if path is provided
-    let write_path = if path.is_some() {
-        let mut new_path = path.with_context(|| "Failed to get path")?;
+impl ProfileFuncs {
+    fn __str__<T: Serialize>(object: T) -> String {
+        // serialize the struct to a string
+        serde_json::to_string_pretty(&object).unwrap()
+    }
 
-        // ensure .json extension
-        new_path.set_extension("json");
+    fn save_to_json<T>(model: T, path: Option<PathBuf>, filename: &str) -> Result<(), anyhow::Error>
+    where
+        T: Serialize,
+    {
+        // serialize the struct to a string
+        let json = serde_json::to_string_pretty(&model).unwrap();
 
-        if !new_path.exists() {
-            // ensure path exists, create if not
-            let parent_path = new_path
-                .parent()
-                .with_context(|| "Failed to get parent path")?;
+        // check if path is provided
+        let write_path = if path.is_some() {
+            let mut new_path = path.with_context(|| "Failed to get path")?;
 
-            std::fs::create_dir_all(parent_path).with_context(|| "Failed to create directory")?;
-        }
+            // ensure .json extension
+            new_path.set_extension("json");
 
-        new_path
-    } else {
-        PathBuf::from(filename)
-    };
+            if !new_path.exists() {
+                // ensure path exists, create if not
+                let parent_path = new_path
+                    .parent()
+                    .with_context(|| "Failed to get parent path")?;
 
-    std::fs::write(write_path, json)
-        .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
+                std::fs::create_dir_all(parent_path)
+                    .with_context(|| "Failed to create directory")?;
+            }
 
-    Ok(())
+            new_path
+        } else {
+            PathBuf::from(filename)
+        };
+
+        std::fs::write(write_path, json)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
+
+        Ok(())
+    }
 }
 
 /// Python class for a monitoring profile
@@ -170,7 +180,6 @@ pub struct FeatureMonitorProfile {
     pub three_lcl: f64,
 
     #[pyo3(get, set)]
-    #[serde(serialize_with = "to_micro_ts")]
     pub timestamp: chrono::NaiveDateTime,
 }
 
@@ -296,7 +305,24 @@ pub struct MonitorProfile {
 impl MonitorProfile {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        serde_json::to_string_pretty(&self).unwrap()
+        ProfileFuncs::__str__(&self)
+    }
+
+    pub fn model_dump_json(&self) -> String {
+        // serialize the struct to a string
+        self.__str__()
+    }
+
+    #[staticmethod]
+    pub fn load_from_json(model: String) -> PyResult<MonitorProfile> {
+        // deserialize the string to a struct
+        serde_json::from_str(&model)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
+    }
+
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> PyResult<()> {
+        ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
     }
 }
 
@@ -329,7 +355,6 @@ pub struct FeatureDataProfile {
     pub max: f64,
 
     #[pyo3(get, set)]
-    #[serde(serialize_with = "to_micro_ts")]
     pub timestamp: chrono::NaiveDateTime,
 
     #[pyo3(get, set)]
@@ -340,14 +365,6 @@ pub struct FeatureDataProfile {
 
     #[pyo3(get, set)]
     pub histogram: Histogram,
-}
-
-#[pymethods]
-impl FeatureDataProfile {
-    pub fn __str__(&self) -> String {
-        // serialize the struct to a string
-        serde_json::to_string_pretty(&self).unwrap()
-    }
 }
 
 #[pyclass]
@@ -361,7 +378,7 @@ pub struct DataProfile {
 impl DataProfile {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        serde_json::to_string_pretty(&self).unwrap()
+        ProfileFuncs::__str__(&self)
     }
 
     pub fn model_dump_json(&self) -> String {
@@ -370,15 +387,15 @@ impl DataProfile {
     }
 
     #[staticmethod]
-    pub fn load_from_json(model: String) -> DataProfile {
+    pub fn load_from_json(model: String) -> PyResult<DataProfile> {
         // deserialize the string to a struct
-        let profile: DataProfile = serde_json::from_str(&model).unwrap();
-        profile
+        serde_json::from_str(&model)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
     }
 
     pub fn save_to_json(&self, path: Option<PathBuf>) -> PyResult<()> {
-        let result = save_to_json(self, path, FileName::Profile.to_str());
-        result.map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
+        ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
     }
 }
 
@@ -484,7 +501,7 @@ impl DriftMap {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        serde_json::to_string_pretty(&self).unwrap()
+        ProfileFuncs::__str__(&self)
     }
 
     pub fn model_dump_json(&self) -> String {
@@ -493,15 +510,15 @@ impl DriftMap {
     }
 
     #[staticmethod]
-    pub fn load_from_json(model: String) -> DriftMap {
+    pub fn load_from_json(model: String) -> PyResult<DriftMap> {
         // deserialize the string to a struct
-        let map: DriftMap = serde_json::from_str(&model).unwrap();
-        map
+        serde_json::from_str(&model)
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
     }
 
     pub fn save_to_json(&self, path: Option<PathBuf>) -> PyResult<()> {
-        let result = save_to_json(self, path, FileName::Drift.to_str());
-        result.map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
+        ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
+            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
     }
 }
 
