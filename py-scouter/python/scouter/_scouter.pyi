@@ -293,17 +293,14 @@ class DriftConfig:
         """Return string representation of drift config"""
 
 class RustScouter:
-    def __init__(self, bin_size: Optional[int]) -> None:
-        """Create a data profiler object.
+    def __init__(self) -> None:
+        """Instantiate RustScouter"""
 
-        Args:
-            bin_size:
-                Optional bin size for histograms.
-        """
     def create_data_profile_f32(
         self,
         features: List[str],
         array: NDArray,
+        bin_size: int,
     ) -> DataProfile:
         """Create a data profile from a f32 numpy array.
 
@@ -312,6 +309,8 @@ class RustScouter:
                 List of feature names.
             array:
                 Numpy array to profile.
+            bin_size:
+                Optional bin size for histograms. Defaults to 20 bins.
 
         Returns:
             Monitoring profile.
@@ -320,6 +319,7 @@ class RustScouter:
         self,
         features: List[str],
         array: NDArray,
+        bin_size: int,
     ) -> DataProfile:
         """Create a data profile from a f32 numpy array.
 
@@ -328,6 +328,8 @@ class RustScouter:
                 List of feature names.
             array:
                 Numpy array to profile.
+            bin_size:
+                Optional bin size for histograms. Defaults to 20 bins.
 
         Returns:
             Monitoring profile.
@@ -336,6 +338,7 @@ class RustScouter:
         self,
         features: List[str],
         array: NDArray,
+        monitor_config: MonitorConfig,
     ) -> MonitorProfile:
         """Create a monitoring profile from a f64 numpy array.
 
@@ -344,6 +347,8 @@ class RustScouter:
                 List of feature names.
             array:
                 Numpy array to profile.
+            monitor_config:
+                Monitor config.
 
         Returns:
             Monitoring profile.
@@ -352,6 +357,7 @@ class RustScouter:
         self,
         features: List[str],
         array: NDArray,
+        monitor_config: MonitorConfig,
     ) -> MonitorProfile:
         """Create a monitoring profile from a f64 numpy array.
 
@@ -360,6 +366,8 @@ class RustScouter:
                 List of feature names.
             array:
                 Numpy array to profile.
+            monitor_config:
+                monitor config.
 
         Returns:
             Monitoring profile.
@@ -369,8 +377,6 @@ class RustScouter:
         features: List[str],
         array: NDArray,
         monitor_profile: MonitorProfile,
-        sample: bool,
-        sample_size: Optional[int] = None,
     ) -> DriftMap:
         """Compute drift from a f32 numpy array.
 
@@ -381,22 +387,16 @@ class RustScouter:
                 Numpy array to profile.
             monitor_profile:
                 Monitoring profile.
-            sample:
-                Whether to sample the data.
-            sample_size:
-                Optional sample size.
 
 
         Returns:
-            Monitoring profile.
+            DriftMap
         """
     def compute_drift_f64(
         self,
         features: List[str],
         array: NDArray,
         monitor_profile: MonitorProfile,
-        sample: bool,
-        sample_size: Optional[int] = None,
     ) -> DriftMap:
         """Compute drift from a f64 numpy array.
 
@@ -407,11 +407,8 @@ class RustScouter:
                 Numpy array to profile.
             monitor_profile:
                 Monitoring profile.
-            sample:
-                Whether to sample the data.
-            sample_size:
-                Optional sample size.
+
 
         Returns:
-            Monitoring profile.
+            DriftMap.
         """

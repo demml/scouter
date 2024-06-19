@@ -1,7 +1,7 @@
 use core::f32;
 
-use scouter::math::monitor::Monitor;
-use scouter::math::profiler::Profiler;
+use scouter::core::monitor::Monitor;
+use scouter::core::profiler::Profiler;
 use scouter::types::_types::{DataProfile, DriftMap, MonitorConfig, MonitorProfile};
 
 use numpy::PyReadonlyArray2;
@@ -19,26 +19,22 @@ pub struct RustScouter {
 #[allow(clippy::new_without_default)]
 impl RustScouter {
     #[new]
-    pub fn new(bin_size: Option<usize>, monitor_config: Option<MonitorConfig>) -> Self {
-        let profiler = match bin_size {
-            Some(size) => Profiler::new(size),
-            None => Profiler::default(),
-        };
-
+    pub fn new() -> Self {
         Self {
             monitor: Monitor::new(),
-            profiler,
+            profiler: Profiler::default(),
         }
     }
 
     pub fn create_data_profile_f32(
         &mut self,
-        array: PyReadonlyArray2<f32>,
         features: Vec<String>,
+        array: PyReadonlyArray2<f32>,
+        bin_size: usize,
     ) -> PyResult<DataProfile> {
         let array = array.as_array();
 
-        let profile = match self.profiler.compute_stats(&features, &array) {
+        let profile = match self.profiler.compute_stats(&features, &array, &bin_size) {
             Ok(profile) => profile,
             Err(_e) => {
                 return Err(PyValueError::new_err(
@@ -52,12 +48,13 @@ impl RustScouter {
 
     pub fn create_data_profile_f64(
         &mut self,
-        array: PyReadonlyArray2<f64>,
         features: Vec<String>,
+        array: PyReadonlyArray2<f64>,
+        bin_size: usize,
     ) -> PyResult<DataProfile> {
         let array = array.as_array();
 
-        let profile = match self.profiler.compute_stats(&features, &array) {
+        let profile = match self.profiler.compute_stats(&features, &array, &bin_size) {
             Ok(profile) => profile,
             Err(_e) => {
                 return Err(PyValueError::new_err(
@@ -71,8 +68,8 @@ impl RustScouter {
 
     pub fn create_monitor_profile_f32(
         &mut self,
-        array: PyReadonlyArray2<f32>,
         features: Vec<String>,
+        array: PyReadonlyArray2<f32>,
         monitor_config: MonitorConfig,
     ) -> PyResult<MonitorProfile> {
         let array = array.as_array();
@@ -93,8 +90,8 @@ impl RustScouter {
 
     pub fn create_monitor_profile_f64(
         &mut self,
-        array: PyReadonlyArray2<f64>,
         features: Vec<String>,
+        array: PyReadonlyArray2<f64>,
         monitor_config: MonitorConfig,
     ) -> PyResult<MonitorProfile> {
         let array = array.as_array();
@@ -115,15 +112,15 @@ impl RustScouter {
 
     pub fn compute_drift_f32(
         &mut self,
-        drift_array: PyReadonlyArray2<f32>,
         features: Vec<String>,
+        drift_array: PyReadonlyArray2<f32>,
         monitor_profile: MonitorProfile,
     ) -> PyResult<DriftMap> {
         let array = drift_array.as_array();
 
         let drift_map = match self
             .monitor
-            .compute_drift(&array, &features, &monitor_profile)
+            .compute_drift(&features, &array, &monitor_profile)
         {
             Ok(drift_map) => drift_map,
             Err(_e) => {
@@ -136,15 +133,15 @@ impl RustScouter {
 
     pub fn compute_drift_f64(
         &mut self,
-        drift_array: PyReadonlyArray2<f64>,
         features: Vec<String>,
+        drift_array: PyReadonlyArray2<f64>,
         monitor_profile: MonitorProfile,
     ) -> PyResult<DriftMap> {
         let array = drift_array.as_array();
 
         let drift_map = match self
             .monitor
-            .compute_drift(&array, &features, &monitor_profile)
+            .compute_drift(&features, &array, &monitor_profile)
         {
             Ok(drift_map) => drift_map,
             Err(_e) => {

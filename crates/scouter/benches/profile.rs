@@ -2,9 +2,9 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use ndarray::Array;
 use ndarray_rand::rand_distr::Uniform;
 use ndarray_rand::RandomExt;
-use scouter::math::monitor::Monitor;
+use scouter::core::monitor::Monitor;
 
-use scouter::math::profiler::Profiler;
+use scouter::core::profiler::Profiler;
 use scouter::types::_types::{AlertRules, MonitorConfig};
 
 fn criterion_benchmark(c: &mut Criterion) {
@@ -25,7 +25,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         b.iter(|| monitor.create_2d_monitor_profile(&features, black_box(&array.view()), &config))
     });
     group.bench_function("profile", |b| {
-        b.iter(|| profiler.compute_stats(&features, black_box(&array.view())))
+        b.iter(|| profiler.compute_stats(&features, black_box(&array.view()), &20))
     });
     group.sample_size(10);
     group.finish();

@@ -5,7 +5,7 @@ import pandas as pd
 from numpy.typing import NDArray
 import pytest
 
-from scouter._scouter import MonitorProfile
+from scouter._scouter import MonitorProfile, MonitorConfig
 
 
 def test_monitor_f64(array: NDArray):

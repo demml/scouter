@@ -1,6 +1,5 @@
 use crate::types::_types::{DataProfile, Distinct, FeatureDataProfile, Histogram, Quantiles};
 use anyhow::{Context, Result};
-use chrono::Utc;
 use ndarray::prelude::*;
 use ndarray::Axis;
 use ndarray_stats::MaybeNan;
@@ -13,13 +12,11 @@ use std::cmp::Ord;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-pub struct Profiler {
-    bin_size: usize,
-}
+pub struct Profiler {}
 
 impl Profiler {
-    pub fn new(bin_size: usize) -> Self {
-        Profiler { bin_size }
+    pub fn new() -> Self {
+        Profiler {}
     }
 
     /// Compute quantiles for a 2D array.
@@ -165,7 +162,11 @@ impl Profiler {
     ///
     /// # Returns
     ///
-    pub fn compute_bins<F>(&self, array: &ArrayView1<F>) -> Result<Vec<f64>, anyhow::Error>
+    pub fn compute_bins<F>(
+        &self,
+        array: &ArrayView1<F>,
+        bin_size: &usize,
+    ) -> Result<Vec<f64>, anyhow::Error>
     where
         F: Float + Num + core::ops::Sub,
         f64: From<F>,
@@ -184,13 +185,13 @@ impl Profiler {
             .into();
 
         // create a vector of bins
-        let mut bins = Vec::<f64>::with_capacity(self.bin_size);
+        let mut bins = Vec::<f64>::with_capacity(*bin_size);
 
         // compute the bin width
-        let bin_width = (max - min) / self.bin_size as f64;
+        let bin_width = (max - min) / *bin_size as f64;
 
         // create the bins
-        for i in 0..self.bin_size {
+        for i in 0..*bin_size {
             bins.push(min + bin_width * i as f64);
         }
 
@@ -242,6 +243,7 @@ impl Profiler {
         &self,
         array: &ArrayView2<F>,
         features: &[String],
+        bin_size: &usize,
     ) -> Result<HashMap<String, Histogram>, anyhow::Error>
     where
         F: Num
@@ -259,7 +261,7 @@ impl Profiler {
             .enumerate()
             .map(|(idx, x)| {
                 let bins = self
-                    .compute_bins(&x)
+                    .compute_bins(&x, bin_size)
                     .with_context(|| "Failed to compute bins")
                     .unwrap();
                 let bin_counts = self
@@ -287,6 +289,7 @@ impl Profiler {
         &self,
         features: &[String],
         array: &ArrayView2<F>,
+        bin_size: &usize,
     ) -> Result<DataProfile, anyhow::Error>
     where
         F: Float
@@ -323,7 +326,7 @@ impl Profiler {
             .with_context(|| "Failed to compute distinct")?;
 
         let hist = self
-            .compute_histogram(array, features)
+            .compute_histogram(array, features, bin_size)
             .with_context(|| "Failed to compute histogram")?;
 
         // loop over list
@@ -368,7 +371,7 @@ impl Profiler {
 
 impl Default for Profiler {
     fn default() -> Self {
-        Profiler::new(20)
+        Profiler::new()
     }
 }
 
@@ -398,8 +401,11 @@ mod tests {
         ];
 
         let profiler = Profiler::default();
+        let bin_size = 20;
 
-        let profile = profiler.compute_stats(&features, &array.view()).unwrap();
+        let profile = profiler
+            .compute_stats(&features, &array.view(), &bin_size)
+            .unwrap();
 
         assert_eq!(profile.features.len(), 3);
         assert_eq!(profile.features["feature_1"].id, "feature_1");
@@ -462,10 +468,13 @@ mod tests {
 
         // cast array to f32
         let array = array.mapv(|x| x as f32);
+        let bin_size = 20;
 
         let profiler = Profiler::default();
 
-        let profile = profiler.compute_stats(&features, &array.view()).unwrap();
+        let profile = profiler
+            .compute_stats(&features, &array.view(), &bin_size)
+            .unwrap();
 
         assert_eq!(profile.features.len(), 3);
         assert_eq!(profile.features["feature_1"].id, "feature_1");

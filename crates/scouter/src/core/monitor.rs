@@ -3,7 +3,6 @@ use crate::types::_types::{
 };
 use anyhow::Ok;
 use anyhow::{Context, Result};
-use chrono::Utc;
 use indicatif::ProgressBar;
 use ndarray::prelude::*;
 use ndarray::Axis;
@@ -280,8 +279,8 @@ impl Monitor {
     // A drift map
     pub fn compute_drift<F>(
         &self,
-        array: &ArrayView2<F>, // n x m data array (features and predictions)
         features: &[String],
+        array: &ArrayView2<F>, // n x m data array (features and predictions)
         monitor_profile: &MonitorProfile,
     ) -> Result<DriftMap, anyhow::Error>
     where
@@ -477,7 +476,7 @@ mod tests {
         array.slice_mut(s![0..200, 1]).fill(100.0);
 
         let drift_profile = monitor
-            .compute_drift(&array.view(), &features, &profile)
+            .compute_drift(&features, &array.view(), &profile)
             .unwrap();
 
         // assert relative
