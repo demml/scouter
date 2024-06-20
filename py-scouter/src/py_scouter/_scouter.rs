@@ -10,18 +10,16 @@ use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 
 #[pyclass]
-pub struct RustScouter {
-    monitor: Monitor,
+pub struct ScouterProfiler {
     profiler: Profiler,
 }
 
 #[pymethods]
 #[allow(clippy::new_without_default)]
-impl RustScouter {
+impl ScouterProfiler {
     #[new]
     pub fn new() -> Self {
         Self {
-            monitor: Monitor::new(),
             profiler: Profiler::default(),
         }
     }
@@ -65,7 +63,16 @@ impl RustScouter {
 
         Ok(profile)
     }
+}
 
+#[pyclass]
+pub struct ScouterMonitor {
+    monitor: Monitor,
+}
+
+#[pymethods]
+#[allow(clippy::new_without_default)]
+impl ScouterMonitor {
     pub fn create_monitor_profile_f32(
         &mut self,
         features: Vec<String>,

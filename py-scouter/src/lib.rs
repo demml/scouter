@@ -1,5 +1,5 @@
 mod py_scouter;
-use py_scouter::_scouter::RustScouter;
+use py_scouter::_scouter::{ScouterMonitor, ScouterProfiler};
 use pyo3::prelude::*;
 use scouter::types::_types::{
     Alert, AlertRules, AlertType, AlertZone, DataProfile, Distinct, DriftConfig, DriftMap,
@@ -9,7 +9,8 @@ use scouter::types::_types::{
 
 #[pymodule]
 fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<RustScouter>()?;
+    m.add_class::<ScouterMonitor>()?;
+    m.add_class::<ScouterProfiler>()?;
     m.add_class::<MonitorProfile>()?;
     m.add_class::<FeatureMonitorProfile>()?;
     m.add_class::<DataProfile>()?;

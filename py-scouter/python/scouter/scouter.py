@@ -1,8 +1,9 @@
 from enum import Enum
-from typing import List, Optional, Union, Tuple
+from typing import List, Optional, Union, Tuple, Dict
 
 import pandas as pd
 import polars as pl
+import numpy as np
 from numpy.typing import NDArray
 from scouter.utils.logger import ScouterLogger
 
@@ -10,7 +11,8 @@ from ._scouter import (  # pylint: disable=no-name-in-module
     DataProfile,
     DriftMap,
     MonitorProfile,
-    RustScouter,
+    ScouterMonitor,
+    ScouterProfiler,
     MonitorConfig,
 )
 
@@ -34,31 +36,10 @@ class DataType(str, Enum):
         return bits[dtype]
 
 
-class Scouter:
-    def __init__(self) -> None:
-        """
-        Scouter generates data profiles and monitoring profiles from arrays. Accepted
-        array types include numpy arrays, polars dataframes and pandas dataframes.
-
-
-        Args:
-            bin_size:
-                Optional bin size for histograms. Defaults to 20 bins.
-        """
-        self._scouter = RustScouter()
-
+class ScouterBase:
     def _convert_data_to_array(
         self, data: Union[pd.DataFrame, pl.DataFrame, NDArray]
     ) -> NDArray:
-        """Convert data to numpy array.
-
-        Args:
-            data:
-                Data to convert to numpy array.
-
-        Returns:
-            Numpy array
-        """
         if isinstance(data, pl.DataFrame):
             return data.to_numpy()
         if isinstance(data, pd.DataFrame):
@@ -70,14 +51,6 @@ class Scouter:
         features: Optional[List[str]],
         data: Union[pd.DataFrame, pl.DataFrame, NDArray],
     ) -> List[str]:
-        """Check if feature names are provided. If not, generate feature names.
-
-        Args:
-            features:
-                Optional list of feature names.
-            data:
-                Data to generate feature names from.
-        """
         if features is not None:
             return features
 
@@ -94,11 +67,9 @@ class Scouter:
         data: Union[pl.DataFrame, pd.DataFrame, NDArray],
     ) -> Tuple[NDArray, List[str], str]:
         try:
-            # convert data to numpy array
             array = self._convert_data_to_array(data)
             features = self._get_feature_names(features, data)
 
-            # get numpy array type
             dtype = str(array.dtype)
 
             if dtype in [
@@ -119,47 +90,12 @@ class Scouter:
         except KeyError as exc:
             raise ValueError(f"Unsupported data type: {dtype}") from exc
 
-    def create_monitoring_profile(
-        self,
-        data: Union[pl.DataFrame, pd.DataFrame, NDArray],
-        monitor_config: MonitorConfig,
-        features: Optional[List[str]] = None,
-    ) -> MonitorProfile:
-        """Create a monitoring profile from data.
 
-        Args:
-            features:
-                Optional list of feature names. If not provided, feature names will be
-                automatically generated.
-            data:
-                Data to create a monitoring profile from. Data can be a numpy array,
-                a polars dataframe or pandas dataframe. Data is expected to not contain
-                any missing values, NaNs or infinities. These values must be removed or imputed.
-                If NaNs or infinities are present, the monitoring profile will not be created.
-            monitor_config:
-                Configuration for the monitoring profile.
-
-        Returns:
-            Monitoring profile
-        """
-        try:
-            logger.info("Creating monitoring profile.")
-            array, features, bits = self._preprocess(features, data)
-
-            profile = getattr(self._scouter, f"create_monitor_profile_f{bits}")(
-                features=features,
-                array=array,
-                monitor_config=monitor_config,
-            )
-
-            assert isinstance(
-                profile, MonitorProfile
-            ), f"Expected MonitorProfile, got {type(profile)}"
-            return profile
-
-        except Exception as exc:  # type: ignore
-            logger.error(f"Failed to create monitoring profile: {exc}")
-            raise ValueError(f"Failed to create monitoring profile: {exc}") from exc
+class DataProfiler(ScouterBase):
+    def __init__(self) -> None:
+        """Scouter class for creating data profiles. This class will generate
+        baseline statistics for a given dataset."""
+        self._profiler = ScouterProfiler()
 
     def create_data_profile(
         self,
@@ -188,7 +124,7 @@ class Scouter:
             logger.info("Creating data profile.")
             array, features, bits = self._preprocess(features, data)
 
-            profile = getattr(self._scouter, f"create_data_profile_f{bits}")(
+            profile = getattr(self._profiler, f"create_data_profile_f{bits}")(
                 features=features,
                 array=array,
                 bin_size=bin_size,
@@ -202,6 +138,58 @@ class Scouter:
         except Exception as exc:  # type: ignore
             logger.error(f"Failed to create data profile: {exc}")
             raise ValueError(f"Failed to create data profile: {exc}") from exc
+
+
+class Monitor(ScouterBase):
+    def __init__(self) -> None:
+        """
+        Scouter class for creating monitoring profiles and detecting drift. This class will
+        create a monitoring profile from a dataset and detect drift from new data. This
+        class is primarily used to setup and actively monitor data drift"""
+
+        self._monitor = ScouterMonitor()
+
+    def create_monitoring_profile(
+        self,
+        data: Union[pl.DataFrame, pd.DataFrame, NDArray],
+        monitor_config: MonitorConfig,
+        features: Optional[List[str]] = None,
+    ) -> MonitorProfile:
+        """Create a monitoring profile from data.
+
+        Args:
+            features:
+                Optional list of feature names. If not provided, feature names will be
+                automatically generated.
+            data:
+                Data to create a monitoring profile from. Data can be a numpy array,
+                a polars dataframe or pandas dataframe. Data is expected to not contain
+                any missing values, NaNs or infinities. These values must be removed or imputed.
+                If NaNs or infinities are present, the monitoring profile will not be created.
+            monitor_config:
+                Configuration for the monitoring profile.
+
+        Returns:
+            Monitoring profile
+        """
+        try:
+            logger.info("Creating monitoring profile.")
+            array, features, bits = self._preprocess(features, data)
+
+            profile = getattr(self._monitor, f"create_monitor_profile_f{bits}")(
+                features=features,
+                array=array,
+                monitor_config=monitor_config,
+            )
+
+            assert isinstance(
+                profile, MonitorProfile
+            ), f"Expected MonitorProfile, got {type(profile)}"
+            return profile
+
+        except Exception as exc:  # type: ignore
+            logger.error(f"Failed to create monitoring profile: {exc}")
+            raise ValueError(f"Failed to create monitoring profile: {exc}") from exc
 
     def compute_drift(
         self,
@@ -227,7 +215,7 @@ class Scouter:
             logger.info("Computing drift")
             array, features, bits = self._preprocess(features, data)
 
-            drift_map = getattr(self._scouter, f"compute_drift_f{bits}")(
+            drift_map = getattr(self._monitor, f"compute_drift_f{bits}")(
                 features=features,
                 array=array,
                 monitor_profile=monitor_profile,
@@ -240,5 +228,51 @@ class Scouter:
             return drift_map
 
         except KeyError as exc:
+            logger.error(f"Failed to compute drift: {exc}")
+            raise ValueError(f"Failed to compute drift: {exc}") from exc
+
+
+class MonitorQueue:
+    def __init__(self, monitor_profile: MonitorProfile) -> None:
+        self._monitor = ScouterMonitor()
+        self._monitor_profile = monitor_profile
+        self.items: Dict[str, List[float]] = {
+            feature: [] for feature in self._monitor_profile.features.keys()
+        }
+
+    def insert(self, data: Dict[str, float]) -> Optional[DriftMap]:
+        for feature, value in data.items():
+            self.items[feature].append(value)
+
+        self._count += 1
+
+        if self._count >= self._monitor_profile.config.sample_size:
+            return self.dequeue()
+
+        return None
+
+    def _clear(self) -> None:
+        self.items = {feature: [] for feature in self.items.keys()}
+        self._count = 0
+
+    def dequeue(self) -> DriftMap:
+        try:
+            # create array from items
+            data = list(self.items.values())
+            features = list(self.items.keys())
+            array = np.array(data, dtype=np.float32).T
+
+            drift_map = self._monitor.compute_drift_f32(
+                features,
+                array,
+                self._monitor_profile,
+            )
+
+            # clear items
+            self._clear()
+
+            return drift_map
+
+        except Exception as exc:
             logger.error(f"Failed to compute drift: {exc}")
             raise ValueError(f"Failed to compute drift: {exc}") from exc

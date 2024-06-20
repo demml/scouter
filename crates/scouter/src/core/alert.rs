@@ -513,6 +513,21 @@ mod tests {
         let rule = AlertRules::Standard.to_str();
 
         let alerts = generate_alerts(&array.view(), features, rule).unwrap();
-        println!("{:?}", alerts);
+
+        let feature1 = alerts.get("feature1").unwrap();
+        let feature2 = alerts.get("feature2").unwrap();
+        let feature3 = alerts.get("feature3").unwrap();
+
+        // assert feature 1 is has an empty hash set
+        assert_eq!(feature1.0.len(), 0);
+        assert_eq!(feature1.1.len(), 0);
+
+        // assert feature 3 has 2 alerts
+        assert_eq!(feature3.0.len(), 2);
+        assert_eq!(feature3.1.len(), 2);
+
+        // assert feature 2 has 0 alert
+        assert_eq!(feature2.0.len(), 0);
+        assert_eq!(feature2.1.len(), 0);
     }
 }

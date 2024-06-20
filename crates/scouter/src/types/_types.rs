@@ -464,6 +464,28 @@ impl FeatureDrift {
     }
 }
 
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DriftServerRecord {
+    #[pyo3(get, set)]
+    pub created_at: chrono::NaiveDateTime,
+
+    #[pyo3(get, set)]
+    pub name: String,
+
+    #[pyo3(get, set)]
+    pub repository: String,
+
+    #[pyo3(get, set)]
+    pub version: String,
+
+    #[pyo3(get, set)]
+    pub feature: String,
+
+    #[pyo3(get, set)]
+    pub value: f64,
+}
+
 /// Python class for a Drift map of features with calculated drift
 ///
 /// # Arguments
@@ -475,8 +497,14 @@ impl FeatureDrift {
 pub struct DriftMap {
     #[pyo3(get, set)]
     pub features: HashMap<String, FeatureDrift>,
+
+    #[pyo3(get, set)]
     pub name: String,
+
+    #[pyo3(get, set)]
     pub repository: String,
+
+    #[pyo3(get, set)]
     pub version: String,
 }
 
@@ -516,6 +544,26 @@ impl DriftMap {
     pub fn save_to_json(&self, path: Option<PathBuf>) -> PyResult<()> {
         ProfileFuncs::save_to_json(self, path, FileName::Drift.to_str())
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
+    }
+
+    // convert drift map to server record for sending to scouter server
+    pub fn to_server_record(&self) -> Vec<DriftServerRecord> {
+        let mut records = Vec::new();
+
+        for (feature, drift) in &self.features {
+            drift.drift.iter().enumerate().for_each(|(i, _)| {
+                records.push(DriftServerRecord {
+                    created_at: chrono::Utc::now().naive_utc(),
+                    name: self.name.clone(),
+                    repository: self.repository.clone(),
+                    version: self.version.clone(),
+                    feature: feature.clone(),
+                    value: drift.drift[i],
+                });
+            });
+        }
+
+        records
     }
 }
 

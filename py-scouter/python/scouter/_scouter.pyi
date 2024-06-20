@@ -235,8 +235,16 @@ class DriftMap:
         """
 
     @property
-    def service_name(self) -> Optional[str]:
-        """Optional service name to associate with drift map"""
+    def name(self) -> str:
+        """name to associate with drift map"""
+
+    @property
+    def repository(self) -> str:
+        """Repository to associate with drift map"""
+
+    @property
+    def version(self) -> str:
+        """Version to associate with drift map"""
 
     @property
     def features(self) -> Dict[str, FeatureDrift]:
@@ -295,9 +303,10 @@ class DriftConfig:
     def __str__(self) -> str:
         """Return string representation of drift config"""
 
-class RustScouter:
+class ScouterProfiler:
     def __init__(self) -> None:
-        """Instantiate RustScouter"""
+        """Instantiate Rust ScouterProfiler class that is
+        used to profile data"""
 
     def create_data_profile_f32(
         self,
@@ -337,6 +346,13 @@ class RustScouter:
         Returns:
             Monitoring profile.
         """
+
+class ScouterMonitor:
+    def __init__(self) -> None:
+        """Instantiate Rust ScouterMonitor class that is
+        used to create monitoring profiles and compute drifts.
+        """
+
     def create_monitor_profile_f32(
         self,
         features: List[str],
