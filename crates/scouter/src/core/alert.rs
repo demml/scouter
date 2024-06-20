@@ -4,8 +4,9 @@ use crate::types::_types::{Alert, AlertType, AlertZone};
 use anyhow::Ok;
 use anyhow::{Context, Result};
 use ndarray::s;
-use ndarray::ArrayView1;
-
+use ndarray::{ArrayView1, ArrayView2, Axis};
+use rayon::iter::IntoParallelIterator;
+use rayon::iter::ParallelIterator;
 use std::collections::HashSet;
 
 // Struct for holding stateful Alert information
@@ -324,60 +325,64 @@ impl Alerter {
     }
 }
 
-//pub fn generate_alert(
-//    drift_array: &ArrayView1<f64>,
-//    rule: &str,
-//) -> Result<(HashSet<Alert>, HashMap<usize, Vec<Vec<usize>>>), anyhow::Error> {
-//    let mut alerter = Alerter::new();
-//
-//    // check for alerts
-//    alerter
-//        .check_rule_for_alert(&drift_array.view(), rule)
-//        .with_context(|| "Failed to check rule for alert")?;
-//
-//    // check for trend
-//    alerter
-//        .check_trend(&drift_array.view())
-//        .with_context(|| "Failed to check trend")?;
-//
-//    Ok((alerter.alerts, alerter.alert_positions))
-//}
-//
-//pub fn generate_alerts(
-//    drift_array: &ArrayView2<f64>,
-//    features: Vec<String>,
-//    alert_rule: String,
-//) -> Result<HashMap<String, (HashSet<Alert>, HashMap<usize, Vec<Vec<usize>>>)>, anyhow::Error> {
-//    let mut alert_map = HashMap::new();
-//
-//    // check for alerts
-//    let alerts = drift_array
-//        .axis_iter(Axis(1))
-//        .into_par_iter()
-//        .map(|col| {
-//            // check for alerts and errors
-//            Ok(generate_alert(&col, &alert_rule)
-//                .with_context(|| "Failed to check rule for alert")?)
-//        })
-//        .collect::<Vec<Result<(HashSet<Alert>, HashMap<usize, Vec<Vec<usize>>>), anyhow::Error>>>();
-//
-//    //zip the alerts with the features
-//    for (feature, alert) in features.iter().zip(alerts.iter()) {
-//        // unwrap the alert, should should have already been checked
-//        let result = alert.as_ref().unwrap();
-//        alert_map.insert(feature.to_string(), result.clone());
-//    }
-//
-//    Ok(alert_map)
-//}
+pub fn generate_alert(
+    drift_array: &ArrayView1<f64>,
+    rule: &str,
+) -> Result<(HashSet<Alert>, HashMap<usize, Vec<Vec<usize>>>), anyhow::Error> {
+    let mut alerter = Alerter::new();
+
+    // check for alerts
+    alerter
+        .check_rule_for_alert(&drift_array.view(), rule)
+        .with_context(|| "Failed to check rule for alert")?;
+
+    // check for trend
+    alerter
+        .check_trend(&drift_array.view())
+        .with_context(|| "Failed to check trend")?;
+
+    Ok((alerter.alerts, alerter.alert_positions))
+}
+
+pub fn generate_alerts(
+    drift_array: &ArrayView2<f64>,
+    features: Vec<String>,
+    alert_rule: String,
+) -> Result<HashMap<String, (HashSet<Alert>, HashMap<usize, Vec<Vec<usize>>>)>, anyhow::Error> {
+    let mut alert_map = HashMap::new();
+
+    // check for alerts
+    let alerts = drift_array
+        .axis_iter(Axis(1))
+        .into_par_iter()
+        .map(|col| {
+            // check for alerts and errors
+            Ok(generate_alert(&col, &alert_rule)
+                .with_context(|| "Failed to check rule for alert")?)
+        })
+        .collect::<Vec<Result<(HashSet<Alert>, HashMap<usize, Vec<Vec<usize>>>), anyhow::Error>>>();
+
+    //zip the alerts with the features
+    for (feature, alert) in features.iter().zip(alerts.iter()) {
+        // unwrap the alert, should should have already been checked
+        let result = alert.as_ref().unwrap();
+        alert_map.insert(feature.to_string(), result.clone());
+    }
+
+    Ok(alert_map)
+}
 
 #[cfg(test)]
 mod tests {
 
     use crate::types::_types::AlertRules;
+    use ndarray::ArrayBase;
 
     use super::*;
+    use ndarray::arr2;
+    use ndarray::concatenate;
     use ndarray::Array;
+    use ndarray::ViewRepr;
 
     #[test]
     fn test_alerting_consecutive() {
@@ -479,7 +484,7 @@ mod tests {
         // has alerts
         // create 20, 3 vector
 
-        let vec = [
+        let array = arr2(&[
             [0.0, 0.0, 4.0],
             [0.0, 0.0, 1.0],
             [0.0, 0.0, -1.0],
@@ -494,11 +499,20 @@ mod tests {
             [0.0, 0.0, 1.0],
             [0.0, 0.0, 1.0],
             [0.0, 0.0, 1.0],
+        ]);
+
+        // assert shape is 16,3
+        assert_eq!(array.shape(), &[14, 3]);
+
+        let features = vec![
+            "feature1".to_string(),
+            "feature2".to_string(),
+            "feature3".to_string(),
         ];
 
-        // combine all 3 into array
-        let drift_samples = Array::from_shape_vec((20, 3), vec.to_vec());
+        let rule = AlertRules::Standard.to_str();
 
-        println!("{:?}", drift_samples);
+        let alerts = generate_alerts(&array.view(), features, rule).unwrap();
+        println!("{:?}", alerts);
     }
 }

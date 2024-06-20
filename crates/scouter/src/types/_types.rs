@@ -314,10 +314,9 @@ impl MonitorProfile {
     }
 
     #[staticmethod]
-    pub fn load_from_json(model: String) -> PyResult<MonitorProfile> {
+    pub fn load_from_json(model: String) -> MonitorProfile {
         // deserialize the string to a struct
-        serde_json::from_str(&model)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
+        serde_json::from_str(&model).expect("Failed to load monitor profile")
     }
 
     pub fn save_to_json(&self, path: Option<PathBuf>) -> PyResult<()> {
@@ -387,10 +386,9 @@ impl DataProfile {
     }
 
     #[staticmethod]
-    pub fn load_from_json(model: String) -> PyResult<DataProfile> {
+    pub fn load_from_json(model: String) -> DataProfile {
         // deserialize the string to a struct
-        serde_json::from_str(&model)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
+        serde_json::from_str(&model).expect("Failed to load data profile")
     }
 
     pub fn save_to_json(&self, path: Option<PathBuf>) -> PyResult<()> {
@@ -510,10 +508,9 @@ impl DriftMap {
     }
 
     #[staticmethod]
-    pub fn load_from_json(model: String) -> PyResult<DriftMap> {
+    pub fn load_from_json(model: String) -> DriftMap {
         // deserialize the string to a struct
-        serde_json::from_str(&model)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
+        serde_json::from_str(&model).expect("Failed to load drift map")
     }
 
     pub fn save_to_json(&self, path: Option<PathBuf>) -> PyResult<()> {
