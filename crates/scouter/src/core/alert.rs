@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::types::_types::{Alert, AlertType, AlertZone};
+use crate::types::_types::{Alert, AlertType, AlertZone, FeatureAlert, FeatureAlerts};
 use anyhow::Ok;
 use anyhow::{Context, Result};
 use ndarray::s;
@@ -348,7 +348,7 @@ pub fn generate_alerts(
     drift_array: &ArrayView2<f64>,
     features: Vec<String>,
     alert_rule: String,
-) -> Result<HashMap<String, (HashSet<Alert>, HashMap<usize, Vec<Vec<usize>>>)>, anyhow::Error> {
+) -> Result<FeatureAlerts, anyhow::Error> {
     let mut alert_map = HashMap::new();
 
     // check for alerts
@@ -362,14 +362,31 @@ pub fn generate_alerts(
         })
         .collect::<Vec<Result<(HashSet<Alert>, HashMap<usize, Vec<Vec<usize>>>), anyhow::Error>>>();
 
+    let mut feature_alerts = FeatureAlerts::new();
+
     //zip the alerts with the features
     for (feature, alert) in features.iter().zip(alerts.iter()) {
         // unwrap the alert, should should have already been checked
-        let result = alert.as_ref().unwrap();
-        alert_map.insert(feature.to_string(), result.clone());
+        let (alerts, indices) = alert.as_ref().unwrap();
+        let mut feature_alert = FeatureAlert::new(feature.clone());
+
+        // insert the alerts and indices into the feature alert
+        alerts.iter().for_each(|alert| {
+            feature_alert.alerts.push(Alert {
+                zone: alert.zone.clone(),
+                kind: alert.kind.clone(),
+            })
+        });
+
+        // insert the indices into the feature alert
+        indices.iter().for_each(|(key, value)| {
+            feature_alert.indices.insert(*key, value.clone());
+        });
+
+        feature_alerts.alerts.insert(feature.clone(), feature_alert);
     }
 
-    Ok(alert_map)
+    Ok(feature_alerts)
 }
 
 #[cfg(test)]

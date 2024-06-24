@@ -2,7 +2,9 @@ use anyhow::Context;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::collections::HashSet;
 use std::path::PathBuf;
+
 enum FileName {
     Drift,
     Profile,
@@ -600,6 +602,77 @@ impl DriftConfig {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         serde_json::to_string_pretty(&self).unwrap()
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FeatureAlert {
+    #[pyo3(get, set)]
+    pub feature: String,
+
+    #[pyo3(get, set)]
+    pub alerts: Vec<Alert>,
+
+    #[pyo3(get, set)]
+    pub indices: HashMap<usize, Vec<Vec<usize>>>,
+}
+
+#[pymethods]
+#[allow(clippy::new_without_default)]
+impl FeatureAlert {
+    #[new]
+    pub fn new(feature: String) -> Self {
+        Self {
+            feature: feature,
+            alerts: Vec::new(),
+            indices: HashMap::new(),
+        }
+    }
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(&self)
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FeatureAlerts {
+    #[pyo3(get, set)]
+    pub alerts: HashMap<String, FeatureAlert>,
+}
+
+#[pymethods]
+#[allow(clippy::new_without_default)]
+impl FeatureAlerts {
+    #[new]
+    pub fn new() -> Self {
+        Self {
+            alerts: HashMap::new(),
+        }
+    }
+
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(&self)
+    }
+
+    pub fn model_dump_json(&self) -> String {
+        // serialize the struct to a string
+        self.__str__()
+    }
+
+    pub fn insert_alert(
+        &mut self,
+        feature: String,
+        alert: Alert,
+        indices: &HashMap<usize, Vec<Vec<usize>>>,
+    ) {
+        let feature_alert = self
+            .alerts
+            .entry(feature)
+            .or_insert(FeatureAlert::new(feature));
+        feature_alert.alerts.push(alert);
     }
 }
 
