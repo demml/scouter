@@ -1,5 +1,5 @@
 use crate::types::_types::{
-    DriftMap, DriftProfile, FeatureDrift, FeatureDriftProfile, MonitorConfig,
+    AlertRules, DriftMap, DriftProfile, FeatureDrift, FeatureDriftProfile, MonitorConfig,
 };
 use anyhow::Ok;
 use anyhow::{Context, Result};
@@ -276,6 +276,79 @@ impl Monitor {
         Ok(sample_data)
     }
 
+    pub fn set_control_drift_value(
+        &self,
+        array: ArrayView1<f64>,
+        num_features: usize,
+        drift_profile: &DriftProfile,
+        features: &[String],
+    ) -> Result<Vec<f64>, anyhow::Error> {
+        let mut drift: Vec<f64> = vec![0.0; num_features];
+        for (i, feature) in features.iter().enumerate() {
+            // check if feature exists
+            if drift_profile.features.get(feature).is_none() {
+                continue;
+            }
+
+            let feature_profile = drift_profile.features.get(feature).unwrap();
+
+            let value = array[i];
+
+            if value > feature_profile.three_ucl {
+                // insert into zero array
+                drift[i] = 4.0;
+            } else if value < feature_profile.three_lcl {
+                drift[i] = -4.0;
+            } else if value < feature_profile.three_ucl && value >= feature_profile.two_ucl {
+                drift[i] = 3.0;
+            } else if value < feature_profile.two_ucl && value >= feature_profile.one_ucl {
+                drift[i] = 2.0;
+            } else if value < feature_profile.one_ucl && value > feature_profile.center {
+                drift[i] = 1.0;
+            } else if value > feature_profile.three_lcl && value <= feature_profile.two_lcl {
+                drift[i] = -3.0;
+            } else if value > feature_profile.two_lcl && value <= feature_profile.one_lcl {
+                drift[i] = -2.0;
+            } else if value > feature_profile.one_lcl && value < feature_profile.center {
+                drift[i] = -1.0;
+            }
+        }
+
+        Ok(drift)
+    }
+
+    pub fn set_percentage_drift_value(
+        &self,
+        array: ArrayView1<f64>,
+        num_features: usize,
+        drift_profile: &DriftProfile,
+        features: &[String],
+        rule: f64,
+    ) -> Result<Vec<f64>, anyhow::Error> {
+        let mut drift: Vec<f64> = vec![0.0; num_features];
+
+        for (i, feature) in features.iter().enumerate() {
+            // check if feature exists
+            if drift_profile.features.get(feature).is_none() {
+                continue;
+            }
+            let feature_profile = drift_profile.features.get(feature).unwrap();
+
+            let value = array[i];
+
+            // check if value is within percentage
+            let percent_error = ((value - feature_profile.center) / feature_profile.center).abs();
+
+            if percent_error > rule {
+                drift[i] = 1.0;
+            } else {
+                drift[i] = 0.0;
+            }
+        }
+
+        Ok(drift)
+    }
+
     // Computes drift on a  2D array of data. Typically of n size >= sample_size
     //
     // # Arguments
@@ -284,7 +357,6 @@ impl Monitor {
     // * `features` - A vector of feature names that is mapped to the array (order of features in the order in the array)
     // * `drift_profile` - A monitor profile
     //
-
     pub fn compute_drift<F>(
         &self,
         features: &[String],
@@ -314,38 +386,23 @@ impl Monitor {
             .axis_iter(Axis(0))
             .into_par_iter()
             .map(|x| {
-                let mut drift: Vec<f64> = vec![0.0; num_features];
-                for (i, feature) in features.iter().enumerate() {
-                    // check if feature exists
-                    if drift_profile.features.get(feature).is_none() {
-                        continue;
-                    }
+                // match AlertRules enum
 
-                    let feature_profile = drift_profile.features.get(feature).unwrap();
+                let drift = match drift_profile.config.alert_rule {
+                    AlertRules::Control { rule } => self
+                        .set_control_drift_value(x, num_features, drift_profile, features)
+                        .unwrap(),
 
-                    let value = x[i];
-
-                    if value > feature_profile.three_ucl {
-                        // insert into zero array
-                        drift[i] = 4.0;
-                    } else if value < feature_profile.three_lcl {
-                        drift[i] = -4.0;
-                    } else if value < feature_profile.three_ucl && value >= feature_profile.two_ucl
-                    {
-                        drift[i] = 3.0;
-                    } else if value < feature_profile.two_ucl && value >= feature_profile.one_ucl {
-                        drift[i] = 2.0;
-                    } else if value < feature_profile.one_ucl && value > feature_profile.center {
-                        drift[i] = 1.0;
-                    } else if value > feature_profile.three_lcl && value <= feature_profile.two_lcl
-                    {
-                        drift[i] = -3.0;
-                    } else if value > feature_profile.two_lcl && value <= feature_profile.one_lcl {
-                        drift[i] = -2.0;
-                    } else if value > feature_profile.one_lcl && value < feature_profile.center {
-                        drift[i] = -1.0;
-                    }
-                }
+                    AlertRules::Percentage { rule } => self
+                        .set_percentage_drift_value(
+                            x,
+                            num_features,
+                            drift_profile,
+                            features,
+                            rule.rule,
+                        )
+                        .unwrap(),
+                };
 
                 drift
             })

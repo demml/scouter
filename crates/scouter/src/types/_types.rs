@@ -21,15 +21,66 @@ impl FileName {
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub enum AlertRules {
-    Standard,
+pub struct ControlAlertRule {
+    #[pyo3(get, set)]
+    pub rule: String,
 }
 
 #[pymethods]
+impl ControlAlertRule {
+    #[new]
+    pub fn new(rule: Option<String>) -> Self {
+        let rule = match rule {
+            Some(r) => r,
+            None => "8 16 4 8 2 4 1 1".to_string(),
+        };
+        Self { rule }
+    }
+}
+
+#[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct PercentageAlertRule {
+    #[pyo3(get, set)]
+    pub rule: f64,
+}
+
+#[pymethods]
+impl PercentageAlertRule {
+    #[new]
+    pub fn new(rule: Option<f64>) -> Self {
+        let rule = match rule {
+            Some(r) => r,
+            None => 0.10,
+        };
+        Self { rule }
+    }
+}
+
+#[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub enum AlertRules {
+    Percentage { rule: PercentageAlertRule },
+    Control { rule: ControlAlertRule },
+}
+
+// impl new method
 impl AlertRules {
+    pub fn new(&self) -> Self {
+        match self {
+            AlertRules::Percentage { rule } => AlertRules::Percentage {
+                rule: PercentageAlertRule::new(None),
+            },
+            AlertRules::Control { rule } => AlertRules::Control {
+                rule: ControlAlertRule::new(None),
+            },
+        }
+    }
+
     pub fn to_str(&self) -> String {
         match self {
-            AlertRules::Standard => "8 16 4 8 2 4 1 1".to_string(),
+            AlertRules::Percentage { rule } => rule.rule.to_string(),
+            AlertRules::Control { rule } => rule.rule.clone(),
         }
     }
 }
@@ -218,7 +269,7 @@ pub struct MonitorConfig {
     pub version: String,
 
     #[pyo3(get, set)]
-    pub alert_rule: String,
+    pub alert_rule: AlertRules,
 }
 
 #[pymethods]
@@ -230,7 +281,7 @@ impl MonitorConfig {
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
-        alert_rule: Option<String>,
+        alert_rule: Option<AlertRules>,
     ) -> Self {
         let sample = match sample {
             Some(s) => s,
@@ -249,7 +300,9 @@ impl MonitorConfig {
 
         let alert_rule = match alert_rule {
             Some(rule) => rule,
-            None => AlertRules::Standard.to_str(),
+            None => AlertRules::Control {
+                rule: ControlAlertRule::new(None),
+            },
         };
 
         Self {
@@ -269,7 +322,7 @@ impl MonitorConfig {
         name: Option<String>,
         repository: Option<String>,
         version: Option<String>,
-        alert_rule: Option<String>,
+        alert_rule: Option<AlertRules>,
     ) {
         if sample.is_some() {
             self.sample = sample.unwrap();
@@ -700,7 +753,10 @@ mod tests {
     #[test]
     fn test_types() {
         // write tests for all alerts
-        assert_eq!(AlertRules::Standard.to_str(), "8 16 4 8 2 4 1 1");
+        let control_alert = AlertRules::Control {
+            rule: ControlAlertRule::new(None),
+        };
+        assert_eq!(control_alert.to_str(), "8 16 4 8 2 4 1 1");
         assert_eq!(AlertZone::NotApplicable.to_str(), "NA");
         assert_eq!(AlertZone::Zone1.to_str(), "Zone 1");
         assert_eq!(AlertZone::Zone2.to_str(), "Zone 2");
@@ -710,5 +766,8 @@ mod tests {
         assert_eq!(AlertType::Consecutive.to_str(), "Consecutive");
         assert_eq!(AlertType::Alternating.to_str(), "Alternating");
         assert_eq!(AlertType::OutOfBounds.to_str(), "Out of bounds");
+
+        let rule = PercentageAlertRule::new(None);
+        assert_eq!(rule.rule, 0.1);
     }
 }

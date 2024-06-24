@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 
-use crate::types::_types::{Alert, AlertType, AlertZone, FeatureAlerts};
+use crate::types::_types::{
+    Alert, AlertRules, AlertType, AlertZone, ControlAlertRule, FeatureAlerts, PercentageAlertRule,
+};
 use anyhow::Ok;
 use anyhow::{Context, Result};
 use ndarray::s;
@@ -431,7 +433,7 @@ mod tests {
     fn test_convert_rule() {
         let alerter = Alerter::new();
         let vec_of_ints = alerter
-            .convert_rules_to_vec(&AlertRules::Standard.to_str())
+            .convert_rules_to_vec(&AlertRules::Control::new())
             .unwrap();
         assert_eq!(vec_of_ints, [8, 16, 4, 8, 2, 4, 1, 1,]);
     }
@@ -444,7 +446,7 @@ mod tests {
             3.0, 4.0, 0.0, -4.0, 3.0, -3.0, 3.0, -3.0, 3.0, -3.0,
         ];
         let drift_array = Array::from_vec(values.to_vec());
-        let rule = AlertRules::Standard.to_str();
+        let rule = AlertRules::Control:new;
 
         alerter
             .check_rule_for_alert(&drift_array.view(), &rule)
