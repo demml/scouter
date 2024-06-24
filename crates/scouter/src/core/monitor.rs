@@ -284,8 +284,7 @@ impl Monitor {
     // * `features` - A vector of feature names that is mapped to the array (order of features in the order in the array)
     // * `drift_profile` - A monitor profile
     //
-    // # Returns
-    // A drift map
+
     pub fn compute_drift<F>(
         &self,
         features: &[String],

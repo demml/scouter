@@ -15,6 +15,24 @@ class Alert:
     def zone(self) -> str:
         """Zone associated with alert"""
 
+class FeatureAlert:
+    @property
+    def feature(self) -> str:
+        """Return the feature."""
+
+    @property
+    def alerts(self) -> List[Alert]:
+        """Return the alerts."""
+
+    @property
+    def indices(self) -> Dict[str, List[List[int]]]:
+        """Return the alert indices"""
+
+class FeatureAlerts:
+    @property
+    def features(self) -> Dict[str, FeatureAlert]:
+        """Return the feature alerts."""
+
 class FeatureDriftProfile:
     @property
     def id(self) -> str:
@@ -437,7 +455,7 @@ class ScouterDrifter:
         drift_array: NDArray,
         features: List[str],
         alert_rule: str,
-    ) -> Dict[str, Tuple[Alert, Dict[int, List[List[int]]]]]:
+    ) -> FeatureAlerts:
         """Generate alerts from a drift array and feature list
 
         Args:

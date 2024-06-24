@@ -618,10 +618,7 @@ pub struct FeatureAlert {
     pub indices: HashMap<usize, Vec<Vec<usize>>>,
 }
 
-#[pymethods]
-#[allow(clippy::new_without_default)]
 impl FeatureAlert {
-    #[new]
     pub fn new(feature: String) -> Self {
         Self {
             feature: feature,
@@ -629,6 +626,11 @@ impl FeatureAlert {
             indices: HashMap::new(),
         }
     }
+}
+
+#[pymethods]
+#[allow(clippy::new_without_default)]
+impl FeatureAlert {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__str__(&self)
@@ -639,7 +641,34 @@ impl FeatureAlert {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FeatureAlerts {
     #[pyo3(get, set)]
-    pub alerts: HashMap<String, FeatureAlert>,
+    pub features: HashMap<String, FeatureAlert>,
+}
+
+impl FeatureAlerts {
+    // rust-only function to insert feature alerts
+    pub fn insert_feature_alert(
+        &mut self,
+        feature: &str,
+        alerts: &HashSet<Alert>,
+        indices: &HashMap<usize, Vec<Vec<usize>>>,
+    ) {
+        let mut feature_alert = FeatureAlert::new(feature.to_string());
+
+        // insert the alerts and indices into the feature alert
+        alerts.iter().for_each(|alert| {
+            feature_alert.alerts.push(Alert {
+                zone: alert.zone.clone(),
+                kind: alert.kind.clone(),
+            })
+        });
+
+        // insert the indices into the feature alert
+        indices.iter().for_each(|(key, value)| {
+            feature_alert.indices.insert(*key, value.clone());
+        });
+
+        self.features.insert(feature.to_string(), feature_alert);
+    }
 }
 
 #[pymethods]
@@ -648,7 +677,7 @@ impl FeatureAlerts {
     #[new]
     pub fn new() -> Self {
         Self {
-            alerts: HashMap::new(),
+            features: HashMap::new(),
         }
     }
 
@@ -660,19 +689,6 @@ impl FeatureAlerts {
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
         self.__str__()
-    }
-
-    pub fn insert_alert(
-        &mut self,
-        feature: String,
-        alert: Alert,
-        indices: &HashMap<usize, Vec<Vec<usize>>>,
-    ) {
-        let feature_alert = self
-            .alerts
-            .entry(feature)
-            .or_insert(FeatureAlert::new(feature));
-        feature_alert.alerts.push(alert);
     }
 }
 

@@ -2,9 +2,7 @@ use core::f32;
 use scouter::core::alert::generate_alerts;
 use scouter::core::monitor::Monitor;
 use scouter::core::profiler::Profiler;
-use scouter::types::_types::{Alert, DataProfile, DriftMap, DriftProfile, MonitorConfig};
-use std::collections::HashMap;
-use std::collections::HashSet;
+use scouter::types::_types::{DataProfile, DriftMap, DriftProfile, FeatureAlerts, MonitorConfig};
 
 use numpy::PyReadonlyArray2;
 use pyo3::exceptions::PyValueError;
@@ -171,7 +169,7 @@ impl ScouterDrifter {
         drift_array: PyReadonlyArray2<f64>,
         features: Vec<String>,
         alert_rule: String,
-    ) -> PyResult<HashMap<String, (HashSet<Alert>, HashMap<usize, Vec<Vec<usize>>>)>> {
+    ) -> PyResult<FeatureAlerts> {
         let array = drift_array.as_array();
 
         let alerts = match generate_alerts(&array, features, alert_rule) {

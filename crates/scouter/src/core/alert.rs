@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::types::_types::{Alert, AlertType, AlertZone, FeatureAlert, FeatureAlerts};
+use crate::types::_types::{Alert, AlertType, AlertZone, FeatureAlerts};
 use anyhow::Ok;
 use anyhow::{Context, Result};
 use ndarray::s;
@@ -349,8 +349,6 @@ pub fn generate_alerts(
     features: Vec<String>,
     alert_rule: String,
 ) -> Result<FeatureAlerts, anyhow::Error> {
-    let mut alert_map = HashMap::new();
-
     // check for alerts
     let alerts = drift_array
         .axis_iter(Axis(1))
@@ -368,22 +366,8 @@ pub fn generate_alerts(
     for (feature, alert) in features.iter().zip(alerts.iter()) {
         // unwrap the alert, should should have already been checked
         let (alerts, indices) = alert.as_ref().unwrap();
-        let mut feature_alert = FeatureAlert::new(feature.clone());
 
-        // insert the alerts and indices into the feature alert
-        alerts.iter().for_each(|alert| {
-            feature_alert.alerts.push(Alert {
-                zone: alert.zone.clone(),
-                kind: alert.kind.clone(),
-            })
-        });
-
-        // insert the indices into the feature alert
-        indices.iter().for_each(|(key, value)| {
-            feature_alert.indices.insert(*key, value.clone());
-        });
-
-        feature_alerts.alerts.insert(feature.clone(), feature_alert);
+        feature_alerts.insert_feature_alert(feature, alerts, indices);
     }
 
     Ok(feature_alerts)
@@ -528,20 +512,20 @@ mod tests {
 
         let alerts = generate_alerts(&array.view(), features, rule).unwrap();
 
-        let feature1 = alerts.get("feature1").unwrap();
-        let feature2 = alerts.get("feature2").unwrap();
-        let feature3 = alerts.get("feature3").unwrap();
+        let feature1 = alerts.features.get("feature1").unwrap();
+        let feature2 = alerts.features.get("feature2").unwrap();
+        let feature3 = alerts.features.get("feature3").unwrap();
 
         // assert feature 1 is has an empty hash set
-        assert_eq!(feature1.0.len(), 0);
-        assert_eq!(feature1.1.len(), 0);
+        assert_eq!(feature1.alerts.len(), 0);
+        assert_eq!(feature1.alerts.len(), 0);
 
         // assert feature 3 has 2 alerts
-        assert_eq!(feature3.0.len(), 2);
-        assert_eq!(feature3.1.len(), 2);
+        assert_eq!(feature3.alerts.len(), 2);
+        assert_eq!(feature3.indices.len(), 2);
 
         // assert feature 2 has 0 alert
-        assert_eq!(feature2.0.len(), 0);
-        assert_eq!(feature2.1.len(), 0);
+        assert_eq!(feature2.alerts.len(), 0);
+        assert_eq!(feature2.indices.len(), 0);
     }
 }

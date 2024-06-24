@@ -105,15 +105,16 @@ def test_alerts(array: NDArray, monitor_config: MonitorConfig):
     drift_array[:, 2] = feature2.drift
 
     # generate alerts
-    alerts = scouter.generate_alerts(drift_array, features, profile.config.alert_rule)
+    alerts = scouter.generate_alerts(
+        drift_array, features, "100 100 100 100 100 100 100 100"
+    )
 
     # should have no alerts
     for feature in features:
-        alert = alerts[feature]
-        assert len(alert[1]) == 0
+        alert = alerts.features[feature]
+        assert len(alert.alerts) == 0
 
     # Manually change values to generate alerts
     drift_array[10, 0] = 4.0
     alerts = scouter.generate_alerts(drift_array, features, profile.config.alert_rule)
-    print(alerts)
-    a
+    assert alerts.features["feature_0"].alerts[0].kind == "Out of bounds"
