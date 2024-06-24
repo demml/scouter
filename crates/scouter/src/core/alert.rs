@@ -221,7 +221,7 @@ impl Alerter {
         Ok(rule_vec)
     }
 
-    pub fn check_rule_for_alert(
+    pub fn check_control_rule_for_alert(
         &mut self,
         drift_array: &ArrayView1<f64>,
         rule: &str,
@@ -249,6 +249,22 @@ impl Alerter {
                     threshold as f64,
                 )
                 .with_context(|| "Failed to check zone")?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn check_percentage_rule_for_alert(
+        &mut self,
+        drift_array: &ArrayView1<f64>,
+    ) -> Result<(), anyhow::Error> {
+        for (idx, value) in drift_array.iter().enumerate() {
+            if *value >= 0.0 {
+                self.alerts.insert(Alert {
+                    zone: AlertZone::NotApplicable.to_str(),
+                    kind: AlertType::Percentage.to_str(),
+                });
             }
         }
 
@@ -329,19 +345,26 @@ impl Alerter {
 
 pub fn generate_alert(
     drift_array: &ArrayView1<f64>,
-    rule: &str,
+    rule: &AlertRules,
 ) -> Result<(HashSet<Alert>, HashMap<usize, Vec<Vec<usize>>>), anyhow::Error> {
     let mut alerter = Alerter::new();
 
-    // check for alerts
-    alerter
-        .check_rule_for_alert(&drift_array.view(), rule)
-        .with_context(|| "Failed to check rule for alert")?;
+    match rule {
+        AlertRules::Control { rule } => {
+            alerter
+                .check_control_rule_for_alert(&drift_array.view(), &rule.rule)
+                .with_context(|| "Failed to check rule for alert")?;
 
-    // check for trend
-    alerter
-        .check_trend(&drift_array.view())
-        .with_context(|| "Failed to check trend")?;
+            alerter
+                .check_trend(&drift_array.view())
+                .with_context(|| "Failed to check trend")?;
+        }
+        AlertRules::Percentage { rule } => {
+            alerter
+                .check_percentage_rule_for_alert(&drift_array.view())
+                .with_context(|| "Failed to check rule for alert")?;
+        }
+    }
 
     Ok((alerter.alerts, alerter.alert_positions))
 }
@@ -349,7 +372,7 @@ pub fn generate_alert(
 pub fn generate_alerts(
     drift_array: &ArrayView2<f64>,
     features: Vec<String>,
-    alert_rule: String,
+    alert_rule: AlertRules,
 ) -> Result<FeatureAlerts, anyhow::Error> {
     // check for alerts
     let alerts = drift_array
@@ -433,7 +456,7 @@ mod tests {
     fn test_convert_rule() {
         let alerter = Alerter::new();
         let vec_of_ints = alerter
-            .convert_rules_to_vec(&AlertRules::Control::new())
+            .convert_rules_to_vec(&ControlAlertRule::new(None).rule)
             .unwrap();
         assert_eq!(vec_of_ints, [8, 16, 4, 8, 2, 4, 1, 1,]);
     }
@@ -446,10 +469,10 @@ mod tests {
             3.0, 4.0, 0.0, -4.0, 3.0, -3.0, 3.0, -3.0, 3.0, -3.0,
         ];
         let drift_array = Array::from_vec(values.to_vec());
-        let rule = AlertRules::Control:new;
+        let rule = ControlAlertRule::new(None).rule;
 
         alerter
-            .check_rule_for_alert(&drift_array.view(), &rule)
+            .check_control_rule_for_alert(&drift_array.view(), &rule)
             .unwrap();
 
         let alert = alerter.alert_positions;
@@ -510,7 +533,9 @@ mod tests {
             "feature3".to_string(),
         ];
 
-        let rule = AlertRules::Standard.to_str();
+        let rule = AlertRules::Control {
+            rule: ControlAlertRule::new(None),
+        };
 
         let alerts = generate_alerts(&array.view(), features, rule).unwrap();
 

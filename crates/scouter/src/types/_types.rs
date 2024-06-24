@@ -116,6 +116,7 @@ pub enum AlertType {
     Alternating,
     AllGood,
     Trend,
+    Percentage,
 }
 
 #[pymethods]
@@ -127,6 +128,7 @@ impl AlertType {
             AlertType::Alternating => "Alternating".to_string(),
             AlertType::AllGood => "All good".to_string(),
             AlertType::Trend => "Trend".to_string(),
+            AlertType::Percentage => "Percentage".to_string(),
         }
     }
 }
@@ -766,6 +768,7 @@ mod tests {
         assert_eq!(AlertType::Consecutive.to_str(), "Consecutive");
         assert_eq!(AlertType::Alternating.to_str(), "Alternating");
         assert_eq!(AlertType::OutOfBounds.to_str(), "Out of bounds");
+        assert_eq!(AlertType::Percentage.to_str(), "Percentage");
 
         let rule = PercentageAlertRule::new(None);
         assert_eq!(rule.rule, 0.1);
