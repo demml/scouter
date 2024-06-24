@@ -88,6 +88,17 @@ impl Monitor {
         Ok(means)
     }
 
+    // Computes control limits for a 2D array of data
+    // Control limits are calculated as per NIST standards
+    // https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc32.htm
+    //
+    // # Arguments
+    //
+    // * `sample_size` - The sample size
+    // * `sample_data` - A 2D array of f64 values
+    // * `num_features` - The number of features
+    // * `features` - A vector of feature names
+    // * `monitor_config` - A monitor config
     fn compute_control_limits<F>(
         &self,
         sample_size: usize,
@@ -109,10 +120,8 @@ impl Monitor {
         let means = sample_mean.slice(s![0..num_features]);
         let stdev = sample_mean.slice(s![num_features..]);
         // calculate control limit arrays
-        let denominator: F = F::from((sample_size as f64).sqrt()).unwrap();
-        let mult_fact = F::from(c4).unwrap() * denominator;
 
-        let base = &stdev / mult_fact;
+        let base = &stdev / F::from(c4).unwrap();
         let one_sigma = &base * F::from(1.0).unwrap();
         let two_sigma = &base * F::from(2.0).unwrap();
         let three_sigma = &base * F::from(3.0).unwrap();

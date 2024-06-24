@@ -95,6 +95,11 @@ impl Alert {
     pub fn new(kind: String, zone: String) -> Self {
         Self { kind, zone }
     }
+
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(&self)
+    }
 }
 
 struct ProfileFuncs {}

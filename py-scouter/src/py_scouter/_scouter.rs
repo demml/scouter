@@ -1,8 +1,10 @@
 use core::f32;
-
+use scouter::core::alert::generate_alerts;
 use scouter::core::monitor::Monitor;
 use scouter::core::profiler::Profiler;
-use scouter::types::_types::{DataProfile, DriftMap, DriftProfile, MonitorConfig};
+use scouter::types::_types::{Alert, DataProfile, DriftMap, DriftProfile, MonitorConfig};
+use std::collections::HashMap;
+use std::collections::HashSet;
 
 use numpy::PyReadonlyArray2;
 use pyo3::exceptions::PyValueError;
@@ -73,6 +75,13 @@ pub struct ScouterDrifter {
 #[pymethods]
 #[allow(clippy::new_without_default)]
 impl ScouterDrifter {
+    #[new]
+    pub fn new() -> Self {
+        Self {
+            monitor: Monitor::new(),
+        }
+    }
+
     pub fn create_drift_profile_f32(
         &mut self,
         features: Vec<String>,
@@ -155,5 +164,23 @@ impl ScouterDrifter {
         };
 
         Ok(drift_map)
+    }
+
+    pub fn generate_alerts(
+        &mut self,
+        drift_array: PyReadonlyArray2<f64>,
+        features: Vec<String>,
+        alert_rule: String,
+    ) -> PyResult<HashMap<String, (HashSet<Alert>, HashMap<usize, Vec<Vec<usize>>>)>> {
+        let array = drift_array.as_array();
+
+        let alerts = match generate_alerts(&array, features, alert_rule) {
+            Ok(alerts) => alerts,
+            Err(_e) => {
+                return Err(PyValueError::new_err("Failed to generate alerts"));
+            }
+        };
+
+        Ok(alerts)
     }
 }

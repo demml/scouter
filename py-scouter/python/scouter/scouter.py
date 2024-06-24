@@ -14,6 +14,7 @@ from ._scouter import (  # pylint: disable=no-name-in-module
     ScouterDrifter,
     ScouterProfiler,
     MonitorConfig,
+    Alert,
 )
 
 logger = ScouterLogger.get_logger()
@@ -147,7 +148,7 @@ class Drifter(ScouterBase):
         create a monitoring profile from a dataset and detect drift from new data. This
         class is primarily used to setup and actively monitor data drift"""
 
-        self._monitor = ScouterDrifter()
+        self._drifter = ScouterDrifter()
 
     def create_drift_profile(
         self,
@@ -176,7 +177,7 @@ class Drifter(ScouterBase):
             logger.info("Creating drift profile.")
             array, features, bits = self._preprocess(features, data)
 
-            profile = getattr(self._monitor, f"create_drift_profile_f{bits}")(
+            profile = getattr(self._drifter, f"create_drift_profile_f{bits}")(
                 features=features,
                 array=array,
                 monitor_config=monitor_config,
@@ -215,9 +216,9 @@ class Drifter(ScouterBase):
             logger.info("Computing drift")
             array, features, bits = self._preprocess(features, data)
 
-            drift_map = getattr(self._monitor, f"compute_drift_f{bits}")(
+            drift_map = getattr(self._drifter, f"compute_drift_f{bits}")(
                 features=features,
-                array=array,
+                drift_array=array,
                 drift_profile=drift_profile,
             )
 
@@ -230,6 +231,30 @@ class Drifter(ScouterBase):
         except KeyError as exc:
             logger.error(f"Failed to compute drift: {exc}")
             raise ValueError(f"Failed to compute drift: {exc}") from exc
+
+    def generate_alerts(
+        self, drift_array: NDArray, features: List[str], alert_rule: str
+    ) -> Dict[str, Tuple[Alert, Dict[int, List[List[int]]]]]:
+        """Generate alerts from a drift array and features.
+
+        Args:
+            drift_array:
+                Array of drift values.
+            features:
+                List of feature names. Must match the order of the drift array.
+            alert_rule:
+                Alert rule to apply to drift values.
+
+        Returns:
+            Dictionary of alerts.
+        """
+
+        try:
+            return self._drifter.generate_alerts(drift_array, features, alert_rule)
+
+        except Exception as exc:
+            logger.error(f"Failed to generate alerts: {exc}")
+            raise ValueError(f"Failed to generate alerts: {exc}") from exc
 
 
 class MonitorQueue:

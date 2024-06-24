@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 from scouter.utils.types import AlertRules
 import datetime
 from numpy.typing import NDArray
@@ -430,4 +430,24 @@ class ScouterDrifter:
 
         Returns:
             DriftMap.
+        """
+
+    def generate_alerts(
+        self,
+        drift_array: NDArray,
+        features: List[str],
+        alert_rule: str,
+    ) -> Dict[str, Tuple[Alert, Dict[int, List[List[int]]]]]:
+        """Generate alerts from a drift array and feature list
+
+        Args:
+            drift_array:
+                Numpy array of drift values.
+            features:
+                List of feature names. Must match drift array.
+            alert_rule:
+                Alert rule to use.
+
+        Returns:
+            List of alerts.
         """
