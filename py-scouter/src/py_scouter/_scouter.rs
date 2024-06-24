@@ -2,7 +2,7 @@ use core::f32;
 
 use scouter::core::monitor::Monitor;
 use scouter::core::profiler::Profiler;
-use scouter::types::_types::{DataProfile, DriftMap, MonitorConfig, MonitorProfile};
+use scouter::types::_types::{DataProfile, DriftMap, DriftProfile, MonitorConfig};
 
 use numpy::PyReadonlyArray2;
 use pyo3::exceptions::PyValueError;
@@ -66,53 +66,51 @@ impl ScouterProfiler {
 }
 
 #[pyclass]
-pub struct ScouterMonitor {
+pub struct ScouterDrifter {
     monitor: Monitor,
 }
 
 #[pymethods]
 #[allow(clippy::new_without_default)]
-impl ScouterMonitor {
-    pub fn create_monitor_profile_f32(
+impl ScouterDrifter {
+    pub fn create_drift_profile_f32(
         &mut self,
         features: Vec<String>,
         array: PyReadonlyArray2<f32>,
         monitor_config: MonitorConfig,
-    ) -> PyResult<MonitorProfile> {
+    ) -> PyResult<DriftProfile> {
         let array = array.as_array();
 
-        let profile =
-            match self
-                .monitor
-                .create_2d_monitor_profile(&features, &array, &monitor_config)
-            {
-                Ok(profile) => profile,
-                Err(_e) => {
-                    return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
-                }
-            };
+        let profile = match self
+            .monitor
+            .create_2d_drift_profile(&features, &array, &monitor_config)
+        {
+            Ok(profile) => profile,
+            Err(_e) => {
+                return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
+            }
+        };
 
         Ok(profile)
     }
 
-    pub fn create_monitor_profile_f64(
+    pub fn create_drift_profile_f64(
         &mut self,
         features: Vec<String>,
         array: PyReadonlyArray2<f64>,
         monitor_config: MonitorConfig,
-    ) -> PyResult<MonitorProfile> {
+    ) -> PyResult<DriftProfile> {
         let array = array.as_array();
 
-        let profile =
-            match self
-                .monitor
-                .create_2d_monitor_profile(&features, &array, &monitor_config)
-            {
-                Ok(profile) => profile,
-                Err(_e) => {
-                    return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
-                }
-            };
+        let profile = match self
+            .monitor
+            .create_2d_drift_profile(&features, &array, &monitor_config)
+        {
+            Ok(profile) => profile,
+            Err(_e) => {
+                return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
+            }
+        };
 
         Ok(profile)
     }
@@ -121,13 +119,13 @@ impl ScouterMonitor {
         &mut self,
         features: Vec<String>,
         drift_array: PyReadonlyArray2<f32>,
-        monitor_profile: MonitorProfile,
+        drift_profile: DriftProfile,
     ) -> PyResult<DriftMap> {
         let array = drift_array.as_array();
 
         let drift_map = match self
             .monitor
-            .compute_drift(&features, &array, &monitor_profile)
+            .compute_drift(&features, &array, &drift_profile)
         {
             Ok(drift_map) => drift_map,
             Err(_e) => {
@@ -142,13 +140,13 @@ impl ScouterMonitor {
         &mut self,
         features: Vec<String>,
         drift_array: PyReadonlyArray2<f64>,
-        monitor_profile: MonitorProfile,
+        drift_profile: DriftProfile,
     ) -> PyResult<DriftMap> {
         let array = drift_array.as_array();
 
         let drift_map = match self
             .monitor
-            .compute_drift(&features, &array, &monitor_profile)
+            .compute_drift(&features, &array, &drift_profile)
         {
             Ok(drift_map) => drift_map,
             Err(_e) => {

@@ -1,15 +1,15 @@
-from scouter import Scouter
+from scouter import Drifter
 
 
 from numpy.typing import NDArray
 import pytest
-from scouter._scouter import MonitorProfile, DriftMap, MonitorConfig
+from scouter._scouter import DriftProfile, DriftMap, MonitorConfig
 from pathlib import Path
 
 
 def test_drift_f64(array: NDArray, monitor_config: MonitorConfig):
-    scouter = Scouter()
-    profile: MonitorProfile = scouter.create_monitoring_profile(array, monitor_config)
+    scouter = Drifter()
+    profile: DriftProfile = scouter.create_drift_profile(array, monitor_config)
 
     # assert features are relatively centered
     assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)
@@ -22,8 +22,8 @@ def test_drift_f64(array: NDArray, monitor_config: MonitorConfig):
 
 def test_drift_f32(array: NDArray, monitor_config: MonitorConfig):
     array = array.astype("float32")
-    scouter = Scouter()
-    profile: MonitorProfile = scouter.create_monitoring_profile(array, monitor_config)
+    scouter = Drifter()
+    profile: DriftProfile = scouter.create_drift_profile(array, monitor_config)
 
     # assert features are relatively centered
     assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)
@@ -38,8 +38,8 @@ def test_drift_int(array: NDArray, monitor_config: MonitorConfig):
     # convert to int32
     array = array.astype("int32")
 
-    scouter = Scouter()
-    profile: MonitorProfile = scouter.create_monitoring_profile(array, monitor_config)
+    scouter = Drifter()
+    profile: DriftProfile = scouter.create_drift_profile(array, monitor_config)
 
     # assert features are relatively centered
     assert profile.features["feature_0"].center == pytest.approx(1.0, 0.1)
@@ -71,8 +71,8 @@ def test_drift_int(array: NDArray, monitor_config: MonitorConfig):
 
 
 def test_drift_fail(array: NDArray, monitor_config: MonitorConfig):
-    scouter = Scouter()
-    profile: MonitorProfile = scouter.create_monitoring_profile(array, monitor_config)
+    scouter = Drifter()
+    profile: DriftProfile = scouter.create_drift_profile(array, monitor_config)
     features = ["feature_0", "feature_1", "feature_2"]
 
     with pytest.raises(ValueError):

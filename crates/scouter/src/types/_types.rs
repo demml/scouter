@@ -1,4 +1,3 @@
-use anyhow::anyhow;
 use anyhow::Context;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -154,7 +153,7 @@ impl ProfileFuncs {
 ///
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct FeatureMonitorProfile {
+pub struct FeatureDriftProfile {
     #[pyo3(get, set)]
     pub id: String,
 
@@ -293,16 +292,16 @@ impl MonitorConfig {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct MonitorProfile {
+pub struct DriftProfile {
     #[pyo3(get, set)]
-    pub features: HashMap<String, FeatureMonitorProfile>,
+    pub features: HashMap<String, FeatureDriftProfile>,
 
     #[pyo3(get, set)]
     pub config: MonitorConfig,
 }
 
 #[pymethods]
-impl MonitorProfile {
+impl DriftProfile {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__str__(&self)
@@ -314,7 +313,7 @@ impl MonitorProfile {
     }
 
     #[staticmethod]
-    pub fn load_from_json(model: String) -> MonitorProfile {
+    pub fn load_from_json(model: String) -> DriftProfile {
         // deserialize the string to a struct
         serde_json::from_str(&model).expect("Failed to load monitor profile")
     }
@@ -573,7 +572,7 @@ impl DriftMap {
 pub struct DriftConfig {
     #[pyo3(get, set)]
     pub features: Vec<String>,
-    pub monitor_profile: MonitorProfile,
+    pub drift_profile: DriftProfile,
     pub service_name: Option<String>,
 }
 
@@ -583,12 +582,12 @@ impl DriftConfig {
     #[new]
     pub fn new(
         features: Vec<String>,
-        monitor_profile: MonitorProfile,
+        drift_profile: DriftProfile,
         service_name: Option<String>,
     ) -> Self {
         Self {
             features,
-            monitor_profile,
+            drift_profile,
             service_name,
         }
     }

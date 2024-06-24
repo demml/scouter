@@ -1,5 +1,5 @@
 use crate::types::_types::{
-    DriftMap, FeatureDrift, FeatureMonitorProfile, MonitorConfig, MonitorProfile,
+    DriftMap, DriftProfile, FeatureDrift, FeatureDriftProfile, MonitorConfig,
 };
 use anyhow::Ok;
 use anyhow::{Context, Result};
@@ -95,7 +95,7 @@ impl Monitor {
         num_features: usize,
         features: &[String],
         monitor_config: &MonitorConfig,
-    ) -> Result<MonitorProfile, anyhow::Error>
+    ) -> Result<DriftProfile, anyhow::Error>
     where
         F: FromPrimitive + Num + Clone + Float + Debug + Sync + Send + ndarray::ScalarOperand,
 
@@ -134,7 +134,7 @@ impl Monitor {
         for (i, feature) in features.iter().enumerate() {
             feat_profile.insert(
                 feature.to_string(),
-                FeatureMonitorProfile {
+                FeatureDriftProfile {
                     id: feature.to_string(),
                     center: center[i].into(),
                     one_ucl: one_ucl[i].into(),
@@ -148,7 +148,7 @@ impl Monitor {
             );
         }
 
-        Ok(MonitorProfile {
+        Ok(DriftProfile {
             features: feat_profile,
             config: monitor_config.clone(),
         })
@@ -164,12 +164,12 @@ impl Monitor {
     /// # Returns
     ///
     /// A monitor profile
-    pub fn create_2d_monitor_profile<F>(
+    pub fn create_2d_drift_profile<F>(
         &self,
         features: &[String],
         array: &ArrayView2<F>,
         monitor_config: &MonitorConfig,
-    ) -> Result<MonitorProfile, anyhow::Error>
+    ) -> Result<DriftProfile, anyhow::Error>
     where
         F: Float
             + Sync
@@ -209,7 +209,7 @@ impl Monitor {
             Array::from_shape_vec((sample_vec.len(), features.len() * 2), sample_vec.concat())
                 .with_context(|| "Failed to create 2D array")?;
 
-        let monitor_profile = self
+        let drift_profile = self
             .compute_control_limits(
                 sample_size,
                 &sample_data.view(),
@@ -219,7 +219,7 @@ impl Monitor {
             )
             .with_context(|| "Failed to compute control limits")?;
 
-        Ok(monitor_profile)
+        Ok(drift_profile)
     }
 
     // Samples data for drift detection
@@ -273,7 +273,7 @@ impl Monitor {
     //
     // * `array` - A 2D array of f64 values
     // * `features` - A vector of feature names that is mapped to the array (order of features in the order in the array)
-    // * `monitor_profile` - A monitor profile
+    // * `drift_profile` - A monitor profile
     //
     // # Returns
     // A drift map
@@ -281,7 +281,7 @@ impl Monitor {
         &self,
         features: &[String],
         array: &ArrayView2<F>, // n x m data array (features and predictions)
-        monitor_profile: &MonitorProfile,
+        drift_profile: &DriftProfile,
     ) -> Result<DriftMap, anyhow::Error>
     where
         F: Float
@@ -294,11 +294,11 @@ impl Monitor {
             + ndarray::ScalarOperand,
         F: Into<f64>,
     {
-        let num_features = monitor_profile.features.len();
+        let num_features = drift_profile.features.len();
 
         // iterate through each feature
         let sample_data = self
-            .sample_data(array, monitor_profile.config.sample_size, num_features)
+            .sample_data(array, drift_profile.config.sample_size, num_features)
             .with_context(|| "Failed to create sample data")?;
 
         // iterate through each row of samples
@@ -309,11 +309,11 @@ impl Monitor {
                 let mut drift: Vec<f64> = vec![0.0; num_features];
                 for (i, feature) in features.iter().enumerate() {
                     // check if feature exists
-                    if monitor_profile.features.get(feature).is_none() {
+                    if drift_profile.features.get(feature).is_none() {
                         continue;
                     }
 
-                    let feature_profile = monitor_profile.features.get(feature).unwrap();
+                    let feature_profile = drift_profile.features.get(feature).unwrap();
 
                     let value = x[i];
 
@@ -349,9 +349,9 @@ impl Monitor {
                 .with_context(|| "Failed to create 2D array")?;
 
         let mut drift_map = DriftMap::new(
-            monitor_profile.config.name.clone(),
-            monitor_profile.config.repository.clone(),
-            monitor_profile.config.version.clone(),
+            drift_profile.config.name.clone(),
+            drift_profile.config.repository.clone(),
+            drift_profile.config.version.clone(),
         );
 
         for (i, feature) in features.iter().enumerate() {
@@ -387,7 +387,7 @@ mod tests {
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
     #[test]
-    fn test_create_2d_monitor_profile_f32() {
+    fn test_create_2d_drift_profile_f32() {
         // create 2d array
         let array = Array::random((1030, 3), Uniform::new(0., 10.));
 
@@ -411,7 +411,7 @@ mod tests {
         );
 
         let profile = monitor
-            .create_2d_monitor_profile(&features, &array.view(), &config)
+            .create_2d_drift_profile(&features, &array.view(), &config)
             .unwrap();
         assert_eq!(profile.features.len(), 3);
 
@@ -419,12 +419,12 @@ mod tests {
         profile.__str__();
         let model_string = profile.model_dump_json();
 
-        let loaded_profile = MonitorProfile::load_from_json(model_string);
+        let loaded_profile = DriftProfile::load_from_json(model_string);
         assert_eq!(loaded_profile.features.len(), 3);
     }
 
     #[test]
-    fn test_create_2d_monitor_profile_f64() {
+    fn test_create_2d_drift_profile_f64() {
         // create 2d array
         let array = Array::random((1030, 3), Uniform::new(0., 10.));
 
@@ -445,7 +445,7 @@ mod tests {
         );
 
         let profile = monitor
-            .create_2d_monitor_profile(&features, &array.view(), &config)
+            .create_2d_drift_profile(&features, &array.view(), &config)
             .unwrap();
         assert_eq!(profile.features.len(), 3);
     }
@@ -473,7 +473,7 @@ mod tests {
         let monitor = Monitor::new();
 
         let profile = monitor
-            .create_2d_monitor_profile(&features, &array.view(), &config)
+            .create_2d_drift_profile(&features, &array.view(), &config)
             .unwrap();
         assert_eq!(profile.features.len(), 3);
 

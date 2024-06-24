@@ -10,8 +10,8 @@ from scouter.utils.logger import ScouterLogger
 from ._scouter import (  # pylint: disable=no-name-in-module
     DataProfile,
     DriftMap,
-    MonitorProfile,
-    ScouterMonitor,
+    DriftProfile,
+    ScouterDrifter,
     ScouterProfiler,
     MonitorConfig,
 )
@@ -91,7 +91,7 @@ class ScouterBase:
             raise ValueError(f"Unsupported data type: {dtype}") from exc
 
 
-class DataProfiler(ScouterBase):
+class Profiler(ScouterBase):
     def __init__(self) -> None:
         """Scouter class for creating data profiles. This class will generate
         baseline statistics for a given dataset."""
@@ -140,22 +140,22 @@ class DataProfiler(ScouterBase):
             raise ValueError(f"Failed to create data profile: {exc}") from exc
 
 
-class Monitor(ScouterBase):
+class Drifter(ScouterBase):
     def __init__(self) -> None:
         """
         Scouter class for creating monitoring profiles and detecting drift. This class will
         create a monitoring profile from a dataset and detect drift from new data. This
         class is primarily used to setup and actively monitor data drift"""
 
-        self._monitor = ScouterMonitor()
+        self._monitor = ScouterDrifter()
 
-    def create_monitoring_profile(
+    def create_drift_profile(
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray],
         monitor_config: MonitorConfig,
         features: Optional[List[str]] = None,
-    ) -> MonitorProfile:
-        """Create a monitoring profile from data.
+    ) -> DriftProfile:
+        """Create a drift profile from data to use for monitoring.
 
         Args:
             features:
@@ -173,18 +173,18 @@ class Monitor(ScouterBase):
             Monitoring profile
         """
         try:
-            logger.info("Creating monitoring profile.")
+            logger.info("Creating drift profile.")
             array, features, bits = self._preprocess(features, data)
 
-            profile = getattr(self._monitor, f"create_monitor_profile_f{bits}")(
+            profile = getattr(self._monitor, f"create_drift_profile_f{bits}")(
                 features=features,
                 array=array,
                 monitor_config=monitor_config,
             )
 
             assert isinstance(
-                profile, MonitorProfile
-            ), f"Expected MonitorProfile, got {type(profile)}"
+                profile, DriftProfile
+            ), f"Expected DriftProfile, got {type(profile)}"
             return profile
 
         except Exception as exc:  # type: ignore
@@ -194,7 +194,7 @@ class Monitor(ScouterBase):
     def compute_drift(
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray],
-        monitor_profile: MonitorProfile,
+        drift_profile: DriftProfile,
         features: Optional[List[str]] = None,
     ) -> DriftMap:
         """Compute drift from data and monitoring profile.
@@ -207,7 +207,7 @@ class Monitor(ScouterBase):
                 Data to compute drift from. Data can be a numpy array,
                 a polars dataframe or pandas dataframe. Data is expected to not contain
                 any missing values, NaNs or infinities.
-            monitor_profile:
+            drift_profile:
                 Monitoring profile containing feature drift profiles.
 
         """
@@ -218,7 +218,7 @@ class Monitor(ScouterBase):
             drift_map = getattr(self._monitor, f"compute_drift_f{bits}")(
                 features=features,
                 array=array,
-                monitor_profile=monitor_profile,
+                drift_profile=drift_profile,
             )
 
             assert isinstance(
@@ -233,11 +233,11 @@ class Monitor(ScouterBase):
 
 
 class MonitorQueue:
-    def __init__(self, monitor_profile: MonitorProfile) -> None:
-        self._monitor = ScouterMonitor()
-        self._monitor_profile = monitor_profile
+    def __init__(self, drift_profile: DriftProfile) -> None:
+        self._monitor = ScouterDrifter()
+        self._drift_profile = drift_profile
         self.items: Dict[str, List[float]] = {
-            feature: [] for feature in self._monitor_profile.features.keys()
+            feature: [] for feature in self._drift_profile.features.keys()
         }
 
     def insert(self, data: Dict[str, float]) -> Optional[DriftMap]:
@@ -246,7 +246,7 @@ class MonitorQueue:
 
         self._count += 1
 
-        if self._count >= self._monitor_profile.config.sample_size:
+        if self._count >= self._drift_profile.config.sample_size:
             return self.dequeue()
 
         return None
@@ -265,7 +265,7 @@ class MonitorQueue:
             drift_map = self._monitor.compute_drift_f32(
                 features,
                 array,
-                self._monitor_profile,
+                self._drift_profile,
             )
 
             # clear items

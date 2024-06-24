@@ -3,20 +3,21 @@
 from ._scouter import (
     DataProfile,
     FeatureDataProfile,
-    FeatureMonitorProfile,
-    MonitorProfile,
+    FeatureDriftProfile,
+    DriftProfile,
     Alert,
 )
 from scouter.utils.types import AlertType, AlertRules, AlertZone
-from .scouter import Scouter
+from .scouter import Profiler, Drifter
 from .version import __version__
 
 __all__ = [
-    "Scouter",
+    "Profiler",
+    "Drifter",
     "__version__",
     "DataProfile",
-    "MonitorProfile",
-    "FeatureMonitorProfile",
+    "DriftProfile",
+    "FeatureDriftProfile",
     "FeatureDataProfile",
     "Alert",
     "AlertType",

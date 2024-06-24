@@ -22,7 +22,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         None,
     );
     group.bench_function("monitor", |b| {
-        b.iter(|| monitor.create_2d_monitor_profile(&features, black_box(&array.view()), &config))
+        b.iter(|| monitor.create_2d_drift_profile(&features, black_box(&array.view()), &config))
     });
     group.bench_function("profile", |b| {
         b.iter(|| profiler.compute_stats(&features, black_box(&array.view()), &20))

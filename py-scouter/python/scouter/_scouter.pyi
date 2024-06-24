@@ -15,7 +15,7 @@ class Alert:
     def zone(self) -> str:
         """Zone associated with alert"""
 
-class FeatureMonitorProfile:
+class FeatureDriftProfile:
     @property
     def id(self) -> str:
         """Return the id."""
@@ -118,9 +118,9 @@ class MonitorConfig:
                 Model version
         """
 
-class MonitorProfile:
+class DriftProfile:
     @property
-    def features(self) -> Dict[str, FeatureMonitorProfile]:
+    def features(self) -> Dict[str, FeatureDriftProfile]:
         """Return the list of features."""
 
     @property
@@ -128,7 +128,7 @@ class MonitorProfile:
         """Return the monitor config."""
 
     def __str__(self) -> str:
-        """Sting representation of MonitorProfile"""
+        """Sting representation of DriftProfile"""
 
 class Distinct:
     @property
@@ -274,7 +274,7 @@ class DriftConfig:
     def __init__(
         self,
         features: List[str],
-        monitor_profile: MonitorProfile,
+        drift_profile: DriftProfile,
         service_name: Optional[str],
     ) -> None:
         """Initialize drift config
@@ -282,7 +282,7 @@ class DriftConfig:
         Args:
             features:
                 List of feature names.
-            monitor_profile:
+            drift_profile:
                 Monitoring profile.
             service_name:
                 Optional service name.
@@ -293,7 +293,7 @@ class DriftConfig:
         """Features"""
 
     @property
-    def monitor_profile(self) -> MonitorProfile:
+    def drift_profile(self) -> DriftProfile:
         """Monitor profile to use when computing drift"""
 
     @property
@@ -347,18 +347,18 @@ class ScouterProfiler:
             Monitoring profile.
         """
 
-class ScouterMonitor:
+class ScouterDrifter:
     def __init__(self) -> None:
         """Instantiate Rust ScouterMonitor class that is
         used to create monitoring profiles and compute drifts.
         """
 
-    def create_monitor_profile_f32(
+    def create_drift_profile_f32(
         self,
         features: List[str],
         array: NDArray,
         monitor_config: MonitorConfig,
-    ) -> MonitorProfile:
+    ) -> DriftProfile:
         """Create a monitoring profile from a f64 numpy array.
 
         Args:
@@ -372,12 +372,12 @@ class ScouterMonitor:
         Returns:
             Monitoring profile.
         """
-    def create_monitor_profile_f64(
+    def create_drift_profile_f64(
         self,
         features: List[str],
         array: NDArray,
         monitor_config: MonitorConfig,
-    ) -> MonitorProfile:
+    ) -> DriftProfile:
         """Create a monitoring profile from a f64 numpy array.
 
         Args:
@@ -395,7 +395,7 @@ class ScouterMonitor:
         self,
         features: List[str],
         array: NDArray,
-        monitor_profile: MonitorProfile,
+        drift_profile: DriftProfile,
     ) -> DriftMap:
         """Compute drift from a f32 numpy array.
 
@@ -404,7 +404,7 @@ class ScouterMonitor:
                 List of feature names.
             array:
                 Numpy array to profile.
-            monitor_profile:
+            drift_profile:
                 Monitoring profile.
 
 
@@ -415,7 +415,7 @@ class ScouterMonitor:
         self,
         features: List[str],
         array: NDArray,
-        monitor_profile: MonitorProfile,
+        drift_profile: DriftProfile,
     ) -> DriftMap:
         """Compute drift from a f64 numpy array.
 
@@ -424,7 +424,7 @@ class ScouterMonitor:
                 List of feature names.
             array:
                 Numpy array to profile.
-            monitor_profile:
+            drift_profile:
                 Monitoring profile.
 
 

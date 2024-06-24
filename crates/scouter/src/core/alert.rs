@@ -376,13 +376,10 @@ pub fn generate_alerts(
 mod tests {
 
     use crate::types::_types::AlertRules;
-    use ndarray::ArrayBase;
 
     use super::*;
     use ndarray::arr2;
-    use ndarray::concatenate;
     use ndarray::Array;
-    use ndarray::ViewRepr;
 
     #[test]
     fn test_alerting_consecutive() {

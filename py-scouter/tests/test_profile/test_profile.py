@@ -1,4 +1,4 @@
-from scouter import Scouter
+from scouter import Profiler
 
 import polars as pl
 import pandas as pd
@@ -9,7 +9,7 @@ from pathlib import Path
 
 
 def test_data_profile_f64(array: NDArray):
-    scouter = Scouter()
+    scouter = Profiler()
     profile: DataProfile = scouter.create_data_profile(array)
 
     # assert features are relatively centered
@@ -43,7 +43,7 @@ def test_data_profile_f64(array: NDArray):
 
 def test_data_profile_f32(array: NDArray):
     array = array.astype("float32")
-    scouter = Scouter()
+    scouter = Profiler()
     profile: DataProfile = scouter.create_data_profile(array)
 
     # assert features are relatively centered
@@ -56,7 +56,7 @@ def test_data_profile_f32(array: NDArray):
 
 def test_data_profile_polars(array: NDArray):
     df = pl.from_numpy(array)
-    scouter = Scouter()
+    scouter = Profiler()
     profile: DataProfile = scouter.create_data_profile(df)
 
     # assert features are relatively centered
@@ -69,7 +69,7 @@ def test_data_profile_polars(array: NDArray):
 
 def test_data_profile_pandas(array: NDArray):
     df = pd.DataFrame(array)
-    scouter = Scouter()
+    scouter = Profiler()
     profile: DataProfile = scouter.create_data_profile(df)
 
     # assert features are relatively centered
