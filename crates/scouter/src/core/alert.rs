@@ -260,11 +260,14 @@ impl Alerter {
         drift_array: &ArrayView1<f64>,
     ) -> Result<(), anyhow::Error> {
         for (idx, value) in drift_array.iter().enumerate() {
-            if *value >= 0.0 {
+            if *value >= 1.0 {
                 self.alerts.insert(Alert {
                     zone: AlertZone::NotApplicable.to_str(),
                     kind: AlertType::Percentage.to_str(),
                 });
+
+                self.insert_alert(1, idx, idx)
+                    .with_context(|| "Failed to insert alert")?;
             }
         }
 
@@ -503,7 +506,7 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_alerts() {
+    fn test_generate_control_alerts() {
         // has alerts
         // create 20, 3 vector
 
@@ -550,6 +553,62 @@ mod tests {
         // assert feature 3 has 2 alerts
         assert_eq!(feature3.alerts.len(), 2);
         assert_eq!(feature3.indices.len(), 2);
+
+        // assert feature 2 has 0 alert
+        assert_eq!(feature2.alerts.len(), 0);
+        assert_eq!(feature2.indices.len(), 0);
+    }
+
+    #[test]
+    fn test_generate_percentage_alerts() {
+        // has alerts
+        // create 20, 3 vector
+
+        let array = arr2(&[
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [1.0, 0.0, 0.0],
+            [0.0, 0.0, 0.0],
+        ]);
+
+        // assert shape is 16,3
+        assert_eq!(array.shape(), &[14, 3]);
+
+        let features = vec![
+            "feature1".to_string(),
+            "feature2".to_string(),
+            "feature3".to_string(),
+        ];
+
+        let rule = AlertRules::Percentage {
+            rule: PercentageAlertRule::new(None),
+        };
+
+        let alerts = generate_alerts(&array.view(), features, rule).unwrap();
+
+        let feature1 = alerts.features.get("feature1").unwrap();
+        let feature2 = alerts.features.get("feature2").unwrap();
+        let feature3 = alerts.features.get("feature3").unwrap();
+
+        println!("{:?}", alerts);
+
+        // assert feature 1 is has an empty hash set
+        assert_eq!(feature1.alerts.len(), 1);
+        assert_eq!(feature1.indices[&1].len(), 4);
+
+        // assert feature 3 has 2 alerts
+        assert_eq!(feature3.alerts.len(), 0);
+        assert_eq!(feature3.indices.len(), 0);
 
         // assert feature 2 has 0 alert
         assert_eq!(feature2.alerts.len(), 0);
