@@ -1,5 +1,5 @@
 use crate::types::_types::{
-    AlertRules, DriftMap, DriftProfile, FeatureDrift, FeatureDriftProfile, MonitorConfig,
+    AlertRule, DriftMap, DriftProfile, FeatureDrift, FeatureDriftProfile, MonitorConfig,
 };
 use anyhow::Ok;
 use anyhow::{Context, Result};
@@ -388,20 +388,14 @@ impl Monitor {
             .map(|x| {
                 // match AlertRules enum
 
-                let drift = match &drift_profile.config.alert_rule {
-                    AlertRules::Control { rule: _ } => self
-                        .set_control_drift_value(x, num_features, drift_profile, features)
-                        .unwrap(),
+                let drift = if drift_profile.config.alert_rule.control.is_some() {
+                    self.set_control_drift_value(x, num_features, drift_profile, features)
+                        .unwrap()
+                } else {
+                    let rule = drift_profile.config.alert_rule.percentage.unwrap().rule;
 
-                    AlertRules::Percentage { rule } => self
-                        .set_percentage_drift_value(
-                            x,
-                            num_features,
-                            drift_profile,
-                            features,
-                            rule.rule,
-                        )
-                        .unwrap(),
+                    self.set_percentage_drift_value(x, num_features, drift_profile, features, rule)
+                        .unwrap()
                 };
 
                 drift

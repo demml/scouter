@@ -1,8 +1,6 @@
 use std::collections::HashMap;
 
-use crate::types::_types::{
-    Alert, AlertRules, AlertType, AlertZone, ControlAlertRule, FeatureAlerts, PercentageAlertRule,
-};
+use crate::types::_types::{Alert, AlertRules, AlertType, AlertZone, FeatureAlerts};
 use anyhow::Ok;
 use anyhow::{Context, Result};
 use ndarray::s;
@@ -404,7 +402,7 @@ pub fn generate_alerts(
 #[cfg(test)]
 mod tests {
 
-    use crate::types::_types::AlertRules;
+    use crate::types::_types::{AlertRules, ControlAlertRule, PercentageAlertRule};
 
     use super::*;
     use ndarray::arr2;

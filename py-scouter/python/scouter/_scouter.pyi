@@ -1,8 +1,52 @@
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple
-from scouter.utils.types import AlertRules
+from typing import Dict, List, Optional, Union
 import datetime
 from numpy.typing import NDArray
+
+class PercentageAlertRule:
+    def __init__(self, rule: Optional[float] = None) -> None:
+        """Initialize alert rule
+
+        Args:
+            rule:
+                Rule to use for percentage alerting (float)
+        """
+
+    @property
+    def rule(self) -> float:
+        """Return the alert rule"""
+
+class ControlAlertRule:
+    def __init__(self, rule: Optional[str] = None) -> None:
+        """Initialize alert rule
+
+        Args:
+            rule:
+                Rule to use for alerting. Eight digit integer string.
+                Defaults to '8 16 4 8 2 4 1 1'
+        """
+
+    @property
+    def rule(self) -> str:
+        """Return the alert rule"""
+
+class AlertRule:
+    def __init__(
+        self, rule: Optional[Union[ControlAlertRule, PercentageAlertRule]]
+    ) -> None:
+        """Initialize alert rule
+
+        Args:
+            rule:
+                Rule to use for alerting.
+        """
+    @property
+    def Control(self) -> ControlAlertRule:
+        """Return the control alert rule"""
+
+    @property
+    def Percentage(self) -> PercentageAlertRule:
+        """Return the percentage alert rule"""
 
 class Alert:
     def __init__(self, alert_type: str, zone: str):
@@ -67,10 +111,10 @@ class MonitorConfig:
         self,
         name: str,
         repository: str,
+        alert_rule: AlertRules,
         version: str = "0.1.0",
         sample: bool = True,
         sample_size: int = 25,
-        alert_rule: str = AlertRules.Standard.value,
     ):
         """Initialize monitor config
 
@@ -454,7 +498,7 @@ class ScouterDrifter:
         self,
         drift_array: NDArray,
         features: List[str],
-        alert_rule: str,
+        alert_rule: Union[ControlAlertRule, PercentageAlertRule],
     ) -> FeatureAlerts:
         """Generate alerts from a drift array and feature list
 

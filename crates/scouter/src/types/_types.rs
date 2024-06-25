@@ -59,28 +59,49 @@ impl PercentageAlertRule {
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub enum AlertRules {
-    Percentage { rule: PercentageAlertRule },
-    Control { rule: ControlAlertRule },
+pub struct AlertRule {
+    #[pyo3(get, set)]
+    pub control: Option<ControlAlertRule>,
+
+    #[pyo3(get, set)]
+    pub percentage: Option<PercentageAlertRule>,
 }
 
 // impl new method
-impl AlertRules {
-    pub fn new(&self) -> Self {
-        match self {
-            AlertRules::Percentage { rule } => AlertRules::Percentage {
-                rule: PercentageAlertRule::new(None),
-            },
-            AlertRules::Control { rule } => AlertRules::Control {
-                rule: ControlAlertRule::new(None),
-            },
+impl AlertRule {
+    pub fn new(
+        percentage_rule: Option<PercentageAlertRule>,
+        control_rule: Option<ControlAlertRule>,
+    ) -> Self {
+        let percentage = match percentage_rule {
+            Some(rule) => Some(rule),
+            None => None,
+        };
+
+        let control = match control_rule {
+            Some(rule) => Some(rule),
+            None => None,
+        };
+
+        // if both are None, return default control rule
+        if percentage.is_none() && control.is_none() {
+            return Self {
+                control: Some(ControlAlertRule::new(None)),
+                percentage: None,
+            };
+        }
+
+        Self {
+            control,
+            percentage,
         }
     }
 
     pub fn to_str(&self) -> String {
-        match self {
-            AlertRules::Percentage { rule } => rule.rule.to_string(),
-            AlertRules::Control { rule } => rule.rule.clone(),
+        if self.control.is_some() {
+            return self.control.as_ref().unwrap().rule.clone();
+        } else {
+            return self.percentage.as_ref().unwrap().rule.to_string();
         }
     }
 }
@@ -271,7 +292,7 @@ pub struct MonitorConfig {
     pub version: String,
 
     #[pyo3(get, set)]
-    pub alert_rule: AlertRules,
+    pub alert_rule: AlertRule,
 }
 
 #[pymethods]
@@ -283,7 +304,7 @@ impl MonitorConfig {
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
-        alert_rule: Option<AlertRules>,
+        alert_rule: Option<AlertRule>,
     ) -> Self {
         let sample = match sample {
             Some(s) => s,
@@ -302,9 +323,7 @@ impl MonitorConfig {
 
         let alert_rule = match alert_rule {
             Some(rule) => rule,
-            None => AlertRules::Control {
-                rule: ControlAlertRule::new(None),
-            },
+            None => AlertRule::new(None, None),
         };
 
         Self {
@@ -324,7 +343,7 @@ impl MonitorConfig {
         name: Option<String>,
         repository: Option<String>,
         version: Option<String>,
-        alert_rule: Option<AlertRules>,
+        alert_rule: Option<AlertRule>,
     ) {
         if sample.is_some() {
             self.sample = sample.unwrap();
@@ -755,9 +774,8 @@ mod tests {
     #[test]
     fn test_types() {
         // write tests for all alerts
-        let control_alert = AlertRules::Control {
-            rule: ControlAlertRule::new(None),
-        };
+        let control_alert = AlertRule::new(None, Some(ControlAlertRule::new(None)));
+
         assert_eq!(control_alert.to_str(), "8 16 4 8 2 4 1 1");
         assert_eq!(AlertZone::NotApplicable.to_str(), "NA");
         assert_eq!(AlertZone::Zone1.to_str(), "Zone 1");

@@ -2,9 +2,9 @@ mod py_scouter;
 use py_scouter::_scouter::{ScouterDrifter, ScouterProfiler};
 use pyo3::prelude::*;
 use scouter::types::_types::{
-    Alert, AlertRules, AlertType, AlertZone, DataProfile, Distinct, DriftConfig, DriftMap,
-    DriftProfile, FeatureAlert, FeatureAlerts, FeatureDataProfile, FeatureDrift,
-    FeatureDriftProfile, Histogram, MonitorConfig,
+    Alert, AlertRules, AlertType, AlertZone, ControlAlertRule, DataProfile, Distinct, DriftConfig,
+    DriftMap, DriftProfile, FeatureAlert, FeatureAlerts, FeatureDataProfile, FeatureDrift,
+    FeatureDriftProfile, Histogram, MonitorConfig, PercentageAlertRule,
 };
 
 #[pymodule]
@@ -27,5 +27,7 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<MonitorConfig>()?;
     m.add_class::<FeatureAlerts>()?;
     m.add_class::<FeatureAlert>()?;
+    m.add_class::<ControlAlertRule>()?;
+    m.add_class::<PercentageAlertRule>()?;
     Ok(())
 }

@@ -2,7 +2,9 @@ use core::f32;
 use scouter::core::alert::generate_alerts;
 use scouter::core::monitor::Monitor;
 use scouter::core::profiler::Profiler;
-use scouter::types::_types::{DataProfile, DriftMap, DriftProfile, FeatureAlerts, MonitorConfig};
+use scouter::types::_types::{
+    AlertRules, DataProfile, DriftMap, DriftProfile, FeatureAlerts, MonitorConfig,
+};
 
 use numpy::PyReadonlyArray2;
 use pyo3::exceptions::PyValueError;
@@ -168,7 +170,7 @@ impl ScouterDrifter {
         &mut self,
         drift_array: PyReadonlyArray2<f64>,
         features: Vec<String>,
-        alert_rule: String,
+        alert_rule: AlertRules,
     ) -> PyResult<FeatureAlerts> {
         let array = drift_array.as_array();
 

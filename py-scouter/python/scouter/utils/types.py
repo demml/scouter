@@ -1,10 +1,6 @@
 from enum import StrEnum
 
 
-class AlertRules(StrEnum):
-    Standard = "8 16 4 8 2 4 1 1"
-
-
 class AlertZone(StrEnum):
     Zone1 = "Zone 1"
     Zone2 = "Zone 2"

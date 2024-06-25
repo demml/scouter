@@ -7,8 +7,9 @@ from ._scouter import (
     DriftProfile,
     Alert,
     FeatureAlerts,
+    AlertRules,
 )
-from scouter.utils.types import AlertType, AlertRules, AlertZone
+from scouter.utils.types import AlertType, AlertZone
 from .scouter import Profiler, Drifter
 from .version import __version__
 
