@@ -68,7 +68,9 @@ pub struct AlertRule {
 }
 
 // impl new method
+#[pymethods]
 impl AlertRule {
+    #[new]
     pub fn new(
         percentage_rule: Option<PercentageAlertRule>,
         control_rule: Option<ProcessAlertRule>,

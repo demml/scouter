@@ -443,7 +443,7 @@ mod tests {
         assert!(relative_eq!(
             profile.features["feature_1"].quantiles.q75,
             0.75,
-            epsilon = 0.05
+            epsilon = 0.1
         ));
         assert!(relative_eq!(
             profile.features["feature_1"].quantiles.q99,

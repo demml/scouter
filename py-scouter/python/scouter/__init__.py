@@ -7,7 +7,9 @@ from ._scouter import (
     DriftProfile,
     Alert,
     FeatureAlerts,
-    AlertRules,
+    AlertRule,
+    ProcessAlertRule,
+    PercentageAlertRule,
 )
 from scouter.utils.types import AlertType, AlertZone
 from .scouter import Profiler, Drifter
@@ -23,7 +25,9 @@ __all__ = [
     "FeatureDataProfile",
     "Alert",
     "AlertType",
-    "AlertRules",
+    "AlertRule",
     "AlertZone",
     "FeatureAlerts",
+    "ProcessAlertRule",
+    "PercentageAlertRule",
 ]

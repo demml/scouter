@@ -590,8 +590,6 @@ mod tests {
         let feature2 = alerts.features.get("feature2").unwrap();
         let feature3 = alerts.features.get("feature3").unwrap();
 
-        println!("{:?}", alerts);
-
         // assert feature 1 is has an empty hash set
         assert_eq!(feature1.alerts.len(), 1);
         assert_eq!(feature1.indices[&1].len(), 4);
