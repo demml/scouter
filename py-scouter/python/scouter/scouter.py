@@ -15,8 +15,7 @@ from ._scouter import (  # pylint: disable=no-name-in-module
     ScouterProfiler,
     MonitorConfig,
     FeatureAlerts,
-    ControlAlertRule,
-    PercentageAlertRule,
+    AlertRule,
 )
 
 logger = ScouterLogger.get_logger()
@@ -238,7 +237,7 @@ class Drifter(ScouterBase):
         self,
         drift_array: NDArray,
         features: List[str],
-        alert_rule: Union[ControlAlertRule, PercentageAlertRule],
+        alert_rule: AlertRule,
     ) -> FeatureAlerts:
         """Generate alerts from a drift array and features.
 

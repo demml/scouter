@@ -1,5 +1,5 @@
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional
 import datetime
 from numpy.typing import NDArray
 
@@ -16,7 +16,7 @@ class PercentageAlertRule:
     def rule(self) -> float:
         """Return the alert rule"""
 
-class ControlAlertRule:
+class ProcessAlertRule:
     def __init__(self, rule: Optional[str] = None) -> None:
         """Initialize alert rule
 
@@ -32,7 +32,9 @@ class ControlAlertRule:
 
 class AlertRule:
     def __init__(
-        self, rule: Optional[Union[ControlAlertRule, PercentageAlertRule]]
+        self,
+        percentage_rule: Optional[PercentageAlertRule] = None,
+        control_rule: Optional[ProcessAlertRule] = None,
     ) -> None:
         """Initialize alert rule
 
@@ -41,11 +43,11 @@ class AlertRule:
                 Rule to use for alerting.
         """
     @property
-    def Control(self) -> ControlAlertRule:
+    def control(self) -> Optional[ProcessAlertRule]:
         """Return the control alert rule"""
 
     @property
-    def Percentage(self) -> PercentageAlertRule:
+    def percentage(self) -> Optional[PercentageAlertRule]:
         """Return the percentage alert rule"""
 
 class Alert:
@@ -111,10 +113,10 @@ class MonitorConfig:
         self,
         name: str,
         repository: str,
-        alert_rule: AlertRules,
         version: str = "0.1.0",
         sample: bool = True,
         sample_size: int = 25,
+        alert_rule: AlertRule = AlertRule(),
     ):
         """Initialize monitor config
 
@@ -154,7 +156,7 @@ class MonitorConfig:
         """Model version"""
 
     @property
-    def alert_rule(self) -> str:
+    def alert_rule(self) -> AlertRule:
         """Alert rule to use"""
 
     def set_config(
@@ -498,7 +500,7 @@ class ScouterDrifter:
         self,
         drift_array: NDArray,
         features: List[str],
-        alert_rule: Union[ControlAlertRule, PercentageAlertRule],
+        alert_rule: AlertRule,
     ) -> FeatureAlerts:
         """Generate alerts from a drift array and feature list
 

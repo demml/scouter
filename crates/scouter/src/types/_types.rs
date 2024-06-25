@@ -21,13 +21,13 @@ impl FileName {
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct ControlAlertRule {
+pub struct ProcessAlertRule {
     #[pyo3(get, set)]
     pub rule: String,
 }
 
 #[pymethods]
-impl ControlAlertRule {
+impl ProcessAlertRule {
     #[new]
     pub fn new(rule: Option<String>) -> Self {
         let rule = match rule {
@@ -61,7 +61,7 @@ impl PercentageAlertRule {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AlertRule {
     #[pyo3(get, set)]
-    pub control: Option<ControlAlertRule>,
+    pub control: Option<ProcessAlertRule>,
 
     #[pyo3(get, set)]
     pub percentage: Option<PercentageAlertRule>,
@@ -71,7 +71,7 @@ pub struct AlertRule {
 impl AlertRule {
     pub fn new(
         percentage_rule: Option<PercentageAlertRule>,
-        control_rule: Option<ControlAlertRule>,
+        control_rule: Option<ProcessAlertRule>,
     ) -> Self {
         let percentage = match percentage_rule {
             Some(rule) => Some(rule),
@@ -86,7 +86,7 @@ impl AlertRule {
         // if both are None, return default control rule
         if percentage.is_none() && control.is_none() {
             return Self {
-                control: Some(ControlAlertRule::new(None)),
+                control: Some(ProcessAlertRule::new(None)),
                 percentage: None,
             };
         }
@@ -774,7 +774,7 @@ mod tests {
     #[test]
     fn test_types() {
         // write tests for all alerts
-        let control_alert = AlertRule::new(None, Some(ControlAlertRule::new(None)));
+        let control_alert = AlertRule::new(None, Some(ProcessAlertRule::new(None)));
 
         assert_eq!(control_alert.to_str(), "8 16 4 8 2 4 1 1");
         assert_eq!(AlertZone::NotApplicable.to_str(), "NA");

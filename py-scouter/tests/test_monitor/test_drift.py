@@ -1,10 +1,9 @@
 from scouter import Drifter
 import numpy as np
-
+from pathlib import Path
 from numpy.typing import NDArray
 import pytest
-from scouter._scouter import DriftProfile, DriftMap, MonitorConfig, ControlAlertRule
-from pathlib import Path
+from scouter._scouter import DriftProfile, DriftMap, MonitorConfig, AlertRule
 
 
 def test_drift_f64(array: NDArray, monitor_config: MonitorConfig):
@@ -105,7 +104,8 @@ def test_alerts(array: NDArray, monitor_config: MonitorConfig):
     drift_array[:, 2] = feature2.drift
 
     # generate alerts
-    alerts = scouter.generate_alerts(drift_array, features, ControlAlertRule())
+
+    alerts = scouter.generate_alerts(drift_array, features, AlertRule())
 
     # should have no alerts
     for feature in features:

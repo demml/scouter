@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::types::_types::{Alert, AlertRules, AlertType, AlertZone, FeatureAlerts};
+use crate::types::_types::{Alert, AlertRule, AlertType, AlertZone, FeatureAlerts};
 use anyhow::Ok;
 use anyhow::{Context, Result};
 use ndarray::s;
@@ -346,25 +346,22 @@ impl Alerter {
 
 pub fn generate_alert(
     drift_array: &ArrayView1<f64>,
-    rule: &AlertRules,
+    rule: &AlertRule,
 ) -> Result<(HashSet<Alert>, HashMap<usize, Vec<Vec<usize>>>), anyhow::Error> {
     let mut alerter = Alerter::new();
 
-    match rule {
-        AlertRules::Control { rule } => {
-            alerter
-                .check_control_rule_for_alert(&drift_array.view(), &rule.rule)
-                .with_context(|| "Failed to check rule for alert")?;
+    if rule.control.is_some() {
+        alerter
+            .check_control_rule_for_alert(&drift_array.view(), &rule.control.as_ref().unwrap().rule)
+            .with_context(|| "Failed to check rule for alert")?;
 
-            alerter
-                .check_trend(&drift_array.view())
-                .with_context(|| "Failed to check trend")?;
-        }
-        AlertRules::Percentage { rule } => {
-            alerter
-                .check_percentage_rule_for_alert(&drift_array.view())
-                .with_context(|| "Failed to check rule for alert")?;
-        }
+        alerter
+            .check_trend(&drift_array.view())
+            .with_context(|| "Failed to check trend")?;
+    } else {
+        alerter
+            .check_percentage_rule_for_alert(&drift_array.view())
+            .with_context(|| "Failed to check rule for alert")?;
     }
 
     Ok((alerter.alerts, alerter.alert_positions))
@@ -373,7 +370,7 @@ pub fn generate_alert(
 pub fn generate_alerts(
     drift_array: &ArrayView2<f64>,
     features: Vec<String>,
-    alert_rule: AlertRules,
+    alert_rule: AlertRule,
 ) -> Result<FeatureAlerts, anyhow::Error> {
     // check for alerts
     let alerts = drift_array
@@ -402,7 +399,7 @@ pub fn generate_alerts(
 #[cfg(test)]
 mod tests {
 
-    use crate::types::_types::{AlertRules, ControlAlertRule, PercentageAlertRule};
+    use crate::types::_types::{AlertRule, PercentageAlertRule, ProcessAlertRule};
 
     use super::*;
     use ndarray::arr2;
@@ -457,7 +454,7 @@ mod tests {
     fn test_convert_rule() {
         let alerter = Alerter::new();
         let vec_of_ints = alerter
-            .convert_rules_to_vec(&ControlAlertRule::new(None).rule)
+            .convert_rules_to_vec(&ProcessAlertRule::new(None).rule)
             .unwrap();
         assert_eq!(vec_of_ints, [8, 16, 4, 8, 2, 4, 1, 1,]);
     }
@@ -470,7 +467,7 @@ mod tests {
             3.0, 4.0, 0.0, -4.0, 3.0, -3.0, 3.0, -3.0, 3.0, -3.0,
         ];
         let drift_array = Array::from_vec(values.to_vec());
-        let rule = ControlAlertRule::new(None).rule;
+        let rule = ProcessAlertRule::new(None).rule;
 
         alerter
             .check_control_rule_for_alert(&drift_array.view(), &rule)
@@ -534,9 +531,7 @@ mod tests {
             "feature3".to_string(),
         ];
 
-        let rule = AlertRules::Control {
-            rule: ControlAlertRule::new(None),
-        };
+        let rule = AlertRule::new(None, None);
 
         let alerts = generate_alerts(&array.view(), features, rule).unwrap();
 
@@ -588,10 +583,7 @@ mod tests {
             "feature3".to_string(),
         ];
 
-        let rule = AlertRules::Percentage {
-            rule: PercentageAlertRule::new(None),
-        };
-
+        let rule = AlertRule::new(Some(PercentageAlertRule::new(None)), None);
         let alerts = generate_alerts(&array.view(), features, rule).unwrap();
 
         let feature1 = alerts.features.get("feature1").unwrap();
