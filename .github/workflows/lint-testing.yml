@@ -131,7 +131,11 @@ jobs:
           docker-options: -e CI
           working-directory: ./py-scouter
 
-      - run: ls -lh dist/
+      - name: Check dist
+        working-directory: ./py-scouter
+        run: ls -lh dist/
 
-      - run: twine check --strict dist/*
+      - name: Check wheel
+        working-directory: ./py-scouter
+        run: twine check --strict dist/*
     
