@@ -12,6 +12,7 @@ pub struct Every30Minutes {
 }
 
 #[pymethods]
+#[allow(clippy::new_without_default)]
 impl Every30Minutes {
     #[new]
     pub fn new() -> Self {
@@ -22,8 +23,6 @@ impl Every30Minutes {
 
     pub fn get_next(&self) -> String {
         let schedule = Schedule::from_str(&self.cron).unwrap();
-        let next_5 = schedule.upcoming(Utc).take(5).collect::<Vec<_>>();
-        println!("{:?}", next_5);
         schedule.upcoming(Utc).next().unwrap().to_string()
     }
 }
@@ -36,6 +35,7 @@ pub struct EveryHour {
 }
 
 #[pymethods]
+#[allow(clippy::new_without_default)]
 impl EveryHour {
     #[new]
     pub fn new() -> Self {
@@ -46,8 +46,6 @@ impl EveryHour {
 
     pub fn get_next(&self) -> String {
         let schedule = Schedule::from_str(&self.cron).unwrap();
-        let next_5 = schedule.upcoming(Utc).take(5).collect::<Vec<_>>();
-        println!("{:?}", next_5);
         schedule.upcoming(Utc).next().unwrap().to_string()
     }
 }
@@ -60,6 +58,7 @@ pub struct Every6Hours {
 }
 
 #[pymethods]
+#[allow(clippy::new_without_default)]
 impl Every6Hours {
     #[new]
     pub fn new() -> Self {
@@ -70,8 +69,6 @@ impl Every6Hours {
 
     pub fn get_next(&self) -> String {
         let schedule = Schedule::from_str(&self.cron).unwrap();
-        let next_5 = schedule.upcoming(Utc).take(5).collect::<Vec<_>>();
-        println!("{:?}", next_5);
         schedule.upcoming(Utc).next().unwrap().to_string()
     }
 }
@@ -84,6 +81,7 @@ pub struct Every12Hours {
 }
 
 #[pymethods]
+#[allow(clippy::new_without_default)]
 impl Every12Hours {
     #[new]
     pub fn new() -> Self {
@@ -94,8 +92,6 @@ impl Every12Hours {
 
     pub fn get_next(&self) -> String {
         let schedule = Schedule::from_str(&self.cron).unwrap();
-        let next_5 = schedule.upcoming(Utc).take(5).collect::<Vec<_>>();
-        println!("{:?}", next_5);
         schedule.upcoming(Utc).next().unwrap().to_string()
     }
 }
@@ -108,6 +104,7 @@ pub struct EveryDay {
 }
 
 #[pymethods]
+#[allow(clippy::new_without_default)]
 impl EveryDay {
     #[new]
     pub fn new() -> Self {
@@ -118,8 +115,6 @@ impl EveryDay {
 
     pub fn get_next(&self) -> String {
         let schedule = Schedule::from_str(&self.cron).unwrap();
-        let next_5 = schedule.upcoming(Utc).take(5).collect::<Vec<_>>();
-        println!("{:?}", next_5);
         schedule.upcoming(Utc).next().unwrap().to_string()
     }
 }
@@ -132,6 +127,7 @@ pub struct EveryWeek {
 }
 
 #[pymethods]
+#[allow(clippy::new_without_default)]
 impl EveryWeek {
     #[new]
     pub fn new() -> Self {
@@ -142,8 +138,6 @@ impl EveryWeek {
 
     pub fn get_next(&self) -> String {
         let schedule = Schedule::from_str(&self.cron).unwrap();
-        let next_5 = schedule.upcoming(Utc).take(5).collect::<Vec<_>>();
-        println!("{:?}", next_5);
         schedule.upcoming(Utc).next().unwrap().to_string()
     }
 }
@@ -171,6 +165,7 @@ pub struct CommonCron {
 }
 
 #[pymethods]
+#[allow(clippy::new_without_default)]
 impl CommonCron {
     #[new]
     pub fn new() -> Self {

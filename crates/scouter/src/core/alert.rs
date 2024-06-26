@@ -344,10 +344,12 @@ impl Alerter {
     }
 }
 
+type GeneratedAlert = (HashSet<Alert>, HashMap<usize, Vec<Vec<usize>>>);
+
 pub fn generate_alert(
     drift_array: &ArrayView1<f64>,
     rule: &AlertRule,
-) -> Result<(HashSet<Alert>, HashMap<usize, Vec<Vec<usize>>>), anyhow::Error> {
+) -> Result<GeneratedAlert, anyhow::Error> {
     let mut alerter = Alerter::new();
 
     if rule.process.is_some() {
@@ -416,7 +418,7 @@ mod tests {
         let result = alerter
             .check_zone_consecutive(&drift_array.view(), 5, threshold)
             .unwrap();
-        assert_eq!(result, true);
+        assert!(result);
 
         let values = [0.0, 1.0, 1.0, -1.0, 1.0, 1.0];
         let drift_array = Array::from_vec(values.to_vec());
@@ -425,7 +427,7 @@ mod tests {
         let result = alerter
             .check_zone_consecutive(&drift_array.view(), 5, threshold)
             .unwrap();
-        assert_eq!(result, false);
+        assert!(!result);
     }
 
     #[test]
@@ -438,7 +440,7 @@ mod tests {
         let result = alerter
             .check_zone_alternating(&drift_array.view(), 5, threshold)
             .unwrap();
-        assert_eq!(result, true);
+        assert!(result);
 
         let values = [0.0, 1.0, -1.0, 1.0, 0.0, 1.0];
         let drift_array = Array::from_vec(values.to_vec());
@@ -447,7 +449,7 @@ mod tests {
         let result = alerter
             .check_zone_alternating(&drift_array.view(), 5, threshold)
             .unwrap();
-        assert_eq!(result, false);
+        assert!(!result);
     }
 
     #[test]

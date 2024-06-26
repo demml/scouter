@@ -1,4 +1,5 @@
-use crate::utils::utils::EveryDay;
+use crate::core::alert;
+use crate::utils::cron::EveryDay;
 use anyhow::Context;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -51,10 +52,7 @@ pub struct PercentageAlertRule {
 impl PercentageAlertRule {
     #[new]
     pub fn new(rule: Option<f64>) -> Self {
-        let rule = match rule {
-            Some(r) => r,
-            None => 0.10,
-        };
+        let rule = rule.unwrap_or(0.1);
         Self { rule }
     }
 }
@@ -77,15 +75,9 @@ impl AlertRule {
         percentage_rule: Option<PercentageAlertRule>,
         process_rule: Option<ProcessAlertRule>,
     ) -> Self {
-        let percentage = match percentage_rule {
-            Some(rule) => Some(rule),
-            None => None,
-        };
+        let percentage = percentage_rule.map(|rule| rule);
 
-        let process = match process_rule {
-            Some(rule) => Some(rule),
-            None => None,
-        };
+        let process = process_rule.map(|rule| rule);
 
         // if both are None, return default control rule
         if percentage.is_none() && process.is_none() {
@@ -178,7 +170,7 @@ impl Alert {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(&self)
+        ProfileFuncs::__str__(self)
     }
 }
 
@@ -321,20 +313,11 @@ impl MonitorConfig {
             None => true,
         };
 
-        let sample_size = match sample_size {
-            Some(size) => size,
-            None => 25,
-        };
+        let sample_size = sample_size.unwrap_or(25);
 
-        let version = match version {
-            Some(v) => v,
-            None => "0.1.0".to_string(),
-        };
+        let version = version.unwrap_or("0.1.0".to_string());
 
-        let alert_rule = match alert_rule {
-            Some(rule) => rule,
-            None => AlertRule::new(None, None),
-        };
+        let alert_rule = alert_rule.unwrap_or(AlertRule::new(None, None));
 
         let schedule = match schedule {
             Some(s) => {
@@ -380,7 +363,7 @@ pub struct DriftProfile {
 impl DriftProfile {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(&self)
+        ProfileFuncs::__str__(self)
     }
 
     pub fn model_dump_json(&self) -> String {
@@ -452,7 +435,7 @@ pub struct DataProfile {
 impl DataProfile {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(&self)
+        ProfileFuncs::__str__(self)
     }
 
     pub fn model_dump_json(&self) -> String {
@@ -602,7 +585,7 @@ impl DriftMap {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(&self)
+        ProfileFuncs::__str__(self)
     }
 
     pub fn model_dump_json(&self) -> String {
@@ -702,7 +685,7 @@ impl FeatureAlert {
 impl FeatureAlert {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(&self)
+        ProfileFuncs::__str__(self)
     }
 }
 
@@ -752,7 +735,7 @@ impl FeatureAlerts {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(&self)
+        ProfileFuncs::__str__(self)
     }
 
     pub fn model_dump_json(&self) -> String {
