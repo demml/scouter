@@ -1,0 +1,10 @@
+[workspace]
+dependencies_update = true
+pr_labels = ["release"]
+semver_check = true
+publish_timeout = "10m" # set a timeout for `cargo publish`
+
+
+[[package]] # the double square brackets define a TOML table array
+name = "crates/scouter"
+publish = true 
