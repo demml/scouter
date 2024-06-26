@@ -6,5 +6,5 @@ publish_timeout = "10m" # set a timeout for `cargo publish`
 
 
 [[package]] # the double square brackets define a TOML table array
-name = "crates/scouter"
+name = "scouter"
 publish = true 
