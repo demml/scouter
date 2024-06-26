@@ -94,7 +94,7 @@ impl Alerter {
     }
 
     pub fn has_overlap(
-        last_entry: &Vec<usize>,
+        last_entry: &[usize],
         start: usize,
         end: usize,
     ) -> Result<bool, anyhow::Error> {
@@ -131,7 +131,7 @@ impl Alerter {
             // push new alert position
             self.alert_positions
                 .entry(key)
-                .or_insert_with(Vec::new)
+                .or_default()
                 .push(vec![start, end]);
         }
 
@@ -149,10 +149,10 @@ impl Alerter {
     ) -> Result<(), anyhow::Error> {
         // test consecutive first
         if (value == threshold || value == -threshold)
-            && idx + 1 >= consecutive_rule as usize
+            && idx + 1 >= consecutive_rule
             && consecutive_rule > 0
         {
-            let start = idx + 1 - consecutive_rule as usize;
+            let start = idx + 1 - consecutive_rule;
             let consecutive_alert = self.check_zone_consecutive(
                 &drift_array.slice(s![start..=idx]),
                 consecutive_rule,
@@ -173,13 +173,13 @@ impl Alerter {
 
         // check alternating
         if (value == threshold || value == -threshold)
-            && idx + 1 >= alternating_rule as usize
+            && idx + 1 >= alternating_rule
             && alternating_rule > 0
         {
-            let start = idx + 1 - alternating_rule as usize;
+            let start = idx + 1 - alternating_rule;
             let alternating_alert = self.check_zone_alternating(
                 &drift_array.slice(s![start..=idx]),
-                alternating_rule as usize,
+                alternating_rule,
                 threshold,
             )?;
 
@@ -199,7 +199,7 @@ impl Alerter {
     }
 
     pub fn convert_rules_to_vec(&self, rule: &str) -> Result<Vec<i32>, anyhow::Error> {
-        let rule_chars = rule.split(" ");
+        let rule_chars = rule.split(' ');
 
         let rule_vec = rule_chars
             .collect::<Vec<&str>>()
@@ -341,6 +341,12 @@ impl Alerter {
             });
 
         Ok(())
+    }
+}
+
+impl Default for Alerter {
+    fn default() -> Self {
+        Self::new()
     }
 }
 

@@ -1,4 +1,3 @@
-use crate::core::alert;
 use crate::utils::cron::EveryDay;
 use anyhow::Context;
 use pyo3::prelude::*;
@@ -75,12 +74,8 @@ impl AlertRule {
         percentage_rule: Option<PercentageAlertRule>,
         process_rule: Option<ProcessAlertRule>,
     ) -> Self {
-        let percentage = percentage_rule.map(|rule| rule);
-
-        let process = process_rule.map(|rule| rule);
-
         // if both are None, return default control rule
-        if percentage.is_none() && process.is_none() {
+        if percentage_rule.is_none() && process_rule.is_none() {
             return Self {
                 process: Some(ProcessAlertRule::new(None)),
                 percentage: None,
@@ -88,8 +83,8 @@ impl AlertRule {
         }
 
         Self {
-            process,
-            percentage,
+            process: process_rule,
+            percentage: percentage_rule,
         }
     }
 
@@ -211,8 +206,7 @@ impl ProfileFuncs {
             PathBuf::from(filename)
         };
 
-        std::fs::write(write_path, json)
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))?;
+        std::fs::write(write_path, json).with_context(|| "Failed to write to file")?;
 
         Ok(())
     }
@@ -307,12 +301,8 @@ impl MonitorConfig {
         sample_size: Option<usize>,
         schedule: Option<String>,
         alert_rule: Option<AlertRule>,
-    ) -> PyResult<Self> {
-        let sample = match sample {
-            Some(s) => s,
-            None => true,
-        };
-
+    ) -> Self {
+        let sample = sample.unwrap_or(true);
         let sample_size = sample_size.unwrap_or(25);
 
         let version = version.unwrap_or("0.1.0".to_string());
@@ -327,9 +317,8 @@ impl MonitorConfig {
                 match schedule {
                     Ok(_) => s,
                     Err(_) => {
-                        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                            "Invalid cron schedule",
-                        ))
+                        tracing::error!("Invalid cron schedule, using default schedule");
+                        EveryDay::new().cron
                     }
                 }
             }
@@ -337,7 +326,7 @@ impl MonitorConfig {
             None => EveryDay::new().cron,
         };
 
-        Ok(Self {
+        Self {
             sample_size,
             sample,
             name,
@@ -345,7 +334,7 @@ impl MonitorConfig {
             version,
             schedule,
             alert_rule,
-        })
+        }
     }
 }
 
@@ -673,7 +662,7 @@ pub struct FeatureAlert {
 impl FeatureAlert {
     pub fn new(feature: String) -> Self {
         Self {
-            feature: feature,
+            feature,
             alerts: Vec::new(),
             indices: HashMap::new(),
         }

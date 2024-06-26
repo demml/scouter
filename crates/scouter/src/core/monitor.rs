@@ -476,8 +476,7 @@ mod tests {
             None,
             None,
             None,
-        )
-        .unwrap();
+        );
 
         let profile = monitor
             .create_2d_drift_profile(&features, &array.view(), &config)
@@ -512,8 +511,7 @@ mod tests {
             None,
             None,
             None,
-        )
-        .unwrap();
+        );
 
         let profile = monitor
             .create_2d_drift_profile(&features, &array.view(), &config)
@@ -540,8 +538,7 @@ mod tests {
             None,
             None,
             None,
-        )
-        .unwrap();
+        );
 
         let monitor = Monitor::new();
 
@@ -588,8 +585,7 @@ mod tests {
                 process: None,
                 percentage: Some(PercentageAlertRule { rule: 0.1 }),
             }),
-        )
-        .unwrap();
+        );
 
         let monitor = Monitor::new();
 
