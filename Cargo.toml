@@ -1,39 +1,28 @@
-[package]
-name = "scouter"
-version = "0.1.0-rc.1"
+[workspace]
+resolver = "2"
+members = [
+  "crates/scouter",
+  "py-scouter",
+]
+default-members = [
+  "crates/*",
+]
+
+[workspace.package]
+version = "0.1.0"
+authors = ["Steven Forrester <sjforrester32@gmail.com>"]
 edition = "2021"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-[lib]
-name = "scouter"
-crate-type = ["cdylib", "rlib"]
+license = "MIT"
+repository = "https://github.com/demml/scouter"
 
 
-[dependencies]
-pyo3 = { version = "0.21", features = ["extension-module"] }
-serde = { version = "1.0.163", features = ["derive"] }
-itertools = "0.11.0"
-rayon = "1.7.0"
-noisy_float = "0.2.0"
-anyhow = "1.0.79"
-chrono = "0.4.38"
-num-traits = "0.2.19"
-serde_json = "1.0.117"
-indicatif = "0.17.8"
-ndarray = { version = "0.15.6", features = ["rayon"] }
+[workspace.dependencies]
+pyo3 = { version = "0.21", features = ["extension-module", "chrono"] }
 numpy = "0.21.0"
-ndarray-stats = "0.5.1"
+scouter = { path = "crates/scouter" }
 
-[dev-dependencies]
-approx = "0.5.1"
-ndarray-rand = "0.14.0"
-criterion = { version = "0.4", features = ["html_reports"] }
 
 [profile.release]
 lto = "fat"
 codegen-units = 1
 strip = true
-
-[[bench]]
-name = "profile"
-harness = false

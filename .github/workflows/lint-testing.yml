@@ -30,14 +30,17 @@ jobs:
         uses: Swatinem/rust-cache@v2
         
       - name: Run cargo clippy
+        working-directory: ./crates/scouter
         run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: Tests
+        working-directory: ./crates/scouter
         run: cargo test
         env:
           RUST_BACKTRACE: 1
 
       - name: Bench
+        working-directory: ./crates/scouter
         run: cargo bench
         env:
           RUST_BACKTRACE: 1
@@ -75,17 +78,21 @@ jobs:
           cache: 'poetry'
 
       - name: Create virtual environment
+        working-directory: ./py-scouter
         run: |
           python -m venv .venv
-          echo "$GITHUB_WORKSPACE/rusty-logger/.venv/bin" >> $GITHUB_PATH
+          echo "$GITHUB_WORKSPACE/scouter/.venv/bin" >> $GITHUB_PATH
 
       - name: Install dependencies
+        working-directory: ./py-scouter
         run : make setup.project
 
       - name: Lints
+        working-directory: ./py-scouter
         run : make lints.ci
       
       - name: Run tests and report coverage
+        working-directory: ./py-scouter
         run: make test.unit
 
       - name: Upload coverage reports to Codecov
@@ -115,14 +122,20 @@ jobs:
 
       - name: build wheels
         uses: PyO3/maturin-action@v1
+        
         with:
           target: ${{ matrix.target }}
           manylinux: ${{ matrix.manylinux }}
           args: --release --out dist --interpreter 3.11
           rust-toolchain: stable
           docker-options: -e CI
+          working-directory: ./py-scouter
 
-      - run: ls -lh dist/
+      - name: Check dist
+        working-directory: ./py-scouter
+        run: ls -lh dist/
 
-      - run: twine check --strict dist/*
+      - name: Check wheel
+        working-directory: ./py-scouter
+        run: twine check --strict dist/*
     

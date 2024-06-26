@@ -7,10 +7,9 @@ comment:                  # this is a top-level key
   hide_project_coverage: false # [true :: only show coverage on the git diff]
 
 ignore:
-  - "tests"
-  - "python/scouter/version.py"
-  - "python/scouter/utils/comparison/*"
-  - "python/scouter/version.py"
+  - "py-scouter/tests"
+  - "py-scouter/scouter/version.py"
+  - "py-scouter/scouter/utils/comparison/*"
 
 coverage:
   range: "70...100"
