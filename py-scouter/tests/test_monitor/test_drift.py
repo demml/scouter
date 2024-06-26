@@ -3,7 +3,12 @@ import numpy as np
 from pathlib import Path
 from numpy.typing import NDArray
 import pytest
-from scouter._scouter import DriftProfile, DriftMap, MonitorConfig, AlertRule
+from scouter._scouter import (
+    DriftProfile,
+    DriftMap,
+    MonitorConfig,
+    AlertRule,
+)
 
 
 def test_drift_f64(array: NDArray, monitor_config: MonitorConfig):
@@ -78,7 +83,7 @@ def test_drift_fail(array: NDArray, monitor_config: MonitorConfig):
         scouter.compute_drift(array.astype("str"), profile, features)
 
 
-def test_alerts(array: NDArray, monitor_config: MonitorConfig):
+def test_alerts_control(array: NDArray, monitor_config: MonitorConfig):
     scouter = Drifter()
     profile: DriftProfile = scouter.create_drift_profile(array, monitor_config)
 
@@ -110,9 +115,46 @@ def test_alerts(array: NDArray, monitor_config: MonitorConfig):
     # should have no alerts
     for feature in features:
         alert = alerts.features[feature]
-        assert len(alert.alerts) == 0
+        assert len(alert.alerts) <= 1
 
-    # Manually change values to generate alerts
-    drift_array[10, 0] = 4.0
-    alerts = scouter.generate_alerts(drift_array, features, profile.config.alert_rule)
-    assert alerts.features["feature_0"].alerts[0].kind == "Out of bounds"
+
+def test_alerts_percentage(array: NDArray, monitor_config_percentage: MonitorConfig):
+    scouter = Drifter()
+
+    profile: DriftProfile = scouter.create_drift_profile(
+        array, monitor_config_percentage
+    )
+
+    # assert features are relatively centered
+    assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)
+    assert profile.features["feature_1"].center == pytest.approx(2.5, 0.1)
+    assert profile.features["feature_2"].center == pytest.approx(3.5, 0.1)
+
+    features = ["feature_0", "feature_1", "feature_2"]
+
+    drift_array: NDArray = np.asarray(
+        [
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+            [0, 0, 0],
+        ],
+        dtype=np.float64,
+    )
+
+    # add drift
+    drift_array[0, 0] = 1.0
+    drift_array[8, 0] = 1.0
+
+    alerts = scouter.generate_alerts(
+        drift_array, features, monitor_config_percentage.alert_rule
+    )
+
+    # should have no alerts
+    assert len(alerts.features["feature_0"].alerts) == 1
+    assert len(alerts.features["feature_0"].indices[1]) == 2

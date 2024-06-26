@@ -57,7 +57,7 @@ def test_fail(array: NDArray, monitor_config: MonitorConfig):
     scouter = Drifter()
 
     with pytest.raises(ValueError):
-        scouter.create_drift_profile(array, monitor_config)  # type: ignore
+        scouter.create_drift_profile(array, monitor_config, "str")  # type: ignore
 
     with pytest.raises(ValueError):
         scouter.create_drift_profile(array.astype("str"), monitor_config=monitor_config)

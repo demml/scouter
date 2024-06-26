@@ -1,4 +1,4 @@
-use crate::types::_types::{DataProfile, Distinct, FeatureDataProfile, Histogram, Quantiles};
+use crate::utils::types::{DataProfile, Distinct, FeatureDataProfile, Histogram, Quantiles};
 use anyhow::{Context, Result};
 use ndarray::prelude::*;
 use ndarray::Axis;

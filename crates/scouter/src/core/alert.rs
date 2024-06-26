@@ -1,6 +1,6 @@
 use std::collections::HashMap;
 
-use crate::types::_types::{Alert, AlertRule, AlertType, AlertZone, FeatureAlerts};
+use crate::utils::types::{Alert, AlertRule, AlertType, AlertZone, FeatureAlerts};
 use anyhow::Ok;
 use anyhow::{Context, Result};
 use ndarray::s;
@@ -219,7 +219,7 @@ impl Alerter {
         Ok(rule_vec)
     }
 
-    pub fn check_control_rule_for_alert(
+    pub fn check_process_rule_for_alert(
         &mut self,
         drift_array: &ArrayView1<f64>,
         rule: &str,
@@ -350,9 +350,9 @@ pub fn generate_alert(
 ) -> Result<(HashSet<Alert>, HashMap<usize, Vec<Vec<usize>>>), anyhow::Error> {
     let mut alerter = Alerter::new();
 
-    if rule.control.is_some() {
+    if rule.process.is_some() {
         alerter
-            .check_control_rule_for_alert(&drift_array.view(), &rule.control.as_ref().unwrap().rule)
+            .check_process_rule_for_alert(&drift_array.view(), &rule.process.as_ref().unwrap().rule)
             .with_context(|| "Failed to check rule for alert")?;
 
         alerter
@@ -399,7 +399,7 @@ pub fn generate_alerts(
 #[cfg(test)]
 mod tests {
 
-    use crate::types::_types::{AlertRule, PercentageAlertRule, ProcessAlertRule};
+    use crate::utils::types::{AlertRule, PercentageAlertRule, ProcessAlertRule};
 
     use super::*;
     use ndarray::arr2;
@@ -470,7 +470,7 @@ mod tests {
         let rule = ProcessAlertRule::new(None).rule;
 
         alerter
-            .check_control_rule_for_alert(&drift_array.view(), &rule)
+            .check_process_rule_for_alert(&drift_array.view(), &rule)
             .unwrap();
 
         let alert = alerter.alert_positions;
@@ -501,7 +501,7 @@ mod tests {
     }
 
     #[test]
-    fn test_generate_control_alerts() {
+    fn test_generate_process_alerts() {
         // has alerts
         // create 20, 3 vector
 

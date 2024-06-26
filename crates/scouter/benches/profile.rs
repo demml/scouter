@@ -5,7 +5,7 @@ use ndarray_rand::RandomExt;
 use scouter::core::monitor::Monitor;
 
 use scouter::core::profiler::Profiler;
-use scouter::types::_types::MonitorConfig;
+use scouter::utils::types::MonitorConfig;
 
 fn criterion_benchmark(c: &mut Criterion) {
     let monitor = Monitor::new();
@@ -20,7 +20,9 @@ fn criterion_benchmark(c: &mut Criterion) {
         None,
         None,
         None,
-    );
+        None,
+    )
+    .unwrap();
     group.bench_function("monitor", |b| {
         b.iter(|| monitor.create_2d_drift_profile(&features, black_box(&array.view()), &config))
     });

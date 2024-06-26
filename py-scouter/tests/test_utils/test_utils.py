@@ -1,4 +1,16 @@
-from scouter import Alert, AlertType, AlertZone, AlertRules
+from scouter import (
+    Alert,
+    AlertType,
+    AlertZone,
+    AlertRule,
+    CommonCrons,
+    Every30Minutes,
+    EveryHour,
+    Every6Hours,
+    Every12Hours,
+    EveryDay,
+    EveryWeek,
+)
 
 
 def test_kinds():
@@ -44,4 +56,14 @@ def test_kinds():
 
 
 def test_alert_rules():
-    assert AlertRules.Standard.value == "8 16 4 8 2 4 1 1"
+    assert AlertRule().percentage is None
+    assert AlertRule().process.rule == "8 16 4 8 2 4 1 1"
+
+
+def test_crons():
+    assert CommonCrons.every_30_minutes.cron == Every30Minutes().cron
+    assert CommonCrons.every_hour.cron == EveryHour().cron
+    assert CommonCrons.every_6_hours.cron == Every6Hours().cron
+    assert CommonCrons.every_12_hours.cron == Every12Hours().cron
+    assert CommonCrons.every_day.cron == EveryDay().cron
+    assert CommonCrons.every_week.cron == EveryWeek().cron

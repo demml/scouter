@@ -1,4 +1,4 @@
-use crate::types::_types::{
+use crate::utils::types::{
     DriftMap, DriftProfile, FeatureDrift, FeatureDriftProfile, MonitorConfig,
 };
 use anyhow::Ok;
@@ -388,7 +388,7 @@ impl Monitor {
             .map(|x| {
                 // match AlertRules enum
 
-                let drift = if drift_profile.config.alert_rule.control.is_some() {
+                let drift = if drift_profile.config.alert_rule.process.is_some() {
                     self.set_control_drift_value(x, num_features, drift_profile, features)
                         .unwrap()
                 } else {
@@ -446,6 +446,8 @@ impl Default for Monitor {
 #[cfg(test)]
 mod tests {
 
+    use crate::utils::types::{AlertRule, PercentageAlertRule};
+
     use super::*;
     use approx::relative_eq;
     use ndarray::Array;
@@ -473,7 +475,9 @@ mod tests {
             None,
             None,
             None,
-        );
+            None,
+        )
+        .unwrap();
 
         let profile = monitor
             .create_2d_drift_profile(&features, &array.view(), &config)
@@ -507,7 +511,9 @@ mod tests {
             None,
             None,
             None,
-        );
+            None,
+        )
+        .unwrap();
 
         let profile = monitor
             .create_2d_drift_profile(&features, &array.view(), &config)
@@ -516,7 +522,7 @@ mod tests {
     }
 
     #[test]
-    fn test_drift_detect() {
+    fn test_drift_detect_process() {
         // create 2d array
         let array = Array::random((1030, 3), Uniform::new(0., 10.));
 
@@ -533,7 +539,57 @@ mod tests {
             None,
             None,
             None,
-        );
+            None,
+        )
+        .unwrap();
+
+        let monitor = Monitor::new();
+
+        let profile = monitor
+            .create_2d_drift_profile(&features, &array.view(), &config)
+            .unwrap();
+        assert_eq!(profile.features.len(), 3);
+
+        // change first 100 rows to 100 at index 1
+        let mut array = array.to_owned();
+        array.slice_mut(s![0..200, 1]).fill(100.0);
+
+        let drift_profile = monitor
+            .compute_drift(&features, &array.view(), &profile)
+            .unwrap();
+
+        // assert relative
+        let feature_1 = drift_profile.features.get("feature_2").unwrap();
+        assert!(relative_eq!(feature_1.samples[0], 100.0, epsilon = 2.0));
+
+        // convert profile to json and load it back
+        let _ = drift_profile.model_dump_json();
+    }
+
+    #[test]
+    fn test_drift_detect_percentage() {
+        // create 2d array
+        let array = Array::random((1030, 3), Uniform::new(0., 10.));
+
+        let features = vec![
+            "feature_1".to_string(),
+            "feature_2".to_string(),
+            "feature_3".to_string(),
+        ];
+
+        let config = MonitorConfig::new(
+            "name".to_string(),
+            "repo".to_string(),
+            None,
+            None,
+            None,
+            None,
+            Some(AlertRule {
+                process: None,
+                percentage: Some(PercentageAlertRule { rule: 0.1 }),
+            }),
+        )
+        .unwrap();
 
         let monitor = Monitor::new();
 

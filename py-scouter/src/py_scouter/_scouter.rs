@@ -2,7 +2,7 @@ use core::f32;
 use scouter::core::alert::generate_alerts;
 use scouter::core::monitor::Monitor;
 use scouter::core::profiler::Profiler;
-use scouter::types::_types::{
+use scouter::utils::types::{
     AlertRule, DataProfile, DriftMap, DriftProfile, FeatureAlerts, MonitorConfig,
 };
 

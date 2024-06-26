@@ -1,21 +1,21 @@
 from enum import Enum
-from typing import List, Optional, Union, Tuple, Dict
+from typing import Dict, List, Optional, Tuple, Union
 
+import numpy as np
 import pandas as pd
 import polars as pl
-import numpy as np
 from numpy.typing import NDArray
 from scouter.utils.logger import ScouterLogger
 
 from ._scouter import (  # pylint: disable=no-name-in-module
+    AlertRule,
     DataProfile,
     DriftMap,
     DriftProfile,
+    FeatureAlerts,
+    MonitorConfig,
     ScouterDrifter,
     ScouterProfiler,
-    MonitorConfig,
-    FeatureAlerts,
-    AlertRule,
 )
 
 logger = ScouterLogger.get_logger()
@@ -268,6 +268,7 @@ class MonitorQueue:
         self.items: Dict[str, List[float]] = {
             feature: [] for feature in self._drift_profile.features.keys()
         }
+        self._count = 0
 
     def insert(self, data: Dict[str, float]) -> Optional[DriftMap]:
         for feature, value in data.items():

@@ -25,6 +25,7 @@ indicatif = "0.17.8"
 ndarray = { version = "0.15.6", features = ["rayon"] }
 numpy = { workspace = true }
 ndarray-stats = "0.5.1"
+cron = "0.12.1"
 
 [dev-dependencies]
 approx = "0.5.1"

@@ -1,9 +1,11 @@
+use crate::utils::utils::EveryDay;
 use anyhow::Context;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 enum FileName {
     Drift,
@@ -61,7 +63,7 @@ impl PercentageAlertRule {
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AlertRule {
     #[pyo3(get, set)]
-    pub control: Option<ProcessAlertRule>,
+    pub process: Option<ProcessAlertRule>,
 
     #[pyo3(get, set)]
     pub percentage: Option<PercentageAlertRule>,
@@ -73,35 +75,35 @@ impl AlertRule {
     #[new]
     pub fn new(
         percentage_rule: Option<PercentageAlertRule>,
-        control_rule: Option<ProcessAlertRule>,
+        process_rule: Option<ProcessAlertRule>,
     ) -> Self {
         let percentage = match percentage_rule {
             Some(rule) => Some(rule),
             None => None,
         };
 
-        let control = match control_rule {
+        let process = match process_rule {
             Some(rule) => Some(rule),
             None => None,
         };
 
         // if both are None, return default control rule
-        if percentage.is_none() && control.is_none() {
+        if percentage.is_none() && process.is_none() {
             return Self {
-                control: Some(ProcessAlertRule::new(None)),
+                process: Some(ProcessAlertRule::new(None)),
                 percentage: None,
             };
         }
 
         Self {
-            control,
+            process,
             percentage,
         }
     }
 
     pub fn to_str(&self) -> String {
-        if self.control.is_some() {
-            return self.control.as_ref().unwrap().rule.clone();
+        if self.process.is_some() {
+            return self.process.as_ref().unwrap().rule.clone();
         } else {
             return self.percentage.as_ref().unwrap().rule.to_string();
         }
@@ -273,7 +275,9 @@ pub struct FeatureDriftProfile {
 /// * `sample` - Whether to sample data or not, Default is true
 /// * `name` - The name of the model
 /// * `repository` - The repository associated with the model
-/// * `alerting_rule` - The alerting rule to use for monitoring
+/// * `version` - The version of the model
+/// * `schedule` - The cron schedule for monitoring
+/// * `alert_rule` - The alerting rule to use for monitoring
 ///
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -294,6 +298,9 @@ pub struct MonitorConfig {
     pub version: String,
 
     #[pyo3(get, set)]
+    pub schedule: String,
+
+    #[pyo3(get, set)]
     pub alert_rule: AlertRule,
 }
 
@@ -306,8 +313,9 @@ impl MonitorConfig {
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
+        schedule: Option<String>,
         alert_rule: Option<AlertRule>,
-    ) -> Self {
+    ) -> PyResult<Self> {
         let sample = match sample {
             Some(s) => s,
             None => true,
@@ -328,48 +336,33 @@ impl MonitorConfig {
             None => AlertRule::new(None, None),
         };
 
-        Self {
+        let schedule = match schedule {
+            Some(s) => {
+                // validate the cron schedule
+                let schedule = cron::Schedule::from_str(&s);
+
+                match schedule {
+                    Ok(_) => s,
+                    Err(_) => {
+                        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                            "Invalid cron schedule",
+                        ))
+                    }
+                }
+            }
+
+            None => EveryDay::new().cron,
+        };
+
+        Ok(Self {
             sample_size,
             sample,
             name,
             repository,
             version,
+            schedule,
             alert_rule,
-        }
-    }
-
-    pub fn set_config(
-        &mut self,
-        sample: Option<bool>,
-        sample_size: Option<usize>,
-        name: Option<String>,
-        repository: Option<String>,
-        version: Option<String>,
-        alert_rule: Option<AlertRule>,
-    ) {
-        if sample.is_some() {
-            self.sample = sample.unwrap();
-        }
-
-        if sample_size.is_some() {
-            self.sample_size = sample_size.unwrap();
-        }
-
-        if name.is_some() {
-            self.name = name.unwrap();
-        }
-
-        if repository.is_some() {
-            self.repository = repository.unwrap();
-        }
-
-        if alert_rule.is_some() {
-            self.alert_rule = alert_rule.unwrap();
-        }
-
-        if version.is_some() {
-            self.version = version.unwrap();
-        }
+        })
     }
 }
 

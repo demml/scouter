@@ -1,7 +1,72 @@
-from pathlib import Path
-from typing import Dict, List, Optional
 import datetime
+from pathlib import Path
+from typing import Dict, List, Optional, Union
+
 from numpy.typing import NDArray
+
+class Every30Minutes:
+    def __init__(self) -> None:
+        """Initialize the cron schedule"""
+    @property
+    def cron(self) -> str:
+        """Return the cron schedule"""
+
+class EveryHour:
+    def __init__(self) -> None:
+        """Initialize the cron schedule"""
+    @property
+    def cron(self) -> str:
+        """Return the cron schedule"""
+
+class Every6Hours:
+    def __init__(self) -> None:
+        """Initialize the cron schedule"""
+    @property
+    def cron(self) -> str:
+        """Return the cron schedule"""
+
+class Every12Hours:
+    def __init__(self) -> None:
+        """Initialize the cron schedule"""
+    @property
+    def cron(self) -> str:
+        """Return the cron schedule"""
+
+class EveryDay:
+    def __init__(self) -> None:
+        """Initialize the cron schedule"""
+    @property
+    def cron(self) -> str:
+        """Return the cron schedule"""
+
+class EveryWeek:
+    def __init__(self) -> None:
+        """Initialize the cron schedule"""
+    @property
+    def cron(self) -> str:
+        """Return the cron schedule"""
+
+class CommonCron:
+    def __init__(self) -> None:
+        """Initialize the common cron class"""
+    @property
+    def every_30_minutes(self) -> Every30Minutes:
+        """Return the cron schedule"""
+    @property
+    def every_hour(self) -> EveryHour:
+        """Return the cron schedule"""
+    @property
+    def every_6_hours(self) -> Every6Hours:
+        """Return the cron schedule"""
+    @property
+    def every_12_hours(self) -> Every12Hours:
+        """Return the cron schedule"""
+    @property
+    def every_day(self) -> EveryDay:
+        """Return the cron schedule"""
+    @property
+    def every_week(self) -> EveryWeek:
+        """Return the cron schedule"""
 
 class PercentageAlertRule:
     def __init__(self, rule: Optional[float] = None) -> None:
@@ -11,7 +76,6 @@ class PercentageAlertRule:
             rule:
                 Rule to use for percentage alerting (float)
         """
-
     @property
     def rule(self) -> float:
         """Return the alert rule"""
@@ -25,7 +89,6 @@ class ProcessAlertRule:
                 Rule to use for alerting. Eight digit integer string.
                 Defaults to '8 16 4 8 2 4 1 1'
         """
-
     @property
     def rule(self) -> str:
         """Return the alert rule"""
@@ -34,7 +97,7 @@ class AlertRule:
     def __init__(
         self,
         percentage_rule: Optional[PercentageAlertRule] = None,
-        control_rule: Optional[ProcessAlertRule] = None,
+        process_rule: Optional[ProcessAlertRule] = None,
     ) -> None:
         """Initialize alert rule
 
@@ -43,9 +106,8 @@ class AlertRule:
                 Rule to use for alerting.
         """
     @property
-    def control(self) -> Optional[ProcessAlertRule]:
+    def process(self) -> Optional[ProcessAlertRule]:
         """Return the control alert rule"""
-
     @property
     def percentage(self) -> Optional[PercentageAlertRule]:
         """Return the percentage alert rule"""
@@ -56,7 +118,6 @@ class Alert:
     @property
     def kind(self) -> str:
         """Alert kind"""
-
     @property
     def zone(self) -> str:
         """Zone associated with alert"""
@@ -65,13 +126,11 @@ class FeatureAlert:
     @property
     def feature(self) -> str:
         """Return the feature."""
-
     @property
     def alerts(self) -> List[Alert]:
         """Return the alerts."""
-
     @property
-    def indices(self) -> Dict[str, List[List[int]]]:
+    def indices(self) -> Dict[Union[str, int], List[List[int]]]:
         """Return the alert indices"""
 
 class FeatureAlerts:
@@ -116,6 +175,7 @@ class MonitorConfig:
         version: str = "0.1.0",
         sample: bool = True,
         sample_size: int = 25,
+        schedule: str = "0 0 * * *",
         alert_rule: AlertRule = AlertRule(),
     ):
         """Initialize monitor config
@@ -131,66 +191,40 @@ class MonitorConfig:
                 Whether to sample or not
             sample_size:
                 Sample size
+            schedule:
+                Schedule to run monitor. Defaults to daily at midnight
             alert_rule:
                 Alert rule to use. Defaults to Standard
         """
-
     @property
     def sample_size(self) -> int:
         """Return the sample size."""
-
     @property
     def sample(self) -> bool:
         """Whether to sample or not"""
-
     @property
     def name(self) -> str:
         """Model Name"""
-
     @property
     def repository(self) -> str:
         """Model repository"""
-
     @property
     def version(self) -> str:
         """Model version"""
-
+    @property
+    def schedule(self) -> str:
+        """Schedule to run monitor"""
     @property
     def alert_rule(self) -> AlertRule:
         """Alert rule to use"""
-
-    def set_config(
-        self,
-        sample: Optional[bool],
-        sample_size: Optional[int],
-        name: Optional[str],
-        repository: Optional[str],
-        version: Optional[str],
-    ) -> None:
-        """Set the monitor config
-
-        Args:
-            sample:
-                Whether to sample or not
-            sample_size:
-                Sample size
-            name:
-                Model name
-            repository:
-                Model repository
-            version:
-                Model version
-        """
 
 class DriftProfile:
     @property
     def features(self) -> Dict[str, FeatureDriftProfile]:
         """Return the list of features."""
-
     @property
     def config(self) -> MonitorConfig:
         """Return the monitor config."""
-
     def __str__(self) -> str:
         """Sting representation of DriftProfile"""
 
@@ -220,7 +254,6 @@ class Histogram:
     @property
     def bins(self) -> List[float]:
         """Bin values"""
-
     @property
     def bin_counts(self) -> List[int]:
         """Bin counts"""
@@ -283,7 +316,6 @@ class FeatureDrift:
     @property
     def drift(self) -> List[float]:
         """Return list of drift values"""
-
     def __str__(self) -> str:
         """Return string representation of feature drift"""
 
@@ -297,33 +329,25 @@ class DriftMap:
             service_name:
                 Optional name of service associated with drift map
         """
-
     @property
     def name(self) -> str:
         """name to associate with drift map"""
-
     @property
     def repository(self) -> str:
         """Repository to associate with drift map"""
-
     @property
     def version(self) -> str:
         """Version to associate with drift map"""
-
     @property
     def features(self) -> Dict[str, FeatureDrift]:
         """Returns dictionary of features and their data profiles"""
-
     def __str__(self) -> str:
         """Return string representation of data drift"""
-
     def model_dump_json(self) -> str:
         """Return json representation of data drift"""
-
     @staticmethod
     def load_from_json(model: str) -> "DriftMap":
         """Load drift map from json"""
-
     def save_to_json(self, path: Optional[Path] = None) -> None:
         """Save drift map to json file
 
@@ -335,6 +359,7 @@ class DriftMap:
 
 class DriftConfig:
     """Config to associate with new sample of data to compute drift on"""
+
     def __init__(
         self,
         features: List[str],
@@ -351,19 +376,15 @@ class DriftConfig:
             service_name:
                 Optional service name.
         """
-
     @property
     def features(self) -> List[str]:
         """Features"""
-
     @property
     def drift_profile(self) -> DriftProfile:
         """Monitor profile to use when computing drift"""
-
     @property
     def service_name(self) -> Optional[str]:
         """Optional service name to associate with drift"""
-
     def __str__(self) -> str:
         """Return string representation of drift config"""
 
@@ -371,7 +392,6 @@ class ScouterProfiler:
     def __init__(self) -> None:
         """Instantiate Rust ScouterProfiler class that is
         used to profile data"""
-
     def create_data_profile_f32(
         self,
         features: List[str],
@@ -416,7 +436,6 @@ class ScouterDrifter:
         """Instantiate Rust ScouterMonitor class that is
         used to create monitoring profiles and compute drifts.
         """
-
     def create_drift_profile_f32(
         self,
         features: List[str],
@@ -495,7 +514,6 @@ class ScouterDrifter:
         Returns:
             DriftMap.
         """
-
     def generate_alerts(
         self,
         drift_array: NDArray,
