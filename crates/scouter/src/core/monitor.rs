@@ -286,7 +286,7 @@ impl Monitor {
         let mut drift: Vec<f64> = vec![0.0; num_features];
         for (i, feature) in features.iter().enumerate() {
             // check if feature exists
-            if drift_profile.features.get(feature).is_none() {
+            if !drift_profile.features.contains_key(feature) {
                 continue;
             }
 
@@ -329,7 +329,7 @@ impl Monitor {
 
         for (i, feature) in features.iter().enumerate() {
             // check if feature exists
-            if drift_profile.features.get(feature).is_none() {
+            if !drift_profile.features.contains_key(feature) {
                 continue;
             }
             let feature_profile = drift_profile.features.get(feature).unwrap();
