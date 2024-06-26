@@ -5,10 +5,10 @@ import pandas as pd
 from numpy.typing import NDArray
 import pytest
 
-from scouter._scouter import DriftProfile, MonitorConfig
+from scouter._scouter import DriftProfile, DriftConfig
 
 
-def test_monitor_f64(array: NDArray, monitor_config: MonitorConfig):
+def test_monitor_f64(array: NDArray, monitor_config: DriftConfig):
     scouter = Drifter()
     profile: DriftProfile = scouter.create_drift_profile(array, monitor_config)
 
@@ -18,7 +18,7 @@ def test_monitor_f64(array: NDArray, monitor_config: MonitorConfig):
     assert profile.features["feature_2"].center == pytest.approx(3.5, 0.1)
 
 
-def test_monitor_f32(array: NDArray, monitor_config: MonitorConfig):
+def test_monitor_f32(array: NDArray, monitor_config: DriftConfig):
     # convert to float32
     array = array.astype("float32")
 
@@ -31,7 +31,7 @@ def test_monitor_f32(array: NDArray, monitor_config: MonitorConfig):
     assert profile.features["feature_2"].center == pytest.approx(3.5, 0.1)
 
 
-def test_monitor_polars(array: NDArray, monitor_config: MonitorConfig):
+def test_monitor_polars(array: NDArray, monitor_config: DriftConfig):
     df = pl.from_numpy(array)
     scouter = Drifter()
     profile: DriftProfile = scouter.create_drift_profile(df, monitor_config)
@@ -42,7 +42,7 @@ def test_monitor_polars(array: NDArray, monitor_config: MonitorConfig):
     assert profile.features["column_2"].center == pytest.approx(3.5, 0.1)
 
 
-def test_monitor_pandas(array: NDArray, monitor_config: MonitorConfig):
+def test_monitor_pandas(array: NDArray, monitor_config: DriftConfig):
     df = pd.DataFrame(array)
     scouter = Drifter()
     profile: DriftProfile = scouter.create_drift_profile(df, monitor_config)
@@ -53,7 +53,7 @@ def test_monitor_pandas(array: NDArray, monitor_config: MonitorConfig):
     assert profile.features["2"].center == pytest.approx(3.5, 0.1)
 
 
-def test_fail(array: NDArray, monitor_config: MonitorConfig):
+def test_fail(array: NDArray, monitor_config: DriftConfig):
     scouter = Drifter()
 
     with pytest.raises(ValueError):
@@ -63,7 +63,7 @@ def test_fail(array: NDArray, monitor_config: MonitorConfig):
         scouter.create_drift_profile(array.astype("str"), monitor_config=monitor_config)
 
 
-def test_int(array: NDArray, monitor_config: MonitorConfig):
+def test_int(array: NDArray, monitor_config: DriftConfig):
     # convert to int32
     array = array.astype("int32")
 

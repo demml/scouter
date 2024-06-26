@@ -1,6 +1,4 @@
-use crate::utils::types::{
-    DriftMap, DriftProfile, FeatureDrift, FeatureDriftProfile, MonitorConfig,
-};
+use crate::utils::types::{DriftConfig, DriftMap, DriftProfile, FeatureDrift, FeatureDriftProfile};
 use anyhow::Ok;
 use anyhow::{Context, Result};
 use indicatif::ProgressBar;
@@ -105,7 +103,7 @@ impl Monitor {
         sample_data: &ArrayView2<F>,
         num_features: usize,
         features: &[String],
-        monitor_config: &MonitorConfig,
+        monitor_config: &DriftConfig,
     ) -> Result<DriftProfile, anyhow::Error>
     where
         F: FromPrimitive + Num + Clone + Float + Debug + Sync + Send + ndarray::ScalarOperand,
@@ -177,7 +175,7 @@ impl Monitor {
         &self,
         features: &[String],
         array: &ArrayView2<F>,
-        monitor_config: &MonitorConfig,
+        monitor_config: &DriftConfig,
     ) -> Result<DriftProfile, anyhow::Error>
     where
         F: Float
@@ -468,7 +466,7 @@ mod tests {
         ];
 
         let monitor = Monitor::new();
-        let config = MonitorConfig::new(
+        let config = DriftConfig::new(
             "name".to_string(),
             "repo".to_string(),
             None,
@@ -503,7 +501,7 @@ mod tests {
         ];
 
         let monitor = Monitor::new();
-        let config = MonitorConfig::new(
+        let config = DriftConfig::new(
             "name".to_string(),
             "repo".to_string(),
             None,
@@ -530,7 +528,7 @@ mod tests {
             "feature_3".to_string(),
         ];
 
-        let config = MonitorConfig::new(
+        let config = DriftConfig::new(
             "name".to_string(),
             "repo".to_string(),
             None,
@@ -574,7 +572,7 @@ mod tests {
             "feature_3".to_string(),
         ];
 
-        let config = MonitorConfig::new(
+        let config = DriftConfig::new(
             "name".to_string(),
             "repo".to_string(),
             None,
@@ -598,15 +596,25 @@ mod tests {
         let mut array = array.to_owned();
         array.slice_mut(s![0..200, 1]).fill(100.0);
 
-        let drift_profile = monitor
+        let drift_map = monitor
             .compute_drift(&features, &array.view(), &profile)
             .unwrap();
 
         // assert relative
-        let feature_1 = drift_profile.features.get("feature_2").unwrap();
+        let feature_1 = drift_map.features.get("feature_2").unwrap();
         assert!(relative_eq!(feature_1.samples[0], 100.0, epsilon = 2.0));
 
         // convert profile to json and load it back
-        let _ = drift_profile.model_dump_json();
+        let _ = drift_map.model_dump_json();
+        let (array, features) = drift_map.to_array().unwrap();
+
+        // check if indices are the same
+        for (idx, feature) in features.iter().enumerate() {
+            let left = drift_map.features.get(feature).unwrap().drift[0..20].to_vec();
+
+            let right = array.slice(s![0..20, idx]).to_vec();
+
+            assert_eq!(left, right);
+        }
     }
 }

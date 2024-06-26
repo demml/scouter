@@ -10,10 +10,10 @@ from scouter.utils.logger import ScouterLogger
 from ._scouter import (  # pylint: disable=no-name-in-module
     AlertRule,
     DataProfile,
+    DriftConfig,
     DriftMap,
     DriftProfile,
     FeatureAlerts,
-    MonitorConfig,
     ScouterDrifter,
     ScouterProfiler,
 )
@@ -148,7 +148,7 @@ class Drifter(ScouterBase):
     def create_drift_profile(
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray],
-        monitor_config: MonitorConfig,
+        monitor_config: DriftConfig,
         features: Optional[List[str]] = None,
     ) -> DriftProfile:
         """Create a drift profile from data to use for monitoring.

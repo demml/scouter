@@ -3,7 +3,7 @@ use scouter::core::alert::generate_alerts;
 use scouter::core::monitor::Monitor;
 use scouter::core::profiler::Profiler;
 use scouter::utils::types::{
-    AlertRule, DataProfile, DriftMap, DriftProfile, FeatureAlerts, MonitorConfig,
+    AlertRule, DataProfile, DriftConfig, DriftMap, DriftProfile, FeatureAlerts,
 };
 
 use numpy::PyReadonlyArray2;
@@ -86,7 +86,7 @@ impl ScouterDrifter {
         &mut self,
         features: Vec<String>,
         array: PyReadonlyArray2<f32>,
-        monitor_config: MonitorConfig,
+        monitor_config: DriftConfig,
     ) -> PyResult<DriftProfile> {
         let array = array.as_array();
 
@@ -107,7 +107,7 @@ impl ScouterDrifter {
         &mut self,
         features: Vec<String>,
         array: PyReadonlyArray2<f64>,
-        monitor_config: MonitorConfig,
+        monitor_config: DriftConfig,
     ) -> PyResult<DriftProfile> {
         let array = array.as_array();
 

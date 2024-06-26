@@ -5,7 +5,7 @@ use ndarray_rand::RandomExt;
 use scouter::core::monitor::Monitor;
 
 use scouter::core::profiler::Profiler;
-use scouter::utils::types::MonitorConfig;
+use scouter::utils::types::DriftConfig;
 
 fn criterion_benchmark(c: &mut Criterion) {
     let monitor = Monitor::new();
@@ -13,7 +13,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     let mut group = c.benchmark_group("sample-size-example");
     let array = Array::random((1000, 10), Uniform::new(0., 10.));
     let features: Vec<String> = (0..10).map(|x| x.to_string()).collect();
-    let config = MonitorConfig::new(
+    let config = DriftConfig::new(
         "name".to_string(),
         "repo".to_string(),
         None,

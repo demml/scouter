@@ -1,6 +1,6 @@
 import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from numpy.typing import NDArray
 
@@ -167,7 +167,7 @@ class FeatureDriftProfile:
     def timestamp(self) -> str:
         """Return the timestamp."""
 
-class MonitorConfig:
+class DriftConfig:
     def __init__(
         self,
         name: str,
@@ -223,7 +223,7 @@ class DriftProfile:
     def features(self) -> Dict[str, FeatureDriftProfile]:
         """Return the list of features."""
     @property
-    def config(self) -> MonitorConfig:
+    def config(self) -> DriftConfig:
         """Return the monitor config."""
     def __str__(self) -> str:
         """Sting representation of DriftProfile"""
@@ -356,37 +356,8 @@ class DriftMap:
                 Optional path to save the drift map. If None, outputs to "drift_map.json.
 
         """
-
-class DriftConfig:
-    """Config to associate with new sample of data to compute drift on"""
-
-    def __init__(
-        self,
-        features: List[str],
-        drift_profile: DriftProfile,
-        service_name: Optional[str],
-    ) -> None:
-        """Initialize drift config
-
-        Args:
-            features:
-                List of feature names.
-            drift_profile:
-                Monitoring profile.
-            service_name:
-                Optional service name.
-        """
-    @property
-    def features(self) -> List[str]:
-        """Features"""
-    @property
-    def drift_profile(self) -> DriftProfile:
-        """Monitor profile to use when computing drift"""
-    @property
-    def service_name(self) -> Optional[str]:
-        """Optional service name to associate with drift"""
-    def __str__(self) -> str:
-        """Return string representation of drift config"""
+    def to_numpy(self) -> Tuple[NDArray, List[str]]:
+        """Return drift map as a numpy array and list of features"""
 
 class ScouterProfiler:
     def __init__(self) -> None:
@@ -440,7 +411,7 @@ class ScouterDrifter:
         self,
         features: List[str],
         array: NDArray,
-        monitor_config: MonitorConfig,
+        monitor_config: DriftConfig,
     ) -> DriftProfile:
         """Create a monitoring profile from a f64 numpy array.
 
@@ -459,7 +430,7 @@ class ScouterDrifter:
         self,
         features: List[str],
         array: NDArray,
-        monitor_config: MonitorConfig,
+        monitor_config: DriftConfig,
     ) -> DriftProfile:
         """Create a monitoring profile from a f64 numpy array.
 

@@ -1,7 +1,11 @@
 use crate::utils::cron::EveryDay;
 use anyhow::Context;
+use ndarray::Array;
+use ndarray::Array2;
+use numpy::{IntoPyArray, PyArray2};
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -267,7 +271,7 @@ pub struct FeatureDriftProfile {
 ///
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct MonitorConfig {
+pub struct DriftConfig {
     #[pyo3(get, set)]
     pub sample_size: usize,
 
@@ -291,7 +295,7 @@ pub struct MonitorConfig {
 }
 
 #[pymethods]
-impl MonitorConfig {
+impl DriftConfig {
     #[new]
     pub fn new(
         name: String,
@@ -345,7 +349,7 @@ pub struct DriftProfile {
     pub features: HashMap<String, FeatureDriftProfile>,
 
     #[pyo3(get, set)]
-    pub config: MonitorConfig,
+    pub config: DriftConfig,
 }
 
 #[pymethods]
@@ -543,7 +547,7 @@ pub struct DriftServerRecord {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DriftMap {
     #[pyo3(get, set)]
-    pub features: HashMap<String, FeatureDrift>,
+    pub features: BTreeMap<String, FeatureDrift>,
 
     #[pyo3(get, set)]
     pub name: String,
@@ -561,7 +565,7 @@ impl DriftMap {
     #[new]
     pub fn new(name: String, repository: String, version: String) -> Self {
         Self {
-            features: HashMap::new(),
+            features: BTreeMap::new(),
             name,
             repository,
             version,
@@ -612,39 +616,37 @@ impl DriftMap {
 
         records
     }
+
+    pub fn to_numpy<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> PyResult<(Bound<'py, PyArray2<f64>>, Vec<String>)> {
+        let (array, features) = self.to_array().unwrap();
+        Ok((array.into_pyarray_bound(py).to_owned(), features))
+    }
 }
 
-// Drift config to use when calculating drift on a new sample of data
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DriftConfig {
-    #[pyo3(get, set)]
-    pub features: Vec<String>,
-    pub drift_profile: DriftProfile,
-    pub service_name: Option<String>,
-}
+impl DriftMap {
+    pub fn to_array(&self) -> Result<(Array2<f64>, Vec<String>), anyhow::Error> {
+        let columns = self.features.len();
+        let rows = self.features.values().next().unwrap().samples.len();
 
-#[pymethods]
-#[allow(clippy::new_without_default)]
-impl DriftConfig {
-    #[new]
-    pub fn new(
-        features: Vec<String>,
-        drift_profile: DriftProfile,
-        service_name: Option<String>,
-    ) -> Self {
-        Self {
-            features,
-            drift_profile,
-            service_name,
+        // create empty array
+        let mut array = Array2::<f64>::zeros((rows, columns));
+        let mut features = Vec::new();
+
+        // iterate over the features and insert the drift values
+        for (i, (feature, drift)) in self.features.iter().enumerate() {
+            features.push(feature.clone());
+            array
+                .column_mut(i)
+                .assign(&Array::from(drift.drift.clone()));
         }
-    }
 
-    pub fn __str__(&self) -> String {
-        // serialize the struct to a string
-        serde_json::to_string_pretty(&self).unwrap()
+        Ok((array, features))
     }
 }
+// Drift config to use when calculating drift on a new sample of data
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]

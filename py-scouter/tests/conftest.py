@@ -3,7 +3,7 @@ import shutil
 from typing import TypeVar, Generator
 import numpy as np
 from numpy.typing import NDArray
-from scouter._scouter import MonitorConfig, AlertRule, PercentageAlertRule
+from scouter._scouter import DriftConfig, AlertRule, PercentageAlertRule
 
 
 T = TypeVar("T")
@@ -33,14 +33,14 @@ def array() -> YieldFixture[NDArray]:
 
 
 @pytest.fixture(scope="function")
-def monitor_config() -> YieldFixture[MonitorConfig]:
-    config = MonitorConfig(name="test", repository="test")
+def monitor_config() -> YieldFixture[DriftConfig]:
+    config = DriftConfig(name="test", repository="test")
     yield config
 
 
 @pytest.fixture(scope="function")
-def monitor_config_percentage() -> YieldFixture[MonitorConfig]:
-    config = MonitorConfig(
+def monitor_config_percentage() -> YieldFixture[DriftConfig]:
+    config = DriftConfig(
         name="test",
         repository="test",
         alert_rule=AlertRule(percentage_rule=PercentageAlertRule(0.1)),

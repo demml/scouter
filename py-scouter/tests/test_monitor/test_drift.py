@@ -6,12 +6,12 @@ import pytest
 from scouter._scouter import (
     DriftProfile,
     DriftMap,
-    MonitorConfig,
+    DriftConfig,
     AlertRule,
 )
 
 
-def test_drift_f64(array: NDArray, monitor_config: MonitorConfig):
+def test_drift_f64(array: NDArray, monitor_config: DriftConfig):
     scouter = Drifter()
     profile: DriftProfile = scouter.create_drift_profile(array, monitor_config)
 
@@ -24,7 +24,7 @@ def test_drift_f64(array: NDArray, monitor_config: MonitorConfig):
     _ = scouter.compute_drift(array, profile, features)
 
 
-def test_drift_f32(array: NDArray, monitor_config: MonitorConfig):
+def test_drift_f32(array: NDArray, monitor_config: DriftConfig):
     array = array.astype("float32")
     scouter = Drifter()
     profile: DriftProfile = scouter.create_drift_profile(array, monitor_config)
@@ -38,7 +38,7 @@ def test_drift_f32(array: NDArray, monitor_config: MonitorConfig):
     _ = scouter.compute_drift(array, profile, features)
 
 
-def test_drift_int(array: NDArray, monitor_config: MonitorConfig):
+def test_drift_int(array: NDArray, monitor_config: DriftConfig):
     # convert to int32
     array = array.astype("int32")
 
@@ -74,7 +74,7 @@ def test_drift_int(array: NDArray, monitor_config: MonitorConfig):
     assert Path("assets/model.json").exists()
 
 
-def test_drift_fail(array: NDArray, monitor_config: MonitorConfig):
+def test_drift_fail(array: NDArray, monitor_config: DriftConfig):
     scouter = Drifter()
     profile: DriftProfile = scouter.create_drift_profile(array, monitor_config)
     features = ["feature_0", "feature_1", "feature_2"]
@@ -83,7 +83,7 @@ def test_drift_fail(array: NDArray, monitor_config: MonitorConfig):
         scouter.compute_drift(array.astype("str"), profile, features)
 
 
-def test_alerts_control(array: NDArray, monitor_config: MonitorConfig):
+def test_alerts_control(array: NDArray, monitor_config: DriftConfig):
     scouter = Drifter()
     profile: DriftProfile = scouter.create_drift_profile(array, monitor_config)
 
@@ -117,8 +117,13 @@ def test_alerts_control(array: NDArray, monitor_config: MonitorConfig):
         alert = alerts.features[feature]
         assert len(alert.alerts) <= 1
 
+    array, features = drift_map.to_numpy()
 
-def test_alerts_percentage(array: NDArray, monitor_config_percentage: MonitorConfig):
+    assert isinstance(array, np.ndarray)
+    assert isinstance(features, list)
+
+
+def test_alerts_percentage(array: NDArray, monitor_config_percentage: DriftConfig):
     scouter = Drifter()
 
     profile: DriftProfile = scouter.create_drift_profile(

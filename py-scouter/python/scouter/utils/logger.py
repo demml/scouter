@@ -1,6 +1,6 @@
 import os
 
-from rusty_logger import JsonConfig, LogConfig, Logger
+from rusty_logger import JsonConfig, LogConfig, Logger  # type: ignore
 
 
 class ScouterLogger(Logger):  # type: ignore

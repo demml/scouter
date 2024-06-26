@@ -7,6 +7,8 @@ from ._scouter import (
     AlertRule,
     CommonCron,
     DataProfile,
+    DriftConfig,
+    DriftMap,
     DriftProfile,
     Every6Hours,
     Every12Hours,
@@ -48,4 +50,6 @@ __all__ = [
     "Every12Hours",
     "EveryDay",
     "EveryWeek",
+    "DriftConfig",
+    "DriftMap",
 ]
