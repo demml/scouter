@@ -4,8 +4,10 @@
   <br>
 </h1>
 
-<h2 align="center">Production Model Monitoring and Data Profiling Tooling</h2>
+<h2 align="center"><b>Observability for Machine Learning</b></h2>
 
+
+<h2 align="center"><a href="https://demml.github.io/scouter/">Doc Site</h2>
 
 # Scouter
 
@@ -21,7 +23,7 @@ Highlights:
 
 ## Current Limitations
 
-- Scouter currently support 2D arrays that are typically found with tabular data. Support for higher dimensional arrays as seen in computer vision and NLP workloads is planned for future releases.
+- Scouter currently supports 2D arrays that are typically found with tabular data. Support for higher dimensional arrays as seen in computer vision and NLP workloads is planned for future releases.
 
 ## Integration with Opsml
 
