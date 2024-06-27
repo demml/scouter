@@ -26,6 +26,9 @@ setup.project:
 	pip install maturin
 	maturin develop
 
+setup.docs:
+	poetry install --all-extras --with dev --no-root
+
 test.unit:
 	poetry run pytest \
 		--cov \
@@ -43,3 +46,6 @@ poetry.sub.pre.tag:
 	@sed -i "s/$(VER)/$(REL_CANDIDATE)/" pyproject.toml
 
 prep.pre.patch: poetry.pre.patch poetry.sub.pre.tag
+
+publish.docs:
+	cd docs && poetry run mkdocs gh-deploy --force

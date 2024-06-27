@@ -1,0 +1,72 @@
+site_name: Scouter
+site_url: https://demml.github.io/scouter/
+
+theme:
+  name: material
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      primary: stylesheets/extra.css
+      accent: stylesheets/extra.css
+      toggle:
+        icon: material/weather-night
+        name: dark mode
+        
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: stylesheets/extra.css
+      accent: stylesheets/extra.css
+      toggle:
+        icon: material/weather-sunny
+        name: light mode
+
+  features:
+    - navigation.sections
+    - toc.follow
+    - navigation.top
+  font:
+    text: Roboto
+    code: Roboto Mono
+  logo: 'images/scouter.png'
+
+repo_name: scouter
+repo_url: https://github.com/demml/scouter
+edit_uri: edit/main/py-scouter/docs/
+
+
+nav:
+  - Overview: 'index.md'
+  - Monitoring:
+    - Overview: 'monitoring/monitoring.md'
+    - Alerting: 'monitoring/alerting.md'
+  - Data Profiling: 'profiling/profiling.md'
+
+markdown_extensions:
+  - tables
+  - toc:
+      permalink: true
+      title: Page contents
+  - admonition
+  - pymdownx.highlight
+  - pymdownx.extra
+  - pymdownx.snippets
+  - def_list
+  - pymdownx.tasklist:
+      custom_checkbox: true
+
+  - pymdownx.superfences:
+      custom_fences:
+      - name: mermaid
+        class: mermaid
+        format: !!python/name:pymdownx.superfences.fence_code_format ''
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+plugins:
+  - search
+  - mkdocstrings
+
+extra_css:
+- stylesheets/extra.css
