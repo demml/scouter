@@ -4,7 +4,7 @@
   <br>
 </h1>
 
-<h4 align="center">Observability for Machine Learning</h4>
+<h2 align="center"><b>Observability for Machine Learning</b></h2>
 
 [![gitleaks](https://img.shields.io/badge/protected%20by-gitleaks-purple)](https://github.com/zricethezav/gitleaks-action)
 
@@ -33,6 +33,6 @@ pip install scouter
 
 Refer to the different sections for usage:
 
-- [Model Monitoring](./monitoring.md)
-- [Data Profiling](./profiling.md)
+- [Model Monitoring](./monitoring/overview.md)
+- [Data Profiling](./profiling/overview.md)
 

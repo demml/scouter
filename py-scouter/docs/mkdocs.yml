@@ -36,11 +36,11 @@ edit_uri: edit/main/py-scouter/docs/
 
 
 nav:
-  - Overview: 'index.md'
+  - Scouter: 'index.md'
   - Monitoring:
-    - Overview: 'monitoring/monitoring.md'
+    - Overview: 'monitoring/overview.md'
     - Alerting: 'monitoring/alerting.md'
-  - Data Profiling: 'profiling/profiling.md'
+  - Data Profiling: 'profiling/overview.md'
 
 markdown_extensions:
   - tables
