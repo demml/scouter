@@ -16,6 +16,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+      - name: Install poetry
+        run: pipx install poetry=="1.7.1"
 
       - name: set up python
         uses: actions/setup-python@v5
