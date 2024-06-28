@@ -25,6 +25,6 @@ jobs:
       - name: Install dependencies and publish docs
         working-directory: ./py-scouter
         run: |
-          make setup.docs
+          make setup.project
           make publish.docs
 
