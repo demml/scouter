@@ -17,14 +17,22 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Poetry
-        uses: abatilo/actions-poetry@v2
+      - name: set up python
+        uses: actions/setup-python@v5
         with:
-          poetry-version: ${{ matrix.poetry-version }}
+          python-version: "3.11"
+          cache: 'poetry'
 
-      - name: Install dependencies and publish docs
+      - name: Create virtual environment
         working-directory: ./py-scouter
         run: |
+          python -m venv .venv
+          echo "$GITHUB_WORKSPACE/scouter/.venv/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        working-directory: ./py-scouter
+        run : |
           make setup.project
           make publish.docs
 
+  
