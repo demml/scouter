@@ -45,8 +45,18 @@ The default value is `0 0 0 * * *` which means to run every day at midnight (UTC
 - `EveryWeek`
 
 ```python
-from scouter import DriftConfig, EveryDay, CommonCron
+from scouter import DriftConfig, EveryDay, CommonCrons
 
+
+# Recommended way to set the schedule
+config = DriftConfig(
+    name="model",
+    repository="scouter",
+    version="0.1.0",
+    schedule=CommonCrons.EVERY_DAY
+)
+
+# This will also work
 config = DriftConfig(
     name="model",
     repository="scouter",
@@ -54,13 +64,13 @@ config = DriftConfig(
     schedule=EveryDay().cron
 )
 
-# This will also work
 
+# or your own
 config = DriftConfig(
     name="model",
     repository="scouter",
     version="0.1.0",
-    schedule=CommonCron().EVERY_DAY
+    schedule="0 0 0 * * *"
 )
 ```
 
