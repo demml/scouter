@@ -1,11 +1,11 @@
 # pylint: disable=no-name-in-module
 
+
 from scouter.utils.types import AlertType, AlertZone
 
 from ._scouter import (
     Alert,
     AlertRule,
-    CommonCron,
     DataProfile,
     DriftConfig,
     DriftMap,
@@ -22,10 +22,8 @@ from ._scouter import (
     PercentageAlertRule,
     ProcessAlertRule,
 )
-from .scouter import Drifter, Profiler
+from .scouter import Drifter, Profiler, CommonCrons
 from .version import __version__
-
-CommonCrons = CommonCron()  # type: ignore
 
 __all__ = [
     "Profiler",
@@ -42,8 +40,6 @@ __all__ = [
     "FeatureAlerts",
     "ProcessAlertRule",
     "PercentageAlertRule",
-    "CommonCrons",
-    "CommonCron",
     "Every30Minutes",
     "EveryHour",
     "Every6Hours",
@@ -52,4 +48,5 @@ __all__ = [
     "EveryWeek",
     "DriftConfig",
     "DriftMap",
+    "CommonCrons",
 ]

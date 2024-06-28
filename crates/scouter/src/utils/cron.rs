@@ -144,24 +144,25 @@ impl EveryWeek {
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[allow(non_snake_case)]
 pub struct CommonCron {
-    #[pyo3(get, set)]
-    pub every_30_minutes: Every30Minutes,
+    #[pyo3(get)]
+    pub EVERY_30_MINUTES: String,
 
-    #[pyo3(get, set)]
-    pub every_hour: EveryHour,
+    #[pyo3(get)]
+    pub EVERY_HOUR: String,
 
-    #[pyo3(get, set)]
-    pub every_6_hours: Every6Hours,
+    #[pyo3(get)]
+    pub EVERY_6_HOURS: String,
 
-    #[pyo3(get, set)]
-    pub every_12_hours: Every12Hours,
+    #[pyo3(get)]
+    pub EVERY_12_HOURS: String,
 
-    #[pyo3(get, set)]
-    pub every_day: EveryDay,
+    #[pyo3(get)]
+    pub EVERY_DAY: String,
 
-    #[pyo3(get, set)]
-    pub every_week: EveryWeek,
+    #[pyo3(get)]
+    pub EVERY_WEEK: String,
 }
 
 #[pymethods]
@@ -170,12 +171,12 @@ impl CommonCron {
     #[new]
     pub fn new() -> Self {
         Self {
-            every_30_minutes: Every30Minutes::new(),
-            every_hour: EveryHour::new(),
-            every_6_hours: Every6Hours::new(),
-            every_12_hours: Every12Hours::new(),
-            every_day: EveryDay::new(),
-            every_week: EveryWeek::new(),
+            EVERY_30_MINUTES: Every30Minutes::new().cron,
+            EVERY_HOUR: EveryHour::new().cron,
+            EVERY_6_HOURS: Every6Hours::new().cron,
+            EVERY_12_HOURS: Every12Hours::new().cron,
+            EVERY_DAY: EveryDay::new().cron,
+            EVERY_WEEK: EveryWeek::new().cron,
         }
     }
 }
@@ -234,5 +235,17 @@ mod tests {
         // check cron
         assert_eq!(cron.cron, "0 0 0 * * SUN");
         let _next = cron.get_next();
+    }
+
+    #[test]
+    fn test_common_cron() {
+        let cron = CommonCron::new();
+        // check cron
+        assert_eq!(cron.EVERY_30_MINUTES, "0 0,30 * * * * *");
+        assert_eq!(cron.EVERY_HOUR, "0 0 * * * *");
+        assert_eq!(cron.EVERY_6_HOURS, "0 0 */6 * * *");
+        assert_eq!(cron.EVERY_12_HOURS, "0 0 */12 * * *");
+        assert_eq!(cron.EVERY_DAY, "0 0 0 * * *");
+        assert_eq!(cron.EVERY_WEEK, "0 0 0 * * SUN");
     }
 }

@@ -8,7 +8,6 @@ use num_traits::{Float, FromPrimitive, Num};
 use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fmt::Debug;
-
 pub struct Monitor {}
 
 impl Monitor {

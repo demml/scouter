@@ -61,9 +61,9 @@ def test_alert_rules():
 
 
 def test_crons():
-    assert CommonCrons.every_30_minutes.cron == Every30Minutes().cron
-    assert CommonCrons.every_hour.cron == EveryHour().cron
-    assert CommonCrons.every_6_hours.cron == Every6Hours().cron
-    assert CommonCrons.every_12_hours.cron == Every12Hours().cron
-    assert CommonCrons.every_day.cron == EveryDay().cron
-    assert CommonCrons.every_week.cron == EveryWeek().cron
+    assert CommonCrons.EVERY_30_MINUTES == Every30Minutes().cron
+    assert CommonCrons.EVERY_HOUR == EveryHour().cron
+    assert CommonCrons.EVERY_6_HOURS == Every6Hours().cron
+    assert CommonCrons.EVERY_12_HOURS == Every12Hours().cron
+    assert CommonCrons.EVERY_DAY == EveryDay().cron
+    assert CommonCrons.EVERY_WEEK == EveryWeek().cron

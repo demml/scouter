@@ -48,4 +48,8 @@ poetry.sub.pre.tag:
 prep.pre.patch: poetry.pre.patch poetry.sub.pre.tag
 
 publish.docs:
+	generate.docs
 	cd docs && poetry run mkdocs gh-deploy --force
+
+generate.docs:
+	pdoc -t docs/docs/api ./python/scouter -o docs/docs/api --docformat google

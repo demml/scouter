@@ -1,3 +1,5 @@
+# pylint: disable=invalid-name
+
 import datetime
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
@@ -48,25 +50,25 @@ class EveryWeek:
 
 class CommonCron:
     def __init__(self) -> None:
-        """Initialize the common cron class"""
+        """Initialize the common cron class from rust"""
     @property
-    def every_30_minutes(self) -> Every30Minutes:
-        """Return the cron schedule"""
+    def EVERY_30_MINUTES(self) -> str:
+        """Every 30 minutes cron schedule"""
     @property
-    def every_hour(self) -> EveryHour:
-        """Return the cron schedule"""
+    def EVERY_HOUR(self) -> str:
+        """Every hour cron schedule"""
     @property
-    def every_6_hours(self) -> Every6Hours:
-        """Return the cron schedule"""
+    def EVERY_6_HOURS(self) -> str:
+        """Every 6 hours cron schedule"""
     @property
-    def every_12_hours(self) -> Every12Hours:
-        """Return the cron schedule"""
+    def EVERY_12_HOURS(self) -> str:
+        """Every 12 hours cron schedule"""
     @property
-    def every_day(self) -> EveryDay:
-        """Return the cron schedule"""
+    def EVERY_DAY(self) -> str:
+        """Every day cron schedule"""
     @property
-    def every_week(self) -> EveryWeek:
-        """Return the cron schedule"""
+    def EVERY_WEEK(self) -> str:
+        """Every week cron schedule"""
 
 class PercentageAlertRule:
     def __init__(self, rule: Optional[float] = None) -> None:
@@ -175,7 +177,7 @@ class DriftConfig:
         version: str = "0.1.0",
         sample: bool = True,
         sample_size: int = 25,
-        schedule: str = "0 0 * * *",
+        schedule: str = "0 0 0 * * *",
         alert_rule: AlertRule = AlertRule(),
     ):
         """Initialize monitor config

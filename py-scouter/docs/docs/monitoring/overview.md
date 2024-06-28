@@ -10,7 +10,7 @@ To begin monitoring, you must first create a `drift profile` from your data. Thi
 
 Creating a `DriftProfile` is the first step to setting up monitoring and is as simple as:
 
-1. Get your data (can be a 2D numpy array, pandas dataframe or polars dataframe).
+1. Get your randomized data (can be a 2D numpy array, pandas dataframe or polars dataframe).
 2. Create a `DriftConfig` object.
 3. Instantiate a `Drifter` object and create a `DriftProfile` via the `create_drift_profile` method.
 4. Save the profile to disk or send it to `scouter-server`.
@@ -132,7 +132,7 @@ from scouter import Drifter
 
 new_data = generate_new_data()
 
-# Check for drift (use the same profile)
+# Check for drift (use the original drift profile)
 drift_map = drifter.compute_drift(data, profile)
 
 ### this will return a DriftMap object. We need to convert it to a numpy array for alert generation
