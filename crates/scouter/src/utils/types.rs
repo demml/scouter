@@ -597,26 +597,6 @@ impl DriftMap {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
     }
 
-    // convert drift map to server record for sending to scouter server
-    pub fn to_server_record(&self) -> Vec<DriftServerRecord> {
-        let mut records = Vec::new();
-
-        for (feature, drift) in &self.features {
-            drift.drift.iter().enumerate().for_each(|(i, _)| {
-                records.push(DriftServerRecord {
-                    created_at: chrono::Utc::now().naive_utc(),
-                    name: self.name.clone(),
-                    repository: self.repository.clone(),
-                    version: self.version.clone(),
-                    feature: feature.clone(),
-                    value: drift.drift[i],
-                });
-            });
-        }
-
-        records
-    }
-
     pub fn to_numpy<'py>(
         &self,
         py: Python<'py>,

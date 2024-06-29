@@ -47,3 +47,17 @@ def monitor_config_percentage() -> YieldFixture[DriftConfig]:
     )
 
     yield config
+
+
+@pytest.fixture(scope="function")
+def pandas_dataframe(array: NDArray) -> YieldFixture:
+    import pandas as pd
+
+    df = pd.DataFrame(array)
+
+    # change column names
+    df.rename(columns={0: "column_0", 1: "column_1", 2: "column_2"}, inplace=True)
+
+    yield df
+
+    cleanup()

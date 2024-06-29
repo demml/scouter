@@ -5,7 +5,7 @@ import pandas as pd
 from numpy.typing import NDArray
 import pytest
 
-from scouter._scouter import DriftProfile, DriftConfig
+from scouter._scouter import DriftProfile, DriftConfig, Mon
 
 
 def test_monitor_f64(array: NDArray, monitor_config: DriftConfig):

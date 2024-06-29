@@ -6,6 +6,35 @@ from typing import Dict, List, Optional, Tuple, Union
 
 from numpy.typing import NDArray
 
+class DriftServerRecord:
+    @property
+    def created_at(self) -> datetime.datetime:
+        """Return the created at timestamp."""
+
+    @property
+    def name(self) -> str:
+        """Return the name."""
+
+    @property
+    def repository(self) -> str:
+        """Return the repository."""
+
+    @property
+    def version(self) -> str:
+        """Return the version."""
+
+    @property
+    def feature(self) -> str:
+        """Return the feature."""
+
+    @property
+    def value(self) -> float:
+        """Return the drift value."""
+
+    @property
+    def sample(self) -> float:
+        """Return the sample value."""
+
 class Every30Minutes:
     def __init__(self) -> None:
         """Initialize the cron schedule"""
@@ -360,6 +389,9 @@ class DriftMap:
         """
     def to_numpy(self) -> Tuple[NDArray, List[str]]:
         """Return drift map as a numpy array and list of features"""
+
+    def to_service_record(self) -> List[DriftServerRecord]:
+        """Return drift map as a drift server record"""
 
 class ScouterProfiler:
     def __init__(self) -> None:

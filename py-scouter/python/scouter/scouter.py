@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Any
 
 import numpy as np
 import pandas as pd
@@ -266,16 +266,28 @@ class Drifter(ScouterBase):
 
 class MonitorQueue:
     def __init__(self, drift_profile: DriftProfile) -> None:
+        """Instantiate a monitoring queue to monitor data drift.
+
+        Args:
+            drift_profile:
+                Monitoring profile containing feature drift profiles.
+
+        """
         self._monitor = ScouterDrifter()
         self._drift_profile = drift_profile
-        self.items: Dict[str, List[float]] = {
+        self.feature_queue: Dict[str, List[float]] = {
             feature: [] for feature in self._drift_profile.features.keys()
         }
         self._count = 0
 
-    def insert(self, data: Dict[str, float]) -> Optional[DriftMap]:
+        # used to reset items
+        self._cleaned_queue: Dict[str, List[float]] = {
+            feature: [] for feature in self._drift_profile.features.keys()
+        }
+
+    def insert(self, data: Dict[Any, Any]) -> Optional[DriftMap]:
         for feature, value in data.items():
-            self.items[feature].append(value)
+            self.feature_queue[feature].append(value)
 
         self._count += 1
 
@@ -285,15 +297,18 @@ class MonitorQueue:
         return None
 
     def _clear(self) -> None:
-        self.items = {feature: [] for feature in self.items.keys()}
+        self.feature_queue = self._cleaned_queue
         self._count = 0
 
     def dequeue(self) -> DriftMap:
         try:
             # create array from items
-            data = list(self.items.values())
-            features = list(self.items.keys())
+            data = list(self.feature_queue.values())
+            features = list(self.feature_queue.keys())
             array = np.array(data, dtype=np.float32).T
+
+            print(array)
+            print(features)
 
             drift_map = self._monitor.compute_drift_f32(
                 features,
