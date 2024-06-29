@@ -29,10 +29,6 @@ class DriftServerRecord:
 
     @property
     def value(self) -> float:
-        """Return the drift value."""
-
-    @property
-    def sample(self) -> float:
         """Return the sample value."""
 
 class Every30Minutes:
@@ -537,4 +533,44 @@ class ScouterDrifter:
 
         Returns:
             List of alerts.
+        """
+
+    def sample_data_f32(
+        self,
+        features: List[str],
+        array: NDArray,
+        drift_profile: DriftProfile,
+    ) -> List[DriftServerRecord]:
+        """Sample data from a f32 numpy array.
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                Numpy array to profile.
+            drift_profile:
+                Monitoring profile.
+
+        Returns:
+            List of server records
+        """
+
+    def sample_data_f64(
+        self,
+        features: List[str],
+        array: NDArray,
+        drift_profile: DriftProfile,
+    ) -> List[DriftServerRecord]:
+        """Sample data from a f64 numpy array.
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                Numpy array to profile.
+            drift_profile:
+                Monitoring profile.
+
+        Returns:
+            List of server records
         """

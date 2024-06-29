@@ -17,6 +17,7 @@ from ._scouter import (  # pylint: disable=no-name-in-module
     FeatureAlerts,
     ScouterDrifter,
     ScouterProfiler,
+    DriftServerRecord,
 )
 
 logger = ScouterLogger.get_logger()
@@ -285,7 +286,7 @@ class MonitorQueue:
             feature: [] for feature in self._drift_profile.features.keys()
         }
 
-    def insert(self, data: Dict[Any, Any]) -> Optional[DriftMap]:
+    def insert(self, data: Dict[Any, Any]) -> Optional[List[DriftServerRecord]]:
         for feature, value in data.items():
             self.feature_queue[feature].append(value)
 
@@ -300,17 +301,14 @@ class MonitorQueue:
         self.feature_queue = self._cleaned_queue
         self._count = 0
 
-    def dequeue(self) -> DriftMap:
+    def dequeue(self) -> List[DriftServerRecord]:
         try:
             # create array from items
             data = list(self.feature_queue.values())
             features = list(self.feature_queue.keys())
             array = np.array(data, dtype=np.float32).T
 
-            print(array)
-            print(features)
-
-            drift_map = self._monitor.compute_drift_f32(
+            drift_records = self._monitor.sample_data_f32(
                 features,
                 array,
                 self._drift_profile,
@@ -319,7 +317,7 @@ class MonitorQueue:
             # clear items
             self._clear()
 
-            return drift_map
+            return drift_records
 
         except Exception as exc:
             logger.error(f"Failed to compute drift: {exc}")
