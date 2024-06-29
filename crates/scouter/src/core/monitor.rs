@@ -468,6 +468,7 @@ impl Monitor {
 
         for (i, feature) in features.iter().enumerate() {
             let sample = sample_data.column(i);
+
             sample.iter().for_each(|value| {
                 let record = DriftServerRecord {
                     created_at: chrono::Utc::now().naive_utc(),

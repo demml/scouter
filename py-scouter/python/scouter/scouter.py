@@ -306,13 +306,15 @@ class MonitorQueue:
             # create array from items
             data = list(self.feature_queue.values())
             features = list(self.feature_queue.keys())
-            array = np.array(data, dtype=np.float32).T
+            array = np.array(data, dtype=np.float64).T
 
-            drift_records = self._monitor.sample_data_f32(
+            drift_records = self._monitor.sample_data_f64(
                 features,
                 array,
                 self._drift_profile,
             )
+
+            print(drift_records[0])
 
             # clear items
             self._clear()

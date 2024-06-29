@@ -16,10 +16,12 @@ def test_monitor_pandas(pandas_dataframe: pd.DataFrame, monitor_config: DriftCon
 
     records = pandas_dataframe[0:30].to_dict(orient="records")
 
-    for record in records:
-        drift_map = queue.insert(record)
+    def return_record(records):
+        for record in records:
+            drift_map = queue.insert(record)
 
         if drift_map:
-            break
+            return drift_map
 
+    return_record(records)
     a

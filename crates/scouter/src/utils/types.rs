@@ -537,6 +537,37 @@ pub struct DriftServerRecord {
     pub value: f64,
 }
 
+#[pymethods]
+impl DriftServerRecord {
+    #[new]
+    pub fn new(
+        name: String,
+        repository: String,
+        version: String,
+        feature: String,
+        value: f64,
+    ) -> Self {
+        Self {
+            created_at: chrono::Utc::now().naive_utc(),
+            name,
+            repository,
+            version,
+            feature,
+            value,
+        }
+    }
+
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
+
+    pub fn model_dump_json(&self) -> String {
+        // serialize the struct to a string
+        self.__str__()
+    }
+}
+
 /// Python class for a Drift map of features with calculated drift
 ///
 /// # Arguments

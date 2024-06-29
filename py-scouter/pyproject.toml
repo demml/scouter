@@ -16,6 +16,7 @@ polars-lts-cpu = {version = "^0.20.7", platform = "darwin" }
 pandas = "^2.2.0"
 rusty-logger = "^0.3.0"
 pydantic = "^2.7.1"
+tenacity = "^8.4.2"
 
 [tool.poetry.group.dev]
 optional = true
@@ -33,6 +34,7 @@ psutil = "^5.9.8"
 isort = "^5.13.2"
 pandas-stubs = "^2.2.2.240603"
 pdoc = "^14.5.1"
+confluent-kafka = ">=2.3.0"
 
 [tool.poetry.group.docs.dependencies]
 mkdocs-material = "^9.1.7"
@@ -94,7 +96,6 @@ exclude = [
     "python/scouter/utils/comparison/*",
 ]
 
-
 [project]
 name = "scouter-ml"
 requires-python = ">=3.8"
@@ -112,6 +113,9 @@ dependencies = [
     'polars>=0.20.30, <0.21.0 ; platform_system != "Darwin"',
     'polars-lts-cpu  ; platform_system == "Darwin"',
 ]
+
+[project.optional-dependencies]
+kafka = ["confluent-kafka >= 2.3.0"]
 
 [build-system]
 requires = ["maturin>=1.4,<2.0"]

@@ -21,6 +21,7 @@ from ._scouter import (
     FeatureDriftProfile,
     PercentageAlertRule,
     ProcessAlertRule,
+    DriftServerRecord,
 )
 from .scouter import CommonCrons, Drifter, Profiler, MonitorQueue
 from .version import __version__
@@ -50,4 +51,5 @@ __all__ = [
     "DriftMap",
     "CommonCrons",
     "MonitorQueue",
+    "DriftServerRecord",
 ]
