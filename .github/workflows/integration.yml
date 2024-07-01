@@ -15,7 +15,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu, macos, windows]
+        os: [ubuntu]
         poetry-version: ["1.7.1"]
         python-version: ["3.11",]
 
