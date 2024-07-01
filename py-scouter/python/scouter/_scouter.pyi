@@ -7,6 +7,28 @@ from typing import Dict, List, Optional, Tuple, Union
 from numpy.typing import NDArray
 
 class DriftServerRecord:
+    def __init__(
+        self,
+        name: str,
+        repository: str,
+        version: str,
+        feature: str,
+        value: float,
+    ):
+        """Initialize drift server record
+
+        Args:
+            name:
+                Model name
+            repository:
+                Model repository
+            version:
+                Model version
+            feature:
+                Feature name
+            value:
+                Feature value
+        """
     @property
     def created_at(self) -> datetime.datetime:
         """Return the created at timestamp."""

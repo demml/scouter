@@ -1,4 +1,4 @@
-from scouter import KafkaConfig, KafkaProducer
+from scouter import KafkaConfig, KafkaProducer, DriftServerRecord
 
 
 def test_kafka_config():
@@ -44,3 +44,30 @@ def test_kafka_config_credentials(monkeypatch):
         "sasl.username": "test-username",
         "security.protocol": "SASL_SSL",
     }
+
+
+def test_kafka_producer(mock_kafka_producer):
+    config = KafkaConfig(
+        topic="test-topic",
+        brokers="localhost:9092",
+        raise_on_err=True,
+        config={"bootstrap.servers": "localhost:9092"},
+    )
+
+    producer = KafkaProducer(config)
+
+    assert producer._kafka_config == config
+    assert producer.max_retries == 3
+    assert producer._producer is not None
+
+    record = DriftServerRecord(
+        name="test",
+        repository="test",
+        version="1.0.0",
+        feature="test",
+        value=0.1,
+    )
+
+    producer.publish(record)
+    producer.flush()
+    producer.flush(10)
