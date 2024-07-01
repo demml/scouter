@@ -6,7 +6,12 @@ import pandas as pd
 import polars as pl
 from numpy.typing import NDArray
 from scouter.utils.logger import ScouterLogger
+from scouter.integrations.kafka import KafkaConfig
+from scouter.integrations.http import HTTPConfig
 from scouter.integrations.producer import DriftRecordProducer
+from scouter.integrations.base import BaseProducer
+from functools import cached_property
+
 
 from ._scouter import (  # pylint: disable=no-name-in-module
     AlertRule,
@@ -267,7 +272,11 @@ class Drifter(ScouterBase):
 
 
 class MonitorQueue:
-    def __init__(self, drift_profile: DriftProfile, config) -> None:
+    def __init__(
+        self,
+        drift_profile: DriftProfile,
+        config: Union[KafkaConfig, HTTPConfig],
+    ) -> None:
         """Instantiate a monitoring queue to monitor data drift.
 
         Args:
@@ -277,15 +286,20 @@ class MonitorQueue:
         """
         self._monitor = ScouterDrifter()
         self._drift_profile = drift_profile
+
         self.feature_queue: Dict[str, List[float]] = {
-            feature: [] for feature in self._drift_profile.features.keys()
+            feature: [] for feature in self.feature_names
         }
         self._count = 0
 
-        # used to reset items
-        self._cleaned_queue: Dict[str, List[float]] = {
-            feature: [] for feature in self._drift_profile.features.keys()
-        }
+        self._producer = self._get_producer(config)
+
+    @cached_property
+    def feature_names(self) -> List[str]:
+        return list(self._drift_profile.features.keys())
+
+    def _get_producer(self, config: Union[KafkaConfig, HTTPConfig]) -> BaseProducer:
+        return DriftRecordProducer.get_producer(config)
 
     def insert(self, data: Dict[Any, Any]) -> Optional[List[DriftServerRecord]]:
         for feature, value in data.items():
@@ -294,31 +308,29 @@ class MonitorQueue:
         self._count += 1
 
         if self._count >= self._drift_profile.config.sample_size:
-            return self.dequeue()
+            return self.publish()
 
         return None
 
-    def _clear(self) -> None:
-        self.feature_queue = self._cleaned_queue
+    def _clear_queue(self) -> None:
+        self.feature_queue = {feature: [] for feature in self.feature_names}
         self._count = 0
 
-    def dequeue(self) -> List[DriftServerRecord]:
+    def publish(self) -> List[DriftServerRecord]:
         try:
             # create array from items
             data = list(self.feature_queue.values())
-            features = list(self.feature_queue.keys())
             array = np.array(data, dtype=np.float64).T
 
             drift_records = self._monitor.sample_data_f64(
-                features,
-                array,
-                self._drift_profile,
+                self.feature_names, array, self._drift_profile
             )
 
-            print(drift_records[0])
+            for record in drift_records:
+                self._producer.publish(record)
 
             # clear items
-            self._clear()
+            self._clear_queue()
 
             return drift_records
 
