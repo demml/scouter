@@ -31,12 +31,22 @@ setup.docs:
 
 test.unit:
 	poetry run pytest \
+		--ignore tests/integration \
 		--cov \
 		--cov-fail-under=0 \
 		--cov-report xml:./coverage.xml \
 		--cov-report term 
 
+setup.integration:
+	poetry install --all-extras --with dev --no-root
+	pip install maturin
+	maturin develop --extras kafka
+
+test.integration:
+	poetry run pytest -s tests/integration
+
 poetry.pre.patch:
+
 	poetry version prepatch
 
 poetry.sub.pre.tag:

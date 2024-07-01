@@ -17,9 +17,6 @@ class DriftRecordProducer:
         """Gets the producer based on the producer type
 
         Args:
-            producer_type:
-                Type of producer to get
-
             config:
                 Configuration for the producer
 
@@ -27,16 +24,11 @@ class DriftRecordProducer:
             BaseProducer: Producer instance
         """
         if not isinstance(config, (HTTPConfig, KafkaConfig)):
-            raise ValueError(
-                f"config must be an instance of either HTTPConfig or KafkaConfig, got {type(config)}"
-            )
+            raise ValueError(f"config must be an instance of either HTTPConfig or KafkaConfig, got {type(config)}")
 
         if config.type == ProducerTypes.Http:
             assert isinstance(config, HTTPConfig)
             return HTTPProducer(config)
 
-        elif config.type == ProducerTypes.Kafka:
-            assert isinstance(config, KafkaConfig)
-            return KafkaProducer(config)
-        else:
-            raise ValueError(f"Producer type {config.type} not supported")
+        assert isinstance(config, KafkaConfig)
+        return KafkaProducer(config)

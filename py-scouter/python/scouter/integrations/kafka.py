@@ -1,4 +1,5 @@
 import os
+from functools import partial
 from typing import Any, Dict, Literal, Optional
 
 import tenacity
@@ -50,9 +51,7 @@ class KafkaConfig(BaseModel):
 
     brokers: str
     topic: str
-    compression_type: Optional[
-        Literal[None, "gzip", "snappy", "lz4", "zstd", "inherit"]
-    ] = "gzip"
+    compression_type: Optional[Literal[None, "gzip", "snappy", "lz4", "zstd", "inherit"]] = "gzip"
     raise_on_err: bool = True
     message_timeout_ms: int = 600_000
     message_max_bytes: int = MESSAGE_MAX_BYTES_DEFAULT
@@ -127,31 +126,50 @@ class KafkaProducer(BaseProducer):
             self._producer = Producer(self._kafka_config.config)
 
         except ModuleNotFoundError as e:
-            logger.error(
-                "Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'"
-            )
+            logger.error("Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'")
             raise e
 
-    def _delivery_callback(err) -> None:
-        """Called once for each message produced to indicate delivery result.
-        Triggered by poll() or flush()."""
+    def _delivery_report(self, err: Optional[str], msg: Any, raise_on_err: bool = True) -> None:
+        """Callback acknowledging receipt of message from producer
 
+        Args:
+            err: error message
+            msg: kafka message
+            raise_on_err: whether to raise an error on failed message delivery. Default True.
+
+        Raises:
+            ProduceError: When message delivery to the kafka broker fails and raise_on_err is True.
+        """
         if err is not None:
-            logger.error("Message delivery failed: {}", err)
+            err_data = {
+                "kafka_message": msg.value(),
+                "kafka_error": err,
+            }
+            err_msg = f"Failed delivery to topic: {msg.topic()}"
+            logger.error("Failed delivery to topic: {} error_data: {}", msg.topic(), err_data)
+            if raise_on_err:
+                raise ValueError(err_msg)
         else:
-            pass
+            logger.debug(
+                "Successful delivery to topic: %s, partition: %d, offset: %d",
+                msg.topic(),
+                msg.partition(),
+                msg.offset(),
+            )
 
     def _publish(self, record: DriftServerRecord) -> None:
         try:
             self._producer.produce(
                 topic=self._kafka_config.topic,
                 value=record.model_dump_json(),
-                on_delivery=self._delivery_callback,  # type: ignore
+                on_delivery=partial(
+                    self._delivery_report, raise_on_err=self._kafka_config.raise_on_err
+                ),  # type: ignore
             )
             logger.debug(f"Sent to topic: {self._kafka_config.topic}")
             self._producer.poll(0)
 
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             logger.error(f"Could not send message to Kafka due to: {e}")
             if self._kafka_config.raise_on_err:
                 raise e

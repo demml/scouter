@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, cast
+from typing import Any, Dict, Optional, cast
 
 import httpx
 from pydantic import BaseModel
@@ -72,9 +72,7 @@ class HTTPProducer(BaseProducer):
         self.client.headers["Authorization"] = f"Bearer {self._auth_token}"
 
     @retry(reraise=True, stop=stop_after_attempt(3))
-    def request(
-        self, route: str, request_type: RequestType, **kwargs: Any
-    ) -> Dict[str, Any]:
+    def request(self, route: str, request_type: RequestType, **kwargs: Any) -> Dict[str, Any]:
         """Makes a request to the server
 
         Args:
@@ -90,9 +88,7 @@ class HTTPProducer(BaseProducer):
         """
         try:
             url = f"{self._config.server_url}/{route}"
-            response = getattr(self.client, request_type.value.lower())(
-                url=url, **kwargs
-            )
+            response = getattr(self.client, request_type.value.lower())(url=url, **kwargs)
 
             if response.status_code == 200:
                 return cast(Dict[str, Any], response.json())
@@ -100,9 +96,7 @@ class HTTPProducer(BaseProducer):
             detail = response.json().get("detail")
             self._refresh_token()
 
-            raise ValueError(
-                f"""Failed to make server call for {request_type} request Url: {route}, {detail}"""
-            )
+            raise ValueError(f"""Failed to make server call for {request_type} request Url: {route}, {detail}""")
 
         except Exception as exc:
             raise exc
@@ -124,5 +118,10 @@ class HTTPProducer(BaseProducer):
             json=record.to_dict(),
         )
 
-    def type(self) -> str:
+    def flush(self, timeout: Optional[float] = None) -> None:
+        """Flushes the producer"""
+        logger.info("Flushing not supported for HTTP producer.")
+
+    @staticmethod
+    def type() -> str:
         return ProducerTypes.Http.value

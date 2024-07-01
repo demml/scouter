@@ -1,3 +1,5 @@
+from typing import Optional
+
 from .._scouter import DriftServerRecord
 
 
@@ -7,5 +9,9 @@ class BaseProducer:
     def publish(self, record: DriftServerRecord) -> None:
         raise NotImplementedError
 
-    def type(self) -> str:
+    def flush(self, timeout: Optional[float] = None) -> None:
+        raise NotImplementedError
+
+    @staticmethod
+    def type() -> str:
         raise NotImplementedError

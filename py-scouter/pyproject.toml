@@ -118,6 +118,7 @@ dependencies = [
 
 [project.optional-dependencies]
 kafka = ["confluent-kafka >= 2.3.0"]
+httpx = ["httpx >= 0.27.0"]
 
 [build-system]
 requires = ["maturin>=1.4,<2.0"]
