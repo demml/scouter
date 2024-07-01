@@ -50,7 +50,7 @@ jobs:
 
       - name: Wait for kafka until it is ready
         run: |
-          while ! docker exec -it scouter-kafka kafka-topics --bootstrap-server kafka:29092 --list; do
+          while ! docker exec -it scouter_kafka_1 kafka-topics --bootstrap-server kafka:29092 --list; do
             sleep 1
           done
 
