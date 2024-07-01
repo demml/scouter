@@ -48,9 +48,9 @@ jobs:
       - name: Start kafka
         run: docker-compose -f "docker-compose.yml" up -d --build
 
-      - name: Wait for kafka
+      - name: Wait for kafka until it is ready
         run: |
-          while ! docker exec -it integration_kafka_1 kafka-topics --bootstrap-server kafka:29092 --list; do
+          while ! docker exec -it scouter-kafka kafka-topics --bootstrap-server kafka:29092 --list; do
             sleep 1
           done
 
