@@ -282,7 +282,9 @@ class MonitorQueue:
         Args:
             drift_profile:
                 Monitoring profile containing feature drift profiles.
-
+            config:
+                Configuration for the monitoring producer. The configured producer
+                will be used to publish drift records to the monitoring server.
         """
         self._monitor = ScouterDrifter()
         self._drift_profile = drift_profile
@@ -296,12 +298,23 @@ class MonitorQueue:
 
     @cached_property
     def feature_names(self) -> List[str]:
+        """Feature names in the monitoring profile."""
         return list(self._drift_profile.features.keys())
 
     def _get_producer(self, config: Union[KafkaConfig, HTTPConfig]) -> BaseProducer:
+        """Get the producer based on the configuration."""
         return DriftRecordProducer.get_producer(config)
 
     def insert(self, data: Dict[Any, Any]) -> Optional[List[DriftServerRecord]]:
+        """Insert data into the monitoring queue.
+
+        Args:
+            data:
+                Dictionary of feature values to insert into the monitoring queue.
+
+        Returns:
+            List of drift records if the monitoring queue has enough data to compute
+        """
         for feature, value in data.items():
             self.feature_queue[feature].append(value)
 
@@ -313,10 +326,12 @@ class MonitorQueue:
         return None
 
     def _clear_queue(self) -> None:
+        """Clear the monitoring queue."""
         self.feature_queue = {feature: [] for feature in self.feature_names}
         self._count = 0
 
     def publish(self) -> List[DriftServerRecord]:
+        """Publish drift records to the monitoring server."""
         try:
             # create array from items
             data = list(self.feature_queue.values())
