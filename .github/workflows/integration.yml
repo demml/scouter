@@ -48,6 +48,12 @@ jobs:
       - name: Start kafka
         run: docker-compose -f "docker-compose.yml" up -d --build
 
+      - name: Wait for kafka
+        run: |
+          while ! docker exec -it integration_kafka_1 kafka-topics --bootstrap-server kafka:29092 --list; do
+            sleep 1
+          done
+
       - name: Install dependencies
         working-directory: ./py-scouter
         run : make setup.project
