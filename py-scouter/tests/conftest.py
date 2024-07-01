@@ -5,6 +5,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scouter._scouter import DriftConfig, AlertRule, PercentageAlertRule
 from unittest.mock import patch
+from httpx import Response
 
 T = TypeVar("T")
 YieldFixture = Generator[T, None, None]
@@ -70,3 +71,14 @@ def mock_kafka_producer():
         mocked_kafka.return_value.poll.return_value = 0
         mocked_kafka.return_value.flush.return_value = 0
         yield mocked_kafka
+
+
+@pytest.fixture
+def mock_httpx_producer():
+    with patch("httpx.Client") as mocked_client:
+        mocked_client.return_value.post.return_value = Response(
+            status_code=200,
+            json={"access_token": "test-token"},
+        )
+
+        yield mocked_client

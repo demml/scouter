@@ -24,6 +24,7 @@ from ._scouter import (
     DriftServerRecord,
 )
 from scouter.integrations.kafka import KafkaConfig, KafkaProducer
+from scouter.integrations.http import HTTPConfig, HTTPProducer
 from .scouter import CommonCrons, Drifter, Profiler, MonitorQueue
 from .version import __version__
 
@@ -55,4 +56,6 @@ __all__ = [
     "DriftServerRecord",
     "KafkaConfig",
     "KafkaProducer",
+    "HTTPConfig",
+    "HTTPProducer",
 ]
