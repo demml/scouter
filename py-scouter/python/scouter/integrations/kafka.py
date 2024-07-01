@@ -3,11 +3,12 @@ from typing import Any, Dict, Literal, Optional
 
 import tenacity
 from pydantic import BaseModel, field_validator, model_validator
-from scouter import DriftServerRecord
 from scouter.integrations.base import BaseProducer
 from scouter.utils.logger import ScouterLogger
 from scouter.utils.types import ProducerTypes
 from typing_extensions import Self
+
+from .._scouter import DriftServerRecord
 
 logger = ScouterLogger.get_logger()
 MESSAGE_MAX_BYTES_DEFAULT = 2097164

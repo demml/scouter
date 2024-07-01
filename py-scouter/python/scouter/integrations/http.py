@@ -3,11 +3,12 @@ from typing import Any, Dict, cast
 
 import httpx
 from pydantic import BaseModel
-from scouter import DriftServerRecord
 from scouter.integrations.base import BaseProducer
 from scouter.utils.logger import ScouterLogger
 from scouter.utils.types import ProducerTypes
 from tenacity import retry, stop_after_attempt
+
+from .._scouter import DriftServerRecord
 
 logger = ScouterLogger.get_logger()
 MESSAGE_MAX_BYTES_DEFAULT = 2097164

@@ -1,4 +1,4 @@
-from scouter import DriftServerRecord
+from .._scouter import DriftServerRecord
 
 
 class BaseProducer:
