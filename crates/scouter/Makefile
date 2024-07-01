@@ -1,9 +1,9 @@
-cargo.format:
+format:
 	cargo fmt
-cargo.lints:
+lints:
 	cargo clippy --workspace --all-targets -- -D warnings
-cargo.test:
+test:
 	cargo test
 
-cargo.bench:
+bench:
 	cargo bench
