@@ -32,33 +32,25 @@ class DriftServerRecord:
     @property
     def created_at(self) -> datetime.datetime:
         """Return the created at timestamp."""
-
     @property
     def name(self) -> str:
         """Return the name."""
-
     @property
     def repository(self) -> str:
         """Return the repository."""
-
     @property
     def version(self) -> str:
         """Return the version."""
-
     @property
     def feature(self) -> str:
         """Return the feature."""
-
     @property
     def value(self) -> float:
         """Return the sample value."""
-
     def __str__(self) -> str:
         """Return the string representation of the record."""
-
     def model_dump_json(self) -> str:
         """Return the json representation of the record."""
-
     def to_dict(self) -> Dict[str, str]:
         """Return the dictionary representation of the record."""
 
@@ -416,7 +408,6 @@ class DriftMap:
         """
     def to_numpy(self) -> Tuple[NDArray, List[str]]:
         """Return drift map as a numpy array and list of features"""
-
     def to_service_record(self) -> List[DriftServerRecord]:
         """Return drift map as a drift server record"""
 
@@ -565,7 +556,6 @@ class ScouterDrifter:
         Returns:
             List of alerts.
         """
-
     def sample_data_f32(
         self,
         features: List[str],
@@ -585,7 +575,6 @@ class ScouterDrifter:
         Returns:
             List of server records
         """
-
     def sample_data_f64(
         self,
         features: List[str],

@@ -1,11 +1,12 @@
-from typing import Optional, Literal, Dict, Any
-from pydantic import field_validator, model_validator, BaseModel
 import os
-from scouter import DriftServerRecord
+from typing import Any, Dict, Literal, Optional
+
 import tenacity
+from pydantic import BaseModel, field_validator, model_validator
+from scouter import DriftServerRecord
+from scouter.integrations.base import BaseProducer
 from scouter.utils.logger import ScouterLogger
 from scouter.utils.types import ProducerTypes
-from scouter.integrations.base import BaseProducer
 from typing_extensions import Self
 
 logger = ScouterLogger.get_logger()
@@ -48,9 +49,7 @@ class KafkaConfig(BaseModel):
 
     brokers: str
     topic: str
-    compression_type: Optional[
-        Literal[None, "gzip", "snappy", "lz4", "zstd", "inherit"]
-    ] = "gzip"
+    compression_type: Optional[Literal[None, "gzip", "snappy", "lz4", "zstd", "inherit"]] = "gzip"
     raise_on_err: bool = True
     message_timeout_ms: int = 600_000
     message_max_bytes: int = MESSAGE_MAX_BYTES_DEFAULT
@@ -121,9 +120,7 @@ class KafkaProducer(BaseProducer):
             self._producer = Producer(self._kafka_config.config)
 
         except ModuleNotFoundError as e:
-            logger.error(
-                "Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'"
-            )
+            logger.error("Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'")
             raise e
 
     def _delivery_callback(err) -> None:
