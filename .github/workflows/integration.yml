@@ -46,11 +46,12 @@ jobs:
           echo "$GITHUB_WORKSPACE/scouter/.venv/bin" >> $GITHUB_PATH
 
       - name: Start kafka
-        run: docker-compose up -f "docker-compose.yml" --abort-on-container-exit
+        run: docker-compose -f "docker-compose.yml" up -d --build
 
       - name: Install dependencies
         working-directory: ./py-scouter
         run : make setup.project
 
       - name: Stop Containers
+        if: always()
         run: docker-compose -f "docker-compose.yml" down
