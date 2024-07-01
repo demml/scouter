@@ -23,6 +23,7 @@ from ._scouter import (
     ProcessAlertRule,
     DriftServerRecord,
 )
+from scouter.integrations.kafka import KafkaConfig, KafkaProducer
 from .scouter import CommonCrons, Drifter, Profiler, MonitorQueue
 from .version import __version__
 
@@ -52,4 +53,6 @@ __all__ = [
     "CommonCrons",
     "MonitorQueue",
     "DriftServerRecord",
+    "KafkaConfig",
+    "KafkaProducer",
 ]

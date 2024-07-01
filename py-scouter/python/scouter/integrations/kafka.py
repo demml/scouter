@@ -1,80 +1,120 @@
-from typing import Optional, Literal, Dict, Any, List
-from pydantic import BaseModel, field_validator
+from typing import Optional, Literal, Dict, Any
+from pydantic import field_validator, model_validator, BaseModel
 import os
-from confluent_kafka import Message, Producer, error
 from scouter import DriftServerRecord
 import tenacity
 from scouter.utils.logger import ScouterLogger
 from scouter.utils.types import ProducerTypes
 from scouter.integrations.base import BaseProducer
+from typing_extensions import Self
 
 logger = ScouterLogger.get_logger()
 MESSAGE_MAX_BYTES_DEFAULT = 2097164
 
 
-class KafkaConfig:
+class KafkaConfig(BaseModel):
+    """Kafka configuration to use with the KafkaProducer.
+
+    Args:
+        brokers:
+            Comma-separated list of Kafka brokers.
+            If not provided, the value of the KAFKA_BROKERS environment variable is used.
+
+        topic:
+            Kafka topic to publish messages to.
+            If not provided, the value of the KAFKA_TOPIC environment variable is used.
+
+        compression_type:
+            Compression type to use for messages.
+            Default is "gzip".
+
+        raise_on_err:
+            Whether to raise an error if message delivery fails.
+            Default is True.
+
+        message_timeout_ms:
+            Message timeout in milliseconds.
+            Default is 600_000.
+
+        message_max_bytes:
+            Maximum message size in bytes.
+            Default is 2097164.
+
+        config:
+            Additional Kafka configuration options. These will be passed to the Kafka producer.
+            See https://kafka.apache.org/documentation/#configuration
+
+    """
+
     brokers: str
     topic: str
     compression_type: Optional[
         Literal[None, "gzip", "snappy", "lz4", "zstd", "inherit"]
     ] = "gzip"
-    username: Optional[str] = None
-    password: Optional[str] = None
     raise_on_err: bool = True
     message_timeout_ms: int = 600_000
     message_max_bytes: int = MESSAGE_MAX_BYTES_DEFAULT
+    config: Dict[str, Any] = {}
 
     @field_validator("brokers", mode="before")
+    @classmethod
     def check_brokers(cls, v, values) -> str:
         if v is None:
             v = os.getenv("KAFKA_BROKERS", "localhost:9092")
         return v
 
     @field_validator("topic", mode="before")
+    @classmethod
     def check_topic(cls, v, values) -> str:
         if v is None:
             v = os.getenv("KAFKA_TOPIC", "scouter_monitoring")
 
         return v
 
-    @field_validator("username", mode="before")
-    def check_username(cls, v, values) -> Optional[str]:
-        if v is None:
-            v = os.getenv("KAFKA_USERNAME", None)
-        return v
+    @model_validator(mode="after")
+    def finalize_config(self) -> Self:
+        """Finalizes the kafka configuration by checking and setting credentials if provided."""
 
-    @field_validator("password", mode="before")
-    def check_password(cls, v, values) -> Optional[str]:
-        if v is None:
-            v = os.getenv("KAFKA_PASSWORD", None)
-        return v
+        if not all(key in self.config for key in ["sasl.username", "sasl.password"]):
+            sasl_username = os.getenv("KAFKA_SASL_USERNAME")
+            sasl_password = os.getenv("KAFKA_SASL_PASSWORD")
+            if (sasl_username is not None) and (sasl_password is not None):
+                logger.info(
+                    """KAFKA_SASL_USERNAME and KAFKA_SASL_PASSWORD found in environment. 
+                    Assigning security.protocol and sasl.mechanism"""
+                )
+                self.config["sasl.username"] = sasl_username
+                self.config["sasl.password"] = sasl_password
+                self.config["security.protocol"] = "SASL_SSL"
+                self.config["sasl.mechanisms"] = "PLAIN"
 
-    @property
-    def has_credentials(self) -> bool:
-        return bool(self.username) and bool(self.password)
+        # set default values
+        self.config["bootstrap.servers"] = self.brokers
+        self.config["compression.type"] = self.compression_type
+        self.config["message.timeout.ms"] = self.message_timeout_ms
+        self.config["message.max.bytes"] = self.message_max_bytes
+
+        return self
 
 
 class KafkaProducer(BaseProducer):
     def __init__(self, config: KafkaConfig, max_retries: int = 3):
-        self.config = config
-
+        self._kafka_config = config
         self.max_retries = max_retries
-        self._kafka_config = {
-            "bootstrap.servers": self.config.brokers,
-            "compression.type": self.config.compression_type,
-            "message.timeout.ms": self.config.message_timeout_ms,
-            "message.max.bytes": self.config.message_max_bytes,
-        }
 
-        if self.config.has_credentials:
-            self._kafka_config["sasl.username"] = self.config.username
-            self._kafka_config["sasl.password"] = self.config.password
-            self._kafka_config["security.protocol"] = "SASL_SSL"
-            self._kafka_config["sasl.mechanisms"] = "PLAIN"
+        # Should fail on instantiation if the kafka library is not installed
+        try:
+            from confluent_kafka import Producer
 
-        self._producer = Producer(self._kafka_config)
+            self._producer = Producer(self._kafka_config.config)
 
-    def _delivery_callback(err):
+        except ModuleNotFoundError as e:
+            logger.error(
+                "Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'"
+            )
+            raise e
+
+    def _delivery_callback(err) -> None:
         """Called once for each message produced to indicate delivery result.
         Triggered by poll() or flush()."""
 
@@ -83,32 +123,29 @@ class KafkaProducer(BaseProducer):
         else:
             pass
 
-    def _publish(self, records: List[DriftServerRecord]) -> None:
-        for record in records:
-            try:
-                self._producer.produce(
-                    self.config.topic,
-                    record.model_dump_json(),
-                    callback=self._delivery_callback,
-                )
-                logger.debug(f"Sent to topic: {self.config.topic}")
-                self._producer.poll(0)
+    def _publish(self, record: DriftServerRecord) -> None:
+        try:
+            self._producer.produce(
+                topic=self._kafka_config.topic,
+                value=record.model_dump_json(),
+                on_delivery=self._delivery_callback,  # type: ignore
+            )
+            logger.debug(f"Sent to topic: {self._kafka_config.topic}")
+            self._producer.poll(0)
 
-            except Exception as e:
-                logger.error(f"Could not send message to Kafka due to: {e}")
-                if self.config.raise_on_err:
-                    raise error.ProduceError(
-                        f"Could not send message to Kafka due to: {e}"
-                    )
+        except Exception as e:
+            logger.error(f"Could not send message to Kafka due to: {e}")
+            if self._kafka_config.raise_on_err:
+                raise e
 
-    def publish(self, records: List[DriftServerRecord]) -> None:
-        """Publishes drift records to a kafka topic with retries.
+    def publish(self, record: DriftServerRecord) -> None:
+        """Publishes drift record to a kafka topic with retries.
 
         If the message delivery fails, the message is retried up to `max_retries` times before raising an error.
 
         Args:
-            records:
-                List of drift records to publish.
+            record:
+
 
         Raises:
             ValueError: When max_retries is invalid.
@@ -122,7 +159,7 @@ class KafkaProducer(BaseProducer):
             reraise=True,
         )(self._publish)
 
-        retrier(records)
+        retrier(record)
 
     def flush(self, timeout: Optional[float] = None) -> None:
         if timeout is None:

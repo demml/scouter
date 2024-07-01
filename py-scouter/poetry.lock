@@ -1743,6 +1743,17 @@ files = [
 ]
 
 [[package]]
+name = "types-confluent-kafka"
+version = "1.2.1"
+description = ""
+optional = false
+python-versions = "<4.0,>=3.8"
+files = [
+    {file = "types_confluent_kafka-1.2.1-py3-none-any.whl", hash = "sha256:347f767bf655319c7aaf542928a4b4c70c013ecd20bffe57f560eb85e35710b5"},
+    {file = "types_confluent_kafka-1.2.1.tar.gz", hash = "sha256:c2aa749a9d935801c329463066427f1e97283b74b26d717039beb366d83e0056"},
+]
+
+[[package]]
 name = "types-pytz"
 version = "2024.1.0.20240417"
 description = "Typing stubs for pytz"
@@ -1854,4 +1865,4 @@ test = ["big-O", "importlib-resources", "jaraco.functools", "jaraco.itertools", 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.9,<3.13"
-content-hash = "33f2fdc8b49d80fc9752a7549a602780914acd9c9208650f620e625a404a84b7"
+content-hash = "5da3cb509ffaebd8ef55038131cdf644d3568408bc1cd94bb03a24ea3a94da11"
