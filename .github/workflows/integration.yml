@@ -1,0 +1,56 @@
+
+name: Integration
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+
+jobs:
+  test-os:
+    name: test ${{ matrix.os }}-${{ matrix.python-version }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu, macos, windows]
+        poetry-version: ["1.7.1"]
+        python-version: ["3.11",]
+
+    runs-on: ${{ matrix.os }}-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install poetry
+        run: pipx install poetry==${{ matrix.poetry-version }}
+
+      - name: install rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cache rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.os }}-${{ matrix.python-version }}-v1
+
+      - name: set up python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'poetry'
+
+      - name: Create virtual environment
+        working-directory: ./py-scouter
+        run: |
+          python -m venv .venv
+          echo "$GITHUB_WORKSPACE/scouter/.venv/bin" >> $GITHUB_PATH
+
+      - name: Start kafka
+        run: docker-compose up -f "docker-compose.yml" --abort-on-container-exit
+
+      - name: Install dependencies
+        working-directory: ./py-scouter
+        run : make setup.project
+
+      - name: Stop Containers
+        run: docker-compose -f "docker-compose.yml" down

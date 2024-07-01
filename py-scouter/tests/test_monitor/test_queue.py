@@ -1,18 +1,27 @@
-from scouter import MonitorQueue, DriftConfig, DriftProfile, Drifter
-from numpy.typing import NDArray
-import pytest
+from scouter import MonitorQueue, DriftConfig, DriftProfile, Drifter, KafkaConfig
 import pandas as pd
 
 
-def test_monitor_pandas(pandas_dataframe: pd.DataFrame, monitor_config: DriftConfig):
+def test_monitor_pandas(
+    pandas_dataframe: pd.DataFrame,
+    monitor_config: DriftConfig,
+    mock_kafka_producer,
+):
     scouter = Drifter()
     profile: DriftProfile = scouter.create_drift_profile(
         pandas_dataframe, monitor_config
     )
 
-    # assert features are relatively centered
+    kafka_config = KafkaConfig(
+        topic="test-topic",
+        brokers="localhost:9092",
+        raise_on_err=True,
+    )
 
-    queue = MonitorQueue(drift_profile=profile)
+    queue = MonitorQueue(
+        drift_profile=profile,
+        config=kafka_config,
+    )
 
     records = pandas_dataframe[0:30].to_dict(orient="records")
 
@@ -20,8 +29,8 @@ def test_monitor_pandas(pandas_dataframe: pd.DataFrame, monitor_config: DriftCon
         for record in records:
             drift_map = queue.insert(record)
 
-        if drift_map:
-            return drift_map
+            if drift_map:
+                return drift_map
 
-    return_record(records)
-    a
+    records = return_record(records)
+    assert len(records) == 3
