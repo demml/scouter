@@ -50,7 +50,9 @@ class KafkaConfig(BaseModel):
 
     brokers: str
     topic: str
-    compression_type: Optional[Literal[None, "gzip", "snappy", "lz4", "zstd", "inherit"]] = "gzip"
+    compression_type: Optional[
+        Literal[None, "gzip", "snappy", "lz4", "zstd", "inherit"]
+    ] = "gzip"
     raise_on_err: bool = True
     message_timeout_ms: int = 600_000
     message_max_bytes: int = MESSAGE_MAX_BYTES_DEFAULT
@@ -96,6 +98,10 @@ class KafkaConfig(BaseModel):
 
         return self
 
+    @property
+    def type(self) -> str:
+        return ProducerTypes.Kafka.value
+
 
 class KafkaProducer(BaseProducer):
     def __init__(
@@ -121,7 +127,9 @@ class KafkaProducer(BaseProducer):
             self._producer = Producer(self._kafka_config.config)
 
         except ModuleNotFoundError as e:
-            logger.error("Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'")
+            logger.error(
+                "Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'"
+            )
             raise e
 
     def _delivery_callback(err) -> None:

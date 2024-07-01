@@ -6,6 +6,7 @@ import pandas as pd
 import polars as pl
 from numpy.typing import NDArray
 from scouter.utils.logger import ScouterLogger
+from scouter.integrations.producer import DriftRecordProducer
 
 from ._scouter import (  # pylint: disable=no-name-in-module
     AlertRule,
@@ -43,7 +44,9 @@ class DataType(str, Enum):
 
 
 class ScouterBase:
-    def _convert_data_to_array(self, data: Union[pd.DataFrame, pl.DataFrame, NDArray]) -> NDArray:
+    def _convert_data_to_array(
+        self, data: Union[pd.DataFrame, pl.DataFrame, NDArray]
+    ) -> NDArray:
         if isinstance(data, pl.DataFrame):
             return data.to_numpy()
         if isinstance(data, pd.DataFrame):
@@ -82,7 +85,9 @@ class ScouterBase:
                 DataType.INT32.value,
                 DataType.INT64.value,
             ]:
-                logger.warning("Scouter only supports float32 and float64 arrays. Converting integer array to float32.")
+                logger.warning(
+                    "Scouter only supports float32 and float64 arrays. Converting integer array to float32."
+                )
                 array = array.astype("float32")
 
                 return array, features, DataType.str_to_bits("float32")
@@ -132,7 +137,9 @@ class Profiler(ScouterBase):
                 bin_size=bin_size,
             )
 
-            assert isinstance(profile, DataProfile), f"Expected DataProfile, got {type(profile)}"
+            assert isinstance(
+                profile, DataProfile
+            ), f"Expected DataProfile, got {type(profile)}"
             return profile
 
         except Exception as exc:  # type: ignore
@@ -182,7 +189,9 @@ class Drifter(ScouterBase):
                 monitor_config=monitor_config,
             )
 
-            assert isinstance(profile, DriftProfile), f"Expected DriftProfile, got {type(profile)}"
+            assert isinstance(
+                profile, DriftProfile
+            ), f"Expected DriftProfile, got {type(profile)}"
             return profile
 
         except Exception as exc:  # type: ignore
@@ -219,7 +228,9 @@ class Drifter(ScouterBase):
                 drift_profile=drift_profile,
             )
 
-            assert isinstance(drift_map, DriftMap), f"Expected DriftMap, got {type(drift_map)}"
+            assert isinstance(
+                drift_map, DriftMap
+            ), f"Expected DriftMap, got {type(drift_map)}"
 
             return drift_map
 
@@ -256,7 +267,7 @@ class Drifter(ScouterBase):
 
 
 class MonitorQueue:
-    def __init__(self, drift_profile: DriftProfile) -> None:
+    def __init__(self, drift_profile: DriftProfile, config) -> None:
         """Instantiate a monitoring queue to monitor data drift.
 
         Args:
@@ -266,11 +277,15 @@ class MonitorQueue:
         """
         self._monitor = ScouterDrifter()
         self._drift_profile = drift_profile
-        self.feature_queue: Dict[str, List[float]] = {feature: [] for feature in self._drift_profile.features.keys()}
+        self.feature_queue: Dict[str, List[float]] = {
+            feature: [] for feature in self._drift_profile.features.keys()
+        }
         self._count = 0
 
         # used to reset items
-        self._cleaned_queue: Dict[str, List[float]] = {feature: [] for feature in self._drift_profile.features.keys()}
+        self._cleaned_queue: Dict[str, List[float]] = {
+            feature: [] for feature in self._drift_profile.features.keys()
+        }
 
     def insert(self, data: Dict[Any, Any]) -> Optional[List[DriftServerRecord]]:
         for feature, value in data.items():

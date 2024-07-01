@@ -13,7 +13,7 @@ class DriftRecordProducer:
     """Helper class to get the producer based on the producer type"""
 
     @staticmethod
-    def get_producer(producer_type: ProducerTypes, config: Union[HTTPConfig, KafkaConfig]) -> BaseProducer:
+    def get_producer(config: Union[HTTPConfig, KafkaConfig]) -> BaseProducer:
         """Gets the producer based on the producer type
 
         Args:
@@ -26,12 +26,17 @@ class DriftRecordProducer:
         Returns:
             BaseProducer: Producer instance
         """
-        if producer_type == ProducerTypes.Http:
+        if not isinstance(config, (HTTPConfig, KafkaConfig)):
+            raise ValueError(
+                f"config must be an instance of either HTTPConfig or KafkaConfig, got {type(config)}"
+            )
+
+        if config.type == ProducerTypes.Http:
             assert isinstance(config, HTTPConfig)
             return HTTPProducer(config)
 
-        elif producer_type == ProducerTypes.Kafka:
+        elif config.type == ProducerTypes.Kafka:
             assert isinstance(config, KafkaConfig)
             return KafkaProducer(config)
         else:
-            raise ValueError(f"Producer type {producer_type} not supported")
+            raise ValueError(f"Producer type {config.type} not supported")
