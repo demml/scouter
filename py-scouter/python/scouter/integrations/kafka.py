@@ -98,7 +98,19 @@ class KafkaConfig(BaseModel):
 
 
 class KafkaProducer(BaseProducer):
-    def __init__(self, config: KafkaConfig, max_retries: int = 3):
+    def __init__(
+        self,
+        config: KafkaConfig,
+        max_retries: int = 3,
+    ):
+        """Kafka producer to publish drift records to a Kafka topic.
+
+        Args:
+            config:
+                Kafka configuration to use.
+            max_retries:
+                Maximum number of retries to attempt if message delivery fails.
+        """
         self._kafka_config = config
         self.max_retries = max_retries
 

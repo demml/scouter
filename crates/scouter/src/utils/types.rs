@@ -566,6 +566,17 @@ impl DriftServerRecord {
         // serialize the struct to a string
         self.__str__()
     }
+
+    pub fn to_dict(&self) -> HashMap<String, String> {
+        let mut record = HashMap::new();
+        record.insert("created_at".to_string(), self.created_at.to_string());
+        record.insert("name".to_string(), self.name.clone());
+        record.insert("repository".to_string(), self.repository.clone());
+        record.insert("version".to_string(), self.version.clone());
+        record.insert("feature".to_string(), self.feature.clone());
+        record.insert("value".to_string(), self.value.to_string());
+        record
+    }
 }
 
 /// Python class for a Drift map of features with calculated drift
