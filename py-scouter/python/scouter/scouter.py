@@ -1,10 +1,15 @@
 from enum import Enum
-from typing import Dict, List, Optional, Tuple, Union
+from functools import cached_property
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import numpy as np
 import pandas as pd
 import polars as pl
 from numpy.typing import NDArray
+from scouter.integrations.base import BaseProducer
+from scouter.integrations.http import HTTPConfig
+from scouter.integrations.kafka import KafkaConfig
+from scouter.integrations.producer import DriftRecordProducer
 from scouter.utils.logger import ScouterLogger
 
 from ._scouter import (  # pylint: disable=no-name-in-module
@@ -14,6 +19,7 @@ from ._scouter import (  # pylint: disable=no-name-in-module
     DriftConfig,
     DriftMap,
     DriftProfile,
+    DriftServerRecord,
     FeatureAlerts,
     ScouterDrifter,
     ScouterProfiler,
@@ -42,9 +48,7 @@ class DataType(str, Enum):
 
 
 class ScouterBase:
-    def _convert_data_to_array(
-        self, data: Union[pd.DataFrame, pl.DataFrame, NDArray]
-    ) -> NDArray:
+    def _convert_data_to_array(self, data: Union[pd.DataFrame, pl.DataFrame, NDArray]) -> NDArray:
         if isinstance(data, pl.DataFrame):
             return data.to_numpy()
         if isinstance(data, pd.DataFrame):
@@ -83,9 +87,7 @@ class ScouterBase:
                 DataType.INT32.value,
                 DataType.INT64.value,
             ]:
-                logger.warning(
-                    "Scouter only supports float32 and float64 arrays. Converting integer array to float32."
-                )
+                logger.warning("Scouter only supports float32 and float64 arrays. Converting integer array to float32.")
                 array = array.astype("float32")
 
                 return array, features, DataType.str_to_bits("float32")
@@ -135,9 +137,7 @@ class Profiler(ScouterBase):
                 bin_size=bin_size,
             )
 
-            assert isinstance(
-                profile, DataProfile
-            ), f"Expected DataProfile, got {type(profile)}"
+            assert isinstance(profile, DataProfile), f"Expected DataProfile, got {type(profile)}"
             return profile
 
         except Exception as exc:  # type: ignore
@@ -187,9 +187,7 @@ class Drifter(ScouterBase):
                 monitor_config=monitor_config,
             )
 
-            assert isinstance(
-                profile, DriftProfile
-            ), f"Expected DriftProfile, got {type(profile)}"
+            assert isinstance(profile, DriftProfile), f"Expected DriftProfile, got {type(profile)}"
             return profile
 
         except Exception as exc:  # type: ignore
@@ -226,9 +224,7 @@ class Drifter(ScouterBase):
                 drift_profile=drift_profile,
             )
 
-            assert isinstance(
-                drift_map, DriftMap
-            ), f"Expected DriftMap, got {type(drift_map)}"
+            assert isinstance(drift_map, DriftMap), f"Expected DriftMap, got {type(drift_map)}"
 
             return drift_map
 
@@ -265,46 +261,78 @@ class Drifter(ScouterBase):
 
 
 class MonitorQueue:
-    def __init__(self, drift_profile: DriftProfile) -> None:
+    def __init__(
+        self,
+        drift_profile: DriftProfile,
+        config: Union[KafkaConfig, HTTPConfig],
+    ) -> None:
+        """Instantiate a monitoring queue to monitor data drift.
+
+        Args:
+            drift_profile:
+                Monitoring profile containing feature drift profiles.
+            config:
+                Configuration for the monitoring producer. The configured producer
+                will be used to publish drift records to the monitoring server.
+        """
         self._monitor = ScouterDrifter()
         self._drift_profile = drift_profile
-        self.items: Dict[str, List[float]] = {
-            feature: [] for feature in self._drift_profile.features.keys()
-        }
+
+        self.feature_queue: Dict[str, List[float]] = {feature: [] for feature in self.feature_names}
         self._count = 0
 
-    def insert(self, data: Dict[str, float]) -> Optional[DriftMap]:
+        self._producer = self._get_producer(config)
+
+    @cached_property
+    def feature_names(self) -> List[str]:
+        """Feature names in the monitoring profile."""
+        return list(self._drift_profile.features.keys())
+
+    def _get_producer(self, config: Union[KafkaConfig, HTTPConfig]) -> BaseProducer:
+        """Get the producer based on the configuration."""
+        return DriftRecordProducer.get_producer(config)
+
+    def insert(self, data: Dict[Any, Any]) -> Optional[List[DriftServerRecord]]:
+        """Insert data into the monitoring queue.
+
+        Args:
+            data:
+                Dictionary of feature values to insert into the monitoring queue.
+
+        Returns:
+            List of drift records if the monitoring queue has enough data to compute
+        """
         for feature, value in data.items():
-            self.items[feature].append(value)
+            self.feature_queue[feature].append(value)
 
         self._count += 1
 
         if self._count >= self._drift_profile.config.sample_size:
-            return self.dequeue()
+            return self.publish()
 
         return None
 
-    def _clear(self) -> None:
-        self.items = {feature: [] for feature in self.items.keys()}
+    def _clear_queue(self) -> None:
+        """Clear the monitoring queue."""
+        self.feature_queue = {feature: [] for feature in self.feature_names}
         self._count = 0
 
-    def dequeue(self) -> DriftMap:
+    def publish(self) -> List[DriftServerRecord]:
+        """Publish drift records to the monitoring server."""
         try:
             # create array from items
-            data = list(self.items.values())
-            features = list(self.items.keys())
-            array = np.array(data, dtype=np.float32).T
+            data = list(self.feature_queue.values())
+            array = np.array(data, dtype=np.float64).T
 
-            drift_map = self._monitor.compute_drift_f32(
-                features,
-                array,
-                self._drift_profile,
-            )
+            drift_records = self._monitor.sample_data_f64(self.feature_names, array, self._drift_profile)
+
+            for record in drift_records:
+                self._producer.publish(record)
 
             # clear items
-            self._clear()
+            self._clear_queue()
 
-            return drift_map
+            return drift_records
 
         except Exception as exc:
             logger.error(f"Failed to compute drift: {exc}")

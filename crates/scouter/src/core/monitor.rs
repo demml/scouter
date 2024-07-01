@@ -1,3 +1,4 @@
+use crate::utils::types::DriftServerRecord;
 use crate::utils::types::{DriftConfig, DriftMap, DriftProfile, FeatureDrift, FeatureDriftProfile};
 use anyhow::Ok;
 use anyhow::{Context, Result};
@@ -238,7 +239,7 @@ impl Monitor {
     //
     // # Returns
     // A 2D array of f64 values
-    fn sample_data<F>(
+    fn _sample_data<F>(
         &self,
         array: &ArrayView2<F>,
         sample_size: usize,
@@ -375,7 +376,7 @@ impl Monitor {
 
         // iterate through each feature
         let sample_data = self
-            .sample_data(array, drift_profile.config.sample_size, num_features)
+            ._sample_data(array, drift_profile.config.sample_size, num_features)
             .with_context(|| "Failed to create sample data")?;
 
         // iterate through each row of samples
@@ -429,6 +430,102 @@ impl Monitor {
         }
 
         Ok(drift_map)
+    }
+
+    // Samples data for drift detection and returns a vector of DriftServerRecord to send to scouter server
+    //
+    // # Arguments
+    //
+    // * `array` - A 2D array of f64 values
+    // * `features` - A vector of feature names that is mapped to the array (order of features in the order in the array)
+    // * `drift_profile` - A monitor profile
+    //
+    pub fn sample_data<F>(
+        &self,
+        features: &[String],
+        array: &ArrayView2<F>, // n x m data array (features and predictions)
+        drift_profile: &DriftProfile,
+    ) -> Result<Vec<DriftServerRecord>, anyhow::Error>
+    where
+        F: Float
+            + Sync
+            + FromPrimitive
+            + Send
+            + Num
+            + Debug
+            + num_traits::Zero
+            + ndarray::ScalarOperand,
+        F: Into<f64>,
+    {
+        let num_features = drift_profile.features.len();
+
+        // iterate through each feature
+        let sample_data = self
+            ._sample_data(array, drift_profile.config.sample_size, num_features)
+            .with_context(|| "Failed to create sample data")?;
+
+        let mut records = Vec::new();
+
+        for (i, feature) in features.iter().enumerate() {
+            let sample = sample_data.column(i);
+
+            sample.iter().for_each(|value| {
+                let record = DriftServerRecord {
+                    created_at: chrono::Utc::now().naive_utc(),
+                    feature: feature.to_string(),
+                    value: *value,
+                    name: drift_profile.config.name.clone(),
+                    repository: drift_profile.config.repository.clone(),
+                    version: drift_profile.config.version.clone(),
+                };
+
+                records.push(record);
+            });
+        }
+
+        Ok(records)
+    }
+
+    pub fn calculate_drift_from_sample(
+        &self,
+        features: &[String],
+        sample_array: &ArrayView2<f64>, // n x m data array (features and predictions)
+        drift_profile: &DriftProfile,
+    ) -> Result<Array2<f64>, anyhow::Error> {
+        // iterate through each row of samples
+        let num_features = drift_profile.features.len();
+        let drift_array = sample_array
+            .axis_iter(Axis(0))
+            .into_par_iter()
+            .map(|x| {
+                // match AlertRules enum
+
+                let drift = if drift_profile.config.alert_rule.process.is_some() {
+                    self.set_control_drift_value(x, num_features, drift_profile, features)
+                        .unwrap()
+                } else {
+                    let rule = drift_profile
+                        .config
+                        .alert_rule
+                        .percentage
+                        .as_ref()
+                        .unwrap()
+                        .rule;
+
+                    self.set_percentage_drift_value(x, num_features, drift_profile, features, rule)
+                        .unwrap()
+                };
+
+                drift
+            })
+            .collect::<Vec<_>>();
+
+        // convert drift array to 2D array
+        let drift_array =
+            Array::from_shape_vec((drift_array.len(), num_features), drift_array.concat())
+                .with_context(|| "Failed to create 2D array")?;
+
+        Ok(drift_array)
     }
 }
 
@@ -548,16 +645,95 @@ mod tests {
         let mut array = array.to_owned();
         array.slice_mut(s![0..200, 1]).fill(100.0);
 
-        let drift_profile = monitor
+        let drift_map = monitor
             .compute_drift(&features, &array.view(), &profile)
             .unwrap();
 
         // assert relative
-        let feature_1 = drift_profile.features.get("feature_2").unwrap();
+        let feature_1 = drift_map.features.get("feature_2").unwrap();
         assert!(relative_eq!(feature_1.samples[0], 100.0, epsilon = 2.0));
 
         // convert profile to json and load it back
-        let _ = drift_profile.model_dump_json();
+        let _ = drift_map.model_dump_json();
+
+        // create server records
+    }
+
+    #[test]
+    fn test_sample_data() {
+        // create 2d array
+        let array = Array::random((1030, 3), Uniform::new(0., 10.));
+
+        let features = vec![
+            "feature_1".to_string(),
+            "feature_2".to_string(),
+            "feature_3".to_string(),
+        ];
+
+        let config = DriftConfig::new(
+            "name".to_string(),
+            "repo".to_string(),
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+
+        let monitor = Monitor::new();
+
+        let profile = monitor
+            .create_2d_drift_profile(&features, &array.view(), &config)
+            .unwrap();
+        assert_eq!(profile.features.len(), 3);
+
+        let server_records = monitor
+            .sample_data(&features, &array.view(), &profile)
+            .unwrap();
+
+        assert_eq!(server_records.len(), 126);
+
+        // create server records
+    }
+
+    #[test]
+    fn test_calculate_drift_from_sample() {
+        let array = Array::random((1030, 3), Uniform::new(0., 10.));
+
+        let features = vec![
+            "feature_1".to_string(),
+            "feature_2".to_string(),
+            "feature_3".to_string(),
+        ];
+
+        let config = DriftConfig::new(
+            "name".to_string(),
+            "repo".to_string(),
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+
+        let monitor = Monitor::new();
+
+        let profile = monitor
+            .create_2d_drift_profile(&features, &array.view(), &config)
+            .unwrap();
+        assert_eq!(profile.features.len(), 3);
+
+        // change first 100 rows to 100 at index 1
+        let mut array = array.to_owned();
+        array.slice_mut(s![0..200, 1]).fill(100.0);
+
+        let drift_array = monitor
+            .calculate_drift_from_sample(&features, &array.view(), &profile)
+            .unwrap();
+
+        // assert relative
+        let feature_1 = drift_array.column(1);
+        assert!(relative_eq!(feature_1[0], 4.0, epsilon = 2.0));
     }
 
     #[test]

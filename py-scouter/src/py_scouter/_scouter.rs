@@ -3,7 +3,7 @@ use scouter::core::alert::generate_alerts;
 use scouter::core::monitor::Monitor;
 use scouter::core::profiler::Profiler;
 use scouter::utils::types::{
-    AlertRule, DataProfile, DriftConfig, DriftMap, DriftProfile, FeatureAlerts,
+    AlertRule, DataProfile, DriftConfig, DriftMap, DriftProfile, DriftServerRecord, FeatureAlerts,
 };
 
 use numpy::PyReadonlyArray2;
@@ -182,5 +182,41 @@ impl ScouterDrifter {
         };
 
         Ok(alerts)
+    }
+
+    pub fn sample_data_f32(
+        &mut self,
+        features: Vec<String>,
+        array: PyReadonlyArray2<f32>,
+        drift_profile: DriftProfile,
+    ) -> PyResult<Vec<DriftServerRecord>> {
+        let array = array.as_array();
+
+        let profile = match self.monitor.sample_data(&features, &array, &drift_profile) {
+            Ok(profile) => profile,
+            Err(_e) => {
+                return Err(PyValueError::new_err("Failed to sample data"));
+            }
+        };
+
+        Ok(profile)
+    }
+
+    pub fn sample_data_f64(
+        &mut self,
+        features: Vec<String>,
+        array: PyReadonlyArray2<f64>,
+        drift_profile: DriftProfile,
+    ) -> PyResult<Vec<DriftServerRecord>> {
+        let array = array.as_array();
+
+        let profile = match self.monitor.sample_data(&features, &array, &drift_profile) {
+            Ok(profile) => profile,
+            Err(_e) => {
+                return Err(PyValueError::new_err("Failed to sample data"));
+            }
+        };
+
+        Ok(profile)
     }
 }

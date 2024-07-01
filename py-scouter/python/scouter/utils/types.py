@@ -17,3 +17,8 @@ class AlertType(str, Enum):
     Alternating = "Alternating"
     AllGood = "All Good"
     Trend = "Trend"
+
+
+class ProducerTypes(str, Enum):
+    Kafka = "Kafka"
+    Http = "http"

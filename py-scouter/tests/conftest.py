@@ -4,7 +4,8 @@ from typing import TypeVar, Generator
 import numpy as np
 from numpy.typing import NDArray
 from scouter._scouter import DriftConfig, AlertRule, PercentageAlertRule
-
+from unittest.mock import patch
+from httpx import Response
 
 T = TypeVar("T")
 YieldFixture = Generator[T, None, None]
@@ -47,3 +48,37 @@ def monitor_config_percentage() -> YieldFixture[DriftConfig]:
     )
 
     yield config
+
+
+@pytest.fixture(scope="function")
+def pandas_dataframe(array: NDArray) -> YieldFixture:
+    import pandas as pd
+
+    df = pd.DataFrame(array)
+
+    # change column names
+    df.rename(columns={0: "column_0", 1: "column_1", 2: "column_2"}, inplace=True)
+
+    yield df
+
+    cleanup()
+
+
+@pytest.fixture
+def mock_kafka_producer():
+    with patch("confluent_kafka.Producer") as mocked_kafka:
+        mocked_kafka.return_value.produce.return_value = None
+        mocked_kafka.return_value.poll.return_value = 0
+        mocked_kafka.return_value.flush.return_value = 0
+        yield mocked_kafka
+
+
+@pytest.fixture
+def mock_httpx_producer():
+    with patch("httpx.Client") as mocked_client:
+        mocked_client.return_value.post.return_value = Response(
+            status_code=200,
+            json={"access_token": "test-token"},
+        )
+
+        yield mocked_client

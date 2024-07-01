@@ -537,6 +537,48 @@ pub struct DriftServerRecord {
     pub value: f64,
 }
 
+#[pymethods]
+impl DriftServerRecord {
+    #[new]
+    pub fn new(
+        name: String,
+        repository: String,
+        version: String,
+        feature: String,
+        value: f64,
+    ) -> Self {
+        Self {
+            created_at: chrono::Utc::now().naive_utc(),
+            name,
+            repository,
+            version,
+            feature,
+            value,
+        }
+    }
+
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
+
+    pub fn model_dump_json(&self) -> String {
+        // serialize the struct to a string
+        self.__str__()
+    }
+
+    pub fn to_dict(&self) -> HashMap<String, String> {
+        let mut record = HashMap::new();
+        record.insert("created_at".to_string(), self.created_at.to_string());
+        record.insert("name".to_string(), self.name.clone());
+        record.insert("repository".to_string(), self.repository.clone());
+        record.insert("version".to_string(), self.version.clone());
+        record.insert("feature".to_string(), self.feature.clone());
+        record.insert("value".to_string(), self.value.to_string());
+        record
+    }
+}
+
 /// Python class for a Drift map of features with calculated drift
 ///
 /// # Arguments
@@ -595,26 +637,6 @@ impl DriftMap {
     pub fn save_to_json(&self, path: Option<PathBuf>) -> PyResult<()> {
         ProfileFuncs::save_to_json(self, path, FileName::Drift.to_str())
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
-    }
-
-    // convert drift map to server record for sending to scouter server
-    pub fn to_server_record(&self) -> Vec<DriftServerRecord> {
-        let mut records = Vec::new();
-
-        for (feature, drift) in &self.features {
-            drift.drift.iter().enumerate().for_each(|(i, _)| {
-                records.push(DriftServerRecord {
-                    created_at: chrono::Utc::now().naive_utc(),
-                    name: self.name.clone(),
-                    repository: self.repository.clone(),
-                    version: self.version.clone(),
-                    feature: feature.clone(),
-                    value: drift.drift[i],
-                });
-            });
-        }
-
-        records
     }
 
     pub fn to_numpy<'py>(

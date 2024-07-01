@@ -1,6 +1,9 @@
 # pylint: disable=no-name-in-module
 
-
+# Integrations
+from scouter.integrations.http import HTTPConfig, HTTPProducer
+from scouter.integrations.kafka import KafkaConfig, KafkaProducer
+from scouter.integrations.producer import DriftRecordProducer
 from scouter.utils.types import AlertType, AlertZone
 
 from ._scouter import (
@@ -10,6 +13,7 @@ from ._scouter import (
     DriftConfig,
     DriftMap,
     DriftProfile,
+    DriftServerRecord,
     Every6Hours,
     Every12Hours,
     Every30Minutes,
@@ -22,7 +26,7 @@ from ._scouter import (
     PercentageAlertRule,
     ProcessAlertRule,
 )
-from .scouter import Drifter, Profiler, CommonCrons
+from .scouter import CommonCrons, Drifter, MonitorQueue, Profiler
 from .version import __version__
 
 __all__ = [
@@ -49,4 +53,11 @@ __all__ = [
     "DriftConfig",
     "DriftMap",
     "CommonCrons",
+    "MonitorQueue",
+    "DriftServerRecord",
+    "KafkaConfig",
+    "KafkaProducer",
+    "HTTPConfig",
+    "HTTPProducer",
+    "DriftRecordProducer",
 ]

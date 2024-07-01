@@ -6,6 +6,54 @@ from typing import Dict, List, Optional, Tuple, Union
 
 from numpy.typing import NDArray
 
+class DriftServerRecord:
+    def __init__(
+        self,
+        name: str,
+        repository: str,
+        version: str,
+        feature: str,
+        value: float,
+    ):
+        """Initialize drift server record
+
+        Args:
+            name:
+                Model name
+            repository:
+                Model repository
+            version:
+                Model version
+            feature:
+                Feature name
+            value:
+                Feature value
+        """
+    @property
+    def created_at(self) -> datetime.datetime:
+        """Return the created at timestamp."""
+    @property
+    def name(self) -> str:
+        """Return the name."""
+    @property
+    def repository(self) -> str:
+        """Return the repository."""
+    @property
+    def version(self) -> str:
+        """Return the version."""
+    @property
+    def feature(self) -> str:
+        """Return the feature."""
+    @property
+    def value(self) -> float:
+        """Return the sample value."""
+    def __str__(self) -> str:
+        """Return the string representation of the record."""
+    def model_dump_json(self) -> str:
+        """Return the json representation of the record."""
+    def to_dict(self) -> Dict[str, str]:
+        """Return the dictionary representation of the record."""
+
 class Every30Minutes:
     def __init__(self) -> None:
         """Initialize the cron schedule"""
@@ -360,6 +408,8 @@ class DriftMap:
         """
     def to_numpy(self) -> Tuple[NDArray, List[str]]:
         """Return drift map as a numpy array and list of features"""
+    def to_service_record(self) -> List[DriftServerRecord]:
+        """Return drift map as a drift server record"""
 
 class ScouterProfiler:
     def __init__(self) -> None:
@@ -505,4 +555,42 @@ class ScouterDrifter:
 
         Returns:
             List of alerts.
+        """
+    def sample_data_f32(
+        self,
+        features: List[str],
+        array: NDArray,
+        drift_profile: DriftProfile,
+    ) -> List[DriftServerRecord]:
+        """Sample data from a f32 numpy array.
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                Numpy array to profile.
+            drift_profile:
+                Monitoring profile.
+
+        Returns:
+            List of server records
+        """
+    def sample_data_f64(
+        self,
+        features: List[str],
+        array: NDArray,
+        drift_profile: DriftProfile,
+    ) -> List[DriftServerRecord]:
+        """Sample data from a f64 numpy array.
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                Numpy array to profile.
+            drift_profile:
+                Monitoring profile.
+
+        Returns:
+            List of server records
         """
