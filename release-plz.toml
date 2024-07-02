@@ -9,3 +9,7 @@ git_tag_enable = false
 [[package]] # the double square brackets define a TOML table array
 name = "scouter"
 publish = true 
+
+[[package]]
+name = "py-scouter"
+publish = false
