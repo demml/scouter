@@ -7,3 +7,4 @@ pandas==2.2.0
 rusty_logger==0.3.0
 confluent_kafka>=2.3.0,<3.0.0
 httpx>=0.27.0,<1.0.0
+tenacity>=8.4.2,<9.0.0
