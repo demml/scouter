@@ -272,6 +272,7 @@ jobs:
 
 
   python-release:
+    environment: pypi
     name: Release-Python
     runs-on: ubuntu-latest
     needs: [test-builds-os]
@@ -313,6 +314,7 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
 
   rust-release:
+    environment: crates.io
     name: Release-Rust
     runs-on: ubuntu-latest
     needs: [test-builds-os]
