@@ -268,8 +268,7 @@ jobs:
         run: |
             python3 -m pip install scouter-ml --no-deps --no-index --force-reinstall --find-links dist
             pip install -r tests/requirements.txt
-            make test.unit
-
+            pytest --ignore tests/integration
 
   python-release:
     environment: pypi
