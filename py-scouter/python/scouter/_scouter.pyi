@@ -189,11 +189,9 @@ class AlertConfig:
     @property
     def alert_dispatch_type(self) -> str:
         """Return the alert dispatch type"""
-
     @property
     def alert_rule(self) -> AlertRule:
         """Return the alert rule"""
-
     @property
     def schedule(self) -> str:
         """Return the schedule"""
@@ -300,9 +298,6 @@ class DriftConfig:
     @property
     def version(self) -> str:
         """Model version"""
-    @property
-    def schedule(self) -> str:
-        """Schedule to run monitor"""
     @property
     def alert_config(self) -> AlertConfig:
         """Alert configuration"""

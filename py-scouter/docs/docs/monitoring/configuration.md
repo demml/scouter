@@ -1,7 +1,25 @@
 # Drift Configuration
 
-The drift configuration is used to configure the drift profile and is used to configure alert generation. The drift configuration is required when creating a drift profile.
+## All models that create a `DriftProfile` will require a `DriftConfig` object. This object is used to configure the drift detection algorithm and alerting system.
 
+The `DriftConfig` object has the following structure:
+
+```json
+{"name": "model",
+ "repository": "scouter",
+ "version": "0.1.0",
+ "sample_size": 100,
+ "sample": true,
+ "alert_config": {
+     "alert_rule": {
+        "percentage_rule": {"rule": 0.10},
+         "process_rule": {"rule": "16 32 4 8 2 4 1 1"}
+     },
+     "alert_dispatch_type": "Console",
+     "schedule": "0 0 0 0 0"
+ }
+}
+```
 
 ## Arguments
 
@@ -26,6 +44,8 @@ The drift configuration is used to configure the drift profile and is used to co
 `alert_rule`
 : The alert rule to use for monitoring. Defaults to the 8 digit rule. See [Alerting](./alerting.md) for more information.
 
+`alert_dispatch_type`
+: The type of alerting to use. Defaults to `AlertDispatchType.Console`. See [Alerting](./alerting.md) for more information.
 
 ## Scheduling
 
