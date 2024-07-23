@@ -125,7 +125,7 @@ In addition to the 8 digit rule, `Scouter` will also check for a consecutive tre
 `Scouter` provides the ability to create your own custom 8 digit rules. Below is an example of how to create a custom rule:
 
 ```python hl_lines="6 15"
-from scouter import DriftConfig, AlertRule, ProcessAlertRule
+from scouter import DriftConfig, AlertRule, ProcessAlertRule, AlertDispatchType
 
 # Create a custom rule
 custom_rule = AlertRule(
@@ -139,9 +139,11 @@ config = DriftConfig(
     name="model",
     repository="scouter",
     version="0.1.0",
-    alert_rule=custom_rule
+    alert_rule=custom_rule,
+    alert_dispatch_type=AlertDispatchType.Console,
 )
 ```
+
 
 ::: scouter._scouter.AlertRule
     options:

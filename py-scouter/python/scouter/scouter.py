@@ -163,9 +163,6 @@ class Drifter(ScouterBase):
         """Create a drift profile from data to use for monitoring.
 
         Args:
-            features:
-                Optional list of feature names. If not provided, feature names will be
-                automatically generated.
             data:
                 Data to create a monitoring profile from. Data can be a numpy array,
                 a polars dataframe or pandas dataframe. Data is expected to not contain
@@ -173,6 +170,9 @@ class Drifter(ScouterBase):
                 If NaNs or infinities are present, the monitoring profile will not be created.
             monitor_config:
                 Configuration for the monitoring profile.
+            features:
+                Optional list of feature names. If not provided, feature names will be
+                automatically generated.
 
         Returns:
             Monitoring profile
@@ -191,8 +191,8 @@ class Drifter(ScouterBase):
             return profile
 
         except Exception as exc:  # type: ignore
-            logger.error(f"Failed to create monitoring profile: {exc}")
-            raise ValueError(f"Failed to create monitoring profile: {exc}") from exc
+            logger.error(f"Failed to create drift profile: {exc}")
+            raise ValueError(f"Failed to create drift profile: {exc}") from exc
 
     def compute_drift(
         self,
