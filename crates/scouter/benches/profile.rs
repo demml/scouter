@@ -21,6 +21,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         None,
         None,
         None,
+        None,
     );
     group.bench_function("monitor", |b| {
         b.iter(|| monitor.create_2d_drift_profile(&features, black_box(&array.view()), &config))

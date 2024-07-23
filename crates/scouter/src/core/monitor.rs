@@ -386,12 +386,19 @@ impl Monitor {
             .map(|x| {
                 // match AlertRules enum
 
-                let drift = if drift_profile.config.alert_rule.process.is_some() {
+                let drift = if drift_profile
+                    .config
+                    .alert_config
+                    .alert_rule
+                    .process
+                    .is_some()
+                {
                     self.set_control_drift_value(x, num_features, drift_profile, features)
                         .unwrap()
                 } else {
                     let rule = drift_profile
                         .config
+                        .alert_config
                         .alert_rule
                         .percentage
                         .as_ref()
@@ -500,12 +507,19 @@ impl Monitor {
             .map(|x| {
                 // match AlertRules enum
 
-                let drift = if drift_profile.config.alert_rule.process.is_some() {
+                let drift = if drift_profile
+                    .config
+                    .alert_config
+                    .alert_rule
+                    .process
+                    .is_some()
+                {
                     self.set_control_drift_value(x, num_features, drift_profile, features)
                         .unwrap()
                 } else {
                     let rule = drift_profile
                         .config
+                        .alert_config
                         .alert_rule
                         .percentage
                         .as_ref()
@@ -570,6 +584,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
 
         let profile = monitor
@@ -605,6 +620,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
 
         let profile = monitor
@@ -627,6 +643,7 @@ mod tests {
         let config = DriftConfig::new(
             "name".to_string(),
             "repo".to_string(),
+            None,
             None,
             None,
             None,
@@ -678,6 +695,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
 
         let monitor = Monitor::new();
@@ -709,6 +727,7 @@ mod tests {
         let config = DriftConfig::new(
             "name".to_string(),
             "repo".to_string(),
+            None,
             None,
             None,
             None,
@@ -758,6 +777,7 @@ mod tests {
                 process: None,
                 percentage: Some(PercentageAlertRule { rule: 0.1 }),
             }),
+            None,
         );
 
         let monitor = Monitor::new();
