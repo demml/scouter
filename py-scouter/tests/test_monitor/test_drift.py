@@ -157,7 +157,9 @@ def test_alerts_percentage(array: NDArray, monitor_config_percentage: DriftConfi
     drift_array[8, 0] = 1.0
 
     alerts = scouter.generate_alerts(
-        drift_array, features, monitor_config_percentage.alert_rule
+        drift_array,
+        features,
+        monitor_config_percentage.alert_config.alert_rule,
     )
 
     # should have no alerts

@@ -162,6 +162,42 @@ class AlertRule:
     def percentage(self) -> Optional[PercentageAlertRule]:
         """Return the percentage alert rule"""
 
+class AlertDispatchType:
+    Email = "Email"
+    Console = "Console"
+    Slack = "Slack"
+    OpsGenie = "OpsGenie"
+
+class AlertConfig:
+    def __init__(
+        self,
+        alert_rule: Optional[AlertRule] = None,
+        alert_dispatch_type: Optional[AlertDispatchType] = None,
+        schedule: Optional[str] = None,
+    ):
+        """Initialize alert config
+
+        Args:
+            alert_rule:
+                Alert rule to use. Defaults to Standard
+            alert_dispatch_type:
+                Alert dispatch type to use. Defaults to console
+            schedule:
+                Schedule to run monitor. Defaults to daily at midnight
+
+        """
+    @property
+    def alert_dispatch_type(self) -> str:
+        """Return the alert dispatch type"""
+
+    @property
+    def alert_rule(self) -> AlertRule:
+        """Return the alert rule"""
+
+    @property
+    def schedule(self) -> str:
+        """Return the schedule"""
+
 class Alert:
     def __init__(self, alert_type: str, zone: str):
         """Initialize alert"""
@@ -227,6 +263,7 @@ class DriftConfig:
         sample_size: int = 25,
         schedule: str = "0 0 0 * * *",
         alert_rule: AlertRule = AlertRule(),
+        alert_dispatch_type: str = AlertDispatchType.Console,
     ):
         """Initialize monitor config
 
@@ -245,6 +282,8 @@ class DriftConfig:
                 Schedule to run monitor. Defaults to daily at midnight
             alert_rule:
                 Alert rule to use. Defaults to Standard
+            alert_dispatch_type:
+                Alert dispatch type to use. Defaults to console
         """
     @property
     def sample_size(self) -> int:
@@ -265,8 +304,8 @@ class DriftConfig:
     def schedule(self) -> str:
         """Schedule to run monitor"""
     @property
-    def alert_rule(self) -> AlertRule:
-        """Alert rule to use"""
+    def alert_config(self) -> AlertConfig:
+        """Alert configuration"""
 
 class DriftProfile:
     @property

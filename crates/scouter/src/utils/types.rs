@@ -835,4 +835,30 @@ mod tests {
         let rule = PercentageAlertRule::new(None);
         assert_eq!(rule.rule, 0.1);
     }
+
+    #[test]
+    fn test_alert_config() {
+        //test console alert config
+        let alert_config = AlertConfig::new(None, None, None);
+        assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Console);
+        assert_eq!(alert_config.alert_dispatch_type(), "Console");
+
+        //test email alert config
+        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Email), None);
+        assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Email);
+        assert_eq!(alert_config.alert_dispatch_type(), "Email");
+
+        //test slack alert config
+        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Slack), None);
+        assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Slack);
+        assert_eq!(alert_config.alert_dispatch_type(), "Slack");
+
+        //test opsgenie alert config
+        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::OpsGenie), None);
+        assert_eq!(
+            alert_config.alert_dispatch_type,
+            AlertDispatchType::OpsGenie
+        );
+        assert_eq!(alert_config.alert_dispatch_type(), "OpsGenie");
+    }
 }

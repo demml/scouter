@@ -8,6 +8,8 @@ from scouter.utils.types import AlertType, AlertZone
 
 from ._scouter import (
     Alert,
+    AlertConfig,
+    AlertDispatchType,
     AlertRule,
     DataProfile,
     DriftConfig,
@@ -60,4 +62,6 @@ __all__ = [
     "HTTPConfig",
     "HTTPProducer",
     "DriftRecordProducer",
+    "AlertConfig",
+    "AlertDispatchType",
 ]

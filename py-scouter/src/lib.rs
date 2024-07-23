@@ -5,9 +5,10 @@ use scouter::utils::cron::{
     CommonCron, Every12Hours, Every30Minutes, Every6Hours, EveryDay, EveryHour, EveryWeek,
 };
 use scouter::utils::types::{
-    Alert, AlertRule, AlertType, AlertZone, DataProfile, Distinct, DriftConfig, DriftMap,
-    DriftProfile, DriftServerRecord, FeatureAlert, FeatureAlerts, FeatureDataProfile, FeatureDrift,
-    FeatureDriftProfile, Histogram, PercentageAlertRule, ProcessAlertRule,
+    Alert, AlertConfig, AlertDispatchType, AlertRule, AlertType, AlertZone, DataProfile, Distinct,
+    DriftConfig, DriftMap, DriftProfile, DriftServerRecord, FeatureAlert, FeatureAlerts,
+    FeatureDataProfile, FeatureDrift, FeatureDriftProfile, Histogram, PercentageAlertRule,
+    ProcessAlertRule,
 };
 
 #[pymodule]
@@ -40,5 +41,7 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<EveryWeek>()?;
     m.add_class::<CommonCron>()?;
     m.add_class::<DriftServerRecord>()?;
+    m.add_class::<AlertConfig>()?;
+    m.add_class::<AlertDispatchType>()?;
     Ok(())
 }
