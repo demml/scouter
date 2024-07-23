@@ -343,6 +343,7 @@ pub struct DriftConfig {
 }
 
 #[pymethods]
+#[allow(clippy::too_many_arguments)]
 impl DriftConfig {
     #[new]
     pub fn new(
