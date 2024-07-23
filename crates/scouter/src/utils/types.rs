@@ -339,7 +339,7 @@ pub struct DriftConfig {
     pub version: String,
 
     #[pyo3(get, set)]
-    pub alert_rule: AlertRule,
+    pub alert_config: AlertConfig,
 }
 
 #[pymethods]
@@ -353,6 +353,7 @@ impl DriftConfig {
         sample_size: Option<usize>,
         schedule: Option<String>,
         alert_rule: Option<AlertRule>,
+        alert_dispatch_type: Option<AlertDispatchType>,
     ) -> Self {
         let sample = sample.unwrap_or(true);
         let sample_size = sample_size.unwrap_or(25);
@@ -378,14 +379,18 @@ impl DriftConfig {
             None => EveryDay::new().cron,
         };
 
+        let alert_dispatch_type = alert_dispatch_type.unwrap_or(AlertDispatchType::Console);
+
+        let alert_config =
+            AlertConfig::new(Some(alert_rule), Some(alert_dispatch_type), Some(schedule));
+
         Self {
             sample_size,
             sample,
             name,
             repository,
             version,
-            schedule,
-            alert_rule,
+            alert_config,
         }
     }
 }
