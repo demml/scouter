@@ -102,6 +102,57 @@ impl AlertRule {
 }
 
 #[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub enum AlertDispatchType {
+    Email,
+    Slack,
+    Console,
+    OpsGenie,
+}
+
+#[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct AlertConfig {
+    #[pyo3(get, set)]
+    pub alert_rule: AlertRule,
+
+    pub alert_dispatch_type: AlertDispatchType,
+
+    #[pyo3(get, set)]
+    pub schedule: String,
+}
+
+#[pymethods]
+impl AlertConfig {
+    #[new]
+    pub fn new(
+        alert_rule: Option<AlertRule>,
+        alert_dispatch_type: Option<AlertDispatchType>,
+        schedule: Option<String>,
+    ) -> Self {
+        let alert_rule = alert_rule.unwrap_or(AlertRule::new(None, None));
+        let alert_dispatch_type = alert_dispatch_type.unwrap_or(AlertDispatchType::Console);
+        let schedule = schedule.unwrap_or(EveryDay::new().cron);
+
+        Self {
+            alert_rule,
+            alert_dispatch_type,
+            schedule,
+        }
+    }
+
+    #[getter]
+    pub fn alert_dispatch_type(&self) -> String {
+        match self.alert_dispatch_type {
+            AlertDispatchType::Email => "Email".to_string(),
+            AlertDispatchType::Slack => "Slack".to_string(),
+            AlertDispatchType::Console => "Console".to_string(),
+            AlertDispatchType::OpsGenie => "OpsGenie".to_string(),
+        }
+    }
+}
+
+#[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, std::cmp::Eq, Hash)]
 pub enum AlertZone {
     Zone1,
@@ -286,9 +337,6 @@ pub struct DriftConfig {
 
     #[pyo3(get, set)]
     pub version: String,
-
-    #[pyo3(get, set)]
-    pub schedule: String,
 
     #[pyo3(get, set)]
     pub alert_rule: AlertRule,
