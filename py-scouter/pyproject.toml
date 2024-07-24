@@ -7,7 +7,7 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.13"
-numpy = ">1.23.0, <2.0.0"
+numpy = ">=1.22.0, <2.0.0"
 polars = [
     {version = ">0.18.0, <1.0.0", platform = "win32" },
     {version = ">0.18.0, <1.0.0", platform = "linux" }
