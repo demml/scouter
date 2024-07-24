@@ -1,18 +1,18 @@
 [tool.poetry]
 name = "scouter"
-version = "0.2.2"
+version = "0.2.3"
 description = ""
 authors = ["Thorrester <support@demmlai.com>"]
 readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.13"
-numpy = "^1.26.4"
+numpy = ">1.23.0, <2.0.0"
 polars = [
-    {version = "^0.20.30", platform = "win32" },
-    {version = "^0.20.30", platform = "linux" }
+    {version = ">0.18.0, <1.0.0", platform = "win32" },
+    {version = ">0.18.0, <1.0.0", platform = "linux" }
 ]
-polars-lts-cpu = {version = "^0.20.7", platform = "darwin" }
+polars-lts-cpu = {version = ">0.18.0, <1.0.0", platform = "darwin" }
 pandas = "^2.2.0"
 rusty-logger = "^0.3.0"
 pydantic = "^2.7.1"
