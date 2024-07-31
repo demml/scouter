@@ -1,5 +1,6 @@
 use crate::utils::cron::EveryDay;
 use anyhow::Context;
+use core::fmt::Debug;
 use ndarray::Array;
 use ndarray::Array2;
 use numpy::{IntoPyArray, PyArray2};
@@ -442,10 +443,7 @@ pub struct Distinct {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct FeatureDataProfile {
-    #[pyo3(get, set)]
-    pub id: String,
-
+pub struct NumericStats {
     #[pyo3(get, set)]
     pub mean: f64,
 
@@ -459,9 +457,6 @@ pub struct FeatureDataProfile {
     pub max: f64,
 
     #[pyo3(get, set)]
-    pub timestamp: chrono::NaiveDateTime,
-
-    #[pyo3(get, set)]
     pub distinct: Distinct,
 
     #[pyo3(get, set)]
@@ -469,6 +464,58 @@ pub struct FeatureDataProfile {
 
     #[pyo3(get, set)]
     pub histogram: Histogram,
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CharStats {
+    #[pyo3(get, set)]
+    pub min_length: usize,
+
+    #[pyo3(get, set)]
+    pub max_length: usize,
+
+    #[pyo3(get, set)]
+    pub median_length: usize,
+
+    #[pyo3(get, set)]
+    pub mean_length: f64,
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WordStats {
+    #[pyo3(get, set)]
+    pub words: HashMap<String, Distinct>,
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct StringStats {
+    #[pyo3(get, set)]
+    pub distinct: Distinct,
+
+    #[pyo3(get, set)]
+    pub char_stats: CharStats,
+
+    #[pyo3(get, set)]
+    pub word_stats: WordStats,
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FeatureDataProfile {
+    #[pyo3(get, set)]
+    pub id: String,
+
+    #[pyo3(get, set)]
+    pub numeric_stats: Option<NumericStats>,
+
+    #[pyo3(get, set)]
+    pub string_stats: Option<StringStats>,
+
+    #[pyo3(get, set)]
+    pub timestamp: chrono::NaiveDateTime,
 }
 
 #[pyclass]

@@ -11,6 +11,11 @@ from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
 from scouter.integrations.producer import DriftRecordProducer
 from scouter.utils.logger import ScouterLogger
+from scouter.utils.types import DataType
+from scouter.utils.type_converter import (
+    _convert_data_to_array,
+    ArrayData,
+)
 
 from ._scouter import (  # pylint: disable=no-name-in-module
     AlertRule,
@@ -30,75 +35,7 @@ logger = ScouterLogger.get_logger()
 CommonCrons = CommonCron()  # type: ignore
 
 
-class DataType(str, Enum):
-    FLOAT32 = "float32"
-    FLOAT64 = "float64"
-    INT8 = "int8"
-    INT16 = "int16"
-    INT32 = "int32"
-    INT64 = "int64"
-
-    @staticmethod
-    def str_to_bits(dtype: str) -> str:
-        bits = {
-            "float32": "32",
-            "float64": "64",
-        }
-        return bits[dtype]
-
-
-class ScouterBase:
-    def _convert_data_to_array(self, data: Union[pd.DataFrame, pl.DataFrame, NDArray]) -> NDArray:
-        if isinstance(data, pl.DataFrame):
-            return data.to_numpy()
-        if isinstance(data, pd.DataFrame):
-            return data.to_numpy()
-        return data
-
-    def _get_feature_names(
-        self,
-        features: Optional[List[str]],
-        data: Union[pd.DataFrame, pl.DataFrame, NDArray],
-    ) -> List[str]:
-        if features is not None:
-            return features
-
-        if isinstance(data, pl.DataFrame):
-            return data.columns
-        if isinstance(data, pd.DataFrame):
-            columns = list(data.columns)
-            return [str(i) for i in columns]
-        return [f"feature_{i}" for i in range(data.shape[1])]
-
-    def _preprocess(
-        self,
-        features: Optional[List[str]],
-        data: Union[pl.DataFrame, pd.DataFrame, NDArray],
-    ) -> Tuple[NDArray, List[str], str]:
-        try:
-            array = self._convert_data_to_array(data)
-            features = self._get_feature_names(features, data)
-
-            dtype = str(array.dtype)
-
-            if dtype in [
-                DataType.INT8.value,
-                DataType.INT16.value,
-                DataType.INT32.value,
-                DataType.INT64.value,
-            ]:
-                logger.warning("Scouter only supports float32 and float64 arrays. Converting integer array to float32.")
-                array = array.astype("float32")
-
-                return array, features, DataType.str_to_bits("float32")
-
-            return array, features, DataType.str_to_bits(dtype)
-
-        except KeyError as exc:
-            raise ValueError(f"Unsupported data type: {dtype}") from exc
-
-
-class Profiler(ScouterBase):
+class Profiler:
     def __init__(self) -> None:
         """Scouter class for creating data profiles. This class will generate
         baseline statistics for a given dataset."""
@@ -129,7 +66,13 @@ class Profiler(ScouterBase):
         """
         try:
             logger.info("Creating data profile.")
-            array, features, bits = self._preprocess(features, data)
+            array = _convert_data_to_array(data)
+
+            if array.numeric_array is None:
+                bits = "32"
+
+            else:
+                bits = DataType.str_to_bits(str(array.numeric_array.dtype))
 
             profile = getattr(self._profiler, f"create_data_profile_f{bits}")(
                 features=features,
@@ -137,7 +80,9 @@ class Profiler(ScouterBase):
                 bin_size=bin_size,
             )
 
-            assert isinstance(profile, DataProfile), f"Expected DataProfile, got {type(profile)}"
+            assert isinstance(
+                profile, DataProfile
+            ), f"Expected DataProfile, got {type(profile)}"
             return profile
 
         except Exception as exc:  # type: ignore
@@ -187,7 +132,9 @@ class Drifter(ScouterBase):
                 monitor_config=monitor_config,
             )
 
-            assert isinstance(profile, DriftProfile), f"Expected DriftProfile, got {type(profile)}"
+            assert isinstance(
+                profile, DriftProfile
+            ), f"Expected DriftProfile, got {type(profile)}"
             return profile
 
         except Exception as exc:  # type: ignore
@@ -224,7 +171,9 @@ class Drifter(ScouterBase):
                 drift_profile=drift_profile,
             )
 
-            assert isinstance(drift_map, DriftMap), f"Expected DriftMap, got {type(drift_map)}"
+            assert isinstance(
+                drift_map, DriftMap
+            ), f"Expected DriftMap, got {type(drift_map)}"
 
             return drift_map
 
@@ -278,7 +227,9 @@ class MonitorQueue:
         self._monitor = ScouterDrifter()
         self._drift_profile = drift_profile
 
-        self.feature_queue: Dict[str, List[float]] = {feature: [] for feature in self.feature_names}
+        self.feature_queue: Dict[str, List[float]] = {
+            feature: [] for feature in self.feature_names
+        }
         self._count = 0
 
         self._producer = self._get_producer(config)
@@ -324,7 +275,9 @@ class MonitorQueue:
             data = list(self.feature_queue.values())
             array = np.array(data, dtype=np.float64).T
 
-            drift_records = self._monitor.sample_data_f64(self.feature_names, array, self._drift_profile)
+            drift_records = self._monitor.sample_data_f64(
+                self.feature_names, array, self._drift_profile
+            )
 
             for record in drift_records:
                 self._producer.publish(record)

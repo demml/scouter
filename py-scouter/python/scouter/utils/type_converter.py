@@ -1,9 +1,14 @@
-from typing import Any, List, Tuple, Optional
-from numpy.typing import NDArray
+from typing import Any, List, Optional, Union
+
 import numpy as np
 import pandas as pd
 import polars as pl
+from numpy.typing import NDArray
 from pydantic import BaseModel, ConfigDict
+from scouter.utils.logger import ScouterLogger
+from scouter.utils.types import DataType
+
+logger = ScouterLogger.get_logger()
 
 
 class ArrayData(BaseModel):
@@ -27,6 +32,25 @@ class Converter:
     def prepare_data(self) -> ArrayData:
         raise NotImplementedError
 
+    def _convert_numeric(self, array: np.ndarray) -> np.ndarray:
+        try:
+            dtype = str(array.dtype)
+
+            if dtype in [
+                DataType.INT8.value,
+                DataType.INT16.value,
+                DataType.INT32.value,
+                DataType.INT64.value,
+            ]:
+                logger.warning(
+                    "Scouter only supports float32 and float64 arrays. Converting integer array to float32."
+                )
+                array = array.astype("float32")
+
+            return array
+        except KeyError as exc:
+            raise ValueError(f"Unsupported data type: {dtype}") from exc
+
 
 class PandasConverter(Converter):
     def __init__(self, data: pd.DataFrame):
@@ -47,7 +71,9 @@ class PandasConverter(Converter):
         array_data = ArrayData()
 
         if self.numeric_columns:
-            array_data.numeric_array = self.data[self.numeric_columns].to_numpy()
+            array_data.numeric_array = self._convert_numeric(
+                self.data[self.numeric_columns].to_numpy()
+            )
             array_data.numeric_features = self.numeric_columns
 
         if self.string_columns:
@@ -78,7 +104,9 @@ class PolarsConverter(Converter):
         array_data = ArrayData()
 
         if self.numeric_columns:
-            array_data.numeric_array = self.data.select(self.numeric_columns).to_numpy()
+            array_data.numeric_array = self._convert_numeric(
+                self.data[self.numeric_columns].to_numpy()
+            )
             array_data.numeric_features = self.numeric_columns
 
         if self.string_columns:
@@ -108,7 +136,7 @@ class NumpyConverter(Converter):
         array_data = ArrayData()
 
         if self.numeric_columns:
-            array_data.numeric_array = self.data
+            array_data.numeric_array = self._convert_numeric(self.data)
             array_data.numeric_features = self.numeric_columns
 
         if self.string_columns:
@@ -116,3 +144,13 @@ class NumpyConverter(Converter):
             array_data.string_features = self.string_columns
 
         return array_data
+
+
+def _convert_data_to_array(
+    data: Union[pd.DataFrame, pl.DataFrame, NDArray],
+) -> ArrayData:
+    if isinstance(data, pl.DataFrame):
+        return PolarsConverter(data).prepare_data()
+    if isinstance(data, pd.DataFrame):
+        return PandasConverter(data).prepare_data()
+    return NumpyConverter(data).prepare_data()
