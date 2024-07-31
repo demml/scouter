@@ -64,6 +64,17 @@ def pandas_dataframe(array: NDArray) -> YieldFixture:
     cleanup()
 
 
+@pytest.fixture(scope="function")
+def polars_dataframe(array: NDArray) -> YieldFixture:
+    import polars as pl
+
+    df = pl.from_numpy(array, schema=["column_0", "column_1", "column_2"])
+
+    yield df
+
+    cleanup()
+
+
 @pytest.fixture
 def mock_kafka_producer():
     with patch("confluent_kafka.Producer") as mocked_kafka:
