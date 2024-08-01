@@ -11,7 +11,6 @@ use num_traits::{Float, FromPrimitive, Num};
 use rayon::prelude::*;
 use std::collections::BTreeMap;
 use std::collections::BTreeSet;
-use std::collections::HashMap;
 use std::fmt::Debug;
 pub struct Monitor {}
 
@@ -140,7 +139,7 @@ impl Monitor {
         let center = &means;
 
         // create monitor profile
-        let mut feat_profile = HashMap::new();
+        let mut feat_profile = BTreeMap::new();
 
         for (i, feature) in features.iter().enumerate() {
             feat_profile.insert(
@@ -565,14 +564,20 @@ impl Monitor {
             .par_iter()
             .enumerate()
             .map(|(i, col)| {
-                let unqiue = col
+                let unique = col
                     .into_iter()
                     .collect::<BTreeSet<_>>()
                     .into_iter()
                     .collect::<Vec<_>>();
                 let mut map = BTreeMap::new();
-                for (j, item) in unqiue.iter().enumerate() {
+                for (j, item) in unique.iter().enumerate() {
                     map.insert(item.to_string(), j);
+
+                    // check if j is last index
+                    if j == unique.len() - 1 {
+                        // insert missing value
+                        map.insert("missing".to_string(), j + 1);
+                    }
                 }
 
                 (features[i].to_string(), map)
@@ -589,6 +594,36 @@ impl Monitor {
         features: &Vec<String>,
         array: &Vec<Vec<String>>,
         feature_map: &FeatureMap,
+    ) -> Result<Array2<f32>, anyhow::Error>
+where {
+        let data = features
+            .par_iter()
+            .enumerate()
+            .map(|(i, feature)| {
+                let map = feature_map.features.get(feature).unwrap();
+
+                // attempt to set feature. If not found, set to missing
+                let col = array[i]
+                    .iter()
+                    .map(|x| *map.get(x).unwrap_or(map.get("missing").unwrap()) as f32)
+                    .collect::<Vec<_>>();
+                col
+            })
+            .collect::<Vec<_>>();
+
+        let data = Array::from_shape_vec((features.len(), array[0].len()), data.concat())
+            .with_context(|| "Failed to create 2D array")?
+            .t()
+            .to_owned();
+
+        Ok(data)
+    }
+
+    pub fn convert_strings_to_ndarray_f64(
+        &self,
+        features: &Vec<String>,
+        array: &Vec<Vec<String>>,
+        feature_map: &FeatureMap,
     ) -> Result<Array2<f64>, anyhow::Error>
 where {
         let data = features
@@ -596,9 +631,11 @@ where {
             .enumerate()
             .map(|(i, feature)| {
                 let map = feature_map.features.get(feature).unwrap();
+
+                // attempt to set feature. If not found, set to missing
                 let col = array[i]
                     .iter()
-                    .map(|x| *map.get(x).unwrap() as f64)
+                    .map(|x| *map.get(x).unwrap_or(map.get("missing").unwrap()) as f64)
                     .collect::<Vec<_>>();
                 col
             })
@@ -655,6 +692,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
 
         let profile = monitor
@@ -691,6 +729,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
 
         let profile = monitor
@@ -713,6 +752,7 @@ mod tests {
         let config = DriftConfig::new(
             "name".to_string(),
             "repo".to_string(),
+            None,
             None,
             None,
             None,
@@ -766,6 +806,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
 
         let monitor = Monitor::new();
@@ -797,6 +838,7 @@ mod tests {
         let config = DriftConfig::new(
             "name".to_string(),
             "repo".to_string(),
+            None,
             None,
             None,
             None,
@@ -847,6 +889,7 @@ mod tests {
                 process: None,
                 percentage: Some(PercentageAlertRule { rule: 0.1 }),
             }),
+            None,
             None,
         );
 
@@ -944,10 +987,16 @@ mod tests {
 
         assert_eq!(feature_map.features.len(), 2);
 
-        let array = monitor
+        let f32_array = monitor
             .convert_strings_to_ndarray_f32(&string_features, &string_vec, &feature_map)
             .unwrap();
 
-        assert_eq!(array.shape(), &[5, 2]);
+        assert_eq!(f32_array.shape(), &[5, 2]);
+
+        let f64_array = monitor
+            .convert_strings_to_ndarray_f64(&string_features, &string_vec, &feature_map)
+            .unwrap();
+
+        assert_eq!(f64_array.shape(), &[5, 2]);
     }
 }

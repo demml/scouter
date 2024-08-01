@@ -93,7 +93,6 @@ class Drifter:
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray],
         monitor_config: DriftConfig,
-        features: Optional[List[str]] = None,
     ) -> DriftProfile:
         """Create a drift profile from data to use for monitoring.
 
@@ -105,9 +104,6 @@ class Drifter:
                 If NaNs or infinities are present, the monitoring profile will not be created.
             monitor_config:
                 Configuration for the monitoring profile.
-            features:
-                Optional list of feature names. If not provided, feature names will be
-                automatically generated.
 
         Returns:
             Monitoring profile
@@ -117,13 +113,35 @@ class Drifter:
             array = _convert_data_to_array(data)
             bits = _get_bits(array.numeric_array)
 
-            profile = getattr(self._drifter, f"create_drift_profile_f{bits}")(
-                features=array.numeric_features,
-                array=array.numeric_array,
-                monitor_config=monitor_config,
-            )
+            string_profile: Optional[DriftProfile] = None
+            numeric_profile: Optional[DriftProfile] = None
 
-            assert isinstance(profile, DriftProfile), f"Expected DriftProfile, got {type(profile)}"
+            if array.string_array is not None and array.string_features is not None:
+                string_profile = self._drifter.create_string_drift_profile(
+                    features=array.string_features,
+                    array=array.string_array,
+                    monitor_config=monitor_config,
+                )
+
+            if array.numeric_array is not None and array.numeric_features is not None:
+                numeric_profile = getattr(self._drifter, f"create_numeric_drift_profile_f{bits}")(
+                    features=array.numeric_features,
+                    array=array.numeric_array,
+                    monitor_config=monitor_config,
+                )
+
+            if string_profile is not None and numeric_profile is not None:
+                drift_profile = DriftProfile(
+                    features={**numeric_profile.features, **string_profile.features},
+                    config=monitor_config,
+                )
+
+                return drift_profile
+
+            profile = numeric_profile or string_profile
+
+            assert isinstance(profile, DriftProfile), "Expected DriftProfile"
+
             return profile
 
         except Exception as exc:  # type: ignore
@@ -134,7 +152,6 @@ class Drifter:
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray],
         drift_profile: DriftProfile,
-        features: Optional[List[str]] = None,
     ) -> DriftMap:
         """Compute drift from data and monitoring profile.
 
@@ -154,6 +171,20 @@ class Drifter:
             logger.info("Computing drift")
             array = _convert_data_to_array(data)
             bits = _get_bits(array.numeric_array)
+
+            assert (
+                array.numeric_array is not None and array.numeric_features is not None
+            ), "Numeric array is required to compute drift"
+
+            if array.string_array is not None and array.string_features is not None:
+                string_array: NDArray = getattr(self._drifter, f"convert_strings_to_numpy_f{bits}")(
+                    array=array.string_array,
+                    features=array.string_features,
+                )
+
+                array.numeric_array = np.concatenate((array.numeric_array, string_array), axis=1)
+
+                array.numeric_features += array.string_features
 
             drift_map = getattr(self._drifter, f"compute_drift_f{bits}")(
                 features=array.numeric_features,

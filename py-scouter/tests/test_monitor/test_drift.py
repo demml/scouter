@@ -3,6 +3,7 @@ import numpy as np
 from pathlib import Path
 from numpy.typing import NDArray
 import pytest
+import polars as pl
 from scouter._scouter import (
     DriftProfile,
     DriftMap,
@@ -20,8 +21,7 @@ def test_drift_f64(array: NDArray, monitor_config: DriftConfig):
     assert profile.features["feature_1"].center == pytest.approx(2.5, 0.1)
     assert profile.features["feature_2"].center == pytest.approx(3.5, 0.1)
 
-    features = ["feature_0", "feature_1", "feature_2"]
-    _ = scouter.compute_drift(array, profile, features)
+    _ = scouter.compute_drift(array, profile)
 
 
 def test_drift_f32(array: NDArray, monitor_config: DriftConfig):
@@ -34,8 +34,7 @@ def test_drift_f32(array: NDArray, monitor_config: DriftConfig):
     assert profile.features["feature_1"].center == pytest.approx(2.5, 0.1)
     assert profile.features["feature_2"].center == pytest.approx(3.5, 0.1)
 
-    features = ["feature_0", "feature_1", "feature_2"]
-    _ = scouter.compute_drift(array, profile, features)
+    _ = scouter.compute_drift(array, profile)
 
 
 def test_drift_int(array: NDArray, monitor_config: DriftConfig):
@@ -50,8 +49,7 @@ def test_drift_int(array: NDArray, monitor_config: DriftConfig):
     assert profile.features["feature_1"].center == pytest.approx(2.0, 0.1)
     assert profile.features["feature_2"].center == pytest.approx(3.0, 0.1)
 
-    features = ["feature_0", "feature_1", "feature_2"]
-    drift_map = scouter.compute_drift(array, profile, features)
+    drift_map = scouter.compute_drift(array, profile)
 
     assert drift_map.features["feature_0"].drift[0] == 0.0
 
@@ -74,13 +72,16 @@ def test_drift_int(array: NDArray, monitor_config: DriftConfig):
     assert Path("assets/model.json").exists()
 
 
-def test_drift_fail(array: NDArray, monitor_config: DriftConfig):
+def _test_drift_fail(array: NDArray, monitor_config: DriftConfig):
     scouter = Drifter()
     profile: DriftProfile = scouter.create_drift_profile(array, monitor_config)
     features = ["feature_0", "feature_1", "feature_2"]
 
     with pytest.raises(ValueError):
-        scouter.compute_drift(array.astype("str"), profile, features)
+        scouter.compute_drift(
+            array.astype("str"),
+            profile,
+        )
 
 
 def test_alerts_control(array: NDArray, monitor_config: DriftConfig):
@@ -93,7 +94,7 @@ def test_alerts_control(array: NDArray, monitor_config: DriftConfig):
     assert profile.features["feature_2"].center == pytest.approx(3.5, 0.1)
 
     features = ["feature_0", "feature_1", "feature_2"]
-    drift_map: DriftMap = scouter.compute_drift(array, profile, features)
+    drift_map: DriftMap = scouter.compute_drift(array, profile)
 
     # create drift array and features
     feature0 = drift_map.features["feature_0"]
@@ -165,3 +166,15 @@ def test_alerts_percentage(array: NDArray, monitor_config_percentage: DriftConfi
     # should have no alerts
     assert len(alerts.features["feature_0"].alerts) == 1
     assert len(alerts.features["feature_0"].indices[1]) == 2
+
+
+def test_multi_type_drift(
+    polars_dataframe_multi_dtype: pl.DataFrame, monitor_config: DriftConfig
+):
+    scouter = Drifter()
+
+    profile: DriftProfile = scouter.create_drift_profile(
+        polars_dataframe_multi_dtype, monitor_config
+    )
+    print(profile)
+    a

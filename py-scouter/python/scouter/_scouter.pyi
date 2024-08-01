@@ -2,7 +2,7 @@
 
 import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from numpy.typing import NDArray
 
@@ -303,6 +303,19 @@ class DriftConfig:
         """Alert configuration"""
 
 class DriftProfile:
+    def __init__(
+        self,
+        features: Dict[str, FeatureDriftProfile],
+        config: DriftConfig,
+    ):
+        """Initialize drift profile
+
+        Args:
+            features:
+                Dictionary of features and their drift profiles
+            config:
+                Monitor config
+        """
     @property
     def features(self) -> Dict[str, FeatureDriftProfile]:
         """Return the list of features."""
@@ -530,7 +543,52 @@ class ScouterDrifter:
         """Instantiate Rust ScouterMonitor class that is
         used to create monitoring profiles and compute drifts.
         """
-    def create_drift_profile_f32(
+    def convert_strings_to_numpy_f32(
+        self,
+        features: List[str],
+        array: List[List[str]],
+    ) -> NDArray[Any]:
+        """Convert string array to numpy f32 array
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                List of string arrays to convert.
+        """
+    def convert_strings_to_numpy_f64(
+        self,
+        features: List[str],
+        array: List[List[str]],
+    ) -> NDArray[Any]:
+        """Convert string array to numpy f64 array
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                List of string arrays to convert.
+        """
+    def create_string_drift_profile(
+        self,
+        features: List[str],
+        array: List[List[str]],
+        monitor_config: DriftConfig,
+    ) -> DriftProfile:
+        """Create a monitoring profile from a f32 numpy array.
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                List of string arrays to profile.
+            monitor_config:
+                Monitor config.
+
+        Returns:
+            Monitoring profile.
+        """
+    def create_numeric_drift_profile_f32(
         self,
         features: List[str],
         array: NDArray,
@@ -549,7 +607,7 @@ class ScouterDrifter:
         Returns:
             Monitoring profile.
         """
-    def create_drift_profile_f64(
+    def create_numeric_drift_profile_f64(
         self,
         features: List[str],
         array: NDArray,

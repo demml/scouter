@@ -341,6 +341,9 @@ pub struct DriftConfig {
 
     #[pyo3(get, set)]
     pub alert_config: AlertConfig,
+
+    #[pyo3(get, set)]
+    pub feature_map: Option<FeatureMap>,
 }
 
 #[pymethods]
@@ -356,6 +359,7 @@ impl DriftConfig {
         schedule: Option<String>,
         alert_rule: Option<AlertRule>,
         alert_dispatch_type: Option<AlertDispatchType>,
+        feature_map: Option<FeatureMap>,
     ) -> Self {
         let sample = sample.unwrap_or(true);
         let sample_size = sample_size.unwrap_or(25);
@@ -393,6 +397,7 @@ impl DriftConfig {
             repository,
             version,
             alert_config,
+            feature_map,
         }
     }
 }
@@ -401,7 +406,7 @@ impl DriftConfig {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DriftProfile {
     #[pyo3(get, set)]
-    pub features: HashMap<String, FeatureDriftProfile>,
+    pub features: BTreeMap<String, FeatureDriftProfile>,
 
     #[pyo3(get, set)]
     pub config: DriftConfig,
@@ -409,6 +414,10 @@ pub struct DriftProfile {
 
 #[pymethods]
 impl DriftProfile {
+    #[new]
+    pub fn new(features: BTreeMap<String, FeatureDriftProfile>, config: DriftConfig) -> Self {
+        Self { features, config }
+    }
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__str__(self)

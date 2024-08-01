@@ -75,6 +75,26 @@ def polars_dataframe(array: NDArray) -> YieldFixture:
     cleanup()
 
 
+@pytest.fixture(scope="function")
+def polars_dataframe_multi_dtype(array: NDArray) -> YieldFixture:
+    import polars as pl
+
+    # add column of ints between 1 and 3
+    ints = np.random.randint(1, 4, 1000).reshape(-1, 1)
+
+    # add to array
+    array = np.concatenate([array, ints], axis=1)
+
+    df = pl.from_numpy(array, schema=["column_0", "column_1", "column_2", "column_3"])
+
+    # add categorical column
+    df = df.with_columns(pl.col("column_3").cast(str).cast(pl.Categorical))
+
+    yield df
+
+    cleanup()
+
+
 @pytest.fixture
 def mock_kafka_producer():
     with patch("confluent_kafka.Producer") as mocked_kafka:

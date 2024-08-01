@@ -1,4 +1,9 @@
 use anyhow::Context;
+use numpy::PyArray2;
+use numpy::PyReadonlyArray2;
+use numpy::ToPyArray;
+use pyo3::exceptions::PyValueError;
+use pyo3::prelude::*;
 use scouter::core::alert::generate_alerts;
 use scouter::core::monitor::Monitor;
 use scouter::core::num_profiler::NumProfiler;
@@ -8,12 +13,6 @@ use scouter::utils::types::{
     FeatureProfile,
 };
 use std::collections::HashMap;
-use std::string;
-
-use numpy::PyReadonlyArray2;
-use pyo3::exceptions::PyValueError;
-
-use pyo3::prelude::*;
 
 fn create_string_profile(
     string_array: Vec<Vec<String>>,
@@ -170,35 +169,101 @@ impl ScouterDrifter {
         }
     }
 
-    pub fn create_drift_profile_f32(
+    pub fn convert_strings_to_numpy_f32<'py>(
         &mut self,
+        py: Python<'py>,
+        array: Vec<Vec<String>>,
+        features: Vec<String>,
+        drift_profile: DriftProfile,
+    ) -> PyResult<pyo3::Bound<'py, PyArray2<f32>>> {
+        let array = match self.monitor.convert_strings_to_ndarray_f32(
+            &features,
+            &array,
+            &drift_profile
+                .config
+                .feature_map
+                .with_context(|| "Failed to convert strings to ndarray")
+                .unwrap(),
+        ) {
+            Ok(array) => array,
+            Err(_e) => {
+                return Err(PyValueError::new_err(
+                    "Failed to convert strings to ndarray",
+                ));
+            }
+        };
 
-        monitor_config: DriftConfig,
-        numeric_array: Option<PyReadonlyArray2<f32>>,
-        string_array: Option<Vec<Vec<String>>>,
-        numeric_features: Option<Vec<String>>,
-        string_features: Option<Vec<String>>,
+        Ok(array.to_pyarray_bound(py))
+    }
+
+    pub fn convert_strings_to_numpy_f64<'py>(
+        &mut self,
+        py: Python<'py>,
+        array: Vec<Vec<String>>,
+        features: Vec<String>,
+        drift_profile: DriftProfile,
+    ) -> PyResult<pyo3::Bound<'py, PyArray2<f64>>> {
+        let array = match self.monitor.convert_strings_to_ndarray_f64(
+            &features,
+            &array,
+            &drift_profile
+                .config
+                .feature_map
+                .with_context(|| "Failed to convert strings to ndarray")
+                .unwrap(),
+        ) {
+            Ok(array) => array,
+            Err(_e) => {
+                return Err(PyValueError::new_err(
+                    "Failed to convert strings to ndarray",
+                ));
+            }
+        };
+
+        Ok(array.to_pyarray_bound(py))
+    }
+
+    pub fn create_string_drift_profile(
+        &mut self,
+        mut monitor_config: DriftConfig,
+        array: Vec<Vec<String>>,
+        features: Vec<String>,
     ) -> PyResult<DriftProfile> {
-        let arrays = vec![];
+        let feature_map = self.monitor.create_feature_map(&features, &array);
+        monitor_config.feature_map = Some(feature_map.clone());
 
-        if string_features.is_some() && string_array.is_some() {
-            let feature_map = self
+        let array =
+            match self
                 .monitor
-                .create_feature_map(&string_features.unwrap(), &string_array.unwrap());
-
-            let string_profile = match string_profile {
-                Ok(profile) => profile,
+                .convert_strings_to_ndarray_f32(&features, &array, &feature_map)
+            {
+                Ok(array) => array,
                 Err(_e) => {
-                    return Err(PyValueError::new_err(
-                        "Failed to create feature data profile",
-                    ));
+                    return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
                 }
             };
 
-            for profile in string_profile {
-                arrays.push(profile);
-            }
-        }
+        let profile =
+            match self
+                .monitor
+                .create_2d_drift_profile(&features, &array.view(), &monitor_config)
+            {
+                Ok(profile) => profile,
+                Err(_e) => {
+                    return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
+                }
+            };
+
+        Ok(profile)
+    }
+
+    pub fn create_numeric_drift_profile_f32(
+        &mut self,
+        monitor_config: DriftConfig,
+        array: PyReadonlyArray2<f32>,
+        features: Vec<String>,
+    ) -> PyResult<DriftProfile> {
+        let array = array.as_array();
 
         let profile = match self
             .monitor
@@ -213,11 +278,11 @@ impl ScouterDrifter {
         Ok(profile)
     }
 
-    pub fn create_drift_profile_f64(
+    pub fn create_numeric_drift_profile_f64(
         &mut self,
-        features: Vec<String>,
-        array: PyReadonlyArray2<f64>,
         monitor_config: DriftConfig,
+        array: PyReadonlyArray2<f64>,
+        features: Vec<String>,
     ) -> PyResult<DriftProfile> {
         let array = array.as_array();
 
