@@ -556,7 +556,11 @@ impl Monitor {
     // # Returns
     //
     // A feature map
-    pub fn create_feature_map(&self, features: &[&str], array: &Vec<Vec<&str>>) -> FeatureMap {
+    pub fn create_feature_map(
+        &self,
+        features: &Vec<String>,
+        array: &Vec<Vec<String>>,
+    ) -> FeatureMap {
         let feature_map = array
             .par_iter()
             .enumerate()
@@ -578,6 +582,34 @@ impl Monitor {
         FeatureMap {
             features: feature_map,
         }
+    }
+
+    pub fn convert_strings_to_ndarray_f32(
+        &self,
+        features: &Vec<String>,
+        array: &Vec<Vec<String>>,
+        feature_map: &FeatureMap,
+    ) -> Result<Array2<f64>, anyhow::Error>
+where {
+        let data = features
+            .par_iter()
+            .enumerate()
+            .map(|(i, feature)| {
+                let map = feature_map.features.get(feature).unwrap();
+                let col = array[i]
+                    .iter()
+                    .map(|x| *map.get(x).unwrap() as f64)
+                    .collect::<Vec<_>>();
+                col
+            })
+            .collect::<Vec<_>>();
+
+        let data = Array::from_shape_vec((features.len(), array[0].len()), data.concat())
+            .with_context(|| "Failed to create 2D array")?
+            .t()
+            .to_owned();
+
+        Ok(data)
     }
 }
 
@@ -854,30 +886,68 @@ mod tests {
     #[test]
     fn test_create_feature_map() {
         let string_vec = vec![
-            vec!["a", "b", "c", "d", "e"],
-            vec!["a", "b", "c", "d", "e"],
-            vec!["hello", "blah", "c", "d", "e"],
-            vec!["hello", "blah", "c", "d", "e"],
             vec![
-                "hello", "blah", "c", "d", "e", "hello", "blah", "c", "d", "e",
+                "a".to_string(),
+                "b".to_string(),
+                "c".to_string(),
+                "d".to_string(),
+                "e".to_string(),
+            ],
+            vec![
+                "hello".to_string(),
+                "blah".to_string(),
+                "c".to_string(),
+                "d".to_string(),
+                "e".to_string(),
+                "hello".to_string(),
+                "blah".to_string(),
+                "c".to_string(),
+                "d".to_string(),
+                "e".to_string(),
             ],
         ];
 
-        let string_features = vec![
-            "feature_1",
-            "feature_2",
-            "feature_3",
-            "feature_4",
-            "feature_5",
-        ];
+        let string_features = vec!["feature_1".to_string(), "feature_2".to_string()];
 
         let monitor = Monitor::new();
 
         let feature_map = monitor.create_feature_map(&string_features, &string_vec);
 
-        println!("{:?}", feature_map);
+        assert_eq!(feature_map.features.len(), 2);
+        assert_eq!(feature_map.features.get("feature_2").unwrap().len(), 5);
+    }
 
-        assert_eq!(feature_map.features.len(), 5);
-        assert_eq!(feature_map.features.get("feature_5").unwrap().len(), 5);
+    #[test]
+    fn test_create_array_from_string() {
+        let string_vec = vec![
+            vec![
+                "a".to_string(),
+                "b".to_string(),
+                "c".to_string(),
+                "d".to_string(),
+                "e".to_string(),
+            ],
+            vec![
+                "a".to_string(),
+                "a".to_string(),
+                "a".to_string(),
+                "b".to_string(),
+                "b".to_string(),
+            ],
+        ];
+
+        let string_features = vec!["feature_1".to_string(), "feature_2".to_string()];
+
+        let monitor = Monitor::new();
+
+        let feature_map = monitor.create_feature_map(&string_features, &string_vec);
+
+        assert_eq!(feature_map.features.len(), 2);
+
+        let array = monitor
+            .convert_strings_to_ndarray_f32(&string_features, &string_vec, &feature_map)
+            .unwrap();
+
+        assert_eq!(array.shape(), &[5, 2]);
     }
 }

@@ -182,10 +182,9 @@ impl ScouterDrifter {
         let arrays = vec![];
 
         if string_features.is_some() && string_array.is_some() {
-            let string_map = HashMap::new();
-
-            let string_profile =
-                create_string_profile(string_array.unwrap(), string_features.unwrap());
+            let feature_map = self
+                .monitor
+                .create_feature_map(&string_features.unwrap(), &string_array.unwrap());
 
             let string_profile = match string_profile {
                 Ok(profile) => profile,
