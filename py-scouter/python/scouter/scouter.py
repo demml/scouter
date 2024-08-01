@@ -11,11 +11,8 @@ from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
 from scouter.integrations.producer import DriftRecordProducer
 from scouter.utils.logger import ScouterLogger
+from scouter.utils.type_converter import ArrayData, _convert_data_to_array
 from scouter.utils.types import DataType
-from scouter.utils.type_converter import (
-    _convert_data_to_array,
-    ArrayData,
-)
 
 from ._scouter import (  # pylint: disable=no-name-in-module
     AlertRule,
@@ -80,9 +77,7 @@ class Profiler:
                 bin_size=bin_size,
             )
 
-            assert isinstance(
-                profile, DataProfile
-            ), f"Expected DataProfile, got {type(profile)}"
+            assert isinstance(profile, DataProfile), f"Expected DataProfile, got {type(profile)}"
             return profile
 
         except Exception as exc:  # type: ignore
@@ -132,9 +127,7 @@ class Drifter(ScouterBase):
                 monitor_config=monitor_config,
             )
 
-            assert isinstance(
-                profile, DriftProfile
-            ), f"Expected DriftProfile, got {type(profile)}"
+            assert isinstance(profile, DriftProfile), f"Expected DriftProfile, got {type(profile)}"
             return profile
 
         except Exception as exc:  # type: ignore
@@ -171,9 +164,7 @@ class Drifter(ScouterBase):
                 drift_profile=drift_profile,
             )
 
-            assert isinstance(
-                drift_map, DriftMap
-            ), f"Expected DriftMap, got {type(drift_map)}"
+            assert isinstance(drift_map, DriftMap), f"Expected DriftMap, got {type(drift_map)}"
 
             return drift_map
 
@@ -227,9 +218,7 @@ class MonitorQueue:
         self._monitor = ScouterDrifter()
         self._drift_profile = drift_profile
 
-        self.feature_queue: Dict[str, List[float]] = {
-            feature: [] for feature in self.feature_names
-        }
+        self.feature_queue: Dict[str, List[float]] = {feature: [] for feature in self.feature_names}
         self._count = 0
 
         self._producer = self._get_producer(config)
@@ -275,9 +264,7 @@ class MonitorQueue:
             data = list(self.feature_queue.values())
             array = np.array(data, dtype=np.float64).T
 
-            drift_records = self._monitor.sample_data_f64(
-                self.feature_names, array, self._drift_profile
-            )
+            drift_records = self._monitor.sample_data_f64(self.feature_names, array, self._drift_profile)
 
             for record in drift_records:
                 self._producer.publish(record)

@@ -1,7 +1,6 @@
-use crate::utils::types::{CharStats, Distinct, StringStats, WordStats};
+use crate::utils::types::{CharStats, Distinct, FeatureProfile, StringStats, WordStats};
 
 use rayon::prelude::*;
-
 use std::collections::HashMap;
 
 pub struct StringProfiler {}
@@ -72,11 +71,11 @@ impl StringProfiler {
         Ok(string_stats)
     }
 
-    fn compute_2d_stats(
+    pub fn compute_2d_stats(
         &self,
         array: &Vec<Vec<String>>,
         string_features: &[String],
-    ) -> Result<HashMap<String, StringStats>, anyhow::Error> {
+    ) -> Result<Vec<FeatureProfile>, anyhow::Error> {
         // zip the string features with the array
 
         let map_vec = array
@@ -85,9 +84,14 @@ impl StringProfiler {
             .map(|(i, col)| {
                 let feature = &string_features[i];
                 let stats = self.compute_stats(col).unwrap();
-                (feature.clone(), stats)
+                FeatureProfile {
+                    id: feature.to_string(),
+                    string_stats: Some(stats),
+                    numeric_stats: None,
+                    timestamp: chrono::Utc::now().naive_utc(),
+                }
             })
-            .collect::<HashMap<String, StringStats>>();
+            .collect::<Vec<FeatureProfile>>();
 
         Ok(map_vec)
     }
@@ -120,7 +124,6 @@ mod tests {
             .compute_2d_stats(&array, &["feature1".to_string(), "feature2".to_string()])
             .unwrap();
 
-        println!("{:?}", stats["feature1"]);
-        assert_eq!(stats.len(), 5);
+        assert_eq!(stats.len(), 2);
     }
 }

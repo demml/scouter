@@ -42,9 +42,7 @@ class Converter:
                 DataType.INT32.value,
                 DataType.INT64.value,
             ]:
-                logger.warning(
-                    "Scouter only supports float32 and float64 arrays. Converting integer array to float32."
-                )
+                logger.warning("Scouter only supports float32 and float64 arrays. Converting integer array to float32.")
                 array = array.astype("float32")
 
             return array
@@ -60,9 +58,7 @@ class PandasConverter(Converter):
         all_columns = self.data.columns.tolist()
 
         # Get numeric column names
-        self.numeric_columns = self.data.select_dtypes(
-            include=[np.number]
-        ).columns.tolist()
+        self.numeric_columns = self.data.select_dtypes(include=[np.number]).columns.tolist()
 
         self.string_columns = list(set(all_columns) - set(self.numeric_columns))
 
@@ -71,15 +67,11 @@ class PandasConverter(Converter):
         array_data = ArrayData()
 
         if self.numeric_columns:
-            array_data.numeric_array = self._convert_numeric(
-                self.data[self.numeric_columns].to_numpy()
-            )
+            array_data.numeric_array = self._convert_numeric(self.data[self.numeric_columns].to_numpy())
             array_data.numeric_features = self.numeric_columns
 
         if self.string_columns:
-            array_data.string_array = (
-                self.data[self.string_columns].astype(str).to_numpy()
-            )
+            array_data.string_array = self.data[self.string_columns].astype(str).to_numpy()
             array_data.string_features = self.string_columns
 
         return array_data
@@ -104,9 +96,7 @@ class PolarsConverter(Converter):
         array_data = ArrayData()
 
         if self.numeric_columns:
-            array_data.numeric_array = self._convert_numeric(
-                self.data[self.numeric_columns].to_numpy()
-            )
+            array_data.numeric_array = self._convert_numeric(self.data[self.numeric_columns].to_numpy())
             array_data.numeric_features = self.numeric_columns
 
         if self.string_columns:

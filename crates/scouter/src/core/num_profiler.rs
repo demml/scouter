@@ -1,6 +1,4 @@
-use crate::utils::types::{
-    DataProfile, Distinct, FeatureDataProfile, Histogram, NumericStats, Quantiles,
-};
+use crate::utils::types::{Distinct, FeatureProfile, Histogram, NumericStats, Quantiles};
 use anyhow::{Context, Result};
 use ndarray::prelude::*;
 use ndarray::Axis;
@@ -292,7 +290,7 @@ impl NumProfiler {
         features: &[String],
         array: &ArrayView2<F>,
         bin_size: &usize,
-    ) -> Result<DataProfile, anyhow::Error>
+    ) -> Result<Vec<FeatureProfile>, anyhow::Error>
     where
         F: Float
             + MaybeNan
@@ -332,7 +330,7 @@ impl NumProfiler {
             .with_context(|| "Failed to compute histogram")?;
 
         // loop over list
-        let mut profiles = HashMap::new();
+        let mut profiles = Vec::new();
         for i in 0..features.len() {
             let mean = &means[i];
             let stddev = &stddevs[i];
@@ -363,17 +361,17 @@ impl NumProfiler {
                 histogram: hist[&features[i]].clone(),
             };
 
-            let profile = FeatureDataProfile {
+            let profile = FeatureProfile {
                 id: features[i].clone(),
                 numeric_stats: Some(numeric_stats),
                 string_stats: None,
                 timestamp: chrono::Utc::now().naive_utc(),
             };
 
-            profiles.insert(features[i].clone(), profile);
+            profiles.push(profile);
         }
 
-        Ok(DataProfile { features: profiles })
+        Ok(profiles)
     }
 }
 
@@ -415,78 +413,46 @@ mod tests {
             .compute_stats(&features, &array.view(), &bin_size)
             .unwrap();
 
-        assert_eq!(profile.features.len(), 3);
-        assert_eq!(profile.features["feature_1"].id, "feature_1");
-        assert_eq!(profile.features["feature_2"].id, "feature_2");
-        assert_eq!(profile.features["feature_3"].id, "feature_3");
+        assert_eq!(profile.len(), 3);
+        assert_eq!(profile[0].id, "feature_1");
+        assert_eq!(profile[1].id, "feature_2");
+        assert_eq!(profile[2].id, "feature_3");
 
         // check mean
         assert!(relative_eq!(
-            profile.features["feature_1"]
-                .numeric_stats
-                .as_ref()
-                .unwrap()
-                .mean,
+            profile[0].numeric_stats.as_ref().unwrap().mean,
             0.5,
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile.features["feature_2"]
-                .numeric_stats
-                .as_ref()
-                .unwrap()
-                .mean,
+            profile[1].numeric_stats.as_ref().unwrap().mean,
             1.5,
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile.features["feature_3"]
-                .numeric_stats
-                .as_ref()
-                .unwrap()
-                .mean,
+            profile[2].numeric_stats.as_ref().unwrap().mean,
             2.5,
             epsilon = 0.05
         ));
 
         // check quantiles
         assert!(relative_eq!(
-            profile.features["feature_1"]
-                .numeric_stats
-                .as_ref()
-                .unwrap()
-                .quantiles
-                .q25,
+            profile[0].numeric_stats.as_ref().unwrap().quantiles.q25,
             0.25,
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile.features["feature_1"]
-                .numeric_stats
-                .as_ref()
-                .unwrap()
-                .quantiles
-                .q50,
+            profile[1].numeric_stats.as_ref().unwrap().quantiles.q50,
             0.5,
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile.features["feature_1"]
-                .numeric_stats
-                .as_ref()
-                .unwrap()
-                .quantiles
-                .q75,
+            profile[2].numeric_stats.as_ref().unwrap().quantiles.q75,
             0.75,
             epsilon = 0.1
         ));
         assert!(relative_eq!(
-            profile.features["feature_1"]
-                .numeric_stats
-                .as_ref()
-                .unwrap()
-                .quantiles
-                .q99,
+            profile[0].numeric_stats.as_ref().unwrap().quantiles.q99,
             0.99,
             epsilon = 0.05
         ));
@@ -516,83 +482,51 @@ mod tests {
             .compute_stats(&features, &array.view(), &bin_size)
             .unwrap();
 
-        assert_eq!(profile.features.len(), 3);
-        assert_eq!(profile.features["feature_1"].id, "feature_1");
-        assert_eq!(profile.features["feature_2"].id, "feature_2");
-        assert_eq!(profile.features["feature_3"].id, "feature_3");
+        assert_eq!(profile.len(), 3);
+        assert_eq!(profile[0].id, "feature_1");
+        assert_eq!(profile[1].id, "feature_2");
+        assert_eq!(profile[2].id, "feature_3");
 
         // check mean
         assert!(relative_eq!(
-            profile.features["feature_1"]
-                .numeric_stats
-                .as_ref()
-                .unwrap()
-                .mean,
+            profile[0].numeric_stats.as_ref().unwrap().mean,
             0.5,
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile.features["feature_2"]
-                .numeric_stats
-                .as_ref()
-                .unwrap()
-                .mean,
+            profile[2].numeric_stats.as_ref().unwrap().mean,
             1.5,
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile.features["feature_3"]
-                .numeric_stats
-                .as_ref()
-                .unwrap()
-                .mean,
+            profile[2].numeric_stats.as_ref().unwrap().mean,
             2.5,
             epsilon = 0.05
         ));
 
         // check quantiles
         assert!(relative_eq!(
-            profile.features["feature_1"]
-                .numeric_stats
-                .as_ref()
-                .unwrap()
-                .quantiles
-                .q25,
+            profile[0].numeric_stats.as_ref().unwrap().quantiles.q25,
             0.25,
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile.features["feature_1"]
-                .numeric_stats
-                .as_ref()
-                .unwrap()
-                .quantiles
-                .q50,
+            profile[1].numeric_stats.as_ref().unwrap().quantiles.q50,
             0.5,
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile.features["feature_1"]
-                .numeric_stats
-                .as_ref()
-                .unwrap()
-                .quantiles
-                .q75,
+            profile[1].numeric_stats.as_ref().unwrap().quantiles.q75,
             0.75,
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile.features["feature_1"]
-                .numeric_stats
-                .as_ref()
-                .unwrap()
-                .quantiles
-                .q99,
+            profile[1].numeric_stats.as_ref().unwrap().quantiles.q99,
             0.99,
             epsilon = 0.05
         ));
 
         // convert to json
-        let _ = profile.model_dump_json();
+        //let _ = profile.model_dump_json();
     }
 }

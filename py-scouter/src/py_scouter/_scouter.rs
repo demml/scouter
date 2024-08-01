@@ -1,21 +1,30 @@
-use core::{f32, num};
-use ndarray::prelude::*;
-use ndarray::prelude::*;
-use numpy::ndarray::parallel::prelude::IntoParallelRefIterator;
-use numpy::ndarray::{ArrayBase, ViewRepr};
-use pyo3::types::PyString;
+use anyhow::Context;
 use scouter::core::alert::generate_alerts;
 use scouter::core::monitor::Monitor;
 use scouter::core::num_profiler::NumProfiler;
+use scouter::core::string_profiler::StringProfiler;
 use scouter::utils::types::{
     AlertRule, DataProfile, DriftConfig, DriftMap, DriftProfile, DriftServerRecord, FeatureAlerts,
+    FeatureProfile,
 };
-use std::string;
+use std::collections::HashMap;
 
-use numpy::{PyArray2, PyFixedString, PyReadonlyArray2};
+use numpy::PyReadonlyArray2;
 use pyo3::exceptions::PyValueError;
 
 use pyo3::prelude::*;
+
+fn create_string_profile(
+    string_array: Vec<Vec<String>>,
+    string_features: Vec<String>,
+) -> Result<Vec<FeatureProfile>, anyhow::Error> {
+    let string_profiler = StringProfiler::new();
+    let string_profile = string_profiler
+        .compute_2d_stats(&string_array, &string_features)
+        .with_context(|| "Failed to create feature data profile")?;
+
+    Ok(string_profile)
+}
 
 #[pyclass]
 pub struct ScouterProfiler {
@@ -35,29 +44,36 @@ impl ScouterProfiler {
     pub fn create_data_profile_f32(
         &mut self,
         numeric_array: Option<PyReadonlyArray2<f32>>,
-        string_array: Option<ArrayView2<String>>,
+        string_array: Option<Vec<Vec<String>>>,
         numeric_features: Option<Vec<String>>,
         string_features: Option<Vec<String>>,
         bin_size: Option<usize>,
-    ) -> PyResult<DataProfile>
-    where
-        ArrayView2<String>: PyFunctionArgument<'a, 'py>,
-    {
+    ) -> PyResult<DataProfile> {
         let mut profiles = vec![];
 
+        // process string features
         if string_features.is_some() && string_array.is_some() {
-            let string_features = string_features.unwrap();
-            let string_array = string_array.unwrap();
+            let string_profile =
+                create_string_profile(string_array.unwrap(), string_features.unwrap());
 
-            let array: Array2<String> = Array2::from_shape_vec(
-                (string_array.len(), string_array[0].len()),
-                string_array.into_iter().flatten().collect(),
-            );
+            let string_profile = match string_profile {
+                Ok(profile) => profile,
+                Err(_e) => {
+                    return Err(PyValueError::new_err(
+                        "Failed to create feature data profile",
+                    ));
+                }
+            };
+
+            profiles.extend(string_profile);
+
+            // run  StringProfiler in separate thread
         }
 
+        // process numeric features
         if numeric_features.is_some() && numeric_array.is_some() {
             let numeric_features = numeric_features.unwrap();
-            let num_profile = match self.num_profiler.compute_stats(
+            let num_profiles = match self.num_profiler.compute_stats(
                 &numeric_features,
                 &numeric_array.unwrap().as_array(),
                 &bin_size.unwrap_or(20),
@@ -69,33 +85,72 @@ impl ScouterProfiler {
                     ));
                 }
             };
-            profiles.push(num_profile);
+
+            profiles.extend(num_profiles);
         }
 
-        Ok(profiles[0].clone())
+        let mut features = HashMap::new();
+        for profile in &profiles {
+            features.insert(profile.id.clone(), profile.clone());
+        }
+
+        Ok(DataProfile { features })
     }
 
     pub fn create_data_profile_f64(
         &mut self,
-        features: Vec<String>,
-        array: PyReadonlyArray2<f64>,
-        bin_size: usize,
+        numeric_array: Option<PyReadonlyArray2<f64>>,
+        string_array: Option<Vec<Vec<String>>>,
+        numeric_features: Option<Vec<String>>,
+        string_features: Option<Vec<String>>,
+        bin_size: Option<usize>,
     ) -> PyResult<DataProfile> {
-        let array = array.as_array();
+        let mut profiles = vec![];
 
-        let profile = match self
-            .num_profiler
-            .compute_stats(&features, &array, &bin_size)
-        {
-            Ok(profile) => profile,
-            Err(_e) => {
-                return Err(PyValueError::new_err(
-                    "Failed to create feature data profile",
-                ));
-            }
-        };
+        // process string features
+        if string_features.is_some() && string_array.is_some() {
+            let string_profile =
+                create_string_profile(string_array.unwrap(), string_features.unwrap());
 
-        Ok(profile)
+            let string_profile = match string_profile {
+                Ok(profile) => profile,
+                Err(_e) => {
+                    return Err(PyValueError::new_err(
+                        "Failed to create feature data profile",
+                    ));
+                }
+            };
+
+            profiles.extend(string_profile);
+
+            // run  StringProfiler in separate thread
+        }
+
+        // process numeric features
+        if numeric_features.is_some() && numeric_array.is_some() {
+            let numeric_features = numeric_features.unwrap();
+            let num_profiles = match self.num_profiler.compute_stats(
+                &numeric_features,
+                &numeric_array.unwrap().as_array(),
+                &bin_size.unwrap_or(20),
+            ) {
+                Ok(profile) => profile,
+                Err(_e) => {
+                    return Err(PyValueError::new_err(
+                        "Failed to create feature data profile",
+                    ));
+                }
+            };
+
+            profiles.extend(num_profiles);
+        }
+
+        let mut features = HashMap::new();
+        for profile in &profiles {
+            features.insert(profile.id.clone(), profile.clone());
+        }
+
+        Ok(DataProfile { features })
     }
 }
 

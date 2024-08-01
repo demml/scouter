@@ -342,7 +342,7 @@ class Histogram:
     def bin_counts(self) -> List[int]:
         """Bin counts"""
 
-class FeatureDataProfile:
+class FeatureProfile:
     @property
     def id(self) -> str:
         """Return the id."""
@@ -375,7 +375,7 @@ class DataProfile:
     """Data profile of features"""
 
     @property
-    def features(self) -> Dict[str, FeatureDataProfile]:
+    def features(self) -> Dict[str, FeatureProfile]:
         """Returns dictionary of features and their data profiles"""
     def __str__(self) -> str:
         """Return string representation of the data profile"""
@@ -451,8 +451,7 @@ class ScouterProfiler:
         used to profile data"""
     def create_data_profile_f32(
         self,
-        features: List[str],
-        array: NDArray,
+        array:
         bin_size: int,
     ) -> DataProfile:
         """Create a data profile from a f32 numpy array.

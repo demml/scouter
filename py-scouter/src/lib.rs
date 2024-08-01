@@ -7,7 +7,7 @@ use scouter::utils::cron::{
 use scouter::utils::types::{
     Alert, AlertConfig, AlertDispatchType, AlertRule, AlertType, AlertZone, DataProfile, Distinct,
     DriftConfig, DriftMap, DriftProfile, DriftServerRecord, FeatureAlert, FeatureAlerts,
-    FeatureDataProfile, FeatureDrift, FeatureDriftProfile, Histogram, PercentageAlertRule,
+    FeatureDrift, FeatureDriftProfile, FeatureProfile, Histogram, PercentageAlertRule,
     ProcessAlertRule,
 };
 
@@ -18,7 +18,7 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DriftProfile>()?;
     m.add_class::<FeatureDriftProfile>()?;
     m.add_class::<DataProfile>()?;
-    m.add_class::<FeatureDataProfile>()?;
+    m.add_class::<FeatureProfile>()?;
     m.add_class::<Distinct>()?;
     m.add_class::<Histogram>()?;
     m.add_class::<DriftMap>()?;

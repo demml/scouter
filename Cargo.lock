@@ -839,6 +839,7 @@ dependencies = [
 name = "py-scouter"
 version = "0.2.4-rc.4"
 dependencies = [
+ "anyhow",
  "numpy",
  "pyo3",
  "scouter",

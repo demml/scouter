@@ -504,7 +504,7 @@ pub struct StringStats {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct FeatureDataProfile {
+pub struct FeatureProfile {
     #[pyo3(get, set)]
     pub id: String,
 
@@ -522,7 +522,7 @@ pub struct FeatureDataProfile {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DataProfile {
     #[pyo3(get, set)]
-    pub features: HashMap<String, FeatureDataProfile>,
+    pub features: HashMap<String, FeatureProfile>,
 }
 
 #[pymethods]
