@@ -342,10 +342,7 @@ class Histogram:
     def bin_counts(self) -> List[int]:
         """Bin counts"""
 
-class FeatureProfile:
-    @property
-    def id(self) -> str:
-        """Return the id."""
+class NumericStats:
     @property
     def mean(self) -> float:
         """Return the mean."""
@@ -359,9 +356,6 @@ class FeatureProfile:
     def max(self) -> float:
         """Return the max."""
     @property
-    def timestamp(self) -> datetime.datetime:
-        """Return the timestamp."""
-    @property
     def distinct(self) -> Distinct:
         """Distinct value counts"""
     @property
@@ -370,6 +364,50 @@ class FeatureProfile:
     @property
     def histogram(self) -> Histogram:
         """Value histograms"""
+
+class CharStats:
+    @property
+    def min_length(self) -> int:
+        """Minimum string length"""
+    @property
+    def max_length(self) -> int:
+        """Maximum string length"""
+    @property
+    def median_length(self) -> int:
+        """Median string length"""
+    @property
+    def mean_length(self) -> float:
+        """Mean string length"""
+
+class WordStats:
+    @property
+    def words(self) -> Dict[str, Distinct]:
+        """Distinct word counts"""
+
+class StringStats:
+    @property
+    def distinct(self) -> Distinct:
+        """Distinct value counts"""
+    @property
+    def char_stats(self) -> CharStats:
+        """Character statistics"""
+    @property
+    def word_stats(self) -> WordStats:
+        """word statistics"""
+
+class FeatureProfile:
+    @property
+    def id(self) -> str:
+        """Return the id."""
+    @property
+    def numeric_stats(self) -> Optional[NumericStats]:
+        """Return the numeric stats."""
+    @property
+    def string_stats(self) -> Optional[StringStats]:
+        """Return the string stats."""
+    @property
+    def timestamp(self) -> str:
+        """Return the timestamp."""
 
 class DataProfile:
     """Data profile of features"""
@@ -451,7 +489,7 @@ class ScouterProfiler:
         used to profile data"""
     def create_data_profile_f32(
         self,
-        array:
+        array: int,
         bin_size: int,
     ) -> DataProfile:
         """Create a data profile from a f32 numpy array.

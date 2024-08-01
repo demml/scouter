@@ -433,6 +433,13 @@ impl DriftProfile {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FeatureMap {
+    #[pyo3(get, set)]
+    pub features: BTreeMap<String, BTreeMap<String, usize>>,
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Distinct {
     #[pyo3(get, set)]
     pub count: usize,

@@ -1,5 +1,7 @@
 use crate::utils::types::DriftServerRecord;
-use crate::utils::types::{DriftConfig, DriftMap, DriftProfile, FeatureDrift, FeatureDriftProfile};
+use crate::utils::types::{
+    DriftConfig, DriftMap, DriftProfile, FeatureDrift, FeatureDriftProfile, FeatureMap,
+};
 use anyhow::Ok;
 use anyhow::{Context, Result};
 use indicatif::ProgressBar;
@@ -7,6 +9,8 @@ use ndarray::prelude::*;
 use ndarray::Axis;
 use num_traits::{Float, FromPrimitive, Num};
 use rayon::prelude::*;
+use std::collections::BTreeMap;
+use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::fmt::Debug;
 pub struct Monitor {}
@@ -541,6 +545,40 @@ impl Monitor {
 
         Ok(drift_array)
     }
+
+    // creates a feature map from a 2D array
+    //
+    // # Arguments
+    //
+    // * `features` - A vector of feature names
+    // * `array` - A 2D array of string values
+    //
+    // # Returns
+    //
+    // A feature map
+    pub fn create_feature_map(&self, features: &[&str], array: &Vec<Vec<&str>>) -> FeatureMap {
+        let feature_map = array
+            .par_iter()
+            .enumerate()
+            .map(|(i, col)| {
+                let unqiue = col
+                    .into_iter()
+                    .collect::<BTreeSet<_>>()
+                    .into_iter()
+                    .collect::<Vec<_>>();
+                let mut map = BTreeMap::new();
+                for (j, item) in unqiue.iter().enumerate() {
+                    map.insert(item.to_string(), j);
+                }
+
+                (features[i].to_string(), map)
+            })
+            .collect::<BTreeMap<_, _>>();
+
+        FeatureMap {
+            features: feature_map,
+        }
+    }
 }
 
 // convert drift array to 2D array
@@ -811,5 +849,35 @@ mod tests {
 
             assert_eq!(left, right);
         }
+    }
+
+    #[test]
+    fn test_create_feature_map() {
+        let string_vec = vec![
+            vec!["a", "b", "c", "d", "e"],
+            vec!["a", "b", "c", "d", "e"],
+            vec!["hello", "blah", "c", "d", "e"],
+            vec!["hello", "blah", "c", "d", "e"],
+            vec![
+                "hello", "blah", "c", "d", "e", "hello", "blah", "c", "d", "e",
+            ],
+        ];
+
+        let string_features = vec![
+            "feature_1",
+            "feature_2",
+            "feature_3",
+            "feature_4",
+            "feature_5",
+        ];
+
+        let monitor = Monitor::new();
+
+        let feature_map = monitor.create_feature_map(&string_features, &string_vec);
+
+        println!("{:?}", feature_map);
+
+        assert_eq!(feature_map.features.len(), 5);
+        assert_eq!(feature_map.features.get("feature_5").unwrap().len(), 5);
     }
 }

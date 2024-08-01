@@ -11,7 +11,7 @@ from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
 from scouter.integrations.producer import DriftRecordProducer
 from scouter.utils.logger import ScouterLogger
-from scouter.utils.type_converter import ArrayData, _convert_data_to_array
+from scouter.utils.type_converter import ArrayData, _convert_data_to_array, _get_bits
 from scouter.utils.types import DataType
 
 from ._scouter import (  # pylint: disable=no-name-in-module
@@ -64,12 +64,7 @@ class Profiler:
         try:
             logger.info("Creating data profile.")
             array = _convert_data_to_array(data)
-
-            if array.numeric_array is None:
-                bits = "32"
-
-            else:
-                bits = DataType.str_to_bits(str(array.numeric_array.dtype))
+            bits = _get_bits(array.numeric_array)
 
             profile = getattr(self._profiler, f"create_data_profile_f{bits}")(
                 features=features,
@@ -85,7 +80,7 @@ class Profiler:
             raise ValueError(f"Failed to create data profile: {exc}") from exc
 
 
-class Drifter(ScouterBase):
+class Drifter:
     def __init__(self) -> None:
         """
         Scouter class for creating monitoring profiles and detecting drift. This class will
@@ -119,11 +114,12 @@ class Drifter(ScouterBase):
         """
         try:
             logger.info("Creating drift profile.")
-            array, features, bits = self._preprocess(features, data)
+            array = _convert_data_to_array(data)
+            bits = _get_bits(array.numeric_array)
 
             profile = getattr(self._drifter, f"create_drift_profile_f{bits}")(
-                features=features,
-                array=array,
+                features=array.numeric_features,
+                array=array.numeric_array,
                 monitor_config=monitor_config,
             )
 
@@ -156,11 +152,12 @@ class Drifter(ScouterBase):
         """
         try:
             logger.info("Computing drift")
-            array, features, bits = self._preprocess(features, data)
+            array = _convert_data_to_array(data)
+            bits = _get_bits(array.numeric_array)
 
             drift_map = getattr(self._drifter, f"compute_drift_f{bits}")(
-                features=features,
-                drift_array=array,
+                features=array.numeric_features,
+                drift_array=array.numeric_array,
                 drift_profile=drift_profile,
             )
 

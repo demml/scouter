@@ -8,6 +8,7 @@ use scouter::utils::types::{
     FeatureProfile,
 };
 use std::collections::HashMap;
+use std::string;
 
 use numpy::PyReadonlyArray2;
 use pyo3::exceptions::PyValueError;
@@ -171,11 +172,34 @@ impl ScouterDrifter {
 
     pub fn create_drift_profile_f32(
         &mut self,
-        features: Vec<String>,
-        array: PyReadonlyArray2<f32>,
+
         monitor_config: DriftConfig,
+        numeric_array: Option<PyReadonlyArray2<f32>>,
+        string_array: Option<Vec<Vec<String>>>,
+        numeric_features: Option<Vec<String>>,
+        string_features: Option<Vec<String>>,
     ) -> PyResult<DriftProfile> {
-        let array = array.as_array();
+        let arrays = vec![];
+
+        if string_features.is_some() && string_array.is_some() {
+            let string_map = HashMap::new();
+
+            let string_profile =
+                create_string_profile(string_array.unwrap(), string_features.unwrap());
+
+            let string_profile = match string_profile {
+                Ok(profile) => profile,
+                Err(_e) => {
+                    return Err(PyValueError::new_err(
+                        "Failed to create feature data profile",
+                    ));
+                }
+            };
+
+            for profile in string_profile {
+                arrays.push(profile);
+            }
+        }
 
         let profile = match self
             .monitor

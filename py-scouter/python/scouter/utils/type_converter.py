@@ -15,7 +15,7 @@ class ArrayData(BaseModel):
     string_features: Optional[List[str]] = None
     numeric_features: Optional[List[str]] = None
     numeric_array: Optional[np.ndarray] = None
-    string_array: Optional[np.ndarray] = None
+    string_array: Optional[List[List[str]]] = None
 
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
@@ -71,7 +71,7 @@ class PandasConverter(Converter):
             array_data.numeric_features = self.numeric_columns
 
         if self.string_columns:
-            array_data.string_array = self.data[self.string_columns].astype(str).to_numpy()
+            array_data.string_array = self.data[self.string_columns].astype(str).values.T.tolist()
             array_data.string_features = self.string_columns
 
         return array_data
@@ -100,7 +100,10 @@ class PolarsConverter(Converter):
             array_data.numeric_features = self.numeric_columns
 
         if self.string_columns:
-            array_data.string_array = self.data.select(self.string_columns).to_numpy()
+            arrays = []
+            for column in self.string_columns:
+                arrays.append(self.data[column].to_list())
+            array_data.string_array = arrays
             array_data.string_features = self.string_columns
 
         return array_data
@@ -144,3 +147,11 @@ def _convert_data_to_array(
     if isinstance(data, pd.DataFrame):
         return PandasConverter(data).prepare_data()
     return NumpyConverter(data).prepare_data()
+
+
+def _get_bits(array: Optional[np.ndarray] = None) -> str:
+    if array is None:
+        return "32"
+
+    dtype = str(array.dtype)
+    return DataType.str_to_bits(dtype)
