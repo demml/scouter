@@ -82,13 +82,64 @@ def polars_dataframe_multi_dtype(array: NDArray) -> YieldFixture:
     # add column of ints between 1 and 3
     ints = np.random.randint(1, 4, 1000).reshape(-1, 1)
 
-    # add to array
-    array = np.concatenate([array, ints], axis=1)
+    ints2 = np.random.randint(5, 10, 1000).reshape(-1, 1)
 
-    df = pl.from_numpy(array, schema=["column_0", "column_1", "column_2", "column_3"])
+    # add to array
+    array = np.concatenate([ints2, array, ints], axis=1)
+
+    df = pl.from_numpy(array, schema=["cat1", "num1", "num2", "num3", "cat2"])
 
     # add categorical column
-    df = df.with_columns(pl.col("column_3").cast(str).cast(pl.Categorical))
+    df = df.with_columns(
+        [
+            pl.col("cat1").cast(str).cast(pl.String),
+            pl.col("cat2").cast(str).cast(pl.Categorical),
+        ]
+    )
+
+    yield df
+
+    cleanup()
+
+
+@pytest.fixture(scope="function")
+def polars_dataframe_multi_dtype_drift(array: NDArray) -> YieldFixture:
+    import polars as pl
+
+    # add column of ints between 1 and 3
+    ints = np.random.randint(4, 6, 1000).reshape(-1, 1)
+
+    ints2 = np.random.randint(5, 10, 1000).reshape(-1, 1)
+
+    # add to array
+    array = np.concatenate([ints2, array, ints], axis=1)
+
+    df = pl.from_numpy(array, schema=["cat1", "num1", "num2", "num3", "cat2"])
+
+    # add categorical column
+    df = df.with_columns(
+        [
+            pl.col("cat1").cast(str).cast(pl.String),
+            pl.col("cat2").cast(str).cast(pl.Categorical),
+        ]
+    )
+
+    yield df
+
+    cleanup()
+
+
+@pytest.fixture(scope="function")
+def pandas_categorical_dataframe() -> YieldFixture:
+    import pandas as pd
+
+    df = pd.DataFrame(
+        {
+            "cat1": pd.Categorical(["a", "b", "c", "e", "f", "g"] * 333),
+            "cat2": pd.Categorical(["h", "i", "j", "k", "l", "m"] * 333),
+            "cat3": pd.Categorical(["n", "o", "p", "q", "r", "s"] * 333),
+        }
+    )
 
     yield df
 

@@ -122,6 +122,8 @@ class Drifter:
                     array=array.string_array,
                     monitor_config=monitor_config,
                 )
+                assert string_profile.config.feature_map is not None
+                monitor_config.update_feature_map(string_profile.config.feature_map)
 
             if array.numeric_array is not None and array.numeric_features is not None:
                 numeric_profile = getattr(self._drifter, f"create_numeric_drift_profile_f{bits}")(
@@ -172,19 +174,21 @@ class Drifter:
             array = _convert_data_to_array(data)
             bits = _get_bits(array.numeric_array)
 
-            assert (
-                array.numeric_array is not None and array.numeric_features is not None
-            ), "Numeric array is required to compute drift"
-
             if array.string_array is not None and array.string_features is not None:
                 string_array: NDArray = getattr(self._drifter, f"convert_strings_to_numpy_f{bits}")(
                     array=array.string_array,
                     features=array.string_features,
+                    drift_profile=drift_profile,
                 )
 
-                array.numeric_array = np.concatenate((array.numeric_array, string_array), axis=1)
+                if array.numeric_array is not None and array.numeric_features is not None:
+                    array.numeric_array = np.concatenate((array.numeric_array, string_array), axis=1)
 
-                array.numeric_features += array.string_features
+                    array.numeric_features += array.string_features
+
+                else:
+                    array.numeric_array = string_array
+                    array.numeric_features = array.string_features
 
             drift_map = getattr(self._drifter, f"compute_drift_f{bits}")(
                 features=array.numeric_features,

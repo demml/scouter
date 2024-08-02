@@ -1,6 +1,7 @@
 from scouter import Drifter
 import numpy as np
 from pathlib import Path
+import pandas as pd
 from numpy.typing import NDArray
 import pytest
 import polars as pl
@@ -169,12 +170,42 @@ def test_alerts_percentage(array: NDArray, monitor_config_percentage: DriftConfi
 
 
 def test_multi_type_drift(
-    polars_dataframe_multi_dtype: pl.DataFrame, monitor_config: DriftConfig
+    polars_dataframe_multi_dtype: pl.DataFrame,
+    polars_dataframe_multi_dtype_drift: pl.DataFrame,
+    monitor_config: DriftConfig,
 ):
-    scouter = Drifter()
+    drifter = Drifter()
 
-    profile: DriftProfile = scouter.create_drift_profile(
+    profile: DriftProfile = drifter.create_drift_profile(
         polars_dataframe_multi_dtype, monitor_config
     )
-    print(profile)
-    a
+
+    drift_map = drifter.compute_drift(polars_dataframe_multi_dtype_drift, profile)
+
+    assert len(drift_map.features) == 5
+
+    drift_array, features = drift_map.to_numpy()
+    alerts = drifter.generate_alerts(
+        drift_array=drift_array,
+        features=features,
+        alert_rule=monitor_config.alert_config.alert_rule,
+    )
+
+    assert len(alerts.features["cat2"].alerts) == 1
+    assert alerts.features["cat2"].alerts[0].zone == "Zone 3"
+
+
+def test_only_string_drift(
+    pandas_categorical_dataframe: pd.DataFrame, monitor_config: DriftConfig
+):
+    drifter = Drifter()
+
+    profile: DriftProfile = drifter.create_drift_profile(
+        pandas_categorical_dataframe, monitor_config
+    )
+
+    drift_map = drifter.compute_drift(pandas_categorical_dataframe, profile)
+
+    print(drift_map.to_numpy())
+
+    assert len(drift_map.features) == 3

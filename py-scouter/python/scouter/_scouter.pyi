@@ -222,6 +222,11 @@ class FeatureAlerts:
     def features(self) -> Dict[str, FeatureAlert]:
         """Return the feature alerts."""
 
+class FeatureMap:
+    @property
+    def features(self) -> Dict[str, Dict[str, int]]:
+        """Return the feature map."""
+
 class FeatureDriftProfile:
     @property
     def id(self) -> str:
@@ -262,6 +267,7 @@ class DriftConfig:
         schedule: str = "0 0 0 * * *",
         alert_rule: AlertRule = AlertRule(),
         alert_dispatch_type: str = AlertDispatchType.Console,
+        feature_map: Optional[FeatureMap] = None,
     ):
         """Initialize monitor config
 
@@ -301,6 +307,11 @@ class DriftConfig:
     @property
     def alert_config(self) -> AlertConfig:
         """Alert configuration"""
+    @property
+    def feature_map(self) -> Optional[FeatureMap]:
+        """Feature map"""
+    def update_feature_map(self, feature_map: FeatureMap) -> None:
+        """Update feature map"""
 
 class DriftProfile:
     def __init__(
@@ -547,6 +558,7 @@ class ScouterDrifter:
         self,
         features: List[str],
         array: List[List[str]],
+        drift_profile: DriftProfile,
     ) -> NDArray[Any]:
         """Convert string array to numpy f32 array
 
@@ -560,6 +572,7 @@ class ScouterDrifter:
         self,
         features: List[str],
         array: List[List[str]],
+        drift_profile: DriftProfile,
     ) -> NDArray[Any]:
         """Convert string array to numpy f64 array
 

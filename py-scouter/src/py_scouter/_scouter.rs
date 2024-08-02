@@ -172,8 +172,8 @@ impl ScouterDrifter {
     pub fn convert_strings_to_numpy_f32<'py>(
         &mut self,
         py: Python<'py>,
-        array: Vec<Vec<String>>,
         features: Vec<String>,
+        array: Vec<Vec<String>>,
         drift_profile: DriftProfile,
     ) -> PyResult<pyo3::Bound<'py, PyArray2<f32>>> {
         let array = match self.monitor.convert_strings_to_ndarray_f32(
@@ -199,8 +199,8 @@ impl ScouterDrifter {
     pub fn convert_strings_to_numpy_f64<'py>(
         &mut self,
         py: Python<'py>,
-        array: Vec<Vec<String>>,
         features: Vec<String>,
+        array: Vec<Vec<String>>,
         drift_profile: DriftProfile,
     ) -> PyResult<pyo3::Bound<'py, PyArray2<f64>>> {
         let array = match self.monitor.convert_strings_to_ndarray_f64(
@@ -209,7 +209,7 @@ impl ScouterDrifter {
             &drift_profile
                 .config
                 .feature_map
-                .with_context(|| "Failed to convert strings to ndarray")
+                .with_context(|| "Failed to get feature map")
                 .unwrap(),
         ) {
             Ok(array) => array,
@@ -230,7 +230,7 @@ impl ScouterDrifter {
         features: Vec<String>,
     ) -> PyResult<DriftProfile> {
         let feature_map = self.monitor.create_feature_map(&features, &array);
-        monitor_config.feature_map = Some(feature_map.clone());
+        monitor_config.update_feature_map(feature_map.clone());
 
         let array =
             match self

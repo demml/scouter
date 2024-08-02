@@ -400,6 +400,10 @@ impl DriftConfig {
             feature_map,
         }
     }
+
+    pub fn update_feature_map(&mut self, feature_map: FeatureMap) {
+        self.feature_map = Some(feature_map);
+    }
 }
 
 #[pyclass]
@@ -445,6 +449,14 @@ impl DriftProfile {
 pub struct FeatureMap {
     #[pyo3(get, set)]
     pub features: BTreeMap<String, BTreeMap<String, usize>>,
+}
+
+#[pymethods]
+impl FeatureMap {
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
 }
 
 #[pyclass]

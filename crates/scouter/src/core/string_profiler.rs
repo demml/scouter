@@ -20,7 +20,6 @@ impl StringProfiler {
     //
     // * `StringStats` - A struct containing the statistics for the string array
     pub fn compute_stats(&self, array: &Vec<String>) -> Result<StringStats, anyhow::Error> {
-        println!("{:?}", array);
         let mut unique = HashMap::new();
 
         let count = array.len();
@@ -30,8 +29,6 @@ impl StringProfiler {
             *unique.entry(item).or_insert(0) += 1;
             lengths.push(item.chars().count());
         }
-
-        println!("{:?}", unique);
 
         // unique count
         let unique_count = unique.len();

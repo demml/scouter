@@ -607,6 +607,7 @@ where {
                     .iter()
                     .map(|x| *map.get(x).unwrap_or(map.get("missing").unwrap()) as f32)
                     .collect::<Vec<_>>();
+
                 col
             })
             .collect::<Vec<_>>();
