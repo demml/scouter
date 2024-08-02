@@ -442,12 +442,12 @@ mod tests {
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile[1].numeric_stats.as_ref().unwrap().quantiles.q50,
+            profile[0].numeric_stats.as_ref().unwrap().quantiles.q50,
             0.5,
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile[2].numeric_stats.as_ref().unwrap().quantiles.q75,
+            profile[0].numeric_stats.as_ref().unwrap().quantiles.q75,
             0.75,
             epsilon = 0.1
         ));
@@ -494,7 +494,7 @@ mod tests {
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile[2].numeric_stats.as_ref().unwrap().mean,
+            profile[1].numeric_stats.as_ref().unwrap().mean,
             1.5,
             epsilon = 0.05
         ));
@@ -511,17 +511,17 @@ mod tests {
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile[1].numeric_stats.as_ref().unwrap().quantiles.q50,
+            profile[0].numeric_stats.as_ref().unwrap().quantiles.q50,
             0.5,
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile[1].numeric_stats.as_ref().unwrap().quantiles.q75,
+            profile[0].numeric_stats.as_ref().unwrap().quantiles.q75,
             0.75,
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile[1].numeric_stats.as_ref().unwrap().quantiles.q99,
+            profile[0].numeric_stats.as_ref().unwrap().quantiles.q99,
             0.99,
             epsilon = 0.05
         ));

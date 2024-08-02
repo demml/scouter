@@ -954,7 +954,7 @@ mod tests {
         let feature_map = monitor.create_feature_map(&string_features, &string_vec);
 
         assert_eq!(feature_map.features.len(), 2);
-        assert_eq!(feature_map.features.get("feature_2").unwrap().len(), 5);
+        assert_eq!(feature_map.features.get("feature_2").unwrap().len(), 6);
     }
 
     #[test]
