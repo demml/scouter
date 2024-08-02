@@ -555,17 +555,13 @@ impl Monitor {
     // # Returns
     //
     // A feature map
-    pub fn create_feature_map(
-        &self,
-        features: &Vec<String>,
-        array: &Vec<Vec<String>>,
-    ) -> FeatureMap {
+    pub fn create_feature_map(&self, features: &[String], array: &[Vec<String>]) -> FeatureMap {
         let feature_map = array
             .par_iter()
             .enumerate()
             .map(|(i, col)| {
                 let unique = col
-                    .into_iter()
+                    .iter()
                     .collect::<BTreeSet<_>>()
                     .into_iter()
                     .collect::<Vec<_>>();
@@ -592,7 +588,7 @@ impl Monitor {
     pub fn convert_strings_to_ndarray_f32(
         &self,
         features: &Vec<String>,
-        array: &Vec<Vec<String>>,
+        array: &[Vec<String>],
         feature_map: &FeatureMap,
     ) -> Result<Array2<f32>, anyhow::Error>
 where {
@@ -623,7 +619,7 @@ where {
     pub fn convert_strings_to_ndarray_f64(
         &self,
         features: &Vec<String>,
-        array: &Vec<Vec<String>>,
+        array: &[Vec<String>],
         feature_map: &FeatureMap,
     ) -> Result<Array2<f64>, anyhow::Error>
 where {

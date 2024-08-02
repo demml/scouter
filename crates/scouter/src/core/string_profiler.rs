@@ -70,7 +70,7 @@ impl StringProfiler {
 
     pub fn compute_2d_stats(
         &self,
-        array: &Vec<Vec<String>>,
+        array: &[Vec<String>],
         string_features: &[String],
     ) -> Result<Vec<FeatureProfile>, anyhow::Error> {
         // zip the string features with the array
