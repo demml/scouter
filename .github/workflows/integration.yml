@@ -1,4 +1,3 @@
-
 name: Integration
 
 on:
@@ -17,7 +16,7 @@ jobs:
       matrix:
         os: [ubuntu]
         poetry-version: ["1.7.1"]
-        python-version: ["3.11",]
+        python-version: ["3.11"]
 
     runs-on: ${{ matrix.os }}-latest
     steps:
@@ -37,7 +36,7 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: 'poetry'
+          cache: "poetry"
 
       - name: Create virtual environment
         working-directory: ./py-scouter
@@ -46,7 +45,7 @@ jobs:
           echo "$GITHUB_WORKSPACE/scouter/.venv/bin" >> $GITHUB_PATH
 
       - name: Start kafka
-        run: docker-compose -f "docker-compose.yml" up -d --build
+        run: docker compose -f "docker-compose.yml" up -d --build
 
       - name: Wait for kafka until it is ready
         run: |
@@ -56,7 +55,7 @@ jobs:
 
       - name: Install dependencies
         working-directory: ./py-scouter
-        run : make setup.integration
+        run: make setup.integration
 
       - name: Run tests
         working-directory: ./py-scouter
@@ -64,4 +63,4 @@ jobs:
 
       - name: Stop Containers
         if: always()
-        run: docker-compose -f "docker-compose.yml" down
+        run: docker compose -f "docker-compose.yml" down
