@@ -628,7 +628,7 @@ where {
         let features_not_exist = features
             .iter()
             .map(|x| feature_map.features.contains_key(x))
-            .position(|x| x == false);
+            .position(|x| !x);
 
         if features_not_exist.is_some() {
             return Err(anyhow::anyhow!(
@@ -671,7 +671,7 @@ where {
         let features_not_exist = features
             .iter()
             .map(|x| feature_map.features.contains_key(x))
-            .position(|x| x == false);
+            .position(|x| !x);
 
         if features_not_exist.is_some() {
             return Err(anyhow::anyhow!(

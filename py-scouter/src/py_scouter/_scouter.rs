@@ -234,7 +234,7 @@ impl ScouterDrifter {
         let feature_map = match self.monitor.create_feature_map(&features, &array) {
             Ok(feature_map) => feature_map,
             Err(_e) => {
-                let msg = format!("Failed to create feature map: {}", _e.to_string());
+                let msg = format!("Failed to create feature map: {}", _e);
                 return Err(PyValueError::new_err(msg));
             }
         };
