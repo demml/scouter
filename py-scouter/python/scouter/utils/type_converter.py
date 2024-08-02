@@ -1,10 +1,12 @@
+from enum import Enum
 from typing import Any, List, Optional, Union
 
 import numpy as np
 import pandas as pd
 import polars as pl
+import pyarrow as pa  # type: ignore
 from numpy.typing import NDArray
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 from scouter.utils.logger import ScouterLogger
 from scouter.utils.types import DataType
 
@@ -17,7 +19,24 @@ class ArrayData(BaseModel):
     numeric_array: Optional[np.ndarray] = None
     string_array: Optional[List[List[str]]] = None
 
-    model_config = ConfigDict(arbitrary_types_allowed=True)
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        validate_assignment=True,
+    )
+
+    @field_validator("string_features", mode="before")
+    @classmethod
+    def _validate_string_features(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        if v is not None:
+            return [str(i) for i in v]
+        return None
+
+    @field_validator("numeric_features", mode="before")
+    @classmethod
+    def _validate_numeric_features(cls, v: Optional[List[str]]) -> Optional[List[str]]:
+        if v is not None:
+            return [str(i) for i in v]
+        return None
 
 
 class Converter:
@@ -42,7 +61,9 @@ class Converter:
                 DataType.INT32.value,
                 DataType.INT64.value,
             ]:
-                logger.warning("Scouter only supports float32 and float64 arrays. Converting integer array to float32.")
+                logger.warning(
+                    "Scouter only supports float32 and float64 arrays. Converting integer array to float32."
+                )
                 array = array.astype("float32")
 
             return array
@@ -58,7 +79,9 @@ class PandasConverter(Converter):
         all_columns = self.data.columns.tolist()
 
         # Get numeric column names
-        self.numeric_columns = self.data.select_dtypes(include=[np.number]).columns.tolist()
+        self.numeric_columns = self.data.select_dtypes(
+            include=[np.number]
+        ).columns.tolist()
 
         self.string_columns = list(set(all_columns) - set(self.numeric_columns))
 
@@ -67,11 +90,15 @@ class PandasConverter(Converter):
         array_data = ArrayData()
 
         if self.numeric_columns:
-            array_data.numeric_array = self._convert_numeric(self.data[self.numeric_columns].to_numpy())
+            array_data.numeric_array = self._convert_numeric(
+                self.data[self.numeric_columns].to_numpy()
+            )
             array_data.numeric_features = self.numeric_columns
 
         if self.string_columns:
-            array_data.string_array = self.data[self.string_columns].astype(str).values.T.tolist()
+            array_data.string_array = (
+                self.data[self.string_columns].astype(str).values.T.tolist()
+            )
             array_data.string_features = self.string_columns
 
         return array_data
@@ -85,9 +112,9 @@ class PolarsConverter(Converter):
     def _check_for_non_numeric(self) -> None:
         for column in self.data.columns:
             if not self.schema[column].is_numeric():
-                self.string_columns.append(column)
+                self.string_columns.append(str(column))
             else:
-                self.numeric_columns.append(column)
+                self.numeric_columns.append(str(column))
 
     def prepare_data(self) -> ArrayData:
         self._check_for_non_numeric()
@@ -96,7 +123,9 @@ class PolarsConverter(Converter):
         array_data = ArrayData()
 
         if self.numeric_columns:
-            array_data.numeric_array = self._convert_numeric(self.data[self.numeric_columns].to_numpy())
+            array_data.numeric_array = self._convert_numeric(
+                self.data[self.numeric_columns].to_numpy()
+            )
             array_data.numeric_features = self.numeric_columns
 
         if self.string_columns:
@@ -139,13 +168,62 @@ class NumpyConverter(Converter):
         return array_data
 
 
+class ArrowNumericType(str, Enum):
+    INT8 = pa.int8()
+    INT16 = pa.int16()
+    INT32 = pa.int32()
+    INT64 = pa.int64()
+    UINT16 = pa.uint16()
+    UINT32 = pa.uint32()
+    UINT64 = pa.uint64()
+    FLOAT16 = pa.float16()
+    FLOAT32 = pa.float32()
+    FLOAT64 = pa.float64()
+
+
+class ArrowConverter(Converter):
+    def __init__(self, data: pa.Table):
+        super().__init__(data)
+        self.schema: pa.Schema = data.schema
+
+    def _check_for_non_numeric(self) -> None:
+        for column in self.data.column_names:
+            if self.schema.field(column).type not in list(ArrowNumericType):
+                self.string_columns.append(column)
+            else:
+                self.numeric_columns.append(column)
+
+    def prepare_data(self) -> ArrayData:
+        self._check_for_non_numeric()
+
+        # subset the data to only numeric columns
+        array_data = ArrayData()
+
+        if self.numeric_columns:
+            array_data.numeric_array = np.column_stack(
+                [self.data.column(col).to_numpy() for col in self.numeric_columns]
+            )
+
+            array_data.numeric_features = self.numeric_columns
+
+        if self.string_columns:
+            array_data.string_array = [
+                self.data.column(col).to_pylist() for col in self.string_columns
+            ]
+            array_data.string_features = self.string_columns
+
+        return array_data
+
+
 def _convert_data_to_array(
-    data: Union[pd.DataFrame, pl.DataFrame, NDArray],
+    data: Union[pd.DataFrame, pl.DataFrame, NDArray, pa.Table],
 ) -> ArrayData:
     if isinstance(data, pl.DataFrame):
         return PolarsConverter(data).prepare_data()
     if isinstance(data, pd.DataFrame):
         return PandasConverter(data).prepare_data()
+    if isinstance(data, pa.Table):
+        return ArrowConverter(data).prepare_data()
     return NumpyConverter(data).prepare_data()
 
 

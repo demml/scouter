@@ -525,8 +525,5 @@ mod tests {
             0.99,
             epsilon = 0.05
         ));
-
-        // convert to json
-        //let _ = profile.model_dump_json();
     }
 }

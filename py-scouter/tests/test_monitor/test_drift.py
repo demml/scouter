@@ -73,18 +73,6 @@ def test_drift_int(array: NDArray, monitor_config: DriftConfig):
     assert Path("assets/model.json").exists()
 
 
-def _test_drift_fail(array: NDArray, monitor_config: DriftConfig):
-    scouter = Drifter()
-    profile: DriftProfile = scouter.create_drift_profile(array, monitor_config)
-    features = ["feature_0", "feature_1", "feature_2"]
-
-    with pytest.raises(ValueError):
-        scouter.compute_drift(
-            array.astype("str"),
-            profile,
-        )
-
-
 def test_alerts_control(array: NDArray, monitor_config: DriftConfig):
     scouter = Drifter()
     profile: DriftProfile = scouter.create_drift_profile(array, monitor_config)
@@ -206,6 +194,19 @@ def test_only_string_drift(
 
     drift_map = drifter.compute_drift(pandas_categorical_dataframe, profile)
 
-    print(drift_map.to_numpy())
-
     assert len(drift_map.features) == 3
+
+
+def test_data_pyarrow_mixed_type(
+    polars_dataframe_multi_dtype: pl.DataFrame,
+    monitor_config: DriftConfig,
+):
+    arrow_table = polars_dataframe_multi_dtype.to_arrow()
+
+    drifter = Drifter()
+
+    profile: DriftProfile = drifter.create_drift_profile(arrow_table, monitor_config)
+
+    drift_map = drifter.compute_drift(arrow_table, profile)
+
+    assert len(drift_map.features) == 5

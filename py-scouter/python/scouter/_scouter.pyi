@@ -513,40 +513,53 @@ class ScouterProfiler:
         used to profile data"""
     def create_data_profile_f32(
         self,
-        array: int,
+        numeric_array: NDArray,
+        string_array: List[List[str]],
+        numeric_features: List[str],
+        string_features: List[str],
         bin_size: int,
     ) -> DataProfile:
         """Create a data profile from a f32 numpy array.
 
         Args:
-            features:
-                List of feature names.
-            array:
+            numeric_array:
                 Numpy array to profile.
+            string_array:
+                List of string arrays to profile.
+            numeric_features:
+                List of numeric feature names.
+            string_features:
+                List of string feature names.
             bin_size:
                 Optional bin size for histograms. Defaults to 20 bins.
 
         Returns:
-            Monitoring profile.
+            Monitoring profile
         """
     def create_data_profile_f64(
         self,
-        features: List[str],
-        array: NDArray,
+        numeric_array: NDArray,
+        string_array: List[List[str]],
+        numeric_features: List[str],
+        string_features: List[str],
         bin_size: int,
     ) -> DataProfile:
         """Create a data profile from a f32 numpy array.
 
         Args:
-            features:
-                List of feature names.
-            array:
+            numeric_array:
                 Numpy array to profile.
+            string_array:
+                List of string arrays to profile.
+            numeric_features:
+                List of numeric feature names.
+            string_features:
+                List of string feature names.
             bin_size:
                 Optional bin size for histograms. Defaults to 20 bins.
 
         Returns:
-            Monitoring profile.
+            Monitoring profile
         """
 
 class ScouterDrifter:
@@ -567,6 +580,8 @@ class ScouterDrifter:
                 List of feature names.
             array:
                 List of string arrays to convert.
+            drift_profile:
+                Monitoring profile.
         """
     def convert_strings_to_numpy_f64(
         self,
@@ -581,6 +596,8 @@ class ScouterDrifter:
                 List of feature names.
             array:
                 List of string arrays to convert.
+            drift_profile:
+                Monitoring profile.
         """
     def create_string_drift_profile(
         self,

@@ -546,6 +546,14 @@ pub struct FeatureProfile {
     pub timestamp: chrono::NaiveDateTime,
 }
 
+#[pymethods]
+impl FeatureProfile {
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
+}
+
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DataProfile {
