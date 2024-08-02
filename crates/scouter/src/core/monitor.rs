@@ -203,8 +203,16 @@ impl Monitor {
             .axis_chunks_iter(Axis(0), sample_size)
             .into_par_iter()
             .map(|x| {
-                let mean = x.mean_axis(Axis(0)).unwrap();
-                let stddev = x.std_axis(Axis(0), F::from(1.0).unwrap());
+                let mean = x
+                    .mean_axis(Axis(0))
+                    .with_context(|| "Failed to compute mean")
+                    .unwrap();
+                let stddev = x.std_axis(
+                    Axis(0),
+                    F::from(1.0)
+                        .with_context(|| "Failed to create f64 for stddev")
+                        .unwrap(),
+                );
 
                 // append stddev to mean
                 let combined = ndarray::concatenate![Axis(0), mean, stddev];
@@ -263,7 +271,10 @@ impl Monitor {
             .axis_chunks_iter(Axis(0), sample_size)
             .into_par_iter()
             .map(|x| {
-                let mean = x.mean_axis(Axis(0)).unwrap();
+                let mean = x
+                    .mean_axis(Axis(0))
+                    .with_context(|| "Failed to compute mean")
+                    .unwrap();
                 // convert to f64
                 let mean = mean.mapv(|x| x.into());
                 mean.to_vec()
@@ -291,7 +302,10 @@ impl Monitor {
                 continue;
             }
 
-            let feature_profile = drift_profile.features.get(feature).unwrap();
+            let feature_profile = drift_profile
+                .features
+                .get(feature)
+                .with_context(|| format!("Failed to get feature profile for {}", feature))?;
 
             let value = array[i];
 
@@ -333,7 +347,10 @@ impl Monitor {
             if !drift_profile.features.contains_key(feature) {
                 continue;
             }
-            let feature_profile = drift_profile.features.get(feature).unwrap();
+            let feature_profile = drift_profile
+                .features
+                .get(feature)
+                .with_context(|| format!("Failed to get feature profile for {}", feature))?;
 
             let value = array[i];
 
@@ -397,6 +414,7 @@ impl Monitor {
                     .is_some()
                 {
                     self.set_control_drift_value(x, num_features, drift_profile, features)
+                        .with_context(|| "Failed to set control drift value")
                         .unwrap()
                 } else {
                     let rule = drift_profile
@@ -409,6 +427,7 @@ impl Monitor {
                         .rule;
 
                     self.set_percentage_drift_value(x, num_features, drift_profile, features, rule)
+                        .with_context(|| "Failed to set percentage drift value")
                         .unwrap()
                 };
 
@@ -518,6 +537,7 @@ impl Monitor {
                     .is_some()
                 {
                     self.set_control_drift_value(x, num_features, drift_profile, features)
+                        .with_context(|| "Failed to set control drift value")
                         .unwrap()
                 } else {
                     let rule = drift_profile
@@ -530,6 +550,7 @@ impl Monitor {
                         .rule;
 
                     self.set_percentage_drift_value(x, num_features, drift_profile, features, rule)
+                        .with_context(|| "Failed to set percentage drift value")
                         .unwrap()
                 };
 
@@ -555,7 +576,18 @@ impl Monitor {
     // # Returns
     //
     // A feature map
-    pub fn create_feature_map(&self, features: &[String], array: &[Vec<String>]) -> FeatureMap {
+    pub fn create_feature_map(
+        &self,
+        features: &[String],
+        array: &[Vec<String>],
+    ) -> Result<FeatureMap, anyhow::Error> {
+        // check if features and array are the same length
+        let shape_match = features.len() == array.len();
+
+        if !shape_match {
+            return Err(anyhow::anyhow!("Shape mismatch between features and array"));
+        }
+
         let feature_map = array
             .par_iter()
             .enumerate()
@@ -580,9 +612,9 @@ impl Monitor {
             })
             .collect::<BTreeMap<_, _>>();
 
-        FeatureMap {
+        Ok(FeatureMap {
             features: feature_map,
-        }
+        })
     }
 
     pub fn convert_strings_to_ndarray_f32(
@@ -592,6 +624,18 @@ impl Monitor {
         feature_map: &FeatureMap,
     ) -> Result<Array2<f32>, anyhow::Error>
 where {
+        // check if features in feature_map.features.keys(). If any feature is not found, return error
+        let features_not_exist = features
+            .iter()
+            .map(|x| feature_map.features.contains_key(x))
+            .position(|x| x == false);
+
+        if features_not_exist.is_some() {
+            return Err(anyhow::anyhow!(
+                "Features provided do not exist in feature map"
+            ));
+        }
+
         let data = features
             .par_iter()
             .enumerate()
@@ -623,6 +667,17 @@ where {
         feature_map: &FeatureMap,
     ) -> Result<Array2<f64>, anyhow::Error>
 where {
+        // check if features in feature_map.features.keys(). If any feature is not found, return error
+        let features_not_exist = features
+            .iter()
+            .map(|x| feature_map.features.contains_key(x))
+            .position(|x| x == false);
+
+        if features_not_exist.is_some() {
+            return Err(anyhow::anyhow!(
+                "Features provided do not exist in feature map"
+            ));
+        }
         let data = features
             .par_iter()
             .enumerate()
@@ -951,7 +1006,9 @@ mod tests {
 
         let monitor = Monitor::new();
 
-        let feature_map = monitor.create_feature_map(&string_features, &string_vec);
+        let feature_map = monitor
+            .create_feature_map(&string_features, &string_vec)
+            .unwrap();
 
         assert_eq!(feature_map.features.len(), 2);
         assert_eq!(feature_map.features.get("feature_2").unwrap().len(), 6);
@@ -980,7 +1037,9 @@ mod tests {
 
         let monitor = Monitor::new();
 
-        let feature_map = monitor.create_feature_map(&string_features, &string_vec);
+        let feature_map = monitor
+            .create_feature_map(&string_features, &string_vec)
+            .unwrap();
 
         assert_eq!(feature_map.features.len(), 2);
 

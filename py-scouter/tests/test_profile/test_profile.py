@@ -14,11 +14,17 @@ def test_data_profile_f64(array: NDArray):
     profile: DataProfile = scouter.create_data_profile(array)
 
     # assert features are relatively centered
-    assert profile.features["feature_0"].mean == pytest.approx(1.5, 0.1)
-    assert profile.features["feature_0"].distinct.count == pytest.approx(1000, 1)
-    assert profile.features["feature_0"].quantiles.q25 == pytest.approx(1.25, 0.1)
-    assert profile.features["feature_0"].histogram.bins[0] == pytest.approx(1.00, 0.1)
-    assert len(profile.features["feature_0"].histogram.bin_counts) == 20
+    assert profile.features["feature_0"].numeric_stats.mean == pytest.approx(1.5, 0.1)
+    assert profile.features["feature_0"].numeric_stats.distinct.count == pytest.approx(
+        1000, 1
+    )
+    assert profile.features["feature_0"].numeric_stats.quantiles.q25 == pytest.approx(
+        1.25, 0.1
+    )
+    assert profile.features["feature_0"].numeric_stats.histogram.bins[
+        0
+    ] == pytest.approx(1.00, 0.1)
+    assert len(profile.features["feature_0"].numeric_stats.histogram.bin_counts) == 20
 
     # convert to json
     json_str = profile.model_dump_json()
@@ -26,7 +32,9 @@ def test_data_profile_f64(array: NDArray):
     # load from json
     loaded_profile = DataProfile.load_from_json(json_str)
 
-    assert loaded_profile.features["feature_0"].mean == pytest.approx(1.5, 0.1)
+    assert loaded_profile.features["feature_0"].numeric_stats.mean == pytest.approx(
+        1.5, 0.1
+    )
 
     # save to json
     loaded_profile.save_to_json(Path("assets/data_profile.json"))
@@ -48,11 +56,17 @@ def test_data_profile_f32(array: NDArray):
     profile: DataProfile = scouter.create_data_profile(array)
 
     # assert features are relatively centered
-    assert profile.features["feature_0"].mean == pytest.approx(1.5, 0.1)
-    assert profile.features["feature_0"].distinct.count == pytest.approx(1000, 1)
-    assert profile.features["feature_0"].quantiles.q25 == pytest.approx(1.25, 0.1)
-    assert profile.features["feature_0"].histogram.bins[0] == pytest.approx(1.00, 0.1)
-    assert len(profile.features["feature_0"].histogram.bin_counts) == 20
+    assert profile.features["feature_0"].numeric_stats.mean == pytest.approx(1.5, 0.1)
+    assert profile.features["feature_0"].numeric_stats.distinct.count == pytest.approx(
+        1000, 1
+    )
+    assert profile.features["feature_0"].numeric_stats.quantiles.q25 == pytest.approx(
+        1.25, 0.1
+    )
+    assert profile.features["feature_0"].numeric_stats.histogram.bins[
+        0
+    ] == pytest.approx(1.00, 0.1)
+    assert len(profile.features["feature_0"].numeric_stats.histogram.bin_counts) == 20
 
 
 def test_data_profile_polars(array: NDArray):
@@ -61,11 +75,17 @@ def test_data_profile_polars(array: NDArray):
     profile: DataProfile = scouter.create_data_profile(df)
 
     # assert features are relatively centered
-    assert profile.features["column_0"].mean == pytest.approx(1.5, 0.1)
-    assert profile.features["column_0"].distinct.count == pytest.approx(1000, 1)
-    assert profile.features["column_0"].quantiles.q25 == pytest.approx(1.25, 0.1)
-    assert profile.features["column_0"].histogram.bins[0] == pytest.approx(1.00, 0.1)
-    assert len(profile.features["column_0"].histogram.bin_counts) == 20
+    assert profile.features["column_0"].numeric_stats.mean == pytest.approx(1.5, 0.1)
+    assert profile.features["column_0"].numeric_stats.distinct.count == pytest.approx(
+        1000, 1
+    )
+    assert profile.features["column_0"].numeric_stats.quantiles.q25 == pytest.approx(
+        1.25, 0.1
+    )
+    assert profile.features["column_0"].numeric_stats.histogram.bins[
+        0
+    ] == pytest.approx(1.00, 0.1)
+    assert len(profile.features["column_0"].numeric_stats.histogram.bin_counts) == 20
 
 
 def test_data_profile_pandas(array: NDArray):

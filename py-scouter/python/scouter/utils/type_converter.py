@@ -145,6 +145,7 @@ class NumpyConverter(Converter):
 
     def prepare_data(self) -> ArrayData:
         self._check_for_non_numeric()
+
         array_data = ArrayData()
 
         if self.numeric_columns:

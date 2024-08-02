@@ -231,7 +231,14 @@ impl ScouterDrifter {
         array: Vec<Vec<String>>,
         features: Vec<String>,
     ) -> PyResult<DriftProfile> {
-        let feature_map = self.monitor.create_feature_map(&features, &array);
+        let feature_map = match self.monitor.create_feature_map(&features, &array) {
+            Ok(feature_map) => feature_map,
+            Err(_e) => {
+                let msg = format!("Failed to create feature map: {}", _e.to_string());
+                return Err(PyValueError::new_err(msg));
+            }
+        };
+
         monitor_config.update_feature_map(feature_map.clone());
 
         let array =
