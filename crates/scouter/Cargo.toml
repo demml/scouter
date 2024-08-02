@@ -27,7 +27,6 @@ numpy = { workspace = true }
 ndarray-stats = "0.5.1"
 cron = "0.12.1"
 tracing = "0.1.40"
-tokio = { version = "1.39.2", features = ["macros", "rt-multi-thread"] }
 
 [dev-dependencies]
 approx = "0.5.1"
