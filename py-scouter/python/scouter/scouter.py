@@ -318,6 +318,11 @@ class MonitorQueue:
                 return self.publish()
 
             return None
+
+        except KeyError as exc:
+            logger.error("Key error: {}", exc)
+            return None
+
         except Exception as exc:
             logger.error("Failed to insert data into monitoring queue: {}. Passing", exc)
             return None
