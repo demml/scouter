@@ -70,7 +70,9 @@ class Profiler:
                 bin_size=bin_size,
             )
 
-            assert isinstance(profile, DataProfile), f"Expected DataProfile, got {type(profile)}"
+            assert isinstance(
+                profile, DataProfile
+            ), f"Expected DataProfile, got {type(profile)}"
             return profile
 
         except Exception as exc:  # type: ignore
@@ -124,7 +126,9 @@ class Drifter:
                 monitor_config.update_feature_map(string_profile.config.feature_map)
 
             if array.numeric_array is not None and array.numeric_features is not None:
-                numeric_profile = getattr(self._drifter, f"create_numeric_drift_profile_f{bits}")(
+                numeric_profile = getattr(
+                    self._drifter, f"create_numeric_drift_profile_f{bits}"
+                )(
                     features=array.numeric_features,
                     array=array.numeric_array,
                     monitor_config=monitor_config,
@@ -170,14 +174,21 @@ class Drifter:
             bits = _get_bits(array.numeric_array)
 
             if array.string_array is not None and array.string_features is not None:
-                string_array: NDArray = getattr(self._drifter, f"convert_strings_to_numpy_f{bits}")(
+                string_array: NDArray = getattr(
+                    self._drifter, f"convert_strings_to_numpy_f{bits}"
+                )(
                     array=array.string_array,
                     features=array.string_features,
                     drift_profile=drift_profile,
                 )
 
-                if array.numeric_array is not None and array.numeric_features is not None:
-                    array.numeric_array = np.concatenate((array.numeric_array, string_array), axis=1)
+                if (
+                    array.numeric_array is not None
+                    and array.numeric_features is not None
+                ):
+                    array.numeric_array = np.concatenate(
+                        (array.numeric_array, string_array), axis=1
+                    )
 
                     array.numeric_features += array.string_features
 
@@ -191,7 +202,9 @@ class Drifter:
                 drift_profile=drift_profile,
             )
 
-            assert isinstance(drift_map, DriftMap), f"Expected DriftMap, got {type(drift_map)}"
+            assert isinstance(
+                drift_map, DriftMap
+            ), f"Expected DriftMap, got {type(drift_map)}"
 
             return drift_map
 
@@ -245,10 +258,44 @@ class MonitorQueue:
         self._monitor = ScouterDrifter()
         self._drift_profile = drift_profile
 
-        self.feature_queue: Dict[str, List[float]] = {feature: [] for feature in self.feature_names}
+        self.feature_queue: Dict[str, List[float]] = {
+            feature: [] for feature in self.feature_names
+        }
         self._count = 0
 
         self._producer = self._get_producer(config)
+        self._set_cached_properties()
+
+    def _set_cached_properties(self) -> None:
+        """Calls the cached properties to initialize the cache.
+        Run during initialization to avoid lazy loading of properties during
+        the first call.
+        """
+        logger.info("Initializing cache")
+        self.mapped_features
+        self.feature_map
+        self.feature_names
+        logger.info("Cache initialized")
+
+    @cached_property
+    def mapped_features(self) -> List[str]:
+        """Feature map from the drift profile. Used to map string values for a
+        categorical feature to a numeric representation."""
+        if self._drift_profile.config.feature_map is None:
+            logger.info("Drift profile does not contain a feature map.")
+            return []
+        return list(self._drift_profile.config.feature_map.features.keys())
+
+    @cached_property
+    def feature_map(self) -> Dict[str, Dict[str, int]]:
+        """Feature map from the drift profile. Used to map string values for a
+        categorical feature to a numeric representation."""
+        if self._drift_profile.config.feature_map is None:
+            logger.warning(
+                "Feature map not found in drift profile. Returning empty map."
+            )
+            return {}
+        return self._drift_profile.config.feature_map.features
 
     @cached_property
     def feature_names(self) -> List[str]:
@@ -269,15 +316,29 @@ class MonitorQueue:
         Returns:
             List of drift records if the monitoring queue has enough data to compute
         """
-        for feature, value in data.items():
-            self.feature_queue[feature].append(value)
+        try:
+            for feature, value in data.items():
+                # attempt to map string values to numeric representation
+                # fallback to missing value if not found. This is computed during
+                # drift profile creation.
+                if feature in self.mapped_features:
+                    value = self.feature_map[feature].get(
+                        value, self.feature_map[feature]["missing"]
+                    )
 
-        self._count += 1
+                self.feature_queue[feature].append(value)
 
-        if self._count >= self._drift_profile.config.sample_size:
-            return self.publish()
+            self._count += 1
 
-        return None
+            if self._count >= self._drift_profile.config.sample_size:
+                return self.publish()
+
+            return None
+        except Exception as exc:
+            logger.error(
+                "Failed to insert data into monitoring queue: {}. Passing", exc
+            )
+            return None
 
     def _clear_queue(self) -> None:
         """Clear the monitoring queue."""
@@ -291,7 +352,9 @@ class MonitorQueue:
             data = list(self.feature_queue.values())
             array = np.array(data, dtype=np.float64).T
 
-            drift_records = self._monitor.sample_data_f64(self.feature_names, array, self._drift_profile)
+            drift_records = self._monitor.sample_data_f64(
+                self.feature_names, array, self._drift_profile
+            )
 
             for record in drift_records:
                 self._producer.publish(record)
@@ -302,5 +365,5 @@ class MonitorQueue:
             return drift_records
 
         except Exception as exc:
-            logger.error(f"Failed to compute drift: {exc}")
+            logger.error("Failed to compute drift: {}", exc)
             raise ValueError(f"Failed to compute drift: {exc}") from exc
