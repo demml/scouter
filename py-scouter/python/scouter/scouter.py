@@ -281,8 +281,9 @@ class MonitorQueue:
 
     @cached_property
     def mapped_features(self) -> List[str]:
-        """Feature map from the drift profile. Used to map string values for a
-        categorical feature to a numeric representation."""
+        """List of features that will need to be mapped to a numeric representation.
+        This is precomputed during drift profile creation.
+        """
         if self._drift_profile.config.feature_map is None:
             logger.info("Drift profile does not contain a feature map.")
             return []
