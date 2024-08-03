@@ -1,3 +1,5 @@
+# pylint: disable=pointless-statement,broad-exception-caught
+
 from functools import cached_property
 from typing import Any, Dict, List, Optional, Union
 
