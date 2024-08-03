@@ -1,3 +1,5 @@
+# pylint: disable=pointless-statement,broad-exception-caught
+
 from functools import cached_property
 from typing import Any, Dict, List, Optional, Union
 
@@ -249,6 +251,37 @@ class MonitorQueue:
         self._count = 0
 
         self._producer = self._get_producer(config)
+        self._set_cached_properties()
+
+    def _set_cached_properties(self) -> None:
+        """Calls the cached properties to initialize the cache.
+        Run during initialization to avoid lazy loading of properties during
+        the first call.
+        """
+        logger.info("Initializing cache")
+        self.mapped_features
+        self.feature_map
+        self.feature_names
+        logger.info("Cache initialized")
+
+    @cached_property
+    def mapped_features(self) -> List[str]:
+        """List of features that will need to be mapped to a numeric representation.
+        This is precomputed during drift profile creation.
+        """
+        if self._drift_profile.config.feature_map is None:
+            logger.info("Drift profile does not contain a feature map.")
+            return []
+        return list(self._drift_profile.config.feature_map.features.keys())
+
+    @cached_property
+    def feature_map(self) -> Dict[str, Dict[str, int]]:
+        """Feature map from the drift profile. Used to map string values for a
+        categorical feature to a numeric representation."""
+        if self._drift_profile.config.feature_map is None:
+            logger.warning("Feature map not found in drift profile. Returning empty map.")
+            return {}
+        return self._drift_profile.config.feature_map.features
 
     @cached_property
     def feature_names(self) -> List[str]:
@@ -269,15 +302,30 @@ class MonitorQueue:
         Returns:
             List of drift records if the monitoring queue has enough data to compute
         """
-        for feature, value in data.items():
-            self.feature_queue[feature].append(value)
+        try:
+            for feature, value in data.items():
+                # attempt to map string values to numeric representation
+                # fallback to missing value if not found. This is computed during
+                # drift profile creation.
+                if feature in self.mapped_features:
+                    value = self.feature_map[feature].get(value, self.feature_map[feature]["missing"])
 
-        self._count += 1
+                self.feature_queue[feature].append(value)
 
-        if self._count >= self._drift_profile.config.sample_size:
-            return self.publish()
+            self._count += 1
 
-        return None
+            if self._count >= self._drift_profile.config.sample_size:
+                return self.publish()
+
+            return None
+
+        except KeyError as exc:
+            logger.error("Key error: {}", exc)
+            return None
+
+        except Exception as exc:
+            logger.error("Failed to insert data into monitoring queue: {}. Passing", exc)
+            return None
 
     def _clear_queue(self) -> None:
         """Clear the monitoring queue."""
@@ -302,5 +350,5 @@ class MonitorQueue:
             return drift_records
 
         except Exception as exc:
-            logger.error(f"Failed to compute drift: {exc}")
+            logger.error("Failed to compute drift: {}", exc)
             raise ValueError(f"Failed to compute drift: {exc}") from exc
