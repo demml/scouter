@@ -1,5 +1,6 @@
 use crate::utils::cron::EveryDay;
 use anyhow::Context;
+use core::fmt::Debug;
 use ndarray::Array;
 use ndarray::Array2;
 use numpy::{IntoPyArray, PyArray2};
@@ -340,6 +341,9 @@ pub struct DriftConfig {
 
     #[pyo3(get, set)]
     pub alert_config: AlertConfig,
+
+    #[pyo3(get, set)]
+    pub feature_map: Option<FeatureMap>,
 }
 
 #[pymethods]
@@ -355,6 +359,7 @@ impl DriftConfig {
         schedule: Option<String>,
         alert_rule: Option<AlertRule>,
         alert_dispatch_type: Option<AlertDispatchType>,
+        feature_map: Option<FeatureMap>,
     ) -> Self {
         let sample = sample.unwrap_or(true);
         let sample_size = sample_size.unwrap_or(25);
@@ -392,7 +397,12 @@ impl DriftConfig {
             repository,
             version,
             alert_config,
+            feature_map,
         }
+    }
+
+    pub fn update_feature_map(&mut self, feature_map: FeatureMap) {
+        self.feature_map = Some(feature_map);
     }
 }
 
@@ -400,7 +410,7 @@ impl DriftConfig {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DriftProfile {
     #[pyo3(get, set)]
-    pub features: HashMap<String, FeatureDriftProfile>,
+    pub features: BTreeMap<String, FeatureDriftProfile>,
 
     #[pyo3(get, set)]
     pub config: DriftConfig,
@@ -408,6 +418,10 @@ pub struct DriftProfile {
 
 #[pymethods]
 impl DriftProfile {
+    #[new]
+    pub fn new(features: BTreeMap<String, FeatureDriftProfile>, config: DriftConfig) -> Self {
+        Self { features, config }
+    }
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__str__(self)
@@ -432,6 +446,21 @@ impl DriftProfile {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FeatureMap {
+    #[pyo3(get, set)]
+    pub features: BTreeMap<String, BTreeMap<String, usize>>,
+}
+
+#[pymethods]
+impl FeatureMap {
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Distinct {
     #[pyo3(get, set)]
     pub count: usize,
@@ -442,10 +471,7 @@ pub struct Distinct {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct FeatureDataProfile {
-    #[pyo3(get, set)]
-    pub id: String,
-
+pub struct NumericStats {
     #[pyo3(get, set)]
     pub mean: f64,
 
@@ -459,9 +485,6 @@ pub struct FeatureDataProfile {
     pub max: f64,
 
     #[pyo3(get, set)]
-    pub timestamp: chrono::NaiveDateTime,
-
-    #[pyo3(get, set)]
     pub distinct: Distinct,
 
     #[pyo3(get, set)]
@@ -473,9 +496,69 @@ pub struct FeatureDataProfile {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CharStats {
+    #[pyo3(get, set)]
+    pub min_length: usize,
+
+    #[pyo3(get, set)]
+    pub max_length: usize,
+
+    #[pyo3(get, set)]
+    pub median_length: usize,
+
+    #[pyo3(get, set)]
+    pub mean_length: f64,
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct WordStats {
+    #[pyo3(get, set)]
+    pub words: HashMap<String, Distinct>,
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct StringStats {
+    #[pyo3(get, set)]
+    pub distinct: Distinct,
+
+    #[pyo3(get, set)]
+    pub char_stats: CharStats,
+
+    #[pyo3(get, set)]
+    pub word_stats: WordStats,
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FeatureProfile {
+    #[pyo3(get, set)]
+    pub id: String,
+
+    #[pyo3(get, set)]
+    pub numeric_stats: Option<NumericStats>,
+
+    #[pyo3(get, set)]
+    pub string_stats: Option<StringStats>,
+
+    #[pyo3(get, set)]
+    pub timestamp: chrono::NaiveDateTime,
+}
+
+#[pymethods]
+impl FeatureProfile {
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DataProfile {
     #[pyo3(get, set)]
-    pub features: HashMap<String, FeatureDataProfile>,
+    pub features: HashMap<String, FeatureProfile>,
 }
 
 #[pymethods]

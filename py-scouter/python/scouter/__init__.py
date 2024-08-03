@@ -23,8 +23,8 @@ from ._scouter import (
     EveryHour,
     EveryWeek,
     FeatureAlerts,
-    FeatureDataProfile,
     FeatureDriftProfile,
+    FeatureProfile,
     PercentageAlertRule,
     ProcessAlertRule,
 )
@@ -38,7 +38,7 @@ __all__ = [
     "DataProfile",
     "DriftProfile",
     "FeatureDriftProfile",
-    "FeatureDataProfile",
+    "FeatureProfile",
     "Alert",
     "AlertType",
     "AlertRule",

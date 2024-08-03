@@ -1,3 +1,4 @@
 pub mod alert;
 pub mod monitor;
-pub mod profiler;
+pub mod num_profiler;
+pub mod string_profiler;

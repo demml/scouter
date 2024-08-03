@@ -1,4 +1,4 @@
-use crate::utils::types::{DataProfile, Distinct, FeatureDataProfile, Histogram, Quantiles};
+use crate::utils::types::{Distinct, FeatureProfile, Histogram, NumericStats, Quantiles};
 use anyhow::{Context, Result};
 use ndarray::prelude::*;
 use ndarray::Axis;
@@ -12,11 +12,11 @@ use std::cmp::Ord;
 use std::collections::HashMap;
 use std::collections::HashSet;
 
-pub struct Profiler {}
+pub struct NumProfiler {}
 
-impl Profiler {
+impl NumProfiler {
     pub fn new() -> Self {
-        Profiler {}
+        NumProfiler {}
     }
 
     /// Compute quantiles for a 2D array.
@@ -290,7 +290,7 @@ impl Profiler {
         features: &[String],
         array: &ArrayView2<F>,
         bin_size: &usize,
-    ) -> Result<DataProfile, anyhow::Error>
+    ) -> Result<Vec<FeatureProfile>, anyhow::Error>
     where
         F: Float
             + MaybeNan
@@ -330,7 +330,7 @@ impl Profiler {
             .with_context(|| "Failed to compute histogram")?;
 
         // loop over list
-        let mut profiles = HashMap::new();
+        let mut profiles = Vec::new();
         for i in 0..features.len() {
             let mean = &means[i];
             let stddev = &stddevs[i];
@@ -342,13 +342,12 @@ impl Profiler {
             let q99 = &quantiles[3][i];
             let dist = &distinct[i];
 
-            let profile = FeatureDataProfile {
-                id: features[i].clone(),
+            let numeric_stats = NumericStats {
                 mean: f64::from(*mean),
                 stddev: f64::from(*stddev),
                 min: f64::from(*min),
                 max: f64::from(*max),
-                timestamp: chrono::Utc::now().naive_utc(),
+
                 distinct: Distinct {
                     count: dist.count,
                     percent: dist.percent,
@@ -362,16 +361,23 @@ impl Profiler {
                 histogram: hist[&features[i]].clone(),
             };
 
-            profiles.insert(features[i].clone(), profile);
+            let profile = FeatureProfile {
+                id: features[i].clone(),
+                numeric_stats: Some(numeric_stats),
+                string_stats: None,
+                timestamp: chrono::Utc::now().naive_utc(),
+            };
+
+            profiles.push(profile);
         }
 
-        Ok(DataProfile { features: profiles })
+        Ok(profiles)
     }
 }
 
-impl Default for Profiler {
+impl Default for NumProfiler {
     fn default() -> Self {
-        Profiler::new()
+        NumProfiler::new()
     }
 }
 
@@ -400,53 +406,53 @@ mod tests {
             "feature_3".to_string(),
         ];
 
-        let profiler = Profiler::default();
+        let profiler = NumProfiler::default();
         let bin_size = 20;
 
         let profile = profiler
             .compute_stats(&features, &array.view(), &bin_size)
             .unwrap();
 
-        assert_eq!(profile.features.len(), 3);
-        assert_eq!(profile.features["feature_1"].id, "feature_1");
-        assert_eq!(profile.features["feature_2"].id, "feature_2");
-        assert_eq!(profile.features["feature_3"].id, "feature_3");
+        assert_eq!(profile.len(), 3);
+        assert_eq!(profile[0].id, "feature_1");
+        assert_eq!(profile[1].id, "feature_2");
+        assert_eq!(profile[2].id, "feature_3");
 
         // check mean
         assert!(relative_eq!(
-            profile.features["feature_1"].mean,
+            profile[0].numeric_stats.as_ref().unwrap().mean,
             0.5,
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile.features["feature_2"].mean,
+            profile[1].numeric_stats.as_ref().unwrap().mean,
             1.5,
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile.features["feature_3"].mean,
+            profile[2].numeric_stats.as_ref().unwrap().mean,
             2.5,
             epsilon = 0.05
         ));
 
         // check quantiles
         assert!(relative_eq!(
-            profile.features["feature_1"].quantiles.q25,
+            profile[0].numeric_stats.as_ref().unwrap().quantiles.q25,
             0.25,
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile.features["feature_1"].quantiles.q50,
+            profile[0].numeric_stats.as_ref().unwrap().quantiles.q50,
             0.5,
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile.features["feature_1"].quantiles.q75,
+            profile[0].numeric_stats.as_ref().unwrap().quantiles.q75,
             0.75,
             epsilon = 0.1
         ));
         assert!(relative_eq!(
-            profile.features["feature_1"].quantiles.q99,
+            profile[0].numeric_stats.as_ref().unwrap().quantiles.q99,
             0.99,
             epsilon = 0.05
         ));
@@ -470,57 +476,54 @@ mod tests {
         let array = array.mapv(|x| x as f32);
         let bin_size = 20;
 
-        let profiler = Profiler::default();
+        let profiler = NumProfiler::default();
 
         let profile = profiler
             .compute_stats(&features, &array.view(), &bin_size)
             .unwrap();
 
-        assert_eq!(profile.features.len(), 3);
-        assert_eq!(profile.features["feature_1"].id, "feature_1");
-        assert_eq!(profile.features["feature_2"].id, "feature_2");
-        assert_eq!(profile.features["feature_3"].id, "feature_3");
+        assert_eq!(profile.len(), 3);
+        assert_eq!(profile[0].id, "feature_1");
+        assert_eq!(profile[1].id, "feature_2");
+        assert_eq!(profile[2].id, "feature_3");
 
         // check mean
         assert!(relative_eq!(
-            profile.features["feature_1"].mean,
+            profile[0].numeric_stats.as_ref().unwrap().mean,
             0.5,
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile.features["feature_2"].mean,
+            profile[1].numeric_stats.as_ref().unwrap().mean,
             1.5,
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile.features["feature_3"].mean,
+            profile[2].numeric_stats.as_ref().unwrap().mean,
             2.5,
             epsilon = 0.05
         ));
 
         // check quantiles
         assert!(relative_eq!(
-            profile.features["feature_1"].quantiles.q25,
+            profile[0].numeric_stats.as_ref().unwrap().quantiles.q25,
             0.25,
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile.features["feature_1"].quantiles.q50,
+            profile[0].numeric_stats.as_ref().unwrap().quantiles.q50,
             0.5,
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile.features["feature_1"].quantiles.q75,
+            profile[0].numeric_stats.as_ref().unwrap().quantiles.q75,
             0.75,
             epsilon = 0.05
         ));
         assert!(relative_eq!(
-            profile.features["feature_1"].quantiles.q99,
+            profile[0].numeric_stats.as_ref().unwrap().quantiles.q99,
             0.99,
             epsilon = 0.05
         ));
-
-        // convert to json
-        let _ = profile.model_dump_json();
     }
 }

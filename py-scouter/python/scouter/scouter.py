@@ -1,16 +1,17 @@
-from enum import Enum
 from functools import cached_property
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Union
 
 import numpy as np
 import pandas as pd
 import polars as pl
+import pyarrow as pa  # type: ignore
 from numpy.typing import NDArray
 from scouter.integrations.base import BaseProducer
 from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
 from scouter.integrations.producer import DriftRecordProducer
 from scouter.utils.logger import ScouterLogger
+from scouter.utils.type_converter import _convert_data_to_array, _get_bits
 
 from ._scouter import (  # pylint: disable=no-name-in-module
     AlertRule,
@@ -30,75 +31,7 @@ logger = ScouterLogger.get_logger()
 CommonCrons = CommonCron()  # type: ignore
 
 
-class DataType(str, Enum):
-    FLOAT32 = "float32"
-    FLOAT64 = "float64"
-    INT8 = "int8"
-    INT16 = "int16"
-    INT32 = "int32"
-    INT64 = "int64"
-
-    @staticmethod
-    def str_to_bits(dtype: str) -> str:
-        bits = {
-            "float32": "32",
-            "float64": "64",
-        }
-        return bits[dtype]
-
-
-class ScouterBase:
-    def _convert_data_to_array(self, data: Union[pd.DataFrame, pl.DataFrame, NDArray]) -> NDArray:
-        if isinstance(data, pl.DataFrame):
-            return data.to_numpy()
-        if isinstance(data, pd.DataFrame):
-            return data.to_numpy()
-        return data
-
-    def _get_feature_names(
-        self,
-        features: Optional[List[str]],
-        data: Union[pd.DataFrame, pl.DataFrame, NDArray],
-    ) -> List[str]:
-        if features is not None:
-            return features
-
-        if isinstance(data, pl.DataFrame):
-            return data.columns
-        if isinstance(data, pd.DataFrame):
-            columns = list(data.columns)
-            return [str(i) for i in columns]
-        return [f"feature_{i}" for i in range(data.shape[1])]
-
-    def _preprocess(
-        self,
-        features: Optional[List[str]],
-        data: Union[pl.DataFrame, pd.DataFrame, NDArray],
-    ) -> Tuple[NDArray, List[str], str]:
-        try:
-            array = self._convert_data_to_array(data)
-            features = self._get_feature_names(features, data)
-
-            dtype = str(array.dtype)
-
-            if dtype in [
-                DataType.INT8.value,
-                DataType.INT16.value,
-                DataType.INT32.value,
-                DataType.INT64.value,
-            ]:
-                logger.warning("Scouter only supports float32 and float64 arrays. Converting integer array to float32.")
-                array = array.astype("float32")
-
-                return array, features, DataType.str_to_bits("float32")
-
-            return array, features, DataType.str_to_bits(dtype)
-
-        except KeyError as exc:
-            raise ValueError(f"Unsupported data type: {dtype}") from exc
-
-
-class Profiler(ScouterBase):
+class Profiler:
     def __init__(self) -> None:
         """Scouter class for creating data profiles. This class will generate
         baseline statistics for a given dataset."""
@@ -106,16 +39,12 @@ class Profiler(ScouterBase):
 
     def create_data_profile(
         self,
-        data: Union[pl.DataFrame, pd.DataFrame, NDArray],
-        features: Optional[List[str]] = None,
+        data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
         bin_size: int = 20,
     ) -> DataProfile:
         """Create a data profile from data.
 
         Args:
-            features:
-                Optional list of feature names. If not provided, feature names will be
-                automatically generated.
             data:
                 Data to create a data profile from. Data can be a numpy array,
                 a polars dataframe or pandas dataframe. Data is expected to not contain
@@ -129,11 +58,15 @@ class Profiler(ScouterBase):
         """
         try:
             logger.info("Creating data profile.")
-            array, features, bits = self._preprocess(features, data)
+
+            array = _convert_data_to_array(data)
+            bits = _get_bits(array.numeric_array)
 
             profile = getattr(self._profiler, f"create_data_profile_f{bits}")(
-                features=features,
-                array=array,
+                numeric_array=array.numeric_array,
+                string_array=array.string_array,
+                numeric_features=array.numeric_features,
+                string_features=array.string_features,
                 bin_size=bin_size,
             )
 
@@ -145,7 +78,7 @@ class Profiler(ScouterBase):
             raise ValueError(f"Failed to create data profile: {exc}") from exc
 
 
-class Drifter(ScouterBase):
+class Drifter:
     def __init__(self) -> None:
         """
         Scouter class for creating monitoring profiles and detecting drift. This class will
@@ -156,9 +89,8 @@ class Drifter(ScouterBase):
 
     def create_drift_profile(
         self,
-        data: Union[pl.DataFrame, pd.DataFrame, NDArray],
+        data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
         monitor_config: DriftConfig,
-        features: Optional[List[str]] = None,
     ) -> DriftProfile:
         """Create a drift profile from data to use for monitoring.
 
@@ -170,24 +102,46 @@ class Drifter(ScouterBase):
                 If NaNs or infinities are present, the monitoring profile will not be created.
             monitor_config:
                 Configuration for the monitoring profile.
-            features:
-                Optional list of feature names. If not provided, feature names will be
-                automatically generated.
 
         Returns:
             Monitoring profile
         """
         try:
             logger.info("Creating drift profile.")
-            array, features, bits = self._preprocess(features, data)
+            array = _convert_data_to_array(data)
+            bits = _get_bits(array.numeric_array)
 
-            profile = getattr(self._drifter, f"create_drift_profile_f{bits}")(
-                features=features,
-                array=array,
-                monitor_config=monitor_config,
-            )
+            string_profile: Optional[DriftProfile] = None
+            numeric_profile: Optional[DriftProfile] = None
 
-            assert isinstance(profile, DriftProfile), f"Expected DriftProfile, got {type(profile)}"
+            if array.string_array is not None and array.string_features is not None:
+                string_profile = self._drifter.create_string_drift_profile(
+                    features=array.string_features,
+                    array=array.string_array,
+                    monitor_config=monitor_config,
+                )
+                assert string_profile.config.feature_map is not None
+                monitor_config.update_feature_map(string_profile.config.feature_map)
+
+            if array.numeric_array is not None and array.numeric_features is not None:
+                numeric_profile = getattr(self._drifter, f"create_numeric_drift_profile_f{bits}")(
+                    features=array.numeric_features,
+                    array=array.numeric_array,
+                    monitor_config=monitor_config,
+                )
+
+            if string_profile is not None and numeric_profile is not None:
+                drift_profile = DriftProfile(
+                    features={**numeric_profile.features, **string_profile.features},
+                    config=monitor_config,
+                )
+
+                return drift_profile
+
+            profile = numeric_profile or string_profile
+
+            assert isinstance(profile, DriftProfile), "Expected DriftProfile"
+
             return profile
 
         except Exception as exc:  # type: ignore
@@ -196,16 +150,12 @@ class Drifter(ScouterBase):
 
     def compute_drift(
         self,
-        data: Union[pl.DataFrame, pd.DataFrame, NDArray],
+        data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
         drift_profile: DriftProfile,
-        features: Optional[List[str]] = None,
     ) -> DriftMap:
         """Compute drift from data and monitoring profile.
 
         Args:
-            features:
-                Optional list of feature names. If not provided, feature names will be
-                automatically generated. Names must match the feature names in the monitoring profile.
             data:
                 Data to compute drift from. Data can be a numpy array,
                 a polars dataframe or pandas dataframe. Data is expected to not contain
@@ -216,11 +166,28 @@ class Drifter(ScouterBase):
         """
         try:
             logger.info("Computing drift")
-            array, features, bits = self._preprocess(features, data)
+            array = _convert_data_to_array(data)
+            bits = _get_bits(array.numeric_array)
+
+            if array.string_array is not None and array.string_features is not None:
+                string_array: NDArray = getattr(self._drifter, f"convert_strings_to_numpy_f{bits}")(
+                    array=array.string_array,
+                    features=array.string_features,
+                    drift_profile=drift_profile,
+                )
+
+                if array.numeric_array is not None and array.numeric_features is not None:
+                    array.numeric_array = np.concatenate((array.numeric_array, string_array), axis=1)
+
+                    array.numeric_features += array.string_features
+
+                else:
+                    array.numeric_array = string_array
+                    array.numeric_features = array.string_features
 
             drift_map = getattr(self._drifter, f"compute_drift_f{bits}")(
-                features=features,
-                drift_array=array,
+                features=array.numeric_features,
+                drift_array=array.numeric_array,
                 drift_profile=drift_profile,
             )
 

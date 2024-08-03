@@ -2,7 +2,7 @@
 
 import datetime
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from numpy.typing import NDArray
 
@@ -222,6 +222,11 @@ class FeatureAlerts:
     def features(self) -> Dict[str, FeatureAlert]:
         """Return the feature alerts."""
 
+class FeatureMap:
+    @property
+    def features(self) -> Dict[str, Dict[str, int]]:
+        """Return the feature map."""
+
 class FeatureDriftProfile:
     @property
     def id(self) -> str:
@@ -262,6 +267,7 @@ class DriftConfig:
         schedule: str = "0 0 0 * * *",
         alert_rule: AlertRule = AlertRule(),
         alert_dispatch_type: str = AlertDispatchType.Console,
+        feature_map: Optional[FeatureMap] = None,
     ):
         """Initialize monitor config
 
@@ -301,8 +307,26 @@ class DriftConfig:
     @property
     def alert_config(self) -> AlertConfig:
         """Alert configuration"""
+    @property
+    def feature_map(self) -> Optional[FeatureMap]:
+        """Feature map"""
+    def update_feature_map(self, feature_map: FeatureMap) -> None:
+        """Update feature map"""
 
 class DriftProfile:
+    def __init__(
+        self,
+        features: Dict[str, FeatureDriftProfile],
+        config: DriftConfig,
+    ):
+        """Initialize drift profile
+
+        Args:
+            features:
+                Dictionary of features and their drift profiles
+            config:
+                Monitor config
+        """
     @property
     def features(self) -> Dict[str, FeatureDriftProfile]:
         """Return the list of features."""
@@ -342,10 +366,7 @@ class Histogram:
     def bin_counts(self) -> List[int]:
         """Bin counts"""
 
-class FeatureDataProfile:
-    @property
-    def id(self) -> str:
-        """Return the id."""
+class NumericStats:
     @property
     def mean(self) -> float:
         """Return the mean."""
@@ -359,9 +380,6 @@ class FeatureDataProfile:
     def max(self) -> float:
         """Return the max."""
     @property
-    def timestamp(self) -> datetime.datetime:
-        """Return the timestamp."""
-    @property
     def distinct(self) -> Distinct:
         """Distinct value counts"""
     @property
@@ -371,11 +389,55 @@ class FeatureDataProfile:
     def histogram(self) -> Histogram:
         """Value histograms"""
 
+class CharStats:
+    @property
+    def min_length(self) -> int:
+        """Minimum string length"""
+    @property
+    def max_length(self) -> int:
+        """Maximum string length"""
+    @property
+    def median_length(self) -> int:
+        """Median string length"""
+    @property
+    def mean_length(self) -> float:
+        """Mean string length"""
+
+class WordStats:
+    @property
+    def words(self) -> Dict[str, Distinct]:
+        """Distinct word counts"""
+
+class StringStats:
+    @property
+    def distinct(self) -> Distinct:
+        """Distinct value counts"""
+    @property
+    def char_stats(self) -> CharStats:
+        """Character statistics"""
+    @property
+    def word_stats(self) -> WordStats:
+        """word statistics"""
+
+class FeatureProfile:
+    @property
+    def id(self) -> str:
+        """Return the id."""
+    @property
+    def numeric_stats(self) -> Optional[NumericStats]:
+        """Return the numeric stats."""
+    @property
+    def string_stats(self) -> Optional[StringStats]:
+        """Return the string stats."""
+    @property
+    def timestamp(self) -> str:
+        """Return the timestamp."""
+
 class DataProfile:
     """Data profile of features"""
 
     @property
-    def features(self) -> Dict[str, FeatureDataProfile]:
+    def features(self) -> Dict[str, FeatureProfile]:
         """Returns dictionary of features and their data profiles"""
     def __str__(self) -> str:
         """Return string representation of the data profile"""
@@ -451,41 +513,53 @@ class ScouterProfiler:
         used to profile data"""
     def create_data_profile_f32(
         self,
-        features: List[str],
-        array: NDArray,
+        numeric_array: NDArray,
+        string_array: List[List[str]],
+        numeric_features: List[str],
+        string_features: List[str],
         bin_size: int,
     ) -> DataProfile:
         """Create a data profile from a f32 numpy array.
 
         Args:
-            features:
-                List of feature names.
-            array:
+            numeric_array:
                 Numpy array to profile.
+            string_array:
+                List of string arrays to profile.
+            numeric_features:
+                List of numeric feature names.
+            string_features:
+                List of string feature names.
             bin_size:
                 Optional bin size for histograms. Defaults to 20 bins.
 
         Returns:
-            Monitoring profile.
+            Monitoring profile
         """
     def create_data_profile_f64(
         self,
-        features: List[str],
-        array: NDArray,
+        numeric_array: NDArray,
+        string_array: List[List[str]],
+        numeric_features: List[str],
+        string_features: List[str],
         bin_size: int,
     ) -> DataProfile:
         """Create a data profile from a f32 numpy array.
 
         Args:
-            features:
-                List of feature names.
-            array:
+            numeric_array:
                 Numpy array to profile.
+            string_array:
+                List of string arrays to profile.
+            numeric_features:
+                List of numeric feature names.
+            string_features:
+                List of string feature names.
             bin_size:
                 Optional bin size for histograms. Defaults to 20 bins.
 
         Returns:
-            Monitoring profile.
+            Monitoring profile
         """
 
 class ScouterDrifter:
@@ -493,7 +567,58 @@ class ScouterDrifter:
         """Instantiate Rust ScouterMonitor class that is
         used to create monitoring profiles and compute drifts.
         """
-    def create_drift_profile_f32(
+    def convert_strings_to_numpy_f32(
+        self,
+        features: List[str],
+        array: List[List[str]],
+        drift_profile: DriftProfile,
+    ) -> NDArray[Any]:
+        """Convert string array to numpy f32 array
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                List of string arrays to convert.
+            drift_profile:
+                Monitoring profile.
+        """
+    def convert_strings_to_numpy_f64(
+        self,
+        features: List[str],
+        array: List[List[str]],
+        drift_profile: DriftProfile,
+    ) -> NDArray[Any]:
+        """Convert string array to numpy f64 array
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                List of string arrays to convert.
+            drift_profile:
+                Monitoring profile.
+        """
+    def create_string_drift_profile(
+        self,
+        features: List[str],
+        array: List[List[str]],
+        monitor_config: DriftConfig,
+    ) -> DriftProfile:
+        """Create a monitoring profile from a f32 numpy array.
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                List of string arrays to profile.
+            monitor_config:
+                Monitor config.
+
+        Returns:
+            Monitoring profile.
+        """
+    def create_numeric_drift_profile_f32(
         self,
         features: List[str],
         array: NDArray,
@@ -512,7 +637,7 @@ class ScouterDrifter:
         Returns:
             Monitoring profile.
         """
-    def create_drift_profile_f64(
+    def create_numeric_drift_profile_f64(
         self,
         features: List[str],
         array: NDArray,

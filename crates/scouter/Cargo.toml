@@ -32,6 +32,7 @@ tracing = "0.1.40"
 approx = "0.5.1"
 ndarray-rand = "0.14.0"
 criterion = { version = "0.4", features = ["html_reports"] }
+futures = "0.3.30"
 
 [profile.release]
 lto = "fat"

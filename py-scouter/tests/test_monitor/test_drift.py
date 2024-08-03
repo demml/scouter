@@ -1,8 +1,10 @@
 from scouter import Drifter
 import numpy as np
 from pathlib import Path
+import pandas as pd
 from numpy.typing import NDArray
 import pytest
+import polars as pl
 from scouter._scouter import (
     DriftProfile,
     DriftMap,
@@ -20,8 +22,7 @@ def test_drift_f64(array: NDArray, monitor_config: DriftConfig):
     assert profile.features["feature_1"].center == pytest.approx(2.5, 0.1)
     assert profile.features["feature_2"].center == pytest.approx(3.5, 0.1)
 
-    features = ["feature_0", "feature_1", "feature_2"]
-    _ = scouter.compute_drift(array, profile, features)
+    _ = scouter.compute_drift(array, profile)
 
 
 def test_drift_f32(array: NDArray, monitor_config: DriftConfig):
@@ -34,8 +35,7 @@ def test_drift_f32(array: NDArray, monitor_config: DriftConfig):
     assert profile.features["feature_1"].center == pytest.approx(2.5, 0.1)
     assert profile.features["feature_2"].center == pytest.approx(3.5, 0.1)
 
-    features = ["feature_0", "feature_1", "feature_2"]
-    _ = scouter.compute_drift(array, profile, features)
+    _ = scouter.compute_drift(array, profile)
 
 
 def test_drift_int(array: NDArray, monitor_config: DriftConfig):
@@ -50,8 +50,7 @@ def test_drift_int(array: NDArray, monitor_config: DriftConfig):
     assert profile.features["feature_1"].center == pytest.approx(2.0, 0.1)
     assert profile.features["feature_2"].center == pytest.approx(3.0, 0.1)
 
-    features = ["feature_0", "feature_1", "feature_2"]
-    drift_map = scouter.compute_drift(array, profile, features)
+    drift_map = scouter.compute_drift(array, profile)
 
     assert drift_map.features["feature_0"].drift[0] == 0.0
 
@@ -74,15 +73,6 @@ def test_drift_int(array: NDArray, monitor_config: DriftConfig):
     assert Path("assets/model.json").exists()
 
 
-def test_drift_fail(array: NDArray, monitor_config: DriftConfig):
-    scouter = Drifter()
-    profile: DriftProfile = scouter.create_drift_profile(array, monitor_config)
-    features = ["feature_0", "feature_1", "feature_2"]
-
-    with pytest.raises(ValueError):
-        scouter.compute_drift(array.astype("str"), profile, features)
-
-
 def test_alerts_control(array: NDArray, monitor_config: DriftConfig):
     scouter = Drifter()
     profile: DriftProfile = scouter.create_drift_profile(array, monitor_config)
@@ -93,7 +83,7 @@ def test_alerts_control(array: NDArray, monitor_config: DriftConfig):
     assert profile.features["feature_2"].center == pytest.approx(3.5, 0.1)
 
     features = ["feature_0", "feature_1", "feature_2"]
-    drift_map: DriftMap = scouter.compute_drift(array, profile, features)
+    drift_map: DriftMap = scouter.compute_drift(array, profile)
 
     # create drift array and features
     feature0 = drift_map.features["feature_0"]
@@ -165,3 +155,58 @@ def test_alerts_percentage(array: NDArray, monitor_config_percentage: DriftConfi
     # should have no alerts
     assert len(alerts.features["feature_0"].alerts) == 1
     assert len(alerts.features["feature_0"].indices[1]) == 2
+
+
+def test_multi_type_drift(
+    polars_dataframe_multi_dtype: pl.DataFrame,
+    polars_dataframe_multi_dtype_drift: pl.DataFrame,
+    monitor_config: DriftConfig,
+):
+    drifter = Drifter()
+
+    profile: DriftProfile = drifter.create_drift_profile(
+        polars_dataframe_multi_dtype, monitor_config
+    )
+
+    drift_map = drifter.compute_drift(polars_dataframe_multi_dtype_drift, profile)
+
+    assert len(drift_map.features) == 5
+
+    drift_array, features = drift_map.to_numpy()
+    alerts = drifter.generate_alerts(
+        drift_array=drift_array,
+        features=features,
+        alert_rule=monitor_config.alert_config.alert_rule,
+    )
+
+    assert len(alerts.features["cat2"].alerts) == 1
+    assert alerts.features["cat2"].alerts[0].zone == "Zone 3"
+
+
+def test_only_string_drift(
+    pandas_categorical_dataframe: pd.DataFrame, monitor_config: DriftConfig
+):
+    drifter = Drifter()
+
+    profile: DriftProfile = drifter.create_drift_profile(
+        pandas_categorical_dataframe, monitor_config
+    )
+
+    drift_map = drifter.compute_drift(pandas_categorical_dataframe, profile)
+
+    assert len(drift_map.features) == 3
+
+
+def test_data_pyarrow_mixed_type(
+    polars_dataframe_multi_dtype: pl.DataFrame,
+    monitor_config: DriftConfig,
+):
+    arrow_table = polars_dataframe_multi_dtype.to_arrow()
+
+    drifter = Drifter()
+
+    profile: DriftProfile = drifter.create_drift_profile(arrow_table, monitor_config)
+
+    drift_map = drifter.compute_drift(arrow_table, profile)
+
+    assert len(drift_map.features) == 5

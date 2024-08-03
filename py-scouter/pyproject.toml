@@ -12,6 +12,7 @@ pandas = ">=1.5.3, <3"
 rusty-logger = "^0.3.0"
 pydantic = "^2.7.1"
 tenacity = "^8.4.2"
+pyarrow = ">=15.0.0, <17.0.0"
 
 [tool.poetry.group.dev]
 optional = true
@@ -108,6 +109,7 @@ dependencies = [
     'numpy>=1.23.0, <2.0.0',
     'pydantic>=2.7.1, <3.0.0',
     'polars>=1.0.0, <2.0.0',
+    'pyarrow>=15.0.0, <17.0.0',
 ]
 
 [project.optional-dependencies]
