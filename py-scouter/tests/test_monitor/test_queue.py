@@ -94,15 +94,13 @@ def test_queue_fail(
     )
 
     records = [
-        [
-            {
-                "cat1": "7.0",
-                "num1": 1.518124333674737,
-                "num2": 2.974753543708461,
-                "num3": 3.141546504798932,
-                "cat3": "2.0",  # this is missing
-            }
-        ]
+        {
+            "cat1": "7.0",
+            "num1": 1.518124333674737,
+            "num2": 2.974753543708461,
+            "num3": 3.141546504798932,
+            "cat3": "2.0",  # this is missing
+        }
     ]
 
     def return_record(records):
@@ -115,17 +113,8 @@ def test_queue_fail(
     records = return_record(records)
     assert records is None
 
-    records = [
-        [
-            {
-                "cat1": "7.0",
-                "num1": Drifter,  # this should fail
-                "num2": 2.974753543708461,
-                "num3": 3.141546504798932,
-                "cat2": "2.0",
-            }
-        ]
-    ]
+    records = polars_dataframe_multi_dtype[0:30].to_dicts()
+    records[0]["num1"] = Drifter  # this should fail
 
     records = return_record(records)
     assert records is None
