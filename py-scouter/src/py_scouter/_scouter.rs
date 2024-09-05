@@ -12,7 +12,7 @@ use scouter::utils::types::{
     AlertRule, DataProfile, DriftConfig, DriftMap, DriftProfile, DriftServerRecord, FeatureAlerts,
     FeatureProfile,
 };
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 fn create_string_profile(
     string_array: Vec<Vec<String>>,
@@ -89,7 +89,7 @@ impl ScouterProfiler {
             profiles.extend(num_profiles);
         }
 
-        let mut features = HashMap::new();
+        let mut features = BTreeMap::new();
         for profile in &profiles {
             features.insert(profile.id.clone(), profile.clone());
         }
@@ -145,7 +145,7 @@ impl ScouterProfiler {
             profiles.extend(num_profiles);
         }
 
-        let mut features = HashMap::new();
+        let mut features = BTreeMap::new();
         for profile in &profiles {
             features.insert(profile.id.clone(), profile.clone());
         }

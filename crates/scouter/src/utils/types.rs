@@ -514,7 +514,7 @@ pub struct CharStats {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WordStats {
     #[pyo3(get, set)]
-    pub words: HashMap<String, Distinct>,
+    pub words: BTreeMap<String, Distinct>,
 }
 
 #[pyclass]
@@ -558,7 +558,7 @@ impl FeatureProfile {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DataProfile {
     #[pyo3(get, set)]
-    pub features: HashMap<String, FeatureProfile>,
+    pub features: BTreeMap<String, FeatureProfile>,
 }
 
 #[pymethods]
@@ -817,7 +817,7 @@ pub struct FeatureAlert {
     pub alerts: Vec<Alert>,
 
     #[pyo3(get, set)]
-    pub indices: HashMap<usize, Vec<Vec<usize>>>,
+    pub indices: BTreeMap<usize, Vec<Vec<usize>>>,
 }
 
 impl FeatureAlert {
@@ -825,7 +825,7 @@ impl FeatureAlert {
         Self {
             feature,
             alerts: Vec::new(),
-            indices: HashMap::new(),
+            indices: BTreeMap::new(),
         }
     }
 }
@@ -843,7 +843,7 @@ impl FeatureAlert {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FeatureAlerts {
     #[pyo3(get, set)]
-    pub features: HashMap<String, FeatureAlert>,
+    pub features: BTreeMap<String, FeatureAlert>,
 }
 
 impl FeatureAlerts {
@@ -852,7 +852,7 @@ impl FeatureAlerts {
         &mut self,
         feature: &str,
         alerts: &HashSet<Alert>,
-        indices: &HashMap<usize, Vec<Vec<usize>>>,
+        indices: &BTreeMap<usize, Vec<Vec<usize>>>,
     ) {
         let mut feature_alert = FeatureAlert::new(feature.to_string());
 
@@ -879,7 +879,7 @@ impl FeatureAlerts {
     #[new]
     pub fn new() -> Self {
         Self {
-            features: HashMap::new(),
+            features: BTreeMap::new(),
         }
     }
 
