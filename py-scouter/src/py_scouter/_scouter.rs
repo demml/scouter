@@ -67,8 +67,6 @@ impl ScouterProfiler {
 
             profiles.extend(string_profile);
 
-            println!("{:?}", profiles);
-
             // run  StringProfiler in separate thread
         }
 
