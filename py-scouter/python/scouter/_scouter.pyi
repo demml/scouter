@@ -268,6 +268,7 @@ class DriftConfig:
         alert_rule: AlertRule = AlertRule(),
         alert_dispatch_type: str = AlertDispatchType.Console,
         feature_map: Optional[FeatureMap] = None,
+        targets: List[str] = [],
     ):
         """Initialize monitor config
 
@@ -288,6 +289,10 @@ class DriftConfig:
                 Alert rule to use. Defaults to Standard
             alert_dispatch_type:
                 Alert dispatch type to use. Defaults to console
+            targets:
+                List of target features to monitor. This is typically the name of your dependent variable.
+                Targets are used to compute correlation among other features as well as for initial
+                UI display.
         """
     @property
     def sample_size(self) -> int:
@@ -310,6 +315,11 @@ class DriftConfig:
     @property
     def feature_map(self) -> Optional[FeatureMap]:
         """Feature map"""
+
+    @property
+    def targets(self) -> List[str]:
+        """List of target features to monitor"""
+
     def update_feature_map(self, feature_map: FeatureMap) -> None:
         """Update feature map"""
 
