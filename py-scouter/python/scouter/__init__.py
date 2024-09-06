@@ -28,7 +28,9 @@ from ._scouter import (
     PercentageAlertRule,
     ProcessAlertRule,
 )
-from .scouter import CommonCrons, Drifter, MonitorQueue, Profiler
+from .drift import CommonCrons, Drifter
+from .monitor import MonitorQueue
+from .profile import Profiler
 from .version import __version__
 
 __all__ = [

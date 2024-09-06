@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use crate::utils::types::{Alert, AlertRule, AlertType, AlertZone, FeatureAlerts};
 use anyhow::Ok;
 use anyhow::{Context, Result};
@@ -7,13 +5,14 @@ use ndarray::s;
 use ndarray::{ArrayView1, ArrayView2, Axis};
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
+use std::collections::BTreeMap;
 use std::collections::HashSet;
 
 // Struct for holding stateful Alert information
 #[derive(Clone)]
 pub struct Alerter {
     pub alerts: HashSet<Alert>,
-    pub alert_positions: HashMap<usize, Vec<Vec<usize>>>,
+    pub alert_positions: BTreeMap<usize, Vec<Vec<usize>>>,
 }
 
 impl Alerter {
@@ -32,7 +31,7 @@ impl Alerter {
     pub fn new() -> Self {
         Alerter {
             alerts: HashSet::new(),
-            alert_positions: HashMap::new(),
+            alert_positions: BTreeMap::new(),
         }
     }
 
@@ -350,7 +349,7 @@ impl Default for Alerter {
     }
 }
 
-type GeneratedAlert = (HashSet<Alert>, HashMap<usize, Vec<Vec<usize>>>);
+type GeneratedAlert = (HashSet<Alert>, BTreeMap<usize, Vec<Vec<usize>>>);
 
 pub fn generate_alert(
     drift_array: &ArrayView1<f64>,
@@ -375,6 +374,15 @@ pub fn generate_alert(
     Ok((alerter.alerts, alerter.alert_positions))
 }
 
+/// Generate alerts for each feature in the drift array
+///
+/// # Arguments
+/// drift_array - ArrayView2<f64> - The drift array to check for alerts (column order should match feature order)
+/// features - Vec<String> - The features to check for alerts (feature order should match drift array column order)
+/// alert_rule - AlertRule - The alert rule to check against
+///
+/// Returns a Result<FeatureAlerts, anyhow::Error>
+///
 pub fn generate_alerts(
     drift_array: &ArrayView2<f64>,
     features: Vec<String>,
@@ -389,7 +397,8 @@ pub fn generate_alerts(
             Ok(generate_alert(&col, &alert_rule)
                 .with_context(|| "Failed to check rule for alert")?)
         })
-        .collect::<Vec<Result<(HashSet<Alert>, HashMap<usize, Vec<Vec<usize>>>), anyhow::Error>>>();
+        .collect::<Vec<Result<(HashSet<Alert>, BTreeMap<usize, Vec<Vec<usize>>>), anyhow::Error>>>(
+        );
 
     let mut feature_alerts = FeatureAlerts::new();
 

@@ -9,7 +9,7 @@ permissions:
 
 env:
   PACKAGE_NAME: scouter
-  INTERPRETER: '3.9 3.10 3.11 3.12 pypy3.9 pypy3.10'
+  INTERPRETER: "3.9 3.10 3.11 3.12 pypy3.9 pypy3.10"
   RUSTFLAGS: -C debuginfo=0
 
 jobs:
@@ -30,7 +30,6 @@ jobs:
         with:
           name: pypi_sdist
           path: ./py-scouter/dist
-    
 
   build-ubuntu:
     name: build - ubuntu - ${{ matrix.manylinux }} - ${{ matrix.target }}
@@ -82,7 +81,6 @@ jobs:
         target: [x86_64, aarch64]
         manylinux: ["musllinux_1_1"]
 
-
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -90,7 +88,7 @@ jobs:
       - name: set up python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - run: pip install -U twine 'black>=22.3.0,<23' typing_extensions
 
@@ -117,7 +115,6 @@ jobs:
           name: pypi_files_ubuntu_${{ matrix.target }}_all_${{ matrix.manylinux }}
           path: ./py-scouter/dist
 
-
   build-macos:
     name: build - macos - (${{ matrix.target }} - auto
     strategy:
@@ -132,7 +129,7 @@ jobs:
       - name: set up python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - run: pip install -U twine 'black>=22.3.0,<23' typing_extensions
 
@@ -142,7 +139,7 @@ jobs:
           target: ${{ matrix.target }}
           args: --release --out dist --interpreter ${{ env.INTERPRETER }}
           rust-toolchain: stable
-          docker-options: -e CI 
+          docker-options: -e CI
           working-directory: ./py-scouter
 
       - name: Check dist
@@ -178,7 +175,6 @@ jobs:
           - target: x86
           - target: x64
 
-
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -186,7 +182,7 @@ jobs:
       - name: set up python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
           architecture: ${{ matrix.python-architecture }}
 
       - run: pip install -U twine 'black>=22.3.0,<23' typing_extensions
@@ -213,7 +209,14 @@ jobs:
           path: ./py-scouter/dist
 
   inspect-pypi-assets:
-    needs: [build-ubuntu, build-ubuntu-musllinux, build-macos, build-windows, build-sdist]
+    needs:
+      [
+        build-ubuntu,
+        build-ubuntu-musllinux,
+        build-macos,
+        build-windows,
+        build-sdist,
+      ]
     runs-on: ubuntu-latest
 
     steps:
@@ -228,13 +231,20 @@ jobs:
 
       - name: list dist files
         run: |
-         ls -lh dist/
-         ls -l dist/
-         echo "`ls dist | wc -l` files"
+          ls -lh dist/
+          ls -l dist/
+          echo "`ls dist | wc -l` files"
 
   test-builds-os:
     name: test build on ${{ matrix.os }}
-    needs: [build-ubuntu, build-ubuntu-musllinux, build-macos, build-windows, build-sdist]
+    needs:
+      [
+        build-ubuntu,
+        build-ubuntu-musllinux,
+        build-macos,
+        build-windows,
+        build-sdist,
+      ]
 
     strategy:
       fail-fast: false
@@ -248,7 +258,7 @@ jobs:
       - name: set up python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       - name: Create virtual environment
         working-directory: ./py-scouter
@@ -266,9 +276,9 @@ jobs:
       - name: install scouter-ml
         working-directory: ./py-scouter
         run: |
-            python3 -m pip install scouter-ml --no-deps --no-index --force-reinstall --find-links dist
-            pip install -r tests/requirements.txt
-            pytest --ignore tests/integration
+          python3 -m pip install scouter-ml --no-deps --no-index --force-reinstall --find-links dist
+          pip install -r tests/requirements.txt
+          pytest --ignore tests/integration
 
   python-release:
     name: Release-Python
@@ -292,7 +302,7 @@ jobs:
       - name: set up python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'
+          python-version: "3.10"
 
       - run: pip install -U twine
 
@@ -310,7 +320,7 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-          
+
   rust-release:
     environment: crates.io
     name: Release-Rust
