@@ -124,6 +124,9 @@ pub struct AlertConfig {
 
     #[pyo3(get, set)]
     pub features_to_alert: Vec<String>,
+
+    #[pyo3(get, set)]
+    pub zone_to_alert: Vec<String>,
 }
 
 #[pymethods]
@@ -134,6 +137,7 @@ impl AlertConfig {
         alert_dispatch_type: Option<AlertDispatchType>,
         schedule: Option<String>,
         features_to_alert: Option<Vec<String>>,
+        zone_to_alert: Option<Vec<String>>,
     ) -> Self {
         let alert_rule = alert_rule.unwrap_or(AlertRule::new(None, None));
 
@@ -155,12 +159,22 @@ impl AlertConfig {
         };
         let alert_dispatch_type = alert_dispatch_type.unwrap_or(AlertDispatchType::Console);
         let features_to_alert = features_to_alert.unwrap_or(Vec::new());
+        let zone_to_alert = zone_to_alert.unwrap_or(
+            [
+                AlertZone::Zone1.to_str(),
+                AlertZone::Zone2.to_str(),
+                AlertZone::Zone3.to_str(),
+                AlertZone::Zone4.to_str(),
+            ]
+            .to_vec(),
+        );
 
         Self {
             alert_rule,
             alert_dispatch_type,
             schedule,
             features_to_alert,
+            zone_to_alert,
         }
     }
 
@@ -181,7 +195,7 @@ pub enum AlertZone {
     Zone1,
     Zone2,
     Zone3,
-    OutOfBounds,
+    Zone4,
     NotApplicable,
 }
 
@@ -192,7 +206,7 @@ impl AlertZone {
             AlertZone::Zone1 => "Zone 1".to_string(),
             AlertZone::Zone2 => "Zone 2".to_string(),
             AlertZone::Zone3 => "Zone 3".to_string(),
-            AlertZone::OutOfBounds => "Zone 4".to_string(),
+            AlertZone::Zone4 => "Zone 4".to_string(),
             AlertZone::NotApplicable => "NA".to_string(),
         }
     }
@@ -384,6 +398,7 @@ impl DriftConfig {
         schedule: Option<String>,
         alert_rule: Option<AlertRule>,
         alert_dispatch_type: Option<AlertDispatchType>,
+        zone_to_alert: Option<Vec<String>>,
         features_to_alert: Option<Vec<String>>,
         feature_map: Option<FeatureMap>,
         targets: Option<Vec<String>>,
@@ -393,8 +408,13 @@ impl DriftConfig {
         let version = version.unwrap_or("0.1.0".to_string());
         let targets = targets.unwrap_or(Vec::new());
 
-        let alert_config =
-            AlertConfig::new(alert_rule, alert_dispatch_type, schedule, features_to_alert);
+        let alert_config = AlertConfig::new(
+            alert_rule,
+            alert_dispatch_type,
+            schedule,
+            features_to_alert,
+            zone_to_alert,
+        );
 
         Self {
             sample_size,
@@ -916,7 +936,7 @@ mod tests {
         assert_eq!(AlertZone::Zone1.to_str(), "Zone 1");
         assert_eq!(AlertZone::Zone2.to_str(), "Zone 2");
         assert_eq!(AlertZone::Zone3.to_str(), "Zone 3");
-        assert_eq!(AlertZone::OutOfBounds.to_str(), "Out of bounds");
+        assert_eq!(AlertZone::Zone4.to_str(), "Zone 4");
         assert_eq!(AlertType::AllGood.to_str(), "All good");
         assert_eq!(AlertType::Consecutive.to_str(), "Consecutive");
         assert_eq!(AlertType::Alternating.to_str(), "Alternating");
@@ -930,22 +950,23 @@ mod tests {
     #[test]
     fn test_alert_config() {
         //test console alert config
-        let alert_config = AlertConfig::new(None, None, None, None);
+        let alert_config = AlertConfig::new(None, None, None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Console);
         assert_eq!(alert_config.alert_dispatch_type(), "Console");
 
         //test email alert config
-        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Email), None, None);
+        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Email), None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Email);
         assert_eq!(alert_config.alert_dispatch_type(), "Email");
 
         //test slack alert config
-        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None);
+        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Slack);
         assert_eq!(alert_config.alert_dispatch_type(), "Slack");
 
         //test opsgenie alert config
-        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::OpsGenie), None, None);
+        let alert_config =
+            AlertConfig::new(None, Some(AlertDispatchType::OpsGenie), None, None, None);
         assert_eq!(
             alert_config.alert_dispatch_type,
             AlertDispatchType::OpsGenie

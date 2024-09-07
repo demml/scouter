@@ -283,7 +283,7 @@ impl Alerter {
 
         if threshold == 4 {
             self.alerts.insert(Alert {
-                zone: AlertZone::OutOfBounds.to_str(),
+                zone: AlertZone::Zone4.to_str(),
                 kind: AlertType::OutOfBounds.to_str(),
             });
         } else {

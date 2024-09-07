@@ -747,6 +747,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
 
         let profile = monitor
@@ -786,6 +787,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
 
         let profile = monitor
@@ -808,6 +810,7 @@ mod tests {
         let config = DriftConfig::new(
             "name".to_string(),
             "repo".to_string(),
+            None,
             None,
             None,
             None,
@@ -867,6 +870,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
 
         let monitor = Monitor::new();
@@ -898,6 +902,7 @@ mod tests {
         let config = DriftConfig::new(
             "name".to_string(),
             "repo".to_string(),
+            None,
             None,
             None,
             None,
@@ -951,6 +956,7 @@ mod tests {
                 process: None,
                 percentage: Some(PercentageAlertRule { rule: 0.1 }),
             }),
+            None,
             None,
             None,
             None,
