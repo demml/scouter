@@ -1,7 +1,9 @@
+use crate::core::stats::compute_correlation_matrix;
 use crate::utils::types::{Alert, AlertRule, AlertType, AlertZone, FeatureAlerts};
 use anyhow::Ok;
 use anyhow::{Context, Result};
 use ndarray::s;
+use ndarray::Array2;
 use ndarray::{ArrayView1, ArrayView2, Axis};
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
@@ -388,6 +390,8 @@ pub fn generate_alerts(
     features: Vec<String>,
     alert_rule: AlertRule,
 ) -> Result<FeatureAlerts, anyhow::Error> {
+    let mut corr: Option<Array2<f64>> = None;
+
     // check for alerts
     let alerts = drift_array
         .axis_iter(Axis(1))
@@ -400,14 +404,37 @@ pub fn generate_alerts(
         .collect::<Vec<Result<(HashSet<Alert>, BTreeMap<usize, Vec<Vec<usize>>>), anyhow::Error>>>(
         );
 
+    //println!("{:?}", alerts);
+
+    // check if any alerts were generated
+    if alerts
+        .iter()
+        .any(|alert| !alert.as_ref().unwrap().0.is_empty())
+    {
+        // get correlation matrix
+        corr = Some(compute_correlation_matrix(drift_array));
+    };
+
     let mut feature_alerts = FeatureAlerts::new();
 
     //zip the alerts with the features
-    for (feature, alert) in features.iter().zip(alerts.iter()) {
+    for ((idx, feature), alert) in features.iter().enumerate().zip(alerts.iter()) {
         // unwrap the alert, should should have already been checked
         let (alerts, indices) = alert.as_ref().unwrap();
-
         feature_alerts.insert_feature_alert(feature, alerts, indices);
+
+        if !alerts.is_empty() && corr.is_some() {
+            let non_curr_feature_idxs = (0..features.len())
+                .filter(|&x| x != idx)
+                .collect::<Vec<usize>>();
+            let feature_cor = corr
+                .as_ref()
+                .unwrap()
+                .select(Axis(0), &[idx])
+                .select(Axis(1), &non_curr_feature_idxs);
+
+            println!("Feature: {}", feature_cor);
+        }
     }
 
     Ok(feature_alerts)
