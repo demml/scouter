@@ -121,6 +121,9 @@ pub struct AlertConfig {
 
     #[pyo3(get, set)]
     pub schedule: String,
+
+    #[pyo3(get, set)]
+    pub features_to_alert: Vec<String>,
 }
 
 #[pymethods]
@@ -130,15 +133,34 @@ impl AlertConfig {
         alert_rule: Option<AlertRule>,
         alert_dispatch_type: Option<AlertDispatchType>,
         schedule: Option<String>,
+        features_to_alert: Option<Vec<String>>,
     ) -> Self {
         let alert_rule = alert_rule.unwrap_or(AlertRule::new(None, None));
+
+        let schedule = match schedule {
+            Some(s) => {
+                // validate the cron schedule
+                let schedule = cron::Schedule::from_str(&s);
+
+                match schedule {
+                    Ok(_) => s,
+                    Err(_) => {
+                        tracing::error!("Invalid cron schedule, using default schedule");
+                        EveryDay::new().cron
+                    }
+                }
+            }
+
+            None => EveryDay::new().cron,
+        };
         let alert_dispatch_type = alert_dispatch_type.unwrap_or(AlertDispatchType::Console);
-        let schedule = schedule.unwrap_or(EveryDay::new().cron);
+        let features_to_alert = features_to_alert.unwrap_or(Vec::new());
 
         Self {
             alert_rule,
             alert_dispatch_type,
             schedule,
+            features_to_alert,
         }
     }
 
@@ -170,7 +192,7 @@ impl AlertZone {
             AlertZone::Zone1 => "Zone 1".to_string(),
             AlertZone::Zone2 => "Zone 2".to_string(),
             AlertZone::Zone3 => "Zone 3".to_string(),
-            AlertZone::OutOfBounds => "Out of bounds".to_string(),
+            AlertZone::OutOfBounds => "Zone 4".to_string(),
             AlertZone::NotApplicable => "NA".to_string(),
         }
     }
@@ -344,6 +366,9 @@ pub struct DriftConfig {
 
     #[pyo3(get, set)]
     pub feature_map: Option<FeatureMap>,
+
+    #[pyo3(get, set)]
+    pub targets: Vec<String>,
 }
 
 #[pymethods]
@@ -359,36 +384,17 @@ impl DriftConfig {
         schedule: Option<String>,
         alert_rule: Option<AlertRule>,
         alert_dispatch_type: Option<AlertDispatchType>,
+        features_to_alert: Option<Vec<String>>,
         feature_map: Option<FeatureMap>,
+        targets: Option<Vec<String>>,
     ) -> Self {
         let sample = sample.unwrap_or(true);
         let sample_size = sample_size.unwrap_or(25);
-
         let version = version.unwrap_or("0.1.0".to_string());
-
-        let alert_rule = alert_rule.unwrap_or(AlertRule::new(None, None));
-
-        let schedule = match schedule {
-            Some(s) => {
-                // validate the cron schedule
-                let schedule = cron::Schedule::from_str(&s);
-
-                match schedule {
-                    Ok(_) => s,
-                    Err(_) => {
-                        tracing::error!("Invalid cron schedule, using default schedule");
-                        EveryDay::new().cron
-                    }
-                }
-            }
-
-            None => EveryDay::new().cron,
-        };
-
-        let alert_dispatch_type = alert_dispatch_type.unwrap_or(AlertDispatchType::Console);
+        let targets = targets.unwrap_or(Vec::new());
 
         let alert_config =
-            AlertConfig::new(Some(alert_rule), Some(alert_dispatch_type), Some(schedule));
+            AlertConfig::new(alert_rule, alert_dispatch_type, schedule, features_to_alert);
 
         Self {
             sample_size,
@@ -398,6 +404,7 @@ impl DriftConfig {
             version,
             alert_config,
             feature_map,
+            targets,
         }
     }
 
@@ -923,22 +930,22 @@ mod tests {
     #[test]
     fn test_alert_config() {
         //test console alert config
-        let alert_config = AlertConfig::new(None, None, None);
+        let alert_config = AlertConfig::new(None, None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Console);
         assert_eq!(alert_config.alert_dispatch_type(), "Console");
 
         //test email alert config
-        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Email), None);
+        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Email), None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Email);
         assert_eq!(alert_config.alert_dispatch_type(), "Email");
 
         //test slack alert config
-        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Slack), None);
+        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Slack);
         assert_eq!(alert_config.alert_dispatch_type(), "Slack");
 
         //test opsgenie alert config
-        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::OpsGenie), None);
+        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::OpsGenie), None, None);
         assert_eq!(
             alert_config.alert_dispatch_type,
             AlertDispatchType::OpsGenie
