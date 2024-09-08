@@ -1,5 +1,6 @@
 use crate::utils::cron::EveryDay;
 use anyhow::Context;
+use colored_json::{Color, ColoredFormatter, PrettyFormatter, Styler};
 use core::fmt::Debug;
 use ndarray::Array;
 use ndarray::Array2;
@@ -158,7 +159,7 @@ impl AlertConfig {
             None => EveryDay::new().cron,
         };
         let alert_dispatch_type = alert_dispatch_type.unwrap_or(AlertDispatchType::Console);
-        let features_to_alert = features_to_alert.unwrap_or(Vec::new());
+        let features_to_alert = features_to_alert.unwrap_or_default();
         let zone_to_alert = zone_to_alert.unwrap_or(
             [
                 AlertZone::Zone1.to_str(),
@@ -265,7 +266,24 @@ struct ProfileFuncs {}
 
 impl ProfileFuncs {
     fn __str__<T: Serialize>(object: T) -> String {
+        ColoredFormatter::with_styler(
+            PrettyFormatter::default(),
+            Styler {
+                key: Color::Rgb(245, 77, 85).bold(),
+                string_value: Color::Rgb(249, 179, 93).foreground(),
+                float_value: Color::Rgb(249, 179, 93).foreground(),
+                integer_value: Color::Rgb(249, 179, 93).foreground(),
+                bool_value: Color::Rgb(249, 179, 93).foreground(),
+                nil_value: Color::Rgb(249, 179, 93).foreground(),
+                ..Default::default()
+            },
+        )
+        .to_colored_json_auto(&object)
+        .unwrap()
         // serialize the struct to a string
+    }
+
+    fn __json__<T: Serialize>(object: T) -> String {
         serde_json::to_string_pretty(&object).unwrap()
     }
 
@@ -406,7 +424,7 @@ impl DriftConfig {
         let sample = sample.unwrap_or(true);
         let sample_size = sample_size.unwrap_or(25);
         let version = version.unwrap_or("0.1.0".to_string());
-        let targets = targets.unwrap_or(Vec::new());
+        let targets = targets.unwrap_or_default();
 
         let alert_config = AlertConfig::new(
             alert_rule,
@@ -456,7 +474,7 @@ impl DriftProfile {
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        self.__str__()
+        ProfileFuncs::__json__(self)
     }
 
     #[staticmethod]
@@ -597,7 +615,7 @@ impl DataProfile {
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        self.__str__()
+        ProfileFuncs::__json__(self)
     }
 
     #[staticmethod]
@@ -728,7 +746,7 @@ impl DriftServerRecord {
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        self.__str__()
+        ProfileFuncs::__json__(self)
     }
 
     pub fn to_dict(&self) -> HashMap<String, String> {
@@ -789,7 +807,7 @@ impl DriftMap {
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        self.__str__()
+        ProfileFuncs::__json__(self)
     }
 
     #[staticmethod]
@@ -917,7 +935,7 @@ impl FeatureAlerts {
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        self.__str__()
+        ProfileFuncs::__json__(self)
     }
 }
 
