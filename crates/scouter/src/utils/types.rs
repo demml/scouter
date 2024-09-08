@@ -266,7 +266,7 @@ struct ProfileFuncs {}
 
 impl ProfileFuncs {
     fn __str__<T: Serialize>(object: T) -> String {
-        ColoredFormatter::with_styler(
+        match ColoredFormatter::with_styler(
             PrettyFormatter::default(),
             Styler {
                 key: Color::Rgb(245, 77, 85).bold(),
@@ -279,12 +279,18 @@ impl ProfileFuncs {
             },
         )
         .to_colored_json_auto(&object)
-        .unwrap()
+        {
+            Ok(json) => json,
+            Err(e) => format!("Failed to serialize to json: {}", e),
+        }
         // serialize the struct to a string
     }
 
     fn __json__<T: Serialize>(object: T) -> String {
-        serde_json::to_string_pretty(&object).unwrap()
+        match serde_json::to_string_pretty(&object) {
+            Ok(json) => json,
+            Err(e) => format!("Failed to serialize to json: {}", e),
+        }
     }
 
     fn save_to_json<T>(model: T, path: Option<PathBuf>, filename: &str) -> Result<(), anyhow::Error>
@@ -292,7 +298,7 @@ impl ProfileFuncs {
         T: Serialize,
     {
         // serialize the struct to a string
-        let json = serde_json::to_string_pretty(&model).unwrap();
+        let json = serde_json::to_string_pretty(&model).with_context(|| "Failed to serialize")?;
 
         // check if path is provided
         let write_path = if path.is_some() {
