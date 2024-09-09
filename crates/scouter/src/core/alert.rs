@@ -387,6 +387,7 @@ pub fn generate_alert(
 ///
 pub fn generate_alerts(
     drift_array: &ArrayView2<f64>,
+    sample_array: &ArrayView2<f64>,
     features: &[String],
     rule: &AlertRule,
 ) -> Result<FeatureAlerts, anyhow::Error> {
@@ -409,7 +410,9 @@ pub fn generate_alerts(
         .any(|alert| !alert.as_ref().unwrap().0.is_empty())
     {
         // get correlation matrix
-        corr = Some(compute_correlation_matrix(drift_array));
+        println!("Computing correlation matrix {:?}", sample_array);
+        corr = Some(compute_correlation_matrix(sample_array));
+        println!("Correlation matrix: {:?}", corr);
     };
 
     let mut feature_alerts = FeatureAlerts::new();
@@ -555,7 +558,7 @@ mod tests {
         // has alerts
         // create 20, 3 vector
 
-        let array = arr2(&[
+        let drift_array = arr2(&[
             [0.0, 0.0, 4.0, 4.0],
             [0.0, 1.0, 1.0, 1.0],
             [1.0, 0.0, -1.0, -1.0],
@@ -572,8 +575,10 @@ mod tests {
             [1.0, 0.0, 1.0, 1.0],
         ]);
 
+        let sample_array = drift_array.clone();
+
         // assert shape is 16,3
-        assert_eq!(array.shape(), &[14, 4]);
+        assert_eq!(drift_array.shape(), &[14, 4]);
 
         let features = vec![
             "feature1".to_string(),
@@ -584,7 +589,8 @@ mod tests {
 
         let rule = AlertRule::new(None, None);
 
-        let alerts = generate_alerts(&array.view(), &features, &rule).unwrap();
+        let alerts =
+            generate_alerts(&drift_array.view(), &sample_array.view(), &features, &rule).unwrap();
 
         let feature1 = alerts.features.get("feature1").unwrap();
         let feature2 = alerts.features.get("feature2").unwrap();
@@ -612,7 +618,7 @@ mod tests {
         // has alerts
         // create 20, 3 vector
 
-        let array = arr2(&[
+        let drift_array = arr2(&[
             [0.0, 0.0, 0.0],
             [0.0, 0.0, 0.0],
             [0.0, 0.0, 0.0],
@@ -629,8 +635,10 @@ mod tests {
             [0.0, 0.0, 0.0],
         ]);
 
+        let sample_array = drift_array.clone();
+
         // assert shape is 16,3
-        assert_eq!(array.shape(), &[14, 3]);
+        assert_eq!(drift_array.shape(), &[14, 3]);
 
         let features = vec![
             "feature1".to_string(),
@@ -639,7 +647,8 @@ mod tests {
         ];
 
         let rule = AlertRule::new(Some(PercentageAlertRule::new(None)), None);
-        let alerts = generate_alerts(&array.view(), &features, &rule).unwrap();
+        let alerts =
+            generate_alerts(&drift_array.view(), &sample_array.view(), &features, &rule).unwrap();
 
         let feature1 = alerts.features.get("feature1").unwrap();
         let feature2 = alerts.features.get("feature2").unwrap();

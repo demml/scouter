@@ -107,10 +107,10 @@ def test_alerts_control(array: NDArray, monitor_config: DriftConfig):
         alert = alerts.features[feature]
         assert len(alert.alerts) <= 1
 
-    array, features = drift_map.to_numpy()
+    drift_arrays = drift_map.to_py()
 
-    assert isinstance(array, np.ndarray)
-    assert isinstance(features, list)
+    assert isinstance(drift_arrays.drift_array, np.ndarray)
+    assert isinstance(drift_arrays.features, list)
 
 
 def test_alerts_percentage(array: NDArray, monitor_config_percentage: DriftConfig):
@@ -172,12 +172,40 @@ def test_multi_type_drift(
 
     assert len(drift_map.features) == 5
 
+    py_drift = drift_map.to_py()
+    alerts = drifter.generate_alerts(
+        drift_array=py_drift.drift_array,
+        features=py_drift.features,
+        alert_rule=monitor_config.alert_config.alert_rule,
+    )
+
+    assert len(alerts.features["cat2"].alerts) == 1
+    assert alerts.features["cat2"].alerts[0].zone == "Zone 3"
+
+
+def test_drift_correlations(
+    multivariate_array: NDArray,
+    multivariate_array_drift: NDArray,
+    monitor_config: DriftConfig,
+):
+    drifter = Drifter()
+
+    profile: DriftProfile = drifter.create_drift_profile(
+        multivariate_array, monitor_config
+    )
+
+    drift_map = drifter.compute_drift(multivariate_array_drift, profile)
+
+    assert len(drift_map.features) == 2
+
     drift_array, features = drift_map.to_numpy()
     alerts = drifter.generate_alerts(
         drift_array=drift_array,
         features=features,
         alert_rule=monitor_config.alert_config.alert_rule,
     )
+
+    print(alerts)
 
     assert len(alerts.features["cat2"].alerts) == 1
     assert alerts.features["cat2"].alerts[0].zone == "Zone 3"

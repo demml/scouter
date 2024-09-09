@@ -136,7 +136,7 @@ new_data = generate_new_data()
 drift_map = drifter.compute_drift(data, profile)
 
 ### this will return a DriftMap object. We need to convert it to a numpy array for alert generation
-drift_array, features = drift_map.to_numpy()
+drift_array, features = drift_map.to_py()
 
 # Generate alerts
 feature_alerts = drifter.generate_alerts(

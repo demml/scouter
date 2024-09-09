@@ -984,13 +984,13 @@ mod tests {
 
         // convert profile to json and load it back
         let _ = drift_map.model_dump_json();
-        let (array, features) = drift_map.to_array().unwrap();
+        let (drift_array, _sample_array, features) = drift_map.to_array().unwrap();
 
         // check if indices are the same
         for (idx, feature) in features.iter().enumerate() {
             let left = drift_map.features.get(feature).unwrap().drift[0..20].to_vec();
 
-            let right = array.slice(s![0..20, idx]).to_vec();
+            let right = drift_array.slice(s![0..20, idx]).to_vec();
 
             assert_eq!(left, right);
         }

@@ -542,8 +542,8 @@ class DriftMap:
                 Optional path to save the drift map. If None, outputs to "drift_map.json.
 
         """
-    def to_numpy(self) -> Tuple[NDArray, List[str]]:
-        """Return drift map as a numpy array and list of features"""
+    def to_numpy(self) -> Tuple[NDArray, NDArray, List[str]]:
+        """Return drift map as a a tuple of sample_array, drift_array and list of features"""
     def to_service_record(self) -> List[DriftServerRecord]:
         """Return drift map as a drift server record"""
 

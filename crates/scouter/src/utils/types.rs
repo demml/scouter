@@ -13,7 +13,6 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::str::FromStr;
-
 enum FileName {
     Drift,
     Profile,
@@ -828,33 +827,48 @@ impl DriftMap {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn to_numpy<'py>(
         &self,
         py: Python<'py>,
-    ) -> PyResult<(Bound<'py, PyArray2<f64>>, Vec<String>)> {
-        let (array, features) = self.to_array().unwrap();
-        Ok((array.into_pyarray_bound(py).to_owned(), features))
+    ) -> PyResult<(
+        Bound<'py, PyArray2<f64>>,
+        Bound<'py, PyArray2<f64>>,
+        Vec<String>,
+    )> {
+        let (drift_array, sample_array, features) = self.to_array().unwrap();
+        Ok((
+            drift_array.into_pyarray_bound(py).to_owned(),
+            sample_array.into_pyarray_bound(py).to_owned(),
+            features,
+        ))
     }
 }
 
+type ArrayReturn = (Array2<f64>, Array2<f64>, Vec<String>);
+
 impl DriftMap {
-    pub fn to_array(&self) -> Result<(Array2<f64>, Vec<String>), anyhow::Error> {
+    pub fn to_array(&self) -> Result<ArrayReturn, anyhow::Error> {
         let columns = self.features.len();
         let rows = self.features.values().next().unwrap().samples.len();
 
         // create empty array
-        let mut array = Array2::<f64>::zeros((rows, columns));
+        let mut drift_array = Array2::<f64>::zeros((rows, columns));
+        let mut sample_array = Array2::<f64>::zeros((rows, columns));
         let mut features = Vec::new();
 
         // iterate over the features and insert the drift values
         for (i, (feature, drift)) in self.features.iter().enumerate() {
             features.push(feature.clone());
-            array
+            drift_array
                 .column_mut(i)
                 .assign(&Array::from(drift.drift.clone()));
+            sample_array
+                .column_mut(i)
+                .assign(&Array::from(drift.samples.clone()));
         }
 
-        Ok((array, features))
+        Ok((drift_array, sample_array, features))
     }
 }
 // Drift config to use when calculating drift on a new sample of data
