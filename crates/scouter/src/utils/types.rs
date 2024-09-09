@@ -124,7 +124,7 @@ pub struct AlertConfig {
     pub schedule: String,
 
     #[pyo3(get, set)]
-    pub features_to_alert: Vec<String>,
+    pub features_to_monitor: Vec<String>,
 
     #[pyo3(get, set)]
     pub zone_to_alert: Vec<String>,
@@ -137,7 +137,7 @@ impl AlertConfig {
         alert_rule: Option<AlertRule>,
         alert_dispatch_type: Option<AlertDispatchType>,
         schedule: Option<String>,
-        features_to_alert: Option<Vec<String>>,
+        features_to_monitor: Option<Vec<String>>,
         zone_to_alert: Option<Vec<String>>,
     ) -> Self {
         let alert_rule = alert_rule.unwrap_or(AlertRule::new(None, None));
@@ -159,7 +159,7 @@ impl AlertConfig {
             None => EveryDay::new().cron,
         };
         let alert_dispatch_type = alert_dispatch_type.unwrap_or(AlertDispatchType::Console);
-        let features_to_alert = features_to_alert.unwrap_or_default();
+        let features_to_monitor = features_to_monitor.unwrap_or_default();
         let zone_to_alert = zone_to_alert.unwrap_or(
             [
                 AlertZone::Zone1.to_str(),
@@ -174,7 +174,7 @@ impl AlertConfig {
             alert_rule,
             alert_dispatch_type,
             schedule,
-            features_to_alert,
+            features_to_monitor,
             zone_to_alert,
         }
     }
@@ -423,7 +423,7 @@ impl DriftConfig {
         alert_rule: Option<AlertRule>,
         alert_dispatch_type: Option<AlertDispatchType>,
         zone_to_alert: Option<Vec<String>>,
-        features_to_alert: Option<Vec<String>>,
+        features_to_monitor: Option<Vec<String>>,
         feature_map: Option<FeatureMap>,
         targets: Option<Vec<String>>,
     ) -> Self {
@@ -436,7 +436,7 @@ impl DriftConfig {
             alert_rule,
             alert_dispatch_type,
             schedule,
-            features_to_alert,
+            features_to_monitor,
             zone_to_alert,
         );
 
@@ -869,6 +869,9 @@ pub struct FeatureAlert {
 
     #[pyo3(get, set)]
     pub indices: BTreeMap<usize, Vec<Vec<usize>>>,
+
+    #[pyo3(get, set)]
+    pub correlations: BTreeMap<String, f64>,
 }
 
 impl FeatureAlert {
@@ -877,6 +880,7 @@ impl FeatureAlert {
             feature,
             alerts: Vec::new(),
             indices: BTreeMap::new(),
+            correlations: BTreeMap::new(),
         }
     }
 }
@@ -904,6 +908,7 @@ impl FeatureAlerts {
         feature: &str,
         alerts: &HashSet<Alert>,
         indices: &BTreeMap<usize, Vec<Vec<usize>>>,
+        correlations: &BTreeMap<String, f64>,
     ) {
         let mut feature_alert = FeatureAlert::new(feature.to_string());
 
@@ -919,6 +924,8 @@ impl FeatureAlerts {
         indices.iter().for_each(|(key, value)| {
             feature_alert.indices.insert(*key, value.clone());
         });
+
+        feature_alert.correlations = correlations.clone();
 
         self.features.insert(feature.to_string(), feature_alert);
     }

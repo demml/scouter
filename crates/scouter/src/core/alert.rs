@@ -387,8 +387,8 @@ pub fn generate_alert(
 ///
 pub fn generate_alerts(
     drift_array: &ArrayView2<f64>,
-    features: Vec<String>,
-    alert_rule: AlertRule,
+    features: &Vec<String>,
+    rule: &AlertRule,
 ) -> Result<FeatureAlerts, anyhow::Error> {
     let mut corr: Option<Array2<f64>> = None;
 
@@ -398,15 +398,12 @@ pub fn generate_alerts(
         .into_par_iter()
         .map(|col| {
             // check for alerts and errors
-            Ok(generate_alert(&col, &alert_rule)
-                .with_context(|| "Failed to check rule for alert")?)
+            Ok(generate_alert(&col, &rule).with_context(|| "Failed to check rule for alert")?)
         })
         .collect::<Vec<Result<(HashSet<Alert>, BTreeMap<usize, Vec<Vec<usize>>>), anyhow::Error>>>(
         );
 
-    //println!("{:?}", alerts);
-
-    // check if any alerts were generated
+    // Calculate drift for any targets if there
     if alerts
         .iter()
         .any(|alert| !alert.as_ref().unwrap().0.is_empty())
@@ -421,20 +418,29 @@ pub fn generate_alerts(
     for ((idx, feature), alert) in features.iter().enumerate().zip(alerts.iter()) {
         // unwrap the alert, should should have already been checked
         let (alerts, indices) = alert.as_ref().unwrap();
-        feature_alerts.insert_feature_alert(feature, alerts, indices);
+        let mut correlations = BTreeMap::new();
 
         if !alerts.is_empty() && corr.is_some() {
             let non_curr_feature_idxs = (0..features.len())
                 .filter(|&x| x != idx)
                 .collect::<Vec<usize>>();
+
+            // this will be a vector of values for the current feature [.99, .10, .10, .20]
             let feature_cor = corr
                 .as_ref()
                 .unwrap()
                 .select(Axis(0), &[idx])
                 .select(Axis(1), &non_curr_feature_idxs);
 
-            println!("Feature: {}", feature_cor);
+            // iterate over the non current features and add the correlation to the map
+
+            for (idx, feature_idx) in non_curr_feature_idxs.iter().enumerate() {
+                let name = features[*feature_idx].clone();
+                let value = feature_cor[[0, idx]];
+                correlations.insert(name, value);
+            }
         }
+        feature_alerts.insert_feature_alert(feature, alerts, indices, &correlations);
     }
 
     Ok(feature_alerts)
@@ -550,38 +556,40 @@ mod tests {
         // create 20, 3 vector
 
         let array = arr2(&[
-            [0.0, 0.0, 4.0],
-            [0.0, 0.0, 1.0],
-            [0.0, 0.0, -1.0],
-            [0.0, 0.0, 2.0],
-            [0.0, 0.0, -2.0],
-            [0.0, 0.0, 1.0],
-            [0.0, 0.0, 1.0],
-            [0.0, 0.0, 1.0],
-            [0.0, 0.0, 1.0],
-            [0.0, 0.0, 1.0],
-            [0.0, 0.0, 1.0],
-            [0.0, 0.0, 1.0],
-            [0.0, 0.0, 1.0],
-            [0.0, 0.0, 1.0],
+            [0.0, 0.0, 4.0, 4.0],
+            [0.0, 1.0, 1.0, 1.0],
+            [1.0, 0.0, -1.0, -1.0],
+            [0.0, 1.1, 2.0, 2.0],
+            [2.0, 0.0, -2.0, -2.0],
+            [0.0, 0.0, 1.0, 1.0],
+            [0.0, 2.1, 1.0, 1.0],
+            [0.0, 0.0, 1.0, 1.0],
+            [2.0, 1.0, 1.0, 1.0],
+            [0.0, 1.0, 1.0, 1.0],
+            [0.0, 0.0, 1.0, 1.0],
+            [0.0, 2.1, 1.0, 1.0],
+            [0.0, 0.0, 1.0, 1.0],
+            [1.0, 0.0, 1.0, 1.0],
         ]);
 
         // assert shape is 16,3
-        assert_eq!(array.shape(), &[14, 3]);
+        assert_eq!(array.shape(), &[14, 4]);
 
         let features = vec![
             "feature1".to_string(),
             "feature2".to_string(),
             "feature3".to_string(),
+            "feature4".to_string(),
         ];
 
         let rule = AlertRule::new(None, None);
 
-        let alerts = generate_alerts(&array.view(), features, rule).unwrap();
+        let alerts = generate_alerts(&array.view(), &features, &rule).unwrap();
 
         let feature1 = alerts.features.get("feature1").unwrap();
         let feature2 = alerts.features.get("feature2").unwrap();
         let feature3 = alerts.features.get("feature3").unwrap();
+        let feature4 = alerts.features.get("feature4").unwrap();
 
         // assert feature 1 is has an empty hash set
         assert_eq!(feature1.alerts.len(), 0);
@@ -590,6 +598,9 @@ mod tests {
         // assert feature 3 has 2 alerts
         assert_eq!(feature3.alerts.len(), 2);
         assert_eq!(feature3.indices.len(), 2);
+
+        assert_eq!(feature4.alerts.len(), 2);
+        assert_eq!(feature4.indices.len(), 2);
 
         // assert feature 2 has 0 alert
         assert_eq!(feature2.alerts.len(), 0);
@@ -628,7 +639,7 @@ mod tests {
         ];
 
         let rule = AlertRule::new(Some(PercentageAlertRule::new(None)), None);
-        let alerts = generate_alerts(&array.view(), features, rule).unwrap();
+        let alerts = generate_alerts(&array.view(), &features, &rule).unwrap();
 
         let feature1 = alerts.features.get("feature1").unwrap();
         let feature2 = alerts.features.get("feature2").unwrap();
