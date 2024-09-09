@@ -387,7 +387,7 @@ pub fn generate_alert(
 ///
 pub fn generate_alerts(
     drift_array: &ArrayView2<f64>,
-    features: &Vec<String>,
+    features: &[String],
     rule: &AlertRule,
 ) -> Result<FeatureAlerts, anyhow::Error> {
     let mut corr: Option<Array2<f64>> = None;
@@ -398,7 +398,7 @@ pub fn generate_alerts(
         .into_par_iter()
         .map(|col| {
             // check for alerts and errors
-            Ok(generate_alert(&col, &rule).with_context(|| "Failed to check rule for alert")?)
+            Ok(generate_alert(&col, rule).with_context(|| "Failed to check rule for alert")?)
         })
         .collect::<Vec<Result<(HashSet<Alert>, BTreeMap<usize, Vec<Vec<usize>>>), anyhow::Error>>>(
         );

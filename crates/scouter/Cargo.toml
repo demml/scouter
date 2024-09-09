@@ -28,7 +28,6 @@ ndarray-stats = "0.5.1"
 cron = "0.12.1"
 tracing = "0.1.40"
 colored_json = "5.0.0"
-colored = "2.1.0"
 
 [dev-dependencies]
 approx = "0.5.1"
