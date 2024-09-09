@@ -356,7 +356,7 @@ impl ScouterDrifter {
     ) -> PyResult<FeatureAlerts> {
         let array = drift_array.as_array();
 
-        let alerts = match generate_alerts(&array, features, alert_rule) {
+        let alerts = match generate_alerts(&array, &features, &alert_rule) {
             Ok(alerts) => alerts,
             Err(_e) => {
                 return Err(PyValueError::new_err("Failed to generate alerts"));

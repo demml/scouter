@@ -127,7 +127,7 @@ pub struct AlertConfig {
     pub features_to_monitor: Vec<String>,
 
     #[pyo3(get, set)]
-    pub zone_to_alert: Vec<String>,
+    pub zones_to_monitor: Vec<String>,
 }
 
 #[pymethods]
@@ -138,7 +138,7 @@ impl AlertConfig {
         alert_dispatch_type: Option<AlertDispatchType>,
         schedule: Option<String>,
         features_to_monitor: Option<Vec<String>>,
-        zone_to_alert: Option<Vec<String>>,
+        zones_to_monitor: Option<Vec<String>>,
     ) -> Self {
         let alert_rule = alert_rule.unwrap_or(AlertRule::new(None, None));
 
@@ -160,7 +160,7 @@ impl AlertConfig {
         };
         let alert_dispatch_type = alert_dispatch_type.unwrap_or(AlertDispatchType::Console);
         let features_to_monitor = features_to_monitor.unwrap_or_default();
-        let zone_to_alert = zone_to_alert.unwrap_or(
+        let zones_to_monitor = zones_to_monitor.unwrap_or(
             [
                 AlertZone::Zone1.to_str(),
                 AlertZone::Zone2.to_str(),
@@ -175,7 +175,7 @@ impl AlertConfig {
             alert_dispatch_type,
             schedule,
             features_to_monitor,
-            zone_to_alert,
+            zones_to_monitor,
         }
     }
 
@@ -422,7 +422,7 @@ impl DriftConfig {
         schedule: Option<String>,
         alert_rule: Option<AlertRule>,
         alert_dispatch_type: Option<AlertDispatchType>,
-        zone_to_alert: Option<Vec<String>>,
+        zones_to_monitor: Option<Vec<String>>,
         features_to_monitor: Option<Vec<String>>,
         feature_map: Option<FeatureMap>,
         targets: Option<Vec<String>>,
@@ -437,7 +437,7 @@ impl DriftConfig {
             alert_dispatch_type,
             schedule,
             features_to_monitor,
-            zone_to_alert,
+            zones_to_monitor,
         );
 
         Self {

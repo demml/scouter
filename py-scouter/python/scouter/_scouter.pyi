@@ -174,6 +174,8 @@ class AlertConfig:
         alert_rule: Optional[AlertRule] = None,
         alert_dispatch_type: Optional[AlertDispatchType] = None,
         schedule: Optional[str] = None,
+        features_to_monitor: List[str] = [],
+        zones_to_monitor: List[str] = [],
     ):
         """Initialize alert config
 
@@ -184,6 +186,10 @@ class AlertConfig:
                 Alert dispatch type to use. Defaults to console
             schedule:
                 Schedule to run monitor. Defaults to daily at midnight
+            features_to_monitor:
+                List of features to monitor. Defaults to empty list, which means all features
+            zones_to_monitor:
+                List of zones to monitor. Defaults to empty list, which means all zones
 
         """
     @property
@@ -195,6 +201,12 @@ class AlertConfig:
     @property
     def schedule(self) -> str:
         """Return the schedule"""
+    @property
+    def features_to_monitor(self) -> List[str]:
+        """Return the features to monitor"""
+    @property
+    def zones_to_monitor(self) -> List[str]:
+        """Return the zones to monitor"""
 
 class Alert:
     def __init__(self, alert_type: str, zone: str):
@@ -267,6 +279,8 @@ class DriftConfig:
         schedule: str = "0 0 0 * * *",
         alert_rule: AlertRule = AlertRule(),
         alert_dispatch_type: str = AlertDispatchType.Console,
+        zones_to_monitor: List[str] = [],
+        features_to_monitor: List[str] = [],
         feature_map: Optional[FeatureMap] = None,
         targets: List[str] = [],
     ):
@@ -289,10 +303,16 @@ class DriftConfig:
                 Alert rule to use. Defaults to Standard
             alert_dispatch_type:
                 Alert dispatch type to use. Defaults to console
+            zones_to_monitor:
+                List of zones to monitor. Defaults to empty list, which means all zones
+            features_to_monitor:
+                List of features to monitor. Defaults to empty list, which means all features
+            feature_map:
+                Feature map
             targets:
-                List of target features to monitor. This is typically the name of your dependent variable.
-                Targets are used to compute correlation among other features as well as for initial
-                UI display.
+                List of features that are targets in your dataset. This is typically the name of your dependent variable(s).
+                This primarily used for monitoring and UI purposes.
+
         """
     @property
     def sample_size(self) -> int:
@@ -312,6 +332,7 @@ class DriftConfig:
     @property
     def alert_config(self) -> AlertConfig:
         """Alert configuration"""
+
     @property
     def feature_map(self) -> Optional[FeatureMap]:
         """Feature map"""
@@ -320,8 +341,21 @@ class DriftConfig:
     def targets(self) -> List[str]:
         """List of target features to monitor"""
 
+    @property
+    def schedule(self) -> str:
+        """Return the schedule."""
+    @property
+    def zones_to_monitor(self) -> List[str]:
+        """Return the zones to monitor."""
+    @property
+    def features_to_monitor(self) -> List[str]:
+        """Return the features to monitor."""
+
     def update_feature_map(self, feature_map: FeatureMap) -> None:
         """Update feature map"""
+
+    def __str__(self) -> str:
+        """Return the string representation of the config."""
 
 class DriftProfile:
     def __init__(
