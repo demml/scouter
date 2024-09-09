@@ -62,10 +62,6 @@ def multivariate_array_drift() -> YieldFixture[NDArray]:
         [stds[0] * stds[1] * corr, stds[1] ** 2],
     ]
 
-    data = np.random.multivariate_normal(means, covs, 1000)
-
-    print(np.corrcoef(data[:, 0], data[:, 1]))
-
     yield np.random.multivariate_normal(means, covs, 1000)
 
     cleanup()

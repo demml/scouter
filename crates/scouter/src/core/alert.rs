@@ -410,9 +410,7 @@ pub fn generate_alerts(
         .any(|alert| !alert.as_ref().unwrap().0.is_empty())
     {
         // get correlation matrix
-        println!("Computing correlation matrix {:?}", sample_array);
         corr = Some(compute_correlation_matrix(sample_array));
-        println!("Correlation matrix: {:?}", corr);
     };
 
     let mut feature_alerts = FeatureAlerts::new();

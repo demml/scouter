@@ -36,7 +36,7 @@ if __name__ == "__main__":
     # compute drift
     drift_map: DriftMap = drifter.compute_drift(data, profile)
 
-    drift_array, features = drift_map.to_py()
+    drift_array, sample_array, features = drift_map.to_numpy()
 
     print(drift_array, features)
 

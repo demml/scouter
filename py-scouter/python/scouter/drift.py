@@ -150,6 +150,7 @@ class Drifter:
     def generate_alerts(
         self,
         drift_array: NDArray,
+        sample_array: NDArray,
         features: List[str],
         alert_rule: AlertRule,
     ) -> FeatureAlerts:
@@ -158,6 +159,8 @@ class Drifter:
         Args:
             drift_array:
                 Array of drift values.
+            sample_array:
+                Array of sample values.
             features:
                 List of feature names. Must match the order of the drift array.
             alert_rule:
@@ -168,7 +171,12 @@ class Drifter:
         """
 
         try:
-            return self._drifter.generate_alerts(drift_array, features, alert_rule)
+            return self._drifter.generate_alerts(
+                drift_array,
+                sample_array,
+                features,
+                alert_rule,
+            )
 
         except Exception as exc:
             logger.error(f"Failed to generate alerts: {exc}")
