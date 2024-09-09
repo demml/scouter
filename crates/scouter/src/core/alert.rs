@@ -404,7 +404,7 @@ pub fn generate_alerts(
         .collect::<Vec<Result<(HashSet<Alert>, BTreeMap<usize, Vec<Vec<usize>>>), anyhow::Error>>>(
         );
 
-    // Calculate drift for any targets if there
+    // Calculate correlation matrix when there are alerts
     if alerts
         .iter()
         .any(|alert| !alert.as_ref().unwrap().0.is_empty())
@@ -421,7 +421,9 @@ pub fn generate_alerts(
         let (alerts, indices) = alert.as_ref().unwrap();
         let mut correlations = BTreeMap::new();
 
+        // check if there are alerts and a correlation matrix
         if !alerts.is_empty() && corr.is_some() {
+            // get the non current feature indices
             let non_curr_feature_idxs = (0..features.len())
                 .filter(|&x| x != idx)
                 .collect::<Vec<usize>>();
