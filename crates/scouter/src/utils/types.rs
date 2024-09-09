@@ -1,6 +1,7 @@
 use crate::utils::cron::EveryDay;
 use anyhow::Context;
-use colored_json::{Color, ColoredFormatter, PrettyFormatter, Styler};
+
+use colored_json::{Color, ColorMode, ColoredFormatter, PrettyFormatter, Styler};
 use core::fmt::Debug;
 use ndarray::Array;
 use ndarray::Array2;
@@ -278,7 +279,7 @@ impl ProfileFuncs {
                 ..Default::default()
             },
         )
-        .to_colored_json_auto(&object)
+        .to_colored_json(&object, ColorMode::On)
         {
             Ok(json) => json,
             Err(e) => format!("Failed to serialize to json: {}", e),

@@ -174,8 +174,8 @@ class AlertConfig:
         alert_rule: Optional[AlertRule] = None,
         alert_dispatch_type: Optional[AlertDispatchType] = None,
         schedule: Optional[str] = None,
-        features_to_monitor: List[str] = [],
-        zones_to_monitor: List[str] = [],
+        features_to_monitor: Optional[List[str]] = None,
+        zones_to_monitor: Optional[List[str]] = None,
     ):
         """Initialize alert config
 
@@ -279,10 +279,10 @@ class DriftConfig:
         schedule: str = "0 0 0 * * *",
         alert_rule: AlertRule = AlertRule(),
         alert_dispatch_type: str = AlertDispatchType.Console,
-        zones_to_monitor: List[str] = [],
-        features_to_monitor: List[str] = [],
+        zones_to_monitor: Optional[List[str]] = None,
+        features_to_monitor: Optional[List[str]] = None,
         feature_map: Optional[FeatureMap] = None,
-        targets: List[str] = [],
+        targets: Optional[List[str]] = None,
     ):
         """Initialize monitor config
 
@@ -310,7 +310,8 @@ class DriftConfig:
             feature_map:
                 Feature map
             targets:
-                List of features that are targets in your dataset. This is typically the name of your dependent variable(s).
+                List of features that are targets in your dataset.
+                This is typically the name of your dependent variable(s).
                 This primarily used for monitoring and UI purposes.
 
         """
@@ -332,15 +333,12 @@ class DriftConfig:
     @property
     def alert_config(self) -> AlertConfig:
         """Alert configuration"""
-
     @property
     def feature_map(self) -> Optional[FeatureMap]:
         """Feature map"""
-
     @property
     def targets(self) -> List[str]:
         """List of target features to monitor"""
-
     @property
     def schedule(self) -> str:
         """Return the schedule."""
@@ -350,10 +348,8 @@ class DriftConfig:
     @property
     def features_to_monitor(self) -> List[str]:
         """Return the features to monitor."""
-
     def update_feature_map(self, feature_map: FeatureMap) -> None:
         """Update feature map"""
-
     def __str__(self) -> str:
         """Return the string representation of the config."""
 
