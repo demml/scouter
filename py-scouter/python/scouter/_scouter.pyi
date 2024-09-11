@@ -1,6 +1,7 @@
 # pylint: disable=invalid-name
 
 import datetime
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
 
@@ -162,7 +163,7 @@ class AlertRule:
     def percentage(self) -> Optional[PercentageAlertRule]:
         """Return the percentage alert rule"""
 
-class AlertDispatchType:
+class AlertDispatchType(str, Enum):
     Email = "Email"
     Console = "Console"
     Slack = "Slack"

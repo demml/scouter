@@ -112,6 +112,19 @@ pub enum AlertDispatchType {
     OpsGenie,
 }
 
+#[pymethods]
+impl AlertDispatchType {
+    #[getter]
+    pub fn value(&self) -> String {
+        match self {
+            AlertDispatchType::Email => "Email".to_string(),
+            AlertDispatchType::Slack => "Slack".to_string(),
+            AlertDispatchType::Console => "Console".to_string(),
+            AlertDispatchType::OpsGenie => "OpsGenie".to_string(),
+        }
+    }
+}
+
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AlertConfig {
@@ -1015,18 +1028,21 @@ mod tests {
         let alert_config = AlertConfig::new(None, None, None, None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Console);
         assert_eq!(alert_config.alert_dispatch_type(), "Console");
+        assert_eq!(AlertDispatchType::Console.value(), "Console");
 
         //test email alert config
         let alert_config =
             AlertConfig::new(None, Some(AlertDispatchType::Email), None, None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Email);
         assert_eq!(alert_config.alert_dispatch_type(), "Email");
+        assert_eq!(AlertDispatchType::Email.value(), "Email");
 
         //test slack alert config
         let alert_config =
             AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Slack);
         assert_eq!(alert_config.alert_dispatch_type(), "Slack");
+        assert_eq!(AlertDispatchType::Slack.value(), "Slack");
 
         //test opsgenie alert config
         let mut alert_kwargs = HashMap::new();
@@ -1046,5 +1062,6 @@ mod tests {
         );
         assert_eq!(alert_config.alert_dispatch_type(), "OpsGenie");
         assert_eq!(alert_config.alert_kwargs.get("channel").unwrap(), "test");
+        assert_eq!(AlertDispatchType::OpsGenie.value(), "OpsGenie");
     }
 }

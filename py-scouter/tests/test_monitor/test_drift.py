@@ -255,7 +255,7 @@ def test_data_pyarrow_mixed_type(
 def test_drift_config_alert_kwargs():
     alert_config = AlertConfig(
         alert_kwargs={"channel": "scouter"},
-        alert_dispatch_type=AlertDispatchType.SLACK,
+        alert_dispatch_type=AlertDispatchType.Slack,
     )
     config = DriftConfig(
         name="test",
@@ -264,4 +264,4 @@ def test_drift_config_alert_kwargs():
     )
 
     assert config.alert_config.alert_kwargs["channel"] == "scouter"
-    assert config.alert_config.alert_dispatch_type == AlertDispatchType.SLACK
+    assert config.alert_config.alert_dispatch_type == AlertDispatchType.Slack.value
