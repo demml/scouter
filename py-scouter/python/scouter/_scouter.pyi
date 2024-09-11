@@ -288,14 +288,15 @@ class FeatureDriftProfile:
 class DriftConfig:
     def __init__(
         self,
-        name: str,
-        repository: str,
-        version: str = "0.1.0",
+        name: Optional[str],
+        repository: Optional[str],
+        version: Optional[str],
         sample: bool = True,
         sample_size: int = 25,
         feature_map: Optional[FeatureMap] = None,
         targets: Optional[List[str]] = None,
         alert_config: Optional[AlertConfig] = None,
+        config_path: Optional[Path] = None,
     ):
         """Initialize monitor config
 
@@ -318,6 +319,8 @@ class DriftConfig:
                 This primarily used for monitoring and UI purposes.
             alert_config:
                 Alert configuration
+            config_path:
+                Optional path to load config from.
         """
     @property
     def sample_size(self) -> int:

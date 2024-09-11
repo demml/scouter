@@ -15,15 +15,17 @@ fn criterion_benchmark(c: &mut Criterion) {
     let features: Vec<String> = (0..10).map(|x| x.to_string()).collect();
     let alert_config = AlertConfig::default();
     let config = DriftConfig::new(
-        "name".to_string(),
-        "repo".to_string(),
+        Some("name".to_string()),
+        Some("repo".to_string()),
         None,
         None,
         None,
         None,
         None,
         Some(alert_config),
-    );
+        None,
+    )
+    .unwrap();
     group.bench_function("monitor", |b| {
         b.iter(|| monitor.create_2d_drift_profile(&features, black_box(&array.view()), &config))
     });

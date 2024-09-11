@@ -1,6 +1,5 @@
 use crate::utils::cron::EveryDay;
 use anyhow::Context;
-
 use colored_json::{Color, ColorMode, ColoredFormatter, PrettyFormatter, Styler};
 use core::fmt::Debug;
 use ndarray::Array;
@@ -8,6 +7,7 @@ use ndarray::Array2;
 use numpy::{IntoPyArray, PyArray2};
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -452,15 +452,27 @@ pub struct DriftConfig {
 impl DriftConfig {
     #[new]
     pub fn new(
-        name: String,
-        repository: String,
+        name: Option<String>,
+        repository: Option<String>,
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
         feature_map: Option<FeatureMap>,
         targets: Option<Vec<String>>,
         alert_config: Option<AlertConfig>,
-    ) -> Self {
+        config_path: Option<PathBuf>,
+    ) -> PyResult<Self> {
+        if config_path.is_some() {
+            return Ok(DriftConfig::load_from_json(config_path.unwrap()));
+        }
+
+        if name.is_none() || repository.is_none() {
+            let msg = "Name and repository are required fields if config path is not provided";
+
+            // raise python exception
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(msg));
+        };
+
         let sample = sample.unwrap_or(true);
         let sample_size = sample_size.unwrap_or(25);
         let version = version.unwrap_or("0.1.0".to_string());
@@ -469,20 +481,40 @@ impl DriftConfig {
         let alert_config =
             alert_config.unwrap_or(AlertConfig::new(None, None, None, None, None, None));
 
-        Self {
+        Ok(Self {
             sample_size,
             sample,
-            name,
-            repository,
+            name: name.unwrap(),
+            repository: repository.unwrap(),
             version,
             alert_config,
             feature_map,
             targets,
-        }
+        })
     }
 
     pub fn update_feature_map(&mut self, feature_map: FeatureMap) {
         self.feature_map = Some(feature_map);
+    }
+
+    #[staticmethod]
+    pub fn load_from_json(path: PathBuf) -> DriftConfig {
+        // deserialize the string to a struct
+
+        let file = std::fs::read_to_string(&path)
+            .with_context(|| "Failed to read file")
+            .unwrap();
+
+        serde_json::from_str(&file).expect("Failed to load drift config")
+    }
+}
+
+impl DriftConfig {
+    pub fn load_map_from_json(path: PathBuf) -> Result<HashMap<String, Value>, anyhow::Error> {
+        // deserialize the string to a struct
+        let file = std::fs::read_to_string(&path)?;
+        let config = serde_json::from_str(&file)?;
+        Ok(config)
     }
 }
 
