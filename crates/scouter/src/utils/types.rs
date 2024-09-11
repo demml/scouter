@@ -210,8 +210,8 @@ impl AlertConfig {
     }
 }
 
-impl AlertConfig {
-    pub fn default() -> Self {
+impl Default for AlertConfig {
+    fn default() -> AlertConfig {
         Self {
             alert_rule: AlertRule::new(None, None),
             alert_dispatch_type: AlertDispatchType::Console,
@@ -462,8 +462,8 @@ impl DriftConfig {
         alert_config: Option<AlertConfig>,
         config_path: Option<PathBuf>,
     ) -> PyResult<Self> {
-        if config_path.is_some() {
-            return Ok(DriftConfig::load_from_json(config_path.unwrap()));
+        if let Some(config_path) = config_path {
+            return Ok(DriftConfig::load_from_json(config_path));
         }
 
         if name.is_none() || repository.is_none() {
