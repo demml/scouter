@@ -36,7 +36,8 @@ httpx = "^0.27.0"
 
 [tool.poetry.group.docs.dependencies]
 mkdocs-material = "^9.1.7"
-mkdocstrings = { extras = ["python"], version = "^0.21.2" }
+mkdocstrings = { extras = ["python"], version = "0.21.2" }
+mkdocstrings-python = "1.8.0"
 
 [tool.isort]
 profile = "black"
