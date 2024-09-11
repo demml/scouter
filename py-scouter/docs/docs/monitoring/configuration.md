@@ -1,6 +1,6 @@
 # Drift Configuration
 
-## All models that create a `DriftProfile` will require a `DriftConfig` object. This object is used to configure the drift detection algorithm and alerting system.
+**All models that create a `DriftProfile` will require a `DriftConfig` object. This object is used to configure the drift detection algorithm and alerting system.**
 
 The `DriftConfig` object has the following structure:
 

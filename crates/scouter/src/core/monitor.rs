@@ -713,7 +713,7 @@ impl Default for Monitor {
 #[cfg(test)]
 mod tests {
 
-    use crate::utils::types::{AlertRule, PercentageAlertRule};
+    use crate::utils::types::{AlertConfig, AlertRule, PercentageAlertRule};
 
     use super::*;
     use approx::relative_eq;
@@ -734,24 +734,22 @@ mod tests {
             "feature_3".to_string(),
         ];
 
+        let alert_config = AlertConfig::default();
         let monitor = Monitor::new();
         let config = DriftConfig::new(
-            "name".to_string(),
-            "repo".to_string(),
+            Some("name".to_string()),
+            Some("repo".to_string()),
             None,
             None,
             None,
             None,
             None,
-            None,
-            None,
-            None,
-            None,
+            Some(alert_config),
             None,
         );
 
         let profile = monitor
-            .create_2d_drift_profile(&features, &array.view(), &config)
+            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
             .unwrap();
         assert_eq!(profile.features.len(), 3);
 
@@ -775,23 +773,21 @@ mod tests {
         ];
 
         let monitor = Monitor::new();
+        let alert_config = AlertConfig::default();
         let config = DriftConfig::new(
-            "name".to_string(),
-            "repo".to_string(),
+            Some("name".to_string()),
+            Some("repo".to_string()),
             None,
             None,
             None,
             None,
             None,
-            None,
-            None,
-            None,
-            None,
+            Some(alert_config),
             None,
         );
 
         let profile = monitor
-            .create_2d_drift_profile(&features, &array.view(), &config)
+            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
             .unwrap();
         assert_eq!(profile.features.len(), 3);
     }
@@ -806,26 +802,23 @@ mod tests {
             "feature_2".to_string(),
             "feature_3".to_string(),
         ];
-
+        let alert_config = AlertConfig::default();
         let config = DriftConfig::new(
-            "name".to_string(),
-            "repo".to_string(),
+            Some("name".to_string()),
+            Some("repo".to_string()),
             None,
             None,
             None,
             None,
             None,
-            None,
-            None,
-            None,
-            None,
+            Some(alert_config),
             None,
         );
 
         let monitor = Monitor::new();
 
         let profile = monitor
-            .create_2d_drift_profile(&features, &array.view(), &config)
+            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
             .unwrap();
         assert_eq!(profile.features.len(), 3);
 
@@ -857,26 +850,23 @@ mod tests {
             "feature_2".to_string(),
             "feature_3".to_string(),
         ];
-
+        let alert_config = AlertConfig::default();
         let config = DriftConfig::new(
-            "name".to_string(),
-            "repo".to_string(),
+            Some("name".to_string()),
+            Some("repo".to_string()),
             None,
             None,
             None,
             None,
             None,
-            None,
-            None,
-            None,
-            None,
+            Some(alert_config),
             None,
         );
 
         let monitor = Monitor::new();
 
         let profile = monitor
-            .create_2d_drift_profile(&features, &array.view(), &config)
+            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
             .unwrap();
         assert_eq!(profile.features.len(), 3);
 
@@ -899,25 +889,23 @@ mod tests {
             "feature_3".to_string(),
         ];
 
+        let alert_config = AlertConfig::default();
         let config = DriftConfig::new(
-            "name".to_string(),
-            "repo".to_string(),
+            Some("name".to_string()),
+            Some("repo".to_string()),
             None,
             None,
             None,
             None,
             None,
-            None,
-            None,
-            None,
-            None,
+            Some(alert_config),
             None,
         );
 
         let monitor = Monitor::new();
 
         let profile = monitor
-            .create_2d_drift_profile(&features, &array.view(), &config)
+            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
             .unwrap();
         assert_eq!(profile.features.len(), 3);
 
@@ -945,13 +933,7 @@ mod tests {
             "feature_3".to_string(),
         ];
 
-        let config = DriftConfig::new(
-            "name".to_string(),
-            "repo".to_string(),
-            None,
-            None,
-            None,
-            None,
+        let alert_config = AlertConfig::new(
             Some(AlertRule {
                 process: None,
                 percentage: Some(PercentageAlertRule { rule: 0.1 }),
@@ -962,11 +944,22 @@ mod tests {
             None,
             None,
         );
+        let config = DriftConfig::new(
+            Some("name".to_string()),
+            Some("repo".to_string()),
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(alert_config),
+            None,
+        );
 
         let monitor = Monitor::new();
 
         let profile = monitor
-            .create_2d_drift_profile(&features, &array.view(), &config)
+            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
             .unwrap();
         assert_eq!(profile.features.len(), 3);
 

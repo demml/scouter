@@ -1,6 +1,5 @@
 use crate::utils::cron::EveryDay;
 use anyhow::Context;
-
 use colored_json::{Color, ColorMode, ColoredFormatter, PrettyFormatter, Styler};
 use core::fmt::Debug;
 use ndarray::Array;
@@ -8,6 +7,7 @@ use ndarray::Array2;
 use numpy::{IntoPyArray, PyArray2};
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -112,6 +112,19 @@ pub enum AlertDispatchType {
     OpsGenie,
 }
 
+#[pymethods]
+impl AlertDispatchType {
+    #[getter]
+    pub fn value(&self) -> String {
+        match self {
+            AlertDispatchType::Email => "Email".to_string(),
+            AlertDispatchType::Slack => "Slack".to_string(),
+            AlertDispatchType::Console => "Console".to_string(),
+            AlertDispatchType::OpsGenie => "OpsGenie".to_string(),
+        }
+    }
+}
+
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AlertConfig {
@@ -128,6 +141,9 @@ pub struct AlertConfig {
 
     #[pyo3(get, set)]
     pub zones_to_monitor: Vec<String>,
+
+    #[pyo3(get, set)]
+    pub alert_kwargs: HashMap<String, String>,
 }
 
 #[pymethods]
@@ -139,6 +155,7 @@ impl AlertConfig {
         schedule: Option<String>,
         features_to_monitor: Option<Vec<String>>,
         zones_to_monitor: Option<Vec<String>>,
+        alert_kwargs: Option<HashMap<String, String>>,
     ) -> Self {
         let alert_rule = alert_rule.unwrap_or(AlertRule::new(None, None));
 
@@ -170,12 +187,15 @@ impl AlertConfig {
             .to_vec(),
         );
 
+        let alert_kwargs = alert_kwargs.unwrap_or_default();
+
         Self {
             alert_rule,
             alert_dispatch_type,
             schedule,
             features_to_monitor,
             zones_to_monitor,
+            alert_kwargs,
         }
     }
 
@@ -186,6 +206,24 @@ impl AlertConfig {
             AlertDispatchType::Slack => "Slack".to_string(),
             AlertDispatchType::Console => "Console".to_string(),
             AlertDispatchType::OpsGenie => "OpsGenie".to_string(),
+        }
+    }
+}
+
+impl Default for AlertConfig {
+    fn default() -> AlertConfig {
+        Self {
+            alert_rule: AlertRule::new(None, None),
+            alert_dispatch_type: AlertDispatchType::Console,
+            schedule: EveryDay::new().cron,
+            features_to_monitor: Vec::new(),
+            zones_to_monitor: vec![
+                AlertZone::Zone1.to_str(),
+                AlertZone::Zone2.to_str(),
+                AlertZone::Zone3.to_str(),
+                AlertZone::Zone4.to_str(),
+            ],
+            alert_kwargs: HashMap::new(),
         }
     }
 }
@@ -414,46 +452,69 @@ pub struct DriftConfig {
 impl DriftConfig {
     #[new]
     pub fn new(
-        name: String,
-        repository: String,
+        name: Option<String>,
+        repository: Option<String>,
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
-        schedule: Option<String>,
-        alert_rule: Option<AlertRule>,
-        alert_dispatch_type: Option<AlertDispatchType>,
-        zones_to_monitor: Option<Vec<String>>,
-        features_to_monitor: Option<Vec<String>>,
         feature_map: Option<FeatureMap>,
         targets: Option<Vec<String>>,
-    ) -> Self {
+        alert_config: Option<AlertConfig>,
+        config_path: Option<PathBuf>,
+    ) -> PyResult<Self> {
+        if let Some(config_path) = config_path {
+            return Ok(DriftConfig::load_from_json(config_path));
+        }
+
+        if name.is_none() || repository.is_none() {
+            let msg = "Name and repository are required fields if config path is not provided";
+
+            // raise python exception
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(msg));
+        };
+
         let sample = sample.unwrap_or(true);
         let sample_size = sample_size.unwrap_or(25);
         let version = version.unwrap_or("0.1.0".to_string());
         let targets = targets.unwrap_or_default();
 
-        let alert_config = AlertConfig::new(
-            alert_rule,
-            alert_dispatch_type,
-            schedule,
-            features_to_monitor,
-            zones_to_monitor,
-        );
+        let alert_config =
+            alert_config.unwrap_or(AlertConfig::new(None, None, None, None, None, None));
 
-        Self {
+        Ok(Self {
             sample_size,
             sample,
-            name,
-            repository,
+            name: name.unwrap(),
+            repository: repository.unwrap(),
             version,
             alert_config,
             feature_map,
             targets,
-        }
+        })
     }
 
     pub fn update_feature_map(&mut self, feature_map: FeatureMap) {
         self.feature_map = Some(feature_map);
+    }
+
+    #[staticmethod]
+    pub fn load_from_json(path: PathBuf) -> DriftConfig {
+        // deserialize the string to a struct
+
+        let file = std::fs::read_to_string(&path)
+            .with_context(|| "Failed to read file")
+            .unwrap();
+
+        serde_json::from_str(&file).expect("Failed to load drift config")
+    }
+}
+
+impl DriftConfig {
+    pub fn load_map_from_json(path: PathBuf) -> Result<HashMap<String, Value>, anyhow::Error> {
+        // deserialize the string to a struct
+        let file = std::fs::read_to_string(&path)?;
+        let config = serde_json::from_str(&file)?;
+        Ok(config)
     }
 }
 
@@ -996,27 +1057,43 @@ mod tests {
     #[test]
     fn test_alert_config() {
         //test console alert config
-        let alert_config = AlertConfig::new(None, None, None, None, None);
+        let alert_config = AlertConfig::new(None, None, None, None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Console);
         assert_eq!(alert_config.alert_dispatch_type(), "Console");
+        assert_eq!(AlertDispatchType::Console.value(), "Console");
 
         //test email alert config
-        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Email), None, None, None);
+        let alert_config =
+            AlertConfig::new(None, Some(AlertDispatchType::Email), None, None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Email);
         assert_eq!(alert_config.alert_dispatch_type(), "Email");
+        assert_eq!(AlertDispatchType::Email.value(), "Email");
 
         //test slack alert config
-        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None);
+        let alert_config =
+            AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Slack);
         assert_eq!(alert_config.alert_dispatch_type(), "Slack");
+        assert_eq!(AlertDispatchType::Slack.value(), "Slack");
 
         //test opsgenie alert config
-        let alert_config =
-            AlertConfig::new(None, Some(AlertDispatchType::OpsGenie), None, None, None);
+        let mut alert_kwargs = HashMap::new();
+        alert_kwargs.insert("channel".to_string(), "test".to_string());
+
+        let alert_config = AlertConfig::new(
+            None,
+            Some(AlertDispatchType::OpsGenie),
+            None,
+            None,
+            None,
+            Some(alert_kwargs),
+        );
         assert_eq!(
             alert_config.alert_dispatch_type,
             AlertDispatchType::OpsGenie
         );
         assert_eq!(alert_config.alert_dispatch_type(), "OpsGenie");
+        assert_eq!(alert_config.alert_kwargs.get("channel").unwrap(), "test");
+        assert_eq!(AlertDispatchType::OpsGenie.value(), "OpsGenie");
     }
 }

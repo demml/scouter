@@ -10,6 +10,8 @@ from scouter._scouter import (
     DriftMap,
     DriftConfig,
     AlertRule,
+    AlertConfig,
+    AlertDispatchType,
 )
 
 
@@ -248,3 +250,32 @@ def test_data_pyarrow_mixed_type(
     drift_map = drifter.compute_drift(arrow_table, profile)
 
     assert len(drift_map.features) == 5
+
+
+def test_drift_config_alert_kwargs():
+    alert_config = AlertConfig(
+        alert_kwargs={"channel": "scouter"},
+        alert_dispatch_type=AlertDispatchType.Slack,
+    )
+    config = DriftConfig(
+        name="test",
+        repository="test",
+        alert_config=alert_config,
+    )
+
+    assert config.alert_config.alert_kwargs["channel"] == "scouter"
+    assert config.alert_config.alert_dispatch_type == AlertDispatchType.Slack.value
+
+
+def test_load_from_file():
+    config = DriftConfig(config_path="tests/assets/drift_config.json")
+    assert config.name == "name"
+    assert config.repository == "repo"
+
+    with pytest.raises(ValueError) as info:
+        DriftConfig()
+
+    assert (
+        "Name and repository are required fields if config path is not provided"
+        in str(info.value)
+    )
