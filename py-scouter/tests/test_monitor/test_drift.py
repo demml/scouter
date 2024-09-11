@@ -272,5 +272,10 @@ def test_load_from_file():
     assert config.name == "name"
     assert config.repository == "repo"
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ValueError) as info:
         DriftConfig()
+
+    assert (
+        "Name and repository are required fields if config path is not provided"
+        in str(info.value)
+    )
