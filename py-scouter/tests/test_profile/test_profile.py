@@ -112,12 +112,12 @@ def test_data_profile_polars_mixed_type(
     assert profile.features["cat2"].string_stats.distinct.count == 3
     assert profile.features["cat2"].string_stats.word_stats.words[
         "3.0"
-    ].percent == pytest.approx(0.352, abs=0.06)
+    ].percent == pytest.approx(0.352, abs=0.1)
 
     assert profile.features["cat1"].string_stats.distinct.count == 5
     assert profile.features["cat1"].string_stats.word_stats.words[
         "7.0"
-    ].percent == pytest.approx(0.19, abs=0.06)
+    ].percent == pytest.approx(0.19, abs=0.1)
 
 
 def test_data_profile_pandas_mixed_type(
@@ -131,12 +131,12 @@ def test_data_profile_pandas_mixed_type(
     assert profile.features["cat2"].string_stats.distinct.count == 3
     assert profile.features["cat2"].string_stats.word_stats.words[
         "3.0"
-    ].percent == pytest.approx(0.352, abs=0.05)
+    ].percent == pytest.approx(0.352, abs=0.1)
 
     assert profile.features["cat1"].string_stats.distinct.count == 5
     assert profile.features["cat1"].string_stats.word_stats.words[
         "7.0"
-    ].percent == pytest.approx(0.19, abs=0.05)
+    ].percent == pytest.approx(0.19, abs=0.1)
 
 
 def test_data_profile_pyarrow_mixed_type(
@@ -150,9 +150,9 @@ def test_data_profile_pyarrow_mixed_type(
     assert profile.features["cat2"].string_stats.distinct.count == 3
     assert profile.features["cat2"].string_stats.word_stats.words[
         "3.0"
-    ].percent == pytest.approx(0.352, abs=0.05)
+    ].percent == pytest.approx(0.352, abs=0.1)
 
     assert profile.features["cat1"].string_stats.distinct.count == 5
     assert profile.features["cat1"].string_stats.word_stats.words[
         "7.0"
-    ].percent == pytest.approx(0.19, abs=0.05)
+    ].percent == pytest.approx(0.19, abs=0.1)

@@ -100,16 +100,22 @@ def test_alerts_control(array: NDArray, monitor_config: DriftConfig):
 
     # generate alerts
 
-    alerts = scouter.generate_alerts(drift_array, features, AlertRule())
+    alerts = scouter.generate_alerts(
+        drift_array,
+        drift_array,  # placeholder for sample array
+        features,
+        AlertRule(),
+    )
 
     # should have no alerts
     for feature in features:
         alert = alerts.features[feature]
         assert len(alert.alerts) <= 1
 
-    array, features = drift_map.to_numpy()
+    drift_array, sample_array, features = drift_map.to_numpy()
 
-    assert isinstance(array, np.ndarray)
+    assert isinstance(drift_array, np.ndarray)
+    assert isinstance(sample_array, np.ndarray)
     assert isinstance(features, list)
 
 
@@ -148,6 +154,7 @@ def test_alerts_percentage(array: NDArray, monitor_config_percentage: DriftConfi
 
     alerts = scouter.generate_alerts(
         drift_array,
+        drift_array,  # placeholder for sample array
         features,
         monitor_config_percentage.alert_config.alert_rule,
     )
@@ -172,15 +179,46 @@ def test_multi_type_drift(
 
     assert len(drift_map.features) == 5
 
-    drift_array, features = drift_map.to_numpy()
+    drift_array, sample_array, features = drift_map.to_numpy()
     alerts = drifter.generate_alerts(
         drift_array=drift_array,
+        sample_array=sample_array,
         features=features,
         alert_rule=monitor_config.alert_config.alert_rule,
     )
 
     assert len(alerts.features["cat2"].alerts) == 1
     assert alerts.features["cat2"].alerts[0].zone == "Zone 3"
+
+
+def test_drift_correlations(
+    multivariate_array: NDArray,
+    multivariate_array_drift: NDArray,
+    monitor_config: DriftConfig,
+):
+    drifter = Drifter()
+
+    profile: DriftProfile = drifter.create_drift_profile(
+        multivariate_array, monitor_config
+    )
+
+    drift_map = drifter.compute_drift(multivariate_array_drift, profile)
+
+    assert len(drift_map.features) == 2
+
+    drift_array, sample_array, features = drift_map.to_numpy()
+    alerts = drifter.generate_alerts(
+        drift_array=drift_array,
+        sample_array=sample_array,
+        features=features,
+        alert_rule=monitor_config.alert_config.alert_rule,
+    )
+
+    assert len(alerts.features["feature_0"].alerts) == 1
+    assert alerts.features["feature_0"].correlations["feature_1"] >= 0.5
+
+    assert len(alerts.features["feature_1"].alerts) > 0
+    assert alerts.features["feature_1"].correlations["feature_0"] >= 0.5
 
 
 def test_only_string_drift(

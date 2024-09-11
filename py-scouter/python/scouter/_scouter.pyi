@@ -174,6 +174,8 @@ class AlertConfig:
         alert_rule: Optional[AlertRule] = None,
         alert_dispatch_type: Optional[AlertDispatchType] = None,
         schedule: Optional[str] = None,
+        features_to_monitor: Optional[List[str]] = None,
+        zones_to_monitor: Optional[List[str]] = None,
     ):
         """Initialize alert config
 
@@ -184,6 +186,10 @@ class AlertConfig:
                 Alert dispatch type to use. Defaults to console
             schedule:
                 Schedule to run monitor. Defaults to daily at midnight
+            features_to_monitor:
+                List of features to monitor. Defaults to empty list, which means all features
+            zones_to_monitor:
+                List of zones to monitor. Defaults to empty list, which means all zones
 
         """
     @property
@@ -195,6 +201,12 @@ class AlertConfig:
     @property
     def schedule(self) -> str:
         """Return the schedule"""
+    @property
+    def features_to_monitor(self) -> List[str]:
+        """Return the features to monitor"""
+    @property
+    def zones_to_monitor(self) -> List[str]:
+        """Return the zones to monitor"""
 
 class Alert:
     def __init__(self, alert_type: str, zone: str):
@@ -216,6 +228,9 @@ class FeatureAlert:
     @property
     def indices(self) -> Dict[Union[str, int], List[List[int]]]:
         """Return the alert indices"""
+    @property
+    def correlations(self) -> Dict[str, float]:
+        """Return the feature correlations"""
 
 class FeatureAlerts:
     @property
@@ -267,7 +282,10 @@ class DriftConfig:
         schedule: str = "0 0 0 * * *",
         alert_rule: AlertRule = AlertRule(),
         alert_dispatch_type: str = AlertDispatchType.Console,
+        zones_to_monitor: Optional[List[str]] = None,
+        features_to_monitor: Optional[List[str]] = None,
         feature_map: Optional[FeatureMap] = None,
+        targets: Optional[List[str]] = None,
     ):
         """Initialize monitor config
 
@@ -288,6 +306,17 @@ class DriftConfig:
                 Alert rule to use. Defaults to Standard
             alert_dispatch_type:
                 Alert dispatch type to use. Defaults to console
+            zones_to_monitor:
+                List of zones to monitor. Defaults to empty list, which means all zones
+            features_to_monitor:
+                List of features to monitor. Defaults to empty list, which means all features
+            feature_map:
+                Feature map
+            targets:
+                List of features that are targets in your dataset.
+                This is typically the name of your dependent variable(s).
+                This primarily used for monitoring and UI purposes.
+
         """
     @property
     def sample_size(self) -> int:
@@ -310,8 +339,22 @@ class DriftConfig:
     @property
     def feature_map(self) -> Optional[FeatureMap]:
         """Feature map"""
+    @property
+    def targets(self) -> List[str]:
+        """List of target features to monitor"""
+    @property
+    def schedule(self) -> str:
+        """Return the schedule."""
+    @property
+    def zones_to_monitor(self) -> List[str]:
+        """Return the zones to monitor."""
+    @property
+    def features_to_monitor(self) -> List[str]:
+        """Return the features to monitor."""
     def update_feature_map(self, feature_map: FeatureMap) -> None:
         """Update feature map"""
+    def __str__(self) -> str:
+        """Return the string representation of the config."""
 
 class DriftProfile:
     def __init__(
@@ -502,8 +545,8 @@ class DriftMap:
                 Optional path to save the drift map. If None, outputs to "drift_map.json.
 
         """
-    def to_numpy(self) -> Tuple[NDArray, List[str]]:
-        """Return drift map as a numpy array and list of features"""
+    def to_numpy(self) -> Tuple[NDArray, NDArray, List[str]]:
+        """Return drift map as a a tuple of sample_array, drift_array and list of features"""
     def to_service_record(self) -> List[DriftServerRecord]:
         """Return drift map as a drift server record"""
 
@@ -699,6 +742,7 @@ class ScouterDrifter:
     def generate_alerts(
         self,
         drift_array: NDArray,
+        sample_array: NDArray,
         features: List[str],
         alert_rule: AlertRule,
     ) -> FeatureAlerts:
@@ -707,6 +751,8 @@ class ScouterDrifter:
         Args:
             drift_array:
                 Numpy array of drift values.
+            sample_array:
+                sample array of values.
             features:
                 List of feature names. Must match drift array.
             alert_rule:

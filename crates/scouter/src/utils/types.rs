@@ -1,5 +1,7 @@
 use crate::utils::cron::EveryDay;
 use anyhow::Context;
+
+use colored_json::{Color, ColorMode, ColoredFormatter, PrettyFormatter, Styler};
 use core::fmt::Debug;
 use ndarray::Array;
 use ndarray::Array2;
@@ -11,7 +13,6 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::str::FromStr;
-
 enum FileName {
     Drift,
     Profile,
@@ -121,6 +122,12 @@ pub struct AlertConfig {
 
     #[pyo3(get, set)]
     pub schedule: String,
+
+    #[pyo3(get, set)]
+    pub features_to_monitor: Vec<String>,
+
+    #[pyo3(get, set)]
+    pub zones_to_monitor: Vec<String>,
 }
 
 #[pymethods]
@@ -130,15 +137,45 @@ impl AlertConfig {
         alert_rule: Option<AlertRule>,
         alert_dispatch_type: Option<AlertDispatchType>,
         schedule: Option<String>,
+        features_to_monitor: Option<Vec<String>>,
+        zones_to_monitor: Option<Vec<String>>,
     ) -> Self {
         let alert_rule = alert_rule.unwrap_or(AlertRule::new(None, None));
+
+        let schedule = match schedule {
+            Some(s) => {
+                // validate the cron schedule
+                let schedule = cron::Schedule::from_str(&s);
+
+                match schedule {
+                    Ok(_) => s,
+                    Err(_) => {
+                        tracing::error!("Invalid cron schedule, using default schedule");
+                        EveryDay::new().cron
+                    }
+                }
+            }
+
+            None => EveryDay::new().cron,
+        };
         let alert_dispatch_type = alert_dispatch_type.unwrap_or(AlertDispatchType::Console);
-        let schedule = schedule.unwrap_or(EveryDay::new().cron);
+        let features_to_monitor = features_to_monitor.unwrap_or_default();
+        let zones_to_monitor = zones_to_monitor.unwrap_or(
+            [
+                AlertZone::Zone1.to_str(),
+                AlertZone::Zone2.to_str(),
+                AlertZone::Zone3.to_str(),
+                AlertZone::Zone4.to_str(),
+            ]
+            .to_vec(),
+        );
 
         Self {
             alert_rule,
             alert_dispatch_type,
             schedule,
+            features_to_monitor,
+            zones_to_monitor,
         }
     }
 
@@ -159,7 +196,7 @@ pub enum AlertZone {
     Zone1,
     Zone2,
     Zone3,
-    OutOfBounds,
+    Zone4,
     NotApplicable,
 }
 
@@ -170,7 +207,7 @@ impl AlertZone {
             AlertZone::Zone1 => "Zone 1".to_string(),
             AlertZone::Zone2 => "Zone 2".to_string(),
             AlertZone::Zone3 => "Zone 3".to_string(),
-            AlertZone::OutOfBounds => "Out of bounds".to_string(),
+            AlertZone::Zone4 => "Zone 4".to_string(),
             AlertZone::NotApplicable => "NA".to_string(),
         }
     }
@@ -229,8 +266,31 @@ struct ProfileFuncs {}
 
 impl ProfileFuncs {
     fn __str__<T: Serialize>(object: T) -> String {
+        match ColoredFormatter::with_styler(
+            PrettyFormatter::default(),
+            Styler {
+                key: Color::Rgb(245, 77, 85).bold(),
+                string_value: Color::Rgb(249, 179, 93).foreground(),
+                float_value: Color::Rgb(249, 179, 93).foreground(),
+                integer_value: Color::Rgb(249, 179, 93).foreground(),
+                bool_value: Color::Rgb(249, 179, 93).foreground(),
+                nil_value: Color::Rgb(249, 179, 93).foreground(),
+                ..Default::default()
+            },
+        )
+        .to_colored_json(&object, ColorMode::On)
+        {
+            Ok(json) => json,
+            Err(e) => format!("Failed to serialize to json: {}", e),
+        }
         // serialize the struct to a string
-        serde_json::to_string_pretty(&object).unwrap()
+    }
+
+    fn __json__<T: Serialize>(object: T) -> String {
+        match serde_json::to_string_pretty(&object) {
+            Ok(json) => json,
+            Err(e) => format!("Failed to serialize to json: {}", e),
+        }
     }
 
     fn save_to_json<T>(model: T, path: Option<PathBuf>, filename: &str) -> Result<(), anyhow::Error>
@@ -238,7 +298,7 @@ impl ProfileFuncs {
         T: Serialize,
     {
         // serialize the struct to a string
-        let json = serde_json::to_string_pretty(&model).unwrap();
+        let json = serde_json::to_string_pretty(&model).with_context(|| "Failed to serialize")?;
 
         // check if path is provided
         let write_path = if path.is_some() {
@@ -344,6 +404,9 @@ pub struct DriftConfig {
 
     #[pyo3(get, set)]
     pub feature_map: Option<FeatureMap>,
+
+    #[pyo3(get, set)]
+    pub targets: Vec<String>,
 }
 
 #[pymethods]
@@ -359,36 +422,23 @@ impl DriftConfig {
         schedule: Option<String>,
         alert_rule: Option<AlertRule>,
         alert_dispatch_type: Option<AlertDispatchType>,
+        zones_to_monitor: Option<Vec<String>>,
+        features_to_monitor: Option<Vec<String>>,
         feature_map: Option<FeatureMap>,
+        targets: Option<Vec<String>>,
     ) -> Self {
         let sample = sample.unwrap_or(true);
         let sample_size = sample_size.unwrap_or(25);
-
         let version = version.unwrap_or("0.1.0".to_string());
+        let targets = targets.unwrap_or_default();
 
-        let alert_rule = alert_rule.unwrap_or(AlertRule::new(None, None));
-
-        let schedule = match schedule {
-            Some(s) => {
-                // validate the cron schedule
-                let schedule = cron::Schedule::from_str(&s);
-
-                match schedule {
-                    Ok(_) => s,
-                    Err(_) => {
-                        tracing::error!("Invalid cron schedule, using default schedule");
-                        EveryDay::new().cron
-                    }
-                }
-            }
-
-            None => EveryDay::new().cron,
-        };
-
-        let alert_dispatch_type = alert_dispatch_type.unwrap_or(AlertDispatchType::Console);
-
-        let alert_config =
-            AlertConfig::new(Some(alert_rule), Some(alert_dispatch_type), Some(schedule));
+        let alert_config = AlertConfig::new(
+            alert_rule,
+            alert_dispatch_type,
+            schedule,
+            features_to_monitor,
+            zones_to_monitor,
+        );
 
         Self {
             sample_size,
@@ -398,6 +448,7 @@ impl DriftConfig {
             version,
             alert_config,
             feature_map,
+            targets,
         }
     }
 
@@ -429,7 +480,7 @@ impl DriftProfile {
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        self.__str__()
+        ProfileFuncs::__json__(self)
     }
 
     #[staticmethod]
@@ -570,7 +621,7 @@ impl DataProfile {
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        self.__str__()
+        ProfileFuncs::__json__(self)
     }
 
     #[staticmethod]
@@ -701,7 +752,7 @@ impl DriftServerRecord {
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        self.__str__()
+        ProfileFuncs::__json__(self)
     }
 
     pub fn to_dict(&self) -> HashMap<String, String> {
@@ -762,7 +813,7 @@ impl DriftMap {
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        self.__str__()
+        ProfileFuncs::__json__(self)
     }
 
     #[staticmethod]
@@ -776,33 +827,48 @@ impl DriftMap {
             .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
     }
 
+    #[allow(clippy::type_complexity)]
     pub fn to_numpy<'py>(
         &self,
         py: Python<'py>,
-    ) -> PyResult<(Bound<'py, PyArray2<f64>>, Vec<String>)> {
-        let (array, features) = self.to_array().unwrap();
-        Ok((array.into_pyarray_bound(py).to_owned(), features))
+    ) -> PyResult<(
+        Bound<'py, PyArray2<f64>>,
+        Bound<'py, PyArray2<f64>>,
+        Vec<String>,
+    )> {
+        let (drift_array, sample_array, features) = self.to_array().unwrap();
+        Ok((
+            drift_array.into_pyarray_bound(py).to_owned(),
+            sample_array.into_pyarray_bound(py).to_owned(),
+            features,
+        ))
     }
 }
 
+type ArrayReturn = (Array2<f64>, Array2<f64>, Vec<String>);
+
 impl DriftMap {
-    pub fn to_array(&self) -> Result<(Array2<f64>, Vec<String>), anyhow::Error> {
+    pub fn to_array(&self) -> Result<ArrayReturn, anyhow::Error> {
         let columns = self.features.len();
         let rows = self.features.values().next().unwrap().samples.len();
 
         // create empty array
-        let mut array = Array2::<f64>::zeros((rows, columns));
+        let mut drift_array = Array2::<f64>::zeros((rows, columns));
+        let mut sample_array = Array2::<f64>::zeros((rows, columns));
         let mut features = Vec::new();
 
         // iterate over the features and insert the drift values
         for (i, (feature, drift)) in self.features.iter().enumerate() {
             features.push(feature.clone());
-            array
+            drift_array
                 .column_mut(i)
                 .assign(&Array::from(drift.drift.clone()));
+            sample_array
+                .column_mut(i)
+                .assign(&Array::from(drift.samples.clone()));
         }
 
-        Ok((array, features))
+        Ok((drift_array, sample_array, features))
     }
 }
 // Drift config to use when calculating drift on a new sample of data
@@ -818,6 +884,9 @@ pub struct FeatureAlert {
 
     #[pyo3(get, set)]
     pub indices: BTreeMap<usize, Vec<Vec<usize>>>,
+
+    #[pyo3(get, set)]
+    pub correlations: BTreeMap<String, f64>,
 }
 
 impl FeatureAlert {
@@ -826,6 +895,7 @@ impl FeatureAlert {
             feature,
             alerts: Vec::new(),
             indices: BTreeMap::new(),
+            correlations: BTreeMap::new(),
         }
     }
 }
@@ -853,6 +923,7 @@ impl FeatureAlerts {
         feature: &str,
         alerts: &HashSet<Alert>,
         indices: &BTreeMap<usize, Vec<Vec<usize>>>,
+        correlations: &BTreeMap<String, f64>,
     ) {
         let mut feature_alert = FeatureAlert::new(feature.to_string());
 
@@ -868,6 +939,8 @@ impl FeatureAlerts {
         indices.iter().for_each(|(key, value)| {
             feature_alert.indices.insert(*key, value.clone());
         });
+
+        feature_alert.correlations = correlations.clone();
 
         self.features.insert(feature.to_string(), feature_alert);
     }
@@ -890,7 +963,7 @@ impl FeatureAlerts {
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        self.__str__()
+        ProfileFuncs::__json__(self)
     }
 }
 
@@ -909,7 +982,7 @@ mod tests {
         assert_eq!(AlertZone::Zone1.to_str(), "Zone 1");
         assert_eq!(AlertZone::Zone2.to_str(), "Zone 2");
         assert_eq!(AlertZone::Zone3.to_str(), "Zone 3");
-        assert_eq!(AlertZone::OutOfBounds.to_str(), "Out of bounds");
+        assert_eq!(AlertZone::Zone4.to_str(), "Zone 4");
         assert_eq!(AlertType::AllGood.to_str(), "All good");
         assert_eq!(AlertType::Consecutive.to_str(), "Consecutive");
         assert_eq!(AlertType::Alternating.to_str(), "Alternating");
@@ -923,22 +996,23 @@ mod tests {
     #[test]
     fn test_alert_config() {
         //test console alert config
-        let alert_config = AlertConfig::new(None, None, None);
+        let alert_config = AlertConfig::new(None, None, None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Console);
         assert_eq!(alert_config.alert_dispatch_type(), "Console");
 
         //test email alert config
-        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Email), None);
+        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Email), None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Email);
         assert_eq!(alert_config.alert_dispatch_type(), "Email");
 
         //test slack alert config
-        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Slack), None);
+        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Slack);
         assert_eq!(alert_config.alert_dispatch_type(), "Slack");
 
         //test opsgenie alert config
-        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::OpsGenie), None);
+        let alert_config =
+            AlertConfig::new(None, Some(AlertDispatchType::OpsGenie), None, None, None);
         assert_eq!(
             alert_config.alert_dispatch_type,
             AlertDispatchType::OpsGenie

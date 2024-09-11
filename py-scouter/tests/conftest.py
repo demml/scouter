@@ -34,6 +34,40 @@ def array() -> YieldFixture[NDArray]:
 
 
 @pytest.fixture(scope="function")
+def multivariate_array() -> YieldFixture[NDArray]:
+    xx = np.array([-0.51, 51.2])
+    yy = np.array([0.33, 51.6])
+    means = [xx.mean(), yy.mean()]
+    stds = [xx.std() / 3, yy.std() / 3]
+    corr = 0.8  # correlation
+    covs = [
+        [stds[0] ** 2, stds[0] * stds[1] * corr],
+        [stds[0] * stds[1] * corr, stds[1] ** 2],
+    ]
+
+    yield np.random.multivariate_normal(means, covs, 1000)
+
+    cleanup()
+
+
+@pytest.fixture(scope="function")
+def multivariate_array_drift() -> YieldFixture[NDArray]:
+    xx = np.array([-0.21, 21.2])
+    yy = np.array([0.13, 31.6])
+    means = [xx.mean(), yy.mean()]
+    stds = [xx.std() / 3, yy.std() / 3]
+    corr = 0.8  # correlation
+    covs = [
+        [stds[0] ** 2, stds[0] * stds[1] * corr],
+        [stds[0] * stds[1] * corr, stds[1] ** 2],
+    ]
+
+    yield np.random.multivariate_normal(means, covs, 1000)
+
+    cleanup()
+
+
+@pytest.fixture(scope="function")
 def monitor_config() -> YieldFixture[DriftConfig]:
     config = DriftConfig(name="test", repository="test")
     yield config
