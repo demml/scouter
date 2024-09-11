@@ -10,6 +10,8 @@ from scouter._scouter import (
     DriftMap,
     DriftConfig,
     AlertRule,
+    AlertConfig,
+    AlertDispatchType,
 )
 
 
@@ -251,7 +253,15 @@ def test_data_pyarrow_mixed_type(
 
 
 def test_drift_config_alert_kwargs():
+    alert_config = AlertConfig(
+        alert_kwargs={"channel": "scouter"},
+        alert_dispatch_type=AlertDispatchType.SLACK,
+    )
     config = DriftConfig(
         name="test",
         repository="test",
+        alert_config=alert_config,
     )
+
+    assert config.alert_config.alert_kwargs["channel"] == "scouter"
+    assert config.alert_config.alert_dispatch_type == AlertDispatchType.SLACK
