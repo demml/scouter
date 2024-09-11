@@ -713,7 +713,7 @@ impl Default for Monitor {
 #[cfg(test)]
 mod tests {
 
-    use crate::utils::types::{AlertRule, PercentageAlertRule};
+    use crate::utils::types::{AlertConfig, AlertRule, PercentageAlertRule};
 
     use super::*;
     use approx::relative_eq;
@@ -734,6 +734,7 @@ mod tests {
             "feature_3".to_string(),
         ];
 
+        let alert_config = AlertConfig::default();
         let monitor = Monitor::new();
         let config = DriftConfig::new(
             "name".to_string(),
@@ -743,12 +744,7 @@ mod tests {
             None,
             None,
             None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
+            Some(alert_config),
         );
 
         let profile = monitor
@@ -776,6 +772,7 @@ mod tests {
         ];
 
         let monitor = Monitor::new();
+        let alert_config = AlertConfig::default();
         let config = DriftConfig::new(
             "name".to_string(),
             "repo".to_string(),
@@ -784,12 +781,7 @@ mod tests {
             None,
             None,
             None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
+            Some(alert_config),
         );
 
         let profile = monitor
@@ -808,7 +800,7 @@ mod tests {
             "feature_2".to_string(),
             "feature_3".to_string(),
         ];
-
+        let alert_config = AlertConfig::default();
         let config = DriftConfig::new(
             "name".to_string(),
             "repo".to_string(),
@@ -817,12 +809,7 @@ mod tests {
             None,
             None,
             None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
+            Some(alert_config),
         );
 
         let monitor = Monitor::new();
@@ -860,7 +847,7 @@ mod tests {
             "feature_2".to_string(),
             "feature_3".to_string(),
         ];
-
+        let alert_config = AlertConfig::default();
         let config = DriftConfig::new(
             "name".to_string(),
             "repo".to_string(),
@@ -869,12 +856,7 @@ mod tests {
             None,
             None,
             None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
+            Some(alert_config),
         );
 
         let monitor = Monitor::new();
@@ -903,6 +885,7 @@ mod tests {
             "feature_3".to_string(),
         ];
 
+        let alert_config = AlertConfig::default();
         let config = DriftConfig::new(
             "name".to_string(),
             "repo".to_string(),
@@ -911,12 +894,7 @@ mod tests {
             None,
             None,
             None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
+            Some(alert_config),
         );
 
         let monitor = Monitor::new();
@@ -950,13 +928,7 @@ mod tests {
             "feature_3".to_string(),
         ];
 
-        let config = DriftConfig::new(
-            "name".to_string(),
-            "repo".to_string(),
-            None,
-            None,
-            None,
-            None,
+        let alert_config = AlertConfig::new(
             Some(AlertRule {
                 process: None,
                 percentage: Some(PercentageAlertRule { rule: 0.1 }),
@@ -966,7 +938,16 @@ mod tests {
             None,
             None,
             None,
+        );
+        let config = DriftConfig::new(
+            "name".to_string(),
+            "repo".to_string(),
             None,
+            None,
+            None,
+            None,
+            None,
+            Some(alert_config),
         );
 
         let monitor = Monitor::new();

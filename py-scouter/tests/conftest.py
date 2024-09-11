@@ -3,7 +3,7 @@ import shutil
 from typing import TypeVar, Generator
 import numpy as np
 from numpy.typing import NDArray
-from scouter._scouter import DriftConfig, AlertRule, PercentageAlertRule
+from scouter._scouter import DriftConfig, AlertRule, PercentageAlertRule, AlertConfig
 from unittest.mock import patch
 from httpx import Response
 
@@ -75,10 +75,15 @@ def monitor_config() -> YieldFixture[DriftConfig]:
 
 @pytest.fixture(scope="function")
 def monitor_config_percentage() -> YieldFixture[DriftConfig]:
+    alert_config = AlertConfig(
+        alert_rule=AlertRule(
+            percentage_rule=PercentageAlertRule(0.1),
+        )
+    )
     config = DriftConfig(
         name="test",
         repository="test",
-        alert_rule=AlertRule(percentage_rule=PercentageAlertRule(0.1)),
+        alert_config=alert_config,
     )
 
     yield config

@@ -197,6 +197,24 @@ impl AlertConfig {
     }
 }
 
+impl AlertConfig {
+    pub fn default() -> Self {
+        Self {
+            alert_rule: AlertRule::new(None, None),
+            alert_dispatch_type: AlertDispatchType::Console,
+            schedule: EveryDay::new().cron,
+            features_to_monitor: Vec::new(),
+            zones_to_monitor: vec![
+                AlertZone::Zone1.to_str(),
+                AlertZone::Zone2.to_str(),
+                AlertZone::Zone3.to_str(),
+                AlertZone::Zone4.to_str(),
+            ],
+            alert_kwargs: HashMap::new(),
+        }
+    }
+}
+
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, std::cmp::Eq, Hash)]
 pub enum AlertZone {
@@ -426,28 +444,17 @@ impl DriftConfig {
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
-        schedule: Option<String>,
-        alert_rule: Option<AlertRule>,
-        alert_dispatch_type: Option<AlertDispatchType>,
-        zones_to_monitor: Option<Vec<String>>,
-        features_to_monitor: Option<Vec<String>>,
         feature_map: Option<FeatureMap>,
         targets: Option<Vec<String>>,
-        alert_kwargs: Option<HashMap<String, String>>,
+        alert_config: Option<AlertConfig>,
     ) -> Self {
         let sample = sample.unwrap_or(true);
         let sample_size = sample_size.unwrap_or(25);
         let version = version.unwrap_or("0.1.0".to_string());
         let targets = targets.unwrap_or_default();
 
-        let alert_config = AlertConfig::new(
-            alert_rule,
-            alert_dispatch_type,
-            schedule,
-            features_to_monitor,
-            zones_to_monitor,
-            alert_kwargs,
-        );
+        let alert_config =
+            alert_config.unwrap_or(AlertConfig::new(None, None, None, None, None, None));
 
         Self {
             sample_size,

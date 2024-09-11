@@ -248,3 +248,10 @@ def test_data_pyarrow_mixed_type(
     drift_map = drifter.compute_drift(arrow_table, profile)
 
     assert len(drift_map.features) == 5
+
+
+def test_drift_config_alert_kwargs():
+    config = DriftConfig(
+        name="test",
+        repository="test",
+    )

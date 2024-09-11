@@ -176,6 +176,7 @@ class AlertConfig:
         schedule: Optional[str] = None,
         features_to_monitor: Optional[List[str]] = None,
         zones_to_monitor: Optional[List[str]] = None,
+        alert_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """Initialize alert config
 
@@ -190,6 +191,15 @@ class AlertConfig:
                 List of features to monitor. Defaults to empty list, which means all features
             zones_to_monitor:
                 List of zones to monitor. Defaults to empty list, which means all zones
+            alert_kwargs:
+                Additional alert kwargs to pass to the alerting service
+
+                Supported alert_kwargs:
+                Slack:
+                    - channel: str (channel to send slack message)
+                OpsGenie:
+                    - team: str (team to send opsgenie message)
+                    - priority: str (priority for opsgenie alerts)
 
         """
     @property
@@ -207,6 +217,9 @@ class AlertConfig:
     @property
     def zones_to_monitor(self) -> List[str]:
         """Return the zones to monitor"""
+    @property
+    def alert_kwargs(self) -> Dict[str, Any]:
+        """Return the alert kwargs"""
 
 class Alert:
     def __init__(self, alert_type: str, zone: str):
@@ -279,13 +292,9 @@ class DriftConfig:
         version: str = "0.1.0",
         sample: bool = True,
         sample_size: int = 25,
-        schedule: str = "0 0 0 * * *",
-        alert_rule: AlertRule = AlertRule(),
-        alert_dispatch_type: str = AlertDispatchType.Console,
-        zones_to_monitor: Optional[List[str]] = None,
-        features_to_monitor: Optional[List[str]] = None,
         feature_map: Optional[FeatureMap] = None,
         targets: Optional[List[str]] = None,
+        alert_config: Optional[AlertConfig] = None,
     ):
         """Initialize monitor config
 
@@ -300,23 +309,14 @@ class DriftConfig:
                 Whether to sample or not
             sample_size:
                 Sample size
-            schedule:
-                Schedule to run monitor. Defaults to daily at midnight
-            alert_rule:
-                Alert rule to use. Defaults to Standard
-            alert_dispatch_type:
-                Alert dispatch type to use. Defaults to console
-            zones_to_monitor:
-                List of zones to monitor. Defaults to empty list, which means all zones
-            features_to_monitor:
-                List of features to monitor. Defaults to empty list, which means all features
             feature_map:
                 Feature map
             targets:
                 List of features that are targets in your dataset.
                 This is typically the name of your dependent variable(s).
                 This primarily used for monitoring and UI purposes.
-
+            alert_config:
+                Alert configuration
         """
     @property
     def sample_size(self) -> int:
@@ -334,23 +334,14 @@ class DriftConfig:
     def version(self) -> str:
         """Model version"""
     @property
-    def alert_config(self) -> AlertConfig:
-        """Alert configuration"""
-    @property
     def feature_map(self) -> Optional[FeatureMap]:
         """Feature map"""
     @property
     def targets(self) -> List[str]:
         """List of target features to monitor"""
     @property
-    def schedule(self) -> str:
-        """Return the schedule."""
-    @property
-    def zones_to_monitor(self) -> List[str]:
-        """Return the zones to monitor."""
-    @property
-    def features_to_monitor(self) -> List[str]:
-        """Return the features to monitor."""
+    def alert_config(self) -> AlertConfig:
+        """Alert configuration"""
     def update_feature_map(self, feature_map: FeatureMap) -> None:
         """Update feature map"""
     def __str__(self) -> str:
