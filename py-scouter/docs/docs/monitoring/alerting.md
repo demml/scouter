@@ -145,25 +145,6 @@ config = DriftConfig(
 ```
 
 
-::: scouter._scouter.AlertRule
-    options:
-        show_root_heading: true
-        heading_level: 3
-
-
-::: scouter._scouter.ProcessAlertRule
-    options:
-        show_root_heading: true
-        heading_level: 3
-
-
-::: scouter._scouter.PercentageAlertRule
-    options:
-        show_root_heading: true
-        heading_level: 3
-
-
-
 ### Percentage Alerting
 
 In addition to the 8 digit rule, `Scouter` also provides the ability to alert on percentage drift. This is useful when you want to know if a feature has drifted by a certain percentage. The default percentage rule is .10 (10%).

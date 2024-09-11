@@ -1,6 +1,6 @@
 # Drift Configuration
 
-## All models that create a `DriftProfile` will require a `DriftConfig` object. This object is used to configure the drift detection algorithm and alerting system.
+**All models that create a `DriftProfile` will require a `DriftConfig` object. This object is used to configure the drift detection algorithm and alerting system.**
 
 The `DriftConfig` object has the following structure:
 
@@ -93,9 +93,3 @@ config = DriftConfig(
     schedule="0 0 0 * * *"
 )
 ```
-
-
-::: scouter._scouter.DriftConfig
-    options:
-        show_root_heading: true
-        heading_level: 3
