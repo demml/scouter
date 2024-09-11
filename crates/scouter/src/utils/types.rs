@@ -128,6 +128,9 @@ pub struct AlertConfig {
 
     #[pyo3(get, set)]
     pub zones_to_monitor: Vec<String>,
+
+    #[pyo3(get, set)]
+    pub alert_kwargs: HashMap<String, String>,
 }
 
 #[pymethods]
@@ -139,6 +142,7 @@ impl AlertConfig {
         schedule: Option<String>,
         features_to_monitor: Option<Vec<String>>,
         zones_to_monitor: Option<Vec<String>>,
+        alert_kwargs: Option<HashMap<String, String>>,
     ) -> Self {
         let alert_rule = alert_rule.unwrap_or(AlertRule::new(None, None));
 
@@ -170,12 +174,15 @@ impl AlertConfig {
             .to_vec(),
         );
 
+        let alert_kwargs = alert_kwargs.unwrap_or_default();
+
         Self {
             alert_rule,
             alert_dispatch_type,
             schedule,
             features_to_monitor,
             zones_to_monitor,
+            alert_kwargs,
         }
     }
 
@@ -426,6 +433,7 @@ impl DriftConfig {
         features_to_monitor: Option<Vec<String>>,
         feature_map: Option<FeatureMap>,
         targets: Option<Vec<String>>,
+        alert_kwargs: Option<HashMap<String, String>>,
     ) -> Self {
         let sample = sample.unwrap_or(true);
         let sample_size = sample_size.unwrap_or(25);
@@ -438,6 +446,7 @@ impl DriftConfig {
             schedule,
             features_to_monitor,
             zones_to_monitor,
+            alert_kwargs,
         );
 
         Self {
@@ -996,27 +1005,39 @@ mod tests {
     #[test]
     fn test_alert_config() {
         //test console alert config
-        let alert_config = AlertConfig::new(None, None, None, None, None);
+        let alert_config = AlertConfig::new(None, None, None, None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Console);
         assert_eq!(alert_config.alert_dispatch_type(), "Console");
 
         //test email alert config
-        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Email), None, None, None);
+        let alert_config =
+            AlertConfig::new(None, Some(AlertDispatchType::Email), None, None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Email);
         assert_eq!(alert_config.alert_dispatch_type(), "Email");
 
         //test slack alert config
-        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None);
+        let alert_config =
+            AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Slack);
         assert_eq!(alert_config.alert_dispatch_type(), "Slack");
 
         //test opsgenie alert config
-        let alert_config =
-            AlertConfig::new(None, Some(AlertDispatchType::OpsGenie), None, None, None);
+        let mut alert_kwargs = HashMap::new();
+        alert_kwargs.insert("channel".to_string(), "test".to_string());
+
+        let alert_config = AlertConfig::new(
+            None,
+            Some(AlertDispatchType::OpsGenie),
+            None,
+            None,
+            None,
+            Some(alert_kwargs),
+        );
         assert_eq!(
             alert_config.alert_dispatch_type,
             AlertDispatchType::OpsGenie
         );
         assert_eq!(alert_config.alert_dispatch_type(), "OpsGenie");
+        assert_eq!(alert_config.alert_kwargs.get("channel").unwrap(), "test");
     }
 }
