@@ -132,17 +132,26 @@ class PercentageAlertRule:
         """Return the alert rule"""
 
 class ProcessAlertRule:
-    def __init__(self, rule: Optional[str] = None) -> None:
+    def __init__(
+        self,
+        rule: Optional[str] = None,
+        zones_to_monitor: Optional[List[str]] = None,
+    ) -> None:
         """Initialize alert rule
 
         Args:
             rule:
                 Rule to use for alerting. Eight digit integer string.
                 Defaults to '8 16 4 8 2 4 1 1'
+            zones_to_monitor:
+                List of zones to monitor. Defaults to all zones.
         """
     @property
     def rule(self) -> str:
         """Return the alert rule"""
+    @property
+    def zones_to_monitor(self) -> List[str]:
+        """Return the zones to monitor"""
 
 class AlertRule:
     def __init__(
@@ -176,7 +185,6 @@ class AlertConfig:
         alert_dispatch_type: Optional[AlertDispatchType] = None,
         schedule: Optional[str] = None,
         features_to_monitor: Optional[List[str]] = None,
-        zones_to_monitor: Optional[List[str]] = None,
         alert_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """Initialize alert config
