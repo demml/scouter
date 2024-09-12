@@ -520,13 +520,21 @@ pub struct DriftProfile {
 
     #[pyo3(get, set)]
     pub config: DriftConfig,
+
+    #[pyo3(get, set)]
+    pub version: String,
 }
 
 #[pymethods]
 impl DriftProfile {
     #[new]
     pub fn new(features: BTreeMap<String, FeatureDriftProfile>, config: DriftConfig) -> Self {
-        Self { features, config }
+        let version = env!("CARGO_PKG_VERSION").to_string();
+        Self {
+            features,
+            config,
+            version,
+        }
     }
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
