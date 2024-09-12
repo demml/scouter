@@ -522,18 +522,18 @@ pub struct DriftProfile {
     pub config: DriftConfig,
 
     #[pyo3(get, set)]
-    pub version: String,
+    pub scouter_version: String,
 }
 
 #[pymethods]
 impl DriftProfile {
     #[new]
     pub fn new(features: BTreeMap<String, FeatureDriftProfile>, config: DriftConfig) -> Self {
-        let version = env!("CARGO_PKG_VERSION").to_string();
+        let scouter_version = env!("CARGO_PKG_VERSION").to_string();
         Self {
             features,
             config,
-            version,
+            scouter_version,
         }
     }
     pub fn __str__(&self) -> String {
