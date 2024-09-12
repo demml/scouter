@@ -390,8 +390,9 @@ pub fn generate_alerts(
     sample_array: &ArrayView2<f64>,
     features: &[String],
     rule: &AlertRule,
-) -> Result<FeatureAlerts, anyhow::Error> {
+) -> Result<(FeatureAlerts, bool), anyhow::Error> {
     let mut corr: Option<Array2<f64>> = None;
+    let mut has_alerts: bool = false;
 
     // check for alerts
     let alerts = drift_array
@@ -410,6 +411,7 @@ pub fn generate_alerts(
         .any(|alert| !alert.as_ref().unwrap().0.is_empty())
     {
         // get correlation matrix
+        has_alerts = true;
         corr = Some(compute_correlation_matrix(sample_array));
     };
 
@@ -446,7 +448,7 @@ pub fn generate_alerts(
         feature_alerts.insert_feature_alert(feature, alerts, indices, &correlations);
     }
 
-    Ok(feature_alerts)
+    Ok((feature_alerts, has_alerts))
 }
 
 #[cfg(test)]
@@ -589,7 +591,7 @@ mod tests {
 
         let rule = AlertRule::new(None, None);
 
-        let alerts =
+        let (alerts, _has_alert) =
             generate_alerts(&drift_array.view(), &sample_array.view(), &features, &rule).unwrap();
 
         let feature1 = alerts.features.get("feature1").unwrap();
@@ -647,7 +649,7 @@ mod tests {
         ];
 
         let rule = AlertRule::new(Some(PercentageAlertRule::new(None)), None);
-        let alerts =
+        let (alerts, _has_alerts) =
             generate_alerts(&drift_array.view(), &sample_array.view(), &features, &rule).unwrap();
 
         let feature1 = alerts.features.get("feature1").unwrap();
