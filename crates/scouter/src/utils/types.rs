@@ -975,6 +975,9 @@ impl FeatureAlert {
 pub struct FeatureAlerts {
     #[pyo3(get, set)]
     pub features: BTreeMap<String, FeatureAlert>,
+
+    #[pyo3(get, set)]
+    pub has_alerts: bool,
 }
 
 impl FeatureAlerts {
@@ -1011,9 +1014,10 @@ impl FeatureAlerts {
 #[allow(clippy::new_without_default)]
 impl FeatureAlerts {
     #[new]
-    pub fn new() -> Self {
+    pub fn new(has_alerts: bool) -> Self {
         Self {
             features: BTreeMap::new(),
+            has_alerts,
         }
     }
 
