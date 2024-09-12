@@ -167,7 +167,6 @@ impl AlertConfig {
         alert_dispatch_type: Option<AlertDispatchType>,
         schedule: Option<String>,
         features_to_monitor: Option<Vec<String>>,
-        zones_to_monitor: Option<Vec<String>>,
         alert_kwargs: Option<HashMap<String, String>>,
     ) -> Self {
         let alert_rule = alert_rule.unwrap_or(AlertRule::new(None, None));
@@ -474,8 +473,7 @@ impl DriftConfig {
         let version = version.unwrap_or("0.1.0".to_string());
         let targets = targets.unwrap_or_default();
 
-        let alert_config =
-            alert_config.unwrap_or(AlertConfig::new(None, None, None, None, None, None));
+        let alert_config = alert_config.unwrap_or(AlertConfig::new(None, None, None, None, None));
 
         Ok(Self {
             sample_size,
@@ -1057,21 +1055,19 @@ mod tests {
     #[test]
     fn test_alert_config() {
         //test console alert config
-        let alert_config = AlertConfig::new(None, None, None, None, None, None);
+        let alert_config = AlertConfig::new(None, None, None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Console);
         assert_eq!(alert_config.alert_dispatch_type(), "Console");
         assert_eq!(AlertDispatchType::Console.value(), "Console");
 
         //test email alert config
-        let alert_config =
-            AlertConfig::new(None, Some(AlertDispatchType::Email), None, None, None, None);
+        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Email), None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Email);
         assert_eq!(alert_config.alert_dispatch_type(), "Email");
         assert_eq!(AlertDispatchType::Email.value(), "Email");
 
         //test slack alert config
-        let alert_config =
-            AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None, None);
+        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Slack);
         assert_eq!(alert_config.alert_dispatch_type(), "Slack");
         assert_eq!(AlertDispatchType::Slack.value(), "Slack");
@@ -1083,7 +1079,6 @@ mod tests {
         let alert_config = AlertConfig::new(
             None,
             Some(AlertDispatchType::OpsGenie),
-            None,
             None,
             None,
             Some(alert_kwargs),

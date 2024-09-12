@@ -942,7 +942,6 @@ mod tests {
             None,
             None,
             None,
-            None,
         );
         let config = DriftConfig::new(
             Some("name".to_string()),
