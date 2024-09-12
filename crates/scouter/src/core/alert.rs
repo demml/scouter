@@ -291,17 +291,17 @@ impl Alerter {
         };
 
         // skip if the zone is not in the process rule
-        if self.alert_rule.process.is_some()
-            && !self
-                .alert_rule
-                .process
-                .as_ref()
-                .unwrap()
-                .zones_to_monitor
-                .contains(&alert_zone.to_str())
-        {
-            return Ok(());
-        }
+        //if self.alert_rule.process.is_some()
+        //    && !self
+        //        .alert_rule
+        //        .process
+        //        .as_ref()
+        //        .unwrap()
+        //        .zones_to_monitor
+        //        .contains(&alert_zone.to_str())
+        //{
+        //    return Ok(());
+        //}
 
         self.insert_alert(threshold, start, idx)
             .with_context(|| "Failed to insert alert")?;
