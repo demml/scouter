@@ -198,8 +198,6 @@ class AlertConfig:
                 Schedule to run monitor. Defaults to daily at midnight
             features_to_monitor:
                 List of features to monitor. Defaults to empty list, which means all features
-            zones_to_monitor:
-                List of zones to monitor. Defaults to empty list, which means all zones
             alert_kwargs:
                 Additional alert kwargs to pass to the alerting service
 
@@ -223,9 +221,6 @@ class AlertConfig:
     @property
     def features_to_monitor(self) -> List[str]:
         """Return the features to monitor"""
-    @property
-    def zones_to_monitor(self) -> List[str]:
-        """Return the zones to monitor"""
     @property
     def alert_kwargs(self) -> Dict[str, Any]:
         """Return the alert kwargs"""
