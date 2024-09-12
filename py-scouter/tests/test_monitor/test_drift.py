@@ -272,7 +272,6 @@ def test_drift_config_alert_kwargs():
 
     assert config.alert_config.alert_kwargs["channel"] == "scouter"
     assert config.alert_config.alert_dispatch_type == AlertDispatchType.Slack.value
-    ""
 
 
 def test_load_from_file():
