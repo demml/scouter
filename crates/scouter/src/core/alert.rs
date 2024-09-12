@@ -509,7 +509,7 @@ mod tests {
     fn test_convert_rule() {
         let alerter = Alerter::new();
         let vec_of_ints = alerter
-            .convert_rules_to_vec(&ProcessAlertRule::new(None).rule)
+            .convert_rules_to_vec(&ProcessAlertRule::new(None, None).rule)
             .unwrap();
         assert_eq!(vec_of_ints, [8, 16, 4, 8, 2, 4, 1, 1,]);
     }
@@ -522,7 +522,7 @@ mod tests {
             3.0, 4.0, 0.0, -4.0, 3.0, -3.0, 3.0, -3.0, 3.0, -3.0,
         ];
         let drift_array = Array::from_vec(values.to_vec());
-        let rule = ProcessAlertRule::new(None).rule;
+        let rule = ProcessAlertRule::new(None, None).rule;
 
         alerter
             .check_process_rule_for_alert(&drift_array.view(), &rule)

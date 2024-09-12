@@ -32,17 +32,33 @@ impl FileName {
 pub struct ProcessAlertRule {
     #[pyo3(get, set)]
     pub rule: String,
+
+    #[pyo3(get, set)]
+    pub zones_to_monitor: Vec<String>,
 }
 
 #[pymethods]
 impl ProcessAlertRule {
     #[new]
-    pub fn new(rule: Option<String>) -> Self {
+    pub fn new(rule: Option<String>, zones_to_monitor: Option<Vec<String>>) -> Self {
         let rule = match rule {
             Some(r) => r,
             None => "8 16 4 8 2 4 1 1".to_string(),
         };
-        Self { rule }
+
+        let zones = zones_to_monitor.unwrap_or(
+            [
+                AlertZone::Zone1.to_str(),
+                AlertZone::Zone2.to_str(),
+                AlertZone::Zone3.to_str(),
+                AlertZone::Zone4.to_str(),
+            ]
+            .to_vec(),
+        );
+        Self {
+            rule,
+            zones_to_monitor: zones,
+        }
     }
 }
 
@@ -83,7 +99,7 @@ impl AlertRule {
         // if both are None, return default control rule
         if percentage_rule.is_none() && process_rule.is_none() {
             return Self {
-                process: Some(ProcessAlertRule::new(None)),
+                process: Some(ProcessAlertRule::new(None, None)),
                 percentage: None,
             };
         }
@@ -140,9 +156,6 @@ pub struct AlertConfig {
     pub features_to_monitor: Vec<String>,
 
     #[pyo3(get, set)]
-    pub zones_to_monitor: Vec<String>,
-
-    #[pyo3(get, set)]
     pub alert_kwargs: HashMap<String, String>,
 }
 
@@ -177,16 +190,6 @@ impl AlertConfig {
         };
         let alert_dispatch_type = alert_dispatch_type.unwrap_or(AlertDispatchType::Console);
         let features_to_monitor = features_to_monitor.unwrap_or_default();
-        let zones_to_monitor = zones_to_monitor.unwrap_or(
-            [
-                AlertZone::Zone1.to_str(),
-                AlertZone::Zone2.to_str(),
-                AlertZone::Zone3.to_str(),
-                AlertZone::Zone4.to_str(),
-            ]
-            .to_vec(),
-        );
-
         let alert_kwargs = alert_kwargs.unwrap_or_default();
 
         Self {
@@ -194,7 +197,6 @@ impl AlertConfig {
             alert_dispatch_type,
             schedule,
             features_to_monitor,
-            zones_to_monitor,
             alert_kwargs,
         }
     }
@@ -217,12 +219,6 @@ impl Default for AlertConfig {
             alert_dispatch_type: AlertDispatchType::Console,
             schedule: EveryDay::new().cron,
             features_to_monitor: Vec::new(),
-            zones_to_monitor: vec![
-                AlertZone::Zone1.to_str(),
-                AlertZone::Zone2.to_str(),
-                AlertZone::Zone3.to_str(),
-                AlertZone::Zone4.to_str(),
-            ],
             alert_kwargs: HashMap::new(),
         }
     }
@@ -1040,7 +1036,7 @@ mod tests {
     #[test]
     fn test_types() {
         // write tests for all alerts
-        let control_alert = AlertRule::new(None, Some(ProcessAlertRule::new(None)));
+        let control_alert = AlertRule::new(None, Some(ProcessAlertRule::new(None, None)));
 
         assert_eq!(control_alert.to_str(), "8 16 4 8 2 4 1 1");
         assert_eq!(AlertZone::NotApplicable.to_str(), "NA");
