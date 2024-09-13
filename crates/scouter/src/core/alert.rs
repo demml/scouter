@@ -433,7 +433,7 @@ pub fn generate_alerts(
     {
         // get correlation matrix
         has_alerts = true;
-        //corr = Some(compute_correlation_matrix(sample_array));
+        corr = Some(compute_correlation_matrix(sample_array));
     };
 
     let mut feature_alerts = FeatureAlerts::new(has_alerts);

@@ -900,6 +900,7 @@ impl DriftMap {
         Vec<String>,
     )> {
         let (drift_array, sample_array, features) = self.to_array().unwrap();
+
         Ok((
             drift_array.into_pyarray_bound(py).to_owned(),
             sample_array.into_pyarray_bound(py).to_owned(),
