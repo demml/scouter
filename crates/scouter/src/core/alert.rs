@@ -1,9 +1,7 @@
-use crate::core::stats::compute_feature_correlations;
 use crate::utils::types::{Alert, AlertRule, AlertType, AlertZone, FeatureAlerts};
 use anyhow::Ok;
 use anyhow::{Context, Result};
 use ndarray::s;
-use ndarray::Array2;
 use ndarray::{ArrayView1, ArrayView2, Axis};
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
@@ -408,11 +406,9 @@ pub fn generate_alert(
 ///
 pub fn generate_alerts(
     drift_array: &ArrayView2<f64>,
-    sample_array: &ArrayView2<f64>,
     features: &[String],
     rule: &AlertRule,
 ) -> Result<FeatureAlerts, anyhow::Error> {
-    let corr: Option<Array2<f64>> = None;
     let mut has_alerts: bool = false;
 
     // check for alerts
@@ -433,40 +429,16 @@ pub fn generate_alerts(
     {
         // get correlation matrix
         has_alerts = true;
-        compute_feature_correlations(&sample_array, features);
     };
 
     let mut feature_alerts = FeatureAlerts::new(has_alerts);
 
     //zip the alerts with the features
-    for ((idx, feature), alert) in features.iter().enumerate().zip(alerts.iter()) {
+    for (feature, alert) in features.iter().zip(alerts.iter()) {
         // unwrap the alert, should should have already been checked
         let (alerts, indices) = alert.as_ref().unwrap();
-        let mut correlations = BTreeMap::new();
 
-        // check if there are alerts and a correlation matrix
-        if !alerts.is_empty() && corr.is_some() {
-            // get the non current feature indices
-            let non_curr_feature_idxs = (0..features.len())
-                .filter(|&x| x != idx)
-                .collect::<Vec<usize>>();
-
-            // this will be a vector of values for the current feature [.99, .10, .10, .20]
-            let feature_cor = corr
-                .as_ref()
-                .unwrap()
-                .select(Axis(0), &[idx])
-                .select(Axis(1), &non_curr_feature_idxs);
-
-            // iterate over the non current features and add the correlation to the map
-
-            for (idx, feature_idx) in non_curr_feature_idxs.iter().enumerate() {
-                let name = features[*feature_idx].clone();
-                let value = feature_cor[[0, idx]];
-                correlations.insert(name, value);
-            }
-        }
-        feature_alerts.insert_feature_alert(feature, alerts, indices, &correlations);
+        feature_alerts.insert_feature_alert(feature, alerts, indices);
     }
 
     Ok(feature_alerts)
@@ -621,8 +593,6 @@ mod tests {
             [1.0, 0.0, 1.0, 1.0],
         ]);
 
-        let sample_array = drift_array.clone();
-
         // assert shape is 16,3
         assert_eq!(drift_array.shape(), &[14, 4]);
 
@@ -635,8 +605,7 @@ mod tests {
 
         let rule = AlertRule::new(None, None);
 
-        let alerts =
-            generate_alerts(&drift_array.view(), &sample_array.view(), &features, &rule).unwrap();
+        let alerts = generate_alerts(&drift_array.view(), &features, &rule).unwrap();
 
         let feature1 = alerts.features.get("feature1").unwrap();
         let feature2 = alerts.features.get("feature2").unwrap();
@@ -681,8 +650,6 @@ mod tests {
             [0.0, 0.0, 0.0],
         ]);
 
-        let sample_array = drift_array.clone();
-
         // assert shape is 16,3
         assert_eq!(drift_array.shape(), &[14, 3]);
 
@@ -693,8 +660,7 @@ mod tests {
         ];
 
         let rule = AlertRule::new(Some(PercentageAlertRule::new(None)), None);
-        let alerts =
-            generate_alerts(&drift_array.view(), &sample_array.view(), &features, &rule).unwrap();
+        let alerts = generate_alerts(&drift_array.view(), &features, &rule).unwrap();
 
         let feature1 = alerts.features.get("feature1").unwrap();
         let feature2 = alerts.features.get("feature2").unwrap();

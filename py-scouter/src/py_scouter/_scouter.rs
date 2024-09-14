@@ -351,14 +351,12 @@ impl ScouterDrifter {
     pub fn generate_alerts(
         &mut self,
         drift_array: PyReadonlyArray2<f64>,
-        sample_array: PyReadonlyArray2<f64>,
         features: Vec<String>,
         alert_rule: AlertRule,
     ) -> PyResult<FeatureAlerts> {
         let drift_array = drift_array.as_array();
-        let sample_array = sample_array.as_array();
 
-        let alerts = match generate_alerts(&drift_array, &sample_array, &features, &alert_rule) {
+        let alerts = match generate_alerts(&drift_array, &features, &alert_rule) {
             Ok(alerts) => alerts,
             Err(_e) => {
                 return Err(PyValueError::new_err("Failed to generate alerts"));

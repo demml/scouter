@@ -948,9 +948,6 @@ pub struct FeatureAlert {
 
     #[pyo3(get, set)]
     pub indices: BTreeMap<usize, Vec<Vec<usize>>>,
-
-    #[pyo3(get, set)]
-    pub correlations: BTreeMap<String, f64>,
 }
 
 impl FeatureAlert {
@@ -959,7 +956,6 @@ impl FeatureAlert {
             feature,
             alerts: Vec::new(),
             indices: BTreeMap::new(),
-            correlations: BTreeMap::new(),
         }
     }
 }
@@ -990,7 +986,6 @@ impl FeatureAlerts {
         feature: &str,
         alerts: &HashSet<Alert>,
         indices: &BTreeMap<usize, Vec<Vec<usize>>>,
-        correlations: &BTreeMap<String, f64>,
     ) {
         let mut feature_alert = FeatureAlert::new(feature.to_string());
 
@@ -1006,8 +1001,6 @@ impl FeatureAlerts {
         indices.iter().for_each(|(key, value)| {
             feature_alert.indices.insert(*key, value.clone());
         });
-
-        feature_alert.correlations = correlations.clone();
 
         self.features.insert(feature.to_string(), feature_alert);
     }

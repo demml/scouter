@@ -245,9 +245,6 @@ class FeatureAlert:
     @property
     def indices(self) -> Dict[Union[str, int], List[List[int]]]:
         """Return the alert indices"""
-    @property
-    def correlations(self) -> Dict[str, float]:
-        """Return the feature correlations"""
 
 class FeatureAlerts:
     @property
@@ -740,7 +737,6 @@ class ScouterDrifter:
     def generate_alerts(
         self,
         drift_array: NDArray,
-        sample_array: NDArray,
         features: List[str],
         alert_rule: AlertRule,
     ) -> FeatureAlerts:
@@ -749,8 +745,6 @@ class ScouterDrifter:
         Args:
             drift_array:
                 Numpy array of drift values.
-            sample_array:
-                sample array of values.
             features:
                 List of feature names. Must match drift array.
             alert_rule:
