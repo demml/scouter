@@ -1,4 +1,4 @@
-use crate::core::stats::compute_correlation_matrix;
+use crate::core::stats::compute_feature_correlations;
 use crate::utils::types::{Alert, AlertRule, AlertType, AlertZone, FeatureAlerts};
 use anyhow::Ok;
 use anyhow::{Context, Result};
@@ -412,7 +412,7 @@ pub fn generate_alerts(
     features: &[String],
     rule: &AlertRule,
 ) -> Result<FeatureAlerts, anyhow::Error> {
-    let mut corr: Option<Array2<f64>> = None;
+    let corr: Option<Array2<f64>> = None;
     let mut has_alerts: bool = false;
 
     // check for alerts
@@ -433,7 +433,7 @@ pub fn generate_alerts(
     {
         // get correlation matrix
         has_alerts = true;
-        corr = Some(compute_correlation_matrix(sample_array));
+        compute_feature_correlations(&sample_array, features);
     };
 
     let mut feature_alerts = FeatureAlerts::new(has_alerts);
