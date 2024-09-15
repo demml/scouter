@@ -32,17 +32,33 @@ impl FileName {
 pub struct ProcessAlertRule {
     #[pyo3(get, set)]
     pub rule: String,
+
+    #[pyo3(get, set)]
+    pub zones_to_monitor: Vec<String>,
 }
 
 #[pymethods]
 impl ProcessAlertRule {
     #[new]
-    pub fn new(rule: Option<String>) -> Self {
+    pub fn new(rule: Option<String>, zones_to_monitor: Option<Vec<String>>) -> Self {
         let rule = match rule {
             Some(r) => r,
             None => "8 16 4 8 2 4 1 1".to_string(),
         };
-        Self { rule }
+
+        let zones = zones_to_monitor.unwrap_or(
+            [
+                AlertZone::Zone1.to_str(),
+                AlertZone::Zone2.to_str(),
+                AlertZone::Zone3.to_str(),
+                AlertZone::Zone4.to_str(),
+            ]
+            .to_vec(),
+        );
+        Self {
+            rule,
+            zones_to_monitor: zones,
+        }
     }
 }
 
@@ -83,7 +99,7 @@ impl AlertRule {
         // if both are None, return default control rule
         if percentage_rule.is_none() && process_rule.is_none() {
             return Self {
-                process: Some(ProcessAlertRule::new(None)),
+                process: Some(ProcessAlertRule::new(None, None)),
                 percentage: None,
             };
         }
@@ -140,9 +156,6 @@ pub struct AlertConfig {
     pub features_to_monitor: Vec<String>,
 
     #[pyo3(get, set)]
-    pub zones_to_monitor: Vec<String>,
-
-    #[pyo3(get, set)]
     pub alert_kwargs: HashMap<String, String>,
 }
 
@@ -154,7 +167,6 @@ impl AlertConfig {
         alert_dispatch_type: Option<AlertDispatchType>,
         schedule: Option<String>,
         features_to_monitor: Option<Vec<String>>,
-        zones_to_monitor: Option<Vec<String>>,
         alert_kwargs: Option<HashMap<String, String>>,
     ) -> Self {
         let alert_rule = alert_rule.unwrap_or(AlertRule::new(None, None));
@@ -177,16 +189,6 @@ impl AlertConfig {
         };
         let alert_dispatch_type = alert_dispatch_type.unwrap_or(AlertDispatchType::Console);
         let features_to_monitor = features_to_monitor.unwrap_or_default();
-        let zones_to_monitor = zones_to_monitor.unwrap_or(
-            [
-                AlertZone::Zone1.to_str(),
-                AlertZone::Zone2.to_str(),
-                AlertZone::Zone3.to_str(),
-                AlertZone::Zone4.to_str(),
-            ]
-            .to_vec(),
-        );
-
         let alert_kwargs = alert_kwargs.unwrap_or_default();
 
         Self {
@@ -194,7 +196,6 @@ impl AlertConfig {
             alert_dispatch_type,
             schedule,
             features_to_monitor,
-            zones_to_monitor,
             alert_kwargs,
         }
     }
@@ -217,12 +218,6 @@ impl Default for AlertConfig {
             alert_dispatch_type: AlertDispatchType::Console,
             schedule: EveryDay::new().cron,
             features_to_monitor: Vec::new(),
-            zones_to_monitor: vec![
-                AlertZone::Zone1.to_str(),
-                AlertZone::Zone2.to_str(),
-                AlertZone::Zone3.to_str(),
-                AlertZone::Zone4.to_str(),
-            ],
             alert_kwargs: HashMap::new(),
         }
     }
@@ -478,8 +473,7 @@ impl DriftConfig {
         let version = version.unwrap_or("0.1.0".to_string());
         let targets = targets.unwrap_or_default();
 
-        let alert_config =
-            alert_config.unwrap_or(AlertConfig::new(None, None, None, None, None, None));
+        let alert_config = alert_config.unwrap_or(AlertConfig::new(None, None, None, None, None));
 
         Ok(Self {
             sample_size,
@@ -526,13 +520,21 @@ pub struct DriftProfile {
 
     #[pyo3(get, set)]
     pub config: DriftConfig,
+
+    #[pyo3(get, set)]
+    pub scouter_version: String,
 }
 
 #[pymethods]
 impl DriftProfile {
     #[new]
     pub fn new(features: BTreeMap<String, FeatureDriftProfile>, config: DriftConfig) -> Self {
-        Self { features, config }
+        let scouter_version = env!("CARGO_PKG_VERSION").to_string();
+        Self {
+            features,
+            config,
+            scouter_version,
+        }
     }
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
@@ -898,6 +900,7 @@ impl DriftMap {
         Vec<String>,
     )> {
         let (drift_array, sample_array, features) = self.to_array().unwrap();
+
         Ok((
             drift_array.into_pyarray_bound(py).to_owned(),
             sample_array.into_pyarray_bound(py).to_owned(),
@@ -945,9 +948,6 @@ pub struct FeatureAlert {
 
     #[pyo3(get, set)]
     pub indices: BTreeMap<usize, Vec<Vec<usize>>>,
-
-    #[pyo3(get, set)]
-    pub correlations: BTreeMap<String, f64>,
 }
 
 impl FeatureAlert {
@@ -956,7 +956,6 @@ impl FeatureAlert {
             feature,
             alerts: Vec::new(),
             indices: BTreeMap::new(),
-            correlations: BTreeMap::new(),
         }
     }
 }
@@ -975,6 +974,9 @@ impl FeatureAlert {
 pub struct FeatureAlerts {
     #[pyo3(get, set)]
     pub features: BTreeMap<String, FeatureAlert>,
+
+    #[pyo3(get, set)]
+    pub has_alerts: bool,
 }
 
 impl FeatureAlerts {
@@ -984,7 +986,6 @@ impl FeatureAlerts {
         feature: &str,
         alerts: &HashSet<Alert>,
         indices: &BTreeMap<usize, Vec<Vec<usize>>>,
-        correlations: &BTreeMap<String, f64>,
     ) {
         let mut feature_alert = FeatureAlert::new(feature.to_string());
 
@@ -1001,8 +1002,6 @@ impl FeatureAlerts {
             feature_alert.indices.insert(*key, value.clone());
         });
 
-        feature_alert.correlations = correlations.clone();
-
         self.features.insert(feature.to_string(), feature_alert);
     }
 }
@@ -1011,9 +1010,10 @@ impl FeatureAlerts {
 #[allow(clippy::new_without_default)]
 impl FeatureAlerts {
     #[new]
-    pub fn new() -> Self {
+    pub fn new(has_alerts: bool) -> Self {
         Self {
             features: BTreeMap::new(),
+            has_alerts,
         }
     }
 
@@ -1036,7 +1036,7 @@ mod tests {
     #[test]
     fn test_types() {
         // write tests for all alerts
-        let control_alert = AlertRule::new(None, Some(ProcessAlertRule::new(None)));
+        let control_alert = AlertRule::new(None, Some(ProcessAlertRule::new(None, None)));
 
         assert_eq!(control_alert.to_str(), "8 16 4 8 2 4 1 1");
         assert_eq!(AlertZone::NotApplicable.to_str(), "NA");
@@ -1057,21 +1057,19 @@ mod tests {
     #[test]
     fn test_alert_config() {
         //test console alert config
-        let alert_config = AlertConfig::new(None, None, None, None, None, None);
+        let alert_config = AlertConfig::new(None, None, None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Console);
         assert_eq!(alert_config.alert_dispatch_type(), "Console");
         assert_eq!(AlertDispatchType::Console.value(), "Console");
 
         //test email alert config
-        let alert_config =
-            AlertConfig::new(None, Some(AlertDispatchType::Email), None, None, None, None);
+        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Email), None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Email);
         assert_eq!(alert_config.alert_dispatch_type(), "Email");
         assert_eq!(AlertDispatchType::Email.value(), "Email");
 
         //test slack alert config
-        let alert_config =
-            AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None, None);
+        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None);
         assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Slack);
         assert_eq!(alert_config.alert_dispatch_type(), "Slack");
         assert_eq!(AlertDispatchType::Slack.value(), "Slack");
@@ -1083,7 +1081,6 @@ mod tests {
         let alert_config = AlertConfig::new(
             None,
             Some(AlertDispatchType::OpsGenie),
-            None,
             None,
             None,
             Some(alert_kwargs),

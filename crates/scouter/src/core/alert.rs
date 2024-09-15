@@ -1,9 +1,7 @@
-use crate::core::stats::compute_correlation_matrix;
 use crate::utils::types::{Alert, AlertRule, AlertType, AlertZone, FeatureAlerts};
 use anyhow::Ok;
 use anyhow::{Context, Result};
 use ndarray::s;
-use ndarray::Array2;
 use ndarray::{ArrayView1, ArrayView2, Axis};
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
@@ -15,6 +13,7 @@ use std::collections::HashSet;
 pub struct Alerter {
     pub alerts: HashSet<Alert>,
     pub alert_positions: BTreeMap<usize, Vec<Vec<usize>>>,
+    pub alert_rule: AlertRule,
 }
 
 impl Alerter {
@@ -30,10 +29,11 @@ impl Alerter {
     //  4 - Zone 4 alerts (out of bounds)
     //  5 - Increasing trend alerts
     //  6 - Decreasing trend alerts
-    pub fn new() -> Self {
+    pub fn new(alert_rule: AlertRule) -> Self {
         Alerter {
             alerts: HashSet::new(),
             alert_positions: BTreeMap::new(),
+            alert_rule,
         }
     }
 
@@ -223,9 +223,9 @@ impl Alerter {
     pub fn check_process_rule_for_alert(
         &mut self,
         drift_array: &ArrayView1<f64>,
-        rule: &str,
     ) -> Result<(), anyhow::Error> {
-        let rule_vec = self.convert_rules_to_vec(rule)?;
+        let rule_vec =
+            self.convert_rules_to_vec(&self.alert_rule.process.as_ref().unwrap().rule)?;
 
         // iterate over each value in drift array
         for (idx, value) in drift_array.iter().enumerate() {
@@ -280,24 +280,38 @@ impl Alerter {
         threshold: usize,
         alert: AlertType,
     ) -> Result<(), anyhow::Error> {
+        let alert_zone = match threshold {
+            1 => AlertZone::Zone1,
+            2 => AlertZone::Zone2,
+            3 => AlertZone::Zone3,
+            4 => AlertZone::Zone4,
+            _ => AlertZone::NotApplicable,
+        };
+
+        // skip if the zone is not in the process rule
+        if self.alert_rule.process.is_some()
+            && !self
+                .alert_rule
+                .process
+                .as_ref()
+                .unwrap()
+                .zones_to_monitor
+                .contains(&alert_zone.to_str())
+        {
+            return Ok(());
+        }
+
         self.insert_alert(threshold, start, idx)
             .with_context(|| "Failed to insert alert")?;
 
-        if threshold == 4 {
+        if alert_zone == AlertZone::Zone4 {
             self.alerts.insert(Alert {
-                zone: AlertZone::Zone4.to_str(),
+                zone: alert_zone.to_str(),
                 kind: AlertType::OutOfBounds.to_str(),
             });
         } else {
-            let zone = match threshold {
-                1 => AlertZone::Zone1.to_str(),
-                2 => AlertZone::Zone2.to_str(),
-                3 => AlertZone::Zone3.to_str(),
-                _ => AlertZone::NotApplicable.to_str(),
-            };
-
             self.alerts.insert(Alert {
-                zone: zone.to_string(),
+                zone: alert_zone.to_str(),
                 kind: alert.to_str(),
             });
         }
@@ -347,7 +361,12 @@ impl Alerter {
 
 impl Default for Alerter {
     fn default() -> Self {
-        Self::new()
+        let rule = AlertRule::new(None, None);
+        Alerter {
+            alerts: HashSet::new(),
+            alert_positions: BTreeMap::new(),
+            alert_rule: rule,
+        }
     }
 }
 
@@ -357,11 +376,11 @@ pub fn generate_alert(
     drift_array: &ArrayView1<f64>,
     rule: &AlertRule,
 ) -> Result<GeneratedAlert, anyhow::Error> {
-    let mut alerter = Alerter::new();
+    let mut alerter = Alerter::new(rule.clone());
 
     if rule.process.is_some() {
         alerter
-            .check_process_rule_for_alert(&drift_array.view(), &rule.process.as_ref().unwrap().rule)
+            .check_process_rule_for_alert(&drift_array.view())
             .with_context(|| "Failed to check rule for alert")?;
 
         alerter
@@ -387,11 +406,10 @@ pub fn generate_alert(
 ///
 pub fn generate_alerts(
     drift_array: &ArrayView2<f64>,
-    sample_array: &ArrayView2<f64>,
     features: &[String],
     rule: &AlertRule,
 ) -> Result<FeatureAlerts, anyhow::Error> {
-    let mut corr: Option<Array2<f64>> = None;
+    let mut has_alerts: bool = false;
 
     // check for alerts
     let alerts = drift_array
@@ -410,40 +428,17 @@ pub fn generate_alerts(
         .any(|alert| !alert.as_ref().unwrap().0.is_empty())
     {
         // get correlation matrix
-        corr = Some(compute_correlation_matrix(sample_array));
+        has_alerts = true;
     };
 
-    let mut feature_alerts = FeatureAlerts::new();
+    let mut feature_alerts = FeatureAlerts::new(has_alerts);
 
     //zip the alerts with the features
-    for ((idx, feature), alert) in features.iter().enumerate().zip(alerts.iter()) {
+    for (feature, alert) in features.iter().zip(alerts.iter()) {
         // unwrap the alert, should should have already been checked
         let (alerts, indices) = alert.as_ref().unwrap();
-        let mut correlations = BTreeMap::new();
 
-        // check if there are alerts and a correlation matrix
-        if !alerts.is_empty() && corr.is_some() {
-            // get the non current feature indices
-            let non_curr_feature_idxs = (0..features.len())
-                .filter(|&x| x != idx)
-                .collect::<Vec<usize>>();
-
-            // this will be a vector of values for the current feature [.99, .10, .10, .20]
-            let feature_cor = corr
-                .as_ref()
-                .unwrap()
-                .select(Axis(0), &[idx])
-                .select(Axis(1), &non_curr_feature_idxs);
-
-            // iterate over the non current features and add the correlation to the map
-
-            for (idx, feature_idx) in non_curr_feature_idxs.iter().enumerate() {
-                let name = features[*feature_idx].clone();
-                let value = feature_cor[[0, idx]];
-                correlations.insert(name, value);
-            }
-        }
-        feature_alerts.insert_feature_alert(feature, alerts, indices, &correlations);
+        feature_alerts.insert_feature_alert(feature, alerts, indices);
     }
 
     Ok(feature_alerts)
@@ -460,7 +455,7 @@ mod tests {
 
     #[test]
     fn test_alerting_consecutive() {
-        let alerter = Alerter::new();
+        let alerter = Alerter::default();
         // write tests for all alerts
         let values = [0.0, 1.0, 1.0, 1.0, 1.0, 1.0];
         let drift_array = Array::from_vec(values.to_vec());
@@ -483,7 +478,7 @@ mod tests {
 
     #[test]
     fn test_alerting_alternating() {
-        let alerter = Alerter::new();
+        let alerter = Alerter::default();
         let values = [0.0, 1.0, -1.0, 1.0, -1.0, 1.0];
         let drift_array = Array::from_vec(values.to_vec());
         let threshold = 1.0;
@@ -505,25 +500,23 @@ mod tests {
 
     #[test]
     fn test_convert_rule() {
-        let alerter = Alerter::new();
+        let alerter = Alerter::default();
         let vec_of_ints = alerter
-            .convert_rules_to_vec(&ProcessAlertRule::new(None).rule)
+            .convert_rules_to_vec(&ProcessAlertRule::new(None, None).rule)
             .unwrap();
         assert_eq!(vec_of_ints, [8, 16, 4, 8, 2, 4, 1, 1,]);
     }
 
     #[test]
     fn test_check_rule() {
-        let mut alerter = Alerter::new();
+        let mut alerter = Alerter::default();
         let values = [
             0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0, 1.0, -2.0, 2.0, 0.0, 0.0, 3.0, 3.0,
             3.0, 4.0, 0.0, -4.0, 3.0, -3.0, 3.0, -3.0, 3.0, -3.0,
         ];
         let drift_array = Array::from_vec(values.to_vec());
-        let rule = ProcessAlertRule::new(None).rule;
-
         alerter
-            .check_process_rule_for_alert(&drift_array.view(), &rule)
+            .check_process_rule_for_alert(&drift_array.view())
             .unwrap();
 
         let alert = alerter.alert_positions;
@@ -536,8 +529,33 @@ mod tests {
     }
 
     #[test]
+    fn test_check_rule_zones_to_monitor() {
+        let zones_to_monitor = ["Zone 1".to_string(), "Zone 4".to_string()].to_vec();
+        let process = ProcessAlertRule::new(None, Some(zones_to_monitor));
+        let alert_rule = AlertRule::new(None, Some(process));
+        let mut alerter = Alerter::new(alert_rule);
+
+        let values = [
+            0.0, 1.0, 1.0, 1.0, 1.0, 1.0, 2.0, 1.0, 1.0, 1.0, 1.0, -2.0, 2.0, 0.0, 0.0, 3.0, 3.0,
+            3.0, 4.0, 0.0, -4.0, 3.0, -3.0, 3.0, -3.0, 3.0, -3.0,
+        ];
+        let drift_array = Array::from_vec(values.to_vec());
+
+        alerter
+            .check_process_rule_for_alert(&drift_array.view())
+            .unwrap();
+
+        let alert = alerter.alert_positions;
+
+        assert_eq!(alert.get(&1).unwrap(), &vec![vec![1, 10]]);
+        assert_eq!(alert.get(&4).unwrap(), &vec![vec![18, 18], vec![20, 20]]);
+
+        assert_eq!(alerter.alerts.len(), 2);
+    }
+
+    #[test]
     fn test_check_trend() {
-        let mut alerter = Alerter::new();
+        let mut alerter = Alerter::default();
         let values = [
             0.0, 0.0, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.6, 0.5, 0.4, 0.3, 0.2, 0.1, 0.2, 0.3, 0.4,
             0.5, 0.6, 0.7,
@@ -575,8 +593,6 @@ mod tests {
             [1.0, 0.0, 1.0, 1.0],
         ]);
 
-        let sample_array = drift_array.clone();
-
         // assert shape is 16,3
         assert_eq!(drift_array.shape(), &[14, 4]);
 
@@ -589,8 +605,7 @@ mod tests {
 
         let rule = AlertRule::new(None, None);
 
-        let alerts =
-            generate_alerts(&drift_array.view(), &sample_array.view(), &features, &rule).unwrap();
+        let alerts = generate_alerts(&drift_array.view(), &features, &rule).unwrap();
 
         let feature1 = alerts.features.get("feature1").unwrap();
         let feature2 = alerts.features.get("feature2").unwrap();
@@ -635,8 +650,6 @@ mod tests {
             [0.0, 0.0, 0.0],
         ]);
 
-        let sample_array = drift_array.clone();
-
         // assert shape is 16,3
         assert_eq!(drift_array.shape(), &[14, 3]);
 
@@ -647,8 +660,7 @@ mod tests {
         ];
 
         let rule = AlertRule::new(Some(PercentageAlertRule::new(None)), None);
-        let alerts =
-            generate_alerts(&drift_array.view(), &sample_array.view(), &features, &rule).unwrap();
+        let alerts = generate_alerts(&drift_array.view(), &features, &rule).unwrap();
 
         let feature1 = alerts.features.get("feature1").unwrap();
         let feature2 = alerts.features.get("feature2").unwrap();
