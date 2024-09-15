@@ -52,7 +52,7 @@ jobs:
       matrix:
         os: [ubuntu, macos, windows]
         poetry-version: ["1.7.1"]
-        python-version: ["3.9", "3.10", "3.11", "3.12.6"]
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
 
     runs-on: ${{ matrix.os }}-latest
     needs: [rust-lints-test]
