@@ -72,7 +72,7 @@ jobs:
       - name: set up python
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.os == 'windows' && matrix.python-version == '3.12' && '3.12.6' || matrix.python-version }}
+          python-version: ${{ matrix.python-version }}
           cache: "poetry"
 
       - name: Create virtual environment
@@ -97,6 +97,55 @@ jobs:
         uses: codecov/codecov-action@v4
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  test-windows:
+    name: test ${{ matrix.os }}-${{ matrix.python-version }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows]
+        poetry-version: ["1.7.1"]
+        python-version: ["3.9", "3.10", "3.11", "3.12.6"]
+
+    runs-on: ${{ matrix.os }}-latest
+    needs: [rust-lints-test]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install poetry
+        run: pipx install poetry==${{ matrix.poetry-version }}
+
+      - name: install rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cache rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.os }}-${{ matrix.python-version }}-v1
+
+      - name: set up python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "poetry"
+
+      - name: Create virtual environment
+        working-directory: ./py-scouter
+        run: |
+          python -m venv .venv
+          echo "$GITHUB_WORKSPACE/scouter/.venv/bin" >> $GITHUB_PATH
+
+      - name: Install dependencies
+        working-directory: ./py-scouter
+        run: make setup.project
+
+      - name: Lints
+        working-directory: ./py-scouter
+        run: make lints.ci
+
+      - name: Run tests and report coverage
+        working-directory: ./py-scouter
+        run: make test.unit
 
   test-build:
     needs: [test-os]
