@@ -34,7 +34,7 @@ While Scouter is a standalone model monitoring and data profiling service, it wa
 ### Installation
 
 ```bash
-pip install scouter
+pip install scouter-ml
 ```
 
 ### Usage for Model Monitoring
