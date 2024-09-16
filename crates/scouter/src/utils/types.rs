@@ -548,9 +548,8 @@ impl DriftProfile {
         serde_json::from_str(&model).expect("Failed to load monitor profile")
     }
 
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> PyResult<()> {
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), anyhow::Error> {
         ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
     }
 }
 
@@ -689,9 +688,8 @@ impl DataProfile {
         serde_json::from_str(&model).expect("Failed to load data profile")
     }
 
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> PyResult<()> {
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), anyhow::Error> {
         ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
     }
 }
 
@@ -881,9 +879,8 @@ impl DriftMap {
         serde_json::from_str(&model).expect("Failed to load drift map")
     }
 
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> PyResult<()> {
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), anyhow::Error> {
         ProfileFuncs::save_to_json(self, path, FileName::Drift.to_str())
-            .map_err(|e| PyErr::new::<pyo3::exceptions::PyIOError, _>(e.to_string()))
     }
 
     #[allow(clippy::type_complexity)]

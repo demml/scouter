@@ -13,7 +13,6 @@ from scouter._scouter import (
     AlertConfig,
     AlertDispatchType,
 )
-from tests.utils import create_fake_data
 
 
 def test_drift_f64(array: NDArray, drift_config: DriftConfig):
