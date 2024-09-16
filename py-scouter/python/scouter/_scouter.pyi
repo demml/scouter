@@ -1,4 +1,4 @@
-# pylint: disable=invalid-name
+# pylint: disable=invalid-name, too-many-lines
 
 import datetime
 from enum import Enum
@@ -153,6 +153,10 @@ class PercentageAlertRule:
     def rule(self) -> float:
         """Return the alert rule"""
 
+    @rule.setter
+    def rule(self, rule: float) -> None:
+        """Set the alert rule"""
+
 class ProcessAlertRule:
     def __init__(
         self,
@@ -173,9 +177,17 @@ class ProcessAlertRule:
     def rule(self) -> str:
         """Return the alert rule"""
 
+    @rule.setter
+    def rule(self, rule: str) -> None:
+        """Set the alert rule"""
+
     @property
     def zones_to_monitor(self) -> List[str]:
         """Return the zones to monitor"""
+
+    @zones_to_monitor.setter
+    def zones_to_monitor(self, zones_to_monitor: List[str]) -> None:
+        """Set the zones to monitor"""
 
 class AlertRule:
     def __init__(
@@ -194,9 +206,17 @@ class AlertRule:
     def process(self) -> Optional[ProcessAlertRule]:
         """Return the control alert rule"""
 
+    @process.setter
+    def process(self, process: ProcessAlertRule) -> None:
+        """ "Set the control alert rule"""
+
     @property
     def percentage(self) -> Optional[PercentageAlertRule]:
         """Return the percentage alert rule"""
+
+    @percentage.setter
+    def percentage(self, percentage: PercentageAlertRule) -> None:
+        """Set the percentage alert rule"""
 
 class AlertDispatchType(str, Enum):
     Email = "Email"
@@ -240,21 +260,41 @@ class AlertConfig:
     def alert_dispatch_type(self) -> str:
         """Return the alert dispatch type"""
 
+    @alert_dispatch_type.setter
+    def alert_dispatch_type(self, alert_dispatch_type: str) -> None:
+        """Set the alert dispatch type"""
+
     @property
     def alert_rule(self) -> AlertRule:
         """Return the alert rule"""
+
+    @alert_rule.setter
+    def alert_rule(self, alert_rule: AlertRule) -> None:
+        """Set the alert rule"""
 
     @property
     def schedule(self) -> str:
         """Return the schedule"""
 
+    @schedule.setter
+    def schedule(self, schedule: str) -> None:
+        """Set the schedule"""
+
     @property
     def features_to_monitor(self) -> List[str]:
         """Return the features to monitor"""
 
+    @features_to_monitor.setter
+    def features_to_monitor(self, features_to_monitor: List[str]) -> None:
+        """Set the features to monitor"""
+
     @property
     def alert_kwargs(self) -> Dict[str, Any]:
         """Return the alert kwargs"""
+
+    @alert_kwargs.setter
+    def alert_kwargs(self, alert_kwargs: Dict[str, Any]) -> None:
+        """Set the alert kwargs"""
 
 class Alert:
     def __init__(self, alert_type: str, zone: str):
@@ -370,33 +410,65 @@ class DriftConfig:
     def sample_size(self) -> int:
         """Return the sample size."""
 
+    @sample_size.setter
+    def sample_size(self, sample_size: int) -> None:
+        """Set the sample size."""
+
     @property
     def sample(self) -> bool:
         """Whether to sample or not"""
+
+    @sample.setter
+    def sample(self, sample: bool) -> None:
+        """Set whether to sample or not"""
 
     @property
     def name(self) -> str:
         """Model Name"""
 
+    @name.setter
+    def name(self, name: str) -> None:
+        """Set model name"""
+
     @property
     def repository(self) -> str:
         """Model repository"""
+
+    @repository.setter
+    def repository(self, repository: str) -> None:
+        """Set model repository"""
 
     @property
     def version(self) -> str:
         """Model version"""
 
+    @version.setter
+    def version(self, version: str) -> None:
+        """Set model version"""
+
     @property
     def feature_map(self) -> Optional[FeatureMap]:
         """Feature map"""
+
+    @feature_map.setter
+    def feature_map(self, feature_map: FeatureMap) -> None:
+        """Set feature map"""
 
     @property
     def targets(self) -> List[str]:
         """List of target features to monitor"""
 
+    @targets.setter
+    def targets(self, targets: List[str]) -> None:
+        """Set list of target features to monitor"""
+
     @property
     def alert_config(self) -> AlertConfig:
         """Alert configuration"""
+
+    @alert_config.setter
+    def alert_config(self, alert_config: AlertConfig) -> None:
+        """Set alert configuration"""
 
     def update_feature_map(self, feature_map: FeatureMap) -> None:
         """Update feature map"""
@@ -432,9 +504,17 @@ class DriftProfile:
     def features(self) -> Dict[str, FeatureDriftProfile]:
         """Return the list of features."""
 
+    @features.setter
+    def features(self, features: Dict[str, FeatureDriftProfile]) -> None:
+        """Set the list of features."""
+
     @property
     def config(self) -> DriftConfig:
         """Return the monitor config."""
+
+    @config.setter
+    def config(self, config: DriftConfig) -> None:
+        """Set the monitor config."""
 
     def save_to_json(self, path: Optional[Path] = None) -> None:
         """Save drift profile to json file

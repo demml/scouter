@@ -278,10 +278,10 @@ impl AlertType {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, Hash, PartialEq)]
 pub struct Alert {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub kind: String,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub zone: String,
 }
 
@@ -378,31 +378,31 @@ impl ProfileFuncs {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FeatureDriftProfile {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub id: String,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub center: f64,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub one_ucl: f64,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub one_lcl: f64,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub two_ucl: f64,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub two_lcl: f64,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub three_ucl: f64,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub three_lcl: f64,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub timestamp: chrono::NaiveDateTime,
 }
 
@@ -564,7 +564,7 @@ impl DriftProfile {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FeatureMap {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub features: BTreeMap<String, BTreeMap<String, usize>>,
 }
 
@@ -579,87 +579,87 @@ impl FeatureMap {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Distinct {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub count: usize,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub percent: f64,
 }
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct NumericStats {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub mean: f64,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub stddev: f64,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub min: f64,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub max: f64,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub distinct: Distinct,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub quantiles: Quantiles,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub histogram: Histogram,
 }
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CharStats {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub min_length: usize,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub max_length: usize,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub median_length: usize,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub mean_length: f64,
 }
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WordStats {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub words: BTreeMap<String, Distinct>,
 }
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StringStats {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub distinct: Distinct,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub char_stats: CharStats,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub word_stats: WordStats,
 }
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FeatureProfile {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub id: String,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub numeric_stats: Option<NumericStats>,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub string_stats: Option<StringStats>,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub timestamp: chrono::NaiveDateTime,
 }
 
@@ -674,7 +674,7 @@ impl FeatureProfile {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DataProfile {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub features: BTreeMap<String, FeatureProfile>,
 }
 
@@ -714,16 +714,16 @@ impl DataProfile {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Quantiles {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub q25: f64,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub q50: f64,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub q75: f64,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub q99: f64,
 }
 
@@ -737,10 +737,10 @@ pub struct Quantiles {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Histogram {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub bins: Vec<f64>,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub bin_counts: Vec<i32>,
 }
 
@@ -754,10 +754,10 @@ pub struct Histogram {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FeatureDrift {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub samples: Vec<f64>,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub drift: Vec<f64>,
 }
 
@@ -771,22 +771,22 @@ impl FeatureDrift {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DriftServerRecord {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub created_at: chrono::NaiveDateTime,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub name: String,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub repository: String,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub version: String,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub feature: String,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub value: f64,
 }
 
@@ -841,16 +841,16 @@ impl DriftServerRecord {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DriftMap {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub features: BTreeMap<String, FeatureDrift>,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub name: String,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub repository: String,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub version: String,
 }
 
@@ -941,13 +941,13 @@ impl DriftMap {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FeatureAlert {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub feature: String,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub alerts: Vec<Alert>,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub indices: BTreeMap<usize, Vec<Vec<usize>>>,
 }
 
@@ -973,10 +973,10 @@ impl FeatureAlert {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FeatureAlerts {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub features: BTreeMap<String, FeatureAlert>,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub has_alerts: bool,
 }
 
