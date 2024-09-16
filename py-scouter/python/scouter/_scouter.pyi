@@ -331,9 +331,9 @@ class FeatureDriftProfile:
 class DriftConfig:
     def __init__(
         self,
-        name: Optional[str],
-        repository: Optional[str],
-        version: Optional[str],
+        name: Optional[str] = None,
+        repository: Optional[str] = None,
+        version: Optional[str] = None,
         sample: bool = True,
         sample_size: int = 25,
         feature_map: Optional[FeatureMap] = None,
@@ -737,7 +737,7 @@ class ScouterDrifter:
         self,
         features: List[str],
         array: List[List[str]],
-        monitor_config: DriftConfig,
+        drift_config: DriftConfig,
     ) -> DriftProfile:
         """Create a monitoring profile from a f32 numpy array.
 
@@ -746,7 +746,7 @@ class ScouterDrifter:
                 List of feature names.
             array:
                 List of string arrays to profile.
-            monitor_config:
+            drift_config:
                 Monitor config.
 
         Returns:
@@ -757,7 +757,7 @@ class ScouterDrifter:
         self,
         features: List[str],
         array: NDArray,
-        monitor_config: DriftConfig,
+        drift_config: DriftConfig,
     ) -> DriftProfile:
         """Create a monitoring profile from a f64 numpy array.
 
@@ -766,7 +766,7 @@ class ScouterDrifter:
                 List of feature names.
             array:
                 Numpy array to profile.
-            monitor_config:
+            drift_config:
                 Monitor config.
 
         Returns:
@@ -777,7 +777,7 @@ class ScouterDrifter:
         self,
         features: List[str],
         array: NDArray,
-        monitor_config: DriftConfig,
+        drift_config: DriftConfig,
     ) -> DriftProfile:
         """Create a monitoring profile from a f64 numpy array.
 
@@ -786,7 +786,7 @@ class ScouterDrifter:
                 List of feature names.
             array:
                 Numpy array to profile.
-            monitor_config:
+            drift_config:
                 monitor config.
 
         Returns:

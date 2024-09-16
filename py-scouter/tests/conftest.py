@@ -68,13 +68,13 @@ def multivariate_array_drift() -> YieldFixture[NDArray]:
 
 
 @pytest.fixture(scope="function")
-def monitor_config() -> YieldFixture[DriftConfig]:
+def drift_config() -> YieldFixture[DriftConfig]:
     config = DriftConfig(name="test", repository="test")
     yield config
 
 
 @pytest.fixture(scope="function")
-def monitor_config_percentage() -> YieldFixture[DriftConfig]:
+def drift_config_percentage() -> YieldFixture[DriftConfig]:
     alert_config = AlertConfig(
         alert_rule=AlertRule(
             percentage_rule=PercentageAlertRule(0.1),

@@ -99,14 +99,14 @@ impl Monitor {
     // * `sample_data` - A 2D array of f64 values
     // * `num_features` - The number of features
     // * `features` - A vector of feature names
-    // * `monitor_config` - A monitor config
+    // * `drift_config` - A monitor config
     fn compute_control_limits<F>(
         &self,
         sample_size: usize,
         sample_data: &ArrayView2<F>,
         num_features: usize,
         features: &[String],
-        monitor_config: &DriftConfig,
+        drift_config: &DriftConfig,
     ) -> Result<DriftProfile, anyhow::Error>
     where
         F: FromPrimitive + Num + Clone + Float + Debug + Sync + Send + ndarray::ScalarOperand,
@@ -158,7 +158,7 @@ impl Monitor {
             );
         }
 
-        Ok(DriftProfile::new(feat_profile, monitor_config.clone()))
+        Ok(DriftProfile::new(feat_profile, drift_config.clone()))
     }
 
     /// Create a 2D monitor profile
@@ -175,7 +175,7 @@ impl Monitor {
         &self,
         features: &[String],
         array: &ArrayView2<F>,
-        monitor_config: &DriftConfig,
+        drift_config: &DriftConfig,
     ) -> Result<DriftProfile, anyhow::Error>
     where
         F: Float
@@ -230,7 +230,7 @@ impl Monitor {
                 &sample_data.view(),
                 num_features,
                 features,
-                monitor_config,
+                drift_config,
             )
             .with_context(|| "Failed to compute control limits")?;
 

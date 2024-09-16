@@ -9,7 +9,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.2.4-rc.5"
+version = "0.2.5"
 authors = ["Steven Forrester <sjforrester32@gmail.com>"]
 edition = "2021"
 license = "MIT"
@@ -17,7 +17,7 @@ repository = "https://github.com/demml/scouter"
 
 
 [workspace.dependencies]
-pyo3 = { version = "0.21", features = ["chrono"] }
+pyo3 = { version = "0.21", features = ["chrono", "anyhow"] }
 numpy = "0.21.0"
 scouter = { path = "crates/scouter" }
 
