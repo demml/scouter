@@ -13,6 +13,7 @@ from scouter._scouter import (
     AlertConfig,
     AlertDispatchType,
 )
+from scouter.utils.types import Constants
 
 
 def test_drift_f64(array: NDArray, drift_config: DriftConfig):
@@ -249,5 +250,5 @@ def test_load_from_file_error():
 def test_empty_params():
     config = DriftConfig()
 
-    assert config.name == "_NA"
-    assert config.repository == "_NA"
+    assert config.name == Constants.MISSING
+    assert config.repository == Constants.MISSING

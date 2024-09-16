@@ -39,3 +39,7 @@ class DataType(str, Enum):
             "float64": "64",
         }
         return bits[dtype]
+
+
+class Constants(str, Enum):
+    MISSING = "__missing__"
