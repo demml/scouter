@@ -4,12 +4,10 @@ import pandas as pd
 
 def test_monitor_pandas(
     pandas_dataframe: pd.DataFrame,
-    monitor_config: DriftConfig,
+    drift_config: DriftConfig,
 ):
     scouter = Drifter()
-    profile: DriftProfile = scouter.create_drift_profile(
-        pandas_dataframe, monitor_config
-    )
+    profile: DriftProfile = scouter.create_drift_profile(pandas_dataframe, drift_config)
 
     kafka_config = KafkaConfig(
         topic="scouter_monitoring",

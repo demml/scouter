@@ -225,7 +225,7 @@ impl ScouterDrifter {
 
     pub fn create_string_drift_profile(
         &mut self,
-        mut monitor_config: DriftConfig,
+        mut drift_config: DriftConfig,
         array: Vec<Vec<String>>,
         features: Vec<String>,
     ) -> PyResult<DriftProfile> {
@@ -237,7 +237,7 @@ impl ScouterDrifter {
             }
         };
 
-        monitor_config.update_feature_map(feature_map.clone());
+        drift_config.update_feature_map(feature_map.clone());
 
         let array =
             match self
@@ -253,7 +253,7 @@ impl ScouterDrifter {
         let profile =
             match self
                 .monitor
-                .create_2d_drift_profile(&features, &array.view(), &monitor_config)
+                .create_2d_drift_profile(&features, &array.view(), &drift_config)
             {
                 Ok(profile) => profile,
                 Err(_e) => {
@@ -266,7 +266,7 @@ impl ScouterDrifter {
 
     pub fn create_numeric_drift_profile_f32(
         &mut self,
-        monitor_config: DriftConfig,
+        drift_config: DriftConfig,
         array: PyReadonlyArray2<f32>,
         features: Vec<String>,
     ) -> PyResult<DriftProfile> {
@@ -274,7 +274,7 @@ impl ScouterDrifter {
 
         let profile = match self
             .monitor
-            .create_2d_drift_profile(&features, &array, &monitor_config)
+            .create_2d_drift_profile(&features, &array, &drift_config)
         {
             Ok(profile) => profile,
             Err(_e) => {
@@ -287,7 +287,7 @@ impl ScouterDrifter {
 
     pub fn create_numeric_drift_profile_f64(
         &mut self,
-        monitor_config: DriftConfig,
+        drift_config: DriftConfig,
         array: PyReadonlyArray2<f64>,
         features: Vec<String>,
     ) -> PyResult<DriftProfile> {
@@ -295,7 +295,7 @@ impl ScouterDrifter {
 
         let profile = match self
             .monitor
-            .create_2d_drift_profile(&features, &array, &monitor_config)
+            .create_2d_drift_profile(&features, &array, &drift_config)
         {
             Ok(profile) => profile,
             Err(_e) => {

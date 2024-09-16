@@ -4,13 +4,11 @@ import pandas as pd
 
 def test_monitor_pandas(
     pandas_dataframe: pd.DataFrame,
-    monitor_config: DriftConfig,
+    drift_config: DriftConfig,
     mock_kafka_producer,
 ):
     scouter = Drifter()
-    profile: DriftProfile = scouter.create_drift_profile(
-        pandas_dataframe, monitor_config
-    )
+    profile: DriftProfile = scouter.create_drift_profile(pandas_dataframe, drift_config)
 
     kafka_config = KafkaConfig(
         topic="test-topic",
@@ -38,13 +36,13 @@ def test_monitor_pandas(
 
 def test_monitor_polar_multitype(
     polars_dataframe_multi_dtype: pd.DataFrame,
-    monitor_config: DriftConfig,
+    drift_config: DriftConfig,
     mock_kafka_producer,
 ):
     scouter = Drifter()
     profile: DriftProfile = scouter.create_drift_profile(
         polars_dataframe_multi_dtype,
-        monitor_config,
+        drift_config,
     )
 
     kafka_config = KafkaConfig(
@@ -73,13 +71,13 @@ def test_monitor_polar_multitype(
 
 def test_queue_fail(
     polars_dataframe_multi_dtype: pd.DataFrame,
-    monitor_config: DriftConfig,
+    drift_config: DriftConfig,
     mock_kafka_producer,
 ):
     scouter = Drifter()
     profile: DriftProfile = scouter.create_drift_profile(
         polars_dataframe_multi_dtype,
-        monitor_config,
+        drift_config,
     )
 
     kafka_config = KafkaConfig(

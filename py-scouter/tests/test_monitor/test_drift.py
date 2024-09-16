@@ -13,24 +13,25 @@ from scouter._scouter import (
     AlertConfig,
     AlertDispatchType,
 )
+from tests.utils import create_fake_data
 
 
-def test_drift_f64(array: NDArray, monitor_config: DriftConfig):
-    scouter = Drifter()
-    profile: DriftProfile = scouter.create_drift_profile(array, monitor_config)
+def test_drift_f64(array: NDArray, drift_config: DriftConfig):
+    drifter = Drifter()
+    profile: DriftProfile = drifter.create_drift_profile(array, drift_config)
 
     # assert features are relatively centered
     assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)
     assert profile.features["feature_1"].center == pytest.approx(2.5, 0.1)
     assert profile.features["feature_2"].center == pytest.approx(3.5, 0.1)
 
-    _ = scouter.compute_drift(array, profile)
+    _ = drifter.compute_drift(array, profile)
 
 
-def test_drift_f32(array: NDArray, monitor_config: DriftConfig):
+def test_drift_f32(array: NDArray, drift_config: DriftConfig):
     array = array.astype("float32")
     scouter = Drifter()
-    profile: DriftProfile = scouter.create_drift_profile(array, monitor_config)
+    profile: DriftProfile = scouter.create_drift_profile(array, drift_config)
 
     # assert features are relatively centered
     assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)
@@ -40,12 +41,12 @@ def test_drift_f32(array: NDArray, monitor_config: DriftConfig):
     _ = scouter.compute_drift(array, profile)
 
 
-def test_drift_int(array: NDArray, monitor_config: DriftConfig):
+def test_drift_int(array: NDArray, drift_config: DriftConfig):
     # convert to int32
     array = array.astype("int32")
 
     scouter = Drifter()
-    profile: DriftProfile = scouter.create_drift_profile(array, monitor_config)
+    profile: DriftProfile = scouter.create_drift_profile(array, drift_config)
 
     # assert features are relatively centered
     assert profile.features["feature_0"].center == pytest.approx(1.0, 0.1)
@@ -75,9 +76,9 @@ def test_drift_int(array: NDArray, monitor_config: DriftConfig):
     assert Path("assets/model.json").exists()
 
 
-def test_alerts_control(array: NDArray, monitor_config: DriftConfig):
+def test_alerts_control(array: NDArray, drift_config: DriftConfig):
     scouter = Drifter()
-    profile: DriftProfile = scouter.create_drift_profile(array, monitor_config)
+    profile: DriftProfile = scouter.create_drift_profile(array, drift_config)
 
     # assert features are relatively centered
     assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)
@@ -116,12 +117,10 @@ def test_alerts_control(array: NDArray, monitor_config: DriftConfig):
     assert isinstance(features, list)
 
 
-def test_alerts_percentage(array: NDArray, monitor_config_percentage: DriftConfig):
+def test_alerts_percentage(array: NDArray, drift_config_percentage: DriftConfig):
     scouter = Drifter()
 
-    profile: DriftProfile = scouter.create_drift_profile(
-        array, monitor_config_percentage
-    )
+    profile: DriftProfile = scouter.create_drift_profile(array, drift_config_percentage)
 
     # assert features are relatively centered
     assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)
@@ -150,7 +149,7 @@ def test_alerts_percentage(array: NDArray, monitor_config_percentage: DriftConfi
     drift_array[8, 0] = 1.0
 
     alerts = scouter.generate_alerts(
-        drift_array, features, monitor_config_percentage.alert_config.alert_rule
+        drift_array, features, drift_config_percentage.alert_config.alert_rule
     )
 
     # should have no alerts
@@ -161,12 +160,12 @@ def test_alerts_percentage(array: NDArray, monitor_config_percentage: DriftConfi
 def test_multi_type_drift(
     polars_dataframe_multi_dtype: pl.DataFrame,
     polars_dataframe_multi_dtype_drift: pl.DataFrame,
-    monitor_config: DriftConfig,
+    drift_config: DriftConfig,
 ):
     drifter = Drifter()
 
     profile: DriftProfile = drifter.create_drift_profile(
-        polars_dataframe_multi_dtype, monitor_config
+        polars_dataframe_multi_dtype, drift_config
     )
 
     drift_map = drifter.compute_drift(polars_dataframe_multi_dtype_drift, profile)
@@ -177,7 +176,7 @@ def test_multi_type_drift(
     alerts = drifter.generate_alerts(
         drift_array=drift_array,
         features=features,
-        alert_rule=monitor_config.alert_config.alert_rule,
+        alert_rule=drift_config.alert_config.alert_rule,
     )
 
     assert len(alerts.features["cat2"].alerts) == 1
@@ -185,12 +184,12 @@ def test_multi_type_drift(
 
 
 def test_only_string_drift(
-    pandas_categorical_dataframe: pd.DataFrame, monitor_config: DriftConfig
+    pandas_categorical_dataframe: pd.DataFrame, drift_config: DriftConfig
 ):
     drifter = Drifter()
 
     profile: DriftProfile = drifter.create_drift_profile(
-        pandas_categorical_dataframe, monitor_config
+        pandas_categorical_dataframe, drift_config
     )
 
     drift_map = drifter.compute_drift(pandas_categorical_dataframe, profile)
@@ -200,13 +199,13 @@ def test_only_string_drift(
 
 def test_data_pyarrow_mixed_type(
     polars_dataframe_multi_dtype: pl.DataFrame,
-    monitor_config: DriftConfig,
+    drift_config: DriftConfig,
 ):
     arrow_table = polars_dataframe_multi_dtype.to_arrow()
 
     drifter = Drifter()
 
-    profile: DriftProfile = drifter.create_drift_profile(arrow_table, monitor_config)
+    profile: DriftProfile = drifter.create_drift_profile(arrow_table, drift_config)
 
     drift_map = drifter.compute_drift(arrow_table, profile)
 
@@ -240,10 +239,16 @@ def test_load_from_file():
     assert config.name == "name"
     assert config.repository == "repo"
 
-    with pytest.raises(ValueError) as info:
-        DriftConfig()
 
-    assert (
-        "Name and repository are required fields if config path is not provided"
-        in str(info.value)
-    )
+def test_load_from_file_error():
+    with pytest.raises(RuntimeError) as e:
+        DriftConfig(config_path="tests/assets/drift_config_error.json")
+
+    assert "Failed to deserialize json" in str(e)
+
+
+def test_empty_params():
+    config = DriftConfig()
+
+    assert config.name == "_NA"
+    assert config.repository == "_NA"

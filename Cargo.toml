@@ -17,7 +17,7 @@ repository = "https://github.com/demml/scouter"
 
 
 [workspace.dependencies]
-pyo3 = { version = "0.21", features = ["chrono"] }
+pyo3 = { version = "0.21", features = ["chrono", "anyhow"] }
 numpy = "0.21.0"
 scouter = { path = "crates/scouter" }
 

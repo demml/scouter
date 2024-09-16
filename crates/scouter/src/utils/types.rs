@@ -456,18 +456,14 @@ impl DriftConfig {
         targets: Option<Vec<String>>,
         alert_config: Option<AlertConfig>,
         config_path: Option<PathBuf>,
-    ) -> PyResult<Self> {
+    ) -> Result<Self, anyhow::Error> {
         if let Some(config_path) = config_path {
-            return Ok(DriftConfig::load_from_json(config_path));
+            let config = DriftConfig::load_from_json(config_path);
+            return config;
         }
 
-        if name.is_none() || repository.is_none() {
-            let msg = "Name and repository are required fields if config path is not provided";
-
-            // raise python exception
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(msg));
-        };
-
+        let name = name.unwrap_or("_NA".to_string());
+        let repository = repository.unwrap_or("_NA".to_string());
         let sample = sample.unwrap_or(true);
         let sample_size = sample_size.unwrap_or(25);
         let version = version.unwrap_or("0.1.0".to_string());
@@ -478,8 +474,8 @@ impl DriftConfig {
         Ok(Self {
             sample_size,
             sample,
-            name: name.unwrap(),
-            repository: repository.unwrap(),
+            name,
+            repository,
             version,
             alert_config,
             feature_map,
@@ -492,14 +488,14 @@ impl DriftConfig {
     }
 
     #[staticmethod]
-    pub fn load_from_json(path: PathBuf) -> DriftConfig {
+    pub fn load_from_json(path: PathBuf) -> Result<DriftConfig, anyhow::Error> {
         // deserialize the string to a struct
 
         let file = std::fs::read_to_string(&path)
             .with_context(|| "Failed to read file")
             .unwrap();
 
-        serde_json::from_str(&file).expect("Failed to load drift config")
+        serde_json::from_str(&file).with_context(|| "Failed to deserialize json")
     }
 }
 
