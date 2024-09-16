@@ -4,7 +4,7 @@
   <br>
 </h1>
 
-<h2 align="center"><b>Observability for Machine Learning</b></h2>
+<h2 align="center"><b>Coming Soon: Observability for Machine Learning</b></h2>
 
 
 <h2 align="center"><a href="https://demml.github.io/scouter/">Doc Site</h2>
