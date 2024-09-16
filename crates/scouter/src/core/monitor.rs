@@ -754,8 +754,26 @@ mod tests {
         profile.__str__();
         let model_string = profile.model_dump_json();
 
-        let loaded_profile = DriftProfile::model_validate_json(model_string);
+        let mut loaded_profile = DriftProfile::model_validate_json(model_string);
         assert_eq!(loaded_profile.features.len(), 3);
+
+        // test update args
+        loaded_profile
+            .update_config_args(
+                Some("updated".to_string()),
+                Some("updated".to_string()),
+                Some("1.0.0".to_string()),
+                Some(loaded_profile.config.sample),
+                Some(loaded_profile.config.sample_size),
+                loaded_profile.config.feature_map.clone(),
+                Some(loaded_profile.config.targets.clone()),
+                Some(loaded_profile.config.alert_config.clone()),
+            )
+            .unwrap();
+
+        assert_eq!(loaded_profile.config.name, "updated");
+        assert_eq!(loaded_profile.config.repository, "updated");
+        assert_eq!(loaded_profile.config.version, "1.0.0");
     }
 
     #[test]

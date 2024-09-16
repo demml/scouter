@@ -505,6 +505,76 @@ impl DriftConfig {
 
         serde_json::from_str(&file).with_context(|| "Failed to deserialize json")
     }
+
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
+
+    pub fn model_dump_json(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__json__(self)
+    }
+
+    // update the arguments of the drift config
+    //
+    // # Arguments
+    //
+    // * `name` - The name of the model
+    // * `repository` - The repository associated with the model
+    // * `version` - The version of the model
+    // * `sample` - Whether to sample data or not, Default is true
+    // * `sample_size` - The sample size
+    // * `feature_map` - The feature map to use
+    // * `targets` - The targets to monitor
+    // * `alert_config` - The alerting configuration to use
+    //
+    #[allow(clippy::too_many_arguments)]
+    pub fn update_config_args(
+        &mut self,
+        name: Option<String>,
+        repository: Option<String>,
+        version: Option<String>,
+        sample: Option<bool>,
+        sample_size: Option<usize>,
+        feature_map: Option<FeatureMap>,
+        targets: Option<Vec<String>>,
+        alert_config: Option<AlertConfig>,
+    ) -> Result<(), anyhow::Error> {
+        if name.is_some() {
+            self.name = name.unwrap();
+        }
+
+        if repository.is_some() {
+            self.repository = repository.unwrap();
+        }
+
+        if version.is_some() {
+            self.version = version.unwrap();
+        }
+
+        if sample.is_some() {
+            self.sample = sample.unwrap();
+        }
+
+        if sample_size.is_some() {
+            self.sample_size = sample_size.unwrap();
+        }
+
+        if feature_map.is_some() {
+            self.feature_map = feature_map;
+        }
+
+        if targets.is_some() {
+            self.targets = targets.unwrap();
+        }
+
+        if alert_config.is_some() {
+            self.alert_config = alert_config.unwrap();
+        }
+
+        Ok(())
+    }
 }
 
 impl DriftConfig {
@@ -558,6 +628,43 @@ impl DriftProfile {
 
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), anyhow::Error> {
         ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
+    }
+
+    // update the arguments of the drift config
+    //
+    // # Arguments
+    //
+    // * `name` - The name of the model
+    // * `repository` - The repository associated with the model
+    // * `version` - The version of the model
+    // * `sample` - Whether to sample data or not, Default is true
+    // * `sample_size` - The sample size
+    // * `feature_map` - The feature map to use
+    // * `targets` - The targets to monitor
+    // * `alert_config` - The alerting configuration to use
+    //
+    #[allow(clippy::too_many_arguments)]
+    pub fn update_config_args(
+        &mut self,
+        name: Option<String>,
+        repository: Option<String>,
+        version: Option<String>,
+        sample: Option<bool>,
+        sample_size: Option<usize>,
+        feature_map: Option<FeatureMap>,
+        targets: Option<Vec<String>>,
+        alert_config: Option<AlertConfig>,
+    ) -> Result<(), anyhow::Error> {
+        self.config.update_config_args(
+            name,
+            repository,
+            version,
+            sample,
+            sample_size,
+            feature_map,
+            targets,
+            alert_config,
+        )
     }
 }
 
@@ -1093,5 +1200,34 @@ mod tests {
         assert_eq!(alert_config.alert_dispatch_type(), "OpsGenie");
         assert_eq!(alert_config.alert_kwargs.get("channel").unwrap(), "test");
         assert_eq!(AlertDispatchType::OpsGenie.value(), "OpsGenie");
+    }
+
+    #[test]
+    fn test_drift_config() {
+        let mut drift_config =
+            DriftConfig::new(None, None, None, None, None, None, None, None, None).unwrap();
+        assert_eq!(drift_config.sample_size, 25);
+        assert!(drift_config.sample);
+        assert_eq!(drift_config.name, "__missing__");
+        assert_eq!(drift_config.repository, "__missing__");
+        assert_eq!(drift_config.version, "0.1.0");
+        assert_eq!(drift_config.targets.len(), 0);
+        assert_eq!(drift_config.alert_config, AlertConfig::default());
+
+        // update
+        drift_config
+            .update_config_args(
+                Some("test".to_string()),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+
+        assert_eq!(drift_config.name, "test");
     }
 }

@@ -37,6 +37,11 @@ def test_drift_f64(array: NDArray, drift_config: DriftConfig):
 
     _ = drifter.compute_drift(array, profile)
 
+    profile.update_config_args(name="name1", repository="repo1")
+
+    assert profile.config.name == "name1"
+    assert profile.config.repository == "repo1"
+
 
 def test_drift_f32(array: NDArray, drift_config: DriftConfig):
     array = array.astype("float32")
@@ -261,3 +266,15 @@ def test_empty_params():
 
     assert config.name == Constants.MISSING
     assert config.repository == Constants.MISSING
+
+    # update
+    config.name = "name"
+    config.repository = "repo"
+
+    assert config.name == "name"
+    assert config.repository == "repo"
+
+    config.update_config_args(name="name1", repository="repo1")
+
+    assert config.name == "name1"
+    assert config.repository == "repo1"

@@ -797,7 +797,7 @@ dependencies = [
 
 [[package]]
 name = "py-scouter"
-version = "0.3.0-rc.2"
+version = "0.3.0-rc.3"
 dependencies = [
  "anyhow",
  "numpy",
@@ -1012,7 +1012,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scouter"
-version = "0.3.0-rc.2"
+version = "0.3.0-rc.3"
 dependencies = [
  "anyhow",
  "approx",
