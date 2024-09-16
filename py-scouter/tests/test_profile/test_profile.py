@@ -30,7 +30,7 @@ def test_data_profile_f64(array: NDArray):
     json_str = profile.model_dump_json()
 
     # load from json
-    loaded_profile = DataProfile.load_from_json(json_str)
+    loaded_profile = DataProfile.model_validate_json(json_str)
 
     assert loaded_profile.features["feature_0"].numeric_stats.mean == pytest.approx(
         1.5, 0.1

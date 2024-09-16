@@ -401,6 +401,15 @@ class DriftConfig:
     def update_feature_map(self, feature_map: FeatureMap) -> None:
         """Update feature map"""
 
+    @staticmethod
+    def load_from_json_file(path: Path) -> "DriftConfig":
+        """Load config from json file
+
+        Args:
+            path:
+                Path to json file to load config from.
+        """
+
     def __str__(self) -> str:
         """Return the string representation of the config."""
 
@@ -426,6 +435,24 @@ class DriftProfile:
     @property
     def config(self) -> DriftConfig:
         """Return the monitor config."""
+
+    def save_to_json(self, path: Optional[Path] = None) -> None:
+        """Save drift profile to json file
+
+        Args:
+            path:
+                Optional path to save the drift profile. If None, outputs to "drift_profile.json.
+        """
+
+    @staticmethod
+    def model_validate_json(json_string: str) -> "DriftProfile":
+        """Load drift profile from json
+
+        Args:
+            json_string:
+                JSON string representation of the drift profile
+
+        """
 
     def __str__(self) -> str:
         """Sting representation of DriftProfile"""
@@ -560,8 +587,13 @@ class DataProfile:
         """Return json representation of data profile"""
 
     @staticmethod
-    def load_from_json(model: str) -> "DataProfile":
-        """Load drift map from json"""
+    def model_validate_json(json_string: str) -> "DataProfile":
+        """Load Data profile from json
+
+        Args:
+            json_string:
+                JSON string representation of the data profile
+        """
 
     def save_to_json(self, path: Optional[Path] = None) -> None:
         """Save data profile to json file
@@ -618,8 +650,13 @@ class DriftMap:
         """Return json representation of data drift"""
 
     @staticmethod
-    def load_from_json(model: str) -> "DriftMap":
-        """Load drift map from json"""
+    def model_validate_json(json_string: str) -> "DriftMap":
+        """Load drift map from json file.
+
+        Args:
+            json_string:
+                JSON string representation of the drift map
+        """
 
     def save_to_json(self, path: Optional[Path] = None) -> None:
         """Save drift map to json file
