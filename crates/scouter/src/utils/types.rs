@@ -529,6 +529,7 @@ impl DriftConfig {
     // * `targets` - The targets to monitor
     // * `alert_config` - The alerting configuration to use
     //
+    #[allow(clippy::too_many_arguments)]
     pub fn update_config_args(
         &mut self,
         name: Option<String>,
@@ -642,6 +643,7 @@ impl DriftProfile {
     // * `targets` - The targets to monitor
     // * `alert_config` - The alerting configuration to use
     //
+    #[allow(clippy::too_many_arguments)]
     pub fn update_config_args(
         &mut self,
         name: Option<String>,
