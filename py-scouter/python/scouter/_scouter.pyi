@@ -401,6 +401,15 @@ class DriftConfig:
     def update_feature_map(self, feature_map: FeatureMap) -> None:
         """Update feature map"""
 
+    @staticmethod
+    def load_from_json_file(path: Path) -> "DriftConfig":
+        """Load config from json file
+
+        Args:
+            path:
+                Path to json file to load config from.
+        """
+
     def __str__(self) -> str:
         """Return the string representation of the config."""
 
@@ -436,7 +445,7 @@ class DriftProfile:
         """
 
     @staticmethod
-    def load_from_json(json_string: str) -> "DriftProfile":
+    def model_validate_json(json_string: str) -> "DriftProfile":
         """Load drift profile from json
 
         Args:
@@ -578,7 +587,7 @@ class DataProfile:
         """Return json representation of data profile"""
 
     @staticmethod
-    def load_from_json(json_string: str) -> "DataProfile":
+    def model_validate_json(json_string: str) -> "DataProfile":
         """Load Data profile from json
 
         Args:
@@ -641,12 +650,12 @@ class DriftMap:
         """Return json representation of data drift"""
 
     @staticmethod
-    def load_from_json_file(path: str) -> "DriftMap":
+    def model_validate_json(json_string: str) -> "DriftMap":
         """Load drift map from json file.
 
         Args:
-            path:
-                Path to json file to load drift map from.
+            json_string:
+                JSON string representation of the drift map
         """
 
     def save_to_json(self, path: Optional[Path] = None) -> None:

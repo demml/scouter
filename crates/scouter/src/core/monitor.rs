@@ -754,7 +754,7 @@ mod tests {
         profile.__str__();
         let model_string = profile.model_dump_json();
 
-        let loaded_profile = DriftProfile::load_from_json(model_string);
+        let loaded_profile = DriftProfile::model_validate_json(model_string);
         assert_eq!(loaded_profile.features.len(), 3);
     }
 

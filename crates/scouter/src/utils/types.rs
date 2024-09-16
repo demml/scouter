@@ -462,7 +462,7 @@ impl DriftConfig {
         config_path: Option<PathBuf>,
     ) -> Result<Self, anyhow::Error> {
         if let Some(config_path) = config_path {
-            let config = DriftConfig::load_from_json(config_path);
+            let config = DriftConfig::load_from_json_file(config_path);
             return config;
         }
 
@@ -496,7 +496,7 @@ impl DriftConfig {
     }
 
     #[staticmethod]
-    pub fn load_from_json(path: PathBuf) -> Result<DriftConfig, anyhow::Error> {
+    pub fn load_from_json_file(path: PathBuf) -> Result<DriftConfig, anyhow::Error> {
         // deserialize the string to a struct
 
         let file = std::fs::read_to_string(&path)
@@ -551,7 +551,7 @@ impl DriftProfile {
     }
 
     #[staticmethod]
-    pub fn load_from_json(json_string: String) -> DriftProfile {
+    pub fn model_validate_json(json_string: String) -> DriftProfile {
         // deserialize the string to a struct
         serde_json::from_str(&json_string).expect("Failed to load monitor profile")
     }
@@ -691,7 +691,7 @@ impl DataProfile {
     }
 
     #[staticmethod]
-    pub fn load_from_json(json_string: String) -> DataProfile {
+    pub fn model_validate_json(json_string: String) -> DataProfile {
         // deserialize the string to a struct
         serde_json::from_str(&json_string).expect("Failed to load data profile")
     }
@@ -882,7 +882,7 @@ impl DriftMap {
     }
 
     #[staticmethod]
-    pub fn load_from_json(json_string: String) -> DriftMap {
+    pub fn model_validate_json(json_string: String) -> DriftMap {
         // deserialize the string to a struct
         serde_json::from_str(&json_string).expect("Failed to load drift map")
     }

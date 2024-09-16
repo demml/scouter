@@ -13,6 +13,7 @@ from scouter._scouter import (
     AlertConfig,
     AlertDispatchType,
 )
+from tempfile import TemporaryDirectory
 from scouter.utils.types import Constants
 
 
@@ -24,6 +25,15 @@ def test_drift_f64(array: NDArray, drift_config: DriftConfig):
     assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)
     assert profile.features["feature_1"].center == pytest.approx(2.5, 0.1)
     assert profile.features["feature_2"].center == pytest.approx(3.5, 0.1)
+
+    # save profile to json
+    with TemporaryDirectory() as temp_dir:
+        profile.save_to_json(Path(temp_dir) / "profile.json")
+        assert (Path(temp_dir) / "profile.json").exists()
+
+        # test loading from json file
+        with open(Path(temp_dir) / "profile.json", "r") as f:
+            DriftProfile.model_validate_json(f.read())
 
     _ = drifter.compute_drift(array, profile)
 
@@ -59,7 +69,7 @@ def test_drift_int(array: NDArray, drift_config: DriftConfig):
 
     model = drift_map.model_dump_json()
 
-    loaded_model = DriftMap.load_from_json(model)
+    loaded_model = DriftMap.model_validate_json(model)
 
     assert loaded_model.features["feature_0"].drift[0] == 0.0
 
@@ -206,7 +216,6 @@ def test_data_pyarrow_mixed_type(
     drifter = Drifter()
 
     profile: DriftProfile = drifter.create_drift_profile(arrow_table, drift_config)
-
     drift_map = drifter.compute_drift(arrow_table, profile)
 
     assert len(drift_map.features) == 5
