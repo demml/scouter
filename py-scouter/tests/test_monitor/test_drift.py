@@ -37,6 +37,11 @@ def test_drift_f64(array: NDArray, drift_config: DriftConfig):
 
     _ = drifter.compute_drift(array, profile)
 
+    profile.update_config_args(name="name1", repository="repo1")
+
+    assert profile.config.name == "name1"
+    assert profile.config.repository == "repo1"
+
 
 def test_drift_f32(array: NDArray, drift_config: DriftConfig):
     array = array.astype("float32")

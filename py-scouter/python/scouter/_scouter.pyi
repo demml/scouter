@@ -574,6 +574,40 @@ class DriftProfile:
 
         """
 
+    def update_config_args(
+        self,
+        name: Optional[str] = None,
+        repository: Optional[str] = None,
+        version: Optional[str] = None,
+        sample: Optional[bool] = None,
+        sample_size: Optional[int] = None,
+        feature_map: Optional[FeatureMap] = None,
+        targets: Optional[List[str]] = None,
+        alert_config: Optional[AlertConfig] = None,
+    ) -> None:
+        """Inplace operation that updates config args
+
+        Args:
+            name:
+                Model name
+            repository:
+                Model repository
+            version:
+                Model version
+            sample:
+                Whether to sample or not
+            sample_size:
+                Sample size
+            feature_map:
+                Feature map
+            targets:
+                List of features that are targets in your dataset.
+                This is typically the name of your dependent variable(s).
+                This primarily used for monitoring and UI purposes.
+            alert_config:
+                Alert configuration
+        """
+
     def __str__(self) -> str:
         """Sting representation of DriftProfile"""
 

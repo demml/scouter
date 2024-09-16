@@ -628,6 +628,42 @@ impl DriftProfile {
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), anyhow::Error> {
         ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
     }
+
+    // update the arguments of the drift config
+    //
+    // # Arguments
+    //
+    // * `name` - The name of the model
+    // * `repository` - The repository associated with the model
+    // * `version` - The version of the model
+    // * `sample` - Whether to sample data or not, Default is true
+    // * `sample_size` - The sample size
+    // * `feature_map` - The feature map to use
+    // * `targets` - The targets to monitor
+    // * `alert_config` - The alerting configuration to use
+    //
+    pub fn update_config_args(
+        &mut self,
+        name: Option<String>,
+        repository: Option<String>,
+        version: Option<String>,
+        sample: Option<bool>,
+        sample_size: Option<usize>,
+        feature_map: Option<FeatureMap>,
+        targets: Option<Vec<String>>,
+        alert_config: Option<AlertConfig>,
+    ) -> Result<(), anyhow::Error> {
+        self.config.update_config_args(
+            name,
+            repository,
+            version,
+            sample,
+            sample_size,
+            feature_map,
+            targets,
+            alert_config,
+        )
+    }
 }
 
 #[pyclass]
