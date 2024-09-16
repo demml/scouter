@@ -13,6 +13,10 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use std::str::FromStr;
+use tracing::debug;
+
+const MISSING: &str = "__missing__";
+
 enum FileName {
     Drift,
     Profile,
@@ -462,13 +466,17 @@ impl DriftConfig {
             return config;
         }
 
-        let name = name.unwrap_or("_NA".to_string());
-        let repository = repository.unwrap_or("_NA".to_string());
+        let name = name.unwrap_or(MISSING.to_string());
+        let repository = repository.unwrap_or(MISSING.to_string());
+
+        if name == MISSING || repository == MISSING {
+            debug!("Name and repository were not provided. Defaulting to __missing__");
+        }
+
         let sample = sample.unwrap_or(true);
         let sample_size = sample_size.unwrap_or(25);
         let version = version.unwrap_or("0.1.0".to_string());
         let targets = targets.unwrap_or_default();
-
         let alert_config = alert_config.unwrap_or(AlertConfig::new(None, None, None, None, None));
 
         Ok(Self {
