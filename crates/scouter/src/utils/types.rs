@@ -1169,7 +1169,7 @@ mod tests {
         let mut drift_config =
             DriftConfig::new(None, None, None, None, None, None, None, None, None).unwrap();
         assert_eq!(drift_config.sample_size, 25);
-        assert_eq!(drift_config.sample, true);
+        assert!(drift_config.sample);
         assert_eq!(drift_config.name, "__missing__");
         assert_eq!(drift_config.repository, "__missing__");
         assert_eq!(drift_config.version, "0.1.0");
