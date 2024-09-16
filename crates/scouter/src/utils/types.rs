@@ -551,9 +551,9 @@ impl DriftProfile {
     }
 
     #[staticmethod]
-    pub fn load_from_json(model: String) -> DriftProfile {
+    pub fn load_from_json(json_string: String) -> DriftProfile {
         // deserialize the string to a struct
-        serde_json::from_str(&model).expect("Failed to load monitor profile")
+        serde_json::from_str(&json_string).expect("Failed to load monitor profile")
     }
 
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), anyhow::Error> {
@@ -691,9 +691,9 @@ impl DataProfile {
     }
 
     #[staticmethod]
-    pub fn load_from_json(model: String) -> DataProfile {
+    pub fn load_from_json(json_string: String) -> DataProfile {
         // deserialize the string to a struct
-        serde_json::from_str(&model).expect("Failed to load data profile")
+        serde_json::from_str(&json_string).expect("Failed to load data profile")
     }
 
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), anyhow::Error> {
@@ -882,9 +882,9 @@ impl DriftMap {
     }
 
     #[staticmethod]
-    pub fn load_from_json(model: String) -> DriftMap {
+    pub fn load_from_json(json_string: String) -> DriftMap {
         // deserialize the string to a struct
-        serde_json::from_str(&model).expect("Failed to load drift map")
+        serde_json::from_str(&json_string).expect("Failed to load drift map")
     }
 
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), anyhow::Error> {
