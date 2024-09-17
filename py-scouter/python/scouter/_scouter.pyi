@@ -563,6 +563,9 @@ class DriftProfile:
     def model_dump_json(self) -> str:
         """Return json representation of drift profile"""
 
+    def model_dump(self) -> Dict[str, Any]:
+        """Return dictionary representation of drift profile"""
+
     def save_to_json(self, path: Optional[Path] = None) -> None:
         """Save drift profile to json file
 
