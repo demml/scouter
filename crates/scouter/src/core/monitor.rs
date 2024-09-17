@@ -158,7 +158,7 @@ impl Monitor {
             );
         }
 
-        Ok(DriftProfile::new(feat_profile, drift_config.clone()))
+        Ok(DriftProfile::new(feat_profile, drift_config.clone(), None))
     }
 
     /// Create a 2D monitor profile

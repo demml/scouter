@@ -527,6 +527,7 @@ class DriftProfile:
         self,
         features: Dict[str, FeatureDriftProfile],
         config: DriftConfig,
+        scouter_version: Optional[str] = None,
     ):
         """Initialize drift profile
 
@@ -535,7 +536,13 @@ class DriftProfile:
                 Dictionary of features and their drift profiles
             config:
                 Monitor config
+            scouter_version:
+                version of scouter used to generate profile
         """
+
+    @property
+    def scouter_version(self) -> str:
+        """Return scouter version used to create DriftProfile"""
 
     @property
     def features(self) -> Dict[str, FeatureDriftProfile]:
@@ -572,6 +579,15 @@ class DriftProfile:
             json_string:
                 JSON string representation of the drift profile
 
+        """
+
+    @staticmethod
+    def model_validate(data: Dict[str, Any]) -> "DriftProfile":
+        """Load drift profile from dictionary
+
+        Args:
+            data:
+                DriftProfile dictionary
         """
 
     def update_config_args(

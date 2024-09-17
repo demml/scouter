@@ -602,8 +602,12 @@ pub struct DriftProfile {
 #[pymethods]
 impl DriftProfile {
     #[new]
-    pub fn new(features: BTreeMap<String, FeatureDriftProfile>, config: DriftConfig) -> Self {
-        let scouter_version = env!("CARGO_PKG_VERSION").to_string();
+    pub fn new(
+        features: BTreeMap<String, FeatureDriftProfile>,
+        config: DriftConfig,
+        scouter_version: Option<String>,
+    ) -> Self {
+        let scouter_version = scouter_version.unwrap_or(env!("CARGO_PKG_VERSION").to_string());
         Self {
             features,
             config,
