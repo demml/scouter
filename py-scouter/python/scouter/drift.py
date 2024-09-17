@@ -38,7 +38,7 @@ class Drifter:
     def create_drift_profile(
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
-        drift_config: DriftConfig,
+        drift_config: Optional[DriftConfig] = None,
     ) -> DriftProfile:
         """Create a drift profile from data to use for monitoring.
 
@@ -49,12 +49,16 @@ class Drifter:
                 any missing values, NaNs or infinities. These values must be removed or imputed.
                 If NaNs or infinities are present, the monitoring profile will not be created.
             drift_config:
-                Configuration for the monitoring profile.
+                Optional configuration for the monitoring profile. If not provided, a default
+                configuration will be used.
 
         Returns:
             Monitoring profile
         """
         try:
+            if drift_config is None:
+                drift_config = DriftConfig()
+
             logger.info("Creating drift profile.")
             array = _convert_data_to_array(data)
             bits = _get_bits(array.numeric_array)

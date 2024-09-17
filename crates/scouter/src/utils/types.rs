@@ -6,7 +6,9 @@ use ndarray::Array;
 use ndarray::Array2;
 use numpy::{IntoPyArray, PyArray2};
 use pyo3::prelude::*;
+use pyo3::types::{PyBool, PyDict, PyFloat, PyList, PyLong, PyString};
 use serde::{Deserialize, Serialize};
+use serde_json::json;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -602,8 +604,12 @@ pub struct DriftProfile {
 #[pymethods]
 impl DriftProfile {
     #[new]
-    pub fn new(features: BTreeMap<String, FeatureDriftProfile>, config: DriftConfig) -> Self {
-        let scouter_version = env!("CARGO_PKG_VERSION").to_string();
+    pub fn new(
+        features: BTreeMap<String, FeatureDriftProfile>,
+        config: DriftConfig,
+        scouter_version: Option<String>,
+    ) -> Self {
+        let scouter_version = scouter_version.unwrap_or(env!("CARGO_PKG_VERSION").to_string());
         Self {
             features,
             config,
@@ -620,12 +626,35 @@ impl DriftProfile {
         ProfileFuncs::__json__(self)
     }
 
+    pub fn model_dump(&self, py: Python) -> PyResult<Py<PyDict>> {
+        let json_str = serde_json::to_string(&self).unwrap();
+        let json_value: Value = serde_json::from_str(&json_str).unwrap();
+
+        // Create a new Python dictionary
+        let dict = PyDict::new_bound(py);
+
+        // Convert JSON to Python dict
+        json_to_pyobject(py, &json_value, dict.as_gil_ref())?;
+
+        // Return the Python dictionary
+        Ok(dict.into())
+    }
+
+    #[staticmethod]
+    pub fn model_validate(py: Python, data: &Bound<'_, PyDict>) -> DriftProfile {
+        let json_value = pyobject_to_json(py, data.as_gil_ref()).unwrap();
+
+        let string = serde_json::to_string(&json_value).unwrap();
+        serde_json::from_str(&string).expect("Failed to load drift profile")
+    }
+
     #[staticmethod]
     pub fn model_validate_json(json_string: String) -> DriftProfile {
         // deserialize the string to a struct
         serde_json::from_str(&json_string).expect("Failed to load monitor profile")
     }
 
+    // Convert python dict into a drift profile
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), anyhow::Error> {
         ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
     }
@@ -1133,6 +1162,122 @@ impl FeatureAlerts {
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__json__(self)
+    }
+}
+
+fn json_to_pyobject(py: Python, value: &Value, dict: &PyDict) -> PyResult<()> {
+    match value {
+        Value::Object(map) => {
+            for (k, v) in map {
+                let py_value = match v {
+                    Value::Null => py.None(),
+                    Value::Bool(b) => b.into_py(py),
+                    Value::Number(n) => {
+                        if let Some(i) = n.as_i64() {
+                            i.into_py(py)
+                        } else if let Some(f) = n.as_f64() {
+                            f.into_py(py)
+                        } else {
+                            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                                "Invalid number",
+                            ));
+                        }
+                    }
+                    Value::String(s) => s.into_py(py),
+                    Value::Array(arr) => {
+                        let py_list = PyList::empty_bound(py);
+                        for item in arr {
+                            let py_item = json_to_pyobject_value(py, item)?;
+                            py_list.append(py_item)?;
+                        }
+                        py_list.into_py(py)
+                    }
+                    Value::Object(_) => {
+                        let nested_dict = PyDict::new_bound(py);
+                        json_to_pyobject(py, v, nested_dict.as_gil_ref())?;
+                        nested_dict.into_py(py)
+                    }
+                };
+                dict.set_item(k, py_value)?;
+            }
+        }
+        _ => {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Root must be an object",
+            ))
+        }
+    }
+    Ok(())
+}
+
+fn json_to_pyobject_value(py: Python, value: &Value) -> PyResult<PyObject> {
+    Ok(match value {
+        Value::Null => py.None(),
+        Value::Bool(b) => b.into_py(py),
+        Value::Number(n) => {
+            if let Some(i) = n.as_i64() {
+                i.into_py(py)
+            } else if let Some(f) = n.as_f64() {
+                f.into_py(py)
+            } else {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    "Invalid number",
+                ));
+            }
+        }
+        Value::String(s) => s.into_py(py),
+        Value::Array(arr) => {
+            let py_list = PyList::empty_bound(py);
+            for item in arr {
+                let py_item = json_to_pyobject_value(py, item)?;
+                py_list.append(py_item)?;
+            }
+            py_list.into_py(py)
+        }
+        Value::Object(_) => {
+            let nested_dict = PyDict::new_bound(py);
+            json_to_pyobject(py, value, nested_dict.as_gil_ref())?;
+            nested_dict.into_py(py)
+        }
+    })
+}
+
+fn pyobject_to_json(_py: Python, obj: &PyAny) -> PyResult<Value> {
+    if obj.is_instance_of::<PyDict>() {
+        let dict = obj.downcast::<PyDict>()?;
+        let mut map = serde_json::Map::new();
+        for (key, value) in dict.iter() {
+            let key_str = key.extract::<String>()?;
+            let json_value = pyobject_to_json(_py, value)?;
+            map.insert(key_str, json_value);
+        }
+        Ok(Value::Object(map))
+    } else if obj.is_instance_of::<PyList>() {
+        let list = obj.downcast::<PyList>()?;
+        let mut vec = Vec::new();
+        for item in list.iter() {
+            vec.push(pyobject_to_json(_py, item)?);
+        }
+        Ok(Value::Array(vec))
+    } else if obj.is_instance_of::<PyString>() {
+        let s = obj.extract::<String>()?;
+        Ok(Value::String(s))
+    } else if obj.is_instance_of::<PyFloat>() {
+        let f = obj.extract::<f64>()?;
+        Ok(json!(f))
+    } else if obj.is_instance_of::<PyBool>() {
+        let b = obj.extract::<bool>()?;
+        Ok(json!(b))
+    } else if obj.is_instance_of::<PyLong>() {
+        let i = obj.extract::<i64>()?;
+        Ok(json!(i))
+    } else if obj.is_none() {
+        Ok(Value::Null)
+    } else {
+        Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(format!(
+            "Unsupported type: {}",
+            obj.get_type().name()?
+        )))
     }
 }
 
