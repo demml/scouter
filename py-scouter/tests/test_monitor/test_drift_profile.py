@@ -3,15 +3,12 @@ from scouter import Drifter
 from numpy.typing import NDArray
 import pytest
 
-from scouter._scouter import (
-    DriftProfile,
-    DriftConfig,
-)
+from scouter._scouter import DriftProfile
 
 
-def test_drift_profile_methods(array: NDArray, drift_config: DriftConfig):
+def test_drift_profile_methods(array: NDArray):
     drifter = Drifter()
-    profile: DriftProfile = drifter.create_drift_profile(array, drift_config)
+    profile: DriftProfile = drifter.create_drift_profile(array)
 
     profile_dict = profile.model_dump()
 
