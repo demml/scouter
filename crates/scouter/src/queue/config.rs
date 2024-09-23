@@ -39,7 +39,6 @@ fn check_compression_type(compression_type: &str) -> CompressionType {
 
 enum ProducerType {
     Kafka,
-    Http,
 }
 
 impl ProducerType {
@@ -52,7 +51,7 @@ impl ProducerType {
 }
 
 #[pyclass]
-struct KafkaConfig {
+pub struct KafkaConfig {
     #[pyo3(get, set)]
     brokers: String,
 
