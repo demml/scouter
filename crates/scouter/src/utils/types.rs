@@ -1180,7 +1180,7 @@ impl FeatureAlerts {
     }
 }
 
-fn json_to_pyobject(py: Python, value: &Value, dict: &PyDict) -> PyResult<()> {
+pub fn json_to_pyobject(py: Python, value: &Value, dict: &PyDict) -> PyResult<()> {
     match value {
         Value::Object(map) => {
             for (k, v) in map {

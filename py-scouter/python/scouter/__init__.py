@@ -2,7 +2,7 @@
 
 # Integrations
 from scouter.integrations.http import HTTPConfig, HTTPProducer
-from scouter.integrations.kafka import KafkaConfig, KafkaProducer
+from scouter.integrations.kafka import KafkaProducer
 from scouter.integrations.producer import DriftRecordProducer
 from scouter.utils.types import AlertType, AlertZone
 
@@ -27,6 +27,7 @@ from ._scouter import (
     FeatureProfile,
     PercentageAlertRule,
     ProcessAlertRule,
+    KafkaConfig,
 )
 from .drift import CommonCrons, Drifter
 from .monitor import MonitorQueue

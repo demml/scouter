@@ -40,9 +40,7 @@ class MonitorQueue:
         self._monitor = ScouterDrifter()
         self._drift_profile = drift_profile
 
-        self.feature_queue: Dict[str, List[float]] = {
-            feature: [] for feature in self.feature_names
-        }
+        self.feature_queue: Dict[str, List[float]] = {feature: [] for feature in self.feature_names}
         self._count = 0
 
         self._producer = self._get_producer(config)
@@ -74,9 +72,7 @@ class MonitorQueue:
         """Feature map from the drift profile. Used to map string values for a
         categorical feature to a numeric representation."""
         if self._drift_profile.config.feature_map is None:
-            logger.warning(
-                "Feature map not found in drift profile. Returning empty map."
-            )
+            logger.warning("Feature map not found in drift profile. Returning empty map.")
             return {}
         return self._drift_profile.config.feature_map.features
 
@@ -105,9 +101,7 @@ class MonitorQueue:
                 # fallback to missing value if not found. This is computed during
                 # drift profile creation.
                 if feature in self.mapped_features:
-                    value = self.feature_map[feature].get(
-                        value, self.feature_map[feature]["missing"]
-                    )
+                    value = self.feature_map[feature].get(value, self.feature_map[feature]["missing"])
 
                 self.feature_queue[feature].append(value)
 
@@ -123,9 +117,7 @@ class MonitorQueue:
             return None
 
         except Exception as exc:
-            logger.error(
-                "Failed to insert data into monitoring queue: {}. Passing", exc
-            )
+            logger.error("Failed to insert data into monitoring queue: {}. Passing", exc)
             return None
 
     def _clear_queue(self) -> None:
@@ -140,9 +132,7 @@ class MonitorQueue:
             data = list(self.feature_queue.values())
             array = np.array(data, dtype=np.float64).T
 
-            drift_record = self._monitor.sample_data_f64(
-                self.feature_names, array, self._drift_profile
-            )
+            drift_record = self._monitor.sample_data_f64(self.feature_names, array, self._drift_profile)
 
             self._producer.publish(drift_record)
 

@@ -3,7 +3,7 @@
 import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, Literal
 
 from numpy.typing import NDArray
 
@@ -1112,3 +1112,81 @@ class ScouterDrifter:
         Returns:
             List of server records
         """
+
+class KafkaConfig:
+    def __init__(
+        self,
+        brokers: Optional[str],
+        topic: Optional[str],
+        compression_type: Optional[
+            Literal[None, "gzip", "snappy", "lz4", "zstd", "inherit"]
+        ] = "gzip",
+        raise_on_err: bool = True,
+        message_timeout_ms: int = 600_000,
+        message_max_bytes: int = 2097164,
+        config: Dict[str, Any] = {},
+    ) -> None:
+        """Kafka configuration to use with the KafkaProducer.
+
+        Args:
+            brokers:
+                Comma-separated list of Kafka brokers.
+                If not provided, the value of the KAFKA_BROKERS environment variable is used.
+
+            topic:
+                Kafka topic to publish messages to.
+                If not provided, the value of the KAFKA_TOPIC environment variable is used.
+
+            compression_type:
+                Compression type to use for messages.
+                Default is "gzip".
+
+            raise_on_err:
+                Whether to raise an error if message delivery fails.
+                Default is True.
+
+            message_timeout_ms:
+                Message timeout in milliseconds.
+                Default is 600_000.
+
+            message_max_bytes:
+                Maximum message size in bytes.
+                Default is 2097164.
+
+            config:
+                Additional Kafka configuration options. These will be passed to the Kafka producer.
+                See https://kafka.apache.org/documentation/#configuration
+
+        """
+
+    @property
+    def brokers(self) -> str:
+        """Return the brokers."""
+
+    @property
+    def topic(self) -> str:
+        """Return the topic."""
+
+    @property
+    def compression_type(self) -> str:
+        """Compression type to use for messages."""
+
+    @property
+    def raise_on_err(self) -> bool:
+        """Whether to raise an error if message delivery fails."""
+
+    @property
+    def message_timeout_ms(self) -> int:
+        """Message timeout in milliseconds."""
+
+    @property
+    def message_max_bytes(self) -> int:
+        """Maximum message size in bytes."""
+
+    @property
+    def producer_type(self) -> str:
+        """Return the producer type"""
+
+    @property
+    def config(self) -> Dict[str, Any]:
+        """Kafka configuration options"""
