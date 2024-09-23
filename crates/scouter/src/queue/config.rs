@@ -39,6 +39,7 @@ fn check_compression_type(compression_type: &str) -> CompressionType {
 
 enum ProducerType {
     Kafka,
+    Http,
 }
 
 impl ProducerType {

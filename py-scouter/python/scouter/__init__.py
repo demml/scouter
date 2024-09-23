@@ -25,9 +25,9 @@ from ._scouter import (
     FeatureAlerts,
     FeatureDriftProfile,
     FeatureProfile,
+    KafkaConfig,
     PercentageAlertRule,
     ProcessAlertRule,
-    KafkaConfig,
 )
 from .drift import CommonCrons, Drifter
 from .monitor import MonitorQueue

@@ -3,7 +3,7 @@
 import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union, Literal
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 from numpy.typing import NDArray
 
@@ -1118,9 +1118,7 @@ class KafkaConfig:
         self,
         brokers: Optional[str],
         topic: Optional[str],
-        compression_type: Optional[
-            Literal[None, "gzip", "snappy", "lz4", "zstd", "inherit"]
-        ] = "gzip",
+        compression_type: Optional[Literal[None, "gzip", "snappy", "lz4", "zstd", "inherit"]] = "gzip",
         raise_on_err: bool = True,
         message_timeout_ms: int = 600_000,
         message_max_bytes: int = 2097164,

@@ -6,7 +6,7 @@ from scouter.integrations.base import BaseProducer
 from scouter.utils.logger import ScouterLogger
 from scouter.utils.types import ProducerTypes
 
-from .._scouter import KafkaConfig, DriftServerRecords
+from .._scouter import DriftServerRecords, KafkaConfig
 
 logger = ScouterLogger.get_logger()
 MESSAGE_MAX_BYTES_DEFAULT = 2097164
@@ -36,14 +36,10 @@ class KafkaProducer(BaseProducer):
             self._producer = Producer(self._kafka_config.config)
 
         except ModuleNotFoundError as e:
-            logger.error(
-                "Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'"
-            )
+            logger.error("Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'")
             raise e
 
-    def _delivery_report(
-        self, err: Optional[str], msg: Any, raise_on_err: bool = True
-    ) -> None:
+    def _delivery_report(self, err: Optional[str], msg: Any, raise_on_err: bool = True) -> None:
         """Callback acknowledging receipt of message from producer
 
         Args:
@@ -60,9 +56,7 @@ class KafkaProducer(BaseProducer):
                 "kafka_error": err,
             }
             err_msg = f"Failed delivery to topic: {msg.topic()}"
-            logger.error(
-                "Failed delivery to topic: {} error_data: {}", msg.topic(), err_data
-            )
+            logger.error("Failed delivery to topic: {} error_data: {}", msg.topic(), err_data)
             if raise_on_err:
                 raise ValueError(err_msg)
         else:
