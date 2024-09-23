@@ -1,5 +1,5 @@
 import functools
-from typing import Any, Awaitable, Callable, TypeVar, Union
+from typing import Any, Awaitable, Callable, Union
 
 from pydantic import BaseModel
 from scouter import DriftProfile, MonitorQueue
@@ -16,8 +16,6 @@ except ImportError as exc:
         """FastAPI is not installed as a scouter extra. 
         Install scouter with the fastapi extra (scouter[fastapi]) to use the FastAPI integration."""
     ) from exc
-
-T = TypeVar("T", bound=Union[APIRouter, _FastAPI])
 
 
 class ScouterMixin:
