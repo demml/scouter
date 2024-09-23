@@ -6,6 +6,11 @@ from numpy.typing import NDArray
 from scouter._scouter import DriftConfig, AlertRule, PercentageAlertRule, AlertConfig
 from unittest.mock import patch
 from httpx import Response
+from fastapi import FastAPI, Request
+from scouter.integrations.fastapi import ScouterRouter
+from scouter import Drifter, DriftProfile, KafkaConfig
+from fastapi.testclient import TestClient
+from pydantic import BaseModel
 
 T = TypeVar("T")
 YieldFixture = Generator[T, None, None]
@@ -203,3 +208,37 @@ def mock_httpx_producer():
         )
 
         yield mocked_client
+
+
+@pytest.fixture
+def drift_profile(array: NDArray) -> DriftProfile:
+    drifter = Drifter()
+    profile: DriftProfile = drifter.create_drift_profile(array)
+
+    return profile
+
+
+class TestResponse(BaseModel):
+    message: str
+
+
+@pytest.fixture
+def client(mock_kafka_producer, drift_profile: DriftProfile) -> TestClient:
+    config = KafkaConfig(
+        topic="test-topic",
+        brokers="localhost:9092",
+        raise_on_err=True,
+        config={"bootstrap.servers": "localhost:9092"},
+    )
+
+    app = FastAPI()
+    router = ScouterRouter(drift_profile=drift_profile, config=config)
+
+    # create a test route
+    @router.get("/test", response_model=TestResponse)
+    async def test_route(request: Request) -> TestResponse:
+        request.state.scouter_data = {"test": "data"}
+        return TestResponse(message="success")
+
+    app.include_router(router)
+    return TestClient(app)
