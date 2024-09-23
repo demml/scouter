@@ -10,8 +10,10 @@ def test_route(client: TestClient):
     assert response.json() == {"message": "success"}
 
 
-def test_ingestion(client_insert: Tuple[TestClient, List[Dict[str, Any]]]):
+def test_insert(client_insert: Tuple[TestClient, List[Dict[str, Any]]]):
     client, records = client_insert
+
+    assert len(records) == 0
 
     response = client.post(
         "/scouter/drift",
@@ -23,4 +25,6 @@ def test_ingestion(client_insert: Tuple[TestClient, List[Dict[str, Any]]]):
             value=1.0,
         ).model_dump(),
     )
+
+    assert len(records) == 1
     assert response.status_code == 200
