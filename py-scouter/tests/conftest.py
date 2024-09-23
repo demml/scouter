@@ -17,6 +17,24 @@ T = TypeVar("T")
 YieldFixture = Generator[T, None, None]
 
 
+class TestResponse(BaseModel):
+    message: str
+
+
+class TestDriftRecord(BaseModel):
+    name: str
+    repository: str
+    version: str
+    feature: str
+    value: float
+
+
+class PredictRequest(BaseModel):
+    feature_0: float
+    feature_1: float
+    feature_2: float
+
+
 def cleanup() -> None:
     """Removes temp files"""
 
@@ -219,18 +237,6 @@ def drift_profile(array: NDArray) -> DriftProfile:
     return profile
 
 
-class TestResponse(BaseModel):
-    message: str
-
-
-class TestDriftRecord(BaseModel):
-    name: str
-    repository: str
-    version: str
-    feature: str
-    value: float
-
-
 @pytest.fixture
 def client(mock_kafka_producer, drift_profile: DriftProfile) -> TestClient:
     config = KafkaConfig(
@@ -256,23 +262,19 @@ def client(mock_kafka_producer, drift_profile: DriftProfile) -> TestClient:
 @pytest.fixture
 def client_insert(
     drift_profile: DriftProfile,
-) -> Tuple[TestClient, List[Dict[str, Any]]]:
+) -> TestClient:
     config = HTTPConfig(server_url="http://testserver")
-
-    # router = ScouterRouter(drift_profile=drift_profile, config=config)
-    cache: List[Dict[str, Any]] = []
-
     app = FastAPI()
 
-    # create a router and insert route
-    router = APIRouter()
+    # define scouter router
+    scouter_router = ScouterRouter(drift_profile=drift_profile, config=config)
 
-    @router.post("/scouter/drift", response_model=TestResponse)
-    async def test_route(request: Request, payload: TestDriftRecord) -> TestResponse:
-        cache.append(payload.model_dump())
+    @scouter_router.post("/predict", response_model=TestResponse)
+    async def predict(request: Request, payload: PredictRequest) -> TestResponse:
+        request.state.scouter_data = payload.model_dump()
 
         return TestResponse(message="success")
 
-    app.include_router(router)
+    app.include_router(scouter_router)
 
-    return TestClient(app), cache
+    return TestClient(app)

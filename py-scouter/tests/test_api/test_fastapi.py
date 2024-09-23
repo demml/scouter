@@ -1,7 +1,6 @@
-from scouter.integrations.fastapi import ScouterRouter
 from fastapi.testclient import TestClient
-from tests.conftest import TestDriftRecord
-from typing import Any, Dict, List, Tuple
+from tests.conftest import PredictRequest
+from unittest import mock
 
 
 def test_route(client: TestClient):
@@ -10,21 +9,23 @@ def test_route(client: TestClient):
     assert response.json() == {"message": "success"}
 
 
-def test_insert(client_insert: Tuple[TestClient, List[Dict[str, Any]]]):
-    client, records = client_insert
+@mock.patch("scouter.integrations.http.HTTPProducer.request")
+def test_insert_http(
+    mock_request: mock.MagicMock,
+    client_insert: TestClient,
+):
+    mock_request.return_value = {"message": "success"}
 
-    assert len(records) == 0
-
-    response = client.post(
-        "/scouter/drift",
-        json=TestDriftRecord(
-            name="test",
-            repository="test",
-            version="test",
-            feature="test",
-            value=1.0,
-        ).model_dump(),
-    )
-
-    assert len(records) == 1
+    for i in range(26):
+        response = client_insert.post(
+            "/predict",
+            json=PredictRequest(
+                feature_0=1.0,
+                feature_1=1.0,
+                feature_2=1.0,
+            ).model_dump(),
+        )
     assert response.status_code == 200
+
+    # called once for each feature after sampling
+    assert mock_request.call_count == 3

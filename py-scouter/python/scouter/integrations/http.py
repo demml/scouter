@@ -75,6 +75,8 @@ class HTTPProducer(BaseProducer):
         self._auth_token = res["access_token"]
         self.client.headers["Authorization"] = f"Bearer {self._auth_token}"
 
+        return None
+
     @retry(reraise=True, stop=stop_after_attempt(3))
     def request(self, route: str, request_type: RequestType, **kwargs: Any) -> Dict[str, Any]:
         """Makes a request to the server
@@ -116,6 +118,7 @@ class HTTPProducer(BaseProducer):
         Raises:
             ValueError: When max_retries is invalid.
         """
+
         self.request(
             route=ApiRoutes.INSERT,
             request_type=RequestType.POST,
