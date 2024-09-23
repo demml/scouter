@@ -1,17 +1,16 @@
 import pytest
 import shutil
-from typing import TypeVar, Generator, Dict, Any, List, Tuple
+from typing import TypeVar, Generator
 import numpy as np
 from numpy.typing import NDArray
 from scouter._scouter import DriftConfig, AlertRule, PercentageAlertRule, AlertConfig
 from unittest.mock import patch
 from httpx import Response
-from fastapi import FastAPI, Request, APIRouter
+from fastapi import FastAPI, Request
 from scouter.integrations.fastapi import ScouterRouter
 from scouter import Drifter, DriftProfile, KafkaConfig, HTTPConfig
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
-from contextlib import asynccontextmanager
 
 T = TypeVar("T")
 YieldFixture = Generator[T, None, None]
