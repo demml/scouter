@@ -14,6 +14,7 @@ from ._scouter import (  # pylint: disable=no-name-in-module
     CommonCron,
     DriftProfile,
     DriftServerRecord,
+    DriftServerRecords,
     ScouterDrifter,
 )
 
@@ -85,7 +86,7 @@ class MonitorQueue:
         """Get the producer based on the configuration."""
         return DriftRecordProducer.get_producer(config)
 
-    def insert(self, data: Dict[Any, Any]) -> Optional[List[DriftServerRecord]]:
+    def insert(self, data: Dict[Any, Any]) -> Optional[DriftServerRecords]:
         """Insert data into the monitoring queue.
 
         Args:
@@ -125,16 +126,16 @@ class MonitorQueue:
         self.feature_queue = {feature: [] for feature in self.feature_names}
         self._count = 0
 
-    def publish(self) -> List[DriftServerRecord]:
+    def publish(self) -> DriftServerRecords:
         """Publish drift records to the monitoring server."""
         try:
             # create array from items
             data = list(self.feature_queue.values())
             array = np.array(data, dtype=np.float64).T
 
-            drift_record = self._monitor.sample_data_f64(self.feature_names, array, self._drift_profile)
+            drift_records = self._monitor.sample_data_f64(self.feature_names, array, self._drift_profile)
 
-            self._producer.publish(drift_record)
+            self._producer.publish(drift_records)
 
             # clear items
             self._clear_queue()

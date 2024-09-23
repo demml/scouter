@@ -12,6 +12,8 @@ def test_kafka_config():
     assert config.topic == "test-topic"
     assert config.brokers == "localhost:9092"
     assert config.raise_on_err
+
+    print(config.config)
     assert config.config == {
         "bootstrap.servers": "localhost:9092",
         "compression.type": "gzip",
