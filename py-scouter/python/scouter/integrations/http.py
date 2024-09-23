@@ -20,15 +20,14 @@ class RequestType(str, Enum):
 
 
 class ApiRoutes:
-    TOKEN = "auth/token"
-    INSERT = "drift"
+    TOKEN = "scouter/auth/token"
+    INSERT = "scouter/drift"
 
 
 class HTTPConfig(BaseModel):
     server_url: str
-    username: str
-    password: str
-    token: str = "empty"
+    username: Optional[str] = None
+    password: Optional[str] = None
 
     @property
     def type(self) -> str:
@@ -58,6 +57,11 @@ class HTTPProducer(BaseProducer):
 
     def _refresh_token(self) -> None:
         """Refreshes bearer token."""
+
+        # check if username and password are provided, if not return
+        if self.form_data["username"] is None or self.form_data["password"] is None:
+            return None
+
         response = self.client.post(
             url=f"{self._config.server_url}/{ApiRoutes.TOKEN}",
             data=self.form_data,

@@ -1,16 +1,17 @@
 import pytest
 import shutil
-from typing import TypeVar, Generator
+from typing import TypeVar, Generator, Dict, Any, List, Tuple
 import numpy as np
 from numpy.typing import NDArray
 from scouter._scouter import DriftConfig, AlertRule, PercentageAlertRule, AlertConfig
 from unittest.mock import patch
 from httpx import Response
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, APIRouter
 from scouter.integrations.fastapi import ScouterRouter
-from scouter import Drifter, DriftProfile, KafkaConfig
+from scouter import Drifter, DriftProfile, KafkaConfig, HTTPConfig
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
+from contextlib import asynccontextmanager
 
 T = TypeVar("T")
 YieldFixture = Generator[T, None, None]
@@ -222,6 +223,14 @@ class TestResponse(BaseModel):
     message: str
 
 
+class TestDriftRecord(BaseModel):
+    name: str
+    repository: str
+    version: str
+    feature: str
+    value: float
+
+
 @pytest.fixture
 def client(mock_kafka_producer, drift_profile: DriftProfile) -> TestClient:
     config = KafkaConfig(
@@ -242,3 +251,28 @@ def client(mock_kafka_producer, drift_profile: DriftProfile) -> TestClient:
 
     app.include_router(router)
     return TestClient(app)
+
+
+@pytest.fixture
+def client_insert(
+    drift_profile: DriftProfile,
+) -> Tuple[TestClient, List[Dict[str, Any]]]:
+    config = HTTPConfig(server_url="http://testserver")
+
+    # router = ScouterRouter(drift_profile=drift_profile, config=config)
+    cache: List[Dict[str, Any]] = []
+
+    app = FastAPI()
+
+    # create a router and insert route
+    router = APIRouter()
+
+    @router.post("/scouter/drift", response_model=TestResponse)
+    async def test_route(request: Request, payload: TestDriftRecord) -> TestResponse:
+        cache.append(payload.model_dump())
+
+        return TestResponse(message="success")
+
+    app.include_router(router)
+
+    return TestClient(app), cache
