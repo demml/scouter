@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, List
 
 from .._scouter import DriftServerRecord
 
@@ -6,7 +6,7 @@ from .._scouter import DriftServerRecord
 class BaseProducer:
     """Base class for all producers."""
 
-    def publish(self, record: DriftServerRecord) -> None:
+    def publish(self, record: List[DriftServerRecord]) -> None:
         raise NotImplementedError
 
     def flush(self, timeout: Optional[float] = None) -> None:

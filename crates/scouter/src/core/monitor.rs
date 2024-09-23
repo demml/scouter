@@ -1,7 +1,7 @@
-use crate::utils::types::DriftServerRecord;
 use crate::utils::types::{
     DriftConfig, DriftMap, DriftProfile, FeatureDrift, FeatureDriftProfile, FeatureMap,
 };
+use crate::utils::types::{DriftServerRecord, DriftServerRecords};
 use anyhow::Ok;
 use anyhow::{Context, Result};
 use indicatif::ProgressBar;
@@ -471,7 +471,7 @@ impl Monitor {
         features: &[String],
         array: &ArrayView2<F>, // n x m data array (features and predictions)
         drift_profile: &DriftProfile,
-    ) -> Result<Vec<DriftServerRecord>, anyhow::Error>
+    ) -> Result<DriftServerRecords, anyhow::Error>
     where
         F: Float
             + Sync
@@ -509,7 +509,7 @@ impl Monitor {
             });
         }
 
-        Ok(records)
+        Ok(DriftServerRecords { records })
     }
 
     pub fn calculate_drift_from_sample(
@@ -889,7 +889,7 @@ mod tests {
             .sample_data(&features, &array.view(), &profile)
             .unwrap();
 
-        assert_eq!(server_records.len(), 126);
+        assert_eq!(server_records.records.len(), 126);
 
         // create server records
     }

@@ -64,6 +64,14 @@ class DriftServerRecord:
     def to_dict(self) -> Dict[str, str]:
         """Return the dictionary representation of the record."""
 
+class DriftServerRecords:
+    @property
+    def records(self) -> List[DriftServerRecord]:
+        """Return the drift server records."""
+
+    def model_dump_json(self) -> str:
+        """Return the json representation of the record."""
+
 class Every30Minutes:
     def __init__(self) -> None:
         """Initialize the cron schedule"""

@@ -968,6 +968,21 @@ impl DriftServerRecord {
     }
 }
 
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DriftServerRecords {
+    #[pyo3(get)]
+    pub records: Vec<DriftServerRecord>,
+}
+
+#[pymethods]
+impl DriftServerRecords {
+    pub fn model_dump_json(&self) -> String {
+        // serialize records to a string
+        ProfileFuncs::__json__(self.records.clone())
+    }
+}
+
 /// Python class for a Drift map of features with calculated drift
 ///
 /// # Arguments

@@ -1,6 +1,6 @@
 import os
 from functools import partial
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, Literal, Optional, List
 
 import tenacity
 from pydantic import BaseModel, field_validator, model_validator
@@ -51,7 +51,9 @@ class KafkaConfig(BaseModel):
 
     brokers: str
     topic: str
-    compression_type: Optional[Literal[None, "gzip", "snappy", "lz4", "zstd", "inherit"]] = "gzip"
+    compression_type: Optional[
+        Literal[None, "gzip", "snappy", "lz4", "zstd", "inherit"]
+    ] = "gzip"
     raise_on_err: bool = True
     message_timeout_ms: int = 600_000
     message_max_bytes: int = MESSAGE_MAX_BYTES_DEFAULT
@@ -126,10 +128,14 @@ class KafkaProducer(BaseProducer):
             self._producer = Producer(self._kafka_config.config)
 
         except ModuleNotFoundError as e:
-            logger.error("Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'")
+            logger.error(
+                "Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'"
+            )
             raise e
 
-    def _delivery_report(self, err: Optional[str], msg: Any, raise_on_err: bool = True) -> None:
+    def _delivery_report(
+        self, err: Optional[str], msg: Any, raise_on_err: bool = True
+    ) -> None:
         """Callback acknowledging receipt of message from producer
 
         Args:
@@ -146,7 +152,9 @@ class KafkaProducer(BaseProducer):
                 "kafka_error": err,
             }
             err_msg = f"Failed delivery to topic: {msg.topic()}"
-            logger.error("Failed delivery to topic: {} error_data: {}", msg.topic(), err_data)
+            logger.error(
+                "Failed delivery to topic: {} error_data: {}", msg.topic(), err_data
+            )
             if raise_on_err:
                 raise ValueError(err_msg)
         else:
@@ -157,7 +165,7 @@ class KafkaProducer(BaseProducer):
                 msg.offset(),
             )
 
-    def _publish(self, record: DriftServerRecord) -> None:
+    def _publish(self, record: List[DriftServerRecord]) -> None:
         try:
             self._producer.produce(
                 topic=self._kafka_config.topic,

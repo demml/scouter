@@ -9,7 +9,7 @@ use scouter::core::monitor::Monitor;
 use scouter::core::num_profiler::NumProfiler;
 use scouter::core::string_profiler::StringProfiler;
 use scouter::utils::types::{
-    AlertRule, DataProfile, DriftConfig, DriftMap, DriftProfile, DriftServerRecord, FeatureAlerts,
+    AlertRule, DataProfile, DriftConfig, DriftMap, DriftProfile, DriftServerRecords, FeatureAlerts,
     FeatureProfile,
 };
 use std::collections::BTreeMap;
@@ -371,17 +371,17 @@ impl ScouterDrifter {
         features: Vec<String>,
         array: PyReadonlyArray2<f32>,
         drift_profile: DriftProfile,
-    ) -> PyResult<Vec<DriftServerRecord>> {
+    ) -> PyResult<DriftServerRecords> {
         let array = array.as_array();
 
-        let profile = match self.monitor.sample_data(&features, &array, &drift_profile) {
+        let records = match self.monitor.sample_data(&features, &array, &drift_profile) {
             Ok(profile) => profile,
             Err(_e) => {
                 return Err(PyValueError::new_err("Failed to sample data"));
             }
         };
 
-        Ok(profile)
+        Ok(records)
     }
 
     pub fn sample_data_f64(
@@ -389,16 +389,16 @@ impl ScouterDrifter {
         features: Vec<String>,
         array: PyReadonlyArray2<f64>,
         drift_profile: DriftProfile,
-    ) -> PyResult<Vec<DriftServerRecord>> {
+    ) -> PyResult<DriftServerRecords> {
         let array = array.as_array();
 
-        let profile = match self.monitor.sample_data(&features, &array, &drift_profile) {
+        let records = match self.monitor.sample_data(&features, &array, &drift_profile) {
             Ok(profile) => profile,
             Err(_e) => {
                 return Err(PyValueError::new_err("Failed to sample data"));
             }
         };
 
-        Ok(profile)
+        Ok(records)
     }
 }
