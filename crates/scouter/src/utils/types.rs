@@ -1,5 +1,5 @@
+use crate::core::error::ScouterTypeError;
 use crate::utils::cron::EveryDay;
-use anyhow::Context;
 use colored_json::{Color, ColorMode, ColoredFormatter, PrettyFormatter, Styler};
 use core::fmt::Debug;
 use ndarray::Array;
@@ -332,16 +332,21 @@ impl ProfileFuncs {
         }
     }
 
-    fn save_to_json<T>(model: T, path: Option<PathBuf>, filename: &str) -> Result<(), anyhow::Error>
+    fn save_to_json<T>(
+        model: T,
+        path: Option<PathBuf>,
+        filename: &str,
+    ) -> Result<(), ScouterTypeError>
     where
         T: Serialize,
     {
         // serialize the struct to a string
-        let json = serde_json::to_string_pretty(&model).with_context(|| "Failed to serialize")?;
+        let json =
+            serde_json::to_string_pretty(&model).map_err(|_| ScouterTypeError::SerializeError)?;
 
         // check if path is provided
         let write_path = if path.is_some() {
-            let mut new_path = path.with_context(|| "Failed to get path")?;
+            let mut new_path = path.ok_or(ScouterTypeError::CreatePathError)?;
 
             // ensure .json extension
             new_path.set_extension("json");
@@ -350,10 +355,10 @@ impl ProfileFuncs {
                 // ensure path exists, create if not
                 let parent_path = new_path
                     .parent()
-                    .with_context(|| "Failed to get parent path")?;
+                    .ok_or(ScouterTypeError::GetParentPathError)?;
 
                 std::fs::create_dir_all(parent_path)
-                    .with_context(|| "Failed to create directory")?;
+                    .map_err(|_| ScouterTypeError::CreateDirectoryError)?;
             }
 
             new_path
@@ -361,7 +366,7 @@ impl ProfileFuncs {
             PathBuf::from(filename)
         };
 
-        std::fs::write(write_path, json).with_context(|| "Failed to write to file")?;
+        std::fs::write(write_path, json).map_err(|_| ScouterTypeError::WriteError)?;
 
         Ok(())
     }
@@ -462,7 +467,7 @@ impl DriftConfig {
         targets: Option<Vec<String>>,
         alert_config: Option<AlertConfig>,
         config_path: Option<PathBuf>,
-    ) -> Result<Self, anyhow::Error> {
+    ) -> Result<Self, ScouterTypeError> {
         if let Some(config_path) = config_path {
             let config = DriftConfig::load_from_json_file(config_path);
             return config;
@@ -498,14 +503,12 @@ impl DriftConfig {
     }
 
     #[staticmethod]
-    pub fn load_from_json_file(path: PathBuf) -> Result<DriftConfig, anyhow::Error> {
+    pub fn load_from_json_file(path: PathBuf) -> Result<DriftConfig, ScouterTypeError> {
         // deserialize the string to a struct
 
-        let file = std::fs::read_to_string(&path)
-            .with_context(|| "Failed to read file")
-            .unwrap();
+        let file = std::fs::read_to_string(&path).map_err(|_| ScouterTypeError::ReadError)?;
 
-        serde_json::from_str(&file).with_context(|| "Failed to deserialize json")
+        serde_json::from_str(&file).map_err(|_| ScouterTypeError::DeSerializeError)
     }
 
     pub fn __str__(&self) -> String {
@@ -542,25 +545,27 @@ impl DriftConfig {
         feature_map: Option<FeatureMap>,
         targets: Option<Vec<String>>,
         alert_config: Option<AlertConfig>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<(), ScouterTypeError> {
         if name.is_some() {
-            self.name = name.unwrap();
+            self.name = name.ok_or(ScouterTypeError::TypeError("name".to_string()))?;
         }
 
         if repository.is_some() {
-            self.repository = repository.unwrap();
+            self.repository =
+                repository.ok_or(ScouterTypeError::TypeError("repository".to_string()))?;
         }
 
         if version.is_some() {
-            self.version = version.unwrap();
+            self.version = version.ok_or(ScouterTypeError::TypeError("version".to_string()))?;
         }
 
         if sample.is_some() {
-            self.sample = sample.unwrap();
+            self.sample = sample.ok_or(ScouterTypeError::TypeError("sample".to_string()))?;
         }
 
         if sample_size.is_some() {
-            self.sample_size = sample_size.unwrap();
+            self.sample_size =
+                sample_size.ok_or(ScouterTypeError::TypeError("sample size".to_string()))?;
         }
 
         if feature_map.is_some() {
@@ -568,11 +573,12 @@ impl DriftConfig {
         }
 
         if targets.is_some() {
-            self.targets = targets.unwrap();
+            self.targets = targets.ok_or(ScouterTypeError::TypeError("targets".to_string()))?;
         }
 
         if alert_config.is_some() {
-            self.alert_config = alert_config.unwrap();
+            self.alert_config =
+                alert_config.ok_or(ScouterTypeError::TypeError("alert_config".to_string()))?;
         }
 
         Ok(())
@@ -580,10 +586,10 @@ impl DriftConfig {
 }
 
 impl DriftConfig {
-    pub fn load_map_from_json(path: PathBuf) -> Result<HashMap<String, Value>, anyhow::Error> {
+    pub fn load_map_from_json(path: PathBuf) -> Result<HashMap<String, Value>, ScouterTypeError> {
         // deserialize the string to a struct
-        let file = std::fs::read_to_string(&path)?;
-        let config = serde_json::from_str(&file)?;
+        let file = std::fs::read_to_string(&path).map_err(|_| ScouterTypeError::ReadError)?;
+        let config = serde_json::from_str(&file).map_err(|_| ScouterTypeError::DeSerializeError)?;
         Ok(config)
     }
 }
@@ -627,8 +633,11 @@ impl DriftProfile {
     }
 
     pub fn model_dump(&self, py: Python) -> PyResult<Py<PyDict>> {
-        let json_str = serde_json::to_string(&self).unwrap();
-        let json_value: Value = serde_json::from_str(&json_str).unwrap();
+        let json_str =
+            serde_json::to_string(&self).map_err(|_| ScouterTypeError::SerializeError)?;
+
+        let json_value: Value =
+            serde_json::from_str(&json_str).map_err(|_| ScouterTypeError::DeSerializeError)?;
 
         // Create a new Python dictionary
         let dict = PyDict::new_bound(py);
@@ -655,7 +664,7 @@ impl DriftProfile {
     }
 
     // Convert python dict into a drift profile
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), anyhow::Error> {
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterTypeError> {
         ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
     }
 
@@ -683,7 +692,7 @@ impl DriftProfile {
         feature_map: Option<FeatureMap>,
         targets: Option<Vec<String>>,
         alert_config: Option<AlertConfig>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<(), ScouterTypeError> {
         self.config.update_config_args(
             name,
             repository,
@@ -827,12 +836,12 @@ impl DataProfile {
     }
 
     #[staticmethod]
-    pub fn model_validate_json(json_string: String) -> DataProfile {
+    pub fn model_validate_json(json_string: String) -> Result<DataProfile, ScouterTypeError> {
         // deserialize the string to a struct
-        serde_json::from_str(&json_string).expect("Failed to load data profile")
+        serde_json::from_str(&json_string).map_err(|_| ScouterTypeError::DeSerializeError)?
     }
 
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), anyhow::Error> {
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterTypeError> {
         ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
     }
 }
@@ -1033,12 +1042,12 @@ impl DriftMap {
     }
 
     #[staticmethod]
-    pub fn model_validate_json(json_string: String) -> DriftMap {
+    pub fn model_validate_json(json_string: String) -> Result<DriftMap, ScouterTypeError> {
         // deserialize the string to a struct
-        serde_json::from_str(&json_string).expect("Failed to load drift map")
+        serde_json::from_str(&json_string).map_err(|_| ScouterTypeError::DeSerializeError)?
     }
 
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), anyhow::Error> {
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterTypeError> {
         ProfileFuncs::save_to_json(self, path, FileName::Drift.to_str())
     }
 

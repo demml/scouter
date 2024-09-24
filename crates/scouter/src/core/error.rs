@@ -1,4 +1,5 @@
 use pyo3::PyErr;
+use serde::Deserialize;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -62,6 +63,41 @@ pub enum FeatureQueueError {
 
 impl From<FeatureQueueError> for PyErr {
     fn from(err: FeatureQueueError) -> PyErr {
+        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
+    }
+}
+
+#[derive(Error, Debug, Deserialize)]
+pub enum ScouterTypeError {
+    #[error("Failed to serialize string")]
+    SerializeError,
+
+    #[error("Failed to deserialize string")]
+    DeSerializeError,
+
+    #[error("Failed to create path")]
+    CreatePathError,
+
+    #[error("Failed to get parent path")]
+    GetParentPathError,
+
+    #[error("Failed to create directory")]
+    CreateDirectoryError,
+
+    #[error("Failed to write to file")]
+    WriteError,
+
+    #[error("Failed to read to file")]
+    ReadError,
+
+    #[error("Type error for {0}")]
+    TypeError(String),
+}
+
+// impl From for PyErr
+
+impl From<ScouterTypeError> for PyErr {
+    fn from(err: ScouterTypeError) -> PyErr {
         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
     }
 }
