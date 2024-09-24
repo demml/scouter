@@ -34,4 +34,7 @@ pub enum ProfilerError {
 
     #[error("Error calculating mean")]
     MeanError,
+
+    #[error("Compute error: {0}")]
+    ComputeError(String),
 }

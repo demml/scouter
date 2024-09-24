@@ -289,7 +289,7 @@ impl NumProfiler {
         features: &[String],
         array: &ArrayView2<F>,
         bin_size: &usize,
-    ) -> Result<Vec<FeatureProfile>, anyhow::Error>
+    ) -> Result<Vec<FeatureProfile>, ProfilerError>
     where
         F: Float
             + MaybeNan
@@ -307,26 +307,27 @@ impl NumProfiler {
     {
         let means = self
             .compute_mean(array)
-            .with_context(|| "Failed to compute mean")?;
+            .map_err(|_| ProfilerError::ComputeError("Error computing mean".to_string()))?;
+
         let stddevs = self
             .compute_stddev(array)
-            .with_context(|| "Failed to compute stddev")?;
+            .map_err(|_| ProfilerError::ComputeError("Error computing standard dev".to_string()))?;
         let quantiles = self
             .compute_quantiles(array)
-            .with_context(|| "Failed to compute quantiles")?;
+            .map_err(|_| ProfilerError::ComputeError("Error computing quantiles".to_string()))?;
         let mins = self
             .compute_min(array)
-            .with_context(|| "Failed to compute min")?;
+            .map_err(|_| ProfilerError::ComputeError("Error computing minimum".to_string()))?;
         let maxs = self
             .compute_max(array)
-            .with_context(|| "Failed to compute max")?;
+            .map_err(|_| ProfilerError::ComputeError("Error computing maximum".to_string()))?;
         let distinct = self
             .compute_distinct(array)
-            .with_context(|| "Failed to compute distinct")?;
+            .map_err(|_| ProfilerError::ComputeError("Error computing distinct".to_string()))?;
 
         let hist = self
             .compute_histogram(array, features, bin_size)
-            .with_context(|| "Failed to compute histogram")?;
+            .map_err(|_| ProfilerError::ComputeError("Error computing histogram".to_string()))?;
 
         // loop over list
         let mut profiles = Vec::new();
