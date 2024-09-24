@@ -7,9 +7,7 @@ from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
 
 try:
-    from fastapi import APIRouter, BackgroundTasks
-    from fastapi import FastAPI as _FastAPI
-    from fastapi import Request
+    from fastapi import APIRouter, BackgroundTasks, Request
     from fastapi.responses import JSONResponse
 except ImportError as exc:
     raise ImportError(
@@ -70,16 +68,4 @@ class ScouterRouter(ScouterMixin, APIRouter):
         **kwargs: Any,
     ) -> None:
         APIRouter.__init__(self, *args, **kwargs)
-        ScouterMixin.__init__(self, drift_profile, config)
-
-
-class FastAPI(ScouterMixin, _FastAPI):
-    def __init__(
-        self,
-        drift_profile: DriftProfile,
-        config: Union[KafkaConfig, HTTPConfig],
-        *args: Any,
-        **kwargs: Any,
-    ) -> None:
-        _FastAPI.__init__(self, *args, **kwargs)
         ScouterMixin.__init__(self, drift_profile, config)
