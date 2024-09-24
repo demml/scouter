@@ -16,6 +16,7 @@ from ._scouter import (
     DriftMap,
     DriftProfile,
     DriftServerRecord,
+    DriftServerRecords,
     Every6Hours,
     Every12Hours,
     Every30Minutes,
@@ -25,9 +26,9 @@ from ._scouter import (
     FeatureAlerts,
     FeatureDriftProfile,
     FeatureProfile,
+    FeatureQueue,
     PercentageAlertRule,
     ProcessAlertRule,
-    FeatureQueue,
 )
 from .drift import CommonCrons, Drifter
 from .monitor import MonitorQueue
@@ -68,4 +69,5 @@ __all__ = [
     "AlertConfig",
     "AlertDispatchType",
     "FeatureQueue",
+    "DriftServerRecords",
 ]

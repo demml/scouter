@@ -836,9 +836,11 @@ impl DataProfile {
     }
 
     #[staticmethod]
-    pub fn model_validate_json(json_string: String) -> Result<DataProfile, ScouterTypeError> {
+    pub fn model_validate_json(json_string: String) -> DataProfile {
         // deserialize the string to a struct
-        serde_json::from_str(&json_string).map_err(|_| ScouterTypeError::DeSerializeError)?
+        serde_json::from_str(&json_string)
+            .map_err(|_| ScouterTypeError::DeSerializeError)
+            .unwrap()
     }
 
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterTypeError> {
@@ -1042,9 +1044,11 @@ impl DriftMap {
     }
 
     #[staticmethod]
-    pub fn model_validate_json(json_string: String) -> Result<DriftMap, ScouterTypeError> {
+    pub fn model_validate_json(json_string: String) -> DriftMap {
         // deserialize the string to a struct
-        serde_json::from_str(&json_string).map_err(|_| ScouterTypeError::DeSerializeError)?
+        serde_json::from_str(&json_string)
+            .map_err(|_| ScouterTypeError::DeSerializeError)
+            .unwrap()
     }
 
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterTypeError> {
