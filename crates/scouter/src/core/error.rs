@@ -1,3 +1,5 @@
+use std::error::Error;
+
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -8,12 +10,21 @@ pub enum AlertError {
 
 #[derive(Error, Debug)]
 pub enum MonitorError {
-    #[error("Failed to create monitor: {0}")]
+    #[error("{0}")]
     CreateError(String),
 
-    #[error("Failed to sample data: {0}")]
+    #[error("Sample error: {0}")]
     SampleDataError(String),
 
     #[error("Compute error: {0}")]
     ComputeError(String),
+
+    #[error("Shape mismatch: {0}")]
+    ShapeMismatchError(String),
+
+    #[error("Missing feature: {0}")]
+    MissingFeatureError(String),
+
+    #[error("Array Error: {0}")]
+    ArrayError(String),
 }
