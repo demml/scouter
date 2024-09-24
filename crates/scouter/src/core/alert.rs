@@ -369,10 +369,7 @@ pub fn generate_alert(
         alerter
             .check_process_rule_for_alert(&drift_array.view())
             .map_err(|e| {
-                AlertError::CreateError(format!(
-                    "Failed to check process rule for alert: {}",
-                    e.to_string()
-                ))
+                AlertError::CreateError(format!("Failed to check process rule for alert: {}", e))
             })?;
 
         alerter.check_trend(&drift_array.view())?;
@@ -405,7 +402,7 @@ pub fn generate_alerts(
         .into_par_iter()
         .map(|col| {
             // check for alerts and errors
-            Ok(generate_alert(&col, rule)?)
+            generate_alert(&col, rule)
         })
         .collect::<Vec<Result<(HashSet<Alert>, BTreeMap<usize, Vec<Vec<usize>>>), AlertError>>>();
 

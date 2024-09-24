@@ -135,13 +135,13 @@ impl FeatureQueue {
                     Ok(records) => Ok(records),
                     Err(e) => {
                         let error = format!("Failed to create drift record: {:?}", e);
-                        return Err(FeatureQueueError::DriftRecordError(error));
+                        Err(FeatureQueueError::DriftRecordError(error))
                     }
                 }
             }
             Err(e) => {
                 let error = format!("Failed to create drift record: {:?}", e);
-                return Err(FeatureQueueError::DriftRecordError(error));
+                Err(FeatureQueueError::DriftRecordError(error))
             }
         }
     }
