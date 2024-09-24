@@ -1133,10 +1133,13 @@ class FeatureQueue:
             List of drift records if the monitoring queue has enough data to compute
         """
 
-    def create_drift_records(self) -> DriftServerRecord:
+    def create_drift_records(self) -> DriftServerRecords:
         """Create drift server record from data
 
 
         Returns:
             `DriftServerRecord`
         """
+
+    def clear_queue(self) -> None:
+        """Clears the feature queue"""

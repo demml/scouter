@@ -142,6 +142,13 @@ impl FeatureQueue {
             }
         }
     }
+
+    // Clear all queues
+    fn clear_queue(&mut self) {
+        self.queue.iter_mut().for_each(|(_, queue)| {
+            queue.clear();
+        });
+    }
 }
 
 #[cfg(test)]
@@ -210,6 +217,10 @@ mod tests {
             let records = feature_queue.create_drift_records().unwrap();
 
             assert_eq!(records.records.len(), 3);
+
+            feature_queue.clear_queue();
+
+            assert_eq!(feature_queue.queue.get("feature_1").unwrap().len(), 0);
         });
     }
 }

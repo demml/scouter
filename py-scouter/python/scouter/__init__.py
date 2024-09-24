@@ -27,6 +27,7 @@ from ._scouter import (
     FeatureProfile,
     PercentageAlertRule,
     ProcessAlertRule,
+    FeatureQueue,
 )
 from .drift import CommonCrons, Drifter
 from .monitor import MonitorQueue
@@ -66,4 +67,5 @@ __all__ = [
     "DriftRecordProducer",
     "AlertConfig",
     "AlertDispatchType",
+    "FeatureQueue",
 ]
