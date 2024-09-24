@@ -1,5 +1,5 @@
+use crate::core::error::ProfilerError;
 use crate::utils::types::{CharStats, Distinct, FeatureProfile, StringStats, WordStats};
-
 use rayon::prelude::*;
 use std::collections::HashMap;
 
@@ -19,7 +19,7 @@ impl StringProfiler {
     // # Returns
     //
     // * `StringStats` - A struct containing the statistics for the string array
-    pub fn compute_stats(&self, array: &Vec<String>) -> Result<StringStats, anyhow::Error> {
+    pub fn compute_stats(&self, array: &Vec<String>) -> Result<StringStats, ProfilerError> {
         let mut unique = HashMap::new();
 
         let count = array.len();
@@ -72,7 +72,7 @@ impl StringProfiler {
         &self,
         array: &[Vec<String>],
         string_features: &[String],
-    ) -> Result<Vec<FeatureProfile>, anyhow::Error> {
+    ) -> Result<Vec<FeatureProfile>, ProfilerError> {
         // zip the string features with the array
 
         let map_vec = array
@@ -80,7 +80,11 @@ impl StringProfiler {
             .enumerate()
             .map(|(i, col)| {
                 let feature = &string_features[i];
-                let stats = self.compute_stats(col).unwrap();
+                let stats = self
+                    .compute_stats(col)
+                    .map_err(|_| ProfilerError::StringStatsError)
+                    .unwrap();
+
                 FeatureProfile {
                     id: feature.to_string(),
                     string_stats: Some(stats),

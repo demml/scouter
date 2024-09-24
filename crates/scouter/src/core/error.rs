@@ -37,4 +37,7 @@ pub enum ProfilerError {
 
     #[error("Compute error: {0}")]
     ComputeError(String),
+
+    #[error("Failed to compute string statistics")]
+    StringStatsError,
 }
