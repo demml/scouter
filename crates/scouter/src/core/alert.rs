@@ -1,6 +1,5 @@
 use crate::core::error::AlertError;
 use crate::utils::types::{Alert, AlertRule, AlertType, AlertZone, FeatureAlerts};
-use anyhow::{Context, Result};
 use ndarray::s;
 use ndarray::{ArrayView1, ArrayView2, Axis};
 use rayon::iter::IntoParallelIterator;
@@ -254,13 +253,8 @@ impl Alerter {
                     kind: AlertType::Percentage.to_str(),
                 });
 
-                let result = self.insert_alert(1, idx, idx);
-                match result {
-                    Ok(_) => {}
-                    Err(e) => {
-                        return Err(AlertError::CreateError(e.to_string()));
-                    }
-                }
+                self.insert_alert(1, idx, idx)
+                    .map_err(|e| AlertError::CreateError(e.to_string()))?;
             }
         }
 
