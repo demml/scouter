@@ -42,6 +42,7 @@ class MonitorQueue:
         self._drift_profile = drift_profile
 
         self.feature_queue: Dict[str, List[float]] = {feature: [] for feature in self.feature_names}
+        # self.feature_queue = FeatureQueue(drift_profile)
         self._count = 0
 
         self._producer = self._get_producer(config)
@@ -105,7 +106,9 @@ class MonitorQueue:
                     value = self.feature_map[feature].get(value, self.feature_map[feature]["missing"])
 
                 self.feature_queue[feature].append(value)
-
+                
+                
+            #self.feature_queue.insert(data)
             self._count += 1
 
             if self._count >= self._drift_profile.config.sample_size:

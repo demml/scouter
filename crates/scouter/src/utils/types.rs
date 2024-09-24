@@ -592,7 +592,7 @@ impl DriftConfig {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DriftProfile {
     #[pyo3(get, set)]
-    pub features: BTreeMap<String, FeatureDriftProfile>,
+    pub features: HashMap<String, FeatureDriftProfile>,
 
     #[pyo3(get, set)]
     pub config: DriftConfig,
@@ -605,7 +605,7 @@ pub struct DriftProfile {
 impl DriftProfile {
     #[new]
     pub fn new(
-        features: BTreeMap<String, FeatureDriftProfile>,
+        features: HashMap<String, FeatureDriftProfile>,
         config: DriftConfig,
         scouter_version: Option<String>,
     ) -> Self {
@@ -701,7 +701,7 @@ impl DriftProfile {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FeatureMap {
     #[pyo3(get)]
-    pub features: BTreeMap<String, BTreeMap<String, usize>>,
+    pub features: HashMap<String, HashMap<String, usize>>,
 }
 
 #[pymethods]
@@ -767,7 +767,7 @@ pub struct CharStats {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WordStats {
     #[pyo3(get)]
-    pub words: BTreeMap<String, Distinct>,
+    pub words: HashMap<String, Distinct>,
 }
 
 #[pyclass]
@@ -993,7 +993,7 @@ impl DriftServerRecords {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DriftMap {
     #[pyo3(get)]
-    pub features: BTreeMap<String, FeatureDrift>,
+    pub features: HashMap<String, FeatureDrift>,
 
     #[pyo3(get)]
     pub name: String,
@@ -1011,7 +1011,7 @@ impl DriftMap {
     #[new]
     pub fn new(name: String, repository: String, version: String) -> Self {
         Self {
-            features: BTreeMap::new(),
+            features: HashMap::new(),
             name,
             repository,
             version,
@@ -1125,7 +1125,7 @@ impl FeatureAlert {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FeatureAlerts {
     #[pyo3(get)]
-    pub features: BTreeMap<String, FeatureAlert>,
+    pub features: HashMap<String, FeatureAlert>,
 
     #[pyo3(get)]
     pub has_alerts: bool,
@@ -1164,7 +1164,7 @@ impl FeatureAlerts {
     #[new]
     pub fn new(has_alerts: bool) -> Self {
         Self {
-            features: BTreeMap::new(),
+            features: HashMap::new(),
             has_alerts,
         }
     }

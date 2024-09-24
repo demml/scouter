@@ -1,7 +1,7 @@
 use crate::utils::types::{CharStats, Distinct, FeatureProfile, StringStats, WordStats};
 
 use rayon::prelude::*;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 
 pub struct StringProfiler {}
 
@@ -45,7 +45,7 @@ impl StringProfiler {
         };
 
         // need to get distinct for each word
-        let mut word_stats = BTreeMap::new();
+        let mut word_stats = HashMap::new();
         for (key, value) in unique.iter() {
             word_stats.insert(
                 key.to_string(),

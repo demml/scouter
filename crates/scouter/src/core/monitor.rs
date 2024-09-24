@@ -9,8 +9,8 @@ use ndarray::prelude::*;
 use ndarray::Axis;
 use num_traits::{Float, FromPrimitive, Num};
 use rayon::prelude::*;
-use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::collections::HashMap;
 use std::fmt::Debug;
 pub struct Monitor {}
 
@@ -139,7 +139,7 @@ impl Monitor {
         let center = &means;
 
         // create monitor profile
-        let mut feat_profile = BTreeMap::new();
+        let mut feat_profile = HashMap::new();
 
         for (i, feature) in features.iter().enumerate() {
             feat_profile.insert(
@@ -484,6 +484,7 @@ impl Monitor {
         F: Into<f64>,
     {
         let num_features = drift_profile.features.len();
+        let created_at = chrono::Utc::now().naive_utc();
 
         // iterate through each feature
         let sample_data = self
@@ -497,7 +498,7 @@ impl Monitor {
 
             sample.iter().for_each(|value| {
                 let record = DriftServerRecord {
-                    created_at: chrono::Utc::now().naive_utc(),
+                    created_at,
                     feature: feature.to_string(),
                     value: *value,
                     name: drift_profile.config.name.clone(),
@@ -594,7 +595,7 @@ impl Monitor {
                     .collect::<BTreeSet<_>>()
                     .into_iter()
                     .collect::<Vec<_>>();
-                let mut map = BTreeMap::new();
+                let mut map = HashMap::new();
                 for (j, item) in unique.iter().enumerate() {
                     map.insert(item.to_string(), j);
 
@@ -607,7 +608,7 @@ impl Monitor {
 
                 (features[i].to_string(), map)
             })
-            .collect::<BTreeMap<_, _>>();
+            .collect::<HashMap<_, _>>();
 
         Ok(FeatureMap {
             features: feature_map,
