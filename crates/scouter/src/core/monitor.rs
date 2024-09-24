@@ -1,9 +1,8 @@
+use crate::core::error::MonitorError;
 use crate::utils::types::{
     DriftConfig, DriftMap, DriftProfile, FeatureDrift, FeatureDriftProfile, FeatureMap,
 };
 use crate::utils::types::{DriftServerRecord, DriftServerRecords};
-use anyhow::Ok;
-use anyhow::{Context, Result};
 use indicatif::ProgressBar;
 use ndarray::prelude::*;
 use ndarray::Axis;
@@ -70,7 +69,7 @@ impl Monitor {
     /// # Returns
     ///
     /// A 1D array of f64 values
-    pub fn compute_array_mean<F>(&self, x: &ArrayView2<F>) -> Result<Array1<F>, anyhow::Error>
+    pub fn compute_array_mean<F>(&self, x: &ArrayView2<F>) -> Result<Array1<F>, MonitorError>
     where
         F: Float
             + Sync
@@ -82,11 +81,14 @@ impl Monitor {
             + ndarray::ScalarOperand,
         F: Into<f64>,
     {
-        let means = x
-            .mean_axis(Axis(0))
-            .with_context(|| "Failed to compute mean")?;
-
-        Ok(means)
+        match x.mean_axis(Axis(0)) {
+            Some(means) => Ok(means),
+            None => {
+                return Err(MonitorError::ComputeError(
+                    "Failed to compute mean".to_string(),
+                ))
+            }
+        }
     }
 
     // Computes control limits for a 2D array of data
@@ -107,16 +109,14 @@ impl Monitor {
         num_features: usize,
         features: &[String],
         drift_config: &DriftConfig,
-    ) -> Result<DriftProfile, anyhow::Error>
+    ) -> Result<DriftProfile, MonitorError>
     where
         F: FromPrimitive + Num + Clone + Float + Debug + Sync + Send + ndarray::ScalarOperand,
 
         F: Into<f64>,
     {
         let c4 = self.compute_c4(sample_size);
-        let sample_mean = self
-            .compute_array_mean(sample_data)
-            .with_context(|| "Failed to compute mean")?;
+        let sample_mean = self.compute_array_mean(sample_data)?;
 
         let means = sample_mean.slice(s![0..num_features]);
         let stdev = sample_mean.slice(s![num_features..]);
@@ -176,7 +176,7 @@ impl Monitor {
         features: &[String],
         array: &ArrayView2<F>,
         drift_config: &DriftConfig,
-    ) -> Result<DriftProfile, anyhow::Error>
+    ) -> Result<DriftProfile, MonitorError>
     where
         F: Float
             + Sync
@@ -252,7 +252,7 @@ impl Monitor {
         array: &ArrayView2<F>,
         sample_size: usize,
         columns: usize,
-    ) -> Result<Array2<f64>, anyhow::Error>
+    ) -> Result<Array2<f64>, MonitorError>
     where
         F: Float
             + Sync
@@ -291,7 +291,7 @@ impl Monitor {
         num_features: usize,
         drift_profile: &DriftProfile,
         features: &[String],
-    ) -> Result<Vec<f64>, anyhow::Error> {
+    ) -> Result<Vec<f64>, MonitorError> {
         let mut drift: Vec<f64> = vec![0.0; num_features];
         for (i, feature) in features.iter().enumerate() {
             // check if feature exists
@@ -336,7 +336,7 @@ impl Monitor {
         drift_profile: &DriftProfile,
         features: &[String],
         rule: f64,
-    ) -> Result<Vec<f64>, anyhow::Error> {
+    ) -> Result<Vec<f64>, MonitorError> {
         let mut drift: Vec<f64> = vec![0.0; num_features];
 
         for (i, feature) in features.iter().enumerate() {
@@ -377,7 +377,7 @@ impl Monitor {
         features: &[String],
         array: &ArrayView2<F>, // n x m data array (features and predictions)
         drift_profile: &DriftProfile,
-    ) -> Result<DriftMap, anyhow::Error>
+    ) -> Result<DriftMap, MonitorError>
     where
         F: Float
             + Sync
@@ -471,7 +471,7 @@ impl Monitor {
         features: &[String],
         array: &ArrayView2<F>, // n x m data array (features and predictions)
         drift_profile: &DriftProfile,
-    ) -> Result<DriftServerRecords, anyhow::Error>
+    ) -> Result<DriftServerRecords, MonitorError>
     where
         F: Float
             + Sync
@@ -518,7 +518,7 @@ impl Monitor {
         features: &[String],
         sample_array: &ArrayView2<f64>, // n x m data array (features and predictions)
         drift_profile: &DriftProfile,
-    ) -> Result<Array2<f64>, anyhow::Error> {
+    ) -> Result<Array2<f64>, MonitorError> {
         // iterate through each row of samples
         let num_features = drift_profile.features.len();
         let drift_array = sample_array
@@ -578,7 +578,7 @@ impl Monitor {
         &self,
         features: &[String],
         array: &[Vec<String>],
-    ) -> Result<FeatureMap, anyhow::Error> {
+    ) -> Result<FeatureMap, MonitorError> {
         // check if features and array are the same length
         let shape_match = features.len() == array.len();
 
@@ -620,7 +620,7 @@ impl Monitor {
         features: &Vec<String>,
         array: &[Vec<String>],
         feature_map: &FeatureMap,
-    ) -> Result<Array2<f32>, anyhow::Error>
+    ) -> Result<Array2<f32>, MonitorError>
 where {
         // check if features in feature_map.features.keys(). If any feature is not found, return error
         let features_not_exist = features
@@ -663,7 +663,7 @@ where {
         features: &Vec<String>,
         array: &[Vec<String>],
         feature_map: &FeatureMap,
-    ) -> Result<Array2<f64>, anyhow::Error>
+    ) -> Result<Array2<f64>, MonitorError>
 where {
         // check if features in feature_map.features.keys(). If any feature is not found, return error
         let features_not_exist = features
