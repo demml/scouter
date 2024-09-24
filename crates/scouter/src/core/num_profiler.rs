@@ -1,3 +1,4 @@
+use crate::core::error::ProfilerError;
 use crate::utils::types::{Distinct, FeatureProfile, Histogram, NumericStats, Quantiles};
 use anyhow::{Context, Result};
 use ndarray::prelude::*;
@@ -28,7 +29,7 @@ impl NumProfiler {
     /// # Returns
     ///
     /// A 2D array of noisy floats.
-    pub fn compute_quantiles<F>(&self, array: &ArrayView2<F>) -> Result<Vec<Vec<F>>>
+    pub fn compute_quantiles<F>(&self, array: &ArrayView2<F>) -> Result<Vec<Vec<F>>, ProfilerError>
     where
         F: Num + ndarray_stats::MaybeNan + std::marker::Send + Sync + Clone + Copy,
         <F as ndarray_stats::MaybeNan>::NotNan: Clone,
@@ -60,13 +61,11 @@ impl NumProfiler {
     /// # Returns
     ///
     /// A 1D array of f64 values.
-    pub fn compute_mean<F>(&self, array: &ArrayView2<F>) -> Result<Array1<F>, anyhow::Error>
+    pub fn compute_mean<F>(&self, array: &ArrayView2<F>) -> Result<Array1<F>, ProfilerError>
     where
         F: FromPrimitive + Num + Clone,
     {
-        let mean = array
-            .mean_axis(Axis(0))
-            .with_context(|| "Failed to compute mean")?;
+        let mean = array.mean_axis(Axis(0)).ok_or(ProfilerError::MeanError)?;
 
         Ok(mean)
     }

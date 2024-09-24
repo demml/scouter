@@ -26,3 +26,12 @@ pub enum MonitorError {
     #[error("Array Error: {0}")]
     ArrayError(String),
 }
+
+#[derive(Error, Debug)]
+pub enum ProfilerError {
+    #[error("Quantile error: {0}")]
+    QuantileError(String),
+
+    #[error("Error calculating mean")]
+    MeanError,
+}
