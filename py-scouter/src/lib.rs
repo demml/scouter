@@ -1,6 +1,7 @@
 mod py_scouter;
 use py_scouter::_scouter::{ScouterDrifter, ScouterProfiler};
 use pyo3::prelude::*;
+use scouter::queue::feature_queue::FeatureQueue;
 use scouter::utils::cron::{
     CommonCron, Every12Hours, Every30Minutes, Every6Hours, EveryDay, EveryHour, EveryWeek,
 };
@@ -45,5 +46,6 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<AlertDispatchType>()?;
     m.add_class::<AlertRule>()?;
     m.add_class::<FeatureMap>()?;
+    m.add_class::<FeatureQueue>()?;
     Ok(())
 }

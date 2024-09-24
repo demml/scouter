@@ -1112,3 +1112,31 @@ class ScouterDrifter:
         Returns:
             List of server records
         """
+
+class FeatureQueue:
+    def __init__(self, drift_profile: DriftProfile) -> None:
+        """Initialize the feature queue
+
+        Args:
+            drift_profile:
+                Drift profile to use for feature queue.
+        """
+
+    def insert(self, data: Dict[str, Any]) -> None:
+        """Insert data into the feature queue
+
+        Args:
+            data:
+                Dictionary of feature values to insert into the monitoring queue.
+
+        Returns:
+            List of drift records if the monitoring queue has enough data to compute
+        """
+
+    def create_drift_records(self) -> DriftServerRecord:
+        """Create drift server record from data
+
+
+        Returns:
+            `DriftServerRecord`
+        """

@@ -94,7 +94,7 @@ impl FeatureQueue {
     // Create drift records from queue items
     //
     // returns: DriftServerRecords
-    fn create_drift_record(&self) -> Result<DriftServerRecords, anyhow::Error> {
+    fn create_drift_records(&self) -> PyResult<DriftServerRecords> {
         // concatenate all the feature queues into a single ndarray
         let mut arrays: Vec<Array2<f64>> = Vec::new();
         let mut feature_names: Vec<String> = Vec::new();
@@ -127,14 +127,18 @@ impl FeatureQueue {
                 match records {
                     Ok(records) => Ok(records),
                     Err(e) => {
-                        let msg = format!("Failed to create drift record: {}", e);
-                        Err(anyhow::Error::msg(msg))
+                        let error = format!("Failed to create drift record: {:?}", e);
+                        return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                            error.to_string(),
+                        ));
                     }
                 }
             }
             Err(e) => {
-                let msg = format!("Failed to concatenate feature queues: {}", e);
-                Err(anyhow::Error::msg(msg))
+                let error = format!("Failed to create drift record: {:?}", e);
+                return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                    error.to_string(),
+                ));
             }
         }
     }
@@ -203,7 +207,7 @@ mod tests {
             assert_eq!(feature_queue.queue.get("feature_2").unwrap().len(), 10);
             assert_eq!(feature_queue.queue.get("feature_3").unwrap().len(), 10);
 
-            let records = feature_queue.create_drift_record().unwrap();
+            let records = feature_queue.create_drift_records().unwrap();
 
             assert_eq!(records.records.len(), 3);
         });
