@@ -8,7 +8,7 @@ from scouter.utils.logger import ScouterLogger
 from scouter.utils.types import ProducerTypes
 from tenacity import retry, stop_after_attempt
 
-from .._scouter import DriftServerRecord
+from .._scouter import DriftServerRecords
 
 logger = ScouterLogger.get_logger()
 MESSAGE_MAX_BYTES_DEFAULT = 2097164
@@ -107,7 +107,7 @@ class HTTPProducer(BaseProducer):
         except Exception as exc:
             raise exc
 
-    def publish(self, record: DriftServerRecord) -> None:
+    def publish(self, records: DriftServerRecords) -> None:
         """Publishes drift record to a kafka topic with retries.
 
         If the message delivery fails, the message is retried up to `max_retries` times before raising an error.
@@ -122,7 +122,7 @@ class HTTPProducer(BaseProducer):
         self.request(
             route=ApiRoutes.INSERT,
             request_type=RequestType.POST,
-            json=record.to_dict(),
+            json=records.model_dump_json(),
         )
 
     def flush(self, timeout: Optional[float] = None) -> None:

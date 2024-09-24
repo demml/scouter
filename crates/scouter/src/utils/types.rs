@@ -992,6 +992,11 @@ impl DriftServerRecords {
         // serialize records to a string
         ProfileFuncs::__json__(self.records.clone())
     }
+
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
 }
 
 /// Python class for a Drift map of features with calculated drift

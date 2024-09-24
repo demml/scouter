@@ -27,5 +27,5 @@ def test_insert_http(
         )
     assert response.status_code == 200
 
-    # called once for each feature after sampling
-    assert mock_request.call_count == 3
+    # called once for all features
+    assert mock_request.call_count == 1

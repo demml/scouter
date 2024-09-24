@@ -72,6 +72,9 @@ class DriftServerRecords:
     def model_dump_json(self) -> str:
         """Return the json representation of the record."""
 
+    def __str__(self) -> str:
+        """Return the string representation of the record."""
+
 class Every30Minutes:
     def __init__(self) -> None:
         """Initialize the cron schedule"""
