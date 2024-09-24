@@ -1,3 +1,4 @@
+use crate::core::error::FeatureQueueError;
 use crate::core::monitor::Monitor;
 use crate::utils::types::DriftProfile;
 use crate::utils::types::DriftServerRecords;
@@ -5,7 +6,6 @@ use core::result::Result::Ok;
 use ndarray::prelude::*;
 use ndarray::Array2;
 use pyo3::prelude::*;
-
 use pyo3::types::PyAny;
 use std::collections::HashMap;
 
@@ -55,7 +55,11 @@ impl FeatureQueue {
 
     // create a python function that will take a python dictionary of string keys and either int, float or string values
     // and append the values to the corresponding feature queue
-    pub fn insert(&mut self, py: Python, feature_values: HashMap<String, Py<PyAny>>) {
+    pub fn insert(
+        &mut self,
+        py: Python,
+        feature_values: HashMap<String, Py<PyAny>>,
+    ) -> Result<(), FeatureQueueError> {
         for (feature, value) in feature_values {
             if let Some(queue) = self.queue.get_mut(&feature) {
                 // map floats
@@ -75,10 +79,10 @@ impl FeatureQueue {
                             .config
                             .feature_map
                             .as_ref()
-                            .unwrap()
+                            .ok_or(FeatureQueueError::MissingFeatureMapError)?
                             .features
                             .get(&feature)
-                            .unwrap();
+                            .ok_or(FeatureQueueError::GetFeatureError)?;
 
                         let transformed_val = feature_map
                             .get(&val)
@@ -89,12 +93,13 @@ impl FeatureQueue {
                 }
             }
         }
+        Ok(())
     }
 
     // Create drift records from queue items
     //
     // returns: DriftServerRecords
-    fn create_drift_records(&self) -> PyResult<DriftServerRecords> {
+    fn create_drift_records(&self) -> Result<DriftServerRecords, FeatureQueueError> {
         // concatenate all the feature queues into a single ndarray
         let mut arrays: Vec<Array2<f64>> = Vec::new();
         let mut feature_names: Vec<String> = Vec::new();
@@ -107,7 +112,9 @@ impl FeatureQueue {
         let n = arrays[0].dim().0;
         for array in &arrays {
             if array.dim().0 != n {
-                panic!("Feature queues are not the same length");
+                return Err(FeatureQueueError::DriftRecordError(
+                    "Shape mismatch".to_string(),
+                ));
             }
         }
 
@@ -128,17 +135,13 @@ impl FeatureQueue {
                     Ok(records) => Ok(records),
                     Err(e) => {
                         let error = format!("Failed to create drift record: {:?}", e);
-                        return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                            error.to_string(),
-                        ));
+                        return Err(FeatureQueueError::DriftRecordError(error));
                     }
                 }
             }
             Err(e) => {
                 let error = format!("Failed to create drift record: {:?}", e);
-                return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                    error.to_string(),
-                ));
+                return Err(FeatureQueueError::DriftRecordError(error));
             }
         }
     }
@@ -205,10 +208,10 @@ mod tests {
                 feature_values.insert("feature_2".to_string(), 2.into_py(py));
                 feature_values.insert("feature_3".to_string(), 3.into_py(py));
 
-                feature_queue.insert(py, feature_values.clone());
+                feature_queue.insert(py, feature_values.clone()).unwrap();
             }
 
-            feature_queue.insert(py, feature_values);
+            feature_queue.insert(py, feature_values).unwrap();
 
             assert_eq!(feature_queue.queue.get("feature_1").unwrap().len(), 10);
             assert_eq!(feature_queue.queue.get("feature_2").unwrap().len(), 10);

@@ -1,3 +1,4 @@
+use pyo3::PyErr;
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -40,4 +41,27 @@ pub enum ProfilerError {
 
     #[error("Failed to compute string statistics")]
     StringStatsError,
+}
+
+#[derive(Error, Debug)]
+pub enum FeatureQueueError {
+    #[error("Failed to create drift record: {0}")]
+    DriftRecordError(String),
+
+    #[error("Failed to create alert record: {0}")]
+    AlertRecordError(String),
+
+    #[error("Failed to get feature")]
+    GetFeatureError,
+
+    #[error("Missing feature map")]
+    MissingFeatureMapError,
+}
+
+// impl From for PyErr
+
+impl From<FeatureQueueError> for PyErr {
+    fn from(err: FeatureQueueError) -> PyErr {
+        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
+    }
 }
