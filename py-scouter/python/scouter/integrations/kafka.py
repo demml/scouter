@@ -9,7 +9,7 @@ from scouter.utils.logger import ScouterLogger
 from scouter.utils.types import ProducerTypes
 from typing_extensions import Self
 
-from .._scouter import DriftServerRecord
+from .._scouter import DriftServerRecords
 
 logger = ScouterLogger.get_logger()
 MESSAGE_MAX_BYTES_DEFAULT = 2097164
@@ -140,7 +140,7 @@ class KafkaProducer(BaseProducer):
         Raises:
             ProduceError: When message delivery to the kafka broker fails and raise_on_err is True.
         """
-        if err is not None:
+        if err:
             err_data = {
                 "kafka_message": msg.value(),
                 "kafka_error": err,
@@ -157,11 +157,11 @@ class KafkaProducer(BaseProducer):
                 msg.offset(),
             )
 
-    def _publish(self, record: DriftServerRecord) -> None:
+    def _publish(self, records: DriftServerRecords) -> None:
         try:
             self._producer.produce(
                 topic=self._kafka_config.topic,
-                value=record.model_dump_json(),
+                value=records.model_dump_json(),
                 on_delivery=partial(
                     self._delivery_report, raise_on_err=self._kafka_config.raise_on_err
                 ),  # type: ignore
@@ -174,7 +174,7 @@ class KafkaProducer(BaseProducer):
             if self._kafka_config.raise_on_err:
                 raise e
 
-    def publish(self, record: DriftServerRecord) -> None:
+    def publish(self, records: DriftServerRecords) -> None:
         """Publishes drift record to a kafka topic with retries.
 
         If the message delivery fails, the message is retried up to `max_retries` times before raising an error.
@@ -195,7 +195,7 @@ class KafkaProducer(BaseProducer):
             reraise=True,
         )(self._publish)
 
-        retrier(record)
+        retrier(records)
 
     def flush(self, timeout: Optional[float] = None) -> None:
         if timeout is None:

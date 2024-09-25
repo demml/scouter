@@ -1,6 +1,5 @@
+use crate::core::error::AlertError;
 use crate::utils::types::{Alert, AlertRule, AlertType, AlertZone, FeatureAlerts};
-use anyhow::Ok;
-use anyhow::{Context, Result};
 use ndarray::s;
 use ndarray::{ArrayView1, ArrayView2, Axis};
 use rayon::iter::IntoParallelIterator;
@@ -47,7 +46,7 @@ impl Alerter {
         drift_array: &ArrayView1<f64>,
         zone_consecutive_rule: usize,
         threshold: f64,
-    ) -> Result<bool, anyhow::Error> {
+    ) -> Result<bool, AlertError> {
         let pos_count = drift_array.iter().filter(|&x| *x >= threshold).count();
 
         let neg_count = drift_array.iter().filter(|&x| *x <= -threshold).count();
@@ -64,7 +63,7 @@ impl Alerter {
         drift_array: &ArrayView1<f64>,
         zone_alt_rule: usize,
         threshold: f64,
-    ) -> Result<bool, anyhow::Error> {
+    ) -> Result<bool, AlertError> {
         // check for consecutive alternating values
 
         let mut last_val = 0.0;
@@ -94,11 +93,7 @@ impl Alerter {
         Ok(false)
     }
 
-    pub fn has_overlap(
-        last_entry: &[usize],
-        start: usize,
-        end: usize,
-    ) -> Result<bool, anyhow::Error> {
+    pub fn has_overlap(last_entry: &[usize], start: usize, end: usize) -> Result<bool, AlertError> {
         let last_start = last_entry[0];
         let last_end = last_entry[1];
 
@@ -107,20 +102,13 @@ impl Alerter {
         Ok(has_overlap)
     }
 
-    pub fn insert_alert(
-        &mut self,
-        key: usize,
-        start: usize,
-        end: usize,
-    ) -> Result<(), anyhow::Error> {
+    pub fn insert_alert(&mut self, key: usize, start: usize, end: usize) -> Result<(), AlertError> {
         if self.alert_positions.contains_key(&key) {
             // check if the last alert position is the same as the current start position
             let last_alert = self.alert_positions.get_mut(&key).unwrap().last().unwrap();
             let last_start = last_alert[0];
 
-            if Alerter::has_overlap(last_alert, start, end)
-                .with_context(|| "Failed to check overlap")?
-            {
+            if Alerter::has_overlap(last_alert, start, end)? {
                 let new_vec = vec![last_start, end];
                 self.alert_positions.get_mut(&key).unwrap().pop();
                 self.alert_positions.get_mut(&key).unwrap().push(new_vec);
@@ -147,7 +135,7 @@ impl Alerter {
         consecutive_rule: usize,
         alternating_rule: usize,
         threshold: f64,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<(), AlertError> {
         // test consecutive first
         if (value == threshold || value == -threshold)
             && idx + 1 >= consecutive_rule
@@ -167,8 +155,7 @@ impl Alerter {
                     idx,
                     threshold as usize,
                     AlertType::Consecutive,
-                )
-                .with_context(|| "Failed to update consecutive alert indices")?;
+                )?;
             }
         }
 
@@ -191,30 +178,32 @@ impl Alerter {
                     idx,
                     threshold as usize,
                     AlertType::Alternating,
-                )
-                .with_context(|| "Failed to update consecutive alert indices")?;
+                )?;
             }
         }
 
         Ok(())
     }
 
-    pub fn convert_rules_to_vec(&self, rule: &str) -> Result<Vec<i32>, anyhow::Error> {
+    pub fn convert_rules_to_vec(&self, rule: &str) -> Result<Vec<i32>, AlertError> {
         let rule_chars = rule.split(' ');
 
         let rule_vec = rule_chars
             .collect::<Vec<&str>>()
             .into_iter()
-            .map(|ele| ele.parse::<i32>().with_context(|| "Failed to parse rule"))
-            .collect::<Result<Vec<i32>, anyhow::Error>>()?;
+            .map(|ele| {
+                ele.parse::<i32>()
+                    .map_err(|e| AlertError::CreateError(e.to_string()))
+            })
+            .collect::<Result<Vec<i32>, AlertError>>()?;
 
         // assert rule_vec.len() == 7
         let rule_vec_len = rule_vec.len();
         if rule_vec_len != 8 {
-            return Err(anyhow::anyhow!(
-                "Rule must be 8 characters long. Found: {}",
+            return Err(AlertError::CreateError(format!(
+                "Rule vector length is not 8, found {}",
                 rule_vec_len
-            ));
+            )));
         }
 
         Ok(rule_vec)
@@ -223,7 +212,7 @@ impl Alerter {
     pub fn check_process_rule_for_alert(
         &mut self,
         drift_array: &ArrayView1<f64>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<(), AlertError> {
         let rule_vec =
             self.convert_rules_to_vec(&self.alert_rule.process.as_ref().unwrap().rule)?;
 
@@ -246,8 +235,7 @@ impl Alerter {
                     rule_vec[i] as usize,
                     rule_vec[i + 1] as usize,
                     threshold as f64,
-                )
-                .with_context(|| "Failed to check zone")?;
+                )?;
             }
         }
 
@@ -257,7 +245,7 @@ impl Alerter {
     pub fn check_percentage_rule_for_alert(
         &mut self,
         drift_array: &ArrayView1<f64>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<(), AlertError> {
         for (idx, value) in drift_array.iter().enumerate() {
             if *value >= 1.0 {
                 self.alerts.insert(Alert {
@@ -266,7 +254,7 @@ impl Alerter {
                 });
 
                 self.insert_alert(1, idx, idx)
-                    .with_context(|| "Failed to insert alert")?;
+                    .map_err(|e| AlertError::CreateError(e.to_string()))?;
             }
         }
 
@@ -279,7 +267,7 @@ impl Alerter {
         idx: usize,
         threshold: usize,
         alert: AlertType,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<(), AlertError> {
         let alert_zone = match threshold {
             1 => AlertZone::Zone1,
             2 => AlertZone::Zone2,
@@ -301,8 +289,7 @@ impl Alerter {
             return Ok(());
         }
 
-        self.insert_alert(threshold, start, idx)
-            .with_context(|| "Failed to insert alert")?;
+        self.insert_alert(threshold, start, idx)?;
 
         if alert_zone == AlertZone::Zone4 {
             self.alerts.insert(Alert {
@@ -319,7 +306,7 @@ impl Alerter {
         Ok(())
     }
 
-    pub fn check_trend(&mut self, drift_array: &ArrayView1<f64>) -> Result<(), anyhow::Error> {
+    pub fn check_trend(&mut self, drift_array: &ArrayView1<f64>) -> Result<(), AlertError> {
         drift_array
             .windows(7)
             .into_iter()
@@ -375,21 +362,19 @@ type GeneratedAlert = (HashSet<Alert>, BTreeMap<usize, Vec<Vec<usize>>>);
 pub fn generate_alert(
     drift_array: &ArrayView1<f64>,
     rule: &AlertRule,
-) -> Result<GeneratedAlert, anyhow::Error> {
+) -> Result<GeneratedAlert, AlertError> {
     let mut alerter = Alerter::new(rule.clone());
 
     if rule.process.is_some() {
         alerter
             .check_process_rule_for_alert(&drift_array.view())
-            .with_context(|| "Failed to check rule for alert")?;
+            .map_err(|e| {
+                AlertError::CreateError(format!("Failed to check process rule for alert: {}", e))
+            })?;
 
-        alerter
-            .check_trend(&drift_array.view())
-            .with_context(|| "Failed to check trend")?;
+        alerter.check_trend(&drift_array.view())?;
     } else {
-        alerter
-            .check_percentage_rule_for_alert(&drift_array.view())
-            .with_context(|| "Failed to check rule for alert")?;
+        alerter.check_percentage_rule_for_alert(&drift_array.view())?;
     }
 
     Ok((alerter.alerts, alerter.alert_positions))
@@ -402,13 +387,13 @@ pub fn generate_alert(
 /// features - Vec<String> - The features to check for alerts (feature order should match drift array column order)
 /// alert_rule - AlertRule - The alert rule to check against
 ///
-/// Returns a Result<FeatureAlerts, anyhow::Error>
+/// Returns a Result<FeatureAlerts, AlertError>
 ///
 pub fn generate_alerts(
     drift_array: &ArrayView2<f64>,
     features: &[String],
     rule: &AlertRule,
-) -> Result<FeatureAlerts, anyhow::Error> {
+) -> Result<FeatureAlerts, AlertError> {
     let mut has_alerts: bool = false;
 
     // check for alerts
@@ -417,10 +402,9 @@ pub fn generate_alerts(
         .into_par_iter()
         .map(|col| {
             // check for alerts and errors
-            Ok(generate_alert(&col, rule).with_context(|| "Failed to check rule for alert")?)
+            generate_alert(&col, rule)
         })
-        .collect::<Vec<Result<(HashSet<Alert>, BTreeMap<usize, Vec<Vec<usize>>>), anyhow::Error>>>(
-        );
+        .collect::<Vec<Result<(HashSet<Alert>, BTreeMap<usize, Vec<Vec<usize>>>), AlertError>>>();
 
     // Calculate correlation matrix when there are alerts
     if alerts

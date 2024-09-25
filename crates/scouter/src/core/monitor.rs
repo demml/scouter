@@ -1,16 +1,15 @@
-use crate::utils::types::DriftServerRecord;
+use crate::core::error::MonitorError;
 use crate::utils::types::{
     DriftConfig, DriftMap, DriftProfile, FeatureDrift, FeatureDriftProfile, FeatureMap,
 };
-use anyhow::Ok;
-use anyhow::{Context, Result};
+use crate::utils::types::{DriftServerRecord, DriftServerRecords};
 use indicatif::ProgressBar;
 use ndarray::prelude::*;
 use ndarray::Axis;
 use num_traits::{Float, FromPrimitive, Num};
 use rayon::prelude::*;
-use std::collections::BTreeMap;
 use std::collections::BTreeSet;
+use std::collections::HashMap;
 use std::fmt::Debug;
 pub struct Monitor {}
 
@@ -70,7 +69,7 @@ impl Monitor {
     /// # Returns
     ///
     /// A 1D array of f64 values
-    pub fn compute_array_mean<F>(&self, x: &ArrayView2<F>) -> Result<Array1<F>, anyhow::Error>
+    pub fn compute_array_mean<F>(&self, x: &ArrayView2<F>) -> Result<Array1<F>, MonitorError>
     where
         F: Float
             + Sync
@@ -82,11 +81,9 @@ impl Monitor {
             + ndarray::ScalarOperand,
         F: Into<f64>,
     {
-        let means = x
-            .mean_axis(Axis(0))
-            .with_context(|| "Failed to compute mean")?;
-
-        Ok(means)
+        x.mean_axis(Axis(0)).ok_or(MonitorError::ComputeError(
+            "Failed to compute mean".to_string(),
+        ))
     }
 
     // Computes control limits for a 2D array of data
@@ -107,16 +104,14 @@ impl Monitor {
         num_features: usize,
         features: &[String],
         drift_config: &DriftConfig,
-    ) -> Result<DriftProfile, anyhow::Error>
+    ) -> Result<DriftProfile, MonitorError>
     where
         F: FromPrimitive + Num + Clone + Float + Debug + Sync + Send + ndarray::ScalarOperand,
 
         F: Into<f64>,
     {
         let c4 = self.compute_c4(sample_size);
-        let sample_mean = self
-            .compute_array_mean(sample_data)
-            .with_context(|| "Failed to compute mean")?;
+        let sample_mean = self.compute_array_mean(sample_data)?;
 
         let means = sample_mean.slice(s![0..num_features]);
         let stdev = sample_mean.slice(s![num_features..]);
@@ -139,7 +134,7 @@ impl Monitor {
         let center = &means;
 
         // create monitor profile
-        let mut feat_profile = BTreeMap::new();
+        let mut feat_profile = HashMap::new();
 
         for (i, feature) in features.iter().enumerate() {
             feat_profile.insert(
@@ -176,7 +171,7 @@ impl Monitor {
         features: &[String],
         array: &ArrayView2<F>,
         drift_config: &DriftConfig,
-    ) -> Result<DriftProfile, anyhow::Error>
+    ) -> Result<DriftProfile, MonitorError>
     where
         F: Float
             + Sync
@@ -200,21 +195,14 @@ impl Monitor {
             .axis_chunks_iter(Axis(0), sample_size)
             .into_par_iter()
             .map(|x| {
-                let mean = x
-                    .mean_axis(Axis(0))
-                    .with_context(|| "Failed to compute mean")
-                    .unwrap();
-                let stddev = x.std_axis(
-                    Axis(0),
-                    F::from(1.0)
-                        .with_context(|| "Failed to create f64 for stddev")
-                        .unwrap(),
-                );
+                let mean = x.mean_axis(Axis(0)).unwrap();
+                let stddev = x.std_axis(Axis(0), F::from(1.0).unwrap());
 
                 // append stddev to mean
                 let combined = ndarray::concatenate![Axis(0), mean, stddev];
                 //mean.remove_axis(Axis(1));
                 pb.inc(1);
+
                 combined.to_vec()
             })
             .collect::<Vec<_>>();
@@ -222,17 +210,15 @@ impl Monitor {
         // reshape vec to 2D array
         let sample_data =
             Array::from_shape_vec((sample_vec.len(), features.len() * 2), sample_vec.concat())
-                .with_context(|| "Failed to create 2D array")?;
+                .map_err(|e| MonitorError::ArrayError(e.to_string()))?;
 
-        let drift_profile = self
-            .compute_control_limits(
-                sample_size,
-                &sample_data.view(),
-                num_features,
-                features,
-                drift_config,
-            )
-            .with_context(|| "Failed to compute control limits")?;
+        let drift_profile = self.compute_control_limits(
+            sample_size,
+            &sample_data.view(),
+            num_features,
+            features,
+            drift_config,
+        )?;
 
         Ok(drift_profile)
     }
@@ -252,7 +238,7 @@ impl Monitor {
         array: &ArrayView2<F>,
         sample_size: usize,
         columns: usize,
-    ) -> Result<Array2<f64>, anyhow::Error>
+    ) -> Result<Array2<f64>, MonitorError>
     where
         F: Float
             + Sync
@@ -268,10 +254,7 @@ impl Monitor {
             .axis_chunks_iter(Axis(0), sample_size)
             .into_par_iter()
             .map(|x| {
-                let mean = x
-                    .mean_axis(Axis(0))
-                    .with_context(|| "Failed to compute mean")
-                    .unwrap();
+                let mean = x.mean_axis(Axis(0)).unwrap();
                 // convert to f64
                 let mean = mean.mapv(|x| x.into());
                 mean.to_vec()
@@ -280,7 +263,7 @@ impl Monitor {
 
         // reshape vec to 2D array
         let sample_data = Array::from_shape_vec((sample_vec.len(), columns), sample_vec.concat())
-            .with_context(|| "Failed to create 2D array")?;
+            .map_err(|e| MonitorError::ArrayError(e.to_string()))?;
 
         Ok(sample_data)
     }
@@ -291,7 +274,7 @@ impl Monitor {
         num_features: usize,
         drift_profile: &DriftProfile,
         features: &[String],
-    ) -> Result<Vec<f64>, anyhow::Error> {
+    ) -> Result<Vec<f64>, MonitorError> {
         let mut drift: Vec<f64> = vec![0.0; num_features];
         for (i, feature) in features.iter().enumerate() {
             // check if feature exists
@@ -302,7 +285,7 @@ impl Monitor {
             let feature_profile = drift_profile
                 .features
                 .get(feature)
-                .with_context(|| format!("Failed to get feature profile for {}", feature))?;
+                .ok_or(MonitorError::MissingFeatureError(feature.to_string()))?;
 
             let value = array[i];
 
@@ -336,7 +319,7 @@ impl Monitor {
         drift_profile: &DriftProfile,
         features: &[String],
         rule: f64,
-    ) -> Result<Vec<f64>, anyhow::Error> {
+    ) -> Result<Vec<f64>, MonitorError> {
         let mut drift: Vec<f64> = vec![0.0; num_features];
 
         for (i, feature) in features.iter().enumerate() {
@@ -347,7 +330,7 @@ impl Monitor {
             let feature_profile = drift_profile
                 .features
                 .get(feature)
-                .with_context(|| format!("Failed to get feature profile for {}", feature))?;
+                .ok_or(MonitorError::MissingFeatureError(feature.to_string()))?;
 
             let value = array[i];
 
@@ -377,7 +360,7 @@ impl Monitor {
         features: &[String],
         array: &ArrayView2<F>, // n x m data array (features and predictions)
         drift_profile: &DriftProfile,
-    ) -> Result<DriftMap, anyhow::Error>
+    ) -> Result<DriftMap, MonitorError>
     where
         F: Float
             + Sync
@@ -394,7 +377,7 @@ impl Monitor {
         // iterate through each feature
         let sample_data = self
             ._sample_data(array, drift_profile.config.sample_size, num_features)
-            .with_context(|| "Failed to create sample data")?;
+            .map_err(|e| MonitorError::SampleDataError(e.to_string()))?;
 
         // iterate through each row of samples
         let drift_array = sample_data
@@ -411,8 +394,7 @@ impl Monitor {
                     .is_some()
                 {
                     self.set_control_drift_value(x, num_features, drift_profile, features)
-                        .with_context(|| "Failed to set control drift value")
-                        .unwrap()
+                        .map_err(|e| MonitorError::CreateError(e.to_string()))?
                 } else {
                     let rule = drift_profile
                         .config
@@ -424,18 +406,19 @@ impl Monitor {
                         .rule;
 
                     self.set_percentage_drift_value(x, num_features, drift_profile, features, rule)
-                        .with_context(|| "Failed to set percentage drift value")
-                        .unwrap()
+                        .map_err(|e| MonitorError::CreateError(e.to_string()))?
                 };
 
-                drift
+                Ok(drift)
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, MonitorError>>()?;
+
+        // check for errors
 
         // convert drift array to 2D array
         let drift_array =
             Array::from_shape_vec((drift_array.len(), num_features), drift_array.concat())
-                .with_context(|| "Failed to create 2D array")?;
+                .map_err(|e| MonitorError::ArrayError(e.to_string()))?;
 
         let mut drift_map = DriftMap::new(
             drift_profile.config.name.clone(),
@@ -471,7 +454,7 @@ impl Monitor {
         features: &[String],
         array: &ArrayView2<F>, // n x m data array (features and predictions)
         drift_profile: &DriftProfile,
-    ) -> Result<Vec<DriftServerRecord>, anyhow::Error>
+    ) -> Result<DriftServerRecords, MonitorError>
     where
         F: Float
             + Sync
@@ -484,11 +467,12 @@ impl Monitor {
         F: Into<f64>,
     {
         let num_features = drift_profile.features.len();
+        let created_at = chrono::Utc::now().naive_utc();
 
         // iterate through each feature
         let sample_data = self
             ._sample_data(array, drift_profile.config.sample_size, num_features)
-            .with_context(|| "Failed to create sample data")?;
+            .map_err(|e| MonitorError::SampleDataError(e.to_string()))?; // n x m data array (features and predictions)
 
         let mut records = Vec::new();
 
@@ -497,7 +481,7 @@ impl Monitor {
 
             sample.iter().for_each(|value| {
                 let record = DriftServerRecord {
-                    created_at: chrono::Utc::now().naive_utc(),
+                    created_at,
                     feature: feature.to_string(),
                     value: *value,
                     name: drift_profile.config.name.clone(),
@@ -509,7 +493,7 @@ impl Monitor {
             });
         }
 
-        Ok(records)
+        Ok(DriftServerRecords { records })
     }
 
     pub fn calculate_drift_from_sample(
@@ -517,7 +501,7 @@ impl Monitor {
         features: &[String],
         sample_array: &ArrayView2<f64>, // n x m data array (features and predictions)
         drift_profile: &DriftProfile,
-    ) -> Result<Array2<f64>, anyhow::Error> {
+    ) -> Result<Array2<f64>, MonitorError> {
         // iterate through each row of samples
         let num_features = drift_profile.features.len();
         let drift_array = sample_array
@@ -534,8 +518,12 @@ impl Monitor {
                     .is_some()
                 {
                     self.set_control_drift_value(x, num_features, drift_profile, features)
-                        .with_context(|| "Failed to set control drift value")
-                        .unwrap()
+                        .map_err(|e| {
+                            MonitorError::CreateError(format!(
+                                "Failed to set control drift value: {:?}",
+                                e
+                            ))
+                        })?
                 } else {
                     let rule = drift_profile
                         .config
@@ -547,18 +535,22 @@ impl Monitor {
                         .rule;
 
                     self.set_percentage_drift_value(x, num_features, drift_profile, features, rule)
-                        .with_context(|| "Failed to set percentage drift value")
-                        .unwrap()
+                        .map_err(|e| {
+                            MonitorError::CreateError(format!(
+                                "Failed to set percentage drift value: {:?}",
+                                e
+                            ))
+                        })?
                 };
 
-                drift
+                Ok(drift)
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, MonitorError>>()?;
 
         // convert drift array to 2D array
         let drift_array =
             Array::from_shape_vec((drift_array.len(), num_features), drift_array.concat())
-                .with_context(|| "Failed to create 2D array")?;
+                .map_err(|e| MonitorError::ArrayError(e.to_string()))?;
 
         Ok(drift_array)
     }
@@ -577,13 +569,13 @@ impl Monitor {
         &self,
         features: &[String],
         array: &[Vec<String>],
-    ) -> Result<FeatureMap, anyhow::Error> {
+    ) -> Result<FeatureMap, MonitorError> {
         // check if features and array are the same length
-        let shape_match = features.len() == array.len();
-
-        if !shape_match {
-            return Err(anyhow::anyhow!("Shape mismatch between features and array"));
-        }
+        if features.len() != array.len() {
+            return Err(MonitorError::ShapeMismatchError(
+                "Features and array are not the same length".to_string(),
+            ));
+        };
 
         let feature_map = array
             .par_iter()
@@ -594,7 +586,7 @@ impl Monitor {
                     .collect::<BTreeSet<_>>()
                     .into_iter()
                     .collect::<Vec<_>>();
-                let mut map = BTreeMap::new();
+                let mut map = HashMap::new();
                 for (j, item) in unique.iter().enumerate() {
                     map.insert(item.to_string(), j);
 
@@ -607,7 +599,7 @@ impl Monitor {
 
                 (features[i].to_string(), map)
             })
-            .collect::<BTreeMap<_, _>>();
+            .collect::<HashMap<_, _>>();
 
         Ok(FeatureMap {
             features: feature_map,
@@ -619,7 +611,7 @@ impl Monitor {
         features: &Vec<String>,
         array: &[Vec<String>],
         feature_map: &FeatureMap,
-    ) -> Result<Array2<f32>, anyhow::Error>
+    ) -> Result<Array2<f32>, MonitorError>
 where {
         // check if features in feature_map.features.keys(). If any feature is not found, return error
         let features_not_exist = features
@@ -628,8 +620,8 @@ where {
             .position(|x| !x);
 
         if features_not_exist.is_some() {
-            return Err(anyhow::anyhow!(
-                "Features provided do not exist in feature map"
+            return Err(MonitorError::MissingFeatureError(
+                "Features provided do not exist in feature map".to_string(),
             ));
         }
 
@@ -650,11 +642,9 @@ where {
             .collect::<Vec<_>>();
 
         let data = Array::from_shape_vec((features.len(), array[0].len()), data.concat())
-            .with_context(|| "Failed to create 2D array")?
-            .t()
-            .to_owned();
+            .map_err(|e| MonitorError::ArrayError(e.to_string()))?;
 
-        Ok(data)
+        Ok(data.t().to_owned())
     }
 
     pub fn convert_strings_to_ndarray_f64(
@@ -662,7 +652,7 @@ where {
         features: &Vec<String>,
         array: &[Vec<String>],
         feature_map: &FeatureMap,
-    ) -> Result<Array2<f64>, anyhow::Error>
+    ) -> Result<Array2<f64>, MonitorError>
 where {
         // check if features in feature_map.features.keys(). If any feature is not found, return error
         let features_not_exist = features
@@ -671,8 +661,8 @@ where {
             .position(|x| !x);
 
         if features_not_exist.is_some() {
-            return Err(anyhow::anyhow!(
-                "Features provided do not exist in feature map"
+            return Err(MonitorError::MissingFeatureError(
+                "Features provided do not exist in feature map".to_string(),
             ));
         }
         let data = features
@@ -691,11 +681,9 @@ where {
             .collect::<Vec<_>>();
 
         let data = Array::from_shape_vec((features.len(), array[0].len()), data.concat())
-            .with_context(|| "Failed to create 2D array")?
-            .t()
-            .to_owned();
+            .map_err(|e| MonitorError::ArrayError(e.to_string()))?;
 
-        Ok(data)
+        Ok(data.t().to_owned())
     }
 }
 
@@ -889,7 +877,7 @@ mod tests {
             .sample_data(&features, &array.view(), &profile)
             .unwrap();
 
-        assert_eq!(server_records.len(), 126);
+        assert_eq!(server_records.records.len(), 126);
 
         // create server records
     }

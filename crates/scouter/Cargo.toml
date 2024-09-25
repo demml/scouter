@@ -17,7 +17,6 @@ serde = { version = "1.0.163", features = ["derive"] }
 itertools = "0.11.0"
 rayon = "1.7.0"
 noisy_float = "0.2.0"
-anyhow = "1.0.79"
 chrono ={ version = "0.4.38", features = ["serde"] }
 num-traits = "0.2.19"
 serde_json = "1.0.117"
@@ -28,6 +27,7 @@ ndarray-stats = "0.5.1"
 cron = "0.12.1"
 tracing = "0.1.40"
 colored_json = "5.0.0"
+thiserror = "1.0.64"
 
 [dev-dependencies]
 approx = "0.5.1"

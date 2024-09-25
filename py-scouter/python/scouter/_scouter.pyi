@@ -64,6 +64,17 @@ class DriftServerRecord:
     def to_dict(self) -> Dict[str, str]:
         """Return the dictionary representation of the record."""
 
+class DriftServerRecords:
+    @property
+    def records(self) -> List[DriftServerRecord]:
+        """Return the drift server records."""
+
+    def model_dump_json(self) -> str:
+        """Return the json representation of the record."""
+
+    def __str__(self) -> str:
+        """Return the string representation of the record."""
+
 class Every30Minutes:
     def __init__(self) -> None:
         """Initialize the cron schedule"""
@@ -1070,7 +1081,7 @@ class ScouterDrifter:
         features: List[str],
         array: NDArray,
         drift_profile: DriftProfile,
-    ) -> List[DriftServerRecord]:
+    ) -> DriftServerRecords:
         """Sample data from a f32 numpy array.
 
         Args:
@@ -1090,7 +1101,7 @@ class ScouterDrifter:
         features: List[str],
         array: NDArray,
         drift_profile: DriftProfile,
-    ) -> List[DriftServerRecord]:
+    ) -> DriftServerRecords:
         """Sample data from a f64 numpy array.
 
         Args:
@@ -1104,3 +1115,34 @@ class ScouterDrifter:
         Returns:
             List of server records
         """
+
+class FeatureQueue:
+    def __init__(self, drift_profile: DriftProfile) -> None:
+        """Initialize the feature queue
+
+        Args:
+            drift_profile:
+                Drift profile to use for feature queue.
+        """
+
+    def insert(self, data: Dict[str, Any]) -> None:
+        """Insert data into the feature queue
+
+        Args:
+            data:
+                Dictionary of feature values to insert into the monitoring queue.
+
+        Returns:
+            List of drift records if the monitoring queue has enough data to compute
+        """
+
+    def create_drift_records(self) -> DriftServerRecords:
+        """Create drift server record from data
+
+
+        Returns:
+            `DriftServerRecord`
+        """
+
+    def clear_queue(self) -> None:
+        """Clears the feature queue"""

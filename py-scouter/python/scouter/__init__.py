@@ -4,6 +4,7 @@
 from scouter.integrations.http import HTTPConfig, HTTPProducer
 from scouter.integrations.kafka import KafkaConfig, KafkaProducer
 from scouter.integrations.producer import DriftRecordProducer
+from scouter.integrations.rabbitmq import RabbitMQConfig, RabbitMQProducer
 from scouter.utils.types import AlertType, AlertZone
 
 from ._scouter import (
@@ -16,6 +17,7 @@ from ._scouter import (
     DriftMap,
     DriftProfile,
     DriftServerRecord,
+    DriftServerRecords,
     Every6Hours,
     Every12Hours,
     Every30Minutes,
@@ -25,6 +27,7 @@ from ._scouter import (
     FeatureAlerts,
     FeatureDriftProfile,
     FeatureProfile,
+    FeatureQueue,
     PercentageAlertRule,
     ProcessAlertRule,
 )
@@ -66,4 +69,8 @@ __all__ = [
     "DriftRecordProducer",
     "AlertConfig",
     "AlertDispatchType",
+    "FeatureQueue",
+    "DriftServerRecords",
+    "RabbitMQConfig",
+    "RabbitMQProducer",
 ]

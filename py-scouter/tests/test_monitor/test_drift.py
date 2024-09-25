@@ -258,7 +258,7 @@ def test_load_from_file_error():
     with pytest.raises(RuntimeError) as e:
         DriftConfig(config_path="tests/assets/drift_config_error.json")
 
-    assert "Failed to deserialize json" in str(e)
+    assert "Failed to deserialize string" in str(e)
 
 
 def test_empty_params():

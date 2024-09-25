@@ -24,7 +24,7 @@ lints.ci: lints.format_check lints.ruff lints.pylint lints.mypy
 setup.project:
 	poetry install --all-extras --with dev --no-root
 	pip install maturin
-	maturin develop
+	maturin develop --extras kafka,rabbitmq,fastapi
 
 setup.docs:
 	poetry install --all-extras --with dev --no-root
@@ -40,7 +40,7 @@ test.unit:
 setup.integration:
 	poetry install --all-extras --with dev --no-root
 	pip install maturin
-	maturin develop --extras kafka
+	maturin develop --extras kafka,rabbitmq,fastapi
 
 test.integration:
 	poetry run pytest -s tests/integration

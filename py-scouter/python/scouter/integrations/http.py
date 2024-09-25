@@ -8,7 +8,7 @@ from scouter.utils.logger import ScouterLogger
 from scouter.utils.types import ProducerTypes
 from tenacity import retry, stop_after_attempt
 
-from .._scouter import DriftServerRecord
+from .._scouter import DriftServerRecords
 
 logger = ScouterLogger.get_logger()
 MESSAGE_MAX_BYTES_DEFAULT = 2097164
@@ -20,15 +20,14 @@ class RequestType(str, Enum):
 
 
 class ApiRoutes:
-    TOKEN = "auth/token"
-    INSERT = "drift"
+    TOKEN = "scouter/auth/token"
+    INSERT = "scouter/drift"
 
 
 class HTTPConfig(BaseModel):
     server_url: str
-    username: str
-    password: str
-    token: str = "empty"
+    username: Optional[str] = None
+    password: Optional[str] = None
 
     @property
     def type(self) -> str:
@@ -58,6 +57,11 @@ class HTTPProducer(BaseProducer):
 
     def _refresh_token(self) -> None:
         """Refreshes bearer token."""
+
+        # check if username and password are provided, if not return
+        if self.form_data["username"] is None or self.form_data["password"] is None:
+            return None
+
         response = self.client.post(
             url=f"{self._config.server_url}/{ApiRoutes.TOKEN}",
             data=self.form_data,
@@ -70,6 +74,8 @@ class HTTPProducer(BaseProducer):
 
         self._auth_token = res["access_token"]
         self.client.headers["Authorization"] = f"Bearer {self._auth_token}"
+
+        return None
 
     @retry(reraise=True, stop=stop_after_attempt(3))
     def request(self, route: str, request_type: RequestType, **kwargs: Any) -> Dict[str, Any]:
@@ -101,7 +107,7 @@ class HTTPProducer(BaseProducer):
         except Exception as exc:
             raise exc
 
-    def publish(self, record: DriftServerRecord) -> None:
+    def publish(self, records: DriftServerRecords) -> None:
         """Publishes drift record to a kafka topic with retries.
 
         If the message delivery fails, the message is retried up to `max_retries` times before raising an error.
@@ -112,10 +118,11 @@ class HTTPProducer(BaseProducer):
         Raises:
             ValueError: When max_retries is invalid.
         """
+
         self.request(
             route=ApiRoutes.INSERT,
             request_type=RequestType.POST,
-            json=record.to_dict(),
+            json=records.model_dump_json(),
         )
 
     def flush(self, timeout: Optional[float] = None) -> None:

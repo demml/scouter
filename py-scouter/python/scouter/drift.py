@@ -139,7 +139,7 @@ class Drifter:
 
             drift_map = getattr(self._drifter, f"compute_drift_f{bits}")(
                 features=array.numeric_features,
-                drift_array=array.numeric_array,
+                array=array.numeric_array,
                 drift_profile=drift_profile,
             )
 

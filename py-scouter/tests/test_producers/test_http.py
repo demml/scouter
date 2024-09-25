@@ -11,7 +11,6 @@ def test_http_config():
     assert config.server_url == "http://localhost:8000"
     assert config.username == "test-username"
     assert config.password == "test-password"
-    assert config.token == "empty"
 
 
 def test_http_producer(mock_httpx_producer):

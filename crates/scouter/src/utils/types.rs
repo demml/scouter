@@ -1,5 +1,5 @@
+use crate::core::error::ScouterError;
 use crate::utils::cron::EveryDay;
-use anyhow::Context;
 use colored_json::{Color, ColorMode, ColoredFormatter, PrettyFormatter, Styler};
 use core::fmt::Debug;
 use ndarray::Array;
@@ -332,28 +332,27 @@ impl ProfileFuncs {
         }
     }
 
-    fn save_to_json<T>(model: T, path: Option<PathBuf>, filename: &str) -> Result<(), anyhow::Error>
+    fn save_to_json<T>(model: T, path: Option<PathBuf>, filename: &str) -> Result<(), ScouterError>
     where
         T: Serialize,
     {
         // serialize the struct to a string
-        let json = serde_json::to_string_pretty(&model).with_context(|| "Failed to serialize")?;
+        let json =
+            serde_json::to_string_pretty(&model).map_err(|_| ScouterError::SerializeError)?;
 
         // check if path is provided
         let write_path = if path.is_some() {
-            let mut new_path = path.with_context(|| "Failed to get path")?;
+            let mut new_path = path.ok_or(ScouterError::CreatePathError)?;
 
             // ensure .json extension
             new_path.set_extension("json");
 
             if !new_path.exists() {
                 // ensure path exists, create if not
-                let parent_path = new_path
-                    .parent()
-                    .with_context(|| "Failed to get parent path")?;
+                let parent_path = new_path.parent().ok_or(ScouterError::GetParentPathError)?;
 
                 std::fs::create_dir_all(parent_path)
-                    .with_context(|| "Failed to create directory")?;
+                    .map_err(|_| ScouterError::CreateDirectoryError)?;
             }
 
             new_path
@@ -361,7 +360,7 @@ impl ProfileFuncs {
             PathBuf::from(filename)
         };
 
-        std::fs::write(write_path, json).with_context(|| "Failed to write to file")?;
+        std::fs::write(write_path, json).map_err(|_| ScouterError::WriteError)?;
 
         Ok(())
     }
@@ -462,7 +461,7 @@ impl DriftConfig {
         targets: Option<Vec<String>>,
         alert_config: Option<AlertConfig>,
         config_path: Option<PathBuf>,
-    ) -> Result<Self, anyhow::Error> {
+    ) -> Result<Self, ScouterError> {
         if let Some(config_path) = config_path {
             let config = DriftConfig::load_from_json_file(config_path);
             return config;
@@ -498,14 +497,12 @@ impl DriftConfig {
     }
 
     #[staticmethod]
-    pub fn load_from_json_file(path: PathBuf) -> Result<DriftConfig, anyhow::Error> {
+    pub fn load_from_json_file(path: PathBuf) -> Result<DriftConfig, ScouterError> {
         // deserialize the string to a struct
 
-        let file = std::fs::read_to_string(&path)
-            .with_context(|| "Failed to read file")
-            .unwrap();
+        let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
 
-        serde_json::from_str(&file).with_context(|| "Failed to deserialize json")
+        serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)
     }
 
     pub fn __str__(&self) -> String {
@@ -542,25 +539,27 @@ impl DriftConfig {
         feature_map: Option<FeatureMap>,
         targets: Option<Vec<String>>,
         alert_config: Option<AlertConfig>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<(), ScouterError> {
         if name.is_some() {
-            self.name = name.unwrap();
+            self.name = name.ok_or(ScouterError::TypeError("name".to_string()))?;
         }
 
         if repository.is_some() {
-            self.repository = repository.unwrap();
+            self.repository =
+                repository.ok_or(ScouterError::TypeError("repository".to_string()))?;
         }
 
         if version.is_some() {
-            self.version = version.unwrap();
+            self.version = version.ok_or(ScouterError::TypeError("version".to_string()))?;
         }
 
         if sample.is_some() {
-            self.sample = sample.unwrap();
+            self.sample = sample.ok_or(ScouterError::TypeError("sample".to_string()))?;
         }
 
         if sample_size.is_some() {
-            self.sample_size = sample_size.unwrap();
+            self.sample_size =
+                sample_size.ok_or(ScouterError::TypeError("sample size".to_string()))?;
         }
 
         if feature_map.is_some() {
@@ -568,11 +567,12 @@ impl DriftConfig {
         }
 
         if targets.is_some() {
-            self.targets = targets.unwrap();
+            self.targets = targets.ok_or(ScouterError::TypeError("targets".to_string()))?;
         }
 
         if alert_config.is_some() {
-            self.alert_config = alert_config.unwrap();
+            self.alert_config =
+                alert_config.ok_or(ScouterError::TypeError("alert_config".to_string()))?;
         }
 
         Ok(())
@@ -580,10 +580,10 @@ impl DriftConfig {
 }
 
 impl DriftConfig {
-    pub fn load_map_from_json(path: PathBuf) -> Result<HashMap<String, Value>, anyhow::Error> {
+    pub fn load_map_from_json(path: PathBuf) -> Result<HashMap<String, Value>, ScouterError> {
         // deserialize the string to a struct
-        let file = std::fs::read_to_string(&path)?;
-        let config = serde_json::from_str(&file)?;
+        let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
+        let config = serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)?;
         Ok(config)
     }
 }
@@ -592,7 +592,7 @@ impl DriftConfig {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DriftProfile {
     #[pyo3(get, set)]
-    pub features: BTreeMap<String, FeatureDriftProfile>,
+    pub features: HashMap<String, FeatureDriftProfile>,
 
     #[pyo3(get, set)]
     pub config: DriftConfig,
@@ -605,7 +605,7 @@ pub struct DriftProfile {
 impl DriftProfile {
     #[new]
     pub fn new(
-        features: BTreeMap<String, FeatureDriftProfile>,
+        features: HashMap<String, FeatureDriftProfile>,
         config: DriftConfig,
         scouter_version: Option<String>,
     ) -> Self {
@@ -627,8 +627,10 @@ impl DriftProfile {
     }
 
     pub fn model_dump(&self, py: Python) -> PyResult<Py<PyDict>> {
-        let json_str = serde_json::to_string(&self).unwrap();
-        let json_value: Value = serde_json::from_str(&json_str).unwrap();
+        let json_str = serde_json::to_string(&self).map_err(|_| ScouterError::SerializeError)?;
+
+        let json_value: Value =
+            serde_json::from_str(&json_str).map_err(|_| ScouterError::DeSerializeError)?;
 
         // Create a new Python dictionary
         let dict = PyDict::new_bound(py);
@@ -655,7 +657,7 @@ impl DriftProfile {
     }
 
     // Convert python dict into a drift profile
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), anyhow::Error> {
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
         ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
     }
 
@@ -683,7 +685,7 @@ impl DriftProfile {
         feature_map: Option<FeatureMap>,
         targets: Option<Vec<String>>,
         alert_config: Option<AlertConfig>,
-    ) -> Result<(), anyhow::Error> {
+    ) -> Result<(), ScouterError> {
         self.config.update_config_args(
             name,
             repository,
@@ -701,7 +703,7 @@ impl DriftProfile {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FeatureMap {
     #[pyo3(get)]
-    pub features: BTreeMap<String, BTreeMap<String, usize>>,
+    pub features: HashMap<String, HashMap<String, usize>>,
 }
 
 #[pymethods]
@@ -767,7 +769,7 @@ pub struct CharStats {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct WordStats {
     #[pyo3(get)]
-    pub words: BTreeMap<String, Distinct>,
+    pub words: HashMap<String, Distinct>,
 }
 
 #[pyclass]
@@ -829,10 +831,12 @@ impl DataProfile {
     #[staticmethod]
     pub fn model_validate_json(json_string: String) -> DataProfile {
         // deserialize the string to a struct
-        serde_json::from_str(&json_string).expect("Failed to load data profile")
+        serde_json::from_str(&json_string)
+            .map_err(|_| ScouterError::DeSerializeError)
+            .unwrap()
     }
 
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), anyhow::Error> {
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
         ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
     }
 }
@@ -968,6 +972,30 @@ impl DriftServerRecord {
     }
 }
 
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DriftServerRecords {
+    #[pyo3(get)]
+    pub records: Vec<DriftServerRecord>,
+}
+
+#[pymethods]
+impl DriftServerRecords {
+    #[new]
+    pub fn new(records: Vec<DriftServerRecord>) -> Self {
+        Self { records }
+    }
+    pub fn model_dump_json(&self) -> String {
+        // serialize records to a string
+        ProfileFuncs::__json__(self.records.clone())
+    }
+
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
+}
+
 /// Python class for a Drift map of features with calculated drift
 ///
 /// # Arguments
@@ -978,7 +1006,7 @@ impl DriftServerRecord {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DriftMap {
     #[pyo3(get)]
-    pub features: BTreeMap<String, FeatureDrift>,
+    pub features: HashMap<String, FeatureDrift>,
 
     #[pyo3(get)]
     pub name: String,
@@ -996,7 +1024,7 @@ impl DriftMap {
     #[new]
     pub fn new(name: String, repository: String, version: String) -> Self {
         Self {
-            features: BTreeMap::new(),
+            features: HashMap::new(),
             name,
             repository,
             version,
@@ -1020,10 +1048,12 @@ impl DriftMap {
     #[staticmethod]
     pub fn model_validate_json(json_string: String) -> DriftMap {
         // deserialize the string to a struct
-        serde_json::from_str(&json_string).expect("Failed to load drift map")
+        serde_json::from_str(&json_string)
+            .map_err(|_| ScouterError::DeSerializeError)
+            .unwrap()
     }
 
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), anyhow::Error> {
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
         ProfileFuncs::save_to_json(self, path, FileName::Drift.to_str())
     }
 
@@ -1049,7 +1079,7 @@ impl DriftMap {
 type ArrayReturn = (Array2<f64>, Array2<f64>, Vec<String>);
 
 impl DriftMap {
-    pub fn to_array(&self) -> Result<ArrayReturn, anyhow::Error> {
+    pub fn to_array(&self) -> Result<ArrayReturn, ScouterError> {
         let columns = self.features.len();
         let rows = self.features.values().next().unwrap().samples.len();
 
@@ -1110,7 +1140,7 @@ impl FeatureAlert {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct FeatureAlerts {
     #[pyo3(get)]
-    pub features: BTreeMap<String, FeatureAlert>,
+    pub features: HashMap<String, FeatureAlert>,
 
     #[pyo3(get)]
     pub has_alerts: bool,
@@ -1149,7 +1179,7 @@ impl FeatureAlerts {
     #[new]
     pub fn new(has_alerts: bool) -> Self {
         Self {
-            features: BTreeMap::new(),
+            features: HashMap::new(),
             has_alerts,
         }
     }
@@ -1165,7 +1195,7 @@ impl FeatureAlerts {
     }
 }
 
-fn json_to_pyobject(py: Python, value: &Value, dict: &PyDict) -> PyResult<()> {
+pub fn json_to_pyobject(py: Python, value: &Value, dict: &PyDict) -> PyResult<()> {
     match value {
         Value::Object(map) => {
             for (k, v) in map {

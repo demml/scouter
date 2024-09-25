@@ -1,15 +1,15 @@
-use anyhow::Context;
 use numpy::PyArray2;
 use numpy::PyReadonlyArray2;
 use numpy::ToPyArray;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use scouter::core::alert::generate_alerts;
+use scouter::core::error::ScouterError;
 use scouter::core::monitor::Monitor;
 use scouter::core::num_profiler::NumProfiler;
 use scouter::core::string_profiler::StringProfiler;
 use scouter::utils::types::{
-    AlertRule, DataProfile, DriftConfig, DriftMap, DriftProfile, DriftServerRecord, FeatureAlerts,
+    AlertRule, DataProfile, DriftConfig, DriftMap, DriftProfile, DriftServerRecords, FeatureAlerts,
     FeatureProfile,
 };
 use std::collections::BTreeMap;
@@ -17,11 +17,11 @@ use std::collections::BTreeMap;
 fn create_string_profile(
     string_array: Vec<Vec<String>>,
     string_features: Vec<String>,
-) -> Result<Vec<FeatureProfile>, anyhow::Error> {
+) -> Result<Vec<FeatureProfile>, ScouterError> {
     let string_profiler = StringProfiler::new();
     let string_profile = string_profiler
         .compute_2d_stats(&string_array, &string_features)
-        .with_context(|| "Failed to create feature data profile")?;
+        .map_err(|_e| ScouterError::StringProfileError(_e.to_string()))?;
 
     Ok(string_profile)
 }
@@ -182,7 +182,7 @@ impl ScouterDrifter {
             &drift_profile
                 .config
                 .feature_map
-                .with_context(|| "Failed to convert strings to ndarray")
+                .ok_or(ScouterError::MissingFeatureMapError)
                 .unwrap(),
         ) {
             Ok(array) => array,
@@ -209,7 +209,7 @@ impl ScouterDrifter {
             &drift_profile
                 .config
                 .feature_map
-                .with_context(|| "Failed to get feature map")
+                .ok_or(ScouterError::MissingFeatureMapError)
                 .unwrap(),
         ) {
             Ok(array) => array,
@@ -309,20 +309,19 @@ impl ScouterDrifter {
     pub fn compute_drift_f32(
         &mut self,
         features: Vec<String>,
-        drift_array: PyReadonlyArray2<f32>,
+        array: PyReadonlyArray2<f32>,
         drift_profile: DriftProfile,
     ) -> PyResult<DriftMap> {
-        let array = drift_array.as_array();
-
-        let drift_map = match self
-            .monitor
-            .compute_drift(&features, &array, &drift_profile)
-        {
-            Ok(drift_map) => drift_map,
-            Err(_e) => {
-                return Err(PyValueError::new_err("Failed to compute drift"));
-            }
-        };
+        let drift_map =
+            match self
+                .monitor
+                .compute_drift(&features, &array.as_array(), &drift_profile)
+            {
+                Ok(drift_map) => drift_map,
+                Err(_e) => {
+                    return Err(PyValueError::new_err("Failed to compute drift"));
+                }
+            };
 
         Ok(drift_map)
     }
@@ -330,20 +329,19 @@ impl ScouterDrifter {
     pub fn compute_drift_f64(
         &mut self,
         features: Vec<String>,
-        drift_array: PyReadonlyArray2<f64>,
+        array: PyReadonlyArray2<f64>,
         drift_profile: DriftProfile,
     ) -> PyResult<DriftMap> {
-        let array = drift_array.as_array();
-
-        let drift_map = match self
-            .monitor
-            .compute_drift(&features, &array, &drift_profile)
-        {
-            Ok(drift_map) => drift_map,
-            Err(_e) => {
-                return Err(PyValueError::new_err("Failed to compute drift"));
-            }
-        };
+        let drift_map =
+            match self
+                .monitor
+                .compute_drift(&features, &array.as_array(), &drift_profile)
+            {
+                Ok(drift_map) => drift_map,
+                Err(_e) => {
+                    return Err(PyValueError::new_err("Failed to compute drift"));
+                }
+            };
 
         Ok(drift_map)
     }
@@ -371,17 +369,17 @@ impl ScouterDrifter {
         features: Vec<String>,
         array: PyReadonlyArray2<f32>,
         drift_profile: DriftProfile,
-    ) -> PyResult<Vec<DriftServerRecord>> {
+    ) -> PyResult<DriftServerRecords> {
         let array = array.as_array();
 
-        let profile = match self.monitor.sample_data(&features, &array, &drift_profile) {
+        let records = match self.monitor.sample_data(&features, &array, &drift_profile) {
             Ok(profile) => profile,
             Err(_e) => {
                 return Err(PyValueError::new_err("Failed to sample data"));
             }
         };
 
-        Ok(profile)
+        Ok(records)
     }
 
     pub fn sample_data_f64(
@@ -389,16 +387,16 @@ impl ScouterDrifter {
         features: Vec<String>,
         array: PyReadonlyArray2<f64>,
         drift_profile: DriftProfile,
-    ) -> PyResult<Vec<DriftServerRecord>> {
+    ) -> PyResult<DriftServerRecords> {
         let array = array.as_array();
 
-        let profile = match self.monitor.sample_data(&features, &array, &drift_profile) {
+        let records = match self.monitor.sample_data(&features, &array, &drift_profile) {
             Ok(profile) => profile,
             Err(_e) => {
                 return Err(PyValueError::new_err("Failed to sample data"));
             }
         };
 
-        Ok(profile)
+        Ok(records)
     }
 }

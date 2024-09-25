@@ -1,4 +1,12 @@
-from scouter import MonitorQueue, DriftConfig, DriftProfile, Drifter, KafkaConfig
+from scouter import (
+    MonitorQueue,
+    DriftConfig,
+    DriftProfile,
+    Drifter,
+    KafkaConfig,
+    DriftServerRecords,
+)
+from typing import Optional
 import pandas as pd
 
 
@@ -23,15 +31,18 @@ def test_monitor_pandas(
 
     records = pandas_dataframe[0:30].to_dict(orient="records")
 
-    def return_record(records):
+    def return_record(records) -> Optional[DriftServerRecords]:
         for record in records:
             drift_map = queue.insert(record)
 
             if drift_map:
                 return drift_map
 
-    records = return_record(records)
-    assert len(records) == 3
+        return None
+
+    drift_records = return_record(records)
+    assert drift_records is not None
+    assert len(drift_records.records) == 3
 
 
 def test_monitor_polar_multitype(
@@ -44,6 +55,8 @@ def test_monitor_polar_multitype(
         polars_dataframe_multi_dtype,
         drift_config,
     )
+
+    print(profile)
 
     kafka_config = KafkaConfig(
         topic="test-topic",
@@ -58,15 +71,17 @@ def test_monitor_polar_multitype(
 
     records = polars_dataframe_multi_dtype[0:30].to_dicts()  # type: ignore
 
-    def return_record(records):
+    def return_record(records) -> Optional[DriftServerRecords]:
         for record in records:
             drift_map = queue.insert(record)
 
             if drift_map:
                 return drift_map
+        return None
 
-    records = return_record(records)
-    assert len(records) == 5
+    drift_records = return_record(records)
+    assert drift_records is not None
+    assert len(drift_records.records) == 5
 
 
 def test_queue_fail(

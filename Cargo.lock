@@ -797,9 +797,8 @@ dependencies = [
 
 [[package]]
 name = "py-scouter"
-version = "0.3.0-rc.4"
+version = "0.3.0-rc.5"
 dependencies = [
- "anyhow",
  "numpy",
  "pyo3",
  "scouter",
@@ -1012,9 +1011,8 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scouter"
-version = "0.3.0-rc.4"
+version = "0.3.0-rc.5"
 dependencies = [
- "anyhow",
  "approx",
  "chrono",
  "colored_json",
@@ -1033,6 +1031,7 @@ dependencies = [
  "rayon",
  "serde",
  "serde_json",
+ "thiserror",
  "tracing",
 ]
 
@@ -1111,6 +1110,26 @@ name = "textwrap"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "23d434d3f8967a09480fb04132ebe0a3e088c173e6d0ee7897abbdf4eab0f8b9"
+
+[[package]]
+name = "thiserror"
+version = "1.0.64"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d50af8abc119fb8bb6dbabcfa89656f46f84aa0ac7688088608076ad2b459a84"
+dependencies = [
+ "thiserror-impl",
+]
+
+[[package]]
+name = "thiserror-impl"
+version = "1.0.64"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "08904e7672f5eb876eaaf87e0ce17857500934f4981c4a0ab2b4aa98baac7fc3"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
 
 [[package]]
 name = "tinytemplate"

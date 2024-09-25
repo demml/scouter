@@ -6,9 +6,32 @@ from numpy.typing import NDArray
 from scouter._scouter import DriftConfig, AlertRule, PercentageAlertRule, AlertConfig
 from unittest.mock import patch
 from httpx import Response
+from fastapi import FastAPI, Request
+from scouter.integrations.fastapi import ScouterRouter
+from scouter import Drifter, DriftProfile, KafkaConfig, HTTPConfig
+from fastapi.testclient import TestClient
+from pydantic import BaseModel
 
 T = TypeVar("T")
 YieldFixture = Generator[T, None, None]
+
+
+class TestResponse(BaseModel):
+    message: str
+
+
+class TestDriftRecord(BaseModel):
+    name: str
+    repository: str
+    version: str
+    feature: str
+    value: float
+
+
+class PredictRequest(BaseModel):
+    feature_0: float
+    feature_1: float
+    feature_2: float
 
 
 def cleanup() -> None:
@@ -195,6 +218,35 @@ def mock_kafka_producer():
 
 
 @pytest.fixture
+def mock_rabbit_connection():
+    class BlockingConnection:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def channel(self):
+            return self
+
+        def exchange_declare(self, *args, **kwargs):
+            pass
+
+        def queue_declare(self, *args, **kwargs):
+            pass
+
+        def queue_bind(self, *args, **kwargs):
+            pass
+
+        def basic_publish(self, *args, **kwargs):
+            pass
+
+        def close(self):
+            pass
+
+    with patch("pika.BlockingConnection") as mocked_connection:
+        mocked_connection.return_value = BlockingConnection()
+        yield mocked_connection
+
+
+@pytest.fixture
 def mock_httpx_producer():
     with patch("httpx.Client") as mocked_client:
         mocked_client.return_value.post.return_value = Response(
@@ -203,3 +255,54 @@ def mock_httpx_producer():
         )
 
         yield mocked_client
+
+
+@pytest.fixture
+def drift_profile(array: NDArray) -> DriftProfile:
+    drifter = Drifter()
+    profile: DriftProfile = drifter.create_drift_profile(array)
+
+    return profile
+
+
+@pytest.fixture
+def client(mock_kafka_producer, drift_profile: DriftProfile) -> TestClient:
+    config = KafkaConfig(
+        topic="test-topic",
+        brokers="localhost:9092",
+        raise_on_err=True,
+        config={"bootstrap.servers": "localhost:9092"},
+    )
+
+    app = FastAPI()
+    router = ScouterRouter(drift_profile=drift_profile, config=config)
+
+    # create a test route
+    @router.get("/test", response_model=TestResponse)
+    async def test_route(request: Request) -> TestResponse:
+        request.state.scouter_data = {"test": "data"}
+        return TestResponse(message="success")
+
+    app.include_router(router)
+    return TestClient(app)
+
+
+@pytest.fixture
+def client_insert(
+    drift_profile: DriftProfile,
+) -> TestClient:
+    config = HTTPConfig(server_url="http://testserver")
+    app = FastAPI()
+
+    # define scouter router
+    scouter_router = ScouterRouter(drift_profile=drift_profile, config=config)
+
+    @scouter_router.post("/predict", response_model=TestResponse)
+    async def predict(request: Request, payload: PredictRequest) -> TestResponse:
+        request.state.scouter_data = payload.model_dump()
+
+        return TestResponse(message="success")
+
+    app.include_router(scouter_router)
+
+    return TestClient(app)
