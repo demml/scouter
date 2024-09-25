@@ -6,5 +6,4 @@
 
 <h2 align="center">Data Profiling and Monitoring for Machine Learning</h2>
 
-
 ## Coming Soon
