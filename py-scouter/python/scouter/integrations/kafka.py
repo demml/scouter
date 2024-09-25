@@ -140,7 +140,7 @@ class KafkaProducer(BaseProducer):
         Raises:
             ProduceError: When message delivery to the kafka broker fails and raise_on_err is True.
         """
-        if err is not None:
+        if err:
             err_data = {
                 "kafka_message": msg.value(),
                 "kafka_error": err,

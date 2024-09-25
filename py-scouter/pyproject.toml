@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "scouter"
-version = "0.3.0-rc.4"
+version = "0.3.0-rc.5"
 description = ""
 authors = ["Thorrester <support@demmlai.com>"]
 readme = "README.md"
@@ -128,10 +128,11 @@ httpx = [
     "tenacity >= 8.4.2, < 9.0.0",
     ]
 fastapi = [
-    "fastapi >= 0.100.0, < 1.0.0",
+    "fastapi >= 0.113.0, < 1.0.0",
     ]
 rabbitmq = [
     "pika >= 1.2.0, < 2.0.0",
+    "tenacity >= 8.4.2, < 9.0.0",
     ]
 
 [build-system]

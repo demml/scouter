@@ -1,4 +1,5 @@
 from scouter import KafkaConfig, KafkaProducer, DriftServerRecord, DriftServerRecords
+import pytest
 
 
 def test_kafka_config():
@@ -72,3 +73,21 @@ def test_kafka_producer(mock_kafka_producer):
     producer.publish(DriftServerRecords(records=[record]))
     producer.flush()
     producer.flush(10)
+
+    class Msg:
+        def value(self):
+            return "test"
+
+        def topic(self):
+            return "test-topic"
+
+        def partition(self):
+            return 0
+
+        def offset(self):
+            return 0
+
+    with pytest.raises(ValueError):
+        producer._delivery_report(err=202, msg=Msg(), raise_on_err=True)
+
+    producer._delivery_report(err=None, msg=Msg(), raise_on_err=False)

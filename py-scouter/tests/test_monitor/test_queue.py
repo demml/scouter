@@ -56,6 +56,8 @@ def test_monitor_polar_multitype(
         drift_config,
     )
 
+    print(profile)
+
     kafka_config = KafkaConfig(
         topic="test-topic",
         brokers="localhost:9092",

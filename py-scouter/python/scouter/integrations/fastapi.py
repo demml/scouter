@@ -21,6 +21,9 @@ except ImportError as exc:
 
 
 class ScouterMixin:
+    def __init__(self, drift_profile: DriftProfile, config: Union[KafkaConfig, HTTPConfig]) -> None:
+        self._queue = MonitorQueue(drift_profile, config)
+
     def add_api_route(self, path: str, endpoint: Callable[..., Awaitable[Any]], **kwargs: Any) -> None:
         if "request" not in endpoint.__code__.co_varnames:
             raise ValueError("Request object must be passed to the endpoint function")
@@ -36,7 +39,7 @@ class ScouterMixin:
 
             response = JSONResponse(content=response_data.model_dump())
             background_tasks = BackgroundTasks()
-            background_tasks.add_task(request.app.state.scouter_queue.insert, request.state.scouter_data)
+            background_tasks.add_task(self._queue.insert, request.state.scouter_data)
             response.background = background_tasks
 
             return response
@@ -52,6 +55,8 @@ class ScouterRouter(ScouterMixin, APIRouter):
         *args: Any,
         **kwargs: Any,
     ) -> None:
+        ScouterMixin.__init__(self, drift_profile, config)
+
         @asynccontextmanager
         async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             """Lifespan event for scouter monitoring queue.
@@ -63,13 +68,9 @@ class ScouterRouter(ScouterMixin, APIRouter):
             Yields:
                 None
             """
-            logger.info("Starting scouter queue.")
-            app.state.scouter_queue = MonitorQueue(drift_profile, config)
             yield
             logger.info("Flushing scouter queue.")
-            app.state.scouter_queue.flush()
-            app.state.scouter_queue = None
+            self._queue.flush()
 
         kwargs["lifespan"] = lifespan
         APIRouter.__init__(self, *args, **kwargs)
-        ScouterMixin.__init__(self)

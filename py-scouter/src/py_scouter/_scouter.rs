@@ -309,20 +309,19 @@ impl ScouterDrifter {
     pub fn compute_drift_f32(
         &mut self,
         features: Vec<String>,
-        drift_array: PyReadonlyArray2<f32>,
+        array: PyReadonlyArray2<f32>,
         drift_profile: DriftProfile,
     ) -> PyResult<DriftMap> {
-        let array = drift_array.as_array();
-
-        let drift_map = match self
-            .monitor
-            .compute_drift(&features, &array, &drift_profile)
-        {
-            Ok(drift_map) => drift_map,
-            Err(_e) => {
-                return Err(PyValueError::new_err("Failed to compute drift"));
-            }
-        };
+        let drift_map =
+            match self
+                .monitor
+                .compute_drift(&features, &array.as_array(), &drift_profile)
+            {
+                Ok(drift_map) => drift_map,
+                Err(_e) => {
+                    return Err(PyValueError::new_err("Failed to compute drift"));
+                }
+            };
 
         Ok(drift_map)
     }
@@ -330,20 +329,19 @@ impl ScouterDrifter {
     pub fn compute_drift_f64(
         &mut self,
         features: Vec<String>,
-        drift_array: PyReadonlyArray2<f64>,
+        array: PyReadonlyArray2<f64>,
         drift_profile: DriftProfile,
     ) -> PyResult<DriftMap> {
-        let array = drift_array.as_array();
-
-        let drift_map = match self
-            .monitor
-            .compute_drift(&features, &array, &drift_profile)
-        {
-            Ok(drift_map) => drift_map,
-            Err(_e) => {
-                return Err(PyValueError::new_err("Failed to compute drift"));
-            }
-        };
+        let drift_map =
+            match self
+                .monitor
+                .compute_drift(&features, &array.as_array(), &drift_profile)
+            {
+                Ok(drift_map) => drift_map,
+                Err(_e) => {
+                    return Err(PyValueError::new_err("Failed to compute drift"));
+                }
+            };
 
         Ok(drift_map)
     }
