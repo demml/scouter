@@ -25,6 +25,7 @@ from ._scouter import (
     FeatureAlerts,
     FeatureDriftProfile,
     FeatureProfile,
+    MonitorStrategy,
     PercentageAlertRule,
     ProcessAlertRule,
 )
@@ -66,4 +67,5 @@ __all__ = [
     "DriftRecordProducer",
     "AlertConfig",
     "AlertDispatchType",
+    "MonitorStrategy"
 ]

@@ -5,7 +5,7 @@ use numpy::ToPyArray;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use scouter::core::alert::generate_alerts;
-use scouter::core::monitor::Monitor;
+use scouter::core::monitor::MonitorContext;
 use scouter::core::num_profiler::NumProfiler;
 use scouter::core::string_profiler::StringProfiler;
 use scouter::utils::types::{
@@ -156,16 +156,19 @@ impl ScouterProfiler {
 
 #[pyclass]
 pub struct ScouterDrifter {
-    monitor: Monitor,
+    monitor: MonitorContext,
+    drift_config: DriftConfig
 }
 
 #[pymethods]
 #[allow(clippy::new_without_default)]
 impl ScouterDrifter {
     #[new]
-    pub fn new() -> Self {
+    pub fn new(drift_config: DriftConfig) -> Self {
+        let monitor_strategy = drift_config.monitor_strategy;
         Self {
-            monitor: Monitor::new(),
+            monitor: MonitorContext::new(monitor_strategy),
+            drift_config,
         }
     }
 
@@ -225,7 +228,6 @@ impl ScouterDrifter {
 
     pub fn create_string_drift_profile(
         &mut self,
-        mut drift_config: DriftConfig,
         array: Vec<Vec<String>>,
         features: Vec<String>,
     ) -> PyResult<DriftProfile> {
@@ -237,7 +239,7 @@ impl ScouterDrifter {
             }
         };
 
-        drift_config.update_feature_map(feature_map.clone());
+        self.drift_config.update_feature_map(feature_map.clone());
 
         let array =
             match self
@@ -246,14 +248,14 @@ impl ScouterDrifter {
             {
                 Ok(array) => array,
                 Err(_e) => {
-                    return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
+                    return Err(PyValueError::new_err("Failed to convert strings ndarray to ndarray of type f32"));
                 }
             };
 
         let profile =
             match self
                 .monitor
-                .create_2d_drift_profile(&features, &array.view(), &drift_config)
+                .create_2d_drift_profile(&features, &array.view(), &self.drift_config)
             {
                 Ok(profile) => profile,
                 Err(_e) => {
@@ -266,7 +268,6 @@ impl ScouterDrifter {
 
     pub fn create_numeric_drift_profile_f32(
         &mut self,
-        drift_config: DriftConfig,
         array: PyReadonlyArray2<f32>,
         features: Vec<String>,
     ) -> PyResult<DriftProfile> {
@@ -274,7 +275,7 @@ impl ScouterDrifter {
 
         let profile = match self
             .monitor
-            .create_2d_drift_profile(&features, &array, &drift_config)
+            .create_2d_drift_profile(&features, &array, &self.drift_config)
         {
             Ok(profile) => profile,
             Err(_e) => {
@@ -287,7 +288,6 @@ impl ScouterDrifter {
 
     pub fn create_numeric_drift_profile_f64(
         &mut self,
-        drift_config: DriftConfig,
         array: PyReadonlyArray2<f64>,
         features: Vec<String>,
     ) -> PyResult<DriftProfile> {
@@ -295,7 +295,7 @@ impl ScouterDrifter {
 
         let profile = match self
             .monitor
-            .create_2d_drift_profile(&features, &array, &drift_config)
+            .create_2d_drift_profile(&features, &array, &self.drift_config)
         {
             Ok(profile) => profile,
             Err(_e) => {

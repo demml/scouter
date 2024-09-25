@@ -5,6 +5,7 @@ from scouter import (
     ProcessAlertRule,
     DriftMap,
     AlertDispatchType,
+    MonitorStrategy,
 )
 from .utils import generate_data
 
@@ -18,17 +19,14 @@ if __name__ == "__main__":
         name="model",
         repository="scouter",
         version="0.1.0",
-        alert_rule=AlertRule(  # alert_rule is optional and will default to a standard process alert rule
-            process_rule=ProcessAlertRule(),
-        ),
-        alert_dispatch_type=AlertDispatchType.Console,
+        monitor_strategy=MonitorStrategy.ProcessControl
     )
 
     # create drifter
-    drifter = Drifter()
+    drifter = Drifter(config)
 
     # create drift profile
-    profile = drifter.create_drift_profile(data, config)
+    profile = drifter.create_drift_profile(data)
 
     # print drift profile
     print(profile)

@@ -4,12 +4,7 @@ use pyo3::prelude::*;
 use scouter::utils::cron::{
     CommonCron, Every12Hours, Every30Minutes, Every6Hours, EveryDay, EveryHour, EveryWeek,
 };
-use scouter::utils::types::{
-    Alert, AlertConfig, AlertDispatchType, AlertRule, AlertType, AlertZone, DataProfile, Distinct,
-    DriftConfig, DriftMap, DriftProfile, DriftServerRecord, FeatureAlert, FeatureAlerts,
-    FeatureDrift, FeatureDriftProfile, FeatureMap, FeatureProfile, Histogram, PercentageAlertRule,
-    ProcessAlertRule,
-};
+use scouter::utils::types::{Alert, AlertConfig, AlertDispatchType, AlertRule, AlertType, AlertZone, DataProfile, Distinct, DriftConfig, DriftMap, DriftProfile, DriftServerRecord, FeatureAlert, FeatureAlerts, FeatureDrift, FeatureDriftProfile, FeatureMap, FeatureProfile, Histogram, MonitorStrategy, PercentageAlertRule, ProcessAlertRule};
 
 #[pymodule]
 fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -44,5 +39,6 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<AlertDispatchType>()?;
     m.add_class::<AlertRule>()?;
     m.add_class::<FeatureMap>()?;
+    m.add_class::<MonitorStrategy>()?;
     Ok(())
 }

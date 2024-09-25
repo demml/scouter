@@ -367,7 +367,8 @@ impl ProfileFuncs {
     }
 }
 
-/// Python class for a monitoring profile
+
+/// Python class for a process control monitoring profile
 ///
 /// # Arguments
 ///
@@ -379,7 +380,7 @@ impl ProfileFuncs {
 ///
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct FeatureDriftProfile {
+pub struct ProcessControlFeatureDriftProfile {
     #[pyo3(get)]
     pub id: String,
 
@@ -408,6 +409,31 @@ pub struct FeatureDriftProfile {
     pub timestamp: chrono::NaiveDateTime,
 }
 
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Bin {
+    #[pyo3(get)]
+    pub lower_limit: f64,
+
+    #[pyo3(get)]
+    pub upper_limit: f64,
+
+    #[pyo3(get)]
+    pub proportion: f64,
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PSIFeatureDriftProfile {
+    #[pyo3(get)]
+    pub id: String,
+
+    #[pyo3(get)]
+    pub bins: HashMap<String, Bin>,
+
+    #[pyo3(get)]
+    pub timestamp: chrono::NaiveDateTime,
+}
 /// Python class for a monitoring configuration
 ///
 /// # Arguments
@@ -446,6 +472,9 @@ pub struct DriftConfig {
 
     #[pyo3(get, set)]
     pub targets: Vec<String>,
+
+    #[pyo3(get, set)]
+    pub monitor_strategy: MonitorStrategy,
 }
 
 #[pymethods]
@@ -462,6 +491,7 @@ impl DriftConfig {
         targets: Option<Vec<String>>,
         alert_config: Option<AlertConfig>,
         config_path: Option<PathBuf>,
+        monitor_strategy: Option<MonitorStrategy>
     ) -> Result<Self, anyhow::Error> {
         if let Some(config_path) = config_path {
             let config = DriftConfig::load_from_json_file(config_path);
@@ -480,6 +510,7 @@ impl DriftConfig {
         let version = version.unwrap_or("0.1.0".to_string());
         let targets = targets.unwrap_or_default();
         let alert_config = alert_config.unwrap_or(AlertConfig::new(None, None, None, None, None));
+        let monitor_strategy = monitor_strategy.unwrap_or(MonitorStrategy::ProcessControl);
 
         Ok(Self {
             sample_size,
@@ -490,6 +521,7 @@ impl DriftConfig {
             alert_config,
             feature_map,
             targets,
+            monitor_strategy
         })
     }
 
@@ -588,11 +620,45 @@ impl DriftConfig {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub enum FeatureDriftProfile {
+    ProcessControl(BTreeMap<String, ProcessControlFeatureDriftProfile>),
+    // PSI(BTreeMap<String, PSIFeatureDriftProfile>),
+}
+
+impl FeatureDriftProfile {
+    pub fn to_dict(&self) -> PyResult<PyObject> {
+        Python::with_gil(|py| {
+            let dict = PyDict::new_bound(py);
+            match self {
+                FeatureDriftProfile::ProcessControl(profile) => {
+                    for (key, value) in profile.iter() {
+                        // Convert ProcessControlFeatureDriftProfile to a Python class
+                        let py_profile = Py::new(py, value.clone())?;
+
+                        // Add the Python class instance to the dict with the corresponding key
+                        dict.set_item(key, py_profile)?;
+                    }
+                    // Add a type indicator if needed
+                    dict.set_item("_type", "ProcessControl")?;
+                }
+            }
+            Ok(dict.into())
+        })
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FeatureDriftProfileWrapper {
+    pub features: FeatureDriftProfile,
+}
+
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct DriftProfile {
     #[pyo3(get, set)]
-    pub features: BTreeMap<String, FeatureDriftProfile>,
+    pub features_wrapper: FeatureDriftProfileWrapper,
 
     #[pyo3(get, set)]
     pub config: DriftConfig,
@@ -605,7 +671,7 @@ pub struct DriftProfile {
 impl DriftProfile {
     #[new]
     pub fn new(
-        features: BTreeMap<String, FeatureDriftProfile>,
+        features: FeatureDriftProfileWrapper,
         config: DriftConfig,
         scouter_version: Option<String>,
     ) -> Self {
@@ -1281,6 +1347,14 @@ fn pyobject_to_json(_py: Python, obj: &PyAny) -> PyResult<Value> {
     }
 }
 
+
+#[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
+pub enum MonitorStrategy {
+    ProcessControl,
+    PSI,
+}
+
 #[cfg(test)]
 mod tests {
 
@@ -1350,7 +1424,7 @@ mod tests {
     #[test]
     fn test_drift_config() {
         let mut drift_config =
-            DriftConfig::new(None, None, None, None, None, None, None, None, None).unwrap();
+            DriftConfig::new(None, None, None, None, None, None, None, None, None, None).unwrap();
         assert_eq!(drift_config.sample_size, 25);
         assert!(drift_config.sample);
         assert_eq!(drift_config.name, "__missing__");

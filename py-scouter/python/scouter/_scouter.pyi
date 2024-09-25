@@ -331,7 +331,7 @@ class FeatureMap:
     def features(self) -> Dict[str, Dict[str, int]]:
         """Return the feature map."""
 
-class FeatureDriftProfile:
+class ProcessControlFeatureDriftProfile:
     @property
     def id(self) -> str:
         """Return the id."""
@@ -368,6 +368,15 @@ class FeatureDriftProfile:
     def timestamp(self) -> str:
         """Return the timestamp."""
 
+
+class PSIFeatureDriftProfile:
+    pass
+
+class MonitorStrategy(str, Enum):
+    ProcessControl = "ProcessControl"
+    PSI = "PSI"
+
+
 class DriftConfig:
     def __init__(
         self,
@@ -380,6 +389,7 @@ class DriftConfig:
         targets: Optional[List[str]] = None,
         alert_config: Optional[AlertConfig] = None,
         config_path: Optional[Path] = None,
+        monitor_strategy: Optional[MonitorStrategy] = None
     ):
         """Initialize monitor config
 
@@ -404,6 +414,8 @@ class DriftConfig:
                 Alert configuration
             config_path:
                 Optional path to load config from.
+            monitor_strategy:
+                enum to specify monitor strategy, PSI or Process Control
         """
 
     @property
@@ -522,10 +534,26 @@ class DriftConfig:
                 Alert configuration
         """
 
+
+class FeatureDriftProfile:
+    class ProcessControl:
+        data: Dict[str, ProcessControlFeatureDriftProfile]
+        _type: str  # To indicate the type of profile
+
+    class PSI:
+        data: Dict[str, PSIFeatureDriftProfile]
+        _type: str  # To indicate the type of profile
+
+    value: Union[ProcessControl, PSI]
+
+class FeatureDriftProfileWrapper:
+    features_wrapper: FeatureDriftProfile
+
+
 class DriftProfile:
     def __init__(
         self,
-        features: Dict[str, FeatureDriftProfile],
+        features: FeatureDriftProfileWrapper,
         config: DriftConfig,
         scouter_version: Optional[str] = None,
     ):

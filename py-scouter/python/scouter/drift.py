@@ -27,18 +27,18 @@ CommonCrons = CommonCron()  # type: ignore
 
 
 class Drifter:
-    def __init__(self) -> None:
-        """
-        Scouter class for creating monitoring profiles and detecting drift. This class will
+    def __init__(self, drift_config: Optional[DriftConfig] = None,) -> None:
+        """Scouter class for creating monitoring profiles and detecting drift. This class will
         create a monitoring profile from a dataset and detect drift from new data. This
         class is primarily used to setup and actively monitor data drift"""
 
-        self._drifter = ScouterDrifter()
+        if drift_config is None:
+            drift_config = DriftConfig()
+        self._drifter = ScouterDrifter(drift_config)
 
     def create_drift_profile(
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
-        drift_config: Optional[DriftConfig] = None,
     ) -> DriftProfile:
         """Create a drift profile from data to use for monitoring.
 
@@ -48,16 +48,11 @@ class Drifter:
                 a polars dataframe or pandas dataframe. Data is expected to not contain
                 any missing values, NaNs or infinities. These values must be removed or imputed.
                 If NaNs or infinities are present, the monitoring profile will not be created.
-            drift_config:
-                Optional configuration for the monitoring profile. If not provided, a default
-                configuration will be used.
 
         Returns:
             Monitoring profile
         """
         try:
-            if drift_config is None:
-                drift_config = DriftConfig()
 
             logger.info("Creating drift profile.")
             array = _convert_data_to_array(data)
@@ -69,23 +64,21 @@ class Drifter:
             if array.string_array is not None and array.string_features is not None:
                 string_profile = self._drifter.create_string_drift_profile(
                     features=array.string_features,
-                    array=array.string_array,
-                    drift_config=drift_config,
+                    array=array.string_array
                 )
                 assert string_profile.config.feature_map is not None
-                drift_config.update_feature_map(string_profile.config.feature_map)
+                self._drifter.drift_config.update_feature_map(string_profile.config.feature_map)
 
             if array.numeric_array is not None and array.numeric_features is not None:
                 numeric_profile = getattr(self._drifter, f"create_numeric_drift_profile_f{bits}")(
                     features=array.numeric_features,
-                    array=array.numeric_array,
-                    drift_config=drift_config,
+                    array=array.numeric_array
                 )
 
             if string_profile is not None and numeric_profile is not None:
                 drift_profile = DriftProfile(
                     features={**numeric_profile.features, **string_profile.features},
-                    config=drift_config,
+                    config=self._drifter.drift_config,
                 )
 
                 return drift_profile
