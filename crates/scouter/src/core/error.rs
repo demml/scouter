@@ -68,7 +68,7 @@ impl From<FeatureQueueError> for PyErr {
 }
 
 #[derive(Error, Debug, Deserialize)]
-pub enum ScouterTypeError {
+pub enum ScouterError {
     #[error("Failed to serialize string")]
     SerializeError,
 
@@ -92,12 +92,18 @@ pub enum ScouterTypeError {
 
     #[error("Type error for {0}")]
     TypeError(String),
+
+    #[error("Missing feature map")]
+    MissingFeatureMapError,
+
+    #[error("Failed to create string profile: {0}")]
+    StringProfileError(String),
 }
 
 // impl From for PyErr
 
-impl From<ScouterTypeError> for PyErr {
-    fn from(err: ScouterTypeError) -> PyErr {
+impl From<ScouterError> for PyErr {
+    fn from(err: ScouterError) -> PyErr {
         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
     }
 }

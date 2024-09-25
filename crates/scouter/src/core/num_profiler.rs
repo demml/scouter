@@ -1,6 +1,5 @@
 use crate::core::error::ProfilerError;
 use crate::utils::types::{Distinct, FeatureProfile, Histogram, NumericStats, Quantiles};
-use anyhow::{Context, Result};
 use ndarray::prelude::*;
 use ndarray::Axis;
 use ndarray_stats::MaybeNan;
@@ -79,7 +78,7 @@ impl NumProfiler {
     /// # Returns
     ///
     /// A 1D array of f64 values.
-    pub fn compute_stddev<F>(&self, array: &ArrayView2<F>) -> Result<Array1<F>>
+    pub fn compute_stddev<F>(&self, array: &ArrayView2<F>) -> Result<Array1<F>, ProfilerError>
     where
         F: FromPrimitive + Num + Float,
     {
@@ -97,7 +96,7 @@ impl NumProfiler {
     /// # Returns
     ///
     /// A 1D array of values.
-    pub fn compute_min<F>(&self, array: &ArrayView2<F>) -> Result<Array1<F>, anyhow::Error>
+    pub fn compute_min<F>(&self, array: &ArrayView2<F>) -> Result<Array1<F>, ProfilerError>
     where
         F: MaybeNan + Num + Clone,
         <F as MaybeNan>::NotNan: Ord,
@@ -116,7 +115,7 @@ impl NumProfiler {
     /// # Returns
     ///
     /// A 1D array of values.
-    pub fn compute_max<F>(&self, array: &ArrayView2<F>) -> Result<Array1<F>, anyhow::Error>
+    pub fn compute_max<F>(&self, array: &ArrayView2<F>) -> Result<Array1<F>, ProfilerError>
     where
         F: MaybeNan + Num + Clone,
         <F as MaybeNan>::NotNan: Ord,
@@ -135,7 +134,7 @@ impl NumProfiler {
     /// # Returns
     ///
     /// A 1D array of values.
-    pub fn compute_distinct<F>(&self, array: &ArrayView2<F>) -> Result<Vec<Distinct>>
+    pub fn compute_distinct<F>(&self, array: &ArrayView2<F>) -> Result<Vec<Distinct>, ProfilerError>
     where
         F: std::fmt::Display + Num,
     {
@@ -165,7 +164,7 @@ impl NumProfiler {
         &self,
         array: &ArrayView1<F>,
         bin_size: &usize,
-    ) -> Result<Vec<f64>, anyhow::Error>
+    ) -> Result<Vec<f64>, ProfilerError>
     where
         F: Float + Num + core::ops::Sub,
         f64: From<F>,
@@ -174,12 +173,12 @@ impl NumProfiler {
 
         let max: f64 = array
             .max()
-            .with_context(|| "Failed to compute max")?
+            .map_err(|_| ProfilerError::ComputeError("Failed to calculate maximum".to_string()))?
             .to_owned()
             .into();
         let min: f64 = array
             .min()
-            .with_context(|| "Failed to compute min")?
+            .map_err(|_| ProfilerError::ComputeError("Failed to calculate minimum".to_string()))?
             .to_owned()
             .into();
 
@@ -202,14 +201,16 @@ impl NumProfiler {
         &self,
         array: &ArrayView1<F>,
         bins: &[f64],
-    ) -> Result<Vec<i32>, anyhow::Error>
+    ) -> Result<Vec<i32>, ProfilerError>
     where
         F: Num + ndarray_stats::MaybeNan + std::marker::Send + Sync + Clone + Copy,
         f64: From<F>,
     {
         // create a vector of size bins
         let mut bin_counts = vec![0; bins.len()];
-        let max_bin = bins.last().unwrap();
+        let max_bin = bins.last().ok_or(ProfilerError::ComputeError(
+            "Failed to get max bin".to_string(),
+        ))?;
 
         array.map(|datum| {
             // iterate over the bins
@@ -243,7 +244,7 @@ impl NumProfiler {
         array: &ArrayView2<F>,
         features: &[String],
         bin_size: &usize,
-    ) -> Result<HashMap<String, Histogram>, anyhow::Error>
+    ) -> Result<HashMap<String, Histogram>, ProfilerError>
     where
         F: Num
             + ndarray_stats::MaybeNan
@@ -261,11 +262,15 @@ impl NumProfiler {
             .map(|(idx, x)| {
                 let bins = self
                     .compute_bins(&x, bin_size)
-                    .with_context(|| "Failed to compute bins")
+                    .map_err(|_| {
+                        ProfilerError::ComputeError("Failed to calculate bins".to_string())
+                    })
                     .unwrap();
                 let bin_counts = self
                     .compute_bin_counts(&x, &bins)
-                    .with_context(|| "Failed to compute bin counts")
+                    .map_err(|_| {
+                        ProfilerError::ComputeError("Failed to calculate bin counts".to_string())
+                    })
                     .unwrap();
                 (features[idx].clone(), Histogram { bins, bin_counts })
                 // return

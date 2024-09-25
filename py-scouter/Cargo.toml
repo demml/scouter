@@ -13,7 +13,6 @@ crate-type = ["cdylib", "rlib"]
 scouter = { workspace = true }
 pyo3 = { version = "0.21", features = ["extension-module"] }
 numpy = "0.21.0"
-anyhow = "1.0.86"
 
 [profile.release]
 lto = "fat"
