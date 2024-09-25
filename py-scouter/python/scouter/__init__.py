@@ -4,6 +4,7 @@
 from scouter.integrations.http import HTTPConfig, HTTPProducer
 from scouter.integrations.kafka import KafkaConfig, KafkaProducer
 from scouter.integrations.producer import DriftRecordProducer
+from scouter.integrations.rabbitmq import RabbitMQConfig, RabbitMQProducer
 from scouter.utils.types import AlertType, AlertZone
 
 from ._scouter import (
@@ -70,4 +71,6 @@ __all__ = [
     "AlertDispatchType",
     "FeatureQueue",
     "DriftServerRecords",
+    "RabbitMQConfig",
+    "RabbitMQProducer",
 ]

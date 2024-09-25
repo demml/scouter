@@ -218,6 +218,35 @@ def mock_kafka_producer():
 
 
 @pytest.fixture
+def mock_rabbit_connection():
+    class BlockingConnection:
+        def __init__(self, *args, **kwargs):
+            pass
+
+        def channel(self):
+            return self
+
+        def exchange_declare(self, *args, **kwargs):
+            pass
+
+        def queue_declare(self, *args, **kwargs):
+            pass
+
+        def queue_bind(self, *args, **kwargs):
+            pass
+
+        def basic_publish(self, *args, **kwargs):
+            pass
+
+        def close(self):
+            pass
+
+    with patch("pika.BlockingConnection") as mocked_connection:
+        mocked_connection.return_value = BlockingConnection()
+        yield mocked_connection
+
+
+@pytest.fixture
 def mock_httpx_producer():
     with patch("httpx.Client") as mocked_client:
         mocked_client.return_value.post.return_value = Response(

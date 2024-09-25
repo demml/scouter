@@ -5,6 +5,9 @@ from pydantic import BaseModel
 from scouter import DriftProfile, MonitorQueue
 from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
+from scouter.utils.logger import ScouterLogger
+
+logger = ScouterLogger.get_logger()
 
 try:
     from fastapi import APIRouter, BackgroundTasks, Request

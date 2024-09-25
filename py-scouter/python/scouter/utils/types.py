@@ -21,6 +21,7 @@ class AlertType(str, Enum):
 
 class ProducerTypes(str, Enum):
     Kafka = "Kafka"
+    RabbitMQ = "RabbitMQ"
     Http = "http"
 
 

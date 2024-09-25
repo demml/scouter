@@ -96,3 +96,7 @@ class MonitorQueue:
         except Exception as exc:
             logger.error("Failed to compute drift: {}", exc)
             raise ValueError(f"Failed to compute drift: {exc}") from exc
+
+    def flush(self) -> None:
+        """Flush the producer."""
+        self._producer.flush()
