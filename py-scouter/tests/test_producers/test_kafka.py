@@ -1,4 +1,4 @@
-from scouter import KafkaConfig, KafkaProducer, DriftServerRecord
+from scouter import KafkaConfig, KafkaProducer, DriftServerRecord, DriftServerRecords
 
 
 def test_kafka_config():
@@ -69,6 +69,6 @@ def test_kafka_producer(mock_kafka_producer):
         value=0.1,
     )
 
-    producer.publish(record)
+    producer.publish(DriftServerRecords(records=[record]))
     producer.flush()
     producer.flush(10)

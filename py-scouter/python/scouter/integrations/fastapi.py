@@ -1,5 +1,6 @@
 import functools
-from typing import Any, Awaitable, Callable, Union
+from contextlib import asynccontextmanager
+from typing import Any, AsyncGenerator, Awaitable, Callable, Union
 
 from pydantic import BaseModel
 from scouter import DriftProfile, MonitorQueue
@@ -10,7 +11,7 @@ from scouter.utils.logger import ScouterLogger
 logger = ScouterLogger.get_logger()
 
 try:
-    from fastapi import APIRouter, BackgroundTasks, Request
+    from fastapi import APIRouter, BackgroundTasks, FastAPI, Request
     from fastapi.responses import JSONResponse
 except ImportError as exc:
     raise ImportError(
@@ -20,25 +21,6 @@ except ImportError as exc:
 
 
 class ScouterMixin:
-    def __init__(self, drift_profile: DriftProfile, config: Union[KafkaConfig, HTTPConfig]) -> None:
-        """Initializes the ScouterMixin to monitor model drift
-
-        Args:
-            drift_profile:
-                Monitoring profile containing feature drift profiles.
-            config:
-                Configuration for the monitoring producer. The configured producer
-                will be used to publish drift records to the monitoring server.
-
-        Additional Args:
-            *args:
-                Additional arguments to pass to the parent class.
-            **kwargs:
-                Additional keyword arguments to pass to the parent class.
-
-        """
-        self._queue = MonitorQueue(drift_profile, config)
-
     def add_api_route(self, path: str, endpoint: Callable[..., Awaitable[Any]], **kwargs: Any) -> None:
         if "request" not in endpoint.__code__.co_varnames:
             raise ValueError("Request object must be passed to the endpoint function")
@@ -54,7 +36,7 @@ class ScouterMixin:
 
             response = JSONResponse(content=response_data.model_dump())
             background_tasks = BackgroundTasks()
-            background_tasks.add_task(self._queue.insert, request.state.scouter_data)
+            background_tasks.add_task(request.app.state.scouter_queue.insert, request.state.scouter_data)
             response.background = background_tasks
 
             return response
@@ -70,5 +52,24 @@ class ScouterRouter(ScouterMixin, APIRouter):
         *args: Any,
         **kwargs: Any,
     ) -> None:
+        @asynccontextmanager
+        async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+            """Lifespan event for scouter monitoring queue.
+
+            Args:
+                app:
+                    FastAPI application instance.
+
+            Yields:
+                None
+            """
+            logger.info("Starting scouter queue.")
+            app.state.scouter_queue = MonitorQueue(drift_profile, config)
+            yield
+            logger.info("Flushing scouter queue.")
+            app.state.scouter_queue.flush()
+            app.state.scouter_queue = None
+
+        kwargs["lifespan"] = lifespan
         APIRouter.__init__(self, *args, **kwargs)
-        ScouterMixin.__init__(self, drift_profile, config)
+        ScouterMixin.__init__(self)

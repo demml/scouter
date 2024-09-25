@@ -10,24 +10,33 @@ from .._scouter import DriftServerRecords
 
 logger = ScouterLogger.get_logger()
 
-ConnectionParameters = Any
+RabbitConnectionParams = Any
+RabbitPublishProperties = Any
 
 
 class RabbitMQConfig(BaseModel):
-    connection_params: ConnectionParameters
+    connection_params: RabbitConnectionParams
+    publish_properties: RabbitPublishProperties = None
     queue: str = "scouter_monitoring"
     raise_on_err: bool = True
 
-    @field_validator("connection_params", mode="before")
+    @field_validator("connection_params")
     @classmethod
-    def _validate_connection_params(cls, v, values) -> ConnectionParameters:
-        return 10
-        from pika import ConnectionParameters  # type: ignore
+    def validate_connection_params(cls, v: Any) -> RabbitConnectionParams:
+        from pika import ConnectionParameters as RabbitParams  # type: ignore
+
+        assert isinstance(v, RabbitParams), "Connection parameters must be of type pika.ConnectionParameters"
+        return v
+
+    @field_validator("publish_properties")
+    @classmethod
+    def validate_publish_properties(cls, v: Any) -> RabbitPublishProperties:
+        from pika import BasicProperties  # type: ignore
 
         if v is None:
-            return ConnectionParameters(host="localhost")
+            return v
 
-        assert isinstance(v, ConnectionParameters)  # type: ignore
+        assert isinstance(v, BasicProperties), "Publish properties must be of type pika.BasicProperties"
         return v
 
     @property
@@ -59,13 +68,11 @@ class RabbitMQProducer(BaseProducer):
             )
 
             connection = BlockingConnection(self._rabbit_config.connection_params)
-            self._channel: BlockingChannel = connection.channel()
-            self._channel.queue_declare(queue=self._rabbit_config.queue)
+            self._producer: BlockingChannel = connection.channel()
+            self._producer.queue_declare(queue=self._rabbit_config.queue)
 
         except ModuleNotFoundError as e:
-            logger.error(
-                "Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'"
-            )
+            logger.error("Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'")
             raise e
 
     def _publish(self, records: DriftServerRecords) -> None:
@@ -75,13 +82,15 @@ class RabbitMQProducer(BaseProducer):
             records:
                 Drift records to publish to the kafka broker.
         """
+
         try:
-            self._channel.basic_publish(
+            self._producer.basic_publish(
                 exchange="",
                 routing_key=self._rabbit_config.queue,
+                properties=self._rabbit_config.publish_properties,
                 body=records.model_dump_json(),
             )
-        except Exception as e:
+        except Exception as e:  # pylint: disable=broad-except
             logger.error(f"Failed to publish message: {e}")
             if self._rabbit_config.raise_on_err:
                 raise e
@@ -113,7 +122,11 @@ class RabbitMQProducer(BaseProducer):
         """Flushes the producer to ensure all messages are sent."""
 
         if timeout is None:
-            self._channel.close()
+            self._producer.close()
             return
 
-        self._channel.close()
+        self._producer.close()
+
+    @staticmethod
+    def type() -> str:
+        return ProducerTypes.RabbitMQ.value

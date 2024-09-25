@@ -28,7 +28,8 @@ class DriftRecordProducer:
         """
         if not isinstance(config, (HTTPConfig, KafkaConfig, RabbitMQConfig)):
             raise ValueError(
-                f"config must be an instance of either HTTPConfig, KafkaConfig or RabbitMQConfig. Received {type(config)}"
+                f"""config must be an instance of either HTTPConfig, KafkaConfig or RabbitMQConfig. 
+                Received {type(config)}"""
             )
 
         if config.type == ProducerTypes.Http:
