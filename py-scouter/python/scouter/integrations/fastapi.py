@@ -1,4 +1,5 @@
 import functools
+import time
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Awaitable, Callable, Union
 
@@ -11,7 +12,7 @@ from scouter.utils.logger import ScouterLogger
 logger = ScouterLogger.get_logger()
 
 try:
-    from fastapi import APIRouter, BackgroundTasks, FastAPI, Request
+    from fastapi import APIRouter, BackgroundTasks, FastAPI, Request, Response
     from fastapi.responses import JSONResponse
 except ImportError as exc:
     raise ImportError(
@@ -74,3 +75,20 @@ class ScouterRouter(ScouterMixin, APIRouter):
 
         kwargs["lifespan"] = lifespan
         APIRouter.__init__(self, *args, **kwargs)
+
+
+class Observer:
+    @staticmethod
+    def add_middleware(app: FastAPI) -> None:
+        @app.middleware("http")
+        async def record_metrics(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+            try:
+                start_time = time.time()
+                response = await call_next(request)
+                response_time = time.time() - start_time
+                # Log latency
+                logger.info(f"Request to {request.url.path} took {response_time:.4f} seconds.")
+                return response
+            except Exception as e:
+                logger.error(f"Internal server error {e}")
+                return Response(f"Internal server error {e}", status_code=500)

@@ -7,7 +7,7 @@ from scouter._scouter import DriftConfig, AlertRule, PercentageAlertRule, AlertC
 from unittest.mock import patch
 from httpx import Response
 from fastapi import FastAPI, Request
-from scouter.integrations.fastapi import ScouterRouter
+from scouter.integrations.fastapi import ScouterRouter, Observer
 from scouter import Drifter, DriftProfile, KafkaConfig, HTTPConfig
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
@@ -304,5 +304,6 @@ def client_insert(
         return TestResponse(message="success")
 
     app.include_router(scouter_router)
+    Observer.add_middleware(app)
 
     return TestClient(app)

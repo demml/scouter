@@ -29,3 +29,4 @@ def test_insert_http(
 
     # called once for all features
     assert mock_request.call_count == 1
+    a
