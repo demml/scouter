@@ -151,23 +151,6 @@ class CommonCron:
     def EVERY_WEEK(self) -> str:
         """Every week cron schedule"""
 
-class PercentageAlertRule:
-    def __init__(self, rule: Optional[float] = None) -> None:
-        """Initialize alert rule
-
-        Args:
-            rule:
-                Rule to use for percentage alerting (float)
-        """
-
-    @property
-    def rule(self) -> float:
-        """Return the alert rule"""
-
-    @rule.setter
-    def rule(self, rule: float) -> None:
-        """Set the alert rule"""
-
 class ProcessAlertRule:
     def __init__(
         self,
@@ -203,7 +186,6 @@ class ProcessAlertRule:
 class AlertRule:
     def __init__(
         self,
-        percentage_rule: Optional[PercentageAlertRule] = None,
         process_rule: Optional[ProcessAlertRule] = None,
     ) -> None:
         """Initialize alert rule
@@ -220,14 +202,6 @@ class AlertRule:
     @process.setter
     def process(self, process: ProcessAlertRule) -> None:
         """ "Set the control alert rule"""
-
-    @property
-    def percentage(self) -> Optional[PercentageAlertRule]:
-        """Return the percentage alert rule"""
-
-    @percentage.setter
-    def percentage(self, percentage: PercentageAlertRule) -> None:
-        """Set the percentage alert rule"""
 
 class AlertDispatchType(str, Enum):
     Email = "Email"

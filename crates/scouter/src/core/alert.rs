@@ -242,25 +242,6 @@ impl Alerter {
         Ok(())
     }
 
-    pub fn check_percentage_rule_for_alert(
-        &mut self,
-        drift_array: &ArrayView1<f64>,
-    ) -> Result<(), AlertError> {
-        for (idx, value) in drift_array.iter().enumerate() {
-            if *value >= 1.0 {
-                self.alerts.insert(Alert {
-                    zone: AlertZone::NotApplicable.to_str(),
-                    kind: AlertType::Percentage.to_str(),
-                });
-
-                self.insert_alert(1, idx, idx)
-                    .map_err(|e| AlertError::CreateError(e.to_string()))?;
-            }
-        }
-
-        Ok(())
-    }
-
     pub fn update_alert(
         &mut self,
         start: usize,
@@ -348,7 +329,7 @@ impl Alerter {
 
 impl Default for Alerter {
     fn default() -> Self {
-        let rule = AlertRule::new(None, None);
+        let rule = AlertRule::new(None);
         Alerter {
             alerts: HashSet::new(),
             alert_positions: BTreeMap::new(),
@@ -373,8 +354,6 @@ pub fn generate_alert(
             })?;
 
         alerter.check_trend(&drift_array.view())?;
-    } else {
-        alerter.check_percentage_rule_for_alert(&drift_array.view())?;
     }
 
     Ok((alerter.alerts, alerter.alert_positions))
@@ -431,7 +410,7 @@ pub fn generate_alerts(
 #[cfg(test)]
 mod tests {
 
-    use crate::utils::types::{AlertRule, PercentageAlertRule, ProcessAlertRule};
+    use crate::utils::types::{AlertRule, ProcessAlertRule};
 
     use super::*;
     use ndarray::arr2;
@@ -516,7 +495,7 @@ mod tests {
     fn test_check_rule_zones_to_monitor() {
         let zones_to_monitor = ["Zone 1".to_string(), "Zone 4".to_string()].to_vec();
         let process = ProcessAlertRule::new(None, Some(zones_to_monitor));
-        let alert_rule = AlertRule::new(None, Some(process));
+        let alert_rule = AlertRule::new(Some(process));
         let mut alerter = Alerter::new(alert_rule);
 
         let values = [
@@ -587,7 +566,7 @@ mod tests {
             "feature4".to_string(),
         ];
 
-        let rule = AlertRule::new(None, None);
+        let rule = AlertRule::new(None);
 
         let alerts = generate_alerts(&drift_array.view(), &features, &rule).unwrap();
 
@@ -606,57 +585,6 @@ mod tests {
 
         assert_eq!(feature4.alerts.len(), 2);
         assert_eq!(feature4.indices.len(), 2);
-
-        // assert feature 2 has 0 alert
-        assert_eq!(feature2.alerts.len(), 0);
-        assert_eq!(feature2.indices.len(), 0);
-    }
-
-    #[test]
-    fn test_generate_percentage_alerts() {
-        // has alerts
-        // create 20, 3 vector
-
-        let drift_array = arr2(&[
-            [0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [1.0, 0.0, 0.0],
-            [0.0, 0.0, 0.0],
-        ]);
-
-        // assert shape is 16,3
-        assert_eq!(drift_array.shape(), &[14, 3]);
-
-        let features = vec![
-            "feature1".to_string(),
-            "feature2".to_string(),
-            "feature3".to_string(),
-        ];
-
-        let rule = AlertRule::new(Some(PercentageAlertRule::new(None)), None);
-        let alerts = generate_alerts(&drift_array.view(), &features, &rule).unwrap();
-
-        let feature1 = alerts.features.get("feature1").unwrap();
-        let feature2 = alerts.features.get("feature2").unwrap();
-        let feature3 = alerts.features.get("feature3").unwrap();
-
-        // assert feature 1 is has an empty hash set
-        assert_eq!(feature1.alerts.len(), 1);
-        assert_eq!(feature1.indices[&1].len(), 4);
-
-        // assert feature 3 has 2 alerts
-        assert_eq!(feature3.alerts.len(), 0);
-        assert_eq!(feature3.indices.len(), 0);
 
         // assert feature 2 has 0 alert
         assert_eq!(feature2.alerts.len(), 0);

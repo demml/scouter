@@ -28,7 +28,6 @@ from ._scouter import (
     FeatureDriftProfile,
     FeatureProfile,
     FeatureQueue,
-    PercentageAlertRule,
     ProcessAlertRule,
 )
 from .drift import CommonCrons, Drifter
@@ -50,7 +49,6 @@ __all__ = [
     "AlertZone",
     "FeatureAlerts",
     "ProcessAlertRule",
-    "PercentageAlertRule",
     "Every30Minutes",
     "EveryHour",
     "Every6Hours",

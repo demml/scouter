@@ -56,7 +56,6 @@ def test_kinds():
 
 
 def test_alert_rules():
-    assert AlertRule().percentage is None
     assert AlertRule().process.rule == "8 16 4 8 2 4 1 1"
 
 

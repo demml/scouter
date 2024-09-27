@@ -70,49 +70,18 @@ impl ProcessAlertRule {
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct PercentageAlertRule {
-    #[pyo3(get, set)]
-    pub rule: f64,
-}
-
-#[pymethods]
-impl PercentageAlertRule {
-    #[new]
-    pub fn new(rule: Option<f64>) -> Self {
-        let rule = rule.unwrap_or(0.1);
-        Self { rule }
-    }
-}
-
-#[pyclass]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct AlertRule {
     #[pyo3(get, set)]
     pub process: Option<ProcessAlertRule>,
-
-    #[pyo3(get, set)]
-    pub percentage: Option<PercentageAlertRule>,
 }
 
 // impl new method
 #[pymethods]
 impl AlertRule {
     #[new]
-    pub fn new(
-        percentage_rule: Option<PercentageAlertRule>,
-        process_rule: Option<ProcessAlertRule>,
-    ) -> Self {
-        // if both are None, return default control rule
-        if percentage_rule.is_none() && process_rule.is_none() {
-            return Self {
-                process: Some(ProcessAlertRule::new(None, None)),
-                percentage: None,
-            };
-        }
-
+    pub fn new(process_rule: Option<ProcessAlertRule>) -> Self {
         Self {
             process: process_rule,
-            percentage: percentage_rule,
         }
     }
 
@@ -120,7 +89,7 @@ impl AlertRule {
         if self.process.is_some() {
             return self.process.as_ref().unwrap().rule.clone();
         } else {
-            return self.percentage.as_ref().unwrap().rule.to_string();
+            return self.process.as_ref().unwrap().rule.clone();
         }
     }
 }
@@ -175,7 +144,7 @@ impl AlertConfig {
         features_to_monitor: Option<Vec<String>>,
         alert_kwargs: Option<HashMap<String, String>>,
     ) -> Self {
-        let alert_rule = alert_rule.unwrap_or(AlertRule::new(None, None));
+        let alert_rule = alert_rule.unwrap_or(AlertRule::new(None));
 
         let schedule = match schedule {
             Some(s) => {
@@ -220,7 +189,7 @@ impl AlertConfig {
 impl Default for AlertConfig {
     fn default() -> AlertConfig {
         Self {
-            alert_rule: AlertRule::new(None, None),
+            alert_rule: AlertRule::new(None),
             alert_dispatch_type: AlertDispatchType::Console,
             schedule: EveryDay::new().cron,
             features_to_monitor: Vec::new(),
@@ -260,7 +229,6 @@ pub enum AlertType {
     Alternating,
     AllGood,
     Trend,
-    Percentage,
 }
 
 #[pymethods]
@@ -272,7 +240,6 @@ impl AlertType {
             AlertType::Alternating => "Alternating".to_string(),
             AlertType::AllGood => "All good".to_string(),
             AlertType::Trend => "Trend".to_string(),
-            AlertType::Percentage => "Percentage".to_string(),
         }
     }
 }
@@ -1319,7 +1286,7 @@ mod tests {
     #[test]
     fn test_types() {
         // write tests for all alerts
-        let control_alert = AlertRule::new(None, Some(ProcessAlertRule::new(None, None)));
+        let control_alert = AlertRule::new(Some(ProcessAlertRule::new(None, None)));
 
         assert_eq!(control_alert.to_str(), "8 16 4 8 2 4 1 1");
         assert_eq!(AlertZone::NotApplicable.to_str(), "NA");
@@ -1331,10 +1298,6 @@ mod tests {
         assert_eq!(AlertType::Consecutive.to_str(), "Consecutive");
         assert_eq!(AlertType::Alternating.to_str(), "Alternating");
         assert_eq!(AlertType::OutOfBounds.to_str(), "Out of bounds");
-        assert_eq!(AlertType::Percentage.to_str(), "Percentage");
-
-        let rule = PercentageAlertRule::new(None);
-        assert_eq!(rule.rule, 0.1);
     }
 
     #[test]

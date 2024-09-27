@@ -312,41 +312,6 @@ impl Monitor {
         Ok(drift)
     }
 
-    pub fn set_percentage_drift_value(
-        &self,
-        array: ArrayView1<f64>,
-        num_features: usize,
-        drift_profile: &DriftProfile,
-        features: &[String],
-        rule: f64,
-    ) -> Result<Vec<f64>, MonitorError> {
-        let mut drift: Vec<f64> = vec![0.0; num_features];
-
-        for (i, feature) in features.iter().enumerate() {
-            // check if feature exists
-            if !drift_profile.features.contains_key(feature) {
-                continue;
-            }
-            let feature_profile = drift_profile
-                .features
-                .get(feature)
-                .ok_or(MonitorError::MissingFeatureError(feature.to_string()))?;
-
-            let value = array[i];
-
-            // check if value is within percentage
-            let percent_error = ((value - feature_profile.center) / feature_profile.center).abs();
-
-            if percent_error > rule {
-                drift[i] = 1.0;
-            } else {
-                drift[i] = 0.0;
-            }
-        }
-
-        Ok(drift)
-    }
-
     // Computes drift on a  2D array of data. Typically of n size >= sample_size
     //
     // # Arguments
@@ -386,28 +351,9 @@ impl Monitor {
             .map(|x| {
                 // match AlertRules enum
 
-                let drift = if drift_profile
-                    .config
-                    .alert_config
-                    .alert_rule
-                    .process
-                    .is_some()
-                {
-                    self.set_control_drift_value(x, num_features, drift_profile, features)
-                        .map_err(|e| MonitorError::CreateError(e.to_string()))?
-                } else {
-                    let rule = drift_profile
-                        .config
-                        .alert_config
-                        .alert_rule
-                        .percentage
-                        .as_ref()
-                        .unwrap()
-                        .rule;
-
-                    self.set_percentage_drift_value(x, num_features, drift_profile, features, rule)
-                        .map_err(|e| MonitorError::CreateError(e.to_string()))?
-                };
+                let drift = self
+                    .set_control_drift_value(x, num_features, drift_profile, features)
+                    .map_err(|e| MonitorError::CreateError(e.to_string()))?;
 
                 Ok(drift)
             })
@@ -510,39 +456,14 @@ impl Monitor {
             .map(|x| {
                 // match AlertRules enum
 
-                let drift = if drift_profile
-                    .config
-                    .alert_config
-                    .alert_rule
-                    .process
-                    .is_some()
-                {
-                    self.set_control_drift_value(x, num_features, drift_profile, features)
-                        .map_err(|e| {
-                            MonitorError::CreateError(format!(
-                                "Failed to set control drift value: {:?}",
-                                e
-                            ))
-                        })?
-                } else {
-                    let rule = drift_profile
-                        .config
-                        .alert_config
-                        .alert_rule
-                        .percentage
-                        .as_ref()
-                        .unwrap()
-                        .rule;
-
-                    self.set_percentage_drift_value(x, num_features, drift_profile, features, rule)
-                        .map_err(|e| {
-                            MonitorError::CreateError(format!(
-                                "Failed to set percentage drift value: {:?}",
-                                e
-                            ))
-                        })?
-                };
-
+                let drift = self
+                    .set_control_drift_value(x, num_features, drift_profile, features)
+                    .map_err(|e| {
+                        MonitorError::CreateError(format!(
+                            "Failed to set control drift value: {:?}",
+                            e
+                        ))
+                    })?;
                 Ok(drift)
             })
             .collect::<Result<Vec<_>, MonitorError>>()?;
@@ -698,7 +619,7 @@ impl Default for Monitor {
 #[cfg(test)]
 mod tests {
 
-    use crate::utils::types::{AlertConfig, AlertRule, PercentageAlertRule};
+    use crate::utils::types::AlertConfig;
 
     use super::*;
     use approx::relative_eq;
@@ -923,72 +844,6 @@ mod tests {
         // assert relative
         let feature_1 = drift_array.column(1);
         assert!(relative_eq!(feature_1[0], 4.0, epsilon = 2.0));
-    }
-
-    #[test]
-    fn test_drift_detect_percentage() {
-        // create 2d array
-        let array = Array::random((1030, 3), Uniform::new(0., 10.));
-
-        let features = vec![
-            "feature_1".to_string(),
-            "feature_2".to_string(),
-            "feature_3".to_string(),
-        ];
-
-        let alert_config = AlertConfig::new(
-            Some(AlertRule {
-                process: None,
-                percentage: Some(PercentageAlertRule { rule: 0.1 }),
-            }),
-            None,
-            None,
-            None,
-            None,
-        );
-        let config = DriftConfig::new(
-            Some("name".to_string()),
-            Some("repo".to_string()),
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(alert_config),
-            None,
-        );
-
-        let monitor = Monitor::new();
-
-        let profile = monitor
-            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
-            .unwrap();
-        assert_eq!(profile.features.len(), 3);
-
-        // change first 100 rows to 100 at index 1
-        let mut array = array.to_owned();
-        array.slice_mut(s![0..200, 1]).fill(100.0);
-
-        let drift_map = monitor
-            .compute_drift(&features, &array.view(), &profile)
-            .unwrap();
-
-        // assert relative
-        let feature_1 = drift_map.features.get("feature_2").unwrap();
-        assert!(relative_eq!(feature_1.samples[0], 100.0, epsilon = 2.0));
-
-        // convert profile to json and load it back
-        let _ = drift_map.model_dump_json();
-        let (drift_array, _sample_array, features) = drift_map.to_array().unwrap();
-
-        // check if indices are the same
-        for (idx, feature) in features.iter().enumerate() {
-            let left = drift_map.features.get(feature).unwrap().drift[0..20].to_vec();
-
-            let right = drift_array.slice(s![0..20, idx]).to_vec();
-
-            assert_eq!(left, right);
-        }
     }
 
     #[test]

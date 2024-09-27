@@ -12,7 +12,6 @@ The `DriftConfig` object has the following structure:
  "sample": true,
  "alert_config": {
      "alert_rule": {
-        "percentage_rule": {"rule": 0.10},
          "process_rule": {"rule": "16 32 4 8 2 4 1 1"}
      },
      "alert_dispatch_type": "Console",

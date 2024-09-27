@@ -9,7 +9,7 @@ use scouter::utils::types::{
     Alert, AlertConfig, AlertDispatchType, AlertRule, AlertType, AlertZone, DataProfile, Distinct,
     DriftConfig, DriftMap, DriftProfile, DriftServerRecord, DriftServerRecords, FeatureAlert,
     FeatureAlerts, FeatureDrift, FeatureDriftProfile, FeatureMap, FeatureProfile, Histogram,
-    PercentageAlertRule, ProcessAlertRule,
+    ProcessAlertRule,
 };
 
 #[pymodule]
@@ -32,7 +32,6 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<FeatureAlerts>()?;
     m.add_class::<FeatureAlert>()?;
     m.add_class::<ProcessAlertRule>()?;
-    m.add_class::<PercentageAlertRule>()?;
     m.add_class::<Every30Minutes>()?;
     m.add_class::<EveryHour>()?;
     m.add_class::<Every6Hours>()?;

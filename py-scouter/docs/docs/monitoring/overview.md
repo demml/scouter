@@ -98,8 +98,7 @@ print(profile)
     "alert_rule": {
       "process": {
         "rule": "8 16 4 8 2 4 1 1"
-      },
-      "percentage": null
+      }
     }
   }
 }

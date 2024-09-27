@@ -132,46 +132,6 @@ def test_alerts_control(array: NDArray, drift_config: DriftConfig):
     assert isinstance(features, list)
 
 
-def test_alerts_percentage(array: NDArray, drift_config_percentage: DriftConfig):
-    scouter = Drifter()
-
-    profile: DriftProfile = scouter.create_drift_profile(array, drift_config_percentage)
-
-    # assert features are relatively centered
-    assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)
-    assert profile.features["feature_1"].center == pytest.approx(2.5, 0.1)
-    assert profile.features["feature_2"].center == pytest.approx(3.5, 0.1)
-
-    features = ["feature_0", "feature_1", "feature_2"]
-
-    drift_array: NDArray = np.asarray(
-        [
-            [0, 0, 0],
-            [0, 0, 0],
-            [0, 0, 0],
-            [0, 0, 0],
-            [0, 0, 0],
-            [0, 0, 0],
-            [0, 0, 0],
-            [0, 0, 0],
-            [0, 0, 0],
-        ],
-        dtype=np.float64,
-    )
-
-    # add drift
-    drift_array[0, 0] = 1.0
-    drift_array[8, 0] = 1.0
-
-    alerts = scouter.generate_alerts(
-        drift_array, features, drift_config_percentage.alert_config.alert_rule
-    )
-
-    # should have no alerts
-    assert len(alerts.features["feature_0"].alerts) == 1
-    assert len(alerts.features["feature_0"].indices[1]) == 2
-
-
 def test_multi_type_drift(
     polars_dataframe_multi_dtype: pl.DataFrame,
     polars_dataframe_multi_dtype_drift: pl.DataFrame,
