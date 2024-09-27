@@ -22,10 +22,14 @@ except ImportError as exc:
 
 
 class ScouterMixin:
-    def __init__(self, drift_profile: DriftProfile, config: Union[KafkaConfig, HTTPConfig]) -> None:
+    def __init__(
+        self, drift_profile: DriftProfile, config: Union[KafkaConfig, HTTPConfig]
+    ) -> None:
         self._queue = MonitorQueue(drift_profile, config)
 
-    def add_api_route(self, path: str, endpoint: Callable[..., Awaitable[Any]], **kwargs: Any) -> None:
+    def add_api_route(
+        self, path: str, endpoint: Callable[..., Awaitable[Any]], **kwargs: Any
+    ) -> None:
         if "request" not in endpoint.__code__.co_varnames:
             raise ValueError("Request object must be passed to the endpoint function")
 
@@ -81,14 +85,18 @@ class Observer:
     @staticmethod
     def add_middleware(app: FastAPI) -> None:
         @app.middleware("http")
-        async def record_metrics(request: Request, call_next: Callable[[Request], Awaitable[Response]]) -> Response:
+        async def record_metrics(
+            request: Request, call_next: Callable[[Request], Awaitable[Response]]
+        ) -> Response:
             try:
                 start_time = time.time()
                 response = await call_next(request)
                 response_time = time.time() - start_time
                 # Log latency
-                logger.info(f"Request to {request.url.path} took {response_time:.4f} seconds.")
+                logger.info(
+                    f"Request to {request.url.path} took {response_time:.4f} seconds."
+                )
                 return response
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 logger.error(f"Internal server error {e}")
                 return Response(f"Internal server error {e}", status_code=500)
