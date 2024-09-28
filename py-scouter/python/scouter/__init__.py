@@ -30,8 +30,8 @@ from ._scouter import (
     SpcFeatureQueue,
 )
 from .drift.drift import CommonCrons, Drifter
-from .monitor import MonitorQueue
-from .profile import Profiler
+from .monitor.monitor import MonitorQueue
+from .profile.profile import Profiler
 from .version import __version__
 
 __all__ = [

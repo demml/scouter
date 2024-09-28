@@ -9,7 +9,7 @@ from scouter.integrations.kafka import KafkaConfig
 from scouter.integrations.producer import DriftRecordProducer
 from scouter.utils.logger import ScouterLogger
 
-from ._scouter import (  # pylint: disable=no-name-in-module
+from .._scouter import (  # pylint: disable=no-name-in-module
     CommonCron,
     SpcDriftProfile,
     SpcDriftServerRecords,
@@ -23,7 +23,12 @@ CommonCrons = CommonCron()  # type: ignore
 
 
 def _get_feature_queue(drift_profile: Union[SpcDriftProfile]) -> Union[SpcFeatureQueue]:
-    """Get the feature queue based on the drift profile."""
+    """Get the feature queue based on the drift profile.
+
+    Args:
+        drift_profile:
+            Monitoring profile containing feature drift profiles.
+    """
 
     if drift_profile.config.drift_type == DriftType.SPC:
         return SpcFeatureQueue(drift_profile=drift_profile)
