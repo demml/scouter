@@ -444,7 +444,7 @@ impl SpcMonitor {
             });
         }
 
-        Ok(SpcDriftServerRecords { records })
+        Ok(SpcDriftServerRecords::new(records))
     }
 
     pub fn calculate_drift_from_sample(

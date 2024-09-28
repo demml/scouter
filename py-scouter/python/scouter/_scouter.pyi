@@ -66,6 +66,10 @@ class SpcDriftServerRecord:
 
 class SpcDriftServerRecords:
     @property
+    def drift_type(self) -> DriftType:
+        """Return the drift type."""
+
+    @property
     def records(self) -> List[SpcDriftServerRecord]:
         """Return the drift server records."""
 

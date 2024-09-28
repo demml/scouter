@@ -11,10 +11,10 @@ from scouter.utils.logger import ScouterLogger
 
 from .._scouter import (  # pylint: disable=no-name-in-module
     CommonCron,
+    DriftType,
     SpcDriftProfile,
     SpcDriftServerRecords,
     SpcFeatureQueue,
-    DriftType,
 )
 
 logger = ScouterLogger.get_logger()
@@ -88,9 +88,7 @@ class MonitorQueue:
             return None
 
         except Exception as exc:
-            logger.error(
-                "Failed to insert data into monitoring queue: {}. Passing", exc
-            )
+            logger.error("Failed to insert data into monitoring queue: {}. Passing", exc)
             return None
 
     def _clear_queue(self) -> None:

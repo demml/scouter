@@ -664,6 +664,9 @@ impl SpcDriftServerRecord {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SpcDriftServerRecords {
     #[pyo3(get)]
+    pub drift_type: DriftType,
+
+    #[pyo3(get)]
     pub records: Vec<SpcDriftServerRecord>,
 }
 
@@ -671,7 +674,10 @@ pub struct SpcDriftServerRecords {
 impl SpcDriftServerRecords {
     #[new]
     pub fn new(records: Vec<SpcDriftServerRecord>) -> Self {
-        Self { records }
+        Self {
+            drift_type: DriftType::SPC,
+            records,
+        }
     }
     pub fn model_dump_json(&self) -> String {
         // serialize records to a string
