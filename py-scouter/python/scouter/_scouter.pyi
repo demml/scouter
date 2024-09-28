@@ -270,7 +270,7 @@ class SpcAlertConfig:
         """Set the dispatch kwargs"""
 
 class SpcAlert:
-    def __init__(self, alert_type: str, zone: str):
+    def __init__(self, kind: str, zone: str):
         """Initialize alert"""
 
     @property

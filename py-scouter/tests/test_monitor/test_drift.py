@@ -6,20 +6,20 @@ from numpy.typing import NDArray
 import pytest
 import polars as pl
 from scouter._scouter import (
-    DriftProfile,
-    DriftMap,
-    DriftConfig,
-    AlertRule,
-    AlertConfig,
+    SpcDriftProfile,
+    SpcDriftMap,
+    SpcDriftConfig,
+    SpcAlertRule,
+    SpcAlertConfig,
     AlertDispatchType,
 )
 from tempfile import TemporaryDirectory
 from scouter.utils.types import Constants
 
 
-def test_drift_f64(array: NDArray, drift_config: DriftConfig):
+def test_drift_f64(array: NDArray, drift_config: SpcDriftConfig):
     drifter = Drifter()
-    profile: DriftProfile = drifter.create_drift_profile(array, drift_config)
+    profile: SpcDriftProfile = drifter.create_drift_profile(array, drift_config)
 
     # assert features are relatively centered
     assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)
@@ -33,7 +33,7 @@ def test_drift_f64(array: NDArray, drift_config: DriftConfig):
 
         # test loading from json file
         with open(Path(temp_dir) / "profile.json", "r") as f:
-            DriftProfile.model_validate_json(f.read())
+            SpcDriftProfile.model_validate_json(f.read())
 
     _ = drifter.compute_drift(array, profile)
 
@@ -43,10 +43,10 @@ def test_drift_f64(array: NDArray, drift_config: DriftConfig):
     assert profile.config.repository == "repo1"
 
 
-def test_drift_f32(array: NDArray, drift_config: DriftConfig):
+def test_drift_f32(array: NDArray, drift_config: SpcDriftConfig):
     array = array.astype("float32")
     scouter = Drifter()
-    profile: DriftProfile = scouter.create_drift_profile(array, drift_config)
+    profile: SpcDriftProfile = scouter.create_drift_profile(array, drift_config)
 
     # assert features are relatively centered
     assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)
@@ -56,12 +56,12 @@ def test_drift_f32(array: NDArray, drift_config: DriftConfig):
     _ = scouter.compute_drift(array, profile)
 
 
-def test_drift_int(array: NDArray, drift_config: DriftConfig):
+def test_drift_int(array: NDArray, drift_config: SpcDriftConfig):
     # convert to int32
     array = array.astype("int32")
 
     scouter = Drifter()
-    profile: DriftProfile = scouter.create_drift_profile(array, drift_config)
+    profile: SpcDriftProfile = scouter.create_drift_profile(array, drift_config)
 
     # assert features are relatively centered
     assert profile.features["feature_0"].center == pytest.approx(1.0, 0.1)
@@ -74,7 +74,7 @@ def test_drift_int(array: NDArray, drift_config: DriftConfig):
 
     model = drift_map.model_dump_json()
 
-    loaded_model = DriftMap.model_validate_json(model)
+    loaded_model = SpcDriftMap.model_validate_json(model)
 
     assert loaded_model.features["feature_0"].drift[0] == 0.0
 
@@ -91,9 +91,9 @@ def test_drift_int(array: NDArray, drift_config: DriftConfig):
     assert Path("assets/model.json").exists()
 
 
-def test_alerts_control(array: NDArray, drift_config: DriftConfig):
+def test_alerts_control(array: NDArray, drift_config: SpcDriftConfig):
     scouter = Drifter()
-    profile: DriftProfile = scouter.create_drift_profile(array, drift_config)
+    profile: SpcDriftProfile = scouter.create_drift_profile(array, drift_config)
 
     # assert features are relatively centered
     assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)
@@ -101,7 +101,7 @@ def test_alerts_control(array: NDArray, drift_config: DriftConfig):
     assert profile.features["feature_2"].center == pytest.approx(3.5, 0.1)
 
     features = ["feature_0", "feature_1", "feature_2"]
-    drift_map: DriftMap = scouter.compute_drift(array, profile)
+    drift_map: SpcDriftMap = scouter.compute_drift(array, profile)
 
     # create drift array and features
     feature0 = drift_map.features["feature_0"]
@@ -118,7 +118,7 @@ def test_alerts_control(array: NDArray, drift_config: DriftConfig):
 
     # generate alerts
 
-    alerts = scouter.generate_alerts(drift_array, features, AlertRule())
+    alerts = scouter.generate_alerts(drift_array, features, SpcAlertRule())
 
     # should have no alerts
     for feature in features:
@@ -135,11 +135,11 @@ def test_alerts_control(array: NDArray, drift_config: DriftConfig):
 def test_multi_type_drift(
     polars_dataframe_multi_dtype: pl.DataFrame,
     polars_dataframe_multi_dtype_drift: pl.DataFrame,
-    drift_config: DriftConfig,
+    drift_config: SpcDriftConfig,
 ):
     drifter = Drifter()
 
-    profile: DriftProfile = drifter.create_drift_profile(
+    profile: SpcDriftProfile = drifter.create_drift_profile(
         polars_dataframe_multi_dtype, drift_config
     )
 
@@ -151,7 +151,7 @@ def test_multi_type_drift(
     alerts = drifter.generate_alerts(
         drift_array=drift_array,
         features=features,
-        alert_rule=drift_config.alert_config.alert_rule,
+        alert_rule=drift_config.alert_config.rule,
     )
 
     assert len(alerts.features["cat2"].alerts) == 1
@@ -159,11 +159,11 @@ def test_multi_type_drift(
 
 
 def test_only_string_drift(
-    pandas_categorical_dataframe: pd.DataFrame, drift_config: DriftConfig
+    pandas_categorical_dataframe: pd.DataFrame, drift_config: SpcDriftConfig
 ):
     drifter = Drifter()
 
-    profile: DriftProfile = drifter.create_drift_profile(
+    profile: SpcDriftProfile = drifter.create_drift_profile(
         pandas_categorical_dataframe, drift_config
     )
 
@@ -174,24 +174,24 @@ def test_only_string_drift(
 
 def test_data_pyarrow_mixed_type(
     polars_dataframe_multi_dtype: pl.DataFrame,
-    drift_config: DriftConfig,
+    drift_config: SpcDriftConfig,
 ):
     arrow_table = polars_dataframe_multi_dtype.to_arrow()
 
     drifter = Drifter()
 
-    profile: DriftProfile = drifter.create_drift_profile(arrow_table, drift_config)
+    profile: SpcDriftProfile = drifter.create_drift_profile(arrow_table, drift_config)
     drift_map = drifter.compute_drift(arrow_table, profile)
 
     assert len(drift_map.features) == 5
 
 
 def test_drift_config_alert_kwargs():
-    alert_config = AlertConfig(
+    alert_config = SpcAlertConfig(
         alert_kwargs={"channel": "scouter"},
         alert_dispatch_type=AlertDispatchType.Slack,
     )
-    config = DriftConfig(
+    config = SpcDriftConfig(
         name="test",
         repository="test",
         alert_config=alert_config,
@@ -209,20 +209,20 @@ def test_drift_config_alert_kwargs():
 
 
 def test_load_from_file():
-    config = DriftConfig(config_path="tests/assets/drift_config.json")
+    config = SpcDriftConfig(config_path="tests/assets/drift_config.json")
     assert config.name == "name"
     assert config.repository == "repo"
 
 
 def test_load_from_file_error():
     with pytest.raises(RuntimeError) as e:
-        DriftConfig(config_path="tests/assets/drift_config_error.json")
+        SpcDriftConfig(config_path="tests/assets/drift_config_error.json")
 
     assert "Failed to deserialize string" in str(e)
 
 
 def test_empty_params():
-    config = DriftConfig()
+    config = SpcDriftConfig()
 
     assert config.name == Constants.MISSING
     assert config.repository == Constants.MISSING

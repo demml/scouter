@@ -10,6 +10,7 @@ from scouter.utils.types import AlertZone, SpcAlertType
 from ._scouter import (
     AlertDispatchType,
     DataProfile,
+    DriftType,
     Every6Hours,
     Every12Hours,
     Every30Minutes,
@@ -35,6 +36,7 @@ from .profile.profile import Profiler
 from .version import __version__
 
 __all__ = [
+    "DriftType",
     "Profiler",
     "Drifter",
     "__version__",

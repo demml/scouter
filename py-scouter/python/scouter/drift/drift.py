@@ -23,20 +23,19 @@ CommonCrons = CommonCron()  # type: ignore
 
 
 class Drifter:
-    def __init__(self, drift_type: DriftType) -> None:
+    def __init__(self, drift_type: Optional[DriftType] = None) -> None:
         """
         Scouter class for creating monitoring profiles and detecting drift. This class will
         create a drift profile from a dataset and detect drift from new data. This
         class is primarily used to setup and actively monitor data drift
 
         Args:
-            config:
-                Configuration for the drift detection. This configuration will be used to
-                setup the drift profile and detect drift.
+            drift_type:
+                Type of drift to detect. Defaults to SPC drift detection.
 
         """
 
-        self._drift_helper: DriftHelperBase = get_drift_helper(drift_type)
+        self._drift_helper: DriftHelperBase = get_drift_helper(drift_type or DriftType.SPC)
 
     def create_drift_profile(
         self,
