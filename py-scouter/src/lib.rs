@@ -1,37 +1,38 @@
 mod py_scouter;
-use py_scouter::_scouter::{ScouterDrifter, ScouterProfiler};
+use py_scouter::_scouter::{ScouterProfiler, SpcDrifter};
 use pyo3::prelude::*;
-use scouter::queue::feature_queue::FeatureQueue;
-use scouter::utils::cron::{
+use scouter::core::cron::{
     CommonCron, Every12Hours, Every30Minutes, Every6Hours, EveryDay, EveryHour, EveryWeek,
 };
-use scouter::utils::types::{
-    Alert, AlertConfig, AlertDispatchType, AlertRule, AlertType, AlertZone, DataProfile, Distinct,
-    DriftConfig, DriftMap, DriftProfile, DriftServerRecord, DriftServerRecords, FeatureAlert,
-    FeatureAlerts, FeatureDrift, FeatureDriftProfile, FeatureMap, FeatureProfile, Histogram,
-    ProcessAlertRule,
+use scouter::core::profile::types::{DataProfile, Distinct, FeatureProfile, Histogram};
+use scouter::core::spc::feature_queue::SpcFeatureQueue;
+use scouter::core::spc::types::{
+    AlertZone, FeatureMap, SpcAlert, SpcAlertConfig, SpcAlertRule, SpcAlertType, SpcDriftConfig,
+    SpcDriftMap, SpcDriftProfile, SpcDriftServerRecord, SpcDriftServerRecords, SpcFeatureAlert,
+    SpcFeatureAlerts, SpcFeatureDrift, SpcFeatureDriftProfile,
 };
+use scouter::core::utils::AlertDispatchType;
 
 #[pymodule]
 fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<ScouterDrifter>()?;
+    m.add_class::<SpcDrifter>()?;
     m.add_class::<ScouterProfiler>()?;
-    m.add_class::<DriftProfile>()?;
-    m.add_class::<FeatureDriftProfile>()?;
+    m.add_class::<SpcDriftProfile>()?;
+    m.add_class::<SpcFeatureDriftProfile>()?;
     m.add_class::<DataProfile>()?;
     m.add_class::<FeatureProfile>()?;
     m.add_class::<Distinct>()?;
     m.add_class::<Histogram>()?;
-    m.add_class::<DriftMap>()?;
-    m.add_class::<FeatureDrift>()?;
-    m.add_class::<DriftConfig>()?;
-    m.add_class::<AlertType>()?;
+    m.add_class::<SpcDriftMap>()?;
+    m.add_class::<SpcFeatureDrift>()?;
+    m.add_class::<SpcDriftConfig>()?;
+    m.add_class::<SpcAlertType>()?;
     m.add_class::<AlertZone>()?;
-    m.add_class::<Alert>()?;
-    m.add_class::<DriftConfig>()?;
-    m.add_class::<FeatureAlerts>()?;
-    m.add_class::<FeatureAlert>()?;
-    m.add_class::<ProcessAlertRule>()?;
+    m.add_class::<SpcAlert>()?;
+    m.add_class::<SpcDriftConfig>()?;
+    m.add_class::<SpcFeatureAlerts>()?;
+    m.add_class::<SpcFeatureAlert>()?;
+    m.add_class::<SpcAlertRule>()?;
     m.add_class::<Every30Minutes>()?;
     m.add_class::<EveryHour>()?;
     m.add_class::<Every6Hours>()?;
@@ -39,12 +40,11 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<EveryDay>()?;
     m.add_class::<EveryWeek>()?;
     m.add_class::<CommonCron>()?;
-    m.add_class::<DriftServerRecord>()?;
-    m.add_class::<DriftServerRecords>()?;
-    m.add_class::<AlertConfig>()?;
+    m.add_class::<SpcDriftServerRecord>()?;
+    m.add_class::<SpcDriftServerRecords>()?;
+    m.add_class::<SpcAlertConfig>()?;
     m.add_class::<AlertDispatchType>()?;
-    m.add_class::<AlertRule>()?;
     m.add_class::<FeatureMap>()?;
-    m.add_class::<FeatureQueue>()?;
+    m.add_class::<SpcFeatureQueue>()?;
     Ok(())
 }
