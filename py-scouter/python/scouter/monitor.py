@@ -11,9 +11,10 @@ from scouter.utils.logger import ScouterLogger
 
 from ._scouter import (  # pylint: disable=no-name-in-module
     CommonCron,
-    DriftProfile,
-    DriftServerRecords,
-    FeatureQueue,
+    SpcDriftProfile,
+    SpcDriftServerRecords,
+    SpcFeatureQueue,
+    DriftType,
 )
 
 logger = ScouterLogger.get_logger()
@@ -21,10 +22,19 @@ logger = ScouterLogger.get_logger()
 CommonCrons = CommonCron()  # type: ignore
 
 
+def _get_feature_queue(drift_profile: Union[SpcDriftProfile]) -> Union[SpcFeatureQueue]:
+    """Get the feature queue based on the drift profile."""
+
+    if drift_profile.config.drift_type == DriftType.SPC:
+        return SpcFeatureQueue(drift_profile=drift_profile)
+
+    raise ValueError(f"Drift type {drift_profile.config.drift_type} not supported")
+
+
 class MonitorQueue:
     def __init__(
         self,
-        drift_profile: DriftProfile,
+        drift_profile: Union[SpcDriftProfile],
         config: Union[KafkaConfig, HTTPConfig],
     ) -> None:
         """Instantiate a monitoring queue to monitor data drift.
@@ -39,9 +49,9 @@ class MonitorQueue:
         self._drift_profile = drift_profile
 
         logger.info("Initializing queue and producer")
-        self.feature_queue = FeatureQueue(drift_profile=drift_profile)
-        self._count = 0
 
+        self._count = 0
+        self._feature_queue = _get_feature_queue(drift_profile)
         self._producer = self._get_producer(config)
         logger.info("Queue and producer initialized")
 
@@ -49,7 +59,7 @@ class MonitorQueue:
         """Get the producer based on the configuration."""
         return DriftRecordProducer.get_producer(config)
 
-    def insert(self, data: Dict[Any, Any]) -> Optional[DriftServerRecords]:
+    def insert(self, data: Dict[Any, Any]) -> Optional[SpcDriftServerRecords]:
         """Insert data into the monitoring queue.
 
         Args:
@@ -60,7 +70,7 @@ class MonitorQueue:
             List of drift records if the monitoring queue has enough data to compute
         """
         try:
-            self.feature_queue.insert(data)
+            self._feature_queue.insert(data)
             self._count += 1
 
             if self._count >= self._drift_profile.config.sample_size:
@@ -73,18 +83,20 @@ class MonitorQueue:
             return None
 
         except Exception as exc:
-            logger.error("Failed to insert data into monitoring queue: {}. Passing", exc)
+            logger.error(
+                "Failed to insert data into monitoring queue: {}. Passing", exc
+            )
             return None
 
     def _clear_queue(self) -> None:
         """Clear the monitoring queue."""
-        self.feature_queue.clear_queue()
+        self._feature_queue.clear_queue()
         self._count = 0
 
-    def publish(self) -> DriftServerRecords:
+    def publish(self) -> Union[SpcDriftServerRecords]:
         """Publish drift records to the monitoring server."""
         try:
-            drift_records = self.feature_queue.create_drift_records()
+            drift_records = self._feature_queue.create_drift_records()
 
             self._producer.publish(drift_records)
 

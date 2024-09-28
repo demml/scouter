@@ -51,7 +51,11 @@ class DriftHelperBase:
 def get_drift_helper(drift_type: DriftType) -> DriftHelperBase:
     """Helper function to get the correct drift helper based on the drift type."""
     converter = next(
-        (converter for converter in DriftHelperBase.__subclasses__() if converter.drift_type == drift_type),
+        (
+            converter
+            for converter in DriftHelperBase.__subclasses__()
+            if converter.drift_type == drift_type
+        ),
         None,
     )
 
