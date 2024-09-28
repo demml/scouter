@@ -11,7 +11,7 @@ use scouter::core::spc::types::{
     SpcDriftMap, SpcDriftProfile, SpcDriftServerRecord, SpcDriftServerRecords, SpcFeatureAlert,
     SpcFeatureAlerts, SpcFeatureDrift, SpcFeatureDriftProfile,
 };
-use scouter::core::utils::AlertDispatchType;
+use scouter::core::utils::{AlertDispatchType, DriftType};
 
 #[pymodule]
 fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -46,5 +46,6 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<AlertDispatchType>()?;
     m.add_class::<FeatureMap>()?;
     m.add_class::<SpcFeatureQueue>()?;
+    m.add_class::<DriftType>()?;
     Ok(())
 }
