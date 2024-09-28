@@ -23,10 +23,11 @@ impl FileName {
 }
 
 #[pyclass]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub enum AlertDispatchType {
     Email,
     Slack,
+    #[default]
     Console,
     OpsGenie,
 }
@@ -41,12 +42,6 @@ impl AlertDispatchType {
             AlertDispatchType::Console => "Console".to_string(),
             AlertDispatchType::OpsGenie => "OpsGenie".to_string(),
         }
-    }
-}
-
-impl Default for AlertDispatchType {
-    fn default() -> AlertDispatchType {
-        AlertDispatchType::Console
     }
 }
 

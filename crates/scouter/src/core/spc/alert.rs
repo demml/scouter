@@ -241,31 +241,27 @@ impl Alerter {
     }
 
     pub fn check_trend(&mut self, drift_array: &ArrayView1<f64>) -> Result<(), AlertError> {
-        drift_array
-            .windows(7)
-            .into_iter()
-            .enumerate()
-            .for_each(|(_, window)| {
-                // iterate over array and check if each value is increasing or decreasing
-                let mut increasing = 0;
-                let mut decreasing = 0;
+        drift_array.windows(7).into_iter().for_each(|window| {
+            // iterate over array and check if each value is increasing or decreasing
+            let mut increasing = 0;
+            let mut decreasing = 0;
 
-                // iterate through
-                for i in 1..window.len() {
-                    if window[i] > window[i - 1] {
-                        increasing += 1;
-                    } else if window[i] < window[i - 1] {
-                        decreasing += 1;
-                    }
+            // iterate through
+            for i in 1..window.len() {
+                if window[i] > window[i - 1] {
+                    increasing += 1;
+                } else if window[i] < window[i - 1] {
+                    decreasing += 1;
                 }
+            }
 
-                if increasing >= 6 || decreasing >= 6 {
-                    self.alerts.insert(SpcAlert {
-                        zone: AlertZone::NotApplicable.to_str(),
-                        kind: SpcAlertType::Trend.to_str(),
-                    });
-                }
-            });
+            if increasing >= 6 || decreasing >= 6 {
+                self.alerts.insert(SpcAlert {
+                    zone: AlertZone::NotApplicable.to_str(),
+                    kind: SpcAlertType::Trend.to_str(),
+                });
+            }
+        });
 
         Ok(())
     }
