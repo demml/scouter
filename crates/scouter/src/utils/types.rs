@@ -407,6 +407,95 @@ pub struct FeatureDriftProfile {
     pub timestamp: chrono::NaiveDateTime,
 }
 
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct Bin {
+    #[pyo3(get)]
+    pub id: usize,
+
+    #[pyo3(get)]
+    pub lower_limit: f64,
+
+    #[pyo3(get)]
+    pub upper_limit: Option<f64>,
+
+    #[pyo3(get)]
+    pub proportion: f64,
+}
+
+/// Python class for a PSI monitoring profile
+///
+/// # Arguments
+///
+/// * `id` - The id value
+/// * `bins` - bins needed to calculate PSI
+/// * `timestamp` - The timestamp value
+///
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PSIFeatureDriftProfile {
+    #[pyo3(get)]
+    pub id: String,
+
+    #[pyo3(get)]
+    pub bins: Vec<Bin>,
+
+    #[pyo3(get)]
+    pub timestamp: chrono::NaiveDateTime,
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PSIDriftProfile {
+    #[pyo3(get, set)]
+    pub features: HashMap<String, PSIFeatureDriftProfile>,
+
+    #[pyo3(get, set)]
+    pub config: DriftConfig,
+
+    #[pyo3(get, set)]
+    pub scouter_version: String,
+}
+
+#[pymethods]
+impl PSIDriftProfile {
+    #[new]
+    pub fn new(
+        features: HashMap<String, PSIFeatureDriftProfile>,
+        config: DriftConfig,
+        scouter_version: Option<String>,
+    ) -> Self {
+        let scouter_version = scouter_version.unwrap_or(env!("CARGO_PKG_VERSION").to_string());
+        Self {
+            features,
+            config,
+            scouter_version,
+        }
+    }
+}
+
+/// Python class for a PSIDrift map of features with calculated drift
+///
+/// # Arguments
+///
+/// * `features` - A hashmap of feature names and their drift
+///
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PSIDriftMap {
+    #[pyo3(get)]
+    pub features: HashMap<String, f64>,
+
+    #[pyo3(get)]
+    pub name: String,
+
+    #[pyo3(get)]
+    pub repository: String,
+
+    #[pyo3(get)]
+    pub version: String,
+}
+
 /// Python class for a monitoring configuration
 ///
 /// # Arguments
