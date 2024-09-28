@@ -185,6 +185,57 @@ impl PSIMonitor {
         ))
     }
 
+
+    fn compute_psi_proportion_pairs<F>(
+        &self,
+        column_vector: &ArrayView<F, Ix1>,
+        bin: &Bin
+    ) -> Result<(f64, f64), MonitorError>
+    where
+        F: Float
+        + Sync
+        + FromPrimitive
+        + Send
+        + Num
+        + Debug
+        + num_traits::Zero
+        + ndarray::ScalarOperand,
+        F: Into<f64>,
+    {
+        // TODO maybe dry this out, something similar is happening during bin creation
+        if self.data_are_binary(column_vector){
+            let column_vector_mean = column_vector.mean().ok_or(MonitorError::ComputeError(
+                "Failed to compute mean".to_string(),
+            ))?;
+            if bin.lower_limit == 0.0{
+                return Ok((bin.proportion, (F::from(1.0).unwrap() - column_vector_mean).into()))
+            }
+            return Ok((bin.proportion, column_vector_mean.into()))
+        }
+        // TODO maybe dry this out, something similar is happening during bin creation
+        let ll = bin.lower_limit;
+        let ul = bin.upper_limit.unwrap();
+        let bucket_count = column_vector
+            .iter()
+            .filter(|&&value| value.into() > ll && value.into() <= ul)
+            .count();
+
+        Ok((bin.proportion, (bucket_count as f64) / (column_vector.len() as f64)))
+    }
+
+    fn compute_psi(
+        &self,
+        proportions: &Vec<(f64, f64)>,
+    ) -> f64
+    {
+        let epsilon = 1e-10;
+        proportions.iter().map(|(p, q)| {
+            let p_adj = p + epsilon;
+            let q_adj = q + epsilon;
+            (p_adj - q_adj) * (p_adj / q_adj).ln()
+        }).sum()
+    }
+
     fn compute_feature_drift<F>(
         &self,
         column_vector: &ArrayView<F, Ix1>,
@@ -201,7 +252,14 @@ impl PSIMonitor {
         + ndarray::ScalarOperand,
         F: Into<f64>,
     {
-        Ok(12.3)
+        let bins = &features.bins;
+        let feature_proportions: Vec<(f64, f64)> = bins
+            .par_iter()  // Change from .iter() to .par_iter()
+            .map(|bin| {
+                self.compute_psi_proportion_pairs(column_vector, bin).unwrap()
+            })
+            .collect();
+        Ok(self.compute_psi(&feature_proportions))
     }
 
     pub fn compute_model_drift<F>(
@@ -229,12 +287,10 @@ impl PSIMonitor {
         .collect_vec()
         .into_par_iter()
         .map(|(column_vector, feature_name)| {
-            self.compute_feature_drift(&column_vector, drift_profile.features.get(feature_name).unwrap())
+            self.compute_feature_drift(&column_vector, &drift_profile.features.get(feature_name).unwrap()).unwrap()
         }).collect();
 
         Ok(())
-
-        // PSIDriftMap
     }
 }
 #[cfg(test)]
