@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Awaitable, Callable, Union
 
 from pydantic import BaseModel
-from scouter import DriftProfile, MonitorQueue
+from scouter import MonitorQueue, SpcDriftProfile
 from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
 from scouter.utils.logger import ScouterLogger
@@ -22,7 +22,11 @@ except ImportError as exc:
 
 
 class ScouterMixin:
-    def __init__(self, drift_profile: DriftProfile, config: Union[KafkaConfig, HTTPConfig]) -> None:
+    def __init__(
+        self,
+        drift_profile: Union[SpcDriftProfile],
+        config: Union[KafkaConfig, HTTPConfig],
+    ) -> None:
         self._queue = MonitorQueue(drift_profile, config)
 
     def add_api_route(self, path: str, endpoint: Callable[..., Awaitable[Any]], **kwargs: Any) -> None:
@@ -51,7 +55,7 @@ class ScouterMixin:
 class ScouterRouter(ScouterMixin, APIRouter):
     def __init__(
         self,
-        drift_profile: DriftProfile,
+        drift_profile: Union[SpcDriftProfile],
         config: Union[KafkaConfig, HTTPConfig],
         *args: Any,
         **kwargs: Any,

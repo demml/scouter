@@ -1,6 +1,6 @@
 import os
 from functools import partial
-from typing import Any, Dict, Literal, Optional
+from typing import Any, Dict, Literal, Optional, Union
 
 import tenacity
 from pydantic import BaseModel, field_validator, model_validator
@@ -9,7 +9,7 @@ from scouter.utils.logger import ScouterLogger
 from scouter.utils.types import ProducerTypes
 from typing_extensions import Self
 
-from .._scouter import DriftServerRecords
+from .._scouter import SpcDriftServerRecords
 
 logger = ScouterLogger.get_logger()
 MESSAGE_MAX_BYTES_DEFAULT = 2097164
@@ -157,7 +157,7 @@ class KafkaProducer(BaseProducer):
                 msg.offset(),
             )
 
-    def _publish(self, records: DriftServerRecords) -> None:
+    def _publish(self, records: Union[SpcDriftServerRecords]) -> None:
         try:
             self._producer.produce(
                 topic=self._kafka_config.topic,
@@ -174,7 +174,7 @@ class KafkaProducer(BaseProducer):
             if self._kafka_config.raise_on_err:
                 raise e
 
-    def publish(self, records: DriftServerRecords) -> None:
+    def publish(self, records: Union[SpcDriftServerRecords]) -> None:
         """Publishes drift record to a kafka topic with retries.
 
         If the message delivery fails, the message is retried up to `max_retries` times before raising an error.

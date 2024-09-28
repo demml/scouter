@@ -1,10 +1,10 @@
 from scouter import (
     MonitorQueue,
-    DriftConfig,
-    DriftProfile,
+    SpcDriftConfig,
+    SpcDriftProfile,
     Drifter,
     KafkaConfig,
-    DriftServerRecords,
+    SpcDriftServerRecords,
 )
 from typing import Optional
 import pandas as pd
@@ -12,11 +12,13 @@ import pandas as pd
 
 def test_monitor_pandas(
     pandas_dataframe: pd.DataFrame,
-    drift_config: DriftConfig,
+    drift_config: SpcDriftConfig,
     mock_kafka_producer,
 ):
     scouter = Drifter()
-    profile: DriftProfile = scouter.create_drift_profile(pandas_dataframe, drift_config)
+    profile: SpcDriftProfile = scouter.create_drift_profile(
+        pandas_dataframe, drift_config
+    )
 
     kafka_config = KafkaConfig(
         topic="test-topic",
@@ -31,7 +33,7 @@ def test_monitor_pandas(
 
     records = pandas_dataframe[0:30].to_dict(orient="records")
 
-    def return_record(records) -> Optional[DriftServerRecords]:
+    def return_record(records) -> Optional[SpcDriftServerRecords]:
         for record in records:
             drift_map = queue.insert(record)
 
@@ -47,11 +49,11 @@ def test_monitor_pandas(
 
 def test_monitor_polar_multitype(
     polars_dataframe_multi_dtype: pd.DataFrame,
-    drift_config: DriftConfig,
+    drift_config: SpcDriftConfig,
     mock_kafka_producer,
 ):
     scouter = Drifter()
-    profile: DriftProfile = scouter.create_drift_profile(
+    profile: SpcDriftProfile = scouter.create_drift_profile(
         polars_dataframe_multi_dtype,
         drift_config,
     )
@@ -71,7 +73,7 @@ def test_monitor_polar_multitype(
 
     records = polars_dataframe_multi_dtype[0:30].to_dicts()  # type: ignore
 
-    def return_record(records) -> Optional[DriftServerRecords]:
+    def return_record(records) -> Optional[SpcDriftServerRecords]:
         for record in records:
             drift_map = queue.insert(record)
 
@@ -86,11 +88,11 @@ def test_monitor_polar_multitype(
 
 def test_queue_fail(
     polars_dataframe_multi_dtype: pd.DataFrame,
-    drift_config: DriftConfig,
+    drift_config: SpcDriftConfig,
     mock_kafka_producer,
 ):
     scouter = Drifter()
-    profile: DriftProfile = scouter.create_drift_profile(
+    profile: SpcDriftProfile = scouter.create_drift_profile(
         polars_dataframe_multi_dtype,
         drift_config,
     )

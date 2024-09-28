@@ -1,5 +1,5 @@
 use crate::core::error::ProfilerError;
-use crate::utils::types::{Distinct, FeatureProfile, Histogram, NumericStats, Quantiles};
+use crate::core::profile::types::{Distinct, FeatureProfile, Histogram, NumericStats, Quantiles};
 use ndarray::prelude::*;
 use ndarray::Axis;
 use ndarray_stats::MaybeNan;

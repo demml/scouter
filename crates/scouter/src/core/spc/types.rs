@@ -1,16 +1,16 @@
+use crate::core::cron::EveryDay;
 use crate::core::error::ScouterError;
-use crate::utils::cron::EveryDay;
-use colored_json::{Color, ColorMode, ColoredFormatter, PrettyFormatter, Styler};
+use crate::core::utils::{
+    json_to_pyobject, pyobject_to_json, AlertDispatchType, DriftType, FileName, ProfileFuncs,
+};
 use core::fmt::Debug;
 use ndarray::Array;
 use ndarray::Array2;
 use numpy::{IntoPyArray, PyArray2};
 use pyo3::prelude::*;
-use pyo3::types::{PyBool, PyDict, PyFloat, PyList, PyLong, PyString};
+use pyo3::types::PyDict;
 use serde::{Deserialize, Serialize};
-use serde_json::json;
 use serde_json::Value;
-use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::PathBuf;
@@ -18,216 +18,6 @@ use std::str::FromStr;
 use tracing::debug;
 
 const MISSING: &str = "__missing__";
-
-enum FileName {
-    Drift,
-    Profile,
-}
-
-impl FileName {
-    fn to_str(&self) -> &'static str {
-        match self {
-            FileName::Drift => "drift_map.json",
-            FileName::Profile => "data_profile.json",
-        }
-    }
-}
-
-#[pyclass]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct ProcessAlertRule {
-    #[pyo3(get, set)]
-    pub rule: String,
-
-    #[pyo3(get, set)]
-    pub zones_to_monitor: Vec<String>,
-}
-
-#[pymethods]
-impl ProcessAlertRule {
-    #[new]
-    pub fn new(rule: Option<String>, zones_to_monitor: Option<Vec<String>>) -> Self {
-        let rule = match rule {
-            Some(r) => r,
-            None => "8 16 4 8 2 4 1 1".to_string(),
-        };
-
-        let zones = zones_to_monitor.unwrap_or(
-            [
-                AlertZone::Zone1.to_str(),
-                AlertZone::Zone2.to_str(),
-                AlertZone::Zone3.to_str(),
-                AlertZone::Zone4.to_str(),
-            ]
-            .to_vec(),
-        );
-        Self {
-            rule,
-            zones_to_monitor: zones,
-        }
-    }
-}
-
-#[pyclass]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct PercentageAlertRule {
-    #[pyo3(get, set)]
-    pub rule: f64,
-}
-
-#[pymethods]
-impl PercentageAlertRule {
-    #[new]
-    pub fn new(rule: Option<f64>) -> Self {
-        let rule = rule.unwrap_or(0.1);
-        Self { rule }
-    }
-}
-
-#[pyclass]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct AlertRule {
-    #[pyo3(get, set)]
-    pub process: Option<ProcessAlertRule>,
-
-    #[pyo3(get, set)]
-    pub percentage: Option<PercentageAlertRule>,
-}
-
-// impl new method
-#[pymethods]
-impl AlertRule {
-    #[new]
-    pub fn new(
-        percentage_rule: Option<PercentageAlertRule>,
-        process_rule: Option<ProcessAlertRule>,
-    ) -> Self {
-        // if both are None, return default control rule
-        if percentage_rule.is_none() && process_rule.is_none() {
-            return Self {
-                process: Some(ProcessAlertRule::new(None, None)),
-                percentage: None,
-            };
-        }
-
-        Self {
-            process: process_rule,
-            percentage: percentage_rule,
-        }
-    }
-
-    pub fn to_str(&self) -> String {
-        if self.process.is_some() {
-            return self.process.as_ref().unwrap().rule.clone();
-        } else {
-            return self.percentage.as_ref().unwrap().rule.to_string();
-        }
-    }
-}
-
-#[pyclass]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub enum AlertDispatchType {
-    Email,
-    Slack,
-    Console,
-    OpsGenie,
-}
-
-#[pymethods]
-impl AlertDispatchType {
-    #[getter]
-    pub fn value(&self) -> String {
-        match self {
-            AlertDispatchType::Email => "Email".to_string(),
-            AlertDispatchType::Slack => "Slack".to_string(),
-            AlertDispatchType::Console => "Console".to_string(),
-            AlertDispatchType::OpsGenie => "OpsGenie".to_string(),
-        }
-    }
-}
-
-#[pyclass]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct AlertConfig {
-    #[pyo3(get, set)]
-    pub alert_rule: AlertRule,
-
-    pub alert_dispatch_type: AlertDispatchType,
-
-    #[pyo3(get, set)]
-    pub schedule: String,
-
-    #[pyo3(get, set)]
-    pub features_to_monitor: Vec<String>,
-
-    #[pyo3(get, set)]
-    pub alert_kwargs: HashMap<String, String>,
-}
-
-#[pymethods]
-impl AlertConfig {
-    #[new]
-    pub fn new(
-        alert_rule: Option<AlertRule>,
-        alert_dispatch_type: Option<AlertDispatchType>,
-        schedule: Option<String>,
-        features_to_monitor: Option<Vec<String>>,
-        alert_kwargs: Option<HashMap<String, String>>,
-    ) -> Self {
-        let alert_rule = alert_rule.unwrap_or(AlertRule::new(None, None));
-
-        let schedule = match schedule {
-            Some(s) => {
-                // validate the cron schedule
-                let schedule = cron::Schedule::from_str(&s);
-
-                match schedule {
-                    Ok(_) => s,
-                    Err(_) => {
-                        tracing::error!("Invalid cron schedule, using default schedule");
-                        EveryDay::new().cron
-                    }
-                }
-            }
-
-            None => EveryDay::new().cron,
-        };
-        let alert_dispatch_type = alert_dispatch_type.unwrap_or(AlertDispatchType::Console);
-        let features_to_monitor = features_to_monitor.unwrap_or_default();
-        let alert_kwargs = alert_kwargs.unwrap_or_default();
-
-        Self {
-            alert_rule,
-            alert_dispatch_type,
-            schedule,
-            features_to_monitor,
-            alert_kwargs,
-        }
-    }
-
-    #[getter]
-    pub fn alert_dispatch_type(&self) -> String {
-        match self.alert_dispatch_type {
-            AlertDispatchType::Email => "Email".to_string(),
-            AlertDispatchType::Slack => "Slack".to_string(),
-            AlertDispatchType::Console => "Console".to_string(),
-            AlertDispatchType::OpsGenie => "OpsGenie".to_string(),
-        }
-    }
-}
-
-impl Default for AlertConfig {
-    fn default() -> AlertConfig {
-        Self {
-            alert_rule: AlertRule::new(None, None),
-            alert_dispatch_type: AlertDispatchType::Console,
-            schedule: EveryDay::new().cron,
-            features_to_monitor: Vec::new(),
-            alert_kwargs: HashMap::new(),
-        }
-    }
-}
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, std::cmp::Eq, Hash)]
@@ -253,33 +43,162 @@ impl AlertZone {
 }
 
 #[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct SpcAlertRule {
+    #[pyo3(get, set)]
+    pub rule: String,
+
+    #[pyo3(get, set)]
+    pub zones_to_monitor: Vec<String>,
+}
+
+#[pymethods]
+impl SpcAlertRule {
+    #[new]
+    pub fn new(rule: Option<String>, zones_to_monitor: Option<Vec<String>>) -> Self {
+        let rule = match rule {
+            Some(r) => r,
+            None => "8 16 4 8 2 4 1 1".to_string(),
+        };
+
+        let zones = zones_to_monitor.unwrap_or(
+            [
+                AlertZone::Zone1.to_str(),
+                AlertZone::Zone2.to_str(),
+                AlertZone::Zone3.to_str(),
+                AlertZone::Zone4.to_str(),
+            ]
+            .to_vec(),
+        );
+        Self {
+            rule,
+            zones_to_monitor: zones,
+        }
+    }
+}
+
+impl Default for SpcAlertRule {
+    fn default() -> SpcAlertRule {
+        Self {
+            rule: "8 16 4 8 2 4 1 1".to_string(),
+            zones_to_monitor: vec![
+                AlertZone::Zone1.to_str(),
+                AlertZone::Zone2.to_str(),
+                AlertZone::Zone3.to_str(),
+                AlertZone::Zone4.to_str(),
+            ],
+        }
+    }
+}
+
+#[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct SpcAlertConfig {
+    #[pyo3(get, set)]
+    pub rule: SpcAlertRule,
+
+    pub dispatch_type: AlertDispatchType,
+
+    #[pyo3(get, set)]
+    pub schedule: String,
+
+    #[pyo3(get, set)]
+    pub features_to_monitor: Vec<String>,
+
+    #[pyo3(get, set)]
+    pub dispatch_kwargs: HashMap<String, String>,
+}
+
+#[pymethods]
+impl SpcAlertConfig {
+    #[new]
+    pub fn new(
+        rule: Option<SpcAlertRule>,
+        dispatch_type: Option<AlertDispatchType>,
+        schedule: Option<String>,
+        features_to_monitor: Option<Vec<String>>,
+        dispatch_kwargs: Option<HashMap<String, String>>,
+    ) -> Self {
+        let rule = rule.unwrap_or_default();
+
+        let schedule = match schedule {
+            Some(s) => {
+                // validate the cron schedule
+                let schedule = cron::Schedule::from_str(&s);
+
+                match schedule {
+                    Ok(_) => s,
+                    Err(_) => {
+                        tracing::error!("Invalid cron schedule, using default schedule");
+                        EveryDay::new().cron
+                    }
+                }
+            }
+
+            None => EveryDay::new().cron,
+        };
+        let dispatch_type = dispatch_type.unwrap_or_default();
+        let features_to_monitor = features_to_monitor.unwrap_or_default();
+        let dispatch_kwargs = dispatch_kwargs.unwrap_or_default();
+
+        Self {
+            rule,
+            dispatch_type,
+            schedule,
+            features_to_monitor,
+            dispatch_kwargs,
+        }
+    }
+
+    #[getter]
+    pub fn dispatch_type(&self) -> String {
+        match self.dispatch_type {
+            AlertDispatchType::Email => "Email".to_string(),
+            AlertDispatchType::Slack => "Slack".to_string(),
+            AlertDispatchType::Console => "Console".to_string(),
+            AlertDispatchType::OpsGenie => "OpsGenie".to_string(),
+        }
+    }
+}
+
+impl Default for SpcAlertConfig {
+    fn default() -> SpcAlertConfig {
+        Self {
+            rule: SpcAlertRule::default(),
+            dispatch_type: AlertDispatchType::default(),
+            schedule: EveryDay::new().cron,
+            features_to_monitor: Vec::new(),
+            dispatch_kwargs: HashMap::new(),
+        }
+    }
+}
+
+#[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
-pub enum AlertType {
+pub enum SpcAlertType {
     OutOfBounds,
     Consecutive,
     Alternating,
     AllGood,
     Trend,
-    Percentage,
 }
 
 #[pymethods]
-impl AlertType {
+impl SpcAlertType {
     pub fn to_str(&self) -> String {
         match self {
-            AlertType::OutOfBounds => "Out of bounds".to_string(),
-            AlertType::Consecutive => "Consecutive".to_string(),
-            AlertType::Alternating => "Alternating".to_string(),
-            AlertType::AllGood => "All good".to_string(),
-            AlertType::Trend => "Trend".to_string(),
-            AlertType::Percentage => "Percentage".to_string(),
+            SpcAlertType::OutOfBounds => "Out of bounds".to_string(),
+            SpcAlertType::Consecutive => "Consecutive".to_string(),
+            SpcAlertType::Alternating => "Alternating".to_string(),
+            SpcAlertType::AllGood => "All good".to_string(),
+            SpcAlertType::Trend => "Trend".to_string(),
         }
     }
 }
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, Hash, PartialEq)]
-pub struct Alert {
+pub struct SpcAlert {
     #[pyo3(get)]
     pub kind: String,
 
@@ -289,7 +208,7 @@ pub struct Alert {
 
 #[pymethods]
 #[allow(clippy::new_without_default)]
-impl Alert {
+impl SpcAlert {
     #[new]
     pub fn new(kind: String, zone: String) -> Self {
         Self { kind, zone }
@@ -298,71 +217,6 @@ impl Alert {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__str__(self)
-    }
-}
-
-struct ProfileFuncs {}
-
-impl ProfileFuncs {
-    fn __str__<T: Serialize>(object: T) -> String {
-        match ColoredFormatter::with_styler(
-            PrettyFormatter::default(),
-            Styler {
-                key: Color::Rgb(245, 77, 85).bold(),
-                string_value: Color::Rgb(249, 179, 93).foreground(),
-                float_value: Color::Rgb(249, 179, 93).foreground(),
-                integer_value: Color::Rgb(249, 179, 93).foreground(),
-                bool_value: Color::Rgb(249, 179, 93).foreground(),
-                nil_value: Color::Rgb(249, 179, 93).foreground(),
-                ..Default::default()
-            },
-        )
-        .to_colored_json(&object, ColorMode::On)
-        {
-            Ok(json) => json,
-            Err(e) => format!("Failed to serialize to json: {}", e),
-        }
-        // serialize the struct to a string
-    }
-
-    fn __json__<T: Serialize>(object: T) -> String {
-        match serde_json::to_string_pretty(&object) {
-            Ok(json) => json,
-            Err(e) => format!("Failed to serialize to json: {}", e),
-        }
-    }
-
-    fn save_to_json<T>(model: T, path: Option<PathBuf>, filename: &str) -> Result<(), ScouterError>
-    where
-        T: Serialize,
-    {
-        // serialize the struct to a string
-        let json =
-            serde_json::to_string_pretty(&model).map_err(|_| ScouterError::SerializeError)?;
-
-        // check if path is provided
-        let write_path = if path.is_some() {
-            let mut new_path = path.ok_or(ScouterError::CreatePathError)?;
-
-            // ensure .json extension
-            new_path.set_extension("json");
-
-            if !new_path.exists() {
-                // ensure path exists, create if not
-                let parent_path = new_path.parent().ok_or(ScouterError::GetParentPathError)?;
-
-                std::fs::create_dir_all(parent_path)
-                    .map_err(|_| ScouterError::CreateDirectoryError)?;
-            }
-
-            new_path
-        } else {
-            PathBuf::from(filename)
-        };
-
-        std::fs::write(write_path, json).map_err(|_| ScouterError::WriteError)?;
-
-        Ok(())
     }
 }
 
@@ -378,7 +232,7 @@ impl ProfileFuncs {
 ///
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct FeatureDriftProfile {
+pub struct SpcFeatureDriftProfile {
     #[pyo3(get)]
     pub id: String,
 
@@ -421,7 +275,7 @@ pub struct FeatureDriftProfile {
 ///
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DriftConfig {
+pub struct SpcDriftConfig {
     #[pyo3(get, set)]
     pub sample_size: usize,
 
@@ -438,18 +292,21 @@ pub struct DriftConfig {
     pub version: String,
 
     #[pyo3(get, set)]
-    pub alert_config: AlertConfig,
+    pub alert_config: SpcAlertConfig,
 
     #[pyo3(get, set)]
     pub feature_map: Option<FeatureMap>,
 
     #[pyo3(get, set)]
     pub targets: Vec<String>,
+
+    #[pyo3(get, set)]
+    pub drift_type: DriftType,
 }
 
 #[pymethods]
 #[allow(clippy::too_many_arguments)]
-impl DriftConfig {
+impl SpcDriftConfig {
     #[new]
     pub fn new(
         name: Option<String>,
@@ -459,11 +316,11 @@ impl DriftConfig {
         sample_size: Option<usize>,
         feature_map: Option<FeatureMap>,
         targets: Option<Vec<String>>,
-        alert_config: Option<AlertConfig>,
+        alert_config: Option<SpcAlertConfig>,
         config_path: Option<PathBuf>,
     ) -> Result<Self, ScouterError> {
         if let Some(config_path) = config_path {
-            let config = DriftConfig::load_from_json_file(config_path);
+            let config = SpcDriftConfig::load_from_json_file(config_path);
             return config;
         }
 
@@ -478,7 +335,7 @@ impl DriftConfig {
         let sample_size = sample_size.unwrap_or(25);
         let version = version.unwrap_or("0.1.0".to_string());
         let targets = targets.unwrap_or_default();
-        let alert_config = alert_config.unwrap_or(AlertConfig::new(None, None, None, None, None));
+        let alert_config = alert_config.unwrap_or_default();
 
         Ok(Self {
             sample_size,
@@ -489,6 +346,7 @@ impl DriftConfig {
             alert_config,
             feature_map,
             targets,
+            drift_type: DriftType::SPC,
         })
     }
 
@@ -497,7 +355,7 @@ impl DriftConfig {
     }
 
     #[staticmethod]
-    pub fn load_from_json_file(path: PathBuf) -> Result<DriftConfig, ScouterError> {
+    pub fn load_from_json_file(path: PathBuf) -> Result<SpcDriftConfig, ScouterError> {
         // deserialize the string to a struct
 
         let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
@@ -538,7 +396,7 @@ impl DriftConfig {
         sample_size: Option<usize>,
         feature_map: Option<FeatureMap>,
         targets: Option<Vec<String>>,
-        alert_config: Option<AlertConfig>,
+        alert_config: Option<SpcAlertConfig>,
     ) -> Result<(), ScouterError> {
         if name.is_some() {
             self.name = name.ok_or(ScouterError::TypeError("name".to_string()))?;
@@ -579,7 +437,7 @@ impl DriftConfig {
     }
 }
 
-impl DriftConfig {
+impl SpcDriftConfig {
     pub fn load_map_from_json(path: PathBuf) -> Result<HashMap<String, Value>, ScouterError> {
         // deserialize the string to a struct
         let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
@@ -590,23 +448,23 @@ impl DriftConfig {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DriftProfile {
+pub struct SpcDriftProfile {
     #[pyo3(get, set)]
-    pub features: HashMap<String, FeatureDriftProfile>,
+    pub features: HashMap<String, SpcFeatureDriftProfile>,
 
     #[pyo3(get, set)]
-    pub config: DriftConfig,
+    pub config: SpcDriftConfig,
 
     #[pyo3(get, set)]
     pub scouter_version: String,
 }
 
 #[pymethods]
-impl DriftProfile {
+impl SpcDriftProfile {
     #[new]
     pub fn new(
-        features: HashMap<String, FeatureDriftProfile>,
-        config: DriftConfig,
+        features: HashMap<String, SpcFeatureDriftProfile>,
+        config: SpcDriftConfig,
         scouter_version: Option<String>,
     ) -> Self {
         let scouter_version = scouter_version.unwrap_or(env!("CARGO_PKG_VERSION").to_string());
@@ -643,7 +501,7 @@ impl DriftProfile {
     }
 
     #[staticmethod]
-    pub fn model_validate(py: Python, data: &Bound<'_, PyDict>) -> DriftProfile {
+    pub fn model_validate(py: Python, data: &Bound<'_, PyDict>) -> SpcDriftProfile {
         let json_value = pyobject_to_json(py, data.as_gil_ref()).unwrap();
 
         let string = serde_json::to_string(&json_value).unwrap();
@@ -651,7 +509,7 @@ impl DriftProfile {
     }
 
     #[staticmethod]
-    pub fn model_validate_json(json_string: String) -> DriftProfile {
+    pub fn model_validate_json(json_string: String) -> SpcDriftProfile {
         // deserialize the string to a struct
         serde_json::from_str(&json_string).expect("Failed to load monitor profile")
     }
@@ -684,7 +542,7 @@ impl DriftProfile {
         sample_size: Option<usize>,
         feature_map: Option<FeatureMap>,
         targets: Option<Vec<String>>,
-        alert_config: Option<AlertConfig>,
+        alert_config: Option<SpcAlertConfig>,
     ) -> Result<(), ScouterError> {
         self.config.update_config_args(
             name,
@@ -714,176 +572,6 @@ impl FeatureMap {
     }
 }
 
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Distinct {
-    #[pyo3(get)]
-    pub count: usize,
-
-    #[pyo3(get)]
-    pub percent: f64,
-}
-
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct NumericStats {
-    #[pyo3(get)]
-    pub mean: f64,
-
-    #[pyo3(get)]
-    pub stddev: f64,
-
-    #[pyo3(get)]
-    pub min: f64,
-
-    #[pyo3(get)]
-    pub max: f64,
-
-    #[pyo3(get)]
-    pub distinct: Distinct,
-
-    #[pyo3(get)]
-    pub quantiles: Quantiles,
-
-    #[pyo3(get)]
-    pub histogram: Histogram,
-}
-
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CharStats {
-    #[pyo3(get)]
-    pub min_length: usize,
-
-    #[pyo3(get)]
-    pub max_length: usize,
-
-    #[pyo3(get)]
-    pub median_length: usize,
-
-    #[pyo3(get)]
-    pub mean_length: f64,
-}
-
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct WordStats {
-    #[pyo3(get)]
-    pub words: HashMap<String, Distinct>,
-}
-
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct StringStats {
-    #[pyo3(get)]
-    pub distinct: Distinct,
-
-    #[pyo3(get)]
-    pub char_stats: CharStats,
-
-    #[pyo3(get)]
-    pub word_stats: WordStats,
-}
-
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct FeatureProfile {
-    #[pyo3(get)]
-    pub id: String,
-
-    #[pyo3(get)]
-    pub numeric_stats: Option<NumericStats>,
-
-    #[pyo3(get)]
-    pub string_stats: Option<StringStats>,
-
-    #[pyo3(get)]
-    pub timestamp: chrono::NaiveDateTime,
-}
-
-#[pymethods]
-impl FeatureProfile {
-    pub fn __str__(&self) -> String {
-        // serialize the struct to a string
-        ProfileFuncs::__str__(self)
-    }
-}
-
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DataProfile {
-    #[pyo3(get)]
-    pub features: BTreeMap<String, FeatureProfile>,
-}
-
-#[pymethods]
-impl DataProfile {
-    pub fn __str__(&self) -> String {
-        // serialize the struct to a string
-        ProfileFuncs::__str__(self)
-    }
-
-    pub fn model_dump_json(&self) -> String {
-        // serialize the struct to a string
-        ProfileFuncs::__json__(self)
-    }
-
-    #[staticmethod]
-    pub fn model_validate_json(json_string: String) -> DataProfile {
-        // deserialize the string to a struct
-        serde_json::from_str(&json_string)
-            .map_err(|_| ScouterError::DeSerializeError)
-            .unwrap()
-    }
-
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
-        ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
-    }
-}
-
-/// Python class for quantiles
-///
-/// # Arguments
-///
-/// * `quant_25` - The 25th percentile
-/// * `quant_50` - The 50th percentile
-/// * `quant_75` - The 75th percentile
-/// * `quant_99` - The 99th percentile
-///
-///
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Quantiles {
-    #[pyo3(get)]
-    pub q25: f64,
-
-    #[pyo3(get)]
-    pub q50: f64,
-
-    #[pyo3(get)]
-    pub q75: f64,
-
-    #[pyo3(get)]
-    pub q99: f64,
-}
-
-/// Python class for a feature histogram
-///
-/// # Arguments
-///
-/// * `bins` - A vector of bins
-/// * `bin_counts` - A vector of bin counts
-///
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Histogram {
-    #[pyo3(get)]
-    pub bins: Vec<f64>,
-
-    #[pyo3(get)]
-    pub bin_counts: Vec<i32>,
-}
-
 /// Python class for a feature drift
 ///
 /// # Arguments
@@ -893,7 +581,7 @@ pub struct Histogram {
 ///
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct FeatureDrift {
+pub struct SpcFeatureDrift {
     #[pyo3(get)]
     pub samples: Vec<f64>,
 
@@ -901,7 +589,7 @@ pub struct FeatureDrift {
     pub drift: Vec<f64>,
 }
 
-impl FeatureDrift {
+impl SpcFeatureDrift {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         serde_json::to_string_pretty(&self).unwrap()
@@ -910,7 +598,7 @@ impl FeatureDrift {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DriftServerRecord {
+pub struct SpcDriftServerRecord {
     #[pyo3(get)]
     pub created_at: chrono::NaiveDateTime,
 
@@ -931,7 +619,7 @@ pub struct DriftServerRecord {
 }
 
 #[pymethods]
-impl DriftServerRecord {
+impl SpcDriftServerRecord {
     #[new]
     pub fn new(
         name: String,
@@ -974,16 +662,22 @@ impl DriftServerRecord {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DriftServerRecords {
+pub struct SpcDriftServerRecords {
     #[pyo3(get)]
-    pub records: Vec<DriftServerRecord>,
+    pub drift_type: DriftType,
+
+    #[pyo3(get)]
+    pub records: Vec<SpcDriftServerRecord>,
 }
 
 #[pymethods]
-impl DriftServerRecords {
+impl SpcDriftServerRecords {
     #[new]
-    pub fn new(records: Vec<DriftServerRecord>) -> Self {
-        Self { records }
+    pub fn new(records: Vec<SpcDriftServerRecord>) -> Self {
+        Self {
+            drift_type: DriftType::SPC,
+            records,
+        }
     }
     pub fn model_dump_json(&self) -> String {
         // serialize records to a string
@@ -1004,9 +698,9 @@ impl DriftServerRecords {
 ///
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct DriftMap {
+pub struct SpcDriftMap {
     #[pyo3(get)]
-    pub features: HashMap<String, FeatureDrift>,
+    pub features: HashMap<String, SpcFeatureDrift>,
 
     #[pyo3(get)]
     pub name: String,
@@ -1020,7 +714,7 @@ pub struct DriftMap {
 
 #[pymethods]
 #[allow(clippy::new_without_default)]
-impl DriftMap {
+impl SpcDriftMap {
     #[new]
     pub fn new(name: String, repository: String, version: String) -> Self {
         Self {
@@ -1031,7 +725,7 @@ impl DriftMap {
         }
     }
 
-    pub fn add_feature(&mut self, feature: String, profile: FeatureDrift) {
+    pub fn add_feature(&mut self, feature: String, profile: SpcFeatureDrift) {
         self.features.insert(feature, profile);
     }
 
@@ -1046,7 +740,7 @@ impl DriftMap {
     }
 
     #[staticmethod]
-    pub fn model_validate_json(json_string: String) -> DriftMap {
+    pub fn model_validate_json(json_string: String) -> SpcDriftMap {
         // deserialize the string to a struct
         serde_json::from_str(&json_string)
             .map_err(|_| ScouterError::DeSerializeError)
@@ -1054,7 +748,7 @@ impl DriftMap {
     }
 
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
-        ProfileFuncs::save_to_json(self, path, FileName::Drift.to_str())
+        ProfileFuncs::save_to_json(self, path, FileName::SpcDrift.to_str())
     }
 
     #[allow(clippy::type_complexity)]
@@ -1078,7 +772,7 @@ impl DriftMap {
 
 type ArrayReturn = (Array2<f64>, Array2<f64>, Vec<String>);
 
-impl DriftMap {
+impl SpcDriftMap {
     pub fn to_array(&self) -> Result<ArrayReturn, ScouterError> {
         let columns = self.features.len();
         let rows = self.features.values().next().unwrap().samples.len();
@@ -1106,30 +800,26 @@ impl DriftMap {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct FeatureAlert {
+pub struct SpcFeatureAlert {
     #[pyo3(get)]
     pub feature: String,
 
     #[pyo3(get)]
-    pub alerts: Vec<Alert>,
-
-    #[pyo3(get)]
-    pub indices: BTreeMap<usize, Vec<Vec<usize>>>,
+    pub alerts: Vec<SpcAlert>,
 }
 
-impl FeatureAlert {
+impl SpcFeatureAlert {
     pub fn new(feature: String) -> Self {
         Self {
             feature,
             alerts: Vec::new(),
-            indices: BTreeMap::new(),
         }
     }
 }
 
 #[pymethods]
 #[allow(clippy::new_without_default)]
-impl FeatureAlert {
+impl SpcFeatureAlert {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__str__(self)
@@ -1138,35 +828,25 @@ impl FeatureAlert {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct FeatureAlerts {
+pub struct SpcFeatureAlerts {
     #[pyo3(get)]
-    pub features: HashMap<String, FeatureAlert>,
+    pub features: HashMap<String, SpcFeatureAlert>,
 
     #[pyo3(get)]
     pub has_alerts: bool,
 }
 
-impl FeatureAlerts {
+impl SpcFeatureAlerts {
     // rust-only function to insert feature alerts
-    pub fn insert_feature_alert(
-        &mut self,
-        feature: &str,
-        alerts: &HashSet<Alert>,
-        indices: &BTreeMap<usize, Vec<Vec<usize>>>,
-    ) {
-        let mut feature_alert = FeatureAlert::new(feature.to_string());
+    pub fn insert_feature_alert(&mut self, feature: &str, alerts: &HashSet<SpcAlert>) {
+        let mut feature_alert = SpcFeatureAlert::new(feature.to_string());
 
         // insert the alerts and indices into the feature alert
         alerts.iter().for_each(|alert| {
-            feature_alert.alerts.push(Alert {
+            feature_alert.alerts.push(SpcAlert {
                 zone: alert.zone.clone(),
                 kind: alert.kind.clone(),
             })
-        });
-
-        // insert the indices into the feature alert
-        indices.iter().for_each(|(key, value)| {
-            feature_alert.indices.insert(*key, value.clone());
         });
 
         self.features.insert(feature.to_string(), feature_alert);
@@ -1175,7 +855,7 @@ impl FeatureAlerts {
 
 #[pymethods]
 #[allow(clippy::new_without_default)]
-impl FeatureAlerts {
+impl SpcFeatureAlerts {
     #[new]
     pub fn new(has_alerts: bool) -> Self {
         Self {
@@ -1195,122 +875,6 @@ impl FeatureAlerts {
     }
 }
 
-pub fn json_to_pyobject(py: Python, value: &Value, dict: &PyDict) -> PyResult<()> {
-    match value {
-        Value::Object(map) => {
-            for (k, v) in map {
-                let py_value = match v {
-                    Value::Null => py.None(),
-                    Value::Bool(b) => b.into_py(py),
-                    Value::Number(n) => {
-                        if let Some(i) = n.as_i64() {
-                            i.into_py(py)
-                        } else if let Some(f) = n.as_f64() {
-                            f.into_py(py)
-                        } else {
-                            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                                "Invalid number",
-                            ));
-                        }
-                    }
-                    Value::String(s) => s.into_py(py),
-                    Value::Array(arr) => {
-                        let py_list = PyList::empty_bound(py);
-                        for item in arr {
-                            let py_item = json_to_pyobject_value(py, item)?;
-                            py_list.append(py_item)?;
-                        }
-                        py_list.into_py(py)
-                    }
-                    Value::Object(_) => {
-                        let nested_dict = PyDict::new_bound(py);
-                        json_to_pyobject(py, v, nested_dict.as_gil_ref())?;
-                        nested_dict.into_py(py)
-                    }
-                };
-                dict.set_item(k, py_value)?;
-            }
-        }
-        _ => {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "Root must be an object",
-            ))
-        }
-    }
-    Ok(())
-}
-
-fn json_to_pyobject_value(py: Python, value: &Value) -> PyResult<PyObject> {
-    Ok(match value {
-        Value::Null => py.None(),
-        Value::Bool(b) => b.into_py(py),
-        Value::Number(n) => {
-            if let Some(i) = n.as_i64() {
-                i.into_py(py)
-            } else if let Some(f) = n.as_f64() {
-                f.into_py(py)
-            } else {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    "Invalid number",
-                ));
-            }
-        }
-        Value::String(s) => s.into_py(py),
-        Value::Array(arr) => {
-            let py_list = PyList::empty_bound(py);
-            for item in arr {
-                let py_item = json_to_pyobject_value(py, item)?;
-                py_list.append(py_item)?;
-            }
-            py_list.into_py(py)
-        }
-        Value::Object(_) => {
-            let nested_dict = PyDict::new_bound(py);
-            json_to_pyobject(py, value, nested_dict.as_gil_ref())?;
-            nested_dict.into_py(py)
-        }
-    })
-}
-
-fn pyobject_to_json(_py: Python, obj: &PyAny) -> PyResult<Value> {
-    if obj.is_instance_of::<PyDict>() {
-        let dict = obj.downcast::<PyDict>()?;
-        let mut map = serde_json::Map::new();
-        for (key, value) in dict.iter() {
-            let key_str = key.extract::<String>()?;
-            let json_value = pyobject_to_json(_py, value)?;
-            map.insert(key_str, json_value);
-        }
-        Ok(Value::Object(map))
-    } else if obj.is_instance_of::<PyList>() {
-        let list = obj.downcast::<PyList>()?;
-        let mut vec = Vec::new();
-        for item in list.iter() {
-            vec.push(pyobject_to_json(_py, item)?);
-        }
-        Ok(Value::Array(vec))
-    } else if obj.is_instance_of::<PyString>() {
-        let s = obj.extract::<String>()?;
-        Ok(Value::String(s))
-    } else if obj.is_instance_of::<PyFloat>() {
-        let f = obj.extract::<f64>()?;
-        Ok(json!(f))
-    } else if obj.is_instance_of::<PyBool>() {
-        let b = obj.extract::<bool>()?;
-        Ok(json!(b))
-    } else if obj.is_instance_of::<PyLong>() {
-        let i = obj.extract::<i64>()?;
-        Ok(json!(i))
-    } else if obj.is_none() {
-        Ok(Value::Null)
-    } else {
-        Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(format!(
-            "Unsupported type: {}",
-            obj.get_type().name()?
-        )))
-    }
-}
-
 #[cfg(test)]
 mod tests {
 
@@ -1319,75 +883,70 @@ mod tests {
     #[test]
     fn test_types() {
         // write tests for all alerts
-        let control_alert = AlertRule::new(None, Some(ProcessAlertRule::new(None, None)));
+        let control_alert = SpcAlertRule::default().rule;
 
-        assert_eq!(control_alert.to_str(), "8 16 4 8 2 4 1 1");
+        assert_eq!(control_alert, "8 16 4 8 2 4 1 1");
         assert_eq!(AlertZone::NotApplicable.to_str(), "NA");
         assert_eq!(AlertZone::Zone1.to_str(), "Zone 1");
         assert_eq!(AlertZone::Zone2.to_str(), "Zone 2");
         assert_eq!(AlertZone::Zone3.to_str(), "Zone 3");
         assert_eq!(AlertZone::Zone4.to_str(), "Zone 4");
-        assert_eq!(AlertType::AllGood.to_str(), "All good");
-        assert_eq!(AlertType::Consecutive.to_str(), "Consecutive");
-        assert_eq!(AlertType::Alternating.to_str(), "Alternating");
-        assert_eq!(AlertType::OutOfBounds.to_str(), "Out of bounds");
-        assert_eq!(AlertType::Percentage.to_str(), "Percentage");
-
-        let rule = PercentageAlertRule::new(None);
-        assert_eq!(rule.rule, 0.1);
+        assert_eq!(SpcAlertType::AllGood.to_str(), "All good");
+        assert_eq!(SpcAlertType::Consecutive.to_str(), "Consecutive");
+        assert_eq!(SpcAlertType::Alternating.to_str(), "Alternating");
+        assert_eq!(SpcAlertType::OutOfBounds.to_str(), "Out of bounds");
     }
 
     #[test]
     fn test_alert_config() {
         //test console alert config
-        let alert_config = AlertConfig::new(None, None, None, None, None);
-        assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Console);
-        assert_eq!(alert_config.alert_dispatch_type(), "Console");
+        let alert_config = SpcAlertConfig::new(None, None, None, None, None);
+        assert_eq!(alert_config.dispatch_type, AlertDispatchType::Console);
+        assert_eq!(alert_config.dispatch_type(), "Console");
         assert_eq!(AlertDispatchType::Console.value(), "Console");
 
         //test email alert config
-        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Email), None, None, None);
-        assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Email);
-        assert_eq!(alert_config.alert_dispatch_type(), "Email");
+        let alert_config =
+            SpcAlertConfig::new(None, Some(AlertDispatchType::Email), None, None, None);
+        assert_eq!(alert_config.dispatch_type, AlertDispatchType::Email);
+        assert_eq!(alert_config.dispatch_type(), "Email");
         assert_eq!(AlertDispatchType::Email.value(), "Email");
 
         //test slack alert config
-        let alert_config = AlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None);
-        assert_eq!(alert_config.alert_dispatch_type, AlertDispatchType::Slack);
-        assert_eq!(alert_config.alert_dispatch_type(), "Slack");
+        let alert_config =
+            SpcAlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None);
+        assert_eq!(alert_config.dispatch_type, AlertDispatchType::Slack);
+        assert_eq!(alert_config.dispatch_type(), "Slack");
         assert_eq!(AlertDispatchType::Slack.value(), "Slack");
 
         //test opsgenie alert config
         let mut alert_kwargs = HashMap::new();
         alert_kwargs.insert("channel".to_string(), "test".to_string());
 
-        let alert_config = AlertConfig::new(
+        let alert_config = SpcAlertConfig::new(
             None,
             Some(AlertDispatchType::OpsGenie),
             None,
             None,
             Some(alert_kwargs),
         );
-        assert_eq!(
-            alert_config.alert_dispatch_type,
-            AlertDispatchType::OpsGenie
-        );
-        assert_eq!(alert_config.alert_dispatch_type(), "OpsGenie");
-        assert_eq!(alert_config.alert_kwargs.get("channel").unwrap(), "test");
+        assert_eq!(alert_config.dispatch_type, AlertDispatchType::OpsGenie);
+        assert_eq!(alert_config.dispatch_type(), "OpsGenie");
+        assert_eq!(alert_config.dispatch_kwargs.get("channel").unwrap(), "test");
         assert_eq!(AlertDispatchType::OpsGenie.value(), "OpsGenie");
     }
 
     #[test]
     fn test_drift_config() {
         let mut drift_config =
-            DriftConfig::new(None, None, None, None, None, None, None, None, None).unwrap();
+            SpcDriftConfig::new(None, None, None, None, None, None, None, None, None).unwrap();
         assert_eq!(drift_config.sample_size, 25);
         assert!(drift_config.sample);
         assert_eq!(drift_config.name, "__missing__");
         assert_eq!(drift_config.repository, "__missing__");
         assert_eq!(drift_config.version, "0.1.0");
         assert_eq!(drift_config.targets.len(), 0);
-        assert_eq!(drift_config.alert_config, AlertConfig::default());
+        assert_eq!(drift_config.alert_config, SpcAlertConfig::default());
 
         // update
         drift_config

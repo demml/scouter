@@ -3,12 +3,12 @@ import shutil
 from typing import TypeVar, Generator
 import numpy as np
 from numpy.typing import NDArray
-from scouter._scouter import DriftConfig, AlertRule, PercentageAlertRule, AlertConfig
+from scouter._scouter import SpcDriftConfig
 from unittest.mock import patch
 from httpx import Response
 from fastapi import FastAPI, Request
-from scouter.integrations.fastapi import ScouterRouter, Observer
-from scouter import Drifter, DriftProfile, KafkaConfig, HTTPConfig
+from scouter.integrations.fastapi import ScouterRouter
+from scouter import Drifter, SpcDriftProfile, KafkaConfig, HTTPConfig
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
@@ -91,24 +91,8 @@ def multivariate_array_drift() -> YieldFixture[NDArray]:
 
 
 @pytest.fixture(scope="function")
-def drift_config() -> YieldFixture[DriftConfig]:
-    config = DriftConfig(name="test", repository="test")
-    yield config
-
-
-@pytest.fixture(scope="function")
-def drift_config_percentage() -> YieldFixture[DriftConfig]:
-    alert_config = AlertConfig(
-        alert_rule=AlertRule(
-            percentage_rule=PercentageAlertRule(0.1),
-        )
-    )
-    config = DriftConfig(
-        name="test",
-        repository="test",
-        alert_config=alert_config,
-    )
-
+def drift_config() -> YieldFixture[SpcDriftConfig]:
+    config = SpcDriftConfig(name="test", repository="test")
     yield config
 
 
@@ -258,15 +242,15 @@ def mock_httpx_producer():
 
 
 @pytest.fixture
-def drift_profile(array: NDArray) -> DriftProfile:
+def drift_profile(array: NDArray) -> SpcDriftProfile:
     drifter = Drifter()
-    profile: DriftProfile = drifter.create_drift_profile(array)
+    profile: SpcDriftProfile = drifter.create_drift_profile(array)
 
     return profile
 
 
 @pytest.fixture
-def client(mock_kafka_producer, drift_profile: DriftProfile) -> TestClient:
+def client(mock_kafka_producer, drift_profile: SpcDriftProfile) -> TestClient:
     config = KafkaConfig(
         topic="test-topic",
         brokers="localhost:9092",
@@ -289,7 +273,7 @@ def client(mock_kafka_producer, drift_profile: DriftProfile) -> TestClient:
 
 @pytest.fixture
 def client_insert(
-    drift_profile: DriftProfile,
+    drift_profile: SpcDriftProfile,
 ) -> TestClient:
     config = HTTPConfig(server_url="http://testserver")
     app = FastAPI()

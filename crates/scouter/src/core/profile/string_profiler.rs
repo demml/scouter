@@ -1,5 +1,5 @@
 use crate::core::error::ProfilerError;
-use crate::utils::types::{CharStats, Distinct, FeatureProfile, StringStats, WordStats};
+use crate::core::profile::types::{CharStats, Distinct, FeatureProfile, StringStats, WordStats};
 use rayon::prelude::*;
 use std::collections::HashMap;
 

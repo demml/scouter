@@ -1,10 +1,10 @@
 from scouter import (
     MonitorQueue,
-    DriftConfig,
-    DriftProfile,
+    SpcDriftConfig,
+    SpcDriftProfile,
     Drifter,
     KafkaConfig,
-    DriftServerRecords,
+    SpcDriftServerRecords,
 )
 import pandas as pd
 from typing import Optional
@@ -12,10 +12,12 @@ from typing import Optional
 
 def test_monitor_pandas(
     pandas_dataframe: pd.DataFrame,
-    drift_config: DriftConfig,
+    drift_config: SpcDriftConfig,
 ):
     scouter = Drifter()
-    profile: DriftProfile = scouter.create_drift_profile(pandas_dataframe, drift_config)
+    profile: SpcDriftProfile = scouter.create_drift_profile(
+        pandas_dataframe, drift_config
+    )
 
     kafka_config = KafkaConfig(
         topic="scouter_monitoring",
@@ -30,7 +32,7 @@ def test_monitor_pandas(
 
     records = pandas_dataframe[0:30].to_dict(orient="records")
 
-    def return_record(records) -> Optional[DriftServerRecords]:
+    def return_record(records) -> Optional[SpcDriftServerRecords]:
         for record in records:
             drift_map = queue.insert(record)
 

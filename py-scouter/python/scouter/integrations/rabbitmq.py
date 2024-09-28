@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import tenacity
 from pydantic import BaseModel, field_validator
@@ -6,7 +6,7 @@ from scouter.integrations.base import BaseProducer
 from scouter.utils.logger import ScouterLogger
 from scouter.utils.types import ProducerTypes
 
-from .._scouter import DriftServerRecords
+from .._scouter import SpcDriftServerRecords
 
 logger = ScouterLogger.get_logger()
 
@@ -75,7 +75,7 @@ class RabbitMQProducer(BaseProducer):
             logger.error("Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'")
             raise e
 
-    def _publish(self, records: DriftServerRecords) -> None:
+    def _publish(self, records: Union[SpcDriftServerRecords]) -> None:
         """Attempt to publish a message to the kafka broker.
 
         Args:
@@ -95,7 +95,7 @@ class RabbitMQProducer(BaseProducer):
             if self._rabbit_config.raise_on_err:
                 raise e
 
-    def publish(self, records: DriftServerRecords) -> None:
+    def publish(self, records: Union[SpcDriftServerRecords]) -> None:
         """Publishes drift record to a kafka topic with retries.
 
         If the message delivery fails, the message is retried up to `max_retries` times before raising an error.

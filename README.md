@@ -125,7 +125,7 @@ print(profile)
                   "Zone 4"
                 ]
               },
-              "percentage": null
+  
         },
         "features_to_monitor": [],
         "alert_kwargs": {}
