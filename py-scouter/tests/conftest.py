@@ -8,7 +8,7 @@ from unittest.mock import patch
 from httpx import Response
 from fastapi import FastAPI, Request
 from scouter.integrations.fastapi import ScouterRouter
-from scouter import Drifter, SpcDriftProfile, KafkaConfig, HTTPConfig, DriftType
+from scouter import Drifter, SpcDriftProfile, KafkaConfig, HTTPConfig
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
