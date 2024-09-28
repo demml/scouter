@@ -187,6 +187,6 @@ class SpcDriftHelper(DriftHelperBase):
             logger.error(f"Failed to generate alerts: {exc}")
             raise ValueError(f"Failed to generate alerts: {exc}") from exc
 
-    @property
-    def drift_type(self) -> DriftType:
+    @staticmethod
+    def drift_type() -> DriftType:
         return DriftType.SPC

@@ -60,8 +60,8 @@ class Drifter:
         """
         _config = config or SpcDriftConfig()
 
-        assert _config.drift_type == self._drift_helper.drift_type, (
-            f"Drift type mismatch. Expected drift type: {self._drift_helper.drift_type}, "
+        assert _config.drift_type == self._drift_helper.drift_type(), (
+            f"Drift type mismatch. Expected drift type: {self._drift_helper.drift_type()}, "
             f"got drift type: {_config.drift_type}"
         )
 
@@ -86,8 +86,8 @@ class Drifter:
         Returns:
             Drift map
         """
-        assert drift_profile.config.drift_type == self._drift_helper.drift_type, (
-            f"Drift type mismatch. Expected drift type: {self._drift_helper.drift_type}, "
+        assert drift_profile.config.drift_type == self._drift_helper.drift_type(), (
+            f"Drift type mismatch. Expected drift type: {self._drift_helper.drift_type()}, "
             f"got drift type: {drift_profile.config.drift_type}"
         )
 

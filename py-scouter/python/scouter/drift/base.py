@@ -43,19 +43,20 @@ class DriftHelperBase:
     ) -> Union[SpcFeatureAlerts]:
         raise NotImplementedError
 
-    @property
-    def drift_type(self) -> str:
+    @staticmethod
+    def drift_type() -> DriftType:
         raise NotImplementedError
 
 
 def get_drift_helper(drift_type: DriftType) -> DriftHelperBase:
     """Helper function to get the correct drift helper based on the drift type."""
+
     converter = next(
-        (converter for converter in DriftHelperBase.__subclasses__() if converter.drift_type == drift_type),
+        (converter for converter in DriftHelperBase.__subclasses__() if converter.drift_type() == drift_type),
         None,
     )
 
     if converter is None:
-        raise ValueError(f"Unsupported drift type: {drift_type}")
+        raise ValueError(f"Unsupported drift type: {drift_type.value}")
 
     return converter()

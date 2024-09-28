@@ -188,8 +188,8 @@ def test_data_pyarrow_mixed_type(
 
 def test_drift_config_alert_kwargs():
     alert_config = SpcAlertConfig(
-        alert_kwargs={"channel": "scouter"},
-        alert_dispatch_type=AlertDispatchType.Slack,
+        dispatch_kwargs={"channel": "scouter"},
+        dispatch_type=AlertDispatchType.Slack,
     )
     config = SpcDriftConfig(
         name="test",
@@ -197,15 +197,15 @@ def test_drift_config_alert_kwargs():
         alert_config=alert_config,
     )
 
-    assert config.alert_config.alert_rule.process.zones_to_monitor == [
+    assert config.alert_config.rule.zones_to_monitor == [
         "Zone 1",
         "Zone 2",
         "Zone 3",
         "Zone 4",
     ]
 
-    assert config.alert_config.alert_kwargs["channel"] == "scouter"
-    assert config.alert_config.alert_dispatch_type == AlertDispatchType.Slack.value
+    assert config.alert_config.dispatch_kwargs["channel"] == "scouter"
+    assert config.alert_config.dispatch_type == AlertDispatchType.Slack.value
 
 
 def test_load_from_file():
