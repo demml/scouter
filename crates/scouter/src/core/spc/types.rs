@@ -1,7 +1,7 @@
 use crate::core::cron::EveryDay;
 use crate::core::error::ScouterError;
 use crate::core::utils::{
-    json_to_pyobject, pyobject_to_json, AlertDispatchType, FileName, ProfileFuncs,
+    json_to_pyobject, pyobject_to_json, AlertDispatchType, DriftType, FileName, ProfileFuncs,
 };
 use core::fmt::Debug;
 use ndarray::Array;
@@ -299,6 +299,9 @@ pub struct SpcDriftConfig {
 
     #[pyo3(get, set)]
     pub targets: Vec<String>,
+
+    #[pyo3(get, set)]
+    pub drift_type: DriftType,
 }
 
 #[pymethods]
@@ -343,6 +346,7 @@ impl SpcDriftConfig {
             alert_config,
             feature_map,
             targets,
+            drift_type: DriftType::SPC,
         })
     }
 

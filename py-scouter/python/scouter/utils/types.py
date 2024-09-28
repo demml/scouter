@@ -3,6 +3,20 @@
 from enum import Enum
 
 
+class DriftType(str, Enum):
+    SPC = "SPC"
+    PSI = "PSI"
+
+    @staticmethod
+    def from_str(value: str) -> "DriftType":
+        if value == "SPC":
+            return DriftType.SPC
+        elif value == "PSI":
+            return DriftType.PSI
+        else:
+            raise ValueError(f"Unknown drift type: {value}")
+
+
 class AlertZone(str, Enum):
     Zone1 = "Zone 1"
     Zone2 = "Zone 2"
@@ -11,7 +25,7 @@ class AlertZone(str, Enum):
     NotApplicable = "NA"
 
 
-class AlertType(str, Enum):
+class SpcAlertType(str, Enum):
     OutOfBounds = "Out of Bounds"
     Consecutive = "Consecutive"
     Alternating = "Alternating"

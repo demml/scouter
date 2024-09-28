@@ -50,6 +50,24 @@ impl Default for AlertDispatchType {
     }
 }
 
+#[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub enum DriftType {
+    SPC,
+    PSI,
+}
+
+#[pymethods]
+impl DriftType {
+    #[getter]
+    pub fn value(&self) -> String {
+        match self {
+            DriftType::SPC => "SPC".to_string(),
+            DriftType::PSI => "PSI".to_string(),
+        }
+    }
+}
+
 pub struct ProfileFuncs {}
 
 impl ProfileFuncs {

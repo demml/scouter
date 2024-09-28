@@ -189,6 +189,10 @@ class AlertDispatchType(str, Enum):
     Slack = "Slack"
     OpsGenie = "OpsGenie"
 
+class DriftType(str, Enum):
+    SPC = "SPC"
+    PSI = "PSI"
+
 class SpcAlertConfig:
     def __init__(
         self,
@@ -430,6 +434,10 @@ class SpcDriftConfig:
     @alert_config.setter
     def alert_config(self, alert_config: SpcAlertConfig) -> None:
         """Set alert configuration"""
+
+    @property
+    def drift_type(self) -> DriftType:
+        """Drift type"""
 
     def update_feature_map(self, feature_map: FeatureMap) -> None:
         """Update feature map"""
