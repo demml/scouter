@@ -1,8 +1,8 @@
 from scouter import (
     RabbitMQConfig,
     RabbitMQProducer,
-    DriftServerRecord,
-    DriftServerRecords,
+    SpcDriftServerRecord,
+    SpcDriftServerRecords,
 )
 from pika import ConnectionParameters, BasicProperties  # type: ignore
 
@@ -36,7 +36,7 @@ def test_rabbit_producer(mock_rabbit_connection):
     assert producer.max_retries == 3
     assert producer._producer is not None
 
-    record = DriftServerRecord(
+    record = SpcDriftServerRecord(
         name="test",
         repository="test",
         version="1.0.0",
@@ -44,6 +44,6 @@ def test_rabbit_producer(mock_rabbit_connection):
         value=0.1,
     )
 
-    producer.publish(DriftServerRecords(records=[record]))
+    producer.publish(SpcDriftServerRecords(records=[record]))
     producer.flush()
     producer.flush(10)

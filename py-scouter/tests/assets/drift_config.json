@@ -5,19 +5,18 @@
     "sample_size": 100,
     "version": "1.0.0",
     "targets": [],
+    "drift_type": "SPC",
     "alert_config": {
-        "alert_rule": {
-            "process": {
-                "rule": "8 8 8 8 8 8 4 4",
-                "zones_to_monitor": []
-            }
+        "rule": {
+            "rule": "8 8 8 8 8 8 4 4",
+            "zones_to_monitor": []
         },
-        "alert_dispatch_type": "Slack",
+        "dispatch_type": "Slack",
         "schedule": "0 0 * * *",
         "features_to_monitor": [
             "feature1",
             "feature2"
         ],
-        "alert_kwargs": {}
+        "dispatch_kwargs": {}
     }
 }

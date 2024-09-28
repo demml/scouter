@@ -1,5 +1,4 @@
-# pylint: disable=pointless-statement,broad-exception-caught
-
+"""This module contains the helper class for the SPC Drifter."""
 
 from typing import List, Optional, Union
 
@@ -8,17 +7,19 @@ import pandas as pd
 import polars as pl
 import pyarrow as pa  # type: ignore
 from numpy.typing import NDArray
+from scouter.drift.base import DriftHelperBase
 from scouter.utils.logger import ScouterLogger
 from scouter.utils.type_converter import _convert_data_to_array, _get_bits
 
-from ._scouter import (  # pylint: disable=no-name-in-module
-    AlertRule,
+from .._scouter import (  # pylint: disable=no-name-in-module
     CommonCron,
-    DriftConfig,
-    DriftMap,
-    DriftProfile,
-    FeatureAlerts,
-    ScouterDrifter,
+    DriftType,
+    SpcAlertRule,
+    SpcDriftConfig,
+    SpcDrifter,
+    SpcDriftMap,
+    SpcDriftProfile,
+    SpcFeatureAlerts,
 )
 
 logger = ScouterLogger.get_logger()
@@ -26,20 +27,27 @@ logger = ScouterLogger.get_logger()
 CommonCrons = CommonCron()  # type: ignore
 
 
-class Drifter:
+class SpcDriftHelper(DriftHelperBase):
     def __init__(self) -> None:
         """
         Scouter class for creating monitoring profiles and detecting drift. This class will
-        create a monitoring profile from a dataset and detect drift from new data. This
-        class is primarily used to setup and actively monitor data drift"""
+        create a drift profile from a dataset and detect drift from new data. This
+        class is primarily used to setup and actively monitor data drift
 
-        self._drifter = ScouterDrifter()
+        Args:
+            config:
+                Configuration for the drift detection. This configuration will be used to
+                setup the drift profile and detect drift.
+
+        """
+
+        self._rusty_drifter = SpcDrifter()
 
     def create_drift_profile(
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
-        drift_config: Optional[DriftConfig] = None,
-    ) -> DriftProfile:
+        config: SpcDriftConfig,
+    ) -> SpcDriftProfile:
         """Create a drift profile from data to use for monitoring.
 
         Args:
@@ -48,51 +56,48 @@ class Drifter:
                 a polars dataframe or pandas dataframe. Data is expected to not contain
                 any missing values, NaNs or infinities. These values must be removed or imputed.
                 If NaNs or infinities are present, the monitoring profile will not be created.
-            drift_config:
-                Optional configuration for the monitoring profile. If not provided, a default
-                configuration will be used.
+            config:
+                Configuration for the drift detection. This configuration will be used to
+                setup the drift profile and detect drift.
 
         Returns:
             Monitoring profile
         """
         try:
-            if drift_config is None:
-                drift_config = DriftConfig()
-
             logger.info("Creating drift profile.")
             array = _convert_data_to_array(data)
             bits = _get_bits(array.numeric_array)
 
-            string_profile: Optional[DriftProfile] = None
-            numeric_profile: Optional[DriftProfile] = None
+            string_profile: Optional[SpcDriftProfile] = None
+            numeric_profile: Optional[SpcDriftProfile] = None
 
             if array.string_array is not None and array.string_features is not None:
-                string_profile = self._drifter.create_string_drift_profile(
+                string_profile = self._rusty_drifter.create_string_drift_profile(
                     features=array.string_features,
                     array=array.string_array,
-                    drift_config=drift_config,
+                    drift_config=config,
                 )
                 assert string_profile.config.feature_map is not None
-                drift_config.update_feature_map(string_profile.config.feature_map)
+                config.update_feature_map(string_profile.config.feature_map)
 
             if array.numeric_array is not None and array.numeric_features is not None:
-                numeric_profile = getattr(self._drifter, f"create_numeric_drift_profile_f{bits}")(
+                numeric_profile = getattr(self._rusty_drifter, f"create_numeric_drift_profile_f{bits}")(
                     features=array.numeric_features,
                     array=array.numeric_array,
-                    drift_config=drift_config,
+                    drift_config=config,
                 )
 
             if string_profile is not None and numeric_profile is not None:
-                drift_profile = DriftProfile(
+                drift_profile = SpcDriftProfile(
                     features={**numeric_profile.features, **string_profile.features},
-                    config=drift_config,
+                    config=config,
                 )
 
                 return drift_profile
 
             profile = numeric_profile or string_profile
 
-            assert isinstance(profile, DriftProfile), "Expected DriftProfile"
+            assert isinstance(profile, SpcDriftProfile), "Expected DriftProfile"
 
             return profile
 
@@ -103,8 +108,8 @@ class Drifter:
     def compute_drift(
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
-        drift_profile: DriftProfile,
-    ) -> DriftMap:
+        drift_profile: SpcDriftProfile,
+    ) -> SpcDriftMap:
         """Compute drift from data and monitoring profile.
 
         Args:
@@ -122,7 +127,7 @@ class Drifter:
             bits = _get_bits(array.numeric_array)
 
             if array.string_array is not None and array.string_features is not None:
-                string_array: NDArray = getattr(self._drifter, f"convert_strings_to_numpy_f{bits}")(
+                string_array: NDArray = getattr(self._rusty_drifter, f"convert_strings_to_numpy_f{bits}")(
                     array=array.string_array,
                     features=array.string_features,
                     drift_profile=drift_profile,
@@ -137,13 +142,13 @@ class Drifter:
                     array.numeric_array = string_array
                     array.numeric_features = array.string_features
 
-            drift_map = getattr(self._drifter, f"compute_drift_f{bits}")(
+            drift_map = getattr(self._rusty_drifter, f"compute_drift_f{bits}")(
                 features=array.numeric_features,
                 array=array.numeric_array,
                 drift_profile=drift_profile,
             )
 
-            assert isinstance(drift_map, DriftMap), f"Expected DriftMap, got {type(drift_map)}"
+            assert isinstance(drift_map, SpcDriftMap), f"Expected DriftMap, got {type(drift_map)}"
 
             return drift_map
 
@@ -155,8 +160,8 @@ class Drifter:
         self,
         drift_array: NDArray,
         features: List[str],
-        alert_rule: AlertRule,
-    ) -> FeatureAlerts:
+        alert_rule: SpcAlertRule,
+    ) -> SpcFeatureAlerts:
         """Generate alerts from a drift array and features.
 
         Args:
@@ -172,7 +177,7 @@ class Drifter:
         """
 
         try:
-            return self._drifter.generate_alerts(
+            return self._rusty_drifter.generate_alerts(
                 drift_array,
                 features,
                 alert_rule,
@@ -181,3 +186,7 @@ class Drifter:
         except Exception as exc:
             logger.error(f"Failed to generate alerts: {exc}")
             raise ValueError(f"Failed to generate alerts: {exc}") from exc
+
+    @staticmethod
+    def drift_type() -> DriftType:
+        return DriftType.SPC
