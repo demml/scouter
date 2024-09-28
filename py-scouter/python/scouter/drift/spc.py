@@ -56,6 +56,9 @@ class SpcDriftHelper(DriftHelperBase):
                 a polars dataframe or pandas dataframe. Data is expected to not contain
                 any missing values, NaNs or infinities. These values must be removed or imputed.
                 If NaNs or infinities are present, the monitoring profile will not be created.
+            config:
+                Configuration for the drift detection. This configuration will be used to
+                setup the drift profile and detect drift.
 
         Returns:
             Monitoring profile

@@ -7,6 +7,10 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from numpy.typing import NDArray
 
+class DriftType(str, Enum):
+    SPC = "SPC"
+    PSI = "PSI"
+
 class SpcDriftServerRecord:
     def __init__(
         self,
@@ -192,10 +196,6 @@ class AlertDispatchType(str, Enum):
     Console = "Console"
     Slack = "Slack"
     OpsGenie = "OpsGenie"
-
-class DriftType(str, Enum):
-    SPC = "SPC"
-    PSI = "PSI"
 
 class SpcAlertConfig:
     def __init__(

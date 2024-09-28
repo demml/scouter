@@ -11,10 +11,10 @@ class DriftType(str, Enum):
     def from_str(value: str) -> "DriftType":
         if value == "SPC":
             return DriftType.SPC
-        elif value == "PSI":
+        if value == "PSI":
             return DriftType.PSI
-        else:
-            raise ValueError(f"Unknown drift type: {value}")
+
+        raise ValueError(f"Unknown drift type: {value}")
 
 
 class AlertZone(str, Enum):

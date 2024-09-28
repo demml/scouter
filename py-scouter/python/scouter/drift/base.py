@@ -31,7 +31,7 @@ class DriftHelperBase:
     def compute_drift(
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
-        profile: SpcDriftProfile,
+        drift_profile: Union[SpcDriftProfile],
     ) -> Union[SpcDriftMap]:
         raise NotImplementedError
 
