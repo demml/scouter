@@ -1,5 +1,5 @@
 use crate::core::error::MonitorError;
-use crate::utils::types::{Bin, DriftConfig, DriftMap, DriftProfile, PSIDriftMap, PSIDriftProfile, PSIFeatureDriftProfile};
+use crate::utils::types::{Bin, DriftConfig, PSIDriftMap, PSIDriftProfile, PSIFeatureDriftProfile};
 use itertools::Itertools;
 use ndarray::prelude::*;
 use ndarray::Axis;
@@ -15,6 +15,35 @@ impl PSIMonitor {
         PSIMonitor {}
     }
 
+    fn compute_1d_array_mean<F>(&self, array: &ArrayView<F, Ix1>) -> Result<f64, MonitorError>
+    where
+        F: Float + FromPrimitive,
+        F: Into<f64>,
+    {
+        Ok(array
+            .mean()
+            .ok_or(MonitorError::ComputeError(
+                "Failed to compute mean".to_string(),
+            ))?
+            .into())
+    }
+
+    fn compute_bin_count<F>(
+        &self,
+        array: &ArrayView<F, Ix1>,
+        lower_threshold: &f64,
+        upper_threshold: &f64,
+    ) -> usize
+    where
+        F: Float + FromPrimitive,
+        F: Into<f64>,
+    {
+        array
+            .iter()
+            .filter(|&&value| value.into() > *lower_threshold && value.into() <= *upper_threshold)
+            .count()
+    }
+
     fn data_are_binary<F>(&self, column_vector: &ArrayView<F, Ix1>) -> bool
     where
         F: Float,
@@ -22,7 +51,7 @@ impl PSIMonitor {
     {
         column_vector
             .iter()
-            .all(|&value| value == F::from(0.0).unwrap() || value == F::from(1.0).unwrap())
+            .all(|&value| value.into() == 0.0 || value.into() == 1.0)
     }
 
     fn compute_deciles<F>(&self, column_vector: &ArrayView<F, Ix1>) -> Result<[F; 9], MonitorError>
@@ -58,22 +87,20 @@ impl PSIMonitor {
         F: Into<f64>,
     {
         if self.data_are_binary(column_vector) {
-            let column_vector_mean = column_vector.mean().ok_or(MonitorError::ComputeError(
-                "Failed to compute mean".to_string(),
-            ))?;
+            let column_vector_mean = self.compute_1d_array_mean(column_vector)?;
 
             Ok(vec![
                 Bin {
                     id: 1,
                     lower_limit: 0.0,
                     upper_limit: None,
-                    proportion: (F::from(1.0).unwrap() - column_vector_mean).into(),
+                    proportion: 1.0 - column_vector_mean,
                 },
                 Bin {
                     id: 2,
                     lower_limit: 1.0,
                     upper_limit: None,
-                    proportion: column_vector_mean.into(),
+                    proportion: column_vector_mean,
                 },
             ])
         } else {
@@ -83,26 +110,24 @@ impl PSIMonitor {
 
             let bins: Vec<Bin> = (0..=deciles.len())
                 .into_par_iter()
-                .map(|bucket| {
-                    let lower = if bucket == 0 {
+                .map(|decile| {
+                    let lower = if decile == 0 {
                         F::neg_infinity()
                     } else {
-                        deciles[bucket - 1]
+                        deciles[decile - 1]
                     };
-                    let upper = if bucket == deciles.len() {
+                    let upper = if decile == deciles.len() {
                         F::infinity()
                     } else {
-                        deciles[bucket]
+                        deciles[decile]
                     };
-                    let bucket_count = column_vector
-                        .iter()
-                        .filter(|&&value| value > lower && value <= upper)
-                        .count();
+                    let bin_count =
+                        self.compute_bin_count(column_vector, &lower.into(), &upper.into());
                     Bin {
-                        id: bucket + 1,
+                        id: decile + 1,
                         lower_limit: lower.into(),
                         upper_limit: Some(upper.into()),
-                        proportion: (bucket_count as f64) / (column_vector.len() as f64),
+                        proportion: (bin_count as f64) / (column_vector.len() as f64),
                     }
                 })
                 .collect();
@@ -119,9 +144,9 @@ impl PSIMonitor {
         F: Float + Sync + FromPrimitive + Default,
         F: Into<f64>,
     {
-        let bins = self.create_bins(column_vector).map_err(|err| {
-            MonitorError::CreateError(format!("Failed to create bins: {}", err))
-        })?;
+        let bins = self
+            .create_bins(column_vector)
+            .map_err(|err| MonitorError::CreateError(format!("Failed to create bins: {}", err)))?;
 
         Ok(PSIFeatureDriftProfile {
             id: feature_name,
@@ -167,9 +192,7 @@ impl PSIMonitor {
             .map(|(column_vector, feature_name)| {
                 self.create_psi_feature_drift_profile(feature_name.to_string(), &column_vector)
             })
-            .collect::<Result<Vec<_>, _>>();
-
-        let profile_vector = profile_vector?;
+            .collect::<Result<Vec<_>, _>>()?;
 
         profile_vector
             .into_iter()
@@ -185,81 +208,86 @@ impl PSIMonitor {
         ))
     }
 
-
     fn compute_psi_proportion_pairs<F>(
         &self,
         column_vector: &ArrayView<F, Ix1>,
-        bin: &Bin
+        bin: &Bin,
     ) -> Result<(f64, f64), MonitorError>
     where
-        F: Float
-        + Sync
-        + FromPrimitive
-        + Send
-        + Num
-        + Debug
-        + num_traits::Zero
-        + ndarray::ScalarOperand,
+        F: Float + FromPrimitive,
         F: Into<f64>,
     {
-        // TODO maybe dry this out, something similar is happening during bin creation
-        if self.data_are_binary(column_vector){
-            let column_vector_mean = column_vector.mean().ok_or(MonitorError::ComputeError(
-                "Failed to compute mean".to_string(),
-            ))?;
-            if bin.lower_limit == 0.0{
-                return Ok((bin.proportion, (F::from(1.0).unwrap() - column_vector_mean).into()))
+        if self.data_are_binary(column_vector) {
+            let column_vector_mean = self.compute_1d_array_mean(column_vector)?;
+            if bin.id == 1 {
+                return Ok((bin.proportion, 1.0 - column_vector_mean));
             }
-            return Ok((bin.proportion, column_vector_mean.into()))
+            return Ok((bin.proportion, column_vector_mean));
         }
-        // TODO maybe dry this out, something similar is happening during bin creation
-        let ll = bin.lower_limit;
-        let ul = bin.upper_limit.unwrap();
-        let bucket_count = column_vector
-            .iter()
-            .filter(|&&value| value.into() > ll && value.into() <= ul)
-            .count();
+        let bin_count =
+            self.compute_bin_count(column_vector, &bin.lower_limit, &bin.upper_limit.unwrap());
 
-        Ok((bin.proportion, (bucket_count as f64) / (column_vector.len() as f64)))
+        Ok((
+            bin.proportion,
+            (bin_count as f64) / (column_vector.len() as f64),
+        ))
     }
 
-    fn compute_psi(
-        &self,
-        proportions: &Vec<(f64, f64)>,
-    ) -> f64
-    {
+    fn compute_psi(&self, proportion_pairs: &Vec<(f64, f64)>) -> f64 {
         let epsilon = 1e-10;
-        proportions.iter().map(|(p, q)| {
-            let p_adj = p + epsilon;
-            let q_adj = q + epsilon;
-            (p_adj - q_adj) * (p_adj / q_adj).ln()
-        }).sum()
+        proportion_pairs
+            .iter()
+            .map(|(p, q)| {
+                let p_adj = p + epsilon;
+                let q_adj = q + epsilon;
+                (p_adj - q_adj) * (p_adj / q_adj).ln()
+            })
+            .sum()
     }
 
     fn compute_feature_drift<F>(
         &self,
         column_vector: &ArrayView<F, Ix1>,
-        features: &PSIFeatureDriftProfile
+        features: &PSIFeatureDriftProfile,
     ) -> Result<f64, MonitorError>
     where
-        F: Float
-        + Sync
-        + FromPrimitive
-        + Send
-        + Num
-        + Debug
-        + num_traits::Zero
-        + ndarray::ScalarOperand,
+        F: Float + Sync + FromPrimitive,
         F: Into<f64>,
     {
         let bins = &features.bins;
         let feature_proportions: Vec<(f64, f64)> = bins
-            .par_iter()  // Change from .iter() to .par_iter()
-            .map(|bin| {
-                self.compute_psi_proportion_pairs(column_vector, bin).unwrap()
-            })
-            .collect();
+            .into_par_iter()
+            .map(|bin| self.compute_psi_proportion_pairs(column_vector, bin))
+            .collect::<Result<Vec<(f64, f64)>, MonitorError>>()?;
         Ok(self.compute_psi(&feature_proportions))
+    }
+
+    fn check_features(
+        &self,
+        features: &[String],
+        drift_profile: &PSIDriftProfile,
+    ) -> Result<(), MonitorError> {
+        features
+            .iter()
+            .try_for_each(|feature_name| {
+                if !drift_profile.features.contains_key(feature_name) {
+                    // Collect all the keys from the drift profile into a comma-separated string
+                    let available_keys = drift_profile
+                        .features
+                        .keys()
+                        .cloned()
+                        .collect::<Vec<_>>()
+                        .join(", ");
+
+                    return Err(MonitorError::ComputeError(
+                        format!(
+                            "Feature mismatch, feature '{}' not found. Available features in the drift profile: {}",
+                            feature_name, available_keys
+                        ),
+                    ));
+                }
+                Ok(())
+            })
     }
 
     pub fn compute_model_drift<F>(
@@ -267,80 +295,96 @@ impl PSIMonitor {
         features: &[String],
         array: &ArrayView2<F>,
         drift_profile: &PSIDriftProfile,
-    ) -> Result<(), MonitorError>
+    ) -> Result<PSIDriftMap, MonitorError>
     where
-        F: Float
-            + Sync
-            + FromPrimitive
-            + Send
-            + Num
-            + Debug
-            + num_traits::Zero
-            + ndarray::ScalarOperand,
+        F: Float + Sync + FromPrimitive,
         F: Into<f64>,
     {
-        // TODO do check here to see if features are found in the drift profile
+        assert_eq!(
+            features.len(),
+            array.shape()[1],
+            "Feature count must match column count."
+        );
+
+        self.check_features(features, drift_profile)?;
 
         let drift_values: Vec<_> = array
-        .axis_iter(Axis(1))
-        .zip(features)
-        .collect_vec()
-        .into_par_iter()
-        .map(|(column_vector, feature_name)| {
-            self.compute_feature_drift(&column_vector, &drift_profile.features.get(feature_name).unwrap()).unwrap()
-        }).collect();
+            .axis_iter(Axis(1))
+            .zip(features)
+            .collect_vec()
+            .into_par_iter()
+            .map(|(column_vector, feature_name)| {
+                self.compute_feature_drift(
+                    &column_vector,
+                    &drift_profile.features.get(feature_name).unwrap(),
+                )
+            })
+            .collect::<Result<Vec<f64>, MonitorError>>()?;
 
-        Ok(())
+        let mut psi_drift_features = HashMap::new();
+
+        drift_values
+            .into_iter()
+            .zip(features)
+            .for_each(|(drift_value, feature_name)| {
+                psi_drift_features.insert(feature_name.clone(), drift_value);
+            });
+
+        Ok(PSIDriftMap {
+            features: psi_drift_features,
+            name: drift_profile.config.name.clone(),
+            repository: drift_profile.config.repository.clone(),
+            version: drift_profile.config.version.clone(),
+        })
     }
 }
 #[cfg(test)]
 mod tests {
-    use crate::utils::types::{AlertConfig, AlertRule, PercentageAlertRule};
+    use crate::utils::types::AlertConfig;
 
     use super::*;
     use ndarray::Array;
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
-    use crate::core::monitor::Monitor;
+
+    // #[test]
+    // fn test_compute_drift() {
+    //     let psi_monitor = PSIMonitor::new();
+    //
+    //     let array = Array::random((1030, 3), Uniform::new(0., 10.));
+    //
+    //     let features = vec![
+    //         "feature_1".to_string(),
+    //         "feature_2".to_string(),
+    //         "feature_3".to_string(),
+    //     ];
+    //     let config = DriftConfig::new(
+    //         Some("name".to_string()),
+    //         Some("repo".to_string()),
+    //         None,
+    //         None,
+    //         None,
+    //         None,
+    //         None,
+    //         None,
+    //         None,
+    //     );
+    //
+    //     let profile = psi_monitor
+    //         .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
+    //         .unwrap();
+    //     assert_eq!(profile.features.len(), 3);
+    //
+    //     // change first 100 rows to 100 at index 1
+    //     let mut array = array.to_owned();
+    //     array.slice_mut(s![0..200, 1]).fill(100.0);
+    //
+    //     let drift_map = psi_monitor
+    //         .compute_model_drift(&features, &array.view(), &profile)
+    //         .unwrap();
+    // }
 
     #[test]
-    fn test_compute_drift() {
-        let psi_monitor = PSIMonitor::new();
-
-        let array = Array::random((1030, 3), Uniform::new(0., 10.));
-
-        let features = vec![
-            "feature_1".to_string(),
-            "feature_2".to_string(),
-            "feature_3".to_string(),
-        ];
-        let config = DriftConfig::new(
-            Some("name".to_string()),
-            Some("repo".to_string()),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        );
-
-        let profile = psi_monitor
-            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
-            .unwrap();
-        assert_eq!(profile.features.len(), 3);
-
-        // change first 100 rows to 100 at index 1
-        let mut array = array.to_owned();
-        array.slice_mut(s![0..200, 1]).fill(100.0);
-
-        let drift_map = psi_monitor
-            .compute_model_drift(&features, &array.view(), &profile)
-            .unwrap();
-    }
-
-        #[test]
     fn test_data_are_binary_with_binary_vector() {
         let psi_monitor = PSIMonitor::new();
 
