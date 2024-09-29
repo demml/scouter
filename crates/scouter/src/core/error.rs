@@ -8,7 +8,7 @@ pub enum AlertError {
     CreateError(String),
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum MonitorError {
     #[error("{0}")]
     CreateError(String),

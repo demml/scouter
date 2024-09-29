@@ -3,10 +3,9 @@ use crate::utils::types::{Bin, DriftConfig, PSIDriftMap, PSIDriftProfile, PSIFea
 use itertools::Itertools;
 use ndarray::prelude::*;
 use ndarray::Axis;
-use num_traits::{Float, FromPrimitive, Num};
+use num_traits::{Float, FromPrimitive};
 use rayon::prelude::*;
 use std::collections::HashMap;
-use std::fmt::Debug;
 
 pub struct PSIMonitor {}
 
@@ -155,16 +154,6 @@ impl PSIMonitor {
         })
     }
 
-    // Create a 2D monitor profile
-    //
-    // # Arguments
-    //
-    // * `features` - A vector of feature names
-    // * `array` - A 2D array of f64 values
-    //
-    // # Returns
-    //
-    // A monitor profile
     pub fn create_2d_drift_profile<F>(
         &self,
         features: &[String],
@@ -347,51 +336,131 @@ mod tests {
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
 
-    // #[test]
-    // fn test_compute_drift() {
-    //     let psi_monitor = PSIMonitor::new();
-    //
-    //     let array = Array::random((1030, 3), Uniform::new(0., 10.));
-    //
-    //     let features = vec![
-    //         "feature_1".to_string(),
-    //         "feature_2".to_string(),
-    //         "feature_3".to_string(),
-    //     ];
-    //     let config = DriftConfig::new(
-    //         Some("name".to_string()),
-    //         Some("repo".to_string()),
-    //         None,
-    //         None,
-    //         None,
-    //         None,
-    //         None,
-    //         None,
-    //         None,
-    //     );
-    //
-    //     let profile = psi_monitor
-    //         .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
-    //         .unwrap();
-    //     assert_eq!(profile.features.len(), 3);
-    //
-    //     // change first 100 rows to 100 at index 1
-    //     let mut array = array.to_owned();
-    //     array.slice_mut(s![0..200, 1]).fill(100.0);
-    //
-    //     let drift_map = psi_monitor
-    //         .compute_model_drift(&features, &array.view(), &profile)
-    //         .unwrap();
-    // }
+    #[test]
+    fn test_check_features_all_exist() {
+        let psi_monitor = PSIMonitor::new();
+
+        let array = Array::random((1030, 3), Uniform::new(0., 10.));
+
+        let features = vec![
+            "feature_1".to_string(),
+            "feature_2".to_string(),
+            "feature_3".to_string(),
+        ];
+        let config = DriftConfig::new(
+            Some("name".to_string()),
+            Some("repo".to_string()),
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+
+        let profile = psi_monitor
+            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
+            .unwrap();
+        assert_eq!(profile.features.len(), 3);
+
+        let result = psi_monitor.check_features(&features, &profile);
+
+        // Assert that the result is Ok
+        assert_eq!(result, Ok(()));
+    }
+
+    #[test]
+    fn test_compute_psi_basic() {
+        let psi_monitor = PSIMonitor::new();
+        let proportions = vec![(0.3, 0.2), (0.4, 0.4), (0.3, 0.4)];
+
+        let result = psi_monitor.compute_psi(&proportions);
+
+        // Manually compute expected PSI for this case
+        let expected_psi = (0.3 - 0.2) * (0.3 / 0.2).ln()
+            + (0.4 - 0.4) * (0.4 / 0.4).ln()
+            + (0.3 - 0.4) * (0.3 / 0.4).ln();
+
+        assert!((result - expected_psi).abs() < 1e-6);
+    }
+
+    #[test]
+    fn test_compute_bin_count() {
+        let psi_monitor = PSIMonitor::new();
+
+        let data = Array1::from_vec(vec![1.0, 2.5, 3.7, 5.0, 6.3, 8.1]);
+
+        let lower_threshold = 2.0;
+        let upper_threshold = 6.0;
+
+        let result =
+            psi_monitor.compute_bin_count(&data.view(), &lower_threshold, &upper_threshold);
+
+        // Check that it counts the correct number of elements within the bin
+        // In this case, 2.5, 3.7, and 5.0 should be counted (3 elements)
+        assert_eq!(result, 3);
+    }
+
+    #[test]
+    fn test_compute_psi_proportion_pairs_binary() {
+        let psi_monitor = PSIMonitor::new();
+
+        let binary_vector = Array::from_vec(vec![0.0, 1.0, 0.0, 1.0, 0.0, 1.0]);
+
+        let binary_zero_bin = Bin {
+            id: 1,
+            lower_limit: 0.0,
+            upper_limit: None,
+            proportion: 0.4,
+        };
+
+        let (_, prod_proportion) = psi_monitor
+            .compute_psi_proportion_pairs(&binary_vector.view(), &binary_zero_bin)
+            .unwrap();
+
+        let expected_prod_proportion = 0.5;
+
+        assert!(
+            (prod_proportion - expected_prod_proportion).abs() < 1e-9,
+            "prod_proportion was expected to be 50%"
+        );
+    }
+
+    #[test]
+    fn test_compute_psi_proportion_pairs_non_binary() {
+        let psi_monitor = PSIMonitor::new();
+
+        let vector = Array::from_vec(vec![
+            12.0, 11.0, 10.0, 1.0, 10.0, 21.0, 19.0, 12.0, 12.0, 23.0,
+        ]);
+
+        let bin = Bin {
+            id: 1,
+            lower_limit: 0.0,
+            upper_limit: Some(11.0),
+            proportion: 0.4,
+        };
+
+        let (_, prod_proportion) = psi_monitor
+            .compute_psi_proportion_pairs(&vector.view(), &bin)
+            .unwrap();
+
+        let expected_prod_proportion = 0.4;
+
+        assert!(
+            (prod_proportion - expected_prod_proportion).abs() < 1e-9,
+            "prod_proportion was expected to be 40%"
+        );
+    }
 
     #[test]
     fn test_data_are_binary_with_binary_vector() {
         let psi_monitor = PSIMonitor::new();
 
         let binary_vector = Array::from_vec(vec![0.0, 1.0, 1.0, 0.0, 0.0]);
-        let column_view = binary_vector.view();
 
-        let result = psi_monitor.data_are_binary(&column_view);
+        let result = psi_monitor.data_are_binary(&binary_vector.view());
 
         assert!(result, "Expected the binary vector to return true");
     }
