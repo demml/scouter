@@ -4,6 +4,7 @@ use pyo3::prelude::*;
 use scouter::core::cron::{
     CommonCron, Every12Hours, Every30Minutes, Every6Hours, EveryDay, EveryHour, EveryWeek,
 };
+use scouter::core::observe::observer::Observer;
 use scouter::core::profile::types::{DataProfile, Distinct, FeatureProfile, Histogram};
 use scouter::core::spc::feature_queue::SpcFeatureQueue;
 use scouter::core::spc::types::{

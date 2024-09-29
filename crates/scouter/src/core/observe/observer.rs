@@ -3,6 +3,8 @@ use ndarray_stats::interpolate::Nearest;
 use ndarray_stats::Quantile1dExt;
 use noisy_float::types::n64;
 use pyo3::prelude::*;
+use rayon::iter::IntoParallelIterator;
+use rayon::iter::ParallelIterator;
 use std::collections::HashMap;
 
 #[pyclass]
@@ -24,42 +26,27 @@ struct LatencyMetrics {
     p99: f64,
 }
 
-#[pyclass]
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 struct RouteLatency {
-    #[pyo3(get)]
     request_latency: Vec<f64>,
-
-    #[pyo3(get)]
     request_count: i64,
-
-    #[pyo3(get)]
     error_count: i64,
-
-    #[pyo3(get)]
     error_latency: f64,
-
-    #[pyo3(get)]
     status_codes: HashMap<usize, i64>,
 }
 
 #[pyclass]
 #[derive(Clone)]
-struct Observer {
-    #[pyo3(get)]
+pub struct Observer {
     request_count: i64,
-
-    #[pyo3(get)]
     error_count: i64,
-
-    #[pyo3(get)]
     request_latency: HashMap<String, RouteLatency>,
 }
 
 #[pymethods]
 impl Observer {
     #[new]
-    fn new() -> Self {
+    pub fn new() -> Self {
         Observer {
             request_count: 0,
             error_count: 0,
@@ -139,10 +126,15 @@ impl Observer {
         self.increment_error_count(status);
     }
 
-    pub fn collect_metrics(&self) -> ObservabilityMetrics {
+    pub fn collect_metrics(&self) -> Option<ObservabilityMetrics> {
+        if self.request_count == 0 {
+            return None;
+        }
+
         let latency_tuples = self
             .request_latency
-            .iter()
+            .clone()
+            .into_par_iter()
             .map(|(route, route_latency)| {
                 let mut latency_array = Array1::from_vec(
                     route_latency
@@ -180,11 +172,11 @@ impl Observer {
             .map(|(k, v)| (k.clone(), v))
             .collect::<HashMap<_, _>>();
 
-        ObservabilityMetrics {
+        Some(ObservabilityMetrics {
             request_count: self.request_count,
             error_count: self.error_count,
             route_metrics,
-        }
+        })
     }
 
     pub fn reset_metrics(&mut self) {
@@ -223,7 +215,7 @@ struct RouteMetrics {
 
 #[pyclass]
 #[derive(Debug)]
-struct ObservabilityMetrics {
+pub struct ObservabilityMetrics {
     #[pyo3(get)]
     request_count: i64,
 
@@ -232,22 +224,6 @@ struct ObservabilityMetrics {
 
     #[pyo3(get)]
     route_metrics: HashMap<String, RouteMetrics>,
-}
-
-#[pymethods]
-impl ObservabilityMetrics {
-    #[new]
-    pub fn new(
-        request_count: i64,
-        error_count: i64,
-        route_metrics: HashMap<String, RouteMetrics>,
-    ) -> Self {
-        ObservabilityMetrics {
-            request_count,
-            error_count,
-            route_metrics,
-        }
-    }
 }
 
 #[cfg(test)]
@@ -344,7 +320,7 @@ mod tests {
             observer.increment("/contact", num3 as f64, "OK", 200);
         }
 
-        let metrics = observer.collect_metrics();
+        let metrics = observer.collect_metrics().unwrap();
         assert_eq!(metrics.request_count, 400);
         assert_eq!(metrics.error_count, 100);
 
