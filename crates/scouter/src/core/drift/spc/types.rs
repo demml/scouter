@@ -1,9 +1,8 @@
 use crate::core::cron::EveryDay;
+use crate::core::dispatch::types::AlertDispatchType;
+use crate::core::drift::base::{DispatchAlertDescription, DispatchDriftConfig, DriftArgs};
 use crate::core::error::ScouterError;
-use crate::core::types::AlertFeatures;
-use crate::core::utils::{
-    json_to_pyobject, pyobject_to_json, AlertDispatchType, DriftType, FileName, ProfileFuncs,
-};
+use crate::core::utils::{json_to_pyobject, pyobject_to_json, DriftType, FileName, ProfileFuncs};
 use core::fmt::Debug;
 use ndarray::Array;
 use ndarray::Array2;
@@ -446,6 +445,17 @@ impl SpcDriftConfig {
     }
 }
 
+impl DispatchDriftConfig for SpcDriftConfig {
+    fn get_drift_args(&self) -> DriftArgs {
+        DriftArgs {
+            name: self.name.clone(),
+            repository: self.repository.clone(),
+            version: self.version.clone(),
+            dispatch_type: self.alert_config.dispatch_type.clone(),
+        }
+    }
+}
+
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SpcDriftProfile {
@@ -853,7 +863,7 @@ impl SpcFeatureAlerts {
     }
 }
 
-impl AlertFeatures for SpcFeatureAlerts {
+impl DispatchAlertDescription for SpcFeatureAlerts {
     fn create_alert_description(&self, dispatch_type: AlertDispatchType) -> String {
         let mut alert_description = String::new();
 
@@ -1032,7 +1042,7 @@ mod tests {
         };
 
         // Assert the values
-        assert_eq!(alerts.has_alerts, true);
+        assert!(alerts.has_alerts);
 
         // Assert the values of the features
         assert_eq!(alerts.features["feature1"].feature, sample_alert.feature);

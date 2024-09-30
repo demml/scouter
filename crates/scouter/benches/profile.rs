@@ -2,10 +2,10 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use ndarray::Array;
 use ndarray_rand::rand_distr::Uniform;
 use ndarray_rand::RandomExt;
-use scouter::core::spc::monitor::SpcMonitor;
+use scouter::core::drift::spc::monitor::SpcMonitor;
 
+use scouter::core::drift::spc::types::{SpcAlertConfig, SpcDriftConfig};
 use scouter::core::profile::num_profiler::NumProfiler;
-use scouter::core::spc::types::{SpcAlertConfig, SpcDriftConfig};
 
 fn criterion_benchmark(c: &mut Criterion) {
     let monitor = SpcMonitor::new();

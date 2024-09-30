@@ -4,14 +4,15 @@ use pyo3::prelude::*;
 use scouter::core::cron::{
     CommonCron, Every12Hours, Every30Minutes, Every6Hours, EveryDay, EveryHour, EveryWeek,
 };
-use scouter::core::profile::types::{DataProfile, Distinct, FeatureProfile, Histogram};
-use scouter::core::spc::feature_queue::SpcFeatureQueue;
-use scouter::core::spc::types::{
+use scouter::core::dispatch::types::AlertDispatchType;
+use scouter::core::drift::spc::feature_queue::SpcFeatureQueue;
+use scouter::core::drift::spc::types::{
     AlertZone, FeatureMap, SpcAlert, SpcAlertConfig, SpcAlertRule, SpcAlertType, SpcDriftConfig,
     SpcDriftMap, SpcDriftProfile, SpcDriftServerRecord, SpcDriftServerRecords, SpcFeatureAlert,
     SpcFeatureAlerts, SpcFeatureDrift, SpcFeatureDriftProfile,
 };
-use scouter::core::utils::{AlertDispatchType, DriftType};
+use scouter::core::profile::types::{DataProfile, Distinct, FeatureProfile, Histogram};
+use scouter::core::utils::DriftType;
 
 #[pymodule]
 fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {

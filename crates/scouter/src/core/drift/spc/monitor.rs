@@ -1,6 +1,6 @@
 use crate::core::error::MonitorError;
 
-use crate::core::spc::types::{
+use crate::core::drift::spc::types::{
     FeatureMap, SpcDriftConfig, SpcDriftMap, SpcDriftProfile, SpcDriftServerRecord,
     SpcDriftServerRecords, SpcFeatureDrift, SpcFeatureDriftProfile,
 };
@@ -624,7 +624,7 @@ impl Default for SpcMonitor {
 #[cfg(test)]
 mod tests {
 
-    use crate::core::spc::types::SpcAlertConfig;
+    use crate::core::drift::spc::types::SpcAlertConfig;
 
     use super::*;
     use approx::relative_eq;
