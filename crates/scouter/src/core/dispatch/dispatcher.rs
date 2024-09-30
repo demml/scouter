@@ -331,30 +331,31 @@ impl AlertDispatcher {
     // * `config` - DriftConfig (this is an enum wrapper for the different drift configurations)
     pub fn new<T: DispatchDriftConfig>(config: &T) -> Result<Self, DispatchError> {
         let args: DriftArgs = config.get_drift_args();
-        if let AlertDispatchType::OpsGenie = args.dispatch_type {
-            let _alerter = OpsGenieAlerter::new(&args.name, &args.repository, &args.version)
-                .map_err(|e| {
-                    error!("Failed to create OpsGenieAlerter: {:?}", e);
-                    DispatchError::AlerterError(e.to_string())
-                })?;
 
-            Ok(AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(
-                _alerter,
-            )))
+        let result = if let AlertDispatchType::OpsGenie = args.dispatch_type {
+            OpsGenieAlerter::new(&args.name, &args.repository, &args.version)
+                .map(|alerter| AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(alerter)))
         } else if let AlertDispatchType::Slack = args.dispatch_type {
-            let _alerter =
-                SlackAlerter::new(&args.name, &args.repository, &args.version).map_err(|e| {
-                    error!("Failed to create SlackAlerter: {:?}", e);
-                    DispatchError::AlerterError(e.to_string())
-                })?;
-
-            Ok(AlertDispatcher::Slack(HttpAlertDispatcher::new(_alerter)))
+            SlackAlerter::new(&args.name, &args.repository, &args.version)
+                .map(|alerter| AlertDispatcher::Slack(HttpAlertDispatcher::new(alerter)))
         } else {
             Ok(AlertDispatcher::Console(ConsoleAlertDispatcher::new(
                 &args.name,
                 &args.repository,
                 &args.version,
             )))
+        };
+
+        match result {
+            Ok(dispatcher) => Ok(dispatcher),
+            Err(e) => {
+                error!("Failed to create Alerter: {:?}", e);
+                Ok(AlertDispatcher::Console(ConsoleAlertDispatcher::new(
+                    &args.name,
+                    &args.repository,
+                    &args.version,
+                )))
+            }
         }
     }
 }
@@ -627,6 +628,7 @@ mod tests {
         )
         .unwrap();
         let dispatcher = AlertDispatcher::new(&config).unwrap();
+
         assert!(
             matches!(dispatcher, AlertDispatcher::Console(_)),
             "Expected Console Dispatcher"
