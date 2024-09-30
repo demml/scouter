@@ -25,7 +25,6 @@ impl FileName {
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub enum AlertDispatchType {
-    Email,
     Slack,
     #[default]
     Console,
@@ -37,7 +36,6 @@ impl AlertDispatchType {
     #[getter]
     pub fn value(&self) -> String {
         match self {
-            AlertDispatchType::Email => "Email".to_string(),
             AlertDispatchType::Slack => "Slack".to_string(),
             AlertDispatchType::Console => "Console".to_string(),
             AlertDispatchType::OpsGenie => "OpsGenie".to_string(),

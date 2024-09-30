@@ -1,5 +1,6 @@
 use crate::core::cron::EveryDay;
 use crate::core::error::ScouterError;
+use crate::core::types::AlertFeatures;
 use crate::core::utils::{
     json_to_pyobject, pyobject_to_json, AlertDispatchType, DriftType, FileName, ProfileFuncs,
 };
@@ -153,7 +154,6 @@ impl SpcAlertConfig {
     #[getter]
     pub fn dispatch_type(&self) -> String {
         match self.dispatch_type {
-            AlertDispatchType::Email => "Email".to_string(),
             AlertDispatchType::Slack => "Slack".to_string(),
             AlertDispatchType::Console => "Console".to_string(),
             AlertDispatchType::OpsGenie => "OpsGenie".to_string(),
@@ -853,6 +853,57 @@ impl SpcFeatureAlerts {
     }
 }
 
+impl AlertFeatures for SpcFeatureAlerts {
+    fn create_alert_description(&self, dispatch_type: AlertDispatchType) -> String {
+        let mut alert_description = String::new();
+
+        for (i, (_, feature_alert)) in self.features.iter().enumerate() {
+            if feature_alert.alerts.is_empty() {
+                continue;
+            }
+            if i == 0 {
+                let header = match dispatch_type {
+                    AlertDispatchType::Console => "Features that have drifted: \n",
+                    AlertDispatchType::OpsGenie => {
+                        "Drift has been detected for the following features:\n"
+                    }
+                    AlertDispatchType::Slack => {
+                        "Drift has been detected for the following features:\n"
+                    }
+                };
+                alert_description.push_str(header);
+            }
+
+            let feature_name = match dispatch_type {
+                AlertDispatchType::Console | AlertDispatchType::OpsGenie => {
+                    format!("{:indent$}{}: \n", "", &feature_alert.feature, indent = 4)
+                }
+                AlertDispatchType::Slack => format!("{}: \n", &feature_alert.feature),
+            };
+
+            alert_description = format!("{}{}", alert_description, feature_name);
+            feature_alert.alerts.iter().for_each(|alert| {
+                let alert_details = match dispatch_type {
+                    AlertDispatchType::Console | AlertDispatchType::OpsGenie => {
+                        let kind = format!("{:indent$}Kind: {}\n", "", &alert.kind, indent = 8);
+                        let zone = format!("{:indent$}Zone: {}\n", "", &alert.zone, indent = 8);
+                        format!("{}{}", kind, zone)
+                    }
+                    AlertDispatchType::Slack => format!(
+                        "{:indent$}{} error in {}\n",
+                        "",
+                        &alert.kind,
+                        &alert.zone,
+                        indent = 4
+                    ),
+                };
+                alert_description = format!("{}{}", alert_description, alert_details);
+            });
+        }
+        alert_description
+    }
+}
+
 #[pymethods]
 #[allow(clippy::new_without_default)]
 impl SpcFeatureAlerts {
@@ -904,13 +955,6 @@ mod tests {
         assert_eq!(alert_config.dispatch_type, AlertDispatchType::Console);
         assert_eq!(alert_config.dispatch_type(), "Console");
         assert_eq!(AlertDispatchType::Console.value(), "Console");
-
-        //test email alert config
-        let alert_config =
-            SpcAlertConfig::new(None, Some(AlertDispatchType::Email), None, None, None);
-        assert_eq!(alert_config.dispatch_type, AlertDispatchType::Email);
-        assert_eq!(alert_config.dispatch_type(), "Email");
-        assert_eq!(AlertDispatchType::Email.value(), "Email");
 
         //test slack alert config
         let alert_config =
