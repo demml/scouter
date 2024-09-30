@@ -1008,4 +1008,38 @@ mod tests {
 
         assert_eq!(drift_config.name, "test");
     }
+
+    #[test]
+    fn test_spc_feature_alerts() {
+        // Create a sample SpcFeatureAlert (assuming SpcFeatureAlert is defined elsewhere)
+        let sample_alert = SpcFeatureAlert {
+            feature: "feature1".to_string(),
+            alerts: vec![SpcAlert {
+                kind: "kind1".to_string(),
+                zone: "zone1".to_string(),
+            }],
+            // Initialize fields of SpcFeatureAlert
+        };
+
+        // Create a HashMap with sample data
+        let mut features = HashMap::new();
+        features.insert("feature1".to_string(), sample_alert.clone());
+
+        // Create an instance of SpcFeatureAlerts
+        let alerts = SpcFeatureAlerts {
+            features: features.clone(),
+            has_alerts: true,
+        };
+
+        // Assert the values
+        assert_eq!(alerts.has_alerts, true);
+
+        // Assert the values of the features
+        assert_eq!(alerts.features["feature1"].feature, sample_alert.feature);
+
+        // Assert constructing alert description
+        let _ = alerts.create_alert_description(AlertDispatchType::Console);
+        let _ = alerts.create_alert_description(AlertDispatchType::OpsGenie);
+        let _ = alerts.create_alert_description(AlertDispatchType::Slack);
+    }
 }
