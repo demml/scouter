@@ -251,11 +251,22 @@ impl PSIMonitor {
         Ok(self.compute_psi(&feature_proportions))
     }
 
-    fn check_features(
+    fn check_features<F>(
         &self,
         features: &[String],
+        array: &ArrayView2<F>,
         drift_profile: &PSIDriftProfile,
-    ) -> Result<(), MonitorError> {
+    ) -> Result<(), MonitorError>
+    where
+        F: Float + Sync + FromPrimitive,
+        F: Into<f64>,
+    {
+        assert_eq!(
+            features.len(),
+            array.shape()[1],
+            "Feature count must match column count."
+        );
+
         features
             .iter()
             .try_for_each(|feature_name| {
@@ -289,13 +300,7 @@ impl PSIMonitor {
         F: Float + Sync + FromPrimitive,
         F: Into<f64>,
     {
-        assert_eq!(
-            features.len(),
-            array.shape()[1],
-            "Feature count must match column count."
-        );
-
-        self.check_features(features, drift_profile)?;
+        self.check_features(features, array, drift_profile)?;
 
         let drift_values: Vec<_> = array
             .axis_iter(Axis(1))
@@ -364,7 +369,7 @@ mod tests {
             .unwrap();
         assert_eq!(profile.features.len(), 3);
 
-        let result = psi_monitor.check_features(&features, &profile);
+        let result = psi_monitor.check_features(&features, &array.view(), &profile);
 
         // Assert that the result is Ok
         assert_eq!(result, Ok(()));
