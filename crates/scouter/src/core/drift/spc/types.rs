@@ -977,8 +977,8 @@ mod tests {
         // update
         drift_config
             .update_config_args(
-                Some("test".to_string()),
                 None,
+                Some("test".to_string()),
                 None,
                 None,
                 None,
