@@ -1,4 +1,4 @@
-from typing import Any, Optional, Union
+from typing import Any, Optional
 
 import tenacity
 from pydantic import BaseModel, field_validator
@@ -25,9 +25,7 @@ class RabbitMQConfig(BaseModel):
     def validate_connection_params(cls, v: Any) -> RabbitConnectionParams:
         from pika import ConnectionParameters as RabbitParams  # type: ignore
 
-        assert isinstance(
-            v, RabbitParams
-        ), "Connection parameters must be of type pika.ConnectionParameters"
+        assert isinstance(v, RabbitParams), "Connection parameters must be of type pika.ConnectionParameters"
         return v
 
     @field_validator("publish_properties")
@@ -38,9 +36,7 @@ class RabbitMQConfig(BaseModel):
         if v is None:
             return v
 
-        assert isinstance(
-            v, BasicProperties
-        ), "Publish properties must be of type pika.BasicProperties"
+        assert isinstance(v, BasicProperties), "Publish properties must be of type pika.BasicProperties"
         return v
 
     @property
@@ -76,9 +72,7 @@ class RabbitMQProducer(BaseProducer):
             self._producer.queue_declare(queue=self._rabbit_config.queue)
 
         except ModuleNotFoundError as e:
-            logger.error(
-                "Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'"
-            )
+            logger.error("Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'")
             raise e
 
     def _publish(self, records: ServerRecords) -> None:

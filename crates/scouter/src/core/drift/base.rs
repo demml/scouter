@@ -61,6 +61,14 @@ pub enum ServerRecord {
     DRIFT { record: SpcServerRecord },
 }
 
+#[pymethods]
+impl ServerRecord {
+    #[new]
+    pub fn new(record: SpcServerRecord) -> Self {
+        ServerRecord::DRIFT { record }
+    }
+}
+
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ServerRecords {

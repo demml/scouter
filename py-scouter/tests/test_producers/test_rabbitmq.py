@@ -3,6 +3,8 @@ from scouter import (
     RabbitMQProducer,
     SpcServerRecord,
     ServerRecords,
+    ServerRecord,
+    RecordType,
 )
 from pika import ConnectionParameters, BasicProperties  # type: ignore
 
@@ -44,6 +46,11 @@ def test_rabbit_producer(mock_rabbit_connection):
         value=0.1,
     )
 
-    producer.publish(ServerRecords(records=[record]))
+    producer.publish(
+        ServerRecords(
+            records=[ServerRecord(record)],
+            record_type=RecordType.DRIFT,
+        )
+    )
     producer.flush()
     producer.flush(10)

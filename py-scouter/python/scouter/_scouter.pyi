@@ -74,7 +74,13 @@ class SpcServerRecord:
         """Return the dictionary representation of the record."""
 
 class ServerRecord:
-    record: SpcServerRecord
+    def __init__(self, record: SpcServerRecord):
+        """Initialize drift server record
+
+        Args:
+            record:
+                Drift server record
+        """
 
 class ServerRecords:
     @property
@@ -586,8 +592,8 @@ class SpcDriftProfile:
 
     def update_config_args(
         self,
-        name: Optional[str] = None,
         repository: Optional[str] = None,
+        name: Optional[str] = None,
         version: Optional[str] = None,
         sample: Optional[bool] = None,
         sample_size: Optional[int] = None,

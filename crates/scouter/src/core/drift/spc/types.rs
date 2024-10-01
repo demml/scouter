@@ -611,8 +611,8 @@ impl SpcDriftProfile {
     #[allow(clippy::too_many_arguments)]
     pub fn update_config_args(
         &mut self,
-        name: Option<String>,
         repository: Option<String>,
+        name: Option<String>,
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
@@ -621,8 +621,8 @@ impl SpcDriftProfile {
         alert_config: Option<SpcAlertConfig>,
     ) -> Result<(), ScouterError> {
         self.config.update_config_args(
-            name,
             repository,
+            name,
             version,
             sample,
             sample_size,

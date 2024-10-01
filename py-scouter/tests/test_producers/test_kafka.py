@@ -3,6 +3,8 @@ from scouter import (
     KafkaProducer,
     SpcServerRecord,
     ServerRecords,
+    ServerRecord,
+    RecordType,
 )
 import pytest
 
@@ -75,7 +77,12 @@ def test_kafka_producer(mock_kafka_producer):
         value=0.1,
     )
 
-    producer.publish(ServerRecords(records=[record]))
+    producer.publish(
+        ServerRecords(
+            records=[ServerRecord(record)],
+            record_type=RecordType.DRIFT,
+        )
+    )
     producer.flush()
     producer.flush(10)
 
