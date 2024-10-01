@@ -348,10 +348,10 @@ pub struct SpcDriftConfig {
     pub sample: bool,
 
     #[pyo3(get, set)]
-    pub name: String,
+    pub repository: String,
 
     #[pyo3(get, set)]
-    pub repository: String,
+    pub name: String,
 
     #[pyo3(get, set)]
     pub version: String,
@@ -374,8 +374,8 @@ pub struct SpcDriftConfig {
 impl SpcDriftConfig {
     #[new]
     pub fn new(
-        name: Option<String>,
         repository: Option<String>,
+        name: Option<String>,
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
@@ -454,8 +454,8 @@ impl SpcDriftConfig {
     #[allow(clippy::too_many_arguments)]
     pub fn update_config_args(
         &mut self,
-        name: Option<String>,
         repository: Option<String>,
+        name: Option<String>,
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,

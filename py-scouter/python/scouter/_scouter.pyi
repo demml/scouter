@@ -343,23 +343,23 @@ class SpcFeatureDriftProfile:
 class SpcDriftConfig:
     def __init__(
         self,
-        name: Optional[str] = None,
         repository: Optional[str] = None,
+        name: Optional[str] = None,
         version: Optional[str] = None,
         sample: bool = True,
         sample_size: int = 25,
+        alert_config: Optional[SpcAlertConfig] = None,
         feature_map: Optional[FeatureMap] = None,
         targets: Optional[List[str]] = None,
-        alert_config: Optional[SpcAlertConfig] = None,
         config_path: Optional[Path] = None,
     ):
         """Initialize monitor config
 
         Args:
-            name:
-                Model name
             repository:
                 Model repository
+            name:
+                Model name
             version:
                 Model version. Defaults to 0.1.0
             sample:
@@ -466,8 +466,8 @@ class SpcDriftConfig:
 
     def update_config_args(
         self,
-        name: Optional[str] = None,
         repository: Optional[str] = None,
+        name: Optional[str] = None,
         version: Optional[str] = None,
         sample: Optional[bool] = None,
         sample_size: Optional[int] = None,
@@ -478,10 +478,10 @@ class SpcDriftConfig:
         """Inplace operation that updates config args
 
         Args:
-            name:
-                Model name
             repository:
                 Model repository
+            name:
+                Model name
             version:
                 Model version
             sample:
