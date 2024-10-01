@@ -10,12 +10,17 @@ from numpy.typing import NDArray
 class DriftType(str, Enum):
     SPC = "SPC"
     PSI = "PSI"
+    NONE = "NONE"
+
+class RecordType:
+    DRIFT = "DRIFT"
+    OBSERVABILITY = "OBSERVABILITY"
 
 class SpcServerRecord:
     def __init__(
         self,
-        name: str,
         repository: str,
+        name: str,
         version: str,
         feature: str,
         value: float,
@@ -23,10 +28,10 @@ class SpcServerRecord:
         """Initialize spc drift server record
 
         Args:
-            name:
-                Model name
             repository:
                 Model repository
+            name:
+                Model name
             version:
                 Model version
             feature:
@@ -40,12 +45,12 @@ class SpcServerRecord:
         """Return the created at timestamp."""
 
     @property
-    def name(self) -> str:
-        """Return the name."""
-
-    @property
     def repository(self) -> str:
         """Return the repository."""
+
+    @property
+    def name(self) -> str:
+        """Return the name."""
 
     @property
     def version(self) -> str:
@@ -73,7 +78,7 @@ class ServerRecord:
 
 class ServerRecords:
     @property
-    def record_type(self) -> DriftType:
+    def record_type(self) -> RecordType:
         """Return the drift type."""
 
     @property
@@ -284,6 +289,9 @@ class SpcAlert:
     def zone(self) -> str:
         """Zone associated with alert"""
 
+    def __str__(self) -> str:
+        """Return the string representation of the alert."""
+
 class SpcFeatureAlert:
     @property
     def feature(self) -> str:
@@ -298,10 +306,17 @@ class SpcFeatureAlerts:
     def features(self) -> Dict[str, SpcFeatureAlert]:
         """Return the feature alerts."""
 
+    @property
+    def has_alerts(self) -> bool:
+        """Returns true if there are alerts"""
+
 class FeatureMap:
     @property
     def features(self) -> Dict[str, Dict[str, int]]:
         """Return the feature map."""
+
+    def __str__(self) -> str:
+        """Return the string representation of the feature map."""
 
 class SpcFeatureDriftProfile:
     @property

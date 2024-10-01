@@ -28,10 +28,10 @@ pub struct SpcServerRecord {
     pub created_at: chrono::NaiveDateTime,
 
     #[pyo3(get)]
-    pub name: String,
+    pub repository: String,
 
     #[pyo3(get)]
-    pub repository: String,
+    pub name: String,
 
     #[pyo3(get)]
     pub version: String,
@@ -47,8 +47,8 @@ pub struct SpcServerRecord {
 impl SpcServerRecord {
     #[new]
     pub fn new(
-        name: String,
         repository: String,
+        name: String,
         version: String,
         feature: String,
         value: f64,
