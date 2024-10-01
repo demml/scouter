@@ -220,7 +220,7 @@ mod tests {
 
             // serialize records
             let json_records = records.model_dump_json();
-            assert_eq!(json_records.len() > 0, true);
+            assert!(!json_records.is_empty());
 
             // deserialize records
             let records: ServerRecords = serde_json::from_str(&json_records).unwrap();
