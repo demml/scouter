@@ -1,5 +1,7 @@
+use crate::core::drift::spc::types::{
+    AlertZone, SpcAlert, SpcAlertRule, SpcAlertType, SpcFeatureAlerts,
+};
 use crate::core::error::AlertError;
-use crate::core::spc::types::{AlertZone, SpcAlert, SpcAlertRule, SpcAlertType, SpcFeatureAlerts};
 use ndarray::s;
 use ndarray::{ArrayView1, ArrayView2, Axis};
 use rayon::iter::IntoParallelIterator;
@@ -345,7 +347,7 @@ pub fn generate_alerts(
 #[cfg(test)]
 mod tests {
 
-    use crate::core::spc::types::SpcAlertRule;
+    use crate::core::drift::spc::types::SpcAlertRule;
 
     use super::*;
     use ndarray::arr2;

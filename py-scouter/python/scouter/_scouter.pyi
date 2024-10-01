@@ -10,12 +10,17 @@ from numpy.typing import NDArray
 class DriftType(str, Enum):
     SPC = "SPC"
     PSI = "PSI"
+    NONE = "NONE"
 
-class SpcDriftServerRecord:
+class RecordType:
+    DRIFT = "DRIFT"
+    OBSERVABILITY = "OBSERVABILITY"
+
+class SpcServerRecord:
     def __init__(
         self,
-        name: str,
         repository: str,
+        name: str,
         version: str,
         feature: str,
         value: float,
@@ -23,10 +28,10 @@ class SpcDriftServerRecord:
         """Initialize spc drift server record
 
         Args:
-            name:
-                Model name
             repository:
                 Model repository
+            name:
+                Model name
             version:
                 Model version
             feature:
@@ -40,12 +45,12 @@ class SpcDriftServerRecord:
         """Return the created at timestamp."""
 
     @property
-    def name(self) -> str:
-        """Return the name."""
-
-    @property
     def repository(self) -> str:
         """Return the repository."""
+
+    @property
+    def name(self) -> str:
+        """Return the name."""
 
     @property
     def version(self) -> str:
@@ -68,13 +73,22 @@ class SpcDriftServerRecord:
     def to_dict(self) -> Dict[str, str]:
         """Return the dictionary representation of the record."""
 
-class SpcDriftServerRecords:
+class ServerRecord:
+    def __init__(self, record: SpcServerRecord):
+        """Initialize drift server record
+
+        Args:
+            record:
+                Drift server record
+        """
+
+class ServerRecords:
     @property
-    def drift_type(self) -> DriftType:
+    def record_type(self) -> RecordType:
         """Return the drift type."""
 
     @property
-    def records(self) -> List[SpcDriftServerRecord]:
+    def records(self) -> List[ServerRecord]:
         """Return the drift server records."""
 
     def model_dump_json(self) -> str:
@@ -281,6 +295,9 @@ class SpcAlert:
     def zone(self) -> str:
         """Zone associated with alert"""
 
+    def __str__(self) -> str:
+        """Return the string representation of the alert."""
+
 class SpcFeatureAlert:
     @property
     def feature(self) -> str:
@@ -295,10 +312,17 @@ class SpcFeatureAlerts:
     def features(self) -> Dict[str, SpcFeatureAlert]:
         """Return the feature alerts."""
 
+    @property
+    def has_alerts(self) -> bool:
+        """Returns true if there are alerts"""
+
 class FeatureMap:
     @property
     def features(self) -> Dict[str, Dict[str, int]]:
         """Return the feature map."""
+
+    def __str__(self) -> str:
+        """Return the string representation of the feature map."""
 
 class SpcFeatureDriftProfile:
     @property
@@ -340,23 +364,23 @@ class SpcFeatureDriftProfile:
 class SpcDriftConfig:
     def __init__(
         self,
-        name: Optional[str] = None,
         repository: Optional[str] = None,
+        name: Optional[str] = None,
         version: Optional[str] = None,
         sample: bool = True,
         sample_size: int = 25,
+        alert_config: Optional[SpcAlertConfig] = None,
         feature_map: Optional[FeatureMap] = None,
         targets: Optional[List[str]] = None,
-        alert_config: Optional[SpcAlertConfig] = None,
         config_path: Optional[Path] = None,
     ):
         """Initialize monitor config
 
         Args:
-            name:
-                Model name
             repository:
                 Model repository
+            name:
+                Model name
             version:
                 Model version. Defaults to 0.1.0
             sample:
@@ -463,8 +487,8 @@ class SpcDriftConfig:
 
     def update_config_args(
         self,
-        name: Optional[str] = None,
         repository: Optional[str] = None,
+        name: Optional[str] = None,
         version: Optional[str] = None,
         sample: Optional[bool] = None,
         sample_size: Optional[int] = None,
@@ -475,10 +499,10 @@ class SpcDriftConfig:
         """Inplace operation that updates config args
 
         Args:
-            name:
-                Model name
             repository:
                 Model repository
+            name:
+                Model name
             version:
                 Model version
             sample:
@@ -568,8 +592,8 @@ class SpcDriftProfile:
 
     def update_config_args(
         self,
-        name: Optional[str] = None,
         repository: Optional[str] = None,
+        name: Optional[str] = None,
         version: Optional[str] = None,
         sample: Optional[bool] = None,
         sample_size: Optional[int] = None,
@@ -719,6 +743,9 @@ class FeatureProfile:
     def timestamp(self) -> str:
         """Return the timestamp."""
 
+    def __str__(self) -> str:
+        """Return the string representation of the feature profile."""
+
 class DataProfile:
     """Data profile of features"""
 
@@ -762,10 +789,19 @@ class FeatureDrift:
     def __str__(self) -> str:
         """Return string representation of feature drift"""
 
+class SpcFeatureDrift:
+    @property
+    def samples(self) -> List[float]:
+        """Return list of samples"""
+
+    @property
+    def drift(self) -> List[float]:
+        """Return list of drift values"""
+
 class SpcDriftMap:
     """Drift map of features"""
 
-    def __init__(self, service_name: Optional[str]) -> None:
+    def __init__(self, repository: str, name: str, version: str) -> None:
         """Initialize data profile
 
         Args:
@@ -774,12 +810,12 @@ class SpcDriftMap:
         """
 
     @property
-    def name(self) -> str:
-        """name to associate with drift map"""
-
-    @property
     def repository(self) -> str:
         """Repository to associate with drift map"""
+
+    @property
+    def name(self) -> str:
+        """name to associate with drift map"""
 
     @property
     def version(self) -> str:
@@ -794,6 +830,16 @@ class SpcDriftMap:
 
     def model_dump_json(self) -> str:
         """Return json representation of data drift"""
+
+    def add_feature(self, feature: str, drift: SpcFeatureDrift) -> None:
+        """Add feature drift profile to drift map
+
+        Args:
+            feature:
+                Name of feature
+            drift:
+                Feature drift
+        """
 
     @staticmethod
     def model_validate_json(json_string: str) -> "SpcDriftMap":
@@ -815,9 +861,6 @@ class SpcDriftMap:
 
     def to_numpy(self) -> Tuple[NDArray, NDArray, List[str]]:
         """Return drift map as a a tuple of sample_array, drift_array and list of features"""
-
-    def to_service_record(self) -> List[SpcDriftServerRecord]:
-        """Return drift map as a drift server record"""
 
 class ScouterProfiler:
     def __init__(self) -> None:
@@ -918,9 +961,9 @@ class SpcDrifter:
 
     def create_string_drift_profile(
         self,
-        features: List[str],
         array: List[List[str]],
         drift_config: SpcDriftConfig,
+        features: List[str],
     ) -> SpcDriftProfile:
         """Create a monitoring profile from a f32 numpy array.
 
@@ -938,8 +981,8 @@ class SpcDrifter:
 
     def create_numeric_drift_profile_f32(
         self,
-        features: List[str],
         array: NDArray,
+        features: List[str],
         drift_config: SpcDriftConfig,
     ) -> SpcDriftProfile:
         """Create a monitoring profile from a f64 numpy array.
@@ -958,8 +1001,8 @@ class SpcDrifter:
 
     def create_numeric_drift_profile_f64(
         self,
-        features: List[str],
         array: NDArray,
+        features: List[str],
         drift_config: SpcDriftConfig,
     ) -> SpcDriftProfile:
         """Create a monitoring profile from a f64 numpy array.
@@ -978,8 +1021,8 @@ class SpcDrifter:
 
     def compute_drift_f32(
         self,
-        features: List[str],
         array: NDArray,
+        features: List[str],
         drift_profile: SpcDriftProfile,
     ) -> SpcDriftMap:
         """Compute drift from a f32 numpy array.
@@ -999,8 +1042,8 @@ class SpcDrifter:
 
     def compute_drift_f64(
         self,
-        features: List[str],
         array: NDArray,
+        features: List[str],
         drift_profile: SpcDriftProfile,
     ) -> SpcDriftMap:
         """Compute drift from a f64 numpy array.
@@ -1040,10 +1083,10 @@ class SpcDrifter:
 
     def sample_data_f32(
         self,
-        features: List[str],
         array: NDArray,
+        features: List[str],
         drift_profile: SpcDriftProfile,
-    ) -> SpcDriftServerRecords:
+    ) -> ServerRecords:
         """Sample data from a f32 numpy array.
 
         Args:
@@ -1060,10 +1103,10 @@ class SpcDrifter:
 
     def sample_data_f64(
         self,
-        features: List[str],
         array: NDArray,
+        features: List[str],
         drift_profile: SpcDriftProfile,
-    ) -> SpcDriftServerRecords:
+    ) -> ServerRecords:
         """Sample data from a f64 numpy array.
 
         Args:
@@ -1098,7 +1141,7 @@ class SpcFeatureQueue:
             List of drift records if the monitoring queue has enough data to compute
         """
 
-    def create_drift_records(self) -> SpcDriftServerRecords:
+    def create_drift_records(self) -> ServerRecords:
         """Create drift server record from data
 
 

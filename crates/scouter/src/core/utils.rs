@@ -1,9 +1,8 @@
 use crate::core::error::ScouterError;
 use colored_json::{Color, ColorMode, ColoredFormatter, PrettyFormatter, Styler};
-use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyList, PyLong, PyString};
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use serde_json::json;
 use serde_json::Value;
 use std::path::PathBuf;
@@ -18,47 +17,6 @@ impl FileName {
         match self {
             FileName::SpcDrift => "Spc_drift_map.json",
             FileName::Profile => "data_profile.json",
-        }
-    }
-}
-
-#[pyclass]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
-pub enum AlertDispatchType {
-    Email,
-    Slack,
-    #[default]
-    Console,
-    OpsGenie,
-}
-
-#[pymethods]
-impl AlertDispatchType {
-    #[getter]
-    pub fn value(&self) -> String {
-        match self {
-            AlertDispatchType::Email => "Email".to_string(),
-            AlertDispatchType::Slack => "Slack".to_string(),
-            AlertDispatchType::Console => "Console".to_string(),
-            AlertDispatchType::OpsGenie => "OpsGenie".to_string(),
-        }
-    }
-}
-
-#[pyclass]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub enum DriftType {
-    SPC,
-    PSI,
-}
-
-#[pymethods]
-impl DriftType {
-    #[getter]
-    pub fn value(&self) -> String {
-        match self {
-            DriftType::SPC => "SPC".to_string(),
-            DriftType::PSI => "PSI".to_string(),
         }
     }
 }
