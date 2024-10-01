@@ -155,6 +155,11 @@ impl ServerRecords {
 }
 
 impl ServerRecords {
+    // Helper function to load records from bytes. Used by scouter-server consumers
+    //
+    // # Arguments
+    //
+    // * `bytes` - A slice of bytes
     pub fn load_from_bytes(bytes: &[u8]) -> Result<Self, ScouterError> {
         let records: ServerRecords =
             serde_json::from_slice(bytes).map_err(|_| ScouterError::DeSerializeError)?;
@@ -163,6 +168,7 @@ impl ServerRecords {
 }
 
 impl DriftRecordType for ServerRecords {
+    // Gets the drift type of the records. Primarily used for inserting records into scouter-server db
     fn get_drift_type(&self) -> DriftType {
         match self.record_type {
             RecordType::DRIFT => match self.records.first().unwrap() {
