@@ -1,8 +1,10 @@
 use crate::core::cron::EveryDay;
-use crate::core::error::ScouterError;
-use crate::core::utils::{
-    json_to_pyobject, pyobject_to_json, AlertDispatchType, DriftType, FileName, ProfileFuncs,
+use crate::core::dispatch::types::AlertDispatchType;
+use crate::core::drift::base::{
+    DispatchAlertDescription, DispatchDriftConfig, DriftArgs, DriftType,
 };
+use crate::core::error::ScouterError;
+use crate::core::utils::{json_to_pyobject, pyobject_to_json, FileName, ProfileFuncs};
 use core::fmt::Debug;
 use ndarray::Array;
 use ndarray::Array2;
@@ -18,6 +20,70 @@ use std::str::FromStr;
 use tracing::debug;
 
 const MISSING: &str = "__missing__";
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SpcServerRecord {
+    #[pyo3(get)]
+    pub created_at: chrono::NaiveDateTime,
+
+    #[pyo3(get)]
+    pub repository: String,
+
+    #[pyo3(get)]
+    pub name: String,
+
+    #[pyo3(get)]
+    pub version: String,
+
+    #[pyo3(get)]
+    pub feature: String,
+
+    #[pyo3(get)]
+    pub value: f64,
+}
+
+#[pymethods]
+impl SpcServerRecord {
+    #[new]
+    pub fn new(
+        repository: String,
+        name: String,
+        version: String,
+        feature: String,
+        value: f64,
+    ) -> Self {
+        Self {
+            created_at: chrono::Utc::now().naive_utc(),
+            name,
+            repository,
+            version,
+            feature,
+            value,
+        }
+    }
+
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
+
+    pub fn model_dump_json(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__json__(self)
+    }
+
+    pub fn to_dict(&self) -> HashMap<String, String> {
+        let mut record = HashMap::new();
+        record.insert("created_at".to_string(), self.created_at.to_string());
+        record.insert("name".to_string(), self.name.clone());
+        record.insert("repository".to_string(), self.repository.clone());
+        record.insert("version".to_string(), self.version.clone());
+        record.insert("feature".to_string(), self.feature.clone());
+        record.insert("value".to_string(), self.value.to_string());
+        record
+    }
+}
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, std::cmp::Eq, Hash)]
@@ -153,7 +219,6 @@ impl SpcAlertConfig {
     #[getter]
     pub fn dispatch_type(&self) -> String {
         match self.dispatch_type {
-            AlertDispatchType::Email => "Email".to_string(),
             AlertDispatchType::Slack => "Slack".to_string(),
             AlertDispatchType::Console => "Console".to_string(),
             AlertDispatchType::OpsGenie => "OpsGenie".to_string(),
@@ -283,10 +348,10 @@ pub struct SpcDriftConfig {
     pub sample: bool,
 
     #[pyo3(get, set)]
-    pub name: String,
+    pub repository: String,
 
     #[pyo3(get, set)]
-    pub repository: String,
+    pub name: String,
 
     #[pyo3(get, set)]
     pub version: String,
@@ -309,8 +374,8 @@ pub struct SpcDriftConfig {
 impl SpcDriftConfig {
     #[new]
     pub fn new(
-        name: Option<String>,
         repository: Option<String>,
+        name: Option<String>,
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
@@ -389,8 +454,8 @@ impl SpcDriftConfig {
     #[allow(clippy::too_many_arguments)]
     pub fn update_config_args(
         &mut self,
-        name: Option<String>,
         repository: Option<String>,
+        name: Option<String>,
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
@@ -443,6 +508,17 @@ impl SpcDriftConfig {
         let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
         let config = serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)?;
         Ok(config)
+    }
+}
+
+impl DispatchDriftConfig for SpcDriftConfig {
+    fn get_drift_args(&self) -> DriftArgs {
+        DriftArgs {
+            name: self.name.clone(),
+            repository: self.repository.clone(),
+            version: self.version.clone(),
+            dispatch_type: self.alert_config.dispatch_type.clone(),
+        }
     }
 }
 
@@ -535,8 +611,8 @@ impl SpcDriftProfile {
     #[allow(clippy::too_many_arguments)]
     pub fn update_config_args(
         &mut self,
-        name: Option<String>,
         repository: Option<String>,
+        name: Option<String>,
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
@@ -545,8 +621,8 @@ impl SpcDriftProfile {
         alert_config: Option<SpcAlertConfig>,
     ) -> Result<(), ScouterError> {
         self.config.update_config_args(
-            name,
             repository,
+            name,
             version,
             sample,
             sample_size,
@@ -596,100 +672,6 @@ impl SpcFeatureDrift {
     }
 }
 
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SpcDriftServerRecord {
-    #[pyo3(get)]
-    pub created_at: chrono::NaiveDateTime,
-
-    #[pyo3(get)]
-    pub name: String,
-
-    #[pyo3(get)]
-    pub repository: String,
-
-    #[pyo3(get)]
-    pub version: String,
-
-    #[pyo3(get)]
-    pub feature: String,
-
-    #[pyo3(get)]
-    pub value: f64,
-}
-
-#[pymethods]
-impl SpcDriftServerRecord {
-    #[new]
-    pub fn new(
-        name: String,
-        repository: String,
-        version: String,
-        feature: String,
-        value: f64,
-    ) -> Self {
-        Self {
-            created_at: chrono::Utc::now().naive_utc(),
-            name,
-            repository,
-            version,
-            feature,
-            value,
-        }
-    }
-
-    pub fn __str__(&self) -> String {
-        // serialize the struct to a string
-        ProfileFuncs::__str__(self)
-    }
-
-    pub fn model_dump_json(&self) -> String {
-        // serialize the struct to a string
-        ProfileFuncs::__json__(self)
-    }
-
-    pub fn to_dict(&self) -> HashMap<String, String> {
-        let mut record = HashMap::new();
-        record.insert("created_at".to_string(), self.created_at.to_string());
-        record.insert("name".to_string(), self.name.clone());
-        record.insert("repository".to_string(), self.repository.clone());
-        record.insert("version".to_string(), self.version.clone());
-        record.insert("feature".to_string(), self.feature.clone());
-        record.insert("value".to_string(), self.value.to_string());
-        record
-    }
-}
-
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct SpcDriftServerRecords {
-    #[pyo3(get)]
-    pub drift_type: DriftType,
-
-    #[pyo3(get)]
-    pub records: Vec<SpcDriftServerRecord>,
-}
-
-#[pymethods]
-impl SpcDriftServerRecords {
-    #[new]
-    pub fn new(records: Vec<SpcDriftServerRecord>) -> Self {
-        Self {
-            drift_type: DriftType::SPC,
-            records,
-        }
-    }
-    pub fn model_dump_json(&self) -> String {
-        // serialize records to a string
-        ProfileFuncs::__json__(self.records.clone())
-    }
-
-    pub fn __str__(&self) -> String {
-        // serialize the struct to a string
-        ProfileFuncs::__str__(self)
-    }
-}
-
 /// Python class for a Drift map of features with calculated drift
 ///
 /// # Arguments
@@ -716,7 +698,7 @@ pub struct SpcDriftMap {
 #[allow(clippy::new_without_default)]
 impl SpcDriftMap {
     #[new]
-    pub fn new(name: String, repository: String, version: String) -> Self {
+    pub fn new(repository: String, name: String, version: String) -> Self {
         Self {
             features: HashMap::new(),
             name,
@@ -725,8 +707,8 @@ impl SpcDriftMap {
         }
     }
 
-    pub fn add_feature(&mut self, feature: String, profile: SpcFeatureDrift) {
-        self.features.insert(feature, profile);
+    pub fn add_feature(&mut self, feature: String, drift: SpcFeatureDrift) {
+        self.features.insert(feature, drift);
     }
 
     pub fn __str__(&self) -> String {
@@ -853,6 +835,57 @@ impl SpcFeatureAlerts {
     }
 }
 
+impl DispatchAlertDescription for SpcFeatureAlerts {
+    fn create_alert_description(&self, dispatch_type: AlertDispatchType) -> String {
+        let mut alert_description = String::new();
+
+        for (i, (_, feature_alert)) in self.features.iter().enumerate() {
+            if feature_alert.alerts.is_empty() {
+                continue;
+            }
+            if i == 0 {
+                let header = match dispatch_type {
+                    AlertDispatchType::Console => "Features that have drifted: \n",
+                    AlertDispatchType::OpsGenie => {
+                        "Drift has been detected for the following features:\n"
+                    }
+                    AlertDispatchType::Slack => {
+                        "Drift has been detected for the following features:\n"
+                    }
+                };
+                alert_description.push_str(header);
+            }
+
+            let feature_name = match dispatch_type {
+                AlertDispatchType::Console | AlertDispatchType::OpsGenie => {
+                    format!("{:indent$}{}: \n", "", &feature_alert.feature, indent = 4)
+                }
+                AlertDispatchType::Slack => format!("{}: \n", &feature_alert.feature),
+            };
+
+            alert_description = format!("{}{}", alert_description, feature_name);
+            feature_alert.alerts.iter().for_each(|alert| {
+                let alert_details = match dispatch_type {
+                    AlertDispatchType::Console | AlertDispatchType::OpsGenie => {
+                        let kind = format!("{:indent$}Kind: {}\n", "", &alert.kind, indent = 8);
+                        let zone = format!("{:indent$}Zone: {}\n", "", &alert.zone, indent = 8);
+                        format!("{}{}", kind, zone)
+                    }
+                    AlertDispatchType::Slack => format!(
+                        "{:indent$}{} error in {}\n",
+                        "",
+                        &alert.kind,
+                        &alert.zone,
+                        indent = 4
+                    ),
+                };
+                alert_description = format!("{}{}", alert_description, alert_details);
+            });
+        }
+        alert_description
+    }
+}
+
 #[pymethods]
 #[allow(clippy::new_without_default)]
 impl SpcFeatureAlerts {
@@ -905,13 +938,6 @@ mod tests {
         assert_eq!(alert_config.dispatch_type(), "Console");
         assert_eq!(AlertDispatchType::Console.value(), "Console");
 
-        //test email alert config
-        let alert_config =
-            SpcAlertConfig::new(None, Some(AlertDispatchType::Email), None, None, None);
-        assert_eq!(alert_config.dispatch_type, AlertDispatchType::Email);
-        assert_eq!(alert_config.dispatch_type(), "Email");
-        assert_eq!(AlertDispatchType::Email.value(), "Email");
-
         //test slack alert config
         let alert_config =
             SpcAlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None);
@@ -951,8 +977,8 @@ mod tests {
         // update
         drift_config
             .update_config_args(
-                Some("test".to_string()),
                 None,
+                Some("test".to_string()),
                 None,
                 None,
                 None,
@@ -963,5 +989,39 @@ mod tests {
             .unwrap();
 
         assert_eq!(drift_config.name, "test");
+    }
+
+    #[test]
+    fn test_spc_feature_alerts() {
+        // Create a sample SpcFeatureAlert (assuming SpcFeatureAlert is defined elsewhere)
+        let sample_alert = SpcFeatureAlert {
+            feature: "feature1".to_string(),
+            alerts: vec![SpcAlert {
+                kind: "kind1".to_string(),
+                zone: "zone1".to_string(),
+            }],
+            // Initialize fields of SpcFeatureAlert
+        };
+
+        // Create a HashMap with sample data
+        let mut features = HashMap::new();
+        features.insert("feature1".to_string(), sample_alert.clone());
+
+        // Create an instance of SpcFeatureAlerts
+        let alerts = SpcFeatureAlerts {
+            features: features.clone(),
+            has_alerts: true,
+        };
+
+        // Assert the values
+        assert!(alerts.has_alerts);
+
+        // Assert the values of the features
+        assert_eq!(alerts.features["feature1"].feature, sample_alert.feature);
+
+        // Assert constructing alert description
+        let _ = alerts.create_alert_description(AlertDispatchType::Console);
+        let _ = alerts.create_alert_description(AlertDispatchType::OpsGenie);
+        let _ = alerts.create_alert_description(AlertDispatchType::Slack);
     }
 }

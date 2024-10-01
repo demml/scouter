@@ -12,8 +12,8 @@ from scouter.utils.logger import ScouterLogger
 from .._scouter import (  # pylint: disable=no-name-in-module
     CommonCron,
     DriftType,
+    ServerRecords,
     SpcDriftProfile,
-    SpcDriftServerRecords,
     SpcFeatureQueue,
 )
 
@@ -64,7 +64,7 @@ class MonitorQueue:
         """Get the producer based on the configuration."""
         return DriftRecordProducer.get_producer(config)
 
-    def insert(self, data: Dict[Any, Any]) -> Optional[SpcDriftServerRecords]:
+    def insert(self, data: Dict[Any, Any]) -> Optional[ServerRecords]:
         """Insert data into the monitoring queue.
 
         Args:
@@ -96,7 +96,7 @@ class MonitorQueue:
         self._feature_queue.clear_queue()
         self._count = 0
 
-    def publish(self) -> Union[SpcDriftServerRecords]:
+    def publish(self) -> ServerRecords:
         """Publish drift records to the monitoring server."""
         try:
             drift_records = self._feature_queue.create_drift_records()
