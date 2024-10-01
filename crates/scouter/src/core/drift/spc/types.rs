@@ -22,6 +22,70 @@ use tracing::debug;
 const MISSING: &str = "__missing__";
 
 #[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SpcServerRecord {
+    #[pyo3(get)]
+    pub created_at: chrono::NaiveDateTime,
+
+    #[pyo3(get)]
+    pub name: String,
+
+    #[pyo3(get)]
+    pub repository: String,
+
+    #[pyo3(get)]
+    pub version: String,
+
+    #[pyo3(get)]
+    pub feature: String,
+
+    #[pyo3(get)]
+    pub value: f64,
+}
+
+#[pymethods]
+impl SpcServerRecord {
+    #[new]
+    pub fn new(
+        name: String,
+        repository: String,
+        version: String,
+        feature: String,
+        value: f64,
+    ) -> Self {
+        Self {
+            created_at: chrono::Utc::now().naive_utc(),
+            name,
+            repository,
+            version,
+            feature,
+            value,
+        }
+    }
+
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
+
+    pub fn model_dump_json(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__json__(self)
+    }
+
+    pub fn to_dict(&self) -> HashMap<String, String> {
+        let mut record = HashMap::new();
+        record.insert("created_at".to_string(), self.created_at.to_string());
+        record.insert("name".to_string(), self.name.clone());
+        record.insert("repository".to_string(), self.repository.clone());
+        record.insert("version".to_string(), self.version.clone());
+        record.insert("feature".to_string(), self.feature.clone());
+        record.insert("value".to_string(), self.value.to_string());
+        record
+    }
+}
+
+#[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, std::cmp::Eq, Hash)]
 pub enum AlertZone {
     Zone1,

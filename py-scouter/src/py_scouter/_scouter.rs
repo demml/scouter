@@ -227,9 +227,9 @@ impl SpcDrifter {
 
     pub fn create_string_drift_profile(
         &mut self,
-        mut drift_config: SpcDriftConfig,
         array: Vec<Vec<String>>,
         features: Vec<String>,
+        mut drift_config: SpcDriftConfig,
     ) -> PyResult<SpcDriftProfile> {
         let feature_map = match self.monitor.create_feature_map(&features, &array) {
             Ok(feature_map) => feature_map,

@@ -11,7 +11,7 @@ class DriftType(str, Enum):
     SPC = "SPC"
     PSI = "PSI"
 
-class SpcDriftServerRecord:
+class SpcServerRecord:
     def __init__(
         self,
         name: str,
@@ -68,13 +68,16 @@ class SpcDriftServerRecord:
     def to_dict(self) -> Dict[str, str]:
         """Return the dictionary representation of the record."""
 
-class SpcDriftServerRecords:
+class ServerRecord:
+    record: SpcServerRecord
+
+class ServerRecords:
     @property
-    def drift_type(self) -> DriftType:
+    def record_type(self) -> DriftType:
         """Return the drift type."""
 
     @property
-    def records(self) -> List[SpcDriftServerRecord]:
+    def records(self) -> List[ServerRecord]:
         """Return the drift server records."""
 
     def model_dump_json(self) -> str:
@@ -816,7 +819,7 @@ class SpcDriftMap:
     def to_numpy(self) -> Tuple[NDArray, NDArray, List[str]]:
         """Return drift map as a a tuple of sample_array, drift_array and list of features"""
 
-    def to_service_record(self) -> List[SpcDriftServerRecord]:
+    def to_service_record(self) -> List[SpcServerRecord]:
         """Return drift map as a drift server record"""
 
 class ScouterProfiler:
@@ -918,9 +921,9 @@ class SpcDrifter:
 
     def create_string_drift_profile(
         self,
-        features: List[str],
         array: List[List[str]],
         drift_config: SpcDriftConfig,
+        features: List[str],
     ) -> SpcDriftProfile:
         """Create a monitoring profile from a f32 numpy array.
 
@@ -1043,7 +1046,7 @@ class SpcDrifter:
         features: List[str],
         array: NDArray,
         drift_profile: SpcDriftProfile,
-    ) -> SpcDriftServerRecords:
+    ) -> ServerRecords:
         """Sample data from a f32 numpy array.
 
         Args:
@@ -1063,7 +1066,7 @@ class SpcDrifter:
         features: List[str],
         array: NDArray,
         drift_profile: SpcDriftProfile,
-    ) -> SpcDriftServerRecords:
+    ) -> ServerRecords:
         """Sample data from a f64 numpy array.
 
         Args:
@@ -1098,7 +1101,7 @@ class SpcFeatureQueue:
             List of drift records if the monitoring queue has enough data to compute
         """
 
-    def create_drift_records(self) -> SpcDriftServerRecords:
+    def create_drift_records(self) -> ServerRecords:
         """Create drift server record from data
 
 

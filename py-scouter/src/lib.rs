@@ -6,12 +6,12 @@ use scouter::core::cron::{
 };
 use scouter::core::dispatch::types::AlertDispatchType;
 use scouter::core::drift::base::DriftType;
-use scouter::core::drift::base::{RecordType, ServerRecords, SpcServerRecord};
+use scouter::core::drift::base::{RecordType, ServerRecord, ServerRecords};
 use scouter::core::drift::spc::feature_queue::SpcFeatureQueue;
 use scouter::core::drift::spc::types::{
     AlertZone, FeatureMap, SpcAlert, SpcAlertConfig, SpcAlertRule, SpcAlertType, SpcDriftConfig,
     SpcDriftMap, SpcDriftProfile, SpcFeatureAlert, SpcFeatureAlerts, SpcFeatureDrift,
-    SpcFeatureDriftProfile,
+    SpcFeatureDriftProfile, SpcServerRecord,
 };
 use scouter::core::profile::types::{DataProfile, Distinct, FeatureProfile, Histogram};
 
@@ -50,5 +50,7 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<RecordType>()?;
     m.add_class::<ServerRecords>()?;
     m.add_class::<SpcServerRecord>()?;
+    m.add_class::<ServerRecord>()?;
+
     Ok(())
 }

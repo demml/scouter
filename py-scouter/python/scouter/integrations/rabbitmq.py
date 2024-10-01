@@ -6,7 +6,7 @@ from scouter.integrations.base import BaseProducer
 from scouter.utils.logger import ScouterLogger
 from scouter.utils.types import ProducerTypes
 
-from .._scouter import SpcDriftServerRecords
+from .._scouter import ServerRecords
 
 logger = ScouterLogger.get_logger()
 
@@ -25,7 +25,9 @@ class RabbitMQConfig(BaseModel):
     def validate_connection_params(cls, v: Any) -> RabbitConnectionParams:
         from pika import ConnectionParameters as RabbitParams  # type: ignore
 
-        assert isinstance(v, RabbitParams), "Connection parameters must be of type pika.ConnectionParameters"
+        assert isinstance(
+            v, RabbitParams
+        ), "Connection parameters must be of type pika.ConnectionParameters"
         return v
 
     @field_validator("publish_properties")
@@ -36,7 +38,9 @@ class RabbitMQConfig(BaseModel):
         if v is None:
             return v
 
-        assert isinstance(v, BasicProperties), "Publish properties must be of type pika.BasicProperties"
+        assert isinstance(
+            v, BasicProperties
+        ), "Publish properties must be of type pika.BasicProperties"
         return v
 
     @property
@@ -72,10 +76,12 @@ class RabbitMQProducer(BaseProducer):
             self._producer.queue_declare(queue=self._rabbit_config.queue)
 
         except ModuleNotFoundError as e:
-            logger.error("Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'")
+            logger.error(
+                "Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'"
+            )
             raise e
 
-    def _publish(self, records: Union[SpcDriftServerRecords]) -> None:
+    def _publish(self, records: ServerRecords) -> None:
         """Attempt to publish a message to the kafka broker.
 
         Args:
@@ -95,7 +101,7 @@ class RabbitMQProducer(BaseProducer):
             if self._rabbit_config.raise_on_err:
                 raise e
 
-    def publish(self, records: Union[SpcDriftServerRecords]) -> None:
+    def publish(self, records: ServerRecords) -> None:
         """Publishes drift record to a kafka topic with retries.
 
         If the message delivery fails, the message is retried up to `max_retries` times before raising an error.

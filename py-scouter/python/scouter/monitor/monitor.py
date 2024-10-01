@@ -13,7 +13,7 @@ from .._scouter import (  # pylint: disable=no-name-in-module
     CommonCron,
     DriftType,
     SpcDriftProfile,
-    SpcDriftServerRecords,
+    ServerRecords,
     SpcFeatureQueue,
 )
 
@@ -64,7 +64,7 @@ class MonitorQueue:
         """Get the producer based on the configuration."""
         return DriftRecordProducer.get_producer(config)
 
-    def insert(self, data: Dict[Any, Any]) -> Optional[SpcDriftServerRecords]:
+    def insert(self, data: Dict[Any, Any]) -> Optional[ServerRecords]:
         """Insert data into the monitoring queue.
 
         Args:
@@ -88,7 +88,9 @@ class MonitorQueue:
             return None
 
         except Exception as exc:
-            logger.error("Failed to insert data into monitoring queue: {}. Passing", exc)
+            logger.error(
+                "Failed to insert data into monitoring queue: {}. Passing", exc
+            )
             return None
 
     def _clear_queue(self) -> None:
@@ -96,7 +98,7 @@ class MonitorQueue:
         self._feature_queue.clear_queue()
         self._count = 0
 
-    def publish(self) -> Union[SpcDriftServerRecords]:
+    def publish(self) -> ServerRecords:
         """Publish drift records to the monitoring server."""
         try:
             drift_records = self._feature_queue.create_drift_records()

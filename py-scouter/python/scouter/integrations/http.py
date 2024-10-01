@@ -8,7 +8,7 @@ from scouter.utils.logger import ScouterLogger
 from scouter.utils.types import ProducerTypes
 from tenacity import retry, stop_after_attempt
 
-from .._scouter import SpcDriftServerRecords
+from .._scouter import ServerRecords
 
 logger = ScouterLogger.get_logger()
 MESSAGE_MAX_BYTES_DEFAULT = 2097164
@@ -78,7 +78,9 @@ class HTTPProducer(BaseProducer):
         return None
 
     @retry(reraise=True, stop=stop_after_attempt(3))
-    def request(self, route: str, request_type: RequestType, **kwargs: Any) -> Dict[str, Any]:
+    def request(
+        self, route: str, request_type: RequestType, **kwargs: Any
+    ) -> Dict[str, Any]:
         """Makes a request to the server
 
         Args:
@@ -94,7 +96,9 @@ class HTTPProducer(BaseProducer):
         """
         try:
             url = f"{self._config.server_url}/{route}"
-            response = getattr(self.client, request_type.value.lower())(url=url, **kwargs)
+            response = getattr(self.client, request_type.value.lower())(
+                url=url, **kwargs
+            )
 
             if response.status_code == 200:
                 return cast(Dict[str, Any], response.json())
@@ -102,12 +106,14 @@ class HTTPProducer(BaseProducer):
             detail = response.json().get("detail")
             self._refresh_token()
 
-            raise ValueError(f"""Failed to make server call for {request_type} request Url: {route}, {detail}""")
+            raise ValueError(
+                f"""Failed to make server call for {request_type} request Url: {route}, {detail}"""
+            )
 
         except Exception as exc:
             raise exc
 
-    def publish(self, records: Union[SpcDriftServerRecords]) -> None:
+    def publish(self, records: ServerRecords) -> None:
         """Publishes drift record to a kafka topic with retries.
 
         If the message delivery fails, the message is retried up to `max_retries` times before raising an error.

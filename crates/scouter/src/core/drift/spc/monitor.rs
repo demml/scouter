@@ -1,9 +1,9 @@
 use crate::core::error::MonitorError;
 
-use crate::core::drift::base::{RecordType, ServerRecord, ServerRecords, SpcServerRecord};
+use crate::core::drift::base::{RecordType, ServerRecord, ServerRecords};
 use crate::core::drift::spc::types::{
     FeatureMap, SpcDriftConfig, SpcDriftMap, SpcDriftProfile, SpcFeatureDrift,
-    SpcFeatureDriftProfile,
+    SpcFeatureDriftProfile, SpcServerRecord,
 };
 use indicatif::ProgressBar;
 use ndarray::prelude::*;
