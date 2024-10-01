@@ -698,7 +698,7 @@ pub struct SpcDriftMap {
 #[allow(clippy::new_without_default)]
 impl SpcDriftMap {
     #[new]
-    pub fn new(name: String, repository: String, version: String) -> Self {
+    pub fn new(repository: String, name: String, version: String) -> Self {
         Self {
             features: HashMap::new(),
             name,
@@ -707,8 +707,8 @@ impl SpcDriftMap {
         }
     }
 
-    pub fn add_feature(&mut self, feature: String, profile: SpcFeatureDrift) {
-        self.features.insert(feature, profile);
+    pub fn add_feature(&mut self, feature: String, drift: SpcFeatureDrift) {
+        self.features.insert(feature, drift);
     }
 
     pub fn __str__(&self) -> String {

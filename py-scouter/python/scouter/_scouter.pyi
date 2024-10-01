@@ -722,6 +722,9 @@ class FeatureProfile:
     def timestamp(self) -> str:
         """Return the timestamp."""
 
+    def __str__(self) -> str:
+        """Return the string representation of the feature profile."""
+
 class DataProfile:
     """Data profile of features"""
 
@@ -765,10 +768,19 @@ class FeatureDrift:
     def __str__(self) -> str:
         """Return string representation of feature drift"""
 
+class SpcFeatureDrift:
+    @property
+    def samples(self) -> List[float]:
+        """Return list of samples"""
+
+    @property
+    def drift(self) -> List[float]:
+        """Return list of drift values"""
+
 class SpcDriftMap:
     """Drift map of features"""
 
-    def __init__(self, service_name: Optional[str]) -> None:
+    def __init__(self, repository: str, name: str, version: str) -> None:
         """Initialize data profile
 
         Args:
@@ -777,12 +789,12 @@ class SpcDriftMap:
         """
 
     @property
-    def name(self) -> str:
-        """name to associate with drift map"""
-
-    @property
     def repository(self) -> str:
         """Repository to associate with drift map"""
+
+    @property
+    def name(self) -> str:
+        """name to associate with drift map"""
 
     @property
     def version(self) -> str:
@@ -797,6 +809,16 @@ class SpcDriftMap:
 
     def model_dump_json(self) -> str:
         """Return json representation of data drift"""
+
+    def add_feature(self, feature: str, drift: SpcFeatureDrift) -> None:
+        """Add feature drift profile to drift map
+
+        Args:
+            feature:
+                Name of feature
+            drift:
+                Feature drift
+        """
 
     @staticmethod
     def model_validate_json(json_string: str) -> "SpcDriftMap":
@@ -818,9 +840,6 @@ class SpcDriftMap:
 
     def to_numpy(self) -> Tuple[NDArray, NDArray, List[str]]:
         """Return drift map as a a tuple of sample_array, drift_array and list of features"""
-
-    def to_service_record(self) -> List[SpcServerRecord]:
-        """Return drift map as a drift server record"""
 
 class ScouterProfiler:
     def __init__(self) -> None:
