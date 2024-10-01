@@ -40,7 +40,7 @@ test.unit:
 setup.integration:
 	poetry install --all-extras --with dev --no-root
 	pip install maturin
-	maturin develop --extras kafka,rabbitmq,fastapi
+	maturin develop --extras kafka,rabbitmq,fastapi 
 
 test.integration:
 	poetry run pytest -s tests/integration

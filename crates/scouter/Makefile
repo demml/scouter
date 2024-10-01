@@ -5,11 +5,11 @@ format:
 
 .PHONY: lint
 lints:
-	cargo clippy --workspace --all-targets -- -D warnings
+	cargo clippy --workspace --all-targets --features "dispatch" -- -D warnings
 
 .PHONY: test
 test:
-	cargo test -- --nocapture  --test-threads=1
+	cargo test --features "dispatch" -- --nocapture  --test-threads=1 
 
 .PHONE: bench
 bench:
