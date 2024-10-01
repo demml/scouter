@@ -28,12 +28,13 @@ cron = "0.12.1"
 tracing = "0.1.40"
 colored_json = "5.0.0"
 thiserror = "1.0.64"
+reqwest = { version = "0.12.8", features = ["json"] }
+futures = "0.3.30"
 
 [dev-dependencies]
 approx = "0.5.1"
 ndarray-rand = "0.14.0"
 criterion = { version = "0.4", features = ["html_reports"] }
-futures = "0.3.30"
 
 [profile.release]
 lto = "fat"
