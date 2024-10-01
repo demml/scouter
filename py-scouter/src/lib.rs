@@ -5,6 +5,7 @@ use scouter::core::cron::{
     CommonCron, Every12Hours, Every30Minutes, Every6Hours, EveryDay, EveryHour, EveryWeek,
 };
 use scouter::core::dispatch::types::AlertDispatchType;
+use scouter::core::drift::base::DriftType;
 use scouter::core::drift::base::{RecordType, ServerRecords, SpcServerRecord};
 use scouter::core::drift::spc::feature_queue::SpcFeatureQueue;
 use scouter::core::drift::spc::types::{
@@ -13,7 +14,6 @@ use scouter::core::drift::spc::types::{
     SpcFeatureDriftProfile,
 };
 use scouter::core::profile::types::{DataProfile, Distinct, FeatureProfile, Histogram};
-use scouter::core::utils::DriftType;
 
 #[pymodule]
 fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {

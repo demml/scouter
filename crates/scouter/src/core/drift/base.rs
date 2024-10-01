@@ -4,10 +4,38 @@ use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
+#[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub enum DriftType {
+    SPC,
+    PSI,
+    NONE,
+}
+
+#[pymethods]
+impl DriftType {
+    #[getter]
+    pub fn value(&self) -> String {
+        match self {
+            DriftType::SPC => "SPC".to_string(),
+            DriftType::PSI => "PSI".to_string(),
+            DriftType::NONE => "NONE".to_string(),
+        }
+    }
+}
+
 // Trait for alert descriptions
 // This is to be used for all kinds of feature alerts
 pub trait DispatchAlertDescription {
     fn create_alert_description(&self, dispatch_type: AlertDispatchType) -> String;
+}
+
+pub trait DispatchDriftConfig {
+    fn get_drift_args(&self) -> DriftArgs;
+}
+
+pub trait DriftRecordType {
+    fn get_drift_type(&self) -> DriftType;
 }
 
 pub struct DriftArgs {
@@ -15,10 +43,6 @@ pub struct DriftArgs {
     pub repository: String,
     pub version: String,
     pub dispatch_type: AlertDispatchType,
-}
-
-pub trait DispatchDriftConfig {
-    fn get_drift_args(&self) -> DriftArgs;
 }
 
 #[pyclass]
@@ -126,5 +150,16 @@ impl ServerRecords {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__str__(self)
+    }
+}
+
+impl DriftRecordType for ServerRecords {
+    fn get_drift_type(&self) -> DriftType {
+        match self.record_type {
+            RecordType::DRIFT => match self.records.first().unwrap() {
+                ServerRecord::DRIFT { record: _ } => DriftType::SPC,
+            },
+            _ => DriftType::NONE,
+        }
     }
 }

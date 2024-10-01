@@ -150,6 +150,7 @@ impl SpcFeatureQueue {
 #[cfg(test)]
 mod tests {
 
+    use crate::core::drift::base::{DriftRecordType, DriftType};
     use crate::core::drift::spc::types::{SpcAlertConfig, SpcDriftConfig};
 
     use super::*;
@@ -225,6 +226,9 @@ mod tests {
             // deserialize records
             let records: ServerRecords = serde_json::from_str(&json_records).unwrap();
             assert_eq!(records.records.len(), 3);
+
+            let drift_type = records.get_drift_type();
+            assert_eq!(drift_type, DriftType::SPC);
         });
     }
 }

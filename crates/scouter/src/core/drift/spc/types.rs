@@ -1,8 +1,10 @@
 use crate::core::cron::EveryDay;
 use crate::core::dispatch::types::AlertDispatchType;
-use crate::core::drift::base::{DispatchAlertDescription, DispatchDriftConfig, DriftArgs};
+use crate::core::drift::base::{
+    DispatchAlertDescription, DispatchDriftConfig, DriftArgs, DriftType,
+};
 use crate::core::error::ScouterError;
-use crate::core::utils::{json_to_pyobject, pyobject_to_json, DriftType, FileName, ProfileFuncs};
+use crate::core::utils::{json_to_pyobject, pyobject_to_json, FileName, ProfileFuncs};
 use core::fmt::Debug;
 use ndarray::Array;
 use ndarray::Array2;
