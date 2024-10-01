@@ -217,6 +217,14 @@ mod tests {
             feature_queue.clear_queue();
 
             assert_eq!(feature_queue.queue.get("feature_1").unwrap().len(), 0);
+
+            // serialize records
+            let json_records = records.model_dump_json();
+            assert_eq!(json_records.len() > 0, true);
+
+            // deserialize records
+            let records: ServerRecords = serde_json::from_str(&json_records).unwrap();
+            assert_eq!(records.records.len(), 3);
         });
     }
 }

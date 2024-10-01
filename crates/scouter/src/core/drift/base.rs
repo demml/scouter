@@ -120,8 +120,7 @@ impl ServerRecords {
     }
     pub fn model_dump_json(&self) -> String {
         // serialize records to a string
-
-        ProfileFuncs::__json__(self.records.clone())
+        ProfileFuncs::__json__(self)
     }
 
     pub fn __str__(&self) -> String {
