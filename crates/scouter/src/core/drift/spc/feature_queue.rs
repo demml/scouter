@@ -1,6 +1,6 @@
+use crate::core::drift::base::ServerRecords;
 use crate::core::drift::spc::monitor::SpcMonitor;
 use crate::core::drift::spc::types::SpcDriftProfile;
-use crate::core::drift::spc::types::SpcDriftServerRecords;
 use crate::core::error::FeatureQueueError;
 use core::result::Result::Ok;
 use ndarray::prelude::*;
@@ -99,7 +99,7 @@ impl SpcFeatureQueue {
     // Create drift records from queue items
     //
     // returns: DriftServerRecords
-    fn create_drift_records(&self) -> Result<SpcDriftServerRecords, FeatureQueueError> {
+    fn create_drift_records(&self) -> Result<ServerRecords, FeatureQueueError> {
         // concatenate all the feature queues into a single ndarray
         let mut arrays: Vec<Array2<f64>> = Vec::new();
         let mut feature_names: Vec<String> = Vec::new();
@@ -121,29 +121,22 @@ impl SpcFeatureQueue {
         let concatenated = ndarray::concatenate(
             Axis(1),
             &arrays.iter().map(|a| a.view()).collect::<Vec<_>>(),
-        );
+        )
+        .map_err(|e| {
+            FeatureQueueError::DriftRecordError(format!("Failed to concatenate arrays: {:?}", e))
+        })?;
 
-        match concatenated {
-            Ok(concatenated) => {
-                let records = self.monitor.sample_data(
-                    &feature_names,
-                    &concatenated.view(),
-                    &self.drift_profile,
-                );
+        let records = self
+            .monitor
+            .sample_data(&feature_names, &concatenated.view(), &self.drift_profile)
+            .map_err(|e| {
+                FeatureQueueError::DriftRecordError(format!(
+                    "Failed to create drift record: {:?}",
+                    e
+                ))
+            })?;
 
-                match records {
-                    Ok(records) => Ok(records),
-                    Err(e) => {
-                        let error = format!("Failed to create drift record: {:?}", e);
-                        Err(FeatureQueueError::DriftRecordError(error))
-                    }
-                }
-            }
-            Err(e) => {
-                let error = format!("Failed to create drift record: {:?}", e);
-                Err(FeatureQueueError::DriftRecordError(error))
-            }
-        }
+        Ok(records)
     }
 
     // Clear all queues

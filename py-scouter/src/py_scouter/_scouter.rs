@@ -3,11 +3,11 @@ use numpy::PyReadonlyArray2;
 use numpy::ToPyArray;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use scouter::core::drift::base::ServerRecords;
 use scouter::core::drift::spc::alert::generate_alerts;
 use scouter::core::drift::spc::monitor::SpcMonitor;
 use scouter::core::drift::spc::types::{
-    SpcAlertRule, SpcDriftConfig, SpcDriftMap, SpcDriftProfile, SpcDriftServerRecords,
-    SpcFeatureAlerts,
+    SpcAlertRule, SpcDriftConfig, SpcDriftMap, SpcDriftProfile, SpcFeatureAlerts,
 };
 use scouter::core::error::ScouterError;
 use scouter::core::profile::num_profiler::NumProfiler;
@@ -371,7 +371,7 @@ impl SpcDrifter {
         features: Vec<String>,
         array: PyReadonlyArray2<f32>,
         drift_profile: SpcDriftProfile,
-    ) -> PyResult<SpcDriftServerRecords> {
+    ) -> PyResult<ServerRecords> {
         let array = array.as_array();
 
         let records = match self.monitor.sample_data(&features, &array, &drift_profile) {
@@ -389,7 +389,7 @@ impl SpcDrifter {
         features: Vec<String>,
         array: PyReadonlyArray2<f64>,
         drift_profile: SpcDriftProfile,
-    ) -> PyResult<SpcDriftServerRecords> {
+    ) -> PyResult<ServerRecords> {
         let array = array.as_array();
 
         let records = match self.monitor.sample_data(&features, &array, &drift_profile) {

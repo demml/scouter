@@ -1,8 +1,9 @@
 use crate::core::error::MonitorError;
 
+use crate::core::drift::base::{RecordType, ServerRecord, ServerRecords, SpcServerRecord};
 use crate::core::drift::spc::types::{
-    FeatureMap, SpcDriftConfig, SpcDriftMap, SpcDriftProfile, SpcDriftServerRecord,
-    SpcDriftServerRecords, SpcFeatureDrift, SpcFeatureDriftProfile,
+    FeatureMap, SpcDriftConfig, SpcDriftMap, SpcDriftProfile, SpcFeatureDrift,
+    SpcFeatureDriftProfile,
 };
 use indicatif::ProgressBar;
 use ndarray::prelude::*;
@@ -405,7 +406,7 @@ impl SpcMonitor {
         features: &[String],
         array: &ArrayView2<F>, // n x m data array (features and predictions)
         drift_profile: &SpcDriftProfile,
-    ) -> Result<SpcDriftServerRecords, MonitorError>
+    ) -> Result<ServerRecords, MonitorError>
     where
         F: Float
             + Sync
@@ -431,7 +432,7 @@ impl SpcMonitor {
             let sample = sample_data.column(i);
 
             sample.iter().for_each(|value| {
-                let record = SpcDriftServerRecord {
+                let record = SpcServerRecord {
                     created_at,
                     feature: feature.to_string(),
                     value: *value,
@@ -440,11 +441,11 @@ impl SpcMonitor {
                     version: drift_profile.config.version.clone(),
                 };
 
-                records.push(record);
+                records.push(ServerRecord::DRIFT { record });
             });
         }
 
-        Ok(SpcDriftServerRecords::new(records))
+        Ok(ServerRecords::new(records, RecordType::DRIFT))
     }
 
     pub fn calculate_drift_from_sample(
