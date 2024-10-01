@@ -229,6 +229,12 @@ mod tests {
 
             let drift_type = records.get_drift_type();
             assert_eq!(drift_type, DriftType::SPC);
+
+            // convert to bytes and back
+            let bytes = json_records.as_bytes();
+
+            let records = ServerRecords::load_from_bytes(bytes).unwrap();
+            assert_eq!(records.records.len(), 3);
         });
     }
 }

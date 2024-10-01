@@ -1,4 +1,5 @@
 use crate::core::dispatch::types::AlertDispatchType;
+use crate::core::error::ScouterError;
 use crate::core::utils::ProfileFuncs;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -150,6 +151,14 @@ impl ServerRecords {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__str__(self)
+    }
+}
+
+impl ServerRecords {
+    pub fn load_from_bytes(bytes: &[u8]) -> Result<Self, ScouterError> {
+        let records: ServerRecords =
+            serde_json::from_slice(bytes).map_err(|_| ScouterError::DeSerializeError)?;
+        Ok(records)
     }
 }
 
