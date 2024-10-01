@@ -268,9 +268,9 @@ impl SpcDrifter {
 
     pub fn create_numeric_drift_profile_f32(
         &mut self,
-        drift_config: SpcDriftConfig,
         array: PyReadonlyArray2<f32>,
         features: Vec<String>,
+        drift_config: SpcDriftConfig,
     ) -> PyResult<SpcDriftProfile> {
         let array = array.as_array();
 
@@ -289,9 +289,9 @@ impl SpcDrifter {
 
     pub fn create_numeric_drift_profile_f64(
         &mut self,
-        drift_config: SpcDriftConfig,
         array: PyReadonlyArray2<f64>,
         features: Vec<String>,
+        drift_config: SpcDriftConfig,
     ) -> PyResult<SpcDriftProfile> {
         let array = array.as_array();
 
@@ -310,8 +310,8 @@ impl SpcDrifter {
 
     pub fn compute_drift_f32(
         &mut self,
-        features: Vec<String>,
         array: PyReadonlyArray2<f32>,
+        features: Vec<String>,
         drift_profile: SpcDriftProfile,
     ) -> PyResult<SpcDriftMap> {
         let drift_map =
@@ -330,8 +330,8 @@ impl SpcDrifter {
 
     pub fn compute_drift_f64(
         &mut self,
-        features: Vec<String>,
         array: PyReadonlyArray2<f64>,
+        features: Vec<String>,
         drift_profile: SpcDriftProfile,
     ) -> PyResult<SpcDriftMap> {
         let drift_map =
@@ -368,8 +368,8 @@ impl SpcDrifter {
 
     pub fn sample_data_f32(
         &mut self,
-        features: Vec<String>,
         array: PyReadonlyArray2<f32>,
+        features: Vec<String>,
         drift_profile: SpcDriftProfile,
     ) -> PyResult<ServerRecords> {
         let array = array.as_array();
@@ -386,8 +386,8 @@ impl SpcDrifter {
 
     pub fn sample_data_f64(
         &mut self,
-        features: Vec<String>,
         array: PyReadonlyArray2<f64>,
+        features: Vec<String>,
         drift_profile: SpcDriftProfile,
     ) -> PyResult<ServerRecords> {
         let array = array.as_array();

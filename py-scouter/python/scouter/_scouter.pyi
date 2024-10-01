@@ -941,8 +941,8 @@ class SpcDrifter:
 
     def create_numeric_drift_profile_f32(
         self,
-        features: List[str],
         array: NDArray,
+        features: List[str],
         drift_config: SpcDriftConfig,
     ) -> SpcDriftProfile:
         """Create a monitoring profile from a f64 numpy array.
@@ -961,8 +961,8 @@ class SpcDrifter:
 
     def create_numeric_drift_profile_f64(
         self,
-        features: List[str],
         array: NDArray,
+        features: List[str],
         drift_config: SpcDriftConfig,
     ) -> SpcDriftProfile:
         """Create a monitoring profile from a f64 numpy array.
@@ -981,8 +981,8 @@ class SpcDrifter:
 
     def compute_drift_f32(
         self,
-        features: List[str],
         array: NDArray,
+        features: List[str],
         drift_profile: SpcDriftProfile,
     ) -> SpcDriftMap:
         """Compute drift from a f32 numpy array.
@@ -1002,8 +1002,8 @@ class SpcDrifter:
 
     def compute_drift_f64(
         self,
-        features: List[str],
         array: NDArray,
+        features: List[str],
         drift_profile: SpcDriftProfile,
     ) -> SpcDriftMap:
         """Compute drift from a f64 numpy array.
@@ -1043,8 +1043,8 @@ class SpcDrifter:
 
     def sample_data_f32(
         self,
-        features: List[str],
         array: NDArray,
+        features: List[str],
         drift_profile: SpcDriftProfile,
     ) -> ServerRecords:
         """Sample data from a f32 numpy array.
@@ -1063,8 +1063,8 @@ class SpcDrifter:
 
     def sample_data_f64(
         self,
-        features: List[str],
         array: NDArray,
+        features: List[str],
         drift_profile: SpcDriftProfile,
     ) -> ServerRecords:
         """Sample data from a f64 numpy array.
