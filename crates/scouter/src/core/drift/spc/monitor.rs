@@ -625,6 +625,7 @@ impl Default for SpcMonitor {
 #[cfg(test)]
 mod tests {
 
+    use crate::core::drift::base::ProfileBaseArgs;
     use crate::core::drift::spc::types::SpcAlertConfig;
 
     use super::*;
@@ -720,6 +721,16 @@ mod tests {
             .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
             .unwrap();
         assert_eq!(profile.features.len(), 3);
+
+        let args = profile.get_base_args();
+        assert_eq!(args.name, "name");
+        assert_eq!(args.repository, "repo");
+        assert_eq!(args.version, "0.1.0");
+        assert_eq!(args.schedule, "0 0 * * *");
+
+        let value = profile.to_value();
+        //load value back
+        let _: SpcDriftProfile = serde_json::from_value(value).unwrap();
     }
 
     #[test]

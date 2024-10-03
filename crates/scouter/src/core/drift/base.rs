@@ -164,3 +164,22 @@ impl FeatureMap {
         ProfileFuncs::__str__(self)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::str::FromStr;
+
+    #[test]
+    fn test_drift_type_from_str() {
+        assert_eq!(DriftType::from_str("SPC").unwrap(), DriftType::SPC);
+        assert_eq!(DriftType::from_str("PSI").unwrap(), DriftType::PSI);
+        assert!(DriftType::from_str("INVALID").is_err());
+    }
+
+    #[test]
+    fn test_drift_type_value() {
+        assert_eq!(DriftType::SPC.value(), "SPC");
+        assert_eq!(DriftType::PSI.value(), "PSI");
+    }
+}
