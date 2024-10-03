@@ -706,8 +706,8 @@ mod tests {
         let monitor = SpcMonitor::new();
         let alert_config = SpcAlertConfig::default();
         let config = SpcDriftConfig::new(
-            Some("name".to_string()),
             Some("repo".to_string()),
+            Some("name".to_string()),
             None,
             None,
             None,
@@ -726,7 +726,7 @@ mod tests {
         assert_eq!(args.name, "name");
         assert_eq!(args.repository, "repo");
         assert_eq!(args.version, "0.1.0");
-        assert_eq!(args.schedule, "0 0 * * *");
+        assert_eq!(args.schedule, "0 0 0 * * *");
 
         let value = profile.to_value();
         //load value back
