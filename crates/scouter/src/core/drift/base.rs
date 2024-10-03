@@ -4,14 +4,13 @@ use crate::core::error::ScouterError;
 use crate::core::utils::ProfileFuncs;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::{collections::HashMap, str::FromStr};
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum DriftType {
     SPC,
     PSI,
-    NONE,
 }
 
 #[pymethods]
@@ -21,17 +20,18 @@ impl DriftType {
         match self {
             DriftType::SPC => "SPC".to_string(),
             DriftType::PSI => "PSI".to_string(),
-            DriftType::NONE => "NONE".to_string(),
         }
     }
 }
 
-impl DriftType {
-    pub fn from_str(value: &str) -> DriftType {
-        match value {
-            "SPC" => DriftType::SPC,
-            "PSI" => DriftType::PSI,
-            _ => DriftType::NONE,
+impl FromStr for DriftType {
+    type Err = ScouterError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "SPC" => Ok(DriftType::SPC),
+            "PSI" => Ok(DriftType::PSI),
+            _ => Err(ScouterError::InvalidDriftTypeError(s.to_string())),
         }
     }
 }
@@ -46,8 +46,24 @@ pub trait DispatchDriftConfig {
     fn get_drift_args(&self) -> DriftArgs;
 }
 
+// Trait for drift records
 pub trait DriftRecordType {
     fn get_drift_type(&self) -> DriftType;
+}
+
+pub struct ProfileArgs {
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+    pub schedule: String,
+    pub scouter_version: String,
+    pub profile_type: DriftType,
+}
+
+// trait to implement on all profile types
+pub trait ProfileBaseArgs {
+    fn get_base_args(&self) -> ProfileArgs;
+    fn to_value(&self) -> serde_json::Value;
 }
 
 pub struct DriftArgs {
@@ -129,7 +145,7 @@ impl DriftRecordType for ServerRecords {
             RecordType::DRIFT => match self.records.first().unwrap() {
                 ServerRecord::DRIFT { record: _ } => DriftType::SPC,
             },
-            _ => DriftType::NONE,
+            _ => DriftType::SPC,
         }
     }
 }
