@@ -26,6 +26,16 @@ impl DriftType {
     }
 }
 
+impl DriftType {
+    pub fn from_str(value: &str) -> DriftType {
+        match value {
+            "SPC" => DriftType::SPC,
+            "PSI" => DriftType::PSI,
+            _ => DriftType::NONE,
+        }
+    }
+}
+
 // Trait for alert descriptions
 // This is to be used for all kinds of feature alerts
 pub trait DispatchAlertDescription {
