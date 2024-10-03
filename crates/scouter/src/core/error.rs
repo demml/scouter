@@ -98,6 +98,9 @@ pub enum ScouterError {
 
     #[error("Failed to create string profile: {0}")]
     StringProfileError(String),
+
+    #[error("Invalid drift type: {0}")]
+    InvalidDriftTypeError(String),
 }
 
 // impl From for PyErr

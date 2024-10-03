@@ -625,6 +625,9 @@ impl Default for SpcMonitor {
 #[cfg(test)]
 mod tests {
 
+    use crate::core::drift::base::DriftProfile;
+    use crate::core::drift::base::DriftType;
+    use crate::core::drift::base::ProfileBaseArgs;
     use crate::core::drift::spc::types::SpcAlertConfig;
 
     use super::*;
@@ -705,8 +708,8 @@ mod tests {
         let monitor = SpcMonitor::new();
         let alert_config = SpcAlertConfig::default();
         let config = SpcDriftConfig::new(
-            Some("name".to_string()),
             Some("repo".to_string()),
+            Some("name".to_string()),
             None,
             None,
             None,
@@ -720,6 +723,23 @@ mod tests {
             .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
             .unwrap();
         assert_eq!(profile.features.len(), 3);
+
+        let args = profile.get_base_args();
+        assert_eq!(args.name, "name");
+        assert_eq!(args.repository, "repo");
+        assert_eq!(args.version, "0.1.0");
+        assert_eq!(args.schedule, "0 0 0 * * *");
+
+        let value = profile.to_value();
+
+        // test DriftProfile
+        let profile = DriftProfile::from_value(value, &DriftType::SPC.value()).unwrap();
+        let new_args = profile.get_base_args();
+
+        assert_eq!(new_args, args);
+
+        let profile_str = profile.to_value().to_string();
+        DriftProfile::from_str(DriftType::SPC, profile_str).unwrap();
     }
 
     #[test]

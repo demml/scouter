@@ -1,7 +1,8 @@
 use crate::core::cron::EveryDay;
 use crate::core::dispatch::types::AlertDispatchType;
 use crate::core::drift::base::{
-    DispatchAlertDescription, DispatchDriftConfig, DriftArgs, DriftType,
+    DispatchAlertDescription, DispatchDriftConfig, DriftArgs, DriftType, ProfileArgs,
+    ProfileBaseArgs,
 };
 use crate::core::error::ScouterError;
 use crate::core::utils::{json_to_pyobject, pyobject_to_json, FileName, ProfileFuncs};
@@ -630,6 +631,25 @@ impl SpcDriftProfile {
             targets,
             alert_config,
         )
+    }
+}
+
+impl ProfileBaseArgs for SpcDriftProfile {
+    /// Get the base arguments for the profile (convenience method on the server)
+    fn get_base_args(&self) -> ProfileArgs {
+        ProfileArgs {
+            name: self.config.name.clone(),
+            repository: self.config.repository.clone(),
+            version: self.config.version.clone(),
+            schedule: self.config.alert_config.schedule.clone(),
+            scouter_version: self.scouter_version.clone(),
+            profile_type: self.config.drift_type.clone(),
+        }
+    }
+
+    /// Convert the struct to a serde_json::Value
+    fn to_value(&self) -> serde_json::Value {
+        serde_json::to_value(self).unwrap()
     }
 }
 
