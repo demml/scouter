@@ -625,6 +625,8 @@ impl Default for SpcMonitor {
 #[cfg(test)]
 mod tests {
 
+    use crate::core::drift::base::DriftProfile;
+    use crate::core::drift::base::DriftType;
     use crate::core::drift::base::ProfileBaseArgs;
     use crate::core::drift::spc::types::SpcAlertConfig;
 
@@ -729,8 +731,15 @@ mod tests {
         assert_eq!(args.schedule, "0 0 0 * * *");
 
         let value = profile.to_value();
-        //load value back
-        let _: SpcDriftProfile = serde_json::from_value(value).unwrap();
+
+        // test DriftProfile
+        let profile = DriftProfile::from_value(value, &DriftType::SPC.value()).unwrap();
+        let new_args = profile.get_base_args();
+
+        assert_eq!(new_args, args);
+
+        let profile_str = profile.to_value().to_string();
+        DriftProfile::from_str(DriftType::SPC, profile_str).unwrap();
     }
 
     #[test]
