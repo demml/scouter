@@ -11,6 +11,7 @@ from scouter.integrations.fastapi import ScouterRouter
 from scouter import Drifter, SpcDriftProfile, KafkaConfig, HTTPConfig
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
+from scouter import ScouterObserver
 
 T = TypeVar("T")
 YieldFixture = Generator[T, None, None]
@@ -288,6 +289,29 @@ def client_insert(
         return TestResponse(message="success")
 
     app.include_router(scouter_router)
-    Observer.add_middleware(app)
+    # Observer.add_middleware(app)
 
     return TestClient(app)
+
+
+@pytest.fixture
+def kafka_config():
+    return KafkaConfig(
+        topic="test-topic",
+        brokers="localhost:9092",
+        raise_on_err=True,
+    )
+
+
+@pytest.fixture
+def scouter_observer(kafka_config: KafkaConfig):
+    with patch("scouter.Observer") as MockObserver:
+        mock_observer = MockObserver.return_value
+        scouter_observer = ScouterObserver(
+            "repo",
+            "name",
+            "version",
+            kafka_config,
+        )
+        yield scouter_observer, mock_observer
+        scouter_observer.stop()

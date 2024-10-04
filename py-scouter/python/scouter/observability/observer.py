@@ -20,7 +20,7 @@ def generate_queue_id() -> str:
     return uuid4().hex
 
 
-_queue_id = generate_queue_id()
+_QUEUE_ID = generate_queue_id()
 
 
 class ScouterObserver:
@@ -57,7 +57,9 @@ class ScouterObserver:
         self._producer = self._get_producer(config)
         logger.info("Queue and producer initialized")
 
-    def _get_producer(self, config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig]) -> BaseProducer:
+    def _get_producer(
+        self, config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig]
+    ) -> BaseProducer:
         """Get the producer based on the configuration."""
         return DriftRecordProducer.get_producer(config)
 
@@ -67,7 +69,7 @@ class ScouterObserver:
             try:
                 request: Tuple[str, float, str, int] = self._queue.get(timeout=1)
 
-                if request[0] == _queue_id:
+                if request[0] == _QUEUE_ID:
                     self._running = False
                     break
 
@@ -77,9 +79,8 @@ class ScouterObserver:
             except Empty:
                 pass
 
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 logger.error("Error processing queue: {}", e)
-                pass
 
             try:
                 # Check if 30 seconds have passed
@@ -92,7 +93,7 @@ class ScouterObserver:
 
                     self._observer.reset_metrics()
                     last_metrics_time = current_time
-            except Exception as e:
+            except Exception as e:  # pylint: disable=broad-except
                 logger.error("Error collecting metrics: {}", e)
 
     def add_request_metrics(
@@ -120,5 +121,5 @@ class ScouterObserver:
 
     def stop(self):
         self._producer.flush()
-        self._queue.put((_queue_id, 0, "", 0))
+        self._queue.put((_QUEUE_ID, 0, "", 0))
         self._thread.join()

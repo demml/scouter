@@ -14,16 +14,11 @@ def test_monitor_pandas(
     pandas_dataframe: pd.DataFrame,
     drift_config: SpcDriftConfig,
     mock_kafka_producer,
+    kafka_config: KafkaConfig,
 ):
     scouter = Drifter()
     profile: SpcDriftProfile = scouter.create_drift_profile(
         pandas_dataframe, drift_config
-    )
-
-    kafka_config = KafkaConfig(
-        topic="test-topic",
-        brokers="localhost:9092",
-        raise_on_err=True,
     )
 
     queue = MonitorQueue(
@@ -51,19 +46,12 @@ def test_monitor_polar_multitype(
     polars_dataframe_multi_dtype: pd.DataFrame,
     drift_config: SpcDriftConfig,
     mock_kafka_producer,
+    kafka_config: KafkaConfig,
 ):
     scouter = Drifter()
     profile: SpcDriftProfile = scouter.create_drift_profile(
         polars_dataframe_multi_dtype,
         drift_config,
-    )
-
-    print(profile)
-
-    kafka_config = KafkaConfig(
-        topic="test-topic",
-        brokers="localhost:9092",
-        raise_on_err=True,
     )
 
     queue = MonitorQueue(
@@ -90,17 +78,12 @@ def test_queue_fail(
     polars_dataframe_multi_dtype: pd.DataFrame,
     drift_config: SpcDriftConfig,
     mock_kafka_producer,
+    kafka_config: KafkaConfig,
 ):
     scouter = Drifter()
     profile: SpcDriftProfile = scouter.create_drift_profile(
         polars_dataframe_multi_dtype,
         drift_config,
-    )
-
-    kafka_config = KafkaConfig(
-        topic="test-topic",
-        brokers="localhost:9092",
-        raise_on_err=True,
     )
 
     queue = MonitorQueue(

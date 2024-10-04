@@ -3,7 +3,7 @@
 import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from numpy.typing import NDArray
 
@@ -82,6 +82,10 @@ class ServerRecord:
             record:
                 Drift server record
         """
+
+    @property
+    def record(self) -> Union[SpcServerRecord, ObservabilityMetrics]:
+        """Return the drift server record."""
 
 class ServerRecords:
     @property
