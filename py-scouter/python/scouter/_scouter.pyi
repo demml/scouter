@@ -1152,3 +1152,109 @@ class SpcFeatureQueue:
 
     def clear_queue(self) -> None:
         """Clears the feature queue"""
+
+class LatencyMetrics:
+    @property
+    def p5(self) -> float:
+        """5th percentile"""
+
+    @property
+    def p25(self) -> float:
+        """25th percentile"""
+
+    @property
+    def p50(self) -> float:
+        """50th percentile"""
+
+    @property
+    def p95(self) -> float:
+        """95th percentile"""
+
+    @property
+    def p99(self) -> float:
+        """99th percentile"""
+
+class RouteMetrics:
+    @property
+    def route_name(self) -> str:
+        """Return the route name"""
+
+    @property
+    def metrics(self) -> LatencyMetrics:
+        """Return the repository"""
+
+    @property
+    def request_count(self) -> int:
+        """Request count"""
+
+    @property
+    def error_count(self) -> int:
+        """Error count"""
+
+    @property
+    def error_latency(self) -> float:
+        """Error latency"""
+
+    @property
+    def status_codes(self) -> Dict[int, int]:
+        """Dictionary of status codes and counts"""
+
+class ObservabilityMetrics:
+    @property
+    def repository(self) -> str:
+        """Return the repository"""
+
+    @property
+    def name(self) -> str:
+        """Return the name"""
+
+    @property
+    def version(self) -> str:
+        """Return the version"""
+
+    @property
+    def request_count(self) -> int:
+        """Request count"""
+
+    @property
+    def error_count(self) -> int:
+        """Error count"""
+
+    @property
+    def route_metrics(self) -> List[RouteMetrics]:
+        """Route metrics object"""
+
+class Observer:
+    def __init__(self, repository: str, name: str, version: str) -> None:
+        """Initializes an api metric observer
+
+        Args:
+            repository:
+                Model repository
+            name:
+                Model name
+            version:
+                Model version
+        """
+
+    def increment(
+        self, router: str, latency: float, status: str, status_code: int
+    ) -> None:
+        """Increment the feature value
+
+        Args:
+            router:
+                Router name
+            latency:
+                Latency of request
+            status:
+                Status of request
+            status_code:
+                Status code of request
+        """
+
+    def collect_metrics(self) -> Optional[ObservabilityMetrics]:
+        """Collect metrics from observer"""
+
+    def reset_metrics(self) -> None:
+        """Reset the observer metrics"""

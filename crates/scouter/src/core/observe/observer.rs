@@ -137,7 +137,7 @@ impl Observer {
             return None;
         }
 
-        let latency_tuples = self
+        let route_metrics = self
             .request_latency
             .clone()
             .into_par_iter()
@@ -154,29 +154,22 @@ impl Observer {
                     .quantiles_mut(&Array1::from_vec(qs.to_vec()), &Nearest)
                     .unwrap();
 
-                (
-                    route,
-                    RouteMetrics {
-                        metrics: LatencyMetrics {
-                            p5: quantiles[0].into(),
-                            p25: quantiles[1].into(),
-                            p50: quantiles[2].into(),
-                            p95: quantiles[3].into(),
-                            p99: quantiles[4].into(),
-                        },
-                        request_count: route_latency.request_count,
-                        error_count: route_latency.error_count,
-                        error_latency: route_latency.error_latency,
-                        status_codes: route_latency.status_codes.clone(),
+                RouteMetrics {
+                    metrics: LatencyMetrics {
+                        p5: quantiles[0].into(),
+                        p25: quantiles[1].into(),
+                        p50: quantiles[2].into(),
+                        p95: quantiles[3].into(),
+                        p99: quantiles[4].into(),
                     },
-                )
+                    request_count: route_latency.request_count,
+                    error_count: route_latency.error_count,
+                    error_latency: route_latency.error_latency,
+                    status_codes: route_latency.status_codes.clone(),
+                    route_name: route,
+                }
             })
             .collect::<Vec<_>>();
-
-        let route_metrics = latency_tuples
-            .into_iter()
-            .map(|(k, v)| (k.clone(), v))
-            .collect::<HashMap<_, _>>();
 
         Some(ObservabilityMetrics {
             repository: self.repository.clone(),
@@ -206,6 +199,9 @@ impl Observer {
 #[pyclass]
 #[derive(Clone, Debug)]
 struct RouteMetrics {
+    #[pyo3(get)]
+    route_name: String,
+
     #[pyo3(get)]
     metrics: LatencyMetrics,
 
@@ -241,7 +237,7 @@ pub struct ObservabilityMetrics {
     error_count: i64,
 
     #[pyo3(get)]
-    route_metrics: HashMap<String, RouteMetrics>,
+    route_metrics: Vec<RouteMetrics>,
 }
 
 #[cfg(test)]
@@ -367,7 +363,12 @@ mod tests {
 
         let route_metrics = metrics.route_metrics;
 
-        let home_metrics = route_metrics.get("/home").unwrap();
+        // check route metrics. Filter to get home route metrics
+        let home_metrics = route_metrics
+            .iter()
+            .find(|x| x.route_name == "/home")
+            .unwrap();
+
         assert_eq!(home_metrics.request_count, 100);
         assert_eq!(home_metrics.error_count, 100);
     }
