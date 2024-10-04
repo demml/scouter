@@ -130,7 +130,13 @@ impl Observer {
         }
     }
 
-    pub fn increment(&mut self, route: &str, latency: f64, status: &str, status_code: usize) {
+    pub fn increment(&mut self, route: &str, latency: f64, status_code: usize) {
+        let status = if status_code >= 200 && status_code < 400 {
+            "OK"
+        } else {
+            "ERROR"
+        };
+
         self.increment_request_count();
         self.update_route_latency(route, latency, status, status_code);
         self.increment_error_count(status);
@@ -372,10 +378,10 @@ mod tests {
             let num1 = rand::thread_rng().gen_range(0..100);
             let num2 = rand::thread_rng().gen_range(0..100);
             let num3 = rand::thread_rng().gen_range(0..100);
-            observer.increment("/home", num1 as f64, "OK", 200);
-            observer.increment("/home", 50.0 + i as f64, "ERROR", 404);
-            observer.increment("/about", num2 as f64, "OK", 200);
-            observer.increment("/contact", num3 as f64, "OK", 200);
+            observer.increment("/home", num1 as f64, 200);
+            observer.increment("/home", 50.0 + i as f64, 404);
+            observer.increment("/about", num2 as f64, 200);
+            observer.increment("/contact", num3 as f64, 200);
         }
 
         let metrics = observer.collect_metrics().unwrap();
@@ -417,7 +423,7 @@ mod tests {
             NAME.to_string(),
             VERSION.to_string(),
         );
-        observer.increment("/home", 100.0, "OK", 200);
+        observer.increment("/home", 100.0, 200);
         assert_eq!(observer.request_count, 1);
         assert_eq!(observer.error_count, 0);
         let sum_latency = observer
@@ -434,7 +440,7 @@ mod tests {
             1
         );
 
-        observer.increment("/home", 50.0, "ERROR", 500);
+        observer.increment("/home", 50.0, 500);
         assert_eq!(observer.request_count, 2);
         assert_eq!(observer.error_count, 1);
         let sum_latency = observer
@@ -467,8 +473,8 @@ mod tests {
             NAME.to_string(),
             VERSION.to_string(),
         );
-        observer.increment("/home", 100.0, "OK", 200);
-        observer.increment("/home", 50.0, "ERROR", 500);
+        observer.increment("/home", 100.0, 200);
+        observer.increment("/home", 50.0, 500);
 
         observer.reset_metrics();
         assert_eq!(observer.request_count, 0);

@@ -24,7 +24,7 @@ _QUEUE_ID = generate_queue_id()
 
 
 class ScouterObserver:
-    """Instantiates an api observer to collect metrics and publish them to the monitoring server."""
+    """Instantiates an api observer to collect api metrics and publish them to the monitoring server."""
 
     def __init__(
         self,
@@ -47,7 +47,7 @@ class ScouterObserver:
                 Configuration for the monitoring producer. The configured producer
                 will be used to publish drift records to the monitoring server.
         """
-        self._queue: Queue[Tuple[str, float, str, int]] = Queue()
+        self._queue: Queue[Tuple[str, float, int]] = Queue()
         self._observer = Observer(repository, name, version)
         self._running = True
         self._thread = threading.Thread(target=self._process_queue)
@@ -67,13 +67,13 @@ class ScouterObserver:
         last_metrics_time = time.time()
         while self._running:
             try:
-                request: Tuple[str, float, str, int] = self._queue.get(timeout=1)
+                request: Tuple[str, float, int] = self._queue.get(timeout=1)
 
                 if request[0] == _QUEUE_ID:
                     self._running = False
                     break
 
-                self._observer.increment(request[0], request[1], request[2], request[3])
+                self._observer.increment(request[0], request[1], request[2])
                 self._queue.task_done()
 
             except Empty:
@@ -100,7 +100,6 @@ class ScouterObserver:
         self,
         route: str,
         latency: float,
-        status: str,
         status_code: int,
     ):
         """Add request metrics to the observer
@@ -116,7 +115,7 @@ class ScouterObserver:
                 Status code
         """
 
-        request = (route, latency, status, status_code)
+        request = (route, latency, status_code)
         self._queue.put(request)
 
     def stop(self):

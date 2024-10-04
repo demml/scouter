@@ -11,7 +11,7 @@ from scouter.integrations.fastapi import ScouterRouter
 from scouter import Drifter, SpcDriftProfile, KafkaConfig, HTTPConfig
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
-from scouter import ScouterObserver
+from scouter.observability.observer import ScouterObserver
 
 T = TypeVar("T")
 YieldFixture = Generator[T, None, None]

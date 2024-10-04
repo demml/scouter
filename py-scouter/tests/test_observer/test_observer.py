@@ -5,15 +5,15 @@ import time
 
 def test_add_request(scouter_observer, mock_kafka_producer):
     scouter, mock_observer = scouter_observer
-    scouter.add_request_metrics("route", 0.1, "OK", 200)
+    scouter.add_request_metrics("route", 0.1, 200)
     assert not scouter._queue.empty()
     request = scouter._queue.get()
-    assert request == ("route", 0.1, "OK", 200)
+    assert request == ("route", 0.1, 200)
 
 
 def test_process_queue(scouter_observer, mock_kafka_producer) -> None:
     scouter_observer, mock_observer = scouter_observer
-    scouter_observer.add_request_metrics("route", 0.1, "OK", 200)
+    scouter_observer.add_request_metrics("route", 0.1, 200)
     time.sleep(0.1)
     metrics: ServerRecords = scouter_observer._observer.collect_metrics()
     record = metrics.records[0].record
@@ -28,7 +28,7 @@ def test_collect_and_reset_metrics(
     mock_time, scouter_observer, mock_kafka_producer
 ) -> None:
     scouter_observer, mock_observer = scouter_observer
-    scouter_observer.add_request_metrics("route", 0.1, "OK", 200)
+    scouter_observer.add_request_metrics("route", 0.1, 200)
     time.sleep(0.1)  # Give some time for the background thread to process the queue
     metrics = scouter_observer._observer.collect_metrics()
 

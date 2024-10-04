@@ -1247,7 +1247,7 @@ class Observer:
                 Model version
         """
 
-    def increment(self, route: str, latency: float, status: str, status_code: int) -> None:
+    def increment(self, route: str, latency: float, status_code: int) -> None:
         """Increment the feature value
 
         Args:
@@ -1255,8 +1255,6 @@ class Observer:
                 Route name
             latency:
                 Latency of request
-            status:
-                Status of request
             status_code:
                 Status code of request
         """
