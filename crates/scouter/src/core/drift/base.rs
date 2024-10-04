@@ -1,6 +1,7 @@
 use crate::core::dispatch::types::AlertDispatchType;
 use crate::core::drift::spc::types::{SpcDriftProfile, SpcServerRecord};
 use crate::core::error::ScouterError;
+use crate::core::observe::observer::ObservabilityMetrics;
 use crate::core::utils::ProfileFuncs;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -46,11 +47,6 @@ pub trait DispatchDriftConfig {
     fn get_drift_args(&self) -> DriftArgs;
 }
 
-// Trait for drift records
-pub trait DriftRecordType {
-    fn get_drift_type(&self) -> DriftType;
-}
-
 #[derive(PartialEq, Debug)]
 pub struct ProfileArgs {
     pub name: String,
@@ -87,6 +83,7 @@ pub enum RecordType {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ServerRecord {
     SPC { record: SpcServerRecord },
+    OBSERVABILITY { record: ObservabilityMetrics },
 }
 
 #[pymethods]
@@ -137,18 +134,6 @@ impl ServerRecords {
         let records: ServerRecords =
             serde_json::from_slice(bytes).map_err(|_| ScouterError::DeSerializeError)?;
         Ok(records)
-    }
-}
-
-impl DriftRecordType for ServerRecords {
-    // Gets the drift type of the records. Primarily used for inserting records into scouter-server db
-    fn get_drift_type(&self) -> DriftType {
-        match self.record_type {
-            RecordType::SPC => match self.records.first().unwrap() {
-                ServerRecord::SPC { record: _ } => DriftType::SPC,
-            },
-            _ => DriftType::SPC,
-        }
     }
 }
 

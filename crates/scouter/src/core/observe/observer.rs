@@ -1,3 +1,5 @@
+use crate::core::drift::base::RecordType;
+use crate::core::drift::base::{ServerRecord, ServerRecords};
 use crate::core::utils::ProfileFuncs;
 use ndarray::Array1;
 use ndarray_stats::interpolate::Nearest;
@@ -6,11 +8,11 @@ use noisy_float::types::n64;
 use pyo3::prelude::*;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[pyclass]
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LatencyMetrics {
     #[pyo3(get)]
     p5: f64,
@@ -134,7 +136,7 @@ impl Observer {
         self.increment_error_count(status);
     }
 
-    pub fn collect_metrics(&self) -> Option<ObservabilityMetrics> {
+    pub fn collect_metrics(&self) -> Option<ServerRecords> {
         if self.request_count == 0 {
             return None;
         }
@@ -173,13 +175,20 @@ impl Observer {
             })
             .collect::<Vec<_>>();
 
-        Some(ObservabilityMetrics {
-            repository: self.repository.clone(),
-            name: self.name.clone(),
-            version: self.version.clone(),
-            request_count: self.request_count,
-            error_count: self.error_count,
-            route_metrics,
+        let record = ServerRecord::OBSERVABILITY {
+            record: ObservabilityMetrics {
+                repository: self.repository.clone(),
+                name: self.name.clone(),
+                version: self.version.clone(),
+                request_count: self.request_count,
+                error_count: self.error_count,
+                route_metrics,
+            },
+        };
+
+        Some(ServerRecords {
+            record_type: RecordType::OBSERVABILITY,
+            records: vec![record],
         })
     }
 
@@ -199,7 +208,7 @@ impl Observer {
 }
 
 #[pyclass]
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RouteMetrics {
     #[pyo3(get)]
     route_name: String,
@@ -221,7 +230,7 @@ pub struct RouteMetrics {
 }
 
 #[pyclass]
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ObservabilityMetrics {
     #[pyo3(get)]
     repository: String,
@@ -373,13 +382,23 @@ mod tests {
         metrics.model_dump_json();
         metrics.__str__();
 
-        assert_eq!(metrics.request_count, 400);
-        assert_eq!(metrics.error_count, 100);
-        assert_eq!(metrics.repository, REPOSITORY);
-        assert_eq!(metrics.name, NAME);
-        assert_eq!(metrics.version, VERSION);
+        // get record
 
-        let route_metrics = metrics.route_metrics;
+        let metrics = metrics.records[0].clone();
+
+        // check observability metrics
+        let record = match metrics {
+            ServerRecord::OBSERVABILITY { record } => record,
+            _ => panic!("Expected observability record"),
+        };
+
+        assert_eq!(record.request_count, 400);
+        assert_eq!(record.error_count, 100);
+        assert_eq!(record.repository, REPOSITORY);
+        assert_eq!(record.name, NAME);
+        assert_eq!(record.version, VERSION);
+
+        let route_metrics = record.route_metrics;
 
         // check route metrics. Filter to get home route metrics
         let home_metrics = route_metrics

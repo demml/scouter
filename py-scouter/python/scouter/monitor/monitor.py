@@ -6,6 +6,7 @@ from typing import Any, Dict, Optional, Union
 from scouter.integrations.base import BaseProducer
 from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
+from scouter.integrations.rabbitmq import RabbitMQConfig
 from scouter.integrations.producer import DriftRecordProducer
 from scouter.utils.logger import ScouterLogger
 
@@ -40,7 +41,7 @@ class MonitorQueue:
     def __init__(
         self,
         drift_profile: Union[SpcDriftProfile],
-        config: Union[KafkaConfig, HTTPConfig],
+        config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig],
     ) -> None:
         """Instantiate a monitoring queue to monitor data drift.
 
@@ -60,7 +61,9 @@ class MonitorQueue:
         self._producer = self._get_producer(config)
         logger.info("Queue and producer initialized")
 
-    def _get_producer(self, config: Union[KafkaConfig, HTTPConfig]) -> BaseProducer:
+    def _get_producer(
+        self, config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig]
+    ) -> BaseProducer:
         """Get the producer based on the configuration."""
         return DriftRecordProducer.get_producer(config)
 
@@ -88,7 +91,9 @@ class MonitorQueue:
             return None
 
         except Exception as exc:
-            logger.error("Failed to insert data into monitoring queue: {}. Passing", exc)
+            logger.error(
+                "Failed to insert data into monitoring queue: {}. Passing", exc
+            )
             return None
 
     def _clear_queue(self) -> None:

@@ -1,9 +1,18 @@
 import threading
 import time
 from queue import Empty, Queue
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 from uuid import uuid4
 from .._scouter import ObservabilityMetrics, Observer
+
+from scouter.integrations.base import BaseProducer
+from scouter.integrations.http import HTTPConfig
+from scouter.integrations.kafka import KafkaConfig
+from scouter.integrations.rabbitmq import RabbitMQConfig
+from scouter.utils.logger import ScouterLogger
+from scouter.integrations.producer import DriftRecordProducer
+
+logger = ScouterLogger.get_logger()
 
 
 def generate_queue_id() -> str:
@@ -14,13 +23,28 @@ _queue_id = generate_queue_id()
 
 
 class ScouterObserver:
-    def __init__(self, repository: str, name: str, version: str):
+    def __init__(
+        self,
+        repository: str,
+        name: str,
+        version: str,
+        config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig],
+    ):
         self._queue: Queue[Tuple[str, float, str, int]] = Queue()
         self._observer = Observer(repository, name, version)
         self._running = True
         self._thread = threading.Thread(target=self._process_queue)
         self._thread.daemon = True  # Ensure the thread exits when the main program does
         self._thread.start()
+
+        self._producer = self._get_producer(config)
+        logger.info("Queue and producer initialized")
+
+    def _get_producer(
+        self, config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig]
+    ) -> BaseProducer:
+        """Get the producer based on the configuration."""
+        return DriftRecordProducer.get_producer(config)
 
     def _process_queue(self) -> None:
         last_metrics_time = time.time()
