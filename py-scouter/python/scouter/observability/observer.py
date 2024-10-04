@@ -87,10 +87,8 @@ class ScouterObserver:
                 current_time = time.time()
                 if current_time - last_metrics_time >= 30:
                     metrics: Optional[ServerRecords] = self._observer.collect_metrics()
-
                     if metrics:
                         self._producer.publish(metrics)
-
                     self._observer.reset_metrics()
                     last_metrics_time = current_time
             except Exception as e:  # pylint: disable=broad-except

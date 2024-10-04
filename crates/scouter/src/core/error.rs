@@ -128,3 +128,24 @@ pub enum DispatchError {
     #[error("Error setting alerter: {0}")]
     AlerterError(String),
 }
+
+#[derive(Error, Debug, Deserialize)]
+pub enum ObserverError {
+    #[error("Route not found {0}")]
+    RouteNotFound(String),
+
+    #[error("Failed to update route metrics: {0}")]
+    UpdateMetricsError(String),
+
+    #[error("Failed to compute quantiles: {0}")]
+    QuantileError(String),
+
+    #[error("Failed to collect metrics: {0}")]
+    CollectMetricsError(String),
+}
+
+impl From<ObserverError> for PyErr {
+    fn from(err: ObserverError) -> PyErr {
+        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
+    }
+}

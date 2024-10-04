@@ -15,6 +15,7 @@ logger = ScouterLogger.get_logger()
 try:
     from fastapi import APIRouter, BackgroundTasks, FastAPI, Request, Response
     from fastapi.responses import JSONResponse
+    from starlette.middleware.base import BaseHTTPMiddleware
 except ImportError as exc:
     raise ImportError(
         """FastAPI is not installed as a scouter extra. 
@@ -76,6 +77,7 @@ class ScouterRouter(ScouterMixin, APIRouter):
             Yields:
                 None
             """
+            print("Starting scouter queue.")
             yield
             logger.info("Flushing scouter queue.")
             self._queue.flush()
@@ -84,7 +86,7 @@ class ScouterRouter(ScouterMixin, APIRouter):
         APIRouter.__init__(self, *args, **kwargs)
 
 
-class ScouterMiddleware:
+class _ScouterMiddleware:
     def __init__(self, observer: ScouterObserver):
         self.observer = observer
 
@@ -116,25 +118,29 @@ class FastAPIScouterObserver:
         )
 
     def observe(self, app: FastAPI) -> None:
-        app.add_middleware(ScouterMiddleware, observer=self._observer)
+        app.add_middleware(
+            BaseHTTPMiddleware,
+            dispatch=_ScouterMiddleware(self._observer),
+        )
 
+        @asynccontextmanager
+        async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+            # Code to run when the application starts
+            print("Starting scouter observer.")
+            yield
+            # Code to run when the application shuts down
+            print("Shutting down scouter observer.")
+            self._observer.stop()
 
-class Observer:
-    @staticmethod
-    def add_middleware(app: FastAPI) -> None:
-        @app.middleware("http")
-        async def record_metrics(
-            request: Request, call_next: Callable[[Request], Awaitable[Response]]
-        ) -> Response:
-            try:
-                start_time = time.time()
-                response = await call_next(request)
-                response_time = time.time() - start_time
-                # Log latency
-                logger.info(
-                    f"Request to {request.url.path} took {response_time:.4f} seconds."
-                )
-                return response
-            except Exception as e:  # pylint: disable=broad-except
-                logger.error(f"Internal server error {e}")
-                return Response(f"Internal server error {e}", status_code=500)
+        if app.router.lifespan_context:
+            original_lifespan = app.router.lifespan_context
+
+            @asynccontextmanager
+            async def combined_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+                async with original_lifespan(app):
+                    async with lifespan(app):
+                        yield
+
+            app.router.lifespan_context = combined_lifespan
+        else:
+            app.router.lifespan_context = lifespan

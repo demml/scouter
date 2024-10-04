@@ -1,5 +1,6 @@
 use crate::core::drift::base::RecordType;
 use crate::core::drift::base::{ServerRecord, ServerRecords};
+use crate::core::error::ObserverError;
 use crate::core::utils::ProfileFuncs;
 use ndarray::Array1;
 use ndarray_stats::interpolate::Nearest;
@@ -80,7 +81,7 @@ impl Observer {
         latency: f64,
         status: &str,
         status_code: usize,
-    ) {
+    ) -> Result<(), ObserverError> {
         // handling OK status
         if status == "OK" {
             // insert latency for route if it doesn't exist, otherwise increment
@@ -122,29 +123,47 @@ impl Observer {
 
         // insert status code if it doesn't exist, otherwise increment
         // route should exist at this point
-        let route_latency = self.request_latency.get_mut(route).unwrap();
+        let route_latency = self
+            .request_latency
+            .get_mut(route)
+            .ok_or(ObserverError::RouteNotFound(route.to_string()))?;
         if let Some(status_code_count) = route_latency.status_codes.get_mut(&status_code) {
             *status_code_count += 1;
         } else {
             route_latency.status_codes.insert(status_code, 1);
         }
+
+        Ok(())
     }
 
-    pub fn increment(&mut self, route: &str, latency: f64, status_code: usize) {
-        let status = if status_code >= 200 && status_code < 400 {
+    pub fn increment(
+        &mut self,
+        route: &str,
+        latency: f64,
+        status_code: usize,
+    ) -> Result<(), ObserverError> {
+        let status = if (200..400).contains(&status_code) {
             "OK"
         } else {
             "ERROR"
         };
 
+        println!(
+            "route: {}, latency: {}, status_code: {}",
+            route, latency, status_code
+        );
+
         self.increment_request_count();
-        self.update_route_latency(route, latency, status, status_code);
+        self.update_route_latency(route, latency, status, status_code)
+            .map_err(|e| ObserverError::UpdateMetricsError(e.to_string()))?;
         self.increment_error_count(status);
+
+        Ok(())
     }
 
-    pub fn collect_metrics(&self) -> Option<ServerRecords> {
+    pub fn collect_metrics(&self) -> Result<Option<ServerRecords>, ObserverError> {
         if self.request_count == 0 {
-            return None;
+            return Ok(None);
         }
 
         let route_metrics = self
@@ -160,26 +179,29 @@ impl Observer {
                         .collect::<Vec<_>>(),
                 );
                 let qs = &[n64(0.05), n64(0.25), n64(0.5), n64(0.95), n64(0.99)];
-                let quantiles = latency_array
-                    .quantiles_mut(&Array1::from_vec(qs.to_vec()), &Nearest)
-                    .unwrap();
+                let quantiles =
+                    latency_array.quantiles_mut(&Array1::from_vec(qs.to_vec()), &Nearest);
 
-                RouteMetrics {
-                    metrics: LatencyMetrics {
-                        p5: quantiles[0].into(),
-                        p25: quantiles[1].into(),
-                        p50: quantiles[2].into(),
-                        p95: quantiles[3].into(),
-                        p99: quantiles[4].into(),
-                    },
-                    request_count: route_latency.request_count,
-                    error_count: route_latency.error_count,
-                    error_latency: route_latency.error_latency,
-                    status_codes: route_latency.status_codes.clone(),
-                    route_name: route,
+                match quantiles {
+                    Ok(quantiles) => Ok(RouteMetrics {
+                        metrics: LatencyMetrics {
+                            p5: quantiles[0].into(),
+                            p25: quantiles[1].into(),
+                            p50: quantiles[2].into(),
+                            p95: quantiles[3].into(),
+                            p99: quantiles[4].into(),
+                        },
+                        request_count: route_latency.request_count,
+                        error_count: route_latency.error_count,
+                        error_latency: route_latency.error_latency,
+                        status_codes: route_latency.status_codes.clone(),
+                        route_name: route,
+                    }),
+                    Err(e) => Err(ObserverError::QuantileError(e.to_string())),
                 }
             })
-            .collect::<Vec<_>>();
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| ObserverError::CollectMetricsError(e.to_string()))?;
 
         let record = ServerRecord::OBSERVABILITY {
             record: ObservabilityMetrics {
@@ -192,10 +214,10 @@ impl Observer {
             },
         };
 
-        Some(ServerRecords {
+        Ok(Some(ServerRecords {
             record_type: RecordType::OBSERVABILITY,
             records: vec![record],
-        })
+        }))
     }
 
     pub fn reset_metrics(&mut self) {
@@ -310,7 +332,9 @@ mod tests {
             NAME.to_string(),
             VERSION.to_string(),
         );
-        observer.update_route_latency("/home", 100.0, "OK", 200);
+        observer
+            .update_route_latency("/home", 100.0, "OK", 200)
+            .unwrap();
         let sum_latency = observer
             .request_latency
             .get("/home")
@@ -324,7 +348,9 @@ mod tests {
             1
         );
 
-        observer.update_route_latency("/home", 50.0, "OK", 200);
+        observer
+            .update_route_latency("/home", 50.0, "OK", 200)
+            .unwrap();
         let sum_latency = observer
             .request_latency
             .get("/home")
@@ -338,7 +364,9 @@ mod tests {
             2
         );
 
-        observer.update_route_latency("/home", 50.0, "ERROR", 500);
+        observer
+            .update_route_latency("/home", 50.0, "ERROR", 500)
+            .unwrap();
         let sum_latency = observer
             .request_latency
             .get("/home")
@@ -378,13 +406,13 @@ mod tests {
             let num1 = rand::thread_rng().gen_range(0..100);
             let num2 = rand::thread_rng().gen_range(0..100);
             let num3 = rand::thread_rng().gen_range(0..100);
-            observer.increment("/home", num1 as f64, 200);
-            observer.increment("/home", 50.0 + i as f64, 404);
-            observer.increment("/about", num2 as f64, 200);
-            observer.increment("/contact", num3 as f64, 200);
+            observer.increment("/home", num1 as f64, 200).unwrap();
+            observer.increment("/home", 50.0 + i as f64, 404).unwrap();
+            observer.increment("/about", num2 as f64, 200).unwrap();
+            observer.increment("/contact", num3 as f64, 200).unwrap();
         }
 
-        let metrics = observer.collect_metrics().unwrap();
+        let metrics = observer.collect_metrics().unwrap().unwrap();
         metrics.model_dump_json();
         metrics.__str__();
 
@@ -423,7 +451,7 @@ mod tests {
             NAME.to_string(),
             VERSION.to_string(),
         );
-        observer.increment("/home", 100.0, 200);
+        observer.increment("/home", 100.0, 200).unwrap();
         assert_eq!(observer.request_count, 1);
         assert_eq!(observer.error_count, 0);
         let sum_latency = observer
@@ -440,7 +468,7 @@ mod tests {
             1
         );
 
-        observer.increment("/home", 50.0, 500);
+        observer.increment("/home", 50.0, 500).unwrap();
         assert_eq!(observer.request_count, 2);
         assert_eq!(observer.error_count, 1);
         let sum_latency = observer
@@ -473,8 +501,8 @@ mod tests {
             NAME.to_string(),
             VERSION.to_string(),
         );
-        observer.increment("/home", 100.0, 200);
-        observer.increment("/home", 50.0, 500);
+        observer.increment("/home", 100.0, 200).unwrap();
+        observer.increment("/home", 50.0, 500).unwrap();
 
         observer.reset_metrics();
         assert_eq!(observer.request_count, 0);
