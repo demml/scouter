@@ -32,6 +32,7 @@ from ._scouter import (
     SpcFeatureQueue,
     SpcServerRecord,
     Observer,
+    ObservabilityMetrics,
 )
 from .drift.drift import CommonCrons, Drifter
 from .monitor.monitor import MonitorQueue
@@ -77,4 +78,5 @@ __all__ = [
     "RabbitMQProducer",
     "RecordType",
     "Observer",
+    "ObservabilityMetrics",
 ]

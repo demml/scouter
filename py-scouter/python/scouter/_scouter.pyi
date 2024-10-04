@@ -1238,13 +1238,13 @@ class Observer:
         """
 
     def increment(
-        self, router: str, latency: float, status: str, status_code: int
+        self, route: str, latency: float, status: str, status_code: int
     ) -> None:
         """Increment the feature value
 
         Args:
-            router:
-                Router name
+            route:
+                Route name
             latency:
                 Latency of request
             status:
