@@ -58,7 +58,7 @@ pub struct ProfileArgs {
     pub version: String,
     pub schedule: String,
     pub scouter_version: String,
-    pub profile_type: DriftType,
+    pub drift_type: DriftType,
 }
 
 // trait to implement on all profile types
@@ -75,24 +75,25 @@ pub struct DriftArgs {
 }
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub enum RecordType {
     #[default]
-    DRIFT,
+    SPC,
+    PSI,
     OBSERVABILITY,
 }
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ServerRecord {
-    DRIFT { record: SpcServerRecord },
+    SPC { record: SpcServerRecord },
 }
 
 #[pymethods]
 impl ServerRecord {
     #[new]
     pub fn new(record: SpcServerRecord) -> Self {
-        ServerRecord::DRIFT { record }
+        ServerRecord::SPC { record }
     }
 }
 
@@ -143,8 +144,8 @@ impl DriftRecordType for ServerRecords {
     // Gets the drift type of the records. Primarily used for inserting records into scouter-server db
     fn get_drift_type(&self) -> DriftType {
         match self.record_type {
-            RecordType::DRIFT => match self.records.first().unwrap() {
-                ServerRecord::DRIFT { record: _ } => DriftType::SPC,
+            RecordType::SPC => match self.records.first().unwrap() {
+                ServerRecord::SPC { record: _ } => DriftType::SPC,
             },
             _ => DriftType::SPC,
         }

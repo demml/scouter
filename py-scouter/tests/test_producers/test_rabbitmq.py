@@ -49,7 +49,7 @@ def test_rabbit_producer(mock_rabbit_connection):
     producer.publish(
         ServerRecords(
             records=[ServerRecord(record)],
-            record_type=RecordType.DRIFT,
+            record_type=RecordType.SPC,
         )
     )
     producer.flush()

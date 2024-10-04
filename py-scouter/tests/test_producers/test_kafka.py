@@ -80,7 +80,7 @@ def test_kafka_producer(mock_kafka_producer):
     producer.publish(
         ServerRecords(
             records=[ServerRecord(record)],
-            record_type=RecordType.DRIFT,
+            record_type=RecordType.SPC,
         )
     )
     producer.flush()

@@ -441,11 +441,11 @@ impl SpcMonitor {
                     version: drift_profile.config.version.clone(),
                 };
 
-                records.push(ServerRecord::DRIFT { record });
+                records.push(ServerRecord::SPC { record });
             });
         }
 
-        Ok(ServerRecords::new(records, RecordType::DRIFT))
+        Ok(ServerRecords::new(records, RecordType::SPC))
     }
 
     pub fn calculate_drift_from_sample(
