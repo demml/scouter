@@ -29,12 +29,24 @@ tracing = "0.1.40"
 colored_json = "5.0.0"
 thiserror = "1.0.64"
 
+# Dispatch dependencies
+reqwest = { version = "0.12.8", optional = true, features = ["json"] }
+futures = { version = "0.3.30", optional = true}
+
+
+[features]
+default = []
+dispatch = ["reqwest", "futures"]
+
 [dev-dependencies]
 approx = "0.5.1"
 ndarray-rand = "0.14.0"
 criterion = { version = "0.4", features = ["html_reports"] }
 futures = "0.3.30"
 rand = "0.8.5"
+mockito = "1.4.0"
+tokio = { version = "1.27.0", features = ["full"] }
+
 
 [profile.release]
 lto = "fat"

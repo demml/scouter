@@ -37,7 +37,9 @@ def test_drift_f64(array: NDArray, drift_config: SpcDriftConfig):
 
     _ = drifter.compute_drift(array, profile)
 
-    profile.update_config_args(name="name1", repository="repo1")
+    profile.update_config_args(repository="repo1", name="name1")
+
+    print(profile.config)
 
     assert profile.config.name == "name1"
     assert profile.config.repository == "repo1"

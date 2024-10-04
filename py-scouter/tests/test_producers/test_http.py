@@ -1,4 +1,4 @@
-from scouter import HTTPConfig, HTTPProducer, SpcDriftServerRecord
+from scouter import HTTPConfig, HTTPProducer, SpcServerRecord
 
 
 def test_http_config():
@@ -22,7 +22,7 @@ def test_http_producer(mock_httpx_producer):
 
     producer = HTTPProducer(config)
 
-    record = SpcDriftServerRecord(
+    record = SpcServerRecord(
         name="test",
         repository="test",
         version="1.0.0",

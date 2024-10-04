@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Any, Dict, Optional, Union, cast
+from typing import Any, Dict, Optional, cast
 
 import httpx
 from pydantic import BaseModel
@@ -8,7 +8,7 @@ from scouter.utils.logger import ScouterLogger
 from scouter.utils.types import ProducerTypes
 from tenacity import retry, stop_after_attempt
 
-from .._scouter import SpcDriftServerRecords
+from .._scouter import ServerRecords
 
 logger = ScouterLogger.get_logger()
 MESSAGE_MAX_BYTES_DEFAULT = 2097164
@@ -107,7 +107,7 @@ class HTTPProducer(BaseProducer):
         except Exception as exc:
             raise exc
 
-    def publish(self, records: Union[SpcDriftServerRecords]) -> None:
+    def publish(self, records: ServerRecords) -> None:
         """Publishes drift record to a kafka topic with retries.
 
         If the message delivery fails, the message is retried up to `max_retries` times before raising an error.

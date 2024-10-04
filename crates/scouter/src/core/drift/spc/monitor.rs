@@ -1,8 +1,9 @@
 use crate::core::error::MonitorError;
 
-use crate::core::spc::types::{
-    FeatureMap, SpcDriftConfig, SpcDriftMap, SpcDriftProfile, SpcDriftServerRecord,
-    SpcDriftServerRecords, SpcFeatureDrift, SpcFeatureDriftProfile,
+use crate::core::drift::base::{RecordType, ServerRecord, ServerRecords};
+use crate::core::drift::spc::types::{
+    FeatureMap, SpcDriftConfig, SpcDriftMap, SpcDriftProfile, SpcFeatureDrift,
+    SpcFeatureDriftProfile, SpcServerRecord,
 };
 use indicatif::ProgressBar;
 use ndarray::prelude::*;
@@ -405,7 +406,7 @@ impl SpcMonitor {
         features: &[String],
         array: &ArrayView2<F>, // n x m data array (features and predictions)
         drift_profile: &SpcDriftProfile,
-    ) -> Result<SpcDriftServerRecords, MonitorError>
+    ) -> Result<ServerRecords, MonitorError>
     where
         F: Float
             + Sync
@@ -431,7 +432,7 @@ impl SpcMonitor {
             let sample = sample_data.column(i);
 
             sample.iter().for_each(|value| {
-                let record = SpcDriftServerRecord {
+                let record = SpcServerRecord {
                     created_at,
                     feature: feature.to_string(),
                     value: *value,
@@ -440,11 +441,11 @@ impl SpcMonitor {
                     version: drift_profile.config.version.clone(),
                 };
 
-                records.push(record);
+                records.push(ServerRecord::SPC { record });
             });
         }
 
-        Ok(SpcDriftServerRecords::new(records))
+        Ok(ServerRecords::new(records, RecordType::SPC))
     }
 
     pub fn calculate_drift_from_sample(
@@ -624,7 +625,10 @@ impl Default for SpcMonitor {
 #[cfg(test)]
 mod tests {
 
-    use crate::core::spc::types::SpcAlertConfig;
+    use crate::core::drift::base::DriftProfile;
+    use crate::core::drift::base::DriftType;
+    use crate::core::drift::base::ProfileBaseArgs;
+    use crate::core::drift::spc::types::SpcAlertConfig;
 
     use super::*;
     use approx::relative_eq;
@@ -704,8 +708,8 @@ mod tests {
         let monitor = SpcMonitor::new();
         let alert_config = SpcAlertConfig::default();
         let config = SpcDriftConfig::new(
-            Some("name".to_string()),
             Some("repo".to_string()),
+            Some("name".to_string()),
             None,
             None,
             None,
@@ -719,6 +723,23 @@ mod tests {
             .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
             .unwrap();
         assert_eq!(profile.features.len(), 3);
+
+        let args = profile.get_base_args();
+        assert_eq!(args.name, "name");
+        assert_eq!(args.repository, "repo");
+        assert_eq!(args.version, "0.1.0");
+        assert_eq!(args.schedule, "0 0 0 * * *");
+
+        let value = profile.to_value();
+
+        // test DriftProfile
+        let profile = DriftProfile::from_value(value, &DriftType::SPC.value()).unwrap();
+        let new_args = profile.get_base_args();
+
+        assert_eq!(new_args, args);
+
+        let profile_str = profile.to_value().to_string();
+        DriftProfile::from_str(DriftType::SPC, profile_str).unwrap();
     }
 
     #[test]

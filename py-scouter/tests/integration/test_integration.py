@@ -4,7 +4,7 @@ from scouter import (
     SpcDriftProfile,
     Drifter,
     KafkaConfig,
-    SpcDriftServerRecords,
+    ServerRecords,
 )
 import pandas as pd
 from typing import Optional
@@ -32,7 +32,7 @@ def test_monitor_pandas(
 
     records = pandas_dataframe[0:30].to_dict(orient="records")
 
-    def return_record(records) -> Optional[SpcDriftServerRecords]:
+    def return_record(records) -> Optional[ServerRecords]:
         for record in records:
             drift_map = queue.insert(record)
 

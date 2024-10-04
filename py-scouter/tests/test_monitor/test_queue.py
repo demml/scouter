@@ -4,7 +4,7 @@ from scouter import (
     SpcDriftProfile,
     Drifter,
     KafkaConfig,
-    SpcDriftServerRecords,
+    ServerRecords,
 )
 from typing import Optional
 import pandas as pd
@@ -33,7 +33,7 @@ def test_monitor_pandas(
 
     records = pandas_dataframe[0:30].to_dict(orient="records")
 
-    def return_record(records) -> Optional[SpcDriftServerRecords]:
+    def return_record(records) -> Optional[ServerRecords]:
         for record in records:
             drift_map = queue.insert(record)
 
@@ -73,7 +73,7 @@ def test_monitor_polar_multitype(
 
     records = polars_dataframe_multi_dtype[0:30].to_dicts()  # type: ignore
 
-    def return_record(records) -> Optional[SpcDriftServerRecords]:
+    def return_record(records) -> Optional[ServerRecords]:
         for record in records:
             drift_map = queue.insert(record)
 
