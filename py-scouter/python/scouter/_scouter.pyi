@@ -1243,7 +1243,9 @@ class Observer:
                 Model version
         """
 
-    def increment(self, route: str, latency: float, status: str, status_code: int) -> None:
+    def increment(
+        self, route: str, latency: float, status: str, status_code: int
+    ) -> None:
         """Increment the feature value
 
         Args:
@@ -1257,7 +1259,7 @@ class Observer:
                 Status code of request
         """
 
-    def collect_metrics(self) -> Optional[ObservabilityMetrics]:
+    def collect_metrics(self) -> Optional[ServerRecords]:
         """Collect metrics from observer"""
 
     def reset_metrics(self) -> None:

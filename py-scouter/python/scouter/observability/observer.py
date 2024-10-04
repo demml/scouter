@@ -3,7 +3,7 @@ import time
 from queue import Empty, Queue
 from typing import Optional, Tuple, Union
 from uuid import uuid4
-from .._scouter import ObservabilityMetrics, Observer
+from .._scouter import Observer, ServerRecords
 
 from scouter.integrations.base import BaseProducer
 from scouter.integrations.http import HTTPConfig
@@ -64,13 +64,10 @@ class ScouterObserver:
             # Check if 30 seconds have passed
             current_time = time.time()
             if current_time - last_metrics_time >= 30:
-                metrics: Optional[
-                    ObservabilityMetrics
-                ] = self._observer.collect_metrics()
+                metrics: Optional[ServerRecords] = self._observer.collect_metrics()
 
                 if metrics:
-                    print(f"Metrics: {metrics.request_count}")
-                    print("push to monitoring server")
+                    self._producer.publish(metrics)
 
                 self._observer.reset_metrics()
                 last_metrics_time = current_time
@@ -99,5 +96,6 @@ class ScouterObserver:
         self._queue.put(request)
 
     def stop(self):
+        self._producer.flush()
         self._queue.put((_queue_id, 0, "", 0))
         self._thread.join()
