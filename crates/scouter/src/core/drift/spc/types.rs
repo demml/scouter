@@ -643,7 +643,7 @@ impl ProfileBaseArgs for SpcDriftProfile {
             version: self.config.version.clone(),
             schedule: self.config.alert_config.schedule.clone(),
             scouter_version: self.scouter_version.clone(),
-            profile_type: self.config.drift_type.clone(),
+            drift_type: self.config.drift_type.clone(),
         }
     }
 

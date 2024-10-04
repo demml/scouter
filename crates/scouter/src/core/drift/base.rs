@@ -58,7 +58,7 @@ pub struct ProfileArgs {
     pub version: String,
     pub schedule: String,
     pub scouter_version: String,
-    pub profile_type: DriftType,
+    pub drift_type: DriftType,
 }
 
 // trait to implement on all profile types
