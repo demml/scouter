@@ -13,7 +13,8 @@ class DriftType(str, Enum):
     NONE = "NONE"
 
 class RecordType:
-    DRIFT = "DRIFT"
+    SPC = "SPC"
+    PSI = "PSI"
     OBSERVABILITY = "OBSERVABILITY"
 
 class SpcServerRecord:
