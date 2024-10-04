@@ -3,14 +3,15 @@ import time
 from queue import Empty, Queue
 from typing import Optional, Tuple, Union
 from uuid import uuid4
-from .._scouter import Observer, ServerRecords
 
 from scouter.integrations.base import BaseProducer
 from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
+from scouter.integrations.producer import DriftRecordProducer
 from scouter.integrations.rabbitmq import RabbitMQConfig
 from scouter.utils.logger import ScouterLogger
-from scouter.integrations.producer import DriftRecordProducer
+
+from .._scouter import Observer, ServerRecords
 
 logger = ScouterLogger.get_logger()
 
@@ -23,6 +24,8 @@ _queue_id = generate_queue_id()
 
 
 class ScouterObserver:
+    """Instantiates an api observer to collect metrics and publish them to the monitoring server."""
+
     def __init__(
         self,
         repository: str,
@@ -30,6 +33,20 @@ class ScouterObserver:
         version: str,
         config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig],
     ):
+        """Initializes an api metric observer. Upon instantiation, a queue and producer will be initialized.
+        Un addition, the requests send to the queue will be processed and published via a separate thread.
+
+        Args:
+            repository:
+                Model repository
+            name:
+                Model name
+            version:
+                Model version
+            config:
+                Configuration for the monitoring producer. The configured producer
+                will be used to publish drift records to the monitoring server.
+        """
         self._queue: Queue[Tuple[str, float, str, int]] = Queue()
         self._observer = Observer(repository, name, version)
         self._running = True
@@ -40,9 +57,7 @@ class ScouterObserver:
         self._producer = self._get_producer(config)
         logger.info("Queue and producer initialized")
 
-    def _get_producer(
-        self, config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig]
-    ) -> BaseProducer:
+    def _get_producer(self, config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig]) -> BaseProducer:
         """Get the producer based on the configuration."""
         return DriftRecordProducer.get_producer(config)
 
@@ -58,19 +73,27 @@ class ScouterObserver:
 
                 self._observer.increment(request[0], request[1], request[2], request[3])
                 self._queue.task_done()
+
             except Empty:
                 pass
 
-            # Check if 30 seconds have passed
-            current_time = time.time()
-            if current_time - last_metrics_time >= 30:
-                metrics: Optional[ServerRecords] = self._observer.collect_metrics()
+            except Exception as e:
+                logger.error("Error processing queue: {}", e)
+                pass
 
-                if metrics:
-                    self._producer.publish(metrics)
+            try:
+                # Check if 30 seconds have passed
+                current_time = time.time()
+                if current_time - last_metrics_time >= 30:
+                    metrics: Optional[ServerRecords] = self._observer.collect_metrics()
 
-                self._observer.reset_metrics()
-                last_metrics_time = current_time
+                    if metrics:
+                        self._producer.publish(metrics)
+
+                    self._observer.reset_metrics()
+                    last_metrics_time = current_time
+            except Exception as e:
+                logger.error("Error collecting metrics: {}", e)
 
     def add_request_metrics(
         self,
