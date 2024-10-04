@@ -38,6 +38,9 @@ struct RouteLatency {
 #[pyclass]
 #[derive(Clone)]
 pub struct Observer {
+    repository: String,
+    name: String,
+    version: String,
     request_count: i64,
     error_count: i64,
     request_latency: HashMap<String, RouteLatency>,
@@ -46,8 +49,11 @@ pub struct Observer {
 #[pymethods]
 impl Observer {
     #[new]
-    pub fn new() -> Self {
+    pub fn new(repository: String, name: String, version: String) -> Self {
         Observer {
+            repository,
+            name,
+            version,
             request_count: 0,
             error_count: 0,
             request_latency: HashMap::new(),
@@ -173,6 +179,9 @@ impl Observer {
             .collect::<HashMap<_, _>>();
 
         Some(ObservabilityMetrics {
+            repository: self.repository.clone(),
+            name: self.name.clone(),
+            version: self.version.clone(),
             request_count: self.request_count,
             error_count: self.error_count,
             route_metrics,
@@ -217,6 +226,15 @@ struct RouteMetrics {
 #[derive(Debug)]
 pub struct ObservabilityMetrics {
     #[pyo3(get)]
+    repository: String,
+
+    #[pyo3(get)]
+    name: String,
+
+    #[pyo3(get)]
+    version: String,
+
+    #[pyo3(get)]
     request_count: i64,
 
     #[pyo3(get)]
@@ -231,16 +249,28 @@ mod tests {
     use super::*;
     use rand::Rng;
 
+    const REPOSITORY: &str = "test";
+    const NAME: &str = "test";
+    const VERSION: &str = "test";
+
     #[test]
     fn test_increment_request_count() {
-        let mut observer = Observer::new();
+        let mut observer = Observer::new(
+            REPOSITORY.to_string(),
+            NAME.to_string(),
+            VERSION.to_string(),
+        );
         observer.increment_request_count();
         assert_eq!(observer.request_count, 1);
     }
 
     #[test]
     fn test_increment_error_count() {
-        let mut observer = Observer::new();
+        let mut observer = Observer::new(
+            REPOSITORY.to_string(),
+            NAME.to_string(),
+            VERSION.to_string(),
+        );
         observer.increment_error_count("ERROR");
         assert_eq!(observer.error_count, 1);
         observer.increment_error_count("OK");
@@ -249,7 +279,11 @@ mod tests {
 
     #[test]
     fn test_update_route_latency() {
-        let mut observer = Observer::new();
+        let mut observer = Observer::new(
+            REPOSITORY.to_string(),
+            NAME.to_string(),
+            VERSION.to_string(),
+        );
         observer.update_route_latency("/home", 100.0, "OK", 200);
         let sum_latency = observer
             .request_latency
@@ -308,7 +342,11 @@ mod tests {
     #[test]
     fn test_collect_metrics() {
         //populate 3 routes with different latencies (n = 100)
-        let mut observer = Observer::new();
+        let mut observer = Observer::new(
+            REPOSITORY.to_string(),
+            NAME.to_string(),
+            VERSION.to_string(),
+        );
         for i in 0..100 {
             // generate random latencies
             let num1 = rand::thread_rng().gen_range(0..100);
@@ -323,6 +361,9 @@ mod tests {
         let metrics = observer.collect_metrics().unwrap();
         assert_eq!(metrics.request_count, 400);
         assert_eq!(metrics.error_count, 100);
+        assert_eq!(metrics.repository, REPOSITORY);
+        assert_eq!(metrics.name, NAME);
+        assert_eq!(metrics.version, VERSION);
 
         let route_metrics = metrics.route_metrics;
 
@@ -333,7 +374,11 @@ mod tests {
 
     #[test]
     fn test_increment() {
-        let mut observer = Observer::new();
+        let mut observer = Observer::new(
+            REPOSITORY.to_string(),
+            NAME.to_string(),
+            VERSION.to_string(),
+        );
         observer.increment("/home", 100.0, "OK", 200);
         assert_eq!(observer.request_count, 1);
         assert_eq!(observer.error_count, 0);
@@ -379,7 +424,11 @@ mod tests {
 
     #[test]
     fn test_reset_metrics() {
-        let mut observer = Observer::new();
+        let mut observer = Observer::new(
+            REPOSITORY.to_string(),
+            NAME.to_string(),
+            VERSION.to_string(),
+        );
         observer.increment("/home", 100.0, "OK", 200);
         observer.increment("/home", 50.0, "ERROR", 500);
 

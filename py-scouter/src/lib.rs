@@ -52,6 +52,7 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ServerRecords>()?;
     m.add_class::<SpcServerRecord>()?;
     m.add_class::<ServerRecord>()?;
+    m.add_class::<Observer>()?;
 
     Ok(())
 }
