@@ -13,7 +13,9 @@ use scouter::core::drift::spc::types::{
     SpcDriftMap, SpcDriftProfile, SpcFeatureAlert, SpcFeatureAlerts, SpcFeatureDrift,
     SpcFeatureDriftProfile, SpcServerRecord,
 };
-use scouter::core::observe::observer::Observer;
+use scouter::core::observe::observer::{
+    LatencyMetrics, ObservabilityMetrics, Observer, RouteMetrics,
+};
 use scouter::core::profile::types::{DataProfile, Distinct, FeatureProfile, Histogram};
 
 #[pymodule]
@@ -53,6 +55,9 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SpcServerRecord>()?;
     m.add_class::<ServerRecord>()?;
     m.add_class::<Observer>()?;
+    m.add_class::<RouteMetrics>()?;
+    m.add_class::<LatencyMetrics>()?;
+    m.add_class::<ObservabilityMetrics>()?;
 
     Ok(())
 }

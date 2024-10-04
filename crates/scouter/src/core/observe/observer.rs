@@ -9,7 +9,7 @@ use std::collections::HashMap;
 
 #[pyclass]
 #[derive(Clone, Debug)]
-struct LatencyMetrics {
+pub struct LatencyMetrics {
     #[pyo3(get)]
     p5: f64,
 
@@ -198,7 +198,7 @@ impl Observer {
 
 #[pyclass]
 #[derive(Clone, Debug)]
-struct RouteMetrics {
+pub struct RouteMetrics {
     #[pyo3(get)]
     route_name: String,
 

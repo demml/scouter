@@ -18,6 +18,8 @@ from ._scouter import (
     EveryHour,
     EveryWeek,
     FeatureProfile,
+    ObservabilityMetrics,
+    Observer,
     RecordType,
     ServerRecord,
     ServerRecords,
@@ -31,11 +33,10 @@ from ._scouter import (
     SpcFeatureDriftProfile,
     SpcFeatureQueue,
     SpcServerRecord,
-    Observer,
-    ObservabilityMetrics,
 )
 from .drift.drift import CommonCrons, Drifter
 from .monitor.monitor import MonitorQueue
+from .observability.observer import ScouterObserver
 from .profile.profile import Profiler
 from .version import __version__
 
@@ -79,4 +80,5 @@ __all__ = [
     "RecordType",
     "Observer",
     "ObservabilityMetrics",
+    "ScouterObserver",
 ]
