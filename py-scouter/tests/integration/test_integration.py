@@ -5,6 +5,7 @@ from scouter import (
     Drifter,
     KafkaConfig,
     ServerRecords,
+    DriftType,
 )
 import pandas as pd
 from typing import Optional
@@ -14,7 +15,7 @@ def test_monitor_pandas(
     pandas_dataframe: pd.DataFrame,
     drift_config: SpcDriftConfig,
 ):
-    scouter = Drifter()
+    scouter = Drifter(DriftType.SPC)
     profile: SpcDriftProfile = scouter.create_drift_profile(
         pandas_dataframe, drift_config
     )

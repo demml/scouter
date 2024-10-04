@@ -57,9 +57,7 @@ class ScouterObserver:
         self._producer = self._get_producer(config)
         logger.info("Queue and producer initialized")
 
-    def _get_producer(
-        self, config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig]
-    ) -> BaseProducer:
+    def _get_producer(self, config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig]) -> BaseProducer:
         """Get the producer based on the configuration."""
         return DriftRecordProducer.get_producer(config)
 
