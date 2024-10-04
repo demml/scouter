@@ -1,3 +1,4 @@
+use crate::core::utils::ProfileFuncs;
 use ndarray::Array1;
 use ndarray_stats::interpolate::Nearest;
 use ndarray_stats::Quantile1dExt;
@@ -5,10 +6,11 @@ use noisy_float::types::n64;
 use pyo3::prelude::*;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
+use serde::Serialize;
 use std::collections::HashMap;
 
 #[pyclass]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct LatencyMetrics {
     #[pyo3(get)]
     p5: f64,
@@ -197,7 +199,7 @@ impl Observer {
 }
 
 #[pyclass]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct RouteMetrics {
     #[pyo3(get)]
     route_name: String,
@@ -219,7 +221,7 @@ pub struct RouteMetrics {
 }
 
 #[pyclass]
-#[derive(Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct ObservabilityMetrics {
     #[pyo3(get)]
     repository: String,
@@ -238,6 +240,19 @@ pub struct ObservabilityMetrics {
 
     #[pyo3(get)]
     route_metrics: Vec<RouteMetrics>,
+}
+
+#[pymethods]
+impl ObservabilityMetrics {
+    pub fn model_dump_json(&self) -> String {
+        // serialize records to a string
+        ProfileFuncs::__json__(self)
+    }
+
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
 }
 
 #[cfg(test)]
@@ -355,6 +370,9 @@ mod tests {
         }
 
         let metrics = observer.collect_metrics().unwrap();
+        metrics.model_dump_json();
+        metrics.__str__();
+
         assert_eq!(metrics.request_count, 400);
         assert_eq!(metrics.error_count, 100);
         assert_eq!(metrics.repository, REPOSITORY);

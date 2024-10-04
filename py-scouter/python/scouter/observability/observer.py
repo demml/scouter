@@ -2,8 +2,15 @@ import threading
 import time
 from queue import Empty, Queue
 from typing import Optional, Tuple
-
+from uuid import uuid4
 from .._scouter import ObservabilityMetrics, Observer
+
+
+def generate_queue_id() -> str:
+    return uuid4().hex
+
+
+_queue_id = generate_queue_id()
 
 
 class ScouterObserver:
@@ -20,6 +27,11 @@ class ScouterObserver:
         while self._running:
             try:
                 request: Tuple[str, float, str, int] = self._queue.get(timeout=1)
+
+                if request[0] == _queue_id:
+                    self._running = False
+                    break
+
                 self._observer.increment(request[0], request[1], request[2], request[3])
                 self._queue.task_done()
             except Empty:
@@ -28,7 +40,9 @@ class ScouterObserver:
             # Check if 30 seconds have passed
             current_time = time.time()
             if current_time - last_metrics_time >= 30:
-                metrics: Optional[ObservabilityMetrics] = self._observer.collect_metrics()
+                metrics: Optional[
+                    ObservabilityMetrics
+                ] = self._observer.collect_metrics()
 
                 if metrics:
                     print(f"Metrics: {metrics.request_count}")
@@ -61,5 +75,5 @@ class ScouterObserver:
         self._queue.put(request)
 
     def stop(self):
-        self._queue.put(None)
+        self._queue.put((_queue_id, 0, "", 0))
         self._thread.join()

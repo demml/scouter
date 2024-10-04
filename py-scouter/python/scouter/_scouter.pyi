@@ -1224,6 +1224,12 @@ class ObservabilityMetrics:
     def route_metrics(self) -> List[RouteMetrics]:
         """Route metrics object"""
 
+    def __str__(self) -> str:
+        """Return the string representation of the observability metrics"""
+
+    def model_dump_json(self) -> str:
+        """Return the json representation of the observability metrics"""
+
 class Observer:
     def __init__(self, repository: str, name: str, version: str) -> None:
         """Initializes an api metric observer
