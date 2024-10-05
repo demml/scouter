@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "scouter"
-version = "0.3.0-rc.9"
+version = "0.3.0-rc.10"
 description = ""
 authors = ["Thorrester <support@demmlai.com>"]
 readme = "README.md"
