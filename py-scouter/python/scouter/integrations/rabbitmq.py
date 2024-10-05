@@ -72,7 +72,7 @@ class RabbitMQProducer(BaseProducer):
             self._producer.queue_declare(queue=self._rabbit_config.queue)
 
         except ModuleNotFoundError as e:
-            logger.error("Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'")
+            logger.error("Could not import pika. Please install it using: pip install 'scouter[rabbitmq]'")
             raise e
 
     def _publish(self, records: ServerRecords) -> None:

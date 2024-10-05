@@ -7,6 +7,7 @@ from scouter.integrations.base import BaseProducer
 from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
 from scouter.integrations.producer import DriftRecordProducer
+from scouter.integrations.rabbitmq import RabbitMQConfig
 from scouter.utils.logger import ScouterLogger
 
 from .._scouter import (  # pylint: disable=no-name-in-module
@@ -40,7 +41,7 @@ class MonitorQueue:
     def __init__(
         self,
         drift_profile: Union[SpcDriftProfile],
-        config: Union[KafkaConfig, HTTPConfig],
+        config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig],
     ) -> None:
         """Instantiate a monitoring queue to monitor data drift.
 
@@ -60,7 +61,7 @@ class MonitorQueue:
         self._producer = self._get_producer(config)
         logger.info("Queue and producer initialized")
 
-    def _get_producer(self, config: Union[KafkaConfig, HTTPConfig]) -> BaseProducer:
+    def _get_producer(self, config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig]) -> BaseProducer:
         """Get the producer based on the configuration."""
         return DriftRecordProducer.get_producer(config)
 

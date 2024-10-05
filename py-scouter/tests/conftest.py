@@ -2,18 +2,37 @@ import pytest
 import shutil
 from typing import TypeVar, Generator
 import numpy as np
+import pandas as pd
 from numpy.typing import NDArray
 from scouter._scouter import SpcDriftConfig
 from unittest.mock import patch
 from httpx import Response
 from fastapi import FastAPI, Request
-from scouter.integrations.fastapi import ScouterRouter
-from scouter import Drifter, SpcDriftProfile, KafkaConfig, HTTPConfig
+from scouter.integrations.fastapi import ScouterRouter, FastAPIScouterObserver
+from scouter import Drifter, SpcDriftProfile, KafkaConfig, HTTPConfig, DriftType
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
+from scouter.observability.observer import ScouterObserver
 
 T = TypeVar("T")
 YieldFixture = Generator[T, None, None]
+
+
+def generate_data() -> pd.DataFrame:
+    """Create a fake data frame for testing"""
+    n = 10_00
+
+    X_train = np.random.normal(-4, 2.0, size=(n, 10))
+
+    col_names = []
+    for i in range(0, X_train.shape[1]):
+        col_names.append(f"col_{i}")
+
+    X = pd.DataFrame(X_train, columns=col_names)
+    X["col_11"] = np.random.randint(1, 20, size=(n, 1))
+    X["target"] = np.random.randint(1, 10, size=(n, 1))
+
+    return X
 
 
 class TestResponse(BaseModel):
@@ -242,14 +261,6 @@ def mock_httpx_producer():
 
 
 @pytest.fixture
-def drift_profile(array: NDArray) -> SpcDriftProfile:
-    drifter = Drifter()
-    profile: SpcDriftProfile = drifter.create_drift_profile(array)
-
-    return profile
-
-
-@pytest.fixture
 def client(mock_kafka_producer, drift_profile: SpcDriftProfile) -> TestClient:
     config = KafkaConfig(
         topic="test-topic",
@@ -272,6 +283,22 @@ def client(mock_kafka_producer, drift_profile: SpcDriftProfile) -> TestClient:
 
 
 @pytest.fixture
+def drift_profile():
+    data = generate_data()
+
+    # create drift config (usually associated with a model name, repository name, version)
+    config = SpcDriftConfig(repository="scouter", name="model", version="0.1.0")
+
+    # create drifter
+    drifter = Drifter(DriftType.SPC)
+
+    # create drift profile
+    profile = drifter.create_drift_profile(data, config)
+
+    return profile
+
+
+@pytest.fixture
 def client_insert(
     drift_profile: SpcDriftProfile,
 ) -> TestClient:
@@ -280,6 +307,7 @@ def client_insert(
 
     # define scouter router
     scouter_router = ScouterRouter(drift_profile=drift_profile, config=config)
+    observer = FastAPIScouterObserver(drift_profile, config)
 
     @scouter_router.post("/predict", response_model=TestResponse)
     async def predict(request: Request, payload: PredictRequest) -> TestResponse:
@@ -288,5 +316,29 @@ def client_insert(
         return TestResponse(message="success")
 
     app.include_router(scouter_router)
+    observer.observe(app)
 
     return TestClient(app)
+
+
+@pytest.fixture
+def kafka_config():
+    return KafkaConfig(
+        topic="test-topic",
+        brokers="localhost:9092",
+        raise_on_err=True,
+    )
+
+
+@pytest.fixture
+def scouter_observer(kafka_config: KafkaConfig):
+    with patch("scouter.Observer") as MockObserver:
+        mock_observer = MockObserver.return_value
+        scouter_observer = ScouterObserver(
+            "repo",
+            "name",
+            "version",
+            kafka_config,
+        )
+        yield scouter_observer, mock_observer
+        scouter_observer.stop()
