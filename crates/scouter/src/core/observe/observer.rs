@@ -16,19 +16,19 @@ use std::collections::HashMap;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LatencyMetrics {
     #[pyo3(get)]
-    p5: f64,
+    pub p5: f64,
 
     #[pyo3(get)]
-    p25: f64,
+    pub p25: f64,
 
     #[pyo3(get)]
-    p50: f64,
+    pub p50: f64,
 
     #[pyo3(get)]
-    p95: f64,
+    pub p95: f64,
 
     #[pyo3(get)]
-    p99: f64,
+    pub p99: f64,
 }
 
 #[derive(Clone)]
@@ -239,44 +239,44 @@ impl Observer {
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct RouteMetrics {
     #[pyo3(get)]
-    route_name: String,
+    pub route_name: String,
 
     #[pyo3(get)]
-    metrics: LatencyMetrics,
+    pub metrics: LatencyMetrics,
 
     #[pyo3(get)]
-    request_count: i64,
+    pub request_count: i64,
 
     #[pyo3(get)]
-    error_count: i64,
+    pub error_count: i64,
 
     #[pyo3(get)]
-    error_latency: f64,
+    pub error_latency: f64,
 
     #[pyo3(get)]
-    status_codes: HashMap<usize, i64>,
+    pub status_codes: HashMap<usize, i64>,
 }
 
 #[pyclass]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ObservabilityMetrics {
     #[pyo3(get)]
-    repository: String,
+    pub repository: String,
 
     #[pyo3(get)]
-    name: String,
+    pub name: String,
 
     #[pyo3(get)]
-    version: String,
+    pub version: String,
 
     #[pyo3(get)]
-    request_count: i64,
+    pub request_count: i64,
 
     #[pyo3(get)]
-    error_count: i64,
+    pub error_count: i64,
 
     #[pyo3(get)]
-    route_metrics: Vec<RouteMetrics>,
+    pub route_metrics: Vec<RouteMetrics>,
 }
 
 #[pymethods]
