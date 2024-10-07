@@ -215,7 +215,7 @@ impl Observer {
             })
             .collect::<Vec<RouteMetrics>>();
 
-        // check if there are no metrics and exist early
+        // check if there are no metrics and exit early
         if route_metrics.is_empty() {
             return Ok(None);
         }
