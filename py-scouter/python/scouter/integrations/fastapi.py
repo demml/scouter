@@ -74,9 +74,9 @@ class ScouterRouter(ScouterMixin, APIRouter):
             Yields:
                 None
             """
-            print("Starting scouter queue.")
+            logger.info("Starting scouter queue")
             yield
-            logger.info("Flushing scouter queue.")
+            logger.info("Flushing scouter queue")
             self._queue.flush()
 
         kwargs["lifespan"] = lifespan
@@ -123,10 +123,10 @@ class FastAPIScouterObserver:
         @asynccontextmanager
         async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             # Code to run when the application starts
-            print("Starting scouter observer.")
+            logger.info("Starting scouter observer.")
             yield
             # Code to run when the application shuts down
-            print("Shutting down scouter observer.")
+            logger.info("Shutting down scouter observer.")
             self._observer.stop()
 
         if app.router.lifespan_context:
