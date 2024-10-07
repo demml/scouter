@@ -11,7 +11,7 @@ use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-
+use tracing::{debug, error};
 #[pyclass]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LatencyMetrics {
@@ -31,7 +31,7 @@ pub struct LatencyMetrics {
     pub p99: f64,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct RouteLatency {
     request_latency: Vec<f64>,
     request_count: i64,
@@ -41,7 +41,7 @@ struct RouteLatency {
 }
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Observer {
     repository: String,
     name: String,
@@ -148,14 +148,12 @@ impl Observer {
             "ERROR"
         };
 
-        println!(
-            "route: {}, latency: {}, status_code: {}",
-            route, latency, status_code
-        );
-
         self.increment_request_count();
         self.update_route_latency(route, latency, status, status_code)
-            .map_err(|e| ObserverError::UpdateMetricsError(e.to_string()))?;
+            .map_err(|e| {
+                error!("Failed to update route latency: {:?}", e);
+            })
+            .ok();
         self.increment_error_count(status);
 
         Ok(())
@@ -165,6 +163,8 @@ impl Observer {
         if self.request_count == 0 {
             return Ok(None);
         }
+
+        debug!("Collecting metrics: {:?}", self.request_latency);
 
         let route_metrics = self
             .request_latency
@@ -197,11 +197,28 @@ impl Observer {
                         status_codes: route_latency.status_codes.clone(),
                         route_name: route,
                     }),
+                    // its ok if route fails, but we want to know why
                     Err(e) => Err(ObserverError::QuantileError(e.to_string())),
                 }
             })
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|e| ObserverError::CollectMetricsError(e.to_string()))?;
+            .collect::<Vec<Result<RouteMetrics, ObserverError>>>();
+
+        // check if any route failed (log it and filter it out)
+        let route_metrics = route_metrics
+            .into_iter()
+            .filter_map(|x| match x {
+                Ok(route_metrics) => Some(route_metrics),
+                Err(e) => {
+                    debug!("Failed to collect metrics for route: {:?}", e);
+                    None
+                }
+            })
+            .collect::<Vec<RouteMetrics>>();
+
+        // check if there are no metrics and exit early
+        if route_metrics.is_empty() {
+            return Ok(None);
+        }
 
         let record = ServerRecord::OBSERVABILITY {
             record: ObservabilityMetrics {
