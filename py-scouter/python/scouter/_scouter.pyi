@@ -3,14 +3,16 @@
 import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 from numpy.typing import NDArray
 
-class DriftType(str, Enum):
-    SPC = "SPC"
-    PSI = "PSI"
-    NONE = "NONE"
+class DriftType(Enum):
+    SPC: Literal["SPC"]
+    PSI: Literal["PSI"]
+
+    @staticmethod
+    def from_value(value: str) -> "DriftType": ...
 
 class RecordType:
     SPC = "SPC"

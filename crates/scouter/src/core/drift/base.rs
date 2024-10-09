@@ -16,11 +16,12 @@ pub enum DriftType {
 
 #[pymethods]
 impl DriftType {
-    #[getter]
-    pub fn value(&self) -> String {
-        match self {
-            DriftType::SPC => "SPC".to_string(),
-            DriftType::PSI => "PSI".to_string(),
+    #[staticmethod]
+    pub fn from_value(value: &str) -> Option<Self> {
+        match value {
+            "SPC" => Some(DriftType::SPC),
+            "PSI" => Some(DriftType::PSI),
+            _ => None,
         }
     }
 }
@@ -28,11 +29,20 @@ impl DriftType {
 impl FromStr for DriftType {
     type Err = ScouterError;
 
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
+    fn from_str(value: &str) -> Result<Self, Self::Err> {
+        match value {
             "SPC" => Ok(DriftType::SPC),
             "PSI" => Ok(DriftType::PSI),
-            _ => Err(ScouterError::InvalidDriftTypeError(s.to_string())),
+            _ => Err(ScouterError::InvalidDriftTypeError(value.to_string())),
+        }
+    }
+}
+
+impl DriftType {
+    pub fn value(&self) -> &str {
+        match self {
+            DriftType::SPC => "SPC",
+            DriftType::PSI => "PSI",
         }
     }
 }

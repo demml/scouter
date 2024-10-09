@@ -13,6 +13,7 @@ from scouter import (
     Every12Hours,
     EveryDay,
     EveryWeek,
+    DriftType,
 )
 
 
@@ -72,3 +73,11 @@ def test_crons():
     assert CommonCrons.EVERY_12_HOURS == Every12Hours().cron
     assert CommonCrons.EVERY_DAY == EveryDay().cron
     assert CommonCrons.EVERY_WEEK == EveryWeek().cron
+
+
+def test_drift_type():
+    DriftType.SPC == "SPC"
+    DriftType.PSI == "PSI"
+
+    assert DriftType.from_value("SPC") == DriftType.SPC
+    assert DriftType.from_value("PSI") == DriftType.PSI
