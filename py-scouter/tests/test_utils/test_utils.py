@@ -4,6 +4,9 @@ from scouter import (
     AlertZone,
     SpcAlertRule,
     CommonCrons,
+    Every1Minute,
+    Every5Minutes,
+    Every15Minutes,
     Every30Minutes,
     EveryHour,
     Every6Hours,
@@ -60,6 +63,9 @@ def test_alert_rules():
 
 
 def test_crons():
+    assert CommonCrons.EVERY_1_MINUTE == Every1Minute().cron
+    assert CommonCrons.EVERY_5_MINUTES == Every5Minutes().cron
+    assert CommonCrons.EVERY_15_MINUTES == Every15Minutes().cron
     assert CommonCrons.EVERY_30_MINUTES == Every30Minutes().cron
     assert CommonCrons.EVERY_HOUR == EveryHour().cron
     assert CommonCrons.EVERY_6_HOURS == Every6Hours().cron

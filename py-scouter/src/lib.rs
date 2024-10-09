@@ -2,7 +2,8 @@ mod py_scouter;
 use py_scouter::_scouter::{ScouterProfiler, SpcDrifter};
 use pyo3::prelude::*;
 use scouter::core::cron::{
-    CommonCron, Every12Hours, Every30Minutes, Every6Hours, EveryDay, EveryHour, EveryWeek,
+    CommonCron, Every12Hours, Every15Minutes, Every1Minute, Every30Minutes, Every5Minutes,
+    Every6Hours, EveryDay, EveryHour, EveryWeek,
 };
 use scouter::core::dispatch::types::AlertDispatchType;
 use scouter::core::drift::base::DriftType;
@@ -40,6 +41,9 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SpcFeatureAlerts>()?;
     m.add_class::<SpcFeatureAlert>()?;
     m.add_class::<SpcAlertRule>()?;
+    m.add_class::<Every1Minute>()?;
+    m.add_class::<Every5Minutes>()?;
+    m.add_class::<Every15Minutes>()?;
     m.add_class::<Every30Minutes>()?;
     m.add_class::<EveryHour>()?;
     m.add_class::<Every6Hours>()?;
