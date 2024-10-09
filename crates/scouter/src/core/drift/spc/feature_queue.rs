@@ -135,7 +135,6 @@ impl SpcFeatureQueue {
                     e
                 ))
             })?;
-
         Ok(records)
     }
 

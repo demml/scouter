@@ -20,6 +20,8 @@ use scouter::core::profile::types::{DataProfile, Distinct, FeatureProfile, Histo
 
 #[pymodule]
 fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    tracing_subscriber::fmt::init();
+
     m.add_class::<SpcDrifter>()?;
     m.add_class::<ScouterProfiler>()?;
     m.add_class::<SpcDriftProfile>()?;

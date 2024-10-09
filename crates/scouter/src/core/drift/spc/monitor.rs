@@ -270,7 +270,6 @@ impl SpcMonitor {
         // reshape vec to 2D array
         let sample_data = Array::from_shape_vec((sample_vec.len(), columns), sample_vec.concat())
             .map_err(|e| MonitorError::ArrayError(e.to_string()))?;
-
         Ok(sample_data)
     }
 
