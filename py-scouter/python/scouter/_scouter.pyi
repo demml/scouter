@@ -102,6 +102,30 @@ class ServerRecords:
     def __str__(self) -> str:
         """Return the string representation of the record."""
 
+class Every1Minute:
+    def __init__(self) -> None:
+        """Initialize the cron schedule"""
+
+    @property
+    def cron(self) -> str:
+        """Return the cron schedule"""
+
+class Every5Minutes:
+    def __init__(self) -> None:
+        """Initialize the cron schedule"""
+
+    @property
+    def cron(self) -> str:
+        """Return the cron schedule"""
+
+class Every15Minutes:
+    def __init__(self) -> None:
+        """Initialize the cron schedule"""
+
+    @property
+    def cron(self) -> str:
+        """Return the cron schedule"""
+
 class Every30Minutes:
     def __init__(self) -> None:
         """Initialize the cron schedule"""
@@ -153,6 +177,18 @@ class EveryWeek:
 class CommonCron:
     def __init__(self) -> None:
         """Initialize the common cron class from rust"""
+
+    @property
+    def EVERY_1_MINUTE(self) -> str:
+        """Every 1 minute cron schedule"""
+
+    @property
+    def EVERY_5_MINUTES(self) -> str:
+        """Every 5 minutes cron schedule"""
+
+    @property
+    def EVERY_15_MINUTES(self) -> str:
+        """Every 15 minutes cron schedule"""
 
     @property
     def EVERY_30_MINUTES(self) -> str:
