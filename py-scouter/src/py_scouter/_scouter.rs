@@ -3,15 +3,16 @@ use numpy::PyReadonlyArray2;
 use numpy::ToPyArray;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use scouter::core::alert::generate_alerts;
-use scouter::core::error::ScouterError;
-use scouter::core::monitor::Monitor;
-use scouter::core::num_profiler::NumProfiler;
-use scouter::core::string_profiler::StringProfiler;
-use scouter::utils::types::{
-    AlertRule, DataProfile, DriftConfig, DriftMap, DriftProfile, DriftServerRecords, FeatureAlerts,
-    FeatureProfile,
+use scouter::core::drift::base::ServerRecords;
+use scouter::core::drift::spc::alert::generate_alerts;
+use scouter::core::drift::spc::monitor::SpcMonitor;
+use scouter::core::drift::spc::types::{
+    SpcAlertRule, SpcDriftConfig, SpcDriftMap, SpcDriftProfile, SpcFeatureAlerts,
 };
+use scouter::core::error::ScouterError;
+use scouter::core::profile::num_profiler::NumProfiler;
+use scouter::core::profile::string_profiler::StringProfiler;
+use scouter::core::profile::types::{DataProfile, FeatureProfile};
 use std::collections::BTreeMap;
 
 fn create_string_profile(
@@ -155,17 +156,18 @@ impl ScouterProfiler {
 }
 
 #[pyclass]
-pub struct ScouterDrifter {
-    monitor: Monitor,
+pub struct SpcDrifter {
+    monitor: SpcMonitor,
 }
 
 #[pymethods]
 #[allow(clippy::new_without_default)]
-impl ScouterDrifter {
+impl SpcDrifter {
     #[new]
     pub fn new() -> Self {
+        //maybe create different drifters based on type of monitoring?
         Self {
-            monitor: Monitor::new(),
+            monitor: SpcMonitor::new(),
         }
     }
 
@@ -174,7 +176,7 @@ impl ScouterDrifter {
         py: Python<'py>,
         features: Vec<String>,
         array: Vec<Vec<String>>,
-        drift_profile: DriftProfile,
+        drift_profile: SpcDriftProfile,
     ) -> PyResult<pyo3::Bound<'py, PyArray2<f32>>> {
         let array = match self.monitor.convert_strings_to_ndarray_f32(
             &features,
@@ -201,7 +203,7 @@ impl ScouterDrifter {
         py: Python<'py>,
         features: Vec<String>,
         array: Vec<Vec<String>>,
-        drift_profile: DriftProfile,
+        drift_profile: SpcDriftProfile,
     ) -> PyResult<pyo3::Bound<'py, PyArray2<f64>>> {
         let array = match self.monitor.convert_strings_to_ndarray_f64(
             &features,
@@ -225,10 +227,10 @@ impl ScouterDrifter {
 
     pub fn create_string_drift_profile(
         &mut self,
-        mut drift_config: DriftConfig,
         array: Vec<Vec<String>>,
         features: Vec<String>,
-    ) -> PyResult<DriftProfile> {
+        mut drift_config: SpcDriftConfig,
+    ) -> PyResult<SpcDriftProfile> {
         let feature_map = match self.monitor.create_feature_map(&features, &array) {
             Ok(feature_map) => feature_map,
             Err(_e) => {
@@ -266,10 +268,10 @@ impl ScouterDrifter {
 
     pub fn create_numeric_drift_profile_f32(
         &mut self,
-        drift_config: DriftConfig,
         array: PyReadonlyArray2<f32>,
         features: Vec<String>,
-    ) -> PyResult<DriftProfile> {
+        drift_config: SpcDriftConfig,
+    ) -> PyResult<SpcDriftProfile> {
         let array = array.as_array();
 
         let profile = match self
@@ -287,10 +289,10 @@ impl ScouterDrifter {
 
     pub fn create_numeric_drift_profile_f64(
         &mut self,
-        drift_config: DriftConfig,
         array: PyReadonlyArray2<f64>,
         features: Vec<String>,
-    ) -> PyResult<DriftProfile> {
+        drift_config: SpcDriftConfig,
+    ) -> PyResult<SpcDriftProfile> {
         let array = array.as_array();
 
         let profile = match self
@@ -308,10 +310,10 @@ impl ScouterDrifter {
 
     pub fn compute_drift_f32(
         &mut self,
-        features: Vec<String>,
         array: PyReadonlyArray2<f32>,
-        drift_profile: DriftProfile,
-    ) -> PyResult<DriftMap> {
+        features: Vec<String>,
+        drift_profile: SpcDriftProfile,
+    ) -> PyResult<SpcDriftMap> {
         let drift_map =
             match self
                 .monitor
@@ -328,10 +330,10 @@ impl ScouterDrifter {
 
     pub fn compute_drift_f64(
         &mut self,
-        features: Vec<String>,
         array: PyReadonlyArray2<f64>,
-        drift_profile: DriftProfile,
-    ) -> PyResult<DriftMap> {
+        features: Vec<String>,
+        drift_profile: SpcDriftProfile,
+    ) -> PyResult<SpcDriftMap> {
         let drift_map =
             match self
                 .monitor
@@ -350,8 +352,8 @@ impl ScouterDrifter {
         &mut self,
         drift_array: PyReadonlyArray2<f64>,
         features: Vec<String>,
-        alert_rule: AlertRule,
-    ) -> PyResult<FeatureAlerts> {
+        alert_rule: SpcAlertRule,
+    ) -> PyResult<SpcFeatureAlerts> {
         let drift_array = drift_array.as_array();
 
         let alerts = match generate_alerts(&drift_array, &features, &alert_rule) {
@@ -366,10 +368,10 @@ impl ScouterDrifter {
 
     pub fn sample_data_f32(
         &mut self,
-        features: Vec<String>,
         array: PyReadonlyArray2<f32>,
-        drift_profile: DriftProfile,
-    ) -> PyResult<DriftServerRecords> {
+        features: Vec<String>,
+        drift_profile: SpcDriftProfile,
+    ) -> PyResult<ServerRecords> {
         let array = array.as_array();
 
         let records = match self.monitor.sample_data(&features, &array, &drift_profile) {
@@ -384,10 +386,10 @@ impl ScouterDrifter {
 
     pub fn sample_data_f64(
         &mut self,
-        features: Vec<String>,
         array: PyReadonlyArray2<f64>,
-        drift_profile: DriftProfile,
-    ) -> PyResult<DriftServerRecords> {
+        features: Vec<String>,
+        drift_profile: SpcDriftProfile,
+    ) -> PyResult<ServerRecords> {
         let array = array.as_array();
 
         let records = match self.monitor.sample_data(&features, &array, &drift_profile) {

@@ -125,45 +125,25 @@ In addition to the 8 digit rule, `Scouter` will also check for a consecutive tre
 `Scouter` provides the ability to create your own custom 8 digit rules. Below is an example of how to create a custom rule:
 
 ```python hl_lines="6 15"
-from scouter import DriftConfig, AlertRule, ProcessAlertRule, AlertDispatchType
+from scouter import SpcDriftConfig, SpcAlertRule, AlertDispatchType
 
 # Create a custom rule
-custom_rule = AlertRule(
-    process=ProcessAlertRule(
+custom_rule = SpcAlertRule(
         rule="16 32 4 8 2 4 1 1" # create your custom rule here
-    ),
 )
 
 # Create a drift config
-config = DriftConfig(
+config = SpcDriftConfig(
     name="model",
     repository="scouter",
     version="0.1.0",
-    alert_rule=custom_rule,
-    alert_dispatch_type=AlertDispatchType.Console,
+    rule=custom_rule,
+    dispatch_type=AlertDispatchType.Console,
 )
 ```
 
 
-::: scouter._scouter.AlertRule
+::: scouter._scouter.SpcAlertRule
     options:
         show_root_heading: true
         heading_level: 3
-
-
-::: scouter._scouter.ProcessAlertRule
-    options:
-        show_root_heading: true
-        heading_level: 3
-
-
-::: scouter._scouter.PercentageAlertRule
-    options:
-        show_root_heading: true
-        heading_level: 3
-
-
-
-### Percentage Alerting
-
-In addition to the 8 digit rule, `Scouter` also provides the ability to alert on percentage drift. This is useful when you want to know if a feature has drifted by a certain percentage. The default percentage rule is .10 (10%).

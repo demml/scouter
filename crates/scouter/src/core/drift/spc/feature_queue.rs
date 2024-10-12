@@ -1,7 +1,7 @@
+use crate::core::drift::base::ServerRecords;
+use crate::core::drift::spc::monitor::SpcMonitor;
+use crate::core::drift::spc::types::SpcDriftProfile;
 use crate::core::error::FeatureQueueError;
-use crate::core::monitor::Monitor;
-use crate::utils::types::DriftProfile;
-use crate::utils::types::DriftServerRecords;
 use core::result::Result::Ok;
 use ndarray::prelude::*;
 use ndarray::Array2;
@@ -10,18 +10,18 @@ use pyo3::types::PyAny;
 use std::collections::HashMap;
 
 #[pyclass]
-pub struct FeatureQueue {
-    pub drift_profile: DriftProfile,
+pub struct SpcFeatureQueue {
+    pub drift_profile: SpcDriftProfile,
     pub queue: HashMap<String, Vec<f64>>,
     pub mapped_features: Vec<String>,
     pub feature_names: Vec<String>,
-    pub monitor: Monitor,
+    pub monitor: SpcMonitor,
 }
 
 #[pymethods]
-impl FeatureQueue {
+impl SpcFeatureQueue {
     #[new]
-    pub fn new(drift_profile: DriftProfile) -> Self {
+    pub fn new(drift_profile: SpcDriftProfile) -> Self {
         let queue: HashMap<String, Vec<f64>> = drift_profile
             .features
             .keys()
@@ -44,12 +44,12 @@ impl FeatureQueue {
 
         let feature_names = queue.keys().cloned().collect();
 
-        FeatureQueue {
+        SpcFeatureQueue {
             drift_profile,
             queue,
             mapped_features,
             feature_names,
-            monitor: Monitor::new(),
+            monitor: SpcMonitor::new(),
         }
     }
 
@@ -99,7 +99,7 @@ impl FeatureQueue {
     // Create drift records from queue items
     //
     // returns: DriftServerRecords
-    fn create_drift_records(&self) -> Result<DriftServerRecords, FeatureQueueError> {
+    fn create_drift_records(&self) -> Result<ServerRecords, FeatureQueueError> {
         // concatenate all the feature queues into a single ndarray
         let mut arrays: Vec<Array2<f64>> = Vec::new();
         let mut feature_names: Vec<String> = Vec::new();
@@ -121,29 +121,22 @@ impl FeatureQueue {
         let concatenated = ndarray::concatenate(
             Axis(1),
             &arrays.iter().map(|a| a.view()).collect::<Vec<_>>(),
-        );
+        )
+        .map_err(|e| {
+            FeatureQueueError::DriftRecordError(format!("Failed to concatenate arrays: {:?}", e))
+        })?;
 
-        match concatenated {
-            Ok(concatenated) => {
-                let records = self.monitor.sample_data(
-                    &feature_names,
-                    &concatenated.view(),
-                    &self.drift_profile,
-                );
+        let records = self
+            .monitor
+            .sample_data(&feature_names, &concatenated.view(), &self.drift_profile)
+            .map_err(|e| {
+                FeatureQueueError::DriftRecordError(format!(
+                    "Failed to create drift record: {:?}",
+                    e
+                ))
+            })?;
 
-                match records {
-                    Ok(records) => Ok(records),
-                    Err(e) => {
-                        let error = format!("Failed to create drift record: {:?}", e);
-                        Err(FeatureQueueError::DriftRecordError(error))
-                    }
-                }
-            }
-            Err(e) => {
-                let error = format!("Failed to create drift record: {:?}", e);
-                Err(FeatureQueueError::DriftRecordError(error))
-            }
-        }
+        Ok(records)
     }
 
     // Clear all queues
@@ -157,7 +150,7 @@ impl FeatureQueue {
 #[cfg(test)]
 mod tests {
 
-    use crate::utils::types::{AlertConfig, DriftConfig};
+    use crate::core::drift::spc::types::{SpcAlertConfig, SpcDriftConfig};
 
     use super::*;
     use ndarray::Array;
@@ -174,9 +167,9 @@ mod tests {
             "feature_3".to_string(),
         ];
 
-        let monitor = Monitor::new();
-        let alert_config = AlertConfig::default();
-        let config = DriftConfig::new(
+        let monitor = SpcMonitor::new();
+        let alert_config = SpcAlertConfig::default();
+        let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repo".to_string()),
             None,
@@ -193,7 +186,7 @@ mod tests {
             .unwrap();
         assert_eq!(profile.features.len(), 3);
 
-        let mut feature_queue = FeatureQueue::new(profile);
+        let mut feature_queue = SpcFeatureQueue::new(profile);
 
         assert_eq!(feature_queue.queue.len(), 3);
 
@@ -224,6 +217,20 @@ mod tests {
             feature_queue.clear_queue();
 
             assert_eq!(feature_queue.queue.get("feature_1").unwrap().len(), 0);
+
+            // serialize records
+            let json_records = records.model_dump_json();
+            assert!(!json_records.is_empty());
+
+            // deserialize records
+            let records: ServerRecords = serde_json::from_str(&json_records).unwrap();
+            assert_eq!(records.records.len(), 3);
+
+            // convert to bytes and back
+            let bytes = json_records.as_bytes();
+
+            let records = ServerRecords::load_from_bytes(bytes).unwrap();
+            assert_eq!(records.records.len(), 3);
         });
     }
 }

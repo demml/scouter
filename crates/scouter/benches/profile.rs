@@ -2,19 +2,19 @@ use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use ndarray::Array;
 use ndarray_rand::rand_distr::Uniform;
 use ndarray_rand::RandomExt;
-use scouter::core::monitor::Monitor;
+use scouter::core::drift::spc::monitor::SpcMonitor;
 
-use scouter::core::num_profiler::NumProfiler;
-use scouter::utils::types::{AlertConfig, DriftConfig};
+use scouter::core::drift::spc::types::{SpcAlertConfig, SpcDriftConfig};
+use scouter::core::profile::num_profiler::NumProfiler;
 
 fn criterion_benchmark(c: &mut Criterion) {
-    let monitor = Monitor::new();
+    let monitor = SpcMonitor::new();
     let profiler = NumProfiler::default();
     let mut group = c.benchmark_group("sample-size-example");
     let array = Array::random((1000, 10), Uniform::new(0., 10.));
     let features: Vec<String> = (0..10).map(|x| x.to_string()).collect();
-    let alert_config = AlertConfig::default();
-    let config = DriftConfig::new(
+    let alert_config = SpcAlertConfig::default();
+    let config = SpcDriftConfig::new(
         Some("name".to_string()),
         Some("repo".to_string()),
         None,

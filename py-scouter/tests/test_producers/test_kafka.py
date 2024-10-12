@@ -1,4 +1,11 @@
-from scouter import KafkaConfig, KafkaProducer, DriftServerRecord, DriftServerRecords
+from scouter import (
+    KafkaConfig,
+    KafkaProducer,
+    SpcServerRecord,
+    ServerRecords,
+    ServerRecord,
+    RecordType,
+)
 import pytest
 
 
@@ -62,7 +69,7 @@ def test_kafka_producer(mock_kafka_producer):
     assert producer.max_retries == 3
     assert producer._producer is not None
 
-    record = DriftServerRecord(
+    record = SpcServerRecord(
         name="test",
         repository="test",
         version="1.0.0",
@@ -70,7 +77,12 @@ def test_kafka_producer(mock_kafka_producer):
         value=0.1,
     )
 
-    producer.publish(DriftServerRecords(records=[record]))
+    producer.publish(
+        ServerRecords(
+            records=[ServerRecord(record)],
+            record_type=RecordType.SPC,
+        )
+    )
     producer.flush()
     producer.flush(10)
 

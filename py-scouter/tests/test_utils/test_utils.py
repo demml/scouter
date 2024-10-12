@@ -1,8 +1,8 @@
 from scouter import (
-    Alert,
-    AlertType,
+    SpcAlert,
+    SpcAlertType,
     AlertZone,
-    AlertRule,
+    SpcAlertRule,
     CommonCrons,
     Every30Minutes,
     EveryHour,
@@ -14,50 +14,49 @@ from scouter import (
 
 
 def test_kinds():
-    alert = Alert(
-        kind=AlertType.OutOfBounds.value,
-        zone=AlertZone.OutOfBounds.value,
+    alert = SpcAlert(
+        kind=SpcAlertType.OutOfBounds.value,
+        zone=SpcAlertType.OutOfBounds.value,
     )
 
-    assert alert.kind == AlertType.OutOfBounds.value
+    assert alert.kind == SpcAlertType.OutOfBounds.value
     assert alert.zone == AlertZone.OutOfBounds.value
 
-    alert = Alert(
-        kind=AlertType.Consecutive.value,
+    alert = SpcAlert(
+        kind=SpcAlertType.Consecutive.value,
         zone=AlertZone.Zone1.value,
     )
 
-    assert alert.kind == AlertType.Consecutive.value
+    assert alert.kind == SpcAlertType.Consecutive.value
     assert alert.zone == AlertZone.Zone1.value
 
-    alert = Alert(
-        kind=AlertType.Alternating.value,
+    alert = SpcAlert(
+        kind=SpcAlertType.Alternating.value,
         zone=AlertZone.Zone2.value,
     )
 
-    assert alert.kind == AlertType.Alternating.value
+    assert alert.kind == SpcAlertType.Alternating.value
     assert alert.zone == AlertZone.Zone2.value
 
-    alert = Alert(
-        kind=AlertType.AllGood.value,
+    alert = SpcAlert(
+        kind=SpcAlertType.AllGood.value,
         zone=AlertZone.Zone3.value,
     )
 
-    assert alert.kind == AlertType.AllGood.value
+    assert alert.kind == SpcAlertType.AllGood.value
     assert alert.zone == AlertZone.Zone3.value
 
-    alert = Alert(
-        kind=AlertType.Trend.value,
+    alert = SpcAlert(
+        kind=SpcAlertType.Trend.value,
         zone=AlertZone.NotApplicable.value,
     )
 
-    assert alert.kind == AlertType.Trend.value
+    assert alert.kind == SpcAlertType.Trend.value
     assert alert.zone == AlertZone.NotApplicable.value
 
 
 def test_alert_rules():
-    assert AlertRule().percentage is None
-    assert AlertRule().process.rule == "8 16 4 8 2 4 1 1"
+    assert SpcAlertRule().rule == "8 16 4 8 2 4 1 1"
 
 
 def test_crons():

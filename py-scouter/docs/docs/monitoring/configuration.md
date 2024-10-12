@@ -12,7 +12,6 @@ The `DriftConfig` object has the following structure:
  "sample": true,
  "alert_config": {
      "alert_rule": {
-        "percentage_rule": {"rule": 0.10},
          "process_rule": {"rule": "16 32 4 8 2 4 1 1"}
      },
      "alert_dispatch_type": "Console",
@@ -65,11 +64,11 @@ The default value is `0 0 0 * * *` which means to run every day at midnight (UTC
 - `EveryWeek`
 
 ```python
-from scouter import DriftConfig, EveryDay, CommonCrons
+from scouter import SpcDriftConfig, EveryDay, CommonCrons
 
 
 # Recommended way to set the schedule
-config = DriftConfig(
+config = SpcDriftConfig(
     name="model",
     repository="scouter",
     version="0.1.0",
@@ -77,7 +76,7 @@ config = DriftConfig(
 )
 
 # This will also work
-config = DriftConfig(
+config = SpcDriftConfig(
     name="model",
     repository="scouter",
     version="0.1.0",
@@ -86,7 +85,7 @@ config = DriftConfig(
 
 
 # or your own
-config = DriftConfig(
+config = SpcDriftConfig(
     name="model",
     repository="scouter",
     version="0.1.0",
@@ -95,7 +94,7 @@ config = DriftConfig(
 ```
 
 
-::: scouter._scouter.DriftConfig
+::: scouter._scouter.SpcDriftConfig
     options:
         show_root_heading: true
         heading_level: 3

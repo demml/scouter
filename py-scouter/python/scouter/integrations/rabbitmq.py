@@ -6,7 +6,7 @@ from scouter.integrations.base import BaseProducer
 from scouter.utils.logger import ScouterLogger
 from scouter.utils.types import ProducerTypes
 
-from .._scouter import DriftServerRecords
+from .._scouter import ServerRecords
 
 logger = ScouterLogger.get_logger()
 
@@ -72,10 +72,10 @@ class RabbitMQProducer(BaseProducer):
             self._producer.queue_declare(queue=self._rabbit_config.queue)
 
         except ModuleNotFoundError as e:
-            logger.error("Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'")
+            logger.error("Could not import pika. Please install it using: pip install 'scouter[rabbitmq]'")
             raise e
 
-    def _publish(self, records: DriftServerRecords) -> None:
+    def _publish(self, records: ServerRecords) -> None:
         """Attempt to publish a message to the kafka broker.
 
         Args:
@@ -95,7 +95,7 @@ class RabbitMQProducer(BaseProducer):
             if self._rabbit_config.raise_on_err:
                 raise e
 
-    def publish(self, records: DriftServerRecords) -> None:
+    def publish(self, records: ServerRecords) -> None:
         """Publishes drift record to a kafka topic with retries.
 
         If the message delivery fails, the message is retried up to `max_retries` times before raising an error.

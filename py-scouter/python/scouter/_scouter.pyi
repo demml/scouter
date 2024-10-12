@@ -7,22 +7,32 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 
 from numpy.typing import NDArray
 
-class DriftServerRecord:
+class DriftType(str, Enum):
+    SPC = "SPC"
+    PSI = "PSI"
+    NONE = "NONE"
+
+class RecordType:
+    SPC = "SPC"
+    PSI = "PSI"
+    OBSERVABILITY = "OBSERVABILITY"
+
+class SpcServerRecord:
     def __init__(
         self,
-        name: str,
         repository: str,
+        name: str,
         version: str,
         feature: str,
         value: float,
     ):
-        """Initialize drift server record
+        """Initialize spc drift server record
 
         Args:
-            name:
-                Model name
             repository:
                 Model repository
+            name:
+                Model name
             version:
                 Model version
             feature:
@@ -36,12 +46,12 @@ class DriftServerRecord:
         """Return the created at timestamp."""
 
     @property
-    def name(self) -> str:
-        """Return the name."""
-
-    @property
     def repository(self) -> str:
         """Return the repository."""
+
+    @property
+    def name(self) -> str:
+        """Return the name."""
 
     @property
     def version(self) -> str:
@@ -64,9 +74,26 @@ class DriftServerRecord:
     def to_dict(self) -> Dict[str, str]:
         """Return the dictionary representation of the record."""
 
-class DriftServerRecords:
+class ServerRecord:
+    def __init__(self, record: SpcServerRecord):
+        """Initialize drift server record
+
+        Args:
+            record:
+                Drift server record
+        """
+
     @property
-    def records(self) -> List[DriftServerRecord]:
+    def record(self) -> Union[SpcServerRecord, ObservabilityMetrics]:
+        """Return the drift server record."""
+
+class ServerRecords:
+    @property
+    def record_type(self) -> RecordType:
+        """Return the drift type."""
+
+    @property
+    def records(self) -> List[ServerRecord]:
         """Return the drift server records."""
 
     def model_dump_json(self) -> str:
@@ -151,24 +178,7 @@ class CommonCron:
     def EVERY_WEEK(self) -> str:
         """Every week cron schedule"""
 
-class PercentageAlertRule:
-    def __init__(self, rule: Optional[float] = None) -> None:
-        """Initialize alert rule
-
-        Args:
-            rule:
-                Rule to use for percentage alerting (float)
-        """
-
-    @property
-    def rule(self) -> float:
-        """Return the alert rule"""
-
-    @rule.setter
-    def rule(self, rule: float) -> None:
-        """Set the alert rule"""
-
-class ProcessAlertRule:
+class SpcAlertRule:
     def __init__(
         self,
         rule: Optional[str] = None,
@@ -200,62 +210,33 @@ class ProcessAlertRule:
     def zones_to_monitor(self, zones_to_monitor: List[str]) -> None:
         """Set the zones to monitor"""
 
-class AlertRule:
-    def __init__(
-        self,
-        percentage_rule: Optional[PercentageAlertRule] = None,
-        process_rule: Optional[ProcessAlertRule] = None,
-    ) -> None:
-        """Initialize alert rule
-
-        Args:
-            rule:
-                Rule to use for alerting.
-        """
-
-    @property
-    def process(self) -> Optional[ProcessAlertRule]:
-        """Return the control alert rule"""
-
-    @process.setter
-    def process(self, process: ProcessAlertRule) -> None:
-        """ "Set the control alert rule"""
-
-    @property
-    def percentage(self) -> Optional[PercentageAlertRule]:
-        """Return the percentage alert rule"""
-
-    @percentage.setter
-    def percentage(self, percentage: PercentageAlertRule) -> None:
-        """Set the percentage alert rule"""
-
 class AlertDispatchType(str, Enum):
     Email = "Email"
     Console = "Console"
     Slack = "Slack"
     OpsGenie = "OpsGenie"
 
-class AlertConfig:
+class SpcAlertConfig:
     def __init__(
         self,
-        alert_rule: Optional[AlertRule] = None,
-        alert_dispatch_type: Optional[AlertDispatchType] = None,
+        rule: Optional[SpcAlertRule] = None,
+        dispatch_type: Optional[AlertDispatchType] = None,
         schedule: Optional[str] = None,
         features_to_monitor: Optional[List[str]] = None,
-        alert_kwargs: Optional[Dict[str, Any]] = None,
+        dispatch_kwargs: Optional[Dict[str, Any]] = None,
     ):
         """Initialize alert config
 
         Args:
-            alert_rule:
+            rule:
                 Alert rule to use. Defaults to Standard
-            alert_dispatch_type:
+            dispatch_type:
                 Alert dispatch type to use. Defaults to console
             schedule:
                 Schedule to run monitor. Defaults to daily at midnight
             features_to_monitor:
                 List of features to monitor. Defaults to empty list, which means all features
-            alert_kwargs:
+            dispatch_kwargs:
                 Additional alert kwargs to pass to the alerting service
 
                 Supported alert_kwargs:
@@ -268,19 +249,19 @@ class AlertConfig:
         """
 
     @property
-    def alert_dispatch_type(self) -> str:
+    def dispatch_type(self) -> str:
         """Return the alert dispatch type"""
 
-    @alert_dispatch_type.setter
-    def alert_dispatch_type(self, alert_dispatch_type: str) -> None:
+    @dispatch_type.setter
+    def dispatch_type(self, alert_dispatch_type: str) -> None:
         """Set the alert dispatch type"""
 
     @property
-    def alert_rule(self) -> AlertRule:
+    def rule(self) -> SpcAlertRule:
         """Return the alert rule"""
 
-    @alert_rule.setter
-    def alert_rule(self, alert_rule: AlertRule) -> None:
+    @rule.setter
+    def rule(self, rule: SpcAlertRule) -> None:
         """Set the alert rule"""
 
     @property
@@ -300,15 +281,15 @@ class AlertConfig:
         """Set the features to monitor"""
 
     @property
-    def alert_kwargs(self) -> Dict[str, Any]:
-        """Return the alert kwargs"""
+    def dispatch_kwargs(self) -> Dict[str, Any]:
+        """Return the dispatch kwargs"""
 
-    @alert_kwargs.setter
-    def alert_kwargs(self, alert_kwargs: Dict[str, Any]) -> None:
-        """Set the alert kwargs"""
+    @dispatch_kwargs.setter
+    def dispatch_kwargs(self, dispatch_kwargs: Dict[str, Any]) -> None:
+        """Set the dispatch kwargs"""
 
-class Alert:
-    def __init__(self, alert_type: str, zone: str):
+class SpcAlert:
+    def __init__(self, kind: str, zone: str):
         """Initialize alert"""
 
     @property
@@ -319,30 +300,36 @@ class Alert:
     def zone(self) -> str:
         """Zone associated with alert"""
 
-class FeatureAlert:
+    def __str__(self) -> str:
+        """Return the string representation of the alert."""
+
+class SpcFeatureAlert:
     @property
     def feature(self) -> str:
         """Return the feature."""
 
     @property
-    def alerts(self) -> List[Alert]:
+    def alerts(self) -> List[SpcAlert]:
         """Return the alerts."""
 
+class SpcFeatureAlerts:
     @property
-    def indices(self) -> Dict[Union[str, int], List[List[int]]]:
-        """Return the alert indices"""
-
-class FeatureAlerts:
-    @property
-    def features(self) -> Dict[str, FeatureAlert]:
+    def features(self) -> Dict[str, SpcFeatureAlert]:
         """Return the feature alerts."""
+
+    @property
+    def has_alerts(self) -> bool:
+        """Returns true if there are alerts"""
 
 class FeatureMap:
     @property
     def features(self) -> Dict[str, Dict[str, int]]:
         """Return the feature map."""
 
-class FeatureDriftProfile:
+    def __str__(self) -> str:
+        """Return the string representation of the feature map."""
+
+class SpcFeatureDriftProfile:
     @property
     def id(self) -> str:
         """Return the id."""
@@ -379,26 +366,26 @@ class FeatureDriftProfile:
     def timestamp(self) -> str:
         """Return the timestamp."""
 
-class DriftConfig:
+class SpcDriftConfig:
     def __init__(
         self,
-        name: Optional[str] = None,
         repository: Optional[str] = None,
+        name: Optional[str] = None,
         version: Optional[str] = None,
         sample: bool = True,
         sample_size: int = 25,
+        alert_config: Optional[SpcAlertConfig] = None,
         feature_map: Optional[FeatureMap] = None,
         targets: Optional[List[str]] = None,
-        alert_config: Optional[AlertConfig] = None,
         config_path: Optional[Path] = None,
     ):
         """Initialize monitor config
 
         Args:
-            name:
-                Model name
             repository:
                 Model repository
+            name:
+                Model name
             version:
                 Model version. Defaults to 0.1.0
             sample:
@@ -474,18 +461,22 @@ class DriftConfig:
         """Set list of target features to monitor"""
 
     @property
-    def alert_config(self) -> AlertConfig:
+    def alert_config(self) -> SpcAlertConfig:
         """Alert configuration"""
 
     @alert_config.setter
-    def alert_config(self, alert_config: AlertConfig) -> None:
+    def alert_config(self, alert_config: SpcAlertConfig) -> None:
         """Set alert configuration"""
+
+    @property
+    def drift_type(self) -> DriftType:
+        """Drift type"""
 
     def update_feature_map(self, feature_map: FeatureMap) -> None:
         """Update feature map"""
 
     @staticmethod
-    def load_from_json_file(path: Path) -> "DriftConfig":
+    def load_from_json_file(path: Path) -> "SpcDriftConfig":
         """Load config from json file
 
         Args:
@@ -501,22 +492,22 @@ class DriftConfig:
 
     def update_config_args(
         self,
-        name: Optional[str] = None,
         repository: Optional[str] = None,
+        name: Optional[str] = None,
         version: Optional[str] = None,
         sample: Optional[bool] = None,
         sample_size: Optional[int] = None,
         feature_map: Optional[FeatureMap] = None,
         targets: Optional[List[str]] = None,
-        alert_config: Optional[AlertConfig] = None,
+        alert_config: Optional[SpcAlertConfig] = None,
     ) -> None:
         """Inplace operation that updates config args
 
         Args:
-            name:
-                Model name
             repository:
                 Model repository
+            name:
+                Model name
             version:
                 Model version
             sample:
@@ -533,11 +524,11 @@ class DriftConfig:
                 Alert configuration
         """
 
-class DriftProfile:
+class SpcDriftProfile:
     def __init__(
         self,
-        features: Dict[str, FeatureDriftProfile],
-        config: DriftConfig,
+        features: Dict[str, SpcFeatureDriftProfile],
+        config: SpcDriftConfig,
         scouter_version: Optional[str] = None,
     ):
         """Initialize drift profile
@@ -556,19 +547,19 @@ class DriftProfile:
         """Return scouter version used to create DriftProfile"""
 
     @property
-    def features(self) -> Dict[str, FeatureDriftProfile]:
+    def features(self) -> Dict[str, SpcFeatureDriftProfile]:
         """Return the list of features."""
 
     @features.setter
-    def features(self, features: Dict[str, FeatureDriftProfile]) -> None:
+    def features(self, features: Dict[str, SpcFeatureDriftProfile]) -> None:
         """Set the list of features."""
 
     @property
-    def config(self) -> DriftConfig:
+    def config(self) -> SpcDriftConfig:
         """Return the monitor config."""
 
     @config.setter
-    def config(self, config: DriftConfig) -> None:
+    def config(self, config: SpcDriftConfig) -> None:
         """Set the monitor config."""
 
     def model_dump_json(self) -> str:
@@ -586,7 +577,7 @@ class DriftProfile:
         """
 
     @staticmethod
-    def model_validate_json(json_string: str) -> "DriftProfile":
+    def model_validate_json(json_string: str) -> "SpcDriftProfile":
         """Load drift profile from json
 
         Args:
@@ -596,7 +587,7 @@ class DriftProfile:
         """
 
     @staticmethod
-    def model_validate(data: Dict[str, Any]) -> "DriftProfile":
+    def model_validate(data: Dict[str, Any]) -> "SpcDriftProfile":
         """Load drift profile from dictionary
 
         Args:
@@ -606,14 +597,14 @@ class DriftProfile:
 
     def update_config_args(
         self,
-        name: Optional[str] = None,
         repository: Optional[str] = None,
+        name: Optional[str] = None,
         version: Optional[str] = None,
         sample: Optional[bool] = None,
         sample_size: Optional[int] = None,
         feature_map: Optional[FeatureMap] = None,
         targets: Optional[List[str]] = None,
-        alert_config: Optional[AlertConfig] = None,
+        alert_config: Optional[SpcAlertConfig] = None,
     ) -> None:
         """Inplace operation that updates config args
 
@@ -757,6 +748,9 @@ class FeatureProfile:
     def timestamp(self) -> str:
         """Return the timestamp."""
 
+    def __str__(self) -> str:
+        """Return the string representation of the feature profile."""
+
 class DataProfile:
     """Data profile of features"""
 
@@ -800,10 +794,19 @@ class FeatureDrift:
     def __str__(self) -> str:
         """Return string representation of feature drift"""
 
-class DriftMap:
+class SpcFeatureDrift:
+    @property
+    def samples(self) -> List[float]:
+        """Return list of samples"""
+
+    @property
+    def drift(self) -> List[float]:
+        """Return list of drift values"""
+
+class SpcDriftMap:
     """Drift map of features"""
 
-    def __init__(self, service_name: Optional[str]) -> None:
+    def __init__(self, repository: str, name: str, version: str) -> None:
         """Initialize data profile
 
         Args:
@@ -812,12 +815,12 @@ class DriftMap:
         """
 
     @property
-    def name(self) -> str:
-        """name to associate with drift map"""
-
-    @property
     def repository(self) -> str:
         """Repository to associate with drift map"""
+
+    @property
+    def name(self) -> str:
+        """name to associate with drift map"""
 
     @property
     def version(self) -> str:
@@ -833,8 +836,18 @@ class DriftMap:
     def model_dump_json(self) -> str:
         """Return json representation of data drift"""
 
+    def add_feature(self, feature: str, drift: SpcFeatureDrift) -> None:
+        """Add feature drift profile to drift map
+
+        Args:
+            feature:
+                Name of feature
+            drift:
+                Feature drift
+        """
+
     @staticmethod
-    def model_validate_json(json_string: str) -> "DriftMap":
+    def model_validate_json(json_string: str) -> "SpcDriftMap":
         """Load drift map from json file.
 
         Args:
@@ -853,9 +866,6 @@ class DriftMap:
 
     def to_numpy(self) -> Tuple[NDArray, NDArray, List[str]]:
         """Return drift map as a a tuple of sample_array, drift_array and list of features"""
-
-    def to_service_record(self) -> List[DriftServerRecord]:
-        """Return drift map as a drift server record"""
 
 class ScouterProfiler:
     def __init__(self) -> None:
@@ -914,7 +924,7 @@ class ScouterProfiler:
             Monitoring profile
         """
 
-class ScouterDrifter:
+class SpcDrifter:
     def __init__(self) -> None:
         """Instantiate Rust ScouterMonitor class that is
         used to create monitoring profiles and compute drifts.
@@ -924,7 +934,7 @@ class ScouterDrifter:
         self,
         features: List[str],
         array: List[List[str]],
-        drift_profile: DriftProfile,
+        drift_profile: SpcDriftProfile,
     ) -> NDArray[Any]:
         """Convert string array to numpy f32 array
 
@@ -941,7 +951,7 @@ class ScouterDrifter:
         self,
         features: List[str],
         array: List[List[str]],
-        drift_profile: DriftProfile,
+        drift_profile: SpcDriftProfile,
     ) -> NDArray[Any]:
         """Convert string array to numpy f64 array
 
@@ -956,10 +966,10 @@ class ScouterDrifter:
 
     def create_string_drift_profile(
         self,
-        features: List[str],
         array: List[List[str]],
-        drift_config: DriftConfig,
-    ) -> DriftProfile:
+        drift_config: SpcDriftConfig,
+        features: List[str],
+    ) -> SpcDriftProfile:
         """Create a monitoring profile from a f32 numpy array.
 
         Args:
@@ -976,10 +986,10 @@ class ScouterDrifter:
 
     def create_numeric_drift_profile_f32(
         self,
-        features: List[str],
         array: NDArray,
-        drift_config: DriftConfig,
-    ) -> DriftProfile:
+        features: List[str],
+        drift_config: SpcDriftConfig,
+    ) -> SpcDriftProfile:
         """Create a monitoring profile from a f64 numpy array.
 
         Args:
@@ -996,10 +1006,10 @@ class ScouterDrifter:
 
     def create_numeric_drift_profile_f64(
         self,
-        features: List[str],
         array: NDArray,
-        drift_config: DriftConfig,
-    ) -> DriftProfile:
+        features: List[str],
+        drift_config: SpcDriftConfig,
+    ) -> SpcDriftProfile:
         """Create a monitoring profile from a f64 numpy array.
 
         Args:
@@ -1016,10 +1026,10 @@ class ScouterDrifter:
 
     def compute_drift_f32(
         self,
-        features: List[str],
         array: NDArray,
-        drift_profile: DriftProfile,
-    ) -> DriftMap:
+        features: List[str],
+        drift_profile: SpcDriftProfile,
+    ) -> SpcDriftMap:
         """Compute drift from a f32 numpy array.
 
         Args:
@@ -1037,10 +1047,10 @@ class ScouterDrifter:
 
     def compute_drift_f64(
         self,
-        features: List[str],
         array: NDArray,
-        drift_profile: DriftProfile,
-    ) -> DriftMap:
+        features: List[str],
+        drift_profile: SpcDriftProfile,
+    ) -> SpcDriftMap:
         """Compute drift from a f64 numpy array.
 
         Args:
@@ -1060,8 +1070,8 @@ class ScouterDrifter:
         self,
         drift_array: NDArray,
         features: List[str],
-        alert_rule: AlertRule,
-    ) -> FeatureAlerts:
+        alert_rule: SpcAlertRule,
+    ) -> SpcFeatureAlerts:
         """Generate alerts from a drift array and feature list
 
         Args:
@@ -1078,10 +1088,10 @@ class ScouterDrifter:
 
     def sample_data_f32(
         self,
-        features: List[str],
         array: NDArray,
-        drift_profile: DriftProfile,
-    ) -> DriftServerRecords:
+        features: List[str],
+        drift_profile: SpcDriftProfile,
+    ) -> ServerRecords:
         """Sample data from a f32 numpy array.
 
         Args:
@@ -1098,10 +1108,10 @@ class ScouterDrifter:
 
     def sample_data_f64(
         self,
-        features: List[str],
         array: NDArray,
-        drift_profile: DriftProfile,
-    ) -> DriftServerRecords:
+        features: List[str],
+        drift_profile: SpcDriftProfile,
+    ) -> ServerRecords:
         """Sample data from a f64 numpy array.
 
         Args:
@@ -1116,8 +1126,8 @@ class ScouterDrifter:
             List of server records
         """
 
-class FeatureQueue:
-    def __init__(self, drift_profile: DriftProfile) -> None:
+class SpcFeatureQueue:
+    def __init__(self, drift_profile: SpcDriftProfile) -> None:
         """Initialize the feature queue
 
         Args:
@@ -1136,7 +1146,7 @@ class FeatureQueue:
             List of drift records if the monitoring queue has enough data to compute
         """
 
-    def create_drift_records(self) -> DriftServerRecords:
+    def create_drift_records(self) -> ServerRecords:
         """Create drift server record from data
 
 
@@ -1146,3 +1156,111 @@ class FeatureQueue:
 
     def clear_queue(self) -> None:
         """Clears the feature queue"""
+
+class LatencyMetrics:
+    @property
+    def p5(self) -> float:
+        """5th percentile"""
+
+    @property
+    def p25(self) -> float:
+        """25th percentile"""
+
+    @property
+    def p50(self) -> float:
+        """50th percentile"""
+
+    @property
+    def p95(self) -> float:
+        """95th percentile"""
+
+    @property
+    def p99(self) -> float:
+        """99th percentile"""
+
+class RouteMetrics:
+    @property
+    def route_name(self) -> str:
+        """Return the route name"""
+
+    @property
+    def metrics(self) -> LatencyMetrics:
+        """Return the repository"""
+
+    @property
+    def request_count(self) -> int:
+        """Request count"""
+
+    @property
+    def error_count(self) -> int:
+        """Error count"""
+
+    @property
+    def error_latency(self) -> float:
+        """Error latency"""
+
+    @property
+    def status_codes(self) -> Dict[int, int]:
+        """Dictionary of status codes and counts"""
+
+class ObservabilityMetrics:
+    @property
+    def repository(self) -> str:
+        """Return the repository"""
+
+    @property
+    def name(self) -> str:
+        """Return the name"""
+
+    @property
+    def version(self) -> str:
+        """Return the version"""
+
+    @property
+    def request_count(self) -> int:
+        """Request count"""
+
+    @property
+    def error_count(self) -> int:
+        """Error count"""
+
+    @property
+    def route_metrics(self) -> List[RouteMetrics]:
+        """Route metrics object"""
+
+    def __str__(self) -> str:
+        """Return the string representation of the observability metrics"""
+
+    def model_dump_json(self) -> str:
+        """Return the json representation of the observability metrics"""
+
+class Observer:
+    def __init__(self, repository: str, name: str, version: str) -> None:
+        """Initializes an api metric observer
+
+        Args:
+            repository:
+                Model repository
+            name:
+                Model name
+            version:
+                Model version
+        """
+
+    def increment(self, route: str, latency: float, status_code: int) -> None:
+        """Increment the feature value
+
+        Args:
+            route:
+                Route name
+            latency:
+                Latency of request
+            status_code:
+                Status code of request
+        """
+
+    def collect_metrics(self) -> Optional[ServerRecords]:
+        """Collect metrics from observer"""
+
+    def reset_metrics(self) -> None:
+        """Reset the observer metrics"""

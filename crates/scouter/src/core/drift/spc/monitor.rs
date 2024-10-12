@@ -1,8 +1,10 @@
 use crate::core::error::MonitorError;
-use crate::utils::types::{
-    DriftConfig, DriftMap, DriftProfile, FeatureDrift, FeatureDriftProfile, FeatureMap,
+
+use crate::core::drift::base::{RecordType, ServerRecord, ServerRecords};
+use crate::core::drift::spc::types::{
+    FeatureMap, SpcDriftConfig, SpcDriftMap, SpcDriftProfile, SpcFeatureDrift,
+    SpcFeatureDriftProfile, SpcServerRecord,
 };
-use crate::utils::types::{DriftServerRecord, DriftServerRecords};
 use indicatif::ProgressBar;
 use ndarray::prelude::*;
 use ndarray::Axis;
@@ -11,11 +13,11 @@ use rayon::prelude::*;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::fmt::Debug;
-pub struct Monitor {}
+pub struct SpcMonitor {}
 
-impl Monitor {
+impl SpcMonitor {
     pub fn new() -> Self {
-        Monitor {}
+        SpcMonitor {}
     }
 
     /// Compute c4 for control limits
@@ -103,8 +105,8 @@ impl Monitor {
         sample_data: &ArrayView2<F>,
         num_features: usize,
         features: &[String],
-        drift_config: &DriftConfig,
-    ) -> Result<DriftProfile, MonitorError>
+        drift_config: &SpcDriftConfig,
+    ) -> Result<SpcDriftProfile, MonitorError>
     where
         F: FromPrimitive + Num + Clone + Float + Debug + Sync + Send + ndarray::ScalarOperand,
 
@@ -139,7 +141,7 @@ impl Monitor {
         for (i, feature) in features.iter().enumerate() {
             feat_profile.insert(
                 feature.to_string(),
-                FeatureDriftProfile {
+                SpcFeatureDriftProfile {
                     id: feature.to_string(),
                     center: center[i].into(),
                     one_ucl: one_ucl[i].into(),
@@ -153,7 +155,11 @@ impl Monitor {
             );
         }
 
-        Ok(DriftProfile::new(feat_profile, drift_config.clone(), None))
+        Ok(SpcDriftProfile::new(
+            feat_profile,
+            drift_config.clone(),
+            None,
+        ))
     }
 
     /// Create a 2D monitor profile
@@ -170,8 +176,8 @@ impl Monitor {
         &self,
         features: &[String],
         array: &ArrayView2<F>,
-        drift_config: &DriftConfig,
-    ) -> Result<DriftProfile, MonitorError>
+        drift_config: &SpcDriftConfig,
+    ) -> Result<SpcDriftProfile, MonitorError>
     where
         F: Float
             + Sync
@@ -272,7 +278,7 @@ impl Monitor {
         &self,
         array: ArrayView1<f64>,
         num_features: usize,
-        drift_profile: &DriftProfile,
+        drift_profile: &SpcDriftProfile,
         features: &[String],
     ) -> Result<Vec<f64>, MonitorError> {
         let mut drift: Vec<f64> = vec![0.0; num_features];
@@ -312,41 +318,6 @@ impl Monitor {
         Ok(drift)
     }
 
-    pub fn set_percentage_drift_value(
-        &self,
-        array: ArrayView1<f64>,
-        num_features: usize,
-        drift_profile: &DriftProfile,
-        features: &[String],
-        rule: f64,
-    ) -> Result<Vec<f64>, MonitorError> {
-        let mut drift: Vec<f64> = vec![0.0; num_features];
-
-        for (i, feature) in features.iter().enumerate() {
-            // check if feature exists
-            if !drift_profile.features.contains_key(feature) {
-                continue;
-            }
-            let feature_profile = drift_profile
-                .features
-                .get(feature)
-                .ok_or(MonitorError::MissingFeatureError(feature.to_string()))?;
-
-            let value = array[i];
-
-            // check if value is within percentage
-            let percent_error = ((value - feature_profile.center) / feature_profile.center).abs();
-
-            if percent_error > rule {
-                drift[i] = 1.0;
-            } else {
-                drift[i] = 0.0;
-            }
-        }
-
-        Ok(drift)
-    }
-
     // Computes drift on a  2D array of data. Typically of n size >= sample_size
     //
     // # Arguments
@@ -360,8 +331,8 @@ impl Monitor {
         &self,
         features: &[String],
         array: &ArrayView2<F>, // n x m data array (features and predictions)
-        drift_profile: &DriftProfile,
-    ) -> Result<DriftMap, MonitorError>
+        drift_profile: &SpcDriftProfile,
+    ) -> Result<SpcDriftMap, MonitorError>
     where
         F: Float
             + Sync
@@ -387,28 +358,9 @@ impl Monitor {
             .map(|x| {
                 // match AlertRules enum
 
-                let drift = if drift_profile
-                    .config
-                    .alert_config
-                    .alert_rule
-                    .process
-                    .is_some()
-                {
-                    self.set_control_drift_value(x, num_features, drift_profile, features)
-                        .map_err(|e| MonitorError::CreateError(e.to_string()))?
-                } else {
-                    let rule = drift_profile
-                        .config
-                        .alert_config
-                        .alert_rule
-                        .percentage
-                        .as_ref()
-                        .unwrap()
-                        .rule;
-
-                    self.set_percentage_drift_value(x, num_features, drift_profile, features, rule)
-                        .map_err(|e| MonitorError::CreateError(e.to_string()))?
-                };
+                let drift = self
+                    .set_control_drift_value(x, num_features, drift_profile, features)
+                    .map_err(|e| MonitorError::CreateError(e.to_string()))?;
 
                 Ok(drift)
             })
@@ -421,7 +373,7 @@ impl Monitor {
             Array::from_shape_vec((drift_array.len(), num_features), drift_array.concat())
                 .map_err(|e| MonitorError::ArrayError(e.to_string()))?;
 
-        let mut drift_map = DriftMap::new(
+        let mut drift_map = SpcDriftMap::new(
             drift_profile.config.name.clone(),
             drift_profile.config.repository.clone(),
             drift_profile.config.version.clone(),
@@ -431,7 +383,7 @@ impl Monitor {
             let drift = drift_array.column(i);
             let sample = sample_data.column(i);
 
-            let feature_drift = FeatureDrift {
+            let feature_drift = SpcFeatureDrift {
                 samples: sample.to_vec(),
                 drift: drift.to_vec(),
             };
@@ -454,8 +406,8 @@ impl Monitor {
         &self,
         features: &[String],
         array: &ArrayView2<F>, // n x m data array (features and predictions)
-        drift_profile: &DriftProfile,
-    ) -> Result<DriftServerRecords, MonitorError>
+        drift_profile: &SpcDriftProfile,
+    ) -> Result<ServerRecords, MonitorError>
     where
         F: Float
             + Sync
@@ -481,7 +433,7 @@ impl Monitor {
             let sample = sample_data.column(i);
 
             sample.iter().for_each(|value| {
-                let record = DriftServerRecord {
+                let record = SpcServerRecord {
                     created_at,
                     feature: feature.to_string(),
                     value: *value,
@@ -490,18 +442,18 @@ impl Monitor {
                     version: drift_profile.config.version.clone(),
                 };
 
-                records.push(record);
+                records.push(ServerRecord::SPC { record });
             });
         }
 
-        Ok(DriftServerRecords { records })
+        Ok(ServerRecords::new(records, RecordType::SPC))
     }
 
     pub fn calculate_drift_from_sample(
         &self,
         features: &[String],
         sample_array: &ArrayView2<f64>, // n x m data array (features and predictions)
-        drift_profile: &DriftProfile,
+        drift_profile: &SpcDriftProfile,
     ) -> Result<Array2<f64>, MonitorError> {
         // iterate through each row of samples
         let num_features = drift_profile.features.len();
@@ -511,39 +463,14 @@ impl Monitor {
             .map(|x| {
                 // match AlertRules enum
 
-                let drift = if drift_profile
-                    .config
-                    .alert_config
-                    .alert_rule
-                    .process
-                    .is_some()
-                {
-                    self.set_control_drift_value(x, num_features, drift_profile, features)
-                        .map_err(|e| {
-                            MonitorError::CreateError(format!(
-                                "Failed to set control drift value: {:?}",
-                                e
-                            ))
-                        })?
-                } else {
-                    let rule = drift_profile
-                        .config
-                        .alert_config
-                        .alert_rule
-                        .percentage
-                        .as_ref()
-                        .unwrap()
-                        .rule;
-
-                    self.set_percentage_drift_value(x, num_features, drift_profile, features, rule)
-                        .map_err(|e| {
-                            MonitorError::CreateError(format!(
-                                "Failed to set percentage drift value: {:?}",
-                                e
-                            ))
-                        })?
-                };
-
+                let drift = self
+                    .set_control_drift_value(x, num_features, drift_profile, features)
+                    .map_err(|e| {
+                        MonitorError::CreateError(format!(
+                            "Failed to set control drift value: {:?}",
+                            e
+                        ))
+                    })?;
                 Ok(drift)
             })
             .collect::<Result<Vec<_>, MonitorError>>()?;
@@ -690,16 +617,19 @@ where {
 
 // convert drift array to 2D array
 
-impl Default for Monitor {
+impl Default for SpcMonitor {
     fn default() -> Self {
-        Monitor::new()
+        SpcMonitor::new()
     }
 }
 
 #[cfg(test)]
 mod tests {
 
-    use crate::utils::types::{AlertConfig, AlertRule, PercentageAlertRule};
+    use crate::core::drift::base::DriftProfile;
+    use crate::core::drift::base::DriftType;
+    use crate::core::drift::base::ProfileBaseArgs;
+    use crate::core::drift::spc::types::SpcAlertConfig;
 
     use super::*;
     use approx::relative_eq;
@@ -720,9 +650,9 @@ mod tests {
             "feature_3".to_string(),
         ];
 
-        let alert_config = AlertConfig::default();
-        let monitor = Monitor::new();
-        let config = DriftConfig::new(
+        let alert_config = SpcAlertConfig::default();
+        let monitor = SpcMonitor::new();
+        let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repo".to_string()),
             None,
@@ -743,7 +673,7 @@ mod tests {
         profile.__str__();
         let model_string = profile.model_dump_json();
 
-        let mut loaded_profile = DriftProfile::model_validate_json(model_string);
+        let mut loaded_profile = SpcDriftProfile::model_validate_json(model_string);
         assert_eq!(loaded_profile.features.len(), 3);
 
         // test update args
@@ -776,11 +706,11 @@ mod tests {
             "feature_3".to_string(),
         ];
 
-        let monitor = Monitor::new();
-        let alert_config = AlertConfig::default();
-        let config = DriftConfig::new(
-            Some("name".to_string()),
+        let monitor = SpcMonitor::new();
+        let alert_config = SpcAlertConfig::default();
+        let config = SpcDriftConfig::new(
             Some("repo".to_string()),
+            Some("name".to_string()),
             None,
             None,
             None,
@@ -794,6 +724,23 @@ mod tests {
             .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
             .unwrap();
         assert_eq!(profile.features.len(), 3);
+
+        let args = profile.get_base_args();
+        assert_eq!(args.name, "name");
+        assert_eq!(args.repository, "repo");
+        assert_eq!(args.version, "0.1.0");
+        assert_eq!(args.schedule, "0 0 0 * * *");
+
+        let value = profile.to_value();
+
+        // test DriftProfile
+        let profile = DriftProfile::from_value(value, &DriftType::SPC.value()).unwrap();
+        let new_args = profile.get_base_args();
+
+        assert_eq!(new_args, args);
+
+        let profile_str = profile.to_value().to_string();
+        DriftProfile::from_str(DriftType::SPC, profile_str).unwrap();
     }
 
     #[test]
@@ -806,8 +753,8 @@ mod tests {
             "feature_2".to_string(),
             "feature_3".to_string(),
         ];
-        let alert_config = AlertConfig::default();
-        let config = DriftConfig::new(
+        let alert_config = SpcAlertConfig::default();
+        let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repo".to_string()),
             None,
@@ -819,7 +766,7 @@ mod tests {
             None,
         );
 
-        let monitor = Monitor::new();
+        let monitor = SpcMonitor::new();
 
         let profile = monitor
             .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
@@ -854,8 +801,8 @@ mod tests {
             "feature_2".to_string(),
             "feature_3".to_string(),
         ];
-        let alert_config = AlertConfig::default();
-        let config = DriftConfig::new(
+        let alert_config = SpcAlertConfig::default();
+        let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repo".to_string()),
             None,
@@ -867,7 +814,7 @@ mod tests {
             None,
         );
 
-        let monitor = Monitor::new();
+        let monitor = SpcMonitor::new();
 
         let profile = monitor
             .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
@@ -893,8 +840,8 @@ mod tests {
             "feature_3".to_string(),
         ];
 
-        let alert_config = AlertConfig::default();
-        let config = DriftConfig::new(
+        let alert_config = SpcAlertConfig::default();
+        let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repo".to_string()),
             None,
@@ -906,7 +853,7 @@ mod tests {
             None,
         );
 
-        let monitor = Monitor::new();
+        let monitor = SpcMonitor::new();
 
         let profile = monitor
             .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
@@ -924,72 +871,6 @@ mod tests {
         // assert relative
         let feature_1 = drift_array.column(1);
         assert!(relative_eq!(feature_1[0], 4.0, epsilon = 2.0));
-    }
-
-    #[test]
-    fn test_drift_detect_percentage() {
-        // create 2d array
-        let array = Array::random((1030, 3), Uniform::new(0., 10.));
-
-        let features = vec![
-            "feature_1".to_string(),
-            "feature_2".to_string(),
-            "feature_3".to_string(),
-        ];
-
-        let alert_config = AlertConfig::new(
-            Some(AlertRule {
-                process: None,
-                percentage: Some(PercentageAlertRule { rule: 0.1 }),
-            }),
-            None,
-            None,
-            None,
-            None,
-        );
-        let config = DriftConfig::new(
-            Some("name".to_string()),
-            Some("repo".to_string()),
-            None,
-            None,
-            None,
-            None,
-            None,
-            Some(alert_config),
-            None,
-        );
-
-        let monitor = Monitor::new();
-
-        let profile = monitor
-            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
-            .unwrap();
-        assert_eq!(profile.features.len(), 3);
-
-        // change first 100 rows to 100 at index 1
-        let mut array = array.to_owned();
-        array.slice_mut(s![0..200, 1]).fill(100.0);
-
-        let drift_map = monitor
-            .compute_drift(&features, &array.view(), &profile)
-            .unwrap();
-
-        // assert relative
-        let feature_1 = drift_map.features.get("feature_2").unwrap();
-        assert!(relative_eq!(feature_1.samples[0], 100.0, epsilon = 2.0));
-
-        // convert profile to json and load it back
-        let _ = drift_map.model_dump_json();
-        let (drift_array, _sample_array, features) = drift_map.to_array().unwrap();
-
-        // check if indices are the same
-        for (idx, feature) in features.iter().enumerate() {
-            let left = drift_map.features.get(feature).unwrap().drift[0..20].to_vec();
-
-            let right = drift_array.slice(s![0..20, idx]).to_vec();
-
-            assert_eq!(left, right);
-        }
     }
 
     #[test]
@@ -1018,7 +899,7 @@ mod tests {
 
         let string_features = vec!["feature_1".to_string(), "feature_2".to_string()];
 
-        let monitor = Monitor::new();
+        let monitor = SpcMonitor::new();
 
         let feature_map = monitor
             .create_feature_map(&string_features, &string_vec)
@@ -1049,7 +930,7 @@ mod tests {
 
         let string_features = vec!["feature_1".to_string(), "feature_2".to_string()];
 
-        let monitor = Monitor::new();
+        let monitor = SpcMonitor::new();
 
         let feature_map = monitor
             .create_feature_map(&string_features, &string_vec)
