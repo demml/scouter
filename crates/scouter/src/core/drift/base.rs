@@ -1,10 +1,13 @@
+use crate::core::cron::EveryDay;
 use crate::core::dispatch::types::AlertDispatchType;
 use crate::core::drift::spc::types::{SpcDriftProfile, SpcServerRecord};
 use crate::core::error::ScouterError;
 use crate::core::observe::observer::ObservabilityMetrics;
-use crate::core::utils::ProfileFuncs;
+use crate::core::utils::{json_to_pyobject, ProfileFuncs};
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::{collections::HashMap, str::FromStr};
 
 #[pyclass]
@@ -215,10 +218,65 @@ impl DriftProfile {
     }
 }
 
+pub trait ValidateAlertConfig {
+    fn resolve_schedule(schedule: Option<String>) -> String {
+        let default_schedule = EveryDay::new().cron;
+        match schedule {
+            Some(s) => {
+                cron::Schedule::from_str(&s) // Pass by reference here
+                    .map(|_| s) // If valid, return the schedule
+                    .unwrap_or_else(|_| {
+                        tracing::error!("Invalid cron schedule, using default schedule");
+                        default_schedule
+                    })
+            }
+            None => default_schedule,
+        }
+    }
+}
+
+pub trait Exportable: Serialize {
+    fn to_python_dict(&self, py: Python) -> PyResult<Py<PyDict>> {
+        let json_str = serde_json::to_string(&self).map_err(|_| ScouterError::SerializeError)?;
+
+        let json_value: Value =
+            serde_json::from_str(&json_str).map_err(|_| ScouterError::DeSerializeError)?;
+
+        // Create a new Python dictionary
+        let dict = PyDict::new_bound(py);
+
+        // Convert JSON to Python dict
+        json_to_pyobject(py, &json_value, dict.as_gil_ref())?;
+
+        // Return the Python dictionary
+        Ok(dict.into())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::str::FromStr;
+
+    pub struct TestStruct;
+    impl ValidateAlertConfig for TestStruct {}
+
+    #[test]
+    fn test_resolve_schedule() {
+        let valid_schedule = "0 0 5 * * *".to_string(); // Every day at 5:00 AM
+
+        let result = TestStruct::resolve_schedule(Some(valid_schedule));
+
+        assert_eq!(result, "0 0 5 * * *".to_string());
+
+        let invalid_schedule = "invalid_cron".to_string();
+
+        let default_schedule = EveryDay::new().cron;
+
+        let result = TestStruct::resolve_schedule(Some(invalid_schedule));
+
+        assert_eq!(result, default_schedule);
+    }
 
     #[test]
     fn test_drift_type_from_str() {

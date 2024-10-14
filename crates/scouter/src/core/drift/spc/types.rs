@@ -2,7 +2,7 @@ use crate::core::cron::EveryDay;
 use crate::core::dispatch::types::AlertDispatchType;
 use crate::core::drift::base::{
     DispatchAlertDescription, DispatchDriftConfig, DriftArgs, DriftType, ProfileArgs,
-    ProfileBaseArgs,
+    ProfileBaseArgs, ValidateAlertConfig,
 };
 use crate::core::error::ScouterError;
 use crate::core::utils::{json_to_pyobject, pyobject_to_json, FileName, ProfileFuncs};
@@ -17,7 +17,6 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::str::FromStr;
 use tracing::debug;
 
 const MISSING: &str = "__missing__";
@@ -176,6 +175,8 @@ pub struct SpcAlertConfig {
     pub dispatch_kwargs: HashMap<String, String>,
 }
 
+impl ValidateAlertConfig for SpcAlertConfig {}
+
 #[pymethods]
 impl SpcAlertConfig {
     #[new]
@@ -188,22 +189,7 @@ impl SpcAlertConfig {
     ) -> Self {
         let rule = rule.unwrap_or_default();
 
-        let schedule = match schedule {
-            Some(s) => {
-                // validate the cron schedule
-                let schedule = cron::Schedule::from_str(&s);
-
-                match schedule {
-                    Ok(_) => s,
-                    Err(_) => {
-                        tracing::error!("Invalid cron schedule, using default schedule");
-                        EveryDay::new().cron
-                    }
-                }
-            }
-
-            None => EveryDay::new().cron,
-        };
+        let schedule = Self::resolve_schedule(schedule);
         let dispatch_type = dispatch_type.unwrap_or_default();
         let features_to_monitor = features_to_monitor.unwrap_or_default();
         let dispatch_kwargs = dispatch_kwargs.unwrap_or_default();
@@ -325,95 +311,6 @@ pub struct SpcFeatureDriftProfile {
 
     #[pyo3(get)]
     pub timestamp: chrono::NaiveDateTime,
-}
-
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct Bin {
-    #[pyo3(get)]
-    pub id: usize,
-
-    #[pyo3(get)]
-    pub lower_limit: f64,
-
-    #[pyo3(get)]
-    pub upper_limit: Option<f64>,
-
-    #[pyo3(get)]
-    pub proportion: f64,
-}
-
-/// Python class for a PSI monitoring profile
-///
-/// # Arguments
-///
-/// * `id` - The id value
-/// * `bins` - bins needed to calculate PSI
-/// * `timestamp` - The timestamp value
-///
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct PSIFeatureDriftProfile {
-    #[pyo3(get)]
-    pub id: String,
-
-    #[pyo3(get)]
-    pub bins: Vec<Bin>,
-
-    #[pyo3(get)]
-    pub timestamp: chrono::NaiveDateTime,
-}
-
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct PSIDriftProfile {
-    #[pyo3(get, set)]
-    pub features: HashMap<String, PSIFeatureDriftProfile>,
-
-    #[pyo3(get, set)]
-    pub config: DriftConfig,
-
-    #[pyo3(get, set)]
-    pub scouter_version: String,
-}
-
-#[pymethods]
-impl PSIDriftProfile {
-    #[new]
-    pub fn new(
-        features: HashMap<String, PSIFeatureDriftProfile>,
-        config: DriftConfig,
-        scouter_version: Option<String>,
-    ) -> Self {
-        let scouter_version = scouter_version.unwrap_or(env!("CARGO_PKG_VERSION").to_string());
-        Self {
-            features,
-            config,
-            scouter_version,
-        }
-    }
-}
-
-/// Python class for a PSIDrift map of features with calculated drift
-///
-/// # Arguments
-///
-/// * `features` - A hashmap of feature names and their drift
-///
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct PSIDriftMap {
-    #[pyo3(get)]
-    pub features: HashMap<String, f64>,
-
-    #[pyo3(get)]
-    pub name: String,
-
-    #[pyo3(get)]
-    pub repository: String,
-
-    #[pyo3(get)]
-    pub version: String,
 }
 
 /// Python class for a monitoring configuration
