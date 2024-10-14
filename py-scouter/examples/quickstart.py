@@ -1,12 +1,9 @@
 from scouter import (
     Drifter,
-    DriftConfig,
-    AlertRule,
-    ProcessAlertRule,
-    DriftMap,
-    AlertDispatchType,
+    SpcDriftConfig,
+    DriftType,
 )
-from .utils import generate_data
+from utils import generate_data
 
 
 if __name__ == "__main__":
@@ -14,19 +11,15 @@ if __name__ == "__main__":
     data = generate_data()
 
     # create drift config (usually associated with a model name, repository name, version)
-    config = DriftConfig(
+    config = SpcDriftConfig(
         name="model",
         repository="scouter",
-        version="0.1.0",
-        alert_rule=AlertRule(  # alert_rule is optional and will default to a standard process alert rule
-            process_rule=ProcessAlertRule(),
-        ),
-        alert_dispatch_type=AlertDispatchType.Console,
+        version="0.1.0"
     )
 
     # create drifter
-    drifter = Drifter()
-
+    drifter = Drifter(DriftType.SPC)
+    breakpoint()
     # create drift profile
     profile = drifter.create_drift_profile(data, config)
 
@@ -34,14 +27,14 @@ if __name__ == "__main__":
     print(profile)
 
     # compute drift
-    drift_map: DriftMap = drifter.compute_drift(data, profile)
-
-    drift_array, sample_array, features = drift_map.to_numpy()
-
-    print(drift_array, features)
-
-    feature_alerts = drifter.generate_alerts(
-        drift_array, features, profile.config.alert_config.alert_rule
-    )
-
-    print(feature_alerts)
+    # drift_map: DriftMap = drifter.compute_drift(data, profile)
+    #
+    # drift_array, sample_array, features = drift_map.to_numpy()
+    #
+    # print(drift_array, features)
+    #
+    # feature_alerts = drifter.generate_alerts(
+    #     drift_array, features, profile.config.alert_config.alert_rule
+    # )
+    #
+    # print(feature_alerts)

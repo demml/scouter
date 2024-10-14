@@ -10,6 +10,8 @@ from scouter.utils.logger import ScouterLogger
 from .._scouter import (  # pylint: disable=no-name-in-module
     CommonCron,
     DriftType,
+    PsiDriftConfig,
+    PsiDriftProfile,
     SpcAlertRule,
     SpcDriftConfig,
     SpcDriftMap,
@@ -40,8 +42,8 @@ class Drifter:
     def create_drift_profile(
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
-        config: Optional[Union[SpcDriftConfig]] = None,
-    ) -> SpcDriftProfile:
+        config: Optional[Union[SpcDriftConfig, PsiDriftConfig]] = None,
+    ) -> Union[SpcDriftProfile, PsiDriftProfile]:
         """Create a drift profile from data to use for monitoring.
 
         Args:

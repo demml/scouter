@@ -1,4 +1,4 @@
-use numpy::PyArray2;
+use numpy::{IntoPyArray, PyArray1, PyArray2};
 use numpy::PyReadonlyArray2;
 use numpy::ToPyArray;
 use pyo3::exceptions::PyValueError;
@@ -14,6 +14,8 @@ use scouter::core::profile::num_profiler::NumProfiler;
 use scouter::core::profile::string_profiler::StringProfiler;
 use scouter::core::profile::types::{DataProfile, FeatureProfile};
 use std::collections::BTreeMap;
+use numpy::ndarray::{Array1, Array2};
+use scouter::core::drift::psi::monitor::PsiMonitor;
 
 fn create_string_profile(
     string_array: Vec<Vec<String>>,
@@ -252,6 +254,10 @@ impl SpcDrifter {
                 }
             };
 
+        for i in &array{
+            println!("{i:?}");
+        }
+
         let profile =
             match self
                 .monitor
@@ -400,5 +406,47 @@ impl SpcDrifter {
         };
 
         Ok(records)
+    }
+}
+
+#[pyclass]
+pub struct PsiDrifter {
+    monitor: PsiMonitor,
+}
+
+#[pymethods]
+#[allow(clippy::new_without_default)]
+impl PsiDrifter {
+    #[new]
+    pub fn new() -> Self {
+        Self {
+            monitor: PsiMonitor::new(),
+        }
+    }
+    pub fn return_dummy_data<'py>(
+        &mut self,
+        py: Python<'py>,
+        feature_names: Vec<String>,
+        features_array: Vec<Vec<String>>,
+    ) -> PyResult<(Vec<String>, Bound<'py, PyArray2<f32>>)> {
+
+        // Create a simple Vec<String> for dummy string data
+        let dummy_strings = vec![
+            "feature1".to_string(),
+            "feature2".to_string(),
+            "feature3".to_string(),
+        ];
+
+        // Create dummy 2D array of floats with 100 rows and 3 columns
+        let dummy_numeric: Array2<f32> = Array2::from_shape_vec(
+            (100, 3),  // 100 rows, 3 columns
+            (1..=300).map(|x| x as f32).collect(), // Fill with values from 1.0 to 300.0
+        ).unwrap();
+
+        // Convert the numeric array to a NumPy array bound to Python
+        let py_numeric_array = dummy_numeric.to_pyarray_bound(py);
+
+        // Return both the list of strings and the NumPy array
+        Ok((dummy_strings, py_numeric_array))
     }
 }
