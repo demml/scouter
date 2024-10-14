@@ -235,23 +235,6 @@ pub trait ValidateAlertConfig {
     }
 }
 
-pub trait Exportable: Serialize {
-    fn to_python_dict(&self, py: Python) -> PyResult<Py<PyDict>> {
-        let json_str = serde_json::to_string(&self).map_err(|_| ScouterError::SerializeError)?;
-
-        let json_value: Value =
-            serde_json::from_str(&json_str).map_err(|_| ScouterError::DeSerializeError)?;
-
-        // Create a new Python dictionary
-        let dict = PyDict::new_bound(py);
-
-        // Convert JSON to Python dict
-        json_to_pyobject(py, &json_value, dict.as_gil_ref())?;
-
-        // Return the Python dictionary
-        Ok(dict.into())
-    }
-}
 
 #[cfg(test)]
 mod tests {
