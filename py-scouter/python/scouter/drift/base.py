@@ -7,6 +7,8 @@ from numpy.typing import NDArray
 
 from .._scouter import (  # pylint: disable=no-name-in-module
     DriftType,
+    PsiDriftMap,
+    PsiDriftProfile,
     SpcAlertRule,
     SpcDriftConfig,
     SpcDriftMap,
@@ -25,14 +27,14 @@ class DriftHelperBase:
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
         config: Union[SpcDriftConfig],
-    ) -> Union[SpcDriftProfile]:
+    ) -> Union[SpcDriftProfile, PsiDriftProfile]:
         raise NotImplementedError
 
     def compute_drift(
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
-        drift_profile: Union[SpcDriftProfile],
-    ) -> Union[SpcDriftMap]:
+        drift_profile: Union[SpcDriftProfile, PsiDriftProfile],
+    ) -> Union[SpcDriftMap, PsiDriftMap]:
         raise NotImplementedError
 
     def generate_alerts(

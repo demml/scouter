@@ -9,6 +9,7 @@ from scouter.utils.types import AlertZone, SpcAlertType
 
 from ._scouter import (
     AlertDispatchType,
+    Bin,
     DataProfile,
     DriftType,
     Every6Hours,
@@ -20,6 +21,11 @@ from ._scouter import (
     FeatureProfile,
     ObservabilityMetrics,
     Observer,
+    PsiAlertConfig,
+    PsiDriftConfig,
+    PsiDriftMap,
+    PsiDriftProfile,
+    PsiFeatureDriftProfile,
     RecordType,
     ServerRecord,
     ServerRecords,
@@ -81,4 +87,10 @@ __all__ = [
     "Observer",
     "ObservabilityMetrics",
     "ScouterObserver",
+    "PsiAlertConfig",
+    "PsiDriftConfig",
+    "Bin",
+    "PsiFeatureDriftProfile",
+    "PsiDriftProfile",
+    "PsiDriftMap",
 ]
