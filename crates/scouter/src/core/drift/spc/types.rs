@@ -1,7 +1,7 @@
 use crate::core::cron::EveryDay;
 use crate::core::dispatch::types::AlertDispatchType;
 use crate::core::drift::base::{
-    DispatchAlertDescription, DispatchDriftConfig, DriftArgs, DriftType, ProfileArgs,
+    DispatchAlertDescription, DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, ProfileArgs,
     ProfileBaseArgs, ValidateAlertConfig,
 };
 use crate::core::error::ScouterError;
@@ -636,21 +636,6 @@ impl ProfileBaseArgs for SpcDriftProfile {
     /// Convert the struct to a serde_json::Value
     fn to_value(&self) -> serde_json::Value {
         serde_json::to_value(self).unwrap()
-    }
-}
-
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct FeatureMap {
-    #[pyo3(get)]
-    pub features: HashMap<String, HashMap<String, usize>>,
-}
-
-#[pymethods]
-impl FeatureMap {
-    pub fn __str__(&self) -> String {
-        // serialize the struct to a string
-        ProfileFuncs::__str__(self)
     }
 }
 

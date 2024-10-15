@@ -11,6 +11,7 @@ from .._scouter import (  # pylint: disable=no-name-in-module
     CommonCron,
     DriftType,
     PsiDriftConfig,
+    PsiDriftMap,
     PsiDriftProfile,
     SpcAlertRule,
     SpcDriftConfig,
@@ -36,7 +37,6 @@ class Drifter:
                 Type of drift to detect. Defaults to SPC drift detection.
 
         """
-
         self._drift_helper: DriftHelperBase = get_drift_helper(drift_type or DriftType.SPC)
 
     def create_drift_profile(
@@ -73,7 +73,7 @@ class Drifter:
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
         drift_profile: SpcDriftProfile,
-    ) -> Union[SpcDriftMap]:
+    ) -> Union[SpcDriftMap, PsiDriftMap]:
         """Compute drift from data using a drift profile.
 
         Args:

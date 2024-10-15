@@ -1,6 +1,6 @@
 """This module contains the helper class for the PSI Drifter."""
 
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -63,23 +63,25 @@ class PsiDriftHelper(DriftHelperBase):
         """
         try:
             logger.info("Creating drift profile.")
-            string_profile = None
-            numeric_profile = None
-            breakpoint()
             array = _convert_data_to_array(data)
+            bits = _get_bits(array.numeric_array)
 
+            string_profile: Optional[PsiDriftProfile] = None
+            numeric_profile: Optional[PsiDriftProfile] = None
             if array.string_array is not None and array.string_features is not None:
-                string_feature_names, string_features_array = self._rusty_drifter.return_dummy_data(
-                    feature_names=array.string_features, features_array=array.string_array
+                string_profile = self._rusty_drifter.create_string_drift_profile(
+                    features=array.string_features,
+                    array=array.string_array,
+                    drift_config=config,
                 )
-
+                assert string_profile.config.feature_map is not None
+                config.update_feature_map(string_profile.config.feature_map)
             if array.numeric_array is not None and array.numeric_features is not None:
-                numeric_profile = getattr(self._rusty_drifter, f"create_numeric_drift_profile")(
+                numeric_profile = getattr(self._rusty_drifter, f"create_numeric_drift_profile_f{bits}")(
                     features=array.numeric_features,
                     array=array.numeric_array,
                     drift_config=config,
                 )
-
             if string_profile is not None and numeric_profile is not None:
                 drift_profile = PsiDriftProfile(
                     features={**numeric_profile.features, **string_profile.features},
@@ -103,8 +105,52 @@ class PsiDriftHelper(DriftHelperBase):
         data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
         drift_profile: PsiDriftProfile,
     ) -> PsiDriftMap:
-        pass
+        """Compute drift from data and monitoring profile.
+
+        Args:
+            data:
+                Data to compute drift from. Data can be a numpy array,
+                a polars dataframe or pandas dataframe. Data is expected to not contain
+                any missing values, NaNs or infinities.
+            drift_profile:
+                Monitoring profile containing feature drift profiles.
+
+        """
+        try:
+            logger.info("Computing drift")
+            array = _convert_data_to_array(data)
+            bits = _get_bits(array.numeric_array)
+            if array.string_array is not None and array.string_features is not None:
+                string_array: NDArray = getattr(self._rusty_drifter, f"convert_strings_to_numpy_f{bits}")(
+                    array=array.string_array,
+                    features=array.string_features,
+                    drift_profile=drift_profile,
+                )
+                if array.numeric_array is not None and array.numeric_features is not None:
+                    array.numeric_array = np.concatenate((array.numeric_array, string_array), axis=1)
+
+                    array.numeric_features += array.string_features
+
+                else:
+                    array.numeric_array = string_array
+                    array.numeric_features = array.string_features
+            drift_map = getattr(self._rusty_drifter, f"compute_drift_f{bits}")(
+                features=array.numeric_features,
+                array=array.numeric_array,
+                drift_profile=drift_profile,
+            )
+
+            assert isinstance(drift_map, PsiDriftMap), f"Expected DriftMap, got {type(drift_map)}"
+            assert isinstance(drift_map, PsiDriftMap), f"Expected DriftMap, got {type(drift_map)}"
+
+            return drift_map
+
+        except KeyError as exc:
+            logger.error(f"Failed to compute drift: {exc}")
+            raise ValueError(f"Failed to compute drift: {exc}") from exc
+
 
     @staticmethod
     def drift_type() -> DriftType:
         return DriftType.PSI
+

@@ -1490,7 +1490,7 @@ class PsiDriftProfile:
     def __init__(
         self,
         features: Dict[str, PsiFeatureDriftProfile],
-        config: SpcDriftConfig,
+        config: PsiDriftConfig,
         scouter_version: Optional[str] = None,
     ):
         """Initialize drift profile
@@ -1645,16 +1645,138 @@ class PsiDrifter:
         used to create monitoring profiles and compute drifts.
         """
 
-    def return_dummy_data(
+    def convert_strings_to_numpy_f32(
         self,
-        feature_names: List[str],
-        features_array: List[List[str]],
-    ) -> Tuple[List[str], NDArray[Any]]:
+        features: List[str],
+        array: List[List[str]],
+        drift_profile: PsiDriftProfile,
+    ) -> NDArray[Any]:
         """Convert string array to numpy f32 array
 
         Args:
-            feature_names:
+            features:
                 List of feature names.
-            features_array:
+            array:
                 List of string arrays to convert.
+            drift_profile:
+                Monitoring profile.
+        """
+
+    def convert_strings_to_numpy_f64(
+        self,
+        features: List[str],
+        array: List[List[str]],
+        drift_profile: PsiDriftProfile,
+    ) -> NDArray[Any]:
+        """Convert string array to numpy f64 array
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                List of string arrays to convert.
+            drift_profile:
+                Monitoring profile.
+        """
+
+    def create_string_drift_profile(
+        self,
+        array: List[List[str]],
+        drift_config: PsiDriftConfig,
+        features: List[str],
+    ) -> PsiDriftProfile:
+        """Create a monitoring profile from a f32 numpy array.
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                List of string arrays to profile.
+            drift_config:
+                Monitor config.
+
+        Returns:
+            Monitoring profile.
+        """
+
+    def create_numeric_drift_profile_f32(
+        self,
+        array: NDArray,
+        features: List[str],
+        drift_config: PsiDriftConfig,
+    ) -> PsiDriftProfile:
+        """Create a monitoring profile from a f64 numpy array.
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                Numpy array to profile.
+            drift_config:
+                Monitor config.
+
+        Returns:
+            Monitoring profile.
+        """
+
+    def create_numeric_drift_profile_f64(
+        self,
+        array: NDArray,
+        features: List[str],
+        drift_config: PsiDriftConfig,
+    ) -> PsiDriftProfile:
+        """Create a monitoring profile from a f64 numpy array.
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                Numpy array to profile.
+            drift_config:
+                monitor config.
+
+        Returns:
+            Monitoring profile.
+        """
+
+    def compute_drift_f32(
+        self,
+        array: NDArray,
+        features: List[str],
+        drift_profile: PsiDriftProfile,
+    ) -> PsiDriftMap:
+        """Compute drift from a f32 numpy array.
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                Numpy array to profile.
+            drift_profile:
+                Monitoring profile.
+
+
+        Returns:
+            DriftMap
+        """
+
+    def compute_drift_f64(
+        self,
+        array: NDArray,
+        features: List[str],
+        drift_profile: PsiDriftProfile,
+    ) -> PsiDriftMap:
+        """Compute drift from a f64 numpy array.
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                Numpy array to profile.
+            drift_profile:
+                Monitoring profile.
+
+
+        Returns:
+            DriftMap.
         """

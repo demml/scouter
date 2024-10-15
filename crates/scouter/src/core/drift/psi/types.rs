@@ -1,7 +1,8 @@
 use crate::core::cron::EveryDay;
 use crate::core::dispatch::types::AlertDispatchType;
 use crate::core::drift::base::{
-    DispatchDriftConfig, DriftArgs, DriftType, ProfileArgs, ProfileBaseArgs, ValidateAlertConfig,
+    DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, ProfileArgs, ProfileBaseArgs,
+    ValidateAlertConfig,
 };
 use crate::core::error::ScouterError;
 use crate::core::utils::{json_to_pyobject, pyobject_to_json, FileName, ProfileFuncs};
@@ -89,6 +90,9 @@ pub struct PsiDriftConfig {
     pub version: String,
 
     #[pyo3(get, set)]
+    pub feature_map: FeatureMap,
+
+    #[pyo3(get, set)]
     pub alert_config: PsiAlertConfig,
 
     #[pyo3(get, set)]
@@ -107,6 +111,7 @@ impl PsiDriftConfig {
         repository: Option<String>,
         name: Option<String>,
         version: Option<String>,
+        feature_map: Option<FeatureMap>,
         targets: Option<Vec<String>>,
         alert_config: Option<PsiAlertConfig>,
         config_path: Option<PathBuf>,
@@ -126,12 +131,14 @@ impl PsiDriftConfig {
         let version = version.unwrap_or("0.1.0".to_string());
         let targets = targets.unwrap_or_default();
         let alert_config = alert_config.unwrap_or_default();
+        let feature_map = feature_map.unwrap_or_default();
 
         Ok(Self {
             name,
             repository,
             version,
             alert_config,
+            feature_map,
             targets,
             drift_type: DriftType::PSI,
         })
@@ -154,6 +161,10 @@ impl PsiDriftConfig {
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__json__(self)
+    }
+
+    pub fn update_feature_map(&mut self, feature_map: FeatureMap) {
+        self.feature_map = feature_map;
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -428,7 +439,8 @@ mod tests {
 
     #[test]
     fn test_drift_config() {
-        let mut drift_config = PsiDriftConfig::new(None, None, None, None, None, None).unwrap();
+        let mut drift_config =
+            PsiDriftConfig::new(None, None, None, None, None, None, None).unwrap();
         assert_eq!(drift_config.name, "__missing__");
         assert_eq!(drift_config.repository, "__missing__");
         assert_eq!(drift_config.version, "0.1.0");

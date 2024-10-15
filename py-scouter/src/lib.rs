@@ -5,12 +5,11 @@ use scouter::core::cron::{
     CommonCron, Every12Hours, Every30Minutes, Every6Hours, EveryDay, EveryHour, EveryWeek,
 };
 use scouter::core::dispatch::types::AlertDispatchType;
-use scouter::core::drift::base::DriftType;
-use scouter::core::drift::base::{RecordType, ServerRecord, ServerRecords};
+use scouter::core::drift::base::{RecordType, ServerRecord, ServerRecords, DriftType, FeatureMap};
 use scouter::core::drift::psi::types::{PsiAlertConfig, PsiDriftConfig, Bin, PsiFeatureDriftProfile, PsiDriftProfile, PsiDriftMap};
 use scouter::core::drift::spc::feature_queue::SpcFeatureQueue;
 use scouter::core::drift::spc::types::{
-    AlertZone, FeatureMap, SpcAlert, SpcAlertConfig, SpcAlertRule, SpcAlertType, SpcDriftConfig,
+    AlertZone, SpcAlert, SpcAlertConfig, SpcAlertRule, SpcAlertType, SpcDriftConfig,
     SpcDriftMap, SpcDriftProfile, SpcFeatureAlert, SpcFeatureAlerts, SpcFeatureDrift,
     SpcFeatureDriftProfile, SpcServerRecord,
 };

@@ -1,9 +1,9 @@
-use numpy::{IntoPyArray, PyArray1, PyArray2};
+use numpy::{PyArray2};
 use numpy::PyReadonlyArray2;
 use numpy::ToPyArray;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use scouter::core::drift::base::ServerRecords;
+use scouter::core::drift::base::{CategoricalFeatureHelpers, ServerRecords};
 use scouter::core::drift::spc::alert::generate_alerts;
 use scouter::core::drift::spc::monitor::SpcMonitor;
 use scouter::core::drift::spc::types::{
@@ -14,8 +14,8 @@ use scouter::core::profile::num_profiler::NumProfiler;
 use scouter::core::profile::string_profiler::StringProfiler;
 use scouter::core::profile::types::{DataProfile, FeatureProfile};
 use std::collections::BTreeMap;
-use numpy::ndarray::{Array1, Array2};
 use scouter::core::drift::psi::monitor::PsiMonitor;
+use scouter::core::drift::psi::types::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile};
 
 fn create_string_profile(
     string_array: Vec<Vec<String>>,
@@ -187,7 +187,7 @@ impl SpcDrifter {
                 .config
                 .feature_map
                 .ok_or(ScouterError::MissingFeatureMapError)
-                .unwrap(),
+                .unwrap()
         ) {
             Ok(array) => array,
             Err(_e) => {
@@ -254,9 +254,6 @@ impl SpcDrifter {
                 }
             };
 
-        for i in &array{
-            println!("{i:?}");
-        }
 
         let profile =
             match self
@@ -420,33 +417,179 @@ impl PsiDrifter {
     #[new]
     pub fn new() -> Self {
         Self {
-            monitor: PsiMonitor::new(),
+            monitor: PsiMonitor::default(),
         }
     }
-    pub fn return_dummy_data<'py>(
+    pub fn create_string_drift_profile(
+        &mut self,
+        array: Vec<Vec<String>>,
+        features: Vec<String>,
+        mut drift_config: PsiDriftConfig,
+    ) -> PyResult<PsiDriftProfile> {
+        let feature_map = match self.monitor.create_feature_map(&features, &array) {
+            Ok(feature_map) => feature_map,
+            Err(_e) => {
+                let msg = format!("Failed to create feature map: {}", _e);
+                return Err(PyValueError::new_err(msg));
+            }
+        };
+
+        drift_config.update_feature_map(feature_map.clone());
+
+        let array =
+            match self
+                .monitor.convert_strings_to_ndarray_f32(&features, &array, &feature_map)
+            {
+                Ok(array) => array,
+                Err(_e) => {
+                    return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
+                }
+            };
+
+
+        let profile =
+            match self
+                .monitor
+                .create_2d_drift_profile(&features, &array.view(), &drift_config)
+            {
+                Ok(profile) => profile,
+                Err(_e) => {
+                    return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
+                }
+            };
+
+        Ok(profile)
+    }
+
+    pub fn create_numeric_drift_profile_f32(
+        &mut self,
+        array: PyReadonlyArray2<f32>,
+        features: Vec<String>,
+        drift_config: PsiDriftConfig,
+    ) -> PyResult<PsiDriftProfile> {
+        let array = array.as_array();
+
+        let profile = match self
+            .monitor
+            .create_2d_drift_profile(&features, &array, &drift_config)
+        {
+            Ok(profile) => profile,
+            Err(_e) => {
+                return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
+            }
+        };
+
+        Ok(profile)
+    }
+
+    pub fn create_numeric_drift_profile_f64(
+        &mut self,
+        array: PyReadonlyArray2<f64>,
+        features: Vec<String>,
+        drift_config: PsiDriftConfig,
+    ) -> PyResult<PsiDriftProfile> {
+        let array = array.as_array();
+
+        let profile = match self
+            .monitor
+            .create_2d_drift_profile(&features, &array, &drift_config)
+        {
+            Ok(profile) => profile,
+            Err(_e) => {
+                return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
+            }
+        };
+
+        Ok(profile)
+    }
+
+    pub fn convert_strings_to_numpy_f32<'py>(
         &mut self,
         py: Python<'py>,
-        feature_names: Vec<String>,
-        features_array: Vec<Vec<String>>,
-    ) -> PyResult<(Vec<String>, Bound<'py, PyArray2<f32>>)> {
+        features: Vec<String>,
+        array: Vec<Vec<String>>,
+        drift_profile: PsiDriftProfile,
+    ) -> PyResult<Bound<'py, PyArray2<f32>>> {
+        let array = match self.monitor.convert_strings_to_ndarray_f32(
+            &features,
+            &array,
+            &drift_profile
+                .config
+                .feature_map
+        ) {
+            Ok(array) => array,
+            Err(_e) => {
+                return Err(PyValueError::new_err(
+                    "Failed to convert strings to ndarray",
+                ));
+            }
+        };
 
-        // Create a simple Vec<String> for dummy string data
-        let dummy_strings = vec![
-            "feature1".to_string(),
-            "feature2".to_string(),
-            "feature3".to_string(),
-        ];
+        Ok(array.to_pyarray_bound(py))
+    }
 
-        // Create dummy 2D array of floats with 100 rows and 3 columns
-        let dummy_numeric: Array2<f32> = Array2::from_shape_vec(
-            (100, 3),  // 100 rows, 3 columns
-            (1..=300).map(|x| x as f32).collect(), // Fill with values from 1.0 to 300.0
-        ).unwrap();
+    pub fn convert_strings_to_numpy_f64<'py>(
+        &mut self,
+        py: Python<'py>,
+        features: Vec<String>,
+        array: Vec<Vec<String>>,
+        drift_profile: PsiDriftProfile,
+    ) -> PyResult<Bound<'py, PyArray2<f64>>> {
+        let array = match self.monitor.convert_strings_to_ndarray_f64(
+            &features,
+            &array,
+            &drift_profile
+                .config
+                .feature_map
+        ) {
+            Ok(array) => array,
+            Err(_e) => {
+                return Err(PyValueError::new_err(
+                    "Failed to convert strings to ndarray",
+                ));
+            }
+        };
 
-        // Convert the numeric array to a NumPy array bound to Python
-        let py_numeric_array = dummy_numeric.to_pyarray_bound(py);
+        Ok(array.to_pyarray_bound(py))
+    }
 
-        // Return both the list of strings and the NumPy array
-        Ok((dummy_strings, py_numeric_array))
+    pub fn compute_drift_f32(
+        &mut self,
+        array: PyReadonlyArray2<f32>,
+        features: Vec<String>,
+        drift_profile: PsiDriftProfile,
+    ) -> PyResult<PsiDriftMap> {
+        let drift_map =
+            match self
+                .monitor
+                .compute_model_drift(&features, &array.as_array(), &drift_profile)
+            {
+                Ok(drift_map) => drift_map,
+                Err(_e) => {
+                    return Err(PyValueError::new_err("Failed to compute drift"));
+                }
+            };
+
+        Ok(drift_map)
+    }
+
+    pub fn compute_drift_f64(
+        &mut self,
+        array: PyReadonlyArray2<f64>,
+        features: Vec<String>,
+        drift_profile: PsiDriftProfile,
+    ) -> PyResult<PsiDriftMap> {
+        let drift_map =
+            match self
+                .monitor
+                .compute_model_drift(&features, &array.as_array(), &drift_profile)
+            {
+                Ok(drift_map) => drift_map,
+                Err(_e) => {
+                    return Err(PyValueError::new_err("Failed to compute drift"));
+                }
+            };
+
+        Ok(drift_map)
     }
 }

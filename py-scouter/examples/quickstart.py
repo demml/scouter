@@ -1,7 +1,7 @@
 from scouter import (
     Drifter,
     SpcDriftConfig,
-    DriftType,
+    DriftType, PsiDriftConfig, PsiDriftMap,
 )
 from utils import generate_data
 
@@ -11,24 +11,23 @@ if __name__ == "__main__":
     data = generate_data()
 
     # create drift config (usually associated with a model name, repository name, version)
-    config = SpcDriftConfig(
+    config = PsiDriftConfig(
         name="model",
         repository="scouter",
         version="0.1.0"
     )
 
     # create drifter
-    drifter = Drifter(DriftType.SPC)
-    breakpoint()
+    drifter = Drifter(DriftType.PSI)
     # create drift profile
     profile = drifter.create_drift_profile(data, config)
 
     # print drift profile
-    print(profile)
-
+    data['col_9'] = data['col_9']*100
+    data['col_1'] = data['col_9']**2
     # compute drift
-    # drift_map: DriftMap = drifter.compute_drift(data, profile)
-    #
+    drift_map: PsiDriftMap = drifter.compute_drift(data, profile)
+
     # drift_array, sample_array, features = drift_map.to_numpy()
     #
     # print(drift_array, features)

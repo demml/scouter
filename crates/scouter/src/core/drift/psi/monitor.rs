@@ -1,3 +1,4 @@
+use crate::core::drift::base::CategoricalFeatureHelpers;
 use crate::core::drift::psi::types::{
     Bin, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
 };
@@ -9,13 +10,12 @@ use num_traits::{Float, FromPrimitive};
 use rayon::prelude::*;
 use std::collections::HashMap;
 
+#[derive(Default)]
 pub struct PsiMonitor {}
 
-impl PsiMonitor {
-    pub fn new() -> Self {
-        PsiMonitor {}
-    }
+impl CategoricalFeatureHelpers for PsiMonitor {}
 
+impl PsiMonitor {
     fn compute_1d_array_mean<F>(&self, array: &ArrayView<F, Ix1>) -> Result<f64, MonitorError>
     where
         F: Float + FromPrimitive,
@@ -82,57 +82,114 @@ impl PsiMonitor {
         Ok(deciles)
     }
 
-    fn create_bins<F>(&self, column_vector: &ArrayView<F, Ix1>) -> Result<Vec<Bin>, MonitorError>
+    fn create_categorical_bins<F>(
+        &self,
+        column_vector: &ArrayView<F, Ix1>,
+        categorical_feature_map: &HashMap<String, usize>,
+    ) -> Vec<Bin>
     where
         F: Float + FromPrimitive + Default + Sync,
         F: Into<f64>,
     {
+        categorical_feature_map
+            .into_par_iter()
+            .map(|(key, numeric_key)| {
+                let count = column_vector
+                    .iter()
+                    .filter(|&&value| value.into() == *numeric_key as f64)
+                    .count();
+
+                Bin {
+                    id: key.to_string(),
+                    lower_limit: None,
+                    upper_limit: None,
+                    proportion: (count as f64) / (column_vector.len() as f64),
+                }
+            })
+            .collect()
+    }
+
+    fn create_binary_bins<F>(
+        &self,
+        column_vector: &ArrayView<F, Ix1>,
+    ) -> Result<Vec<Bin>, MonitorError>
+    where
+        F: Float + FromPrimitive + Default + Sync,
+        F: Into<f64>,
+    {
+        let column_vector_mean = self.compute_1d_array_mean(column_vector)?;
+
+        Ok(vec![
+            Bin {
+                id: 0.to_string(),
+                lower_limit: None,
+                upper_limit: None,
+                proportion: 1.0 - column_vector_mean,
+            },
+            Bin {
+                id: 1.to_string(),
+                lower_limit: None,
+                upper_limit: None,
+                proportion: column_vector_mean,
+            },
+        ])
+    }
+
+    fn create_numeric_bins<F>(
+        &self,
+        column_vector: &ArrayView<F, Ix1>,
+    ) -> Result<Vec<Bin>, MonitorError>
+    where
+        F: Float + FromPrimitive + Default + Sync,
+        F: Into<f64>,
+    {
+        let deciles = self.compute_deciles(column_vector).map_err(|err| {
+            MonitorError::ComputeError(format!("Failed to compute deciles: {}", err))
+        })?;
+
+        let bins: Vec<Bin> = (0..=deciles.len())
+            .into_par_iter()
+            .map(|decile| {
+                let lower = if decile == 0 {
+                    F::neg_infinity()
+                } else {
+                    deciles[decile - 1]
+                };
+                let upper = if decile == deciles.len() {
+                    F::infinity()
+                } else {
+                    deciles[decile]
+                };
+                let bin_count = self.compute_bin_count(column_vector, &lower.into(), &upper.into());
+                Bin {
+                    id: format!("decile_{}", decile + 1),
+                    lower_limit: Some(lower.into()),
+                    upper_limit: Some(upper.into()),
+                    proportion: (bin_count as f64) / (column_vector.len() as f64),
+                }
+            })
+            .collect();
+        Ok(bins)
+    }
+
+    fn create_bins<F>(
+        &self,
+        feature_name: &String,
+        column_vector: &ArrayView<F, Ix1>,
+        drift_config: &PsiDriftConfig,
+    ) -> Result<Vec<Bin>, MonitorError>
+    where
+        F: Float + FromPrimitive + Default + Sync,
+        F: Into<f64>,
+    {
+        if let Some(categorical_feature_map) = drift_config.feature_map.features.get(feature_name) {
+            return Ok(self.create_categorical_bins(column_vector, categorical_feature_map));
+        }
+
         if self.data_are_binary(column_vector) {
-            let column_vector_mean = self.compute_1d_array_mean(column_vector)?;
-
-            Ok(vec![
-                Bin {
-                    id: 0.to_string(),
-                    lower_limit: None,
-                    upper_limit: None,
-                    proportion: 1.0 - column_vector_mean,
-                },
-                Bin {
-                    id: 1.to_string(),
-                    lower_limit: None,
-                    upper_limit: None,
-                    proportion: column_vector_mean,
-                },
-            ])
+            self.create_binary_bins(column_vector)
         } else {
-            let deciles = self.compute_deciles(column_vector).map_err(|err| {
-                MonitorError::ComputeError(format!("Failed to compute deciles: {}", err))
-            })?;
-
-            let bins: Vec<Bin> = (0..=deciles.len())
-                .into_par_iter()
-                .map(|decile| {
-                    let lower = if decile == 0 {
-                        F::neg_infinity()
-                    } else {
-                        deciles[decile - 1]
-                    };
-                    let upper = if decile == deciles.len() {
-                        F::infinity()
-                    } else {
-                        deciles[decile]
-                    };
-                    let bin_count =
-                        self.compute_bin_count(column_vector, &lower.into(), &upper.into());
-                    Bin {
-                        id: format!("decile_{}", decile + 1),
-                        lower_limit: Some(lower.into()),
-                        upper_limit: Some(upper.into()),
-                        proportion: (bin_count as f64) / (column_vector.len() as f64),
-                    }
-                })
-                .collect();
-            Ok(bins)
+            self.create_numeric_bins(column_vector)
         }
     }
 
@@ -140,13 +197,14 @@ impl PsiMonitor {
         &self,
         feature_name: String,
         column_vector: &ArrayView<F, Ix1>,
+        drift_config: &PsiDriftConfig,
     ) -> Result<PsiFeatureDriftProfile, MonitorError>
     where
         F: Float + Sync + FromPrimitive + Default,
         F: Into<f64>,
     {
         let bins = self
-            .create_bins(column_vector)
+            .create_bins(&feature_name, column_vector, drift_config)
             .map_err(|err| MonitorError::CreateError(format!("Failed to create bins: {}", err)))?;
 
         Ok(PsiFeatureDriftProfile {
@@ -181,7 +239,11 @@ impl PsiMonitor {
             .collect_vec()
             .into_par_iter()
             .map(|(column_vector, feature_name)| {
-                self.create_psi_feature_drift_profile(feature_name.to_string(), &column_vector)
+                self.create_psi_feature_drift_profile(
+                    feature_name.to_string(),
+                    &column_vector,
+                    drift_config,
+                )
             })
             .collect::<Result<Vec<_>, _>>()?;
 
@@ -203,11 +265,24 @@ impl PsiMonitor {
         &self,
         column_vector: &ArrayView<F, Ix1>,
         bin: &Bin,
+        categorical_feature_map: Option<&HashMap<String, usize>>,
     ) -> Result<(f64, f64), MonitorError>
     where
         F: Float + FromPrimitive,
         F: Into<f64>,
     {
+        if let Some(category_map) = categorical_feature_map {
+            let cat_int = category_map.get(&bin.id).unwrap();
+            let bin_count = column_vector
+                .iter()
+                .filter(|&&value| value.into() == *cat_int as f64)
+                .count();
+            return Ok((
+                bin.proportion,
+                (bin_count as f64) / (column_vector.len() as f64),
+            ));
+        }
+
         if self.data_are_binary(column_vector) {
             let column_vector_mean = self.compute_1d_array_mean(column_vector)?;
             if bin.id == 1.to_string() {
@@ -215,8 +290,11 @@ impl PsiMonitor {
             }
             return Ok((bin.proportion, column_vector_mean));
         }
-        let bin_count =
-            self.compute_bin_count(column_vector, &bin.lower_limit.unwrap(), &bin.upper_limit.unwrap());
+        let bin_count = self.compute_bin_count(
+            column_vector,
+            &bin.lower_limit.unwrap(),
+            &bin.upper_limit.unwrap(),
+        );
 
         Ok((
             bin.proportion,
@@ -224,7 +302,7 @@ impl PsiMonitor {
         ))
     }
 
-    fn compute_psi(&self, proportion_pairs: &Vec<(f64, f64)>) -> f64 {
+    fn compute_psi(&self, proportion_pairs: &[(f64, f64)]) -> f64 {
         let epsilon = 1e-10;
         proportion_pairs
             .iter()
@@ -240,6 +318,7 @@ impl PsiMonitor {
         &self,
         column_vector: &ArrayView<F, Ix1>,
         features: &PsiFeatureDriftProfile,
+        category_map: Option<&HashMap<String, usize>>,
     ) -> Result<f64, MonitorError>
     where
         F: Float + Sync + FromPrimitive,
@@ -248,7 +327,7 @@ impl PsiMonitor {
         let bins = &features.bins;
         let feature_proportions: Vec<(f64, f64)> = bins
             .into_par_iter()
-            .map(|bin| self.compute_psi_proportion_pairs(column_vector, bin))
+            .map(|bin| self.compute_psi_proportion_pairs(column_vector, bin, category_map))
             .collect::<Result<Vec<(f64, f64)>, MonitorError>>()?;
         Ok(self.compute_psi(&feature_proportions))
     }
@@ -312,7 +391,8 @@ impl PsiMonitor {
             .map(|(column_vector, feature_name)| {
                 self.compute_feature_drift(
                     &column_vector,
-                    &drift_profile.features.get(feature_name).unwrap(),
+                    drift_profile.features.get(feature_name).unwrap(),
+                    drift_profile.config.feature_map.features.get(feature_name),
                 )
             })
             .collect::<Result<Vec<f64>, MonitorError>>()?;
@@ -337,14 +417,13 @@ impl PsiMonitor {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::drift::psi::types::PsiAlertConfig;
     use ndarray::Array;
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
 
     #[test]
     fn test_check_features_all_exist() {
-        let psi_monitor = PsiMonitor::new();
+        let psi_monitor = PsiMonitor::default();
 
         let array = Array::random((1030, 3), Uniform::new(0., 10.));
 
@@ -356,6 +435,7 @@ mod tests {
         let config = PsiDriftConfig::new(
             Some("name".to_string()),
             Some("repo".to_string()),
+            None,
             None,
             None,
             None,
@@ -375,7 +455,7 @@ mod tests {
 
     #[test]
     fn test_compute_psi_basic() {
-        let psi_monitor = PsiMonitor::new();
+        let psi_monitor = PsiMonitor::default();
         let proportions = vec![(0.3, 0.2), (0.4, 0.4), (0.3, 0.4)];
 
         let result = psi_monitor.compute_psi(&proportions);
@@ -390,7 +470,7 @@ mod tests {
 
     #[test]
     fn test_compute_bin_count() {
-        let psi_monitor = PsiMonitor::new();
+        let psi_monitor = PsiMonitor::default();
 
         let data = Array1::from_vec(vec![1.0, 2.5, 3.7, 5.0, 6.3, 8.1]);
 
@@ -407,7 +487,7 @@ mod tests {
 
     #[test]
     fn test_compute_psi_proportion_pairs_binary() {
-        let psi_monitor = PsiMonitor::new();
+        let psi_monitor = PsiMonitor::default();
 
         let binary_vector = Array::from_vec(vec![0.0, 1.0, 0.0, 1.0, 0.0, 1.0]);
 
@@ -419,7 +499,7 @@ mod tests {
         };
 
         let (_, prod_proportion) = psi_monitor
-            .compute_psi_proportion_pairs(&binary_vector.view(), &binary_zero_bin)
+            .compute_psi_proportion_pairs(&binary_vector.view(), &binary_zero_bin, None)
             .unwrap();
 
         let expected_prod_proportion = 0.5;
@@ -432,7 +512,7 @@ mod tests {
 
     #[test]
     fn test_compute_psi_proportion_pairs_non_binary() {
-        let psi_monitor = PsiMonitor::new();
+        let psi_monitor = PsiMonitor::default();
 
         let vector = Array::from_vec(vec![
             12.0, 11.0, 10.0, 1.0, 10.0, 21.0, 19.0, 12.0, 12.0, 23.0,
@@ -446,7 +526,7 @@ mod tests {
         };
 
         let (_, prod_proportion) = psi_monitor
-            .compute_psi_proportion_pairs(&vector.view(), &bin)
+            .compute_psi_proportion_pairs(&vector.view(), &bin, None)
             .unwrap();
 
         let expected_prod_proportion = 0.4;
@@ -459,7 +539,7 @@ mod tests {
 
     #[test]
     fn test_data_are_binary_with_binary_vector() {
-        let psi_monitor = PsiMonitor::new();
+        let psi_monitor = PsiMonitor::default();
 
         let binary_vector = Array::from_vec(vec![0.0, 1.0, 1.0, 0.0, 0.0]);
 
@@ -470,7 +550,7 @@ mod tests {
 
     #[test]
     fn test_data_are_binary_with_non_binary_vector() {
-        let psi_monitor = PsiMonitor::new();
+        let psi_monitor = PsiMonitor::default();
 
         let non_binary_vector = Array::from_vec(vec![0.0, 2.0, 1.0, 3.0, 0.0]);
         let column_view = non_binary_vector.view();
@@ -482,7 +562,7 @@ mod tests {
 
     #[test]
     fn test_compute_deciles_with_unsorted_input() {
-        let psi_monitor = PsiMonitor::new();
+        let psi_monitor = PsiMonitor::default();
 
         let unsorted_vector = Array::from_vec(vec![
             120.0, 1.0, 33.0, 71.0, 15.0, 59.0, 8.0, 62.0, 4.0, 21.0, 10.0, 2.0, 344.0, 437.0,
@@ -503,11 +583,11 @@ mod tests {
 
     #[test]
     fn test_create_bins_binary() {
-        let psi_monitor = PsiMonitor::new();
+        let psi_monitor = PsiMonitor::default();
 
         let binary_data = Array::from_vec(vec![0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0]);
 
-        let result = psi_monitor.create_bins(&ArrayView::from(&binary_data)); // Replace `your_struct_instance` with the actual instance
+        let result = psi_monitor.create_binary_bins(&ArrayView::from(&binary_data)); // Replace `your_struct_instance` with the actual instance
 
         assert!(result.is_ok());
         let bins = result.unwrap();
@@ -516,18 +596,39 @@ mod tests {
 
     #[test]
     fn test_create_bins_non_binary() {
-        let psi_monitor = PsiMonitor::new();
+        let psi_monitor = PsiMonitor::default();
 
         let non_binary_data = Array::from_vec(vec![
             120.0, 1.0, 33.0, 71.0, 15.0, 59.0, 8.0, 62.0, 4.0, 21.0, 10.0, 2.0, 344.0, 437.0,
             53.0, 39.0, 83.0, 6.0, 4.30, 2.0,
         ]);
 
-        let result = psi_monitor.create_bins(&ArrayView::from(&non_binary_data));
+        let result = psi_monitor.create_numeric_bins(&ArrayView::from(&non_binary_data));
 
         assert!(result.is_ok());
         let bins = result.unwrap();
         assert_eq!(bins.len(), 10);
+    }
+
+    #[test]
+    fn test_create_bins_categorical() {
+        let psi_monitor = PsiMonitor::default();
+
+        let categorical_data = Array::from_vec(vec![
+            1.0, 1.0, 2.0, 3.0, 2.0, 3.0, 2.0, 1.0, 2.0, 1.0, 1.0, 2.0, 3.0, 3.0, 2.0, 3.0, 1.0,
+            1.0,
+        ]);
+
+        let mut categorical_feature_map = HashMap::new();
+        categorical_feature_map.insert("cat1".to_string(), 1);
+        categorical_feature_map.insert("cat2".to_string(), 2);
+        categorical_feature_map.insert("cat3".to_string(), 3);
+
+        let bins = psi_monitor.create_categorical_bins(
+            &ArrayView::from(&categorical_data),
+            &categorical_feature_map,
+        );
+        assert_eq!(bins.len(), 3);
     }
 
     #[test]
@@ -544,11 +645,11 @@ mod tests {
             "feature_3".to_string(),
         ];
 
-        let alert_config = PsiAlertConfig::default();
-        let monitor = PsiMonitor::new();
+        let monitor = PsiMonitor::default();
         let config = PsiDriftConfig::new(
             Some("name".to_string()),
             Some("repo".to_string()),
+            None,
             None,
             None,
             None,
