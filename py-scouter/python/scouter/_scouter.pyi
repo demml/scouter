@@ -11,6 +11,8 @@ class DriftType(Enum):
     SPC: Literal["SPC"]
     PSI: Literal["PSI"]
 
+    @property
+    def value(self) -> str: ...
     @staticmethod
     def from_value(value: str) -> "DriftType": ...
 
