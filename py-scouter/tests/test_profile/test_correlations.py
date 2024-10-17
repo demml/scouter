@@ -14,5 +14,6 @@ def test_data_profile_f64(polars_dataframe_multi_dtype_drift: pl.DataFrame):
     profile: DataProfile = scouter.create_data_profile(
         polars_dataframe_multi_dtype_drift, compute_correlations=True
     )
-    print(profile)
+    assert profile.correlations is not None
+    print(profile.correlations.keys().sort())
     a

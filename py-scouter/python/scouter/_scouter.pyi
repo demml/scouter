@@ -797,6 +797,10 @@ class DataProfile:
     def features(self) -> Dict[str, FeatureProfile]:
         """Returns dictionary of features and their data profiles"""
 
+    @property
+    def correlations(self) -> Optional[Dict[str, Dict[str, float]]]:
+        """Returns dictionary of features and their correlations"""
+
     def __str__(self) -> str:
         """Return string representation of the data profile"""
 
