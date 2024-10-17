@@ -107,6 +107,9 @@ impl FeatureProfile {
 pub struct DataProfile {
     #[pyo3(get)]
     pub features: BTreeMap<String, FeatureProfile>,
+
+    #[pyo3(get)]
+    pub correlations: Option<HashMap<String, HashMap<String, f64>>>,
 }
 
 #[pymethods]

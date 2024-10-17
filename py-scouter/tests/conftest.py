@@ -62,7 +62,7 @@ def cleanup() -> None:
 
 @pytest.fixture(scope="function")
 def array() -> YieldFixture[NDArray]:
-    array = np.random.rand(1000, 3)
+    array = np.random.rand(1_000_000, 30)
     # add 1 to first column
     array[:, 0] += 1
     # add 2 to second column

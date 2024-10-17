@@ -304,7 +304,8 @@ impl NumProfiler {
             + Send
             + Num
             + Clone
-            + std::fmt::Debug,
+            + std::fmt::Debug
+            + 'static,
         F: Into<f64>,
         <F as MaybeNan>::NotNan: Ord,
         f64: From<F>,

@@ -13,6 +13,7 @@ use scouter::core::error::ScouterError;
 use scouter::core::profile::num_profiler::NumProfiler;
 use scouter::core::profile::string_profiler::StringProfiler;
 use scouter::core::profile::types::{DataProfile, FeatureProfile};
+use scouter::core::stats::compute_feature_correlations;
 use std::collections::BTreeMap;
 
 fn create_string_profile(
@@ -44,6 +45,7 @@ impl ScouterProfiler {
 
     pub fn create_data_profile_f32(
         &mut self,
+        compute_correlations: bool,
         numeric_array: Option<PyReadonlyArray2<f32>>,
         string_array: Option<Vec<Vec<String>>>,
         numeric_features: Option<Vec<String>>,
@@ -51,6 +53,7 @@ impl ScouterProfiler {
         bin_size: Option<usize>,
     ) -> PyResult<DataProfile> {
         let mut profiles = vec![];
+        let mut correlations = None;
 
         // process string features
         if string_features.is_some() && string_array.is_some() {
@@ -73,10 +76,11 @@ impl ScouterProfiler {
 
         // process numeric features
         if numeric_features.is_some() && numeric_array.is_some() {
+            let numeric_array = numeric_array.unwrap();
             let numeric_features = numeric_features.unwrap();
             let num_profiles = match self.num_profiler.compute_stats(
                 &numeric_features,
-                &numeric_array.unwrap().as_array(),
+                &numeric_array.as_array(),
                 &bin_size.unwrap_or(20),
             ) {
                 Ok(profile) => profile,
@@ -88,18 +92,34 @@ impl ScouterProfiler {
             };
 
             profiles.extend(num_profiles);
+
+            correlations = if compute_correlations {
+                let array = numeric_array.as_array();
+                let feature_names = numeric_features.clone();
+                let feature_correlations = compute_feature_correlations(&array, &feature_names);
+
+                // convert all values to f64
+
+                Some(feature_correlations)
+            } else {
+                None
+            };
         }
 
-        let mut features = BTreeMap::new();
-        for profile in &profiles {
-            features.insert(profile.id.clone(), profile.clone());
-        }
+        let features: BTreeMap<String, FeatureProfile> = profiles
+            .iter()
+            .map(|profile| (profile.id.clone(), profile.clone()))
+            .collect();
 
-        Ok(DataProfile { features })
+        Ok(DataProfile {
+            features,
+            correlations,
+        })
     }
 
     pub fn create_data_profile_f64(
         &mut self,
+        compute_correlations: bool,
         numeric_array: Option<PyReadonlyArray2<f64>>,
         string_array: Option<Vec<Vec<String>>>,
         numeric_features: Option<Vec<String>>,
@@ -107,6 +127,7 @@ impl ScouterProfiler {
         bin_size: Option<usize>,
     ) -> PyResult<DataProfile> {
         let mut profiles = vec![];
+        let mut correlations = None;
 
         // process string features
         if string_features.is_some() && string_array.is_some() {
@@ -129,10 +150,11 @@ impl ScouterProfiler {
 
         // process numeric features
         if numeric_features.is_some() && numeric_array.is_some() {
+            let numeric_array = numeric_array.unwrap();
             let numeric_features = numeric_features.unwrap();
             let num_profiles = match self.num_profiler.compute_stats(
                 &numeric_features,
-                &numeric_array.unwrap().as_array(),
+                &numeric_array.as_array(),
                 &bin_size.unwrap_or(20),
             ) {
                 Ok(profile) => profile,
@@ -144,14 +166,27 @@ impl ScouterProfiler {
             };
 
             profiles.extend(num_profiles);
+
+            correlations = if compute_correlations {
+                let array = numeric_array.as_array();
+                let feature_names = numeric_features.clone();
+                let feature_correlations = compute_feature_correlations(&array, &feature_names);
+
+                Some(feature_correlations)
+            } else {
+                None
+            };
         }
 
-        let mut features = BTreeMap::new();
-        for profile in &profiles {
-            features.insert(profile.id.clone(), profile.clone());
-        }
+        let features: BTreeMap<String, FeatureProfile> = profiles
+            .iter()
+            .map(|profile| (profile.id.clone(), profile.clone()))
+            .collect();
 
-        Ok(DataProfile { features })
+        Ok(DataProfile {
+            features,
+            correlations,
+        })
     }
 }
 

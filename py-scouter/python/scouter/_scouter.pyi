@@ -914,6 +914,7 @@ class ScouterProfiler:
 
     def create_data_profile_f32(
         self,
+        compute_correlations: bool,
         numeric_array: NDArray,
         string_array: List[List[str]],
         numeric_features: List[str],
@@ -923,6 +924,8 @@ class ScouterProfiler:
         """Create a data profile from a f32 numpy array.
 
         Args:
+            compute_correlations:
+                Whether to compute correlations or not.
             numeric_array:
                 Numpy array to profile.
             string_array:
@@ -940,6 +943,7 @@ class ScouterProfiler:
 
     def create_data_profile_f64(
         self,
+        compute_correlations: bool,
         numeric_array: NDArray,
         string_array: List[List[str]],
         numeric_features: List[str],
@@ -949,6 +953,8 @@ class ScouterProfiler:
         """Create a data profile from a f32 numpy array.
 
         Args:
+            compute_correlations:
+                Whether to compute correlations or not.
             numeric_array:
                 Numpy array to profile.
             string_array:
