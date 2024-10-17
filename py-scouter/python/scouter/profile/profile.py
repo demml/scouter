@@ -58,9 +58,7 @@ class Profiler:
                 bin_size=bin_size,
             )
 
-            assert isinstance(
-                profile, DataProfile
-            ), f"Expected DataProfile, got {type(profile)}"
+            assert isinstance(profile, DataProfile), f"Expected DataProfile, got {type(profile)}"
             return profile
 
         except Exception as exc:  # type: ignore
