@@ -404,14 +404,14 @@ impl NumProfiler {
         <F as MaybeNan>::NotNan: Clone,
     {
         let profiles = self
-            .compute_stats(&numeric_features, &numeric_array, &bin_size.unwrap_or(20))
+            .compute_stats(&numeric_features, numeric_array, &bin_size.unwrap_or(20))
             .map_err(|e| {
                 ProfilerError::ComputeError(format!("Failed to create feature data profile: {}", e))
             })?;
 
         let correlations = if compute_correlations {
             let feature_names = numeric_features.clone();
-            let feature_correlations = compute_feature_correlations(&numeric_array, &feature_names);
+            let feature_correlations = compute_feature_correlations(numeric_array, &feature_names);
 
             // convert all values to f64
 

@@ -682,7 +682,7 @@ mod tests {
         let value = profile.to_value();
 
         // test DriftProfile
-        let profile = DriftProfile::from_value(value, &DriftType::SPC.value()).unwrap();
+        let profile = DriftProfile::from_value(value, DriftType::SPC.value()).unwrap();
         let new_args = profile.get_base_args();
 
         assert_eq!(new_args, args);
