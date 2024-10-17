@@ -81,3 +81,6 @@ def test_drift_type():
 
     assert DriftType.from_value("SPC") == DriftType.SPC
     assert DriftType.from_value("PSI") == DriftType.PSI
+
+    assert DriftType.SPC.value == "SPC"
+    assert DriftType.PSI.value == "PSI"

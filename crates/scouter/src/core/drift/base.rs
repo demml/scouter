@@ -24,6 +24,14 @@ impl DriftType {
             _ => None,
         }
     }
+
+    #[getter]
+    pub fn value(&self) -> &str {
+        match self {
+            DriftType::SPC => "SPC",
+            DriftType::PSI => "PSI",
+        }
+    }
 }
 
 impl FromStr for DriftType {
@@ -34,15 +42,6 @@ impl FromStr for DriftType {
             "SPC" => Ok(DriftType::SPC),
             "PSI" => Ok(DriftType::PSI),
             _ => Err(ScouterError::InvalidDriftTypeError(value.to_string())),
-        }
-    }
-}
-
-impl DriftType {
-    pub fn value(&self) -> &str {
-        match self {
-            DriftType::SPC => "SPC",
-            DriftType::PSI => "PSI",
         }
     }
 }

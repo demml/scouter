@@ -55,8 +55,6 @@ impl ScouterProfiler {
         f64: From<F>,
         <F as MaybeNan>::NotNan: Clone,
     {
-        // run  StringProfiler in separate thread
-
         let string_profiles = self
             .string_profiler
             .create_string_profile(&string_array, &string_features)
