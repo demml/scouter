@@ -68,7 +68,7 @@ impl StringProfiler {
         })?;
 
         // zip and map string_array and string_features
-        let num_array = string_array
+        let arrays = string_array
             .par_iter()
             .enumerate()
             .map(|(i, col)| {
@@ -79,14 +79,13 @@ impl StringProfiler {
                     .iter()
                     .map(|x| *map.get(x).unwrap_or(map.get("missing").unwrap()) as f32)
                     .collect::<Vec<_>>();
-                col
+                Array2::from_shape_vec((col.len(), 1), col).unwrap()
             })
             .collect::<Vec<_>>();
 
-        // convert to 2D array
-        let num_array = Array2::from_shape_vec(
-            (string_features.len(), string_array[0].len()),
-            num_array.concat(),
+        let num_array = ndarray::concatenate(
+            ndarray::Axis(1),
+            &arrays.iter().map(|a| a.view()).collect::<Vec<_>>(),
         )
         .map_err(|e| ProfilerError::ArrayError(e.to_string()))?;
 

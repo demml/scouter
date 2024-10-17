@@ -61,8 +61,13 @@ def cleanup() -> None:
 
 
 @pytest.fixture(scope="function")
-def array() -> YieldFixture[NDArray]:
-    array = np.random.rand(10000, 30)
+def nrow() -> int:
+    return 1000
+
+
+@pytest.fixture(scope="function")
+def array(nrow: int) -> YieldFixture[NDArray]:
+    array = np.random.rand(nrow, 3)
     # add 1 to first column
     array[:, 0] += 1
     # add 2 to second column
@@ -141,13 +146,13 @@ def polars_dataframe(array: NDArray) -> YieldFixture:
 
 
 @pytest.fixture(scope="function")
-def polars_dataframe_multi_dtype(array: NDArray) -> YieldFixture:
+def polars_dataframe_multi_dtype(array: NDArray, nrow: int) -> YieldFixture:
     import polars as pl
 
     # add column of ints between 1 and 3
-    ints = np.random.randint(1, 4, 1000).reshape(-1, 1)
+    ints = np.random.randint(1, 4, nrow).reshape(-1, 1)
 
-    ints2 = np.random.randint(5, 10, 1000).reshape(-1, 1)
+    ints2 = np.random.randint(5, 10, nrow).reshape(-1, 1)
 
     # add to array
     array = np.concatenate([ints2, array, ints], axis=1)

@@ -9,9 +9,10 @@ from scouter import DataProfile
 from pathlib import Path
 
 
-def test_data_profile_f64(array: NDArray):
+def test_data_profile_f64(polars_dataframe_multi_dtype_drift: pl.DataFrame):
     scouter = Profiler()
-    profile: DataProfile = scouter.create_data_profile(array, compute_correlations=True)
-
+    profile: DataProfile = scouter.create_data_profile(
+        polars_dataframe_multi_dtype_drift, compute_correlations=True
+    )
     print(profile)
     a
