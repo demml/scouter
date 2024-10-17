@@ -1,6 +1,5 @@
 use ndarray_stats::MaybeNan;
 use num_traits::{Float, FromPrimitive, Num};
-use numpy::ndarray::s;
 use numpy::ndarray::ArrayView2;
 use numpy::ndarray::{concatenate, Axis};
 use numpy::PyArray2;
