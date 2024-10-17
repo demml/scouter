@@ -16,18 +16,18 @@ use std::collections::HashMap;
 pub fn compute_feature_correlations<F>(
     data: &ArrayView2<F>,
     features: &[String],
-) -> HashMap<String, HashMap<String, f64>>
+) -> HashMap<String, HashMap<String, f32>>
 where
     F: Float + FromPrimitive + 'static,
 {
-    let mut feature_correlations: HashMap<String, HashMap<String, f64>> = HashMap::new();
+    let mut feature_correlations: HashMap<String, HashMap<String, f32>> = HashMap::new();
     let correlations = data.t().pearson_correlation().unwrap();
 
     features.iter().enumerate().for_each(|(i, feature)| {
-        let mut feature_correlation: HashMap<String, f64> = HashMap::new();
+        let mut feature_correlation: HashMap<String, f32> = HashMap::new();
         features.iter().enumerate().for_each(|(j, other_feature)| {
             if i != j {
-                let value = correlations[[i, j]].to_f64().unwrap();
+                let value = correlations[[i, j]].to_f32().unwrap();
                 // extract the correlation value
                 feature_correlation.insert(other_feature.clone(), value);
             }

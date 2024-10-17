@@ -109,7 +109,7 @@ pub struct DataProfile {
     pub features: BTreeMap<String, FeatureProfile>,
 
     #[pyo3(get)]
-    pub correlations: Option<HashMap<String, HashMap<String, f64>>>,
+    pub correlations: Option<HashMap<String, HashMap<String, f32>>>,
 }
 
 #[pymethods]

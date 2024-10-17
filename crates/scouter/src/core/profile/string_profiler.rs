@@ -27,7 +27,7 @@ impl StringProfiler {
                 ProfilerError::StringProfileError(format!("Failed to create string profile: {}", e))
             })?;
 
-        let correlations: Option<HashMap<String, HashMap<String, f64>>> = if compute_correlations {
+        let correlations: Option<HashMap<String, HashMap<String, f32>>> = if compute_correlations {
             let converted_array = self
                 .convert_string_vec_to_num_array(&string_array, &string_features)
                 .map_err(|e| {
@@ -59,7 +59,7 @@ impl StringProfiler {
         &self,
         string_array: &[Vec<String>],
         string_features: &[String],
-    ) -> Result<Array2<f64>, ProfilerError> {
+    ) -> Result<Array2<f32>, ProfilerError> {
         let feature_map = create_feature_map(string_features, string_array).map_err(|e| {
             ProfilerError::FeatureMapError(format!(
                 "Failed to create feature map for string array: {}",
@@ -77,7 +77,7 @@ impl StringProfiler {
                 // attempt to set feature. If not found, set to missing
                 let col = col
                     .iter()
-                    .map(|x| *map.get(x).unwrap_or(map.get("missing").unwrap()) as f64)
+                    .map(|x| *map.get(x).unwrap_or(map.get("missing").unwrap()) as f32)
                     .collect::<Vec<_>>();
                 col
             })

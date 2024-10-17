@@ -11,4 +11,7 @@ from pathlib import Path
 
 def test_data_profile_f64(array: NDArray):
     scouter = Profiler()
-    profile: DataProfile = scouter.create_data_profile(array)
+    profile: DataProfile = scouter.create_data_profile(array, compute_correlations=True)
+
+    print(profile)
+    a

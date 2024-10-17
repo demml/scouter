@@ -51,10 +51,8 @@ impl ScouterProfiler {
             + std::fmt::Debug
             + 'static
             + std::convert::Into<f64>,
-        F: Into<f64>,
         <F as MaybeNan>::NotNan: Ord,
         f64: From<F>,
-
         <F as MaybeNan>::NotNan: Clone,
     {
         // run  StringProfiler in separate thread
@@ -73,7 +71,7 @@ impl ScouterProfiler {
                 ProfilerError::ComputeError(format!("Failed to create feature data profile: {}", e))
             })?;
 
-        let correlations: Option<HashMap<String, HashMap<String, f64>>> = if compute_correlations {
+        let correlations: Option<HashMap<String, HashMap<String, f32>>> = if compute_correlations {
             let converted_array = self
                 .string_profiler
                 .convert_string_vec_to_num_array(&string_array, &string_features)
@@ -85,7 +83,7 @@ impl ScouterProfiler {
                 })?;
 
             // convert all values to F
-            let converted_array = converted_array.mapv(|x| F::from_f64(x).unwrap());
+            let converted_array = converted_array.mapv(|x| F::from(x).unwrap());
 
             // combine numeric_array and converted_array
             let concatenated_array = {
