@@ -1,11 +1,31 @@
+use crate::core::error::MonitorError;
 use crate::core::error::ScouterError;
 use colored_json::{Color, ColorMode, ColoredFormatter, PrettyFormatter, Styler};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyList, PyLong, PyString};
-use serde::Serialize;
-use serde_json::json;
-use serde_json::Value;
+use rayon::iter::IndexedParallelIterator;
+use rayon::iter::IntoParallelRefIterator;
+use rayon::iter::ParallelIterator;
+use serde::{Deserialize, Serialize};
+use serde_json::{json, Value};
+use std::collections::BTreeSet;
+use std::collections::HashMap;
 use std::path::PathBuf;
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FeatureMap {
+    #[pyo3(get)]
+    pub features: HashMap<String, HashMap<String, usize>>,
+}
+
+#[pymethods]
+impl FeatureMap {
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
+}
 
 pub enum FileName {
     SpcDrift,
@@ -204,4 +224,44 @@ pub fn pyobject_to_json(_py: Python, obj: &PyAny) -> PyResult<Value> {
             obj.get_type().name()?
         )))
     }
+}
+
+pub fn create_feature_map(
+    features: &[String],
+    array: &[Vec<String>],
+) -> Result<FeatureMap, MonitorError> {
+    // check if features and array are the same length
+    if features.len() != array.len() {
+        return Err(MonitorError::ShapeMismatchError(
+            "Features and array are not the same length".to_string(),
+        ));
+    };
+
+    let feature_map = array
+        .par_iter()
+        .enumerate()
+        .map(|(i, col)| {
+            let unique = col
+                .iter()
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>();
+            let mut map = HashMap::new();
+            for (j, item) in unique.iter().enumerate() {
+                map.insert(item.to_string(), j);
+
+                // check if j is last index
+                if j == unique.len() - 1 {
+                    // insert missing value
+                    map.insert("missing".to_string(), j + 1);
+                }
+            }
+
+            (features[i].to_string(), map)
+        })
+        .collect::<HashMap<_, _>>();
+
+    Ok(FeatureMap {
+        features: feature_map,
+    })
 }

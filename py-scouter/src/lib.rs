@@ -10,14 +10,15 @@ use scouter::core::drift::base::DriftType;
 use scouter::core::drift::base::{RecordType, ServerRecord, ServerRecords};
 use scouter::core::drift::spc::feature_queue::SpcFeatureQueue;
 use scouter::core::drift::spc::types::{
-    AlertZone, FeatureMap, SpcAlert, SpcAlertConfig, SpcAlertRule, SpcAlertType, SpcDriftConfig,
-    SpcDriftMap, SpcDriftProfile, SpcFeatureAlert, SpcFeatureAlerts, SpcFeatureDrift,
-    SpcFeatureDriftProfile, SpcServerRecord,
+    AlertZone, SpcAlert, SpcAlertConfig, SpcAlertRule, SpcAlertType, SpcDriftConfig, SpcDriftMap,
+    SpcDriftProfile, SpcFeatureAlert, SpcFeatureAlerts, SpcFeatureDrift, SpcFeatureDriftProfile,
+    SpcServerRecord,
 };
 use scouter::core::observe::observer::{
     LatencyMetrics, ObservabilityMetrics, Observer, RouteMetrics,
 };
 use scouter::core::profile::types::{DataProfile, Distinct, FeatureProfile, Histogram};
+use scouter::core::utils::FeatureMap;
 
 #[pymodule]
 fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {

@@ -1296,10 +1296,14 @@ dependencies = [
 name = "py-scouter"
 version = "0.3.1"
 dependencies = [
+ "ndarray-stats",
+ "noisy_float",
+ "num-traits",
  "numpy",
  "pyo3",
  "scouter",
  "time",
+ "tracing",
  "tracing-subscriber",
 ]
 
