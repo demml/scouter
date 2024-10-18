@@ -1,3 +1,7 @@
+use ndarray_stats::MaybeNan;
+use num_traits::{Float, FromPrimitive, Num};
+use numpy::ndarray::ArrayView2;
+use numpy::ndarray::{concatenate, Axis};
 use numpy::PyArray2;
 use numpy::PyReadonlyArray2;
 use numpy::ToPyArray;
@@ -9,27 +13,134 @@ use scouter::core::drift::spc::monitor::SpcMonitor;
 use scouter::core::drift::spc::types::{
     SpcAlertRule, SpcDriftConfig, SpcDriftMap, SpcDriftProfile, SpcFeatureAlerts,
 };
+use scouter::core::error::ProfilerError;
 use scouter::core::error::ScouterError;
 use scouter::core::profile::num_profiler::NumProfiler;
 use scouter::core::profile::string_profiler::StringProfiler;
 use scouter::core::profile::types::{DataProfile, FeatureProfile};
+use scouter::core::stats::compute_feature_correlations;
+use scouter::core::utils::create_feature_map;
 use std::collections::BTreeMap;
-
-fn create_string_profile(
-    string_array: Vec<Vec<String>>,
-    string_features: Vec<String>,
-) -> Result<Vec<FeatureProfile>, ScouterError> {
-    let string_profiler = StringProfiler::new();
-    let string_profile = string_profiler
-        .compute_2d_stats(&string_array, &string_features)
-        .map_err(|_e| ScouterError::StringProfileError(_e.to_string()))?;
-
-    Ok(string_profile)
-}
+use std::collections::HashMap;
 
 #[pyclass]
 pub struct ScouterProfiler {
     num_profiler: NumProfiler,
+    string_profiler: StringProfiler,
+}
+
+impl ScouterProfiler {
+    fn process_string_and_num_array<F>(
+        &mut self,
+        compute_correlations: bool,
+        numeric_array: ArrayView2<F>,
+        string_array: Vec<Vec<String>>,
+        numeric_features: Vec<String>,
+        string_features: Vec<String>,
+        bin_size: Option<usize>,
+    ) -> Result<DataProfile, ProfilerError>
+    where
+        F: Float
+            + MaybeNan
+            + FromPrimitive
+            + std::fmt::Display
+            + Sync
+            + Send
+            + Num
+            + Clone
+            + std::fmt::Debug
+            + 'static
+            + std::convert::Into<f64>,
+        <F as MaybeNan>::NotNan: Ord,
+        f64: From<F>,
+        <F as MaybeNan>::NotNan: Clone,
+    {
+        let string_profiles = self
+            .string_profiler
+            .create_string_profile(&string_array, &string_features)
+            .map_err(|e| {
+                ProfilerError::StringProfileError(format!("Failed to create string profile: {}", e))
+            })?;
+
+        let num_profiles = self
+            .num_profiler
+            .compute_stats(&numeric_features, &numeric_array, &bin_size.unwrap_or(20))
+            .map_err(|e| {
+                ProfilerError::ComputeError(format!("Failed to create feature data profile: {}", e))
+            })?;
+
+        let correlations: Option<HashMap<String, HashMap<String, f32>>> = if compute_correlations {
+            let converted_array = self
+                .string_profiler
+                .convert_string_vec_to_num_array(&string_array, &string_features)
+                .map_err(|e| {
+                    ProfilerError::ConversionError(format!(
+                        "Failed to convert string array to numeric array: {}",
+                        e
+                    ))
+                })?;
+
+            // convert all values to F
+            let converted_array = converted_array.mapv(|x| F::from(x).unwrap());
+
+            // combine numeric_array and converted_array
+            let concatenated_array = {
+                let numeric_array_view = numeric_array.view();
+                let converted_array_view = converted_array.view();
+                concatenate(Axis(1), &[numeric_array_view, converted_array_view]).map_err(|e| {
+                    ProfilerError::ArrayError(format!(
+                        "Failed to concatenate numeric and converted arrays: {}",
+                        e
+                    ))
+                })?
+            };
+
+            // merge numeric and string features
+            let mut features = numeric_features.clone();
+            features.append(&mut string_features.clone());
+
+            let correlations = compute_feature_correlations(&concatenated_array.view(), &features);
+            Some(correlations)
+        } else {
+            None
+        };
+
+        let mut features: BTreeMap<String, FeatureProfile> = string_profiles
+            .iter()
+            .map(|profile| {
+                let mut profile = profile.clone();
+
+                if let Some(correlations) = correlations.as_ref() {
+                    let correlation = correlations.get(&profile.id);
+                    if let Some(correlation) = correlation {
+                        profile.add_correlations(correlation.clone());
+                    }
+                }
+
+                (profile.id.clone(), profile)
+            })
+            .collect();
+
+        let num_features: BTreeMap<String, FeatureProfile> = num_profiles
+            .iter()
+            .map(|profile| {
+                let mut profile = profile.clone();
+
+                if let Some(correlations) = correlations.as_ref() {
+                    let correlation = correlations.get(&profile.id);
+                    if let Some(correlation) = correlation {
+                        profile.add_correlations(correlation.clone());
+                    }
+                }
+
+                (profile.id.clone(), profile)
+            })
+            .collect();
+
+        features.extend(num_features);
+
+        Ok(DataProfile { features })
+    }
 }
 
 #[pymethods]
@@ -39,119 +150,114 @@ impl ScouterProfiler {
     pub fn new() -> Self {
         Self {
             num_profiler: NumProfiler::default(),
+            string_profiler: StringProfiler::default(),
         }
     }
 
     pub fn create_data_profile_f32(
         &mut self,
+        compute_correlations: bool,
         numeric_array: Option<PyReadonlyArray2<f32>>,
         string_array: Option<Vec<Vec<String>>>,
         numeric_features: Option<Vec<String>>,
         string_features: Option<Vec<String>>,
         bin_size: Option<usize>,
     ) -> PyResult<DataProfile> {
-        let mut profiles = vec![];
+        if string_features.is_some() && string_array.is_some() && numeric_array.is_none() {
+            let profile = self
+                .string_profiler
+                .process_string_array::<f32>(
+                    string_array.unwrap(),
+                    string_features.unwrap(),
+                    compute_correlations,
+                )
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                })?;
+            Ok(profile)
+        } else if string_array.is_none() && numeric_array.is_some() && numeric_features.is_some() {
+            let profile = self
+                .num_profiler
+                .process_num_array(
+                    compute_correlations,
+                    &numeric_array.unwrap().as_array(),
+                    numeric_features.unwrap(),
+                    bin_size,
+                )
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                })?;
 
-        // process string features
-        if string_features.is_some() && string_array.is_some() {
-            let string_profile =
-                create_string_profile(string_array.unwrap(), string_features.unwrap());
+            Ok(profile)
+        } else {
+            let profile = self
+                .process_string_and_num_array(
+                    compute_correlations,
+                    numeric_array.unwrap().as_array(),
+                    string_array.unwrap(),
+                    numeric_features.unwrap(),
+                    string_features.unwrap(),
+                    bin_size,
+                )
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                })?;
 
-            let string_profile = match string_profile {
-                Ok(profile) => profile,
-                Err(_e) => {
-                    return Err(PyValueError::new_err(
-                        "Failed to create feature data profile",
-                    ));
-                }
-            };
-
-            profiles.extend(string_profile);
-
-            // run  StringProfiler in separate thread
+            Ok(profile)
         }
-
-        // process numeric features
-        if numeric_features.is_some() && numeric_array.is_some() {
-            let numeric_features = numeric_features.unwrap();
-            let num_profiles = match self.num_profiler.compute_stats(
-                &numeric_features,
-                &numeric_array.unwrap().as_array(),
-                &bin_size.unwrap_or(20),
-            ) {
-                Ok(profile) => profile,
-                Err(_e) => {
-                    return Err(PyValueError::new_err(
-                        "Failed to create feature data profile",
-                    ));
-                }
-            };
-
-            profiles.extend(num_profiles);
-        }
-
-        let mut features = BTreeMap::new();
-        for profile in &profiles {
-            features.insert(profile.id.clone(), profile.clone());
-        }
-
-        Ok(DataProfile { features })
     }
 
     pub fn create_data_profile_f64(
         &mut self,
+        compute_correlations: bool,
         numeric_array: Option<PyReadonlyArray2<f64>>,
         string_array: Option<Vec<Vec<String>>>,
         numeric_features: Option<Vec<String>>,
         string_features: Option<Vec<String>>,
         bin_size: Option<usize>,
     ) -> PyResult<DataProfile> {
-        let mut profiles = vec![];
+        if string_features.is_some() && string_array.is_some() && numeric_array.is_none() {
+            let profile = self
+                .string_profiler
+                .process_string_array::<f32>(
+                    string_array.unwrap(),
+                    string_features.unwrap(),
+                    compute_correlations,
+                )
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                })?;
+            Ok(profile)
+        } else if string_array.is_none() && numeric_array.is_some() && numeric_features.is_some() {
+            let profile = self
+                .num_profiler
+                .process_num_array(
+                    compute_correlations,
+                    &numeric_array.unwrap().as_array(),
+                    numeric_features.unwrap(),
+                    bin_size,
+                )
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                })?;
 
-        // process string features
-        if string_features.is_some() && string_array.is_some() {
-            let string_profile =
-                create_string_profile(string_array.unwrap(), string_features.unwrap());
+            Ok(profile)
+        } else {
+            let profile = self
+                .process_string_and_num_array(
+                    compute_correlations,
+                    numeric_array.unwrap().as_array(),
+                    string_array.unwrap(),
+                    numeric_features.unwrap(),
+                    string_features.unwrap(),
+                    bin_size,
+                )
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                })?;
 
-            let string_profile = match string_profile {
-                Ok(profile) => profile,
-                Err(_e) => {
-                    return Err(PyValueError::new_err(
-                        "Failed to create feature data profile",
-                    ));
-                }
-            };
-
-            profiles.extend(string_profile);
-
-            // run  StringProfiler in separate thread
+            Ok(profile)
         }
-
-        // process numeric features
-        if numeric_features.is_some() && numeric_array.is_some() {
-            let numeric_features = numeric_features.unwrap();
-            let num_profiles = match self.num_profiler.compute_stats(
-                &numeric_features,
-                &numeric_array.unwrap().as_array(),
-                &bin_size.unwrap_or(20),
-            ) {
-                Ok(profile) => profile,
-                Err(_e) => {
-                    return Err(PyValueError::new_err(
-                        "Failed to create feature data profile",
-                    ));
-                }
-            };
-
-            profiles.extend(num_profiles);
-        }
-
-        let mut features = BTreeMap::new();
-        for profile in &profiles {
-            features.insert(profile.id.clone(), profile.clone());
-        }
-
-        Ok(DataProfile { features })
     }
 }
 
@@ -231,7 +337,7 @@ impl SpcDrifter {
         features: Vec<String>,
         mut drift_config: SpcDriftConfig,
     ) -> PyResult<SpcDriftProfile> {
-        let feature_map = match self.monitor.create_feature_map(&features, &array) {
+        let feature_map = match create_feature_map(&features, &array) {
             Ok(feature_map) => feature_map,
             Err(_e) => {
                 let msg = format!("Failed to create feature map: {}", _e);

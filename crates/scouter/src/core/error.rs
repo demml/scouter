@@ -42,6 +42,18 @@ pub enum ProfilerError {
 
     #[error("Failed to compute string statistics")]
     StringStatsError,
+
+    #[error("Failed to create feature map: {0}")]
+    FeatureMapError(String),
+
+    #[error("Array Error: {0}")]
+    ArrayError(String),
+
+    #[error("Failed to convert: {0}")]
+    ConversionError(String),
+
+    #[error("Failed to create string profile: {0}")]
+    StringProfileError(String),
 }
 
 #[derive(Error, Debug)]
@@ -101,6 +113,9 @@ pub enum ScouterError {
 
     #[error("Invalid drift type: {0}")]
     InvalidDriftTypeError(String),
+
+    #[error("Shape mismatch: {0}")]
+    ShapeMismatchError(String),
 }
 
 // impl From for PyErr

@@ -3,14 +3,17 @@
 import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 from numpy.typing import NDArray
 
-class DriftType(str, Enum):
-    SPC = "SPC"
-    PSI = "PSI"
-    NONE = "NONE"
+class DriftType(Enum):
+    SPC: Literal["SPC"]
+    PSI: Literal["PSI"]
+
+    def value(self) -> str: ...
+    @staticmethod
+    def from_value(value: str) -> "DriftType": ...
 
 class RecordType:
     SPC = "SPC"
@@ -102,6 +105,30 @@ class ServerRecords:
     def __str__(self) -> str:
         """Return the string representation of the record."""
 
+class Every1Minute:
+    def __init__(self) -> None:
+        """Initialize the cron schedule"""
+
+    @property
+    def cron(self) -> str:
+        """Return the cron schedule"""
+
+class Every5Minutes:
+    def __init__(self) -> None:
+        """Initialize the cron schedule"""
+
+    @property
+    def cron(self) -> str:
+        """Return the cron schedule"""
+
+class Every15Minutes:
+    def __init__(self) -> None:
+        """Initialize the cron schedule"""
+
+    @property
+    def cron(self) -> str:
+        """Return the cron schedule"""
+
 class Every30Minutes:
     def __init__(self) -> None:
         """Initialize the cron schedule"""
@@ -153,6 +180,18 @@ class EveryWeek:
 class CommonCron:
     def __init__(self) -> None:
         """Initialize the common cron class from rust"""
+
+    @property
+    def EVERY_1_MINUTE(self) -> str:
+        """Every 1 minute cron schedule"""
+
+    @property
+    def EVERY_5_MINUTES(self) -> str:
+        """Every 5 minutes cron schedule"""
+
+    @property
+    def EVERY_15_MINUTES(self) -> str:
+        """Every 15 minutes cron schedule"""
 
     @property
     def EVERY_30_MINUTES(self) -> str:
@@ -748,6 +787,10 @@ class FeatureProfile:
     def timestamp(self) -> str:
         """Return the timestamp."""
 
+    @property
+    def correlations(self) -> Optional[Dict[str, float]]:
+        """Feature correlation values"""
+
     def __str__(self) -> str:
         """Return the string representation of the feature profile."""
 
@@ -874,6 +917,7 @@ class ScouterProfiler:
 
     def create_data_profile_f32(
         self,
+        compute_correlations: bool,
         numeric_array: NDArray,
         string_array: List[List[str]],
         numeric_features: List[str],
@@ -883,6 +927,8 @@ class ScouterProfiler:
         """Create a data profile from a f32 numpy array.
 
         Args:
+            compute_correlations:
+                Whether to compute correlations or not.
             numeric_array:
                 Numpy array to profile.
             string_array:
@@ -900,6 +946,7 @@ class ScouterProfiler:
 
     def create_data_profile_f64(
         self,
+        compute_correlations: bool,
         numeric_array: NDArray,
         string_array: List[List[str]],
         numeric_features: List[str],
@@ -909,6 +956,8 @@ class ScouterProfiler:
         """Create a data profile from a f32 numpy array.
 
         Args:
+            compute_correlations:
+                Whether to compute correlations or not.
             numeric_array:
                 Numpy array to profile.
             string_array:

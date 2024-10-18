@@ -6,6 +6,75 @@ use std::str::FromStr;
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct Every1Minute {
+    #[pyo3(get, set)]
+    pub cron: String,
+}
+
+#[pymethods]
+#[allow(clippy::new_without_default)]
+impl Every1Minute {
+    #[new]
+    pub fn new() -> Self {
+        Self {
+            cron: "0 * * * * * *".to_string(),
+        }
+    }
+
+    pub fn get_next(&self) -> String {
+        let schedule = Schedule::from_str(&self.cron).unwrap();
+        schedule.upcoming(Utc).next().unwrap().to_string()
+    }
+}
+
+#[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct Every5Minutes {
+    #[pyo3(get, set)]
+    pub cron: String,
+}
+
+#[pymethods]
+#[allow(clippy::new_without_default)]
+impl Every5Minutes {
+    #[new]
+    pub fn new() -> Self {
+        Self {
+            cron: "0 0,5,10,15,20,25,30,35,40,45,50,55 * * * * *".to_string(),
+        }
+    }
+
+    pub fn get_next(&self) -> String {
+        let schedule = Schedule::from_str(&self.cron).unwrap();
+        schedule.upcoming(Utc).next().unwrap().to_string()
+    }
+}
+
+#[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct Every15Minutes {
+    #[pyo3(get, set)]
+    pub cron: String,
+}
+
+#[pymethods]
+#[allow(clippy::new_without_default)]
+impl Every15Minutes {
+    #[new]
+    pub fn new() -> Self {
+        Self {
+            cron: "0 0,15,30,45 * * * * *".to_string(),
+        }
+    }
+
+    pub fn get_next(&self) -> String {
+        let schedule = Schedule::from_str(&self.cron).unwrap();
+        schedule.upcoming(Utc).next().unwrap().to_string()
+    }
+}
+
+#[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct Every30Minutes {
     #[pyo3(get, set)]
     pub cron: String,
@@ -147,6 +216,15 @@ impl EveryWeek {
 #[allow(non_snake_case)]
 pub struct CommonCron {
     #[pyo3(get)]
+    pub EVERY_1_MINUTE: String,
+
+    #[pyo3(get)]
+    pub EVERY_5_MINUTES: String,
+
+    #[pyo3(get)]
+    pub EVERY_15_MINUTES: String,
+
+    #[pyo3(get)]
     pub EVERY_30_MINUTES: String,
 
     #[pyo3(get)]
@@ -171,6 +249,9 @@ impl CommonCron {
     #[new]
     pub fn new() -> Self {
         Self {
+            EVERY_1_MINUTE: Every1Minute::new().cron,
+            EVERY_5_MINUTES: Every5Minutes::new().cron,
+            EVERY_15_MINUTES: Every15Minutes::new().cron,
             EVERY_30_MINUTES: Every30Minutes::new().cron,
             EVERY_HOUR: EveryHour::new().cron,
             EVERY_6_HOURS: Every6Hours::new().cron,
@@ -247,5 +328,53 @@ mod tests {
         assert_eq!(cron.EVERY_12_HOURS, "0 0 */12 * * *");
         assert_eq!(cron.EVERY_DAY, "0 0 0 * * *");
         assert_eq!(cron.EVERY_WEEK, "0 0 0 * * SUN");
+    }
+
+    #[test]
+    fn test_cron_schedule() {
+        let cron = Every1Minute::new();
+        let schedule = Schedule::from_str(&cron.cron).unwrap();
+        let next = schedule.upcoming(Utc).next().unwrap();
+        assert_eq!(next.to_string(), cron.get_next());
+
+        let cron = Every5Minutes::new();
+        let schedule = Schedule::from_str(&cron.cron).unwrap();
+        let next = schedule.upcoming(Utc).next().unwrap();
+        assert_eq!(next.to_string(), cron.get_next());
+
+        let cron = Every15Minutes::new();
+        let schedule = Schedule::from_str(&cron.cron).unwrap();
+        let next = schedule.upcoming(Utc).next().unwrap();
+        assert_eq!(next.to_string(), cron.get_next());
+
+        let cron = Every30Minutes::new();
+        let schedule = Schedule::from_str(&cron.cron).unwrap();
+        let next = schedule.upcoming(Utc).next().unwrap();
+        assert_eq!(next.to_string(), cron.get_next());
+
+        let cron = EveryHour::new();
+        let schedule = Schedule::from_str(&cron.cron).unwrap();
+        let next = schedule.upcoming(Utc).next().unwrap();
+        assert_eq!(next.to_string(), cron.get_next());
+
+        let cron = Every6Hours::new();
+        let schedule = Schedule::from_str(&cron.cron).unwrap();
+        let next = schedule.upcoming(Utc).next().unwrap();
+        assert_eq!(next.to_string(), cron.get_next());
+
+        let cron = Every12Hours::new();
+        let schedule = Schedule::from_str(&cron.cron).unwrap();
+        let next = schedule.upcoming(Utc).next().unwrap();
+        assert_eq!(next.to_string(), cron.get_next());
+
+        let cron = EveryDay::new();
+        let schedule = Schedule::from_str(&cron.cron).unwrap();
+        let next = schedule.upcoming(Utc).next().unwrap();
+        assert_eq!(next.to_string(), cron.get_next());
+
+        let cron = EveryWeek::new();
+        let schedule = Schedule::from_str(&cron.cron).unwrap();
+        let next = schedule.upcoming(Utc).next().unwrap();
+        assert_eq!(next.to_string(), cron.get_next());
     }
 }

@@ -25,6 +25,7 @@ class Profiler:
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
         bin_size: int = 20,
+        compute_correlations: bool = False,
     ) -> DataProfile:
         """Create a data profile from data.
 
@@ -36,6 +37,8 @@ class Profiler:
                 If NaNs or infinities are present, the data profile will not be created.
             bin_size:
                 Optional bin size for histograms. Defaults to 20 bins.
+            compute_correlations:
+                Whether to compute correlations or not.
 
         Returns:
             Monitoring profile
@@ -47,6 +50,7 @@ class Profiler:
             bits = _get_bits(array.numeric_array)
 
             profile = getattr(self._profiler, f"create_data_profile_f{bits}")(
+                compute_correlations=compute_correlations,
                 numeric_array=array.numeric_array,
                 string_array=array.string_array,
                 numeric_features=array.numeric_features,

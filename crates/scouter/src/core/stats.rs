@@ -1,7 +1,8 @@
 use ndarray::prelude::*;
 use ndarray_stats::CorrelationExt;
-use std::collections::BTreeMap;
-
+use num_traits::Float;
+use num_traits::FromPrimitive;
+use std::collections::HashMap;
 // compute_feature_correlations computes the correlation between features in a 2D array
 //
 // # Arguments
@@ -11,19 +12,22 @@ use std::collections::BTreeMap;
 //
 // # Returns
 //
-// A BTreeMap of feature names to a BTreeMap of other feature names to the correlation value
-pub fn compute_feature_correlations(
-    data: &ArrayView2<f64>,
+// A HashMap of feature names to a HashMap of other feature names to the correlation value
+pub fn compute_feature_correlations<F>(
+    data: &ArrayView2<F>,
     features: &[String],
-) -> BTreeMap<String, BTreeMap<String, f64>> {
-    let mut feature_correlations: BTreeMap<String, BTreeMap<String, f64>> = BTreeMap::new();
+) -> HashMap<String, HashMap<String, f32>>
+where
+    F: Float + FromPrimitive + 'static,
+{
+    let mut feature_correlations: HashMap<String, HashMap<String, f32>> = HashMap::new();
     let correlations = data.t().pearson_correlation().unwrap();
 
     features.iter().enumerate().for_each(|(i, feature)| {
-        let mut feature_correlation: BTreeMap<String, f64> = BTreeMap::new();
+        let mut feature_correlation: HashMap<String, f32> = HashMap::new();
         features.iter().enumerate().for_each(|(j, other_feature)| {
             if i != j {
-                let value = correlations[[i, j]];
+                let value = correlations[[i, j]].to_f32().unwrap();
                 // extract the correlation value
                 feature_correlation.insert(other_feature.clone(), value);
             }

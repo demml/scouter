@@ -2,15 +2,15 @@ use crate::core::error::MonitorError;
 
 use crate::core::drift::base::{RecordType, ServerRecord, ServerRecords};
 use crate::core::drift::spc::types::{
-    FeatureMap, SpcDriftConfig, SpcDriftMap, SpcDriftProfile, SpcFeatureDrift,
-    SpcFeatureDriftProfile, SpcServerRecord,
+    SpcDriftConfig, SpcDriftMap, SpcDriftProfile, SpcFeatureDrift, SpcFeatureDriftProfile,
+    SpcServerRecord,
 };
+use crate::core::utils::FeatureMap;
 use indicatif::ProgressBar;
 use ndarray::prelude::*;
 use ndarray::Axis;
 use num_traits::{Float, FromPrimitive, Num};
 use rayon::prelude::*;
-use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::fmt::Debug;
 pub struct SpcMonitor {}
@@ -270,7 +270,6 @@ impl SpcMonitor {
         // reshape vec to 2D array
         let sample_data = Array::from_shape_vec((sample_vec.len(), columns), sample_vec.concat())
             .map_err(|e| MonitorError::ArrayError(e.to_string()))?;
-
         Ok(sample_data)
     }
 
@@ -482,57 +481,6 @@ impl SpcMonitor {
         Ok(drift_array)
     }
 
-    // creates a feature map from a 2D array
-    //
-    // # Arguments
-    //
-    // * `features` - A vector of feature names
-    // * `array` - A 2D array of string values
-    //
-    // # Returns
-    //
-    // A feature map
-    pub fn create_feature_map(
-        &self,
-        features: &[String],
-        array: &[Vec<String>],
-    ) -> Result<FeatureMap, MonitorError> {
-        // check if features and array are the same length
-        if features.len() != array.len() {
-            return Err(MonitorError::ShapeMismatchError(
-                "Features and array are not the same length".to_string(),
-            ));
-        };
-
-        let feature_map = array
-            .par_iter()
-            .enumerate()
-            .map(|(i, col)| {
-                let unique = col
-                    .iter()
-                    .collect::<BTreeSet<_>>()
-                    .into_iter()
-                    .collect::<Vec<_>>();
-                let mut map = HashMap::new();
-                for (j, item) in unique.iter().enumerate() {
-                    map.insert(item.to_string(), j);
-
-                    // check if j is last index
-                    if j == unique.len() - 1 {
-                        // insert missing value
-                        map.insert("missing".to_string(), j + 1);
-                    }
-                }
-
-                (features[i].to_string(), map)
-            })
-            .collect::<HashMap<_, _>>();
-
-        Ok(FeatureMap {
-            features: feature_map,
-        })
-    }
-
     pub fn convert_strings_to_ndarray_f32(
         &self,
         features: &Vec<String>,
@@ -629,6 +577,7 @@ mod tests {
     use crate::core::drift::base::DriftType;
     use crate::core::drift::base::ProfileBaseArgs;
     use crate::core::drift::spc::types::SpcAlertConfig;
+    use crate::core::utils::create_feature_map;
 
     use super::*;
     use approx::relative_eq;
@@ -733,7 +682,7 @@ mod tests {
         let value = profile.to_value();
 
         // test DriftProfile
-        let profile = DriftProfile::from_value(value, &DriftType::SPC.value()).unwrap();
+        let profile = DriftProfile::from_value(value, DriftType::SPC.value()).unwrap();
         let new_args = profile.get_base_args();
 
         assert_eq!(new_args, args);
@@ -898,11 +847,7 @@ mod tests {
 
         let string_features = vec!["feature_1".to_string(), "feature_2".to_string()];
 
-        let monitor = SpcMonitor::new();
-
-        let feature_map = monitor
-            .create_feature_map(&string_features, &string_vec)
-            .unwrap();
+        let feature_map = create_feature_map(&string_features, &string_vec).unwrap();
 
         assert_eq!(feature_map.features.len(), 2);
         assert_eq!(feature_map.features.get("feature_2").unwrap().len(), 6);
@@ -931,9 +876,7 @@ mod tests {
 
         let monitor = SpcMonitor::new();
 
-        let feature_map = monitor
-            .create_feature_map(&string_features, &string_vec)
-            .unwrap();
+        let feature_map = create_feature_map(&string_features, &string_vec).unwrap();
 
         assert_eq!(feature_map.features.len(), 2);
 

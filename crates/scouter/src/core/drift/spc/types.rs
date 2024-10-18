@@ -5,6 +5,7 @@ use crate::core::drift::base::{
     ProfileBaseArgs,
 };
 use crate::core::error::ScouterError;
+use crate::core::utils::FeatureMap;
 use crate::core::utils::{json_to_pyobject, pyobject_to_json, FileName, ProfileFuncs};
 use core::fmt::Debug;
 use ndarray::Array;
@@ -650,21 +651,6 @@ impl ProfileBaseArgs for SpcDriftProfile {
     /// Convert the struct to a serde_json::Value
     fn to_value(&self) -> serde_json::Value {
         serde_json::to_value(self).unwrap()
-    }
-}
-
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct FeatureMap {
-    #[pyo3(get)]
-    pub features: HashMap<String, HashMap<String, usize>>,
-}
-
-#[pymethods]
-impl FeatureMap {
-    pub fn __str__(&self) -> String {
-        // serialize the struct to a string
-        ProfileFuncs::__str__(self)
     }
 }
 

@@ -4,14 +4,14 @@ use ndarray::prelude::*;
 use ndarray::Axis;
 use ndarray_stats::MaybeNan;
 
+use crate::core::profile::types::DataProfile;
+use crate::core::stats::compute_feature_correlations;
 use ndarray_stats::{interpolate::Nearest, QuantileExt};
 use noisy_float::types::n64;
 use num_traits::{Float, FromPrimitive, Num};
 use rayon::prelude::*;
 use std::cmp::Ord;
-use std::collections::HashMap;
-use std::collections::HashSet;
-
+use std::collections::{BTreeMap, HashMap, HashSet};
 pub struct NumProfiler {}
 
 impl NumProfiler {
@@ -304,7 +304,8 @@ impl NumProfiler {
             + Send
             + Num
             + Clone
-            + std::fmt::Debug,
+            + std::fmt::Debug
+            + 'static,
         F: Into<f64>,
         <F as MaybeNan>::NotNan: Ord,
         f64: From<F>,
@@ -371,12 +372,72 @@ impl NumProfiler {
                 numeric_stats: Some(numeric_stats),
                 string_stats: None,
                 timestamp: chrono::Utc::now().naive_utc(),
+                correlations: None,
             };
 
             profiles.push(profile);
         }
 
         Ok(profiles)
+    }
+
+    pub fn process_num_array<F>(
+        &mut self,
+        compute_correlations: bool,
+        numeric_array: &ArrayView2<F>,
+        numeric_features: Vec<String>,
+        bin_size: Option<usize>,
+    ) -> Result<DataProfile, ProfilerError>
+    where
+        F: Float
+            + MaybeNan
+            + FromPrimitive
+            + std::fmt::Display
+            + Sync
+            + Send
+            + Num
+            + Clone
+            + std::fmt::Debug
+            + 'static,
+        F: Into<f64>,
+        <F as MaybeNan>::NotNan: Ord,
+        f64: From<F>,
+        <F as MaybeNan>::NotNan: Clone,
+    {
+        let profiles = self
+            .compute_stats(&numeric_features, numeric_array, &bin_size.unwrap_or(20))
+            .map_err(|e| {
+                ProfilerError::ComputeError(format!("Failed to create feature data profile: {}", e))
+            })?;
+
+        let correlations = if compute_correlations {
+            let feature_names = numeric_features.clone();
+            let feature_correlations = compute_feature_correlations(numeric_array, &feature_names);
+
+            // convert all values to f64
+
+            Some(feature_correlations)
+        } else {
+            None
+        };
+
+        let features: BTreeMap<String, FeatureProfile> = profiles
+            .iter()
+            .map(|profile| {
+                let mut profile = profile.clone();
+
+                if let Some(correlations) = correlations.as_ref() {
+                    let correlation = correlations.get(&profile.id);
+                    if let Some(correlation) = correlation {
+                        profile.add_correlations(correlation.clone());
+                    }
+                }
+
+                (profile.id.clone(), profile)
+            })
+            .collect();
+
+        Ok(DataProfile { features })
     }
 }
 
