@@ -372,6 +372,7 @@ impl NumProfiler {
                 numeric_stats: Some(numeric_stats),
                 string_stats: None,
                 timestamp: chrono::Utc::now().naive_utc(),
+                correlations: None,
             };
 
             profiles.push(profile);
@@ -422,13 +423,21 @@ impl NumProfiler {
 
         let features: BTreeMap<String, FeatureProfile> = profiles
             .iter()
-            .map(|profile| (profile.id.clone(), profile.clone()))
+            .map(|profile| {
+                let mut profile = profile.clone();
+
+                if let Some(correlations) = correlations.as_ref() {
+                    let correlation = correlations.get(&profile.id);
+                    if let Some(correlation) = correlation {
+                        profile.add_correlations(correlation.clone());
+                    }
+                }
+
+                (profile.id.clone(), profile)
+            })
             .collect();
 
-        Ok(DataProfile {
-            features,
-            correlations,
-        })
+        Ok(DataProfile { features })
     }
 }
 

@@ -13,12 +13,8 @@ def test_multi_data_profile_with_correlation(
     profile: DataProfile = scouter.create_data_profile(
         polars_dataframe_multi_dtype_drift, compute_correlations=True
     )
-    assert profile.correlations is not None
-
-    corr_keys = list(profile.correlations.keys())
-    corr_keys.sort()
-
-    assert corr_keys == ["cat1", "cat2", "num1", "num2", "num3"]
+    for features in profile.features.values():
+        assert features.correlations is not None
 
 
 def test_num_data_with_correlation(
@@ -26,11 +22,8 @@ def test_num_data_with_correlation(
 ):
     scouter = Profiler()
     profile: DataProfile = scouter.create_data_profile(array, compute_correlations=True)
-    assert profile.correlations is not None
-    corr_keys = list(profile.correlations.keys())
-    corr_keys.sort()
-
-    assert corr_keys == ["feature_0", "feature_1", "feature_2"]
+    for features in profile.features.values():
+        assert features.correlations is not None
 
 
 def test_string_data_with_correlation(
@@ -40,8 +33,6 @@ def test_string_data_with_correlation(
     profile: DataProfile = scouter.create_data_profile(
         pandas_categorical_dataframe, compute_correlations=True
     )
-    assert profile.correlations is not None
-    corr_keys = list(profile.correlations.keys())
-    corr_keys.sort()
 
-    assert corr_keys == ["cat1", "cat2", "cat3"]
+    for features in profile.features.values():
+        assert features.correlations is not None

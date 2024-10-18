@@ -46,13 +46,21 @@ impl StringProfiler {
 
         let features: BTreeMap<String, FeatureProfile> = profiles
             .iter()
-            .map(|profile| (profile.id.clone(), profile.clone()))
+            .map(|profile| {
+                let mut profile = profile.clone();
+
+                if let Some(correlations) = correlations.as_ref() {
+                    let correlation = correlations.get(&profile.id);
+                    if let Some(correlation) = correlation {
+                        profile.add_correlations(correlation.clone());
+                    }
+                }
+
+                (profile.id.clone(), profile)
+            })
             .collect();
 
-        Ok(DataProfile {
-            features,
-            correlations,
-        })
+        Ok(DataProfile { features })
     }
 
     pub fn convert_string_vec_to_num_array(
@@ -194,6 +202,7 @@ impl StringProfiler {
                     string_stats: Some(stats),
                     numeric_stats: None,
                     timestamp: chrono::Utc::now().naive_utc(),
+                    correlations: None,
                 }
             })
             .collect::<Vec<FeatureProfile>>();
