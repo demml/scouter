@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+    <url>
+         <loc>https://demml.github.io/scouter/</loc>
+         <lastmod>2024-10-18</lastmod>
+    </url>
+    <url>
+         <loc>https://demml.github.io/scouter/monitoring/alerting/</loc>
+         <lastmod>2024-10-18</lastmod>
+    </url>
+    <url>
+         <loc>https://demml.github.io/scouter/monitoring/configuration/</loc>
+         <lastmod>2024-10-18</lastmod>
+    </url>
+    <url>
+         <loc>https://demml.github.io/scouter/monitoring/overview/</loc>
+         <lastmod>2024-10-18</lastmod>
+    </url>
+    <url>
+         <loc>https://demml.github.io/scouter/profiling/overview/</loc>
+         <lastmod>2024-10-18</lastmod>
+    </url>
+</urlset>
