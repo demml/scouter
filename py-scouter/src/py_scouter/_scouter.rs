@@ -347,7 +347,7 @@ impl SpcDrifter {
             }
         };
 
-        drift_config.update_feature_map(feature_map.clone());
+        drift_config.update_feature_map(feature_map);
 
         let array =
             match self
