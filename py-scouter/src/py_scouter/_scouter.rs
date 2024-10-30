@@ -21,7 +21,7 @@ use scouter::core::profile::num_profiler::NumProfiler;
 use scouter::core::profile::string_profiler::StringProfiler;
 use scouter::core::profile::types::{DataProfile, FeatureProfile};
 use scouter::core::stats::compute_feature_correlations;
-use scouter::core::utils::create_feature_map;
+use scouter::core::utils::{create_feature_map, FeatureMap};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 

@@ -7,7 +7,6 @@ use crate::core::drift::spc::types::{
     SpcDriftConfig, SpcDriftMap, SpcDriftProfile, SpcFeatureDrift, SpcFeatureDriftProfile,
     SpcServerRecord,
 };
-use crate::core::utils::FeatureMap;
 use indicatif::ProgressBar;
 use ndarray::prelude::*;
 use ndarray::Axis;
@@ -502,7 +501,6 @@ mod tests {
     use crate::core::drift::base::ProfileBaseArgs;
     use crate::core::drift::base::{DriftProfile, DriftType};
     use crate::core::drift::spc::types::SpcAlertConfig;
-    use crate::core::utils::create_feature_map;
 
     use super::*;
     use approx::relative_eq;

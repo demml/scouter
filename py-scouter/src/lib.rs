@@ -21,7 +21,6 @@ use scouter::core::observe::observer::{
     LatencyMetrics, ObservabilityMetrics, Observer, RouteMetrics,
 };
 use scouter::core::profile::types::{DataProfile, Distinct, FeatureProfile, Histogram};
-use scouter::core::utils::FeatureMap;
 
 #[pymodule]
 fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
