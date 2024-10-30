@@ -1,12 +1,10 @@
-use crate::core::error::MonitorError;
-
-use crate::core::drift::base::{
-    CategoricalFeatureHelpers, RecordType, ServerRecord, ServerRecords,
-};
+use crate::core::drift::base::{RecordType, ServerRecord, ServerRecords};
 use crate::core::drift::spc::types::{
     SpcDriftConfig, SpcDriftMap, SpcDriftProfile, SpcFeatureDrift, SpcFeatureDriftProfile,
     SpcServerRecord,
 };
+use crate::core::error::MonitorError;
+use crate::core::utils::CategoricalFeatureHelpers;
 use indicatif::ProgressBar;
 use ndarray::prelude::*;
 use ndarray::Axis;

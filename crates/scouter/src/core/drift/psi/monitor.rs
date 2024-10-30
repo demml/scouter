@@ -1,8 +1,8 @@
-use crate::core::drift::base::CategoricalFeatureHelpers;
 use crate::core::drift::psi::types::{
     Bin, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
 };
 use crate::core::error::MonitorError;
+use crate::core::utils::CategoricalFeatureHelpers;
 use itertools::Itertools;
 use ndarray::prelude::*;
 use ndarray::Axis;
@@ -45,7 +45,7 @@ impl PsiMonitor {
             .count()
     }
 
-    fn data_are_binary<F>(&self, column_vector: &ArrayView<F, Ix1>) -> bool
+    fn data_are_binary<F>(&self, column_vector: &ArrayView1<F>) -> bool
     where
         F: Float,
         F: Into<f64>,
@@ -55,11 +55,12 @@ impl PsiMonitor {
             .all(|&value| value.into() == 0.0 || value.into() == 1.0)
     }
 
-    fn compute_deciles<F>(&self, column_vector: &ArrayView<F, Ix1>) -> Result<[F; 9], MonitorError>
+    fn compute_deciles<F>(&self, column_vector: &ArrayView1<F>) -> Result<[F; 9], MonitorError>
     where
         F: Float + Default,
         F: Into<f64>,
     {
+        // TODO: Explore using ndarray_stats quantiles instead of manual computation
         if column_vector.len() < 10 {
             return Err(MonitorError::ComputeError(
                 "At least 10 values needed to compute deciles".to_string(),
@@ -79,7 +80,11 @@ impl PsiMonitor {
             let index = ((i as f32 * (n as f32 - 1.0)) / 10.0).floor() as usize;
             deciles[i - 1] = sorted_column_vector[index];
         }
-        Ok(deciles)
+        let decile_vec: [F; 9] = deciles.to_vec().try_into().map_err(|_| {
+            MonitorError::ComputeError("Failed to convert deciles to array".to_string())
+        })?;
+
+        Ok(decile_vec)
     }
 
     fn create_categorical_bins<F>(
@@ -137,7 +142,7 @@ impl PsiMonitor {
 
     fn create_numeric_bins<F>(
         &self,
-        column_vector: &ArrayView<F, Ix1>,
+        column_vector: &ArrayView1<F>,
     ) -> Result<Vec<Bin>, MonitorError>
     where
         F: Float + FromPrimitive + Default + Sync,

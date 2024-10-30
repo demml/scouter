@@ -7,7 +7,7 @@ use scouter::core::cron::{
     Every6Hours, EveryDay, EveryHour, EveryWeek,
 };
 use scouter::core::dispatch::types::AlertDispatchType;
-use scouter::core::drift::base::{DriftType, FeatureMap, RecordType, ServerRecord, ServerRecords};
+use scouter::core::drift::base::{DriftType, RecordType, ServerRecord, ServerRecords};
 use scouter::core::drift::psi::types::{
     Bin, PsiAlertConfig, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
 };
@@ -21,6 +21,7 @@ use scouter::core::observe::observer::{
     LatencyMetrics, ObservabilityMetrics, Observer, RouteMetrics,
 };
 use scouter::core::profile::types::{DataProfile, Distinct, FeatureProfile, Histogram};
+use scouter::core::utils::FeatureMap;
 
 #[pymodule]
 fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {

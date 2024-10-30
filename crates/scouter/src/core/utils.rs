@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct FeatureMap {
     #[pyo3(get)]
     pub features: HashMap<String, HashMap<String, usize>>,

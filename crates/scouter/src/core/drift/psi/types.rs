@@ -1,11 +1,10 @@
 use crate::core::cron::EveryDay;
 use crate::core::dispatch::types::AlertDispatchType;
 use crate::core::drift::base::{
-    DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, ProfileArgs, ProfileBaseArgs,
-    ValidateAlertConfig,
+    DispatchDriftConfig, DriftArgs, DriftType, ProfileArgs, ProfileBaseArgs, ValidateAlertConfig,
 };
 use crate::core::error::ScouterError;
-use crate::core::utils::{json_to_pyobject, pyobject_to_json, FileName, ProfileFuncs};
+use crate::core::utils::{json_to_pyobject, pyobject_to_json, FeatureMap, FileName, ProfileFuncs};
 use pyo3::types::PyDict;
 use pyo3::{pyclass, pymethods, Bound, Py, PyResult, Python};
 use serde::{Deserialize, Serialize};

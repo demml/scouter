@@ -1,15 +1,14 @@
 use crate::core::cron::EveryDay;
 use crate::core::dispatch::types::AlertDispatchType;
 use crate::core::drift::spc::types::{SpcDriftProfile, SpcServerRecord};
-use crate::core::error::{MonitorError, ScouterError};
+use crate::core::error::ScouterError;
 use crate::core::observe::observer::ObservabilityMetrics;
 use crate::core::utils::ProfileFuncs;
-use ndarray::{Array, Array2};
+
 use pyo3::prelude::*;
-use rayon::prelude::*;
+
 use serde::{Deserialize, Serialize};
-use std::collections::BTreeSet;
-use std::{collections::HashMap, str::FromStr};
+use std::str::FromStr;
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -216,6 +215,7 @@ impl DriftProfile {
 pub trait ValidateAlertConfig {
     fn resolve_schedule(schedule: Option<String>) -> String {
         let default_schedule = EveryDay::new().cron;
+
         match schedule {
             Some(s) => {
                 cron::Schedule::from_str(&s) // Pass by reference here
