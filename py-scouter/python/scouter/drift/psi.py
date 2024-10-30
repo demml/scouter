@@ -77,7 +77,9 @@ class PsiDriftHelper(DriftHelperBase):
                 assert string_profile.config.feature_map is not None
                 config.update_feature_map(string_profile.config.feature_map)
             if array.numeric_array is not None and array.numeric_features is not None:
-                numeric_profile = getattr(self._rusty_drifter, f"create_numeric_drift_profile_f{bits}")(
+                numeric_profile = getattr(
+                    self._rusty_drifter, f"create_numeric_drift_profile_f{bits}"
+                )(
                     features=array.numeric_features,
                     array=array.numeric_array,
                     drift_config=config,
@@ -121,13 +123,20 @@ class PsiDriftHelper(DriftHelperBase):
             array = _convert_data_to_array(data)
             bits = _get_bits(array.numeric_array)
             if array.string_array is not None and array.string_features is not None:
-                string_array: NDArray = getattr(self._rusty_drifter, f"convert_strings_to_numpy_f{bits}")(
+                string_array: NDArray = getattr(
+                    self._rusty_drifter, f"convert_strings_to_numpy_f{bits}"
+                )(
                     array=array.string_array,
                     features=array.string_features,
                     drift_profile=drift_profile,
                 )
-                if array.numeric_array is not None and array.numeric_features is not None:
-                    array.numeric_array = np.concatenate((array.numeric_array, string_array), axis=1)
+                if (
+                    array.numeric_array is not None
+                    and array.numeric_features is not None
+                ):
+                    array.numeric_array = np.concatenate(
+                        (array.numeric_array, string_array), axis=1
+                    )
 
                     array.numeric_features += array.string_features
 
@@ -140,8 +149,12 @@ class PsiDriftHelper(DriftHelperBase):
                 drift_profile=drift_profile,
             )
 
-            assert isinstance(drift_map, PsiDriftMap), f"Expected DriftMap, got {type(drift_map)}"
-            assert isinstance(drift_map, PsiDriftMap), f"Expected DriftMap, got {type(drift_map)}"
+            assert isinstance(
+                drift_map, PsiDriftMap
+            ), f"Expected DriftMap, got {type(drift_map)}"
+            assert isinstance(
+                drift_map, PsiDriftMap
+            ), f"Expected DriftMap, got {type(drift_map)}"
 
             return drift_map
 
@@ -149,8 +162,6 @@ class PsiDriftHelper(DriftHelperBase):
             logger.error(f"Failed to compute drift: {exc}")
             raise ValueError(f"Failed to compute drift: {exc}") from exc
 
-
     @staticmethod
     def drift_type() -> DriftType:
         return DriftType.PSI
-
