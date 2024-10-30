@@ -1,6 +1,6 @@
 """This module contains the helper class for the SPC Drifter."""
 
-from typing import List, Optional, Union, Any
+from typing import Any, List, Optional, Union
 
 import numpy as np
 import pandas as pd
@@ -8,20 +8,18 @@ import polars as pl
 import pyarrow as pa  # type: ignore
 from numpy.typing import NDArray
 from scouter.utils.logger import ScouterLogger
-from scouter.utils.type_converter import _convert_data_to_array, _get_bits, ArrayData
+from scouter.utils.type_converter import ArrayData, _convert_data_to_array, _get_bits
 
 from .._scouter import (  # pylint: disable=no-name-in-module
     DriftType,
-    SpcAlertRule,
+    PsiDriftConfig,
+    PsiDrifter,
+    PsiDriftMap,
+    PsiDriftProfile,
     SpcDriftConfig,
+    SpcDrifter,
     SpcDriftMap,
     SpcDriftProfile,
-    SpcFeatureAlerts,
-    PsiDriftConfig,
-    PsiDriftProfile,
-    PsiDriftMap,
-    SpcDrifter,
-    PsiDrifter,
 )
 
 logger = ScouterLogger.get_logger()
@@ -43,17 +41,13 @@ class DriftHelperBase:
     def _drifter(self) -> Drifter:
         raise NotImplementedError
 
-    def create_string_drift_profile(
-        self, features: List[str], array: List[List[str]], drift_config: Any
-    ) -> Profile:
+    def create_string_drift_profile(self, features: List[str], array: List[List[str]], drift_config: Any) -> Profile:
         raise NotImplementedError
 
-    def create_numeric_drift_profile(
-        self, array: ArrayData, drift_config: Config, bits: str
-    ) -> Profile:
+    def create_numeric_drift_profile(self, array: ArrayData, drift_config: Any, bits: str) -> Profile:
         raise NotImplementedError
 
-    def concat_profiles(self, profiles: List[Profile], config: Config) -> Profile:
+    def concat_profiles(self, profiles: List[Profile], config: Any) -> Profile:
         raise NotImplementedError
 
     def convert_string_to_numpy(
@@ -79,9 +73,7 @@ class DriftHelperBase:
             Numpy array of converted strings.
         """
 
-        converted_array: NDArray = getattr(
-            self._drifter, f"convert_strings_to_numpy_f{bits}"
-        )(
+        converted_array: NDArray = getattr(self._drifter, f"convert_strings_to_numpy_f{bits}")(
             array=string_array,
             features=features,
             drift_profile=drift_profile,
@@ -166,7 +158,8 @@ class DriftHelperBase:
 
             if string_profile is not None and numeric_profile is not None:
                 drift_profile = self.concat_profiles(
-                    profiles=[numeric_profile, string_profile], config=config
+                    profiles=[numeric_profile, string_profile],
+                    config=config,
                 )
 
                 return drift_profile
@@ -210,13 +203,8 @@ class DriftHelperBase:
                     bits=bits,
                 )
 
-                if (
-                    array.numeric_array is not None
-                    and array.numeric_features is not None
-                ):
-                    array.numeric_array = np.concatenate(
-                        (array.numeric_array, string_array), axis=1
-                    )
+                if array.numeric_array is not None and array.numeric_features is not None:
+                    array.numeric_array = np.concatenate((array.numeric_array, string_array), axis=1)
 
                     array.numeric_features += array.string_features
 
@@ -234,9 +222,7 @@ class DriftHelperBase:
                 bits=bits,
             )
 
-            assert isinstance(
-                drift_map, SpcDriftMap
-            ), f"Expected DriftMap, got {type(drift_map)}"
+            assert isinstance(drift_map, SpcDriftMap), f"Expected DriftMap, got {type(drift_map)}"
 
             return drift_map
 
@@ -248,8 +234,8 @@ class DriftHelperBase:
         self,
         drift_array: NDArray,
         features: list[str],
-        alert_rule: Union[SpcAlertRule],
-    ) -> Union[SpcFeatureAlerts]:
+        alert_rule: Any,
+    ) -> Any:
         raise NotImplementedError
 
     @staticmethod
@@ -261,11 +247,7 @@ def get_drift_helper(drift_type: DriftType) -> DriftHelperBase:
     """Helper function to get the correct drift helper based on the drift type."""
 
     converter = next(
-        (
-            converter
-            for converter in DriftHelperBase.__subclasses__()
-            if converter.drift_type() == drift_type
-        ),
+        (converter for converter in DriftHelperBase.__subclasses__() if converter.drift_type() == drift_type),
         None,
     )
 

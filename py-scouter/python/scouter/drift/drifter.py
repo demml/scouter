@@ -37,9 +37,7 @@ class Drifter:
                 Type of drift to detect. Defaults to SPC drift detection.
 
         """
-        self._drift_helper: DriftHelperBase = get_drift_helper(
-            drift_type or DriftType.SPC
-        )
+        self._drift_helper: DriftHelperBase = get_drift_helper(drift_type or DriftType.SPC)
 
     def create_drift_profile(
         self,
