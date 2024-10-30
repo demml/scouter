@@ -7,6 +7,7 @@ use crate::core::drift::spc::types::{
     SpcDriftConfig, SpcDriftMap, SpcDriftProfile, SpcFeatureDrift, SpcFeatureDriftProfile,
     SpcServerRecord,
 };
+use crate::core::utils::FeatureMap;
 use indicatif::ProgressBar;
 use ndarray::prelude::*;
 use ndarray::Axis;
@@ -273,7 +274,6 @@ impl SpcMonitor {
         // reshape vec to 2D array
         let sample_data = Array::from_shape_vec((sample_vec.len(), columns), sample_vec.concat())
             .map_err(|e| MonitorError::ArrayError(e.to_string()))?;
-
         Ok(sample_data)
     }
 
@@ -502,6 +502,7 @@ mod tests {
     use crate::core::drift::base::ProfileBaseArgs;
     use crate::core::drift::base::{DriftProfile, DriftType};
     use crate::core::drift::spc::types::SpcAlertConfig;
+    use crate::core::utils::create_feature_map;
 
     use super::*;
     use approx::relative_eq;
@@ -606,7 +607,7 @@ mod tests {
         let value = profile.to_value();
 
         // test DriftProfile
-        let profile = DriftProfile::from_value(value, &DriftType::SPC.value()).unwrap();
+        let profile = DriftProfile::from_value(value, DriftType::SPC.value()).unwrap();
         let new_args = profile.get_base_args();
 
         assert_eq!(new_args, args);

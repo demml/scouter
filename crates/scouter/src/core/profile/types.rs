@@ -92,6 +92,9 @@ pub struct FeatureProfile {
 
     #[pyo3(get)]
     pub timestamp: chrono::NaiveDateTime,
+
+    #[pyo3(get)]
+    pub correlations: Option<HashMap<String, f32>>,
 }
 
 #[pymethods]
@@ -99,6 +102,12 @@ impl FeatureProfile {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__str__(self)
+    }
+}
+
+impl FeatureProfile {
+    pub fn add_correlations(&mut self, correlations: HashMap<String, f32>) {
+        self.correlations = Some(correlations);
     }
 }
 

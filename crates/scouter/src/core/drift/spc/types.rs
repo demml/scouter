@@ -5,6 +5,7 @@ use crate::core::drift::base::{
     ProfileBaseArgs, ValidateAlertConfig,
 };
 use crate::core::error::ScouterError;
+use crate::core::utils::FeatureMap;
 use crate::core::utils::{json_to_pyobject, pyobject_to_json, FileName, ProfileFuncs};
 use core::fmt::Debug;
 use ndarray::Array;
