@@ -43,7 +43,7 @@ from ._scouter import (
     SpcFeatureQueue,
     SpcServerRecord,
 )
-from .drift.drift import CommonCrons, Drifter
+from .drift.drifter import CommonCrons, Drifter
 from .monitor.monitor import MonitorQueue
 from .observability.observer import ScouterObserver
 from .profile.profile import Profiler

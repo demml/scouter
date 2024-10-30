@@ -1,5 +1,8 @@
 """This module contains the helper class for the PSI Drifter."""
 
+from typing import Any
+
+from numpy.typing import NDArray
 from scouter.drift.base import DriftHelperBase, Profile
 from scouter.utils.logger import ScouterLogger
 from scouter.utils.type_converter import ArrayData
@@ -23,12 +26,6 @@ class PsiDriftHelper(DriftHelperBase):
         Scouter class for creating monitoring profiles and detecting drift. This class will
         create a drift profile from a dataset and detect drift from new data. This
         class is primarily used to setup and actively monitor data drift
-
-        Args:
-            config:
-                Configuration for the drift detection. This configuration will be used to
-                setup the drift profile and detect drift.
-
         """
 
         self._rusty_drifter = PsiDrifter()
@@ -68,6 +65,9 @@ class PsiDriftHelper(DriftHelperBase):
             features={**num_profile.features, **string_profile.features},
             config=config,
         )
+
+    def generate_alerts(self, drift_array: NDArray, features: list[str], alert_rule: Any) -> Any:
+        raise NotImplementedError
 
     @staticmethod
     def drift_type() -> DriftType:
