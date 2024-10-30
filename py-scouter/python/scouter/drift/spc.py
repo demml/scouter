@@ -45,7 +45,9 @@ class SpcDriftHelper(DriftHelperBase):
     def create_numeric_drift_profile(
         self, array: ArrayData, drift_config: SpcDriftConfig, bits: str
     ) -> SpcDriftProfile:
-        numeric_profile = getattr(self._rusty_drifter, f"create_numeric_drift_profile_f{bits}")(
+        numeric_profile = getattr(
+            self._rusty_drifter, f"create_numeric_drift_profile_f{bits}"
+        )(
             features=array.numeric_features,
             array=array.numeric_array,
             drift_config=drift_config,
@@ -53,7 +55,9 @@ class SpcDriftHelper(DriftHelperBase):
 
         return numeric_profile
 
-    def concat_profiles(self, profiles: list[Profile], config: SpcDriftConfig) -> SpcDriftProfile:
+    def concat_profiles(
+        self, profiles: list[Profile], config: SpcDriftConfig
+    ) -> SpcDriftProfile:
         num_profile = profiles[0]
         string_profile = profiles[1]
 
@@ -98,4 +102,4 @@ class SpcDriftHelper(DriftHelperBase):
 
     @staticmethod
     def drift_type() -> DriftType:
-        return DriftType.PSI
+        return DriftType.SPC

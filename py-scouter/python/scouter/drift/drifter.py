@@ -1,10 +1,12 @@
-from typing import List, Optional, Union
+from typing import List, Optional, Union, overload, Any
 
 import pandas as pd
 import polars as pl
 import pyarrow as pa  # type: ignore
 from numpy.typing import NDArray
+from numpy import dtype
 from scouter.drift import DriftHelperBase, get_drift_helper
+from scouter.drift.base import Config, DriftMap, Profile
 from scouter.utils.logger import ScouterLogger
 
 from .._scouter import (  # pylint: disable=no-name-in-module
@@ -37,13 +39,38 @@ class Drifter:
                 Type of drift to detect. Defaults to SPC drift detection.
 
         """
-        self._drift_helper: DriftHelperBase = get_drift_helper(drift_type or DriftType.SPC)
+        self._drift_helper: DriftHelperBase = get_drift_helper(
+            drift_type or DriftType.SPC
+        )
+
+    @overload
+    def create_drift_profile(
+        self,
+        data: Union[pl.DataFrame, pd.DataFrame, NDArray[Any], pa.Table],
+        config: SpcDriftConfig,
+    ) -> SpcDriftProfile:
+        ...
+
+    @overload
+    def create_drift_profile(
+        self,
+        data: Union[pl.DataFrame, pd.DataFrame, NDArray[Any], pa.Table],
+        config: PsiDriftConfig,
+    ) -> PsiDriftProfile:
+        ...
+
+    @overload
+    def create_drift_profile(
+        self,
+        data: Union[pl.DataFrame, pd.DataFrame, NDArray[Any], pa.Table],
+    ) -> SpcDriftProfile:
+        ...
 
     def create_drift_profile(
         self,
-        data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
-        config: Optional[Union[SpcDriftConfig, PsiDriftConfig]] = None,
-    ) -> Union[SpcDriftProfile, PsiDriftProfile]:
+        data: Union[pl.DataFrame, pd.DataFrame, NDArray[Any], pa.Table],
+        config: Optional[Config] = None,
+    ) -> Profile:
         """Create a drift profile from data to use for monitoring.
 
         Args:
@@ -69,11 +96,27 @@ class Drifter:
 
         return self._drift_helper.create_drift_profile(data, _config)
 
+    @overload
     def compute_drift(
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
         drift_profile: SpcDriftProfile,
-    ) -> Union[SpcDriftMap, PsiDriftMap]:
+    ) -> SpcDriftMap:
+        ...
+
+    @overload
+    def compute_drift(
+        self,
+        data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
+        drift_profile: PsiDriftProfile,
+    ) -> PsiDriftMap:
+        ...
+
+    def compute_drift(
+        self,
+        data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
+        drift_profile: Profile,
+    ) -> DriftMap:
         """Compute drift from data using a drift profile.
 
         Args:

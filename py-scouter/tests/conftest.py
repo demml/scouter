@@ -9,7 +9,14 @@ from unittest.mock import patch
 from httpx import Response
 from fastapi import FastAPI, Request
 from scouter.integrations.fastapi import ScouterRouter, FastAPIScouterObserver
-from scouter import Drifter, SpcDriftProfile, KafkaConfig, HTTPConfig, DriftType
+from scouter import (
+    Drifter,
+    SpcDriftProfile,
+    KafkaConfig,
+    HTTPConfig,
+    DriftType,
+    PsiDriftConfig,
+)
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
 from scouter.observability.observer import ScouterObserver
@@ -117,6 +124,12 @@ def multivariate_array_drift() -> YieldFixture[NDArray]:
 @pytest.fixture(scope="function")
 def drift_config() -> YieldFixture[SpcDriftConfig]:
     config = SpcDriftConfig(name="test", repository="test")
+    yield config
+
+
+@pytest.fixture(scope="function")
+def psi_drift_config() -> YieldFixture[PsiDriftConfig]:
+    config = PsiDriftConfig(name="test", repository="test")
     yield config
 
 
