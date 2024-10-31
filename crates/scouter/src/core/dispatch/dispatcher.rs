@@ -283,8 +283,6 @@ pub mod dispatcher_logic {
                 let msg2 = format!("{}/{}/{}!", self.repository, self.name, self.version);
                 let mut body = format!("\n{} {} \n", msg1, msg2);
                 body.push_str(&alert_description);
-
-                println!("{}", body);
             }
             Ok(())
         }

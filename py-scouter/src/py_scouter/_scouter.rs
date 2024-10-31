@@ -664,7 +664,7 @@ impl PsiDrifter {
         let drift_map =
             match self
                 .monitor
-                .compute_model_drift(&features, &array.as_array(), &drift_profile)
+                .compute_drift(&features, &array.as_array(), &drift_profile)
             {
                 Ok(drift_map) => drift_map,
                 Err(_e) => {
@@ -684,7 +684,7 @@ impl PsiDrifter {
         let drift_map =
             match self
                 .monitor
-                .compute_model_drift(&features, &array.as_array(), &drift_profile)
+                .compute_drift(&features, &array.as_array(), &drift_profile)
             {
                 Ok(drift_map) => drift_map,
                 Err(_e) => {

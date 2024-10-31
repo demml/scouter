@@ -334,6 +334,7 @@ impl PsiMonitor {
             .into_par_iter()
             .map(|bin| self.compute_psi_proportion_pairs(column_vector, bin, category_map))
             .collect::<Result<Vec<(f64, f64)>, MonitorError>>()?;
+
         Ok(self.compute_psi(&feature_proportions))
     }
 
@@ -376,7 +377,7 @@ impl PsiMonitor {
             })
     }
 
-    pub fn compute_model_drift<F>(
+    pub fn compute_drift<F>(
         &self,
         features: &[String],
         array: &ArrayView2<F>,
@@ -666,5 +667,61 @@ mod tests {
             .unwrap();
 
         assert_eq!(profile.features.len(), 3);
+    }
+
+    #[test]
+    fn test_compute_drift() {
+        // create 2d array
+        let array = Array::random((1030, 3), Uniform::new(0., 10.));
+
+        // cast array to f32
+        let array = array.mapv(|x| x as f32);
+
+        let features = vec![
+            "feature_1".to_string(),
+            "feature_2".to_string(),
+            "feature_3".to_string(),
+        ];
+
+        let monitor = PsiMonitor::default();
+        let config = PsiDriftConfig::new(
+            Some("name".to_string()),
+            Some("repo".to_string()),
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+
+        let profile = monitor
+            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
+            .unwrap();
+
+        let drift_map = monitor
+            .compute_drift(&features, &array.view(), &profile)
+            .unwrap();
+
+        assert_eq!(drift_map.features.len(), 3);
+
+        // assert that the drift values are all 0.0
+        drift_map
+            .features
+            .values()
+            .for_each(|value| assert!(*value == 0.0));
+
+        // create new array that has drifted values
+        let mut new_array = Array::random((1030, 3), Uniform::new(0., 10.)).mapv(|x| x as f32);
+        new_array.slice_mut(s![.., 0]).mapv_inplace(|x| x + 0.01);
+
+        let new_drift_map = monitor
+            .compute_drift(&features, &new_array.view(), &profile)
+            .unwrap();
+
+        // assert that the drift values are all greater than 0.0
+        new_drift_map
+            .features
+            .values()
+            .for_each(|value| assert!(*value > 0.0));
     }
 }

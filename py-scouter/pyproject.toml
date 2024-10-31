@@ -1,45 +1,69 @@
-[tool.poetry]
-name = "scouter"
+[project]
+name = "scouter-ml"
+requires-python = ">=3.8"
+classifiers = [
+    "Programming Language :: Rust",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: Python :: Implementation :: PyPy",
+]
+dynamic = ["version"]
 version = "0.3.2"
 description = ""
-authors = ["Thorrester <support@demmlai.com>"]
+authors = [{name = "Thorrester", email = "<support@demmlai.com>"}]
 readme = "README.md"
+dependencies = [
+    'pandas>=1.5.3, <3.0.0', 
+    'rusty-logger>=0.3.0, <1.0.0',
+    'numpy>=1.23.0',
+    'pydantic>=2.7.1, <3.0.0',
+    'polars>=1.0.0, <2.0.0',
+    'pyarrow>=15.0.0, <17.0.0',
+    'tenacity>=8.4.2, <9.0.0',
+]
 
-[tool.poetry.dependencies]
-python = ">=3.9,<3.13"
-polars = "^1.0.0"
-pandas = ">=1.5.3, <3"
-rusty-logger = "^0.3.0"
-pydantic = "^2.7.1"
-tenacity = "^8.4.2"
-pyarrow = ">=15.0.0, <17.0.0"
+[dependency-groups]
+dev = [
+    "maturin >= 1.4.0, < 2.0.0",
+    "pytest >= 7.0.0, < 8.0.0",
+    "pytest-cov >= 5.0.0, < 6.0.0",
+    "ruff >= 0.1.0, < 1.0.0",
+    "mypy >= 1.0.0, < 2.0.0",
+    "black >= 24.3.0, < 25.0.0",
+    "pylint >= 3.0.0, < 4.0.0",
+    "pytest-lazy-fixture >= 0.6.3, < 1.0.0",
+    "psutil >= 5.9.8, < 6.0.0",
+    "isort >= 5.13.2, < 6.0.0",
+    "pandas-stubs >= 1.5.3.230214, < 3.0.0",
+    "pdoc >= 14.5.1, < 15.0.0",
+    "confluent-kafka >= 2.3.0, < 3.0.0",
+    "types-confluent-kafka >= 1.2.1, < 2.0.0",
+    "httpx >= 0.27.0, < 1.0.0",
+    "fastapi >= 0.115.0, < 1.0.0",
+    "pika >= 1.3.2, < 2.0.0",
+    "uvicorn >= 0.31.0, < 1.0.0",
+    "pip>=24.3.1",
+]
+docs = [
+    "mkdocs-material >= 9.5.0, < 10.0.0",
+    "mkdocstrings[python] >= 0.25.0, < 1.0.0",
+]
 
-[tool.poetry.group.dev]
-optional = true
-
-[tool.poetry.group.dev.dependencies]
-maturin = "^1.4.0"
-pytest = "^7"
-pytest-cov = "^5.0.0"
-ruff = "^0.1"
-mypy = "^1"
-black = ">24.3.0"
-pylint = "^3"
-pytest-lazy-fixture = "^0.6.3"
-psutil = "^5.9.8"
-isort = "^5.13.2"
-pandas-stubs = "^2.2.2.240603"
-pdoc = "^14.5.1"
-confluent-kafka = ">=2.3.0"
-types-confluent-kafka = "^1.2.1"
-httpx = "^0.27.0"
-fastapi = "^0.115.0"
-pika = "^1.3.2"
-uvicorn = "^0.31.0"
-
-[tool.poetry.group.docs.dependencies]
-mkdocs-material = "^9.5"
-mkdocstrings = { extras = ["python"], version = "0.25.0" }
+[project.optional-dependencies]
+kafka = [
+    "confluent-kafka >= 2.3.0, < 3.0.0",
+    "tenacity >= 8.4.2, < 9.0.0",
+    ]
+httpx = [
+    "httpx >= 0.27.0, < 1.0.0",
+    "tenacity >= 8.4.2, < 9.0.0",
+    ]
+fastapi = [
+    "fastapi >= 0.113.0, < 1.0.0",
+    ]
+rabbitmq = [
+    "pika >= 1.2.0, < 2.0.0",
+    "tenacity >= 8.4.2, < 9.0.0",
+    ]
 
 [tool.isort]
 profile = "black"
@@ -101,41 +125,6 @@ plugins = [
 exclude = [
     "python/scouter/utils/comparison/*",
 ]
-
-[project]
-name = "scouter-ml"
-requires-python = ">=3.8"
-classifiers = [
-    "Programming Language :: Rust",
-    "Programming Language :: Python :: Implementation :: CPython",
-    "Programming Language :: Python :: Implementation :: PyPy",
-]
-dynamic = ["version"]
-dependencies = [
-    'pandas>=1.5.3, <3.0.0', 
-    'rusty_logger>=0.3.0, <1.0.0',
-    'numpy>=1.23.0',
-    'pydantic>=2.7.1, <3.0.0',
-    'polars>=1.0.0, <2.0.0',
-    'pyarrow>=15.0.0, <17.0.0',
-]
-
-[project.optional-dependencies]
-kafka = [
-    "confluent-kafka >= 2.3.0, < 3.0.0",
-    "tenacity >= 8.4.2, < 9.0.0",
-    ]
-httpx = [
-    "httpx >= 0.27.0, < 1.0.0",
-    "tenacity >= 8.4.2, < 9.0.0",
-    ]
-fastapi = [
-    "fastapi >= 0.113.0, < 1.0.0",
-    ]
-rabbitmq = [
-    "pika >= 1.2.0, < 2.0.0",
-    "tenacity >= 8.4.2, < 9.0.0",
-    ]
 
 [build-system]
 requires = ["maturin>=1.4,<2.0"]

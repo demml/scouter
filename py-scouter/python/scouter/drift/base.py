@@ -172,7 +172,9 @@ class DriftHelperBase:
 
             profile = numeric_profile or string_profile
 
-            assert isinstance(profile, SpcDriftProfile), "Expected DriftProfile"
+            assert isinstance(
+                profile, (SpcDriftProfile, PsiDriftProfile)
+            ), "Expected DriftProfile"
 
             return profile
 
