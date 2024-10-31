@@ -41,14 +41,10 @@ class DriftHelperBase:
     def _drifter(self) -> Drifter:
         raise NotImplementedError
 
-    def create_string_drift_profile(
-        self, features: List[str], array: List[List[str]], drift_config: Any
-    ) -> Profile:
+    def create_string_drift_profile(self, features: List[str], array: List[List[str]], drift_config: Any) -> Profile:
         raise NotImplementedError
 
-    def create_numeric_drift_profile(
-        self, array: ArrayData, drift_config: Any, bits: str
-    ) -> Profile:
+    def create_numeric_drift_profile(self, array: ArrayData, drift_config: Any, bits: str) -> Profile:
         raise NotImplementedError
 
     def concat_profiles(self, profiles: List[Profile], config: Any) -> Profile:
@@ -77,9 +73,7 @@ class DriftHelperBase:
             Numpy array of converted strings.
         """
 
-        converted_array: NDArray = getattr(
-            self._drifter, f"convert_strings_to_numpy_f{bits}"
-        )(
+        converted_array: NDArray = getattr(self._drifter, f"convert_strings_to_numpy_f{bits}")(
             array=string_array,
             features=features,
             drift_profile=drift_profile,
@@ -172,9 +166,7 @@ class DriftHelperBase:
 
             profile = numeric_profile or string_profile
 
-            assert isinstance(
-                profile, (SpcDriftProfile, PsiDriftProfile)
-            ), "Expected DriftProfile"
+            assert isinstance(profile, (SpcDriftProfile, PsiDriftProfile)), "Expected DriftProfile"
 
             return profile
 
@@ -211,13 +203,8 @@ class DriftHelperBase:
                     bits=bits,
                 )
 
-                if (
-                    array.numeric_array is not None
-                    and array.numeric_features is not None
-                ):
-                    array.numeric_array = np.concatenate(
-                        (array.numeric_array, string_array), axis=1
-                    )
+                if array.numeric_array is not None and array.numeric_features is not None:
+                    array.numeric_array = np.concatenate((array.numeric_array, string_array), axis=1)
 
                     array.numeric_features += array.string_features
 
@@ -235,9 +222,7 @@ class DriftHelperBase:
                 bits=bits,
             )
 
-            assert isinstance(
-                drift_map, SpcDriftMap
-            ), f"Expected DriftMap, got {type(drift_map)}"
+            assert isinstance(drift_map, (SpcDriftMap, PsiDriftMap)), f"Expected DriftMap, got {type(drift_map)}"
 
             return drift_map
 
@@ -262,11 +247,7 @@ def get_drift_helper(drift_type: DriftType) -> DriftHelperBase:
     """Helper function to get the correct drift helper based on the drift type."""
 
     converter = next(
-        (
-            converter
-            for converter in DriftHelperBase.__subclasses__()
-            if converter.drift_type() == drift_type
-        ),
+        (converter for converter in DriftHelperBase.__subclasses__() if converter.drift_type() == drift_type),
         None,
     )
 

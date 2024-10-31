@@ -1,10 +1,9 @@
-from typing import List, Optional, Union, overload, Any
+from typing import Any, List, Optional, Union, overload
 
 import pandas as pd
 import polars as pl
 import pyarrow as pa  # type: ignore
 from numpy.typing import NDArray
-from numpy import dtype
 from scouter.drift import DriftHelperBase, get_drift_helper
 from scouter.drift.base import Config, DriftMap, Profile
 from scouter.utils.logger import ScouterLogger
@@ -39,32 +38,27 @@ class Drifter:
                 Type of drift to detect. Defaults to SPC drift detection.
 
         """
-        self._drift_helper: DriftHelperBase = get_drift_helper(
-            drift_type or DriftType.SPC
-        )
+        self._drift_helper: DriftHelperBase = get_drift_helper(drift_type or DriftType.SPC)
 
     @overload
     def create_drift_profile(
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray[Any], pa.Table],
         config: SpcDriftConfig,
-    ) -> SpcDriftProfile:
-        ...
+    ) -> SpcDriftProfile: ...
 
     @overload
     def create_drift_profile(
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray[Any], pa.Table],
         config: PsiDriftConfig,
-    ) -> PsiDriftProfile:
-        ...
+    ) -> PsiDriftProfile: ...
 
     @overload
     def create_drift_profile(
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray[Any], pa.Table],
-    ) -> SpcDriftProfile:
-        ...
+    ) -> SpcDriftProfile: ...
 
     def create_drift_profile(
         self,
@@ -101,16 +95,14 @@ class Drifter:
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
         drift_profile: SpcDriftProfile,
-    ) -> SpcDriftMap:
-        ...
+    ) -> SpcDriftMap: ...
 
     @overload
     def compute_drift(
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
         drift_profile: PsiDriftProfile,
-    ) -> PsiDriftMap:
-        ...
+    ) -> PsiDriftMap: ...
 
     def compute_drift(
         self,
