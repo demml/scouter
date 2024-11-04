@@ -619,7 +619,11 @@ impl PsiDrifter {
         let array = match self.monitor.convert_strings_to_ndarray_f32(
             &features,
             &array,
-            &drift_profile.config.feature_map,
+            &drift_profile
+                .config
+                .feature_map
+                .ok_or(ScouterError::MissingFeatureMapError)
+                .unwrap(),
         ) {
             Ok(array) => array,
             Err(_e) => {
@@ -642,7 +646,11 @@ impl PsiDrifter {
         let array = match self.monitor.convert_strings_to_ndarray_f64(
             &features,
             &array,
-            &drift_profile.config.feature_map,
+            &drift_profile
+                .config
+                .feature_map
+                .ok_or(ScouterError::MissingFeatureMapError)
+                .unwrap(),
         ) {
             Ok(array) => array,
             Err(_e) => {
