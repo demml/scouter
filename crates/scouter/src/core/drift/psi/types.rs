@@ -89,7 +89,7 @@ pub struct PsiDriftConfig {
     pub version: String,
 
     #[pyo3(get, set)]
-    pub feature_map: FeatureMap,
+    pub feature_map: Option<FeatureMap>,
 
     #[pyo3(get, set)]
     pub alert_config: PsiAlertConfig,
@@ -130,7 +130,6 @@ impl PsiDriftConfig {
         let version = version.unwrap_or("0.1.0".to_string());
         let targets = targets.unwrap_or_default();
         let alert_config = alert_config.unwrap_or_default();
-        let feature_map = feature_map.unwrap_or_default();
 
         Ok(Self {
             name,
@@ -163,7 +162,7 @@ impl PsiDriftConfig {
     }
 
     pub fn update_feature_map(&mut self, feature_map: FeatureMap) {
-        self.feature_map = feature_map;
+        self.feature_map = Some(feature_map);
     }
 
     #[allow(clippy::too_many_arguments)]

@@ -187,7 +187,13 @@ impl PsiMonitor {
         F: Float + FromPrimitive + Default + Sync,
         F: Into<f64>,
     {
-        if let Some(categorical_feature_map) = drift_config.feature_map.features.get(feature_name) {
+        if let Some(categorical_feature_map) = drift_config
+            .feature_map
+            .clone()
+            .unwrap_or_default()
+            .features
+            .get(feature_name)
+        {
             return Ok(self.create_categorical_bins(column_vector, categorical_feature_map));
         }
 
@@ -398,7 +404,13 @@ impl PsiMonitor {
                 self.compute_feature_drift(
                     &column_vector,
                     drift_profile.features.get(feature_name).unwrap(),
-                    drift_profile.config.feature_map.features.get(feature_name),
+                    drift_profile
+                        .config
+                        .feature_map
+                        .clone()
+                        .unwrap_or_default()
+                        .features
+                        .get(feature_name),
                 )
             })
             .collect::<Result<Vec<f64>, MonitorError>>()?;
