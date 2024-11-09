@@ -76,7 +76,7 @@ pub enum FeatureQueueError {
     #[error("invalid value detected for feature: {0}, provided value = {1}")]
     InvalidValueError(String, f64),
 
-    #[error("Failed to get bucket given bucket id")]
+    #[error("Failed to get bin given bin id")]
     GetBinError,
 }
 
