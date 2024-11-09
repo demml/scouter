@@ -7,6 +7,7 @@ use crate::core::utils::ProfileFuncs;
 
 use pyo3::prelude::*;
 
+use crate::core::drift::psi::types::PsiServerRecord;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -95,16 +96,17 @@ pub enum RecordType {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ServerRecord {
     SPC { record: SpcServerRecord },
+    PSI { record: PsiServerRecord },
     OBSERVABILITY { record: ObservabilityMetrics },
 }
 
-#[pymethods]
-impl ServerRecord {
-    #[new]
-    pub fn new(record: SpcServerRecord) -> Self {
-        ServerRecord::SPC { record }
-    }
-}
+// #[pymethods]
+// impl ServerRecord {
+//     #[new]
+//     pub fn new(record: SpcServerRecord) -> Self {
+//         ServerRecord::SPC { record }
+//     }
+// }
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]

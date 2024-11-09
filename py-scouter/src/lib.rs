@@ -8,8 +8,9 @@ use scouter::core::cron::{
 };
 use scouter::core::dispatch::types::AlertDispatchType;
 use scouter::core::drift::base::{DriftType, RecordType, ServerRecord, ServerRecords};
+use scouter::core::drift::psi::feature_queue::PsiFeatureQueue;
 use scouter::core::drift::psi::types::{
-    Bin, PsiAlertConfig, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
+    Bin, PsiAlertConfig, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile, PsiServerRecord
 };
 use scouter::core::drift::spc::feature_queue::SpcFeatureQueue;
 use scouter::core::drift::spc::types::{
@@ -59,10 +60,12 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<AlertDispatchType>()?;
     m.add_class::<FeatureMap>()?;
     m.add_class::<SpcFeatureQueue>()?;
+    m.add_class::<PsiFeatureQueue>()?;
     m.add_class::<DriftType>()?;
     m.add_class::<RecordType>()?;
     m.add_class::<ServerRecords>()?;
     m.add_class::<SpcServerRecord>()?;
+    m.add_class::<PsiServerRecord>()?;
     m.add_class::<ServerRecord>()?;
     m.add_class::<Observer>()?;
     m.add_class::<RouteMetrics>()?;

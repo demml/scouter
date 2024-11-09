@@ -1366,6 +1366,34 @@ class SpcDrifter:
             List of server records
         """
 
+class PsiFeatureQueue:
+    def __init__(self, drift_profile: PsiDriftProfile) -> None:
+        """Initialize the feature queue
+
+        Args:
+            drift_profile:
+                Drift profile to use for feature queue.
+        """
+
+    def insert(self, data: Dict[str, Any]) -> None:
+        """Insert data into the feature queue
+        Args:
+            data:
+                Dictionary of feature values to insert into the monitoring queue.
+
+        Returns:
+            List of drift records if the monitoring queue has enough data to compute
+        """
+
+    def is_empty(self) -> bool:
+        """check if queue is empty
+        Returns:
+            bool
+        """
+
+    def clear_queue(self) -> None:
+        """Clears the feature queue"""
+
 class SpcFeatureQueue:
     def __init__(self, drift_profile: SpcDriftProfile) -> None:
         """Initialize the feature queue

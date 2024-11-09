@@ -15,6 +15,78 @@ use tracing::debug;
 
 const MISSING: &str = "__missing__";
 
+// lower_threshold float,
+// upper_threshold float,
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct PsiServerRecord {
+    #[pyo3(get)]
+    pub created_at: chrono::NaiveDateTime,
+
+    #[pyo3(get)]
+    pub repository: String,
+
+    #[pyo3(get)]
+    pub name: String,
+
+    #[pyo3(get)]
+    pub version: String,
+
+    #[pyo3(get)]
+    pub feature: String,
+
+    #[pyo3(get)]
+    pub bin_id: String,
+
+    #[pyo3(get)]
+    pub bin_count: usize,
+}
+
+#[pymethods]
+impl PsiServerRecord {
+    #[new]
+    pub fn new(
+        repository: String,
+        name: String,
+        version: String,
+        feature: String,
+        bin_id: String,
+        bin_count: usize,
+    ) -> Self {
+        Self {
+            created_at: chrono::Utc::now().naive_utc(),
+            name,
+            repository,
+            version,
+            feature,
+            bin_id,
+            bin_count,
+        }
+    }
+
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
+
+    pub fn model_dump_json(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__json__(self)
+    }
+
+    pub fn to_dict(&self) -> HashMap<String, String> {
+        let mut record = HashMap::new();
+        record.insert("created_at".to_string(), self.created_at.to_string());
+        record.insert("name".to_string(), self.name.clone());
+        record.insert("repository".to_string(), self.repository.clone());
+        record.insert("version".to_string(), self.version.clone());
+        record.insert("feature".to_string(), self.feature.clone());
+        record.insert("bind_id".to_string(), self.bin_id.clone());
+        record
+    }
+}
+
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PsiAlertConfig {
@@ -89,7 +161,7 @@ pub struct PsiDriftConfig {
     pub version: String,
 
     #[pyo3(get, set)]
-    pub feature_map: Option<FeatureMap>,
+    pub feature_map: FeatureMap,
 
     #[pyo3(get, set)]
     pub alert_config: PsiAlertConfig,
@@ -130,6 +202,7 @@ impl PsiDriftConfig {
         let version = version.unwrap_or("0.1.0".to_string());
         let targets = targets.unwrap_or_default();
         let alert_config = alert_config.unwrap_or_default();
+        let feature_map = feature_map.unwrap_or_default();
 
         Ok(Self {
             name,
@@ -162,7 +235,7 @@ impl PsiDriftConfig {
     }
 
     pub fn update_feature_map(&mut self, feature_map: FeatureMap) {
-        self.feature_map = Some(feature_map);
+        self.feature_map = feature_map;
     }
 
     #[allow(clippy::too_many_arguments)]
