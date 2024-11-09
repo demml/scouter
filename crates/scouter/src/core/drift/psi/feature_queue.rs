@@ -34,7 +34,10 @@ impl PsiFeatureQueue {
         let no_thresholds = bins
             .iter()
             .any(|bin| bin.lower_limit.is_none() && bin.upper_limit.is_none());
-        no_thresholds
+        let all_non_numeric_ids = bins
+            .iter()
+            .all(|bin| bin.id.parse::<f64>().is_err());
+        no_thresholds && all_non_numeric_ids
     }
 
     fn find_numeric_bin_given_scaler(value: f64, bins: &Vec<Bin>) -> &String {
