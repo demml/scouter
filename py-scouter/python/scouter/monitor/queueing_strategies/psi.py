@@ -1,6 +1,6 @@
 import threading
 import time
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Union
 
 from scouter import (
     HTTPConfig,
@@ -8,14 +8,13 @@ from scouter import (
     PsiDriftProfile,
     PsiFeatureQueue,
     RabbitMQConfig,
-    ServerRecords,
 )
 from scouter.monitor.queueing_strategies.base import BaseQueueingStrategy
 from scouter.utils.logger import ScouterLogger
 
 logger = ScouterLogger.get_logger()
 
-PSI_MAX_QUEUE_SIZE = 100
+PSI_MAX_QUEUE_SIZE = 1000
 
 
 class PsiQueueingStrategy(BaseQueueingStrategy):
