@@ -29,9 +29,9 @@ class SpcQueueingStrategy(BaseQueueingStrategy):
                 Configuration for the monitoring producer. The configured producer
                 will be used to publish drift records to the monitoring server.
         """
-        super().__init__(SpcFeatureQueue(drift_profile=drift_profile), config)
+        super().__init__(config)
         self._drift_profile = drift_profile
-        self._count = 0
+        self._feature_queue = SpcFeatureQueue(drift_profile=drift_profile)
 
     def insert(self, data: Dict[Any, Any]) -> None:
         """Insert data into the monitoring queue.
@@ -46,10 +46,9 @@ class SpcQueueingStrategy(BaseQueueingStrategy):
         try:
             self._feature_queue.insert(data)
             self._count += 1
+            if self._count >= self._drift_profile.config.sample_size:
+                self._publish(self._feature_queue)
 
-            # if self._count >= self._drift_profile.config.sample_size:
-            if self._count >= 1:
-                self._publish()
         except KeyError as exc:
             logger.error("Key error: {}", exc)
 

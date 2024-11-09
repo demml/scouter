@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 from typing import Any, Dict, Union
 
 from scouter import (
@@ -13,10 +14,9 @@ from scouter.utils.logger import ScouterLogger
 logger = ScouterLogger.get_logger()
 
 
-class BaseQueueingStrategy:
+class BaseQueueingStrategy(ABC):
     def __init__(
         self,
-        feature_queue: Union[SpcFeatureQueue, PsiFeatureQueue],
         config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig],
     ) -> None:
         """Abstract base class that defines the core structure and shared functionality
@@ -33,21 +33,21 @@ class BaseQueueingStrategy:
                 will be used to publish drift records to the monitoring server.
         """
         self._producer = DriftRecordProducer.get_producer(config)
-        self._feature_queue = feature_queue
-
-    def _clear_queue(self) -> None:
-        """Clear the monitoring queue."""
-        self._feature_queue.clear_queue()
         self._count = 0
 
-    def _publish(self) -> None:
+    def _clear_queue(self, feature_queue: Union[SpcFeatureQueue, PsiFeatureQueue]) -> None:
+        """Clear the monitoring queue."""
+        feature_queue.clear_queue()
+        self._count = 0
+
+    def _publish(self, feature_queue: Union[SpcFeatureQueue, PsiFeatureQueue]) -> None:
         """Publish drift records to the monitoring server."""
         try:
-            drift_records = self._feature_queue.create_drift_records()
+            drift_records = feature_queue.create_drift_records()
 
             self._producer.publish(drift_records)
-            # clear items
-            self._clear_queue()
+
+            self._clear_queue(feature_queue)
 
         except Exception as exc:
             logger.error("Failed to compute drift: {}", exc)
@@ -57,6 +57,7 @@ class BaseQueueingStrategy:
         """Flush the producer."""
         self._producer.flush()
 
+    @abstractmethod
     def insert(self, data: Dict[Any, Any]) -> None:
         """Insert data into the monitoring queue.
 
@@ -67,4 +68,3 @@ class BaseQueueingStrategy:
         Returns:
             List of drift records if the monitoring queue has enough data to compute
         """
-        raise NotImplementedError
