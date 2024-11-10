@@ -7,7 +7,7 @@ use crate::core::utils::ProfileFuncs;
 
 use pyo3::prelude::*;
 
-use crate::core::drift::psi::types::PsiServerRecord;
+use crate::core::drift::psi::types::{PsiServerRecord, PsiDriftProfile};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -155,6 +155,7 @@ impl ServerRecords {
 #[derive(Debug, Clone)]
 pub enum DriftProfile {
     SpcDriftProfile(SpcDriftProfile),
+    PsiDriftProfile(PsiDriftProfile)
 }
 
 impl DriftProfile {
@@ -176,7 +177,11 @@ impl DriftProfile {
                     serde_json::from_str(&profile).map_err(|_| ScouterError::DeSerializeError)?;
                 Ok(DriftProfile::SpcDriftProfile(profile))
             }
-            DriftType::PSI => todo!(),
+            DriftType::PSI => {
+                let profile =
+                    serde_json::from_str(&profile).map_err(|_| ScouterError::DeSerializeError)?;
+                Ok(DriftProfile::PsiDriftProfile(profile))
+            }
         }
     }
 
@@ -184,12 +189,14 @@ impl DriftProfile {
     pub fn get_base_args(&self) -> ProfileArgs {
         match self {
             DriftProfile::SpcDriftProfile(profile) => profile.get_base_args(),
+            DriftProfile::PsiDriftProfile(profile) => profile.get_base_args(),
         }
     }
 
     pub fn to_value(&self) -> serde_json::Value {
         match self {
             DriftProfile::SpcDriftProfile(profile) => profile.to_value(),
+            DriftProfile::PsiDriftProfile(profile) => profile.to_value(),
         }
     }
 
@@ -209,7 +216,11 @@ impl DriftProfile {
                     serde_json::from_value(body).map_err(|_| ScouterError::DeSerializeError)?;
                 Ok(DriftProfile::SpcDriftProfile(profile))
             }
-            DriftType::PSI => todo!(),
+            DriftType::PSI => {
+                let profile =
+                    serde_json::from_value(body).map_err(|_| ScouterError::DeSerializeError)?;
+                Ok(DriftProfile::PsiDriftProfile(profile))
+            }
         }
     }
 }
