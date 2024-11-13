@@ -1,9 +1,7 @@
 use crate::core::drift::base::{RecordType, ServerRecord, ServerRecords};
 use crate::core::drift::psi::monitor::PsiMonitor;
-use crate::core::drift::psi::types::{
-    Bin, PsiDriftProfile, PsiServerRecord,
-};
-use crate::core::error::{FeatureQueueError};
+use crate::core::drift::psi::types::{Bin, PsiDriftProfile, PsiServerRecord};
+use crate::core::error::FeatureQueueError;
 use core::result::Result::Ok;
 use pyo3::prelude::*;
 use pyo3::types::PyAny;
@@ -17,12 +15,12 @@ pub struct PsiFeatureQueue {
 }
 
 impl PsiFeatureQueue {
-    fn feature_is_numeric(bins: &Vec<Bin>) -> bool {
+    fn feature_is_numeric(bins: &[Bin]) -> bool {
         bins.iter()
             .any(|q| q.lower_limit.is_some() && q.upper_limit.is_some())
     }
 
-    fn feature_is_binary(bins: &Vec<Bin>) -> bool {
+    fn feature_is_binary(bins: &[Bin]) -> bool {
         let no_thresholds = bins
             .iter()
             .any(|bin| bin.lower_limit.is_none() && bin.upper_limit.is_none());
@@ -30,17 +28,15 @@ impl PsiFeatureQueue {
         no_thresholds && bins.len() == 2 && binary_bin_ids
     }
 
-    fn feature_is_categorical(bins: &Vec<Bin>) -> bool {
+    fn feature_is_categorical(bins: &[Bin]) -> bool {
         let no_thresholds = bins
             .iter()
             .any(|bin| bin.lower_limit.is_none() && bin.upper_limit.is_none());
-        let all_non_numeric_ids = bins
-            .iter()
-            .all(|bin| bin.id.parse::<f64>().is_err());
+        let all_non_numeric_ids = bins.iter().all(|bin| bin.id.parse::<f64>().is_err());
         no_thresholds && all_non_numeric_ids
     }
 
-    fn find_numeric_bin_given_scaler(value: f64, bins: &Vec<Bin>) -> &String {
+    fn find_numeric_bin_given_scaler(value: f64, bins: &[Bin]) -> &String {
         bins.iter()
             .find(|bin| value > bin.lower_limit.unwrap() && value <= bin.upper_limit.unwrap())
             .map(|bin| &bin.id)

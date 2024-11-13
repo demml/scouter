@@ -1,7 +1,8 @@
 use crate::core::cron::EveryDay;
 use crate::core::dispatch::types::AlertDispatchType;
 use crate::core::drift::base::{
-    DispatchDriftConfig, DriftArgs, DriftType, ProfileArgs, ProfileBaseArgs, ValidateAlertConfig,
+    DispatchAlertDescription, DispatchDriftConfig, DriftArgs, DriftType, ProfileArgs,
+    ProfileBaseArgs, ValidateAlertConfig,
 };
 use crate::core::error::ScouterError;
 use crate::core::utils::{json_to_pyobject, pyobject_to_json, FeatureMap, FileName, ProfileFuncs};
@@ -100,6 +101,9 @@ pub struct PsiAlertConfig {
 
     #[pyo3(get, set)]
     pub dispatch_kwargs: HashMap<String, String>,
+
+    #[pyo3(get, set)]
+    pub psi_threshold: f64,
 }
 
 impl Default for PsiAlertConfig {
@@ -109,6 +113,7 @@ impl Default for PsiAlertConfig {
             schedule: EveryDay::new().cron,
             features_to_monitor: Vec::new(),
             dispatch_kwargs: HashMap::new(),
+            psi_threshold: 0.25,
         }
     }
 }
@@ -123,17 +128,20 @@ impl PsiAlertConfig {
         schedule: Option<String>,
         features_to_monitor: Option<Vec<String>>,
         dispatch_kwargs: Option<HashMap<String, String>>,
+        psi_threshold: Option<f64>,
     ) -> Self {
         let schedule = Self::resolve_schedule(schedule);
         let dispatch_type = dispatch_type.unwrap_or_default();
         let features_to_monitor = features_to_monitor.unwrap_or_default();
         let dispatch_kwargs = dispatch_kwargs.unwrap_or_default();
+        let psi_threshold = psi_threshold.unwrap_or(0.25);
 
         Self {
             dispatch_type,
             schedule,
             features_to_monitor,
             dispatch_kwargs,
+            psi_threshold,
         }
     }
 
@@ -474,6 +482,45 @@ impl ProfileBaseArgs for PsiDriftProfile {
     }
 }
 
+pub struct PsiFeatureAlerts {
+    pub drift_map: HashMap<String, f64>,
+
+    pub psi_threshold: f64,
+}
+
+impl DispatchAlertDescription for PsiFeatureAlerts {
+    fn create_alert_description(&self, dispatch_type: AlertDispatchType) -> String {
+        let mut alert_description = String::new();
+
+        for (i, (feature_name, drift_value)) in self.drift_map.iter().enumerate() {
+            if i == 0 {
+                let header = "PSI Drift has been detected for the following features:\n";
+                alert_description.push_str(header);
+            }
+
+            let feature_name = match dispatch_type {
+                AlertDispatchType::Console | AlertDispatchType::OpsGenie => {
+                    format!("{:indent$}{}: \n", "", &feature_name, indent = 4)
+                }
+                AlertDispatchType::Slack => format!("{}: \n", &feature_name),
+            };
+
+            alert_description = format!("{}{}", alert_description, feature_name);
+
+            let alert_details = match dispatch_type {
+                AlertDispatchType::Console | AlertDispatchType::OpsGenie => {
+                    format!("{:indent$}Drift Value: {}\n", "", drift_value, indent = 8)
+                }
+                AlertDispatchType::Slack => {
+                    format!("{:indent$}Drift Value: {}\n", "", drift_value, indent = 4)
+                }
+            };
+            alert_description = format!("{}{}", alert_description, alert_details);
+        }
+        alert_description
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -481,13 +528,14 @@ mod tests {
     #[test]
     fn test_alert_config() {
         //test console alert config
-        let alert_config = PsiAlertConfig::new(None, None, None, None);
+        let alert_config = PsiAlertConfig::new(None, None, None, None, None);
         assert_eq!(alert_config.dispatch_type, AlertDispatchType::Console);
         assert_eq!(alert_config.dispatch_type(), "Console");
         assert_eq!(AlertDispatchType::Console.value(), "Console");
 
         //test slack alert config
-        let alert_config = PsiAlertConfig::new(Some(AlertDispatchType::Slack), None, None, None);
+        let alert_config =
+            PsiAlertConfig::new(Some(AlertDispatchType::Slack), None, None, None, None);
         assert_eq!(alert_config.dispatch_type, AlertDispatchType::Slack);
         assert_eq!(alert_config.dispatch_type(), "Slack");
         assert_eq!(AlertDispatchType::Slack.value(), "Slack");
@@ -501,6 +549,7 @@ mod tests {
             None,
             None,
             Some(alert_kwargs),
+            None,
         );
         assert_eq!(alert_config.dispatch_type, AlertDispatchType::OpsGenie);
         assert_eq!(alert_config.dispatch_type(), "OpsGenie");

@@ -7,7 +7,7 @@ use crate::core::utils::ProfileFuncs;
 
 use pyo3::prelude::*;
 
-use crate::core::drift::psi::types::{PsiServerRecord, PsiDriftProfile};
+use crate::core::drift::psi::types::{PsiDriftProfile, PsiServerRecord};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -155,7 +155,7 @@ impl ServerRecords {
 #[derive(Debug, Clone)]
 pub enum DriftProfile {
     SpcDriftProfile(SpcDriftProfile),
-    PsiDriftProfile(PsiDriftProfile)
+    PsiDriftProfile(PsiDriftProfile),
 }
 
 impl DriftProfile {

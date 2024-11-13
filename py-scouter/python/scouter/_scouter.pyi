@@ -262,6 +262,7 @@ class PsiAlertConfig:
         schedule: Optional[str] = None,
         features_to_monitor: Optional[List[str]] = None,
         dispatch_kwargs: Optional[Dict[str, Any]] = None,
+        psi_threshold: Optional[float] = None,
     ):
         """Initialize alert config
 
@@ -281,6 +282,8 @@ class PsiAlertConfig:
                 OpsGenie:
                     - team: str (team to send opsgenie message)
                     - priority: str (priority for opsgenie alerts)
+            psi_threshold:
+                What threshold must be met before sending alert messages default is 0.25
 
         """
 
@@ -315,6 +318,14 @@ class PsiAlertConfig:
     @dispatch_kwargs.setter
     def dispatch_kwargs(self, dispatch_kwargs: Dict[str, Any]) -> None:
         """Set the dispatch kwargs"""
+
+    @property
+    def psi_threshold(self) -> float:
+        """Return the schedule"""
+
+    @psi_threshold.setter
+    def psi_threshold(self, threshold: float) -> None:
+        """Set the schedule"""
 
 class SpcAlertConfig:
     def __init__(

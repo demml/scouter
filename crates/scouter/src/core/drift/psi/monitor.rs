@@ -310,7 +310,7 @@ impl PsiMonitor {
         ))
     }
 
-    fn compute_psi(&self, proportion_pairs: &[(f64, f64)]) -> f64 {
+    pub fn compute_psi(&self, proportion_pairs: &[(f64, f64)]) -> f64 {
         let epsilon = 1e-10;
         proportion_pairs
             .iter()
