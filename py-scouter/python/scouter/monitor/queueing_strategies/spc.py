@@ -1,15 +1,15 @@
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, Union
 
-from scouter import (
-    HTTPConfig,
-    KafkaConfig,
-    RabbitMQConfig,
-    ServerRecords,
+from scouter.integrations.http import HTTPConfig
+from scouter.integrations.kafka import KafkaConfig
+from scouter.integrations.rabbitmq import RabbitMQConfig
+from scouter.monitor.queueing_strategies.base import BaseQueueingStrategy
+from scouter.utils.logger import ScouterLogger
+
+from ..._scouter import (  # pylint: disable=no-name-in-module
     SpcDriftProfile,
     SpcFeatureQueue,
 )
-from scouter.monitor.queueing_strategies.base import BaseQueueingStrategy
-from scouter.utils.logger import ScouterLogger
 
 logger = ScouterLogger.get_logger()
 
@@ -30,8 +30,8 @@ class SpcQueueingStrategy(BaseQueueingStrategy):
                 will be used to publish drift records to the monitoring server.
         """
         super().__init__(config)
-        self._drift_profile = drift_profile
         self._feature_queue = SpcFeatureQueue(drift_profile=drift_profile)
+        self._drift_profile = drift_profile
 
     def insert(self, data: Dict[Any, Any]) -> None:
         """Insert data into the monitoring queue.
@@ -39,9 +39,6 @@ class SpcQueueingStrategy(BaseQueueingStrategy):
         Args:
             data:
                 Dictionary of feature values to insert into the monitoring queue.
-
-        Returns:
-            List of drift records if the monitoring queue has enough data to compute
         """
         try:
             self._feature_queue.insert(data)
@@ -52,5 +49,5 @@ class SpcQueueingStrategy(BaseQueueingStrategy):
         except KeyError as exc:
             logger.error("Key error: {}", exc)
 
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=W0718
             logger.error("Failed to insert data into monitoring queue: {}. Passing", exc)

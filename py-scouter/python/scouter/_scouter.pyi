@@ -1377,6 +1377,108 @@ class SpcDrifter:
             List of server records
         """
 
+class PsiDriftProfile:
+    def __init__(
+        self,
+        features: Dict[str, PsiFeatureDriftProfile],
+        config: PsiDriftConfig,
+        scouter_version: Optional[str] = None,
+    ):
+        """Initialize drift profile
+
+        Args:
+            features:
+                Dictionary of features and their drift profiles
+            config:
+                Monitor config
+            scouter_version:
+                version of scouter used to generate profile
+        """
+
+    @property
+    def scouter_version(self) -> str:
+        """Return scouter version used to create DriftProfile"""
+
+    @property
+    def features(self) -> Dict[str, PsiFeatureDriftProfile]:
+        """Return the list of features."""
+
+    @features.setter
+    def features(self, features: Dict[str, PsiFeatureDriftProfile]) -> None:
+        """Set the list of features."""
+
+    @property
+    def config(self) -> PsiDriftConfig:
+        """Return the monitor config."""
+
+    @config.setter
+    def config(self, config: PsiDriftConfig) -> None:
+        """Set the monitor config."""
+
+    def model_dump_json(self) -> str:
+        """Return json representation of drift profile"""
+
+    def model_dump(self) -> Dict[str, Any]:
+        """Return dictionary representation of drift profile"""
+
+    def save_to_json(self, path: Optional[Path] = None) -> None:
+        """Save drift profile to json file
+
+        Args:
+            path:
+                Optional path to save the drift profile. If None, outputs to "drift_profile.json.
+        """
+
+    @staticmethod
+    def model_validate_json(json_string: str) -> "PsiDriftProfile":
+        """Load drift profile from json
+
+        Args:
+            json_string:
+                JSON string representation of the drift profile
+
+        """
+
+    @staticmethod
+    def model_validate(data: Dict[str, Any]) -> "PsiDriftProfile":
+        """Load drift profile from dictionary
+
+        Args:
+            data:
+                DriftProfile dictionary
+        """
+
+    def update_config_args(
+        self,
+        repository: Optional[str] = None,
+        name: Optional[str] = None,
+        version: Optional[str] = None,
+        feature_map: Optional[FeatureMap] = None,
+        targets: Optional[List[str]] = None,
+        alert_config: Optional[PsiAlertConfig] = None,
+    ) -> None:
+        """Inplace operation that updates config args
+
+        Args:
+            name:
+                Model name
+            repository:
+                Model repository
+            version:
+                Model version
+            feature_map:
+                Feature map
+            targets:
+                List of features that are targets in your dataset.
+                This is typically the name of your dependent variable(s).
+                This primarily used for monitoring and UI purposes.
+            alert_config:
+                Alert configuration
+        """
+
+    def __str__(self) -> str:
+        """Sting representation of DriftProfile"""
+
 class PsiFeatureQueue:
     def __init__(self, drift_profile: PsiDriftProfile) -> None:
         """Initialize the feature queue
@@ -1573,108 +1675,6 @@ class PsiFeatureDriftProfile:
     @property
     def timestamp(self) -> str:
         """Return the timestamp."""
-
-class PsiDriftProfile:
-    def __init__(
-        self,
-        features: Dict[str, PsiFeatureDriftProfile],
-        config: PsiDriftConfig,
-        scouter_version: Optional[str] = None,
-    ):
-        """Initialize drift profile
-
-        Args:
-            features:
-                Dictionary of features and their drift profiles
-            config:
-                Monitor config
-            scouter_version:
-                version of scouter used to generate profile
-        """
-
-    @property
-    def scouter_version(self) -> str:
-        """Return scouter version used to create DriftProfile"""
-
-    @property
-    def features(self) -> Dict[str, PsiFeatureDriftProfile]:
-        """Return the list of features."""
-
-    @features.setter
-    def features(self, features: Dict[str, PsiFeatureDriftProfile]) -> None:
-        """Set the list of features."""
-
-    @property
-    def config(self) -> PsiDriftConfig:
-        """Return the monitor config."""
-
-    @config.setter
-    def config(self, config: PsiDriftConfig) -> None:
-        """Set the monitor config."""
-
-    def model_dump_json(self) -> str:
-        """Return json representation of drift profile"""
-
-    def model_dump(self) -> Dict[str, Any]:
-        """Return dictionary representation of drift profile"""
-
-    def save_to_json(self, path: Optional[Path] = None) -> None:
-        """Save drift profile to json file
-
-        Args:
-            path:
-                Optional path to save the drift profile. If None, outputs to "drift_profile.json.
-        """
-
-    @staticmethod
-    def model_validate_json(json_string: str) -> "PsiDriftProfile":
-        """Load drift profile from json
-
-        Args:
-            json_string:
-                JSON string representation of the drift profile
-
-        """
-
-    @staticmethod
-    def model_validate(data: Dict[str, Any]) -> "PsiDriftProfile":
-        """Load drift profile from dictionary
-
-        Args:
-            data:
-                DriftProfile dictionary
-        """
-
-    def update_config_args(
-        self,
-        repository: Optional[str] = None,
-        name: Optional[str] = None,
-        version: Optional[str] = None,
-        feature_map: Optional[FeatureMap] = None,
-        targets: Optional[List[str]] = None,
-        alert_config: Optional[PsiAlertConfig] = None,
-    ) -> None:
-        """Inplace operation that updates config args
-
-        Args:
-            name:
-                Model name
-            repository:
-                Model repository
-            version:
-                Model version
-            feature_map:
-                Feature map
-            targets:
-                List of features that are targets in your dataset.
-                This is typically the name of your dependent variable(s).
-                This primarily used for monitoring and UI purposes.
-            alert_config:
-                Alert configuration
-        """
-
-    def __str__(self) -> str:
-        """Sting representation of DriftProfile"""
 
 class PsiDriftMap:
     """Drift map of features"""

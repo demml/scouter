@@ -66,7 +66,7 @@ impl PsiFeatureQueue {
         feature: &String,
         queue: &mut HashMap<String, usize>,
         value: &Py<PyAny>,
-        bins: &Vec<Bin>,
+        bins: &[Bin],
     ) -> Result<(), FeatureQueueError> {
         let f64_value = Self::convert_numeric_value_to_f64(py, feature, value)?;
         let bin_id = Self::find_numeric_bin_given_scaler(f64_value, bins);
@@ -83,7 +83,7 @@ impl PsiFeatureQueue {
         queue: &mut HashMap<String, usize>,
         value: &Py<PyAny>,
     ) -> Result<(), FeatureQueueError> {
-        let f64_value = Self::convert_numeric_value_to_f64(py, &feature, &value)?;
+        let f64_value = Self::convert_numeric_value_to_f64(py, feature, value)?;
         if f64_value == 0.0 {
             let bin_id = "0".to_string();
             let count = queue

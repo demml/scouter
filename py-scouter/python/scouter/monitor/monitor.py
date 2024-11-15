@@ -4,6 +4,8 @@ from typing import Any, Dict, Union
 from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
 from scouter.integrations.rabbitmq import RabbitMQConfig
+from scouter.monitor.queueing_strategies.psi import PsiQueueingStrategy
+from scouter.monitor.queueing_strategies.spc import SpcQueueingStrategy
 from scouter.utils.logger import ScouterLogger
 
 from .._scouter import (  # pylint: disable=no-name-in-module
@@ -12,8 +14,6 @@ from .._scouter import (  # pylint: disable=no-name-in-module
     PsiDriftProfile,
     SpcDriftProfile,
 )
-from .queueing_strategies.psi import PsiQueueingStrategy
-from .queueing_strategies.spc import SpcQueueingStrategy
 
 logger = ScouterLogger.get_logger()
 
@@ -29,13 +29,11 @@ def _get_queueing_strategy(
         drift_profile:
             Monitoring profile containing feature drift profiles.
     """
-    match drift_profile.config.drift_type:
-        case DriftType.SPC:
-            return SpcQueueingStrategy(drift_profile=drift_profile, config=config)
-        case DriftType.PSI:
-            return PsiQueueingStrategy(drift_profile=drift_profile, config=config)
-        case _:
-            raise ValueError(f"Drift type {drift_profile.config.drift_type} not supported")
+    if drift_profile.config.drift_type == DriftType.SPC:
+        return SpcQueueingStrategy(drift_profile=drift_profile, config=config)
+    if drift_profile.config.drift_type == DriftType.PSI:
+        return PsiQueueingStrategy(drift_profile=drift_profile, config=config)
+    raise ValueError(f"Drift type {drift_profile.config.drift_type} not supported")
 
 
 class MonitorQueue:

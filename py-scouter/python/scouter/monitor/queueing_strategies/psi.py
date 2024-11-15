@@ -2,15 +2,16 @@ import threading
 import time
 from typing import Any, Dict, Union
 
-from scouter import (
-    HTTPConfig,
-    KafkaConfig,
-    PsiDriftProfile,
-    PsiFeatureQueue,
-    RabbitMQConfig,
-)
+from scouter.integrations.http import HTTPConfig
+from scouter.integrations.kafka import KafkaConfig
+from scouter.integrations.rabbitmq import RabbitMQConfig
 from scouter.monitor.queueing_strategies.base import BaseQueueingStrategy
 from scouter.utils.logger import ScouterLogger
+
+from ..._scouter import (  # pylint: disable=no-name-in-module
+    PsiDriftProfile,
+    PsiFeatureQueue,
+)
 
 logger = ScouterLogger.get_logger()
 
@@ -46,7 +47,7 @@ class PsiQueueingStrategy(BaseQueueingStrategy):
         while True:
             try:
                 current_time = time.time()
-                if current_time - last_metrics_time >= 30 and not self._feature_queue.is_empty():
+                if current_time - last_metrics_time >= 30.0 and not self._feature_queue.is_empty():
                     self._publish(self._feature_queue)
                     last_metrics_time = current_time
             except Exception as e:  # pylint: disable=broad-except
@@ -58,20 +59,14 @@ class PsiQueueingStrategy(BaseQueueingStrategy):
         Args:
             data:
                 Dictionary of feature values to insert into the monitoring queue.
-
-        Returns:
-            List of drift records if the monitoring queue has enough data to compute
         """
         try:
             self._feature_queue.insert(data)
             self._count += 1
             if self._count >= PSI_MAX_QUEUE_SIZE:
-                return self._publish(self._feature_queue)
-
+                self._publish(self._feature_queue)
         except KeyError as exc:
             logger.error("Key error: {}", exc)
-            return None
 
-        except Exception as exc:
+        except Exception as exc:  # pylint: disable=W0718
             logger.error("Failed to insert data into monitoring queue: {}. Passing", exc)
-            return None

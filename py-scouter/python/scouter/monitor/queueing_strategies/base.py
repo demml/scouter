@@ -1,24 +1,22 @@
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Union
 
-from scouter import (
-    DriftRecordProducer,
-    HTTPConfig,
-    KafkaConfig,
+from scouter.integrations.http import HTTPConfig
+from scouter.integrations.kafka import KafkaConfig
+from scouter.integrations.producer import DriftRecordProducer
+from scouter.integrations.rabbitmq import RabbitMQConfig
+from scouter.utils.logger import ScouterLogger
+
+from ..._scouter import (  # pylint: disable=no-name-in-module
     PsiFeatureQueue,
-    RabbitMQConfig,
     SpcFeatureQueue,
 )
-from scouter.utils.logger import ScouterLogger
 
 logger = ScouterLogger.get_logger()
 
 
 class BaseQueueingStrategy(ABC):
-    def __init__(
-        self,
-        config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig],
-    ) -> None:
+    def __init__(self, config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig]) -> None:
         """Abstract base class that defines the core structure and shared functionality
         for queueing strategies
 
@@ -35,12 +33,12 @@ class BaseQueueingStrategy(ABC):
         self._producer = DriftRecordProducer.get_producer(config)
         self._count = 0
 
-    def _clear_queue(self, feature_queue: Union[SpcFeatureQueue, PsiFeatureQueue]) -> None:
+    def _clear_queue(self, feature_queue: Union[PsiFeatureQueue, SpcFeatureQueue]) -> None:
         """Clear the monitoring queue."""
         feature_queue.clear_queue()
         self._count = 0
 
-    def _publish(self, feature_queue: Union[SpcFeatureQueue, PsiFeatureQueue]) -> None:
+    def _publish(self, feature_queue: Union[PsiFeatureQueue, SpcFeatureQueue]) -> None:
         """Publish drift records to the monitoring server."""
         try:
             drift_records = feature_queue.create_drift_records()

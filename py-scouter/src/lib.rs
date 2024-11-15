@@ -10,7 +10,8 @@ use scouter::core::dispatch::types::AlertDispatchType;
 use scouter::core::drift::base::{DriftType, RecordType, ServerRecord, ServerRecords};
 use scouter::core::drift::psi::feature_queue::PsiFeatureQueue;
 use scouter::core::drift::psi::types::{
-    Bin, PsiAlertConfig, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile, PsiServerRecord
+    Bin, PsiAlertConfig, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
+    PsiServerRecord,
 };
 use scouter::core::drift::spc::feature_queue::SpcFeatureQueue;
 use scouter::core::drift::spc::types::{

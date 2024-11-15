@@ -573,15 +573,11 @@ mod tests {
     fn test_compute_deciles_with_unsorted_input() {
         let psi_monitor = PsiMonitor::default();
 
-        // let unsorted_vector = Array::from_vec(vec![
-        //     120.0, 1.0, 33.0, 71.0, 15.0, 59.0, 8.0, 62.0, 4.0, 21.0, 10.0, 2.0, 344.0, 437.0,
-        //     53.0, 39.0, 83.0, 6.0, 4.30, 2.0,
-        // ]);
-
         let unsorted_vector = Array::from_vec(vec![
-            1.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 1.0, 1.0, 0.0, 1.0,
-            0.0, 0.0, 0.0,
+            120.0, 1.0, 33.0, 71.0, 15.0, 59.0, 8.0, 62.0, 4.0, 21.0, 10.0, 2.0, 344.0, 437.0,
+            53.0, 39.0, 83.0, 6.0, 4.30, 2.0,
         ]);
+
 
         let column_view = unsorted_vector.view();
 
