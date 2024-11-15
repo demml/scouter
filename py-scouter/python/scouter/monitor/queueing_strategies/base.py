@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Union
+from typing import Any, Dict, Optional, Union
 
 from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
@@ -9,6 +9,7 @@ from scouter.utils.logger import ScouterLogger
 
 from ..._scouter import (  # pylint: disable=no-name-in-module
     PsiFeatureQueue,
+    ServerRecords,
     SpcFeatureQueue,
 )
 
@@ -38,7 +39,7 @@ class BaseQueueingStrategy(ABC):
         feature_queue.clear_queue()
         self._count = 0
 
-    def _publish(self, feature_queue: Union[PsiFeatureQueue, SpcFeatureQueue]) -> None:
+    def _publish(self, feature_queue: Union[PsiFeatureQueue, SpcFeatureQueue]) -> ServerRecords:
         """Publish drift records to the monitoring server."""
         try:
             drift_records = feature_queue.create_drift_records()
@@ -47,6 +48,7 @@ class BaseQueueingStrategy(ABC):
 
             self._clear_queue(feature_queue)
 
+            return drift_records
         except Exception as exc:
             logger.error("Failed to compute drift: {}", exc)
             raise ValueError(f"Failed to compute drift: {exc}") from exc
@@ -56,7 +58,7 @@ class BaseQueueingStrategy(ABC):
         self._producer.flush()
 
     @abstractmethod
-    def insert(self, data: Dict[Any, Any]) -> None:
+    def insert(self, data: Dict[Any, Any]) -> Optional[ServerRecords]:
         """Insert data into the monitoring queue.
 
         Args:
