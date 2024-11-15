@@ -10,7 +10,6 @@ from scouter.utils.logger import ScouterLogger
 
 from .._scouter import (  # pylint: disable=no-name-in-module
     CommonCron,
-    DriftType,
     PsiDriftProfile,
     SpcDriftProfile,
 )
@@ -29,9 +28,9 @@ def _get_queueing_strategy(
         drift_profile:
             Monitoring profile containing feature drift profiles.
     """
-    if drift_profile.config.drift_type == DriftType.SPC:
+    if isinstance(drift_profile, SpcDriftProfile):
         return SpcQueueingStrategy(drift_profile=drift_profile, config=config)
-    if drift_profile.config.drift_type == DriftType.PSI:
+    if isinstance(drift_profile, PsiDriftProfile):
         return PsiQueueingStrategy(drift_profile=drift_profile, config=config)
     raise ValueError(f"Drift type {drift_profile.config.drift_type} not supported")
 

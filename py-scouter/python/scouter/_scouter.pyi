@@ -1507,6 +1507,14 @@ class PsiFeatureQueue:
     def clear_queue(self) -> None:
         """Clears the feature queue"""
 
+    def create_drift_records(self) -> ServerRecords:
+        """Create drift server record from data
+
+
+        Returns:
+            `DriftServerRecord`
+        """
+
 class SpcFeatureQueue:
     def __init__(self, drift_profile: SpcDriftProfile) -> None:
         """Initialize the feature queue
@@ -1868,3 +1876,67 @@ class PsiDrifter:
         Returns:
             DriftMap.
         """
+
+class PsiServerRecord:
+    def __init__(
+        self,
+        repository: str,
+        name: str,
+        version: str,
+        feature: str,
+        bin_id: str,
+        bin_count: int,
+    ):
+        """Initialize spc drift server record
+
+        Args:
+            repository:
+                Model repository
+            name:
+                Model name
+            version:
+                Model version
+            feature:
+                Feature name
+            bin_id:
+                Bundle ID
+            bin_count:
+                Bundle ID
+        """
+
+    @property
+    def created_at(self) -> datetime.datetime:
+        """Return the created at timestamp."""
+
+    @property
+    def repository(self) -> str:
+        """Return the repository."""
+
+    @property
+    def name(self) -> str:
+        """Return the name."""
+
+    @property
+    def version(self) -> str:
+        """Return the version."""
+
+    @property
+    def feature(self) -> str:
+        """Return the feature."""
+
+    @property
+    def bin_id(self) -> str:
+        """Return the sample value."""
+
+    @property
+    def bin_count(self) -> int:
+        """Return the sample value."""
+
+    def __str__(self) -> str:
+        """Return the string representation of the record."""
+
+    def model_dump_json(self) -> str:
+        """Return the json representation of the record."""
+
+    def to_dict(self) -> Dict[str, str]:
+        """Return the dictionary representation of the record."""
