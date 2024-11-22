@@ -578,7 +578,6 @@ mod tests {
             53.0, 39.0, 83.0, 6.0, 4.30, 2.0,
         ]);
 
-
         let column_view = unsorted_vector.view();
 
         let result = psi_monitor.compute_deciles(&column_view);

@@ -169,7 +169,7 @@ impl PsiFeatureQueue {
         Ok(())
     }
 
-    fn create_drift_records(&self) -> Result<ServerRecords, FeatureQueueError> {
+    pub fn create_drift_records(&self) -> Result<ServerRecords, FeatureQueueError> {
         let records = self
             .queue
             .iter()
@@ -438,5 +438,123 @@ mod tests {
                 .unwrap(),
             9
         );
+    }
+
+    #[test]
+    fn test_feature_queue_is_empty() {
+        pyo3::prepare_freethreaded_python();
+        let psi_monitor = PsiMonitor::default();
+        let string_vec = vec![
+            vec![
+                "a".to_string(),
+                "b".to_string(),
+                "c".to_string(),
+                "d".to_string(),
+                "e".to_string(),
+            ],
+            vec![
+                "a".to_string(),
+                "a".to_string(),
+                "a".to_string(),
+                "b".to_string(),
+                "b".to_string(),
+            ],
+        ];
+
+        let string_features = vec!["feature_1".to_string(), "feature_2".to_string()];
+
+        let feature_map = psi_monitor
+            .create_feature_map(&string_features, &string_vec)
+            .unwrap();
+
+        assert_eq!(feature_map.features.len(), 2);
+
+        let array = psi_monitor
+            .convert_strings_to_ndarray_f64(&string_features, &string_vec, &feature_map)
+            .unwrap();
+
+        assert_eq!(array.shape(), &[5, 2]);
+
+        let config = PsiDriftConfig::new(
+            Some("name".to_string()),
+            Some("repo".to_string()),
+            None,
+            Some(feature_map),
+            None,
+            None,
+            None,
+        );
+
+        let profile = psi_monitor
+            .create_2d_drift_profile(&string_features, &array.view(), &config.unwrap())
+            .unwrap();
+        assert_eq!(profile.features.len(), 2);
+
+        let mut feature_queue = PsiFeatureQueue::new(profile);
+
+        assert_eq!(feature_queue.queue.len(), 2);
+        let mut feature_values: HashMap<String, Py<PyAny>> = HashMap::new();
+
+        let is_empty = feature_queue.is_empty();
+        assert_eq!(is_empty, true);
+
+        Python::with_gil(|py| {
+            for _ in 0..9 {
+                feature_values.insert("feature_1".to_string(), "c".to_string().into_py(py));
+                feature_values.insert("feature_2".to_string(), "a".to_string().into_py(py));
+                feature_queue.insert(py, feature_values.clone()).unwrap();
+            }
+        });
+
+        let is_empty = feature_queue.queue.is_empty();
+        assert_eq!(is_empty, false);
+    }
+
+    #[test]
+    fn test_feature_queue_create_drift_records() {
+        pyo3::prepare_freethreaded_python();
+        let array = Array::random((1030, 3), Uniform::new(1.0, 100.0));
+        let features = vec![
+            "feature_1".to_string(),
+            "feature_2".to_string(),
+            "feature_3".to_string(),
+        ];
+
+        let monitor = PsiMonitor::new();
+        let config = PsiDriftConfig::new(
+            Some("name".to_string()),
+            Some("repo".to_string()),
+            None,
+            None,
+            None,
+            None,
+            None,
+        );
+
+        let profile = monitor
+            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
+            .unwrap();
+        assert_eq!(profile.features.len(), 3);
+
+        let mut feature_queue = PsiFeatureQueue::new(profile);
+
+        assert_eq!(feature_queue.queue.len(), 3);
+        let mut feature_values: HashMap<String, Py<PyAny>> = HashMap::new();
+
+        Python::with_gil(|py| {
+            for _ in 0..9 {
+                feature_values.insert("feature_1".to_string(), 1.0.into_py(py));
+                feature_values.insert("feature_2".to_string(), 10.0.into_py(py));
+                feature_values.insert("feature_3".to_string(), 10000.0.into_py(py));
+
+                feature_queue.insert(py, feature_values.clone()).unwrap();
+            }
+        });
+
+        let drift_records = feature_queue.create_drift_records().unwrap();
+
+        // We have 3 features, the 3 features are numeric in nature and thus should have 10 bins assigned per due to our current decile approach.
+        // Each record contains information for a given feature bin pair and this we should see a vec of len 30
+        assert_eq!(drift_records.records.len(), 30);
     }
 }
