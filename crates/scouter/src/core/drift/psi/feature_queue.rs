@@ -496,7 +496,7 @@ mod tests {
         let mut feature_values: HashMap<String, Py<PyAny>> = HashMap::new();
 
         let is_empty = feature_queue.is_empty();
-        assert_eq!(is_empty, true);
+        assert_eq!(is_empty as u8, 1);
 
         Python::with_gil(|py| {
             for _ in 0..9 {
@@ -507,7 +507,7 @@ mod tests {
         });
 
         let is_empty = feature_queue.queue.is_empty();
-        assert_eq!(is_empty, false);
+        assert_eq!(is_empty as u8, 0);
     }
 
     #[test]
