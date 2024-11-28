@@ -5,12 +5,48 @@ from scouter import (
     Drifter,
     KafkaConfig,
     ServerRecords,
+    PsiDriftConfig,
+    PsiDriftProfile,
+    DriftType,
 )
 from typing import Optional
 import pandas as pd
 
 
-def test_monitor_pandas(
+def test_psi_monitor_pandas(
+    pandas_dataframe: pd.DataFrame,
+    psi_drift_config: PsiDriftConfig,
+    mock_kafka_producer,
+    kafka_config: KafkaConfig,
+):
+    scouter = Drifter(DriftType.PSI)
+    profile: PsiDriftProfile = scouter.create_drift_profile(
+        pandas_dataframe, psi_drift_config
+    )
+
+    queue = MonitorQueue(
+        drift_profile=profile,
+        config=kafka_config,
+    )
+    records = pandas_dataframe.to_dict(orient="records")
+
+    def return_record(records) -> Optional[ServerRecords]:
+        for record in records:
+            drift_map = queue.insert(record)
+
+            if drift_map:
+                return drift_map
+
+        return None
+
+    drift_records = return_record(records)
+    assert drift_records is not None
+    assert len(drift_records.records) == 30
+
+    queue._queueing_strategy.stop_queue_observer()  # type: ignore
+
+
+def test_spc_monitor_pandas(
     pandas_dataframe: pd.DataFrame,
     drift_config: SpcDriftConfig,
     mock_kafka_producer,
@@ -42,7 +78,7 @@ def test_monitor_pandas(
     assert len(drift_records.records) == 3
 
 
-def test_monitor_polar_multitype(
+def test_spc_monitor_polar_multitype(
     polars_dataframe_multi_dtype: pd.DataFrame,
     drift_config: SpcDriftConfig,
     mock_kafka_producer,
@@ -74,7 +110,7 @@ def test_monitor_polar_multitype(
     assert len(drift_records.records) == 5
 
 
-def test_queue_fail(
+def test_spc_queue_fail(
     polars_dataframe_multi_dtype: pd.DataFrame,
     drift_config: SpcDriftConfig,
     mock_kafka_producer,

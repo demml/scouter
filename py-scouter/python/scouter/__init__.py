@@ -9,6 +9,7 @@ from scouter.utils.types import AlertZone, SpcAlertType
 
 from ._scouter import (
     AlertDispatchType,
+    Bin,
     DataProfile,
     DriftType,
     Every1Minute,
@@ -23,6 +24,13 @@ from ._scouter import (
     FeatureProfile,
     ObservabilityMetrics,
     Observer,
+    PsiAlertConfig,
+    PsiDriftConfig,
+    PsiDriftMap,
+    PsiDriftProfile,
+    PsiFeatureDriftProfile,
+    PsiFeatureQueue,
+    PsiServerRecord,
     RecordType,
     ServerRecord,
     ServerRecords,
@@ -37,7 +45,7 @@ from ._scouter import (
     SpcFeatureQueue,
     SpcServerRecord,
 )
-from .drift.drift import CommonCrons, Drifter
+from .drift.drifter import CommonCrons, Drifter
 from .monitor.monitor import MonitorQueue
 from .observability.observer import ScouterObserver
 from .profile.profile import Profiler
@@ -79,6 +87,8 @@ __all__ = [
     "SpcAlertConfig",
     "AlertDispatchType",
     "SpcFeatureQueue",
+    "PsiFeatureQueue",
+    "PsiServerRecord",
     "ServerRecords",
     "ServerRecord",
     "RabbitMQConfig",
@@ -87,4 +97,10 @@ __all__ = [
     "Observer",
     "ObservabilityMetrics",
     "ScouterObserver",
+    "PsiAlertConfig",
+    "PsiDriftConfig",
+    "Bin",
+    "PsiFeatureDriftProfile",
+    "PsiDriftProfile",
+    "PsiDriftMap",
 ]

@@ -1,11 +1,10 @@
-use crate::core::error::MonitorError;
-
 use crate::core::drift::base::{RecordType, ServerRecord, ServerRecords};
 use crate::core::drift::spc::types::{
     SpcDriftConfig, SpcDriftMap, SpcDriftProfile, SpcFeatureDrift, SpcFeatureDriftProfile,
     SpcServerRecord,
 };
-use crate::core::utils::FeatureMap;
+use crate::core::error::MonitorError;
+use crate::core::utils::CategoricalFeatureHelpers;
 use indicatif::ProgressBar;
 use ndarray::prelude::*;
 use ndarray::Axis;
@@ -14,6 +13,8 @@ use rayon::prelude::*;
 use std::collections::HashMap;
 use std::fmt::Debug;
 pub struct SpcMonitor {}
+
+impl CategoricalFeatureHelpers for SpcMonitor {}
 
 impl SpcMonitor {
     pub fn new() -> Self {
@@ -325,6 +326,7 @@ impl SpcMonitor {
     // * `features` - A vector of feature names that is mapped to the array (order of features in the order in the array)
     // * `drift_profile` - A monitor profile
     //
+
     pub fn compute_drift<F>(
         &self,
         features: &[String],
@@ -480,86 +482,6 @@ impl SpcMonitor {
 
         Ok(drift_array)
     }
-
-    pub fn convert_strings_to_ndarray_f32(
-        &self,
-        features: &Vec<String>,
-        array: &[Vec<String>],
-        feature_map: &FeatureMap,
-    ) -> Result<Array2<f32>, MonitorError>
-where {
-        // check if features in feature_map.features.keys(). If any feature is not found, return error
-        let features_not_exist = features
-            .iter()
-            .map(|x| feature_map.features.contains_key(x))
-            .position(|x| !x);
-
-        if features_not_exist.is_some() {
-            return Err(MonitorError::MissingFeatureError(
-                "Features provided do not exist in feature map".to_string(),
-            ));
-        }
-
-        let data = features
-            .par_iter()
-            .enumerate()
-            .map(|(i, feature)| {
-                let map = feature_map.features.get(feature).unwrap();
-
-                // attempt to set feature. If not found, set to missing
-                let col = array[i]
-                    .iter()
-                    .map(|x| *map.get(x).unwrap_or(map.get("missing").unwrap()) as f32)
-                    .collect::<Vec<_>>();
-
-                col
-            })
-            .collect::<Vec<_>>();
-
-        let data = Array::from_shape_vec((features.len(), array[0].len()), data.concat())
-            .map_err(|e| MonitorError::ArrayError(e.to_string()))?;
-
-        Ok(data.t().to_owned())
-    }
-
-    pub fn convert_strings_to_ndarray_f64(
-        &self,
-        features: &Vec<String>,
-        array: &[Vec<String>],
-        feature_map: &FeatureMap,
-    ) -> Result<Array2<f64>, MonitorError>
-where {
-        // check if features in feature_map.features.keys(). If any feature is not found, return error
-        let features_not_exist = features
-            .iter()
-            .map(|x| feature_map.features.contains_key(x))
-            .position(|x| !x);
-
-        if features_not_exist.is_some() {
-            return Err(MonitorError::MissingFeatureError(
-                "Features provided do not exist in feature map".to_string(),
-            ));
-        }
-        let data = features
-            .par_iter()
-            .enumerate()
-            .map(|(i, feature)| {
-                let map = feature_map.features.get(feature).unwrap();
-
-                // attempt to set feature. If not found, set to missing
-                let col = array[i]
-                    .iter()
-                    .map(|x| *map.get(x).unwrap_or(map.get("missing").unwrap()) as f64)
-                    .collect::<Vec<_>>();
-                col
-            })
-            .collect::<Vec<_>>();
-
-        let data = Array::from_shape_vec((features.len(), array[0].len()), data.concat())
-            .map_err(|e| MonitorError::ArrayError(e.to_string()))?;
-
-        Ok(data.t().to_owned())
-    }
 }
 
 // convert drift array to 2D array
@@ -573,11 +495,10 @@ impl Default for SpcMonitor {
 #[cfg(test)]
 mod tests {
 
-    use crate::core::drift::base::DriftProfile;
-    use crate::core::drift::base::DriftType;
+    // use crate::core::drift::base::DriftProfile;
     use crate::core::drift::base::ProfileBaseArgs;
+    use crate::core::drift::base::{DriftProfile, DriftType};
     use crate::core::drift::spc::types::SpcAlertConfig;
-    use crate::core::utils::create_feature_map;
 
     use super::*;
     use approx::relative_eq;
@@ -819,77 +740,5 @@ mod tests {
         // assert relative
         let feature_1 = drift_array.column(1);
         assert!(relative_eq!(feature_1[0], 4.0, epsilon = 2.0));
-    }
-
-    #[test]
-    fn test_create_feature_map() {
-        let string_vec = vec![
-            vec![
-                "a".to_string(),
-                "b".to_string(),
-                "c".to_string(),
-                "d".to_string(),
-                "e".to_string(),
-            ],
-            vec![
-                "hello".to_string(),
-                "blah".to_string(),
-                "c".to_string(),
-                "d".to_string(),
-                "e".to_string(),
-                "hello".to_string(),
-                "blah".to_string(),
-                "c".to_string(),
-                "d".to_string(),
-                "e".to_string(),
-            ],
-        ];
-
-        let string_features = vec!["feature_1".to_string(), "feature_2".to_string()];
-
-        let feature_map = create_feature_map(&string_features, &string_vec).unwrap();
-
-        assert_eq!(feature_map.features.len(), 2);
-        assert_eq!(feature_map.features.get("feature_2").unwrap().len(), 6);
-    }
-
-    #[test]
-    fn test_create_array_from_string() {
-        let string_vec = vec![
-            vec![
-                "a".to_string(),
-                "b".to_string(),
-                "c".to_string(),
-                "d".to_string(),
-                "e".to_string(),
-            ],
-            vec![
-                "a".to_string(),
-                "a".to_string(),
-                "a".to_string(),
-                "b".to_string(),
-                "b".to_string(),
-            ],
-        ];
-
-        let string_features = vec!["feature_1".to_string(), "feature_2".to_string()];
-
-        let monitor = SpcMonitor::new();
-
-        let feature_map = create_feature_map(&string_features, &string_vec).unwrap();
-
-        assert_eq!(feature_map.features.len(), 2);
-
-        let f32_array = monitor
-            .convert_strings_to_ndarray_f32(&string_features, &string_vec, &feature_map)
-            .unwrap();
-
-        assert_eq!(f32_array.shape(), &[5, 2]);
-
-        let f64_array = monitor
-            .convert_strings_to_ndarray_f64(&string_features, &string_vec, &feature_map)
-            .unwrap();
-
-        assert_eq!(f64_array.shape(), &[5, 2]);
     }
 }

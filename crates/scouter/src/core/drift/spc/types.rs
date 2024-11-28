@@ -2,11 +2,10 @@ use crate::core::cron::EveryDay;
 use crate::core::dispatch::types::AlertDispatchType;
 use crate::core::drift::base::{
     DispatchAlertDescription, DispatchDriftConfig, DriftArgs, DriftType, ProfileArgs,
-    ProfileBaseArgs,
+    ProfileBaseArgs, ValidateAlertConfig,
 };
 use crate::core::error::ScouterError;
-use crate::core::utils::FeatureMap;
-use crate::core::utils::{json_to_pyobject, pyobject_to_json, FileName, ProfileFuncs};
+use crate::core::utils::{json_to_pyobject, pyobject_to_json, FeatureMap, FileName, ProfileFuncs};
 use core::fmt::Debug;
 use ndarray::Array;
 use ndarray::Array2;
@@ -18,7 +17,6 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::PathBuf;
-use std::str::FromStr;
 use tracing::debug;
 
 const MISSING: &str = "__missing__";
@@ -177,6 +175,8 @@ pub struct SpcAlertConfig {
     pub dispatch_kwargs: HashMap<String, String>,
 }
 
+impl ValidateAlertConfig for SpcAlertConfig {}
+
 #[pymethods]
 impl SpcAlertConfig {
     #[new]
@@ -189,22 +189,7 @@ impl SpcAlertConfig {
     ) -> Self {
         let rule = rule.unwrap_or_default();
 
-        let schedule = match schedule {
-            Some(s) => {
-                // validate the cron schedule
-                let schedule = cron::Schedule::from_str(&s);
-
-                match schedule {
-                    Ok(_) => s,
-                    Err(_) => {
-                        tracing::error!("Invalid cron schedule, using default schedule");
-                        EveryDay::new().cron
-                    }
-                }
-            }
-
-            None => EveryDay::new().cron,
-        };
+        let schedule = Self::resolve_schedule(schedule);
         let dispatch_type = dispatch_type.unwrap_or_default();
         let features_to_monitor = features_to_monitor.unwrap_or_default();
         let dispatch_kwargs = dispatch_kwargs.unwrap_or_default();

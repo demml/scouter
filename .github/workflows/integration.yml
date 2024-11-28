@@ -15,14 +15,11 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu]
-        poetry-version: ["1.7.1"]
         python-version: ["3.11"]
 
     runs-on: ${{ matrix.os }}-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install poetry
-        run: pipx install poetry==${{ matrix.poetry-version }}
 
       - name: install rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -32,17 +29,17 @@ jobs:
         with:
           key: ${{ matrix.os }}-${{ matrix.python-version }}-v1
 
+      - name: Set up uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
       - name: set up python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: "poetry"
 
       - name: Create virtual environment
         working-directory: ./py-scouter
-        run: |
-          python -m venv .venv
-          echo "$GITHUB_WORKSPACE/scouter/.venv/bin" >> $GITHUB_PATH
+        run: make setup.project
 
       - name: Start kafka
         run: docker compose -f "docker-compose.yml" up -d --build

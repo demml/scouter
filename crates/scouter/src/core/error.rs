@@ -8,7 +8,7 @@ pub enum AlertError {
     CreateError(String),
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum MonitorError {
     #[error("{0}")]
     CreateError(String),
@@ -69,6 +69,15 @@ pub enum FeatureQueueError {
 
     #[error("Missing feature map")]
     MissingFeatureMapError,
+
+    #[error("invalid data type detected for feature: {0}")]
+    InvalidFeatureTypeError(String),
+
+    #[error("invalid value detected for feature: {0}, provided value = {1}")]
+    InvalidValueError(String, f64),
+
+    #[error("Failed to get bin given bin id")]
+    GetBinError,
 }
 
 // impl From for PyErr

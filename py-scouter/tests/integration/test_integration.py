@@ -46,4 +46,4 @@ def test_monitor_pandas(
     assert drift_records is not None
     assert len(drift_records.records) == 3
 
-    queue._producer.flush()
+    queue.flush()

@@ -51,15 +51,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [ubuntu, macos]
-        poetry-version: ["1.7.1"]
         python-version: ["3.9", "3.10", "3.11", "3.12"]
 
     runs-on: ${{ matrix.os }}-latest
     needs: [rust-lints-test]
     steps:
       - uses: actions/checkout@v4
-      - name: Install poetry
-        run: pipx install poetry==${{ matrix.poetry-version }}
 
       - name: install rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -69,17 +66,19 @@ jobs:
         with:
           key: ${{ matrix.os }}-${{ matrix.python-version }}-v1
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
       - name: set up python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: "poetry"
 
       - name: Create virtual environment
         working-directory: ./py-scouter
-        run: |
-          python -m venv .venv
-          echo "$GITHUB_WORKSPACE/scouter/.venv/bin" >> $GITHUB_PATH
+        run: make setup.project
 
       - name: Install dependencies
         working-directory: ./py-scouter
@@ -105,15 +104,12 @@ jobs:
       fail-fast: false
       matrix:
         os: [windows]
-        poetry-version: ["1.7.1"]
         python-version: ["3.9", "3.10", "3.11", "3.12.6"]
 
     runs-on: ${{ matrix.os }}-latest
     needs: [rust-lints-test]
     steps:
       - uses: actions/checkout@v4
-      - name: Install poetry
-        run: pipx install poetry==${{ matrix.poetry-version }}
 
       - name: install rust stable
         uses: dtolnay/rust-toolchain@stable
@@ -123,19 +119,17 @@ jobs:
         with:
           key: ${{ matrix.os }}-${{ matrix.python-version }}-v1
 
+      - name: Install uv
+        uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
       - name: set up python
         uses: actions/setup-python@v5
         with:
           python-version: ${{ matrix.python-version }}
-          cache: "poetry"
 
       - name: Create virtual environment
-        working-directory: ./py-scouter
-        run: |
-          python -m venv .venv
-          echo "$GITHUB_WORKSPACE/scouter/.venv/bin" >> $GITHUB_PATH
-
-      - name: Install dependencies
         working-directory: ./py-scouter
         run: make setup.project
 

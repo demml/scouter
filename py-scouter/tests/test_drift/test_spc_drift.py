@@ -39,8 +39,6 @@ def test_drift_f64(array: NDArray, drift_config: SpcDriftConfig):
 
     profile.update_config_args(repository="repo1", name="name1")
 
-    print(profile.config)
-
     assert profile.config.name == "name1"
     assert profile.config.repository == "repo1"
 
@@ -70,7 +68,7 @@ def test_drift_int(array: NDArray, drift_config: SpcDriftConfig):
     assert profile.features["feature_1"].center == pytest.approx(2.0, 0.1)
     assert profile.features["feature_2"].center == pytest.approx(3.0, 0.1)
 
-    drift_map = scouter.compute_drift(array, profile)
+    drift_map: SpcDriftMap = scouter.compute_drift(array, profile)
 
     assert drift_map.features["feature_0"].drift[0] == 0.0
 

@@ -255,6 +255,78 @@ class AlertDispatchType(str, Enum):
     Slack = "Slack"
     OpsGenie = "OpsGenie"
 
+class PsiAlertConfig:
+    def __init__(
+        self,
+        dispatch_type: Optional[AlertDispatchType] = None,
+        schedule: Optional[str] = None,
+        features_to_monitor: Optional[List[str]] = None,
+        dispatch_kwargs: Optional[Dict[str, Any]] = None,
+        psi_threshold: Optional[float] = None,
+    ):
+        """Initialize alert config
+
+        Args:
+            dispatch_type:
+                Alert dispatch type to use. Defaults to console
+            schedule:
+                Schedule to run monitor. Defaults to daily at midnight
+            features_to_monitor:
+                List of features to monitor. Defaults to empty list, which means all features
+            dispatch_kwargs:
+                Additional alert kwargs to pass to the alerting service
+
+                Supported alert_kwargs:
+                Slack:
+                    - channel: str (channel to send slack message)
+                OpsGenie:
+                    - team: str (team to send opsgenie message)
+                    - priority: str (priority for opsgenie alerts)
+            psi_threshold:
+                What threshold must be met before sending alert messages default is 0.25
+
+        """
+
+    @property
+    def dispatch_type(self) -> str:
+        """Return the alert dispatch type"""
+
+    @dispatch_type.setter
+    def dispatch_type(self, alert_dispatch_type: str) -> None:
+        """Set the alert dispatch type"""
+
+    @property
+    def schedule(self) -> str:
+        """Return the schedule"""
+
+    @schedule.setter
+    def schedule(self, schedule: str) -> None:
+        """Set the schedule"""
+
+    @property
+    def features_to_monitor(self) -> List[str]:
+        """Return the features to monitor"""
+
+    @features_to_monitor.setter
+    def features_to_monitor(self, features_to_monitor: List[str]) -> None:
+        """Set the features to monitor"""
+
+    @property
+    def dispatch_kwargs(self) -> Dict[str, Any]:
+        """Return the dispatch kwargs"""
+
+    @dispatch_kwargs.setter
+    def dispatch_kwargs(self, dispatch_kwargs: Dict[str, Any]) -> None:
+        """Set the dispatch kwargs"""
+
+    @property
+    def psi_threshold(self) -> float:
+        """Return the schedule"""
+
+    @psi_threshold.setter
+    def psi_threshold(self, threshold: float) -> None:
+        """Set the schedule"""
+
 class SpcAlertConfig:
     def __init__(
         self,
@@ -404,6 +476,136 @@ class SpcFeatureDriftProfile:
     @property
     def timestamp(self) -> str:
         """Return the timestamp."""
+
+class PsiDriftConfig:
+    def __init__(
+        self,
+        repository: Optional[str] = None,
+        name: Optional[str] = None,
+        version: Optional[str] = None,
+        alert_config: Optional[PsiAlertConfig] = None,
+        feature_map: Optional[FeatureMap] = None,
+        targets: Optional[List[str]] = None,
+        config_path: Optional[Path] = None,
+    ):
+        """Initialize monitor config
+
+        Args:
+            repository:
+                Model repository
+            name:
+                Model name
+            version:
+                Model version. Defaults to 0.1.0
+            feature_map:
+                Feature map
+            targets:
+                List of features that are targets in your dataset.
+                This is typically the name of your dependent variable(s).
+                This primarily used for monitoring and UI purposes.
+            alert_config:
+                Alert configuration
+            config_path:
+                Optional path to load config from.
+        """
+
+    @property
+    def name(self) -> str:
+        """Model Name"""
+
+    @name.setter
+    def name(self, name: str) -> None:
+        """Set model name"""
+
+    @property
+    def repository(self) -> str:
+        """Model repository"""
+
+    @repository.setter
+    def repository(self, repository: str) -> None:
+        """Set model repository"""
+
+    @property
+    def version(self) -> str:
+        """Model version"""
+
+    @version.setter
+    def version(self, version: str) -> None:
+        """Set model version"""
+
+    @property
+    def feature_map(self) -> Optional[FeatureMap]:
+        """Feature map"""
+
+    @feature_map.setter
+    def feature_map(self, feature_map: FeatureMap) -> None:
+        """Set feature map"""
+
+    @property
+    def targets(self) -> List[str]:
+        """List of target features to monitor"""
+
+    @targets.setter
+    def targets(self, targets: List[str]) -> None:
+        """Set list of target features to monitor"""
+
+    @property
+    def alert_config(self) -> PsiAlertConfig:
+        """Alert configuration"""
+
+    @alert_config.setter
+    def alert_config(self, alert_config: PsiAlertConfig) -> None:
+        """Set alert configuration"""
+
+    @property
+    def drift_type(self) -> DriftType:
+        """Drift type"""
+
+    def update_feature_map(self, feature_map: FeatureMap) -> None:
+        """Update feature map"""
+
+    @staticmethod
+    def load_from_json_file(path: Path) -> "PsiDriftConfig":
+        """Load config from json file
+
+        Args:
+            path:
+                Path to json file to load config from.
+        """
+
+    def __str__(self) -> str:
+        """Return the string representation of the config."""
+
+    def model_dump_json(self) -> str:
+        """Return the json representation of the config."""
+
+    def update_config_args(
+        self,
+        repository: Optional[str] = None,
+        name: Optional[str] = None,
+        version: Optional[str] = None,
+        feature_map: Optional[FeatureMap] = None,
+        targets: Optional[List[str]] = None,
+        alert_config: Optional[PsiAlertConfig] = None,
+    ) -> None:
+        """Inplace operation that updates config args
+
+        Args:
+            repository:
+                Model repository
+            name:
+                Model name
+            version:
+                Model version
+            feature_map:
+                Feature map
+            targets:
+                List of features that are targets in your dataset.
+                This is typically the name of your dependent variable(s).
+                This primarily used for monitoring and UI purposes.
+            alert_config:
+                Alert configuration
+        """
 
 class SpcDriftConfig:
     def __init__(
@@ -1175,6 +1377,144 @@ class SpcDrifter:
             List of server records
         """
 
+class PsiDriftProfile:
+    def __init__(
+        self,
+        features: Dict[str, PsiFeatureDriftProfile],
+        config: PsiDriftConfig,
+        scouter_version: Optional[str] = None,
+    ):
+        """Initialize drift profile
+
+        Args:
+            features:
+                Dictionary of features and their drift profiles
+            config:
+                Monitor config
+            scouter_version:
+                version of scouter used to generate profile
+        """
+
+    @property
+    def scouter_version(self) -> str:
+        """Return scouter version used to create DriftProfile"""
+
+    @property
+    def features(self) -> Dict[str, PsiFeatureDriftProfile]:
+        """Return the list of features."""
+
+    @features.setter
+    def features(self, features: Dict[str, PsiFeatureDriftProfile]) -> None:
+        """Set the list of features."""
+
+    @property
+    def config(self) -> PsiDriftConfig:
+        """Return the monitor config."""
+
+    @config.setter
+    def config(self, config: PsiDriftConfig) -> None:
+        """Set the monitor config."""
+
+    def model_dump_json(self) -> str:
+        """Return json representation of drift profile"""
+
+    def model_dump(self) -> Dict[str, Any]:
+        """Return dictionary representation of drift profile"""
+
+    def save_to_json(self, path: Optional[Path] = None) -> None:
+        """Save drift profile to json file
+
+        Args:
+            path:
+                Optional path to save the drift profile. If None, outputs to "drift_profile.json.
+        """
+
+    @staticmethod
+    def model_validate_json(json_string: str) -> "PsiDriftProfile":
+        """Load drift profile from json
+
+        Args:
+            json_string:
+                JSON string representation of the drift profile
+
+        """
+
+    @staticmethod
+    def model_validate(data: Dict[str, Any]) -> "PsiDriftProfile":
+        """Load drift profile from dictionary
+
+        Args:
+            data:
+                DriftProfile dictionary
+        """
+
+    def update_config_args(
+        self,
+        repository: Optional[str] = None,
+        name: Optional[str] = None,
+        version: Optional[str] = None,
+        feature_map: Optional[FeatureMap] = None,
+        targets: Optional[List[str]] = None,
+        alert_config: Optional[PsiAlertConfig] = None,
+    ) -> None:
+        """Inplace operation that updates config args
+
+        Args:
+            name:
+                Model name
+            repository:
+                Model repository
+            version:
+                Model version
+            feature_map:
+                Feature map
+            targets:
+                List of features that are targets in your dataset.
+                This is typically the name of your dependent variable(s).
+                This primarily used for monitoring and UI purposes.
+            alert_config:
+                Alert configuration
+        """
+
+    def __str__(self) -> str:
+        """Sting representation of DriftProfile"""
+
+class PsiFeatureQueue:
+    def __init__(self, drift_profile: PsiDriftProfile) -> None:
+        """Initialize the feature queue
+
+        Args:
+            drift_profile:
+                Drift profile to use for feature queue.
+        """
+
+    def insert(self, data: Dict[str, Any]) -> None:
+        """Insert data into the feature queue
+        Args:
+            data:
+                Dictionary of feature values to insert into the monitoring queue.
+
+        Returns:
+            List of drift records if the monitoring queue has enough data to compute
+        """
+
+    def is_empty(self) -> bool:
+        """check if queue is empty
+        Returns:
+            bool
+        """
+
+    def clear_queue(self) -> None:
+        """Clears the feature queue"""
+
+    def create_drift_records(self) -> ServerRecords:
+        """Create drift server record from data
+
+
+        Returns:
+            `DriftServerRecord`
+        """
+
 class SpcFeatureQueue:
     def __init__(self, drift_profile: SpcDriftProfile) -> None:
         """Initialize the feature queue
@@ -1313,3 +1653,290 @@ class Observer:
 
     def reset_metrics(self) -> None:
         """Reset the observer metrics"""
+
+class Bin:
+    @property
+    def id(self) -> int:
+        """Return the bin id."""
+
+    @property
+    def lower_limit(self) -> float:
+        """Return the lower limit of the bin."""
+
+    @property
+    def upper_limit(self) -> Optional[float]:
+        """Return the upper limit of the bin."""
+
+    @property
+    def proportion(self) -> float:
+        """Return the proportion of data found in the bin."""
+
+class PsiFeatureDriftProfile:
+    @property
+    def id(self) -> str:
+        """Return the feature name"""
+
+    @property
+    def bins(self) -> List[Bin]:
+        """Return the bins"""
+
+    @property
+    def timestamp(self) -> str:
+        """Return the timestamp."""
+
+class PsiDriftMap:
+    """Drift map of features"""
+
+    def __init__(self, repository: str, name: str, version: str) -> None:
+        """Initialize data profile
+
+        Args:
+            service_name:
+                Optional name of service associated with drift map
+        """
+
+    @property
+    def repository(self) -> str:
+        """Repository to associate with drift map"""
+
+    @property
+    def name(self) -> str:
+        """name to associate with drift map"""
+
+    @property
+    def version(self) -> str:
+        """Version to associate with drift map"""
+
+    @property
+    def features(self) -> Dict[str, float]:
+        """Returns dictionary of features and their data profiles"""
+
+    def __str__(self) -> str:
+        """Return string representation of data drift"""
+
+    def model_dump_json(self) -> str:
+        """Return json representation of data drift"""
+
+    @staticmethod
+    def model_validate_json(json_string: str) -> "PsiDriftMap":
+        """Load drift map from json file.
+
+        Args:
+            json_string:
+                JSON string representation of the drift map
+        """
+
+    def save_to_json(self, path: Optional[Path] = None) -> None:
+        """Save drift map to json file
+
+        Args:
+            path:
+                Optional path to save the drift map. If None, outputs to "drift_map.json.
+
+        """
+
+class PsiDrifter:
+    def __init__(self) -> None:
+        """Instantiate Rust ScouterMonitor class that is
+        used to create monitoring profiles and compute drifts.
+        """
+
+    def convert_strings_to_numpy_f32(
+        self,
+        features: List[str],
+        array: List[List[str]],
+        drift_profile: PsiDriftProfile,
+    ) -> NDArray[Any]:
+        """Convert string array to numpy f32 array
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                List of string arrays to convert.
+            drift_profile:
+                Monitoring profile.
+        """
+
+    def convert_strings_to_numpy_f64(
+        self,
+        features: List[str],
+        array: List[List[str]],
+        drift_profile: PsiDriftProfile,
+    ) -> NDArray[Any]:
+        """Convert string array to numpy f64 array
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                List of string arrays to convert.
+            drift_profile:
+                Monitoring profile.
+        """
+
+    def create_string_drift_profile(
+        self,
+        array: List[List[str]],
+        drift_config: PsiDriftConfig,
+        features: List[str],
+    ) -> PsiDriftProfile:
+        """Create a monitoring profile from a f32 numpy array.
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                List of string arrays to profile.
+            drift_config:
+                Monitor config.
+
+        Returns:
+            Monitoring profile.
+        """
+
+    def create_numeric_drift_profile_f32(
+        self,
+        array: NDArray,
+        features: List[str],
+        drift_config: PsiDriftConfig,
+    ) -> PsiDriftProfile:
+        """Create a monitoring profile from a f64 numpy array.
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                Numpy array to profile.
+            drift_config:
+                Monitor config.
+
+        Returns:
+            Monitoring profile.
+        """
+
+    def create_numeric_drift_profile_f64(
+        self,
+        array: NDArray,
+        features: List[str],
+        drift_config: PsiDriftConfig,
+    ) -> PsiDriftProfile:
+        """Create a monitoring profile from a f64 numpy array.
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                Numpy array to profile.
+            drift_config:
+                monitor config.
+
+        Returns:
+            Monitoring profile.
+        """
+
+    def compute_drift_f32(
+        self,
+        array: NDArray,
+        features: List[str],
+        drift_profile: PsiDriftProfile,
+    ) -> PsiDriftMap:
+        """Compute drift from a f32 numpy array.
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                Numpy array to profile.
+            drift_profile:
+                Monitoring profile.
+
+
+        Returns:
+            DriftMap
+        """
+
+    def compute_drift_f64(
+        self,
+        array: NDArray,
+        features: List[str],
+        drift_profile: PsiDriftProfile,
+    ) -> PsiDriftMap:
+        """Compute drift from a f64 numpy array.
+
+        Args:
+            features:
+                List of feature names.
+            array:
+                Numpy array to profile.
+            drift_profile:
+                Monitoring profile.
+
+
+        Returns:
+            DriftMap.
+        """
+
+class PsiServerRecord:
+    def __init__(
+        self,
+        repository: str,
+        name: str,
+        version: str,
+        feature: str,
+        bin_id: str,
+        bin_count: int,
+    ):
+        """Initialize spc drift server record
+
+        Args:
+            repository:
+                Model repository
+            name:
+                Model name
+            version:
+                Model version
+            feature:
+                Feature name
+            bin_id:
+                Bundle ID
+            bin_count:
+                Bundle ID
+        """
+
+    @property
+    def created_at(self) -> datetime.datetime:
+        """Return the created at timestamp."""
+
+    @property
+    def repository(self) -> str:
+        """Return the repository."""
+
+    @property
+    def name(self) -> str:
+        """Return the name."""
+
+    @property
+    def version(self) -> str:
+        """Return the version."""
+
+    @property
+    def feature(self) -> str:
+        """Return the feature."""
+
+    @property
+    def bin_id(self) -> str:
+        """Return the sample value."""
+
+    @property
+    def bin_count(self) -> int:
+        """Return the sample value."""
+
+    def __str__(self) -> str:
+        """Return the string representation of the record."""
+
+    def model_dump_json(self) -> str:
+        """Return the json representation of the record."""
+
+    def to_dict(self) -> Dict[str, str]:
+        """Return the dictionary representation of the record."""
