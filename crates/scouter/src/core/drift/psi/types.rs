@@ -10,7 +10,7 @@ use pyo3::types::PyDict;
 use pyo3::{pyclass, pymethods, Bound, Py, PyResult, Python};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::{BTreeMap, HashMap};
+use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::debug;
 
@@ -482,15 +482,23 @@ impl ProfileBaseArgs for PsiDriftProfile {
     }
 }
 
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PsiFeatureAlerts {
-    pub alert_map: BTreeMap<String, String>,
+    #[pyo3(get)]
+    pub features: HashMap<String, f64>,
+
+    #[pyo3(get)]
+    pub threshold: f64,
 }
 
 impl DispatchAlertDescription for PsiFeatureAlerts {
     fn create_alert_description(&self, dispatch_type: AlertDispatchType) -> String {
         let mut alert_description = String::new();
 
-        for (i, (feature_name, drift_value)) in self.alert_map.iter().enumerate() {
+        for (i, (feature_name, drift_value)) in self.features.iter().enumerate() {
+            let description = format!("Feature '{}' has experienced drift, with a current PSI score of {} that exceeds the configured threshold of {}.", feature_name, drift_value, self.threshold);
+
             if i == 0 {
                 let header = "PSI Drift has been detected for the following features:\n";
                 alert_description.push_str(header);
@@ -507,10 +515,10 @@ impl DispatchAlertDescription for PsiFeatureAlerts {
 
             let alert_details = match dispatch_type {
                 AlertDispatchType::Console | AlertDispatchType::OpsGenie => {
-                    format!("{:indent$}Drift Value: {}\n", "", drift_value, indent = 8)
+                    format!("{:indent$}Drift Value: {}\n", "", description, indent = 8)
                 }
                 AlertDispatchType::Slack => {
-                    format!("{:indent$}Drift Value: {}\n", "", drift_value, indent = 4)
+                    format!("{:indent$}Drift Value: {}\n", "", description, indent = 4)
                 }
             };
             alert_description = format!("{}{}", alert_description, alert_details);
