@@ -37,16 +37,22 @@ class PsiQueueingStrategy(BaseQueueingStrategy):
         """
         super().__init__(config)
         self._feature_queue = PsiFeatureQueue(drift_profile=drift_profile)
+        self._stop_event = threading.Event()
         self._activate_queue_observer()
 
     def _activate_queue_observer(self) -> None:
+        self._stop_event.clear()
         thread = threading.Thread(target=self._queue_observer)
         thread.daemon = True  # Ensure the thread exits when the main program does
         thread.start()
 
+    def stop_queue_observer(self) -> None:
+        """Stop the queue observer thread."""
+        self._stop_event.set()
+
     def _queue_observer(self) -> None:
         last_metrics_time = time.time()
-        while True:
+        while not self._stop_event.is_set():
             try:
                 current_time = time.time()
                 if current_time - last_metrics_time >= 30.0 and not self._feature_queue.is_empty():

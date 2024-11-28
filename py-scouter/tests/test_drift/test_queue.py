@@ -7,17 +7,17 @@ from scouter import (
     ServerRecords,
     PsiDriftConfig,
     PsiDriftProfile,
-    DriftType
+    DriftType,
 )
 from typing import Optional
 import pandas as pd
 
 
 def test_psi_monitor_pandas(
-        pandas_dataframe: pd.DataFrame,
-        psi_drift_config: PsiDriftConfig,
-        mock_kafka_producer,
-        kafka_config: KafkaConfig,
+    pandas_dataframe: pd.DataFrame,
+    psi_drift_config: PsiDriftConfig,
+    mock_kafka_producer,
+    kafka_config: KafkaConfig,
 ):
     scouter = Drifter(DriftType.PSI)
     profile: PsiDriftProfile = scouter.create_drift_profile(
@@ -42,6 +42,8 @@ def test_psi_monitor_pandas(
     drift_records = return_record(records)
     assert drift_records is not None
     assert len(drift_records.records) == 30
+
+    queue._queueing_strategy.stop_queue_observer()  # type: ignore
 
 
 def test_spc_monitor_pandas(
@@ -141,6 +143,7 @@ def test_spc_queue_fail(
 
             if drift_map:
                 return drift_map
+
     records = return_record(records)
     assert records is None
 
