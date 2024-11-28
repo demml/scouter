@@ -10,7 +10,7 @@ use pyo3::types::PyDict;
 use pyo3::{pyclass, pymethods, Bound, Py, PyResult, Python};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use tracing::debug;
 
@@ -483,7 +483,7 @@ impl ProfileBaseArgs for PsiDriftProfile {
 }
 
 pub struct PsiFeatureAlerts {
-    pub alert_map: HashMap<String, String>,
+    pub alert_map: BTreeMap<String, String>,
 }
 
 impl DispatchAlertDescription for PsiFeatureAlerts {
