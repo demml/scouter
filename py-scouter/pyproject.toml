@@ -12,7 +12,8 @@ description = ""
 authors = [{name = "Thorrester", email = "<support@demmlai.com>"}]
 readme = "README.md"
 dependencies = [
-    'pandas>=1.5.3, <3.0.0', 
+    'pandas>=1.5.3, <3.0.0; python_version < "3.10"',
+    'pandas>=2.2.2; python_version >= "3.10"',
     'rusty-logger>=0.3.0, <1.0.0',
     'numpy>=1.23.0; python_version == "3.8" or python_version == "3.9"',
     'numpy>1.24.4; python_version >= "3.10"',
