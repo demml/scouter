@@ -580,4 +580,35 @@ mod tests {
 
         assert_eq!(drift_config.name, "test");
     }
+
+    #[test]
+    fn test_create_alert_description() {
+        let features = HashMap::from([
+            ("feature1".to_string(), 0.35),
+            ("feature2".to_string(), 0.45),
+        ]);
+        let threshold = 0.3;
+        let psi_feature_alerts = PsiFeatureAlerts {
+            features,
+            threshold,
+        };
+
+        // Test for Console dispatch type
+        let description = psi_feature_alerts.create_alert_description(AlertDispatchType::Console);
+        assert!(description.contains("PSI Drift has been detected for the following features:"));
+        assert!(description.contains("Feature 'feature1' has experienced drift, with a current PSI score of 0.35 that exceeds the configured threshold of 0.3."));
+        assert!(description.contains("Feature 'feature2' has experienced drift, with a current PSI score of 0.45 that exceeds the configured threshold of 0.3."));
+
+        // Test for Slack dispatch type
+        let description = psi_feature_alerts.create_alert_description(AlertDispatchType::Slack);
+        assert!(description.contains("PSI Drift has been detected for the following features:"));
+        assert!(description.contains("Feature 'feature1' has experienced drift, with a current PSI score of 0.35 that exceeds the configured threshold of 0.3."));
+        assert!(description.contains("Feature 'feature2' has experienced drift, with a current PSI score of 0.45 that exceeds the configured threshold of 0.3."));
+
+        // Test for OpsGenie dispatch type
+        let description = psi_feature_alerts.create_alert_description(AlertDispatchType::OpsGenie);
+        assert!(description.contains("PSI Drift has been detected for the following features:"));
+        assert!(description.contains("Feature 'feature1' has experienced drift, with a current PSI score of 0.35 that exceeds the configured threshold of 0.3."));
+        assert!(description.contains("Feature 'feature2' has experienced drift, with a current PSI score of 0.45 that exceeds the configured threshold of 0.3."));
+    }
 }
