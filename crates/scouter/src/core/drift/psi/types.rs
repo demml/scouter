@@ -483,8 +483,7 @@ impl ProfileBaseArgs for PsiDriftProfile {
 }
 
 pub struct PsiFeatureAlerts {
-    pub drift_map: HashMap<String, f64>,
-
+    pub alert_map: HashMap<String, String>,
     pub psi_threshold: f64,
 }
 
@@ -492,7 +491,7 @@ impl DispatchAlertDescription for PsiFeatureAlerts {
     fn create_alert_description(&self, dispatch_type: AlertDispatchType) -> String {
         let mut alert_description = String::new();
 
-        for (i, (feature_name, drift_value)) in self.drift_map.iter().enumerate() {
+        for (i, (feature_name, drift_value)) in self.alert_map.iter().enumerate() {
             if i == 0 {
                 let header = "PSI Drift has been detected for the following features:\n";
                 alert_description.push_str(header);
