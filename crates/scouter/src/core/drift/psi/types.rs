@@ -484,7 +484,6 @@ impl ProfileBaseArgs for PsiDriftProfile {
 
 pub struct PsiFeatureAlerts {
     pub alert_map: HashMap<String, String>,
-    pub psi_threshold: f64,
 }
 
 impl DispatchAlertDescription for PsiFeatureAlerts {
