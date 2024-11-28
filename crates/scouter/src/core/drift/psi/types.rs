@@ -482,17 +482,23 @@ impl ProfileBaseArgs for PsiDriftProfile {
     }
 }
 
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PsiFeatureAlerts {
-    pub drift_map: HashMap<String, f64>,
+    #[pyo3(get)]
+    pub features: HashMap<String, f64>,
 
-    pub psi_threshold: f64,
+    #[pyo3(get)]
+    pub threshold: f64,
 }
 
 impl DispatchAlertDescription for PsiFeatureAlerts {
     fn create_alert_description(&self, dispatch_type: AlertDispatchType) -> String {
         let mut alert_description = String::new();
 
-        for (i, (feature_name, drift_value)) in self.drift_map.iter().enumerate() {
+        for (i, (feature_name, drift_value)) in self.features.iter().enumerate() {
+            let description = format!("Feature '{}' has experienced drift, with a current PSI score of {} that exceeds the configured threshold of {}.", feature_name, drift_value, self.threshold);
+
             if i == 0 {
                 let header = "PSI Drift has been detected for the following features:\n";
                 alert_description.push_str(header);
@@ -509,10 +515,10 @@ impl DispatchAlertDescription for PsiFeatureAlerts {
 
             let alert_details = match dispatch_type {
                 AlertDispatchType::Console | AlertDispatchType::OpsGenie => {
-                    format!("{:indent$}Drift Value: {}\n", "", drift_value, indent = 8)
+                    format!("{:indent$}Drift Value: {}\n", "", description, indent = 8)
                 }
                 AlertDispatchType::Slack => {
-                    format!("{:indent$}Drift Value: {}\n", "", drift_value, indent = 4)
+                    format!("{:indent$}Drift Value: {}\n", "", description, indent = 4)
                 }
             };
             alert_description = format!("{}{}", alert_description, alert_details);
@@ -573,5 +579,36 @@ mod tests {
             .unwrap();
 
         assert_eq!(drift_config.name, "test");
+    }
+
+    #[test]
+    fn test_create_alert_description() {
+        let features = HashMap::from([
+            ("feature1".to_string(), 0.35),
+            ("feature2".to_string(), 0.45),
+        ]);
+        let threshold = 0.3;
+        let psi_feature_alerts = PsiFeatureAlerts {
+            features,
+            threshold,
+        };
+
+        // Test for Console dispatch type
+        let description = psi_feature_alerts.create_alert_description(AlertDispatchType::Console);
+        assert!(description.contains("PSI Drift has been detected for the following features:"));
+        assert!(description.contains("Feature 'feature1' has experienced drift, with a current PSI score of 0.35 that exceeds the configured threshold of 0.3."));
+        assert!(description.contains("Feature 'feature2' has experienced drift, with a current PSI score of 0.45 that exceeds the configured threshold of 0.3."));
+
+        // Test for Slack dispatch type
+        let description = psi_feature_alerts.create_alert_description(AlertDispatchType::Slack);
+        assert!(description.contains("PSI Drift has been detected for the following features:"));
+        assert!(description.contains("Feature 'feature1' has experienced drift, with a current PSI score of 0.35 that exceeds the configured threshold of 0.3."));
+        assert!(description.contains("Feature 'feature2' has experienced drift, with a current PSI score of 0.45 that exceeds the configured threshold of 0.3."));
+
+        // Test for OpsGenie dispatch type
+        let description = psi_feature_alerts.create_alert_description(AlertDispatchType::OpsGenie);
+        assert!(description.contains("PSI Drift has been detected for the following features:"));
+        assert!(description.contains("Feature 'feature1' has experienced drift, with a current PSI score of 0.35 that exceeds the configured threshold of 0.3."));
+        assert!(description.contains("Feature 'feature2' has experienced drift, with a current PSI score of 0.45 that exceeds the configured threshold of 0.3."));
     }
 }
