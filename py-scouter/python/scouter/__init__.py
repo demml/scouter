@@ -8,8 +8,15 @@ from scouter.integrations.rabbitmq import RabbitMQConfig, RabbitMQProducer
 from scouter.utils.types import AlertZone, SpcAlertType
 
 from ._scouter import (
+    AlertCondition,
     AlertDispatchType,
     Bin,
+    CustomComparisonMetric,
+    CustomDriftProfile,
+    CustomMetricAlertConfig,
+    CustomMetricDriftConfig,
+    CustomMetricEntry,
+    CustomThresholdMetric,
     DataProfile,
     DriftType,
     Every1Minute,
@@ -103,4 +110,11 @@ __all__ = [
     "PsiFeatureDriftProfile",
     "PsiDriftProfile",
     "PsiDriftMap",
+    "CustomMetricAlertConfig",
+    "CustomMetricDriftConfig",
+    "CustomMetricEntry",
+    "CustomThresholdMetric",
+    "CustomComparisonMetric",
+    "AlertCondition",
+    "CustomDriftProfile",
 ]

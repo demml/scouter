@@ -19,6 +19,7 @@ use scouter::core::drift::spc::types::{
     SpcDriftProfile, SpcFeatureAlert, SpcFeatureAlerts, SpcFeatureDrift, SpcFeatureDriftProfile,
     SpcServerRecord,
 };
+use scouter::core::drift::custom::types::{CustomMetricAlertConfig, CustomMetricEntry, CustomMetricDriftConfig, CustomThresholdMetric, CustomComparisonMetric, AlertCondition, CustomDriftProfile};
 use scouter::core::observe::observer::{
     LatencyMetrics, ObservabilityMetrics, Observer, RouteMetrics,
 };
@@ -78,5 +79,12 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PsiDriftProfile>()?;
     m.add_class::<PsiDriftMap>()?;
     m.add_class::<PsiDrifter>()?;
+    m.add_class::<CustomMetricAlertConfig>()?;
+    m.add_class::<CustomMetricDriftConfig>()?;
+    m.add_class::<CustomMetricEntry>()?;
+    m.add_class::<CustomThresholdMetric>()?;
+    m.add_class::<CustomComparisonMetric>()?;
+    m.add_class::<AlertCondition>()?;
+    m.add_class::<CustomDriftProfile>()?;
     Ok(())
 }

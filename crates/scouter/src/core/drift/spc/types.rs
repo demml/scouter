@@ -2,7 +2,7 @@ use crate::core::cron::EveryDay;
 use crate::core::dispatch::types::AlertDispatchType;
 use crate::core::drift::base::{
     DispatchAlertDescription, DispatchDriftConfig, DriftArgs, DriftType, ProfileArgs,
-    ProfileBaseArgs, ValidateAlertConfig,
+    ProfileBaseArgs, ValidateAlertConfig, MISSING,
 };
 use crate::core::error::ScouterError;
 use crate::core::utils::{json_to_pyobject, pyobject_to_json, FeatureMap, FileName, ProfileFuncs};
@@ -18,8 +18,6 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::path::PathBuf;
 use tracing::debug;
-
-const MISSING: &str = "__missing__";
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]

@@ -154,6 +154,18 @@ pub enum DispatchError {
 }
 
 #[derive(Error, Debug, Deserialize)]
+pub enum UserDefinitionError {
+    #[error("Cannot create metric group: No feature metric entries provided")]
+    EmptyMetricGroupError,
+}
+
+impl From<UserDefinitionError> for PyErr {
+    fn from(err: UserDefinitionError) -> PyErr {
+        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
+    }
+}
+
+#[derive(Error, Debug, Deserialize)]
 pub enum ObserverError {
     #[error("Route not found {0}")]
     RouteNotFound(String),
