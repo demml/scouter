@@ -1,13 +1,13 @@
 from scouter import (
-    Drifter,
-    DriftConfig,
-    AlertRule,
-    ProcessAlertRule,
-    DriftMap,
     AlertDispatchType,
+    AlertRule,
+    DriftConfig,
+    Drifter,
+    DriftMap,
+    ProcessAlertRule,
 )
-from .utils import generate_data
 
+from .utils import generate_data
 
 if __name__ == "__main__":
     # generate data
@@ -40,8 +40,6 @@ if __name__ == "__main__":
 
     print(drift_array, features)
 
-    feature_alerts = drifter.generate_alerts(
-        drift_array, features, profile.config.alert_config.alert_rule
-    )
+    feature_alerts = drifter.generate_alerts(drift_array, features, profile.config.alert_config.alert_rule)
 
     print(feature_alerts)
