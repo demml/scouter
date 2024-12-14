@@ -14,6 +14,10 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::debug;
 
+type MetricName = String;
+type MetricValue = f64;
+type FeatureName = String;
+
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct CustomMetricBaseAlertConfig {
@@ -168,10 +172,12 @@ pub struct CustomMetricDriftConfig {
     pub version: String,
 
     #[pyo3(get)]
-    pub threshold_metric_alert_configs: Option<HashMap<String, CustomThresholdMetricAlertConfig>>,
+    pub threshold_metric_alert_configs:
+        Option<HashMap<MetricName, CustomThresholdMetricAlertConfig>>,
 
     #[pyo3(get)]
-    pub comparison_metric_alert_configs: Option<HashMap<String, CustomComparisonMetricAlertConfig>>,
+    pub comparison_metric_alert_configs:
+        Option<HashMap<MetricName, CustomComparisonMetricAlertConfig>>,
 
     #[pyo3(get)]
     pub drift_type: DriftType,
@@ -397,10 +403,6 @@ impl CustomComparisonMetric {
     }
 }
 
-type MetricName = String;
-type MetricValue = f64;
-type FeatureName = String;
-
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CustomDriftProfile {
@@ -419,16 +421,20 @@ impl CustomDriftProfile {
         metrics_vec: &[T],
         metrics: &mut HashMap<MetricName, HashMap<FeatureName, MetricValue>>,
     ) {
-        for metric in metrics_vec {
-            let inner_map = metric.features().iter().map(|feature_metric_entry| {
-                (
-                    feature_metric_entry.feature_name.clone(),
-                    feature_metric_entry.metric_value,
-                )
-            }).collect();
+        metrics_vec.iter().for_each(|metric| {
+            let inner_map = metric
+                .features()
+                .iter()
+                .map(|feature_metric_entry| {
+                    (
+                        feature_metric_entry.feature_name.clone(),
+                        feature_metric_entry.metric_value,
+                    )
+                })
+                .collect();
 
             metrics.insert(metric.metric_name().to_string(), inner_map);
-        }
+        })
     }
 }
 
@@ -442,7 +448,6 @@ impl CustomDriftProfile {
         scouter_version: Option<String>,
     ) -> Result<Self, CustomMetricError> {
         let mut metrics: HashMap<MetricName, HashMap<FeatureName, MetricValue>> = HashMap::new();
-
 
         if let Some(comparison) = comparison_metrics.filter(|v| !v.is_empty()) {
             config.set_comparison_configs(&comparison);
@@ -522,6 +527,60 @@ impl CustomDriftProfile {
     ) -> Result<(), ScouterError> {
         self.config
             .update_drift_config_args(repository, name, version, schedule)
+    }
+
+    #[getter]
+    pub fn threshold_metrics(&self) -> Option<Vec<CustomThresholdMetric>> {
+        self.config
+            .threshold_metric_alert_configs
+            .as_ref()
+            .map(|threshold_metric_alert_configs| {
+                threshold_metric_alert_configs
+                    .iter()
+                    .map(|(metric_name, alert_config)| {
+                        let metric_entries = self.metrics[metric_name]
+                            .iter()
+                            .map(|(feature_name, metric_value)| CustomMetricEntry {
+                                feature_name: feature_name.to_string(),
+                                metric_value: metric_value.clone(),
+                            })
+                            .collect();
+
+                        CustomThresholdMetric {
+                            metric_name: metric_name.to_string(),
+                            alert_config: alert_config.clone(),
+                            features: metric_entries,
+                        }
+                    })
+                    .collect()
+            })
+    }
+
+    #[getter]
+    pub fn comparison_metrics(&self) -> Option<Vec<CustomComparisonMetric>> {
+        self.config
+            .comparison_metric_alert_configs
+            .as_ref()
+            .map(|threshold_metric_alert_configs| {
+                threshold_metric_alert_configs
+                    .iter()
+                    .map(|(metric_name, alert_config)| {
+                        let metric_entries = self.metrics[metric_name]
+                            .iter()
+                            .map(|(feature_name, metric_value)| CustomMetricEntry {
+                                feature_name: feature_name.to_string(),
+                                metric_value: metric_value.clone(),
+                            })
+                            .collect();
+
+                        CustomComparisonMetric {
+                            metric_name: metric_name.to_string(),
+                            alert_config: alert_config.clone(),
+                            features: metric_entries,
+                        }
+                    })
+                    .collect()
+            })
     }
 }
 

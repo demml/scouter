@@ -1991,9 +1991,9 @@ class CustomMetricBaseAlertConfig:
 
 class CustomThresholdMetricAlertConfig:
     def __init__(
-            self,
-            base_config: CustomMetricBaseAlertConfig,
-            alert_threshold: float,
+        self,
+        base_config: CustomMetricBaseAlertConfig,
+        alert_threshold: float,
     ):
         """
         Initialize a custom threshold metric alert configuration.
@@ -2074,10 +2074,7 @@ class AlertCondition(Enum):
 
 class CustomComparisonMetricAlertConfig:
     def __init__(
-            self,
-            base_config: CustomMetricBaseAlertConfig,
-            alert_condition: AlertCondition,
-            alert_boundary: Optional[float]
+        self, base_config: CustomMetricBaseAlertConfig, alert_condition: AlertCondition, alert_boundary: Optional[float]
     ):
         """
         Initialize a custom comparison metric alert configuration.
@@ -2134,7 +2131,6 @@ class CustomComparisonMetricAlertConfig:
     def __str__(self) -> str:
         """Return the string representation of the config."""
 
-
 class CustomMetricDriftConfig:
     def __init__(
         self,
@@ -2178,8 +2174,9 @@ class CustomMetricDriftConfig:
     @version.setter
     def version(self, version: str) -> None:
         """Set model version"""
+
     @property
-    def threshold_metric_alert_configs(self) -> dict[str,CustomThresholdMetricAlertConfig]:
+    def threshold_metric_alert_configs(self) -> dict[str, CustomThresholdMetricAlertConfig]:
         """get threshold metric alert configurations"""
 
     @property
@@ -2259,9 +2256,10 @@ class CustomMetricEntry:
     def metric_value(self, metric_value: float) -> None:
         """Set the metric_value"""
 
-
 class CustomThresholdMetric:
-    def __init__(self, metric_name: str, features: list[CustomMetricEntry], alert_config: CustomThresholdMetricAlertConfig):
+    def __init__(
+        self, metric_name: str, features: list[CustomMetricEntry], alert_config: CustomThresholdMetricAlertConfig
+    ):
         """
         Initialize a CustomThresholdMetric instance.
 
@@ -2315,10 +2313,7 @@ class CustomThresholdMetric:
 
 class CustomComparisonMetric:
     def __init__(
-        self,
-        metric_name: str,
-        features: list[CustomMetricEntry],
-        alert_config: CustomComparisonMetricAlertConfig
+        self, metric_name: str, features: list[CustomMetricEntry], alert_config: CustomComparisonMetricAlertConfig
     ):
         """
         Initialize a custom comparison metric for alerting.
@@ -2458,6 +2453,15 @@ class CustomDriftProfile:
 
     def __str__(self) -> str:
         """Sting representation of DriftProfile"""
+
+    @property
+    def threshold_metrics(self) -> Optional[list[CustomThresholdMetric]]:
+        """Return threshold_metrics objects that were specified during profile creation"""
+
+    @property
+    def comparison_metrics(self) -> Optional[list[CustomComparisonMetric]]:
+        """Return comparison_metrics objects that were specified during profile creation"""
+
 
 class CustomDrifter:
     def __init__(self) -> None:

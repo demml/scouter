@@ -12,11 +12,13 @@ from ._scouter import (
     AlertDispatchType,
     Bin,
     CustomComparisonMetric,
-    CustomDriftProfile,
     CustomComparisonMetricAlertConfig,
+    CustomDriftProfile,
+    CustomMetricBaseAlertConfig,
     CustomMetricDriftConfig,
     CustomMetricEntry,
     CustomThresholdMetric,
+    CustomThresholdMetricAlertConfig,
     DataProfile,
     DriftType,
     Every1Minute,
@@ -50,7 +52,7 @@ from ._scouter import (
     SpcFeatureAlerts,
     SpcFeatureDriftProfile,
     SpcFeatureQueue,
-    SpcServerRecord, CustomMetricBaseAlertConfig, CustomThresholdMetricAlertConfig,
+    SpcServerRecord,
 )
 from .drift.drifter import CommonCrons, Drifter
 from .monitor.monitor import MonitorQueue
