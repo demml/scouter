@@ -5,11 +5,13 @@ import polars as pl
 import pyarrow as pa  # type: ignore
 from numpy.typing import NDArray
 from scouter.drift import DriftHelperBase, get_drift_helper
-from scouter.drift.base import Config, DriftMap, Profile
+from scouter.drift.base import Config, CustomMetricData, DriftMap, Profile
 from scouter.utils.logger import ScouterLogger
 
-from .._scouter import (  # pylint: disable=no-name-in-module
+from .._scouter import (  # pylint: disable=no-name-in-module; CustomMetricDriftConfig,
     CommonCron,
+    CustomDriftProfile,
+    CustomMetricDriftConfig,
     DriftType,
     PsiDriftConfig,
     PsiDriftMap,
@@ -38,6 +40,9 @@ class Drifter:
                 Type of drift to detect. Defaults to SPC drift detection.
 
         """
+        # if drift_type == DriftType.Custom:
+        #     self._custom_drift_helper = CustomDriftHelper()
+        # else:
         self._drift_helper: DriftHelperBase = get_drift_helper(drift_type or DriftType.SPC)
 
     @overload
@@ -60,9 +65,16 @@ class Drifter:
         data: Union[pl.DataFrame, pd.DataFrame, NDArray[Any], pa.Table],
     ) -> SpcDriftProfile: ...
 
+    @overload
     def create_drift_profile(
         self,
-        data: Union[pl.DataFrame, pd.DataFrame, NDArray[Any], pa.Table],
+        data: CustomMetricData,
+        config: CustomMetricDriftConfig,
+    ) -> CustomDriftProfile: ...
+
+    def create_drift_profile(
+        self,
+        data: Union[pl.DataFrame, pd.DataFrame, NDArray[Any], pa.Table, CustomMetricData],
         config: Optional[Config] = None,
     ) -> Profile:
         """Create a drift profile from data to use for monitoring.
@@ -82,12 +94,10 @@ class Drifter:
             Monitoring profile
         """
         _config = config or SpcDriftConfig()
-
         assert _config.drift_type == self._drift_helper.drift_type(), (
             f"Drift type mismatch. Expected drift type: {self._drift_helper.drift_type()}, "
             f"got drift type: {_config.drift_type}"
         )
-
         return self._drift_helper.create_drift_profile(data, _config)
 
     @overload

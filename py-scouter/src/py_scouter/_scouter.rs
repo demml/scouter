@@ -25,6 +25,7 @@ use scouter::core::utils::create_feature_map;
 use scouter::core::utils::CategoricalFeatureHelpers;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use scouter::core::drift::custom::types::{CustomComparisonMetric, CustomDriftProfile, CustomMetricDriftConfig, CustomThresholdMetric};
 
 #[pyclass]
 pub struct ScouterProfiler {
@@ -693,5 +694,27 @@ impl PsiDrifter {
             };
 
         Ok(drift_map)
+    }
+}
+
+
+#[pyclass]
+pub struct CustomDrifter{}
+
+#[pymethods]
+#[allow(clippy::new_without_default)]
+impl CustomDrifter {
+    #[new]
+    pub fn new() -> Self {
+        Self {}
+    }
+    pub fn create_drift_profile(
+        &mut self,
+        config: CustomMetricDriftConfig,
+        comparison_metrics: Option<Vec<CustomComparisonMetric>>,
+        threshold_metrics: Option<Vec<CustomThresholdMetric>>,
+        scouter_version: Option<String>,
+    ) -> PyResult<CustomDriftProfile> {
+        Ok(CustomDriftProfile::new(config, comparison_metrics, threshold_metrics, scouter_version)?)
     }
 }

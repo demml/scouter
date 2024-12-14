@@ -1,5 +1,5 @@
 mod py_scouter;
-use crate::py_scouter::_scouter::PsiDrifter;
+use crate::py_scouter::_scouter::{CustomDrifter, PsiDrifter};
 use py_scouter::_scouter::{ScouterProfiler, SpcDrifter};
 use pyo3::prelude::*;
 use scouter::core::cron::{
@@ -8,6 +8,7 @@ use scouter::core::cron::{
 };
 use scouter::core::dispatch::types::AlertDispatchType;
 use scouter::core::drift::base::{DriftType, RecordType, ServerRecord, ServerRecords};
+use scouter::core::drift::custom::types::{AlertCondition, CustomComparisonMetric, CustomComparisonMetricAlertConfig, CustomDriftProfile, CustomMetricBaseAlertConfig, CustomMetricDriftConfig, CustomMetricEntry, CustomThresholdMetric, CustomThresholdMetricAlertConfig};
 use scouter::core::drift::psi::feature_queue::PsiFeatureQueue;
 use scouter::core::drift::psi::types::{
     Bin, PsiAlertConfig, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
@@ -78,5 +79,15 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PsiDriftProfile>()?;
     m.add_class::<PsiDriftMap>()?;
     m.add_class::<PsiDrifter>()?;
+    m.add_class::<CustomComparisonMetricAlertConfig>()?;
+    m.add_class::<CustomThresholdMetricAlertConfig>()?;
+    m.add_class::<CustomMetricBaseAlertConfig>()?;
+    m.add_class::<CustomMetricDriftConfig>()?;
+    m.add_class::<CustomMetricEntry>()?;
+    m.add_class::<CustomThresholdMetric>()?;
+    m.add_class::<CustomComparisonMetric>()?;
+    m.add_class::<AlertCondition>()?;
+    m.add_class::<CustomDriftProfile>()?;
+    m.add_class::<CustomDrifter>()?;
     Ok(())
 }
