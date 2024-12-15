@@ -2462,7 +2462,6 @@ class CustomDriftProfile:
     def comparison_metrics(self) -> Optional[list[CustomComparisonMetric]]:
         """Return comparison_metrics objects that were specified during profile creation"""
 
-
 class CustomDrifter:
     def __init__(self) -> None:
         """Instantiate Rust CustomMonitor class that is

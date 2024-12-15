@@ -1,10 +1,8 @@
-use crate::core::cron::EveryDay;
 use crate::core::dispatch::types::AlertDispatchType;
 use crate::core::drift::base::{
-    DispatchDriftConfig, DriftArgs, DriftType, ProfileArgs, ProfileBaseArgs, ValidateAlertConfig,
-    MISSING,
+    DriftType, ProfileArgs, ProfileBaseArgs, ValidateAlertConfig, MISSING,
 };
-use crate::core::error::{CustomMetricError, MonitorError, ScouterError};
+use crate::core::error::{CustomMetricError, ScouterError};
 use crate::core::utils::{json_to_pyobject, pyobject_to_json, FileName, ProfileFuncs};
 use pyo3::types::PyDict;
 use pyo3::{pyclass, pymethods, Bound, Py, PyResult, Python};
@@ -542,7 +540,7 @@ impl CustomDriftProfile {
                             .iter()
                             .map(|(feature_name, metric_value)| CustomMetricEntry {
                                 feature_name: feature_name.to_string(),
-                                metric_value: metric_value.clone(),
+                                metric_value: *metric_value,
                             })
                             .collect();
 
@@ -569,7 +567,7 @@ impl CustomDriftProfile {
                             .iter()
                             .map(|(feature_name, metric_value)| CustomMetricEntry {
                                 feature_name: feature_name.to_string(),
-                                metric_value: metric_value.clone(),
+                                metric_value: *metric_value,
                             })
                             .collect();
 
