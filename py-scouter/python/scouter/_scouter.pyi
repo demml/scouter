@@ -1942,102 +1942,6 @@ class PsiServerRecord:
     def to_dict(self) -> Dict[str, str]:
         """Return the dictionary representation of the record."""
 
-class CustomMetricBaseAlertConfig:
-    def __init__(
-        self,
-        dispatch_type: AlertDispatchType,
-        dispatch_kwargs: Optional[Dict[str, Any]] = None,
-        features_to_monitor: Optional[List[str]] = None,
-    ):
-        """Initialize custom metric base alert config
-        Args:
-            dispatch_type:
-                Alert dispatch type to use. Defaults to console
-            dispatch_kwargs:
-                Additional alert kwargs to pass to the alerting service
-                Supported alert_kwargs:
-                Slack:
-                    - channel: str (channel to send slack message)
-                OpsGenie:
-                    - team: str (team to send opsgenie message)
-                    - priority: str (priority for opsgenie alerts)
-            features_to_monitor:
-                List of features to monitor. Defaults to empty list, which means all features
-        """
-
-    @property
-    def dispatch_type(self) -> str:
-        """Return the alert dispatch type"""
-
-    @dispatch_type.setter
-    def dispatch_type(self, alert_dispatch_type: str) -> None:
-        """Set the alert dispatch type"""
-
-    @property
-    def dispatch_kwargs(self) -> Dict[str, Any]:
-        """Return the dispatch kwargs"""
-
-    @dispatch_kwargs.setter
-    def dispatch_kwargs(self, dispatch_kwargs: Dict[str, Any]) -> None:
-        """Set the dispatch kwargs"""
-
-    @property
-    def features_to_monitor(self) -> List[str]:
-        """Return the features to monitor"""
-
-    @features_to_monitor.setter
-    def features_to_monitor(self, features_to_monitor: List[str]) -> None:
-        """Set the features to monitor"""
-
-class CustomThresholdMetricAlertConfig:
-    def __init__(
-        self,
-        base_config: CustomMetricBaseAlertConfig,
-        alert_threshold: float,
-    ):
-        """
-        Initialize a custom threshold metric alert configuration.
-
-        This class extends the base alert configuration with a specific threshold
-        for triggering alerts on custom metrics.
-
-        Args:
-            base_config (CustomMetricBaseAlertConfig): The base alert configuration
-                common to all custom metric types. This includes dispatch settings
-                and features to monitor.
-            alert_threshold (float): The threshold value that, when surpassed,
-                triggers an alert. The comparison method (greater than, less than, etc.)
-                is determined by the specific metric implementation.
-
-        Note:
-            The alert_threshold is a critical value that defines when an alert should
-            be triggered. Ensure this value is appropriate for the scale and nature
-            of the metric being monitored.
-        """
-
-    @property
-    def base_config(self) -> CustomMetricBaseAlertConfig:
-        """Return the base alert config"""
-
-    @base_config.setter
-    def base_config(self, base_config: CustomMetricBaseAlertConfig) -> None:
-        """Set the base alert configr"""
-
-    @property
-    def alert_threshold(self) -> float:
-        """Return the base alert_threshold"""
-
-    @alert_threshold.setter
-    def alert_threshold(self, alert_threshold: float) -> None:
-        """Set the alert_threshold"""
-
-    @property
-    def dispatch_type(self) -> str:
-        """Return the dispatch_type"""
-
-    def __str__(self) -> str:
-        """Return the string representation of the config."""
-
 class AlertCondition(Enum):
     """
     Enum representing different alert conditions for monitoring metrics.
@@ -2072,45 +1976,23 @@ class AlertCondition(Enum):
             AlertCondition: The corresponding AlertCondition enum member.
         """
 
-class CustomComparisonMetricAlertConfig:
-    def __init__(
-        self, base_config: CustomMetricBaseAlertConfig, alert_condition: AlertCondition, alert_boundary: Optional[float]
-    ):
-        """
-        Initialize a custom comparison metric alert configuration.
-
-        This class extends the base alert configuration with specific conditions
-        for triggering alerts based on comparisons between metrics or against set boundaries.
-
+class CustomMetricAlertCondition:
+    def __init__(self, alert_condition: AlertCondition, alert_boundary: Optional[float]):
+        """Initialize a CustomMetricAlertCondition instance.
         Args:
-            base_config (CustomMetricBaseAlertConfig): The base alert configuration
-                common to all custom metric types. This includes dispatch settings
-                and features to monitor.
             alert_condition (AlertCondition): The condition that determines when an alert
                 should be triggered. This could be comparisons like 'greater than',
                 'less than', 'equal to', etc.
             alert_boundary (Optional[float], optional): A numerical boundary used in
                 conjunction with the alert_condition. This can be None for certain
                 types of comparisons that don't require a fixed boundary.
-
-        Note:
-            The combination of alert_condition and alert_boundary (when applicable)
-            defines the specific circumstances under which an alert should be triggered.
-            Ensure these are set appropriately for the metrics being compared and the
-            desired alerting behavior.
+        Example:
+            alert_condition = CustomMetricAlertCondition(AlertCondition.BELOW, 2.0)
         """
 
     @property
-    def base_config(self) -> CustomMetricBaseAlertConfig:
-        """Return the base alert config"""
-
-    @base_config.setter
-    def base_config(self, base_config: CustomMetricBaseAlertConfig) -> None:
-        """Set the base alert configr"""
-
-    @property
     def alert_condition(self) -> AlertCondition:
-        """Return the base alert_condition"""
+        """Return the alert_condition"""
 
     @alert_condition.setter
     def alert_condition(self, alert_condition: AlertCondition) -> None:
@@ -2118,18 +2000,69 @@ class CustomComparisonMetricAlertConfig:
 
     @property
     def alert_boundary(self) -> float:
-        """Return the base alert_boundary"""
+        """Return the alert_boundary"""
 
     @alert_boundary.setter
     def alert_boundary(self, alert_boundary: float) -> None:
         """Set the alert_boundary"""
 
+class CustomMetricAlertConfig:
+    def __init__(
+        self,
+        dispatch_type: Optional[AlertDispatchType] = None,
+        schedule: Optional[str] = None,
+        dispatch_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        """Initialize alert config
+
+        Args:
+            dispatch_type:
+                Alert dispatch type to use. Defaults to console
+            schedule:
+                Schedule to run monitor. Defaults to daily at midnight
+            dispatch_kwargs:
+                Additional alert kwargs to pass to the alerting service
+
+                Supported alert_kwargs:
+                Slack:
+                    - channel: str (channel to send slack message)
+                OpsGenie:
+                    - team: str (team to send opsgenie message)
+                    - priority: str (priority for opsgenie alerts)
+
+        """
+
     @property
     def dispatch_type(self) -> str:
-        """Return the dispatch_type"""
+        """Return the alert dispatch type"""
 
-    def __str__(self) -> str:
-        """Return the string representation of the config."""
+    @dispatch_type.setter
+    def dispatch_type(self, alert_dispatch_type: str) -> None:
+        """Set the alert dispatch type"""
+
+    @property
+    def schedule(self) -> str:
+        """Return the schedule"""
+
+    @schedule.setter
+    def schedule(self, schedule: str) -> None:
+        """Set the schedule"""
+
+    @property
+    def dispatch_kwargs(self) -> Dict[str, Any]:
+        """Return the dispatch kwargs"""
+
+    @dispatch_kwargs.setter
+    def dispatch_kwargs(self, dispatch_kwargs: Dict[str, Any]) -> None:
+        """Set the dispatch kwargs"""
+
+    @property
+    def psi_threshold(self) -> float:
+        """Return the schedule"""
+
+    @property
+    def alert_conditions(self) -> dict[str, CustomMetricAlertCondition]:
+        """Return the alert_conditions that were set during metric definition"""
 
 class CustomMetricDriftConfig:
     def __init__(
@@ -2137,7 +2070,7 @@ class CustomMetricDriftConfig:
         repository: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
-        schedule: Optional[str] = None,
+        alert_config: Optional[CustomMetricAlertConfig] = None,
     ):
         """Initialize drift config
         Args:
@@ -2147,8 +2080,8 @@ class CustomMetricDriftConfig:
                 Model name
             version:
                 Model version. Defaults to 0.1.0
-            schedule:
-                Cron schedule, when to run the job
+            alert_config:
+                Custom metric alert configuration
         """
 
     @property
@@ -2176,24 +2109,16 @@ class CustomMetricDriftConfig:
         """Set model version"""
 
     @property
-    def threshold_metric_alert_configs(self) -> dict[str, CustomThresholdMetricAlertConfig]:
-        """get threshold metric alert configurations"""
-
-    @property
-    def comparison_metric_alert_configs(self) -> dict[str, CustomComparisonMetricAlertConfig]:
-        """get comparison metric alert configurations"""
-
-    @property
     def drift_type(self) -> DriftType:
         """Drift type"""
 
     @property
-    def schedule(self) -> str:
-        """get cron schedule"""
+    def alert_config(self) -> CustomMetricAlertConfig:
+        """get alert_config"""
 
-    @schedule.setter
-    def schedule(self, schedule: str) -> None:
-        """Set cron schedule"""
+    @alert_config.setter
+    def alert_config(self, alert_config: CustomMetricAlertConfig) -> None:
+        """Set alert_config"""
 
     @staticmethod
     def load_from_json_file(path: Path) -> "CustomMetricDriftConfig":
@@ -2209,12 +2134,12 @@ class CustomMetricDriftConfig:
     def model_dump_json(self) -> str:
         """Return the json representation of the config."""
 
-    def update_drift_config_args(
+    def update_config_args(
         self,
         repository: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
-        schedule: Optional[str] = None,
+        alert_config: Optional[CustomMetricAlertConfig] = None,
     ) -> None:
         """Inplace operation that updates config args
         Args:
@@ -2224,145 +2149,66 @@ class CustomMetricDriftConfig:
                 Model name
             version:
                 Model version
-            schedule:
-                Cron schedule
+            alert_config:
+                Custom metric alert configuration
         """
 
-class CustomMetricEntry:
-    def __init__(self, feature_name: str, metric_value: float):
-        """Initialize a CustomMetricEntry instance.
-        Args:
-            feature_name (str):
-                The name of the feature being measured or evaluated.
-            metric_value (float):
-                The numerical value of the metric for the specified feature.
-        Example:
-            entry = CustomMetricEntry("accuracy", 0.95)
-        """
-
-    @property
-    def feature_name(self) -> str:
-        """Return the feature_name"""
-
-    @feature_name.setter
-    def feature_name(self, feature_name: str) -> None:
-        """Set the feature_name"""
-
-    @property
-    def metric_value(self) -> float:
-        """Return the metric_value"""
-
-    @metric_value.setter
-    def metric_value(self, metric_value: float) -> None:
-        """Set the metric_value"""
-
-class CustomThresholdMetric:
+class CustomMetric:
     def __init__(
-        self, metric_name: str, features: list[CustomMetricEntry], alert_config: CustomThresholdMetricAlertConfig
+        self,
+        name: str,
+        value: float,
+        alert_condition: AlertCondition,
+        alert_boundary: Optional[float],
     ):
         """
-        Initialize a CustomThresholdMetric instance.
+        Initialize a custom metric for alerting.
 
-        This class represents a custom metric with an associated alert configuration. It allows for
-        grouping multiple features under a single metric name and applying a uniform alert threshold.
-
-        Args:
-            metric_name (str): The name of the custom metric. This should be a descriptive
-                identifier for the group of features being monitored.
-            features (list[CustomMetricEntry]): A list of CustomMetricEntry objects. Each entry
-                defines a feature and its associated metric value.
-            alert_config (CustomThresholdMetricAlertConfig): The alert configuration for this
-                metric, including the threshold and dispatch settings.
-
-        Note:
-            - The alert threshold is defined in the alert_config and is used to determine
-              when to trigger alerts for the metric.
-            - Ensure that the metric_name is unique and meaningful for your monitoring setup.
-            - The CustomMetricEntry objects in the features list should have compatible units
-              and scales for the alert threshold to be meaningful across all features.
-            - The alert_config contains both the threshold value and the dispatch configuration
-              for alerts, allowing for flexible alert management.
-        """
-
-    @property
-    def metric_name(self) -> str:
-        """Return the metric_name"""
-
-    @metric_name.setter
-    def metric_name(self, metric_name: str) -> None:
-        """Set the metric_name"""
-
-    @property
-    def features(self) -> list[CustomMetricEntry]:
-        """Return the features"""
-
-    @features.setter
-    def features(self, features: list[CustomMetricEntry]) -> None:
-        """Set the features"""
-
-    @property
-    def alert_config(self) -> CustomThresholdMetricAlertConfig:
-        """Return the alert_config"""
-
-    @alert_config.setter
-    def alert_config(self, alert_config: CustomThresholdMetricAlertConfig) -> None:
-        """Set the alert_config"""
-
-    def __str__(self) -> str:
-        """Return the string representation of the config."""
-
-class CustomComparisonMetric:
-    def __init__(
-        self, metric_name: str, features: list[CustomMetricEntry], alert_config: CustomComparisonMetricAlertConfig
-    ):
-        """
-        Initialize a custom comparison metric for alerting.
-
-        This class represents a custom metric that uses comparison-based alerting. It groups
-        multiple features under a single metric name and applies a uniform alert condition.
+        This class represents a custom metric that uses comparison-based alerting. It applies
+        an alert condition to a single metric value.
 
         Args:
-            metric_name (str): The name of the metric being monitored. This should be a
-                descriptive identifier for the group of features being compared.
-            features (list[CustomMetricEntry]): A list of CustomMetricEntry objects. Each
-                entry defines a feature and its associated metric value for comparison.
-            alert_config (CustomComparisonMetricAlertConfig): The alert configuration for
-                this metric, including the alert condition, optional boundary, and dispatch settings.
+            name (str): The name of the metric being monitored. This should be a
+                descriptive identifier for the metric.
+            value (float): The current value of the metric.
+            alert_condition (AlertCondition): The condition used to determine when an alert
+                should be triggered.
+            alert_boundary (Optional[float]): The threshold value used in conjunction with
+                the alert_condition. If None, some alert conditions may not be applicable.
 
-        Note:
-            - The alert_config contains the AlertCondition and optional alert_boundary,
-              which together determine when to trigger alerts for the metric.
-            - Ensure that the metric_name is unique and meaningful for your monitoring setup.
-            - The CustomMetricEntry objects in the features list should have compatible units
-              and scales for the comparison to be meaningful across all features.
-            - The AlertCondition in alert_config specifies how the metric values are compared
-              (e.g., Below, Above, Outside), and the alert_boundary (if provided) sets the
-              threshold for these comparisons.
         """
 
     @property
-    def metric_name(self) -> str:
-        """Return the metric_name"""
+    def name(self) -> str:
+        """Return the metric name"""
 
-    @metric_name.setter
-    def metric_name(self, metric_name: str) -> None:
-        """Set the metric_name"""
-
-    @property
-    def features(self) -> list[CustomMetricEntry]:
-        """Return the features"""
-
-    @features.setter
-    def features(self, features: list[CustomMetricEntry]) -> None:
-        """Set the features"""
+    @name.setter
+    def name(self, name: str) -> None:
+        """Set the metric name"""
 
     @property
-    def alert_config(self) -> CustomComparisonMetricAlertConfig:
-        """Return the alert_config"""
+    def value(self) -> float:
+        """Return the metric value"""
 
-    @alert_config.setter
-    def alert_config(self, alert_config: CustomComparisonMetricAlertConfig) -> None:
-        """Set the alert_config"""
+    @value.setter
+    def value(self, value: float) -> None:
+        """Set the metric value"""
+
+    @property
+    def alert_condition(self) -> AlertCondition:
+        """Return the alert_condition"""
+
+    @alert_condition.setter
+    def alert_condition(self, alert_condition: AlertCondition) -> None:
+        """Set the alert_condition"""
+
+    @property
+    def alert_boundary(self) -> float:
+        """Return the alert_boundary"""
+
+    @alert_boundary.setter
+    def alert_boundary(self, alert_boundary: float) -> None:
+        """Set the alert_boundary"""
 
     def __str__(self) -> str:
         """Return the string representation of the config."""
@@ -2371,23 +2217,23 @@ class CustomDriftProfile:
     def __init__(
         self,
         config: CustomMetricDriftConfig,
-        comparison_metrics: Optional[list[CustomComparisonMetric]],
-        threshold_metrics: Optional[list[CustomThresholdMetric]],
+        metrics: list[CustomMetric],
         scouter_version: Optional[str] = None,
     ):
-        """Initialize a CustomMetricEntry instance.
+        """Initialize a CustomDriftProfile instance.
+
         Args:
-            comparison_metrics (list[CustomComparisonMetric]):
-                The numerical value of the metric for the specified feature.
-            threshold_metrics (list[CustomThresholdMetric]):
-                The numerical value of the metric for the specified feature.
             config (CustomMetricDriftConfig):
-                The name of the feature being measured or evaluated.
-            scouter_version (str):
-                scouter version used to create DriftProfile
+                The configuration for custom metric drift detection.
+            metrics (list[CustomMetric]):
+                A list of CustomMetric objects representing the metrics to be monitored.
+            scouter_version (Optional[str]):
+                The version of Scouter used to create this DriftProfile.
 
         Example:
-            entry = CustomMetricEntry("accuracy", 0.95)
+            config = CustomMetricDriftConfig(...)
+            metrics = [CustomMetric("accuracy", 0.95), CustomMetric("f1_score", 0.88)]
+            profile = CustomDriftProfile(config, metrics, "1.0.0")
         """
 
     @property
@@ -2395,8 +2241,15 @@ class CustomDriftProfile:
         """Return the drift config"""
 
     @property
+    def metrics(self) -> dict[str, float]:
+        """Return custom metrics and their corresponding values"""
+
+    @property
     def scouter_version(self) -> str:
         """Return scouter version used to create DriftProfile"""
+
+    def __str__(self) -> str:
+        """Sting representation of DriftProfile"""
 
     def model_dump_json(self) -> str:
         """Return json representation of drift profile"""
@@ -2431,36 +2284,32 @@ class CustomDriftProfile:
                 DriftProfile dictionary
         """
 
-    def update_drift_config_args(
+    def update_config_args(
         self,
         repository: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
-        schedule: Optional[str] = None,
+        alert_config: Optional[CustomMetricAlertConfig] = None,
     ) -> None:
         """Inplace operation that updates config args
 
         Args:
-            name:
-                Model name
-            repository:
+            repository (Optional[str]):
                 Model repository
-            version:
+            name (Optional[str]):
+                Model name
+            version (Optional[str]):
                 Model version
-            schedule:
-                Cron Schedule
+            alert_config (Optional[CustomMetricAlertConfig]):
+                Custom metric alert configuration
+
+        Returns:
+            None
         """
 
-    def __str__(self) -> str:
-        """Sting representation of DriftProfile"""
-
     @property
-    def threshold_metrics(self) -> Optional[list[CustomThresholdMetric]]:
-        """Return threshold_metrics objects that were specified during profile creation"""
-
-    @property
-    def comparison_metrics(self) -> Optional[list[CustomComparisonMetric]]:
-        """Return comparison_metrics objects that were specified during profile creation"""
+    def custom_metrics(self) -> list[CustomMetric]:
+        """Return custom metric objects that were used to create the drift profile"""
 
 class CustomDrifter:
     def __init__(self) -> None:
@@ -2471,8 +2320,7 @@ class CustomDrifter:
     def create_drift_profile(
         self,
         config: CustomMetricDriftConfig,
-        comparison_metrics: Optional[list[CustomComparisonMetric]],
-        threshold_metrics: Optional[list[CustomThresholdMetric]],
+        metrics: list[CustomMetric],
         scouter_version: Optional[str] = None,
     ) -> CustomDriftProfile:
         """Create a monitoring profile.
@@ -2480,10 +2328,8 @@ class CustomDrifter:
         Args:
             config:
                 Custom metric drift config.
-            comparison_metrics:
-                List of comparison metrics.
-            threshold_metrics:
-                List of threshold metrics.
+            metrics:
+                List of custom metrics.
             scouter_version:
                 Scouter version used to create DriftProfile
 

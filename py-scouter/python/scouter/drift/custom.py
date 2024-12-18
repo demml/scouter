@@ -12,6 +12,7 @@ from scouter.utils.type_converter import ArrayData
 
 from .._scouter import (  # pylint: disable=no-name-in-module
     CustomDrifter,
+    CustomMetric,
     CustomMetricDriftConfig,
     DriftType,
 )
@@ -71,10 +72,15 @@ class CustomDriftHelper(DriftHelperBase):
         """
         try:
             assert isinstance(
+                data, (CustomMetric, list)
+            ), f"{type(data)} was detected, when CustomMetricData was expected"
+            if isinstance(data, CustomMetric):
+                data = [data]
+
+            assert isinstance(
                 config, CustomMetricDriftConfig
             ), f"{type(config)} was detected, CustomMetricDriftConfig when was expected"
-            assert isinstance(data, CustomMetricData), f"{type(data)} was detected, when CustomMetricData was expected"
-            return self._rusty_drifter.create_drift_profile(config, data.comparison_metrics, data.threshold_metrics)
+            return self._rusty_drifter.create_drift_profile(config, data)
         except Exception as exc:  # type: ignore
             logger.error(f"Failed to create drift profile: {exc}")
             raise ValueError(f"Failed to create drift profile: {exc}") from exc

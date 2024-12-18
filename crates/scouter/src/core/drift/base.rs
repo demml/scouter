@@ -7,6 +7,7 @@ use crate::core::utils::ProfileFuncs;
 
 use pyo3::prelude::*;
 
+use crate::core::drift::custom::types::CustomDriftProfile;
 use crate::core::drift::psi::types::{PsiDriftProfile, PsiServerRecord};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -162,6 +163,7 @@ impl ServerRecords {
 pub enum DriftProfile {
     SpcDriftProfile(SpcDriftProfile),
     PsiDriftProfile(PsiDriftProfile),
+    CustomDriftProfile(CustomDriftProfile),
 }
 
 impl DriftProfile {
@@ -188,8 +190,11 @@ impl DriftProfile {
                     serde_json::from_str(&profile).map_err(|_| ScouterError::DeSerializeError)?;
                 Ok(DriftProfile::PsiDriftProfile(profile))
             }
-
-            _ => panic!(""),
+            DriftType::CUSTOM => {
+                let profile =
+                    serde_json::from_str(&profile).map_err(|_| ScouterError::DeSerializeError)?;
+                Ok(DriftProfile::CustomDriftProfile(profile))
+            }
         }
     }
 
@@ -198,6 +203,7 @@ impl DriftProfile {
         match self {
             DriftProfile::SpcDriftProfile(profile) => profile.get_base_args(),
             DriftProfile::PsiDriftProfile(profile) => profile.get_base_args(),
+            DriftProfile::CustomDriftProfile(profile) => profile.get_base_args(),
         }
     }
 
@@ -205,6 +211,7 @@ impl DriftProfile {
         match self {
             DriftProfile::SpcDriftProfile(profile) => profile.to_value(),
             DriftProfile::PsiDriftProfile(profile) => profile.to_value(),
+            DriftProfile::CustomDriftProfile(profile) => profile.to_value(),
         }
     }
 
@@ -229,7 +236,11 @@ impl DriftProfile {
                     serde_json::from_value(body).map_err(|_| ScouterError::DeSerializeError)?;
                 Ok(DriftProfile::PsiDriftProfile(profile))
             }
-            _ => panic!(""),
+            DriftType::CUSTOM => {
+                let profile =
+                    serde_json::from_value(body).map_err(|_| ScouterError::DeSerializeError)?;
+                Ok(DriftProfile::CustomDriftProfile(profile))
+            }
         }
     }
 }

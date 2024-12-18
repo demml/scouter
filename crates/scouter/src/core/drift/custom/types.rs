@@ -1,6 +1,8 @@
+use crate::core::cron::EveryDay;
 use crate::core::dispatch::types::AlertDispatchType;
 use crate::core::drift::base::{
-    DriftType, ProfileArgs, ProfileBaseArgs, ValidateAlertConfig, MISSING,
+    DispatchDriftConfig, DriftArgs, DriftType, ProfileArgs, ProfileBaseArgs, ValidateAlertConfig,
+    MISSING,
 };
 use crate::core::error::{CustomMetricError, ScouterError};
 use crate::core::utils::{json_to_pyobject, pyobject_to_json, FileName, ProfileFuncs};
@@ -11,78 +13,6 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::debug;
-
-type MetricName = String;
-type MetricValue = f64;
-type FeatureName = String;
-
-#[pyclass]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct CustomMetricBaseAlertConfig {
-    #[pyo3(get, set)]
-    pub dispatch_type: AlertDispatchType,
-
-    #[pyo3(get, set)]
-    pub dispatch_kwargs: HashMap<String, String>,
-
-    #[pyo3(get, set)]
-    pub features_to_monitor: Vec<String>,
-}
-
-#[pymethods]
-impl CustomMetricBaseAlertConfig {
-    #[new]
-    pub fn new(
-        dispatch_type: Option<AlertDispatchType>,
-        dispatch_kwargs: Option<HashMap<String, String>>,
-        features_to_monitor: Option<Vec<String>>,
-    ) -> Self {
-        let dispatch_type = dispatch_type.unwrap_or_default();
-        let dispatch_kwargs = dispatch_kwargs.unwrap_or_default();
-        let features_to_monitor = features_to_monitor.unwrap_or_default();
-
-        Self {
-            dispatch_type,
-            dispatch_kwargs,
-            features_to_monitor,
-        }
-    }
-}
-
-#[pyclass]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct CustomThresholdMetricAlertConfig {
-    #[pyo3(get, set)]
-    pub base_config: CustomMetricBaseAlertConfig,
-
-    #[pyo3(get, set)]
-    pub alert_threshold: f64,
-}
-
-#[pymethods]
-impl CustomThresholdMetricAlertConfig {
-    #[new]
-    pub fn new(base_config: CustomMetricBaseAlertConfig, alert_threshold: f64) -> Self {
-        Self {
-            base_config,
-            alert_threshold,
-        }
-    }
-
-    #[getter]
-    pub fn dispatch_type(&self) -> String {
-        match self.base_config.dispatch_type {
-            AlertDispatchType::Slack => "Slack".to_string(),
-            AlertDispatchType::Console => "Console".to_string(),
-            AlertDispatchType::OpsGenie => "OpsGenie".to_string(),
-        }
-    }
-
-    pub fn __str__(&self) -> String {
-        // serialize the struct to a string
-        ProfileFuncs::__str__(self)
-    }
-}
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -115,11 +45,8 @@ impl AlertCondition {
 }
 
 #[pyclass]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub struct CustomComparisonMetricAlertConfig {
-    #[pyo3(get, set)]
-    pub base_config: CustomMetricBaseAlertConfig,
-
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CustomMetricAlertCondition {
     #[pyo3(get, set)]
     pub alert_condition: AlertCondition,
 
@@ -128,32 +55,94 @@ pub struct CustomComparisonMetricAlertConfig {
 }
 
 #[pymethods]
-impl CustomComparisonMetricAlertConfig {
+#[allow(clippy::too_many_arguments)]
+impl CustomMetricAlertCondition {
     #[new]
     pub fn new(
-        base_config: CustomMetricBaseAlertConfig,
         alert_condition: AlertCondition,
         alert_boundary: Option<f64>,
-    ) -> Self {
-        Self {
-            base_config,
+    ) -> Result<Self, ScouterError> {
+        Ok(Self {
             alert_condition,
             alert_boundary,
+        })
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CustomMetricAlertConfig {
+    pub dispatch_type: AlertDispatchType,
+
+    #[pyo3(get, set)]
+    pub schedule: String,
+
+    #[pyo3(get, set)]
+    pub dispatch_kwargs: HashMap<String, String>,
+
+    #[pyo3(get)]
+    pub alert_conditions: Option<HashMap<String, CustomMetricAlertCondition>>,
+}
+
+impl CustomMetricAlertConfig {
+    fn set_alert_conditions(&mut self, metrics: &[CustomMetric]) {
+        self.alert_conditions = Some(
+            metrics
+                .iter()
+                .map(|m| {
+                    (
+                        m.name.clone(),
+                        CustomMetricAlertCondition {
+                            alert_condition: m.alert_condition.clone(),
+                            alert_boundary: m.alert_boundary,
+                        },
+                    )
+                })
+                .collect(),
+        );
+    }
+}
+
+impl ValidateAlertConfig for CustomMetricAlertConfig {}
+
+#[pymethods]
+impl CustomMetricAlertConfig {
+    #[new]
+    pub fn new(
+        dispatch_type: Option<AlertDispatchType>,
+        schedule: Option<String>,
+        dispatch_kwargs: Option<HashMap<String, String>>,
+    ) -> Self {
+        let schedule = Self::resolve_schedule(schedule);
+        let dispatch_type = dispatch_type.unwrap_or_default();
+        let dispatch_kwargs = dispatch_kwargs.unwrap_or_default();
+
+        Self {
+            dispatch_type,
+            schedule,
+            dispatch_kwargs,
+            alert_conditions: None,
         }
     }
 
     #[getter]
     pub fn dispatch_type(&self) -> String {
-        match self.base_config.dispatch_type {
+        match self.dispatch_type {
             AlertDispatchType::Slack => "Slack".to_string(),
             AlertDispatchType::Console => "Console".to_string(),
             AlertDispatchType::OpsGenie => "OpsGenie".to_string(),
         }
     }
+}
 
-    pub fn __str__(&self) -> String {
-        // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+impl Default for CustomMetricAlertConfig {
+    fn default() -> CustomMetricAlertConfig {
+        Self {
+            dispatch_type: AlertDispatchType::default(),
+            schedule: EveryDay::new().cron,
+            dispatch_kwargs: HashMap::new(),
+            alert_conditions: None,
+        }
     }
 }
 
@@ -169,42 +158,23 @@ pub struct CustomMetricDriftConfig {
     #[pyo3(get, set)]
     pub version: String,
 
-    #[pyo3(get)]
-    pub threshold_metric_alert_configs:
-        Option<HashMap<MetricName, CustomThresholdMetricAlertConfig>>,
-
-    #[pyo3(get)]
-    pub comparison_metric_alert_configs:
-        Option<HashMap<MetricName, CustomComparisonMetricAlertConfig>>,
+    #[pyo3(get, set)]
+    pub alert_config: CustomMetricAlertConfig,
 
     #[pyo3(get)]
     pub drift_type: DriftType,
-
-    #[pyo3(get, set)]
-    pub schedule: String,
 }
 
-impl CustomMetricDriftConfig {
-    fn set_threshold_configs(&mut self, metrics: &[CustomThresholdMetric]) {
-        self.threshold_metric_alert_configs = Some(
-            metrics
-                .iter()
-                .map(|m| (m.metric_name.clone(), m.alert_config.clone()))
-                .collect(),
-        );
-    }
-
-    fn set_comparison_configs(&mut self, metrics: &[CustomComparisonMetric]) {
-        self.comparison_metric_alert_configs = Some(
-            metrics
-                .iter()
-                .map(|m| (m.metric_name.clone(), m.alert_config.clone()))
-                .collect(),
-        );
+impl DispatchDriftConfig for CustomMetricDriftConfig {
+    fn get_drift_args(&self) -> DriftArgs {
+        DriftArgs {
+            name: self.name.clone(),
+            repository: self.repository.clone(),
+            version: self.version.clone(),
+            dispatch_type: self.alert_config.dispatch_type.clone(),
+        }
     }
 }
-
-impl ValidateAlertConfig for CustomMetricDriftConfig {}
 
 #[pymethods]
 #[allow(clippy::too_many_arguments)]
@@ -214,7 +184,8 @@ impl CustomMetricDriftConfig {
         repository: Option<String>,
         name: Option<String>,
         version: Option<String>,
-        schedule: Option<String>,
+        alert_config: Option<CustomMetricAlertConfig>,
+        config_path: Option<PathBuf>,
     ) -> Result<Self, ScouterError> {
         let name = name.unwrap_or(MISSING.to_string());
         let repository = repository.unwrap_or(MISSING.to_string());
@@ -225,16 +196,19 @@ impl CustomMetricDriftConfig {
 
         let version = version.unwrap_or("0.1.0".to_string());
 
-        let schedule = Self::resolve_schedule(schedule);
+        if let Some(config_path) = config_path {
+            let config = CustomMetricDriftConfig::load_from_json_file(config_path);
+            return config;
+        }
+
+        let alert_config = alert_config.unwrap_or_default();
 
         Ok(Self {
             repository,
             name,
             version,
-            threshold_metric_alert_configs: None,
-            comparison_metric_alert_configs: None,
+            alert_config,
             drift_type: DriftType::CUSTOM,
-            schedule,
         })
     }
 
@@ -257,14 +231,13 @@ impl CustomMetricDriftConfig {
         ProfileFuncs::__json__(self)
     }
 
-    // TODO look at how to update mertic configurations
     #[allow(clippy::too_many_arguments)]
-    pub fn update_drift_config_args(
+    pub fn update_config_args(
         &mut self,
         repository: Option<String>,
         name: Option<String>,
         version: Option<String>,
-        schedule: Option<String>,
+        alert_config: Option<CustomMetricAlertConfig>,
     ) -> Result<(), ScouterError> {
         if name.is_some() {
             self.name = name.ok_or(ScouterError::TypeError("name".to_string()))?;
@@ -279,8 +252,9 @@ impl CustomMetricDriftConfig {
             self.version = version.ok_or(ScouterError::TypeError("version".to_string()))?;
         }
 
-        if schedule.is_some() {
-            self.version = schedule.ok_or(ScouterError::TypeError("schedule".to_string()))?;
+        if alert_config.is_some() {
+            self.alert_config =
+                alert_config.ok_or(ScouterError::TypeError("alert_config".to_string()))?;
         }
 
         Ok(())
@@ -289,109 +263,34 @@ impl CustomMetricDriftConfig {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CustomMetricEntry {
+pub struct CustomMetric {
     #[pyo3(get, set)]
-    pub feature_name: String,
+    pub name: String,
 
     #[pyo3(get, set)]
-    pub metric_value: f64,
+    pub value: f64,
+
+    #[pyo3(get, set)]
+    pub alert_boundary: Option<f64>,
+
+    #[pyo3(get, set)]
+    pub alert_condition: AlertCondition,
 }
 
 #[pymethods]
-impl CustomMetricEntry {
-    #[new]
-    pub fn new(feature_name: String, metric_value: f64) -> Self {
-        Self {
-            feature_name,
-            metric_value,
-        }
-    }
-}
-
-pub trait MetricTrait {
-    fn metric_name(&self) -> &str;
-    fn features(&self) -> &Vec<CustomMetricEntry>;
-}
-
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CustomThresholdMetric {
-    #[pyo3(get, set)]
-    pub metric_name: String,
-
-    #[pyo3(get, set)]
-    pub features: Vec<CustomMetricEntry>,
-
-    #[pyo3(get, set)]
-    pub alert_config: CustomThresholdMetricAlertConfig,
-}
-
-impl MetricTrait for CustomThresholdMetric {
-    fn metric_name(&self) -> &str {
-        &self.metric_name
-    }
-
-    fn features(&self) -> &Vec<CustomMetricEntry> {
-        &self.features
-    }
-}
-
-#[pymethods]
-impl CustomThresholdMetric {
+impl CustomMetric {
     #[new]
     pub fn new(
-        metric_name: String,
-        features: Vec<CustomMetricEntry>,
-        alert_config: CustomThresholdMetricAlertConfig,
+        name: String,
+        value: f64,
+        alert_condition: AlertCondition,
+        alert_boundary: Option<f64>,
     ) -> Self {
         Self {
-            metric_name,
-            features,
-            alert_config,
-        }
-    }
-
-    pub fn __str__(&self) -> String {
-        // serialize the struct to a string
-        ProfileFuncs::__str__(self)
-    }
-}
-
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CustomComparisonMetric {
-    #[pyo3(get, set)]
-    pub metric_name: String,
-
-    #[pyo3(get, set)]
-    pub features: Vec<CustomMetricEntry>,
-
-    #[pyo3(get, set)]
-    pub alert_config: CustomComparisonMetricAlertConfig,
-}
-
-impl MetricTrait for CustomComparisonMetric {
-    fn metric_name(&self) -> &str {
-        &self.metric_name
-    }
-
-    fn features(&self) -> &Vec<CustomMetricEntry> {
-        &self.features
-    }
-}
-
-#[pymethods]
-impl CustomComparisonMetric {
-    #[new]
-    pub fn new(
-        metric_name: String,
-        features: Vec<CustomMetricEntry>,
-        alert_config: CustomComparisonMetricAlertConfig,
-    ) -> Self {
-        Self {
-            metric_name,
-            features,
-            alert_config,
+            name: name.to_lowercase(),
+            value,
+            alert_boundary,
+            alert_condition,
         }
     }
 
@@ -408,32 +307,10 @@ pub struct CustomDriftProfile {
     pub config: CustomMetricDriftConfig,
 
     #[pyo3(get)]
-    pub metrics: HashMap<MetricName, HashMap<FeatureName, MetricValue>>,
+    pub metrics: HashMap<String, f64>,
 
     #[pyo3(get)]
     pub scouter_version: String,
-}
-
-impl CustomDriftProfile {
-    fn populate_profile_metric_hashmap<T: MetricTrait>(
-        metrics_vec: &[T],
-        metrics: &mut HashMap<MetricName, HashMap<FeatureName, MetricValue>>,
-    ) {
-        metrics_vec.iter().for_each(|metric| {
-            let inner_map = metric
-                .features()
-                .iter()
-                .map(|feature_metric_entry| {
-                    (
-                        feature_metric_entry.feature_name.clone(),
-                        feature_metric_entry.metric_value,
-                    )
-                })
-                .collect();
-
-            metrics.insert(metric.metric_name().to_string(), inner_map);
-        })
-    }
 }
 
 #[pymethods]
@@ -441,25 +318,16 @@ impl CustomDriftProfile {
     #[new]
     pub fn new(
         mut config: CustomMetricDriftConfig,
-        comparison_metrics: Option<Vec<CustomComparisonMetric>>,
-        threshold_metrics: Option<Vec<CustomThresholdMetric>>,
+        metrics: Vec<CustomMetric>,
         scouter_version: Option<String>,
     ) -> Result<Self, CustomMetricError> {
-        let mut metrics: HashMap<MetricName, HashMap<FeatureName, MetricValue>> = HashMap::new();
-
-        if let Some(comparison) = comparison_metrics.filter(|v| !v.is_empty()) {
-            config.set_comparison_configs(&comparison);
-            Self::populate_profile_metric_hashmap(&comparison, &mut metrics);
-        }
-
-        if let Some(threshold) = threshold_metrics.filter(|v| !v.is_empty()) {
-            config.set_threshold_configs(&threshold);
-            Self::populate_profile_metric_hashmap(&threshold, &mut metrics);
-        }
-
         if metrics.is_empty() {
             return Err(CustomMetricError::NoMetricsError);
         }
+
+        config.alert_config.set_alert_conditions(&metrics);
+
+        let metrics = metrics.iter().map(|m| (m.name.clone(), m.value)).collect();
 
         let scouter_version = scouter_version.unwrap_or(env!("CARGO_PKG_VERSION").to_string());
 
@@ -496,6 +364,11 @@ impl CustomDriftProfile {
         Ok(dict.into())
     }
 
+    // Convert python dict into a drift profile
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
+        ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
+    }
+
     #[staticmethod]
     pub fn model_validate(py: Python, data: &Bound<'_, PyDict>) -> CustomDriftProfile {
         let json_value = pyobject_to_json(py, data.as_gil_ref()).unwrap();
@@ -510,93 +383,118 @@ impl CustomDriftProfile {
         serde_json::from_str(&json_string).expect("Failed to load monitor profile")
     }
 
-    // Convert python dict into a drift profile
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
-        ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
-    }
-
     #[allow(clippy::too_many_arguments)]
-    pub fn update_drift_config_args(
+    pub fn update_config_args(
         &mut self,
         repository: Option<String>,
         name: Option<String>,
         version: Option<String>,
-        schedule: Option<String>,
+        alert_config: Option<CustomMetricAlertConfig>,
     ) -> Result<(), ScouterError> {
         self.config
-            .update_drift_config_args(repository, name, version, schedule)
+            .update_config_args(repository, name, version, alert_config)
     }
 
     #[getter]
-    pub fn threshold_metrics(&self) -> Option<Vec<CustomThresholdMetric>> {
-        self.config
-            .threshold_metric_alert_configs
-            .as_ref()
-            .map(|threshold_metric_alert_configs| {
-                threshold_metric_alert_configs
-                    .iter()
-                    .map(|(metric_name, alert_config)| {
-                        let metric_entries = self.metrics[metric_name]
-                            .iter()
-                            .map(|(feature_name, metric_value)| CustomMetricEntry {
-                                feature_name: feature_name.to_string(),
-                                metric_value: *metric_value,
-                            })
-                            .collect();
+    pub fn custom_metrics(&self) -> Vec<CustomMetric> {
+        let alert_conditions = self.config.alert_config.alert_conditions.as_ref().unwrap();
 
-                        CustomThresholdMetric {
-                            metric_name: metric_name.to_string(),
-                            alert_config: alert_config.clone(),
-                            features: metric_entries,
-                        }
-                    })
-                    .collect()
+        self.metrics
+            .iter()
+            .map(|(name, value)| {
+                let condition = alert_conditions.get(name).unwrap();
+                CustomMetric {
+                    name: name.clone(),
+                    value: *value,
+                    alert_boundary: condition.alert_boundary,
+                    alert_condition: condition.alert_condition.clone(),
+                }
             })
-    }
-
-    #[getter]
-    pub fn comparison_metrics(&self) -> Option<Vec<CustomComparisonMetric>> {
-        self.config
-            .comparison_metric_alert_configs
-            .as_ref()
-            .map(|threshold_metric_alert_configs| {
-                threshold_metric_alert_configs
-                    .iter()
-                    .map(|(metric_name, alert_config)| {
-                        let metric_entries = self.metrics[metric_name]
-                            .iter()
-                            .map(|(feature_name, metric_value)| CustomMetricEntry {
-                                feature_name: feature_name.to_string(),
-                                metric_value: *metric_value,
-                            })
-                            .collect();
-
-                        CustomComparisonMetric {
-                            metric_name: metric_name.to_string(),
-                            alert_config: alert_config.clone(),
-                            features: metric_entries,
-                        }
-                    })
-                    .collect()
-            })
+            .collect()
     }
 }
 
 impl ProfileBaseArgs for CustomDriftProfile {
-    /// Get the base arguments for the profile (convenience method on the server)
     fn get_base_args(&self) -> ProfileArgs {
         ProfileArgs {
             name: self.config.name.clone(),
             repository: self.config.repository.clone(),
             version: self.config.version.clone(),
-            schedule: self.config.schedule.clone(),
+            schedule: self.config.alert_config.schedule.clone(),
             scouter_version: self.scouter_version.clone(),
             drift_type: self.config.drift_type.clone(),
         }
     }
 
-    /// Convert the struct to a serde_json::Value
     fn to_value(&self) -> Value {
         serde_json::to_value(self).unwrap()
     }
 }
+
+// pub struct ComparisonMetricAlerts {
+//     pub metric_name: String,
+//     pub training_feature_metric_values: HashMap<FeatureName, f64>,
+//     pub observed_feature_metric_values: HashMap<FeatureName, f64>,
+//     pub alert_boundary: Option<f64>,
+//     pub alert_condition: AlertCondition,
+// }
+//
+// impl ComparisonMetricAlerts {
+//     fn alert_description_header(&self) -> String {
+//         let below_threshold = |boundary: Option<f64>| {
+//             match boundary {
+//             Some(b) => format!("The following observed features have dropped below the threshold (initial metric values - {}) for metric {}", b, self.metric_name),
+//             None => format!("The following observed features have dropped below the initial metric values for metric {}", self.metric_name),
+//         }
+//         };
+//
+//         let above_threshold = |boundary: Option<f64>| {
+//             match boundary {
+//             Some(b) => format!("The following observed features have increased beyond the threshold (initial metric values + {}) for metric {}", b, self.metric_name),
+//             None => format!("The following observed features have increased beyond the initial metric values for metric {}", self.metric_name),
+//         }
+//         };
+//
+//         let outside_threshold = |boundary: Option<f64>| {
+//             match boundary {
+//             Some(b) => format!("The following observed features have fallen outside the threshold (initial metric values +- {}) for metric {}", b, self.metric_name),
+//             None => format!("The following observed features have fallen outside the initial metric values for metric {}", self.metric_name),
+//         }
+//         };
+//
+//         match self.alert_condition {
+//             AlertCondition::BELOW => below_threshold(self.alert_boundary),
+//             AlertCondition::ABOVE => above_threshold(self.alert_boundary),
+//             AlertCondition::OUTSIDE => outside_threshold(self.alert_boundary),
+//         }
+//     }
+// }
+//
+// impl DispatchAlertDescription for ComparisonMetricAlerts {
+//     fn create_alert_description(&self, dispatch_type: AlertDispatchType) -> String {
+//         let mut alert_description = String::new();
+//         let header = format!("{}\n", self.alert_description_header());
+//         alert_description.push_str(&header);
+//
+//         for (feature_name, metric_value) in &self.observed_feature_metric_values {
+//             let current_metric = format!("Current Metric Value: {}\n", metric_value);
+//             let historical_metric = format!(
+//                 "Historical Metric Value: {}\n",
+//                 self.training_feature_metric_values[feature_name]
+//             );
+//
+//             let feature_name = match dispatch_type {
+//                 AlertDispatchType::Console | AlertDispatchType::OpsGenie => {
+//                     format!("{:indent$}{}: \n", "", &feature_name, indent = 4)
+//                 }
+//                 AlertDispatchType::Slack => format!("{}: \n", &feature_name),
+//             };
+//
+//             alert_description.push_str(&feature_name);
+//             alert_description.push_str(&current_metric);
+//             alert_description.push_str(&historical_metric);
+//         }
+//
+//         alert_description
+//     }
+// }

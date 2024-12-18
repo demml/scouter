@@ -11,15 +11,27 @@ from scouter.utils.logger import ScouterLogger
 from scouter.utils.type_converter import ArrayData, _convert_data_to_array, _get_bits
 
 from .._scouter import (  # pylint: disable=no-name-in-module
+    CustomDrifter,
+    CustomDriftProfile,
+    CustomMetric,
+    CustomMetricDriftConfig,
     DriftType,
     PsiDriftConfig,
+    PsiDrifter,
     PsiDriftMap,
     PsiDriftProfile,
     SpcDriftConfig,
+    SpcDrifter,
     SpcDriftMap,
     SpcDriftProfile,
 )
-from .types import Config, CustomMetricData, Drifter, DriftMap, Profile
+
+Profile = Union[SpcDriftProfile, PsiDriftProfile, CustomDriftProfile]
+Config = Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]
+DriftMap = Union[SpcDriftMap, PsiDriftMap]
+Drifter = Union[SpcDrifter, PsiDrifter, CustomDrifter]
+CustomMetricData = Union[CustomMetric, list[CustomMetric]]
+
 
 logger = ScouterLogger.get_logger()
 

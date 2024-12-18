@@ -25,7 +25,7 @@ use scouter::core::utils::create_feature_map;
 use scouter::core::utils::CategoricalFeatureHelpers;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
-use scouter::core::drift::custom::types::{CustomComparisonMetric, CustomDriftProfile, CustomMetricDriftConfig, CustomThresholdMetric};
+use scouter::core::drift::custom::types::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig};
 
 #[pyclass]
 pub struct ScouterProfiler {
@@ -711,10 +711,9 @@ impl CustomDrifter {
     pub fn create_drift_profile(
         &mut self,
         config: CustomMetricDriftConfig,
-        comparison_metrics: Option<Vec<CustomComparisonMetric>>,
-        threshold_metrics: Option<Vec<CustomThresholdMetric>>,
+        comparison_metrics: Vec<CustomMetric>,
         scouter_version: Option<String>,
     ) -> PyResult<CustomDriftProfile> {
-        Ok(CustomDriftProfile::new(config, comparison_metrics, threshold_metrics, scouter_version)?)
+        Ok(CustomDriftProfile::new(config, comparison_metrics, scouter_version)?)
     }
 }
