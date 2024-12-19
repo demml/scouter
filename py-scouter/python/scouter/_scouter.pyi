@@ -2057,12 +2057,12 @@ class CustomMetricAlertConfig:
         """Set the dispatch kwargs"""
 
     @property
-    def psi_threshold(self) -> float:
-        """Return the schedule"""
-
-    @property
     def alert_conditions(self) -> dict[str, CustomMetricAlertCondition]:
         """Return the alert_conditions that were set during metric definition"""
+
+    @alert_conditions.setter
+    def alert_conditions(self, alert_conditions: dict[str, CustomMetricAlertCondition]) -> None:
+        """Update the alert_conditions that were set during metric definition"""
 
 class CustomMetricDriftConfig:
     def __init__(

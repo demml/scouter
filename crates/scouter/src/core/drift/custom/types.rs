@@ -80,7 +80,7 @@ pub struct CustomMetricAlertConfig {
     #[pyo3(get, set)]
     pub dispatch_kwargs: HashMap<String, String>,
 
-    #[pyo3(get)]
+    #[pyo3(get, set)]
     pub alert_conditions: Option<HashMap<String, CustomMetricAlertCondition>>,
 }
 
