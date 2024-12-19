@@ -97,6 +97,7 @@ pub enum RecordType {
     SPC,
     PSI,
     OBSERVABILITY,
+    CUSTOM,
 }
 
 #[pyclass]

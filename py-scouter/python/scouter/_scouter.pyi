@@ -2338,16 +2338,14 @@ class CustomDrifter:
             Monitoring profile.
         """
 
-
-
 class CustomMetricServerRecord:
     def __init__(
-            self,
-            repository: str,
-            name: str,
-            version: str,
-            metric: str,
-            value: int,
+        self,
+        repository: str,
+        name: str,
+        version: str,
+        metric: str,
+        value: int,
     ):
         """Initialize spc drift server record
 
