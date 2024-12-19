@@ -10,6 +10,7 @@ from numpy.typing import NDArray
 class DriftType(Enum):
     SPC: Literal["SPC"]
     PSI: Literal["PSI"]
+    CUSTOM: Literal["CUSTOM"]
 
     def value(self) -> str: ...
     @staticmethod
@@ -1931,6 +1932,459 @@ class PsiServerRecord:
     @property
     def bin_count(self) -> int:
         """Return the sample value."""
+
+    def __str__(self) -> str:
+        """Return the string representation of the record."""
+
+    def model_dump_json(self) -> str:
+        """Return the json representation of the record."""
+
+    def to_dict(self) -> Dict[str, str]:
+        """Return the dictionary representation of the record."""
+
+class AlertCondition(Enum):
+    """
+    Enum representing different alert conditions for monitoring metrics.
+
+    Attributes:
+        BELOW: Indicates that an alert should be triggered when the metric is below a threshold.
+        ABOVE: Indicates that an alert should be triggered when the metric is above a threshold.
+        OUTSIDE: Indicates that an alert should be triggered when the metric is outside a specified range.
+    """
+
+    BELOW: Literal["BELOW"]
+    ABOVE: Literal["ABOVE"]
+    OUTSIDE: Literal["OUTSIDE"]
+
+    def value(self) -> str:
+        """
+        Returns the string value of the enum member.
+
+        Returns:
+            str: The string representation of the enum value.
+        """
+
+    @staticmethod
+    def from_value(value: str) -> "AlertCondition":
+        """
+        Creates an AlertCondition enum member from a string value.
+
+        Args:
+            value (str): The string representation of the alert condition.
+
+        Returns:
+            AlertCondition: The corresponding AlertCondition enum member.
+        """
+
+class CustomMetricAlertCondition:
+    def __init__(self, alert_condition: AlertCondition, alert_boundary: Optional[float]):
+        """Initialize a CustomMetricAlertCondition instance.
+        Args:
+            alert_condition (AlertCondition): The condition that determines when an alert
+                should be triggered. This could be comparisons like 'greater than',
+                'less than', 'equal to', etc.
+            alert_boundary (Optional[float], optional): A numerical boundary used in
+                conjunction with the alert_condition. This can be None for certain
+                types of comparisons that don't require a fixed boundary.
+        Example:
+            alert_condition = CustomMetricAlertCondition(AlertCondition.BELOW, 2.0)
+        """
+
+    @property
+    def alert_condition(self) -> AlertCondition:
+        """Return the alert_condition"""
+
+    @alert_condition.setter
+    def alert_condition(self, alert_condition: AlertCondition) -> None:
+        """Set the alert_condition"""
+
+    @property
+    def alert_boundary(self) -> float:
+        """Return the alert_boundary"""
+
+    @alert_boundary.setter
+    def alert_boundary(self, alert_boundary: float) -> None:
+        """Set the alert_boundary"""
+
+class CustomMetricAlertConfig:
+    def __init__(
+        self,
+        dispatch_type: Optional[AlertDispatchType] = None,
+        schedule: Optional[str] = None,
+        dispatch_kwargs: Optional[Dict[str, Any]] = None,
+    ):
+        """Initialize alert config
+
+        Args:
+            dispatch_type:
+                Alert dispatch type to use. Defaults to console
+            schedule:
+                Schedule to run monitor. Defaults to daily at midnight
+            dispatch_kwargs:
+                Additional alert kwargs to pass to the alerting service
+
+                Supported alert_kwargs:
+                Slack:
+                    - channel: str (channel to send slack message)
+                OpsGenie:
+                    - team: str (team to send opsgenie message)
+                    - priority: str (priority for opsgenie alerts)
+
+        """
+
+    @property
+    def dispatch_type(self) -> str:
+        """Return the alert dispatch type"""
+
+    @dispatch_type.setter
+    def dispatch_type(self, alert_dispatch_type: str) -> None:
+        """Set the alert dispatch type"""
+
+    @property
+    def schedule(self) -> str:
+        """Return the schedule"""
+
+    @schedule.setter
+    def schedule(self, schedule: str) -> None:
+        """Set the schedule"""
+
+    @property
+    def dispatch_kwargs(self) -> Dict[str, Any]:
+        """Return the dispatch kwargs"""
+
+    @dispatch_kwargs.setter
+    def dispatch_kwargs(self, dispatch_kwargs: Dict[str, Any]) -> None:
+        """Set the dispatch kwargs"""
+
+    @property
+    def psi_threshold(self) -> float:
+        """Return the schedule"""
+
+    @property
+    def alert_conditions(self) -> dict[str, CustomMetricAlertCondition]:
+        """Return the alert_conditions that were set during metric definition"""
+
+class CustomMetricDriftConfig:
+    def __init__(
+        self,
+        repository: Optional[str] = None,
+        name: Optional[str] = None,
+        version: Optional[str] = None,
+        alert_config: Optional[CustomMetricAlertConfig] = None,
+    ):
+        """Initialize drift config
+        Args:
+            repository:
+                Model repository
+            name:
+                Model name
+            version:
+                Model version. Defaults to 0.1.0
+            alert_config:
+                Custom metric alert configuration
+        """
+
+    @property
+    def repository(self) -> str:
+        """Model repository"""
+
+    @repository.setter
+    def repository(self, repository: str) -> None:
+        """Set model repository"""
+
+    @property
+    def name(self) -> str:
+        """Model Name"""
+
+    @name.setter
+    def name(self, name: str) -> None:
+        """Set model name"""
+
+    @property
+    def version(self) -> str:
+        """Model version"""
+
+    @version.setter
+    def version(self, version: str) -> None:
+        """Set model version"""
+
+    @property
+    def drift_type(self) -> DriftType:
+        """Drift type"""
+
+    @property
+    def alert_config(self) -> CustomMetricAlertConfig:
+        """get alert_config"""
+
+    @alert_config.setter
+    def alert_config(self, alert_config: CustomMetricAlertConfig) -> None:
+        """Set alert_config"""
+
+    @staticmethod
+    def load_from_json_file(path: Path) -> "CustomMetricDriftConfig":
+        """Load config from json file
+        Args:
+            path:
+                Path to json file to load config from.
+        """
+
+    def __str__(self) -> str:
+        """Return the string representation of the config."""
+
+    def model_dump_json(self) -> str:
+        """Return the json representation of the config."""
+
+    def update_config_args(
+        self,
+        repository: Optional[str] = None,
+        name: Optional[str] = None,
+        version: Optional[str] = None,
+        alert_config: Optional[CustomMetricAlertConfig] = None,
+    ) -> None:
+        """Inplace operation that updates config args
+        Args:
+            repository:
+                Model repository
+            name:
+                Model name
+            version:
+                Model version
+            alert_config:
+                Custom metric alert configuration
+        """
+
+class CustomMetric:
+    def __init__(
+        self,
+        name: str,
+        value: float,
+        alert_condition: AlertCondition,
+        alert_boundary: Optional[float],
+    ):
+        """
+        Initialize a custom metric for alerting.
+
+        This class represents a custom metric that uses comparison-based alerting. It applies
+        an alert condition to a single metric value.
+
+        Args:
+            name (str): The name of the metric being monitored. This should be a
+                descriptive identifier for the metric.
+            value (float): The current value of the metric.
+            alert_condition (AlertCondition): The condition used to determine when an alert
+                should be triggered.
+            alert_boundary (Optional[float]): The threshold value used in conjunction with
+                the alert_condition. If None, some alert conditions may not be applicable.
+
+        """
+
+    @property
+    def name(self) -> str:
+        """Return the metric name"""
+
+    @name.setter
+    def name(self, name: str) -> None:
+        """Set the metric name"""
+
+    @property
+    def value(self) -> float:
+        """Return the metric value"""
+
+    @value.setter
+    def value(self, value: float) -> None:
+        """Set the metric value"""
+
+    @property
+    def alert_condition(self) -> AlertCondition:
+        """Return the alert_condition"""
+
+    @alert_condition.setter
+    def alert_condition(self, alert_condition: AlertCondition) -> None:
+        """Set the alert_condition"""
+
+    @property
+    def alert_boundary(self) -> float:
+        """Return the alert_boundary"""
+
+    @alert_boundary.setter
+    def alert_boundary(self, alert_boundary: float) -> None:
+        """Set the alert_boundary"""
+
+    def __str__(self) -> str:
+        """Return the string representation of the config."""
+
+class CustomDriftProfile:
+    def __init__(
+        self,
+        config: CustomMetricDriftConfig,
+        metrics: list[CustomMetric],
+        scouter_version: Optional[str] = None,
+    ):
+        """Initialize a CustomDriftProfile instance.
+
+        Args:
+            config (CustomMetricDriftConfig):
+                The configuration for custom metric drift detection.
+            metrics (list[CustomMetric]):
+                A list of CustomMetric objects representing the metrics to be monitored.
+            scouter_version (Optional[str]):
+                The version of Scouter used to create this DriftProfile.
+
+        Example:
+            config = CustomMetricDriftConfig(...)
+            metrics = [CustomMetric("accuracy", 0.95), CustomMetric("f1_score", 0.88)]
+            profile = CustomDriftProfile(config, metrics, "1.0.0")
+        """
+
+    @property
+    def config(self) -> CustomMetricDriftConfig:
+        """Return the drift config"""
+
+    @property
+    def metrics(self) -> dict[str, float]:
+        """Return custom metrics and their corresponding values"""
+
+    @property
+    def scouter_version(self) -> str:
+        """Return scouter version used to create DriftProfile"""
+
+    def __str__(self) -> str:
+        """Sting representation of DriftProfile"""
+
+    def model_dump_json(self) -> str:
+        """Return json representation of drift profile"""
+
+    def model_dump(self) -> Dict[str, Any]:
+        """Return dictionary representation of drift profile"""
+
+    def save_to_json(self, path: Optional[Path] = None) -> None:
+        """Save drift profile to json file
+
+        Args:
+            path:
+                Optional path to save the drift profile. If None, outputs to "drift_profile.json.
+        """
+
+    @staticmethod
+    def model_validate_json(json_string: str) -> "CustomDriftProfile":
+        """Load drift profile from json
+
+        Args:
+            json_string:
+                JSON string representation of the drift profile
+
+        """
+
+    @staticmethod
+    def model_validate(data: Dict[str, Any]) -> "CustomDriftProfile":
+        """Load drift profile from dictionary
+
+        Args:
+            data:
+                DriftProfile dictionary
+        """
+
+    def update_config_args(
+        self,
+        repository: Optional[str] = None,
+        name: Optional[str] = None,
+        version: Optional[str] = None,
+        alert_config: Optional[CustomMetricAlertConfig] = None,
+    ) -> None:
+        """Inplace operation that updates config args
+
+        Args:
+            repository (Optional[str]):
+                Model repository
+            name (Optional[str]):
+                Model name
+            version (Optional[str]):
+                Model version
+            alert_config (Optional[CustomMetricAlertConfig]):
+                Custom metric alert configuration
+
+        Returns:
+            None
+        """
+
+    @property
+    def custom_metrics(self) -> list[CustomMetric]:
+        """Return custom metric objects that were used to create the drift profile"""
+
+class CustomDrifter:
+    def __init__(self) -> None:
+        """Instantiate Rust CustomMonitor class that is
+        used to create monitoring profiles and compute drifts.
+        """
+
+    def create_drift_profile(
+        self,
+        config: CustomMetricDriftConfig,
+        metrics: list[CustomMetric],
+        scouter_version: Optional[str] = None,
+    ) -> CustomDriftProfile:
+        """Create a monitoring profile.
+
+        Args:
+            config:
+                Custom metric drift config.
+            metrics:
+                List of custom metrics.
+            scouter_version:
+                Scouter version used to create DriftProfile
+
+
+        Returns:
+            Monitoring profile.
+        """
+
+class CustomMetricServerRecord:
+    def __init__(
+        self,
+        repository: str,
+        name: str,
+        version: str,
+        metric: str,
+        value: int,
+    ):
+        """Initialize spc drift server record
+
+        Args:
+            repository:
+                Model repository
+            name:
+                Model name
+            version:
+                Model version
+            metric:
+                Metric name
+            value:
+                Metric value
+        """
+
+    @property
+    def created_at(self) -> datetime.datetime:
+        """Return the created at timestamp."""
+
+    @property
+    def repository(self) -> str:
+        """Return the repository."""
+
+    @property
+    def name(self) -> str:
+        """Return the name."""
+
+    @property
+    def version(self) -> str:
+        """Return the version."""
+
+    @property
+    def metric(self) -> str:
+        """Return the metric name."""
+
+    @property
+    def value(self) -> float:
+        """Return the metric value."""
 
     def __str__(self) -> str:
         """Return the string representation of the record."""

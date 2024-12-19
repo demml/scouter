@@ -11,6 +11,10 @@ from scouter.utils.logger import ScouterLogger
 from scouter.utils.type_converter import ArrayData, _convert_data_to_array, _get_bits
 
 from .._scouter import (  # pylint: disable=no-name-in-module
+    CustomDrifter,
+    CustomDriftProfile,
+    CustomMetric,
+    CustomMetricDriftConfig,
     DriftType,
     PsiDriftConfig,
     PsiDrifter,
@@ -22,13 +26,14 @@ from .._scouter import (  # pylint: disable=no-name-in-module
     SpcDriftProfile,
 )
 
-logger = ScouterLogger.get_logger()
-
-
-Profile = Union[SpcDriftProfile, PsiDriftProfile]
-Config = Union[SpcDriftConfig, PsiDriftConfig]
+Profile = Union[SpcDriftProfile, PsiDriftProfile, CustomDriftProfile]
+Config = Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]
 DriftMap = Union[SpcDriftMap, PsiDriftMap]
-Drifter = Union[SpcDrifter, PsiDrifter]
+Drifter = Union[SpcDrifter, PsiDrifter, CustomDrifter]
+CustomMetricData = Union[CustomMetric, list[CustomMetric]]
+
+
+logger = ScouterLogger.get_logger()
 
 
 class DriftHelperBase:
@@ -114,7 +119,7 @@ class DriftHelperBase:
 
     def create_drift_profile(
         self,
-        data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
+        data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table, CustomMetricData],
         config: Config,
     ) -> Profile:
         """Create a drift profile from data to use for monitoring.
@@ -133,6 +138,9 @@ class DriftHelperBase:
             Monitoring profile
         """
         try:
+            assert isinstance(
+                config, (SpcDriftConfig, PsiDriftConfig)
+            ), f"{type(config)} was detected, when was expected"
             logger.info("Creating drift profile.")
             array = _convert_data_to_array(data)
             bits = _get_bits(array.numeric_array)
@@ -146,6 +154,9 @@ class DriftHelperBase:
                     array=array.string_array,
                     drift_config=config,
                 )
+                assert isinstance(
+                    string_profile.config, (SpcDriftConfig, PsiDriftConfig)
+                ), f"{type(config)} was detected, when was expected"
                 assert string_profile.config.feature_map is not None
                 config.update_feature_map(string_profile.config.feature_map)
 
@@ -169,7 +180,6 @@ class DriftHelperBase:
             assert isinstance(profile, (SpcDriftProfile, PsiDriftProfile)), "Expected DriftProfile"
 
             return profile
-
         except Exception as exc:  # type: ignore
             logger.error(f"Failed to create drift profile: {exc}")
             raise ValueError(f"Failed to create drift profile: {exc}") from exc

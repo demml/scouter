@@ -7,15 +7,19 @@ use crate::core::utils::ProfileFuncs;
 
 use pyo3::prelude::*;
 
+use crate::core::drift::custom::types::{CustomDriftProfile, CustomMetricServerRecord};
 use crate::core::drift::psi::types::{PsiDriftProfile, PsiServerRecord};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
+
+pub const MISSING: &str = "__missing__";
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum DriftType {
     SPC,
     PSI,
+    CUSTOM,
 }
 
 #[pymethods]
@@ -25,6 +29,7 @@ impl DriftType {
         match value {
             "SPC" => Some(DriftType::SPC),
             "PSI" => Some(DriftType::PSI),
+            "CUSTOM" => Some(DriftType::CUSTOM),
             _ => None,
         }
     }
@@ -34,6 +39,7 @@ impl DriftType {
         match self {
             DriftType::SPC => "SPC",
             DriftType::PSI => "PSI",
+            DriftType::CUSTOM => "CUSTOM",
         }
     }
 }
@@ -45,6 +51,7 @@ impl FromStr for DriftType {
         match value {
             "SPC" => Ok(DriftType::SPC),
             "PSI" => Ok(DriftType::PSI),
+            "CUSTOM" => Ok(DriftType::CUSTOM),
             _ => Err(ScouterError::InvalidDriftTypeError(value.to_string())),
         }
     }
@@ -90,6 +97,7 @@ pub enum RecordType {
     SPC,
     PSI,
     OBSERVABILITY,
+    CUSTOM,
 }
 
 #[pyclass]
@@ -97,6 +105,7 @@ pub enum RecordType {
 pub enum ServerRecord {
     SPC { record: SpcServerRecord },
     PSI { record: PsiServerRecord },
+    CUSTOM { record: CustomMetricServerRecord },
     OBSERVABILITY { record: ObservabilityMetrics },
 }
 
@@ -156,6 +165,7 @@ impl ServerRecords {
 pub enum DriftProfile {
     SpcDriftProfile(SpcDriftProfile),
     PsiDriftProfile(PsiDriftProfile),
+    CustomDriftProfile(CustomDriftProfile),
 }
 
 impl DriftProfile {
@@ -182,6 +192,11 @@ impl DriftProfile {
                     serde_json::from_str(&profile).map_err(|_| ScouterError::DeSerializeError)?;
                 Ok(DriftProfile::PsiDriftProfile(profile))
             }
+            DriftType::CUSTOM => {
+                let profile =
+                    serde_json::from_str(&profile).map_err(|_| ScouterError::DeSerializeError)?;
+                Ok(DriftProfile::CustomDriftProfile(profile))
+            }
         }
     }
 
@@ -190,6 +205,7 @@ impl DriftProfile {
         match self {
             DriftProfile::SpcDriftProfile(profile) => profile.get_base_args(),
             DriftProfile::PsiDriftProfile(profile) => profile.get_base_args(),
+            DriftProfile::CustomDriftProfile(profile) => profile.get_base_args(),
         }
     }
 
@@ -197,6 +213,7 @@ impl DriftProfile {
         match self {
             DriftProfile::SpcDriftProfile(profile) => profile.to_value(),
             DriftProfile::PsiDriftProfile(profile) => profile.to_value(),
+            DriftProfile::CustomDriftProfile(profile) => profile.to_value(),
         }
     }
 
@@ -220,6 +237,11 @@ impl DriftProfile {
                 let profile =
                     serde_json::from_value(body).map_err(|_| ScouterError::DeSerializeError)?;
                 Ok(DriftProfile::PsiDriftProfile(profile))
+            }
+            DriftType::CUSTOM => {
+                let profile =
+                    serde_json::from_value(body).map_err(|_| ScouterError::DeSerializeError)?;
+                Ok(DriftProfile::CustomDriftProfile(profile))
             }
         }
     }
