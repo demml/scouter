@@ -49,7 +49,7 @@ from ._scouter import (
     SpcFeatureAlerts,
     SpcFeatureDriftProfile,
     SpcFeatureQueue,
-    SpcServerRecord,
+    SpcServerRecord, CustomMetricServerRecord,
 )
 from .drift.drifter import CommonCrons, Drifter
 from .monitor.monitor import MonitorQueue
@@ -115,4 +115,5 @@ __all__ = [
     "CustomDriftProfile",
     "CustomMetricAlertCondition",
     "CustomMetricAlertConfig",
+    "CustomMetricServerRecord"
 ]

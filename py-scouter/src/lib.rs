@@ -8,7 +8,7 @@ use scouter::core::cron::{
 };
 use scouter::core::dispatch::types::AlertDispatchType;
 use scouter::core::drift::base::{DriftType, RecordType, ServerRecord, ServerRecords};
-use scouter::core::drift::custom::types::{AlertCondition, CustomMetricAlertCondition, CustomMetricDriftConfig, CustomMetricAlertConfig, CustomMetric, CustomDriftProfile};
+use scouter::core::drift::custom::types::{AlertCondition, CustomMetricAlertCondition, CustomMetricDriftConfig, CustomMetricAlertConfig, CustomMetric, CustomDriftProfile, CustomMetricServerRecord};
 use scouter::core::drift::psi::feature_queue::PsiFeatureQueue;
 use scouter::core::drift::psi::types::{
     Bin, PsiAlertConfig, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
@@ -86,5 +86,6 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<AlertCondition>()?;
     m.add_class::<CustomDriftProfile>()?;
     m.add_class::<CustomDrifter>()?;
+    m.add_class::<CustomMetricServerRecord>()?;
     Ok(())
 }

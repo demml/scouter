@@ -2337,3 +2337,62 @@ class CustomDrifter:
         Returns:
             Monitoring profile.
         """
+
+
+
+class CustomMetricServerRecord:
+    def __init__(
+            self,
+            repository: str,
+            name: str,
+            version: str,
+            metric: str,
+            value: int,
+    ):
+        """Initialize spc drift server record
+
+        Args:
+            repository:
+                Model repository
+            name:
+                Model name
+            version:
+                Model version
+            metric:
+                Metric name
+            value:
+                Metric value
+        """
+
+    @property
+    def created_at(self) -> datetime.datetime:
+        """Return the created at timestamp."""
+
+    @property
+    def repository(self) -> str:
+        """Return the repository."""
+
+    @property
+    def name(self) -> str:
+        """Return the name."""
+
+    @property
+    def version(self) -> str:
+        """Return the version."""
+
+    @property
+    def metric(self) -> str:
+        """Return the metric name."""
+
+    @property
+    def value(self) -> float:
+        """Return the metric value."""
+
+    def __str__(self) -> str:
+        """Return the string representation of the record."""
+
+    def model_dump_json(self) -> str:
+        """Return the json representation of the record."""
+
+    def to_dict(self) -> Dict[str, str]:
+        """Return the dictionary representation of the record."""

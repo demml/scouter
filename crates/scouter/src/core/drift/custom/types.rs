@@ -1,8 +1,8 @@
 use crate::core::cron::EveryDay;
 use crate::core::dispatch::types::AlertDispatchType;
 use crate::core::drift::base::{
-    DispatchDriftConfig, DriftArgs, DriftType, ProfileArgs, ProfileBaseArgs, ValidateAlertConfig,
-    MISSING,
+    DispatchAlertDescription, DispatchDriftConfig, DriftArgs, DriftType, ProfileArgs,
+    ProfileBaseArgs, ValidateAlertConfig, MISSING,
 };
 use crate::core::error::{CustomMetricError, ScouterError};
 use crate::core::utils::{json_to_pyobject, pyobject_to_json, FileName, ProfileFuncs};
@@ -431,70 +431,142 @@ impl ProfileBaseArgs for CustomDriftProfile {
     }
 }
 
-// pub struct ComparisonMetricAlerts {
-//     pub metric_name: String,
-//     pub training_feature_metric_values: HashMap<FeatureName, f64>,
-//     pub observed_feature_metric_values: HashMap<FeatureName, f64>,
-//     pub alert_boundary: Option<f64>,
-//     pub alert_condition: AlertCondition,
-// }
-//
-// impl ComparisonMetricAlerts {
-//     fn alert_description_header(&self) -> String {
-//         let below_threshold = |boundary: Option<f64>| {
-//             match boundary {
-//             Some(b) => format!("The following observed features have dropped below the threshold (initial metric values - {}) for metric {}", b, self.metric_name),
-//             None => format!("The following observed features have dropped below the initial metric values for metric {}", self.metric_name),
-//         }
-//         };
-//
-//         let above_threshold = |boundary: Option<f64>| {
-//             match boundary {
-//             Some(b) => format!("The following observed features have increased beyond the threshold (initial metric values + {}) for metric {}", b, self.metric_name),
-//             None => format!("The following observed features have increased beyond the initial metric values for metric {}", self.metric_name),
-//         }
-//         };
-//
-//         let outside_threshold = |boundary: Option<f64>| {
-//             match boundary {
-//             Some(b) => format!("The following observed features have fallen outside the threshold (initial metric values +- {}) for metric {}", b, self.metric_name),
-//             None => format!("The following observed features have fallen outside the initial metric values for metric {}", self.metric_name),
-//         }
-//         };
-//
-//         match self.alert_condition {
-//             AlertCondition::BELOW => below_threshold(self.alert_boundary),
-//             AlertCondition::ABOVE => above_threshold(self.alert_boundary),
-//             AlertCondition::OUTSIDE => outside_threshold(self.alert_boundary),
-//         }
-//     }
-// }
-//
-// impl DispatchAlertDescription for ComparisonMetricAlerts {
-//     fn create_alert_description(&self, dispatch_type: AlertDispatchType) -> String {
-//         let mut alert_description = String::new();
-//         let header = format!("{}\n", self.alert_description_header());
-//         alert_description.push_str(&header);
-//
-//         for (feature_name, metric_value) in &self.observed_feature_metric_values {
-//             let current_metric = format!("Current Metric Value: {}\n", metric_value);
-//             let historical_metric = format!(
-//                 "Historical Metric Value: {}\n",
-//                 self.training_feature_metric_values[feature_name]
-//             );
-//
-//             let feature_name = match dispatch_type {
-//                 AlertDispatchType::Console | AlertDispatchType::OpsGenie => {
-//                     format!("{:indent$}{}: \n", "", &feature_name, indent = 4)
-//                 }
-//                 AlertDispatchType::Slack => format!("{}: \n", &feature_name),
-//             };
-//
-//             alert_description.push_str(&feature_name);
-//             alert_description.push_str(&current_metric);
-//             alert_description.push_str(&historical_metric);
-//         }
-//
-//         alert_description
-//     }
-// }
+pub struct ComparisonMetricAlert {
+    pub metric_name: String,
+    pub training_metric_value: f64,
+    pub observed_metric_value: f64,
+    pub alert_boundary: Option<f64>,
+    pub alert_condition: AlertCondition,
+}
+
+impl ComparisonMetricAlert {
+    fn alert_description_header(&self) -> String {
+        let below_threshold = |boundary: Option<f64>| match boundary {
+            Some(b) => format!(
+                "The metric value has dropped below the threshold (initial value - {}) for {}",
+                b, self.metric_name
+            ),
+            None => format!(
+                "The metric value has dropped below the initial value for {}",
+                self.metric_name
+            ),
+        };
+
+        let above_threshold = |boundary: Option<f64>| match boundary {
+            Some(b) => format!(
+                "The metric value has increased beyond the threshold (initial value + {}) for {}",
+                b, self.metric_name
+            ),
+            None => format!(
+                "The metric value has increased beyond the initial value for {}",
+                self.metric_name
+            ),
+        };
+
+        let outside_threshold = |boundary: Option<f64>| match boundary {
+            Some(b) => format!(
+                "The metric value has fallen outside the threshold (initial value ± {}) for {}",
+                b, self.metric_name
+            ),
+            None => format!(
+                "The metric value has fallen outside the initial value for {}",
+                self.metric_name
+            ),
+        };
+
+        match self.alert_condition {
+            AlertCondition::BELOW => below_threshold(self.alert_boundary),
+            AlertCondition::ABOVE => above_threshold(self.alert_boundary),
+            AlertCondition::OUTSIDE => outside_threshold(self.alert_boundary),
+        }
+    }
+}
+
+impl DispatchAlertDescription for ComparisonMetricAlert {
+    fn create_alert_description(&self, dispatch_type: AlertDispatchType) -> String {
+        let mut alert_description = String::new();
+        let header = format!("{}\n", self.alert_description_header());
+        alert_description.push_str(&header);
+
+        let current_metric = format!("Current Metric Value: {}\n", self.observed_metric_value);
+        let historical_metric =
+            format!("Historical Metric Value: {}\n", self.training_metric_value);
+
+        let feature_name = match dispatch_type {
+            AlertDispatchType::Console | AlertDispatchType::OpsGenie => {
+                format!("{:indent$}{}: \n", "", &self.metric_name, indent = 4)
+            }
+            AlertDispatchType::Slack => format!("{}: \n", &self.metric_name),
+        };
+
+        alert_description.push_str(&feature_name);
+        alert_description.push_str(&current_metric);
+        alert_description.push_str(&historical_metric);
+
+        alert_description
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CustomMetricServerRecord {
+    #[pyo3(get)]
+    pub created_at: chrono::NaiveDateTime,
+
+    #[pyo3(get)]
+    pub repository: String,
+
+    #[pyo3(get)]
+    pub name: String,
+
+    #[pyo3(get)]
+    pub version: String,
+
+    #[pyo3(get)]
+    pub metric: String,
+
+    #[pyo3(get)]
+    pub value: f64,
+}
+
+#[pymethods]
+impl CustomMetricServerRecord {
+    #[new]
+    pub fn new(
+        repository: String,
+        name: String,
+        version: String,
+        metric: String,
+        value: f64,
+    ) -> Self {
+        Self {
+            created_at: chrono::Utc::now().naive_utc(),
+            name,
+            repository,
+            version,
+            metric,
+            value,
+        }
+    }
+
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
+
+    pub fn model_dump_json(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__json__(self)
+    }
+
+    pub fn to_dict(&self) -> HashMap<String, String> {
+        let mut record = HashMap::new();
+        record.insert("created_at".to_string(), self.created_at.to_string());
+        record.insert("name".to_string(), self.name.clone());
+        record.insert("repository".to_string(), self.repository.clone());
+        record.insert("version".to_string(), self.version.clone());
+        record.insert("metric".to_string(), self.metric.clone());
+        record.insert("value".to_string(), self.value.to_string());
+        record
+    }
+}

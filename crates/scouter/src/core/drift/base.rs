@@ -7,7 +7,7 @@ use crate::core::utils::ProfileFuncs;
 
 use pyo3::prelude::*;
 
-use crate::core::drift::custom::types::CustomDriftProfile;
+use crate::core::drift::custom::types::{CustomDriftProfile, CustomMetricServerRecord};
 use crate::core::drift::psi::types::{PsiDriftProfile, PsiServerRecord};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -104,6 +104,7 @@ pub enum RecordType {
 pub enum ServerRecord {
     SPC { record: SpcServerRecord },
     PSI { record: PsiServerRecord },
+    CUSTOM { record: CustomMetricServerRecord },
     OBSERVABILITY { record: ObservabilityMetrics },
 }
 
