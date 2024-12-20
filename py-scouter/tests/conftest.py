@@ -16,6 +16,9 @@ from scouter import (
     HTTPConfig,
     DriftType,
     PsiDriftConfig,
+    AlertDispatchType,
+    CustomMetricAlertConfig,
+    CustomMetricDriftConfig
 )
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
@@ -360,3 +363,13 @@ def scouter_observer(kafka_config: KafkaConfig):
         )
         yield scouter_observer, mock_observer
         scouter_observer.stop()
+
+@pytest.fixture(scope="function")
+def custom_metric_drift_config() -> YieldFixture[CustomMetricDriftConfig]:
+    config = CustomMetricDriftConfig(name="test",
+                                     repository="test",
+                                     alert_config=CustomMetricAlertConfig(
+                                         dispatch_type=AlertDispatchType.Slack,
+                                         schedule="0 0 * * * *")
+                                     )
+    yield config
