@@ -536,7 +536,7 @@ impl CustomMetricServerRecord {
             name,
             repository,
             version,
-            metric,
+            metric: metric.to_lowercase(),
             value,
         }
     }
