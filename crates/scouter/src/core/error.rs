@@ -178,6 +178,9 @@ impl From<ObserverError> for PyErr {
 pub enum CustomMetricError {
     #[error("Cannot create metric profile, no metrics were provided")]
     NoMetricsError,
+
+    #[error("{0}")]
+    Error(String),
 }
 
 impl From<CustomMetricError> for PyErr {

@@ -178,7 +178,7 @@ impl CustomMetricDriftConfig {
         version: Option<String>,
         alert_config: Option<CustomMetricAlertConfig>,
         config_path: Option<PathBuf>,
-    ) -> Result<Self, ScouterError> {
+    ) -> Result<Self, CustomMetricError> {
         let name = name.unwrap_or(MISSING.to_string());
         let repository = repository.unwrap_or(MISSING.to_string());
 
@@ -189,7 +189,9 @@ impl CustomMetricDriftConfig {
         let version = version.unwrap_or("0.1.0".to_string());
 
         if let Some(config_path) = config_path {
-            let config = CustomMetricDriftConfig::load_from_json_file(config_path);
+            let config = CustomMetricDriftConfig::load_from_json_file(config_path)
+                .map_err(|e| CustomMetricError::Error(e.to_string()));
+
             return config;
         }
 
@@ -274,12 +276,15 @@ impl CustomMetric {
         value: f64,
         alert_condition: AlertCondition,
         alert_boundary: Option<f64>,
-    ) -> Self {
-        Self {
+    ) -> Result<Self, CustomMetricError> {
+        let alert_condition = CustomMetricAlertCondition::new(alert_condition, alert_boundary)
+            .map_err(|e| CustomMetricError::Error(e.to_string()))?;
+
+        Ok(Self {
             name: name.to_lowercase(),
             value,
-            alert_condition: CustomMetricAlertCondition::new(alert_condition, alert_boundary),
-        }
+            alert_condition,
+        })
     }
 
     pub fn __str__(&self) -> String {
@@ -547,8 +552,8 @@ mod tests {
         assert_eq!(alert_config.dispatch_type(), "OpsGenie");
 
         let custom_metrics = vec![
-            CustomMetric::new("mae".to_string(), 12.4, AlertCondition::ABOVE, Some(2.3)),
-            CustomMetric::new("accuracy".to_string(), 0.85, AlertCondition::BELOW, None),
+            CustomMetric::new("mae".to_string(), 12.4, AlertCondition::ABOVE, Some(2.3)).unwrap(),
+            CustomMetric::new("accuracy".to_string(), 0.85, AlertCondition::BELOW, None).unwrap(),
         ];
 
         alert_config.set_alert_conditions(&custom_metrics);
@@ -619,8 +624,8 @@ mod tests {
         .unwrap();
 
         let custom_metrics = vec![
-            CustomMetric::new("mae".to_string(), 12.4, AlertCondition::ABOVE, Some(2.3)),
-            CustomMetric::new("accuracy".to_string(), 0.85, AlertCondition::BELOW, None),
+            CustomMetric::new("mae".to_string(), 12.4, AlertCondition::ABOVE, Some(2.3)).unwrap(),
+            CustomMetric::new("accuracy".to_string(), 0.85, AlertCondition::BELOW, None).unwrap(),
         ];
 
         let profile = CustomDriftProfile::new(drift_config, custom_metrics, None).unwrap();
