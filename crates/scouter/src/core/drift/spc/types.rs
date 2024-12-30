@@ -228,7 +228,7 @@ impl Default for SpcAlertConfig {
     }
 }
 
-#[pyclass]
+#[pyclass(eq)]
 #[derive(Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Clone, Copy)]
 pub enum SpcAlertType {
     OutOfBounds,
