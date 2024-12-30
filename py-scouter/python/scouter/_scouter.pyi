@@ -1960,7 +1960,7 @@ class PsiServerRecord:
     def to_dict(self) -> Dict[str, str]:
         """Return the dictionary representation of the record."""
 
-class AlertCondition(Enum):
+class AlertCondition:
     """
     Enum representing different alert conditions for monitoring metrics.
 
@@ -1970,17 +1970,9 @@ class AlertCondition(Enum):
         OUTSIDE: Indicates that an alert should be triggered when the metric is outside a specified range.
     """
 
-    BELOW: Literal["BELOW"]
-    ABOVE: Literal["ABOVE"]
-    OUTSIDE: Literal["OUTSIDE"]
-
-    def value(self) -> str:
-        """
-        Returns the string value of the enum member.
-
-        Returns:
-            str: The string representation of the enum value.
-        """
+    Below: "AlertCondition"
+    Above: "AlertCondition"
+    Outside: "AlertCondition"
 
     @staticmethod
     def from_value(value: str) -> "AlertCondition":
@@ -2217,20 +2209,12 @@ class CustomMetric:
         """Set the metric value"""
 
     @property
-    def alert_condition(self) -> AlertCondition:
+    def alert_condition(self) -> CustomMetricAlertCondition:
         """Return the alert_condition"""
 
     @alert_condition.setter
-    def alert_condition(self, alert_condition: AlertCondition) -> None:
+    def alert_condition(self, alert_condition: CustomMetricAlertCondition) -> None:
         """Set the alert_condition"""
-
-    @property
-    def alert_boundary(self) -> float:
-        """Return the alert_boundary"""
-
-    @alert_boundary.setter
-    def alert_boundary(self, alert_boundary: float) -> None:
-        """Set the alert_boundary"""
 
     def __str__(self) -> str:
         """Return the string representation of the config."""
@@ -2329,9 +2313,9 @@ class CustomDriftProfile:
             None
         """
 
-    @property
-    def custom_metrics(self) -> list[CustomMetric]:
-        """Return custom metric objects that were used to create the drift profile"""
+    # @property # hide this for now until we need it
+    # def custom_metrics(self) -> list[CustomMetric]:
+    #    """Return custom metric objects that were used to create the drift profile"""
 
 class CustomDrifter:
     def __init__(self) -> None:

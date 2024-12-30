@@ -17,20 +17,28 @@ use tracing::debug;
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AlertCondition {
-    BELOW,
-    ABOVE,
-    OUTSIDE,
+    Below,
+    Above,
+    Outside,
 }
 
 #[pymethods]
 impl AlertCondition {
     #[staticmethod]
     pub fn from_value(value: &str) -> Option<Self> {
-        match value {
-            "BELOW" => Some(AlertCondition::BELOW),
-            "ABOVE" => Some(AlertCondition::ABOVE),
-            "OUTSIDE" => Some(AlertCondition::OUTSIDE),
+        match value.to_lowercase().as_str() {
+            "below" => Some(AlertCondition::Below),
+            "above" => Some(AlertCondition::Above),
+            "outside" => Some(AlertCondition::Outside),
             _ => None,
+        }
+    }
+
+    pub fn __str__(&self) -> String {
+        match self {
+            AlertCondition::Below => "Below".to_string(),
+            AlertCondition::Above => "Above".to_string(),
+            AlertCondition::Outside => "Outside".to_string(),
         }
     }
 }
@@ -57,6 +65,11 @@ impl CustomMetricAlertCondition {
             alert_condition,
             alert_boundary,
         })
+    }
+
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
     }
 }
 
@@ -193,7 +206,7 @@ impl CustomMetricDriftConfig {
             name,
             version,
             alert_config,
-            drift_type: DriftType::CUSTOM,
+            drift_type: DriftType::Custom,
         })
     }
 
@@ -256,7 +269,7 @@ pub struct CustomMetric {
     pub value: f64,
 
     #[pyo3(get, set)]
-    alert_condition: CustomMetricAlertCondition,
+    pub alert_condition: CustomMetricAlertCondition,
 }
 
 #[pymethods]
@@ -441,9 +454,9 @@ impl ComparisonMetricAlert {
         };
 
         match self.alert_condition {
-            AlertCondition::BELOW => below_threshold(self.alert_boundary),
-            AlertCondition::ABOVE => above_threshold(self.alert_boundary),
-            AlertCondition::OUTSIDE => outside_threshold(self.alert_boundary),
+            AlertCondition::Below => below_threshold(self.alert_boundary),
+            AlertCondition::Above => above_threshold(self.alert_boundary),
+            AlertCondition::Outside => outside_threshold(self.alert_boundary),
         }
     }
 }
@@ -543,8 +556,8 @@ mod tests {
         assert_eq!(alert_config.dispatch_type(), "OpsGenie");
 
         let custom_metrics = vec![
-            CustomMetric::new("mae".to_string(), 12.4, AlertCondition::ABOVE, Some(2.3)).unwrap(),
-            CustomMetric::new("accuracy".to_string(), 0.85, AlertCondition::BELOW, None).unwrap(),
+            CustomMetric::new("mae".to_string(), 12.4, AlertCondition::Above, Some(2.3)).unwrap(),
+            CustomMetric::new("accuracy".to_string(), 0.85, AlertCondition::Below, None).unwrap(),
         ];
 
         alert_config.set_alert_conditions(&custom_metrics);
@@ -552,12 +565,12 @@ mod tests {
         if let Some(alert_conditions) = alert_config.alert_conditions.as_ref() {
             assert_eq!(
                 alert_conditions["mae"].alert_condition,
-                AlertCondition::ABOVE
+                AlertCondition::Above
             );
             assert_eq!(alert_conditions["mae"].alert_boundary, Some(2.3));
             assert_eq!(
                 alert_conditions["accuracy"].alert_condition,
-                AlertCondition::BELOW
+                AlertCondition::Below
             );
             assert_eq!(alert_conditions["accuracy"].alert_boundary, None);
         } else {
@@ -615,8 +628,8 @@ mod tests {
         .unwrap();
 
         let custom_metrics = vec![
-            CustomMetric::new("mae".to_string(), 12.4, AlertCondition::ABOVE, Some(2.3)).unwrap(),
-            CustomMetric::new("accuracy".to_string(), 0.85, AlertCondition::BELOW, None).unwrap(),
+            CustomMetric::new("mae".to_string(), 12.4, AlertCondition::Above, Some(2.3)).unwrap(),
+            CustomMetric::new("accuracy".to_string(), 0.85, AlertCondition::Below, None).unwrap(),
         ];
 
         let profile = CustomDriftProfile::new(drift_config, custom_metrics, None).unwrap();
@@ -668,7 +681,7 @@ mod tests {
             training_metric_value: 12.5,
             observed_metric_value: 14.0,
             alert_boundary: Some(1.0),
-            alert_condition: AlertCondition::ABOVE,
+            alert_condition: AlertCondition::Above,
         };
 
         let description =
@@ -684,7 +697,7 @@ mod tests {
             training_metric_value: 0.9,
             observed_metric_value: 0.7,
             alert_boundary: None,
-            alert_condition: AlertCondition::BELOW,
+            alert_condition: AlertCondition::Below,
         };
 
         let description =
@@ -700,7 +713,7 @@ mod tests {
             training_metric_value: 12.5,
             observed_metric_value: 22.0,
             alert_boundary: Some(2.0),
-            alert_condition: AlertCondition::OUTSIDE,
+            alert_condition: AlertCondition::Outside,
         };
 
         let description =
