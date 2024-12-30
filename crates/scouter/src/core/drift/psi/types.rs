@@ -125,6 +125,7 @@ impl ValidateAlertConfig for PsiAlertConfig {}
 #[pymethods]
 impl PsiAlertConfig {
     #[new]
+    #[pyo3(signature = (dispatch_type=None, schedule=None, features_to_monitor=None, dispatch_kwargs=None, psi_threshold=None))]
     pub fn new(
         dispatch_type: Option<AlertDispatchType>,
         schedule: Option<String>,
@@ -397,11 +398,13 @@ impl PsiDriftProfile {
     }
 
     // Convert python dict into a drift profile
+    #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
         ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (repository=None, name=None, version=None, targets=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         repository: Option<String>,
@@ -462,6 +465,7 @@ impl PsiDriftMap {
             .unwrap()
     }
 
+    #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
         ProfileFuncs::save_to_json(self, path, FileName::PsiDrift.to_str())
     }
