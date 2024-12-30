@@ -367,23 +367,24 @@ impl CustomDriftProfile {
             serde_json::from_str(&json_str).map_err(|_| ScouterError::DeSerializeError)?;
 
         // Create a new Python dictionary
-        let dict = PyDict::new_bound(py);
+        let dict = PyDict::new(py);
 
         // Convert JSON to Python dict
-        json_to_pyobject(py, &json_value, dict.as_gil_ref())?;
+        json_to_pyobject(py, &json_value, &dict)?;
 
         // Return the Python dictionary
         Ok(dict.into())
     }
 
     // Convert python dict into a drift profile
+    #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
         ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
     }
 
     #[staticmethod]
-    pub fn model_validate(py: Python, data: &Bound<'_, PyDict>) -> CustomDriftProfile {
-        let json_value = pyobject_to_json(py, data.as_gil_ref()).unwrap();
+    pub fn model_validate(data: &Bound<'_, PyDict>) -> CustomDriftProfile {
+        let json_value = pyobject_to_json(data).unwrap();
 
         let string = serde_json::to_string(&json_value).unwrap();
         serde_json::from_str(&string).expect("Failed to load drift profile")
