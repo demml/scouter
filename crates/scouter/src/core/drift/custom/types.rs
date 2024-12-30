@@ -178,6 +178,7 @@ impl DispatchDriftConfig for CustomMetricDriftConfig {
 #[allow(clippy::too_many_arguments)]
 impl CustomMetricDriftConfig {
     #[new]
+    #[pyo3(signature = (repository=None, name=None, version=None, alert_config=None, config_path=None))]
     pub fn new(
         repository: Option<String>,
         name: Option<String>,
