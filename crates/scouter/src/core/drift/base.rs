@@ -5,7 +5,7 @@ use crate::core::error::ScouterError;
 use crate::core::observe::observer::ObservabilityMetrics;
 use crate::core::utils::ProfileFuncs;
 
-use pyo3::prelude::*;
+use pyo3::{prelude::*, IntoPyObjectExt};
 
 use crate::core::drift::custom::types::{CustomDriftProfile, CustomMetricServerRecord};
 use crate::core::drift::psi::types::{PsiDriftProfile, PsiServerRecord};
@@ -14,7 +14,7 @@ use std::str::FromStr;
 
 pub const MISSING: &str = "__missing__";
 
-#[pyclass]
+#[pyclass(eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum DriftType {
     Spc,
@@ -90,7 +90,7 @@ pub struct DriftArgs {
     pub dispatch_type: AlertDispatchType,
 }
 
-#[pyclass]
+#[pyclass(eq)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub enum RecordType {
     #[default]
@@ -137,10 +137,10 @@ impl ServerRecord {
 
     pub fn record(&self, py: Python) -> PyResult<PyObject> {
         match self {
-            ServerRecord::Spc { record } => Ok(record.clone().into_py(py)),
-            ServerRecord::Psi { record } => Ok(record.clone().into_py(py)),
-            ServerRecord::Custom { record } => Ok(record.clone().into_py(py)),
-            ServerRecord::Observability { record } => Ok(record.clone().into_py(py)),
+            ServerRecord::Spc { record } => Ok(record.clone().into_py_any(py).unwrap()),
+            ServerRecord::Psi { record } => Ok(record.clone().into_py_any(py).unwrap()),
+            ServerRecord::Custom { record } => Ok(record.clone().into_py_any(py).unwrap()),
+            ServerRecord::Observability { record } => Ok(record.clone().into_py_any(py).unwrap()),
         }
     }
 }
