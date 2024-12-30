@@ -229,6 +229,13 @@ class AlertZone:
     Zone4: "AlertZone"
     NotApplicable: "AlertZone"
 
+class SpcAlertType:
+    OutOfBounds = "SpcAlertType"
+    Consecutive = "SpcAlertType"
+    Alternating = "SpcAlertType"
+    AllGood = "SpcAlertType"
+    Trend = "SpcAlertType"
+
 class SpcAlertRule:
     def __init__(
         self,
@@ -412,15 +419,15 @@ class SpcAlertConfig:
         """Set the dispatch kwargs"""
 
 class SpcAlert:
-    def __init__(self, kind: str, zone: str):
+    def __init__(self, kind: SpcAlertType, zone: AlertZone):
         """Initialize alert"""
 
     @property
-    def kind(self) -> str:
+    def kind(self) -> SpcAlertType:
         """Alert kind"""
 
     @property
-    def zone(self) -> str:
+    def zone(self) -> AlertZone:
         """Zone associated with alert"""
 
     def __str__(self) -> str:
