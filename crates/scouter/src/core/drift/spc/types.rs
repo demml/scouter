@@ -87,7 +87,7 @@ impl SpcServerRecord {
     }
 }
 
-#[pyclass]
+#[pyclass(eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, std::cmp::Eq, Hash)]
 pub enum AlertZone {
     Zone1,
