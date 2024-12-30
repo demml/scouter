@@ -394,7 +394,7 @@ impl SpcDriftConfig {
             alert_config,
             feature_map,
             targets,
-            drift_type: DriftType::SPC,
+            drift_type: DriftType::Spc,
         })
     }
 

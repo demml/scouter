@@ -7,19 +7,20 @@ from typing import Any, Dict, List, Literal, Optional, Tuple, Union
 
 from numpy.typing import NDArray
 
-class DriftType(Enum):
-    SPC: Literal["SPC"]
-    PSI: Literal["PSI"]
-    CUSTOM: Literal["CUSTOM"]
+class DriftType:
+    Spc: "DriftType"
+    Psi: "DriftType"
+    Custom: "DriftType"
 
     def value(self) -> str: ...
     @staticmethod
     def from_value(value: str) -> "DriftType": ...
 
 class RecordType:
-    SPC = "SPC"
-    PSI = "PSI"
-    OBSERVABILITY = "OBSERVABILITY"
+    Spc = "RecordType"
+    Psi = "RecordType"
+    Observability = "RecordType"
+    Custom = "RecordType"
 
 class SpcServerRecord:
     def __init__(
@@ -79,17 +80,20 @@ class SpcServerRecord:
         """Return the dictionary representation of the record."""
 
 class ServerRecord:
-    def __init__(self, record: SpcServerRecord):
+    Spc: "ServerRecord"
+    Psi: "ServerRecord"
+    Custom: "ServerRecord"
+    Observability: "ServerRecord"
+
+    def __init__(self, record: Any, record_type: RecordType) -> None:
         """Initialize drift server record
 
         Args:
             record:
-                Drift server record
+                Record to use for alerting.
+            record_type:
+                Record type to use for alerting.
         """
-
-    @property
-    def record(self) -> Union[SpcServerRecord, ObservabilityMetrics]:
-        """Return the drift server record."""
 
 class ServerRecords:
     @property
@@ -218,11 +222,18 @@ class CommonCron:
     def EVERY_WEEK(self) -> str:
         """Every week cron schedule"""
 
+class AlertZone:
+    Zone1: "AlertZone"
+    Zone2: "AlertZone"
+    Zone3: "AlertZone"
+    Zone4: "AlertZone"
+    NotApplicable: "AlertZone"
+
 class SpcAlertRule:
     def __init__(
         self,
         rule: Optional[str] = None,
-        zones_to_monitor: Optional[List[str]] = None,
+        zones_to_monitor: Optional[List[AlertZone]] = None,
     ) -> None:
         """Initialize alert rule
 
@@ -243,18 +254,18 @@ class SpcAlertRule:
         """Set the alert rule"""
 
     @property
-    def zones_to_monitor(self) -> List[str]:
+    def zones_to_monitor(self) -> List[AlertZone]:
         """Return the zones to monitor"""
 
     @zones_to_monitor.setter
-    def zones_to_monitor(self, zones_to_monitor: List[str]) -> None:
+    def zones_to_monitor(self, zones_to_monitor: List[AlertZone]) -> None:
         """Set the zones to monitor"""
 
-class AlertDispatchType(str, Enum):
-    Email = "Email"
-    Console = "Console"
-    Slack = "Slack"
-    OpsGenie = "OpsGenie"
+class AlertDispatchType:
+    Email = "AlertDispatchType"
+    Console = "AlertDispatchType"
+    Slack = "AlertDispatchType"
+    OpsGenie = "AlertDispatchType"
 
 class PsiAlertConfig:
     def __init__(
@@ -1977,7 +1988,9 @@ class AlertCondition(Enum):
         """
 
 class CustomMetricAlertCondition:
-    def __init__(self, alert_condition: AlertCondition, alert_boundary: Optional[float]):
+    def __init__(
+        self, alert_condition: AlertCondition, alert_boundary: Optional[float]
+    ):
         """Initialize a CustomMetricAlertCondition instance.
         Args:
             alert_condition (AlertCondition): The condition that determines when an alert
@@ -2061,7 +2074,9 @@ class CustomMetricAlertConfig:
         """Return the alert_conditions that were set during metric definition"""
 
     @alert_conditions.setter
-    def alert_conditions(self, alert_conditions: dict[str, CustomMetricAlertCondition]) -> None:
+    def alert_conditions(
+        self, alert_conditions: dict[str, CustomMetricAlertCondition]
+    ) -> None:
         """Update the alert_conditions that were set during metric definition"""
 
 class CustomMetricDriftConfig:

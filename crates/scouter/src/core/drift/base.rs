@@ -17,19 +17,19 @@ pub const MISSING: &str = "__missing__";
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum DriftType {
-    SPC,
-    PSI,
-    CUSTOM,
+    Spc,
+    Psi,
+    Custom,
 }
 
 #[pymethods]
 impl DriftType {
     #[staticmethod]
     pub fn from_value(value: &str) -> Option<Self> {
-        match value {
-            "SPC" => Some(DriftType::SPC),
-            "PSI" => Some(DriftType::PSI),
-            "CUSTOM" => Some(DriftType::CUSTOM),
+        match value.to_lowercase().as_str() {
+            "spc" => Some(DriftType::Spc),
+            "psi" => Some(DriftType::Psi),
+            "custom" => Some(DriftType::Custom),
             _ => None,
         }
     }
@@ -37,9 +37,9 @@ impl DriftType {
     #[getter]
     pub fn to_string(&self) -> &str {
         match self {
-            DriftType::SPC => "SPC",
-            DriftType::PSI => "PSI",
-            DriftType::CUSTOM => "CUSTOM",
+            DriftType::Spc => "Spc",
+            DriftType::Psi => "Psi",
+            DriftType::Custom => "Custom",
         }
     }
 }
@@ -48,10 +48,10 @@ impl FromStr for DriftType {
     type Err = ScouterError;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value {
-            "SPC" => Ok(DriftType::SPC),
-            "PSI" => Ok(DriftType::PSI),
-            "CUSTOM" => Ok(DriftType::CUSTOM),
+        match value.to_lowercase().as_str() {
+            "spc" => Ok(DriftType::Spc),
+            "psi" => Ok(DriftType::Psi),
+            "custom" => Ok(DriftType::Custom),
             _ => Err(ScouterError::InvalidDriftTypeError(value.to_string())),
         }
     }
@@ -94,26 +94,43 @@ pub struct DriftArgs {
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub enum RecordType {
     #[default]
-    SPC,
-    PSI,
-    OBSERVABILITY,
-    CUSTOM,
+    Spc,
+    Psi,
+    Observability,
+    Custom,
 }
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ServerRecord {
-    SPC { record: SpcServerRecord },
-    PSI { record: PsiServerRecord },
-    CUSTOM { record: CustomMetricServerRecord },
-    OBSERVABILITY { record: ObservabilityMetrics },
+    Spc { record: SpcServerRecord },
+    Psi { record: PsiServerRecord },
+    Custom { record: CustomMetricServerRecord },
+    Observability { record: ObservabilityMetrics },
 }
 
 #[pymethods]
 impl ServerRecord {
     #[new]
-    pub fn new(record: SpcServerRecord) -> Self {
-        ServerRecord::SPC { record }
+    pub fn new(record: &Bound<'_, PyAny>, record_type: &RecordType) -> Self {
+        match record_type {
+            RecordType::Spc => {
+                let record: SpcServerRecord = record.extract().unwrap();
+                ServerRecord::Spc { record }
+            }
+            RecordType::Psi => {
+                let record: PsiServerRecord = record.extract().unwrap();
+                ServerRecord::Psi { record }
+            }
+            RecordType::Custom => {
+                let record: CustomMetricServerRecord = record.extract().unwrap();
+                ServerRecord::Custom { record }
+            }
+            RecordType::Observability => {
+                let record: ObservabilityMetrics = record.extract().unwrap();
+                ServerRecord::Observability { record }
+            }
+        }
     }
 }
 
@@ -182,17 +199,17 @@ impl DriftProfile {
     /// * `Result<Self>` - Result of DriftProfile
     pub fn from_str(drift_type: DriftType, profile: String) -> Result<Self, ScouterError> {
         match drift_type {
-            DriftType::SPC => {
+            DriftType::Spc => {
                 let profile =
                     serde_json::from_str(&profile).map_err(|_| ScouterError::DeSerializeError)?;
                 Ok(DriftProfile::SpcDriftProfile(profile))
             }
-            DriftType::PSI => {
+            DriftType::Psi => {
                 let profile =
                     serde_json::from_str(&profile).map_err(|_| ScouterError::DeSerializeError)?;
                 Ok(DriftProfile::PsiDriftProfile(profile))
             }
-            DriftType::CUSTOM => {
+            DriftType::Custom => {
                 let profile =
                     serde_json::from_str(&profile).map_err(|_| ScouterError::DeSerializeError)?;
                 Ok(DriftProfile::CustomDriftProfile(profile))
@@ -228,17 +245,17 @@ impl DriftProfile {
     pub fn from_value(body: serde_json::Value, drift_type: &str) -> Result<Self, ScouterError> {
         let drift_type = DriftType::from_str(drift_type)?;
         match drift_type {
-            DriftType::SPC => {
+            DriftType::Spc => {
                 let profile =
                     serde_json::from_value(body).map_err(|_| ScouterError::DeSerializeError)?;
                 Ok(DriftProfile::SpcDriftProfile(profile))
             }
-            DriftType::PSI => {
+            DriftType::Psi => {
                 let profile =
                     serde_json::from_value(body).map_err(|_| ScouterError::DeSerializeError)?;
                 Ok(DriftProfile::PsiDriftProfile(profile))
             }
-            DriftType::CUSTOM => {
+            DriftType::Custom => {
                 let profile =
                     serde_json::from_value(body).map_err(|_| ScouterError::DeSerializeError)?;
                 Ok(DriftProfile::CustomDriftProfile(profile))
@@ -294,15 +311,15 @@ mod tests {
 
     #[test]
     fn test_drift_type_from_str() {
-        assert_eq!(DriftType::from_str("SPC").unwrap(), DriftType::SPC);
-        assert_eq!(DriftType::from_str("PSI").unwrap(), DriftType::PSI);
+        assert_eq!(DriftType::from_str("SPC").unwrap(), DriftType::Spc);
+        assert_eq!(DriftType::from_str("PSI").unwrap(), DriftType::Psi);
         assert!(DriftType::from_str("INVALID").is_err());
     }
 
     #[test]
     fn test_drift_type_value() {
-        assert_eq!(DriftType::SPC.to_string(), "SPC");
-        assert_eq!(DriftType::PSI.to_string(), "PSI");
+        assert_eq!(DriftType::Spc.to_string(), "SPC");
+        assert_eq!(DriftType::Psi.to_string(), "PSI");
     }
 
     #[test]
