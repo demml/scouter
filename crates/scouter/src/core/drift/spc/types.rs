@@ -554,10 +554,10 @@ impl SpcDriftProfile {
             serde_json::from_str(&json_str).map_err(|_| ScouterError::DeSerializeError)?;
 
         // Create a new Python dictionary
-        let dict = PyDict::new_bound(py);
+        let dict = PyDict::new(py);
 
         // Convert JSON to Python dict
-        json_to_pyobject(py, &json_value, dict.as_gil_ref())?;
+        json_to_pyobject(py, &json_value, &dict)?;
 
         // Return the Python dictionary
         Ok(dict.into())
@@ -565,7 +565,7 @@ impl SpcDriftProfile {
 
     #[staticmethod]
     pub fn model_validate(py: Python, data: &Bound<'_, PyDict>) -> SpcDriftProfile {
-        let json_value = pyobject_to_json(py, data.as_gil_ref()).unwrap();
+        let json_value = pyobject_to_json(data).unwrap();
 
         let string = serde_json::to_string(&json_value).unwrap();
         serde_json::from_str(&string).expect("Failed to load drift profile")
