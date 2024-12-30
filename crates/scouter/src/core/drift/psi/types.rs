@@ -342,6 +342,7 @@ pub struct PsiDriftProfile {
 #[pymethods]
 impl PsiDriftProfile {
     #[new]
+    #[pyo3(signature = (features, config, scouter_version=None))]
     pub fn new(
         features: HashMap<String, PsiFeatureDriftProfile>,
         config: PsiDriftConfig,
