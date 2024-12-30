@@ -122,6 +122,7 @@ pub struct SpcAlertRule {
 #[pymethods]
 impl SpcAlertRule {
     #[new]
+    #[pyo3(signature = (rule=None, zones_to_monitor=None))]
     pub fn new(rule: Option<String>, zones_to_monitor: Option<Vec<AlertZone>>) -> Self {
         let rule = match rule {
             Some(r) => r,
