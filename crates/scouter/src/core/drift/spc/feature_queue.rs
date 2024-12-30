@@ -2,12 +2,105 @@ use crate::core::drift::base::ServerRecords;
 use crate::core::drift::spc::monitor::SpcMonitor;
 use crate::core::drift::spc::types::SpcDriftProfile;
 use crate::core::error::FeatureQueueError;
+use crate::core::utils::FeatureMap;
 use core::result::Result::Ok;
 use ndarray::prelude::*;
 use ndarray::Array2;
 use pyo3::prelude::*;
-use pyo3::types::PyAny;
+use pyo3::types::{PyAny, PyDict};
+use pyo3::IntoPyObjectExt;
+use pyo3::FromPyObject;
 use std::collections::HashMap;
+
+#[pyclass(eq)]
+#[derive(PartialEq, Clone)]
+pub enum FeatureType {
+    Int,
+    Float,
+    String,
+}
+
+
+#[pyclass]
+pub struct Feature{
+    pub name: String,
+    pub value: PyObject,
+    pub feature_type: FeatureType,
+}
+
+#[pymethods]
+impl Feature {
+    #[new]
+    pub fn new(name: String, feature_type: FeatureType, value: &Bound<'_, PyAny>) -> Result<Self, FeatureQueueError> {
+        let py = value.py();
+        Ok(Feature {
+            name,
+            value: value.into_py_any(py).map_err(|e| FeatureQueueError::InvalidFormatError(format!("Failed to convert value: {:?}", e)))?,
+            feature_type,
+        })
+    }
+}
+
+impl Feature {
+    fn to_float(&self, py: Python, mapped_features: &Vec<String>, feature_map:&Option<FeatureMap>) -> Result<Option<f64>, FeatureQueueError> {
+        match self.feature_type {
+            FeatureType::Float => Ok(Some(self.value.extract::<f64>(py).map_err(|e| FeatureQueueError::InvalidFormatError(format!("Failed to convert value: {:?}", e)))?)),
+            FeatureType::Int => Ok(Some(self.value.extract::<i64>(py).map_err(|e| FeatureQueueError::InvalidFormatError(format!("Failed to convert value: {:?}", e)))? as f64)),
+            FeatureType::String => {
+            let val = self.value.extract::<String>(py).map_err(|e| FeatureQueueError::InvalidFormatError(format!("Failed to convert value: {:?}", e)))?;
+            if mapped_features.contains(&self.name) {
+                let feature_map = feature_map
+                    .as_ref()
+                    .ok_or(FeatureQueueError::MissingFeatureMapError)?
+                    .features
+                    .get(&self.name)
+                    .ok_or(FeatureQueueError::GetFeatureError)?;
+
+                let transformed_val = feature_map
+                    .get(&val)
+                    .unwrap_or(feature_map.get("missing").unwrap());
+
+                Ok(Some(*transformed_val as f64))
+                } else  {
+                    Ok(None)
+                }
+            }
+        }
+    }
+}
+
+impl FromPyObject<'_> for Feature {
+    fn extract_bound(ob: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let name: String = ob.get_item("name")?.extract()?;
+        let value: PyObject = ob.get_item("value")?.extract()?;
+        let feature_type: FeatureType = ob.get_item("feature_type")?.extract()?;
+        Ok(Feature { name, value, feature_type })
+    }
+}
+
+
+#[pyclass]
+pub struct Features{
+    features: Vec<Feature>,
+}
+#[pymethods]
+impl Features {
+    #[new]
+    pub fn new(features: Vec<Feature>) -> Self {
+        Features {
+            features,
+        }
+    }
+}
+
+impl FromPyObject<'_> for Features {
+    fn extract_bound(ob: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let features: Vec<Feature> = ob.extract()?;
+        Ok(Features { features })
+    }
+}
+
+
 
 #[pyclass]
 pub struct SpcFeatureQueue {
@@ -58,38 +151,14 @@ impl SpcFeatureQueue {
     pub fn insert(
         &mut self,
         py: Python,
-        feature_values: HashMap<String, Py<PyAny>>,
+        features: Features,
     ) -> Result<(), FeatureQueueError> {
-        for (feature, value) in feature_values {
-            if let Some(queue) = self.queue.get_mut(&feature) {
-                // map floats
-                if let Ok(val) = value.bind(py).extract::<f64>() {
-                    queue.push(val);
 
-                // map ints
-                } else if let Ok(val) = value.bind(py).extract::<i64>() {
-                    queue.push(val as f64);
-
-                // map strings to feature map
-                } else if let Ok(val) = value.bind(py).extract::<String>() {
-                    // map to feature map
-                    if self.mapped_features.contains(&feature) {
-                        let feature_map = self
-                            .drift_profile
-                            .config
-                            .feature_map
-                            .as_ref()
-                            .ok_or(FeatureQueueError::MissingFeatureMapError)?
-                            .features
-                            .get(&feature)
-                            .ok_or(FeatureQueueError::GetFeatureError)?;
-
-                        let transformed_val = feature_map
-                            .get(&val)
-                            .unwrap_or(feature_map.get("missing").unwrap());
-
-                        queue.push(*transformed_val as f64);
-                    }
+        for feature in features.features {
+            if let Some(queue) = self.queue.get_mut(&feature.name) {
+                let value = feature.to_float(py, &self.mapped_features, &self.drift_profile.config.feature_map)?;
+                if let Some(value) = value {
+                    queue.push(value);
                 }
             }
         }
@@ -155,6 +224,7 @@ mod tests {
     use ndarray::Array;
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
+ 
 
     #[test]
     fn test_feature_queue_new() {
@@ -191,19 +261,33 @@ mod tests {
 
         pyo3::prepare_freethreaded_python();
 
-        // test insert
-        let mut feature_values: HashMap<String, Py<PyAny>> = HashMap::new();
+    
 
         Python::with_gil(|py| {
+        
             for _ in 0..9 {
-                feature_values.insert("feature_1".to_string(), 1.into_py(py));
-                feature_values.insert("feature_2".to_string(), 2.into_py(py));
-                feature_values.insert("feature_3".to_string(), 3.into_py(py));
 
-                feature_queue.insert(py, feature_values.clone()).unwrap();
+                let one = Feature {
+                    name: "feature_1".to_string(),
+                    value: 1.into_py_any(py).unwrap(),
+                    feature_type: FeatureType::Int,
+                };
+                let two = Feature {
+                    name: "feature_2".to_string(),
+                    value: 2.into_py_any(py).unwrap(),
+                    feature_type: FeatureType::Int,
+                };
+
+                let three = Feature {
+                    name: "feature_3".to_string(),
+                    value: 3.into_py_any(py).unwrap(),
+                    feature_type: FeatureType::Int,
+                };
+
+            
+                feature_queue.insert(py, Features::new(vec![one, two, three])).unwrap();
             }
 
-            feature_queue.insert(py, feature_values).unwrap();
 
             assert_eq!(feature_queue.queue.get("feature_1").unwrap().len(), 10);
             assert_eq!(feature_queue.queue.get("feature_2").unwrap().len(), 10);

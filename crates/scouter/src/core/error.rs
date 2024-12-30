@@ -58,6 +58,9 @@ pub enum ProfilerError {
 
 #[derive(Error, Debug)]
 pub enum FeatureQueueError {
+    #[error("{0}")]
+    InvalidFormatError(String),
+
     #[error("Failed to create drift record: {0}")]
     DriftRecordError(String),
 
