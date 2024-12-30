@@ -1,9 +1,8 @@
 # pylint: disable=invalid-name, too-many-lines
 
 import datetime
-from enum import Enum
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple
 
 from numpy.typing import NDArray
 
