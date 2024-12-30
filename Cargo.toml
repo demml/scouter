@@ -17,9 +17,23 @@ repository = "https://github.com/demml/scouter"
 
 
 [workspace.dependencies]
-pyo3 = { version = "0.21", features = ["chrono", "anyhow"] }
-numpy = "0.21.0"
+chrono ={ version = "0.*", features = ["serde"] }
+colored_json = "*"
+cron = "0.*"
+indicatif = "0.*"
+itertools = "0.*"
+ndarray = { version = "0.*", features = ["rayon"] }
+ndarray-stats = "0.*"
+noisy_float = "0.*"
+numpy = "0.*"
+num-traits = "0.*"
+pyo3 = { version = ">=0.23.3, <1.0.0", features = ["chrono", "anyhow", "extension-module"] }
+rayon = "1.*"
+serde = { version = "1.*", features = ["derive"] }
+serde_json = "1.*"
 scouter = { path = "crates/scouter" }
+thiserror = "1.*"
+tracing = "0.*"
 
 
 [profile.release]
