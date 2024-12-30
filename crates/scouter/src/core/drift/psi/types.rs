@@ -2,7 +2,7 @@ use crate::core::cron::EveryDay;
 use crate::core::dispatch::types::AlertDispatchType;
 use crate::core::drift::base::{
     DispatchAlertDescription, DispatchDriftConfig, DriftArgs, DriftType, ProfileArgs,
-    ProfileBaseArgs, ValidateAlertConfig, MISSING,
+    ProfileBaseArgs, RecordType, ValidateAlertConfig, MISSING,
 };
 use crate::core::error::ScouterError;
 use crate::core::utils::{json_to_pyobject, pyobject_to_json, FeatureMap, FileName, ProfileFuncs};
@@ -40,6 +40,8 @@ pub struct PsiServerRecord {
 
     #[pyo3(get)]
     pub bin_count: usize,
+
+    pub record_type: RecordType,
 }
 
 #[pymethods]
@@ -61,6 +63,7 @@ impl PsiServerRecord {
             feature,
             bin_id,
             bin_count,
+            record_type: RecordType::Psi,
         }
     }
 
@@ -217,7 +220,7 @@ impl PsiDriftConfig {
             alert_config,
             feature_map,
             targets,
-            drift_type: DriftType::PSI,
+            drift_type: DriftType::Psi,
         })
     }
 

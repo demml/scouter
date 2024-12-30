@@ -2,7 +2,7 @@ use crate::core::cron::EveryDay;
 use crate::core::dispatch::types::AlertDispatchType;
 use crate::core::drift::base::{
     DispatchAlertDescription, DispatchDriftConfig, DriftArgs, DriftType, ProfileArgs,
-    ProfileBaseArgs, ValidateAlertConfig, MISSING,
+    ProfileBaseArgs, RecordType, ValidateAlertConfig, MISSING,
 };
 use crate::core::error::ScouterError;
 use crate::core::utils::{json_to_pyobject, pyobject_to_json, FeatureMap, FileName, ProfileFuncs};
@@ -39,6 +39,8 @@ pub struct SpcServerRecord {
 
     #[pyo3(get)]
     pub value: f64,
+
+    pub record_type: RecordType,
 }
 
 #[pymethods]
@@ -58,6 +60,7 @@ impl SpcServerRecord {
             version,
             feature,
             value,
+            record_type: RecordType::Spc,
         }
     }
 

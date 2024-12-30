@@ -112,7 +112,9 @@ pub enum ServerRecord {
 #[pymethods]
 impl ServerRecord {
     #[new]
-    pub fn new(record: &Bound<'_, PyAny>, record_type: &RecordType) -> Self {
+    pub fn new(record: &Bound<'_, PyAny>) -> Self {
+        let record_type: RecordType = record.getattr("record_type").unwrap().extract().unwrap();
+
         match record_type {
             RecordType::Spc => {
                 let record: SpcServerRecord = record.extract().unwrap();

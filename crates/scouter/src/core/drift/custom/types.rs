@@ -2,7 +2,7 @@ use crate::core::cron::EveryDay;
 use crate::core::dispatch::types::AlertDispatchType;
 use crate::core::drift::base::{
     DispatchAlertDescription, DispatchDriftConfig, DriftArgs, DriftType, ProfileArgs,
-    ProfileBaseArgs, ValidateAlertConfig, MISSING,
+    ProfileBaseArgs, RecordType, ValidateAlertConfig, MISSING,
 };
 use crate::core::error::{CustomMetricError, ScouterError};
 use crate::core::utils::{json_to_pyobject, pyobject_to_json, FileName, ProfileFuncs};
@@ -498,6 +498,8 @@ pub struct CustomMetricServerRecord {
 
     #[pyo3(get)]
     pub value: f64,
+
+    pub record_type: RecordType,
 }
 
 #[pymethods]
@@ -517,6 +519,7 @@ impl CustomMetricServerRecord {
             version,
             metric: metric.to_lowercase(),
             value,
+            record_type: RecordType::Custom,
         }
     }
 
