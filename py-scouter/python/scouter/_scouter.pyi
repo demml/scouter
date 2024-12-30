@@ -1959,7 +1959,7 @@ class PsiServerRecord:
     def to_dict(self) -> Dict[str, str]:
         """Return the dictionary representation of the record."""
 
-class AlertCondition:
+class AlertThreshold:
     """
     Enum representing different alert conditions for monitoring metrics.
 
@@ -1969,53 +1969,53 @@ class AlertCondition:
         OUTSIDE: Indicates that an alert should be triggered when the metric is outside a specified range.
     """
 
-    Below: "AlertCondition"
-    Above: "AlertCondition"
-    Outside: "AlertCondition"
+    Below: "AlertThreshold"
+    Above: "AlertThreshold"
+    Outside: "AlertThreshold"
 
     @staticmethod
-    def from_value(value: str) -> "AlertCondition":
+    def from_value(value: str) -> "AlertThreshold":
         """
-        Creates an AlertCondition enum member from a string value.
+        Creates an AlertThreshold enum member from a string value.
 
         Args:
             value (str): The string representation of the alert condition.
 
         Returns:
-            AlertCondition: The corresponding AlertCondition enum member.
+            AlertThreshold: The corresponding AlertThreshold enum member.
         """
 
 class CustomMetricAlertCondition:
     def __init__(
-        self, alert_condition: AlertCondition, alert_boundary: Optional[float]
+        self, alert_threshold: AlertThreshold, alert_threshold_value: Optional[float]
     ):
         """Initialize a CustomMetricAlertCondition instance.
         Args:
-            alert_condition (AlertCondition): The condition that determines when an alert
+            alert_threshold (AlertThreshold): The condition that determines when an alert
                 should be triggered. This could be comparisons like 'greater than',
                 'less than', 'equal to', etc.
-            alert_boundary (Optional[float], optional): A numerical boundary used in
-                conjunction with the alert_condition. This can be None for certain
+            alert_threshold_value (Optional[float], optional): A numerical boundary used in
+                conjunction with the alert_threshold. This can be None for certain
                 types of comparisons that don't require a fixed boundary.
         Example:
-            alert_condition = CustomMetricAlertCondition(AlertCondition.BELOW, 2.0)
+            alert_threshold = CustomMetricAlertCondition(AlertCondition.BELOW, 2.0)
         """
 
     @property
-    def alert_condition(self) -> AlertCondition:
-        """Return the alert_condition"""
+    def alert_threshold(self) -> AlertThreshold:
+        """Return the alert_threshold"""
 
-    @alert_condition.setter
-    def alert_condition(self, alert_condition: AlertCondition) -> None:
-        """Set the alert_condition"""
+    @alert_threshold.setter
+    def alert_threshold(self, alert_threshold: AlertThreshold) -> None:
+        """Set the alert_threshold"""
 
     @property
-    def alert_boundary(self) -> float:
-        """Return the alert_boundary"""
+    def alert_threshold_value(self) -> float:
+        """Return the alert_threshold_value"""
 
-    @alert_boundary.setter
-    def alert_boundary(self, alert_boundary: float) -> None:
-        """Set the alert_boundary"""
+    @alert_threshold_value.setter
+    def alert_threshold_value(self, alert_threshold_value: float) -> None:
+        """Set the alert_threshold_value"""
 
 class CustomMetricAlertConfig:
     def __init__(
@@ -2069,13 +2069,13 @@ class CustomMetricAlertConfig:
 
     @property
     def alert_conditions(self) -> dict[str, CustomMetricAlertCondition]:
-        """Return the alert_conditions that were set during metric definition"""
+        """Return the alert_condition that were set during metric definition"""
 
     @alert_conditions.setter
     def alert_conditions(
         self, alert_conditions: dict[str, CustomMetricAlertCondition]
     ) -> None:
-        """Update the alert_conditions that were set during metric definition"""
+        """Update the alert_condition that were set during metric definition"""
 
 class CustomMetricDriftConfig:
     def __init__(
@@ -2171,8 +2171,8 @@ class CustomMetric:
         self,
         name: str,
         value: float,
-        alert_condition: AlertCondition,
-        alert_boundary: Optional[float],
+        alert_threshold: AlertThreshold,
+        alert_threshold_value: Optional[float],
     ):
         """
         Initialize a custom metric for alerting.
@@ -2184,10 +2184,10 @@ class CustomMetric:
             name (str): The name of the metric being monitored. This should be a
                 descriptive identifier for the metric.
             value (float): The current value of the metric.
-            alert_condition (AlertCondition): The condition used to determine when an alert
+             alert_threshold (AlertThreshold): The condition used to determine when an alert
                 should be triggered.
-            alert_boundary (Optional[float]): The threshold value used in conjunction with
-                the alert_condition. If None, some alert conditions may not be applicable.
+             alert_threshold_value (Optional[float]): The threshold value used in conjunction with
+                the  alert_threshold. If None, some alert conditions may not be applicable.
 
         """
 
@@ -2214,6 +2214,14 @@ class CustomMetric:
     @alert_condition.setter
     def alert_condition(self, alert_condition: CustomMetricAlertCondition) -> None:
         """Set the alert_condition"""
+
+    @property
+    def alert_threshold(self) -> AlertThreshold:
+        """Return the alert_threshold"""
+
+    @property
+    def alert_threshold_value(self) -> Optional[float]:
+        """Return the alert_threshold_value"""
 
     def __str__(self) -> str:
         """Return the string representation of the config."""
@@ -2252,6 +2260,10 @@ class CustomDriftProfile:
     @property
     def scouter_version(self) -> str:
         """Return scouter version used to create DriftProfile"""
+
+    @property
+    def custom_metrics(self) -> list[CustomMetric]:
+        """Return custom metric objects that were used to create the drift profile"""
 
     def __str__(self) -> str:
         """Sting representation of DriftProfile"""

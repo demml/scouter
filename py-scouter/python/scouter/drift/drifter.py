@@ -44,7 +44,7 @@ class Drifter:
         #     self._custom_drift_helper = CustomDriftHelper()
         # else:
         self._drift_helper: DriftHelperBase = get_drift_helper(
-            drift_type or DriftType.SPC
+            drift_type or DriftType.Spc
         )
 
     @overload

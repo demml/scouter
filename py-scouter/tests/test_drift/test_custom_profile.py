@@ -1,5 +1,5 @@
 from scouter import (
-    AlertCondition,
+    AlertThreshold,
     CustomMetric,
     CustomMetricDriftConfig,
     Drifter,
@@ -13,21 +13,25 @@ def test_custom_profile(custom_metric_drift_config: CustomMetricDriftConfig):
     accuracy = CustomMetric(
         name="accuracy",
         value=0.75,
-        alert_condition=AlertCondition.BELOW,
-        alert_boundary=0.05,
+        alert_threshold=AlertThreshold.Below,
+        alert_threshold_value=0.05,
     )
 
     # create custom drifter
-    drifter = Drifter(DriftType.CUSTOM)
+    drifter = Drifter(DriftType.Custom)
 
     # create custom drift profile
-    profile: CustomDriftProfile = drifter.create_drift_profile(data=accuracy, config=custom_metric_drift_config)
+    profile: CustomDriftProfile = drifter.create_drift_profile(
+        data=accuracy, config=custom_metric_drift_config
+    )
 
     # assert profile is what we expect
     assert profile.model_dump() == {
         "config": {
             "alert_config": {
-                "alert_conditions": {"accuracy": {"alert_boundary": 0.05, "alert_condition": "BELOW"}},
+                "alert_conditions": {
+                    "accuracy": {"alert_boundary": 0.05, "alert_condition": "BELOW"}
+                },
                 "dispatch_kwargs": {},
                 "dispatch_type": "Slack",
                 "schedule": "0 0 * * * *",
@@ -44,5 +48,5 @@ def test_custom_profile(custom_metric_drift_config: CustomMetricDriftConfig):
     # test helper function that allows users to see their metrics in the format they were submitted
     assert profile.custom_metrics[0].name == "accuracy"
     assert profile.custom_metrics[0].value == 0.75
-    assert profile.custom_metrics[0].alert_boundary == 0.05
-    assert profile.custom_metrics[0].alert_condition == AlertCondition.BELOW
+    assert profile.custom_metrics[0].alert_threshold_value == 0.05
+    assert profile.custom_metrics[0].alert_threshold == AlertThreshold.Below

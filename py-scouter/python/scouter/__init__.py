@@ -8,7 +8,7 @@ from scouter.integrations.rabbitmq import RabbitMQConfig, RabbitMQProducer
 from scouter.utils.types import AlertZone, SpcAlertType
 
 from ._scouter import (
-    AlertCondition,
+    AlertThreshold,
     AlertDispatchType,
     Bin,
     CustomDriftProfile,
@@ -112,7 +112,7 @@ __all__ = [
     "PsiDriftMap",
     "CustomMetricDriftConfig",
     "CustomMetric",
-    "AlertCondition",
+    "AlertThreshold",
     "CustomDriftProfile",
     "CustomMetricAlertCondition",
     "CustomMetricAlertConfig",

@@ -34,21 +34,27 @@ class CustomDriftHelper(DriftHelperBase):
     def _drifter(self) -> CustomDrifter:
         return self._rusty_drifter
 
-    def create_string_drift_profile(self, features: list[str], array: list[list[str]], drift_config: Config) -> Profile:
+    def create_string_drift_profile(
+        self, features: list[str], array: list[list[str]], drift_config: Config
+    ) -> Profile:
         raise NotImplementedError
 
-    def create_numeric_drift_profile(self, array: ArrayData, drift_config: Config, bits: str) -> Profile:
+    def create_numeric_drift_profile(
+        self, array: ArrayData, drift_config: Config, bits: str
+    ) -> Profile:
         raise NotImplementedError
 
     def concat_profiles(self, profiles: list[Profile], config: Config) -> Profile:
         raise NotImplementedError
 
-    def generate_alerts(self, drift_array: NDArray, features: list[str], alert_rule: Any) -> Any:
+    def generate_alerts(
+        self, drift_array: NDArray, features: list[str], alert_rule: Any
+    ) -> Any:
         raise NotImplementedError
 
     @staticmethod
     def drift_type() -> DriftType:
-        return DriftType.CUSTOM
+        return DriftType.Custom
 
     def create_drift_profile(
         self,
