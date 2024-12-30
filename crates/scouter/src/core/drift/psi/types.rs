@@ -250,6 +250,7 @@ impl PsiDriftConfig {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (repository=None, name=None, version=None, targets=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         repository: Option<String>,
