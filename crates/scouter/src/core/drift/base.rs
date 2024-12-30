@@ -1,11 +1,12 @@
 use crate::core::cron::EveryDay;
 use crate::core::dispatch::types::AlertDispatchType;
 use crate::core::drift::spc::types::{SpcDriftProfile, SpcServerRecord};
-use crate::core::error::ScouterError;
+use crate::core::error::{PyScouterError, ScouterError};
 use crate::core::observe::observer::ObservabilityMetrics;
 use crate::core::utils::ProfileFuncs;
+use crate::core::utils::FeatureMap;
 
-use pyo3::{prelude::*, IntoPyObjectExt};
+use pyo3::{prelude::*, IntoPyObjectExt, FromPyObject};
 
 use crate::core::drift::custom::types::{CustomDriftProfile, CustomMetricServerRecord};
 use crate::core::drift::psi::types::{PsiDriftProfile, PsiServerRecord};
@@ -13,6 +14,107 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 pub const MISSING: &str = "__missing__";
+
+
+#[pyclass(eq)]
+#[derive(PartialEq, Clone)]
+pub enum FeatureType {
+    Int,
+    Float,
+    String,
+}
+
+
+#[pyclass]
+pub struct Feature{
+    pub name: String,
+    pub value: PyObject,
+    pub feature_type: FeatureType,
+}
+
+#[pymethods]
+impl Feature {
+    #[new]
+    pub fn new(name: String, feature_type: FeatureType, value: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let py = value.py();
+        Ok(Feature {
+            name,
+            value: value.into_py_any(py).map_err(PyScouterError::new_err)?,
+            feature_type,
+        })
+    }
+}
+
+impl Feature {
+    pub fn to_float(&self, py: Python, mapped_features: &Vec<String>, feature_map:&Option<FeatureMap>) -> PyResult<Option<f64>> {
+        match self.feature_type {
+            FeatureType::Float => Ok(Some(self.value.extract::<f64>(py).map_err(PyScouterError::new_err)?)),
+            FeatureType::Int => Ok(Some(self.value.extract::<i64>(py).map_err(PyScouterError::new_err)? as f64)),
+            FeatureType::String => {
+            let val = self.value.extract::<String>(py).map_err(PyScouterError::new_err)?;
+            if mapped_features.contains(&self.name) {
+                let feature_map = feature_map
+                    .as_ref()
+                    .ok_or(PyScouterError::new_err(
+                        "Feature map is missing".to_string(),
+                    ))?
+                    .features
+                    .get(&self.name)
+                    .ok_or(PyScouterError::new_err( "Failed to get feature".to_string()))?;
+
+                let transformed_val = feature_map
+                    .get(&val)
+                    .unwrap_or(feature_map.get("missing").unwrap());
+
+                Ok(Some(*transformed_val as f64))
+                } else  {
+                    Ok(None)
+                }
+            }
+        }
+    }
+
+    pub fn to_string(&self, py: Python) -> PyResult<String> {
+        match self.feature_type {
+            FeatureType::Float => Ok(self.value.extract::<f64>(py).map_err(PyScouterError::new_err)?.to_string()),
+            FeatureType::Int => Ok(self.value.extract::<i64>(py).map_err(PyScouterError::new_err)?.to_string()),
+            FeatureType::String => Ok(self.value.extract::<String>(py).map_err(PyScouterError::new_err)?),
+        }
+    }
+}
+
+impl FromPyObject<'_> for Feature {
+    fn extract_bound(ob: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let name: String = ob.get_item("name")?.extract()?;
+        let value: PyObject = ob.get_item("value")?.extract()?;
+        let feature_type: FeatureType = ob.get_item("feature_type")?.extract()?;
+        Ok(Feature { name, value, feature_type })
+    }
+}
+
+
+#[pyclass]
+pub struct Features{
+    features: Vec<Feature>,
+}
+#[pymethods]
+impl Features {
+    #[new]
+    pub fn new(features: Vec<Feature>) -> Self {
+        Features {
+            features,
+        }
+    }
+}
+
+impl FromPyObject<'_> for Features {
+    fn extract_bound(ob: &Bound<'_, PyAny>) -> PyResult<Self> {
+        let features: Vec<Feature> = ob.extract()?;
+        Ok(Features { features })
+    }
+}
+
+
 
 #[pyclass(eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -25,7 +127,7 @@ pub enum DriftType {
 #[pymethods]
 impl DriftType {
     #[staticmethod]
-    pub fn from_value(value: &str) -> Option<Self> {
+    pub fn from_value(value: &str) -> Option<DriftType> {
         match value.to_lowercase().as_str() {
             "spc" => Some(DriftType::Spc),
             "psi" => Some(DriftType::Psi),
@@ -137,10 +239,10 @@ impl ServerRecord {
 
     pub fn record(&self, py: Python) -> PyResult<PyObject> {
         match self {
-            ServerRecord::Spc { record } => Ok(record.clone().into_py_any(py).unwrap()),
-            ServerRecord::Psi { record } => Ok(record.clone().into_py_any(py).unwrap()),
-            ServerRecord::Custom { record } => Ok(record.clone().into_py_any(py).unwrap()),
-            ServerRecord::Observability { record } => Ok(record.clone().into_py_any(py).unwrap()),
+            ServerRecord::Spc { record } => Ok(record.clone().into_py_any(py).map_err(PyScouterError::new_err)?),
+            ServerRecord::Psi { record } => Ok(record.clone().into_py_any(py).map_err(PyScouterError::new_err)?),
+            ServerRecord::Custom { record } => Ok(record.clone().into_py_any(py).map_err(PyScouterError::new_err)?),
+            ServerRecord::Observability { record } => Ok(record.clone().into_py_any(py).map_err(PyScouterError::new_err)?),
         }
     }
 }
@@ -254,7 +356,7 @@ impl DriftProfile {
     /// * `drift_type` - Drift type string
     ///
     pub fn from_value(body: serde_json::Value, drift_type: &str) -> Result<Self, ScouterError> {
-        let drift_type = DriftType::from_str(drift_type)?;
+        let drift_type = DriftType::from_str(drift_type).map_err(|_| ScouterError::InvalidDriftTypeError(drift_type.to_string()))?;
         match drift_type {
             DriftType::Spc => {
                 let profile =
