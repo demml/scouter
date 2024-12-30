@@ -57,6 +57,7 @@ pub struct CustomMetricAlertCondition {
 #[allow(clippy::too_many_arguments)]
 impl CustomMetricAlertCondition {
     #[new]
+    #[pyo3(signature = (alert_threshold, alert_threshold_value=None))]
     pub fn new(
         alert_threshold: AlertThreshold,
         alert_threshold_value: Option<f64>,
@@ -104,6 +105,7 @@ impl ValidateAlertConfig for CustomMetricAlertConfig {}
 #[pymethods]
 impl CustomMetricAlertConfig {
     #[new]
+    #[pyo3(signature = (dispatch_type=None, schedule=None, dispatch_kwargs=None))]
     pub fn new(
         dispatch_type: Option<AlertDispatchType>,
         schedule: Option<String>,
