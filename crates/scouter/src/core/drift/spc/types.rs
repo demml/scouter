@@ -182,6 +182,7 @@ impl ValidateAlertConfig for SpcAlertConfig {}
 #[pymethods]
 impl SpcAlertConfig {
     #[new]
+    #[pyo3(signature = (rule=None, dispatch_type=None, schedule=None, features_to_monitor=None, dispatch_kwargs=None))]
     pub fn new(
         rule: Option<SpcAlertRule>,
         dispatch_type: Option<AlertDispatchType>,
