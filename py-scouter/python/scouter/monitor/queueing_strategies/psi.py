@@ -55,7 +55,10 @@ class PsiQueueingStrategy(BaseQueueingStrategy):
         while not self._stop_event.is_set():
             try:
                 current_time = time.time()
-                if current_time - last_metrics_time >= 30.0 and not self._feature_queue.is_empty():
+                if (
+                    current_time - last_metrics_time >= 30.0
+                    and not self._feature_queue.is_empty()
+                ):
                     _ = self._publish(self._feature_queue)
                     last_metrics_time = current_time
             except Exception as e:  # pylint: disable=broad-except
@@ -79,5 +82,7 @@ class PsiQueueingStrategy(BaseQueueingStrategy):
             return None
 
         except Exception as exc:  # pylint: disable=W0718
-            logger.error("Failed to insert data into monitoring queue: {}. Passing", exc)
+            logger.error(
+                "Failed to insert data into monitoring queue: {}. Passing", exc
+            )
             return None
