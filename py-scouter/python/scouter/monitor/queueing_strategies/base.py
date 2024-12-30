@@ -34,16 +34,12 @@ class BaseQueueingStrategy(ABC):
         self._producer = DriftRecordProducer.get_producer(config)
         self._count = 0
 
-    def _clear_queue(
-        self, feature_queue: Union[PsiFeatureQueue, SpcFeatureQueue]
-    ) -> None:
+    def _clear_queue(self, feature_queue: Union[PsiFeatureQueue, SpcFeatureQueue]) -> None:
         """Clear the monitoring queue."""
         feature_queue.clear_queue()
         self._count = 0
 
-    def _publish(
-        self, feature_queue: Union[PsiFeatureQueue, SpcFeatureQueue]
-    ) -> ServerRecords:
+    def _publish(self, feature_queue: Union[PsiFeatureQueue, SpcFeatureQueue]) -> ServerRecords:
         """Publish drift records to the monitoring server."""
         try:
             drift_records = feature_queue.create_drift_records()
