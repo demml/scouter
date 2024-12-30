@@ -598,6 +598,7 @@ impl SpcDriftProfile {
     // * `alert_config` - The alerting configuration to use
     //
     #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, feature_map=None, targets=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         repository: Option<String>,
