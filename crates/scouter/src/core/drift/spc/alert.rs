@@ -333,6 +333,7 @@ pub fn generate_alerts(
     for (feature, alert) in features.iter().zip(alerts.iter()) {
         // unwrap the alert, should should have already been checked
         let alerts = alert.as_ref().unwrap();
+        let alerts: Vec<SpcAlert> = alerts.iter().cloned().collect();
 
         feature_alerts.insert_feature_alert(feature, alerts);
     }

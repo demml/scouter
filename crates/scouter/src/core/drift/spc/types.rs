@@ -15,7 +15,6 @@ use pyo3::types::PyDict;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
-use std::collections::HashSet;
 use std::fmt::Display;
 use std::path::PathBuf;
 use tracing::debug;
@@ -244,19 +243,6 @@ pub enum SpcAlertType {
     Alternating,
     AllGood,
     Trend,
-}
-
-#[pymethods]
-impl SpcAlertType {
-    pub fn to_string(&self) -> String {
-        match self {
-            SpcAlertType::OutOfBounds => "Out of bounds".to_string(),
-            SpcAlertType::Consecutive => "Consecutive".to_string(),
-            SpcAlertType::Alternating => "Alternating".to_string(),
-            SpcAlertType::AllGood => "All good".to_string(),
-            SpcAlertType::Trend => "Trend".to_string(),
-        }
-    }
 }
 
 impl Display for SpcAlertType {
@@ -805,11 +791,8 @@ pub struct SpcFeatureAlert {
 }
 
 impl SpcFeatureAlert {
-    pub fn new(feature: String) -> Self {
-        Self {
-            feature,
-            alerts: Vec::new(),
-        }
+    pub fn new(feature: String, alerts: Vec<SpcAlert>) -> Self {
+        Self { feature, alerts }
     }
 }
 
@@ -834,16 +817,8 @@ pub struct SpcFeatureAlerts {
 
 impl SpcFeatureAlerts {
     // rust-only function to insert feature alerts
-    pub fn insert_feature_alert(&mut self, feature: &str, alerts: &HashSet<SpcAlert>) {
-        let mut feature_alert = SpcFeatureAlert::new(feature.to_string());
-
-        // insert the alerts and indices into the feature alert
-        alerts.iter().for_each(|alert| {
-            feature_alert.alerts.push(SpcAlert {
-                zone: alert.zone.clone(),
-                kind: alert.kind.clone(),
-            })
-        });
+    pub fn insert_feature_alert(&mut self, feature: &str, alerts: Vec<SpcAlert>) {
+        let feature_alert = SpcFeatureAlert::new(feature.to_string(), alerts);
 
         self.features.insert(feature.to_string(), feature_alert);
     }
