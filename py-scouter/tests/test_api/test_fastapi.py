@@ -1,6 +1,8 @@
-from fastapi.testclient import TestClient
-from tests.conftest import PredictRequest
 from unittest import mock
+
+from fastapi.testclient import TestClient
+
+from tests.conftest import PredictRequest
 
 
 def test_route(client: TestClient):

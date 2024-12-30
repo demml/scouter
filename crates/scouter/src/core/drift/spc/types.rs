@@ -40,6 +40,7 @@ pub struct SpcServerRecord {
     #[pyo3(get)]
     pub value: f64,
 
+    #[pyo3(get)]
     pub record_type: RecordType,
 }
 
@@ -85,6 +86,8 @@ impl SpcServerRecord {
         record
     }
 }
+
+
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, std::cmp::Eq, Hash)]
@@ -777,11 +780,11 @@ pub struct SpcFeatureAlert {
     pub feature: String,
 
     #[pyo3(get)]
-    pub alerts: HashSet<SpcAlert>,
+    pub alerts: Vec<SpcAlert>,
 }
 
 impl SpcFeatureAlert {
-    pub fn new(feature: String, alerts: HashSet<SpcAlert>) -> Self {
+    pub fn new(feature: String, alerts: Vec<SpcAlert>) -> Self {
         Self { feature, alerts }
     }
 }
@@ -808,6 +811,9 @@ pub struct SpcFeatureAlerts {
 impl SpcFeatureAlerts {
     // rust-only function to insert feature alerts
     pub fn insert_feature_alert(&mut self, feature: &str, alerts: HashSet<SpcAlert>) {
+        // convert the alerts to a vector
+        let alerts: Vec<SpcAlert> = alerts.into_iter().collect();
+        
         let feature_alert = SpcFeatureAlert::new(feature.to_string(), alerts);
 
         self.features.insert(feature.to_string(), feature_alert);

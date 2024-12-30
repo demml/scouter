@@ -1,7 +1,6 @@
-from scouter.utils.type_converter import PandasConverter, PolarsConverter
-
 import pandas as pd
 import polars as pl
+from scouter.utils.type_converter import PandasConverter, PolarsConverter
 
 
 def test_pandas_helper(pandas_dataframe: pd.DataFrame) -> None:
@@ -26,9 +25,7 @@ def test_pandas_helper(pandas_dataframe: pd.DataFrame) -> None:
 
 def test_polars_helper(polars_dataframe: pl.DataFrame) -> None:
     # convert column 0 to category
-    polars_dataframe = polars_dataframe.with_columns(
-        pl.col("column_0").cast(str).cast(pl.Categorical)
-    )
+    polars_dataframe = polars_dataframe.with_columns(pl.col("column_0").cast(str).cast(pl.Categorical))
 
     array = PolarsConverter(polars_dataframe).prepare_data()
 

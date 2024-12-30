@@ -514,6 +514,7 @@ pub struct CustomMetricServerRecord {
     #[pyo3(get)]
     pub value: f64,
 
+    #[pyo3(get)]
     pub record_type: RecordType,
 }
 

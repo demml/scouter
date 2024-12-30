@@ -296,6 +296,7 @@ pub struct ObservabilityMetrics {
     #[pyo3(get)]
     pub route_metrics: Vec<RouteMetrics>,
 
+    #[pyo3(get)]
     pub record_type: RecordType,
 }
 

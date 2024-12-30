@@ -133,8 +133,19 @@ impl ServerRecord {
                 ServerRecord::Observability { record }
             }
         }
+
+    }
+
+    pub fn record(&self, py: Python) -> PyResult<PyObject> {
+        match self {
+            ServerRecord::Spc { record } => Ok(record.clone().into_py(py)),
+            ServerRecord::Psi { record } => Ok(record.clone().into_py(py)),
+            ServerRecord::Custom { record } => Ok(record.clone().into_py(py)),
+            ServerRecord::Observability { record } => Ok(record.clone().into_py(py)),
+        }
     }
 }
+
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]

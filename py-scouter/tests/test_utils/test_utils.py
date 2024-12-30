@@ -1,62 +1,62 @@
 from scouter import (
-    SpcAlert,
-    SpcAlertType,
     AlertZone,
-    SpcAlertRule,
     CommonCrons,
+    DriftType,
     Every1Minute,
     Every5Minutes,
-    Every15Minutes,
-    Every30Minutes,
-    EveryHour,
     Every6Hours,
     Every12Hours,
+    Every15Minutes,
+    Every30Minutes,
     EveryDay,
+    EveryHour,
     EveryWeek,
-    DriftType,
+    SpcAlert,
+    SpcAlertRule,
+    SpcAlertType,
 )
 
 
 def test_kinds():
     alert = SpcAlert(
-        kind=SpcAlertType.OutOfBounds.value,
-        zone=SpcAlertType.OutOfBounds.value,
+        kind=SpcAlertType.OutOfBounds,
+        zone=AlertZone.Zone1,
     )
 
-    assert alert.kind == SpcAlertType.OutOfBounds.value
-    assert alert.zone == AlertZone.OutOfBounds.value
+    assert alert.kind == SpcAlertType.OutOfBounds
+    assert alert.zone == AlertZone.Zone1
 
     alert = SpcAlert(
-        kind=SpcAlertType.Consecutive.value,
-        zone=AlertZone.Zone1.value,
+        kind=SpcAlertType.Consecutive,
+        zone=AlertZone.Zone1,
     )
 
-    assert alert.kind == SpcAlertType.Consecutive.value
-    assert alert.zone == AlertZone.Zone1.value
+    assert alert.kind == SpcAlertType.Consecutive
+    assert alert.zone == AlertZone.Zone1
 
     alert = SpcAlert(
-        kind=SpcAlertType.Alternating.value,
-        zone=AlertZone.Zone2.value,
+        kind=SpcAlertType.Alternating,
+        zone=AlertZone.Zone2,
     )
 
-    assert alert.kind == SpcAlertType.Alternating.value
-    assert alert.zone == AlertZone.Zone2.value
+    assert alert.kind == SpcAlertType.Alternating
+    assert alert.zone == AlertZone.Zone2
 
     alert = SpcAlert(
-        kind=SpcAlertType.AllGood.value,
-        zone=AlertZone.Zone3.value,
+        kind=SpcAlertType.AllGood,
+        zone=AlertZone.Zone3,
     )
 
-    assert alert.kind == SpcAlertType.AllGood.value
-    assert alert.zone == AlertZone.Zone3.value
+    assert alert.kind == SpcAlertType.AllGood
+    assert alert.zone == AlertZone.Zone3
 
     alert = SpcAlert(
-        kind=SpcAlertType.Trend.value,
-        zone=AlertZone.NotApplicable.value,
+        kind=SpcAlertType.Trend,
+        zone=AlertZone.NotApplicable,
     )
 
-    assert alert.kind == SpcAlertType.Trend.value
-    assert alert.zone == AlertZone.NotApplicable.value
+    assert alert.kind == SpcAlertType.Trend
+    assert alert.zone == AlertZone.NotApplicable
 
 
 def test_alert_rules():
@@ -76,11 +76,7 @@ def test_crons():
 
 
 def test_drift_type():
-    DriftType.SPC == "SPC"
-    DriftType.PSI == "PSI"
 
-    assert DriftType.from_value("SPC") == DriftType.SPC
-    assert DriftType.from_value("PSI") == DriftType.PSI
-
-    assert DriftType.SPC.value == "SPC"
-    assert DriftType.PSI.value == "PSI"
+    assert DriftType.from_value("Spc") == DriftType.Spc
+    assert DriftType.from_value("Psi") == DriftType.Psi
+    assert DriftType.from_value("custom") == DriftType.Custom

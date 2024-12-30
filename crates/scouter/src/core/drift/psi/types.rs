@@ -41,6 +41,7 @@ pub struct PsiServerRecord {
     #[pyo3(get)]
     pub bin_count: usize,
 
+    #[pyo3(get)]
     pub record_type: RecordType,
 }
 

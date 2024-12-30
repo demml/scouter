@@ -5,11 +5,11 @@ from scouter.integrations.http import HTTPConfig, HTTPProducer
 from scouter.integrations.kafka import KafkaConfig, KafkaProducer
 from scouter.integrations.producer import DriftRecordProducer
 from scouter.integrations.rabbitmq import RabbitMQConfig, RabbitMQProducer
-from scouter.utils.types import AlertZone, SpcAlertType
 
 from ._scouter import (
     AlertDispatchType,
     AlertThreshold,
+    AlertZone,
     Bin,
     CustomDriftProfile,
     CustomMetric,
@@ -44,6 +44,7 @@ from ._scouter import (
     SpcAlert,
     SpcAlertConfig,
     SpcAlertRule,
+    SpcAlertType,
     SpcDriftConfig,
     SpcDriftMap,
     SpcDriftProfile,

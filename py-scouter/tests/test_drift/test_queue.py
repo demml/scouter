@@ -1,16 +1,17 @@
+from typing import Optional
+
+import pandas as pd
 from scouter import (
-    MonitorQueue,
-    SpcDriftConfig,
-    SpcDriftProfile,
     Drifter,
+    DriftType,
     KafkaConfig,
-    ServerRecords,
+    MonitorQueue,
     PsiDriftConfig,
     PsiDriftProfile,
-    DriftType,
+    ServerRecords,
+    SpcDriftConfig,
+    SpcDriftProfile,
 )
-from typing import Optional
-import pandas as pd
 
 
 def test_psi_monitor_pandas(
@@ -19,10 +20,8 @@ def test_psi_monitor_pandas(
     mock_kafka_producer,
     kafka_config: KafkaConfig,
 ):
-    scouter = Drifter(DriftType.PSI)
-    profile: PsiDriftProfile = scouter.create_drift_profile(
-        pandas_dataframe, psi_drift_config
-    )
+    scouter = Drifter(DriftType.Psi)
+    profile: PsiDriftProfile = scouter.create_drift_profile(pandas_dataframe, psi_drift_config)
 
     queue = MonitorQueue(
         drift_profile=profile,
@@ -53,9 +52,7 @@ def test_spc_monitor_pandas(
     kafka_config: KafkaConfig,
 ):
     scouter = Drifter()
-    profile: SpcDriftProfile = scouter.create_drift_profile(
-        pandas_dataframe, drift_config
-    )
+    profile: SpcDriftProfile = scouter.create_drift_profile(pandas_dataframe, drift_config)
 
     queue = MonitorQueue(
         drift_profile=profile,

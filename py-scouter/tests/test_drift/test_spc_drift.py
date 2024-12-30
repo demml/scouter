@@ -1,19 +1,21 @@
-from scouter import Drifter
-import numpy as np
 from pathlib import Path
-import pandas as pd
-from numpy.typing import NDArray
-import pytest
-import polars as pl
-from scouter._scouter import (
-    SpcDriftProfile,
-    SpcDriftMap,
-    SpcDriftConfig,
-    SpcAlertRule,
-    SpcAlertConfig,
-    AlertDispatchType,
-)
 from tempfile import TemporaryDirectory
+
+import numpy as np
+import pandas as pd
+import polars as pl
+import pytest
+from numpy.typing import NDArray
+from scouter import Drifter
+from scouter._scouter import (
+    AlertDispatchType,
+    AlertZone,
+    SpcAlertConfig,
+    SpcAlertRule,
+    SpcDriftConfig,
+    SpcDriftMap,
+    SpcDriftProfile,
+)
 from scouter.utils.types import Constants
 
 
@@ -139,9 +141,7 @@ def test_multi_type_drift(
 ):
     drifter = Drifter()
 
-    profile: SpcDriftProfile = drifter.create_drift_profile(
-        polars_dataframe_multi_dtype, drift_config
-    )
+    profile: SpcDriftProfile = drifter.create_drift_profile(polars_dataframe_multi_dtype, drift_config)
 
     drift_map = drifter.compute_drift(polars_dataframe_multi_dtype_drift, profile)
 
@@ -155,17 +155,13 @@ def test_multi_type_drift(
     )
 
     assert len(alerts.features["cat2"].alerts) == 1
-    assert alerts.features["cat2"].alerts[0].zone == "Zone 3"
+    assert alerts.features["cat2"].alerts[0].zone == AlertZone.Zone3
 
 
-def test_only_string_drift(
-    pandas_categorical_dataframe: pd.DataFrame, drift_config: SpcDriftConfig
-):
+def test_only_string_drift(pandas_categorical_dataframe: pd.DataFrame, drift_config: SpcDriftConfig):
     drifter = Drifter()
 
-    profile: SpcDriftProfile = drifter.create_drift_profile(
-        pandas_categorical_dataframe, drift_config
-    )
+    profile: SpcDriftProfile = drifter.create_drift_profile(pandas_categorical_dataframe, drift_config)
 
     drift_map = drifter.compute_drift(pandas_categorical_dataframe, profile)
 
@@ -198,10 +194,10 @@ def test_drift_config_alert_kwargs():
     )
 
     assert config.alert_config.rule.zones_to_monitor == [
-        "Zone 1",
-        "Zone 2",
-        "Zone 3",
-        "Zone 4",
+        AlertZone.Zone1,
+        AlertZone.Zone2,
+        AlertZone.Zone3,
+        AlertZone.Zone4,
     ]
 
     assert config.alert_config.dispatch_kwargs["channel"] == "scouter"

@@ -1,12 +1,14 @@
+import pytest
 from scouter import (
+    CustomMetricServerRecord,
     KafkaConfig,
     KafkaProducer,
-    SpcServerRecord,
-    ServerRecords,
-    ServerRecord,
+    PsiServerRecord,
     RecordType,
+    ServerRecord,
+    ServerRecords,
+    SpcServerRecord,
 )
-import pytest
 
 
 def test_kafka_config():
@@ -55,7 +57,7 @@ def test_kafka_config_credentials(monkeypatch):
     }
 
 
-def test_kafka_producer(mock_kafka_producer):
+def test_kafka_producer_spc(mock_kafka_producer):
     config = KafkaConfig(
         topic="test-topic",
         brokers="localhost:9092",
@@ -80,7 +82,108 @@ def test_kafka_producer(mock_kafka_producer):
     producer.publish(
         ServerRecords(
             records=[ServerRecord(record)],
-            record_type=RecordType.SPC,
+            record_type=RecordType.Spc,
+        )
+    )
+    producer.flush()
+    producer.flush(10)
+
+    class Msg:
+        def value(self):
+            return "test"
+
+        def topic(self):
+            return "test-topic"
+
+        def partition(self):
+            return 0
+
+        def offset(self):
+            return 0
+
+    with pytest.raises(ValueError):
+        producer._delivery_report(err=202, msg=Msg(), raise_on_err=True)
+
+    producer._delivery_report(err=None, msg=Msg(), raise_on_err=False)
+
+
+def test_kafka_producer_psi(mock_kafka_producer):
+    config = KafkaConfig(
+        topic="test-topic",
+        brokers="localhost:9092",
+        raise_on_err=True,
+        config={"bootstrap.servers": "localhost:9092"},
+    )
+
+    producer = KafkaProducer(config)
+
+    assert producer._kafka_config == config
+    assert producer.max_retries == 3
+    assert producer._producer is not None
+
+    record = PsiServerRecord(
+        name="test",
+        repository="test",
+        version="1.0.0",
+        feature="test",
+        bin_id="test",
+        bin_count=1,
+    )
+
+    producer.publish(
+        ServerRecords(
+            records=[ServerRecord(record)],
+            record_type=RecordType.Psi,
+        )
+    )
+    producer.flush()
+    producer.flush(10)
+
+    class Msg:
+        def value(self):
+            return "test"
+
+        def topic(self):
+            return "test-topic"
+
+        def partition(self):
+            return 0
+
+        def offset(self):
+            return 0
+
+    with pytest.raises(ValueError):
+        producer._delivery_report(err=202, msg=Msg(), raise_on_err=True)
+
+    producer._delivery_report(err=None, msg=Msg(), raise_on_err=False)
+
+
+def test_kafka_producer_custom(mock_kafka_producer):
+    config = KafkaConfig(
+        topic="test-topic",
+        brokers="localhost:9092",
+        raise_on_err=True,
+        config={"bootstrap.servers": "localhost:9092"},
+    )
+
+    producer = KafkaProducer(config)
+
+    assert producer._kafka_config == config
+    assert producer.max_retries == 3
+    assert producer._producer is not None
+
+    record = CustomMetricServerRecord(
+        name="test",
+        repository="test",
+        version="1.0.0",
+        metric="metric",
+        value=0.1,
+    )
+
+    producer.publish(
+        ServerRecords(
+            records=[ServerRecord(record)],
+            record_type=RecordType.Psi,
         )
     )
     producer.flush()

@@ -1,6 +1,7 @@
-from unittest.mock import patch
-from scouter import ObservabilityMetrics, ServerRecords
 import time
+from unittest.mock import patch
+
+from scouter import ObservabilityMetrics, ServerRecords
 
 
 def test_add_request(mock_kafka_producer, scouter_observer):

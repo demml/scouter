@@ -4,12 +4,7 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Awaitable, Callable, Union
 
 from pydantic import BaseModel
-from scouter import (
-    MonitorQueue,
-    PsiDriftProfile,
-    ScouterObserver,
-    SpcDriftProfile,
-)
+from scouter import MonitorQueue, PsiDriftProfile, ScouterObserver, SpcDriftProfile
 from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
 from scouter.utils.logger import ScouterLogger

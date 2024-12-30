@@ -1,27 +1,28 @@
-import pytest
 import shutil
-from typing import TypeVar, Generator
+from typing import Generator, TypeVar
+from unittest.mock import patch
+
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
-from scouter._scouter import SpcDriftConfig
-from unittest.mock import patch
-from httpx import Response
+import pytest
 from fastapi import FastAPI, Request
-from scouter.integrations.fastapi import ScouterRouter, FastAPIScouterObserver
+from fastapi.testclient import TestClient
+from httpx import Response
+from numpy.typing import NDArray
+from pydantic import BaseModel
 from scouter import (
-    Drifter,
-    SpcDriftProfile,
-    KafkaConfig,
-    HTTPConfig,
-    DriftType,
-    PsiDriftConfig,
     AlertDispatchType,
     CustomMetricAlertConfig,
-    CustomMetricDriftConfig
+    CustomMetricDriftConfig,
+    Drifter,
+    DriftType,
+    HTTPConfig,
+    KafkaConfig,
+    PsiDriftConfig,
+    SpcDriftProfile,
 )
-from fastapi.testclient import TestClient
-from pydantic import BaseModel
+from scouter._scouter import SpcDriftConfig
+from scouter.integrations.fastapi import FastAPIScouterObserver, ScouterRouter
 from scouter.observability.observer import ScouterObserver
 
 T = TypeVar("T")
@@ -311,7 +312,7 @@ def drift_profile():
     config = SpcDriftConfig(repository="scouter", name="model", version="0.1.0")
 
     # create drifter
-    drifter = Drifter(DriftType.SPC)
+    drifter = Drifter(DriftType.Spc)
 
     # create drift profile
     profile = drifter.create_drift_profile(data, config)
@@ -364,12 +365,12 @@ def scouter_observer(kafka_config: KafkaConfig):
         yield scouter_observer, mock_observer
         scouter_observer.stop()
 
+
 @pytest.fixture(scope="function")
 def custom_metric_drift_config() -> YieldFixture[CustomMetricDriftConfig]:
-    config = CustomMetricDriftConfig(name="test",
-                                     repository="test",
-                                     alert_config=CustomMetricAlertConfig(
-                                         dispatch_type=AlertDispatchType.Slack,
-                                         schedule="0 0 * * * *")
-                                     )
+    config = CustomMetricDriftConfig(
+        name="test",
+        repository="test",
+        alert_config=CustomMetricAlertConfig(dispatch_type=AlertDispatchType.Slack, schedule="0 0 * * * *"),
+    )
     yield config

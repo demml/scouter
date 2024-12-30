@@ -2,7 +2,7 @@
 
 import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 from numpy.typing import NDArray
 
@@ -84,17 +84,33 @@ class ServerRecord:
     Custom: "ServerRecord"
     Observability: "ServerRecord"
 
-    def __init__(self, record: Any, record_type: RecordType) -> None:
-        """Initialize drift server record
+    def __init__(self, record: Any) -> None:
+        """Initialize server record
 
         Args:
             record:
-                Record to use for alerting.
-            record_type:
-                Record type to use for alerting.
+                Server record to initialize
         """
 
+    @property
+    def record(self) -> Union[
+        SpcServerRecord,
+        PsiServerRecord,
+        CustomMetricServerRecord,
+    ]:
+        """Return the drift server record."""
+
 class ServerRecords:
+    def __init__(self, records: List[ServerRecord], record_type: RecordType) -> None:
+        """Initialize server records
+
+        Args:
+            records:
+                List of server records
+            record_type:
+                Type of server records
+        """
+
     @property
     def record_type(self) -> RecordType:
         """Return the drift type."""
@@ -2074,9 +2090,7 @@ class CustomMetricAlertConfig:
         """Return the alert_condition that were set during metric definition"""
 
     @alert_conditions.setter
-    def alert_conditions(
-        self, alert_conditions: dict[str, CustomMetricAlertCondition]
-    ) -> None:
+    def alert_conditions(self, alert_conditions: dict[str, CustomMetricAlertCondition]) -> None:
         """Update the alert_condition that were set during metric definition"""
 
 class CustomMetricDriftConfig:
