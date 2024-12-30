@@ -1,4 +1,5 @@
-use crate::core::drift::base::{RecordType, ServerRecord, ServerRecords};
+use crate::core::drift::base::{RecordType, ServerRecord, ServerRecords,FeatureType, Features};
+
 use crate::core::drift::psi::monitor::PsiMonitor;
 use crate::core::drift::psi::types::{Bin, PsiDriftProfile, PsiServerRecord};
 use crate::core::error::FeatureQueueError;
@@ -62,14 +63,12 @@ impl PsiFeatureQueue {
     }
 
     fn process_numeric_queue(
-        py: Python,
-        feature: &String,
         queue: &mut HashMap<String, usize>,
-        value: &Py<PyAny>,
+        value: f64,
         bins: &[Bin],
     ) -> Result<(), FeatureQueueError> {
-        let f64_value = Self::convert_numeric_value_to_f64(py, feature, value)?;
-        let bin_id = Self::find_numeric_bin_given_scaler(f64_value, bins);
+    
+        let bin_id = Self::find_numeric_bin_given_scaler(value, bins);
         let count = queue
             .get_mut(bin_id)
             .ok_or(FeatureQueueError::GetBinError)?;
@@ -78,19 +77,17 @@ impl PsiFeatureQueue {
     }
 
     fn process_binary_queue(
-        py: Python,
         feature: &String,
         queue: &mut HashMap<String, usize>,
-        value: &Py<PyAny>,
+        value: f64,
     ) -> Result<(), FeatureQueueError> {
-        let f64_value = Self::convert_numeric_value_to_f64(py, feature, value)?;
-        if f64_value == 0.0 {
+        if value == 0.0 {
             let bin_id = "0".to_string();
             let count = queue
                 .get_mut(&bin_id)
                 .ok_or(FeatureQueueError::GetBinError)?;
             *count += 1;
-        } else if f64_value == 1.0 {
+        } else if value == 1.0 {
             let bin_id = "1".to_string();
             let count = queue
                 .get_mut(&bin_id)
@@ -99,26 +96,18 @@ impl PsiFeatureQueue {
         } else {
             return Err(FeatureQueueError::InvalidValueError(
                 feature.to_string(),
-                f64_value,
+                value,
             ));
         }
         Ok(())
     }
 
     fn process_categorical_queue(
-        py: Python,
-        feature: &String,
         queue: &mut HashMap<String, usize>,
-        value: &Py<PyAny>,
+        value: &str,
     ) -> Result<(), FeatureQueueError> {
-        if let Ok(val) = value.bind(py).extract::<String>() {
-            let count = queue.get_mut(&val).ok_or(FeatureQueueError::GetBinError)?;
+        let count = queue.get_mut(value).ok_or(FeatureQueueError::GetBinError)?;
             *count += 1;
-        } else {
-            return Err(FeatureQueueError::InvalidFeatureTypeError(
-                feature.to_string(),
-            ));
-        }
         Ok(())
     }
 }
@@ -150,18 +139,30 @@ impl PsiFeatureQueue {
     pub fn insert(
         &mut self,
         py: Python,
-        feature_values: HashMap<String, Py<PyAny>>,
-    ) -> Result<(), FeatureQueueError> {
-        for (feature, value) in &feature_values {
-            if let Some(feature_drift_profile) = self.drift_profile.features.get(feature) {
+        features: Features,
+    ) -> PyResult<()> {
+        for feature in features.features {
+            if let Some(feature_drift_profile) = self.drift_profile.features.get(&feature.name) {
                 let bins = &feature_drift_profile.bins;
-                if let Some(queue) = self.queue.get_mut(feature) {
+                if let Some(queue) = self.queue.get_mut(&feature.name) {
                     if Self::feature_is_numeric(bins) {
-                        Self::process_numeric_queue(py, feature, queue, value, bins)?;
+                        let value = feature.to_float(py, &None, &None)?;
+                        
+                        // check if some, if not return error
+                        if let Some(value) = value {
+                            Self::process_numeric_queue(queue, value, bins)?;
+                        }
+
                     } else if Self::feature_is_binary(bins) {
-                        Self::process_binary_queue(py, feature, queue, value)?;
+                        let value = feature.to_float(py, &None, &None)?;
+
+                        if let Some(value) = value {
+                        Self::process_binary_queue(&feature.name, queue, value)?
+                    };
                     } else if Self::feature_is_categorical(bins) {
-                        Self::process_categorical_queue(py, feature, queue, value)?;
+                        let value = feature.to_string(py)?;
+
+                        Self::process_categorical_queue(queue, &value)?;
                     }
                 }
             }
@@ -259,7 +260,7 @@ mod tests {
 
         Python::with_gil(|py| {
             for _ in 0..9 {
-                feature_values.insert("feature_1".to_string(), min.into_py(py));
+                feature_values.insert("feature_1".to_string(), min.into_[y]);
                 feature_values.insert("feature_2".to_string(), min.into_py(py));
                 feature_values.insert("feature_3".to_string(), max.into_py(py));
 

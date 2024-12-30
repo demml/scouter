@@ -46,13 +46,18 @@ impl Feature {
 }
 
 impl Feature {
-    pub fn to_float(&self, py: Python, mapped_features: &Vec<String>, feature_map:&Option<FeatureMap>) -> PyResult<Option<f64>> {
+    pub fn to_float(&self, py: Python, mapped_features: &Option<Vec<String>>, feature_map:&Option<FeatureMap>) -> PyResult<Option<f64>> {
         match self.feature_type {
             FeatureType::Float => Ok(Some(self.value.extract::<f64>(py).map_err(PyScouterError::new_err)?)),
             FeatureType::Int => Ok(Some(self.value.extract::<i64>(py).map_err(PyScouterError::new_err)? as f64)),
             FeatureType::String => {
             let val = self.value.extract::<String>(py).map_err(PyScouterError::new_err)?;
-            if mapped_features.contains(&self.name) {
+
+            if mapped_features.is_none() {
+                Ok(None)
+            } else {
+                
+            if mapped_features.as_ref().unwrap().contains(&self.name) {
                 let feature_map = feature_map
                     .as_ref()
                     .ok_or(PyScouterError::new_err(
@@ -71,6 +76,7 @@ impl Feature {
                     Ok(None)
                 }
             }
+        }
         }
     }
 
@@ -95,7 +101,7 @@ impl FromPyObject<'_> for Feature {
 
 #[pyclass]
 pub struct Features{
-    features: Vec<Feature>,
+    pub features: Vec<Feature>,
 }
 #[pymethods]
 impl Features {

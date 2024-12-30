@@ -1,4 +1,4 @@
-use crate::core::drift::base::ServerRecords;
+use crate::core::drift::base::{ServerRecords, Features};
 use crate::core::drift::spc::monitor::SpcMonitor;
 use crate::core::drift::spc::types::SpcDriftProfile;
 use crate::core::error::FeatureQueueError;
@@ -58,7 +58,7 @@ impl SpcFeatureQueue {
         &mut self,
         py: Python,
         features: Features,
-    ) -> Result<(), FeatureQueueError> {
+    ) -> PyResult<()> {
 
         for feature in features.features {
             if let Some(queue) = self.queue.get_mut(&feature.name) {
@@ -130,6 +130,8 @@ mod tests {
     use ndarray::Array;
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
+    use pyo3::IntoPyObjectExt;
+    use crate::core::drift::base::{Feature, FeatureType};
  
 
     #[test]
