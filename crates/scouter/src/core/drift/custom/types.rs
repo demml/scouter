@@ -89,7 +89,7 @@ impl CustomMetricAlertConfig {
         self.alert_conditions = Some(
             metrics
                 .iter()
-                .map(|m| (m.name, m.alert_condition))
+                .map(|m| (m.name.clone(), m.alert_condition.clone()))
                 .collect(),
         );
     }
