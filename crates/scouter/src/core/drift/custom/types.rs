@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::debug;
 
-#[pyclass]
+#[pyclass(eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AlertThreshold {
     Below,
