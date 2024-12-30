@@ -386,7 +386,9 @@ pub mod dispatcher_logic {
                     alerts: vec![SpcAlert {
                         zone: AlertZone::Zone4,
                         kind: SpcAlertType::OutOfBounds,
-                    }],
+                    }]
+                    .into_iter()
+                    .collect(),
                 },
             );
             features.insert(
@@ -396,7 +398,9 @@ pub mod dispatcher_logic {
                     alerts: vec![SpcAlert {
                         zone: AlertZone::Zone1,
                         kind: SpcAlertType::Consecutive,
-                    }],
+                    }]
+                    .into_iter()
+                    .collect(),
                 },
             );
             features

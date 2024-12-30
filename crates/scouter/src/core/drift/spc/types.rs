@@ -14,7 +14,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::fmt::Display;
 use std::path::PathBuf;
 use tracing::debug;
@@ -91,19 +91,6 @@ pub enum AlertZone {
     Zone3,
     Zone4,
     NotApplicable,
-}
-
-#[pymethods]
-impl AlertZone {
-    pub fn to_string(&self) -> String {
-        match self {
-            AlertZone::Zone1 => "Zone 1".to_string(),
-            AlertZone::Zone2 => "Zone 2".to_string(),
-            AlertZone::Zone3 => "Zone 3".to_string(),
-            AlertZone::Zone4 => "Zone 4".to_string(),
-            AlertZone::NotApplicable => "NA".to_string(),
-        }
-    }
 }
 
 impl Display for AlertZone {
@@ -787,11 +774,11 @@ pub struct SpcFeatureAlert {
     pub feature: String,
 
     #[pyo3(get)]
-    pub alerts: Vec<SpcAlert>,
+    pub alerts: HashSet<SpcAlert>,
 }
 
 impl SpcFeatureAlert {
-    pub fn new(feature: String, alerts: Vec<SpcAlert>) -> Self {
+    pub fn new(feature: String, alerts: HashSet<SpcAlert>) -> Self {
         Self { feature, alerts }
     }
 }
@@ -817,7 +804,7 @@ pub struct SpcFeatureAlerts {
 
 impl SpcFeatureAlerts {
     // rust-only function to insert feature alerts
-    pub fn insert_feature_alert(&mut self, feature: &str, alerts: Vec<SpcAlert>) {
+    pub fn insert_feature_alert(&mut self, feature: &str, alerts: HashSet<SpcAlert>) {
         let feature_alert = SpcFeatureAlert::new(feature.to_string(), alerts);
 
         self.features.insert(feature.to_string(), feature_alert);
@@ -988,7 +975,9 @@ mod tests {
             alerts: vec![SpcAlert {
                 kind: SpcAlertType::OutOfBounds,
                 zone: AlertZone::Zone1,
-            }],
+            }]
+            .into_iter()
+            .collect(),
             // Initialize fields of SpcFeatureAlert
         };
 
