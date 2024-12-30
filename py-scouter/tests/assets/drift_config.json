@@ -5,7 +5,7 @@
     "sample_size": 100,
     "version": "1.0.0",
     "targets": [],
-    "drift_type": "SPC",
+    "drift_type": "Spc",
     "alert_config": {
         "rule": {
             "rule": "8 8 8 8 8 8 4 4",

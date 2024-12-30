@@ -1,24 +1,23 @@
+from typing import Optional
+
+import pandas as pd
 from scouter import (
+    Drifter,
+    DriftType,
+    KafkaConfig,
     MonitorQueue,
+    ServerRecords,
     SpcDriftConfig,
     SpcDriftProfile,
-    Drifter,
-    KafkaConfig,
-    ServerRecords,
-    DriftType,
 )
-import pandas as pd
-from typing import Optional
 
 
 def test_monitor_pandas(
     pandas_dataframe: pd.DataFrame,
     drift_config: SpcDriftConfig,
 ):
-    scouter = Drifter(DriftType.SPC)
-    profile: SpcDriftProfile = scouter.create_drift_profile(
-        pandas_dataframe, drift_config
-    )
+    scouter = Drifter(DriftType.Spc)
+    profile: SpcDriftProfile = scouter.create_drift_profile(pandas_dataframe, drift_config)
 
     kafka_config = KafkaConfig(
         topic="scouter_monitoring",

@@ -72,12 +72,13 @@ profile = "black"
 
 [tool.black]
 line-length = 120
-target-version = ['py310']
+target-version = ['py312']
 include = '\.pyi?$'
 
 [tool.pylint.MASTER]
 ignore-paths = ["python/scouter/utils/comparison/*"]
 load-plugins = ["pylint.extensions.docparams"]
+ignore-patterns = ["tests/*"]
 
 [tool.pylint.messages_control]
 max-line-length = 120

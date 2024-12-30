@@ -1,6 +1,6 @@
 PROJECT=scouter
 PYTHON_VERSION=3.11.2
-SOURCE_OBJECTS=python/scouter
+SOURCE_OBJECTS=python/scouter tests
 
 format.isort:
 	uv run isort ${SOURCE_OBJECTS}

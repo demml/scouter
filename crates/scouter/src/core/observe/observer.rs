@@ -220,7 +220,7 @@ impl Observer {
             return Ok(None);
         }
 
-        let record = ServerRecord::OBSERVABILITY {
+        let record = ServerRecord::Observability {
             record: ObservabilityMetrics {
                 repository: self.repository.clone(),
                 name: self.name.clone(),
@@ -228,11 +228,12 @@ impl Observer {
                 request_count: self.request_count,
                 error_count: self.error_count,
                 route_metrics,
+                record_type: RecordType::Observability,
             },
         };
 
         Ok(Some(ServerRecords {
-            record_type: RecordType::OBSERVABILITY,
+            record_type: RecordType::Observability,
             records: vec![record],
         }))
     }
@@ -294,6 +295,9 @@ pub struct ObservabilityMetrics {
 
     #[pyo3(get)]
     pub route_metrics: Vec<RouteMetrics>,
+
+    #[pyo3(get)]
+    pub record_type: RecordType,
 }
 
 #[pymethods]
@@ -439,7 +443,7 @@ mod tests {
 
         // check observability metrics
         let record = match metrics {
-            ServerRecord::OBSERVABILITY { record } => record,
+            ServerRecord::Observability { record } => record,
             _ => panic!("Expected observability record"),
         };
 

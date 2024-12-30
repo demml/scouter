@@ -384,9 +384,11 @@ pub mod dispatcher_logic {
                 SpcFeatureAlert {
                     feature: "test_feature_1".to_string(),
                     alerts: vec![SpcAlert {
-                        zone: AlertZone::Zone4.to_str(),
-                        kind: SpcAlertType::OutOfBounds.to_str(),
-                    }],
+                        zone: AlertZone::Zone4,
+                        kind: SpcAlertType::OutOfBounds,
+                    }]
+                    .into_iter()
+                    .collect(),
                 },
             );
             features.insert(
@@ -394,9 +396,11 @@ pub mod dispatcher_logic {
                 SpcFeatureAlert {
                     feature: "test_feature_2".to_string(),
                     alerts: vec![SpcAlert {
-                        zone: AlertZone::Zone1.to_str(),
-                        kind: SpcAlertType::Consecutive.to_str(),
-                    }],
+                        zone: AlertZone::Zone1,
+                        kind: SpcAlertType::Consecutive,
+                    }]
+                    .into_iter()
+                    .collect(),
                 },
             );
             features

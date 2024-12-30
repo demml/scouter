@@ -5,11 +5,18 @@ from scouter.integrations.http import HTTPConfig, HTTPProducer
 from scouter.integrations.kafka import KafkaConfig, KafkaProducer
 from scouter.integrations.producer import DriftRecordProducer
 from scouter.integrations.rabbitmq import RabbitMQConfig, RabbitMQProducer
-from scouter.utils.types import AlertZone, SpcAlertType
 
 from ._scouter import (
     AlertDispatchType,
+    AlertThreshold,
+    AlertZone,
     Bin,
+    CustomDriftProfile,
+    CustomMetric,
+    CustomMetricAlertCondition,
+    CustomMetricAlertConfig,
+    CustomMetricDriftConfig,
+    CustomMetricServerRecord,
     DataProfile,
     DriftType,
     Every1Minute,
@@ -37,6 +44,7 @@ from ._scouter import (
     SpcAlert,
     SpcAlertConfig,
     SpcAlertRule,
+    SpcAlertType,
     SpcDriftConfig,
     SpcDriftMap,
     SpcDriftProfile,
@@ -103,4 +111,11 @@ __all__ = [
     "PsiFeatureDriftProfile",
     "PsiDriftProfile",
     "PsiDriftMap",
+    "CustomMetricDriftConfig",
+    "CustomMetric",
+    "AlertThreshold",
+    "CustomDriftProfile",
+    "CustomMetricAlertCondition",
+    "CustomMetricAlertConfig",
+    "CustomMetricServerRecord",
 ]

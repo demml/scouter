@@ -1,6 +1,6 @@
+import pytest
 from scouter import DriftRecordProducer, HTTPConfig, KafkaConfig
 from scouter.utils.types import ProducerTypes
-import pytest
 
 
 def test_http_producer(mock_httpx_producer):

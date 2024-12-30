@@ -146,7 +146,11 @@ class KafkaProducer(BaseProducer):
                 "kafka_error": err,
             }
             err_msg = f"Failed delivery to topic: {msg.topic()}"
-            logger.error("Failed delivery to topic: {} error_data: {}", msg.topic(), err_data)
+            logger.error(
+                "Failed delivery to topic: {} error_data: {}",
+                msg.topic(),
+                err_data,
+            )
             if raise_on_err:
                 raise ValueError(err_msg)
         else:
@@ -163,7 +167,8 @@ class KafkaProducer(BaseProducer):
                 topic=self._kafka_config.topic,
                 value=records.model_dump_json(),
                 on_delivery=partial(
-                    self._delivery_report, raise_on_err=self._kafka_config.raise_on_err
+                    self._delivery_report,
+                    raise_on_err=self._kafka_config.raise_on_err,
                 ),  # type: ignore
             )
             logger.debug(f"Sent to topic: {self._kafka_config.topic}")

@@ -176,21 +176,20 @@ impl PsiFeatureQueue {
             .flat_map(|(feature_name, bin_map)| {
                 bin_map
                     .iter()
-                    .map(move |(bin_id, count)| ServerRecord::PSI {
-                        record: PsiServerRecord {
-                            created_at: chrono::Utc::now().naive_utc(),
-                            feature: feature_name.clone(),
-                            bin_id: bin_id.clone(),
-                            bin_count: *count,
-                            name: self.drift_profile.config.name.clone(),
-                            repository: self.drift_profile.config.repository.clone(),
-                            version: self.drift_profile.config.version.clone(),
-                        },
+                    .map(move |(bin_id, count)| ServerRecord::Psi {
+                        record: PsiServerRecord::new(
+                            self.drift_profile.config.repository.clone(),
+                            self.drift_profile.config.name.clone(),
+                            self.drift_profile.config.version.clone(),
+                            feature_name.clone(),
+                            bin_id.clone(),
+                            *count,
+                        ),
                     })
             })
             .collect::<Vec<ServerRecord>>();
 
-        Ok(ServerRecords::new(records, RecordType::PSI))
+        Ok(ServerRecords::new(records, RecordType::Psi))
     }
 
     pub fn is_empty(&self) -> bool {

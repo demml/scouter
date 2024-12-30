@@ -37,8 +37,8 @@ pub enum FileName {
 impl FileName {
     pub fn to_str(&self) -> &'static str {
         match self {
-            FileName::SpcDrift => "Spc_drift_map.json",
-            FileName::PsiDrift => "Psi_drift_map.json",
+            FileName::SpcDrift => "spc_drift_map.json",
+            FileName::PsiDrift => "psi_drift_map.json",
             FileName::Profile => "data_profile.json",
         }
     }

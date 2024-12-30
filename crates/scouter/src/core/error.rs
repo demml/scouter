@@ -173,3 +173,18 @@ impl From<ObserverError> for PyErr {
         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
     }
 }
+
+#[derive(Error, Debug, Deserialize)]
+pub enum CustomMetricError {
+    #[error("Cannot create metric profile, no metrics were provided")]
+    NoMetricsError,
+
+    #[error("{0}")]
+    Error(String),
+}
+
+impl From<CustomMetricError> for PyErr {
+    fn from(err: CustomMetricError) -> PyErr {
+        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
+    }
+}

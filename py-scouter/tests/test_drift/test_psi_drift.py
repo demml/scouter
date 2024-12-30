@@ -1,15 +1,16 @@
-from scouter import Drifter
 from pathlib import Path
-from numpy.typing import NDArray
-import pytest
-import polars as pl
-import pandas as pd
-from scouter._scouter import PsiDriftProfile, PsiDriftConfig, DriftType
 from tempfile import TemporaryDirectory
+
+import pandas as pd
+import polars as pl
+import pytest
+from numpy.typing import NDArray
+from scouter import Drifter
+from scouter._scouter import DriftType, PsiDriftConfig, PsiDriftProfile
 
 
 def test_drift_f64(array: NDArray, psi_drift_config: PsiDriftConfig):
-    drifter = Drifter(DriftType.PSI)
+    drifter = Drifter(DriftType.Psi)
     profile: PsiDriftProfile = drifter.create_drift_profile(array, psi_drift_config)
 
     # assert features are relatively centered
@@ -35,7 +36,7 @@ def test_drift_f64(array: NDArray, psi_drift_config: PsiDriftConfig):
 
 def test_psi_drift_f32(array: NDArray, psi_drift_config: PsiDriftConfig):
     array = array.astype("float32")
-    scouter = Drifter(DriftType.PSI)
+    scouter = Drifter(DriftType.Psi)
     profile: PsiDriftProfile = scouter.create_drift_profile(array, psi_drift_config)
 
     # assert features are relatively centered
@@ -46,14 +47,10 @@ def test_psi_drift_f32(array: NDArray, psi_drift_config: PsiDriftConfig):
     _ = scouter.compute_drift(array, profile)
 
 
-def test_only_string_drift_psi(
-    pandas_categorical_dataframe: pd.DataFrame, psi_drift_config: PsiDriftConfig
-):
-    drifter = Drifter(DriftType.PSI)
+def test_only_string_drift_psi(pandas_categorical_dataframe: pd.DataFrame, psi_drift_config: PsiDriftConfig):
+    drifter = Drifter(DriftType.Psi)
 
-    profile: PsiDriftProfile = drifter.create_drift_profile(
-        pandas_categorical_dataframe, psi_drift_config
-    )
+    profile: PsiDriftProfile = drifter.create_drift_profile(pandas_categorical_dataframe, psi_drift_config)
 
     drift_map = drifter.compute_drift(pandas_categorical_dataframe, profile)
 
@@ -66,11 +63,9 @@ def test_data_pyarrow_mixed_type(
 ):
     arrow_table = polars_dataframe_multi_dtype.to_arrow()
 
-    drifter = Drifter(DriftType.PSI)
+    drifter = Drifter(DriftType.Psi)
 
-    profile: PsiDriftProfile = drifter.create_drift_profile(
-        arrow_table, psi_drift_config
-    )
+    profile: PsiDriftProfile = drifter.create_drift_profile(arrow_table, psi_drift_config)
     drift_map = drifter.compute_drift(arrow_table, profile)
 
     assert len(drift_map.features) == 5

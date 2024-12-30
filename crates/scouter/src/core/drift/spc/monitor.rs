@@ -420,7 +420,6 @@ impl SpcMonitor {
         F: Into<f64>,
     {
         let num_features = drift_profile.features.len();
-        let created_at = chrono::Utc::now().naive_utc();
 
         // iterate through each feature
         let sample_data = self
@@ -433,20 +432,19 @@ impl SpcMonitor {
             let sample = sample_data.column(i);
 
             sample.iter().for_each(|value| {
-                let record = SpcServerRecord {
-                    created_at,
-                    feature: feature.to_string(),
-                    value: *value,
-                    name: drift_profile.config.name.clone(),
-                    repository: drift_profile.config.repository.clone(),
-                    version: drift_profile.config.version.clone(),
-                };
+                let record = SpcServerRecord::new(
+                    drift_profile.config.repository.clone(),
+                    drift_profile.config.name.clone(),
+                    drift_profile.config.version.clone(),
+                    feature.to_string(),
+                    *value,
+                );
 
-                records.push(ServerRecord::SPC { record });
+                records.push(ServerRecord::Spc { record });
             });
         }
 
-        Ok(ServerRecords::new(records, RecordType::SPC))
+        Ok(ServerRecords::new(records, RecordType::Spc))
     }
 
     pub fn calculate_drift_from_sample(
@@ -603,13 +601,13 @@ mod tests {
         let value = profile.to_value();
 
         // test DriftProfile
-        let profile = DriftProfile::from_value(value, DriftType::SPC.value()).unwrap();
+        let profile = DriftProfile::from_value(value, DriftType::Spc.to_string()).unwrap();
         let new_args = profile.get_base_args();
 
         assert_eq!(new_args, args);
 
         let profile_str = profile.to_value().to_string();
-        DriftProfile::from_str(DriftType::SPC, profile_str).unwrap();
+        DriftProfile::from_str(DriftType::Spc, profile_str).unwrap();
     }
 
     #[test]

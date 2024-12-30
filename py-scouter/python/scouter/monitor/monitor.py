@@ -21,7 +21,8 @@ CommonCrons = CommonCron()  # type: ignore
 
 
 def _get_queueing_strategy(
-    drift_profile: Union[SpcDriftProfile, PsiDriftProfile], config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig]
+    drift_profile: Union[SpcDriftProfile, PsiDriftProfile],
+    config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig],
 ) -> Union[SpcQueueingStrategy, PsiQueueingStrategy]:
     """Get the feature queue based on the drift profile.
 

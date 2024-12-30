@@ -1,8 +1,6 @@
-from scouter import Drifter
-
-from numpy.typing import NDArray
 import pytest
-
+from numpy.typing import NDArray
+from scouter import Drifter
 from scouter._scouter import SpcDriftProfile
 
 

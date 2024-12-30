@@ -1,11 +1,9 @@
-from scouter import Drifter
-
-import polars as pl
 import pandas as pd
-from numpy.typing import NDArray
+import polars as pl
 import pytest
-
-from scouter._scouter import SpcDriftProfile, SpcDriftConfig
+from numpy.typing import NDArray
+from scouter import Drifter
+from scouter._scouter import SpcDriftConfig, SpcDriftProfile
 
 
 def test_monitor_f64(array: NDArray, drift_config: SpcDriftConfig):

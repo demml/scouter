@@ -2,7 +2,7 @@ use crate::core::cron::EveryDay;
 use crate::core::dispatch::types::AlertDispatchType;
 use crate::core::drift::base::{
     DispatchAlertDescription, DispatchDriftConfig, DriftArgs, DriftType, ProfileArgs,
-    ProfileBaseArgs, ValidateAlertConfig,
+    ProfileBaseArgs, RecordType, ValidateAlertConfig, MISSING,
 };
 use crate::core::error::ScouterError;
 use crate::core::utils::{json_to_pyobject, pyobject_to_json, FeatureMap, FileName, ProfileFuncs};
@@ -14,12 +14,10 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
-use std::collections::HashSet;
+use std::collections::{HashMap, HashSet};
+use std::fmt::Display;
 use std::path::PathBuf;
 use tracing::debug;
-
-const MISSING: &str = "__missing__";
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -41,6 +39,9 @@ pub struct SpcServerRecord {
 
     #[pyo3(get)]
     pub value: f64,
+
+    #[pyo3(get)]
+    pub record_type: RecordType,
 }
 
 #[pymethods]
@@ -60,6 +61,7 @@ impl SpcServerRecord {
             version,
             feature,
             value,
+            record_type: RecordType::Spc,
         }
     }
 
@@ -95,15 +97,14 @@ pub enum AlertZone {
     NotApplicable,
 }
 
-#[pymethods]
-impl AlertZone {
-    pub fn to_str(&self) -> String {
+impl Display for AlertZone {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            AlertZone::Zone1 => "Zone 1".to_string(),
-            AlertZone::Zone2 => "Zone 2".to_string(),
-            AlertZone::Zone3 => "Zone 3".to_string(),
-            AlertZone::Zone4 => "Zone 4".to_string(),
-            AlertZone::NotApplicable => "NA".to_string(),
+            AlertZone::Zone1 => write!(f, "Zone 1"),
+            AlertZone::Zone2 => write!(f, "Zone 2"),
+            AlertZone::Zone3 => write!(f, "Zone 3"),
+            AlertZone::Zone4 => write!(f, "Zone 4"),
+            AlertZone::NotApplicable => write!(f, "NA"),
         }
     }
 }
@@ -115,13 +116,13 @@ pub struct SpcAlertRule {
     pub rule: String,
 
     #[pyo3(get, set)]
-    pub zones_to_monitor: Vec<String>,
+    pub zones_to_monitor: Vec<AlertZone>,
 }
 
 #[pymethods]
 impl SpcAlertRule {
     #[new]
-    pub fn new(rule: Option<String>, zones_to_monitor: Option<Vec<String>>) -> Self {
+    pub fn new(rule: Option<String>, zones_to_monitor: Option<Vec<AlertZone>>) -> Self {
         let rule = match rule {
             Some(r) => r,
             None => "8 16 4 8 2 4 1 1".to_string(),
@@ -129,10 +130,10 @@ impl SpcAlertRule {
 
         let zones = zones_to_monitor.unwrap_or(
             [
-                AlertZone::Zone1.to_str(),
-                AlertZone::Zone2.to_str(),
-                AlertZone::Zone3.to_str(),
-                AlertZone::Zone4.to_str(),
+                AlertZone::Zone1,
+                AlertZone::Zone2,
+                AlertZone::Zone3,
+                AlertZone::Zone4,
             ]
             .to_vec(),
         );
@@ -148,10 +149,10 @@ impl Default for SpcAlertRule {
         Self {
             rule: "8 16 4 8 2 4 1 1".to_string(),
             zones_to_monitor: vec![
-                AlertZone::Zone1.to_str(),
-                AlertZone::Zone2.to_str(),
-                AlertZone::Zone3.to_str(),
-                AlertZone::Zone4.to_str(),
+                AlertZone::Zone1,
+                AlertZone::Zone2,
+                AlertZone::Zone3,
+                AlertZone::Zone4,
             ],
         }
     }
@@ -226,7 +227,7 @@ impl Default for SpcAlertConfig {
 }
 
 #[pyclass]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
+#[derive(Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Clone, Copy)]
 pub enum SpcAlertType {
     OutOfBounds,
     Consecutive,
@@ -235,15 +236,14 @@ pub enum SpcAlertType {
     Trend,
 }
 
-#[pymethods]
-impl SpcAlertType {
-    pub fn to_str(&self) -> String {
+impl Display for SpcAlertType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            SpcAlertType::OutOfBounds => "Out of bounds".to_string(),
-            SpcAlertType::Consecutive => "Consecutive".to_string(),
-            SpcAlertType::Alternating => "Alternating".to_string(),
-            SpcAlertType::AllGood => "All good".to_string(),
-            SpcAlertType::Trend => "Trend".to_string(),
+            SpcAlertType::OutOfBounds => write!(f, "Out of bounds"),
+            SpcAlertType::Consecutive => write!(f, "Consecutive"),
+            SpcAlertType::Alternating => write!(f, "Alternating"),
+            SpcAlertType::AllGood => write!(f, "All good"),
+            SpcAlertType::Trend => write!(f, "Trend"),
         }
     }
 }
@@ -252,17 +252,17 @@ impl SpcAlertType {
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, Hash, PartialEq)]
 pub struct SpcAlert {
     #[pyo3(get)]
-    pub kind: String,
+    pub kind: SpcAlertType,
 
     #[pyo3(get)]
-    pub zone: String,
+    pub zone: AlertZone,
 }
 
 #[pymethods]
 #[allow(clippy::new_without_default)]
 impl SpcAlert {
     #[new]
-    pub fn new(kind: String, zone: String) -> Self {
+    pub fn new(kind: SpcAlertType, zone: AlertZone) -> Self {
         Self { kind, zone }
     }
 
@@ -398,7 +398,7 @@ impl SpcDriftConfig {
             alert_config,
             feature_map,
             targets,
-            drift_type: DriftType::SPC,
+            drift_type: DriftType::Spc,
         })
     }
 
@@ -782,11 +782,8 @@ pub struct SpcFeatureAlert {
 }
 
 impl SpcFeatureAlert {
-    pub fn new(feature: String) -> Self {
-        Self {
-            feature,
-            alerts: Vec::new(),
-        }
+    pub fn new(feature: String, alerts: Vec<SpcAlert>) -> Self {
+        Self { feature, alerts }
     }
 }
 
@@ -811,16 +808,11 @@ pub struct SpcFeatureAlerts {
 
 impl SpcFeatureAlerts {
     // rust-only function to insert feature alerts
-    pub fn insert_feature_alert(&mut self, feature: &str, alerts: &HashSet<SpcAlert>) {
-        let mut feature_alert = SpcFeatureAlert::new(feature.to_string());
+    pub fn insert_feature_alert(&mut self, feature: &str, alerts: HashSet<SpcAlert>) {
+        // convert the alerts to a vector
+        let alerts: Vec<SpcAlert> = alerts.into_iter().collect();
 
-        // insert the alerts and indices into the feature alert
-        alerts.iter().for_each(|alert| {
-            feature_alert.alerts.push(SpcAlert {
-                zone: alert.zone.clone(),
-                kind: alert.kind.clone(),
-            })
-        });
+        let feature_alert = SpcFeatureAlert::new(feature.to_string(), alerts);
 
         self.features.insert(feature.to_string(), feature_alert);
     }
@@ -910,15 +902,15 @@ mod tests {
         let control_alert = SpcAlertRule::default().rule;
 
         assert_eq!(control_alert, "8 16 4 8 2 4 1 1");
-        assert_eq!(AlertZone::NotApplicable.to_str(), "NA");
-        assert_eq!(AlertZone::Zone1.to_str(), "Zone 1");
-        assert_eq!(AlertZone::Zone2.to_str(), "Zone 2");
-        assert_eq!(AlertZone::Zone3.to_str(), "Zone 3");
-        assert_eq!(AlertZone::Zone4.to_str(), "Zone 4");
-        assert_eq!(SpcAlertType::AllGood.to_str(), "All good");
-        assert_eq!(SpcAlertType::Consecutive.to_str(), "Consecutive");
-        assert_eq!(SpcAlertType::Alternating.to_str(), "Alternating");
-        assert_eq!(SpcAlertType::OutOfBounds.to_str(), "Out of bounds");
+        assert_eq!(AlertZone::NotApplicable.to_string(), "NA");
+        assert_eq!(AlertZone::Zone1.to_string(), "Zone 1");
+        assert_eq!(AlertZone::Zone2.to_string(), "Zone 2");
+        assert_eq!(AlertZone::Zone3.to_string(), "Zone 3");
+        assert_eq!(AlertZone::Zone4.to_string(), "Zone 4");
+        assert_eq!(SpcAlertType::AllGood.to_string(), "All good");
+        assert_eq!(SpcAlertType::Consecutive.to_string(), "Consecutive");
+        assert_eq!(SpcAlertType::Alternating.to_string(), "Alternating");
+        assert_eq!(SpcAlertType::OutOfBounds.to_string(), "Out of bounds");
     }
 
     #[test]
@@ -988,9 +980,11 @@ mod tests {
         let sample_alert = SpcFeatureAlert {
             feature: "feature1".to_string(),
             alerts: vec![SpcAlert {
-                kind: "kind1".to_string(),
-                zone: "zone1".to_string(),
-            }],
+                kind: SpcAlertType::OutOfBounds,
+                zone: AlertZone::Zone1,
+            }]
+            .into_iter()
+            .collect(),
             // Initialize fields of SpcFeatureAlert
         };
 

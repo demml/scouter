@@ -133,7 +133,9 @@ class FastAPIScouterObserver:
             original_lifespan = app.router.lifespan_context
 
             @asynccontextmanager
-            async def combined_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+            async def combined_lifespan(
+                app: FastAPI,
+            ) -> AsyncGenerator[None, None]:
                 async with original_lifespan(app):
                     async with lifespan(app):
                         yield
