@@ -230,6 +230,7 @@ impl CustomMetricDriftConfig {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (repository=None, name=None, version=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         repository: Option<String>,
@@ -275,6 +276,7 @@ pub struct CustomMetric {
 #[pymethods]
 impl CustomMetric {
     #[new]
+    #[pyo3(signature = (name, value, alert_threshold, alert_threshold_value=None))]
     pub fn new(
         name: String,
         value: f64,
@@ -327,6 +329,7 @@ pub struct CustomDriftProfile {
 #[pymethods]
 impl CustomDriftProfile {
     #[new]
+    #[pyo3(signature = (config, metrics, scouter_version=None))]
     pub fn new(
         mut config: CustomMetricDriftConfig,
         metrics: Vec<CustomMetric>,
