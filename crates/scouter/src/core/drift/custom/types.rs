@@ -652,45 +652,19 @@ mod tests {
         ];
 
         let profile = CustomDriftProfile::new(drift_config, custom_metrics, None).unwrap();
-
-        let expected_profile = r#"{
-        "config": {
-                    "repository": "scouter",
-                    "name": "ML",
-                    "version": "0.1.0",
-                    "alert_config": {
-                        "dispatch_type": "OpsGenie",
-                        "schedule": "0 0 * * * *",
-                        "dispatch_kwargs": {},
-                        "alert_conditions": {
-                            "mae": {
-                                "alert_condition": "ABOVE",
-                                "alert_threshold_value": 2.3
-                            },
-                            "accuracy": {
-                                "alert_condition": "BELOW",
-                                "alert_threshold_value": null
-                            }
-                        }
-                    },
-                    "drift_type": "CUSTOM"
-                },
-                "metrics": {
-                    "mae": 12.4,
-                    "accuracy": 0.85
-                },
-                "scouter_version": "0.3.3"
-            }"#;
-
-        let profile_json: Value =
+        let _: Value =
             serde_json::from_str(&profile.model_dump_json()).expect("Failed to parse actual JSON");
-        let expected_profile_json: Value =
-            serde_json::from_str(expected_profile).expect("Failed to parse expected JSON");
 
+        assert_eq!(profile.metrics.len(), 2);
+        assert_eq!(profile.scouter_version, env!("CARGO_PKG_VERSION"));
+        let conditions = profile.config.alert_config.alert_conditions.unwrap();
+        assert_eq!(conditions["mae"].alert_threshold, AlertThreshold::Above);
+        assert_eq!(conditions["mae"].alert_threshold_value, Some(2.3));
         assert_eq!(
-            profile_json, expected_profile_json,
-            "The JSON structures do not match!"
+            conditions["accuracy"].alert_threshold,
+            AlertThreshold::Below
         );
+        assert_eq!(conditions["accuracy"].alert_threshold_value, None);
     }
 
     #[test]

@@ -87,8 +87,6 @@ impl SpcServerRecord {
     }
 }
 
-
-
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, std::cmp::Eq, Hash)]
 pub enum AlertZone {
@@ -813,7 +811,7 @@ impl SpcFeatureAlerts {
     pub fn insert_feature_alert(&mut self, feature: &str, alerts: HashSet<SpcAlert>) {
         // convert the alerts to a vector
         let alerts: Vec<SpcAlert> = alerts.into_iter().collect();
-        
+
         let feature_alert = SpcFeatureAlert::new(feature.to_string(), alerts);
 
         self.features.insert(feature.to_string(), feature_alert);

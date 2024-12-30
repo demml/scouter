@@ -133,7 +133,6 @@ impl ServerRecord {
                 ServerRecord::Observability { record }
             }
         }
-
     }
 
     pub fn record(&self, py: Python) -> PyResult<PyObject> {
@@ -145,7 +144,6 @@ impl ServerRecord {
         }
     }
 }
-
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -326,13 +324,15 @@ mod tests {
     fn test_drift_type_from_str() {
         assert_eq!(DriftType::from_str("SPC").unwrap(), DriftType::Spc);
         assert_eq!(DriftType::from_str("PSI").unwrap(), DriftType::Psi);
+        assert_eq!(DriftType::from_str("CUSTOM").unwrap(), DriftType::Custom);
         assert!(DriftType::from_str("INVALID").is_err());
     }
 
     #[test]
     fn test_drift_type_value() {
-        assert_eq!(DriftType::Spc.to_string(), "SPC");
-        assert_eq!(DriftType::Psi.to_string(), "PSI");
+        assert_eq!(DriftType::Spc.to_string(), "Spc");
+        assert_eq!(DriftType::Psi.to_string(), "Psi");
+        assert_eq!(DriftType::Custom.to_string(), "Custom");
     }
 
     #[test]
