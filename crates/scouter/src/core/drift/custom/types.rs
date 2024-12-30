@@ -89,15 +89,7 @@ impl CustomMetricAlertConfig {
         self.alert_conditions = Some(
             metrics
                 .iter()
-                .map(|m| {
-                    (
-                        m.name.clone(),
-                        CustomMetricAlertCondition {
-                            alert_condition: m.alert_condition.clone(),
-                            alert_boundary: m.alert_boundary,
-                        },
-                    )
-                })
+                .map(|m| (m.name, m.alert_condition))
                 .collect(),
         );
     }
@@ -271,10 +263,7 @@ pub struct CustomMetric {
     pub value: f64,
 
     #[pyo3(get, set)]
-    pub alert_boundary: Option<f64>,
-
-    #[pyo3(get, set)]
-    pub alert_condition: AlertCondition,
+    alert_condition: CustomMetricAlertCondition,
 }
 
 #[pymethods]
@@ -289,8 +278,7 @@ impl CustomMetric {
         Self {
             name: name.to_lowercase(),
             value,
-            alert_boundary,
-            alert_condition,
+            alert_condition: CustomMetricAlertCondition::new(alert_condition, alert_boundary),
         }
     }
 
@@ -393,24 +381,6 @@ impl CustomDriftProfile {
     ) -> Result<(), ScouterError> {
         self.config
             .update_config_args(repository, name, version, alert_config)
-    }
-
-    #[getter]
-    pub fn custom_metrics(&self) -> Vec<CustomMetric> {
-        let alert_conditions = self.config.alert_config.alert_conditions.as_ref().unwrap();
-
-        self.metrics
-            .iter()
-            .map(|(name, value)| {
-                let condition = alert_conditions.get(name).unwrap();
-                CustomMetric {
-                    name: name.clone(),
-                    value: *value,
-                    alert_boundary: condition.alert_boundary,
-                    alert_condition: condition.alert_condition.clone(),
-                }
-            })
-            .collect()
     }
 }
 
