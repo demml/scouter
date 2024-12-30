@@ -6,7 +6,12 @@ import pandas as pd
 import polars as pl
 import pyarrow as pa  # type: ignore
 from numpy.typing import NDArray
-from scouter.drift.base import Config, CustomMetricData, DriftHelperBase, Profile
+from scouter.drift.base import (
+    Config,
+    CustomMetricData,
+    DriftHelperBase,
+    Profile,
+)
 from scouter.utils.logger import ScouterLogger
 from scouter.utils.type_converter import ArrayData
 

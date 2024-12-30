@@ -4,7 +4,12 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Awaitable, Callable, Union
 
 from pydantic import BaseModel
-from scouter import MonitorQueue, PsiDriftProfile, ScouterObserver, SpcDriftProfile
+from scouter import (
+    MonitorQueue,
+    PsiDriftProfile,
+    ScouterObserver,
+    SpcDriftProfile,
+)
 from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
 from scouter.utils.logger import ScouterLogger
@@ -133,7 +138,9 @@ class FastAPIScouterObserver:
             original_lifespan = app.router.lifespan_context
 
             @asynccontextmanager
-            async def combined_lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+            async def combined_lifespan(
+                app: FastAPI,
+            ) -> AsyncGenerator[None, None]:
                 async with original_lifespan(app):
                     async with lifespan(app):
                         yield

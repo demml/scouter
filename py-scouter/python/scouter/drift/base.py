@@ -8,7 +8,11 @@ import polars as pl
 import pyarrow as pa  # type: ignore
 from numpy.typing import NDArray
 from scouter.utils.logger import ScouterLogger
-from scouter.utils.type_converter import ArrayData, _convert_data_to_array, _get_bits
+from scouter.utils.type_converter import (
+    ArrayData,
+    _convert_data_to_array,
+    _get_bits,
+)
 
 from .._scouter import (  # pylint: disable=no-name-in-module
     CustomDrifter,

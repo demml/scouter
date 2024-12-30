@@ -35,7 +35,10 @@ class PsiDriftHelper(DriftHelperBase):
         return self._rusty_drifter
 
     def create_string_drift_profile(
-        self, features: list[str], array: list[list[str]], drift_config: PsiDriftConfig
+        self,
+        features: list[str],
+        array: list[list[str]],
+        drift_config: PsiDriftConfig,
     ) -> PsiDriftProfile:
         return self._drifter.create_string_drift_profile(
             features=features,

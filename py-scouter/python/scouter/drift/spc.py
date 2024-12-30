@@ -34,7 +34,10 @@ class SpcDriftHelper(DriftHelperBase):
         return self._rusty_drifter
 
     def create_string_drift_profile(
-        self, features: list[str], array: list[list[str]], drift_config: SpcDriftConfig
+        self,
+        features: list[str],
+        array: list[list[str]],
+        drift_config: SpcDriftConfig,
     ) -> SpcDriftProfile:
         return self._drifter.create_string_drift_profile(
             features=features,

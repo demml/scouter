@@ -16,7 +16,11 @@ logger = ScouterLogger.get_logger()
 
 
 class SpcQueueingStrategy(BaseQueueingStrategy):
-    def __init__(self, drift_profile: SpcDriftProfile, config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig]) -> None:
+    def __init__(
+        self,
+        drift_profile: SpcDriftProfile,
+        config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig],
+    ) -> None:
         """Initializes an SPC-specific queueing strategy with customized logic for inserting and
         publishing data related to statistical process control (SPC).
 

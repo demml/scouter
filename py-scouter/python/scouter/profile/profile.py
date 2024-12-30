@@ -10,7 +10,10 @@ from numpy.typing import NDArray
 from scouter.utils.logger import ScouterLogger
 from scouter.utils.type_converter import _convert_data_to_array, _get_bits
 
-from .._scouter import DataProfile, ScouterProfiler  # pylint: disable=no-name-in-module
+from .._scouter import (
+    DataProfile,
+    ScouterProfiler,
+)  # pylint: disable=no-name-in-module
 
 logger = ScouterLogger.get_logger()
 
