@@ -525,6 +525,7 @@ pub struct SpcDriftProfile {
 #[pymethods]
 impl SpcDriftProfile {
     #[new]
+    #[pyo3(signature = (features, config, scouter_version=None))]
     pub fn new(
         features: HashMap<String, SpcFeatureDriftProfile>,
         config: SpcDriftConfig,
@@ -564,7 +565,7 @@ impl SpcDriftProfile {
     }
 
     #[staticmethod]
-    pub fn model_validate(py: Python, data: &Bound<'_, PyDict>) -> SpcDriftProfile {
+    pub fn model_validate(data: &Bound<'_, PyDict>) -> SpcDriftProfile {
         let json_value = pyobject_to_json(data).unwrap();
 
         let string = serde_json::to_string(&json_value).unwrap();
