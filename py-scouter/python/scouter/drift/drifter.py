@@ -43,46 +43,38 @@ class Drifter:
         # if drift_type == DriftType.Custom:
         #     self._custom_drift_helper = CustomDriftHelper()
         # else:
-        self._drift_helper: DriftHelperBase = get_drift_helper(
-            drift_type or DriftType.Spc
-        )
+        self._drift_helper: DriftHelperBase = get_drift_helper(drift_type or DriftType.Spc)
 
     @overload
     def create_drift_profile(
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray[Any], pa.Table],
         config: SpcDriftConfig,
-    ) -> SpcDriftProfile:
-        ...
+    ) -> SpcDriftProfile: ...
 
     @overload
     def create_drift_profile(
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray[Any], pa.Table],
         config: PsiDriftConfig,
-    ) -> PsiDriftProfile:
-        ...
+    ) -> PsiDriftProfile: ...
 
     @overload
     def create_drift_profile(
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray[Any], pa.Table],
-    ) -> SpcDriftProfile:
-        ...
+    ) -> SpcDriftProfile: ...
 
     @overload
     def create_drift_profile(
         self,
         data: CustomMetricData,
         config: CustomMetricDriftConfig,
-    ) -> CustomDriftProfile:
-        ...
+    ) -> CustomDriftProfile: ...
 
     def create_drift_profile(
         self,
-        data: Union[
-            pl.DataFrame, pd.DataFrame, NDArray[Any], pa.Table, CustomMetricData
-        ],
+        data: Union[pl.DataFrame, pd.DataFrame, NDArray[Any], pa.Table, CustomMetricData],
         config: Optional[Config] = None,
     ) -> Profile:
         """Create a drift profile from data to use for monitoring.
@@ -113,16 +105,14 @@ class Drifter:
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
         drift_profile: SpcDriftProfile,
-    ) -> SpcDriftMap:
-        ...
+    ) -> SpcDriftMap: ...
 
     @overload
     def compute_drift(
         self,
         data: Union[pl.DataFrame, pd.DataFrame, NDArray, pa.Table],
         drift_profile: PsiDriftProfile,
-    ) -> PsiDriftMap:
-        ...
+    ) -> PsiDriftMap: ...
 
     def compute_drift(
         self,

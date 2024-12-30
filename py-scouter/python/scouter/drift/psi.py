@@ -46,9 +46,7 @@ class PsiDriftHelper(DriftHelperBase):
     def create_numeric_drift_profile(
         self, array: ArrayData, drift_config: PsiDriftConfig, bits: str
     ) -> PsiDriftProfile:
-        numeric_profile = getattr(
-            self._rusty_drifter, f"create_numeric_drift_profile_f{bits}"
-        )(
+        numeric_profile = getattr(self._rusty_drifter, f"create_numeric_drift_profile_f{bits}")(
             features=array.numeric_features,
             array=array.numeric_array,
             drift_config=drift_config,
@@ -56,9 +54,7 @@ class PsiDriftHelper(DriftHelperBase):
 
         return numeric_profile
 
-    def concat_profiles(
-        self, profiles: list[Profile], config: PsiDriftConfig
-    ) -> PsiDriftProfile:
+    def concat_profiles(self, profiles: list[Profile], config: PsiDriftConfig) -> PsiDriftProfile:
         num_profile = profiles[0]
         string_profile = profiles[1]
 
@@ -70,9 +66,7 @@ class PsiDriftHelper(DriftHelperBase):
             config=config,
         )
 
-    def generate_alerts(
-        self, drift_array: NDArray, features: list[str], alert_rule: Any
-    ) -> Any:
+    def generate_alerts(self, drift_array: NDArray, features: list[str], alert_rule: Any) -> Any:
         raise NotImplementedError
 
     @staticmethod

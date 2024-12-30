@@ -1986,9 +1986,7 @@ class AlertThreshold:
         """
 
 class CustomMetricAlertCondition:
-    def __init__(
-        self, alert_threshold: AlertThreshold, alert_threshold_value: Optional[float]
-    ):
+    def __init__(self, alert_threshold: AlertThreshold, alert_threshold_value: Optional[float]):
         """Initialize a CustomMetricAlertCondition instance.
         Args:
             alert_threshold (AlertThreshold): The condition that determines when an alert
@@ -2072,9 +2070,7 @@ class CustomMetricAlertConfig:
         """Return the alert_condition that were set during metric definition"""
 
     @alert_conditions.setter
-    def alert_conditions(
-        self, alert_conditions: dict[str, CustomMetricAlertCondition]
-    ) -> None:
+    def alert_conditions(self, alert_conditions: dict[str, CustomMetricAlertCondition]) -> None:
         """Update the alert_condition that were set during metric definition"""
 
 class CustomMetricDriftConfig:
@@ -2323,7 +2319,6 @@ class CustomDriftProfile:
         Returns:
             None
         """
-
     # @property # hide this for now until we need it
     # def custom_metrics(self) -> list[CustomMetric]:
     #    """Return custom metric objects that were used to create the drift profile"""

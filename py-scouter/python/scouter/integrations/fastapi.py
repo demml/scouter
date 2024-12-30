@@ -30,9 +30,7 @@ class ScouterMixin:
     ) -> None:
         self._queue = MonitorQueue(drift_profile, config)
 
-    def add_api_route(
-        self, path: str, endpoint: Callable[..., Awaitable[Any]], **kwargs: Any
-    ) -> None:
+    def add_api_route(self, path: str, endpoint: Callable[..., Awaitable[Any]], **kwargs: Any) -> None:
         if "request" not in endpoint.__code__.co_varnames:
             raise ValueError("Request object must be passed to the endpoint function")
 

@@ -8,8 +8,8 @@ from scouter.integrations.rabbitmq import RabbitMQConfig, RabbitMQProducer
 from scouter.utils.types import AlertZone, SpcAlertType
 
 from ._scouter import (
-    AlertThreshold,
     AlertDispatchType,
+    AlertThreshold,
     Bin,
     CustomDriftProfile,
     CustomMetric,
