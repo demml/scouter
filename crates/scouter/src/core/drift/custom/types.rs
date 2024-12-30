@@ -33,15 +33,6 @@ impl AlertCondition {
             _ => None,
         }
     }
-
-    #[getter]
-    pub fn value(&self) -> &str {
-        match self {
-            AlertCondition::BELOW => "BELOW",
-            AlertCondition::ABOVE => "ABOVE",
-            AlertCondition::OUTSIDE => "OUTSIDE",
-        }
-    }
 }
 
 #[pyclass]

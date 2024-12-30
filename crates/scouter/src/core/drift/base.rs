@@ -35,7 +35,7 @@ impl DriftType {
     }
 
     #[getter]
-    pub fn value(&self) -> &str {
+    pub fn to_string(&self) -> &str {
         match self {
             DriftType::SPC => "SPC",
             DriftType::PSI => "PSI",
@@ -301,8 +301,8 @@ mod tests {
 
     #[test]
     fn test_drift_type_value() {
-        assert_eq!(DriftType::SPC.value(), "SPC");
-        assert_eq!(DriftType::PSI.value(), "PSI");
+        assert_eq!(DriftType::SPC.to_string(), "SPC");
+        assert_eq!(DriftType::PSI.to_string(), "PSI");
     }
 
     #[test]

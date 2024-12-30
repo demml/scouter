@@ -16,6 +16,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::fmt::Display;
 use std::path::PathBuf;
 use tracing::debug;
 
@@ -95,13 +96,25 @@ pub enum AlertZone {
 
 #[pymethods]
 impl AlertZone {
-    pub fn to_str(&self) -> String {
+    pub fn to_string(&self) -> String {
         match self {
             AlertZone::Zone1 => "Zone 1".to_string(),
             AlertZone::Zone2 => "Zone 2".to_string(),
             AlertZone::Zone3 => "Zone 3".to_string(),
             AlertZone::Zone4 => "Zone 4".to_string(),
             AlertZone::NotApplicable => "NA".to_string(),
+        }
+    }
+}
+
+impl Display for AlertZone {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AlertZone::Zone1 => write!(f, "Zone 1"),
+            AlertZone::Zone2 => write!(f, "Zone 2"),
+            AlertZone::Zone3 => write!(f, "Zone 3"),
+            AlertZone::Zone4 => write!(f, "Zone 4"),
+            AlertZone::NotApplicable => write!(f, "NA"),
         }
     }
 }
@@ -113,13 +126,13 @@ pub struct SpcAlertRule {
     pub rule: String,
 
     #[pyo3(get, set)]
-    pub zones_to_monitor: Vec<String>,
+    pub zones_to_monitor: Vec<AlertZone>,
 }
 
 #[pymethods]
 impl SpcAlertRule {
     #[new]
-    pub fn new(rule: Option<String>, zones_to_monitor: Option<Vec<String>>) -> Self {
+    pub fn new(rule: Option<String>, zones_to_monitor: Option<Vec<AlertZone>>) -> Self {
         let rule = match rule {
             Some(r) => r,
             None => "8 16 4 8 2 4 1 1".to_string(),
@@ -127,10 +140,10 @@ impl SpcAlertRule {
 
         let zones = zones_to_monitor.unwrap_or(
             [
-                AlertZone::Zone1.to_str(),
-                AlertZone::Zone2.to_str(),
-                AlertZone::Zone3.to_str(),
-                AlertZone::Zone4.to_str(),
+                AlertZone::Zone1,
+                AlertZone::Zone2,
+                AlertZone::Zone3,
+                AlertZone::Zone4,
             ]
             .to_vec(),
         );
@@ -146,10 +159,10 @@ impl Default for SpcAlertRule {
         Self {
             rule: "8 16 4 8 2 4 1 1".to_string(),
             zones_to_monitor: vec![
-                AlertZone::Zone1.to_str(),
-                AlertZone::Zone2.to_str(),
-                AlertZone::Zone3.to_str(),
-                AlertZone::Zone4.to_str(),
+                AlertZone::Zone1,
+                AlertZone::Zone2,
+                AlertZone::Zone3,
+                AlertZone::Zone4,
             ],
         }
     }
@@ -224,7 +237,7 @@ impl Default for SpcAlertConfig {
 }
 
 #[pyclass]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Copy)]
+#[derive(Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Clone, Copy)]
 pub enum SpcAlertType {
     OutOfBounds,
     Consecutive,
@@ -235,7 +248,7 @@ pub enum SpcAlertType {
 
 #[pymethods]
 impl SpcAlertType {
-    pub fn to_str(&self) -> String {
+    pub fn to_string(&self) -> String {
         match self {
             SpcAlertType::OutOfBounds => "Out of bounds".to_string(),
             SpcAlertType::Consecutive => "Consecutive".to_string(),
@@ -246,21 +259,33 @@ impl SpcAlertType {
     }
 }
 
+impl Display for SpcAlertType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SpcAlertType::OutOfBounds => write!(f, "Out of bounds"),
+            SpcAlertType::Consecutive => write!(f, "Consecutive"),
+            SpcAlertType::Alternating => write!(f, "Alternating"),
+            SpcAlertType::AllGood => write!(f, "All good"),
+            SpcAlertType::Trend => write!(f, "Trend"),
+        }
+    }
+}
+
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, Eq, Hash, PartialEq)]
 pub struct SpcAlert {
     #[pyo3(get)]
-    pub kind: String,
+    pub kind: SpcAlertType,
 
     #[pyo3(get)]
-    pub zone: String,
+    pub zone: AlertZone,
 }
 
 #[pymethods]
 #[allow(clippy::new_without_default)]
 impl SpcAlert {
     #[new]
-    pub fn new(kind: String, zone: String) -> Self {
+    pub fn new(kind: SpcAlertType, zone: AlertZone) -> Self {
         Self { kind, zone }
     }
 
@@ -908,15 +933,15 @@ mod tests {
         let control_alert = SpcAlertRule::default().rule;
 
         assert_eq!(control_alert, "8 16 4 8 2 4 1 1");
-        assert_eq!(AlertZone::NotApplicable.to_str(), "NA");
-        assert_eq!(AlertZone::Zone1.to_str(), "Zone 1");
-        assert_eq!(AlertZone::Zone2.to_str(), "Zone 2");
-        assert_eq!(AlertZone::Zone3.to_str(), "Zone 3");
-        assert_eq!(AlertZone::Zone4.to_str(), "Zone 4");
-        assert_eq!(SpcAlertType::AllGood.to_str(), "All good");
-        assert_eq!(SpcAlertType::Consecutive.to_str(), "Consecutive");
-        assert_eq!(SpcAlertType::Alternating.to_str(), "Alternating");
-        assert_eq!(SpcAlertType::OutOfBounds.to_str(), "Out of bounds");
+        assert_eq!(AlertZone::NotApplicable.to_string(), "NA");
+        assert_eq!(AlertZone::Zone1.to_string(), "Zone 1");
+        assert_eq!(AlertZone::Zone2.to_string(), "Zone 2");
+        assert_eq!(AlertZone::Zone3.to_string(), "Zone 3");
+        assert_eq!(AlertZone::Zone4.to_string(), "Zone 4");
+        assert_eq!(SpcAlertType::AllGood.to_string(), "All good");
+        assert_eq!(SpcAlertType::Consecutive.to_string(), "Consecutive");
+        assert_eq!(SpcAlertType::Alternating.to_string(), "Alternating");
+        assert_eq!(SpcAlertType::OutOfBounds.to_string(), "Out of bounds");
     }
 
     #[test]
@@ -986,8 +1011,8 @@ mod tests {
         let sample_alert = SpcFeatureAlert {
             feature: "feature1".to_string(),
             alerts: vec![SpcAlert {
-                kind: "kind1".to_string(),
-                zone: "zone1".to_string(),
+                kind: SpcAlertType::OutOfBounds,
+                zone: AlertZone::Zone1,
             }],
             // Initialize fields of SpcFeatureAlert
         };

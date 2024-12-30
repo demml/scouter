@@ -219,23 +219,19 @@ impl Alerter {
         };
 
         // skip if the zone is not in the process rule
-        if !self
-            .alert_rule
-            .zones_to_monitor
-            .contains(&alert_zone.to_str())
-        {
+        if !self.alert_rule.zones_to_monitor.contains(&alert_zone) {
             return Ok(());
         }
 
         if alert_zone == AlertZone::Zone4 {
             self.alerts.insert(SpcAlert {
-                zone: alert_zone.to_str(),
-                kind: SpcAlertType::OutOfBounds.to_str(),
+                zone: alert_zone,
+                kind: SpcAlertType::OutOfBounds,
             });
         } else {
             self.alerts.insert(SpcAlert {
-                zone: alert_zone.to_str(),
-                kind: alert.to_str(),
+                zone: alert_zone,
+                kind: alert,
             });
         }
 
@@ -259,8 +255,8 @@ impl Alerter {
 
             if increasing >= 6 || decreasing >= 6 {
                 self.alerts.insert(SpcAlert {
-                    zone: AlertZone::NotApplicable.to_str(),
-                    kind: SpcAlertType::Trend.to_str(),
+                    zone: AlertZone::NotApplicable,
+                    kind: SpcAlertType::Trend,
                 });
             }
         });
@@ -424,7 +420,7 @@ mod tests {
 
     #[test]
     fn test_check_rule_zones_to_monitor() {
-        let zones_to_monitor = ["Zone 1".to_string(), "Zone 4".to_string()].to_vec();
+        let zones_to_monitor = [AlertZone::Zone1, AlertZone::Zone4].to_vec();
         let process = SpcAlertRule::new(None, Some(zones_to_monitor));
         let mut alerter = Alerter::new(process);
 
@@ -455,8 +451,8 @@ mod tests {
         // get first alert
         let alert = alerter.alerts.iter().next().unwrap();
 
-        assert_eq!(alert.zone, "NA");
-        assert_eq!(alert.kind, "Trend");
+        assert_eq!(alert.zone, AlertZone::NotApplicable);
+        assert_eq!(alert.kind, SpcAlertType::Trend);
     }
 
     #[test]
