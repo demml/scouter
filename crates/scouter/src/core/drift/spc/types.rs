@@ -727,6 +727,7 @@ impl SpcDriftMap {
             .unwrap()
     }
 
+    #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
         ProfileFuncs::save_to_json(self, path, FileName::SpcDrift.to_str())
     }
