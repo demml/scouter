@@ -1,5 +1,5 @@
 # pylint: disable=pointless-statement,broad-exception-caught
-from typing import Any, Dict, Optional, Union
+from typing import List, Optional, Union
 
 from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
@@ -10,6 +10,7 @@ from scouter.utils.logger import ScouterLogger
 
 from .._scouter import (  # pylint: disable=no-name-in-module
     CommonCron,
+    Feature,
     PsiDriftProfile,
     ServerRecords,
     SpcDriftProfile,
@@ -56,17 +57,17 @@ class MonitorQueue:
         self._queueing_strategy = _get_queueing_strategy(drift_profile, config)
         logger.info("Queue and producer initialized")
 
-    def insert(self, data: Dict[Any, Any]) -> Optional[ServerRecords]:
+    def insert(self, features: List[Feature]) -> Optional[ServerRecords]:
         """Insert data into the monitoring queue.
 
         Args:
-            data:
-                Dictionary of feature values to insert into the monitoring queue.
+            features:
+                List of features to insert into the monitoring queue.
 
         Returns:
             List of drift records if queueing strategy conditions are met
         """
-        return self._queueing_strategy.insert(data)
+        return self._queueing_strategy.insert(features)
 
     def flush(self) -> None:
         """Flush the producer."""

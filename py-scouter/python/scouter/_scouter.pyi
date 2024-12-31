@@ -1521,6 +1521,8 @@ class Feature:
         Args:
             name:
                 Name of the feature
+            value:
+                Value of the feature
         """
 
     @staticmethod
@@ -1530,6 +1532,8 @@ class Feature:
         Args:
             name:
                 Name of the feature
+            value:
+                Value of the feature
         """
 
     @staticmethod
@@ -1539,6 +1543,8 @@ class Feature:
         Args:
             name:
                 Name of the feature
+            value:
+                Value of the feature
         """
 
 class PsiFeatureQueue:

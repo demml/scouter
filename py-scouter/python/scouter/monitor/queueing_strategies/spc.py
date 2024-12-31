@@ -1,16 +1,17 @@
 from typing import List, Optional, Union
 
-from scouter import (  # pylint: disable=no-name-in-module
-    Feature,
-    ServerRecords,
-    SpcDriftProfile,
-    SpcFeatureQueue,
-)
 from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
 from scouter.integrations.rabbitmq import RabbitMQConfig
 from scouter.monitor.queueing_strategies.base import BaseQueueingStrategy
 from scouter.utils.logger import ScouterLogger
+
+from ..._scouter import (  # pylint: disable=no-name-in-module
+    Feature,
+    ServerRecords,
+    SpcDriftProfile,
+    SpcFeatureQueue,
+)
 
 logger = ScouterLogger.get_logger()
 
@@ -42,8 +43,11 @@ class SpcQueueingStrategy(BaseQueueingStrategy):
         """Insert data into the monitoring queue.
 
         Args:
-            data:
-                Dictionary of feature values to insert into the monitoring queue.
+            features:
+                List of features to insert into the monitoring queue.
+
+        Returns:
+            ServerRecords: The drift records published to the monitoring server.
         """
         try:
             self._feature_queue.insert(features)

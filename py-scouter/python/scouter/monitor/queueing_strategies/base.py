@@ -1,17 +1,18 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional, Union
 
-from scouter import (  # pylint: disable=no-name-in-module
-    Feature,
-    PsiFeatureQueue,
-    ServerRecords,
-    SpcFeatureQueue,
-)
 from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
 from scouter.integrations.producer import DriftRecordProducer
 from scouter.integrations.rabbitmq import RabbitMQConfig
 from scouter.utils.logger import ScouterLogger
+
+from ..._scouter import (  # pylint: disable=no-name-in-module
+    Feature,
+    PsiFeatureQueue,
+    ServerRecords,
+    SpcFeatureQueue,
+)
 
 logger = ScouterLogger.get_logger()
 
@@ -62,8 +63,8 @@ class BaseQueueingStrategy(ABC):
         """Insert data into the monitoring queue.
 
         Args:
-            data:
-                Dictionary of feature values to insert into the monitoring queue.
+            features:
+                List of features to insert into the monitoring queue.
 
         Returns:
             List of drift records if the monitoring queue has enough data to compute
