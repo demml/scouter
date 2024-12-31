@@ -4,8 +4,8 @@ use scouter_error::{PyScouterError, ScouterError};
 use crate::core::observe::observer::ObservabilityMetrics;
 use scouter_types::{ProfileFuncs, DriftType};
 
-use crate::core::drift::custom::types::{CustomDriftProfile, CustomMetricServerRecord};
-use crate::core::drift::psi::types::{PsiDriftProfile, PsiServerRecord};
+use crate::custom::types::{CustomDriftProfile, CustomMetricServerRecord};
+use crate::psi::types::{PsiDriftProfile, PsiServerRecord};
 use pyo3::{prelude::*, IntoPyObjectExt};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
@@ -45,115 +45,9 @@ pub struct DriftArgs {
     pub dispatch_type: AlertDispatchType,
 }
 
-#[pyclass(eq)]
-#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
-pub enum RecordType {
-    #[default]
-    Spc,
-    Psi,
-    Observability,
-    Custom,
-}
 
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub enum ServerRecord {
-    Spc { record: SpcServerRecord },
-    Psi { record: PsiServerRecord },
-    Custom { record: CustomMetricServerRecord },
-    Observability { record: ObservabilityMetrics },
-}
 
-#[pymethods]
-impl ServerRecord {
-    #[new]
-    pub fn new(record: &Bound<'_, PyAny>) -> Self {
-        let record_type: RecordType = record.getattr("record_type").unwrap().extract().unwrap();
 
-        match record_type {
-            RecordType::Spc => {
-                let record: SpcServerRecord = record.extract().unwrap();
-                ServerRecord::Spc { record }
-            }
-            RecordType::Psi => {
-                let record: PsiServerRecord = record.extract().unwrap();
-                ServerRecord::Psi { record }
-            }
-            RecordType::Custom => {
-                let record: CustomMetricServerRecord = record.extract().unwrap();
-                ServerRecord::Custom { record }
-            }
-            RecordType::Observability => {
-                let record: ObservabilityMetrics = record.extract().unwrap();
-                ServerRecord::Observability { record }
-            }
-        }
-    }
-
-    pub fn record(&self, py: Python) -> PyResult<PyObject> {
-        match self {
-            ServerRecord::Spc { record } => Ok(record
-                .clone()
-                .into_py_any(py)
-                .map_err(PyScouterError::new_err)?),
-            ServerRecord::Psi { record } => Ok(record
-                .clone()
-                .into_py_any(py)
-                .map_err(PyScouterError::new_err)?),
-            ServerRecord::Custom { record } => Ok(record
-                .clone()
-                .into_py_any(py)
-                .map_err(PyScouterError::new_err)?),
-            ServerRecord::Observability { record } => Ok(record
-                .clone()
-                .into_py_any(py)
-                .map_err(PyScouterError::new_err)?),
-        }
-    }
-}
-
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct ServerRecords {
-    #[pyo3(get)]
-    pub record_type: RecordType,
-
-    #[pyo3(get)]
-    pub records: Vec<ServerRecord>,
-}
-
-#[pymethods]
-impl ServerRecords {
-    #[new]
-    pub fn new(records: Vec<ServerRecord>, record_type: RecordType) -> Self {
-        Self {
-            record_type,
-            records,
-        }
-    }
-    pub fn model_dump_json(&self) -> String {
-        // serialize records to a string
-        ProfileFuncs::__json__(self)
-    }
-
-    pub fn __str__(&self) -> String {
-        // serialize the struct to a string
-        ProfileFuncs::__str__(self)
-    }
-}
-
-impl ServerRecords {
-    // Helper function to load records from bytes. Used by scouter-server consumers
-    //
-    // # Arguments
-    //
-    // * `bytes` - A slice of bytes
-    pub fn load_from_bytes(bytes: &[u8]) -> Result<Self, ScouterError> {
-        let records: ServerRecords =
-            serde_json::from_slice(bytes).map_err(|_| ScouterError::DeSerializeError)?;
-        Ok(records)
-    }
-}
 
 // Generic enum to be used on scouter server
 #[derive(Debug, Clone)]
@@ -264,7 +158,7 @@ pub trait ValidateAlertConfig {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::core::utils::CategoricalFeatureHelpers;
+    use crate::utils::CategoricalFeatureHelpers;
     use std::str::FromStr;
 
     pub struct TestStruct;

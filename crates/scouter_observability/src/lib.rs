@@ -1,7 +1,5 @@
-use crate::core::drift::base::RecordType;
-use crate::core::drift::base::{ServerRecord, ServerRecords};
+use scouter_types::{RecordType, ServerRecord, ServerRecords, RouteMetrics, LatencyMetrics, ObservabilityMetrics};
 use scouter_error::ObserverError;
-use scouter_types::ProfileFuncs;
 use ndarray::Array1;
 use ndarray_stats::interpolate::Nearest;
 use ndarray_stats::Quantile1dExt;
@@ -9,10 +7,8 @@ use noisy_float::types::n64;
 use pyo3::prelude::*;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
-use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use tracing::{debug, error};
-
 
 #[derive(Clone, Debug)]
 struct RouteLatency {
@@ -235,10 +231,6 @@ impl Observer {
         }
     }
 }
-
-
-
-
 
 #[cfg(test)]
 mod tests {
