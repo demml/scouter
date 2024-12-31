@@ -54,14 +54,18 @@ impl SpcFeatureQueue {
 
     // create a python function that will take a python dictionary of string keys and either int, float or string values
     // and append the values to the corresponding feature queue
-    pub fn insert(&mut self, features: Vec<Feature>) -> PyResult<()> {
+    pub fn insert(&mut self, features: Vec<Feature>) -> Result<(), FeatureQueueError> {
         for feature in features {
             let name = feature.name();
             if let Some(queue) = self.queue.get_mut(name) {
-                let value = feature.to_float(
-                    Some(&self.mapped_features),
-                    &self.drift_profile.config.feature_map,
-                )?;
+                let value = feature
+                    .to_float(
+                        Some(&self.mapped_features),
+                        &self.drift_profile.config.feature_map,
+                    )
+                    .map_err(|e| {
+                        FeatureQueueError::InvalidValueError(name.to_string(), e.to_string())
+                    })?;
                 if let Some(value) = value {
                     queue.push(value);
                 }
@@ -171,9 +175,9 @@ mod tests {
             feature_queue.insert(vec![one, two, three]).unwrap();
         }
 
-        assert_eq!(feature_queue.queue.get("feature_1").unwrap().len(), 10);
-        assert_eq!(feature_queue.queue.get("feature_2").unwrap().len(), 10);
-        assert_eq!(feature_queue.queue.get("feature_3").unwrap().len(), 10);
+        assert_eq!(feature_queue.queue.get("feature_1").unwrap().len(), 9);
+        assert_eq!(feature_queue.queue.get("feature_2").unwrap().len(), 9);
+        assert_eq!(feature_queue.queue.get("feature_3").unwrap().len(), 9);
 
         let records = feature_queue.create_drift_records().unwrap();
 

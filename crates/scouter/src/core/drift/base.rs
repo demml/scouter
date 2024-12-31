@@ -48,15 +48,17 @@ impl StringFeature {
         &self,
         mapped_features: Option<&Vec<String>>,
         feature_map: &Option<FeatureMap>,
-    ) -> PyResult<Option<f64>> {
+    ) -> Result<Option<f64>, ScouterError> {
         if let Some(mapped_features) = mapped_features {
             if mapped_features.contains(&self.name) {
                 let feature_map = feature_map
                     .as_ref()
-                    .ok_or_else(|| PyScouterError::new_err("Feature map is missing".to_string()))?
+                    .ok_or(ScouterError::MissingFeatureMapError)?
                     .features
                     .get(&self.name)
-                    .ok_or_else(|| PyScouterError::new_err("Failed to get feature".to_string()))?;
+                    .ok_or_else(|| {
+                        ScouterError::FeatureError("Failed to get feature".to_string())
+                    })?;
 
                 let transformed_val = feature_map
                     .get(&self.value)
@@ -64,7 +66,10 @@ impl StringFeature {
 
                 return Ok(Some(*transformed_val as f64));
             } else {
-                return Err(PyScouterError::new_err("Feature not found".to_string()));
+                return Err(ScouterError::FeatureError(format!(
+                    "Feature {} is not a mapped feature",
+                    self.name
+                )));
             }
         }
         Ok(None)
@@ -102,7 +107,7 @@ impl Feature {
         &self,
         mapped_features: Option<&Vec<String>>,
         feature_map: &Option<FeatureMap>,
-    ) -> PyResult<Option<f64>> {
+    ) -> Result<Option<f64>, ScouterError> {
         match self {
             Feature::Int(feature) => Ok(Some(feature.to_float())),
             Feature::Float(feature) => Ok(Some(feature.value)),

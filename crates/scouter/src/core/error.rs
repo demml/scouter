@@ -78,8 +78,8 @@ pub enum FeatureQueueError {
     #[error("invalid data type detected for feature: {0}")]
     InvalidFeatureTypeError(String),
 
-    #[error("invalid value detected for feature: {0}, provided value = {1}")]
-    InvalidValueError(String, f64),
+    #[error("invalid value detected for feature: {0}, error: {1}")]
+    InvalidValueError(String, String),
 
     #[error("Failed to get bin given bin id")]
     GetBinError,
