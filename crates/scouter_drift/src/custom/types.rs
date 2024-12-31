@@ -1,6 +1,6 @@
-use scouter_types::{EveryDay, AlertDispatchType, DriftType, ProfileFuncs, FileName};
+use scouter_types::{EveryDay, AlertDispatchType, DriftType, ProfileFuncs, FileName,  DispatchAlertDescription, DispatchDriftConfig, DriftArgs,};
 use crate::base::{
-    DispatchAlertDescription, DispatchDriftConfig, DriftArgs, ProfileArgs,
+    ProfileArgs,
     ProfileBaseArgs, ValidateAlertConfig, MISSING,
 };
 use scouter_error::{CustomMetricError, ScouterError};

@@ -2,6 +2,7 @@ use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use scouter_error::ScouterError;
+use crate::dispatch::AlertDispatchType;
 
 #[pyclass(eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -46,4 +47,9 @@ impl FromStr for DriftType {
     }
 }
 
-
+pub struct DriftArgs {
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+    pub dispatch_type: AlertDispatchType,
+}

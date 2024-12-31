@@ -19,6 +19,7 @@ repository = "https://github.com/demml/scouter"
 [workspace.dependencies]
 scouter = { path = "crates/scouter" }
 scouter-contracts = { path = "crates/scouter_contracts" }
+scouter-dispatch = { path = "crates/scouter_dispatch" }
 scouter-drift = { path = "crates/scouter_drift" }
 scouter-error = { path = "crates/scouter_error" }
 scouter-observability = { path = "crates/scouter_observability" }
@@ -42,7 +43,7 @@ itertools = "0.*"
 
 metrics = "0.*"
 metrics-exporter-prometheus = "0.*"
-
+mockito = "1.*"
 ndarray = { version = "0.*", features = ["rayon"] }
 ndarray-rand = "0.*"
 ndarray-stats = "0.*"
@@ -52,6 +53,7 @@ num-traits = "0.*"
 pyo3 = { version = ">=0.23.3, <1.0.0", features = ["chrono", "anyhow", "extension-module"] }
 rand = "0.*"
 rayon = "1.*"
+reqwest = { version = "0.12.*", features = ["json", "stream", "multipart", "rustls-tls", "rustls-tls-native-roots", "json" ], default-features = false }
 
 serde = { version = "1.*", features = ["derive"] }
 serde_json = "1.*"

@@ -7,16 +7,6 @@ use std::str::FromStr;
 
 pub const MISSING: &str = "__missing__";
 
-// Trait for alert descriptions
-// This is to be used for all kinds of feature alerts
-pub trait DispatchAlertDescription {
-    fn create_alert_description(&self, dispatch_type: AlertDispatchType) -> String;
-}
-
-pub trait DispatchDriftConfig {
-    fn get_drift_args(&self) -> DriftArgs;
-}
-
 #[derive(PartialEq, Debug)]
 pub struct ProfileArgs {
     pub name: String,

@@ -1,6 +1,5 @@
-use scouter_types::{cron::EveryDay, dispatch::AlertDispatchType, FeatureMap,ProfileFuncs, DriftType, FileName};
-use crate::base::{
-    DispatchAlertDescription, DispatchDriftConfig, DriftArgs, ProfileArgs,
+use scouter_types::{cron::EveryDay, dispatch::AlertDispatchType, FeatureMap,ProfileFuncs, DriftType, FileName, DriftArgs, DispatchAlertDescription, DispatchDriftConfig};
+use crate::base::{ ProfileArgs,
     ProfileBaseArgs, ValidateAlertConfig, MISSING,
 };
 use scouter_error::ScouterError;
