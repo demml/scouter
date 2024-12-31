@@ -1,13 +1,9 @@
-use scouter_types::{cron::EveryDay, dispatch::AlertDispatchType};
-use crate::spc::{SpcDriftProfile, SpcServerRecord};
-use scouter_error::{PyScouterError, ScouterError};
-use crate::core::observe::observer::ObservabilityMetrics;
-use scouter_types::{ProfileFuncs, DriftType};
-
-use crate::custom::types::{CustomDriftProfile, CustomMetricServerRecord};
-use crate::psi::types::{PsiDriftProfile, PsiServerRecord};
-use pyo3::{prelude::*, IntoPyObjectExt};
-use serde::{Deserialize, Serialize};
+use scouter_types::{cron::EveryDay, dispatch::AlertDispatchType,  DriftType, };
+use crate::spc::SpcDriftProfile;
+use scouter_error::ScouterError;
+use crate::custom::types::CustomDriftProfile;
+use crate::psi::types::PsiDriftProfile;
+use pyo3::prelude::*;
 use std::str::FromStr;
 
 pub const MISSING: &str = "__missing__";
@@ -44,9 +40,6 @@ pub struct DriftArgs {
     pub version: String,
     pub dispatch_type: AlertDispatchType,
 }
-
-
-
 
 
 // Generic enum to be used on scouter server

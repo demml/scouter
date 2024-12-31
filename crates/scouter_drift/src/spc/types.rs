@@ -1,11 +1,10 @@
-use scouter_types::{cron::EveryDay, dispatch::AlertDispatchType, FeatureMap,ProfileFuncs};
-
-use crate::spc::base::{
-    DispatchAlertDescription, DispatchDriftConfig, DriftArgs, DriftType, ProfileArgs,
-    ProfileBaseArgs, RecordType, ValidateAlertConfig, MISSING,
+use scouter_types::{cron::EveryDay, dispatch::AlertDispatchType, FeatureMap,ProfileFuncs, DriftType};
+use crate::base::{
+    DispatchAlertDescription, DispatchDriftConfig, DriftArgs, ProfileArgs,
+    ProfileBaseArgs, ValidateAlertConfig, MISSING,
 };
 use scouter_error::ScouterError;
-use crate::core::utils::{json_to_pyobject, pyobject_to_json, FeatureMap, FileName, ProfileFuncs};
+use crate::utils::{json_to_pyobject, pyobject_to_json, FileName};
 use core::fmt::Debug;
 use ndarray::Array;
 use ndarray::Array2;
