@@ -1546,6 +1546,19 @@ class Feature:
             value:
                 Value of the feature
         """
+        
+class Features:
+    
+    def __init__(self, features: List[Feature]) -> None:
+        """Initialize features
+
+        Args:
+            features:
+                List of features
+        """
+        
+    def __str__(self) -> str:
+        """Return the string representation of the features"""
 
 class PsiFeatureQueue:
     def __init__(self, drift_profile: PsiDriftProfile) -> None:

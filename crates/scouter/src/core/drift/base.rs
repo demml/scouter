@@ -17,10 +17,17 @@ use std::str::FromStr;
 pub const MISSING: &str = "__missing__";
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct IntFeature {
     pub name: String,
     pub value: i64,
+}
+
+#[pymethods]
+impl IntFeature {
+    pub fn __str__(&self) -> String {
+        ProfileFuncs::__str__(self)
+    }
 }
 
 impl IntFeature {
@@ -30,17 +37,31 @@ impl IntFeature {
 }
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct FloatFeature {
     pub name: String,
     pub value: f64,
 }
 
+#[pymethods]
+impl FloatFeature {
+    pub fn __str__(&self) -> String {
+        ProfileFuncs::__str__(self)
+    }
+}
+
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct StringFeature {
     pub name: String,
     pub value: String,
+}
+
+#[pymethods]
+impl StringFeature {
+    pub fn __str__(&self) -> String {
+        ProfileFuncs::__str__(self)
+    }
 }
 
 impl StringFeature {
@@ -77,7 +98,7 @@ impl StringFeature {
 }
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub enum Feature {
     Int(IntFeature),
     Float(FloatFeature),
@@ -99,6 +120,10 @@ impl Feature {
     #[staticmethod]
     pub fn string(name: String, value: String) -> Self {
         Feature::String(StringFeature { name, value })
+    }
+
+    pub fn __str__(&self) -> String {
+        ProfileFuncs::__str__(self)
     }
 }
 
@@ -135,7 +160,7 @@ impl Display for Feature {
 }
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Features {
     pub features: Vec<Feature>,
 }
@@ -146,6 +171,10 @@ impl Features {
     #[new]
     pub fn new(features: Vec<Feature>) -> Self {
         Features { features }
+    }
+
+    pub fn __str__(&self) -> String {
+        ProfileFuncs::__str__(self)
     }
 }
 
