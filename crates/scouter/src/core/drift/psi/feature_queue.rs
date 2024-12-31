@@ -122,7 +122,6 @@ impl PsiFeatureQueue {
         &mut self,
         features: Vec<Feature>,
     ) -> PyResult<()> {
-
         for feature in features{
             if let Some(feature_drift_profile) = self.drift_profile.features.get(feature.name()) {
                 let bins = &feature_drift_profile.bins;

@@ -55,7 +55,7 @@ impl SpcFeatureQueue {
     // create a python function that will take a python dictionary of string keys and either int, float or string values
     // and append the values to the corresponding feature queue
     pub fn insert(&mut self, features: Vec<Feature>) -> PyResult<()> {
-       
+        
         for feature in features {
             let name = feature.name();
             if let Some(queue) = self.queue.get_mut(name) {
