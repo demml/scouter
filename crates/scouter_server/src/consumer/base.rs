@@ -17,11 +17,11 @@ pub trait ToDriftRecords {
 impl ToDriftRecords for ServerRecords {
     fn to_spc_drift_records(&self) -> Result<Vec<SpcServerRecord>> {
         match self.record_type {
-            RecordType::SPC => {
+            RecordType::Spc => {
                 let mut records = Vec::new();
                 for record in self.records.iter() {
                     match record {
-                        ServerRecord::SPC {
+                        ServerRecord::Spc {
                             record: inner_record,
                         } => {
                             records.push(inner_record.clone());
@@ -33,20 +33,20 @@ impl ToDriftRecords for ServerRecords {
                 }
                 Ok(records)
             }
-            RecordType::OBSERVABILITY => todo!(),
-            RecordType::PSI => todo!(),
-            RecordType::CUSTOM => todo!(),
+            RecordType::Observability => Err(anyhow!("Unexpected record type")),
+            RecordType::Psi => Err(anyhow!("Unexpected record type")),
+            RecordType::Custom => Err(anyhow!("Unexpected record type")),
         }
     }
 
     fn to_observability_drift_records(&self) -> Result<Vec<ObservabilityMetrics>> {
         match self.record_type {
-            RecordType::SPC => todo!(),
-            RecordType::OBSERVABILITY => {
+            RecordType::Spc => Err(anyhow!("Unexpected record type")),
+            RecordType::Observability => {
                 let mut records = Vec::new();
                 for record in self.records.iter() {
                     match record {
-                        ServerRecord::OBSERVABILITY {
+                        ServerRecord::Observability {
                             record: inner_record,
                         } => {
                             records.push(inner_record.clone());
@@ -58,18 +58,18 @@ impl ToDriftRecords for ServerRecords {
                 }
                 Ok(records)
             }
-            RecordType::PSI => todo!(),
-            RecordType::CUSTOM => todo!(),
+            RecordType::Psi => Err(anyhow!("Unexpected record type")),
+            RecordType::Custom => Err(anyhow!("Unexpected record type")),
         }
     }
 
     fn to_psi_drift_records(&self) -> Result<Vec<PsiServerRecord>> {
         match self.record_type {
-            RecordType::PSI => {
+            RecordType::Psi => {
                 let mut records = Vec::new();
                 for record in self.records.iter() {
                     match record {
-                        ServerRecord::PSI {
+                        ServerRecord::Psi {
                             record: inner_record,
                         } => {
                             records.push(inner_record.clone());
@@ -81,19 +81,19 @@ impl ToDriftRecords for ServerRecords {
                 }
                 Ok(records)
             }
-            RecordType::OBSERVABILITY => todo!(),
-            RecordType::SPC => todo!(),
-            RecordType::CUSTOM => todo!(),
+            RecordType::Observability => Err(anyhow!("Unexpected record type")),
+            RecordType::Spc => Err(anyhow!("Unexpected record type")),
+            RecordType::Custom => Err(anyhow!("Unexpected record type")),
         }
     }
 
     fn to_custom_metric_drift_records(&self) -> Result<Vec<CustomMetricServerRecord>> {
         match self.record_type {
-            RecordType::CUSTOM => {
+            RecordType::Custom => {
                 let mut records = Vec::new();
                 for record in self.records.iter() {
                     match record {
-                        ServerRecord::CUSTOM {
+                        ServerRecord::Custom {
                             record: inner_record,
                         } => {
                             records.push(inner_record.clone());
@@ -105,9 +105,9 @@ impl ToDriftRecords for ServerRecords {
                 }
                 Ok(records)
             }
-            RecordType::OBSERVABILITY => todo!(),
-            RecordType::SPC => todo!(),
-            RecordType::PSI => todo!(),
+            RecordType::Observability => Err(anyhow!("Unexpected record type")),
+            RecordType::Spc => Err(anyhow!("Unexpected record type")),
+            RecordType::Psi => Err(anyhow!("Unexpected record type")),
         }
     }
 }
@@ -121,7 +121,7 @@ impl MessageHandler {
         match self {
             Self::Postgres(client) => {
                 match records.record_type {
-                    RecordType::SPC => {
+                    RecordType::Spc => {
                         let records = records.to_spc_drift_records()?;
                         for record in records.iter() {
                             let _ = client.insert_spc_drift_record(record).await.map_err(|e| {
@@ -129,7 +129,7 @@ impl MessageHandler {
                             });
                         }
                     }
-                    RecordType::OBSERVABILITY => {
+                    RecordType::Observability => {
                         let records = records.to_observability_drift_records()?;
                         for record in records.iter() {
                             let _ = client
@@ -140,7 +140,7 @@ impl MessageHandler {
                                 });
                         }
                     }
-                    RecordType::PSI => {
+                    RecordType::Psi => {
                         let records = records.to_psi_drift_records()?;
                         for record in records.iter() {
                             let _ = client.insert_bin_counts(record).await.map_err(|e| {
@@ -148,7 +148,7 @@ impl MessageHandler {
                             });
                         }
                     }
-                    RecordType::CUSTOM => {
+                    RecordType::Custom => {
                         let records = records.to_custom_metric_drift_records()?;
                         for record in records.iter() {
                             let _ = client
