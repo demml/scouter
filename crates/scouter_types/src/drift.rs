@@ -1,5 +1,7 @@
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::str::FromStr;
+use scouter_error::ScouterError;
 
 #[pyclass(eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]

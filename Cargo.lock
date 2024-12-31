@@ -3437,6 +3437,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "scouter-error"
+version = "0.3.3"
+dependencies = [
+ "pyo3",
+ "serde",
+ "thiserror",
+]
+
+[[package]]
 name = "scouter-server"
 version = "0.3.3"
 dependencies = [
@@ -3491,6 +3500,7 @@ name = "scouter-types"
 version = "0.3.3"
 dependencies = [
  "pyo3",
+ "scouter-error",
  "serde",
  "serde_json",
 ]

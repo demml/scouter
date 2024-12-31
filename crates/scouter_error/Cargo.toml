@@ -1,5 +1,5 @@
 [package]
-name = "scouter-types"
+name = "scouter-error"
 version = { workspace = true }
 edition = { workspace = true }
 repository = { workspace = true }
@@ -9,13 +9,12 @@ authors = [
 ]
 
 license = "MIT"
-description = "Client and server contract for scouter"
+description = "Error logic for Scouter"
 
 [dependencies]
-scouter-error = { workspace = true }
-serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true }
-pyo3 = {workspace = true }
+pyo3 = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
 
 
 [profile.release]
