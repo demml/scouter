@@ -5,24 +5,23 @@ use crate::sql::query::Queries;
 use crate::sql::schema::{
     AlertResult, FeatureResult, ObservabilityResult, QueryResult, SpcFeatureResult, TaskRequest,
 };
-use anyhow::*;
+use scouter_error::SqlError;
 use chrono::Utc;
 use cron::Schedule;
 use futures::future::join_all;
-use include_dir::{include_dir, Dir};
 use scouter_drift::DriftProfile;
 use scouter_types::{CustomMetricServerRecord, PsiServerRecord, SpcServerRecord, ObservabilityMetrics};
 use serde_json::Value;
 use sqlx::{
-    postgres::{PgQueryResult, PgRow},
+    postgres::{PgQueryResult, PgRow, PgPoolOptions},
     Pool, Postgres, Row, Transaction,
 };
 use std::collections::{BTreeMap, HashMap};
 use std::result::Result::Ok;
 use std::str::FromStr;
-use tracing::{error, warn};
+use tracing::{error, warn, info};
 
-static _MIGRATIONS: Dir = include_dir!("../scouter/crates/scouter_server/migrations");
+
 
 pub enum TimeInterval {
     FiveMinutes,
@@ -77,11 +76,64 @@ pub struct PostgresClient {
 }
 
 impl PostgresClient {
-    // Create a new instance of PostgresClient
-    pub fn new(pool: Pool<Postgres>) -> Result<Self, anyhow::Error> {
-        // get database url from env or use the provided one
+    /// Create a new PostgresClient
+    async fn new() -> Result<Self, SqlError> {
+        let pool = Self::create_db_pool().await.map_err(|e| {
+            error!("Failed to create database pool: {:?}", e);
+            SqlError::ConnectionError(format!("{:?}", e))
+        })?;
 
-        Ok(Self { pool })
+        let client = Self { pool };
+
+        // run migrations
+        client.run_migrations().await?;
+
+        Ok(client)
+    }
+
+
+    /// Setup the application with the given database pool.
+    /// 
+    /// # Returns
+    /// 
+    /// * `Result<Pool<Postgres>, anyhow::Error>` - Result of the database pool
+    pub async fn create_db_pool() -> Result<Pool<Postgres>, SqlError> {
+        // get env var
+        let database_url = std::env::var("DATABASE_URL")
+                .unwrap_or("postgresql://postgres:admin@localhost:5432/scouter?".to_string());
+
+        // get max connections from env or set to 10
+        let max_connections = std::env::var("MAX_CONNECTIONS")
+            .unwrap_or_else(|_| "10".to_string())
+            .parse::<u32>()
+            .map_err(|e| SqlError::ConnectionError(format!("{:?}", e)))?;
+
+        let pool = match PgPoolOptions::new()
+            .max_connections(max_connections)
+            .connect(&database_url)
+            .await
+        {
+            Ok(pool) => {
+                info!("✅ Successfully connected to database");
+                pool
+            }
+            Err(err) => {
+                error!("🚨 Failed to connect to database {:?}", err);
+                std::process::exit(1);
+            }
+        };
+
+        Ok(pool)
+    }
+
+    async fn run_migrations(&self) -> Result<(), SqlError> {
+        info!("Running migrations");
+        sqlx::migrate!("src/migrations")
+            .run(&self.pool)
+            .await
+            .map_err(|e| SqlError::MigrationError(format!("{}", e)))?;
+
+        Ok(())
     }
 
     // Inserts a drift alert into the database
@@ -101,7 +153,7 @@ impl PostgresClient {
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftAlert.get_query();
 
-        let query_result: std::result::Result<PgQueryResult, Error> = sqlx::query(&query.sql)
+        let query_result: std::result::Result<PgQueryResult, SqlError> = sqlx::query(&query.sql)
             .bind(&service_info.name)
             .bind(&service_info.repository)
             .bind(&service_info.version)
@@ -109,13 +161,16 @@ impl PostgresClient {
             .bind(serde_json::to_value(alert).unwrap())
             .execute(&self.pool)
             .await
-            .with_context(|| "Failed to insert alert into database");
+            .map_err(|e| {
+                error!("Failed to insert alert into database: {:?}", e);
+                SqlError::QueryError(format!("{:?}", e))
+            });
 
         match query_result {
             Ok(result) => Ok(result),
             Err(e) => {
                 error!("Failed to insert alert into database: {:?}", e);
-                Err(anyhow!("Failed to insert alert into database: {:?}", e))
+                Err(SqlError::QueryError(format!("{:?}", e)).into())
             }
         }
     }
@@ -123,7 +178,7 @@ impl PostgresClient {
     pub async fn get_drift_alerts(
         &self,
         params: &DriftAlertRequest,
-    ) -> Result<Vec<AlertResult>, anyhow::Error> {
+    ) -> Result<Vec<AlertResult>, SqlError> {
         let active = params.active.unwrap_or(false);
 
         let query = Queries::GetDriftAlerts.get_query();
@@ -164,7 +219,7 @@ impl PostgresClient {
             Ok(result) => Ok(result),
             Err(e) => {
                 error!("Failed to get alerts from database: {:?}", e);
-                Err(anyhow!("Failed to get alerts from database: {:?}", e))
+                Err(SqlError::QueryError(format!("{:?}", e)))
             }
         }
     }

@@ -94,6 +94,27 @@ impl From<FeatureQueueError> for PyErr {
 }
 
 #[derive(Error, Debug, Deserialize)]
+pub enum SqlError {
+    #[error("Failed to run sql migrations: {0}")]
+    MigrationError(String),
+
+    #[error("Failed to run sql query: {0}")]
+    QueryError(String),
+
+    #[error("Failed to parse version: {0}")]
+    VersionError(String),
+
+    #[error("File error: {0}")]
+    FileError(String),
+
+    #[error("Error - {0}")]
+    GeneralError(String),
+
+    #[error("Failed to connect to the database - {0}")]
+    ConnectionError(String),
+}
+
+#[derive(Error, Debug, Deserialize)]
 pub enum ScouterError {
     #[error("Failed to serialize string")]
     SerializeError,
