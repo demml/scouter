@@ -444,7 +444,7 @@ mod tests {
     impl CategoricalFeatureHelpers for TestStruct {}
 
     #[test]
-    fn test_resolve_schedule() {
+    fn test_resolve_schedule_base() {
         let valid_schedule = "0 0 5 * * *".to_string(); // Every day at 5:00 AM
 
         let result = TestStruct::resolve_schedule(Some(valid_schedule));
@@ -461,7 +461,7 @@ mod tests {
     }
 
     #[test]
-    fn test_drift_type_from_str() {
+    fn test_drift_type_from_str_base() {
         assert_eq!(DriftType::from_str("SPC").unwrap(), DriftType::Spc);
         assert_eq!(DriftType::from_str("PSI").unwrap(), DriftType::Psi);
         assert_eq!(DriftType::from_str("CUSTOM").unwrap(), DriftType::Custom);
@@ -469,14 +469,14 @@ mod tests {
     }
 
     #[test]
-    fn test_drift_type_value() {
+    fn test_drift_type_value_base() {
         assert_eq!(DriftType::Spc.to_string(), "Spc");
         assert_eq!(DriftType::Psi.to_string(), "Psi");
         assert_eq!(DriftType::Custom.to_string(), "Custom");
     }
 
     #[test]
-    fn test_create_feature_map() {
+    fn test_create_feature_map_base() {
         let string_vec = vec![
             vec![
                 "a".to_string(),
