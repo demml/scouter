@@ -1,9 +1,8 @@
-use scouter_types::{cron::EveryDay, dispatch::AlertDispatchType,  DriftType, };
+use scouter_types::{cron::EveryDay, dispatch::AlertDispatchType,  DriftType};
 use crate::spc::SpcDriftProfile;
 use scouter_error::ScouterError;
 use crate::custom::types::CustomDriftProfile;
 use crate::psi::types::PsiDriftProfile;
-use pyo3::prelude::*;
 use std::str::FromStr;
 
 pub const MISSING: &str = "__missing__";
