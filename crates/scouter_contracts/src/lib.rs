@@ -1,4 +1,4 @@
-use scouter::core::drift::base::DriftType;
+use scouter_types::DriftType;
 use serde::Deserialize;
 use serde::Serialize;
 

@@ -10,11 +10,8 @@ use chrono::Utc;
 use cron::Schedule;
 use futures::future::join_all;
 use include_dir::{include_dir, Dir};
-use scouter::core::drift::base::DriftProfile;
-use scouter::core::drift::custom::types::CustomMetricServerRecord;
-use scouter::core::drift::psi::types::PsiServerRecord;
-use scouter::core::drift::spc::types::SpcServerRecord;
-use scouter::core::observe::observer::ObservabilityMetrics;
+use scouter_drift::DriftProfile;
+use scouter_types::{CustomMetricServerRecord, PsiServerRecord, SpcServerRecord, ObservabilityMetrics};
 use serde_json::Value;
 use sqlx::{
     postgres::{PgQueryResult, PgRow},

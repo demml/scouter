@@ -12,6 +12,7 @@ license = "MIT"
 description = "Client and server contract for scouter"
 
 [dependencies]
+scouter-types = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 

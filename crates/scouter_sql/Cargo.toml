@@ -12,8 +12,9 @@ license = "MIT"
 description = "Sql library to use with scouter-server"
 
 [dependencies]
-scouter = { workspace = true , features = ["dispatch"] }
+scouter-drift = { workspace = true }
 scouter-error = { workspace = true }
+scouter-types = { workspace = true }
 anyhow = {workspace = true}
 chrono = { workspace = true, features = ["serde"] }
 cron = { workspace = true }
@@ -27,6 +28,8 @@ tracing-subscriber = { workspace = true}
 
 [dev-dependencies]
 tokio = { workspace = true }
+sqlx-cli = { version = "0.*", default-features = false, features = ["native-tls", "postgres"] }
+tower = { version = "0.*", features = ["util"] }
 
 [profile.release]
 lto = "fat"
