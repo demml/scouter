@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Union
+from typing import  Optional, Union, List
 
 from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
@@ -6,10 +6,11 @@ from scouter.integrations.rabbitmq import RabbitMQConfig
 from scouter.monitor.queueing_strategies.base import BaseQueueingStrategy
 from scouter.utils.logger import ScouterLogger
 
-from ..._scouter import (  # pylint: disable=no-name-in-module
+from scouter import (  # pylint: disable=no-name-in-module
     ServerRecords,
     SpcDriftProfile,
     SpcFeatureQueue,
+    Feature
 )
 
 logger = ScouterLogger.get_logger()
@@ -38,7 +39,7 @@ class SpcQueueingStrategy(BaseQueueingStrategy):
         self._feature_queue = SpcFeatureQueue(drift_profile=drift_profile)
         self._drift_profile = drift_profile
 
-    def insert(self, data: Dict[Any, Any]) -> Optional[ServerRecords]:
+    def insert(self, features: List[Feature]) -> Optional[ServerRecords]:
         """Insert data into the monitoring queue.
 
         Args:
@@ -46,7 +47,7 @@ class SpcQueueingStrategy(BaseQueueingStrategy):
                 Dictionary of feature values to insert into the monitoring queue.
         """
         try:
-            self._feature_queue.insert(data)
+            self._feature_queue.insert(features)
             self._count += 1
             if self._count >= self._drift_profile.config.sample_size:
                 return self._publish(self._feature_queue)
