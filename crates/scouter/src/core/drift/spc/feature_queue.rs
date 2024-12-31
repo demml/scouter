@@ -162,48 +162,43 @@ mod tests {
 
         assert_eq!(feature_queue.queue.len(), 3);
 
-        pyo3::prepare_freethreaded_python();
+        for _ in 0..9 {
+
+            let one = Feature::int("feature_1".to_string(), 1);
+            let two = Feature::int("feature_2".to_string(), 2);
+            let three = Feature::int("feature_3".to_string(), 3);
+
+        
+            feature_queue.insert( vec![one, two, three]).unwrap();
+        }
+
+
+        assert_eq!(feature_queue.queue.get("feature_1").unwrap().len(), 10);
+        assert_eq!(feature_queue.queue.get("feature_2").unwrap().len(), 10);
+        assert_eq!(feature_queue.queue.get("feature_3").unwrap().len(), 10);
+
+        let records = feature_queue.create_drift_records().unwrap();
+
+        assert_eq!(records.records.len(), 3);
+
+        feature_queue.clear_queue();
+
+        assert_eq!(feature_queue.queue.get("feature_1").unwrap().len(), 0);
+
+        // serialize records
+        let json_records = records.model_dump_json();
+        assert!(!json_records.is_empty());
+
+        // deserialize records
+        let records: ServerRecords = serde_json::from_str(&json_records).unwrap();
+        assert_eq!(records.records.len(), 3);
+
+        // convert to bytes and back
+        let bytes = json_records.as_bytes();
+
+        let records = ServerRecords::load_from_bytes(bytes).unwrap();
+        assert_eq!(records.records.len(), 3);
 
     
-
-        Python::with_gil(|_| {
-        
-            for _ in 0..9 {
-
-                let one = Feature::int("feature_1".to_string(), 1);
-                let two = Feature::int("feature_2".to_string(), 2);
-                let three = Feature::int("feature_3".to_string(), 3);
-
-            
-                feature_queue.insert( vec![one, two, three]).unwrap();
-            }
-
-
-            assert_eq!(feature_queue.queue.get("feature_1").unwrap().len(), 10);
-            assert_eq!(feature_queue.queue.get("feature_2").unwrap().len(), 10);
-            assert_eq!(feature_queue.queue.get("feature_3").unwrap().len(), 10);
-
-            let records = feature_queue.create_drift_records().unwrap();
-
-            assert_eq!(records.records.len(), 3);
-
-            feature_queue.clear_queue();
-
-            assert_eq!(feature_queue.queue.get("feature_1").unwrap().len(), 0);
-
-            // serialize records
-            let json_records = records.model_dump_json();
-            assert!(!json_records.is_empty());
-
-            // deserialize records
-            let records: ServerRecords = serde_json::from_str(&json_records).unwrap();
-            assert_eq!(records.records.len(), 3);
-
-            // convert to bytes and back
-            let bytes = json_records.as_bytes();
-
-            let records = ServerRecords::load_from_bytes(bytes).unwrap();
-            assert_eq!(records.records.len(), 3);
-        });
     }
 }
