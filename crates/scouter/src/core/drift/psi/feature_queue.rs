@@ -195,7 +195,6 @@ mod tests {
 
     #[test]
     fn test_feature_queue_insert_numeric() {
-        pyo3::prepare_freethreaded_python();
         let min = 1.0;
         let max = 87.0;
         let mut array = Array::random((1030, 3), Uniform::new(min, max));
@@ -271,7 +270,6 @@ mod tests {
 
     #[test]
     fn test_feature_queue_insert_binary() {
-        pyo3::prepare_freethreaded_python();
         let binary_column =
             Array::random((100, 1), Bernoulli::new(0.5).unwrap())
                 .mapv(|x| if x { 1.0 } else { 0.0 });
@@ -329,7 +327,6 @@ mod tests {
 
     #[test]
     fn test_feature_queue_insert_categorical() {
-        pyo3::prepare_freethreaded_python();
         let psi_monitor = PsiMonitor::default();
         let string_vec = vec![
             vec![
@@ -410,7 +407,6 @@ mod tests {
 
     #[test]
     fn test_feature_queue_is_empty() {
-        pyo3::prepare_freethreaded_python();
         let psi_monitor = PsiMonitor::default();
         let string_vec = vec![
             vec![
@@ -478,7 +474,6 @@ mod tests {
 
     #[test]
     fn test_feature_queue_create_drift_records() {
-        pyo3::prepare_freethreaded_python();
         let array = Array::random((1030, 3), Uniform::new(1.0, 100.0));
         let features = vec![
             "feature_1".to_string(),
