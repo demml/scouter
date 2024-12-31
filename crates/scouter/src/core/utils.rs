@@ -137,46 +137,6 @@ pub fn pyobject_to_json(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
     }
 }
 
-pub fn create_feature_map(
-    features: &[String],
-    array: &[Vec<String>],
-) -> Result<FeatureMap, MonitorError> {
-    // check if features and array are the same length
-    if features.len() != array.len() {
-        return Err(MonitorError::ShapeMismatchError(
-            "Features and array are not the same length".to_string(),
-        ));
-    };
-
-    let feature_map = array
-        .par_iter()
-        .enumerate()
-        .map(|(i, col)| {
-            let unique = col
-                .iter()
-                .collect::<BTreeSet<_>>()
-                .into_iter()
-                .collect::<Vec<_>>();
-            let mut map = HashMap::new();
-            for (j, item) in unique.iter().enumerate() {
-                map.insert(item.to_string(), j);
-
-                // check if j is last index
-                if j == unique.len() - 1 {
-                    // insert missing value
-                    map.insert("missing".to_string(), j + 1);
-                }
-            }
-
-            (features[i].to_string(), map)
-        })
-        .collect::<HashMap<_, _>>();
-
-    Ok(FeatureMap {
-        features: feature_map,
-    })
-}
-
 pub trait CategoricalFeatureHelpers {
     // creates a feature map from a 2D array
     //

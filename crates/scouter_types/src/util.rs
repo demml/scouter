@@ -8,6 +8,26 @@ use pyo3::IntoPyObjectExt;
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::path::PathBuf;
+use std::collections::BTreeSet;
+use crate::FeatureMap;
+use rayon::prelude::*;
+use std::collections::HashMap;
+
+pub enum FileName {
+    SpcDrift,
+    PsiDrift,
+    Profile,
+}
+
+impl FileName {
+    pub fn to_str(&self) -> &'static str {
+        match self {
+            FileName::SpcDrift => "spc_drift_map.json",
+            FileName::PsiDrift => "psi_drift_map.json",
+            FileName::Profile => "data_profile.json",
+        }
+    }
+}
 
 pub struct ProfileFuncs {}
 
@@ -184,4 +204,45 @@ pub fn pyobject_to_json(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
             obj.get_type().name()?
         )))
     }
+}
+
+
+pub fn create_feature_map(
+    features: &[String],
+    array: &[Vec<String>],
+) -> Result<FeatureMap, ScouterError> {
+    // check if features and array are the same length
+    if features.len() != array.len() {
+        return Err(ScouterError::ShapeMismatchError(
+            "Features and array are not the same length".to_string(),
+        ));
+    };
+
+    let feature_map = array
+        .par_iter()
+        .enumerate()
+        .map(|(i, col)| {
+            let unique = col
+                .iter()
+                .collect::<BTreeSet<_>>()
+                .into_iter()
+                .collect::<Vec<_>>();
+            let mut map = HashMap::new();
+            for (j, item) in unique.iter().enumerate() {
+                map.insert(item.to_string(), j);
+
+                // check if j is last index
+                if j == unique.len() - 1 {
+                    // insert missing value
+                    map.insert("missing".to_string(), j + 1);
+                }
+            }
+
+            (features[i].to_string(), map)
+        })
+        .collect::<HashMap<_, _>>();
+
+    Ok(FeatureMap {
+        features: feature_map,
+    })
 }

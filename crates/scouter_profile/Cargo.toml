@@ -1,5 +1,5 @@
 [package]
-name = "scouter-drift"
+name = "scouter-profile"
 version = { workspace = true }
 edition = { workspace = true }
 repository = { workspace = true }
@@ -15,7 +15,7 @@ description = "Drift logic for Scouter"
 scouter-error = { workspace = true }
 scouter-types = { workspace = true }
 
-cron = { workspace = true }
+
 pyo3 = { workspace = true }
 serde = { workspace = true }
 itertools = { workspace = true }
@@ -34,7 +34,6 @@ tracing = { workspace = true }
 approx = { workspace = true }
 ndarray-rand = { workspace = true }
 rand = { workspace = true }
-
 
 [profile.release]
 lto = "fat"

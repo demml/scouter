@@ -3444,13 +3444,9 @@ version = "0.3.3"
 dependencies = [
  "approx",
  "chrono",
- "colored_json",
- "criterion",
  "cron",
- "futures",
  "indicatif",
  "itertools 0.10.5",
- "mockito",
  "ndarray",
  "ndarray-rand",
  "ndarray-stats",
@@ -3460,13 +3456,10 @@ dependencies = [
  "pyo3",
  "rand",
  "rayon",
- "reqwest",
  "scouter-error",
  "scouter-types",
  "serde",
  "serde_json",
- "thiserror",
- "tokio",
  "tracing",
 ]
 
@@ -3493,6 +3486,30 @@ dependencies = [
  "scouter-error",
  "scouter-types",
  "serde",
+ "tracing",
+]
+
+[[package]]
+name = "scouter-profile"
+version = "0.3.3"
+dependencies = [
+ "approx",
+ "chrono",
+ "indicatif",
+ "itertools 0.10.5",
+ "ndarray",
+ "ndarray-rand",
+ "ndarray-stats",
+ "noisy_float",
+ "num-traits",
+ "numpy",
+ "pyo3",
+ "rand",
+ "rayon",
+ "scouter-error",
+ "scouter-types",
+ "serde",
+ "serde_json",
  "tracing",
 ]
 
@@ -3555,6 +3572,7 @@ dependencies = [
  "colored_json",
  "cron",
  "pyo3",
+ "rayon",
  "scouter-error",
  "serde",
  "serde_json",

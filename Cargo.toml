@@ -21,12 +21,14 @@ scouter = { path = "crates/scouter" }
 scouter-contracts = { path = "crates/scouter_contracts" }
 scouter-drift = { path = "crates/scouter_drift" }
 scouter-error = { path = "crates/scouter_error" }
+scouter-observability = { path = "crates/scouter_observability" }
 scouter-server = { path = "crates/scouter_server" }
 scouter-sql = { path = "crates/scouter_sql" }
 scouter-types = { path = "crates/scouter_types" }
 
 anyhow = "1.*"
 axum = "0.*"
+approx = "0.*"
 
 chrono ={ version = "0.*", features = ["serde"] }
 colored_json = "*"
@@ -42,11 +44,13 @@ metrics = "0.*"
 metrics-exporter-prometheus = "0.*"
 
 ndarray = { version = "0.*", features = ["rayon"] }
+ndarray-rand = "0.*"
 ndarray-stats = "0.*"
 noisy_float = "0.*"
 numpy = "0.*"
 num-traits = "0.*"
 pyo3 = { version = ">=0.23.3, <1.0.0", features = ["chrono", "anyhow", "extension-module"] }
+rand = "0.*"
 rayon = "1.*"
 
 serde = { version = "1.*", features = ["derive"] }

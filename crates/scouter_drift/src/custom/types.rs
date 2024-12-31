@@ -1,10 +1,10 @@
-use scouter_types::{EveryDay, AlertDispatchType, DriftType, ProfileFuncs};
+use scouter_types::{EveryDay, AlertDispatchType, DriftType, ProfileFuncs, FileName};
 use crate::base::{
     DispatchAlertDescription, DispatchDriftConfig, DriftArgs, ProfileArgs,
     ProfileBaseArgs, ValidateAlertConfig, MISSING,
 };
 use scouter_error::{CustomMetricError, ScouterError};
-use crate::utils::{json_to_pyobject, pyobject_to_json, FileName};
+use crate::utils::{json_to_pyobject, pyobject_to_json};
 use pyo3::types::PyDict;
 use pyo3::{pyclass, pymethods, Bound, Py, PyResult, Python};
 use serde::{Deserialize, Serialize};

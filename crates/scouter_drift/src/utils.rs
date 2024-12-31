@@ -13,21 +13,6 @@ use std::collections::BTreeSet;
 use std::collections::HashMap;
 
 
-pub enum FileName {
-    SpcDrift,
-    PsiDrift,
-    Profile,
-}
-
-impl FileName {
-    pub fn to_str(&self) -> &'static str {
-        match self {
-            FileName::SpcDrift => "spc_drift_map.json",
-            FileName::PsiDrift => "psi_drift_map.json",
-            FileName::Profile => "data_profile.json",
-        }
-    }
-}
 
 pub fn json_to_pyobject(py: Python, value: &Value, dict: &Bound<'_, PyDict>) -> PyResult<()> {
     match value {
