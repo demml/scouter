@@ -18,7 +18,9 @@ repository = "https://github.com/demml/scouter"
 
 [workspace.dependencies]
 scouter = { path = "crates/scouter" }
+scouter-contracts = { path = "crates/scouter_contracts" }
 scouter-server = { path = "crates/scouter_server" }
+scouter-sql = { path = "crates/scouter_sql" }
 
 anyhow = "1.*"
 axum = "0.*"

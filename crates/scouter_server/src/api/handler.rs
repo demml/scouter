@@ -17,7 +17,7 @@ use serde_json::json;
 use std::sync::Arc;
 use tracing::error;
 
-use crate::api::route::AppState;
+use crate::api::router::AppState;
 
 pub async fn health_check() -> impl IntoResponse {
     const MESSAGE: &str = "Alive";

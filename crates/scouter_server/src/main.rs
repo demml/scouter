@@ -5,11 +5,11 @@ pub mod sql;
 
 use crate::alerts::base::DriftExecutor;
 use crate::api::metrics::metrics_app;
-use crate::api::route::AppState;
+use crate::api::router::AppState;
 use crate::api::setup::{create_db_pool, setup_logging};
 use crate::sql::postgres::PostgresClient;
 use anyhow::Context;
-use api::route::create_router;
+use api::router::create_router;
 use std::sync::Arc;
 use tracing::{error, info};
 
