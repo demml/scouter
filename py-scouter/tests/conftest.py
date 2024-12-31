@@ -1,5 +1,5 @@
 import shutil
-from typing import Generator, List, TypeVar
+from typing import Generator, TypeVar
 from unittest.mock import patch
 
 import numpy as np

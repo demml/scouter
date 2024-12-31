@@ -1568,7 +1568,7 @@ class PsiFeatureQueue:
                 Drift profile to use for feature queue.
         """
 
-    def insert(self, features: List[Feature]) -> None:
+    def insert(self, features: Features) -> None:
         """Insert data into the feature queue
         Args:
             features:
@@ -1601,7 +1601,7 @@ class SpcFeatureQueue:
                 Drift profile to use for feature queue.
         """
 
-    def insert(self, features: List[Feature]) -> None:
+    def insert(self, features: Features) -> None:
         """Insert data into the feature queue
 
         Args:

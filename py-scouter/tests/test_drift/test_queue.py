@@ -5,6 +5,7 @@ from scouter import (
     Drifter,
     DriftType,
     Feature,
+    Features,
     KafkaConfig,
     MonitorQueue,
     PsiDriftConfig,
@@ -32,11 +33,13 @@ def test_psi_monitor_pandas(
 
     def return_record(records) -> Optional[ServerRecords]:
         for record in records:
-            features = [
-                Feature.float("column_0", record["column_0"]),
-                Feature.float("column_1", record["column_1"]),
-                Feature.float("column_2", record["column_2"]),
-            ]
+            features = Features(
+                features=[
+                    Feature.float("column_0", record["column_0"]),
+                    Feature.float("column_1", record["column_1"]),
+                    Feature.float("column_2", record["column_2"]),
+                ]
+            )
             drift_map = queue.insert(features)
 
             if drift_map:
@@ -69,11 +72,13 @@ def test_spc_monitor_pandas(
 
     def return_record(records) -> Optional[ServerRecords]:
         for record in records:
-            features = [
-                Feature.float("column_0", record["column_0"]),
-                Feature.float("column_1", record["column_1"]),
-                Feature.float("column_2", record["column_2"]),
-            ]
+            features = Features(
+                features=[
+                    Feature.float("column_0", record["column_0"]),
+                    Feature.float("column_1", record["column_1"]),
+                    Feature.float("column_2", record["column_2"]),
+                ]
+            )
             drift_map = queue.insert(features)
 
             if drift_map:
@@ -86,7 +91,7 @@ def test_spc_monitor_pandas(
     assert len(drift_records.records) == 3
 
 
-def _test_spc_monitor_polar_multitype(
+def test_spc_monitor_polar_multitype(
     polars_dataframe_multi_dtype: pd.DataFrame,
     drift_config: SpcDriftConfig,
     mock_kafka_producer,
@@ -107,11 +112,15 @@ def _test_spc_monitor_polar_multitype(
 
     def return_record(records) -> Optional[ServerRecords]:
         for record in records:
-            features = [
-                Feature.float("column_0", record["column_0"]),
-                Feature.float("column_1", record["column_1"]),
-                Feature.float("column_2", record["column_2"]),
-            ]
+            features = Features(
+                features=[
+                    Feature.string("cat1", record["cat1"]),
+                    Feature.float("num1", record["num1"]),
+                    Feature.float("num2", record["num2"]),
+                    Feature.float("num3", record["num3"]),
+                    Feature.string("cat2", record["cat2"]),
+                ]
+            )
             drift_map = queue.insert(features)
 
             if drift_map:
@@ -142,13 +151,15 @@ def test_spc_queue_fail(
     )
 
     def return_record() -> Optional[ServerRecords]:
-        features = [
-            Feature.string("cat1", "7.0"),
-            Feature.float("num1", 1.518124333674737),
-            Feature.float("num2", 2.974753543708461),
-            Feature.float("num3", 3.141546504798932),
-            Feature.string("cat3", "2.0"),  # this is missing
-        ]
+        features = Features(
+            features=[
+                Feature.string("cat1", "7.0"),
+                Feature.float("num1", 1.518124333674737),
+                Feature.float("num2", 2.974753543708461),
+                Feature.float("num3", 3.141546504798932),
+                Feature.string("cat3", "2.0"),  # this is missing
+            ]
+        )
         drift_map = queue.insert(features)
 
         if drift_map:

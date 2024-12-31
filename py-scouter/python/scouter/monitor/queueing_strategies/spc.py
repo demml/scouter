@@ -1,4 +1,4 @@
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
@@ -7,7 +7,7 @@ from scouter.monitor.queueing_strategies.base import BaseQueueingStrategy
 from scouter.utils.logger import ScouterLogger
 
 from ..._scouter import (  # pylint: disable=no-name-in-module
-    Feature,
+    Features,
     ServerRecords,
     SpcDriftProfile,
     SpcFeatureQueue,
@@ -39,7 +39,7 @@ class SpcQueueingStrategy(BaseQueueingStrategy):
         self._feature_queue = SpcFeatureQueue(drift_profile=drift_profile)
         self._drift_profile = drift_profile
 
-    def insert(self, features: List[Feature]) -> Optional[ServerRecords]:
+    def insert(self, features: Features) -> Optional[ServerRecords]:
         """Insert data into the monitoring queue.
 
         Args:
