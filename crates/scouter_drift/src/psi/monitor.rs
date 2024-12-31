@@ -1,8 +1,8 @@
-use crate::core::drift::psi::types::{
+use crate::psi::types::{
     Bin, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
 };
-use crate::core::error::MonitorError;
-use crate::core::utils::CategoricalFeatureHelpers;
+use scouter_error::MonitorError;
+use crate::utils::CategoricalFeatureHelpers;
 use itertools::Itertools;
 use ndarray::prelude::*;
 use ndarray::Axis;
