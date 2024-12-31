@@ -1,7 +1,9 @@
-use crate::base::{ServerRecords};
-use crate::core::drift::spc::monitor::SpcMonitor;
-use crate::core::drift::spc::types::SpcDriftProfile;
-use crate::core::error::FeatureQueueError;
+use scouter_types::{ServerRecords, Features};
+use crate::spc::{
+    monitor::SpcMonitor,
+    types::SpcDriftProfile
+};
+use scouter_error::FeatureQueueError;
 use core::result::Result::Ok;
 use ndarray::prelude::*;
 use ndarray::Array2;
@@ -129,8 +131,8 @@ impl SpcFeatureQueue {
 #[cfg(test)]
 mod tests {
 
-    use crate::core::drift::spc::types::{SpcAlertConfig, SpcDriftConfig};
-    use crate::core::drift::base::Feature;
+    use crate::spc::types::{SpcAlertConfig, SpcDriftConfig};
+    use scouter_types::Feature;
 
     use super::*;
     use ndarray::Array;
