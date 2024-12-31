@@ -1,10 +1,9 @@
-use crate::core::drift::base::{RecordType, ServerRecord, ServerRecords};
-use crate::core::drift::spc::types::{
+use scouter_types::{RecordType, ServerRecord, ServerRecords, SpcServerRecord};
+use crate::spc::types::{
     SpcDriftConfig, SpcDriftMap, SpcDriftProfile, SpcFeatureDrift, SpcFeatureDriftProfile,
-    SpcServerRecord,
 };
-use crate::core::error::MonitorError;
-use crate::core::utils::CategoricalFeatureHelpers;
+use scouter_error::MonitorError;
+use crate::utils::CategoricalFeatureHelpers;
 use indicatif::ProgressBar;
 use ndarray::prelude::*;
 use ndarray::Axis;
@@ -494,9 +493,9 @@ impl Default for SpcMonitor {
 mod tests {
 
     // use crate::core::drift::base::DriftProfile;
-    use crate::core::drift::base::ProfileBaseArgs;
-    use crate::core::drift::base::{DriftProfile, DriftType};
-    use crate::core::drift::spc::types::SpcAlertConfig;
+    use scouter_types::DriftType;
+    use crate::base::{ProfileBaseArgs, DriftProfile};
+    use crate::spc::types::SpcAlertConfig;
 
     use super::*;
     use approx::relative_eq;
