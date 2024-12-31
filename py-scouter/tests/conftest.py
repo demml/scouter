@@ -149,8 +149,8 @@ def pandas_dataframe(array: NDArray) -> YieldFixture:
     yield df
 
     cleanup()
-    
-    
+
+
 @pytest.fixture(scope="function")
 def pandas_dataframe_multi_type(array: NDArray) -> YieldFixture:
     import pandas as pd
@@ -159,7 +159,7 @@ def pandas_dataframe_multi_type(array: NDArray) -> YieldFixture:
 
     # change column names
     df.rename(columns={0: "column_0", 1: "column_1", 2: "column_2"}, inplace=True)
-    
+
     # change column_0 to be int
     df["column_0"] = df["column_0"].astype(int)
 

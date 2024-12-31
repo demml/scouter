@@ -1,17 +1,16 @@
-from typing import  Optional, Union, List
+from typing import List, Optional, Union
 
+from scouter import (  # pylint: disable=no-name-in-module
+    Feature,
+    ServerRecords,
+    SpcDriftProfile,
+    SpcFeatureQueue,
+)
 from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
 from scouter.integrations.rabbitmq import RabbitMQConfig
 from scouter.monitor.queueing_strategies.base import BaseQueueingStrategy
 from scouter.utils.logger import ScouterLogger
-
-from scouter import (  # pylint: disable=no-name-in-module
-    ServerRecords,
-    SpcDriftProfile,
-    SpcFeatureQueue,
-    Feature
-)
 
 logger = ScouterLogger.get_logger()
 

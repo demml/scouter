@@ -2,19 +2,18 @@ import threading
 import time
 from typing import List, Union
 
+from scouter import (  # pylint: disable=no-name-in-module
+    Feature,
+    PsiDriftProfile,
+    PsiFeatureQueue,
+    ServerRecords,
+)
 from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
 from scouter.integrations.rabbitmq import RabbitMQConfig
 from scouter.monitor.queueing_strategies.base import BaseQueueingStrategy
 from scouter.utils.logger import ScouterLogger
 from typing_extensions import Optional
-
-from scouter import (  # pylint: disable=no-name-in-module
-    PsiDriftProfile,
-    PsiFeatureQueue,
-    ServerRecords,
-    Feature
-)
 
 logger = ScouterLogger.get_logger()
 

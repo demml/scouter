@@ -1512,9 +1512,8 @@ class PsiDriftProfile:
 
     def __str__(self) -> str:
         """Sting representation of DriftProfile"""
-        
+
 class Feature:
-    
     @staticmethod
     def int(name: str, value: int) -> "Feature":
         """Create an integer feature
@@ -1523,7 +1522,7 @@ class Feature:
             name:
                 Name of the feature
         """
-        
+
     @staticmethod
     def float(name: str, value: float) -> "Feature":
         """Create a float feature
@@ -1532,7 +1531,7 @@ class Feature:
             name:
                 Name of the feature
         """
-        
+
     @staticmethod
     def string(name: str, value: str) -> "Feature":
         """Create a string feature
@@ -1591,7 +1590,6 @@ class SpcFeatureQueue:
             features:
                 List of features to insert into the monitoring queue.
         """
-
 
     def create_drift_records(self) -> ServerRecords:
         """Create drift server record from data

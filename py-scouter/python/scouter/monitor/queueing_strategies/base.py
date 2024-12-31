@@ -1,18 +1,17 @@
 from abc import ABC, abstractmethod
-from typing import  Optional, Union, List
+from typing import List, Optional, Union
 
+from scouter import (  # pylint: disable=no-name-in-module
+    Feature,
+    PsiFeatureQueue,
+    ServerRecords,
+    SpcFeatureQueue,
+)
 from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
 from scouter.integrations.producer import DriftRecordProducer
 from scouter.integrations.rabbitmq import RabbitMQConfig
 from scouter.utils.logger import ScouterLogger
-
-from scouter import (  # pylint: disable=no-name-in-module
-    PsiFeatureQueue,
-    ServerRecords,
-    SpcFeatureQueue,
-    Feature
-)
 
 logger = ScouterLogger.get_logger()
 
