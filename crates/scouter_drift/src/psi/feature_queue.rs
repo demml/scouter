@@ -1,8 +1,8 @@
-use crate::core::drift::base::{Features, RecordType, ServerRecord, ServerRecords};
+use scouter_types::{Features, RecordType, ServerRecord, ServerRecords, PsiServerRecord};
 
-use crate::core::drift::psi::monitor::PsiMonitor;
-use crate::core::drift::psi::types::{Bin, PsiDriftProfile, PsiServerRecord};
-use crate::core::error::FeatureQueueError;
+use crate::psi::monitor::PsiMonitor;
+use crate::psi::types::{Bin, PsiDriftProfile};
+use scouter_error::FeatureQueueError;
 use core::result::Result::Ok;
 use pyo3::prelude::*;
 use std::collections::HashMap;
@@ -204,9 +204,9 @@ impl PsiFeatureQueue {
 mod tests {
 
     use super::*;
-    use crate::core::drift::psi::types::PsiDriftConfig;
-    use crate::core::drift::base::Feature;
-    use crate::core::utils::CategoricalFeatureHelpers;
+    use crate::psi::types::PsiDriftConfig;
+    use scouter_types::Feature;
+    use crate::utils::CategoricalFeatureHelpers;
     use ndarray::{Array, Axis};
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
