@@ -1,5 +1,5 @@
 [package]
-name = "scouter"
+name = "scouter-drift"
 version = { workspace = true }
 edition = { workspace = true }
 repository = { workspace = true }
@@ -9,7 +9,7 @@ authors = [
 ]
 
 license = "MIT"
-description = "Rust Scouter logic"
+description = "Drift logic for Scouter"
 
 [dependencies]
 scouter-error = { workspace = true }
@@ -56,7 +56,3 @@ tokio = { version = "1.27.0", features = ["full"] }
 lto = "fat"
 codegen-units = 1
 strip = true
-
-[[bench]]
-name = "profile"
-harness = false

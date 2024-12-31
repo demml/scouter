@@ -2,6 +2,10 @@ use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use crate::ProfileFuncs;
 use scouter_error::ScouterError;
+use std::collections::HashMap;
+use std::fmt::Formatter;
+use std::fmt;
+use std::fmt::Display;
 
 #[pyclass]
 #[derive(Clone, Serialize, Deserialize)]
@@ -168,5 +172,21 @@ impl Features {
 impl Features {
     pub fn iter(&self) -> std::slice::Iter<'_, Feature> {
         self.features.iter()
+    }
+}
+
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct FeatureMap {
+    #[pyo3(get)]
+    pub features: HashMap<String, HashMap<String, usize>>,
+}
+
+#[pymethods]
+impl FeatureMap {
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
     }
 }

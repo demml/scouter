@@ -1,7 +1,7 @@
 use crate::core::drift::base::RecordType;
 use crate::core::drift::base::{ServerRecord, ServerRecords};
-use crate::core::error::ObserverError;
-use crate::core::utils::ProfileFuncs;
+use scouter_error::ObserverError;
+use scouter_types::ProfileFuncs;
 use ndarray::Array1;
 use ndarray_stats::interpolate::Nearest;
 use ndarray_stats::Quantile1dExt;

@@ -1,6 +1,5 @@
-use crate::core::error::MonitorError;
-use crate::core::error::ScouterError;
-use colored_json::{Color, ColorMode, ColoredFormatter, PrettyFormatter, Styler};
+use scouter_error::MonitorError;
+use scouter_types::FeatureMap;
 use ndarray::{Array, Array2};
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
@@ -9,26 +8,10 @@ use pyo3::IntoPyObjectExt;
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
-use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::BTreeSet;
 use std::collections::HashMap;
-use std::path::PathBuf;
 
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
-pub struct FeatureMap {
-    #[pyo3(get)]
-    pub features: HashMap<String, HashMap<String, usize>>,
-}
-
-#[pymethods]
-impl FeatureMap {
-    pub fn __str__(&self) -> String {
-        // serialize the struct to a string
-        ProfileFuncs::__str__(self)
-    }
-}
 
 pub enum FileName {
     SpcDrift,
@@ -43,75 +26,6 @@ impl FileName {
             FileName::PsiDrift => "psi_drift_map.json",
             FileName::Profile => "data_profile.json",
         }
-    }
-}
-
-pub struct ProfileFuncs {}
-
-impl ProfileFuncs {
-    pub fn __str__<T: Serialize>(object: T) -> String {
-        match ColoredFormatter::with_styler(
-            PrettyFormatter::default(),
-            Styler {
-                key: Color::Rgb(245, 77, 85).bold(),
-                string_value: Color::Rgb(249, 179, 93).foreground(),
-                float_value: Color::Rgb(249, 179, 93).foreground(),
-                integer_value: Color::Rgb(249, 179, 93).foreground(),
-                bool_value: Color::Rgb(249, 179, 93).foreground(),
-                nil_value: Color::Rgb(249, 179, 93).foreground(),
-                ..Default::default()
-            },
-        )
-        .to_colored_json(&object, ColorMode::On)
-        {
-            Ok(json) => json,
-            Err(e) => format!("Failed to serialize to json: {}", e),
-        }
-        // serialize the struct to a string
-    }
-
-    pub fn __json__<T: Serialize>(object: T) -> String {
-        match serde_json::to_string_pretty(&object) {
-            Ok(json) => json,
-            Err(e) => format!("Failed to serialize to json: {}", e),
-        }
-    }
-
-    pub fn save_to_json<T>(
-        model: T,
-        path: Option<PathBuf>,
-        filename: &str,
-    ) -> Result<(), ScouterError>
-    where
-        T: Serialize,
-    {
-        // serialize the struct to a string
-        let json =
-            serde_json::to_string_pretty(&model).map_err(|_| ScouterError::SerializeError)?;
-
-        // check if path is provided
-        let write_path = if path.is_some() {
-            let mut new_path = path.ok_or(ScouterError::CreatePathError)?;
-
-            // ensure .json extension
-            new_path.set_extension("json");
-
-            if !new_path.exists() {
-                // ensure path exists, create if not
-                let parent_path = new_path.parent().ok_or(ScouterError::GetParentPathError)?;
-
-                std::fs::create_dir_all(parent_path)
-                    .map_err(|_| ScouterError::CreateDirectoryError)?;
-            }
-
-            new_path
-        } else {
-            PathBuf::from(filename)
-        };
-
-        std::fs::write(write_path, json).map_err(|_| ScouterError::WriteError)?;
-
-        Ok(())
     }
 }
 

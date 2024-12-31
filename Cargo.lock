@@ -3421,6 +3421,8 @@ dependencies = [
  "rand",
  "rayon",
  "reqwest",
+ "scouter-error",
+ "scouter-types",
  "serde",
  "serde_json",
  "thiserror",
@@ -3434,6 +3436,38 @@ version = "0.3.3"
 dependencies = [
  "serde",
  "serde_json",
+]
+
+[[package]]
+name = "scouter-drift"
+version = "0.3.3"
+dependencies = [
+ "approx",
+ "chrono",
+ "colored_json",
+ "criterion",
+ "cron",
+ "futures",
+ "indicatif",
+ "itertools 0.10.5",
+ "mockito",
+ "ndarray",
+ "ndarray-rand",
+ "ndarray-stats",
+ "noisy_float",
+ "num-traits",
+ "numpy",
+ "pyo3",
+ "rand",
+ "rayon",
+ "reqwest",
+ "scouter-error",
+ "scouter-types",
+ "serde",
+ "serde_json",
+ "thiserror",
+ "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -3500,7 +3534,9 @@ dependencies = [
 name = "scouter-types"
 version = "0.3.3"
 dependencies = [
+ "chrono",
  "colored_json",
+ "cron",
  "pyo3",
  "scouter-error",
  "serde",

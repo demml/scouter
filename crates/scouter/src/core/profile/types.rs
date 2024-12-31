@@ -1,5 +1,6 @@
-use crate::core::error::ScouterError;
-use crate::core::utils::{FileName, ProfileFuncs};
+use scouter_error::ScouterError;
+use scouter_types::ProfileFuncs;
+use crate::core::utils::FileName;
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};

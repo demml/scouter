@@ -1,5 +1,4 @@
-use crate::core::error::ProfilerError;
-use crate::core::error::ScouterError;
+use scouter_error::{ProfilerError, ScouterError};
 use crate::core::profile::types::DataProfile;
 use crate::core::profile::types::{CharStats, Distinct, FeatureProfile, StringStats, WordStats};
 use crate::core::stats::compute_feature_correlations;

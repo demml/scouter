@@ -1,6 +1,5 @@
-use crate::core::cron::EveryDay;
-use crate::core::dispatch::types::AlertDispatchType;
-use crate::core::drift::spc::types::{SpcDriftProfile, SpcServerRecord};
+use scouter_types::{cron::EveryDay, dispatch::AlertDispatchType};
+use crate::spc::{SpcDriftProfile, SpcServerRecord};
 use scouter_error::{PyScouterError, ScouterError};
 use crate::core::observe::observer::ObservabilityMetrics;
 use scouter_types::{ProfileFuncs, DriftType};

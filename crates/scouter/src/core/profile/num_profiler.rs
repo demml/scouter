@@ -1,4 +1,4 @@
-use crate::core::error::ProfilerError;
+use scouter_error::ProfilerError;
 use crate::core::profile::types::{Distinct, FeatureProfile, Histogram, NumericStats, Quantiles};
 use ndarray::prelude::*;
 use ndarray::Axis;
