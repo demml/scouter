@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Union
+from typing import  Optional, Union, List
 
 from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
@@ -7,10 +7,11 @@ from scouter.integrations.producer import DriftRecordProducer
 from scouter.integrations.rabbitmq import RabbitMQConfig
 from scouter.utils.logger import ScouterLogger
 
-from ..._scouter import (  # pylint: disable=no-name-in-module
+from scouter import (  # pylint: disable=no-name-in-module
     PsiFeatureQueue,
     ServerRecords,
     SpcFeatureQueue,
+    Feature
 )
 
 logger = ScouterLogger.get_logger()
@@ -58,7 +59,7 @@ class BaseQueueingStrategy(ABC):
         self._producer.flush()
 
     @abstractmethod
-    def insert(self, data: Dict[Any, Any]) -> Optional[ServerRecords]:
+    def insert(self, features: List[Feature]) -> Optional[ServerRecords]:
         """Insert data into the monitoring queue.
 
         Args:
