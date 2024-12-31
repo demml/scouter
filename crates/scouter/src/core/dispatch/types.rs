@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[pyclass]
+#[pyclass(eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub enum AlertDispatchType {
     Slack,
