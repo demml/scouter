@@ -21,7 +21,7 @@ from scouter import (
     PsiDriftConfig,
     SpcDriftProfile,
 )
-from scouter._scouter import Feature, SpcDriftConfig
+from scouter._scouter import Feature, Features, SpcDriftConfig
 from scouter.integrations.fastapi import FastAPIScouterObserver, ScouterRouter
 from scouter.observability.observer import ScouterObserver
 
@@ -63,12 +63,14 @@ class PredictRequest(BaseModel):
     feature_1: float
     feature_2: float
 
-    def to_features(self) -> List[Feature]:
-        return [
-            Feature.float("feature_0", self.feature_0),
-            Feature.float("feature_1", self.feature_1),
-            Feature.float("feature_2", self.feature_2),
-        ]
+    def to_features(self) -> Features:
+        return Features(
+            features=[
+                Feature.float("feature_0", self.feature_0),
+                Feature.float("feature_1", self.feature_1),
+                Feature.float("feature_2", self.feature_2),
+            ]
+        )
 
 
 def cleanup() -> None:

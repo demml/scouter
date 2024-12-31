@@ -1546,9 +1546,8 @@ class Feature:
             value:
                 Value of the feature
         """
-        
+
 class Features:
-    
     def __init__(self, features: List[Feature]) -> None:
         """Initialize features
 
@@ -1556,7 +1555,7 @@ class Features:
             features:
                 List of features
         """
-        
+
     def __str__(self) -> str:
         """Return the string representation of the features"""
 
