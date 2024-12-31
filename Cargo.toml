@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-  "crates/scouter",
+  "crates/*",
   "py-scouter",
 ]
 default-members = [
@@ -17,11 +17,25 @@ repository = "https://github.com/demml/scouter"
 
 
 [workspace.dependencies]
+scouter = { path = "crates/scouter" }
+scouter-server = { path = "crates/scouter_server" }
+
+anyhow = "1.*"
+axum = "0.*"
+
 chrono ={ version = "0.*", features = ["serde"] }
 colored_json = "*"
 cron = "0.*"
+
+futures = "0.*"
+
+include_dir = "0.*"
 indicatif = "0.*"
 itertools = "0.*"
+
+metrics = "0.*"
+metrics-exporter-prometheus = "0.*"
+
 ndarray = { version = "0.*", features = ["rayon"] }
 ndarray-stats = "0.*"
 noisy_float = "0.*"
@@ -29,11 +43,23 @@ numpy = "0.*"
 num-traits = "0.*"
 pyo3 = { version = ">=0.23.3, <1.0.0", features = ["chrono", "anyhow", "extension-module"] }
 rayon = "1.*"
+
 serde = { version = "1.*", features = ["derive"] }
 serde_json = "1.*"
-scouter = { path = "crates/scouter" }
+sqlx = { version = "0.*", features = [ "runtime-tokio", "tls-native-tls", "postgres", "mysql", "sqlite", "chrono", "json"] }
+
 thiserror = "1.*"
+time = "0.*"
+tokio = { version = "1.*", features = ["rt", "rt-multi-thread", "macros"] }
+tower-http = { version = "0.*", features = ["cors"] }
 tracing = "0.*"
+tracing-subscriber = {version = "0.*", features = ["json", "time"]}
+
+# Kafka dependencies
+rdkafka = { version = "0.*", features = ["cmake-build", "ssl"] }
+
+# RabbitMQ dependencies
+lapin = { version = "2.*" }
 
 
 [profile.release]
