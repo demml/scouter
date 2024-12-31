@@ -158,6 +158,7 @@ impl ScouterProfiler {
         }
     }
 
+    #[pyo3(signature = (compute_correlations, numeric_array=None, string_array=None, numeric_features=None, string_features=None, bin_size=None))]
     pub fn create_data_profile_f32(
         &mut self,
         compute_correlations: bool,
@@ -211,6 +212,7 @@ impl ScouterProfiler {
         }
     }
 
+    #[pyo3(signature = (compute_correlations, numeric_array=None, string_array=None, numeric_features=None, string_features=None, bin_size=None))]
     pub fn create_data_profile_f64(
         &mut self,
         compute_correlations: bool,
@@ -305,7 +307,7 @@ impl SpcDrifter {
             }
         };
 
-        Ok(array.to_pyarray_bound(py))
+        Ok(array.to_pyarray(py))
     }
 
     pub fn convert_strings_to_numpy_f64<'py>(
@@ -332,7 +334,7 @@ impl SpcDrifter {
             }
         };
 
-        Ok(array.to_pyarray_bound(py))
+        Ok(array.to_pyarray(py))
     }
 
     pub fn create_string_drift_profile(
@@ -630,7 +632,7 @@ impl PsiDrifter {
             }
         };
 
-        Ok(array.to_pyarray_bound(py))
+        Ok(array.to_pyarray(py))
     }
 
     pub fn convert_strings_to_numpy_f64<'py>(
@@ -653,7 +655,7 @@ impl PsiDrifter {
             }
         };
 
-        Ok(array.to_pyarray_bound(py))
+        Ok(array.to_pyarray(py))
     }
 
     pub fn compute_drift_f32(
@@ -708,6 +710,8 @@ impl CustomDrifter {
     pub fn new() -> Self {
         Self {}
     }
+
+    #[pyo3(signature = (config, comparison_metrics, scouter_version=None))]
     pub fn create_drift_profile(
         &mut self,
         config: CustomMetricDriftConfig,

@@ -7,7 +7,7 @@ use scouter::core::cron::{
     Every6Hours, EveryDay, EveryHour, EveryWeek,
 };
 use scouter::core::dispatch::types::AlertDispatchType;
-use scouter::core::drift::base::{DriftType, RecordType, ServerRecord, ServerRecords};
+use scouter::core::drift::base::{DriftType, RecordType, ServerRecord, ServerRecords, Feature};
 use scouter::core::drift::custom::types::{
     AlertThreshold, CustomDriftProfile, CustomMetric, CustomMetricAlertCondition,
     CustomMetricAlertConfig, CustomMetricDriftConfig, CustomMetricServerRecord,
@@ -90,5 +90,6 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<CustomDriftProfile>()?;
     m.add_class::<CustomDrifter>()?;
     m.add_class::<CustomMetricServerRecord>()?;
+    m.add_class::<Feature>()?;
     Ok(())
 }
