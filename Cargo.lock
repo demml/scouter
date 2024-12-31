@@ -3429,6 +3429,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "scouter-contracts"
+version = "0.3.3"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "scouter-server"
 version = "0.3.3"
 dependencies = [
@@ -3458,6 +3466,33 @@ dependencies = [
  "tower-http",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "scouter-sql"
+version = "0.3.3"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "cron",
+ "futures",
+ "include_dir",
+ "scouter",
+ "serde",
+ "serde_json",
+ "sqlx",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "scouter-types"
+version = "0.3.3"
+dependencies = [
+ "pyo3",
+ "serde",
+ "serde_json",
 ]
 
 [[package]]

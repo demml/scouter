@@ -1,0 +1,24 @@
+[package]
+name = "scouter-types"
+version = { workspace = true }
+edition = { workspace = true }
+repository = { workspace = true }
+
+authors = [
+  "Steven Forrester <sjforrester32@gmail.com>"
+]
+
+license = "MIT"
+description = "Client and server contract for scouter"
+
+[dependencies]
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+pyo3 = {workspace = true }
+
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true
+

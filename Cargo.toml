@@ -21,6 +21,7 @@ scouter = { path = "crates/scouter" }
 scouter-contracts = { path = "crates/scouter_contracts" }
 scouter-server = { path = "crates/scouter_server" }
 scouter-sql = { path = "crates/scouter_sql" }
+scouter-types = { path = "crates/scouter_types" }
 
 anyhow = "1.*"
 axum = "0.*"
