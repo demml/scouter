@@ -12,6 +12,7 @@ license = "MIT"
 description = "Sql library to use with scouter-server"
 
 [dependencies]
+scouter-contracts = { workspace = true }
 scouter-drift = { workspace = true }
 scouter-error = { workspace = true }
 scouter-types = { workspace = true }

@@ -3399,6 +3399,7 @@ dependencies = [
  "cron",
  "futures",
  "include_dir",
+ "scouter-contracts",
  "scouter-drift",
  "scouter-error",
  "scouter-types",
