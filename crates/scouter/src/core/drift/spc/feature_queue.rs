@@ -1,4 +1,4 @@
-use crate::core::drift::base::{ServerRecords, Features};
+use crate::core::drift::base::{ServerRecords, Feature};
 use crate::core::drift::spc::monitor::SpcMonitor;
 use crate::core::drift::spc::types::SpcDriftProfile;
 use crate::core::error::FeatureQueueError;
@@ -54,15 +54,12 @@ impl SpcFeatureQueue {
 
     // create a python function that will take a python dictionary of string keys and either int, float or string values
     // and append the values to the corresponding feature queue
-    pub fn insert(
-        &mut self,
-        py: Python,
-        features: Features,
-    ) -> PyResult<()> {
-
-        for feature in features.features {
-            if let Some(queue) = self.queue.get_mut(&feature.name) {
-                let value = feature.to_float(py, &self.mapped_features, &self.drift_profile.config.feature_map)?;
+    pub fn insert(&mut self, features: Vec<Feature>) -> PyResult<()> {
+       
+        for feature in features {
+            let name = feature.name();
+            if let Some(queue) = self.queue.get_mut(name) {
+                let value = feature.to_float(Some(&self.mapped_features), &self.drift_profile.config.feature_map)?;
                 if let Some(value) = value {
                     queue.push(value);
                 }
@@ -130,9 +127,7 @@ mod tests {
     use ndarray::Array;
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
-    use pyo3::IntoPyObjectExt;
-    use crate::core::drift::base::{Feature, FeatureType};
- 
+
 
     #[test]
     fn test_feature_queue_new() {
@@ -171,29 +166,16 @@ mod tests {
 
     
 
-        Python::with_gil(|py| {
+        Python::with_gil(|_| {
         
             for _ in 0..9 {
 
-                let one = Feature {
-                    name: "feature_1".to_string(),
-                    value: 1.into_py_any(py).unwrap(),
-                    feature_type: FeatureType::Int,
-                };
-                let two = Feature {
-                    name: "feature_2".to_string(),
-                    value: 2.into_py_any(py).unwrap(),
-                    feature_type: FeatureType::Int,
-                };
-
-                let three = Feature {
-                    name: "feature_3".to_string(),
-                    value: 3.into_py_any(py).unwrap(),
-                    feature_type: FeatureType::Int,
-                };
+                let one = Feature::int("feature_1".to_string(), 1);
+                let two = Feature::int("feature_2".to_string(), 2);
+                let three = Feature::int("feature_3".to_string(), 3);
 
             
-                feature_queue.insert(py, Features::new(vec![one, two, three])).unwrap();
+                feature_queue.insert( vec![one, two, three]).unwrap();
             }
 
 

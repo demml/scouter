@@ -1,11 +1,10 @@
-use crate::core::drift::base::{RecordType, ServerRecord, ServerRecords,FeatureType, Features};
+use crate::core::drift::base::{RecordType, ServerRecord, ServerRecords, Feature};
 
 use crate::core::drift::psi::monitor::PsiMonitor;
 use crate::core::drift::psi::types::{Bin, PsiDriftProfile, PsiServerRecord};
 use crate::core::error::FeatureQueueError;
 use core::result::Result::Ok;
 use pyo3::prelude::*;
-use pyo3::types::PyAny;
 use std::collections::HashMap;
 
 #[pyclass]
@@ -44,23 +43,6 @@ impl PsiFeatureQueue {
             .expect("-inf and +inf occupy the first and last threshold so a bin should always be returned.")
     }
 
-    fn convert_numeric_value_to_f64(
-        py: Python,
-        feature: &String,
-        value: &Py<PyAny>,
-    ) -> Result<f64, FeatureQueueError> {
-        let val = if let Ok(val) = value.bind(py).extract::<f64>() {
-            val
-        } else if let Ok(val) = value.bind(py).extract::<i64>() {
-            val as f64
-        } else {
-            return Err(FeatureQueueError::InvalidFeatureTypeError(format!(
-                "invalid data type detected for feature: {}",
-                feature
-            )));
-        };
-        Ok(val)
-    }
 
     fn process_numeric_queue(
         queue: &mut HashMap<String, usize>,
@@ -77,7 +59,7 @@ impl PsiFeatureQueue {
     }
 
     fn process_binary_queue(
-        feature: &String,
+        feature: &str,
         queue: &mut HashMap<String, usize>,
         value: f64,
     ) -> Result<(), FeatureQueueError> {
@@ -138,15 +120,15 @@ impl PsiFeatureQueue {
 
     pub fn insert(
         &mut self,
-        py: Python,
-        features: Features,
+        features: Vec<Feature>,
     ) -> PyResult<()> {
-        for feature in features.features {
-            if let Some(feature_drift_profile) = self.drift_profile.features.get(&feature.name) {
+
+        for feature in features{
+            if let Some(feature_drift_profile) = self.drift_profile.features.get(feature.name()) {
                 let bins = &feature_drift_profile.bins;
-                if let Some(queue) = self.queue.get_mut(&feature.name) {
+                if let Some(queue) = self.queue.get_mut(feature.name()) {
                     if Self::feature_is_numeric(bins) {
-                        let value = feature.to_float(py, &None, &None)?;
+                        let value = feature.to_float(None, &None)?;
                         
                         // check if some, if not return error
                         if let Some(value) = value {
@@ -154,13 +136,14 @@ impl PsiFeatureQueue {
                         }
 
                     } else if Self::feature_is_binary(bins) {
-                        let value = feature.to_float(py, &None, &None)?;
+                        let value = feature.to_float(None, &None)?;
 
                         if let Some(value) = value {
-                        Self::process_binary_queue(&feature.name, queue, value)?
+                        Self::process_binary_queue(&feature.name(), queue, value)?
                     };
+
                     } else if Self::feature_is_categorical(bins) {
-                        let value = feature.to_string(py)?;
+                        let value = feature.to_string();
 
                         Self::process_categorical_queue(queue, &value)?;
                     }
@@ -256,17 +239,15 @@ mod tests {
         let mut feature_queue = PsiFeatureQueue::new(profile);
 
         assert_eq!(feature_queue.queue.len(), 3);
-        let mut feature_values: HashMap<String, Py<PyAny>> = HashMap::new();
 
-        Python::with_gil(|py| {
-            for _ in 0..9 {
-                feature_values.insert("feature_1".to_string(), min.into_[y]);
-                feature_values.insert("feature_2".to_string(), min.into_py(py));
-                feature_values.insert("feature_3".to_string(), max.into_py(py));
+        for _ in 0..9 {
+            let one = Feature::int("feature_1".to_string(), 1);
+            let two = Feature::int("feature_2".to_string(), 2);
+            let three = Feature::int("feature_3".to_string(), 3);
 
-                feature_queue.insert(py, feature_values.clone()).unwrap();
-            }
-        });
+        
+            feature_queue.insert( vec![one, two, three]).unwrap();
+        }
 
         assert_eq!(
             *feature_queue
@@ -327,15 +308,13 @@ mod tests {
         let mut feature_queue = PsiFeatureQueue::new(profile);
 
         assert_eq!(feature_queue.queue.len(), 2);
-        let mut feature_values: HashMap<String, Py<PyAny>> = HashMap::new();
 
-        Python::with_gil(|py| {
-            for _ in 0..9 {
-                feature_values.insert("feature_1".to_string(), 0.0.into_py(py));
-                feature_values.insert("feature_2".to_string(), 1.0.into_py(py));
-                feature_queue.insert(py, feature_values.clone()).unwrap();
-            }
-        });
+        for _ in 0..9 {
+            let one = Feature::float("feature_1".to_string(), 0.0);
+            let two = Feature::float("feature_2".to_string(), 1.0);
+   
+            feature_queue.insert( vec![one, two]).unwrap();
+        }
 
         assert_eq!(
             *feature_queue
@@ -410,15 +389,14 @@ mod tests {
         let mut feature_queue = PsiFeatureQueue::new(profile);
 
         assert_eq!(feature_queue.queue.len(), 2);
-        let mut feature_values: HashMap<String, Py<PyAny>> = HashMap::new();
 
-        Python::with_gil(|py| {
-            for _ in 0..9 {
-                feature_values.insert("feature_1".to_string(), "c".to_string().into_py(py));
-                feature_values.insert("feature_2".to_string(), "a".to_string().into_py(py));
-                feature_queue.insert(py, feature_values.clone()).unwrap();
-            }
-        });
+        for _ in 0..9 {
+               
+            let one = Feature::string("feature_1".to_string(), "c".to_string());
+            let two = Feature::string("feature_2".to_string(), "a".to_string());
+
+            feature_queue.insert( vec![one, two]).unwrap();
+        }
 
         assert_eq!(
             *feature_queue
@@ -493,18 +471,17 @@ mod tests {
         let mut feature_queue = PsiFeatureQueue::new(profile);
 
         assert_eq!(feature_queue.queue.len(), 2);
-        let mut feature_values: HashMap<String, Py<PyAny>> = HashMap::new();
 
         let is_empty = feature_queue.is_empty();
         assert_eq!(is_empty as u8, 1);
 
-        Python::with_gil(|py| {
-            for _ in 0..9 {
-                feature_values.insert("feature_1".to_string(), "c".to_string().into_py(py));
-                feature_values.insert("feature_2".to_string(), "a".to_string().into_py(py));
-                feature_queue.insert(py, feature_values.clone()).unwrap();
-            }
-        });
+        for _ in 0..9 {
+    
+            let one = Feature::string("feature_1".to_string(), "c".to_string());
+            let two = Feature::string("feature_2".to_string(), "a".to_string());
+
+            feature_queue.insert( vec![one, two]).unwrap();
+        }
 
         let is_empty = feature_queue.queue.is_empty();
         assert_eq!(is_empty as u8, 0);
@@ -539,15 +516,18 @@ mod tests {
         let mut feature_queue = PsiFeatureQueue::new(profile);
 
         assert_eq!(feature_queue.queue.len(), 3);
-        let mut feature_values: HashMap<String, Py<PyAny>> = HashMap::new();
 
-        Python::with_gil(|py| {
+
+        Python::with_gil(|_| {
             for _ in 0..9 {
-                feature_values.insert("feature_1".to_string(), 1.0.into_py(py));
-                feature_values.insert("feature_2".to_string(), 10.0.into_py(py));
-                feature_values.insert("feature_3".to_string(), 10000.0.into_py(py));
+                      
+                let one = Feature::float("feature_1".to_string(), 1.0);
+                let two = Feature::float("feature_2".to_string(), 10.0);
+                let three = Feature::float("feature_3".to_string(), 10000.0);
 
-                feature_queue.insert(py, feature_values.clone()).unwrap();
+                feature_queue.insert( vec![one, two, three]).unwrap();
+
+         
             }
         });
 

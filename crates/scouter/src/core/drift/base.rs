@@ -6,95 +6,130 @@ use crate::core::observe::observer::ObservabilityMetrics;
 use crate::core::utils::ProfileFuncs;
 use crate::core::utils::FeatureMap;
 
-use pyo3::{prelude::*, IntoPyObjectExt, FromPyObject};
+use pyo3::{prelude::*, IntoPyObjectExt};
 
 use crate::core::drift::custom::types::{CustomDriftProfile, CustomMetricServerRecord};
 use crate::core::drift::psi::types::{PsiDriftProfile, PsiServerRecord};
 use serde::{Deserialize, Serialize};
+
 use std::str::FromStr;
 
 pub const MISSING: &str = "__missing__";
 
 
-#[pyclass(eq)]
-#[derive(PartialEq, Clone)]
-pub enum FeatureType {
-    Int,
-    Float,
-    String,
+#[pyclass]
+#[derive(Clone)]
+pub struct IntFeature{
+    pub name: String,
+    pub value: i64,
+}
+
+impl IntFeature {
+    pub fn to_float(&self) -> f64 {
+        self.value as f64
+    }
+}
+
+#[pyclass]
+#[derive(Clone)]
+pub struct FloatFeature{
+    pub name: String,
+    pub value: f64,
 }
 
 
 #[pyclass]
-pub struct Feature{
+#[derive(Clone)]
+pub struct StringFeature{
     pub name: String,
-    pub value: PyObject,
-    pub feature_type: FeatureType,
+    pub value: String,
+}
+
+impl StringFeature {
+
+    pub fn to_float(&self,  mapped_features: Option<&Vec<String>>, feature_map: &Option<FeatureMap>) -> PyResult<Option<f64>> {
+    
+        if mapped_features.is_none() {
+            Ok(None)
+
+        } else {
+            
+        if mapped_features.as_ref().unwrap().contains(&self.name) {
+            let feature_map = feature_map
+                .as_ref()
+                .ok_or(PyScouterError::new_err(
+                    "Feature map is missing".to_string(),
+                ))?
+                .features
+                .get(&self.name)
+                .ok_or(PyScouterError::new_err( "Failed to get feature".to_string()))?;
+
+            let transformed_val = feature_map
+                .get(&self.value)
+                .unwrap_or(feature_map.get("missing").unwrap());
+
+            Ok(Some(*transformed_val as f64))
+            } else  {
+                Err(PyScouterError::new_err("Feature not found".to_string()))
+            }
+        }
+    }
+    
+}
+
+
+#[pyclass]
+#[derive(Clone)]
+pub enum Feature {
+    Int(IntFeature),
+    Float(FloatFeature),
+    String(StringFeature),
 }
 
 #[pymethods]
 impl Feature {
-    #[new]
-    pub fn new(name: String, feature_type: FeatureType, value: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let py = value.py();
-        Ok(Feature {
-            name,
-            value: value.into_py_any(py).map_err(PyScouterError::new_err)?,
-            feature_type,
-        })
+
+    #[staticmethod]
+    pub fn int(name: String, value: i64) -> Self {
+        Feature::Int(IntFeature { name, value })
     }
+
+    #[staticmethod]
+    pub fn float(name: String, value: f64) -> Self {
+        Feature::Float(FloatFeature { name, value })
+    }
+
+    #[staticmethod]
+    pub fn string(name: String, value: String) -> Self {
+        Feature::String(StringFeature { name, value })
+    }
+
+  
 }
 
 impl Feature {
-    pub fn to_float(&self, py: Python, mapped_features: &Option<Vec<String>>, feature_map:&Option<FeatureMap>) -> PyResult<Option<f64>> {
-        match self.feature_type {
-            FeatureType::Float => Ok(Some(self.value.extract::<f64>(py).map_err(PyScouterError::new_err)?)),
-            FeatureType::Int => Ok(Some(self.value.extract::<i64>(py).map_err(PyScouterError::new_err)? as f64)),
-            FeatureType::String => {
-            let val = self.value.extract::<String>(py).map_err(PyScouterError::new_err)?;
-
-            if mapped_features.is_none() {
-                Ok(None)
-            } else {
-                
-            if mapped_features.as_ref().unwrap().contains(&self.name) {
-                let feature_map = feature_map
-                    .as_ref()
-                    .ok_or(PyScouterError::new_err(
-                        "Feature map is missing".to_string(),
-                    ))?
-                    .features
-                    .get(&self.name)
-                    .ok_or(PyScouterError::new_err( "Failed to get feature".to_string()))?;
-
-                let transformed_val = feature_map
-                    .get(&val)
-                    .unwrap_or(feature_map.get("missing").unwrap());
-
-                Ok(Some(*transformed_val as f64))
-                } else  {
-                    Ok(None)
-                }
-            }
-        }
+    pub fn to_float(&self, mapped_features: Option<&Vec<String>>, feature_map: &Option<FeatureMap>) -> PyResult<Option<f64>> {
+        match self {
+            Feature::Int(feature) => Ok(Some(feature.to_float())),
+            Feature::Float(feature) => Ok(Some(feature.value)),
+            Feature::String(feature) => feature.to_float(mapped_features, feature_map),
         }
     }
 
-    pub fn to_string(&self, py: Python) -> PyResult<String> {
-        match self.feature_type {
-            FeatureType::Float => Ok(self.value.extract::<f64>(py).map_err(PyScouterError::new_err)?.to_string()),
-            FeatureType::Int => Ok(self.value.extract::<i64>(py).map_err(PyScouterError::new_err)?.to_string()),
-            FeatureType::String => Ok(self.value.extract::<String>(py).map_err(PyScouterError::new_err)?),
+    pub fn name(&self) -> &str {
+        match self {
+            Feature::Int(feature) => &feature.name,
+            Feature::Float(feature) => &feature.name,
+            Feature::String(feature) => &feature.name,
         }
     }
-}
 
-impl FromPyObject<'_> for Feature {
-    fn extract_bound(ob: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let name: String = ob.get_item("name")?.extract()?;
-        let value: PyObject = ob.get_item("value")?.extract()?;
-        let feature_type: FeatureType = ob.get_item("feature_type")?.extract()?;
-        Ok(Feature { name, value, feature_type })
+    pub fn to_string(&self) -> String {
+        match self {
+            Feature::Int(feature) => feature.value.to_string(),
+            Feature::Float(feature) => feature.value.to_string(),
+            Feature::String(feature) => feature.value.clone(),
+        }
     }
 }
 
@@ -110,13 +145,6 @@ impl Features {
         Features {
             features,
         }
-    }
-}
-
-impl FromPyObject<'_> for Features {
-    fn extract_bound(ob: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let features: Vec<Feature> = ob.extract()?;
-        Ok(Features { features })
     }
 }
 
