@@ -3487,6 +3487,7 @@ dependencies = [
  "futures",
  "include_dir",
  "scouter",
+ "scouter-error",
  "serde",
  "serde_json",
  "sqlx",
@@ -3499,6 +3500,7 @@ dependencies = [
 name = "scouter-types"
 version = "0.3.3"
 dependencies = [
+ "colored_json",
  "pyo3",
  "scouter-error",
  "serde",
