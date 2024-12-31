@@ -135,14 +135,23 @@ impl Display for Feature {
 }
 
 #[pyclass]
+#[derive(Clone)]
 pub struct Features {
     pub features: Vec<Feature>,
 }
+
+
 #[pymethods]
 impl Features {
     #[new]
     pub fn new(features: Vec<Feature>) -> Self {
         Features { features }
+    }
+}
+
+impl Features {
+    pub fn iter(&self) -> std::slice::Iter<'_, Feature> {
+        self.features.iter()
     }
 }
 

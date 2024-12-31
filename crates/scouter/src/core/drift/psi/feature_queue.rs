@@ -1,4 +1,4 @@
-use crate::core::drift::base::{Feature, RecordType, ServerRecord, ServerRecords};
+use crate::core::drift::base::{Features, RecordType, ServerRecord, ServerRecords};
 
 use crate::core::drift::psi::monitor::PsiMonitor;
 use crate::core::drift::psi::types::{Bin, PsiDriftProfile, PsiServerRecord};
@@ -117,8 +117,8 @@ impl PsiFeatureQueue {
         }
     }
 
-    pub fn insert(&mut self, features: Vec<Feature>) -> Result<(), FeatureQueueError> {
-        for feature in features {
+    pub fn insert(&mut self, features: Features) -> Result<(), FeatureQueueError> {
+        for feature in features.iter() {
             if let Some(feature_drift_profile) = self.drift_profile.features.get(feature.name()) {
                 let name = feature.name();
                 let bins = &feature_drift_profile.bins;
@@ -205,6 +205,7 @@ mod tests {
 
     use super::*;
     use crate::core::drift::psi::types::PsiDriftConfig;
+    use crate::core::drift::base::Feature;
     use crate::core::utils::CategoricalFeatureHelpers;
     use ndarray::{Array, Axis};
     use ndarray_rand::rand_distr::Uniform;
@@ -254,7 +255,12 @@ mod tests {
             let two = Feature::float("feature_2".to_string(), min);
             let three = Feature::float("feature_3".to_string(), max);
 
-            feature_queue.insert(vec![one, two, three]).unwrap();
+            let features = Features{
+                features: vec![one, two, three],
+            };
+
+
+            feature_queue.insert(features).unwrap();
         }
 
         assert_eq!(
@@ -320,7 +326,12 @@ mod tests {
             let one = Feature::float("feature_1".to_string(), 0.0);
             let two = Feature::float("feature_2".to_string(), 1.0);
 
-            feature_queue.insert(vec![one, two]).unwrap();
+            let features = Features{
+                features: vec![one, two],
+            };
+
+
+            feature_queue.insert(features).unwrap();
         }
 
         assert_eq!(
@@ -400,7 +411,12 @@ mod tests {
             let one = Feature::string("feature_1".to_string(), "c".to_string());
             let two = Feature::string("feature_2".to_string(), "a".to_string());
 
-            feature_queue.insert(vec![one, two]).unwrap();
+            let features = Features{
+                features: vec![one, two],
+            };
+
+
+            feature_queue.insert(features).unwrap();
         }
 
         assert_eq!(
@@ -483,7 +499,12 @@ mod tests {
             let one = Feature::string("feature_1".to_string(), "c".to_string());
             let two = Feature::string("feature_2".to_string(), "a".to_string());
 
-            feature_queue.insert(vec![one, two]).unwrap();
+            let features = Features{
+                features: vec![one, two],
+            };
+
+
+            feature_queue.insert(features).unwrap();
         }
 
         let is_empty = feature_queue.queue.is_empty();
@@ -524,7 +545,12 @@ mod tests {
             let two = Feature::float("feature_2".to_string(), 10.0);
             let three = Feature::float("feature_3".to_string(), 10000.0);
 
-            feature_queue.insert(vec![one, two, three]).unwrap();
+            let features = Features{
+                features: vec![one, two, three],
+            };
+
+
+            feature_queue.insert(features).unwrap();
         }
 
         let drift_records = feature_queue.create_drift_records().unwrap();

@@ -1,4 +1,4 @@
-use crate::core::drift::base::{Feature, ServerRecords};
+use crate::core::drift::base::{Features, ServerRecords};
 use crate::core::drift::spc::monitor::SpcMonitor;
 use crate::core::drift::spc::types::SpcDriftProfile;
 use crate::core::error::FeatureQueueError;
@@ -54,8 +54,9 @@ impl SpcFeatureQueue {
 
     // create a python function that will take a python dictionary of string keys and either int, float or string values
     // and append the values to the corresponding feature queue
-    pub fn insert(&mut self, features: Vec<Feature>) -> Result<(), FeatureQueueError> {
-        for feature in features {
+    pub fn insert(&mut self, features: Features) -> Result<(), FeatureQueueError> {
+
+        for feature in features.iter() {
             let name = feature.name();
             if let Some(queue) = self.queue.get_mut(name) {
                 let value = feature
@@ -71,6 +72,7 @@ impl SpcFeatureQueue {
                 }
             }
         }
+
         Ok(())
     }
 
@@ -128,6 +130,7 @@ impl SpcFeatureQueue {
 mod tests {
 
     use crate::core::drift::spc::types::{SpcAlertConfig, SpcDriftConfig};
+    use crate::core::drift::base::Feature;
 
     use super::*;
     use ndarray::Array;
@@ -172,7 +175,11 @@ mod tests {
             let two = Feature::int("feature_2".to_string(), 2);
             let three = Feature::int("feature_3".to_string(), 3);
 
-            feature_queue.insert(vec![one, two, three]).unwrap();
+            let features = Features{
+                features: vec![one, two, three],
+            };
+
+            feature_queue.insert(features).unwrap();
         }
 
         assert_eq!(feature_queue.queue.get("feature_1").unwrap().len(), 9);
