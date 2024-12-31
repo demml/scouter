@@ -1,11 +1,10 @@
-use crate::core::cron::EveryDay;
-use crate::core::dispatch::types::AlertDispatchType;
-use crate::core::drift::base::{
-    DispatchAlertDescription, DispatchDriftConfig, DriftArgs, DriftType, ProfileArgs,
-    ProfileBaseArgs, RecordType, ValidateAlertConfig, MISSING,
+use scouter_types::{cron::EveryDay, dispatch::AlertDispatchType, DriftType, FeatureMap, ProfileFuncs,};
+use crate::base::{
+    DispatchAlertDescription, DispatchDriftConfig, DriftArgs, ProfileArgs,
+    ProfileBaseArgs,  ValidateAlertConfig, MISSING,
 };
-use crate::core::error::ScouterError;
-use crate::core::utils::{json_to_pyobject, pyobject_to_json, FeatureMap, FileName, ProfileFuncs};
+use scouter_error::ScouterError;
+use crate::utils::{json_to_pyobject, pyobject_to_json, FileName};
 use pyo3::types::PyDict;
 use pyo3::{pyclass, pymethods, Bound, Py, PyResult, Python};
 use serde::{Deserialize, Serialize};
@@ -13,10 +12,6 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::debug;
-
-// lower_threshold float,
-// upper_threshold float,
-
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
