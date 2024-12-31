@@ -1,5 +1,5 @@
 -- Add migration script here
-CREATE TABLE IF NOT exists scouter.drift_alerts (
+CREATE TABLE IF NOT exists drift_alerts (
   created_at timestamp not null default (timezone('utc', now())),
   name varchar(256) not null,
   repository varchar(256) not null,
@@ -12,19 +12,19 @@ CREATE TABLE IF NOT exists scouter.drift_alerts (
 )
 PARTITION BY RANGE (created_at);
 
-CREATE INDEX ON scouter.drift_alerts (name, repository, version, created_at);
+CREATE INDEX ON drift_alerts (name, repository, version, created_at);
 
-SELECT scouter.create_parent(
-    'scouter.drift_alerts', 
+SELECT create_parent(
+    'drift_alerts', 
     'created_at',
     '1 day'
 );
 
-UPDATE scouter.part_config SET retention = '21 days' WHERE parent_table = 'scouter.alerts';
+UPDATE part_config SET retention = '21 days' WHERE parent_table = 'alerts';
 
 -- Add scouter_version column to drift_profile, this can be used for backward compatibility checks down the road
 -- Add type column to drift_profile, this can be used to differentiate between different types of drift profiles
-ALTER TABLE scouter.drift_profile
+ALTER TABLE drift_profile
 add column scouter_version varchar(256) not null default '0.1.0',
 add column drift_type varchar(256) not null;
 

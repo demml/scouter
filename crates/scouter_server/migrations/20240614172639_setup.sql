@@ -1,6 +1,6 @@
 -- Migrations
 
-CREATE TABLE IF NOT exists scouter.drift (
+CREATE TABLE IF NOT exists drift (
   created_at timestamp not null default (timezone('utc', now())),
   name varchar(256),
   repository varchar(256),
@@ -11,18 +11,18 @@ CREATE TABLE IF NOT exists scouter.drift (
 )
 PARTITION BY RANGE (created_at);
 
-CREATE INDEX ON scouter.drift (name, repository, version, created_at);
+CREATE INDEX ON drift (name, repository, version, created_at);
 
-SELECT scouter.create_parent(
+SELECT create_parent(
     'scouter.drift', 
     'created_at',
     '1 day'
 );
 
-UPDATE scouter.part_config SET retention = '7 days' WHERE parent_table = 'scouter.drift';
+UPDATE part_config SET retention = '7 days' WHERE parent_table = 'drift';
 
 -- Create table for service drift configuration
-CREATE table IF NOT exists scouter.drift_profile (
+CREATE table IF NOT exists drift_profile (
   created_at timestamp not null default (timezone('utc', now())),
   updated_at timestamp not null default (timezone('utc', now())),
   name varchar(256),
@@ -37,7 +37,7 @@ CREATE table IF NOT exists scouter.drift_profile (
 );
 
 -- Run maintenance every hour
-SELECT  cron.schedule('partition-maintenance', '0 * * * *', $$CALL scouter.run_maintenance_proc()$$);
+SELECT  cron.schedule('partition-maintenance', '0 * * * *', $$CALL run_maintenance_proc()$$);
 
 -- Run maintenance once a day at midnight utc with p_analyze set to true
-SELECT  cron.schedule('partition-maintenance-analyze', '30 0 * * *', $$CALL scouter.run_maintenance_proc(0, true, true)$$);
+SELECT  cron.schedule('partition-maintenance-analyze', '30 0 * * *', $$CALL run_maintenance_proc(0, true, true)$$);

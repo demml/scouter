@@ -1,4 +1,4 @@
-CREATE TABLE IF NOT exists scouter.custom_metric_record (
+CREATE TABLE IF NOT exists custom_metric_record (
     created_at timestamp not null default (timezone('utc', now())),
     name varchar(256) not null,
     repository varchar(256) not null,
@@ -10,12 +10,12 @@ CREATE TABLE IF NOT exists scouter.custom_metric_record (
 )
 PARTITION BY RANGE (created_at);
 
-CREATE INDEX ON scouter.custom_metric_record (name, repository, version, created_at);
+CREATE INDEX ON custom_metric_record (name, repository, version, created_at);
 
-SELECT scouter.create_parent(
-               'scouter.custom_metric_record',
+SELECT create_parent(
+               'custom_metric_record',
                'created_at',
                '1 day'
 );
 
-UPDATE scouter.part_config SET retention = '7 days' WHERE parent_table = 'scouter.custom_metric_record';
+UPDATE part_config SET retention = '7 days' WHERE parent_table = 'custom_metric_record';
