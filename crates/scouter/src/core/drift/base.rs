@@ -3,23 +3,22 @@ use crate::core::dispatch::types::AlertDispatchType;
 use crate::core::drift::spc::types::{SpcDriftProfile, SpcServerRecord};
 use crate::core::error::{PyScouterError, ScouterError};
 use crate::core::observe::observer::ObservabilityMetrics;
-use crate::core::utils::ProfileFuncs;
 use crate::core::utils::FeatureMap;
-
-use pyo3::{prelude::*, IntoPyObjectExt};
+use crate::core::utils::ProfileFuncs;
 
 use crate::core::drift::custom::types::{CustomDriftProfile, CustomMetricServerRecord};
 use crate::core::drift::psi::types::{PsiDriftProfile, PsiServerRecord};
+use pyo3::{prelude::*, IntoPyObjectExt};
 use serde::{Deserialize, Serialize};
-
+use std::fmt;
+use std::fmt::{Display, Formatter};
 use std::str::FromStr;
 
 pub const MISSING: &str = "__missing__";
 
-
 #[pyclass]
 #[derive(Clone)]
-pub struct IntFeature{
+pub struct IntFeature {
     pub name: String,
     pub value: i64,
 }
@@ -32,51 +31,45 @@ impl IntFeature {
 
 #[pyclass]
 #[derive(Clone)]
-pub struct FloatFeature{
+pub struct FloatFeature {
     pub name: String,
     pub value: f64,
 }
 
-
 #[pyclass]
 #[derive(Clone)]
-pub struct StringFeature{
+pub struct StringFeature {
     pub name: String,
     pub value: String,
 }
 
 impl StringFeature {
+    pub fn to_float(
+        &self,
+        mapped_features: Option<&Vec<String>>,
+        feature_map: &Option<FeatureMap>,
+    ) -> PyResult<Option<f64>> {
+        if let Some(mapped_features) = mapped_features {
+            if mapped_features.contains(&self.name) {
+                let feature_map = feature_map
+                    .as_ref()
+                    .ok_or_else(|| PyScouterError::new_err("Feature map is missing".to_string()))?
+                    .features
+                    .get(&self.name)
+                    .ok_or_else(|| PyScouterError::new_err("Failed to get feature".to_string()))?;
 
-    pub fn to_float(&self,  mapped_features: Option<&Vec<String>>, feature_map: &Option<FeatureMap>) -> PyResult<Option<f64>> {
-    
-        if mapped_features.is_none() {
-            Ok(None)
+                let transformed_val = feature_map
+                    .get(&self.value)
+                    .unwrap_or_else(|| feature_map.get("missing").unwrap());
 
-        } else {
-            
-        if mapped_features.as_ref().unwrap().contains(&self.name) {
-            let feature_map = feature_map
-                .as_ref()
-                .ok_or(PyScouterError::new_err(
-                    "Feature map is missing".to_string(),
-                ))?
-                .features
-                .get(&self.name)
-                .ok_or(PyScouterError::new_err( "Failed to get feature".to_string()))?;
-
-            let transformed_val = feature_map
-                .get(&self.value)
-                .unwrap_or(feature_map.get("missing").unwrap());
-
-            Ok(Some(*transformed_val as f64))
-            } else  {
-                Err(PyScouterError::new_err("Feature not found".to_string()))
+                return Ok(Some(*transformed_val as f64));
+            } else {
+                return Err(PyScouterError::new_err("Feature not found".to_string()));
             }
         }
+        Ok(None)
     }
-    
 }
-
 
 #[pyclass]
 #[derive(Clone)]
@@ -88,7 +81,6 @@ pub enum Feature {
 
 #[pymethods]
 impl Feature {
-
     #[staticmethod]
     pub fn int(name: String, value: i64) -> Self {
         Feature::Int(IntFeature { name, value })
@@ -103,12 +95,14 @@ impl Feature {
     pub fn string(name: String, value: String) -> Self {
         Feature::String(StringFeature { name, value })
     }
-
-  
 }
 
 impl Feature {
-    pub fn to_float(&self, mapped_features: Option<&Vec<String>>, feature_map: &Option<FeatureMap>) -> PyResult<Option<f64>> {
+    pub fn to_float(
+        &self,
+        mapped_features: Option<&Vec<String>>,
+        feature_map: &Option<FeatureMap>,
+    ) -> PyResult<Option<f64>> {
         match self {
             Feature::Int(feature) => Ok(Some(feature.to_float())),
             Feature::Float(feature) => Ok(Some(feature.value)),
@@ -123,32 +117,29 @@ impl Feature {
             Feature::String(feature) => &feature.name,
         }
     }
+}
 
-    pub fn to_string(&self) -> String {
+impl Display for Feature {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         match self {
-            Feature::Int(feature) => feature.value.to_string(),
-            Feature::Float(feature) => feature.value.to_string(),
-            Feature::String(feature) => feature.value.clone(),
+            Feature::Int(feature) => write!(f, "{}", feature.value),
+            Feature::Float(feature) => write!(f, "{}", feature.value),
+            Feature::String(feature) => write!(f, "{}", feature.value),
         }
     }
 }
 
-
 #[pyclass]
-pub struct Features{
+pub struct Features {
     pub features: Vec<Feature>,
 }
 #[pymethods]
 impl Features {
     #[new]
     pub fn new(features: Vec<Feature>) -> Self {
-        Features {
-            features,
-        }
+        Features { features }
     }
 }
-
-
 
 #[pyclass(eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -273,10 +264,22 @@ impl ServerRecord {
 
     pub fn record(&self, py: Python) -> PyResult<PyObject> {
         match self {
-            ServerRecord::Spc { record } => Ok(record.clone().into_py_any(py).map_err(PyScouterError::new_err)?),
-            ServerRecord::Psi { record } => Ok(record.clone().into_py_any(py).map_err(PyScouterError::new_err)?),
-            ServerRecord::Custom { record } => Ok(record.clone().into_py_any(py).map_err(PyScouterError::new_err)?),
-            ServerRecord::Observability { record } => Ok(record.clone().into_py_any(py).map_err(PyScouterError::new_err)?),
+            ServerRecord::Spc { record } => Ok(record
+                .clone()
+                .into_py_any(py)
+                .map_err(PyScouterError::new_err)?),
+            ServerRecord::Psi { record } => Ok(record
+                .clone()
+                .into_py_any(py)
+                .map_err(PyScouterError::new_err)?),
+            ServerRecord::Custom { record } => Ok(record
+                .clone()
+                .into_py_any(py)
+                .map_err(PyScouterError::new_err)?),
+            ServerRecord::Observability { record } => Ok(record
+                .clone()
+                .into_py_any(py)
+                .map_err(PyScouterError::new_err)?),
         }
     }
 }
@@ -390,7 +393,8 @@ impl DriftProfile {
     /// * `drift_type` - Drift type string
     ///
     pub fn from_value(body: serde_json::Value, drift_type: &str) -> Result<Self, ScouterError> {
-        let drift_type = DriftType::from_str(drift_type).map_err(|_| ScouterError::InvalidDriftTypeError(drift_type.to_string()))?;
+        let drift_type = DriftType::from_str(drift_type)
+            .map_err(|_| ScouterError::InvalidDriftTypeError(drift_type.to_string()))?;
         match drift_type {
             DriftType::Spc => {
                 let profile =

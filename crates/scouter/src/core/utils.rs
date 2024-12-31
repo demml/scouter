@@ -2,9 +2,10 @@ use crate::core::error::MonitorError;
 use crate::core::error::ScouterError;
 use colored_json::{Color, ColorMode, ColoredFormatter, PrettyFormatter, Styler};
 use ndarray::{Array, Array2};
-use pyo3::prelude::*;
 use pyo3::exceptions::{PyTypeError, PyValueError};
-use pyo3::types::{PyBool, PyDict, PyFloat, PyList, PyString, PyInt};
+use pyo3::prelude::*;
+use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
+use pyo3::IntoPyObjectExt;
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
@@ -13,7 +14,6 @@ use serde_json::{json, Value};
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use pyo3::IntoPyObjectExt;
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]

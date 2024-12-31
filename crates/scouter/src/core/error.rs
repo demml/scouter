@@ -1,8 +1,8 @@
+use pyo3::create_exception;
+use pyo3::exceptions::PyException;
 use pyo3::PyErr;
 use serde::Deserialize;
 use thiserror::Error;
-use pyo3::create_exception;
-use pyo3::exceptions::PyException;
 
 #[derive(Error, Debug)]
 pub enum AlertError {
@@ -196,6 +196,5 @@ impl From<CustomMetricError> for PyErr {
         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
     }
 }
-
 
 create_exception!(scouter, PyScouterError, PyException);

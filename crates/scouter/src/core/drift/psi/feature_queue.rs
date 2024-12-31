@@ -1,4 +1,4 @@
-use crate::core::drift::base::{RecordType, ServerRecord, ServerRecords, Feature};
+use crate::core::drift::base::{Feature, RecordType, ServerRecord, ServerRecords};
 
 use crate::core::drift::psi::monitor::PsiMonitor;
 use crate::core::drift::psi::types::{Bin, PsiDriftProfile, PsiServerRecord};
@@ -43,13 +43,11 @@ impl PsiFeatureQueue {
             .expect("-inf and +inf occupy the first and last threshold so a bin should always be returned.")
     }
 
-
     fn process_numeric_queue(
         queue: &mut HashMap<String, usize>,
         value: f64,
         bins: &[Bin],
     ) -> Result<(), FeatureQueueError> {
-    
         let bin_id = Self::find_numeric_bin_given_scaler(value, bins);
         let count = queue
             .get_mut(bin_id)
@@ -89,7 +87,7 @@ impl PsiFeatureQueue {
         value: &str,
     ) -> Result<(), FeatureQueueError> {
         let count = queue.get_mut(value).ok_or(FeatureQueueError::GetBinError)?;
-            *count += 1;
+        *count += 1;
         Ok(())
     }
 }
@@ -118,29 +116,24 @@ impl PsiFeatureQueue {
         }
     }
 
-    pub fn insert(
-        &mut self,
-        features: Vec<Feature>,
-    ) -> PyResult<()> {
-        for feature in features{
+    pub fn insert(&mut self, features: Vec<Feature>) -> PyResult<()> {
+        for feature in features {
             if let Some(feature_drift_profile) = self.drift_profile.features.get(feature.name()) {
                 let bins = &feature_drift_profile.bins;
                 if let Some(queue) = self.queue.get_mut(feature.name()) {
                     if Self::feature_is_numeric(bins) {
                         let value = feature.to_float(None, &None)?;
-                        
+
                         // check if some, if not return error
                         if let Some(value) = value {
                             Self::process_numeric_queue(queue, value, bins)?;
                         }
-
                     } else if Self::feature_is_binary(bins) {
                         let value = feature.to_float(None, &None)?;
 
                         if let Some(value) = value {
-                        Self::process_binary_queue(&feature.name(), queue, value)?
-                    };
-
+                            Self::process_binary_queue(feature.name(), queue, value)?
+                        };
                     } else if Self::feature_is_categorical(bins) {
                         let value = feature.to_string();
 
@@ -244,8 +237,7 @@ mod tests {
             let two = Feature::int("feature_2".to_string(), 2);
             let three = Feature::int("feature_3".to_string(), 3);
 
-        
-            feature_queue.insert( vec![one, two, three]).unwrap();
+            feature_queue.insert(vec![one, two, three]).unwrap();
         }
 
         assert_eq!(
@@ -311,8 +303,8 @@ mod tests {
         for _ in 0..9 {
             let one = Feature::float("feature_1".to_string(), 0.0);
             let two = Feature::float("feature_2".to_string(), 1.0);
-   
-            feature_queue.insert( vec![one, two]).unwrap();
+
+            feature_queue.insert(vec![one, two]).unwrap();
         }
 
         assert_eq!(
@@ -390,11 +382,10 @@ mod tests {
         assert_eq!(feature_queue.queue.len(), 2);
 
         for _ in 0..9 {
-               
             let one = Feature::string("feature_1".to_string(), "c".to_string());
             let two = Feature::string("feature_2".to_string(), "a".to_string());
 
-            feature_queue.insert( vec![one, two]).unwrap();
+            feature_queue.insert(vec![one, two]).unwrap();
         }
 
         assert_eq!(
@@ -475,11 +466,10 @@ mod tests {
         assert_eq!(is_empty as u8, 1);
 
         for _ in 0..9 {
-    
             let one = Feature::string("feature_1".to_string(), "c".to_string());
             let two = Feature::string("feature_2".to_string(), "a".to_string());
 
-            feature_queue.insert( vec![one, two]).unwrap();
+            feature_queue.insert(vec![one, two]).unwrap();
         }
 
         let is_empty = feature_queue.queue.is_empty();
@@ -516,17 +506,13 @@ mod tests {
 
         assert_eq!(feature_queue.queue.len(), 3);
 
-
         Python::with_gil(|_| {
             for _ in 0..9 {
-                      
                 let one = Feature::float("feature_1".to_string(), 1.0);
                 let two = Feature::float("feature_2".to_string(), 10.0);
                 let three = Feature::float("feature_3".to_string(), 10000.0);
 
-                feature_queue.insert( vec![one, two, three]).unwrap();
-
-         
+                feature_queue.insert(vec![one, two, three]).unwrap();
             }
         });
 
