@@ -29,6 +29,7 @@ from ._scouter import (
     EveryHour,
     EveryWeek,
     Feature,
+    Features,
     FeatureProfile,
     ObservabilityMetrics,
     Observer,
@@ -120,4 +121,5 @@ __all__ = [
     "CustomMetricAlertConfig",
     "CustomMetricServerRecord",
     "Feature",
+    "Features",
 ]
