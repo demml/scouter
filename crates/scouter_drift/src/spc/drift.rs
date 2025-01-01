@@ -69,15 +69,14 @@ impl SpcDrifter {
         &self,
         limit_timestamp: &NaiveDateTime,
         db_client: &PostgresClient,
-    ) -> Result<(Array2<f64>, Vec<String>), AlertError> {
+    ) -> Result<(Array2<f64>, Vec<String>), DriftError> {
         let drift_features = self
             .get_drift_features(
                 db_client,
                 &limit_timestamp.to_string(),
                 &self.profile.config.alert_config.features_to_monitor,
             )
-            .await
-            .with_context(|| "error retrieving raw feature data to compute drift")?;
+            .await?;
 
         let feature_keys: Vec<String> = drift_features.features.keys().cloned().collect();
 
@@ -102,7 +101,7 @@ impl SpcDrifter {
         });
 
         if !all_same_len {
-            return Err(AlertError::DriftError(
+            return Err(DriftError::Error(
                 "Feature values are not the same length".to_string(),
             ));
         }
@@ -140,13 +139,12 @@ impl SpcDrifter {
         &self,
         array: &ArrayView2<'a, f64>,
         features: &[String],
-    ) -> Result<Option<TaskAlerts>, AlertError> {
+    ) -> Result<Option<TaskAlerts>, DriftError> {
         let mut task_alerts = TaskAlerts::default();
         // Get alerts
         // keys are the feature names that match the order of the drift array columns
         let alert_rule = self.profile.config.alert_config.rule.clone();
-        let alerts = generate_alerts(array, features, &alert_rule)
-            .with_context(|| "error generating drift alerts")?;
+        let alerts = generate_alerts(array, features, &alert_rule)?;
 
         // Get dispatcher, will default to console if env vars are not found for 3rd party service
         // TODO: Add ability to pass hashmap of kwargs to dispatcher (from drift profile)
@@ -156,7 +154,7 @@ impl SpcDrifter {
                 "Error creating alert dispatcher for {}/{}/{}: {}",
                 self.service_info.repository, self.service_info.name, self.service_info.version, e
             );
-            anyhow::anyhow!("Error creating alert dispatcher")
+            DriftError::Error("Error creating alert dispatcher".to_string())
         })?;
 
         if alerts.has_alerts {
@@ -171,7 +169,7 @@ impl SpcDrifter {
                         self.service_info.version,
                         e
                     );
-                    anyhow::anyhow!("Error processing alerts")
+                    DriftError::Error("Error processing alerts".to_string())
                 })?;
             task_alerts.alerts = alerts;
             return Ok(Some(task_alerts));
@@ -200,8 +198,8 @@ impl SpcDrifter {
             feature.alerts.iter().for_each(|alert| {
                 let alert_map = {
                     let mut alert_map = BTreeMap::new();
-                    alert_map.insert("zone".to_string(), alert.zone.clone());
-                    alert_map.insert("kind".to_string(), alert.kind.clone());
+                    alert_map.insert("zone".to_string(), alert.zone.clone().to_string());
+                    alert_map.insert("kind".to_string(), alert.kind.clone().to_string());
                     alert_map.insert("feature".to_string(), feature.feature.clone());
                     alert_map
                 };
@@ -220,7 +218,7 @@ impl SpcDrifter {
         &self,
         db_client: &PostgresClient,
         previous_run: NaiveDateTime,
-    ) -> Result<Option<Vec<BTreeMap<String, String>>>, AlertError> {
+    ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
         info!(
             "Processing drift task for profile: {}/{}/{}",
             self.service_info.repository, self.service_info.name, self.service_info.version
@@ -229,8 +227,7 @@ impl SpcDrifter {
         // Compute drift
         let (drift_array, keys) = self
             .compute_drift(&previous_run, db_client)
-            .await
-            .with_context(|| "error computing drift")?;
+            .await?;
 
         // if drift array is empty, return early
         if drift_array.is_empty() {
@@ -250,7 +247,7 @@ impl SpcDrifter {
                     self.service_info.version,
                     e
                 );
-                anyhow::anyhow!("Error generating alerts")
+                DriftError::Error("Error generating alerts".to_string())
             })?;
 
         match alerts {

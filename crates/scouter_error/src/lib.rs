@@ -6,7 +6,7 @@ use thiserror::Error;
 
 
 
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug, PartialEq, Deserialize)]
 pub enum MonitorError {
     #[error("{0}")]
     CreateError(String),
@@ -133,6 +133,9 @@ pub enum DriftError {
 
     #[error(transparent)]
     SqlError(#[from] SqlError),
+
+    #[error(transparent)]
+    MonitorError(#[from] MonitorError),
 }
 
 
