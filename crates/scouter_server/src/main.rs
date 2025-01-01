@@ -1,8 +1,8 @@
-pub mod alerts;
+
 pub mod api;
 pub mod consumer;
 
-use crate::alerts::base::DriftExecutor;
+use scouter_drift::DriftExecutor;
 use crate::api::middleware::metrics::metrics_app;
 use crate::api::state::AppState;
 use crate::api::setup::setup_logging;
