@@ -1,17 +1,16 @@
 use scouter_contracts::ServiceInfo;
+use scouter_error::DriftError;
 use scouter_sql::{PostgresClient, sql::schema::QueryResult};
 use scouter_error::AlertError;
 use chrono::NaiveDateTime;
 use ndarray::ArrayView2;
 use scouter_dispatch::AlertDispatcher;
-use scouter::core::drift::spc::alert::generate_alerts;
-use scouter::core::drift::spc::monitor::SpcMonitor;
-use scouter::core::drift::spc::types::SpcDriftProfile;
+use scouter_alerts::spc::alert::generate_alerts;
+use crate::spc::monitor::SpcMonitor;
+use scouter_types::spc::{SpcDriftProfile, TaskAlerts};
 use std::collections::BTreeMap;
 use tracing::error;
 use tracing::info;
-
-use crate::alerts::types::TaskAlerts;
 use ndarray::Array2;
 
 // Defines the SpcDrifter struct
@@ -49,7 +48,7 @@ impl SpcDrifter {
         db_client: &PostgresClient,
         limit_timestamp: &str,
         features_to_monitor: &[String],
-    ) -> Result<QueryResult> {
+    ) -> Result<QueryResult, DriftError> {
         let records = db_client
             .get_drift_records(&self.service_info, limit_timestamp, features_to_monitor)
             .await?;

@@ -494,8 +494,8 @@ mod tests {
 
     // use crate::core::drift::base::DriftProfile;
     use scouter_types::DriftType;
-    scouter_types::util::ProfileBaseArgs;
-    use scouter_types::drift::{DriftProfile};
+    use scouter_types::util::ProfileBaseArgs;
+    use scouter_types::drift::DriftProfile;
     use scouter_types::spc::SpcAlertConfig;
 
     use super::*;

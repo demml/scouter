@@ -130,6 +130,9 @@ pub enum DriftError {
 
     #[error(transparent)]
     AlertError(#[from] AlertError),
+
+    #[error(transparent)]
+    SqlError(#[from] SqlError),
 }
 
 

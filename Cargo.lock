@@ -3321,6 +3321,7 @@ dependencies = [
  "pyo3",
  "rand",
  "rayon",
+ "scouter-alerts",
  "scouter-contracts",
  "scouter-dispatch",
  "scouter-error",
