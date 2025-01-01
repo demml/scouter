@@ -13,6 +13,7 @@ use crate::FeatureMap;
 use rayon::prelude::*;
 use std::collections::HashMap;
 use crate::{DriftType, EveryDay};
+use std::str::FromStr;
 
 pub const MISSING: &str = "__missing__";
 

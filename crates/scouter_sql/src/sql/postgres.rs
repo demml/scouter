@@ -11,7 +11,7 @@ use scouter_error::SqlError;
 use chrono::Utc;
 use cron::Schedule;
 use futures::future::join_all;
-use scouter_drift::DriftProfile;
+use scouter_types::DriftProfile;
 use scouter_types::{CustomMetricServerRecord, PsiServerRecord, SpcServerRecord, ObservabilityMetrics};
 use serde_json::Value;
 use sqlx::{

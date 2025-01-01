@@ -390,8 +390,6 @@ mod tests {
 
     use super::*;
 
-
-
     #[test]
     fn test_drift_config() {
         let mut drift_config =
