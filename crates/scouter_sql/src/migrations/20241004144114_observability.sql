@@ -14,7 +14,7 @@ PARTITION BY RANGE (created_at);
 CREATE INDEX ON observability_metrics (name, repository, version, created_at);
 
 SELECT create_parent(
-    'observability_metrics', 
+    'public.observability_metrics', 
     'created_at',
     '1 day'
 );

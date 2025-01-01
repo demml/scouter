@@ -16,7 +16,7 @@ PARTITION BY RANGE (created_at);
 CREATE INDEX ON drift (name, repository, version, created_at);
 
 SELECT create_parent(
-    'drift', 
+    'public.drift', 
     'created_at',
     '1 day'
 );

@@ -64,7 +64,7 @@ impl PostgresClient {
     pub async fn create_db_pool() -> Result<Pool<Postgres>, SqlError> {
         // get env var
         let database_url = std::env::var("DATABASE_URL")
-            .unwrap_or("postgresql://postgres:admin@localhost:5432/scouter?".to_string());
+            .unwrap_or("postgresql://postgres:postgres@localhost:5432/postgres".to_string());
 
         // get max connections from env or set to 10
         let max_connections = std::env::var("MAX_CONNECTIONS")

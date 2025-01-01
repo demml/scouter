@@ -13,7 +13,7 @@ PARTITION BY RANGE (created_at);
 CREATE INDEX ON custom_metrics (name, repository, version, created_at);
 
 SELECT create_parent(
-               'custom_metrics',
+               'public.custom_metrics',
                'created_at',
                '1 day'
 );
