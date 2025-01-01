@@ -366,7 +366,7 @@
     mod tests {
         use super::*;
         use scouter_types::AlertDispatchType;
-        use scouter_drift::spc::{
+        use scouter_types::spc::{
             AlertZone, SpcAlert, SpcAlertConfig, SpcAlertType, SpcDriftConfig, SpcFeatureAlert,
             SpcFeatureAlerts,
         };
