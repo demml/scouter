@@ -901,6 +901,8 @@ mod tests {
     async fn test_postgres() {
 
         let client = PostgresClient::new(None).await.unwrap();
+
+        cleanup(&client.pool).await;
     
     }
 
