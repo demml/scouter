@@ -1,3 +1,6 @@
+#[cfg(feature = "sql")]
+pub mod psi_drifter {
+
 use scouter_contracts::ServiceInfo;
 use scouter_sql::PostgresClient;
 use chrono::NaiveDateTime;
@@ -384,4 +387,5 @@ mod tests {
         assert_eq!(filtered_drift_map.len(), 1);
         assert!(filtered_drift_map.contains_key(&feature_with_drift));
     }
+}
 }

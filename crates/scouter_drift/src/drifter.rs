@@ -1,8 +1,11 @@
+#[cfg(feature = "sql")]
+pub mod drifter {
+
 use scouter_contracts::ServiceInfo;
 use scouter_error::DriftError;
 use scouter_sql::PostgresClient;
 
-use crate::{spc::SpcDrifter, custom::drift::CustomDrifter, psi::drift::PsiDrifter};
+use crate::{spc::SpcDrifter, custom::CustomDrifter, psi::PsiDrifter};
 use chrono::NaiveDateTime;
 use scouter_types::{DriftType, DriftProfile};
 use std::collections::BTreeMap;
@@ -187,4 +190,5 @@ impl DriftExecutor {
 
         Ok(())
     }
+}
 }

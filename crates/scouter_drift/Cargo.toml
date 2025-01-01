@@ -15,7 +15,7 @@ description = "Drift logic for Scouter"
 scouter-contracts = { workspace = true }
 scouter-dispatch = { workspace = true }
 scouter-error = { workspace = true }
-scouter-sql = { workspace = true }
+scouter-sql = { workspace = true, optional = true }
 scouter-types = { workspace = true }
 
 cron = { workspace = true }
@@ -39,6 +39,9 @@ approx = { workspace = true }
 ndarray-rand = { workspace = true }
 rand = { workspace = true }
 
+[features]
+default = []
+sql = ["scouter-sql"]
 
 [profile.release]
 lto = "fat"

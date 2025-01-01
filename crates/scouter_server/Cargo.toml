@@ -16,7 +16,7 @@ scouter-error = { workspace = true }
 scouter-types = { workspace = true }
 scouter-contracts = { workspace = true }
 scouter-dispatch = { workspace = true }
-scouter-drift = { workspace = true }
+scouter-drift = { workspace = true, features = ["sql"] }
 scouter-observability = { workspace = true }
 scouter-sql = { workspace = true }
 

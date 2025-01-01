@@ -1,3 +1,5 @@
+#[cfg(feature = "sql")]
+pub mod spc_drifter {
 use scouter_contracts::ServiceInfo;
 use scouter_error::DriftError;
 use scouter_sql::{PostgresClient, sql::schema::QueryResult};
@@ -258,4 +260,5 @@ impl SpcDrifter {
             None => Ok(None),
         }
     }
+}
 }

@@ -1,3 +1,9 @@
+
+
+
+#[cfg(feature = "sql")]
 pub mod drift;
 
-pub use drift::*;
+
+#[cfg(feature = "sql")]
+pub use drift::custom_drifter::CustomDrifter;

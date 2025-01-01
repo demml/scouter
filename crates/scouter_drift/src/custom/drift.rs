@@ -1,3 +1,6 @@
+#[cfg(feature = "sql")]
+pub mod custom_drifter {
+
 use scouter_contracts::ServiceInfo;
 use scouter_sql::PostgresClient;
 use scouter_error::DriftError;
@@ -345,4 +348,5 @@ mod tests {
 
         assert_eq!(alerts.len(), 2);
     }
+}
 }
