@@ -3,7 +3,7 @@ WITH subquery AS (SELECT
 created_at,
 feature,
 value
-FROM scouter.drift
+FROM .drift
 WHERE
     created_at > $1::timestamp
     AND name = $2

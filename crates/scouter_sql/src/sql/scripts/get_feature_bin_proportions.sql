@@ -4,7 +4,7 @@ WITH feature_bin_total AS (SELECT name,
                                   feature,
                                   bin_id,
                                   SUM(bin_count) AS bin_total_count
-                           FROM scouter.observed_bin_count
+                           FROM observed_bin_count
                            WHERE name = $1
                              AND repository = $2
                              AND version = $3
@@ -16,7 +16,7 @@ WITH feature_bin_total AS (SELECT name,
                              version,
                              feature,
                              SUM(bin_count) AS feature_total_count
-                      FROM scouter.observed_bin_count
+                      FROM observed_bin_count
                       WHERE name = $1
                         AND repository = $2
                         AND version = $3

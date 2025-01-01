@@ -1,4 +1,4 @@
-UPDATE scouter.drift_profile
+UPDATE drift_profile
 SET previous_run = next_run,
     next_run     = $1,
     updated_at   = timezone('utc', now())

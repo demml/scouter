@@ -6,7 +6,7 @@ WITH subquery1 AS (
         feature,
         version,
         value
-    FROM scouter.drift
+    FROM drift
     WHERE 
         created_at > timezone('utc', now()) - interval '$2 minute'
         AND name = $3

@@ -7,7 +7,7 @@ feature,
 alert,
 id,
 status
-FROM scouter.drift_alerts
+FROM drift_alerts
 WHERE
     version = $1
     AND name = $2

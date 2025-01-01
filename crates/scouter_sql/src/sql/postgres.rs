@@ -866,6 +866,47 @@ impl MessageHandler {
 }
 
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    pub async fn cleanup(pool: &Pool<Postgres>) {
+        sqlx::raw_sql(
+            r#"
+            DELETE 
+            FROM drift;
+
+            DELETE 
+            FROM observability_metrics;
+
+            DELETE
+            FROM custom_metrics;
+
+            DELETE
+            FROM drift_alerts;
+
+            DELETE
+            FROM drift_profile;
+
+            DELETE
+            FROM observed_bin_count;
+            "#,
+        )
+        .fetch_all(pool)
+        .await
+        .unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_postgres() {
+
+        let client = PostgresClient::new(None).await.unwrap();
+    
+    }
+
+}
+
+
 // integration tests
 //#[cfg(test)]
 //mod tests {
