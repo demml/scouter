@@ -1,3 +1,23 @@
+use scouter_contracts::ObservabilityMetricRequest;
+
+use axum::{
+    extract::{Query, State},
+    http::StatusCode,
+    response::IntoResponse,
+    Json,
+};
+
+use serde_json::json;
+use std::sync::Arc;
+use tracing::error;
+
+use crate::api::state::AppState;
+use axum::{routing::get, Router};
+use anyhow::{Context, Result};
+use std::panic::{catch_unwind, AssertUnwindSafe};
+
+
+
 pub async fn get_observability_metrics(
     State(data): State<Arc<AppState>>,
     params: Query<ObservabilityMetricRequest>,
@@ -19,6 +39,21 @@ pub async fn get_observability_metrics(
                 "message": format!("{:?}", e)
             });
             Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+        }
+    }
+}
+
+pub async fn get_observability_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        Router::new().route(&format!("{}/observability/metrics", prefix), get(get_observability_metrics),)
+    }));
+
+    match result {
+        Ok(router) => Ok(router),
+        Err(_) => {
+            // panic
+            Err(anyhow::anyhow!("Failed to create observability router"))
+                .context("Panic occurred while creating the router")
         }
     }
 }

@@ -1,10 +1,33 @@
 
 use crate::api::state::AppState;
-use crate::api::routes::Alive;
 use axum::{routing::get, Router};
 use anyhow::{Context, Result};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
+use axum::response::IntoResponse;
+use axum::Json;
+/// file containing schema for health module
+use serde::{Deserialize, Serialize};
+
+#[derive(Serialize, Deserialize)]
+pub struct Alive {
+    pub status: String,
+}
+
+impl Default for Alive {
+    fn default() -> Self {
+        Self {
+            status: "Alive".to_string(),
+        }
+    }
+}
+
+// Implement IntoResponse for Alive
+impl IntoResponse for Alive {
+    fn into_response(self) -> axum::response::Response {
+        Json(self).into_response()
+    }
+}
 
 pub async fn health_check() -> Alive {
     Alive::default()
