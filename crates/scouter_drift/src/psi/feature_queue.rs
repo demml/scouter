@@ -1,7 +1,7 @@
 use scouter_types::{Features, RecordType, ServerRecord, ServerRecords, PsiServerRecord};
 
 use crate::psi::monitor::PsiMonitor;
-use crate::psi::types::{Bin, PsiDriftProfile};
+use scouter_types::psi::{Bin, PsiDriftProfile};
 use scouter_error::FeatureQueueError;
 use core::result::Result::Ok;
 use pyo3::prelude::*;
@@ -204,7 +204,7 @@ impl PsiFeatureQueue {
 mod tests {
 
     use super::*;
-    use crate::psi::types::PsiDriftConfig;
+    use scouter_types::psi::PsiDriftConfig;
     use scouter_types::Feature;
     use crate::utils::CategoricalFeatureHelpers;
     use ndarray::{Array, Axis};
