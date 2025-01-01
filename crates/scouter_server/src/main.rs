@@ -1,13 +1,12 @@
 pub mod alerts;
 pub mod api;
 pub mod consumer;
-pub mod sql;
 
 use crate::alerts::base::DriftExecutor;
-use crate::api::metrics::metrics_app;
-use crate::api::router::AppState;
-use crate::api::setup::{create_db_pool, setup_logging};
-use crate::sql::postgres::PostgresClient;
+use crate::api::middleware::metrics::metrics_app;
+use crate::api::state::AppState;
+use crate::api::setup::setup_logging;
+use scouter_sql::PostgresClient;
 use anyhow::Context;
 use api::router::create_router;
 use std::sync::Arc;
@@ -40,23 +39,20 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
         .with_context(|| "Failed to setup logging")?;
 
     // db for app state and kafka
-    let pool = create_db_pool(None)
-        .await
-        .with_context(|| "Failed to create Postgres client")?;
-
-    // // run migrations
-    sqlx::migrate!().run(&pool).await?;
+    // start server
+    let db_client =
+        PostgresClient::new(None).await.with_context(|| "Failed to create Postgres client")?;
 
     // setup background kafka task if kafka is enabled
     #[cfg(feature = "kafka")]
     if std::env::var("KAFKA_BROKERS").is_ok() {
-        startup_kafka(pool.clone()).await?;
+        startup_kafka(&db_client.pool).await?;
     }
 
     // setup background rabbitmq task if rabbitmq is enabled
     #[cfg(feature = "rabbitmq")]
     if std::env::var("RABBITMQ_ADDR").is_ok() {
-        startup_rabbitmq(pool.clone()).await?;
+        startup_rabbitmq(&db_client.pool).await?;
     }
 
     // ##################### run drift polling background tasks #####################
@@ -67,7 +63,7 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
 
     for i in 0..num_scheduler_workers {
         info!("Starting drift schedule poller: {}", i);
-        let alert_db_client = PostgresClient::new(pool.clone())
+        let alert_db_client = PostgresClient::new(Some(db_client.pool.clone())).await
             .with_context(|| "Failed to create Postgres client")?;
         tokio::task::spawn(async move {
             let mut drift_executor = DriftExecutor::new(alert_db_client);
@@ -79,13 +75,11 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
         });
     }
 
-    // start server
-    let server_db_client =
-        PostgresClient::new(pool.clone()).with_context(|| "Failed to create Postgres client")?;
+    
 
     let app = create_router(Arc::new(AppState {
-        db: server_db_client,
-    }));
+        db: db_client,
+    })).await.with_context(|| "Failed to create router")?;
 
     let port = std::env::var("SCOUTER_SERVER_PORT").unwrap_or_else(|_| "8000".to_string());
     let addr = format!("0.0.0.0:{}", port);

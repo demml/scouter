@@ -1,8 +1,8 @@
 #[cfg(feature = "rabbitmq")]
 pub mod rabbitmq_consumer {
 
-    use crate::consumer::base::MessageHandler;
-    use scouter::core::drift::base::ServerRecords;
+    use scouter_sql::MessageHandler;
+    use scouter_types::ServerRecords;
 
     use futures::StreamExt;
 

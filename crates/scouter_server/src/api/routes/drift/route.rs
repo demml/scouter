@@ -1,6 +1,6 @@
 
 use crate::api::state::AppState;
-use crate::api::routes::drift::DriftRequest;
+use scouter_contracts::DriftRequest;
 use anyhow::{Context, Result};
 use axum::{
     extract::{Query, State},

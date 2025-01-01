@@ -79,11 +79,12 @@ pub struct PostgresClient {
 
 impl PostgresClient {
     /// Create a new PostgresClient
-    pub async fn new() -> Result<Self, SqlError> {
-        let pool = Self::create_db_pool().await.map_err(|e| {
+    pub async fn new( pool: Option<Pool<Postgres>>) -> Result<Self, SqlError> {
+        let pool = pool.unwrap_or(
+        Self::create_db_pool().await.map_err(|e| {
             error!("Failed to create database pool: {:?}", e);
             SqlError::ConnectionError(format!("{:?}", e))
-        })?;
+        })?);
 
         let client = Self { pool };
 

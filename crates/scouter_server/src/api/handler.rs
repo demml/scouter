@@ -1,10 +1,10 @@
-use crate::api::schema::{
+use scouter_contracts::{
     DriftAlertRequest, DriftRequest, ObservabilityMetricRequest, ProfileRequest,
     ProfileStatusRequest, ServiceInfo,
 };
-use crate::consumer::base::ToDriftRecords;
+
 use scouter_drift::DriftProfile;
-use scouter_types::ServerRecords;
+use scouter_types::{ServerRecords, ToDriftRecords};
 
 use axum::{
     extract::{Query, State},
@@ -103,7 +103,7 @@ pub async fn insert_drift_profile(
     // validate profile is correct
     // this will be used to validate different versions of the drift profile in the future
 
-    let body = DriftProfile::from_value(body.profile, body.drift_type.value());
+    let body = DriftProfile::from_value(body.profile, body.drift_type.to_string());
 
     if body.is_err() {
         // future: - validate against older versions of the drift profile
@@ -149,7 +149,7 @@ pub async fn update_drift_profile(
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // validate profile is correct
     // this will be used to validate different versions of the drift profile in the future
-    let body = DriftProfile::from_value(body.profile, body.drift_type.value());
+    let body = DriftProfile::from_value(body.profile, body.drift_type.to_string());
 
     if body.is_err() {
         // future: - validate against older versions of the drift profile

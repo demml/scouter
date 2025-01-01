@@ -1,6 +1,6 @@
 #[cfg(feature = "kafka")]
 pub mod kafka_consumer {
-    use crate::consumer::base::MessageHandler;
+    use scouter_sql::MessageHandler;
 
     use anyhow::*;
     use rdkafka::config::ClientConfig;
@@ -9,7 +9,7 @@ pub mod kafka_consumer {
     use rdkafka::consumer::StreamConsumer;
     use rdkafka::message::BorrowedMessage;
     use rdkafka::message::Message;
-    use scouter::core::drift::base::ServerRecords;
+    use scouter_types::ServerRecords;
     use std::collections::HashMap;
     use std::result::Result::Ok;
     use tracing::error;

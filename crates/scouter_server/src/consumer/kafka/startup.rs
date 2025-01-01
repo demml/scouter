@@ -1,14 +1,14 @@
 #[cfg(feature = "kafka")]
 pub mod kafka_startup {
 
-    use crate::consumer::base::MessageHandler;
+
     use crate::consumer::kafka::consumer::kafka_consumer::start_kafka_background_poll;
-    use crate::sql::postgres::PostgresClient;
+    use scouter_sql::{PostgresClient, MessageHandler};
     use anyhow::*;
     use sqlx::{Pool, Postgres};
     use tracing::info;
 
-    pub async fn startup_kafka(pool: Pool<Postgres>) -> Result<()> {
+    pub async fn startup_kafka(pool: &Pool<Postgres>) -> Result<()> {
         info!("Starting Kafka consumer");
 
         let num_kafka_workers = std::env::var("KAFKA_WORKER_COUNT")
@@ -17,9 +17,8 @@ pub mod kafka_startup {
             .with_context(|| "Failed to parse NUM_KAFKA_WORKERS")?;
 
         for _ in 0..num_kafka_workers {
-            let kafka_db_client = PostgresClient::new(pool.clone())
-                .with_context(|| "Failed to create Postgres client")
-                .unwrap();
+            let kafka_db_client = PostgresClient::new(Some(pool.clone())).await
+                .with_context(|| "Failed to create Postgres client")?;
             let message_handler = MessageHandler::Postgres(kafka_db_client);
             let brokers =
                 std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_owned());
