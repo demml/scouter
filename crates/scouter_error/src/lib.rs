@@ -4,11 +4,7 @@ use pyo3::PyErr;
 use serde::Deserialize;
 use thiserror::Error;
 
-#[derive(Error, Debug)]
-pub enum AlertError {
-    #[error("Failed to create alert: {0}")]
-    CreateError(String),
-}
+
 
 #[derive(Error, Debug, PartialEq)]
 pub enum MonitorError {
@@ -112,6 +108,19 @@ pub enum SqlError {
 
     #[error("Failed to connect to the database - {0}")]
     ConnectionError(String),
+}
+
+#[derive(Error, Debug, Deserialize)]
+pub enum AlertError {
+
+    #[error("Error: {0}")]
+    GeneralError(String),
+
+    #[error("Failed to create alert: {0}")]
+    CreateError(String),
+
+    #[error("{0}")]
+    DriftError(String),
 }
 
 #[derive(Error, Debug, Deserialize)]

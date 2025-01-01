@@ -5,23 +5,7 @@ use crate::custom::types::CustomDriftProfile;
 use crate::psi::types::PsiDriftProfile;
 use std::str::FromStr;
 
-pub const MISSING: &str = "__missing__";
 
-#[derive(PartialEq, Debug)]
-pub struct ProfileArgs {
-    pub name: String,
-    pub repository: String,
-    pub version: String,
-    pub schedule: String,
-    pub scouter_version: String,
-    pub drift_type: DriftType,
-}
-
-// trait to implement on all profile types
-pub trait ProfileBaseArgs {
-    fn get_base_args(&self) -> ProfileArgs;
-    fn to_value(&self) -> serde_json::Value;
-}
 
 pub struct DriftArgs {
     pub name: String,
@@ -115,24 +99,6 @@ impl DriftProfile {
                     serde_json::from_value(body).map_err(|_| ScouterError::DeSerializeError)?;
                 Ok(DriftProfile::CustomDriftProfile(profile))
             }
-        }
-    }
-}
-
-pub trait ValidateAlertConfig {
-    fn resolve_schedule(schedule: Option<String>) -> String {
-        let default_schedule = EveryDay::new().cron;
-
-        match schedule {
-            Some(s) => {
-                cron::Schedule::from_str(&s) // Pass by reference here
-                    .map(|_| s) // If valid, return the schedule
-                    .unwrap_or_else(|_| {
-                        tracing::error!("Invalid cron schedule, using default schedule");
-                        default_schedule
-                    })
-            }
-            None => default_schedule,
         }
     }
 }

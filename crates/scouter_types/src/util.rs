@@ -12,6 +12,9 @@ use std::collections::BTreeSet;
 use crate::FeatureMap;
 use rayon::prelude::*;
 use std::collections::HashMap;
+use crate::DriftType;
+
+pub const MISSING: &str = "__missing__";
 
 pub enum FileName {
     SpcDrift,
@@ -245,4 +248,22 @@ pub fn create_feature_map(
     Ok(FeatureMap {
         features: feature_map,
     })
+}
+
+
+
+#[derive(PartialEq, Debug)]
+pub struct ProfileArgs {
+    pub name: String,
+    pub repository: String,
+    pub version: String,
+    pub schedule: String,
+    pub scouter_version: String,
+    pub drift_type: DriftType,
+}
+
+// trait to implement on all profile types
+pub trait ProfileBaseArgs {
+    fn get_base_args(&self) -> ProfileArgs;
+    fn to_value(&self) -> serde_json::Value;
 }

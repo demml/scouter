@@ -4,6 +4,7 @@ pub mod util;
 pub mod cron;
 pub mod dispatch;
 pub mod records;
+pub mod spc;
 
 pub use drift::*;
 pub use feature::*;

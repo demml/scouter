@@ -1,4 +1,4 @@
-use crate::spc::types::{
+use scouter_types::{
     AlertZone, SpcAlert, SpcAlertRule, SpcAlertType, SpcFeatureAlerts,
 };
 use scouter_error::AlertError;
@@ -292,7 +292,54 @@ pub fn generate_alert(
     Ok(alerter.alerts)
 }
 
+/// Generate alerts for each feature in the drift array
+///
+/// # Arguments
+/// drift_array - ArrayView2<f64> - The drift array to check for alerts (column order should match feature order)
+/// features - Vec<String> - The features to check for alerts (feature order should match drift array column order)
+/// alert_rule - AlertRule - The alert rule to check against
+///
+/// Returns a Result<FeatureAlerts, AlertError>
+///
+pub fn generate_alerts(
+    drift_array: &ArrayView2<f64>,
+    features: &[String],
+    rule: &SpcAlertRule,
+) -> Result<SpcFeatureAlerts, AlertError> {
+    let mut has_alerts: bool = false;
 
+    // check for alerts
+    let alerts = drift_array
+        .axis_iter(Axis(1))
+        .into_par_iter()
+        .map(|col| {
+            // check for alerts and errors
+            generate_alert(&col, rule)
+        })
+        .collect::<Vec<Result<HashSet<SpcAlert>, AlertError>>>();
+
+    // Calculate correlation matrix when there are alerts
+    if alerts
+        .iter()
+        .any(|alert| !alert.as_ref().unwrap().is_empty())
+    {
+        // get correlation matrix
+        has_alerts = true;
+    };
+
+    let mut feature_alerts = SpcFeatureAlerts::new(has_alerts);
+
+    //zip the alerts with the features
+    for (feature, alert) in features.iter().zip(alerts.iter()) {
+        // unwrap the alert, should should have already been checked
+        let alerts = alert.as_ref().unwrap();
+        //let alerts: Vec<SpcAlert> = alerts.iter().cloned().collect();
+
+        feature_alerts.insert_feature_alert(feature, alerts.to_owned());
+    }
+
+    Ok(feature_alerts)
+}
 
 #[cfg(test)]
 mod tests {
