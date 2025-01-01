@@ -1,4 +1,3 @@
-
 use scouter_error::DispatchError;
 use scouter_types::{AlertDispatchType, DispatchAlertDescription, DispatchDriftConfig, DriftArgs};
 use serde_json::{json, Value};

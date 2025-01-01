@@ -7,12 +7,11 @@ lints:
 	cargo clippy --workspace --all-targets -- -D warnings
 
 
-.PHONY: build.postgres
+.PHONY: build.sql
 build.sql:
 	docker-compose down
 	docker-compose up -d --build postgres
 
-
-.PHONY: test.sql.postgres
+.PHONY: test.sql
 test.sql:
-	cargo test -p scouter-sql -- --nocapture --test-threads=1
+	cargo test -p scouter-sql test_postgres -- --nocapture --test-threads=1
