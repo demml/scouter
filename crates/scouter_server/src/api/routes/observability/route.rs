@@ -12,11 +12,9 @@ use std::sync::Arc;
 use tracing::error;
 
 use crate::api::state::AppState;
-use axum::{routing::get, Router};
 use anyhow::{Context, Result};
+use axum::{routing::get, Router};
 use std::panic::{catch_unwind, AssertUnwindSafe};
-
-
 
 pub async fn get_observability_metrics(
     State(data): State<Arc<AppState>>,
@@ -45,7 +43,10 @@ pub async fn get_observability_metrics(
 
 pub async fn get_observability_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {
-        Router::new().route(&format!("{}/observability/metrics", prefix), get(get_observability_metrics),)
+        Router::new().route(
+            &format!("{}/observability/metrics", prefix),
+            get(get_observability_metrics),
+        )
     }));
 
     match result {

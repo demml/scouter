@@ -1,6 +1,6 @@
+use crate::drift::DriftArgs;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
-use crate::drift::DriftArgs;
 
 #[pyclass(eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
@@ -23,12 +23,9 @@ impl AlertDispatchType {
     }
 }
 
-
 pub trait DispatchAlertDescription {
     fn create_alert_description(&self, dispatch_type: AlertDispatchType) -> String;
 }
-
-
 
 pub trait DispatchDriftConfig {
     fn get_drift_args(&self) -> DriftArgs;

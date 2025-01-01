@@ -1,14 +1,13 @@
-use scouter_types::{ProfileFuncs,FileName,};
-use scouter_error::ScouterError;
 use core::fmt::Debug;
 use ndarray::Array;
 use ndarray::Array2;
 use numpy::{IntoPyArray, PyArray2};
 use pyo3::prelude::*;
+use scouter_error::ScouterError;
+use scouter_types::{FileName, ProfileFuncs};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
-
 
 /// Python class for a feature drift
 ///
@@ -142,5 +141,3 @@ impl SpcDriftMap {
     }
 }
 // Drift config to use when calculating drift on a new sample of data
-
-

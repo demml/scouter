@@ -1,4 +1,3 @@
-
 use scouter_sql::PostgresClient;
 
 pub struct AppState {

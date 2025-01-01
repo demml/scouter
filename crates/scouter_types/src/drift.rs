@@ -1,13 +1,13 @@
-use pyo3::prelude::*;
-use serde::{Deserialize, Serialize};
-use std::str::FromStr;
-use scouter_error::ScouterError;
-use crate::dispatch::AlertDispatchType;
-use crate::spc::SpcDriftProfile;
-use crate::psi::PsiDriftProfile;
 use crate::custom::CustomDriftProfile;
+use crate::dispatch::AlertDispatchType;
+use crate::psi::PsiDriftProfile;
+use crate::spc::SpcDriftProfile;
 use crate::util::ProfileBaseArgs;
 use crate::ProfileArgs;
+use pyo3::prelude::*;
+use scouter_error::ScouterError;
+use serde::{Deserialize, Serialize};
+use std::str::FromStr;
 
 #[pyclass(eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -147,11 +147,9 @@ impl DriftProfile {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
 
     #[test]
     fn test_drift_type_from_str_base() {
@@ -167,7 +165,4 @@ mod tests {
         assert_eq!(DriftType::Psi.to_string(), "Psi");
         assert_eq!(DriftType::Custom.to_string(), "Custom");
     }
-
-    
-    
 }

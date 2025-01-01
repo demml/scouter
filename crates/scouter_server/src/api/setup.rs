@@ -1,4 +1,3 @@
-
 use std::io;
 
 use tracing_subscriber;
@@ -8,7 +7,7 @@ const DEFAULT_TIME_PATTERN: &str =
     "[year]-[month]-[day]T[hour repr:24]:[minute]:[second]::[subsecond digits:4]";
 
 /// Setup logging for the application
-/// 
+///
 /// This function initializes the logging system for the application
 pub async fn setup_logging() -> Result<(), anyhow::Error> {
     let time_format = time::format_description::parse(DEFAULT_TIME_PATTERN).unwrap();
@@ -25,4 +24,3 @@ pub async fn setup_logging() -> Result<(), anyhow::Error> {
 
     Ok(())
 }
-

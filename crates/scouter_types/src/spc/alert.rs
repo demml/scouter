@@ -1,13 +1,13 @@
-use crate::{cron::EveryDay, dispatch::AlertDispatchType, ProfileFuncs, DispatchAlertDescription, ValidateAlertConfig};
+use crate::{
+    cron::EveryDay, dispatch::AlertDispatchType, DispatchAlertDescription, ProfileFuncs,
+    ValidateAlertConfig,
+};
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fmt::Display;
 use std::collections::HashSet;
-
-
-
+use std::fmt::Display;
 
 #[pyclass(eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, std::cmp::Eq, Hash)]
@@ -196,7 +196,6 @@ impl SpcAlert {
     }
 }
 
-
 // Drift config to use when calculating drift on a new sample of data
 
 #[pyclass]
@@ -319,7 +318,6 @@ impl SpcFeatureAlerts {
     }
 }
 
-
 pub struct TaskAlerts {
     pub alerts: SpcFeatureAlerts,
 }
@@ -337,7 +335,6 @@ impl Default for TaskAlerts {
         Self::new()
     }
 }
-
 
 #[cfg(test)]
 mod tests {
@@ -393,7 +390,6 @@ mod tests {
         assert_eq!(AlertDispatchType::OpsGenie.value(), "OpsGenie");
     }
 
-   
     #[test]
     fn test_spc_feature_alerts() {
         // Create a sample SpcFeatureAlert (assuming SpcFeatureAlert is defined elsewhere)
@@ -430,5 +426,3 @@ mod tests {
         let _ = alerts.create_alert_description(AlertDispatchType::Slack);
     }
 }
-
-

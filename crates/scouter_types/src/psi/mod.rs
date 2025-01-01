@@ -1,5 +1,5 @@
-pub mod profile;
 pub mod alert;
+pub mod profile;
 
-pub use profile::*;
 pub use alert::*;
+pub use profile::*;

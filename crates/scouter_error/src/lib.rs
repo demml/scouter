@@ -4,8 +4,6 @@ use pyo3::PyErr;
 use serde::Deserialize;
 use thiserror::Error;
 
-
-
 #[derive(Error, Debug, PartialEq, Deserialize)]
 pub enum MonitorError {
     #[error("{0}")]
@@ -112,7 +110,6 @@ pub enum SqlError {
 
 #[derive(Error, Debug, Deserialize)]
 pub enum AlertError {
-
     #[error("Error: {0}")]
     GeneralError(String),
 
@@ -137,8 +134,6 @@ pub enum DriftError {
     #[error(transparent)]
     MonitorError(#[from] MonitorError),
 }
-
-
 
 #[derive(Error, Debug, Deserialize)]
 pub enum ScouterError {

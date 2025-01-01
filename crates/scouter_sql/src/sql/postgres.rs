@@ -1,29 +1,30 @@
-use scouter_contracts::{
-    DriftAlertRequest, DriftRequest, ObservabilityMetricRequest, ProfileStatusRequest, ServiceInfo,
-};
-use scouter_error::ScouterError;
-use scouter_types::{RecordType, ServerRecords, ToDriftRecords};
 use crate::sql::query::Queries;
 use crate::sql::schema::{
     AlertResult, FeatureResult, ObservabilityResult, QueryResult, SpcFeatureResult, TaskRequest,
 };
 use crate::sql::types::TimeInterval;
-use scouter_error::SqlError;
 use chrono::Utc;
 use cron::Schedule;
 use futures::future::join_all;
+use scouter_contracts::{
+    DriftAlertRequest, DriftRequest, ObservabilityMetricRequest, ProfileStatusRequest, ServiceInfo,
+};
+use scouter_error::ScouterError;
+use scouter_error::SqlError;
 use scouter_types::DriftProfile;
-use scouter_types::{CustomMetricServerRecord, PsiServerRecord, SpcServerRecord, ObservabilityMetrics};
+use scouter_types::{
+    CustomMetricServerRecord, ObservabilityMetrics, PsiServerRecord, SpcServerRecord,
+};
+use scouter_types::{RecordType, ServerRecords, ToDriftRecords};
 use serde_json::Value;
 use sqlx::{
-    postgres::{PgQueryResult, PgRow, PgPoolOptions},
+    postgres::{PgPoolOptions, PgQueryResult, PgRow},
     Pool, Postgres, Row, Transaction,
 };
 use std::collections::{BTreeMap, HashMap};
 use std::result::Result::Ok;
 use std::str::FromStr;
-use tracing::{error, warn, info};
-
+use tracing::{error, info, warn};
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -33,17 +34,16 @@ pub struct PostgresClient {
 
 impl PostgresClient {
     /// Create a new PostgresClient
-    /// 
+    ///
     /// # Arguments
-    /// 
+    ///
     /// * `pool` - An optional database pool
-    /// 
+    ///
     /// # Returns
     ///     
     /// * `Result<Self, SqlError>` - Result of the database pool
-    pub async fn new( pool: Option<Pool<Postgres>>) -> Result<Self, SqlError> {
-        let pool = pool.unwrap_or(
-        Self::create_db_pool().await.map_err(|e| {
+    pub async fn new(pool: Option<Pool<Postgres>>) -> Result<Self, SqlError> {
+        let pool = pool.unwrap_or(Self::create_db_pool().await.map_err(|e| {
             error!("Failed to create database pool: {:?}", e);
             SqlError::ConnectionError(format!("{:?}", e))
         })?);
@@ -56,16 +56,15 @@ impl PostgresClient {
         Ok(client)
     }
 
-
     /// Setup the application with the given database pool.
-    /// 
+    ///
     /// # Returns
-    /// 
+    ///
     /// * `Result<Pool<Postgres>, anyhow::Error>` - Result of the database pool
     pub async fn create_db_pool() -> Result<Pool<Postgres>, SqlError> {
         // get env var
         let database_url = std::env::var("DATABASE_URL")
-                .unwrap_or("postgresql://postgres:admin@localhost:5432/scouter?".to_string());
+            .unwrap_or("postgresql://postgres:admin@localhost:5432/scouter?".to_string());
 
         // get max connections from env or set to 10
         let max_connections = std::env::var("MAX_CONNECTIONS")
@@ -280,7 +279,10 @@ impl PostgresClient {
             .execute(&self.pool)
             .await
             .map_err(|e| {
-                error!("Failed to insert observability record into database: {:?}", e);
+                error!(
+                    "Failed to insert observability record into database: {:?}",
+                    e
+                );
                 SqlError::QueryError(format!("{:?}", e))
             });
 
@@ -305,12 +307,16 @@ impl PostgresClient {
         let base_args = drift_profile.get_base_args();
 
         let schedule = Schedule::from_str(&base_args.schedule)
-            .map_err(|e|SqlError::GeneralError(e.to_string()))?;
+            .map_err(|e| SqlError::GeneralError(e.to_string()))?;
 
-        let next_run = schedule.upcoming(Utc).take(1).next().ok_or(SqlError::GeneralError(format!(
-            "Failed to get next run time for cron expression: {}",
-            base_args.schedule
-        )))?;
+        let next_run = schedule
+            .upcoming(Utc)
+            .take(1)
+            .next()
+            .ok_or(SqlError::GeneralError(format!(
+                "Failed to get next run time for cron expression: {}",
+                base_args.schedule
+            )))?;
 
         let query_result = sqlx::query(&query.sql)
             .bind(base_args.name)
@@ -368,10 +374,7 @@ impl PostgresClient {
         }
     }
 
-    pub async fn get_drift_profile(
-        &self,
-        params: &ServiceInfo,
-    ) -> Result<Option<Value>, SqlError> {
+    pub async fn get_drift_profile(&self, params: &ServiceInfo) -> Result<Option<Value>, SqlError> {
         let query = Queries::GetDriftProfile.get_query();
 
         let result = sqlx::query(&query.sql)
@@ -415,13 +418,18 @@ impl PostgresClient {
     ) -> Result<(), SqlError> {
         let query = Queries::UpdateDriftProfileRunDates.get_query();
 
-        let schedule = Schedule::from_str(schedule)
-        .map_err(|_| SqlError::GeneralError(format!("Failed to parse cron expression: {}", schedule)))?;
+        let schedule = Schedule::from_str(schedule).map_err(|_| {
+            SqlError::GeneralError(format!("Failed to parse cron expression: {}", schedule))
+        })?;
 
-        let next_run = schedule.upcoming(Utc).take(1).next().ok_or(SqlError::GeneralError(format!(
-            "Failed to get next run time for cron expression: {}",
-            schedule
-        )))?;
+        let next_run = schedule
+            .upcoming(Utc)
+            .take(1)
+            .next()
+            .ok_or(SqlError::GeneralError(format!(
+                "Failed to get next run time for cron expression: {}",
+                schedule
+            )))?;
 
         let query_result = sqlx::query(&query.sql)
             .bind(next_run.naive_utc())
@@ -433,9 +441,10 @@ impl PostgresClient {
 
         match query_result {
             Ok(_) => Ok(()),
-            Err(e) => Err(
-                SqlError::GeneralError(format!("Failed to update drift profile run dates in database: {:?}", e)
-              ))
+            Err(e) => Err(SqlError::GeneralError(format!(
+                "Failed to update drift profile run dates in database: {:?}",
+                e
+            ))),
         }
     }
 
@@ -669,7 +678,10 @@ impl PostgresClient {
                 Ok(_) => continue,
                 Err(e) => {
                     error!("Failed to run query: {:?}", e);
-                    return Err(SqlError::GeneralError(format!("Failed to run query: {:?}", e)));
+                    return Err(SqlError::GeneralError(format!(
+                        "Failed to run query: {:?}",
+                        e
+                    )));
                 }
             }
         }
@@ -687,7 +699,10 @@ impl PostgresClient {
             }
             Err(e) => {
                 error!("Failed to run query: {:?}", e);
-                Err(SqlError::GeneralError(format!("Failed to run query: {:?}", e)))
+                Err(SqlError::GeneralError(format!(
+                    "Failed to run query: {:?}",
+                    e
+                )))
             }
         }
     }
@@ -710,7 +725,10 @@ impl PostgresClient {
             Ok(_) => Ok(()),
             Err(e) => {
                 error!("Failed to update drift profile status: {:?}", e);
-                Err(SqlError::GeneralError(format!("Failed to update drift profile status: {:?}", e)))
+                Err(SqlError::GeneralError(format!(
+                    "Failed to update drift profile status: {:?}",
+                    e
+                )))
             }
         }
     }
@@ -733,7 +751,10 @@ impl PostgresClient {
             .await
             .map_err(|e| {
                 error!("Failed to get bin proportions from database: {:?}", e);
-                SqlError::GeneralError(format!("Failed to get bin proportions from database: {:?}", e))
+                SqlError::GeneralError(format!(
+                    "Failed to get bin proportions from database: {:?}",
+                    e
+                ))
             })?;
 
         Ok(records.into_iter().fold(HashMap::new(), |mut acc, row| {
@@ -763,7 +784,10 @@ impl PostgresClient {
             .await
             .map_err(|e| {
                 error!("Failed to get bin proportions from database: {:?}", e);
-                SqlError::GeneralError(format!("Failed to get bin proportions from database: {:?}", e))
+                SqlError::GeneralError(format!(
+                    "Failed to get bin proportions from database: {:?}",
+                    e
+                ))
             })?;
 
         let metric_map = records
@@ -801,14 +825,14 @@ impl PostgresClient {
                     "Failed to insert custom metric value into database: {:?}",
                     e
                 );
-                Err(SqlError::GeneralError(format!("Failed to insert custom metric value into database: {:?}",
-                    e)))
+                Err(SqlError::GeneralError(format!(
+                    "Failed to insert custom metric value into database: {:?}",
+                    e
+                )))
             }
         }
     }
 }
-
-
 
 pub enum MessageHandler {
     Postgres(PostgresClient),
@@ -865,7 +889,6 @@ impl MessageHandler {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -899,15 +922,11 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres() {
-
         let client = PostgresClient::new(None).await.unwrap();
 
         cleanup(&client.pool).await;
-    
     }
-
 }
-
 
 // integration tests
 //#[cfg(test)]

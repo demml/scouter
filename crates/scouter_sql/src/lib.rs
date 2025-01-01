@@ -1,3 +1,3 @@
 pub mod sql;
 
-pub use sql::postgres::{PostgresClient, MessageHandler};
+pub use sql::postgres::{MessageHandler, PostgresClient};

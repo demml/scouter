@@ -1,11 +1,9 @@
-use scouter_types::spc::{
-    AlertZone, SpcAlert, SpcAlertRule, SpcAlertType, SpcFeatureAlerts,
-};
-use scouter_error::AlertError;
 use ndarray::s;
 use ndarray::{ArrayView1, ArrayView2, Axis};
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
+use scouter_error::AlertError;
+use scouter_types::spc::{AlertZone, SpcAlert, SpcAlertRule, SpcAlertType, SpcFeatureAlerts};
 use std::collections::HashSet;
 
 // Struct for holding stateful Alert information

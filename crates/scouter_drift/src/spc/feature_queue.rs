@@ -1,11 +1,11 @@
-use scouter_types::{ServerRecords, Features};
-use crate::spc:: monitor::SpcMonitor;
-use scouter_types::spc::SpcDriftProfile;
-use scouter_error::FeatureQueueError;
+use crate::spc::monitor::SpcMonitor;
 use core::result::Result::Ok;
 use ndarray::prelude::*;
 use ndarray::Array2;
 use pyo3::prelude::*;
+use scouter_error::FeatureQueueError;
+use scouter_types::spc::SpcDriftProfile;
+use scouter_types::{Features, ServerRecords};
 use std::collections::HashMap;
 
 #[pyclass]
@@ -55,7 +55,6 @@ impl SpcFeatureQueue {
     // create a python function that will take a python dictionary of string keys and either int, float or string values
     // and append the values to the corresponding feature queue
     pub fn insert(&mut self, features: Features) -> Result<(), FeatureQueueError> {
-
         for feature in features.iter() {
             let name = feature.name();
             if let Some(queue) = self.queue.get_mut(name) {
@@ -175,7 +174,7 @@ mod tests {
             let two = Feature::int("feature_2".to_string(), 2);
             let three = Feature::int("feature_3".to_string(), 3);
 
-            let features = Features{
+            let features = Features {
                 features: vec![one, two, three],
             };
 

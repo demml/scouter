@@ -1,6 +1,4 @@
-
-
-use scouter_contracts::{ProfileRequest,ProfileStatusRequest, ServiceInfo};
+use scouter_contracts::{ProfileRequest, ProfileStatusRequest, ServiceInfo};
 
 use scouter_types::DriftProfile;
 
@@ -16,10 +14,12 @@ use std::sync::Arc;
 use tracing::error;
 
 use crate::api::state::AppState;
-use axum::{routing::{post, put}, Router};
 use anyhow::{Context, Result};
+use axum::{
+    routing::{post, put},
+    Router,
+};
 use std::panic::{catch_unwind, AssertUnwindSafe};
-
 
 pub async fn insert_drift_profile(
     State(data): State<Arc<AppState>>,
@@ -189,9 +189,17 @@ pub async fn update_drift_profile_status(
 
 pub async fn get_profile_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {
-        Router::new().route(&format!("{}/profile", prefix), post(insert_drift_profile)
-                .put(update_drift_profile)
-                .get(get_profile)).route(&format!("{}/profile/status", prefix),put(update_drift_profile_status))
+        Router::new()
+            .route(
+                &format!("{}/profile", prefix),
+                post(insert_drift_profile)
+                    .put(update_drift_profile)
+                    .get(get_profile),
+            )
+            .route(
+                &format!("{}/profile/status", prefix),
+                put(update_drift_profile_status),
+            )
     }));
 
     match result {

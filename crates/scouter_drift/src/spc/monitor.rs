@@ -1,14 +1,15 @@
-use scouter_types::{RecordType, ServerRecord, ServerRecords, SpcServerRecord, spc::{SpcDriftConfig, SpcFeatureDriftProfile, SpcDriftProfile}};
-use crate::spc::types::{
-   SpcDriftMap,  SpcFeatureDrift, 
-};
-use scouter_error::MonitorError;
+use crate::spc::types::{SpcDriftMap, SpcFeatureDrift};
 use crate::utils::CategoricalFeatureHelpers;
 use indicatif::ProgressBar;
 use ndarray::prelude::*;
 use ndarray::Axis;
 use num_traits::{Float, FromPrimitive, Num};
 use rayon::prelude::*;
+use scouter_error::MonitorError;
+use scouter_types::{
+    spc::{SpcDriftConfig, SpcDriftProfile, SpcFeatureDriftProfile},
+    RecordType, ServerRecord, ServerRecords, SpcServerRecord,
+};
 use std::collections::HashMap;
 use std::fmt::Debug;
 pub struct SpcMonitor {}
@@ -493,10 +494,10 @@ impl Default for SpcMonitor {
 mod tests {
 
     // use crate::core::drift::base::DriftProfile;
-    use scouter_types::DriftType;
-    use scouter_types::util::ProfileBaseArgs;
     use scouter_types::drift::DriftProfile;
     use scouter_types::spc::SpcAlertConfig;
+    use scouter_types::util::ProfileBaseArgs;
+    use scouter_types::DriftType;
 
     use super::*;
     use approx::relative_eq;

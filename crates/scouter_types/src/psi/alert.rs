@@ -1,11 +1,8 @@
-use crate::{ ValidateAlertConfig, AlertDispatchType, cron::EveryDay, DispatchAlertDescription};
+use crate::{cron::EveryDay, AlertDispatchType, DispatchAlertDescription, ValidateAlertConfig};
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-
-
-
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -75,8 +72,6 @@ impl PsiAlertConfig {
     }
 }
 
-
-
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PsiFeatureAlerts {
@@ -122,7 +117,6 @@ impl DispatchAlertDescription for PsiFeatureAlerts {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -158,8 +152,6 @@ mod tests {
         assert_eq!(alert_config.dispatch_kwargs.get("channel").unwrap(), "test");
         assert_eq!(AlertDispatchType::OpsGenie.value(), "OpsGenie");
     }
-
-  
 
     #[test]
     fn test_create_alert_description() {

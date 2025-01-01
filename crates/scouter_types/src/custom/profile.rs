@@ -1,10 +1,13 @@
-use crate::{ ProfileFuncs, DriftType, FileName, DriftArgs, DispatchDriftConfig, MISSING, ProfileBaseArgs, ProfileArgs};
-use scouter_error::{ScouterError, CustomMetricError};
-use crate::custom::alert::{CustomMetricAlertConfig, CustomMetric};
+use crate::custom::alert::{CustomMetric, CustomMetricAlertConfig};
 use crate::util::{json_to_pyobject, pyobject_to_json};
+use crate::{
+    DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
+    ProfileFuncs, MISSING,
+};
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use scouter_error::{CustomMetricError, ScouterError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -250,13 +253,11 @@ impl ProfileBaseArgs for CustomDriftProfile {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::AlertDispatchType;
     use crate::custom::alert::AlertThreshold;
-   
+    use crate::AlertDispatchType;
 
     #[test]
     fn test_drift_config() {
@@ -327,6 +328,4 @@ mod tests {
         );
         assert_eq!(conditions["accuracy"].alert_threshold_value, None);
     }
-
-    
 }

@@ -1,9 +1,9 @@
-use scouter_error::MonitorError;
-use scouter_types::FeatureMap;
 use ndarray::{Array, Array2};
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
+use scouter_error::MonitorError;
+use scouter_types::FeatureMap;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
 
@@ -140,17 +140,14 @@ where {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
 
     use crate::utils::CategoricalFeatureHelpers;
 
-
     pub struct TestStruct;
     impl CategoricalFeatureHelpers for TestStruct {}
 
-    
     #[test]
     fn test_create_feature_map_base() {
         let string_vec = vec![

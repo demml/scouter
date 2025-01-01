@@ -1,11 +1,11 @@
-use pyo3::prelude::*;
-use serde::{Deserialize, Serialize};
 use crate::ProfileFuncs;
+use pyo3::prelude::*;
 use scouter_error::ScouterError;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fmt::Formatter;
 use std::fmt;
 use std::fmt::Display;
+use std::fmt::Formatter;
 
 #[pyclass]
 #[derive(Clone, Serialize, Deserialize)]
@@ -156,7 +156,6 @@ pub struct Features {
     pub features: Vec<Feature>,
 }
 
-
 #[pymethods]
 impl Features {
     #[new]
@@ -174,7 +173,6 @@ impl Features {
         self.features.iter()
     }
 }
-
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, Default)]

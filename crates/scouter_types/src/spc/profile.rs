@@ -1,16 +1,18 @@
-use crate::{ FeatureMap,ProfileFuncs, DriftType, FileName, DriftArgs, DispatchDriftConfig, MISSING, ProfileBaseArgs, ProfileArgs};
-use scouter_error::ScouterError;
 use crate::spc::alert::SpcAlertConfig;
 use crate::util::{json_to_pyobject, pyobject_to_json};
+use crate::{
+    DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, ProfileArgs, ProfileBaseArgs,
+    ProfileFuncs, MISSING,
+};
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use scouter_error::ScouterError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::debug;
-
 
 /// Python class for a monitoring profile
 ///
@@ -384,7 +386,6 @@ impl ProfileBaseArgs for SpcDriftProfile {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
 
@@ -418,5 +419,4 @@ mod tests {
 
         assert_eq!(drift_config.name, "test");
     }
-
 }

@@ -683,9 +683,8 @@ impl PsiDrifter {
     }
 }
 
-
 #[pyclass]
-pub struct CustomDrifter{}
+pub struct CustomDrifter {}
 
 #[pymethods]
 #[allow(clippy::new_without_default)]
@@ -702,6 +701,10 @@ impl CustomDrifter {
         comparison_metrics: Vec<CustomMetric>,
         scouter_version: Option<String>,
     ) -> PyResult<CustomDriftProfile> {
-        Ok(CustomDriftProfile::new(config, comparison_metrics, scouter_version)?)
+        Ok(CustomDriftProfile::new(
+            config,
+            comparison_metrics,
+            scouter_version,
+        )?)
     }
 }

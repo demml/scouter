@@ -1,10 +1,9 @@
 #[cfg(feature = "kafka")]
 pub mod kafka_startup {
 
-
     use crate::consumer::kafka::consumer::kafka_consumer::start_kafka_background_poll;
-    use scouter_sql::{PostgresClient, MessageHandler};
     use anyhow::*;
+    use scouter_sql::{MessageHandler, PostgresClient};
     use sqlx::{Pool, Postgres};
     use tracing::info;
 
@@ -17,7 +16,8 @@ pub mod kafka_startup {
             .with_context(|| "Failed to parse NUM_KAFKA_WORKERS")?;
 
         for _ in 0..num_kafka_workers {
-            let kafka_db_client = PostgresClient::new(Some(pool.clone())).await
+            let kafka_db_client = PostgresClient::new(Some(pool.clone()))
+                .await
                 .with_context(|| "Failed to create Postgres client")?;
             let message_handler = MessageHandler::Postgres(kafka_db_client);
             let brokers =

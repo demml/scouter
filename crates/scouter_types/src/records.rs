@@ -1,9 +1,9 @@
-use pyo3::prelude::*;
-use serde::{Deserialize, Serialize};
 use crate::ProfileFuncs;
-use scouter_error::{ScouterError, PyScouterError};
-use std::collections::HashMap;
+use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
+use scouter_error::{PyScouterError, ScouterError};
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tracing::error;
 
 #[pyclass(eq)]
@@ -266,7 +266,6 @@ pub struct RouteMetrics {
     pub status_codes: HashMap<usize, i64>,
 }
 
-
 #[pyclass]
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ObservabilityMetrics {
@@ -304,7 +303,6 @@ impl ObservabilityMetrics {
         ProfileFuncs::__str__(self)
     }
 }
-
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -406,12 +404,12 @@ impl ServerRecords {
     }
 }
 
-
 pub trait ToDriftRecords {
     fn to_spc_drift_records(&self) -> Result<Vec<SpcServerRecord>, ScouterError>;
     fn to_observability_drift_records(&self) -> Result<Vec<ObservabilityMetrics>, ScouterError>;
     fn to_psi_drift_records(&self) -> Result<Vec<PsiServerRecord>, ScouterError>;
-    fn to_custom_metric_drift_records(&self) -> Result<Vec<CustomMetricServerRecord>, ScouterError>;
+    fn to_custom_metric_drift_records(&self)
+        -> Result<Vec<CustomMetricServerRecord>, ScouterError>;
 }
 impl ToDriftRecords for ServerRecords {
     fn to_spc_drift_records(&self) -> Result<Vec<SpcServerRecord>, ScouterError> {
@@ -432,15 +430,23 @@ impl ToDriftRecords for ServerRecords {
                 }
                 Ok(records)
             }
-            RecordType::Observability => Err(ScouterError::InvalidDriftTypeError("Unexpected record type".to_string())),
-            RecordType::Psi => Err(ScouterError::InvalidDriftTypeError("Unexpected record type".to_string())),
-            RecordType::Custom => Err(ScouterError::InvalidDriftTypeError("Unexpected record type".to_string())),
+            RecordType::Observability => Err(ScouterError::InvalidDriftTypeError(
+                "Unexpected record type".to_string(),
+            )),
+            RecordType::Psi => Err(ScouterError::InvalidDriftTypeError(
+                "Unexpected record type".to_string(),
+            )),
+            RecordType::Custom => Err(ScouterError::InvalidDriftTypeError(
+                "Unexpected record type".to_string(),
+            )),
         }
     }
 
     fn to_observability_drift_records(&self) -> Result<Vec<ObservabilityMetrics>, ScouterError> {
         match self.record_type {
-            RecordType::Spc => Err(ScouterError::InvalidDriftTypeError("Unexpected record type".to_string())),
+            RecordType::Spc => Err(ScouterError::InvalidDriftTypeError(
+                "Unexpected record type".to_string(),
+            )),
             RecordType::Observability => {
                 let mut records = Vec::new();
                 for record in self.records.iter() {
@@ -457,8 +463,12 @@ impl ToDriftRecords for ServerRecords {
                 }
                 Ok(records)
             }
-            RecordType::Psi => Err(ScouterError::InvalidDriftTypeError("Unexpected record type".to_string())),
-            RecordType::Custom => Err(ScouterError::InvalidDriftTypeError("Unexpected record type".to_string())),
+            RecordType::Psi => Err(ScouterError::InvalidDriftTypeError(
+                "Unexpected record type".to_string(),
+            )),
+            RecordType::Custom => Err(ScouterError::InvalidDriftTypeError(
+                "Unexpected record type".to_string(),
+            )),
         }
     }
 
@@ -480,13 +490,21 @@ impl ToDriftRecords for ServerRecords {
                 }
                 Ok(records)
             }
-            RecordType::Observability => Err(ScouterError::InvalidDriftTypeError("Unexpected record type".to_string())),
-            RecordType::Spc => Err(ScouterError::InvalidDriftTypeError("Unexpected record type".to_string())),
-            RecordType::Custom => Err(ScouterError::InvalidDriftTypeError("Unexpected record type".to_string())),
+            RecordType::Observability => Err(ScouterError::InvalidDriftTypeError(
+                "Unexpected record type".to_string(),
+            )),
+            RecordType::Spc => Err(ScouterError::InvalidDriftTypeError(
+                "Unexpected record type".to_string(),
+            )),
+            RecordType::Custom => Err(ScouterError::InvalidDriftTypeError(
+                "Unexpected record type".to_string(),
+            )),
         }
     }
 
-    fn to_custom_metric_drift_records(&self) -> Result<Vec<CustomMetricServerRecord>, ScouterError> {
+    fn to_custom_metric_drift_records(
+        &self,
+    ) -> Result<Vec<CustomMetricServerRecord>, ScouterError> {
         match self.record_type {
             RecordType::Custom => {
                 let mut records = Vec::new();
@@ -504,9 +522,15 @@ impl ToDriftRecords for ServerRecords {
                 }
                 Ok(records)
             }
-            RecordType::Observability => Err(ScouterError::InvalidDriftTypeError("Unexpected record type".to_string())),
-            RecordType::Spc => Err(ScouterError::InvalidDriftTypeError("Unexpected record type".to_string())),
-            RecordType::Psi => Err(ScouterError::InvalidDriftTypeError("Unexpected record type".to_string())),
+            RecordType::Observability => Err(ScouterError::InvalidDriftTypeError(
+                "Unexpected record type".to_string(),
+            )),
+            RecordType::Spc => Err(ScouterError::InvalidDriftTypeError(
+                "Unexpected record type".to_string(),
+            )),
+            RecordType::Psi => Err(ScouterError::InvalidDriftTypeError(
+                "Unexpected record type".to_string(),
+            )),
         }
     }
 }

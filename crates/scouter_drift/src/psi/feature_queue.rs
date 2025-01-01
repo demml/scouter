@@ -1,10 +1,10 @@
-use scouter_types::{Features, RecordType, ServerRecord, ServerRecords, PsiServerRecord};
+use scouter_types::{Features, PsiServerRecord, RecordType, ServerRecord, ServerRecords};
 
 use crate::psi::monitor::PsiMonitor;
-use scouter_types::psi::{Bin, PsiDriftProfile};
-use scouter_error::FeatureQueueError;
 use core::result::Result::Ok;
 use pyo3::prelude::*;
+use scouter_error::FeatureQueueError;
+use scouter_types::psi::{Bin, PsiDriftProfile};
 use std::collections::HashMap;
 
 #[pyclass]
@@ -204,13 +204,13 @@ impl PsiFeatureQueue {
 mod tests {
 
     use super::*;
-    use scouter_types::psi::PsiDriftConfig;
-    use scouter_types::Feature;
     use crate::utils::CategoricalFeatureHelpers;
     use ndarray::{Array, Axis};
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
     use rand::distributions::Bernoulli;
+    use scouter_types::psi::PsiDriftConfig;
+    use scouter_types::Feature;
 
     #[test]
     fn test_feature_queue_insert_numeric() {
@@ -255,10 +255,9 @@ mod tests {
             let two = Feature::float("feature_2".to_string(), min);
             let three = Feature::float("feature_3".to_string(), max);
 
-            let features = Features{
+            let features = Features {
                 features: vec![one, two, three],
             };
-
 
             feature_queue.insert(features).unwrap();
         }
@@ -326,10 +325,9 @@ mod tests {
             let one = Feature::float("feature_1".to_string(), 0.0);
             let two = Feature::float("feature_2".to_string(), 1.0);
 
-            let features = Features{
+            let features = Features {
                 features: vec![one, two],
             };
-
 
             feature_queue.insert(features).unwrap();
         }
@@ -411,10 +409,9 @@ mod tests {
             let one = Feature::string("feature_1".to_string(), "c".to_string());
             let two = Feature::string("feature_2".to_string(), "a".to_string());
 
-            let features = Features{
+            let features = Features {
                 features: vec![one, two],
             };
-
 
             feature_queue.insert(features).unwrap();
         }
@@ -499,10 +496,9 @@ mod tests {
             let one = Feature::string("feature_1".to_string(), "c".to_string());
             let two = Feature::string("feature_2".to_string(), "a".to_string());
 
-            let features = Features{
+            let features = Features {
                 features: vec![one, two],
             };
-
 
             feature_queue.insert(features).unwrap();
         }
@@ -545,10 +541,9 @@ mod tests {
             let two = Feature::float("feature_2".to_string(), 10.0);
             let three = Feature::float("feature_3".to_string(), 10000.0);
 
-            let features = Features{
+            let features = Features {
                 features: vec![one, two, three],
             };
-
 
             feature_queue.insert(features).unwrap();
         }

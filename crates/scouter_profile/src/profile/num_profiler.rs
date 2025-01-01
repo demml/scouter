@@ -1,11 +1,11 @@
-use scouter_error::ProfilerError;
 use crate::profile::types::{Distinct, FeatureProfile, Histogram, NumericStats, Quantiles};
 use ndarray::prelude::*;
 use ndarray::Axis;
 use ndarray_stats::MaybeNan;
+use scouter_error::ProfilerError;
 
-use crate::profile::types::DataProfile;
 use crate::profile::stats::compute_feature_correlations;
+use crate::profile::types::DataProfile;
 use ndarray_stats::{interpolate::Nearest, QuantileExt};
 use noisy_float::types::n64;
 use num_traits::{Float, FromPrimitive, Num};

@@ -1,13 +1,12 @@
-
 use crate::api::state::AppState;
-use axum::{routing::get, Router};
 use anyhow::{Context, Result};
-use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::Arc;
 use axum::response::IntoResponse;
 use axum::Json;
+use axum::{routing::get, Router};
 /// file containing schema for health module
 use serde::{Deserialize, Serialize};
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::sync::Arc;
 
 #[derive(Serialize, Deserialize)]
 pub struct Alive {

@@ -2,7 +2,6 @@ use scouter_types::DriftType;
 use serde::Deserialize;
 use serde::Serialize;
 
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRequest {
     pub name: String,

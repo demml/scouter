@@ -1,9 +1,12 @@
-use crate::{cron::EveryDay, dispatch::AlertDispatchType, ProfileFuncs, DispatchAlertDescription, ValidateAlertConfig};
+use crate::{
+    cron::EveryDay, dispatch::AlertDispatchType, DispatchAlertDescription, ProfileFuncs,
+    ValidateAlertConfig,
+};
 use core::fmt::Debug;
 use pyo3::prelude::*;
+use scouter_error::{CustomMetricError, ScouterError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use scouter_error::{ScouterError, CustomMetricError};
 use std::fmt::Display;
 use std::fmt::Formatter;
 
@@ -19,7 +22,6 @@ pub struct CustomMetric {
     #[pyo3(get, set)]
     pub alert_condition: CustomMetricAlertCondition,
 }
-
 
 #[pymethods]
 impl CustomMetric {
@@ -57,7 +59,6 @@ impl CustomMetric {
         self.alert_condition.alert_threshold_value
     }
 }
-
 
 #[pyclass(eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -195,7 +196,6 @@ impl Default for CustomMetricAlertConfig {
     }
 }
 
-
 pub struct ComparisonMetricAlert {
     pub metric_name: String,
     pub training_metric_value: f64,
@@ -264,8 +264,6 @@ impl DispatchAlertDescription for ComparisonMetricAlert {
     }
 }
 
-
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -301,8 +299,6 @@ mod tests {
             panic!("alert_conditions should not be None");
         }
     }
-
-    
 
     #[test]
     fn test_create_alert_description() {

@@ -1,7 +1,4 @@
-
 use crate::api::state::AppState;
-use scouter_contracts::DriftRequest;
-use scouter_types::{ServerRecords, ToDriftRecords};
 use anyhow::{Context, Result};
 use axum::{
     extract::{Query, State},
@@ -10,11 +7,12 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use std::sync::Arc;
-use tracing::error;
+use scouter_contracts::DriftRequest;
+use scouter_types::{ServerRecords, ToDriftRecords};
 use serde_json::json;
 use std::panic::{catch_unwind, AssertUnwindSafe};
-
+use std::sync::Arc;
+use tracing::error;
 
 pub async fn get_drift(
     State(data): State<Arc<AppState>>,
@@ -82,10 +80,12 @@ pub async fn insert_drift(
     }
 }
 
-
 pub async fn get_drift_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {
-        Router::new().route(&format!("{}/drift", prefix), get(get_drift).post(insert_drift),)
+        Router::new().route(
+            &format!("{}/drift", prefix),
+            get(get_drift).post(insert_drift),
+        )
     }));
 
     match result {

@@ -1,18 +1,17 @@
-
-use scouter_error::ScouterError;
+use crate::FeatureMap;
+use crate::{DriftType, EveryDay};
 use colored_json::{Color, ColorMode, ColoredFormatter, PrettyFormatter, Styler};
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
 use pyo3::IntoPyObjectExt;
+use rayon::prelude::*;
+use scouter_error::ScouterError;
 use serde::Serialize;
 use serde_json::{json, Value};
-use std::path::PathBuf;
 use std::collections::BTreeSet;
-use crate::FeatureMap;
-use rayon::prelude::*;
 use std::collections::HashMap;
-use crate::{DriftType, EveryDay};
+use std::path::PathBuf;
 use std::str::FromStr;
 
 pub const MISSING: &str = "__missing__";
@@ -210,7 +209,6 @@ pub fn pyobject_to_json(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
     }
 }
 
-
 pub fn create_feature_map(
     features: &[String],
     array: &[Vec<String>],
@@ -251,8 +249,6 @@ pub fn create_feature_map(
     })
 }
 
-
-
 #[derive(PartialEq, Debug)]
 pub struct ProfileArgs {
     pub name: String,
@@ -268,7 +264,6 @@ pub trait ProfileBaseArgs {
     fn get_base_args(&self) -> ProfileArgs;
     fn to_value(&self) -> serde_json::Value;
 }
-
 
 pub trait ValidateAlertConfig {
     fn resolve_schedule(schedule: Option<String>) -> String {
@@ -311,6 +306,4 @@ mod tests {
 
         assert_eq!(result, default_schedule);
     }
-
-    
 }

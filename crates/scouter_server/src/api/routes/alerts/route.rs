@@ -1,21 +1,17 @@
-
 use crate::api::state::AppState;
-use scouter_contracts::DriftAlertRequest;
 use anyhow::{Context, Result};
 use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
-    Router,
     routing::get,
+    Json, Router,
 };
-use std::sync::Arc;
-use tracing::error;
+use scouter_contracts::DriftAlertRequest;
 use serde_json::json;
 use std::panic::{catch_unwind, AssertUnwindSafe};
-
-
+use std::sync::Arc;
+use tracing::error;
 
 /// Retrieve drift alerts from the database
 ///
@@ -51,7 +47,6 @@ pub async fn get_drift_alerts(
         }
     }
 }
-
 
 pub async fn get_alert_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {

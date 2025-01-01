@@ -1,7 +1,7 @@
-use scouter_error::ScouterError;
-use scouter_types::{ProfileFuncs, FileName};
 use core::fmt::Debug;
 use pyo3::prelude::*;
+use scouter_error::ScouterError;
+use scouter_types::{FileName, ProfileFuncs};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::collections::HashMap;

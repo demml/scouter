@@ -1,13 +1,13 @@
-use scouter_types::psi::{
-    Bin, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
-};
-use scouter_error::MonitorError;
 use crate::utils::CategoricalFeatureHelpers;
 use itertools::Itertools;
 use ndarray::prelude::*;
 use ndarray::Axis;
 use num_traits::{Float, FromPrimitive};
 use rayon::prelude::*;
+use scouter_error::MonitorError;
+use scouter_types::psi::{
+    Bin, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
+};
 use std::collections::HashMap;
 
 #[derive(Default)]

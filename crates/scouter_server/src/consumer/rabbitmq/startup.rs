@@ -1,11 +1,11 @@
 #[cfg(feature = "rabbitmq")]
 pub mod rabbitmq_startup {
-    use scouter_sql::{PostgresClient, MessageHandler};
     use crate::consumer::rabbitmq::consumer::rabbitmq_consumer::start_rabbitmq_background_poll;
+    use anyhow::*;
+    use scouter_sql::{MessageHandler, PostgresClient};
     use sqlx::{Pool, Postgres};
     use std::result::Result;
     use tracing::info;
-    use anyhow::*;
 
     pub async fn startup_rabbitmq(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> {
         info!("Starting RabbitMQ consumer");
@@ -21,8 +21,9 @@ pub mod rabbitmq_startup {
             .map_err(|e| lapin::Error::from(std::io::Error::new(std::io::ErrorKind::Other, e)))?;
 
         for _ in 0..num_rabbits {
-            let rabbit_db_client = PostgresClient::new(Some(pool.clone())).await
-            .with_context(|| "Failed to create Postgres client")?;
+            let rabbit_db_client = PostgresClient::new(Some(pool.clone()))
+                .await
+                .with_context(|| "Failed to create Postgres client")?;
             let message_handler = MessageHandler::Postgres(rabbit_db_client);
 
             let rabbit_addr = std::env::var("RABBITMQ_ADDR")

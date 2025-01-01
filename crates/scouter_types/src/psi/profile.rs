@@ -1,17 +1,18 @@
-use crate::{ FeatureMap,ProfileFuncs, DriftType, FileName, DriftArgs, DispatchDriftConfig, MISSING, ProfileBaseArgs, ProfileArgs};
-use scouter_error::ScouterError;
 use crate::psi::alert::PsiAlertConfig;
 use crate::util::{json_to_pyobject, pyobject_to_json};
+use crate::{
+    DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, ProfileArgs, ProfileBaseArgs,
+    ProfileFuncs, MISSING,
+};
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use scouter_error::ScouterError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::debug;
-
-
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -152,7 +153,6 @@ impl DispatchDriftConfig for PsiDriftConfig {
     }
 }
 
-
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Bin {
@@ -168,8 +168,6 @@ pub struct Bin {
     #[pyo3(get)]
     pub proportion: f64,
 }
-
-
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -348,7 +346,6 @@ impl ProfileBaseArgs for PsiDriftProfile {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -370,6 +367,4 @@ mod tests {
 
         assert_eq!(drift_config.name, "test");
     }
-
-   
 }

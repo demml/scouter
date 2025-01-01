@@ -1,10 +1,10 @@
-use scouter_error::{ProfilerError, ScouterError};
 use crate::profile::types::DataProfile;
 use crate::profile::types::{CharStats, Distinct, FeatureProfile, StringStats, WordStats};
 use crate::stats::compute_feature_correlations;
-use scouter_types::create_feature_map;
 use ndarray::Array2;
 use rayon::prelude::*;
+use scouter_error::{ProfilerError, ScouterError};
+use scouter_types::create_feature_map;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 pub struct StringProfiler {}
