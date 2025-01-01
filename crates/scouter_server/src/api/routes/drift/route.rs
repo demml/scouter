@@ -1,17 +1,20 @@
 
 use crate::api::state::AppState;
 use scouter_contracts::DriftRequest;
+use scouter_types::{ServerRecords, ToDriftRecords};
 use anyhow::{Context, Result};
 use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::IntoResponse,
-    routing::{delete, get, post},
+    routing::get,
     Json, Router,
 };
 use std::sync::Arc;
 use tracing::error;
 use serde_json::json;
+use std::panic::{catch_unwind, AssertUnwindSafe};
+
 
 pub async fn get_drift(
     State(data): State<Arc<AppState>>,
@@ -36,6 +39,61 @@ pub async fn get_drift(
                 "message": format!("{:?}", e)
             });
             Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+        }
+    }
+}
+
+pub async fn insert_drift(
+    State(data): State<Arc<AppState>>,
+    Json(body): Json<ServerRecords>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let record = body.to_spc_drift_records().map_err(|e| {
+        error!("Failed to convert drift records: {:?}", e);
+        (
+            StatusCode::BAD_REQUEST,
+            json!({ "status": "error", "message": format!("{:?}", e) }),
+        )
+    });
+
+    if record.is_err() {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({ "status": "error", "message": "Invalid drift record" })),
+        ));
+    }
+
+    let query_result = &data.db.insert_spc_drift_record(&record.unwrap()[0]).await;
+
+    match query_result {
+        Ok(_) => Ok(Json(json!({
+            "status": "success",
+            "message": "Record inserted successfully"
+        }))),
+        Err(e) => {
+            error!("Failed to insert drift record: {:?}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "status": "error",
+                    "message": format!("{:?}", e)
+                })),
+            ))
+        }
+    }
+}
+
+
+pub async fn get_drift_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        Router::new().route(&format!("{}/drift", prefix), get(get_drift).post(insert_drift),)
+    }));
+
+    match result {
+        Ok(router) => Ok(router),
+        Err(_) => {
+            // panic
+            Err(anyhow::anyhow!("Failed to create drift router"))
+                .context("Panic occurred while creating the router")
         }
     }
 }

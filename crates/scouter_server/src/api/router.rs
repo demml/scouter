@@ -1,21 +1,17 @@
 
 use crate::api::middleware::track_metrics;
 use crate::api::state::AppState;
-use crate::api::routes::get_health_router;
+use crate::api::routes::{get_health_router, get_drift_router};
 use anyhow::Result;
 use axum::http::{
     header::{ACCEPT, AUTHORIZATION, CONTENT_TYPE},
     Method,
 };
 use axum::middleware;
-use axum::{
-    routing::{get, post, put},
-    Router,
-};
+use axum::Router;
 use std::sync::Arc;
 use tower_http::cors::CorsLayer;
 
-use super::handler::update_drift_profile;
 
 const ROUTE_PREFIX: &str = "/scouter";
 
@@ -26,9 +22,11 @@ pub async fn create_router(app_state: Arc<AppState>) -> Result<Router> {
         .allow_headers([AUTHORIZATION, ACCEPT, CONTENT_TYPE]);
 
         let health_routes = get_health_router(ROUTE_PREFIX).await?;
+        let drift_routes = get_drift_router(ROUTE_PREFIX).await?;
 
         let merged_routes = Router::new()
         .merge(health_routes)
+        .merge(drift_routes)
         .route_layer(middleware::from_fn(track_metrics));
 
         Ok(Router::new()
