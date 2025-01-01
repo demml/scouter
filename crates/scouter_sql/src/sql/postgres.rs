@@ -1,6 +1,8 @@
 use scouter_contracts::{
     DriftAlertRequest, DriftRequest, ObservabilityMetricRequest, ProfileStatusRequest, ServiceInfo,
 };
+use scouter_error::ScouterError;
+use scouter_types::{RecordType, ServerRecords, ToDriftRecords};
 use crate::sql::query::Queries;
 use crate::sql::schema::{
     AlertResult, FeatureResult, ObservabilityResult, QueryResult, SpcFeatureResult, TaskRequest,
@@ -842,6 +844,64 @@ impl PostgresClient {
         }
     }
 }
+
+
+
+pub enum MessageHandler {
+    Postgres(PostgresClient),
+}
+
+impl MessageHandler {
+    pub async fn insert_server_records(&self, records: &ServerRecords) -> Result<(), ScouterError> {
+        match self {
+            Self::Postgres(client) => {
+                match records.record_type {
+                    RecordType::Spc => {
+                        let records = records.to_spc_drift_records()?;
+                        for record in records.iter() {
+                            let _ = client.insert_spc_drift_record(record).await.map_err(|e| {
+                                error!("Failed to insert drift record: {:?}", e);
+                            });
+                        }
+                    }
+                    RecordType::Observability => {
+                        let records = records.to_observability_drift_records()?;
+                        for record in records.iter() {
+                            let _ = client
+                                .insert_observability_record(record)
+                                .await
+                                .map_err(|e| {
+                                    error!("Failed to insert observability record: {:?}", e);
+                                });
+                        }
+                    }
+                    RecordType::Psi => {
+                        let records = records.to_psi_drift_records()?;
+                        for record in records.iter() {
+                            let _ = client.insert_bin_counts(record).await.map_err(|e| {
+                                error!("Failed to insert bin count record: {:?}", e);
+                            });
+                        }
+                    }
+                    RecordType::Custom => {
+                        let records = records.to_custom_metric_drift_records()?;
+                        for record in records.iter() {
+                            let _ = client
+                                .insert_custom_metric_value(record)
+                                .await
+                                .map_err(|e| {
+                                    error!("Failed to insert bin count record: {:?}", e);
+                                });
+                        }
+                    }
+                };
+            }
+        }
+
+        Ok(())
+    }
+}
+
 
 // integration tests
 //#[cfg(test)]

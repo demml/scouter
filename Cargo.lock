@@ -3425,6 +3425,7 @@ dependencies = [
  "scouter-error",
  "serde",
  "serde_json",
+ "tracing",
 ]
 
 [[package]]

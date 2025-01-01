@@ -3,8 +3,8 @@ use crate::api::schema::{
     ProfileStatusRequest, ServiceInfo,
 };
 use crate::consumer::base::ToDriftRecords;
-use scouter::core::drift::base::DriftProfile;
-use scouter::core::drift::base::ServerRecords;
+use scouter_drift::DriftProfile;
+use scouter_types::ServerRecords;
 
 use axum::{
     extract::{Query, State},
@@ -17,7 +17,7 @@ use serde_json::json;
 use std::sync::Arc;
 use tracing::error;
 
-use crate::api::router::AppState;
+use crate::api::state::AppState;
 
 pub async fn health_check() -> impl IntoResponse {
     const MESSAGE: &str = "Alive";
