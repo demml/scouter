@@ -4,6 +4,8 @@ use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use scouter_error::{ScouterError, CustomMetricError};
+use std::fmt::Display;
+use std::fmt::Formatter;
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -63,6 +65,12 @@ pub enum AlertThreshold {
     Below,
     Above,
     Outside,
+}
+
+impl Display for AlertThreshold {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
 }
 
 #[pymethods]

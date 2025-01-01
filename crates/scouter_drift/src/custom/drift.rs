@@ -1,10 +1,10 @@
-use crate::api::schema::ServiceInfo;
-use crate::sql::postgres::PostgresClient;
-use anyhow::{Context, Ok, Result};
+use scouter_contracts::ServiceInfo;
+use scouter_sql::PostgresClient;
+use scouter_error::DriftError;
 use chrono::NaiveDateTime;
-use scouter::core::dispatch::dispatcher::dispatcher_logic::AlertDispatcher;
-use scouter::core::drift::custom::types::{
-    AlertCondition, ComparisonMetricAlert, CustomDriftProfile,
+use scouter_dispatch::AlertDispatcher;
+use scouter_types::custom::{
+    AlertThreshold, ComparisonMetricAlert, CustomDriftProfile,
 };
 use std::collections::{BTreeMap, HashMap};
 use tracing::error;
@@ -31,21 +31,22 @@ impl CustomDrifter {
         &self,
         limit_timestamp: &NaiveDateTime,
         db_client: &PostgresClient,
-    ) -> Result<HashMap<String, f64>> {
+    ) -> Result<HashMap<String, f64>, DriftError> {
         let metrics: Vec<String> = self.profile.metrics.keys().cloned().collect();
 
         Ok(db_client
             .get_custom_metric_values(&self.service_info, &limit_timestamp.to_string(), &metrics)
             .await
             .map_err(|e| {
-                error!(
+                let msg = format!(
                     "Error: Unable to obtain custom metric data from DB for {}/{}/{}: {}",
                     self.service_info.repository,
                     self.service_info.name,
                     self.service_info.version,
                     e
                 );
-                anyhow::anyhow!("Error processing alerts")
+                error!(msg);
+                DriftError::Error(msg)
             })?)
     }
 
@@ -53,7 +54,7 @@ impl CustomDrifter {
         &self,
         limit_timestamp: &NaiveDateTime,
         db_client: &PostgresClient,
-    ) -> Result<Option<HashMap<String, f64>>> {
+    ) -> Result<Option<HashMap<String, f64>>, DriftError> {
         let metric_map = self
             .get_observed_custom_metric_values(limit_timestamp, db_client)
             .await?;
@@ -75,7 +76,7 @@ impl CustomDrifter {
     fn is_out_of_bounds(
         training_value: f64,
         observed_value: f64,
-        alert_condition: &AlertCondition,
+        alert_condition: &AlertThreshold,
         alert_boundary: Option<f64>,
     ) -> bool {
         if observed_value == training_value {
@@ -93,16 +94,16 @@ impl CustomDrifter {
         };
 
         match alert_condition {
-            AlertCondition::BELOW => below_threshold(alert_boundary),
-            AlertCondition::ABOVE => above_threshold(alert_boundary),
-            AlertCondition::OUTSIDE => true, // Handled by early equality check
+            AlertThreshold::Below => below_threshold(alert_boundary),
+            AlertThreshold::Above => above_threshold(alert_boundary),
+            AlertThreshold::Outside => true, // Handled by early equality check
         }
     }
 
     pub async fn generate_alerts(
         &self,
         metric_map: &HashMap<String, f64>,
-    ) -> Result<Option<Vec<ComparisonMetricAlert>>> {
+    ) -> Result<Option<Vec<ComparisonMetricAlert>>, DriftError> {
         let metric_alerts: Vec<ComparisonMetricAlert> = metric_map
             .iter()
             .filter_map(|(name, observed_value)| {
@@ -117,15 +118,15 @@ impl CustomDrifter {
                 if Self::is_out_of_bounds(
                     training_value,
                     *observed_value,
-                    &alert_condition.alert_condition,
-                    alert_condition.alert_boundary,
+                    &alert_condition.alert_threshold,
+                    alert_condition.alert_threshold_value,
                 ) {
                     Some(ComparisonMetricAlert {
                         metric_name: name.clone(),
                         training_metric_value: training_value,
                         observed_metric_value: *observed_value,
-                        alert_boundary: alert_condition.alert_boundary,
-                        alert_condition: alert_condition.alert_condition.clone(),
+                        alert_threshold_value: alert_condition.alert_threshold_value,
+                        alert_threshold: alert_condition.alert_threshold.clone(),
                     })
                 } else {
                     None
@@ -142,23 +143,28 @@ impl CustomDrifter {
         }
 
         let alert_dispatcher = AlertDispatcher::new(&self.profile.config).map_err(|e| {
-            error!(
+            let msg = format!(
                 "Error creating alert dispatcher for {}/{}/{}: {}",
-                self.service_info.repository, self.service_info.name, self.service_info.version, e
+                self.service_info.repository,
+                self.service_info.name,
+                self.service_info.version,
+                e
             );
-            anyhow::anyhow!("Error creating alert dispatcher")
+            error!(msg);
+            DriftError::Error(msg)
         })?;
 
         for alert in &metric_alerts {
             alert_dispatcher.process_alerts(alert).await.map_err(|e| {
-                error!(
+                let msg = format!(
                     "Error processing alerts for {}/{}/{}: {}",
                     self.service_info.repository,
                     self.service_info.name,
                     self.service_info.version,
                     e
                 );
-                anyhow::anyhow!("Error processing alerts")
+                error!(msg);
+                DriftError::Error(msg)
             })?;
         }
 
@@ -178,14 +184,14 @@ impl CustomDrifter {
                 "observed_metric_value".to_string(),
                 alert.observed_metric_value.to_string(),
             );
-            let alert_boundary_str = match alert.alert_boundary {
+            let alert_threshold_value_str = match alert.alert_threshold_value {
                 Some(value) => value.to_string(),
                 None => "None".to_string(),
             };
-            alert_map.insert("alert_boundary".to_string(), alert_boundary_str);
+            alert_map.insert("alert_threshold_value".to_string(), alert_threshold_value_str);
             alert_map.insert(
-                "alert_condition".to_string(),
-                alert.alert_condition.value().to_string(),
+                "alert_threshold".to_string(),
+                alert.alert_threshold.to_string(),
             );
             alert_vec.push(alert_map);
         });
@@ -197,7 +203,7 @@ impl CustomDrifter {
         &self,
         db_client: &PostgresClient,
         previous_run: NaiveDateTime,
-    ) -> Result<Option<Vec<BTreeMap<String, String>>>> {
+    ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
         info!(
             "Processing custom metric(s) task for profile: {}/{}/{}",
             self.service_info.repository, self.service_info.name, self.service_info.version
@@ -205,20 +211,20 @@ impl CustomDrifter {
 
         let metric_map = self
             .get_metric_map(&previous_run, db_client)
-            .await
-            .with_context(|| "Error: unable to obtain drift map")?;
+            .await?;
 
         match metric_map {
             Some(metric_map) => {
                 let alerts = self.generate_alerts(&metric_map).await.map_err(|e| {
-                    error!(
+                    let msg  = format!(
                         "Error generating alerts for {}/{}/{}: {}",
                         self.service_info.repository,
                         self.service_info.name,
                         self.service_info.version,
                         e
                     );
-                    anyhow::anyhow!("Error generating alerts")
+                    error!(msg);
+                    DriftError::Error(msg)
                 })?;
                 match alerts {
                     Some(alerts) => Ok(Some(Self::organize_alerts(alerts))),
@@ -233,14 +239,14 @@ impl CustomDrifter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use scouter::core::drift::custom::types::{
+    use scouter_types::custom::{
         CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig,
     };
 
     fn get_test_drifter() -> CustomDrifter {
         let custom_metrics = vec![
-            CustomMetric::new("mse".to_string(), 12.02, AlertCondition::ABOVE, Some(1.0)),
-            CustomMetric::new("accuracy".to_string(), 0.75, AlertCondition::BELOW, None),
+            CustomMetric::new("mse".to_string(), 12.02, AlertThreshold::Above, Some(1.0)).unwrap(),
+            CustomMetric::new("accuracy".to_string(), 0.75, AlertThreshold::Below, None).unwrap(),
         ];
 
         let drift_config = CustomMetricDriftConfig::new(
@@ -266,7 +272,7 @@ mod tests {
         let mse_observed_value = 14.5;
 
         // we want mse to be as small as possible, so we want to see if the metric has increased.
-        let mse_alert_condition = AlertCondition::ABOVE;
+        let mse_alert_condition = AlertThreshold::Above;
 
         // we do not want to alert if the mse values has simply increased, but we want to alert
         // if the metric observed has increased beyond (mse_training_value + 2.0)
@@ -289,7 +295,7 @@ mod tests {
         let accuracy_observed_value = 0.67;
 
         // we want to alert if accuracy has decreased.
-        let accuracy_alert_condition = AlertCondition::BELOW;
+        let accuracy_alert_condition = AlertThreshold::Below;
 
         // we will not be specifying a boundary here as we want to alert if accuracy has decreased by any amount
         let accuracy_alert_boundary = None;
@@ -311,7 +317,7 @@ mod tests {
         let mae_observed_value = 10.5;
 
         // we want to alert if mae has increased.
-        let mae_alert_condition = AlertCondition::ABOVE;
+        let mae_alert_condition = AlertThreshold::Above;
 
         // we will not be specifying a boundary here as we want to alert if mae has increased by any amount
         let mae_alert_boundary = None;
