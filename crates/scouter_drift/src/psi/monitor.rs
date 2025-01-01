@@ -1,4 +1,4 @@
-use crate::psi::types::{
+use scouter_types::psi::{
     Bin, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
 };
 use scouter_error::MonitorError;
