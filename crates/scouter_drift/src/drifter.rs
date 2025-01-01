@@ -1,5 +1,5 @@
 use scouter_contracts::ServiceInfo;
-use scouter_error::AlertError;
+use scouter_error::DriftError;
 use scouter_sql::PostgresClient;
 
 use crate::{spc::SpcDrifter, custom::drift::CustomDrifter, psi::drift::PsiDrifter};
@@ -25,12 +25,12 @@ impl Drifter {
         &self,
         db_client: &PostgresClient,
         previous_run: NaiveDateTime,
-    ) -> Result<Option<Vec<BTreeMap<String, String>>>, AlertError> {
+    ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
         match self {
-            Drifter::SpcDrifter(drifter) => drifter.check_for_alerts(db_client, previous_run).await,
-            Drifter::PsiDrifter(drifter) => drifter.check_for_alerts(db_client, previous_run).await,
+            Drifter::SpcDrifter(drifter) => drifter.check_for_alerts(db_client, previous_run).await.map_err(DriftError::from),
+            Drifter::PsiDrifter(drifter) => drifter.check_for_alerts(db_client, previous_run).await.map_err(DriftError::from),
             Drifter::CustomDrifter(drifter) => {
-                drifter.check_for_alerts(db_client, previous_run).await
+                drifter.check_for_alerts(db_client, previous_run).await.map_err(DriftError::from)
             }
         }
     }
@@ -92,7 +92,7 @@ impl DriftExecutor {
         &mut self,
         profile: DriftProfile,
         previous_run: NaiveDateTime,
-    ) -> Result<Option<Vec<BTreeMap<String, String>>>, AlertError> {
+    ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
         // match Drifter enum
         profile
             .get_drifter()
@@ -105,8 +105,8 @@ impl DriftExecutor {
     /// # Returns
     ///
     /// * `Result<()>` - Result of drift computation and alerting
-    pub async fn poll_for_tasks(&mut self) -> Result<(), AlertError> {
-        let mut transaction = self.db_client.pool.begin().await.map_err(ScouterError::from)?;
+    pub async fn poll_for_tasks(&mut self) -> Result<(), DriftError> {
+        let mut transaction = self.db_client.pool.begin().await.map_err(|e| DriftError::Error(e.to_string()))?;
 
         // this will pull a drift profile from the db
         let task = match PostgresClient::get_drift_profile_task(&mut transaction).await {
@@ -119,7 +119,7 @@ impl DriftExecutor {
         };
 
         let Some(task) = task else {
-            transaction.commit().await?;
+            transaction.commit().await.map_err(|e| DriftError::Error(e.to_string()))?;
             info!("No triggered schedules found in db. Sleeping for 10 seconds");
             tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
             return Ok(());
@@ -183,7 +183,7 @@ impl DriftExecutor {
             info!("Drift profile run dates updated successfully");
         }
 
-        transaction.commit().await?;
+        transaction.commit().await.map_err(|e| DriftError::Error(e.to_string()))?;
 
         Ok(())
     }

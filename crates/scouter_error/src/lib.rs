@@ -124,6 +124,17 @@ pub enum AlertError {
 }
 
 #[derive(Error, Debug, Deserialize)]
+pub enum DriftError {
+    #[error("Error: {0}")]
+    Error(String),
+
+    #[error(transparent)]
+    AlertError(#[from] AlertError),
+}
+
+
+
+#[derive(Error, Debug, Deserialize)]
 pub enum ScouterError {
     #[error("Failed to serialize string")]
     SerializeError,
