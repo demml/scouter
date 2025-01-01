@@ -489,7 +489,7 @@ impl PostgresClient {
             .await
             .map_err(|e| {
                 error!("Failed to run query: {:?}", e);
-                SqlError::QueryError(format!("Failed to run query: {:?}", e)).into()
+                SqlError::QueryError(format!("Failed to run query: {:?}", e))
             });
 
         feature_values

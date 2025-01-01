@@ -9,4 +9,4 @@ pub mod drifter;
 pub use utils::*;
 
 #[cfg(feature = "sql")]
-pub use drifter::drifter::DriftExecutor;
+pub use drifter::drift_executor::DriftExecutor;

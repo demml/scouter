@@ -35,7 +35,7 @@ pub mod custom_drifter {
         ) -> Result<HashMap<String, f64>, DriftError> {
             let metrics: Vec<String> = self.profile.metrics.keys().cloned().collect();
 
-            Ok(db_client
+            db_client
                 .get_custom_metric_values(
                     &self.service_info,
                     &limit_timestamp.to_string(),
@@ -52,7 +52,7 @@ pub mod custom_drifter {
                     );
                     error!(msg);
                     DriftError::Error(msg)
-                })?)
+                })
         }
 
         pub async fn get_metric_map(

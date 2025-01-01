@@ -1,5 +1,5 @@
 #[cfg(feature = "sql")]
-pub mod drifter {
+pub mod drift_executor {
 
     use scouter_contracts::ServiceInfo;
     use scouter_error::DriftError;
