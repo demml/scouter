@@ -1,7 +1,7 @@
 
 
 use scouter_contracts::ServiceInfo;
-use scouter_error::{AlertError};
+use scouter_error::AlertError;
 use scouter_sql::PostgresClient;
 
 use crate::alerts::{spc::drift::SpcDrifter, custom::drift::CustomDrifter, psi::drift::PsiDrifter, types::Drifter};

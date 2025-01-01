@@ -1,4 +1,4 @@
-use scouter_types::{
+use scouter_types::spc::{
     AlertZone, SpcAlert, SpcAlertRule, SpcAlertType, SpcFeatureAlerts,
 };
 use scouter_error::AlertError;

@@ -12,6 +12,7 @@ license = "MIT"
 description = "Drift logic for Scouter"
 
 [dependencies]
+scouter-contracts = { workspace = true }
 scouter-error = { workspace = true }
 scouter-types = { workspace = true }
 

@@ -383,3 +383,42 @@ impl ProfileBaseArgs for SpcDriftProfile {
         serde_json::to_value(self).unwrap()
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+
+
+    #[test]
+    fn test_drift_config() {
+        let mut drift_config =
+            SpcDriftConfig::new(None, None, None, None, None, None, None, None, None).unwrap();
+        assert_eq!(drift_config.sample_size, 25);
+        assert!(drift_config.sample);
+        assert_eq!(drift_config.name, "__missing__");
+        assert_eq!(drift_config.repository, "__missing__");
+        assert_eq!(drift_config.version, "0.1.0");
+        assert_eq!(drift_config.targets.len(), 0);
+        assert_eq!(drift_config.alert_config, SpcAlertConfig::default());
+
+        // update
+        drift_config
+            .update_config_args(
+                None,
+                Some("test".to_string()),
+                None,
+                None,
+                None,
+                None,
+                None,
+                None,
+            )
+            .unwrap();
+
+        assert_eq!(drift_config.name, "test");
+    }
+
+}

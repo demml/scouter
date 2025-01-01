@@ -15,9 +15,7 @@ description = "Alert logic to be used in with Scouter Server"
 chrono = { workspace = true }
 scouter-contracts = { workspace = true }
 scouter-dispatch = { workspace = true }
-scouter-drift = { workspace = true }
 scouter-error = { workspace = true }
-scouter-sql = { workspace = true }
 scouter-types = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

@@ -3,6 +3,11 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 use scouter_error::ScouterError;
 use crate::dispatch::AlertDispatchType;
+use crate::spc::SpcDriftProfile;
+use crate::psi::PsiDriftProfile;
+use crate::custom::CustomDriftProfile;
+use crate::util::ProfileBaseArgs;
+use crate::ProfileArgs;
 
 #[pyclass(eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -52,4 +57,92 @@ pub struct DriftArgs {
     pub repository: String,
     pub version: String,
     pub dispatch_type: AlertDispatchType,
+}
+
+// Generic enum to be used on scouter server
+#[derive(Debug, Clone)]
+pub enum DriftProfile {
+    SpcDriftProfile(SpcDriftProfile),
+    PsiDriftProfile(PsiDriftProfile),
+    CustomDriftProfile(CustomDriftProfile),
+}
+
+impl DriftProfile {
+    /// Create a new DriftProfile from a DriftType and a profile string
+    /// This function will map the drift type to the correct profile type to load
+    ///
+    /// # Arguments
+    ///
+    /// * `drift_type` - DriftType enum
+    /// * `profile` - Profile string
+    ///
+    /// # Returns
+    ///
+    /// * `Result<Self>` - Result of DriftProfile
+    pub fn from_str(drift_type: DriftType, profile: String) -> Result<Self, ScouterError> {
+        match drift_type {
+            DriftType::Spc => {
+                let profile =
+                    serde_json::from_str(&profile).map_err(|_| ScouterError::DeSerializeError)?;
+                Ok(DriftProfile::SpcDriftProfile(profile))
+            }
+            DriftType::Psi => {
+                let profile =
+                    serde_json::from_str(&profile).map_err(|_| ScouterError::DeSerializeError)?;
+                Ok(DriftProfile::PsiDriftProfile(profile))
+            }
+            DriftType::Custom => {
+                let profile =
+                    serde_json::from_str(&profile).map_err(|_| ScouterError::DeSerializeError)?;
+                Ok(DriftProfile::CustomDriftProfile(profile))
+            }
+        }
+    }
+
+    /// Get the base arguments for a drift profile
+    pub fn get_base_args(&self) -> ProfileArgs {
+        match self {
+            DriftProfile::SpcDriftProfile(profile) => profile.get_base_args(),
+            DriftProfile::PsiDriftProfile(profile) => profile.get_base_args(),
+            DriftProfile::CustomDriftProfile(profile) => profile.get_base_args(),
+        }
+    }
+
+    pub fn to_value(&self) -> serde_json::Value {
+        match self {
+            DriftProfile::SpcDriftProfile(profile) => profile.to_value(),
+            DriftProfile::PsiDriftProfile(profile) => profile.to_value(),
+            DriftProfile::CustomDriftProfile(profile) => profile.to_value(),
+        }
+    }
+
+    /// Create a new DriftProfile from a value (this is used by scouter-server)
+    /// This function will map the drift type to the correct profile type to load
+    ///
+    /// # Arguments
+    ///
+    /// * `body` - Request body
+    /// * `drift_type` - Drift type string
+    ///
+    pub fn from_value(body: serde_json::Value, drift_type: &str) -> Result<Self, ScouterError> {
+        let drift_type = DriftType::from_str(drift_type)
+            .map_err(|_| ScouterError::InvalidDriftTypeError(drift_type.to_string()))?;
+        match drift_type {
+            DriftType::Spc => {
+                let profile =
+                    serde_json::from_value(body).map_err(|_| ScouterError::DeSerializeError)?;
+                Ok(DriftProfile::SpcDriftProfile(profile))
+            }
+            DriftType::Psi => {
+                let profile =
+                    serde_json::from_value(body).map_err(|_| ScouterError::DeSerializeError)?;
+                Ok(DriftProfile::PsiDriftProfile(profile))
+            }
+            DriftType::Custom => {
+                let profile =
+                    serde_json::from_value(body).map_err(|_| ScouterError::DeSerializeError)?;
+                Ok(DriftProfile::CustomDriftProfile(profile))
+            }
+        }
+    }
 }

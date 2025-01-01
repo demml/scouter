@@ -1,6 +1,6 @@
-use scouter_types::{RecordType, ServerRecord, ServerRecords, SpcServerRecord};
+use scouter_types::{RecordType, ServerRecord, ServerRecords, SpcServerRecord, SpcDriftConfig, SpcFeatureDriftProfile, SpcDriftProfile};
 use crate::spc::types::{
-    SpcDriftConfig, SpcDriftMap, SpcDriftProfile, SpcFeatureDrift, SpcFeatureDriftProfile,
+   SpcDriftMap,  SpcFeatureDrift, 
 };
 use scouter_error::MonitorError;
 use crate::utils::CategoricalFeatureHelpers;

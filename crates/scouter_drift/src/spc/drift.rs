@@ -3,7 +3,7 @@ use scouter_sql::{PostgresClient, sql::schema::QueryResult};
 use scouter_error::AlertError;
 use chrono::NaiveDateTime;
 use ndarray::ArrayView2;
-use scouter::core::dispatch::dispatcher::dispatcher_logic::AlertDispatcher;
+use scouter_dispatch::AlertDispatcher;
 use scouter::core::drift::spc::alert::generate_alerts;
 use scouter::core::drift::spc::monitor::SpcMonitor;
 use scouter::core::drift::spc::types::SpcDriftProfile;

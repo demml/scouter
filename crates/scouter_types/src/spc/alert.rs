@@ -1,30 +1,12 @@
-use crate::{cron::EveryDay, dispatch::AlertDispatchType, ProfileFuncs, DispatchAlertDescription};
+use crate::{cron::EveryDay, dispatch::AlertDispatchType, ProfileFuncs, DispatchAlertDescription, ValidateAlertConfig};
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Display;
-use std::str::FromStr;
 use std::collections::HashSet;
 
 
-pub trait ValidateAlertConfig {
-    fn resolve_schedule(schedule: Option<String>) -> String {
-        let default_schedule = EveryDay::new().cron;
-
-        match schedule {
-            Some(s) => {
-                cron::Schedule::from_str(&s) // Pass by reference here
-                    .map(|_| s) // If valid, return the schedule
-                    .unwrap_or_else(|_| {
-                        tracing::error!("Invalid cron schedule, using default schedule");
-                        default_schedule
-                    })
-            }
-            None => default_schedule,
-        }
-    }
-}
 
 
 #[pyclass(eq)]
@@ -341,7 +323,6 @@ impl SpcFeatureAlerts {
 mod tests {
 
     use super::*;
-    use crate::spc::profile::SpcDriftConfig;
 
     #[test]
     fn test_types() {
@@ -392,35 +373,7 @@ mod tests {
         assert_eq!(AlertDispatchType::OpsGenie.value(), "OpsGenie");
     }
 
-    #[test]
-    fn test_drift_config() {
-        let mut drift_config =
-            SpcDriftConfig::new(None, None, None, None, None, None, None, None, None).unwrap();
-        assert_eq!(drift_config.sample_size, 25);
-        assert!(drift_config.sample);
-        assert_eq!(drift_config.name, "__missing__");
-        assert_eq!(drift_config.repository, "__missing__");
-        assert_eq!(drift_config.version, "0.1.0");
-        assert_eq!(drift_config.targets.len(), 0);
-        assert_eq!(drift_config.alert_config, SpcAlertConfig::default());
-
-        // update
-        drift_config
-            .update_config_args(
-                None,
-                Some("test".to_string()),
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-            )
-            .unwrap();
-
-        assert_eq!(drift_config.name, "test");
-    }
-
+   
     #[test]
     fn test_spc_feature_alerts() {
         // Create a sample SpcFeatureAlert (assuming SpcFeatureAlert is defined elsewhere)
@@ -457,3 +410,5 @@ mod tests {
         let _ = alerts.create_alert_description(AlertDispatchType::Slack);
     }
 }
+
+
