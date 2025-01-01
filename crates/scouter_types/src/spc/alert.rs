@@ -319,6 +319,26 @@ impl SpcFeatureAlerts {
     }
 }
 
+
+pub struct TaskAlerts {
+    pub alerts: SpcFeatureAlerts,
+}
+
+impl TaskAlerts {
+    pub fn new() -> Self {
+        Self {
+            alerts: SpcFeatureAlerts::new(false),
+        }
+    }
+}
+
+impl Default for TaskAlerts {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+
 #[cfg(test)]
 mod tests {
 
