@@ -14,7 +14,8 @@ pyo3 = { workspace = true }
 numpy = { workspace = true }
 num-traits = { workspace = true }
 ndarray-stats = { workspace = true }
-tracing-subscriber = {version = "0.3.18"}
+scouter-client = { workspace = true }
+tracing-subscriber = { workspace = true }
 time = "0.*"
 tracing = { workspace = true }
 

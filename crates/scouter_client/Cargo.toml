@@ -1,0 +1,27 @@
+[package]
+name = "scouter-client"
+version = { workspace = true }
+edition = { workspace = true }
+repository = { workspace = true }
+
+authors = [
+  "Steven Forrester <sjforrester32@gmail.com>"
+]
+
+license = "MIT"
+description = "Client and server contract for scouter"
+
+[dependencies]
+scouter-dispatch = { workspace = true }
+scouter-drift = { workspace = true }
+scouter-error = { workspace = true }
+scouter-observability = { workspace = true }
+scouter-profile = { workspace = true }
+scouter-types = { workspace = true }
+
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true
+

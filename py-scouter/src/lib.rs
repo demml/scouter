@@ -2,32 +2,7 @@ mod py_scouter;
 use crate::py_scouter::_scouter::{CustomDrifter, PsiDrifter};
 use py_scouter::_scouter::{ScouterProfiler, SpcDrifter};
 use pyo3::prelude::*;
-use scouter::core::cron::{
-    CommonCron, Every12Hours, Every15Minutes, Every1Minute, Every30Minutes, Every5Minutes,
-    Every6Hours, EveryDay, EveryHour, EveryWeek,
-};
-use scouter::core::dispatch::types::AlertDispatchType;
-use scouter::core::drift::base::{DriftType, RecordType, ServerRecord, ServerRecords, Feature, Features};
-use scouter::core::drift::custom::types::{
-    AlertThreshold, CustomDriftProfile, CustomMetric, CustomMetricAlertCondition,
-    CustomMetricAlertConfig, CustomMetricDriftConfig, CustomMetricServerRecord,
-};
-use scouter::core::drift::psi::feature_queue::PsiFeatureQueue;
-use scouter::core::drift::psi::types::{
-    Bin, PsiAlertConfig, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
-    PsiServerRecord,
-};
-use scouter::core::drift::spc::feature_queue::SpcFeatureQueue;
-use scouter::core::drift::spc::types::{
-    AlertZone, SpcAlert, SpcAlertConfig, SpcAlertRule, SpcAlertType, SpcDriftConfig, SpcDriftMap,
-    SpcDriftProfile, SpcFeatureAlert, SpcFeatureAlerts, SpcFeatureDrift, SpcFeatureDriftProfile,
-    SpcServerRecord,
-};
-use scouter::core::observe::observer::{
-    LatencyMetrics, ObservabilityMetrics, Observer, RouteMetrics,
-};
-use scouter::core::profile::types::{DataProfile, Distinct, FeatureProfile, Histogram};
-use scouter::core::utils::FeatureMap;
+use scouter_client::*;
 
 #[pymodule]
 fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {

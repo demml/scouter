@@ -7,25 +7,9 @@ use numpy::PyReadonlyArray2;
 use numpy::ToPyArray;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use scouter::core::drift::base::ServerRecords;
-use scouter::core::drift::psi::monitor::PsiMonitor;
-use scouter::core::drift::psi::types::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile};
-use scouter::core::drift::spc::alert::generate_alerts;
-use scouter::core::drift::spc::monitor::SpcMonitor;
-use scouter::core::drift::spc::types::{
-    SpcAlertRule, SpcDriftConfig, SpcDriftMap, SpcDriftProfile, SpcFeatureAlerts,
-};
-use scouter::core::error::ProfilerError;
-use scouter::core::error::ScouterError;
-use scouter::core::profile::num_profiler::NumProfiler;
-use scouter::core::profile::string_profiler::StringProfiler;
-use scouter::core::profile::types::{DataProfile, FeatureProfile};
-use scouter::core::stats::compute_feature_correlations;
-use scouter::core::utils::create_feature_map;
-use scouter::core::utils::CategoricalFeatureHelpers;
+use scouter_client::*;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
-use scouter::core::drift::custom::types::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig};
 
 #[pyclass]
 pub struct ScouterProfiler {
