@@ -1,4 +1,6 @@
 -- Migrations
+CREATE EXTENSION if not exists pg_partman;
+CREATE EXTENSION if not exists pg_cron;
 
 CREATE TABLE IF NOT exists drift (
   created_at timestamp not null default (timezone('utc', now())),
