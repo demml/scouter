@@ -287,3 +287,30 @@ pub trait ValidateAlertConfig {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    pub struct TestStruct;
+    impl ValidateAlertConfig for TestStruct {}
+
+    #[test]
+    fn test_resolve_schedule_base() {
+        let valid_schedule = "0 0 5 * * *".to_string(); // Every day at 5:00 AM
+
+        let result = TestStruct::resolve_schedule(Some(valid_schedule));
+
+        assert_eq!(result, "0 0 5 * * *".to_string());
+
+        let invalid_schedule = "invalid_cron".to_string();
+
+        let default_schedule = EveryDay::new().cron;
+
+        let result = TestStruct::resolve_schedule(Some(invalid_schedule));
+
+        assert_eq!(result, default_schedule);
+    }
+
+    
+}

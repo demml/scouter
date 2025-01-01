@@ -146,3 +146,28 @@ impl DriftProfile {
         }
     }
 }
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+
+    #[test]
+    fn test_drift_type_from_str_base() {
+        assert_eq!(DriftType::from_str("SPC").unwrap(), DriftType::Spc);
+        assert_eq!(DriftType::from_str("PSI").unwrap(), DriftType::Psi);
+        assert_eq!(DriftType::from_str("CUSTOM").unwrap(), DriftType::Custom);
+        assert!(DriftType::from_str("INVALID").is_err());
+    }
+
+    #[test]
+    fn test_drift_type_value_base() {
+        assert_eq!(DriftType::Spc.to_string(), "Spc");
+        assert_eq!(DriftType::Psi.to_string(), "Psi");
+        assert_eq!(DriftType::Custom.to_string(), "Custom");
+    }
+
+    
+    
+}
