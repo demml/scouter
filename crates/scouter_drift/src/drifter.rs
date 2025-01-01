@@ -1,10 +1,8 @@
-
-
 use scouter_contracts::ServiceInfo;
 use scouter_error::AlertError;
 use scouter_sql::PostgresClient;
 
-use crate::alerts::{spc::drift::SpcDrifter, custom::drift::CustomDrifter, psi::drift::PsiDrifter, types::Drifter};
+use crate::{spc::SpcDrifter, custom::drift::CustomDrifter, psi::drift::PsiDrifter};
 use chrono::NaiveDateTime;
 use scouter_types::{DriftType, DriftProfile};
 use std::collections::BTreeMap;
@@ -12,6 +10,32 @@ use std::result::Result;
 use std::result::Result::Ok;
 use std::str::FromStr;
 use tracing::{error, info};
+
+
+
+#[allow(clippy::enum_variant_names)]
+pub enum Drifter {
+    SpcDrifter(SpcDrifter),
+    PsiDrifter(PsiDrifter),
+    CustomDrifter(CustomDrifter),
+}
+
+impl Drifter {
+    pub async fn check_for_alerts(
+        &self,
+        db_client: &PostgresClient,
+        previous_run: NaiveDateTime,
+    ) -> Result<Option<Vec<BTreeMap<String, String>>>, AlertError> {
+        match self {
+            Drifter::SpcDrifter(drifter) => drifter.check_for_alerts(db_client, previous_run).await,
+            Drifter::PsiDrifter(drifter) => drifter.check_for_alerts(db_client, previous_run).await,
+            Drifter::CustomDrifter(drifter) => {
+                drifter.check_for_alerts(db_client, previous_run).await
+            }
+        }
+    }
+}
+
 
 pub trait GetDrifter {
     fn get_drifter(&self) -> Drifter;

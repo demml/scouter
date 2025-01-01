@@ -344,7 +344,7 @@ pub fn generate_alerts(
 #[cfg(test)]
 mod tests {
 
-    use crate::spc::types::SpcAlertRule;
+    use scouter_types::spc::SpcAlertRule;
 
     use super::*;
     use ndarray::arr2;

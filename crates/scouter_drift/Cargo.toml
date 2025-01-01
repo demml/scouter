@@ -13,7 +13,9 @@ description = "Drift logic for Scouter"
 
 [dependencies]
 scouter-contracts = { workspace = true }
+scouter-dispatch = { workspace = true }
 scouter-error = { workspace = true }
+scouter-sql = { workspace = true }
 scouter-types = { workspace = true }
 
 cron = { workspace = true }
@@ -29,6 +31,7 @@ indicatif = { workspace = true }
 ndarray = { workspace = true }
 numpy = { workspace = true }
 ndarray-stats = { workspace = true }
+tokio = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]

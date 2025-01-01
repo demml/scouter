@@ -13,6 +13,8 @@ description = "Alert logic to be used in with Scouter Server"
 
 [dependencies]
 chrono = { workspace = true }
+ndarray = { workspace = true }
+rayon = { workspace = true }
 scouter-contracts = { workspace = true }
 scouter-dispatch = { workspace = true }
 scouter-error = { workspace = true }

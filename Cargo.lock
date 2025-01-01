@@ -3265,6 +3265,8 @@ name = "scouter-alerts"
 version = "0.3.3"
 dependencies = [
  "chrono",
+ "ndarray",
+ "rayon",
  "scouter-contracts",
  "scouter-dispatch",
  "scouter-error",
@@ -3320,10 +3322,13 @@ dependencies = [
  "rand",
  "rayon",
  "scouter-contracts",
+ "scouter-dispatch",
  "scouter-error",
+ "scouter-sql",
  "scouter-types",
  "serde",
  "serde_json",
+ "tokio",
  "tracing",
 ]
 

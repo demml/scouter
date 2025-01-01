@@ -1,4 +1,4 @@
-use scouter_types::{RecordType, ServerRecord, ServerRecords, SpcServerRecord, SpcDriftConfig, SpcFeatureDriftProfile, SpcDriftProfile};
+use scouter_types::{RecordType, ServerRecord, ServerRecords, SpcServerRecord, spc::{SpcDriftConfig, SpcFeatureDriftProfile, SpcDriftProfile}};
 use crate::spc::types::{
    SpcDriftMap,  SpcFeatureDrift, 
 };
@@ -494,8 +494,9 @@ mod tests {
 
     // use crate::core::drift::base::DriftProfile;
     use scouter_types::DriftType;
-    use crate::base::{ProfileBaseArgs, DriftProfile};
-    use crate::spc::types::SpcAlertConfig;
+    scouter_types::util::ProfileBaseArgs;
+    use scouter_types::drift::{DriftProfile};
+    use scouter_types::spc::SpcAlertConfig;
 
     use super::*;
     use approx::relative_eq;
