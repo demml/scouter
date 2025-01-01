@@ -1,8 +1,6 @@
 use scouter_types::{ServerRecords, Features};
-use crate::spc::{
-    monitor::SpcMonitor,
-    types::SpcDriftProfile
-};
+use crate::spc:: monitor::SpcMonitor;
+use scouter_types::spc::SpcDriftProfile;
 use scouter_error::FeatureQueueError;
 use core::result::Result::Ok;
 use ndarray::prelude::*;
@@ -131,7 +129,7 @@ impl SpcFeatureQueue {
 #[cfg(test)]
 mod tests {
 
-    use crate::spc::types::{SpcAlertConfig, SpcDriftConfig};
+    use scouter_types::spc::{SpcAlertConfig, SpcDriftConfig};
     use scouter_types::Feature;
 
     use super::*;
