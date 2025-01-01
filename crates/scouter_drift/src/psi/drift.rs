@@ -1,10 +1,10 @@
-use crate::api::schema::ServiceInfo;
-use crate::sql::postgres::PostgresClient;
-use anyhow::{Context, Ok, Result};
+use scouter_contracts::ServiceInfo;
+use scouter_sql::PostgresClient;
 use chrono::NaiveDateTime;
-use scouter::core::dispatch::dispatcher::dispatcher_logic::AlertDispatcher;
-use scouter::core::drift::psi::monitor::PsiMonitor;
-use scouter::core::drift::psi::types::{PsiDriftProfile, PsiFeatureAlerts, PsiFeatureDriftProfile};
+use scouter_error::DriftError;
+use scouter_dispatch::AlertDispatcher;
+use crate::psi::monitor::PsiMonitor;
+use scouter_types::psi::{PsiDriftProfile, PsiFeatureAlerts, PsiFeatureDriftProfile};
 use std::collections::{BTreeMap, HashMap};
 use tracing::error;
 use tracing::info;
@@ -55,7 +55,7 @@ impl PsiDrifter {
         &self,
         limit_timestamp: &NaiveDateTime,
         db_client: &PostgresClient,
-    ) -> Result<Option<HashMap<String, Vec<(f64, f64)>>>> {
+    ) -> Result<Option<HashMap<String, Vec<(f64, f64)>>>, DriftError> {
         let profiles_to_monitor = self.get_monitored_profiles();
 
         let observed_bin_proportions = db_client
@@ -73,7 +73,7 @@ impl PsiDrifter {
                     self.service_info.version,
                     e
                 );
-                anyhow::anyhow!("Error processing alerts")
+                DriftError::Error("Error processing alerts".to_string())
             })?;
 
         if observed_bin_proportions.is_empty() {
@@ -103,10 +103,9 @@ impl PsiDrifter {
         &self,
         limit_timestamp: &NaiveDateTime,
         db_client: &PostgresClient,
-    ) -> Result<Option<HashMap<String, f64>>> {
+    ) -> Result<Option<HashMap<String, f64>>, DriftError> {
         self.get_feature_bin_proportion_pairs_map(limit_timestamp, db_client)
-            .await
-            .with_context(|| "Error: unable to obtain feature bin proportion pairs")?
+            .await?
             .map(|feature_bin_proportion_pairs_map| {
                 Ok(feature_bin_proportion_pairs_map
                     .iter()
@@ -135,13 +134,13 @@ impl PsiDrifter {
     pub async fn generate_alerts(
         &self,
         drift_map: &HashMap<String, f64>,
-    ) -> Result<Option<HashMap<String, f64>>> {
+    ) -> Result<Option<HashMap<String, f64>>, DriftError> {
         let alert_dispatcher = AlertDispatcher::new(&self.profile.config).map_err(|e| {
             error!(
                 "Error creating alert dispatcher for {}/{}/{}: {}",
                 self.service_info.repository, self.service_info.name, self.service_info.version, e
             );
-            anyhow::anyhow!("Error creating alert dispatcher")
+            DriftError::Error("Error creating alert dispatcher".to_string())
         })?;
 
         let filtered_map = self.filter_drift_map(drift_map);
@@ -168,7 +167,7 @@ impl PsiDrifter {
                     self.service_info.version,
                     e
                 );
-                anyhow::anyhow!("Error processing alerts")
+                DriftError::Error("Error processing alerts".to_string())
             })?;
         Ok(Some(filtered_map))
     }
@@ -200,7 +199,7 @@ impl PsiDrifter {
         &self,
         db_client: &PostgresClient,
         previous_run: NaiveDateTime,
-    ) -> Result<Option<Vec<BTreeMap<String, String>>>> {
+    ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
         info!(
             "Processing drift task for profile: {}/{}/{}",
             self.service_info.repository, self.service_info.name, self.service_info.version
@@ -222,8 +221,7 @@ impl PsiDrifter {
 
         let drift_map = self
             .get_drift_map(&previous_run, db_client)
-            .await
-            .with_context(|| "Error: unable to obtain drift map")?;
+            .await?;
 
         match drift_map {
             Some(drift_map) => {
@@ -235,7 +233,7 @@ impl PsiDrifter {
                         self.service_info.version,
                         e
                     );
-                    anyhow::anyhow!("Error generating alerts")
+                    DriftError::Error("Error processing alerts".to_string())
                 })?;
                 match alerts {
                     Some(alerts) => Ok(Some(self.organize_alerts(alerts))),
@@ -253,7 +251,7 @@ mod tests {
     use ndarray::Array;
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
-    use scouter::core::drift::psi::types::{
+    use scouter_types::psi::{
         Bin, PsiAlertConfig, PsiDriftConfig, PsiFeatureDriftProfile,
     };
 
