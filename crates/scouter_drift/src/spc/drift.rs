@@ -5,7 +5,7 @@ use scouter_error::AlertError;
 use chrono::NaiveDateTime;
 use ndarray::ArrayView2;
 use scouter_dispatch::AlertDispatcher;
-use scouter_alerts::spc::alert::generate_alerts;
+use crate::spc::alert::generate_alerts;
 use crate::spc::monitor::SpcMonitor;
 use scouter_types::spc::{SpcDriftProfile, TaskAlerts};
 use std::collections::BTreeMap;
