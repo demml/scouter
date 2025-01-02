@@ -11,8 +11,9 @@ use scouter_contracts::{
 use scouter_error::ScouterError;
 use scouter_error::SqlError;
 use scouter_types::{
-    CustomMetricServerRecord, ObservabilityMetrics, PsiServerRecord, SpcServerRecord, DriftProfile,
-    RecordType, ServerRecords, TimeInterval, ToDriftRecords, psi::{FeatureBinProportions,FeatureBinProportion},
+    psi::{FeatureBinProportion, FeatureBinProportions},
+    CustomMetricServerRecord, DriftProfile, ObservabilityMetrics, PsiServerRecord, RecordType,
+    ServerRecords, SpcServerRecord, TimeInterval, ToDriftRecords,
 };
 
 use serde_json::Value;
@@ -656,7 +657,8 @@ impl PostgresClient {
             .bind(limit_datetime)
             .bind(features_to_monitor)
             .fetch_all(&self.pool)
-            .await.map_err(|e| {
+            .await
+            .map_err(|e| {
                 error!("Failed to get bin proportions from database: {:?}", e);
                 SqlError::GeneralError(format!(
                     "Failed to get bin proportions from database: {:?}",
@@ -664,10 +666,8 @@ impl PostgresClient {
                 ))
             })?;
 
-            let feature_bin_proportions: Vec<FeatureBinProportion> = binned
-                .into_iter()
-                .map(|wrapper| wrapper.0)
-                .collect();
+        let feature_bin_proportions: Vec<FeatureBinProportion> =
+            binned.into_iter().map(|wrapper| wrapper.0).collect();
 
         Ok(FeatureBinProportions::from_bins(feature_bin_proportions))
     }
@@ -798,9 +798,9 @@ impl MessageHandler {
 #[cfg(test)]
 mod tests {
 
-    use scouter_types::spc::SpcDriftProfile;
-    use rand::Rng;
     use super::*;
+    use rand::Rng;
+    use scouter_types::spc::SpcDriftProfile;
 
     pub async fn cleanup(pool: &Pool<Postgres>) {
         sqlx::raw_sql(
@@ -1054,14 +1054,12 @@ mod tests {
         assert_eq!(binned_records.len(), 10);
     }
 
-
     #[tokio::test]
     async fn test_postgres_bin_proportions() {
         let client = PostgresClient::new(None).await.unwrap();
         cleanup(&client.pool).await;
         let timestamp = chrono::Utc::now().naive_utc();
         for _ in 0..1000 {
-
             for j in 0..2 {
                 let num = rand::thread_rng().gen_range(0..10);
                 let record = PsiServerRecord {
@@ -1082,17 +1080,27 @@ mod tests {
         }
 
         let binned_records = client
-            .get_feature_bin_proportions(&ServiceInfo {
-                name: "test".to_string(),
-                repository: "test".to_string(),
-                version: "test".to_string(),
-            }, &timestamp, &vec!["test".to_string()]).await.unwrap();
+            .get_feature_bin_proportions(
+                &ServiceInfo {
+                    name: "test".to_string(),
+                    repository: "test".to_string(),
+                    version: "test".to_string(),
+                },
+                &timestamp,
+                &vec!["test".to_string()],
+            )
+            .await
+            .unwrap();
 
         // assert binned_records.features["test"]["decile_1"] is around .5
-        let bin_proportion = binned_records.features.get("test").unwrap().get("decile_1").unwrap();
+        let bin_proportion = binned_records
+            .features
+            .get("test")
+            .unwrap()
+            .get("decile_1")
+            .unwrap();
         assert!(*bin_proportion > 0.4 && *bin_proportion < 0.6);
     }
-
 
     #[tokio::test]
     async fn test_postgres_cru_custom_metric() {
@@ -1128,6 +1136,5 @@ mod tests {
             .unwrap();
 
         assert_eq!(metrics.get("test").unwrap(), &1.0);
-
     }
 }

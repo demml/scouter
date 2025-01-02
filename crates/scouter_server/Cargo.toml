@@ -45,6 +45,7 @@ approx = "0.*"
 http-body-util = "0.*"
 ndarray-rand = "0.*"
 mockito = "1.*"
+tower = { version = "0.*", features = ["util"] }
 
 [features]
 default = []

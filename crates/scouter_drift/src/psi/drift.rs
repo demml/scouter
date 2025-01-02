@@ -13,7 +13,6 @@ pub mod psi_drifter {
     use tracing::error;
     use tracing::info;
 
-    
     pub struct PsiDrifter {
         service_info: ServiceInfo,
         profile: PsiDriftProfile,
@@ -41,7 +40,6 @@ pub mod psi_drifter {
                 .collect()
         }
 
-     
         async fn get_feature_bin_proportion_pairs_map(
             &self,
             limit_datetime: &NaiveDateTime,
@@ -78,9 +76,10 @@ pub mod psi_drifter {
                 return Ok(None);
             }
 
-            Ok(Some(
-                FeatureBinMapping::from_observed_bin_proportions(&observed_bin_proportions, &profiles_to_monitor)?
-            ))
+            Ok(Some(FeatureBinMapping::from_observed_bin_proportions(
+                &observed_bin_proportions,
+                &profiles_to_monitor,
+            )?))
         }
 
         pub async fn get_drift_map(
@@ -88,15 +87,18 @@ pub mod psi_drifter {
             limit_datetime: &NaiveDateTime,
             db_client: &PostgresClient,
         ) -> Result<Option<HashMap<String, f64>>, DriftError> {
-            self.get_feature_bin_proportion_pairs_map(limit_datetime, db_client).await?.map(|feature_bin_map| {
-                Ok(feature_bin_map.features.iter().map(|(feature, pairs)| {
-                    (
-                        feature.clone(),
-                        PsiMonitor::new().compute_psi(&pairs.pairs),
-                    )
-                }).collect())
-            }).transpose()
-
+            self.get_feature_bin_proportion_pairs_map(limit_datetime, db_client)
+                .await?
+                .map(|feature_bin_map| {
+                    Ok(feature_bin_map
+                        .features
+                        .iter()
+                        .map(|(feature, pairs)| {
+                            (feature.clone(), PsiMonitor::new().compute_psi(&pairs.pairs))
+                        })
+                        .collect())
+                })
+                .transpose()
         }
 
         fn filter_drift_map(&self, drift_map: &HashMap<String, f64>) -> HashMap<String, f64> {
@@ -231,11 +233,14 @@ pub mod psi_drifter {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use crate::psi::types::FeatureBinProportionPairs;
         use ndarray::Array;
         use ndarray_rand::rand_distr::Uniform;
         use ndarray_rand::RandomExt;
-        use scouter_types::psi::{Bin, PsiAlertConfig, PsiDriftConfig, PsiFeatureDriftProfile, FeatureBinProportions, FeatureBinProportion};
-        use crate::psi::types::FeatureBinProportionPairs;
+        use scouter_types::psi::{
+            Bin, FeatureBinProportion, FeatureBinProportions, PsiAlertConfig, PsiDriftConfig,
+            PsiFeatureDriftProfile,
+        };
 
         fn get_test_drifter() -> PsiDrifter {
             let config = PsiDriftConfig::new(
@@ -324,27 +329,31 @@ pub mod psi_drifter {
             let observed_feat1_decile1_prop = 0.6;
             let observed_feat1_decile2_prop = 0.3;
             let observed_feat1_decile3_prop = 0.1;
-    
-            let observed_proportions = FeatureBinProportions::from_bins( vec![FeatureBinProportion{
-                feature: "feature_1".to_string(),
-                bin_id: "decile_1".to_string(),
-                proportion: observed_feat1_decile1_prop,
-            },
-            FeatureBinProportion{
-                feature: "feature_1".to_string(),
-                bin_id: "decile_2".to_string(),
-                proportion: observed_feat1_decile2_prop,
-            },
-            FeatureBinProportion{
-                feature: "feature_1".to_string(),
-                bin_id: "decile_3".to_string(),
-                proportion: observed_feat1_decile3_prop,
-            }]);
 
+            let observed_proportions = FeatureBinProportions::from_bins(vec![
+                FeatureBinProportion {
+                    feature: "feature_1".to_string(),
+                    bin_id: "decile_1".to_string(),
+                    proportion: observed_feat1_decile1_prop,
+                },
+                FeatureBinProportion {
+                    feature: "feature_1".to_string(),
+                    bin_id: "decile_2".to_string(),
+                    proportion: observed_feat1_decile2_prop,
+                },
+                FeatureBinProportion {
+                    feature: "feature_1".to_string(),
+                    bin_id: "decile_3".to_string(),
+                    proportion: observed_feat1_decile3_prop,
+                },
+            ]);
 
-            let pairs = FeatureBinProportionPairs::from_observed_bin_proportions(&observed_proportions, &feature_drift_profile).unwrap();
+            let pairs = FeatureBinProportionPairs::from_observed_bin_proportions(
+                &observed_proportions,
+                &feature_drift_profile,
+            )
+            .unwrap();
 
-    
             pairs.pairs.iter().for_each(|(a, b)| {
                 if *a == training_feat1_decile1_prop {
                     assert_eq!(*b, observed_feat1_decile1_prop);

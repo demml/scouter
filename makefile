@@ -31,3 +31,7 @@ test.drift:
 .PHONY: test.profile
 test.profile:
 	cargo test -p scouter-profile -- --nocapture --test-threads=1
+
+.PHONY: test.server
+test.server:
+	cargo test -p scouter-server -- --nocapture --test-threads=1

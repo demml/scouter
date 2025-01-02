@@ -1,9 +1,9 @@
 use chrono::NaiveDateTime;
+use scouter_types::psi::FeatureBinProportion;
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, Error, FromRow, Row};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
-use scouter_types::psi::FeatureBinProportion;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRecord {
@@ -38,7 +38,6 @@ impl<'r> FromRow<'r, PgRow> for SpcFeatureResult {
     }
 }
 
-
 pub struct FeatureBinProportionWrapper(pub FeatureBinProportion);
 
 impl<'r> FromRow<'r, PgRow> for FeatureBinProportionWrapper {
@@ -50,7 +49,6 @@ impl<'r> FromRow<'r, PgRow> for FeatureBinProportionWrapper {
         }))
     }
 }
-
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlertResult {

@@ -239,4 +239,10 @@ impl From<CustomMetricError> for PyErr {
     }
 }
 
+#[derive(Error, Debug, Deserialize)]
+pub enum ConfigError {
+    #[error("{0}")]
+    Error(String),
+}
+
 create_exception!(scouter, PyScouterError, PyException);

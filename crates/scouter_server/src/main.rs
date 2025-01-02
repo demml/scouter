@@ -6,6 +6,7 @@ use crate::api::setup::setup_logging;
 use crate::api::state::AppState;
 use anyhow::Context;
 use api::router::create_router;
+use axum::Router;
 use scouter_drift::DriftExecutor;
 use scouter_sql::PostgresClient;
 use std::sync::Arc;
@@ -32,8 +33,26 @@ async fn start_metrics_server() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-/// Start the main server
-async fn start_main_server() -> Result<(), anyhow::Error> {
+async fn setup_polling_workers(num_workers: usize) -> Result<(), anyhow::Error> {
+    for i in 0..num_workers {
+        info!("Starting drift schedule poller: {}", i);
+        tokio::spawn(async move {
+            let db_client = PostgresClient::new(None)
+                .await
+                .with_context(|| "Failed to create Postgres client")?;
+            let mut drift_executor = DriftExecutor::new(db_client);
+            loop {
+                if let Err(e) = drift_executor.poll_for_tasks().await {
+                    error!("Alert poller error: {:?}", e);
+                }
+            }
+        });
+    }
+
+    Ok(())
+}
+
+async fn create_app(schedule_workers: usize) -> Result<Router, anyhow::Error> {
     // setup logging
     setup_logging()
         .await
@@ -58,29 +77,24 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
     }
 
     // ##################### run drift polling background tasks #####################
-    let num_scheduler_workers = std::env::var("SCOUTER_SCHEDULE_WORKER_COUNT")
+    setup_polling_workers(schedule_workers).await?;
+
+    let router = create_router(Arc::new(AppState { db: db_client }))
+        .await
+        .with_context(|| "Failed to create router")?;
+
+    Ok(router)
+}
+
+/// Start the main server
+async fn start_main_server() -> Result<(), anyhow::Error> {
+    // get num scheduled workers
+    let num_schedule_workers = std::env::var("SCOUTER_SCHEDULE_WORKER_COUNT")
         .unwrap_or_else(|_| "4".to_string())
         .parse::<usize>()
         .with_context(|| "Failed to parse SCOUTER_SCHEDULE_WORKER_COUNT")?;
 
-    for i in 0..num_scheduler_workers {
-        info!("Starting drift schedule poller: {}", i);
-        let alert_db_client = PostgresClient::new(Some(db_client.pool.clone()))
-            .await
-            .with_context(|| "Failed to create Postgres client")?;
-        tokio::task::spawn(async move {
-            let mut drift_executor = DriftExecutor::new(alert_db_client);
-            loop {
-                if let Err(e) = drift_executor.poll_for_tasks().await {
-                    error!("Alert poller error: {:?}", e);
-                }
-            }
-        });
-    }
-
-    let app = create_router(Arc::new(AppState { db: db_client }))
-        .await
-        .with_context(|| "Failed to create router")?;
+    let router = create_app(num_schedule_workers).await?;
 
     let port = std::env::var("SCOUTER_SERVER_PORT").unwrap_or_else(|_| "8000".to_string());
     let addr = format!("0.0.0.0:{}", port);
@@ -89,7 +103,7 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
         .with_context(|| "Failed to bind to port 8000")?;
 
     info!("🚀 Scouter Server started successfully");
-    axum::serve(listener, app)
+    axum::serve(listener, router)
         .await
         .with_context(|| "Failed to start main server")?;
 
@@ -99,8 +113,92 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
     let (_main_server, _metrics_server) = tokio::join!(start_main_server(), start_metrics_server());
-
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use axum::response::Response;
+    use axum::{
+        body::Body,
+        http::{Request, StatusCode},
+        Router,
+    };
+    use http_body_util::BodyExt; // for `collect`
+    use sqlx::{Pool, Postgres};
+    use tower::util::ServiceExt;
+
+    pub async fn cleanup(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> {
+        sqlx::raw_sql(
+            r#"
+            DELETE 
+            FROM drift;
+
+            DELETE 
+            FROM observability_metrics;
+
+            DELETE
+            FROM custom_metrics;
+
+            DELETE
+            FROM drift_alerts;
+
+            DELETE
+            FROM drift_profile;
+
+            DELETE
+            FROM observed_bin_count;
+            "#,
+        )
+        .fetch_all(pool)
+        .await
+        .unwrap();
+
+        Ok(())
+    }
+
+    pub struct TestHelper {
+        app: Router,
+    }
+
+    impl TestHelper {
+        pub async fn new() -> Result<Self, anyhow::Error> {
+            let app = create_app().await?;
+
+            let db_client = PostgresClient::new(None)
+                .await
+                .with_context(|| "Failed to create Postgres client")?;
+
+            cleanup(&db_client.pool).await?;
+
+            Ok(Self { app })
+        }
+        pub async fn send_oneshot(&self, request: Request<Body>) -> Response<Body> {
+            self.app.clone().oneshot(request).await.unwrap()
+        }
+    }
+
+    #[tokio::test]
+    async fn test_health_check() {
+        let helper = TestHelper::new().await.unwrap();
+
+        let request = Request::builder()
+            .uri("/scouter/healthcheck")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = helper.send_oneshot(request).await;
+
+        //assert response
+        assert_eq!(response.status(), StatusCode::OK);
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+
+        let v: serde_json::Value = serde_json::from_str(std::str::from_utf8(&body[..]).unwrap())
+            .expect("Failed to parse response body");
+
+        println!("Response: {:?}", v);
+    }
 }
 
 //#[cfg(test)]
