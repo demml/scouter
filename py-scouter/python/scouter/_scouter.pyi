@@ -1513,6 +1513,52 @@ class PsiDriftProfile:
     def __str__(self) -> str:
         """Sting representation of DriftProfile"""
 
+class Feature:
+    @staticmethod
+    def int(name: str, value: int) -> "Feature":
+        """Create an integer feature
+
+        Args:
+            name:
+                Name of the feature
+            value:
+                Value of the feature
+        """
+
+    @staticmethod
+    def float(name: str, value: float) -> "Feature":
+        """Create a float feature
+
+        Args:
+            name:
+                Name of the feature
+            value:
+                Value of the feature
+        """
+
+    @staticmethod
+    def string(name: str, value: str) -> "Feature":
+        """Create a string feature
+
+        Args:
+            name:
+                Name of the feature
+            value:
+                Value of the feature
+        """
+
+class Features:
+    def __init__(self, features: List[Feature]) -> None:
+        """Initialize features
+
+        Args:
+            features:
+                List of features
+        """
+
+    def __str__(self) -> str:
+        """Return the string representation of the features"""
+
 class PsiFeatureQueue:
     def __init__(self, drift_profile: PsiDriftProfile) -> None:
         """Initialize the feature queue
@@ -1522,14 +1568,11 @@ class PsiFeatureQueue:
                 Drift profile to use for feature queue.
         """
 
-    def insert(self, data: Dict[str, Any]) -> None:
+    def insert(self, features: Features) -> None:
         """Insert data into the feature queue
         Args:
-            data:
-                Dictionary of feature values to insert into the monitoring queue.
-
-        Returns:
-            List of drift records if the monitoring queue has enough data to compute
+            features:
+                List of features to insert into the monitoring queue.
         """
 
     def is_empty(self) -> bool:
@@ -1558,15 +1601,12 @@ class SpcFeatureQueue:
                 Drift profile to use for feature queue.
         """
 
-    def insert(self, data: Dict[str, Any]) -> None:
+    def insert(self, features: Features) -> None:
         """Insert data into the feature queue
 
         Args:
-            data:
-                Dictionary of feature values to insert into the monitoring queue.
-
-        Returns:
-            List of drift records if the monitoring queue has enough data to compute
+            features:
+                List of features to insert into the monitoring queue.
         """
 
     def create_drift_records(self) -> ServerRecords:

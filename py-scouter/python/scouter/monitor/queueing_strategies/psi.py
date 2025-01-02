@@ -1,6 +1,6 @@
 import threading
 import time
-from typing import Any, Dict, Union
+from typing import Union
 
 from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
@@ -10,6 +10,7 @@ from scouter.utils.logger import ScouterLogger
 from typing_extensions import Optional
 
 from ..._scouter import (  # pylint: disable=no-name-in-module
+    Features,
     PsiDriftProfile,
     PsiFeatureQueue,
     ServerRecords,
@@ -61,15 +62,18 @@ class PsiQueueingStrategy(BaseQueueingStrategy):
             except Exception as e:  # pylint: disable=broad-except
                 logger.error("Error collecting metrics: {}", e)
 
-    def insert(self, data: Dict[Any, Any]) -> Optional[ServerRecords]:
+    def insert(self, features: Features) -> Optional[ServerRecords]:
         """Insert data into the monitoring queue.
 
         Args:
-            data:
-                Dictionary of feature values to insert into the monitoring queue.
+            features:
+                List of features to insert into the monitoring queue.
+
+        Returns:
+            ServerRecords: The server records if the queue is full and the data is published.
         """
         try:
-            self._feature_queue.insert(data)
+            self._feature_queue.insert(features)
             self._count += 1
             if self._count >= PSI_MAX_QUEUE_SIZE:
                 return self._publish(self._feature_queue)

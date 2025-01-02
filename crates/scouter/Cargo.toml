@@ -13,21 +13,21 @@ description = "Rust Scouter logic"
 
 [dependencies]
 pyo3 = { workspace = true }
-serde = { version = "1.0.163", features = ["derive"] }
-itertools = "0.11.0"
-rayon = "1.7.0"
-noisy_float = "0.2.0"
-chrono ={ version = "0.4.38", features = ["serde"] }
-num-traits = "0.2.19"
-serde_json = "1.0.117"
-indicatif = "0.17.8"
-ndarray = { version = "0.15.6", features = ["rayon"] }
+serde = { workspace = true }
+itertools = { workspace = true }
+rayon = { workspace = true }
+noisy_float = { workspace = true }
+chrono = { workspace = true }
+num-traits = { workspace = true }
+serde_json = { workspace = true }
+indicatif = { workspace = true }
+ndarray = { workspace = true }
 numpy = { workspace = true }
-ndarray-stats = "0.5.1"
-cron = "0.12.1"
-tracing = "0.1.40"
-colored_json = "5.0.0"
-thiserror = "1.0.64"
+ndarray-stats = { workspace = true }
+cron = { workspace = true }
+tracing = { workspace = true }
+colored_json = { workspace = true }
+thiserror = { workspace = true }
 
 # Dispatch dependencies
 reqwest = { version = "0.12.8", optional = true, features = ["json"] }

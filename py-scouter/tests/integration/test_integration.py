@@ -4,6 +4,8 @@ import pandas as pd
 from scouter import (
     Drifter,
     DriftType,
+    Feature,
+    Features,
     KafkaConfig,
     MonitorQueue,
     ServerRecords,
@@ -34,7 +36,14 @@ def test_monitor_pandas(
 
     def return_record(records) -> Optional[ServerRecords]:
         for record in records:
-            drift_map = queue.insert(record)
+            features = Features(
+                features=[
+                    Feature.float("column_0", record["column_0"]),
+                    Feature.float("column_1", record["column_1"]),
+                    Feature.float("column_2", record["column_2"]),
+                ]
+            )
+            drift_map = queue.insert(features)
 
             if drift_map:
                 return drift_map

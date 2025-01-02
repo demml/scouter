@@ -1,4 +1,4 @@
-use crate::core::drift::base::ServerRecords;
+use crate::core::drift::base::{Features, ServerRecords};
 use crate::core::drift::spc::monitor::SpcMonitor;
 use crate::core::drift::spc::types::SpcDriftProfile;
 use crate::core::error::FeatureQueueError;
@@ -6,7 +6,6 @@ use core::result::Result::Ok;
 use ndarray::prelude::*;
 use ndarray::Array2;
 use pyo3::prelude::*;
-use pyo3::types::PyAny;
 use std::collections::HashMap;
 
 #[pyclass]
@@ -55,44 +54,25 @@ impl SpcFeatureQueue {
 
     // create a python function that will take a python dictionary of string keys and either int, float or string values
     // and append the values to the corresponding feature queue
-    pub fn insert(
-        &mut self,
-        py: Python,
-        feature_values: HashMap<String, Py<PyAny>>,
-    ) -> Result<(), FeatureQueueError> {
-        for (feature, value) in feature_values {
-            if let Some(queue) = self.queue.get_mut(&feature) {
-                // map floats
-                if let Ok(val) = value.bind(py).extract::<f64>() {
-                    queue.push(val);
+    pub fn insert(&mut self, features: Features) -> Result<(), FeatureQueueError> {
 
-                // map ints
-                } else if let Ok(val) = value.bind(py).extract::<i64>() {
-                    queue.push(val as f64);
-
-                // map strings to feature map
-                } else if let Ok(val) = value.bind(py).extract::<String>() {
-                    // map to feature map
-                    if self.mapped_features.contains(&feature) {
-                        let feature_map = self
-                            .drift_profile
-                            .config
-                            .feature_map
-                            .as_ref()
-                            .ok_or(FeatureQueueError::MissingFeatureMapError)?
-                            .features
-                            .get(&feature)
-                            .ok_or(FeatureQueueError::GetFeatureError)?;
-
-                        let transformed_val = feature_map
-                            .get(&val)
-                            .unwrap_or(feature_map.get("missing").unwrap());
-
-                        queue.push(*transformed_val as f64);
-                    }
+        for feature in features.iter() {
+            let name = feature.name();
+            if let Some(queue) = self.queue.get_mut(name) {
+                let value = feature
+                    .to_float(
+                        Some(&self.mapped_features),
+                        &self.drift_profile.config.feature_map,
+                    )
+                    .map_err(|e| {
+                        FeatureQueueError::InvalidValueError(name.to_string(), e.to_string())
+                    })?;
+                if let Some(value) = value {
+                    queue.push(value);
                 }
             }
         }
+
         Ok(())
     }
 
@@ -150,6 +130,7 @@ impl SpcFeatureQueue {
 mod tests {
 
     use crate::core::drift::spc::types::{SpcAlertConfig, SpcDriftConfig};
+    use crate::core::drift::base::Feature;
 
     use super::*;
     use ndarray::Array;
@@ -189,47 +170,42 @@ mod tests {
 
         assert_eq!(feature_queue.queue.len(), 3);
 
-        pyo3::prepare_freethreaded_python();
+        for _ in 0..9 {
+            let one = Feature::int("feature_1".to_string(), 1);
+            let two = Feature::int("feature_2".to_string(), 2);
+            let three = Feature::int("feature_3".to_string(), 3);
 
-        // test insert
-        let mut feature_values: HashMap<String, Py<PyAny>> = HashMap::new();
+            let features = Features{
+                features: vec![one, two, three],
+            };
 
-        Python::with_gil(|py| {
-            for _ in 0..9 {
-                feature_values.insert("feature_1".to_string(), 1.into_py(py));
-                feature_values.insert("feature_2".to_string(), 2.into_py(py));
-                feature_values.insert("feature_3".to_string(), 3.into_py(py));
+            feature_queue.insert(features).unwrap();
+        }
 
-                feature_queue.insert(py, feature_values.clone()).unwrap();
-            }
+        assert_eq!(feature_queue.queue.get("feature_1").unwrap().len(), 9);
+        assert_eq!(feature_queue.queue.get("feature_2").unwrap().len(), 9);
+        assert_eq!(feature_queue.queue.get("feature_3").unwrap().len(), 9);
 
-            feature_queue.insert(py, feature_values).unwrap();
+        let records = feature_queue.create_drift_records().unwrap();
 
-            assert_eq!(feature_queue.queue.get("feature_1").unwrap().len(), 10);
-            assert_eq!(feature_queue.queue.get("feature_2").unwrap().len(), 10);
-            assert_eq!(feature_queue.queue.get("feature_3").unwrap().len(), 10);
+        assert_eq!(records.records.len(), 3);
 
-            let records = feature_queue.create_drift_records().unwrap();
+        feature_queue.clear_queue();
 
-            assert_eq!(records.records.len(), 3);
+        assert_eq!(feature_queue.queue.get("feature_1").unwrap().len(), 0);
 
-            feature_queue.clear_queue();
+        // serialize records
+        let json_records = records.model_dump_json();
+        assert!(!json_records.is_empty());
 
-            assert_eq!(feature_queue.queue.get("feature_1").unwrap().len(), 0);
+        // deserialize records
+        let records: ServerRecords = serde_json::from_str(&json_records).unwrap();
+        assert_eq!(records.records.len(), 3);
 
-            // serialize records
-            let json_records = records.model_dump_json();
-            assert!(!json_records.is_empty());
+        // convert to bytes and back
+        let bytes = json_records.as_bytes();
 
-            // deserialize records
-            let records: ServerRecords = serde_json::from_str(&json_records).unwrap();
-            assert_eq!(records.records.len(), 3);
-
-            // convert to bytes and back
-            let bytes = json_records.as_bytes();
-
-            let records = ServerRecords::load_from_bytes(bytes).unwrap();
-            assert_eq!(records.records.len(), 3);
-        });
+        let records = ServerRecords::load_from_bytes(bytes).unwrap();
+        assert_eq!(records.records.len(), 3);
     }
 }

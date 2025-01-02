@@ -1,3 +1,5 @@
+use pyo3::create_exception;
+use pyo3::exceptions::PyException;
 use pyo3::PyErr;
 use serde::Deserialize;
 use thiserror::Error;
@@ -58,6 +60,9 @@ pub enum ProfilerError {
 
 #[derive(Error, Debug)]
 pub enum FeatureQueueError {
+    #[error("{0}")]
+    InvalidFormatError(String),
+
     #[error("Failed to create drift record: {0}")]
     DriftRecordError(String),
 
@@ -73,8 +78,8 @@ pub enum FeatureQueueError {
     #[error("invalid data type detected for feature: {0}")]
     InvalidFeatureTypeError(String),
 
-    #[error("invalid value detected for feature: {0}, provided value = {1}")]
-    InvalidValueError(String, f64),
+    #[error("invalid value detected for feature: {0}, error: {1}")]
+    InvalidValueError(String, String),
 
     #[error("Failed to get bin given bin id")]
     GetBinError,
@@ -125,6 +130,9 @@ pub enum ScouterError {
 
     #[error("Shape mismatch: {0}")]
     ShapeMismatchError(String),
+
+    #[error("{0}")]
+    FeatureError(String),
 }
 
 // impl From for PyErr
@@ -188,3 +196,5 @@ impl From<CustomMetricError> for PyErr {
         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
     }
 }
+
+create_exception!(scouter, PyScouterError, PyException);

@@ -4,6 +4,8 @@ import pandas as pd
 from scouter import (
     Drifter,
     DriftType,
+    Feature,
+    Features,
     KafkaConfig,
     MonitorQueue,
     PsiDriftConfig,
@@ -31,7 +33,14 @@ def test_psi_monitor_pandas(
 
     def return_record(records) -> Optional[ServerRecords]:
         for record in records:
-            drift_map = queue.insert(record)
+            features = Features(
+                features=[
+                    Feature.float("column_0", record["column_0"]),
+                    Feature.float("column_1", record["column_1"]),
+                    Feature.float("column_2", record["column_2"]),
+                ]
+            )
+            drift_map = queue.insert(features)
 
             if drift_map:
                 return drift_map
@@ -63,7 +72,14 @@ def test_spc_monitor_pandas(
 
     def return_record(records) -> Optional[ServerRecords]:
         for record in records:
-            drift_map = queue.insert(record)
+            features = Features(
+                features=[
+                    Feature.float("column_0", record["column_0"]),
+                    Feature.float("column_1", record["column_1"]),
+                    Feature.float("column_2", record["column_2"]),
+                ]
+            )
+            drift_map = queue.insert(features)
 
             if drift_map:
                 return drift_map
@@ -96,10 +112,20 @@ def test_spc_monitor_polar_multitype(
 
     def return_record(records) -> Optional[ServerRecords]:
         for record in records:
-            drift_map = queue.insert(record)
+            features = Features(
+                features=[
+                    Feature.string("cat1", record["cat1"]),
+                    Feature.float("num1", record["num1"]),
+                    Feature.float("num2", record["num2"]),
+                    Feature.float("num3", record["num3"]),
+                    Feature.string("cat2", record["cat2"]),
+                ]
+            )
+            drift_map = queue.insert(features)
 
             if drift_map:
                 return drift_map
+
         return None
 
     drift_records = return_record(records)
@@ -124,28 +150,28 @@ def test_spc_queue_fail(
         config=kafka_config,
     )
 
-    records = [
-        {
-            "cat1": "7.0",
-            "num1": 1.518124333674737,
-            "num2": 2.974753543708461,
-            "num3": 3.141546504798932,
-            "cat3": "2.0",  # this is missing
-        }
-    ]
+    def return_record() -> Optional[ServerRecords]:
+        features = Features(
+            features=[
+                Feature.string("cat1", "7.0"),
+                Feature.float("num1", 1.518124333674737),
+                Feature.float("num2", 2.974753543708461),
+                Feature.float("num3", 3.141546504798932),
+                Feature.string("cat3", "2.0"),  # this is missing
+            ]
+        )
+        drift_map = queue.insert(features)
 
-    def return_record(records):
-        for record in records:
-            drift_map = queue.insert(record)
+        if drift_map:
+            return drift_map
 
-            if drift_map:
-                return drift_map
+        return None
 
-    records = return_record(records)
+    records = return_record()
     assert records is None
 
-    records = polars_dataframe_multi_dtype[0:30].to_dicts()
-    records[0]["num1"] = Drifter  # this should fail
+    records = polars_dataframe_multi_dtype[0:30].to_dicts()  # type: ignore
+    records[0]["num1"] = Drifter  # type: ignore
 
-    records = return_record(records)
+    records = return_record()
     assert records is None

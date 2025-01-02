@@ -87,7 +87,7 @@ impl SpcServerRecord {
     }
 }
 
-#[pyclass]
+#[pyclass(eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, std::cmp::Eq, Hash)]
 pub enum AlertZone {
     Zone1,
@@ -122,6 +122,7 @@ pub struct SpcAlertRule {
 #[pymethods]
 impl SpcAlertRule {
     #[new]
+    #[pyo3(signature = (rule=None, zones_to_monitor=None))]
     pub fn new(rule: Option<String>, zones_to_monitor: Option<Vec<AlertZone>>) -> Self {
         let rule = match rule {
             Some(r) => r,
@@ -181,6 +182,7 @@ impl ValidateAlertConfig for SpcAlertConfig {}
 #[pymethods]
 impl SpcAlertConfig {
     #[new]
+    #[pyo3(signature = (rule=None, dispatch_type=None, schedule=None, features_to_monitor=None, dispatch_kwargs=None))]
     pub fn new(
         rule: Option<SpcAlertRule>,
         dispatch_type: Option<AlertDispatchType>,
@@ -226,7 +228,7 @@ impl Default for SpcAlertConfig {
     }
 }
 
-#[pyclass]
+#[pyclass(eq)]
 #[derive(Debug, Eq, Hash, PartialEq, Serialize, Deserialize, Clone, Copy)]
 pub enum SpcAlertType {
     OutOfBounds,
@@ -360,6 +362,7 @@ pub struct SpcDriftConfig {
 #[allow(clippy::too_many_arguments)]
 impl SpcDriftConfig {
     #[new]
+    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, feature_map=None, targets=None, alert_config=None, config_path=None))]
     pub fn new(
         repository: Option<String>,
         name: Option<String>,
@@ -439,6 +442,7 @@ impl SpcDriftConfig {
     // * `alert_config` - The alerting configuration to use
     //
     #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, feature_map=None, targets=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         repository: Option<String>,
@@ -525,6 +529,7 @@ pub struct SpcDriftProfile {
 #[pymethods]
 impl SpcDriftProfile {
     #[new]
+    #[pyo3(signature = (features, config, scouter_version=None))]
     pub fn new(
         features: HashMap<String, SpcFeatureDriftProfile>,
         config: SpcDriftConfig,
@@ -554,18 +559,18 @@ impl SpcDriftProfile {
             serde_json::from_str(&json_str).map_err(|_| ScouterError::DeSerializeError)?;
 
         // Create a new Python dictionary
-        let dict = PyDict::new_bound(py);
+        let dict = PyDict::new(py);
 
         // Convert JSON to Python dict
-        json_to_pyobject(py, &json_value, dict.as_gil_ref())?;
+        json_to_pyobject(py, &json_value, &dict)?;
 
         // Return the Python dictionary
         Ok(dict.into())
     }
 
     #[staticmethod]
-    pub fn model_validate(py: Python, data: &Bound<'_, PyDict>) -> SpcDriftProfile {
-        let json_value = pyobject_to_json(py, data.as_gil_ref()).unwrap();
+    pub fn model_validate(data: &Bound<'_, PyDict>) -> SpcDriftProfile {
+        let json_value = pyobject_to_json(data).unwrap();
 
         let string = serde_json::to_string(&json_value).unwrap();
         serde_json::from_str(&string).expect("Failed to load drift profile")
@@ -578,6 +583,7 @@ impl SpcDriftProfile {
     }
 
     // Convert python dict into a drift profile
+    #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
         ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
     }
@@ -596,6 +602,7 @@ impl SpcDriftProfile {
     // * `alert_config` - The alerting configuration to use
     //
     #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, feature_map=None, targets=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         repository: Option<String>,
@@ -720,6 +727,7 @@ impl SpcDriftMap {
             .unwrap()
     }
 
+    #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
         ProfileFuncs::save_to_json(self, path, FileName::SpcDrift.to_str())
     }
@@ -736,8 +744,8 @@ impl SpcDriftMap {
         let (drift_array, sample_array, features) = self.to_array().unwrap();
 
         Ok((
-            drift_array.into_pyarray_bound(py).to_owned(),
-            sample_array.into_pyarray_bound(py).to_owned(),
+            drift_array.into_pyarray(py).to_owned(),
+            sample_array.into_pyarray(py).to_owned(),
             features,
         ))
     }

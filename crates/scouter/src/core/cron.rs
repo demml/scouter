@@ -269,7 +269,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_every_30_minutes() {
+    fn test_every_30_minutes_cron() {
         let cron = Every30Minutes::new();
         // check cron
         assert_eq!(cron.cron, "0 0,30 * * * * *");
@@ -279,7 +279,7 @@ mod tests {
     }
 
     #[test]
-    fn test_every_hour() {
+    fn test_every_hour_cron() {
         let cron = EveryHour::new();
         // check cron
         assert_eq!(cron.cron, "0 0 * * * *");
@@ -287,7 +287,7 @@ mod tests {
     }
 
     #[test]
-    fn test_every_6_hours() {
+    fn test_every_6_hours_cron() {
         let cron = Every6Hours::new();
         // check cron
         assert_eq!(cron.cron, "0 0 */6 * * *");
@@ -295,7 +295,7 @@ mod tests {
     }
 
     #[test]
-    fn test_every_12_hours() {
+    fn test_every_12_hours_cron() {
         let cron = Every12Hours::new();
         // check cron
         assert_eq!(cron.cron, "0 0 */12 * * *");
@@ -303,7 +303,7 @@ mod tests {
     }
 
     #[test]
-    fn test_every_day() {
+    fn test_every_day_cron() {
         let cron = EveryDay::new();
         // check cron
         assert_eq!(cron.cron, "0 0 0 * * *");
@@ -311,7 +311,7 @@ mod tests {
     }
 
     #[test]
-    fn test_every_week() {
+    fn test_every_week_cron() {
         let cron = EveryWeek::new();
         // check cron
         assert_eq!(cron.cron, "0 0 0 * * SUN");
@@ -319,7 +319,7 @@ mod tests {
     }
 
     #[test]
-    fn test_common_cron() {
+    fn test_common_cron_cron() {
         let cron = CommonCron::new();
         // check cron
         assert_eq!(cron.EVERY_30_MINUTES, "0 0,30 * * * * *");
@@ -331,7 +331,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cron_schedule() {
+    fn test_cron_schedule_cron() {
         let cron = Every1Minute::new();
         let schedule = Schedule::from_str(&cron.cron).unwrap();
         let next = schedule.upcoming(Utc).next().unwrap();

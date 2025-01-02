@@ -1,10 +1,10 @@
-use crate::core::drift::base::{RecordType, ServerRecord, ServerRecords};
+use crate::core::drift::base::{Features, RecordType, ServerRecord, ServerRecords};
+
 use crate::core::drift::psi::monitor::PsiMonitor;
 use crate::core::drift::psi::types::{Bin, PsiDriftProfile, PsiServerRecord};
 use crate::core::error::FeatureQueueError;
 use core::result::Result::Ok;
 use pyo3::prelude::*;
-use pyo3::types::PyAny;
 use std::collections::HashMap;
 
 #[pyclass]
@@ -43,54 +43,32 @@ impl PsiFeatureQueue {
             .expect("-inf and +inf occupy the first and last threshold so a bin should always be returned.")
     }
 
-    fn convert_numeric_value_to_f64(
-        py: Python,
-        feature: &String,
-        value: &Py<PyAny>,
-    ) -> Result<f64, FeatureQueueError> {
-        let val = if let Ok(val) = value.bind(py).extract::<f64>() {
-            val
-        } else if let Ok(val) = value.bind(py).extract::<i64>() {
-            val as f64
-        } else {
-            return Err(FeatureQueueError::InvalidFeatureTypeError(format!(
-                "invalid data type detected for feature: {}",
-                feature
-            )));
-        };
-        Ok(val)
-    }
-
     fn process_numeric_queue(
-        py: Python,
-        feature: &String,
         queue: &mut HashMap<String, usize>,
-        value: &Py<PyAny>,
+        value: f64,
         bins: &[Bin],
     ) -> Result<(), FeatureQueueError> {
-        let f64_value = Self::convert_numeric_value_to_f64(py, feature, value)?;
-        let bin_id = Self::find_numeric_bin_given_scaler(f64_value, bins);
+        let bin_id = Self::find_numeric_bin_given_scaler(value, bins);
         let count = queue
             .get_mut(bin_id)
             .ok_or(FeatureQueueError::GetBinError)?;
         *count += 1;
+
         Ok(())
     }
 
     fn process_binary_queue(
-        py: Python,
-        feature: &String,
+        feature: &str,
         queue: &mut HashMap<String, usize>,
-        value: &Py<PyAny>,
+        value: f64,
     ) -> Result<(), FeatureQueueError> {
-        let f64_value = Self::convert_numeric_value_to_f64(py, feature, value)?;
-        if f64_value == 0.0 {
+        if value == 0.0 {
             let bin_id = "0".to_string();
             let count = queue
                 .get_mut(&bin_id)
                 .ok_or(FeatureQueueError::GetBinError)?;
             *count += 1;
-        } else if f64_value == 1.0 {
+        } else if value == 1.0 {
             let bin_id = "1".to_string();
             let count = queue
                 .get_mut(&bin_id)
@@ -99,26 +77,18 @@ impl PsiFeatureQueue {
         } else {
             return Err(FeatureQueueError::InvalidValueError(
                 feature.to_string(),
-                f64_value,
+                "failed to convert binary value".to_string(),
             ));
         }
         Ok(())
     }
 
     fn process_categorical_queue(
-        py: Python,
-        feature: &String,
         queue: &mut HashMap<String, usize>,
-        value: &Py<PyAny>,
+        value: &str,
     ) -> Result<(), FeatureQueueError> {
-        if let Ok(val) = value.bind(py).extract::<String>() {
-            let count = queue.get_mut(&val).ok_or(FeatureQueueError::GetBinError)?;
-            *count += 1;
-        } else {
-            return Err(FeatureQueueError::InvalidFeatureTypeError(
-                feature.to_string(),
-            ));
-        }
+        let count = queue.get_mut(value).ok_or(FeatureQueueError::GetBinError)?;
+        *count += 1;
         Ok(())
     }
 }
@@ -147,22 +117,46 @@ impl PsiFeatureQueue {
         }
     }
 
-    pub fn insert(
-        &mut self,
-        py: Python,
-        feature_values: HashMap<String, Py<PyAny>>,
-    ) -> Result<(), FeatureQueueError> {
-        for (feature, value) in &feature_values {
-            if let Some(feature_drift_profile) = self.drift_profile.features.get(feature) {
+    pub fn insert(&mut self, features: Features) -> Result<(), FeatureQueueError> {
+        for feature in features.iter() {
+            if let Some(feature_drift_profile) = self.drift_profile.features.get(feature.name()) {
+                let name = feature.name();
                 let bins = &feature_drift_profile.bins;
-                if let Some(queue) = self.queue.get_mut(feature) {
-                    if Self::feature_is_numeric(bins) {
-                        Self::process_numeric_queue(py, feature, queue, value, bins)?;
-                    } else if Self::feature_is_binary(bins) {
-                        Self::process_binary_queue(py, feature, queue, value)?;
-                    } else if Self::feature_is_categorical(bins) {
-                        Self::process_categorical_queue(py, feature, queue, value)?;
+
+                let queue = self
+                    .queue
+                    .get_mut(name)
+                    .ok_or(FeatureQueueError::GetFeatureError)?;
+
+                if Self::feature_is_numeric(bins) {
+                    let value = feature.to_float(None, &None).map_err(|e| {
+                        FeatureQueueError::InvalidValueError(
+                            feature.name().to_string(),
+                            e.to_string(),
+                        )
+                    })?;
+
+                    // check if some, if not return error
+                    if let Some(value) = value {
+                        Self::process_numeric_queue(queue, value, bins)?;
                     }
+                } else if Self::feature_is_binary(bins) {
+                    let value = feature.to_float(None, &None).map_err(|e| {
+                        FeatureQueueError::InvalidValueError(
+                            feature.name().to_string(),
+                            e.to_string(),
+                        )
+                    })?;
+
+                    if let Some(value) = value {
+                        Self::process_binary_queue(feature.name(), queue, value)?
+                    };
+                } else if Self::feature_is_categorical(bins) {
+                    let value = feature.to_string();
+
+                    Self::process_categorical_queue(queue, &value)?;
+                } else {
+                    return Err(FeatureQueueError::InvalidFeatureTypeError(name.to_string()));
                 }
             }
         }
@@ -211,6 +205,7 @@ mod tests {
 
     use super::*;
     use crate::core::drift::psi::types::PsiDriftConfig;
+    use crate::core::drift::base::Feature;
     use crate::core::utils::CategoricalFeatureHelpers;
     use ndarray::{Array, Axis};
     use ndarray_rand::rand_distr::Uniform;
@@ -219,7 +214,6 @@ mod tests {
 
     #[test]
     fn test_feature_queue_insert_numeric() {
-        pyo3::prepare_freethreaded_python();
         let min = 1.0;
         let max = 87.0;
         let mut array = Array::random((1030, 3), Uniform::new(min, max));
@@ -255,17 +249,19 @@ mod tests {
         let mut feature_queue = PsiFeatureQueue::new(profile);
 
         assert_eq!(feature_queue.queue.len(), 3);
-        let mut feature_values: HashMap<String, Py<PyAny>> = HashMap::new();
 
-        Python::with_gil(|py| {
-            for _ in 0..9 {
-                feature_values.insert("feature_1".to_string(), min.into_py(py));
-                feature_values.insert("feature_2".to_string(), min.into_py(py));
-                feature_values.insert("feature_3".to_string(), max.into_py(py));
+        for _ in 0..9 {
+            let one = Feature::float("feature_1".to_string(), min);
+            let two = Feature::float("feature_2".to_string(), min);
+            let three = Feature::float("feature_3".to_string(), max);
 
-                feature_queue.insert(py, feature_values.clone()).unwrap();
-            }
-        });
+            let features = Features{
+                features: vec![one, two, three],
+            };
+
+
+            feature_queue.insert(features).unwrap();
+        }
 
         assert_eq!(
             *feature_queue
@@ -298,7 +294,6 @@ mod tests {
 
     #[test]
     fn test_feature_queue_insert_binary() {
-        pyo3::prepare_freethreaded_python();
         let binary_column =
             Array::random((100, 1), Bernoulli::new(0.5).unwrap())
                 .mapv(|x| if x { 1.0 } else { 0.0 });
@@ -326,15 +321,18 @@ mod tests {
         let mut feature_queue = PsiFeatureQueue::new(profile);
 
         assert_eq!(feature_queue.queue.len(), 2);
-        let mut feature_values: HashMap<String, Py<PyAny>> = HashMap::new();
 
-        Python::with_gil(|py| {
-            for _ in 0..9 {
-                feature_values.insert("feature_1".to_string(), 0.0.into_py(py));
-                feature_values.insert("feature_2".to_string(), 1.0.into_py(py));
-                feature_queue.insert(py, feature_values.clone()).unwrap();
-            }
-        });
+        for _ in 0..9 {
+            let one = Feature::float("feature_1".to_string(), 0.0);
+            let two = Feature::float("feature_2".to_string(), 1.0);
+
+            let features = Features{
+                features: vec![one, two],
+            };
+
+
+            feature_queue.insert(features).unwrap();
+        }
 
         assert_eq!(
             *feature_queue
@@ -358,7 +356,6 @@ mod tests {
 
     #[test]
     fn test_feature_queue_insert_categorical() {
-        pyo3::prepare_freethreaded_python();
         let psi_monitor = PsiMonitor::default();
         let string_vec = vec![
             vec![
@@ -409,15 +406,18 @@ mod tests {
         let mut feature_queue = PsiFeatureQueue::new(profile);
 
         assert_eq!(feature_queue.queue.len(), 2);
-        let mut feature_values: HashMap<String, Py<PyAny>> = HashMap::new();
 
-        Python::with_gil(|py| {
-            for _ in 0..9 {
-                feature_values.insert("feature_1".to_string(), "c".to_string().into_py(py));
-                feature_values.insert("feature_2".to_string(), "a".to_string().into_py(py));
-                feature_queue.insert(py, feature_values.clone()).unwrap();
-            }
-        });
+        for _ in 0..9 {
+            let one = Feature::string("feature_1".to_string(), "c".to_string());
+            let two = Feature::string("feature_2".to_string(), "a".to_string());
+
+            let features = Features{
+                features: vec![one, two],
+            };
+
+
+            feature_queue.insert(features).unwrap();
+        }
 
         assert_eq!(
             *feature_queue
@@ -441,7 +441,6 @@ mod tests {
 
     #[test]
     fn test_feature_queue_is_empty() {
-        pyo3::prepare_freethreaded_python();
         let psi_monitor = PsiMonitor::default();
         let string_vec = vec![
             vec![
@@ -492,18 +491,21 @@ mod tests {
         let mut feature_queue = PsiFeatureQueue::new(profile);
 
         assert_eq!(feature_queue.queue.len(), 2);
-        let mut feature_values: HashMap<String, Py<PyAny>> = HashMap::new();
 
         let is_empty = feature_queue.is_empty();
         assert_eq!(is_empty as u8, 1);
 
-        Python::with_gil(|py| {
-            for _ in 0..9 {
-                feature_values.insert("feature_1".to_string(), "c".to_string().into_py(py));
-                feature_values.insert("feature_2".to_string(), "a".to_string().into_py(py));
-                feature_queue.insert(py, feature_values.clone()).unwrap();
-            }
-        });
+        for _ in 0..9 {
+            let one = Feature::string("feature_1".to_string(), "c".to_string());
+            let two = Feature::string("feature_2".to_string(), "a".to_string());
+
+            let features = Features{
+                features: vec![one, two],
+            };
+
+
+            feature_queue.insert(features).unwrap();
+        }
 
         let is_empty = feature_queue.queue.is_empty();
         assert_eq!(is_empty as u8, 0);
@@ -511,7 +513,6 @@ mod tests {
 
     #[test]
     fn test_feature_queue_create_drift_records() {
-        pyo3::prepare_freethreaded_python();
         let array = Array::random((1030, 3), Uniform::new(1.0, 100.0));
         let features = vec![
             "feature_1".to_string(),
@@ -538,17 +539,19 @@ mod tests {
         let mut feature_queue = PsiFeatureQueue::new(profile);
 
         assert_eq!(feature_queue.queue.len(), 3);
-        let mut feature_values: HashMap<String, Py<PyAny>> = HashMap::new();
 
-        Python::with_gil(|py| {
-            for _ in 0..9 {
-                feature_values.insert("feature_1".to_string(), 1.0.into_py(py));
-                feature_values.insert("feature_2".to_string(), 10.0.into_py(py));
-                feature_values.insert("feature_3".to_string(), 10000.0.into_py(py));
+        for _ in 0..9 {
+            let one = Feature::float("feature_1".to_string(), 1.0);
+            let two = Feature::float("feature_2".to_string(), 10.0);
+            let three = Feature::float("feature_3".to_string(), 10000.0);
 
-                feature_queue.insert(py, feature_values.clone()).unwrap();
-            }
-        });
+            let features = Features{
+                features: vec![one, two, three],
+            };
+
+
+            feature_queue.insert(features).unwrap();
+        }
 
         let drift_records = feature_queue.create_drift_records().unwrap();
 

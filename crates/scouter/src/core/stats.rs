@@ -60,7 +60,7 @@ mod tests {
     }
 
     #[test]
-    fn test_correlation_2d() {
+    fn test_correlation_2d_stats() {
         // generate first set
         let (x1, y1) = generate_correlated_arrays(20000, 0.75);
 

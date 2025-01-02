@@ -21,7 +21,7 @@ from scouter import (
     PsiDriftConfig,
     SpcDriftProfile,
 )
-from scouter._scouter import SpcDriftConfig
+from scouter._scouter import Feature, Features, SpcDriftConfig
 from scouter.integrations.fastapi import FastAPIScouterObserver, ScouterRouter
 from scouter.observability.observer import ScouterObserver
 
@@ -62,6 +62,15 @@ class PredictRequest(BaseModel):
     feature_0: float
     feature_1: float
     feature_2: float
+
+    def to_features(self) -> Features:
+        return Features(
+            features=[
+                Feature.float("feature_0", self.feature_0),
+                Feature.float("feature_1", self.feature_1),
+                Feature.float("feature_2", self.feature_2),
+            ]
+        )
 
 
 def cleanup() -> None:
@@ -145,6 +154,23 @@ def pandas_dataframe(array: NDArray) -> YieldFixture:
 
     # change column names
     df.rename(columns={0: "column_0", 1: "column_1", 2: "column_2"}, inplace=True)
+
+    yield df
+
+    cleanup()
+
+
+@pytest.fixture(scope="function")
+def pandas_dataframe_multi_type(array: NDArray) -> YieldFixture:
+    import pandas as pd
+
+    df = pd.DataFrame(array)
+
+    # change column names
+    df.rename(columns={0: "column_0", 1: "column_1", 2: "column_2"}, inplace=True)
+
+    # change column_0 to be int
+    df["column_0"] = df["column_0"].astype(int)
 
     yield df
 
@@ -297,7 +323,7 @@ def client(mock_kafka_producer, drift_profile: SpcDriftProfile) -> TestClient:
     # create a test route
     @router.get("/test", response_model=TestResponse)
     async def test_route(request: Request) -> TestResponse:
-        request.state.scouter_data = {"test": "data"}
+        request.state.scouter_data = [Feature.string("test", "test")]
         return TestResponse(message="success")
 
     app.include_router(router)
@@ -333,7 +359,7 @@ def client_insert(
 
     @scouter_router.post("/predict", response_model=TestResponse)
     async def predict(request: Request, payload: PredictRequest) -> TestResponse:
-        request.state.scouter_data = payload.model_dump()
+        request.state.scouter_data = payload.to_features()
 
         return TestResponse(message="success")
 

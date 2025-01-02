@@ -14,7 +14,7 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::debug;
 
-#[pyclass]
+#[pyclass(eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AlertThreshold {
     Below,
@@ -57,6 +57,7 @@ pub struct CustomMetricAlertCondition {
 #[allow(clippy::too_many_arguments)]
 impl CustomMetricAlertCondition {
     #[new]
+    #[pyo3(signature = (alert_threshold, alert_threshold_value=None))]
     pub fn new(
         alert_threshold: AlertThreshold,
         alert_threshold_value: Option<f64>,
@@ -104,6 +105,7 @@ impl ValidateAlertConfig for CustomMetricAlertConfig {}
 #[pymethods]
 impl CustomMetricAlertConfig {
     #[new]
+    #[pyo3(signature = (dispatch_type=None, schedule=None, dispatch_kwargs=None))]
     pub fn new(
         dispatch_type: Option<AlertDispatchType>,
         schedule: Option<String>,
@@ -176,6 +178,7 @@ impl DispatchDriftConfig for CustomMetricDriftConfig {
 #[allow(clippy::too_many_arguments)]
 impl CustomMetricDriftConfig {
     #[new]
+    #[pyo3(signature = (repository=None, name=None, version=None, alert_config=None, config_path=None))]
     pub fn new(
         repository: Option<String>,
         name: Option<String>,
@@ -230,6 +233,7 @@ impl CustomMetricDriftConfig {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (repository=None, name=None, version=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         repository: Option<String>,
@@ -275,6 +279,7 @@ pub struct CustomMetric {
 #[pymethods]
 impl CustomMetric {
     #[new]
+    #[pyo3(signature = (name, value, alert_threshold, alert_threshold_value=None))]
     pub fn new(
         name: String,
         value: f64,
@@ -327,6 +332,7 @@ pub struct CustomDriftProfile {
 #[pymethods]
 impl CustomDriftProfile {
     #[new]
+    #[pyo3(signature = (config, metrics, scouter_version=None))]
     pub fn new(
         mut config: CustomMetricDriftConfig,
         metrics: Vec<CustomMetric>,
@@ -367,23 +373,24 @@ impl CustomDriftProfile {
             serde_json::from_str(&json_str).map_err(|_| ScouterError::DeSerializeError)?;
 
         // Create a new Python dictionary
-        let dict = PyDict::new_bound(py);
+        let dict = PyDict::new(py);
 
         // Convert JSON to Python dict
-        json_to_pyobject(py, &json_value, dict.as_gil_ref())?;
+        json_to_pyobject(py, &json_value, &dict)?;
 
         // Return the Python dictionary
         Ok(dict.into())
     }
 
     // Convert python dict into a drift profile
+    #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
         ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
     }
 
     #[staticmethod]
-    pub fn model_validate(py: Python, data: &Bound<'_, PyDict>) -> CustomDriftProfile {
-        let json_value = pyobject_to_json(py, data.as_gil_ref()).unwrap();
+    pub fn model_validate(data: &Bound<'_, PyDict>) -> CustomDriftProfile {
+        let json_value = pyobject_to_json(data).unwrap();
 
         let string = serde_json::to_string(&json_value).unwrap();
         serde_json::from_str(&string).expect("Failed to load drift profile")
@@ -396,6 +403,7 @@ impl CustomDriftProfile {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (repository=None, name=None, version=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         repository: Option<String>,

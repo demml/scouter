@@ -125,6 +125,7 @@ impl ValidateAlertConfig for PsiAlertConfig {}
 #[pymethods]
 impl PsiAlertConfig {
     #[new]
+    #[pyo3(signature = (dispatch_type=None, schedule=None, features_to_monitor=None, dispatch_kwargs=None, psi_threshold=None))]
     pub fn new(
         dispatch_type: Option<AlertDispatchType>,
         schedule: Option<String>,
@@ -188,6 +189,7 @@ pub struct PsiDriftConfig {
 impl PsiDriftConfig {
     // TODO dry this out
     #[new]
+    #[pyo3(signature = (repository=None, name=None, version=None, feature_map=None, targets=None, alert_config=None, config_path=None))]
     pub fn new(
         repository: Option<String>,
         name: Option<String>,
@@ -249,6 +251,7 @@ impl PsiDriftConfig {
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (repository=None, name=None, version=None, targets=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         repository: Option<String>,
@@ -340,6 +343,7 @@ pub struct PsiDriftProfile {
 #[pymethods]
 impl PsiDriftProfile {
     #[new]
+    #[pyo3(signature = (features, config, scouter_version=None))]
     pub fn new(
         features: HashMap<String, PsiFeatureDriftProfile>,
         config: PsiDriftConfig,
@@ -370,18 +374,18 @@ impl PsiDriftProfile {
             serde_json::from_str(&json_str).map_err(|_| ScouterError::DeSerializeError)?;
 
         // Create a new Python dictionary
-        let dict = PyDict::new_bound(py);
+        let dict = PyDict::new(py);
 
         // Convert JSON to Python dict
-        json_to_pyobject(py, &json_value, dict.as_gil_ref())?;
+        json_to_pyobject(py, &json_value, &dict)?;
 
         // Return the Python dictionary
         Ok(dict.into())
     }
 
     #[staticmethod]
-    pub fn model_validate(py: Python, data: &Bound<'_, PyDict>) -> PsiDriftProfile {
-        let json_value = pyobject_to_json(py, data.as_gil_ref()).unwrap();
+    pub fn model_validate(data: &Bound<'_, PyDict>) -> PsiDriftProfile {
+        let json_value = pyobject_to_json(data).unwrap();
 
         let string = serde_json::to_string(&json_value).unwrap();
         serde_json::from_str(&string).expect("Failed to load drift profile")
@@ -394,11 +398,13 @@ impl PsiDriftProfile {
     }
 
     // Convert python dict into a drift profile
+    #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
         ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
     }
 
     #[allow(clippy::too_many_arguments)]
+    #[pyo3(signature = (repository=None, name=None, version=None, targets=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         repository: Option<String>,
@@ -459,6 +465,7 @@ impl PsiDriftMap {
             .unwrap()
     }
 
+    #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
         ProfileFuncs::save_to_json(self, path, FileName::PsiDrift.to_str())
     }
