@@ -20,10 +20,6 @@ pub struct FeatureResult {
     pub values: Vec<f64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct QueryResult {
-    pub features: BTreeMap<String, FeatureResult>,
-}
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpcFeatureResult {
@@ -40,6 +36,13 @@ impl<'r> FromRow<'r, PgRow> for SpcFeatureResult {
             values: row.try_get("values")?,
         })
     }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct FeatureBinProportions {
+    pub feature: String,
+    pub bin_id: String,
+    pub proportion: f64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

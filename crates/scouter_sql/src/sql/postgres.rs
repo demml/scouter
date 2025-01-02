@@ -1,11 +1,11 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::{
-    AlertResult, FeatureResult, ObservabilityResult, QueryResult, SpcFeatureResult, TaskRequest,
+    AlertResult, FeatureBinProportions,  ObservabilityResult, 
+    SpcFeatureResult, TaskRequest,
 };
 
 use chrono::{NaiveDateTime, Utc};
 use cron::Schedule;
-use futures::future::join_all;
 use scouter_contracts::{
     DriftAlertRequest, DriftRequest, ObservabilityMetricRequest, ProfileStatusRequest, ServiceInfo,
 };
@@ -472,61 +472,14 @@ impl PostgresClient {
         service_info: &ServiceInfo,
         limit_datetime: &NaiveDateTime,
     ) -> Result<Vec<SpcFeatureResult>, SqlError> {
-        let feature_set = features
-            .iter()
-            .map(|val| format!("'{}'", val))
-            .collect::<Vec<String>>()
-            .join(", ");
+        let query = Queries::GetSpcFeatureValues.get_query();
 
-        let query = format!(
-            "
-            WITH subquery AS (
-                    SELECT
-                    created_at,
-                    feature,
-                    value
-                FROM drift
-                where
-                    1=1
-                    AND created_at > $1::timestamp
-                    AND name = $2
-                    AND repository =$3
-                    AND version = $4
-                    AND feature in ({})
-            ),
-            aggregated AS (
-                SELECT
-                    feature,
-                    array_agg(created_at ORDER BY created_at DESC) as created_at,
-                    array_agg(value ORDER BY created_at DESC) as values
-                FROM subquery
-                GROUP BY 
-                    feature
-            ),
-            min_length AS (
-                SELECT
-                    MIN(array_length(created_at, 1)) as min_len
-                FROM aggregated
-            )
-
-            SELECT
-                feature,
-                (created_at)[:(SELECT min_len FROM min_length)] as created_at,
-                (values)[:(SELECT min_len FROM min_length)] as values
-            FROM aggregated
-            GROUP BY 
-                feature,
-                created_at,
-                values;
-        ",
-            feature_set
-        );
-
-        let feature_values: Result<Vec<SpcFeatureResult>, SqlError> = sqlx::query_as(&query)
+        let feature_values: Result<Vec<SpcFeatureResult>, SqlError> = sqlx::query_as(&query.sql)
             .bind(limit_datetime.to_string())
             .bind(&service_info.name)
             .bind(&service_info.repository)
             .bind(&service_info.version)
+            .bind(&features)
             .fetch_all(&self.pool)
             .await
             .map_err(|e| {
@@ -572,66 +525,15 @@ impl PostgresClient {
         repository: &str,
         name: &str,
     ) -> Result<Vec<SpcFeatureResult>, SqlError> {
-        let feature_set = features
-            .iter()
-            .map(|val| format!("'{}'", val))
-            .collect::<Vec<String>>()
-            .join(", ");
+       let query = Queries::GetBinnedSpcFeatureValues.get_query();
 
-        let query = format!(
-            "
-            WITH subquery1 AS (
-                SELECT
-                    date_bin('$1 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
-                    name,
-                    repository,
-                    feature,
-                    version,
-                    value
-                FROM drift
-                WHERE 
-                    1=1
-                    AND created_at > timezone('utc', now()) - interval '$2 minute'
-                    AND name = $3
-                    AND repository = $4
-                    AND version = $5
-                    AND feature in ({})
-            ),
-
-            subquery2 AS (
-                SELECT
-                    created_at,
-                    name,
-                    repository,
-                    feature,
-                    version,
-                    avg(value) as value
-                FROM subquery1
-                GROUP BY 
-                    created_at,
-                    name,
-                    repository,
-                    feature,
-                    version
-            )
-
-            SELECT
-                feature,
-                array_agg(created_at ORDER BY created_at DESC) as created_at,
-                array_agg(value ORDER BY created_at DESC) as values
-            FROM subquery2
-            GROUP BY 
-                feature;
-        ",
-            feature_set
-        );
-
-        let binned: Result<Vec<SpcFeatureResult>, sqlx::Error> = sqlx::query_as(&query)
+        let binned: Result<Vec<SpcFeatureResult>, sqlx::Error> = sqlx::query_as(&query.sql)
             .bind(bin)
             .bind(time_window.to_minutes())
             .bind(name)
             .bind(repository)
             .bind(version)
+            .bind(features)
             .fetch_all(&self.pool)
             .await;
 
@@ -745,32 +647,22 @@ impl PostgresClient {
         service_info: &ServiceInfo,
         limit_datetime: &str,
         features_to_monitor: &[String],
-    ) -> Result<HashMap<String, HashMap<String, f64>>, SqlError> {
+    ) -> Result<Vec<FeatureBinProportions>, SqlError> {
         let query = Queries::GetFeatureBinProportions.get_query();
 
-        let records = sqlx::query(&query.sql)
+        let binned: Result<Vec<FeatureBinProportions>, sqlx::Error> = sqlx::query_as(&query.sql)
             .bind(&service_info.name)
             .bind(&service_info.repository)
             .bind(&service_info.version)
             .bind(limit_datetime)
             .bind(features_to_monitor)
             .fetch_all(&self.pool)
-            .await
-            .map_err(|e| {
-                error!("Failed to get bin proportions from database: {:?}", e);
-                SqlError::GeneralError(format!(
-                    "Failed to get bin proportions from database: {:?}",
-                    e
-                ))
-            })?;
+            .await;
 
-        Ok(records.into_iter().fold(HashMap::new(), |mut acc, row| {
-            let feature = row.get("feature");
-            let bin_id = row.get("bin_id");
-            let proportion = row.get("proportion");
-            acc.entry(feature).or_default().insert(bin_id, proportion);
-            acc
-        }))
+        binned.map_err(|e| {
+            error!("Failed to run query: {:?}", e);
+            SqlError::QueryError(format!("Failed to run query: {:?}", e))
+        })
     }
 
     pub async fn get_custom_metric_values(
@@ -1089,6 +981,16 @@ mod tests {
         let deserialized = serde_json::from_value::<SpcDriftProfile>(profile.unwrap()).unwrap();
 
         assert_eq!(deserialized, spc_profile);
+
+        client
+            .update_drift_profile_status(&ProfileStatusRequest {
+                name: spc_profile.config.name.clone(),
+                repository: spc_profile.config.repository.clone(),
+                version: spc_profile.config.version.clone(),
+                active: false,
+            })
+            .await
+            .unwrap();
     }
 
     #[tokio::test]

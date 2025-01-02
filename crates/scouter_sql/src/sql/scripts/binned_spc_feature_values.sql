@@ -8,14 +8,15 @@ WITH subquery1 AS (
         value
     FROM drift
     WHERE 
-        created_at > timezone('utc', now()) - interval '$2 minute'
+        1=1
+        AND created_at > timezone('utc', now()) - interval '$2 minute'
         AND name = $3
         AND repository = $4
         AND version = $5
-        AND feature = $6
-),
+        AND feature = ANY($6)
+    ),
 
-subquery2 AS (
+    subquery2 AS (
     SELECT
         created_at,
         name,
@@ -33,9 +34,9 @@ subquery2 AS (
 )
 
 SELECT
-    feature,
-    array_agg(created_at ORDER BY created_at DESC) as created_at,
-    array_agg(value ORDER BY created_at DESC) as values
+feature,
+array_agg(created_at ORDER BY created_at DESC) as created_at,
+array_agg(value ORDER BY created_at DESC) as values
 FROM subquery2
 GROUP BY 
-    feature;
+feature;
