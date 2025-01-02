@@ -799,7 +799,7 @@ impl MessageHandler {
 mod tests {
 
     use scouter_types::spc::SpcDriftProfile;
-
+    use rand::Rng;
     use super::*;
 
     pub async fn cleanup(pool: &Pool<Postgres>) {
@@ -1060,23 +1060,26 @@ mod tests {
         let client = PostgresClient::new(None).await.unwrap();
         cleanup(&client.pool).await;
         let timestamp = chrono::Utc::now().naive_utc();
-        for _ in 0..10 {
-            for j in 0..10 {
-            let record = PsiServerRecord {
-                created_at: chrono::Utc::now().naive_utc(),
-                name: "test".to_string(),
-                repository: "test".to_string(),
-                version: "test".to_string(),
-                feature: "test".to_string(),
-                bin_id: format!("decile_{}", j),
-                bin_count: j,
-                record_type: RecordType::Psi,
-            };
+        for _ in 0..1000 {
 
-            let result = client.insert_bin_counts(&record).await.unwrap();
+            for j in 0..2 {
+                let num = rand::thread_rng().gen_range(0..10);
+                let record = PsiServerRecord {
+                    created_at: chrono::Utc::now().naive_utc(),
+                    name: "test".to_string(),
+                    repository: "test".to_string(),
+                    version: "test".to_string(),
+                    feature: "test".to_string(),
+                    bin_id: format!("decile_{}", j),
+                    bin_count: num,
+                    record_type: RecordType::Psi,
+                };
 
-            assert_eq!(result.rows_affected(), 1);
-        }}
+                let result = client.insert_bin_counts(&record).await.unwrap();
+
+                assert_eq!(result.rows_affected(), 1);
+            }
+        }
 
         let binned_records = client
             .get_feature_bin_proportions(&ServiceInfo {
@@ -1085,7 +1088,9 @@ mod tests {
                 version: "test".to_string(),
             }, &timestamp, &vec!["test".to_string()]).await.unwrap();
 
-        println!("{:?}", binned_records);
+        // assert binned_records.features["test"]["decile_1"] is around .5
+        let bin_proportion = binned_records.features.get("test").unwrap().get("decile_1").unwrap();
+        assert!(*bin_proportion > 0.4 && *bin_proportion < 0.6);
     }
 }
 

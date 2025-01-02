@@ -27,6 +27,7 @@ tracing = { workspace = true }
 tracing-subscriber = { workspace = true}
 
 [dev-dependencies]
+rand = { workspace = true }
 tokio = { workspace = true }
 sqlx-cli = { version = "0.*", default-features = false, features = ["native-tls", "postgres"] }
 tower = { version = "0.*", features = ["util"] }
