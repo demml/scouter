@@ -1,7 +1,7 @@
 pub mod api;
 pub mod consumer;
 
-use crate::api::config::ScouterServerConfig;
+use scouter_settings::ScouterServerConfig;
 use crate::api::middleware::metrics::metrics_app;
 use crate::api::setup::setup_logging;
 use crate::api::state::AppState;
@@ -34,11 +34,11 @@ async fn start_metrics_server() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-async fn setup_polling_workers(num_workers: usize) -> Result<(), anyhow::Error> {
+async fn setup_polling_workers(num_workers: usize, config: &ScouterServerConfig) -> Result<(), anyhow::Error> {
     for i in 0..num_workers {
         info!("Starting drift schedule poller: {}", i);
         tokio::spawn(async move {
-            let db_client = PostgresClient::new(None)
+            let db_client = PostgresClient::new(None, Some(&config.database_settings))
                 .await
                 .with_context(|| "Failed to create Postgres client")?;
             let mut drift_executor = DriftExecutor::new(db_client);
@@ -63,24 +63,24 @@ async fn create_app(schedule_workers: usize) -> Result<Router, anyhow::Error> {
 
     // db for app state and kafka
     // start server
-    let db_client = PostgresClient::new(None, &config.database_settings)
+    let db_client = PostgresClient::new(None, Some(&config.database_settings))
         .await
         .with_context(|| "Failed to create Postgres client")?;
 
     // setup background kafka task if kafka is enabled
     #[cfg(feature = "kafka")]
-    if std::env::var("KAFKA_BROKERS").is_ok() {
-        startup_kafka(&db_client.pool).await?;
+    if config.kafka_enabled() {
+        startup_kafka(&db_client.pool, &config).await?;
     }
 
     // setup background rabbitmq task if rabbitmq is enabled
     #[cfg(feature = "rabbitmq")]
-    if std::env::var("RABBITMQ_ADDR").is_ok() {
-        startup_rabbitmq(&db_client.pool).await?;
+    if config.rabbitmq_enabled() {
+        startup_rabbitmq(&db_client.pool, &config).await?;
     }
 
     // ##################### run drift polling background tasks #####################
-    setup_polling_workers(schedule_workers).await?;
+    setup_polling_workers(schedule_workers, &config).await?;
 
     let router = create_router(Arc::new(AppState { db: db_client }))
         .await
