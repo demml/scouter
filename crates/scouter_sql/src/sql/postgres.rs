@@ -1,7 +1,6 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::{
-    AlertResult, FeatureBinProportions,  ObservabilityResult, 
-    SpcFeatureResult, TaskRequest,
+    AlertResult, FeatureBinProportions, ObservabilityResult, SpcFeatureResult, TaskRequest,
 };
 
 use chrono::{NaiveDateTime, Utc};
@@ -525,7 +524,7 @@ impl PostgresClient {
         repository: &str,
         name: &str,
     ) -> Result<Vec<SpcFeatureResult>, SqlError> {
-       let query = Queries::GetBinnedSpcFeatureValues.get_query();
+        let query = Queries::GetBinnedSpcFeatureValues.get_query();
 
         let binned: Result<Vec<SpcFeatureResult>, sqlx::Error> = sqlx::query_as(&query.sql)
             .bind(bin)
