@@ -19,3 +19,8 @@ test.sql:
 .PHONY: test.types
 test.types:
 	cargo test -p scouter-types -- --nocapture --test-threads=1
+
+
+.PHONY: test.dispatch
+test.dispatch:
+	cargo test -p scouter-dispatch -- --nocapture --test-threads=1
