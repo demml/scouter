@@ -141,7 +141,7 @@ mod tests {
         Router,
     };
     use http_body_util::BodyExt;
-    use scouter_contracts::ProfileRequest;
+    use scouter_contracts::{ProfileRequest, ProfileStatusRequest, ServiceInfo};
     use scouter_types::DriftType;
     // for `collect`
     use crate::api::routes::health::Alive;
@@ -204,6 +204,18 @@ mod tests {
         pub async fn send_oneshot(&self, request: Request<Body>) -> Response<Body> {
             self.app.clone().oneshot(request).await.unwrap()
         }
+
+        pub fn get_data(&self) -> (Array<f64, ndarray::Dim<[usize; 2]>>, Vec<String>) {
+            let array = Array::random((1030, 3), Uniform::new(0., 10.));
+
+            let features = vec![
+                "feature_1".to_string(),
+                "feature_2".to_string(),
+                "feature_3".to_string(),
+            ];
+
+            (array, features)
+        }
     }
 
     #[tokio::test]
@@ -230,13 +242,7 @@ mod tests {
     async fn test_create_spc_profile() {
         let helper = TestHelper::new().await.unwrap();
 
-        let array = Array::random((1030, 3), Uniform::new(0., 10.));
-
-        let features = vec![
-            "feature_1".to_string(),
-            "feature_2".to_string(),
-            "feature_3".to_string(),
-        ];
+        let (array, features) = helper.get_data();
         let alert_config = SpcAlertConfig::default();
         let config = SpcDriftConfig::new(
             Some("name".to_string()),
@@ -252,7 +258,7 @@ mod tests {
 
         let monitor = SpcMonitor::new();
 
-        let profile = monitor
+        let mut profile = monitor
             .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
             .unwrap();
 
@@ -266,6 +272,72 @@ mod tests {
         let request = Request::builder()
             .uri("/scouter/profile")
             .method("POST")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body))
+            .unwrap();
+
+        let response = helper.send_oneshot(request).await;
+
+        //assert response
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // update profile
+        profile.config.sample_size = 100;
+
+        assert_eq!(profile.config.sample_size, 100);
+
+        let request = ProfileRequest {
+            profile: profile.model_dump_json(),
+            drift_type: DriftType::Spc,
+        };
+
+        let body = serde_json::to_string(&request).unwrap();
+
+        let request = Request::builder()
+            .uri("/scouter/profile")
+            .method("POST")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body))
+            .unwrap();
+
+        let response = helper.send_oneshot(request).await;
+
+        //assert response
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // get profile
+        let params = ServiceInfo {
+            name: profile.config.name.clone(),
+            repository: profile.config.repository.clone(),
+            version: profile.config.version.clone(),
+        };
+
+        let query_string = serde_qs::to_string(&params).unwrap();
+
+        let request = Request::builder()
+            .uri(format!("/scouter/profile?{}", query_string))
+            .method("GET")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = helper.send_oneshot(request).await;
+
+        //assert response
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // update profile status
+        let request = ProfileStatusRequest {
+            name: profile.config.name.clone(),
+            repository: profile.config.repository.clone(),
+            version: profile.config.version.clone(),
+            active: true,
+        };
+
+        let body = serde_json::to_string(&request).unwrap();
+
+        let request = Request::builder()
+            .uri("/scouter/profile/status")
+            .method("PUT")
             .header(header::CONTENT_TYPE, "application/json")
             .body(Body::from(body))
             .unwrap();

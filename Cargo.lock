@@ -2788,7 +2788,7 @@ dependencies = [
  "once_cell",
  "socket2 0.5.7",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -3313,7 +3313,7 @@ dependencies = [
  "chrono",
  "cron",
  "indicatif",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "ndarray",
  "ndarray-rand",
  "ndarray-stats",
@@ -3347,7 +3347,7 @@ dependencies = [
 name = "scouter-observability"
 version = "0.3.3"
 dependencies = [
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "ndarray",
  "ndarray-stats",
  "noisy_float",
@@ -3367,7 +3367,7 @@ dependencies = [
  "approx",
  "chrono",
  "indicatif",
- "itertools 0.10.5",
+ "itertools 0.11.0",
  "ndarray",
  "ndarray-rand",
  "ndarray-stats",
@@ -3410,6 +3410,7 @@ dependencies = [
  "scouter-types",
  "serde",
  "serde_json",
+ "serde_qs",
  "sqlx",
  "time",
  "tokio",
@@ -3562,6 +3563,17 @@ checksum = "af99884400da37c88f5e9146b7f1fd0fbcae8f6eec4e9da38b67d05486f814a6"
 dependencies = [
  "itoa",
  "serde",
+]
+
+[[package]]
+name = "serde_qs"
+version = "0.13.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cd34f36fe4c5ba9654417139a9b3a20d2e1de6012ee678ad14d240c22c78d8d6"
+dependencies = [
+ "percent-encoding",
+ "serde",
+ "thiserror",
 ]
 
 [[package]]

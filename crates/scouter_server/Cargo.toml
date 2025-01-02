@@ -48,6 +48,7 @@ ndarray = { workspace = true }
 ndarray-rand = "0.*"
 mockito = "1.*"
 serde_json = { workspace = true }
+serde_qs = { workspace = true }
 tower = { version = "0.*", features = ["util"] }
 
 [features]
