@@ -474,7 +474,7 @@ impl PostgresClient {
         let query = Queries::GetSpcFeatureValues.get_query();
 
         let feature_values: Result<Vec<SpcFeatureResult>, SqlError> = sqlx::query_as(&query.sql)
-            .bind(limit_datetime.to_string())
+            .bind(limit_datetime)
             .bind(&service_info.name)
             .bind(&service_info.repository)
             .bind(&service_info.version)
@@ -644,7 +644,7 @@ impl PostgresClient {
     pub async fn get_feature_bin_proportions(
         &self,
         service_info: &ServiceInfo,
-        limit_datetime: &str,
+        limit_datetime: &NaiveDateTime,
         features_to_monitor: &[String],
     ) -> Result<FeatureBinProportions, SqlError> {
         let query = Queries::GetFeatureBinProportions.get_query();
@@ -675,7 +675,7 @@ impl PostgresClient {
     pub async fn get_custom_metric_values(
         &self,
         service_info: &ServiceInfo,
-        limit_datetime: &str,
+        limit_datetime: &NaiveDateTime,
         metrics: &[String],
     ) -> Result<HashMap<String, f64>, SqlError> {
         let query = Queries::GetCustomMetricValues.get_query();
@@ -931,7 +931,7 @@ mod tests {
             repository: "test".to_string(),
             version: "test".to_string(),
             feature: "test".to_string(),
-            bin_id: "test".to_string(),
+            bin_id: "decile_1".to_string(),
             bin_count: 1,
             record_type: RecordType::Psi,
         };
@@ -1052,6 +1052,40 @@ mod tests {
             .unwrap();
 
         assert_eq!(binned_records.len(), 10);
+    }
+
+
+    #[tokio::test]
+    async fn test_postgres_bin_proportions() {
+        let client = PostgresClient::new(None).await.unwrap();
+        cleanup(&client.pool).await;
+        let timestamp = chrono::Utc::now().naive_utc();
+        for _ in 0..10 {
+            for j in 0..10 {
+            let record = PsiServerRecord {
+                created_at: chrono::Utc::now().naive_utc(),
+                name: "test".to_string(),
+                repository: "test".to_string(),
+                version: "test".to_string(),
+                feature: "test".to_string(),
+                bin_id: format!("decile_{}", j),
+                bin_count: j,
+                record_type: RecordType::Psi,
+            };
+
+            let result = client.insert_bin_counts(&record).await.unwrap();
+
+            assert_eq!(result.rows_affected(), 1);
+        }}
+
+        let binned_records = client
+            .get_feature_bin_proportions(&ServiceInfo {
+                name: "test".to_string(),
+                repository: "test".to_string(),
+                version: "test".to_string(),
+            }, &timestamp, &vec!["test".to_string()]).await.unwrap();
+
+        println!("{:?}", binned_records);
     }
 }
 

@@ -52,7 +52,7 @@ pub mod psi_drifter {
             let observed_bin_proportions = db_client
                 .get_feature_bin_proportions(
                     &self.service_info,
-                    &limit_datetime.to_string(),
+                    limit_datetime,
                     &self.profile.config.alert_config.features_to_monitor,
                 )
                 .await
