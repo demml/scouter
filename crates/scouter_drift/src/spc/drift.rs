@@ -15,7 +15,6 @@ pub mod spc_drifter {
     use tracing::error;
     use tracing::info;
 
-
     #[derive(Debug, Clone)]
     pub struct SpcDriftArray {
         pub features: Vec<String>,
@@ -37,9 +36,7 @@ pub mod spc_drifter {
 
             SpcDriftArray { features, array }
         }
-
     }
-
 
     // Defines the SpcDrifter struct
     // This is used to process drift alerts for spc style profiles
@@ -106,7 +103,6 @@ pub mod spc_drifter {
                 )
                 .await?;
 
-            
             let drift = SpcMonitor::new().calculate_drift_from_sample(
                 &drift_features.features,
                 &drift_features.array.t().view(), // need to transpose because calculation is done at the row level across each feature

@@ -2,8 +2,8 @@ use chrono::Utc;
 use cron::Schedule;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
-use std::str::FromStr;
 use std::fmt;
+use std::str::FromStr;
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -327,7 +327,6 @@ impl fmt::Display for TimeInterval {
         }
     }
 }
-
 
 // test crons
 

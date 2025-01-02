@@ -1,7 +1,7 @@
+use chrono::NaiveDateTime;
 use scouter_types::{DriftType, TimeInterval};
 use serde::Deserialize;
 use serde::Serialize;
-use chrono::NaiveDateTime;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRequest {
@@ -42,7 +42,6 @@ pub struct ServiceInfo {
     pub name: String,
     pub version: String,
 }
-
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ObservabilityMetricRequest {

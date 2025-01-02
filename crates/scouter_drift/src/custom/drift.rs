@@ -36,11 +36,7 @@ pub mod custom_drifter {
             let metrics: Vec<String> = self.profile.metrics.keys().cloned().collect();
 
             db_client
-                .get_custom_metric_values(
-                    &self.service_info,
-                    &limit_datetime.to_string(),
-                    &metrics,
-                )
+                .get_custom_metric_values(&self.service_info, &limit_datetime.to_string(), &metrics)
                 .await
                 .map_err(|e| {
                     let msg = format!(

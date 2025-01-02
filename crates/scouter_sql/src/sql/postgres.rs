@@ -15,7 +15,7 @@ use scouter_types::DriftProfile;
 use scouter_types::{
     CustomMetricServerRecord, ObservabilityMetrics, PsiServerRecord, SpcServerRecord,
 };
-use scouter_types::{RecordType, ServerRecords, ToDriftRecords, TimeInterval};
+use scouter_types::{RecordType, ServerRecords, TimeInterval, ToDriftRecords};
 use serde_json::Value;
 use sqlx::{
     postgres::{PgPoolOptions, PgQueryResult, PgRow},
@@ -143,7 +143,6 @@ impl PostgresClient {
         &self,
         params: &DriftAlertRequest,
     ) -> Result<Vec<AlertResult>, SqlError> {
-    
         let query = Queries::GetDriftAlerts.get_query().sql;
 
         // check if active
@@ -152,9 +151,9 @@ impl PostgresClient {
         } else {
             query
         };
-    
+
         let query = format!("{} ORDER BY created_at DESC", query);
-    
+
         let query = if let Some(limit) = params.limit {
             format!("{} LIMIT {}", query, limit)
         } else {
@@ -162,12 +161,16 @@ impl PostgresClient {
         };
 
         // convert limit timestamp to string if it exists, leave as None if not
-       
+
         let result: Result<Vec<AlertResult>, sqlx::Error> = sqlx::query_as(&query)
             .bind(&params.version)
             .bind(&params.name)
             .bind(&params.repository)
-            .bind(&params.limit_datetime.map_or(None, |ts| Some(ts.to_string())))
+            .bind(
+                &params
+                    .limit_datetime
+                    .map_or(None, |ts| Some(ts.to_string())),
+            )
             .fetch_all(&self.pool)
             .await;
 
@@ -469,15 +472,14 @@ impl PostgresClient {
         service_info: &ServiceInfo,
         limit_datetime: &NaiveDateTime,
     ) -> Result<Vec<SpcFeatureResult>, SqlError> {
-
         let feature_set = features
             .iter()
             .map(|val| format!("'{}'", val))
             .collect::<Vec<String>>()
             .join(", ");
 
-
-        let query = format!("
+        let query = format!(
+            "
             WITH subquery AS (
                     SELECT
                     created_at,
@@ -516,7 +518,9 @@ impl PostgresClient {
                 feature,
                 created_at,
                 values;
-        ", feature_set);
+        ",
+            feature_set
+        );
 
         let feature_values: Result<Vec<SpcFeatureResult>, SqlError> = sqlx::query_as(&query)
             .bind(limit_datetime.to_string())
@@ -574,8 +578,8 @@ impl PostgresClient {
             .collect::<Vec<String>>()
             .join(", ");
 
-
-        let query = format!("
+        let query = format!(
+            "
             WITH subquery1 AS (
                 SELECT
                     date_bin('$1 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
@@ -618,9 +622,9 @@ impl PostgresClient {
             FROM subquery2
             GROUP BY 
                 feature;
-        ", feature_set);
-
-      
+        ",
+            feature_set
+        );
 
         let binned: Result<Vec<SpcFeatureResult>, sqlx::Error> = sqlx::query_as(&query)
             .bind(bin)
@@ -664,15 +668,15 @@ impl PostgresClient {
         let time_window_f64 = params.time_window.to_minutes() as f64;
         let bin = time_window_f64 / params.max_data_points as f64;
 
-         self.get_spc_binned_feature_values(
+        self.get_spc_binned_feature_values(
             &bin,
             &features,
             &params.version,
             &params.time_window,
             &params.repository,
             &params.name,
-        ).await
- 
+        )
+        .await
     }
 
     pub async fn get_spc_drift_records(
@@ -680,14 +684,15 @@ impl PostgresClient {
         service_info: &ServiceInfo,
         limit_datetime: &NaiveDateTime,
         features_to_monitor: &[String],
-    ) -> Result<Vec<SpcFeatureResult> ,SqlError> {
+    ) -> Result<Vec<SpcFeatureResult>, SqlError> {
         let mut features = self.get_features(service_info).await?;
 
         if !features_to_monitor.is_empty() {
             features.retain(|feature| features_to_monitor.contains(feature));
         }
 
-        self.run_spc_features_query(&features, service_info, limit_datetime).await
+        self.run_spc_features_query(&features, service_info, limit_datetime)
+            .await
     }
 
     #[allow(dead_code)]
@@ -893,10 +898,8 @@ impl MessageHandler {
 
 #[cfg(test)]
 mod tests {
-    use core::time;
 
-    use cron::TimeUnitSpec;
-    use scouter_types::{psi::profile, spc::{self, SpcDriftProfile}};
+    use scouter_types::spc::SpcDriftProfile;
 
     use super::*;
 
@@ -951,7 +954,10 @@ mod tests {
             .map(|i| (i.to_string(), i.to_string()))
             .collect::<BTreeMap<String, String>>();
 
-        let result = client.insert_drift_alert(&service_info, "test", &alert).await.unwrap();
+        let result = client
+            .insert_drift_alert(&service_info, "test", &alert)
+            .await
+            .unwrap();
 
         assert_eq!(result.rows_affected(), 1);
 
@@ -993,8 +999,6 @@ mod tests {
 
         let alerts = client.get_drift_alerts(&alert_request).await.unwrap();
         assert_eq!(alerts.len(), 1);
-
-
     }
 
     #[tokio::test]
@@ -1002,7 +1006,7 @@ mod tests {
         let client = PostgresClient::new(None).await.unwrap();
         cleanup(&client.pool).await;
 
-        let record = SpcServerRecord{
+        let record = SpcServerRecord {
             created_at: chrono::Utc::now().naive_utc(),
             name: "test".to_string(),
             repository: "test".to_string(),
@@ -1015,7 +1019,6 @@ mod tests {
         let result = client.insert_spc_drift_record(&record).await.unwrap();
 
         assert_eq!(result.rows_affected(), 1);
-
     }
 
     #[tokio::test]
@@ -1023,7 +1026,7 @@ mod tests {
         let client = PostgresClient::new(None).await.unwrap();
         cleanup(&client.pool).await;
 
-        let record = PsiServerRecord{
+        let record = PsiServerRecord {
             created_at: chrono::Utc::now().naive_utc(),
             name: "test".to_string(),
             repository: "test".to_string(),
@@ -1037,7 +1040,6 @@ mod tests {
         let result = client.insert_bin_counts(&record).await.unwrap();
 
         assert_eq!(result.rows_affected(), 1);
-
     }
 
     #[tokio::test]
@@ -1050,7 +1052,6 @@ mod tests {
         let result = client.insert_observability_record(&record).await.unwrap();
 
         assert_eq!(result.rows_affected(), 1);
-
     }
 
     #[tokio::test]
@@ -1060,27 +1061,34 @@ mod tests {
 
         let mut spc_profile = SpcDriftProfile::default();
 
-    
-        let result = client.insert_drift_profile(&DriftProfile::SpcDriftProfile(spc_profile.clone())).await.unwrap();
+        let result = client
+            .insert_drift_profile(&DriftProfile::SpcDriftProfile(spc_profile.clone()))
+            .await
+            .unwrap();
 
         assert_eq!(result.rows_affected(), 1);
 
         spc_profile.scouter_version = "test".to_string();
 
-        let result = client.update_drift_profile(&DriftProfile::SpcDriftProfile(spc_profile.clone())).await.unwrap();
+        let result = client
+            .update_drift_profile(&DriftProfile::SpcDriftProfile(spc_profile.clone()))
+            .await
+            .unwrap();
 
         assert_eq!(result.rows_affected(), 1);
 
-        let profile = client.get_drift_profile(&ServiceInfo {
-            name: spc_profile.config.name.clone(),
-            repository: spc_profile.config.repository.clone(),
-            version: spc_profile.config.version.clone(),
-        }).await.unwrap();
+        let profile = client
+            .get_drift_profile(&ServiceInfo {
+                name: spc_profile.config.name.clone(),
+                repository: spc_profile.config.repository.clone(),
+                version: spc_profile.config.version.clone(),
+            })
+            .await
+            .unwrap();
 
         let deserialized = serde_json::from_value::<SpcDriftProfile>(profile.unwrap()).unwrap();
 
         assert_eq!(deserialized, spc_profile);
-
     }
 
     #[tokio::test]
@@ -1092,7 +1100,7 @@ mod tests {
 
         for _ in 0..10 {
             for j in 0..10 {
-                let record = SpcServerRecord{
+                let record = SpcServerRecord {
                     created_at: chrono::Utc::now().naive_utc(),
                     name: "test".to_string(),
                     repository: "test".to_string(),
@@ -1107,7 +1115,6 @@ mod tests {
             }
         }
 
-
         let service_info = ServiceInfo {
             name: "test".to_string(),
             repository: "test".to_string(),
@@ -1117,22 +1124,25 @@ mod tests {
         let features = client.get_features(&service_info).await.unwrap();
         assert_eq!(features.len(), 10);
 
-
-        let records = client.get_spc_drift_records(&service_info, &timestamp, &features).await.unwrap();
+        let records = client
+            .get_spc_drift_records(&service_info, &timestamp, &features)
+            .await
+            .unwrap();
 
         assert_eq!(records.len(), 10);
 
-        let binned_records = client.get_binned_drift_records(&DriftRequest {
-            name: "test".to_string(),
-            repository: "test".to_string(),
-            version: "test".to_string(),
-            time_window: TimeInterval::FiveMinutes,
-            max_data_points: 10,
-        }).await.unwrap();
+        let binned_records = client
+            .get_binned_drift_records(&DriftRequest {
+                name: "test".to_string(),
+                repository: "test".to_string(),
+                version: "test".to_string(),
+                time_window: TimeInterval::FiveMinutes,
+                max_data_points: 10,
+            })
+            .await
+            .unwrap();
 
         assert_eq!(binned_records.len(), 10);
-
-
     }
 }
 
