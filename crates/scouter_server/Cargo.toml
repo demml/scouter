@@ -43,6 +43,7 @@ lapin = { workspace = true, optional = true }
 
 [dev-dependencies]
 approx = "0.*"
+chrono = { workspace = true }
 http-body-util = "0.*"
 ndarray = { workspace = true }
 ndarray-rand = "0.*"

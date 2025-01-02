@@ -141,8 +141,11 @@ mod tests {
         Router,
     };
     use http_body_util::BodyExt;
-    use scouter_contracts::{ProfileRequest, ProfileStatusRequest, ServiceInfo};
-    use scouter_types::DriftType;
+    use scouter_contracts::{DriftRequest, ProfileRequest, ProfileStatusRequest, ServiceInfo};
+    use scouter_sql::sql::schema::SpcFeatureResult;
+    use scouter_types::{
+        DriftType, RecordType, ServerRecord, ServerRecords, SpcServerRecord, TimeInterval,
+    };
     // for `collect`
     use crate::api::routes::health::Alive;
     use ndarray::Array;
@@ -215,6 +218,28 @@ mod tests {
             ];
 
             (array, features)
+        }
+
+        pub fn get_drift_records(&self) -> ServerRecords {
+            let mut records: Vec<ServerRecord> = Vec::new();
+            let record_type = RecordType::Spc;
+            for _ in 0..10 {
+                for j in 0..10 {
+                    let record = SpcServerRecord {
+                        created_at: chrono::Utc::now().naive_utc(),
+                        name: "test".to_string(),
+                        repository: "test".to_string(),
+                        version: "test".to_string(),
+                        feature: format!("test{}", j),
+                        value: j as f64,
+                        record_type: RecordType::Spc,
+                    };
+
+                    records.push(ServerRecord::Spc(record));
+                }
+            }
+
+            ServerRecords::new(records, record_type)
         }
     }
 
@@ -346,6 +371,53 @@ mod tests {
 
         //assert response
         assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    #[tokio::test]
+    async fn test_server_records() {
+        let helper = TestHelper::new().await.unwrap();
+        let records = helper.get_drift_records();
+        let body = serde_json::to_string(&records).unwrap();
+
+        let request = Request::builder()
+            .uri("/scouter/drift")
+            .method("POST")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body))
+            .unwrap();
+
+        let response = helper.send_oneshot(request).await;
+
+        //assert response
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // get drift records
+        let params = DriftRequest {
+            name: "test".to_string(),
+            repository: "test".to_string(),
+            version: "test".to_string(),
+            time_window: TimeInterval::FiveMinutes,
+            max_data_points: 100,
+        };
+
+        let query_string = serde_qs::to_string(&params).unwrap();
+
+        let request = Request::builder()
+            .uri(format!("/scouter/drift?{}", query_string))
+            .method("GET")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = helper.send_oneshot(request).await;
+
+        //assert response
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let body = response.into_body().collect().await.unwrap().to_bytes();
+
+        let results: Vec<SpcFeatureResult> = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(results.len(), 10);
     }
 }
 

@@ -440,7 +440,7 @@ impl SpcMonitor {
                     *value,
                 );
 
-                records.push(ServerRecord::Spc { record });
+                records.push(ServerRecord::Spc(record));
             });
         }
 

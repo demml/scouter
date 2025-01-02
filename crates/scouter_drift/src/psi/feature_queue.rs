@@ -168,18 +168,16 @@ impl PsiFeatureQueue {
             .queue
             .iter()
             .flat_map(|(feature_name, bin_map)| {
-                bin_map
-                    .iter()
-                    .map(move |(bin_id, count)| ServerRecord::Psi {
-                        record: PsiServerRecord::new(
-                            self.drift_profile.config.repository.clone(),
-                            self.drift_profile.config.name.clone(),
-                            self.drift_profile.config.version.clone(),
-                            feature_name.clone(),
-                            bin_id.clone(),
-                            *count,
-                        ),
-                    })
+                bin_map.iter().map(move |(bin_id, count)| {
+                    ServerRecord::Psi(PsiServerRecord::new(
+                        self.drift_profile.config.repository.clone(),
+                        self.drift_profile.config.name.clone(),
+                        self.drift_profile.config.version.clone(),
+                        feature_name.clone(),
+                        bin_id.clone(),
+                        *count,
+                    ))
+                })
             })
             .collect::<Vec<ServerRecord>>();
 

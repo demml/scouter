@@ -201,17 +201,15 @@ impl Observer {
             return Ok(None);
         }
 
-        let record = ServerRecord::Observability {
-            record: ObservabilityMetrics {
-                repository: self.repository.clone(),
-                name: self.name.clone(),
-                version: self.version.clone(),
-                request_count: self.request_count,
-                error_count: self.error_count,
-                route_metrics,
-                record_type: RecordType::Observability,
-            },
-        };
+        let record = ServerRecord::Observability(ObservabilityMetrics {
+            repository: self.repository.clone(),
+            name: self.name.clone(),
+            version: self.version.clone(),
+            request_count: self.request_count,
+            error_count: self.error_count,
+            route_metrics,
+            record_type: RecordType::Observability,
+        });
 
         Ok(Some(ServerRecords {
             record_type: RecordType::Observability,
@@ -364,7 +362,7 @@ mod tests {
 
         // check observability metrics
         let record = match metrics {
-            ServerRecord::Observability { record } => record,
+            ServerRecord::Observability(record) => record,
             _ => panic!("Expected observability record"),
         };
 

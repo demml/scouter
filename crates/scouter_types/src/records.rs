@@ -307,10 +307,10 @@ impl ObservabilityMetrics {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ServerRecord {
-    Spc { record: SpcServerRecord },
-    Psi { record: PsiServerRecord },
-    Custom { record: CustomMetricServerRecord },
-    Observability { record: ObservabilityMetrics },
+    Spc(SpcServerRecord),
+    Psi(PsiServerRecord),
+    Custom(CustomMetricServerRecord),
+    Observability(ObservabilityMetrics),
 }
 
 #[pymethods]
@@ -322,38 +322,38 @@ impl ServerRecord {
         match record_type {
             RecordType::Spc => {
                 let record: SpcServerRecord = record.extract().unwrap();
-                ServerRecord::Spc { record }
+                ServerRecord::Spc(record)
             }
             RecordType::Psi => {
                 let record: PsiServerRecord = record.extract().unwrap();
-                ServerRecord::Psi { record }
+                ServerRecord::Psi(record)
             }
             RecordType::Custom => {
                 let record: CustomMetricServerRecord = record.extract().unwrap();
-                ServerRecord::Custom { record }
+                ServerRecord::Custom(record)
             }
             RecordType::Observability => {
                 let record: ObservabilityMetrics = record.extract().unwrap();
-                ServerRecord::Observability { record }
+                ServerRecord::Observability(record)
             }
         }
     }
 
     pub fn record(&self, py: Python) -> PyResult<PyObject> {
         match self {
-            ServerRecord::Spc { record } => Ok(record
+            ServerRecord::Spc(record) => Ok(record
                 .clone()
                 .into_py_any(py)
                 .map_err(PyScouterError::new_err)?),
-            ServerRecord::Psi { record } => Ok(record
+            ServerRecord::Psi(record) => Ok(record
                 .clone()
                 .into_py_any(py)
                 .map_err(PyScouterError::new_err)?),
-            ServerRecord::Custom { record } => Ok(record
+            ServerRecord::Custom(record) => Ok(record
                 .clone()
                 .into_py_any(py)
                 .map_err(PyScouterError::new_err)?),
-            ServerRecord::Observability { record } => Ok(record
+            ServerRecord::Observability(record) => Ok(record
                 .clone()
                 .into_py_any(py)
                 .map_err(PyScouterError::new_err)?),
@@ -418,9 +418,7 @@ impl ToDriftRecords for ServerRecords {
                 let mut records = Vec::new();
                 for record in self.records.iter() {
                     match record {
-                        ServerRecord::Spc {
-                            record: inner_record,
-                        } => {
+                        ServerRecord::Spc(inner_record) => {
                             records.push(inner_record.clone());
                         }
                         _ => {
@@ -451,9 +449,7 @@ impl ToDriftRecords for ServerRecords {
                 let mut records = Vec::new();
                 for record in self.records.iter() {
                     match record {
-                        ServerRecord::Observability {
-                            record: inner_record,
-                        } => {
+                        ServerRecord::Observability(inner_record) => {
                             records.push(inner_record.clone());
                         }
                         _ => {
@@ -478,9 +474,7 @@ impl ToDriftRecords for ServerRecords {
                 let mut records = Vec::new();
                 for record in self.records.iter() {
                     match record {
-                        ServerRecord::Psi {
-                            record: inner_record,
-                        } => {
+                        ServerRecord::Psi(inner_record) => {
                             records.push(inner_record.clone());
                         }
                         _ => {
@@ -510,9 +504,7 @@ impl ToDriftRecords for ServerRecords {
                 let mut records = Vec::new();
                 for record in self.records.iter() {
                     match record {
-                        ServerRecord::Custom {
-                            record: inner_record,
-                        } => {
+                        ServerRecord::Custom(inner_record) => {
                             records.push(inner_record.clone());
                         }
                         _ => {

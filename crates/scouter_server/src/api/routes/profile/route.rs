@@ -123,10 +123,7 @@ pub async fn get_profile(
     let profile = &data.db.get_drift_profile(&params).await;
 
     match profile {
-        Ok(Some(result)) => Ok(Json(json!({
-            "status": "success",
-            "data": result
-        }))),
+        Ok(Some(result)) => Ok(Json(json!(result))),
         Ok(None) => Err((
             StatusCode::NOT_FOUND,
             Json(json!({

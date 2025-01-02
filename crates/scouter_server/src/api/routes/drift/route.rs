@@ -24,10 +24,7 @@ pub async fn get_drift(
 
     match query_result {
         Ok(result) => {
-            let json_response = serde_json::json!({
-                "status": "success",
-                "data": result
-            });
+            let json_response = serde_json::json!(result);
             Ok(Json(json_response))
         }
         Err(e) => {
@@ -45,7 +42,7 @@ pub async fn insert_drift(
     State(data): State<Arc<AppState>>,
     Json(body): Json<ServerRecords>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    let record = body.to_spc_drift_records().map_err(|e| {
+    let records = body.to_spc_drift_records().map_err(|e| {
         error!("Failed to convert drift records: {:?}", e);
         (
             StatusCode::BAD_REQUEST,
@@ -53,31 +50,31 @@ pub async fn insert_drift(
         )
     });
 
-    if record.is_err() {
+    if records.is_err() {
         return Err((
             StatusCode::BAD_REQUEST,
             Json(json!({ "status": "error", "message": "Invalid drift record" })),
         ));
     }
 
-    let query_result = &data.db.insert_spc_drift_record(&record.unwrap()[0]).await;
-
-    match query_result {
-        Ok(_) => Ok(Json(json!({
-            "status": "success",
-            "message": "Record inserted successfully"
-        }))),
-        Err(e) => {
-            error!("Failed to insert drift record: {:?}", e);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({
-                    "status": "error",
-                    "message": format!("{:?}", e)
-                })),
-            ))
-        }
+    for record in records.unwrap() {
+        let _ = &data
+            .db
+            .insert_spc_drift_record(&record)
+            .await
+            .map_err(|e| {
+                error!("Failed to insert drift record: {:?}", e);
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(json!({ "status": "error", "message": format!("{:?}", e) })),
+                )
+            })?;
     }
+
+    Ok(Json(json!({
+        "status": "success",
+        "message": "Record inserted successfully"
+    })))
 }
 
 pub async fn get_drift_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
