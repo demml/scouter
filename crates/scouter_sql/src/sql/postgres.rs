@@ -1128,48 +1128,6 @@ mod tests {
             .unwrap();
 
         assert_eq!(metrics.get("test").unwrap(), &1.0);
-        
+
     }
 }
-
-// integration tests
-//#[cfg(test)]
-//mod tests {
-//
-//    use crate::api::setup::create_db_pool;
-//
-//    use super::*;
-//    use std::env;
-//    use tokio;
-//
-//    #[tokio::test]
-//    async fn test_client() {
-//        unsafe {
-//            env::set_var(
-//                "DATABASE_URL",
-//                "postgresql://postgres:admin@localhost:5432/scouter?",
-//            );
-//        }
-//
-//        let pool = create_db_pool(None)
-//            .await
-//            .with_context(|| "Failed to create Postgres client")
-//            .unwrap();
-//        PostgresClient::new(pool).unwrap();
-//    }
-//
-//    #[test]
-//    fn test_time_interval() {
-//        assert_eq!(TimeInterval::FiveMinutes.to_minutes(), 5);
-//        assert_eq!(TimeInterval::FifteenMinutes.to_minutes(), 15);
-//        assert_eq!(TimeInterval::ThirtyMinutes.to_minutes(), 30);
-//        assert_eq!(TimeInterval::OneHour.to_minutes(), 60);
-//        assert_eq!(TimeInterval::ThreeHours.to_minutes(), 180);
-//        assert_eq!(TimeInterval::SixHours.to_minutes(), 360);
-//        assert_eq!(TimeInterval::TwelveHours.to_minutes(), 720);
-//        assert_eq!(TimeInterval::TwentyFourHours.to_minutes(), 1440);
-//        assert_eq!(TimeInterval::TwoDays.to_minutes(), 2880);
-//        assert_eq!(TimeInterval::FiveDays.to_minutes(), 7200);
-//    }
-//}
-//
