@@ -101,6 +101,7 @@ pub mod drift_executor {
             previous_run: NaiveDateTime,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             // match Drifter enum
+
             profile
                 .get_drifter()
                 .check_for_alerts(&self.db_client, previous_run)
@@ -204,6 +205,78 @@ pub mod drift_executor {
                 .map_err(|e| DriftError::Error(e.to_string()))?;
 
             Ok(())
+        }
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use scouter_contracts::DriftAlertRequest;
+        use scouter_sql::PostgresClient;
+        use std::collections::BTreeMap;
+        use std::result::Result;
+        use std::result::Result::Ok;
+        use std::str::FromStr;
+        use tracing::info;
+
+        use scouter_types::spc::SpcDriftProfile;
+        use sqlx::{postgres::Postgres, Pool};
+
+        pub async fn cleanup(pool: &Pool<Postgres>) {
+            sqlx::raw_sql(
+                r#"
+                DELETE 
+                FROM drift;
+
+                DELETE 
+                FROM observability_metrics;
+
+                DELETE
+                FROM custom_metrics;
+
+                DELETE
+                FROM drift_alerts;
+
+                DELETE
+                FROM drift_profile;
+
+                DELETE
+                FROM observed_bin_count;
+                "#,
+            )
+            .fetch_all(pool)
+            .await
+            .unwrap();
+        }
+
+        #[tokio::test]
+        async fn test_drift_executor() {
+            let client = PostgresClient::new(None, None).await.unwrap();
+            cleanup(&client.pool).await;
+
+            let mut populate_path =
+                std::env::current_dir().expect("Failed to get current directory");
+            populate_path.push("src/scripts/populate_spc.sql");
+
+            let script = std::fs::read_to_string(populate_path).unwrap();
+            sqlx::raw_sql(&script).execute(&client.pool).await.unwrap();
+
+            let mut drift_executor = DriftExecutor::new(client.clone());
+
+            drift_executor.poll_for_tasks().await.unwrap();
+
+            // get alerts from db
+            let request = DriftAlertRequest {
+                repository: "statworld".to_string(),
+                name: "test_app".to_string(),
+                version: "0.1.0".to_string(),
+                limit_datetime: None,
+                active: None,
+                limit: None,
+            };
+            let alerts = client.get_drift_alerts(&request).await.unwrap();
+
+            assert_eq!(alerts.len(), 2);
         }
     }
 }
