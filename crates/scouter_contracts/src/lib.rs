@@ -1,4 +1,4 @@
-use scouter_types::DriftType;
+use scouter_types::{DriftType, TimeInterval};
 use serde::Deserialize;
 use serde::Serialize;
 use chrono::NaiveDateTime;
@@ -8,7 +8,7 @@ pub struct DriftRequest {
     pub name: String,
     pub repository: String,
     pub version: String,
-    pub time_window: String,
+    pub time_window: TimeInterval,
     pub max_data_points: i32,
 }
 

@@ -469,8 +469,7 @@ impl PostgresClient {
         service_info: &ServiceInfo,
         limit_datetime: &NaiveDateTime,
     ) -> Result<Vec<SpcFeatureResult>, SqlError> {
-        //let query = Queries::GetFeatureValues.get_query();
-        // create feature variable in the shape of set with strings i.e ('feature1', 'feature2', 'feature3')
+
         let feature_set = features
             .iter()
             .map(|val| format!("'{}'", val))
@@ -563,22 +562,73 @@ impl PostgresClient {
     async fn get_spc_binned_feature_values(
         &self,
         bin: &f64,
-        feature: String,
+        features: &[String],
         version: &str,
-        time_window: &i32,
+        time_window: &TimeInterval,
         repository: &str,
         name: &str,
-    ) -> Result<SpcFeatureResult, SqlError> {
-        let query = Queries::GetBinnedFeatureValues.get_query();
+    ) -> Result<Vec<SpcFeatureResult>, SqlError> {
+        let feature_set = features
+            .iter()
+            .map(|val| format!("'{}'", val))
+            .collect::<Vec<String>>()
+            .join(", ");
 
-        let binned: Result<SpcFeatureResult, sqlx::Error> = sqlx::query_as(&query.sql)
+
+        let query = format!("
+            WITH subquery1 AS (
+                SELECT
+                    date_bin('$1 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
+                    name,
+                    repository,
+                    feature,
+                    version,
+                    value
+                FROM drift
+                WHERE 
+                    1=1
+                    AND created_at > timezone('utc', now()) - interval '$2 minute'
+                    AND name = $3
+                    AND repository = $4
+                    AND version = $5
+                    AND feature in ({})
+            ),
+
+            subquery2 AS (
+                SELECT
+                    created_at,
+                    name,
+                    repository,
+                    feature,
+                    version,
+                    avg(value) as value
+                FROM subquery1
+                GROUP BY 
+                    created_at,
+                    name,
+                    repository,
+                    feature,
+                    version
+            )
+
+            SELECT
+                feature,
+                array_agg(created_at ORDER BY created_at DESC) as created_at,
+                array_agg(value ORDER BY created_at DESC) as values
+            FROM subquery2
+            GROUP BY 
+                feature;
+        ", feature_set);
+
+      
+
+        let binned: Result<Vec<SpcFeatureResult>, sqlx::Error> = sqlx::query_as(&query)
             .bind(bin)
-            .bind(time_window)
+            .bind(time_window.to_minutes())
             .bind(name)
             .bind(repository)
             .bind(version)
-            .bind(feature)
-            .fetch_one(&self.pool)
+            .fetch_all(&self.pool)
             .await;
 
         binned.map_err(|e| {
@@ -603,7 +653,7 @@ impl PostgresClient {
     pub async fn get_binned_drift_records(
         &self,
         params: &DriftRequest,
-    ) -> Result<QueryResult, SqlError> {
+    ) -> Result<Vec<SpcFeatureResult>, SqlError> {
         let service_info = ServiceInfo {
             repository: params.repository.clone(),
             name: params.name.clone(),
@@ -611,48 +661,18 @@ impl PostgresClient {
         };
         // get features
         let features = self.get_features(&service_info).await?;
+        let time_window_f64 = params.time_window.to_minutes() as f64;
+        let bin = time_window_f64 / params.max_data_points as f64;
 
-        let time_window = TimeInterval::from_string(&params.time_window).to_minutes();
-
-        let bin = time_window as f64 / params.max_data_points as f64;
-
-        let async_queries = features
-            .iter()
-            .map(|feature| {
-                self.get_spc_binned_feature_values(
-                    &bin,
-                    feature.to_string(),
-                    &params.version,
-                    &time_window,
-                    &params.repository,
-                    &params.name,
-                )
-            })
-            .collect::<Vec<_>>();
-
-        let query_results = join_all(async_queries).await;
-
-        // parse results
-        let mut query_result = QueryResult {
-            features: BTreeMap::new(),
-        };
-
-        query_results.iter().for_each(|result| match result {
-            Ok(result) => {
-                query_result.features.insert(
-                    result.feature.clone(),
-                    FeatureResult {
-                        created_at: result.created_at.clone(),
-                        values: result.values.clone(),
-                    },
-                );
-            }
-            Err(e) => {
-                error!("Failed to run query: {:?}", e);
-            }
-        });
-
-        Ok(query_result)
+         self.get_spc_binned_feature_values(
+            &bin,
+            &features,
+            &params.version,
+            &params.time_window,
+            &params.repository,
+            &params.name,
+        ).await
+ 
     }
 
     pub async fn get_spc_drift_records(
@@ -1101,6 +1121,16 @@ mod tests {
         let records = client.get_spc_drift_records(&service_info, &timestamp, &features).await.unwrap();
 
         assert_eq!(records.len(), 10);
+
+        let binned_records = client.get_binned_drift_records(&DriftRequest {
+            name: "test".to_string(),
+            repository: "test".to_string(),
+            version: "test".to_string(),
+            time_window: TimeInterval::FiveMinutes,
+            max_data_points: 10,
+        }).await.unwrap();
+
+        assert_eq!(binned_records.len(), 10);
 
 
     }

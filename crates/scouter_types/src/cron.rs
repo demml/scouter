@@ -263,6 +263,8 @@ impl CommonCron {
     }
 }
 
+#[pyclass(eq)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum TimeInterval {
     FiveMinutes,
     FifteenMinutes,
