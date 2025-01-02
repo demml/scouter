@@ -25,7 +25,7 @@ use tracing::debug;
 /// * `timestamp` - The timestamp value
 ///
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct SpcFeatureDriftProfile {
     #[pyo3(get)]
     pub id: String,
@@ -68,7 +68,7 @@ pub struct SpcFeatureDriftProfile {
 /// * `alert_rule` - The alerting rule to use for monitoring
 ///
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct SpcDriftConfig {
     #[pyo3(get, set)]
     pub sample_size: usize,
@@ -254,7 +254,7 @@ impl DispatchDriftConfig for SpcDriftConfig {
 }
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct SpcDriftProfile {
     #[pyo3(get, set)]
     pub features: HashMap<String, SpcFeatureDriftProfile>,

@@ -10,8 +10,9 @@ use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
 #[pyclass(eq)]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub enum DriftType {
+    #[default]
     Spc,
     Psi,
     Custom,
@@ -144,6 +145,12 @@ impl DriftProfile {
                 Ok(DriftProfile::CustomDriftProfile(profile))
             }
         }
+    }
+}
+
+impl Default for DriftProfile {
+    fn default() -> Self {
+        DriftProfile::SpcDriftProfile(SpcDriftProfile::default())
     }
 }
 

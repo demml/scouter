@@ -175,7 +175,7 @@ impl Features {
 }
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct FeatureMap {
     #[pyo3(get)]
     pub features: HashMap<String, HashMap<String, usize>>,

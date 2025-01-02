@@ -31,7 +31,7 @@ pub struct DriftAlertRequest {
     pub name: String,
     pub repository: String,
     pub version: String,
-    pub limit_timestamp: Option<NaiveDateTime>,
+    pub limit_datetime: Option<NaiveDateTime>,
     pub active: Option<bool>,
     pub limit: Option<i32>,
 }
@@ -42,6 +42,7 @@ pub struct ServiceInfo {
     pub name: String,
     pub version: String,
 }
+
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ObservabilityMetricRequest {

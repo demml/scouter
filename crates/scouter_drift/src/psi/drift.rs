@@ -56,7 +56,7 @@ pub mod psi_drifter {
 
         async fn get_feature_bin_proportion_pairs_map(
             &self,
-            limit_timestamp: &NaiveDateTime,
+            limit_datetime: &NaiveDateTime,
             db_client: &PostgresClient,
         ) -> Result<Option<HashMap<String, Vec<(f64, f64)>>>, DriftError> {
             let profiles_to_monitor = self.get_monitored_profiles();
@@ -64,7 +64,7 @@ pub mod psi_drifter {
             let observed_bin_proportions = db_client
                 .get_feature_bin_proportions(
                     &self.service_info,
-                    &limit_timestamp.to_string(),
+                    &limit_datetime.to_string(),
                     &self.profile.config.alert_config.features_to_monitor,
                 )
                 .await
@@ -85,7 +85,7 @@ pub mod psi_drifter {
                 self.service_info.repository,
                 self.service_info.name,
                 self.service_info.version,
-                limit_timestamp
+                limit_datetime
             );
                 return Ok(None);
             }
@@ -104,10 +104,10 @@ pub mod psi_drifter {
 
         pub async fn get_drift_map(
             &self,
-            limit_timestamp: &NaiveDateTime,
+            limit_datetime: &NaiveDateTime,
             db_client: &PostgresClient,
         ) -> Result<Option<HashMap<String, f64>>, DriftError> {
-            self.get_feature_bin_proportion_pairs_map(limit_timestamp, db_client)
+            self.get_feature_bin_proportion_pairs_map(limit_datetime, db_client)
                 .await?
                 .map(|feature_bin_proportion_pairs_map| {
                     Ok(feature_bin_proportion_pairs_map

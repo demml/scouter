@@ -7,13 +7,39 @@ pub mod spc_drifter {
     use ndarray::ArrayView2;
     use scouter_contracts::ServiceInfo;
     use scouter_dispatch::AlertDispatcher;
-    use scouter_error::AlertError;
     use scouter_error::DriftError;
-    use scouter_sql::{sql::schema::QueryResult, PostgresClient};
+    use scouter_sql::sql::schema::SpcFeatureResult;
+    use scouter_sql::PostgresClient;
     use scouter_types::spc::{SpcDriftProfile, TaskAlerts};
     use std::collections::BTreeMap;
     use tracing::error;
     use tracing::info;
+
+
+    #[derive(Debug, Clone)]
+    pub struct SpcDriftArray {
+        pub features: Vec<String>,
+        pub array: Array2<f64>,
+    }
+
+    impl SpcDriftArray {
+        pub fn new(records: Vec<SpcFeatureResult>) -> Self {
+            let mut features = Vec::new();
+            let mut flattened = Vec::new();
+            for record in records {
+                features.push(record.feature);
+                flattened.extend(record.values);
+            }
+
+            let rows = features.len();
+            let cols = flattened.len() / rows;
+            let array = Array2::from_shape_vec((rows, cols), flattened).unwrap();
+
+            SpcDriftArray { features, array }
+        }
+
+    }
+
 
     // Defines the SpcDrifter struct
     // This is used to process drift alerts for spc style profiles
@@ -39,7 +65,7 @@ pub mod spc_drifter {
         /// # Arguments
         ///
         /// * `db_client` - Postgres client to use for querying feature data
-        /// * `limit_timestamp` - Limit timestamp for drift computation (this is the previous_run timestamp)
+        /// * `limit_datetime` - Limit timestamp for drift computation (this is the previous_run timestamp)
         /// * `features_to_monitor` - Features to monitor for drift
         ///
         /// # Returns
@@ -48,20 +74,20 @@ pub mod spc_drifter {
         async fn get_drift_features(
             &self,
             db_client: &PostgresClient,
-            limit_timestamp: &str,
+            limit_datetime: &NaiveDateTime,
             features_to_monitor: &[String],
-        ) -> Result<QueryResult, DriftError> {
+        ) -> Result<SpcDriftArray, DriftError> {
             let records = db_client
-                .get_drift_records(&self.service_info, limit_timestamp, features_to_monitor)
+                .get_spc_drift_records(&self.service_info, limit_datetime, features_to_monitor)
                 .await?;
-            Ok(records)
+            Ok(SpcDriftArray::new(records))
         }
 
         /// Compute drift for a given drift profile
         ///
         /// # Arguments
         ///
-        /// * `limit_timestamp` - Limit timestamp for drift computation (this is the previous_run timestamp)
+        /// * `limit_datetime` - Limit timestamp for drift computation (this is the previous_run timestamp)
         /// * `db_client` - Postgres client to use for querying feature data
         ///     
         /// # Returns
@@ -69,62 +95,25 @@ pub mod spc_drifter {
         /// * `Result<Array2<f64>>` - Drift array
         pub async fn compute_drift(
             &self,
-            limit_timestamp: &NaiveDateTime,
+            limit_datetime: &NaiveDateTime,
             db_client: &PostgresClient,
         ) -> Result<(Array2<f64>, Vec<String>), DriftError> {
             let drift_features = self
                 .get_drift_features(
                     db_client,
-                    &limit_timestamp.to_string(),
+                    &limit_datetime,
                     &self.profile.config.alert_config.features_to_monitor,
                 )
                 .await?;
 
-            let feature_keys: Vec<String> = drift_features.features.keys().cloned().collect();
-
-            let feature_values = drift_features
-                .features
-                .values()
-                .cloned()
-                .flat_map(|feature| feature.values.clone())
-                .collect::<Vec<_>>();
-
-            // assert all drift features have the same number of values
-
-            let all_same_len = drift_features.features.iter().all(|(_, feature)| {
-                feature.values.len()
-                    == drift_features
-                        .features
-                        .values()
-                        .next()
-                        .unwrap()
-                        .values
-                        .len()
-            });
-
-            if !all_same_len {
-                return Err(DriftError::Error(
-                    "Feature values are not the same length".to_string(),
-                ));
-            }
-
-            let num_rows = drift_features.features.len();
-            let num_cols = if num_rows > 0 {
-                feature_values.len() / num_rows
-            } else {
-                0
-            };
-
-            let nd_feature_arr = Array2::from_shape_vec((num_rows, num_cols), feature_values)
-                .map_err(|e| AlertError::DriftError(format!("Error creating ndarray: {}", e)))?;
-
+            
             let drift = SpcMonitor::new().calculate_drift_from_sample(
-                &feature_keys,
-                &nd_feature_arr.t().view(), // need to transpose because calculation is done at the row level across each feature
+                &drift_features.features,
+                &drift_features.array.t().view(), // need to transpose because calculation is done at the row level across each feature
                 &self.profile,
             )?;
 
-            Ok((drift, feature_keys))
+            Ok((drift, drift_features.features))
         }
 
         /// Generate alerts for a given drift profile

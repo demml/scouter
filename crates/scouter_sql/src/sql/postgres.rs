@@ -2,8 +2,8 @@ use crate::sql::query::Queries;
 use crate::sql::schema::{
     AlertResult, FeatureResult, ObservabilityResult, QueryResult, SpcFeatureResult, TaskRequest,
 };
-use crate::sql::types::TimeInterval;
-use chrono::Utc;
+
+use chrono::{NaiveDateTime, Utc};
 use cron::Schedule;
 use futures::future::join_all;
 use scouter_contracts::{
@@ -15,7 +15,7 @@ use scouter_types::DriftProfile;
 use scouter_types::{
     CustomMetricServerRecord, ObservabilityMetrics, PsiServerRecord, SpcServerRecord,
 };
-use scouter_types::{RecordType, ServerRecords, ToDriftRecords};
+use scouter_types::{RecordType, ServerRecords, ToDriftRecords, TimeInterval};
 use serde_json::Value;
 use sqlx::{
     postgres::{PgPoolOptions, PgQueryResult, PgRow},
@@ -24,7 +24,7 @@ use sqlx::{
 use std::collections::{BTreeMap, HashMap};
 use std::result::Result::Ok;
 use std::str::FromStr;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -167,7 +167,7 @@ impl PostgresClient {
             .bind(&params.version)
             .bind(&params.name)
             .bind(&params.repository)
-            .bind(&params.limit_timestamp.map_or(None, |ts| Some(ts.to_string())))
+            .bind(&params.limit_datetime.map_or(None, |ts| Some(ts.to_string())))
             .fetch_all(&self.pool)
             .await;
 
@@ -442,7 +442,7 @@ impl PostgresClient {
 
     // Queries the database for all features under a service
     // Private method that'll be used to run drift retrieval in parallel
-    async fn get_features(&self, service_info: &ServiceInfo) -> Result<Vec<String>, SqlError> {
+    pub async fn get_features(&self, service_info: &ServiceInfo) -> Result<Vec<String>, SqlError> {
         let query = Queries::GetFeatures.get_query();
 
         sqlx::query(&query.sql)
@@ -463,21 +463,68 @@ impl PostgresClient {
             })
     }
 
-    async fn run_spc_feature_query(
+    async fn run_spc_features_query(
         &self,
-        feature: &str,
+        features: &[String],
         service_info: &ServiceInfo,
-        limit_timestamp: &str,
-    ) -> Result<SpcFeatureResult, SqlError> {
-        let query = Queries::GetFeatureValues.get_query();
+        limit_datetime: &NaiveDateTime,
+    ) -> Result<Vec<SpcFeatureResult>, SqlError> {
+        //let query = Queries::GetFeatureValues.get_query();
+        // create feature variable in the shape of set with strings i.e ('feature1', 'feature2', 'feature3')
+        let feature_set = features
+            .iter()
+            .map(|val| format!("'{}'", val))
+            .collect::<Vec<String>>()
+            .join(", ");
 
-        let feature_values: Result<SpcFeatureResult, SqlError> = sqlx::query_as(&query.sql)
-            .bind(limit_timestamp)
+
+        let query = format!("
+            WITH subquery AS (
+                    SELECT
+                    created_at,
+                    feature,
+                    value
+                FROM drift
+                where
+                    1=1
+                    AND created_at > $1::timestamp
+                    AND name = $2
+                    AND repository =$3
+                    AND version = $4
+                    AND feature in ({})
+            ),
+            aggregated AS (
+                SELECT
+                    feature,
+                    array_agg(created_at ORDER BY created_at DESC) as created_at,
+                    array_agg(value ORDER BY created_at DESC) as values
+                FROM subquery
+                GROUP BY 
+                    feature
+            ),
+            min_length AS (
+                SELECT
+                    MIN(array_length(created_at, 1)) as min_len
+                FROM aggregated
+            )
+
+            SELECT
+                feature,
+                (created_at)[:(SELECT min_len FROM min_length)] as created_at,
+                (values)[:(SELECT min_len FROM min_length)] as values
+            FROM aggregated
+            GROUP BY 
+                feature,
+                created_at,
+                values;
+        ", feature_set);
+
+        let feature_values: Result<Vec<SpcFeatureResult>, SqlError> = sqlx::query_as(&query)
+            .bind(limit_datetime.to_string())
             .bind(&service_info.name)
             .bind(&service_info.repository)
             .bind(&service_info.version)
-            .bind(feature)
-            .fetch_one(&self.pool)
+            .fetch_all(&self.pool)
             .await
             .map_err(|e| {
                 error!("Failed to run query: {:?}", e);
@@ -608,76 +655,19 @@ impl PostgresClient {
         Ok(query_result)
     }
 
-    pub async fn get_drift_records(
+    pub async fn get_spc_drift_records(
         &self,
         service_info: &ServiceInfo,
-        limit_timestamp: &str,
+        limit_datetime: &NaiveDateTime,
         features_to_monitor: &[String],
-    ) -> Result<QueryResult, SqlError> {
+    ) -> Result<Vec<SpcFeatureResult> ,SqlError> {
         let mut features = self.get_features(service_info).await?;
 
         if !features_to_monitor.is_empty() {
             features.retain(|feature| features_to_monitor.contains(feature));
         }
 
-        let query_results = join_all(
-            features
-                .iter()
-                .map(|feature| self.run_spc_feature_query(feature, service_info, limit_timestamp))
-                .collect::<Vec<_>>(),
-        )
-        .await;
-
-        let mut query_result = QueryResult {
-            features: BTreeMap::new(),
-        };
-
-        let feature_sizes = query_results
-            .iter()
-            .map(|result| match result {
-                Ok(result) => result.values.len(),
-                Err(_) => 0,
-            })
-            .collect::<Vec<_>>();
-
-        // check if all feature values have the same length
-        // log a warning if they don't
-        if feature_sizes.windows(2).any(|w| w[0] != w[1]) {
-            warn!(
-                    "Feature values have different lengths for drift profile: {}/{}/{}, Timestamp: {:?}, feature sizes: {:?}",
-                    service_info.repository, service_info.name, service_info.version, limit_timestamp, feature_sizes
-                );
-        }
-
-        // Get smallest non-zero feature size
-        let min_feature_size = feature_sizes
-            .iter()
-            .filter(|size| **size > 0)
-            .min()
-            .unwrap_or(&0);
-
-        for data in query_results {
-            match data {
-                Ok(data) if !data.values.is_empty() => {
-                    query_result.features.insert(
-                        data.feature.clone(),
-                        FeatureResult {
-                            values: data.values[..*min_feature_size].to_vec(),
-                            created_at: data.created_at[..*min_feature_size].to_vec(),
-                        },
-                    );
-                }
-                Ok(_) => continue,
-                Err(e) => {
-                    error!("Failed to run query: {:?}", e);
-                    return Err(SqlError::GeneralError(format!(
-                        "Failed to run query: {:?}",
-                        e
-                    )));
-                }
-            }
-        }
-        Ok(query_result)
+        self.run_spc_features_query(&features, service_info, limit_datetime).await
     }
 
     #[allow(dead_code)]
@@ -728,7 +718,7 @@ impl PostgresClient {
     pub async fn get_feature_bin_proportions(
         &self,
         service_info: &ServiceInfo,
-        limit_timestamp: &str,
+        limit_datetime: &str,
         features_to_monitor: &[String],
     ) -> Result<HashMap<String, HashMap<String, f64>>, SqlError> {
         let query = Queries::GetFeatureBinProportions.get_query();
@@ -737,7 +727,7 @@ impl PostgresClient {
             .bind(&service_info.name)
             .bind(&service_info.repository)
             .bind(&service_info.version)
-            .bind(limit_timestamp)
+            .bind(limit_datetime)
             .bind(features_to_monitor)
             .fetch_all(&self.pool)
             .await
@@ -761,7 +751,7 @@ impl PostgresClient {
     pub async fn get_custom_metric_values(
         &self,
         service_info: &ServiceInfo,
-        limit_timestamp: &str,
+        limit_datetime: &str,
         metrics: &[String],
     ) -> Result<HashMap<String, f64>, SqlError> {
         let query = Queries::GetCustomMetricValues.get_query();
@@ -770,7 +760,7 @@ impl PostgresClient {
             .bind(&service_info.name)
             .bind(&service_info.repository)
             .bind(&service_info.version)
-            .bind(limit_timestamp)
+            .bind(limit_datetime)
             .bind(metrics)
             .fetch_all(&self.pool)
             .await
@@ -883,6 +873,11 @@ impl MessageHandler {
 
 #[cfg(test)]
 mod tests {
+    use core::time;
+
+    use cron::TimeUnitSpec;
+    use scouter_types::{psi::profile, spc::{self, SpcDriftProfile}};
+
     use super::*;
 
     pub async fn cleanup(pool: &Pool<Postgres>) {
@@ -926,8 +921,6 @@ mod tests {
 
         let timestamp = chrono::Utc::now().naive_utc();
 
-        println!("Timestamp: {:?}", timestamp);
-
         let service_info = ServiceInfo {
             name: "test".to_string(),
             repository: "test".to_string(),
@@ -949,7 +942,7 @@ mod tests {
             version: "test".to_string(),
             active: Some(true),
             limit: None,
-            limit_timestamp: None,
+            limit_datetime: None,
         };
 
         let alerts = client.get_drift_alerts(&alert_request).await.unwrap();
@@ -962,7 +955,7 @@ mod tests {
             version: "test".to_string(),
             active: Some(true),
             limit: Some(1),
-            limit_timestamp: None,
+            limit_datetime: None,
         };
 
         let alerts = client.get_drift_alerts(&alert_request).await.unwrap();
@@ -975,11 +968,139 @@ mod tests {
             version: "test".to_string(),
             active: Some(true),
             limit: None,
-            limit_timestamp: Some(timestamp),
+            limit_datetime: Some(timestamp),
         };
 
         let alerts = client.get_drift_alerts(&alert_request).await.unwrap();
         assert_eq!(alerts.len(), 1);
+
+
+    }
+
+    #[tokio::test]
+    async fn test_postgres_spc_drift_record() {
+        let client = PostgresClient::new(None).await.unwrap();
+        cleanup(&client.pool).await;
+
+        let record = SpcServerRecord{
+            created_at: chrono::Utc::now().naive_utc(),
+            name: "test".to_string(),
+            repository: "test".to_string(),
+            version: "test".to_string(),
+            feature: "test".to_string(),
+            value: 1.0,
+            record_type: RecordType::Spc,
+        };
+
+        let result = client.insert_spc_drift_record(&record).await.unwrap();
+
+        assert_eq!(result.rows_affected(), 1);
+
+    }
+
+    #[tokio::test]
+    async fn test_postgres_bin_count() {
+        let client = PostgresClient::new(None).await.unwrap();
+        cleanup(&client.pool).await;
+
+        let record = PsiServerRecord{
+            created_at: chrono::Utc::now().naive_utc(),
+            name: "test".to_string(),
+            repository: "test".to_string(),
+            version: "test".to_string(),
+            feature: "test".to_string(),
+            bin_id: "test".to_string(),
+            bin_count: 1,
+            record_type: RecordType::Psi,
+        };
+
+        let result = client.insert_bin_counts(&record).await.unwrap();
+
+        assert_eq!(result.rows_affected(), 1);
+
+    }
+
+    #[tokio::test]
+    async fn test_postgres_observability_record() {
+        let client = PostgresClient::new(None).await.unwrap();
+        cleanup(&client.pool).await;
+
+        let record = ObservabilityMetrics::default();
+
+        let result = client.insert_observability_record(&record).await.unwrap();
+
+        assert_eq!(result.rows_affected(), 1);
+
+    }
+
+    #[tokio::test]
+    async fn test_postgres_cru_drift_profile() {
+        let client = PostgresClient::new(None).await.unwrap();
+        cleanup(&client.pool).await;
+
+        let mut spc_profile = SpcDriftProfile::default();
+
+    
+        let result = client.insert_drift_profile(&DriftProfile::SpcDriftProfile(spc_profile.clone())).await.unwrap();
+
+        assert_eq!(result.rows_affected(), 1);
+
+        spc_profile.scouter_version = "test".to_string();
+
+        let result = client.update_drift_profile(&DriftProfile::SpcDriftProfile(spc_profile.clone())).await.unwrap();
+
+        assert_eq!(result.rows_affected(), 1);
+
+        let profile = client.get_drift_profile(&ServiceInfo {
+            name: spc_profile.config.name.clone(),
+            repository: spc_profile.config.repository.clone(),
+            version: spc_profile.config.version.clone(),
+        }).await.unwrap();
+
+        let deserialized = serde_json::from_value::<SpcDriftProfile>(profile.unwrap()).unwrap();
+
+        assert_eq!(deserialized, spc_profile);
+
+    }
+
+    #[tokio::test]
+    async fn test_postgres_get_features() {
+        let client = PostgresClient::new(None).await.unwrap();
+        cleanup(&client.pool).await;
+
+        let timestamp = chrono::Utc::now().naive_utc();
+
+        for _ in 0..10 {
+            for j in 0..10 {
+                let record = SpcServerRecord{
+                    created_at: chrono::Utc::now().naive_utc(),
+                    name: "test".to_string(),
+                    repository: "test".to_string(),
+                    version: "test".to_string(),
+                    feature: format!("test{}", j),
+                    value: j as f64,
+                    record_type: RecordType::Spc,
+                };
+
+                let result = client.insert_spc_drift_record(&record).await.unwrap();
+                assert_eq!(result.rows_affected(), 1);
+            }
+        }
+
+
+        let service_info = ServiceInfo {
+            name: "test".to_string(),
+            repository: "test".to_string(),
+            version: "test".to_string(),
+        };
+
+        let features = client.get_features(&service_info).await.unwrap();
+        assert_eq!(features.len(), 10);
+
+
+        let records = client.get_spc_drift_records(&service_info, &timestamp, &features).await.unwrap();
+
+        assert_eq!(records.len(), 10);
 
 
     }

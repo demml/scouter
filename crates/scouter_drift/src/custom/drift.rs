@@ -30,7 +30,7 @@ pub mod custom_drifter {
 
         pub async fn get_observed_custom_metric_values(
             &self,
-            limit_timestamp: &NaiveDateTime,
+            limit_datetime: &NaiveDateTime,
             db_client: &PostgresClient,
         ) -> Result<HashMap<String, f64>, DriftError> {
             let metrics: Vec<String> = self.profile.metrics.keys().cloned().collect();
@@ -38,7 +38,7 @@ pub mod custom_drifter {
             db_client
                 .get_custom_metric_values(
                     &self.service_info,
-                    &limit_timestamp.to_string(),
+                    &limit_datetime.to_string(),
                     &metrics,
                 )
                 .await
@@ -57,11 +57,11 @@ pub mod custom_drifter {
 
         pub async fn get_metric_map(
             &self,
-            limit_timestamp: &NaiveDateTime,
+            limit_datetime: &NaiveDateTime,
             db_client: &PostgresClient,
         ) -> Result<Option<HashMap<String, f64>>, DriftError> {
             let metric_map = self
-                .get_observed_custom_metric_values(limit_timestamp, db_client)
+                .get_observed_custom_metric_values(limit_datetime, db_client)
                 .await?;
 
             if metric_map.is_empty() {
@@ -70,7 +70,7 @@ pub mod custom_drifter {
                 self.service_info.repository,
                 self.service_info.name,
                 self.service_info.version,
-                limit_timestamp
+                limit_datetime
             );
                 return Ok(None);
             }

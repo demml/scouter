@@ -3,6 +3,7 @@ use cron::Schedule;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
+use std::fmt;
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -261,6 +262,70 @@ impl CommonCron {
         }
     }
 }
+
+pub enum TimeInterval {
+    FiveMinutes,
+    FifteenMinutes,
+    ThirtyMinutes,
+    OneHour,
+    ThreeHours,
+    SixHours,
+    TwelveHours,
+    TwentyFourHours,
+    TwoDays,
+    FiveDays,
+}
+
+impl TimeInterval {
+    pub fn to_minutes(&self) -> i32 {
+        match self {
+            TimeInterval::FiveMinutes => 5,
+            TimeInterval::FifteenMinutes => 15,
+            TimeInterval::ThirtyMinutes => 30,
+            TimeInterval::OneHour => 60,
+            TimeInterval::ThreeHours => 180,
+            TimeInterval::SixHours => 360,
+            TimeInterval::TwelveHours => 720,
+            TimeInterval::TwentyFourHours => 1440,
+            TimeInterval::TwoDays => 2880,
+            TimeInterval::FiveDays => 7200,
+        }
+    }
+
+    pub fn from_string(time_window: &str) -> TimeInterval {
+        match time_window {
+            "5minute" => TimeInterval::FiveMinutes,
+            "15minute" => TimeInterval::FifteenMinutes,
+            "30minute" => TimeInterval::ThirtyMinutes,
+            "1hour" => TimeInterval::OneHour,
+            "3hour" => TimeInterval::ThreeHours,
+            "6hour" => TimeInterval::SixHours,
+            "12hour" => TimeInterval::TwelveHours,
+            "24hour" => TimeInterval::TwentyFourHours,
+            "2day" => TimeInterval::TwoDays,
+            "5day" => TimeInterval::FiveDays,
+            _ => TimeInterval::SixHours,
+        }
+    }
+}
+
+impl fmt::Display for TimeInterval {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            TimeInterval::FiveMinutes => write!(f, "5minute"),
+            TimeInterval::FifteenMinutes => write!(f, "15minute"),
+            TimeInterval::ThirtyMinutes => write!(f, "30minute"),
+            TimeInterval::OneHour => write!(f, "1hour"),
+            TimeInterval::ThreeHours => write!(f, "3hour"),
+            TimeInterval::SixHours => write!(f, "6hour"),
+            TimeInterval::TwelveHours => write!(f, "12hour"),
+            TimeInterval::TwentyFourHours => write!(f, "24hour"),
+            TimeInterval::TwoDays => write!(f, "2day"),
+            TimeInterval::FiveDays => write!(f, "5day"),
+        }
+    }
+}
+
 
 // test crons
 

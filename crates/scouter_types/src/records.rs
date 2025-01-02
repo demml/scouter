@@ -226,7 +226,7 @@ impl CustomMetricServerRecord {
 }
 
 #[pyclass]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct LatencyMetrics {
     #[pyo3(get)]
     pub p5: f64,
@@ -245,7 +245,7 @@ pub struct LatencyMetrics {
 }
 
 #[pyclass]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct RouteMetrics {
     #[pyo3(get)]
     pub route_name: String,
@@ -267,7 +267,7 @@ pub struct RouteMetrics {
 }
 
 #[pyclass]
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct ObservabilityMetrics {
     #[pyo3(get)]
     pub repository: String,
