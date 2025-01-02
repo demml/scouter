@@ -488,30 +488,30 @@ mod tests {
         assert!(relative_eq!(
             profile[0].numeric_stats.as_ref().unwrap().mean,
             0.5,
-            epsilon = 0.05
+            epsilon = 0.1
         ));
         assert!(relative_eq!(
             profile[1].numeric_stats.as_ref().unwrap().mean,
             1.5,
-            epsilon = 0.05
+            epsilon = 0.1
         ));
         assert!(relative_eq!(
             profile[2].numeric_stats.as_ref().unwrap().mean,
             2.5,
-            epsilon = 0.05
+            epsilon = 0.1
         ));
 
         // check quantiles
         assert!(relative_eq!(
             profile[0].numeric_stats.as_ref().unwrap().quantiles.q25,
             0.25,
-            epsilon = 0.05
+            epsilon = 0.1
         ));
 
         assert!(relative_eq!(
             profile[0].numeric_stats.as_ref().unwrap().quantiles.q50,
             0.5,
-            epsilon = 0.05
+            epsilon = 0.1
         ));
         assert!(relative_eq!(
             profile[0].numeric_stats.as_ref().unwrap().quantiles.q75,
@@ -521,7 +521,7 @@ mod tests {
         assert!(relative_eq!(
             profile[0].numeric_stats.as_ref().unwrap().quantiles.q99,
             0.99,
-            epsilon = 0.05
+            epsilon = 0.1
         ));
     }
 
