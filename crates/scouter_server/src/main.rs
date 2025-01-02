@@ -1,7 +1,6 @@
 pub mod api;
 pub mod consumer;
 
-use scouter_settings::ScouterServerConfig;
 use crate::api::middleware::metrics::metrics_app;
 use crate::api::setup::setup_logging;
 use crate::api::state::AppState;
@@ -9,6 +8,7 @@ use anyhow::Context;
 use api::router::create_router;
 use axum::Router;
 use scouter_drift::DriftExecutor;
+use scouter_settings::ScouterServerConfig;
 use scouter_sql::PostgresClient;
 use std::sync::Arc;
 use tracing::{error, info};
@@ -34,13 +34,16 @@ async fn start_metrics_server() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
-async fn setup_polling_workers(num_workers: usize, config: &ScouterServerConfig) -> Result<(), anyhow::Error> {
-    for i in 0..num_workers {
+async fn setup_polling_workers(config: &ScouterServerConfig) -> Result<(), anyhow::Error> {
+    for i in 0..config.polling_settings.num_workers {
         info!("Starting drift schedule poller: {}", i);
+
+        let db_settings = config.database_settings.clone();
+        let db_client = PostgresClient::new(None, Some(&db_settings))
+            .await
+            .with_context(|| "Failed to create Postgres client")?;
+
         tokio::spawn(async move {
-            let db_client = PostgresClient::new(None, Some(&config.database_settings))
-                .await
-                .with_context(|| "Failed to create Postgres client")?;
             let mut drift_executor = DriftExecutor::new(db_client);
             loop {
                 if let Err(e) = drift_executor.poll_for_tasks().await {
@@ -53,9 +56,7 @@ async fn setup_polling_workers(num_workers: usize, config: &ScouterServerConfig)
     Ok(())
 }
 
-async fn create_app(schedule_workers: usize) -> Result<Router, anyhow::Error> {
-    let config = ScouterServerConfig::default();
-
+async fn create_app(config: ScouterServerConfig) -> Result<Router, anyhow::Error> {
     // setup logging
     setup_logging()
         .await
@@ -80,7 +81,7 @@ async fn create_app(schedule_workers: usize) -> Result<Router, anyhow::Error> {
     }
 
     // ##################### run drift polling background tasks #####################
-    setup_polling_workers(schedule_workers, &config).await?;
+    setup_polling_workers(&config).await?;
 
     let router = create_router(Arc::new(AppState { db: db_client }))
         .await
@@ -91,19 +92,13 @@ async fn create_app(schedule_workers: usize) -> Result<Router, anyhow::Error> {
 
 /// Start the main server
 async fn start_main_server() -> Result<(), anyhow::Error> {
-    // get num scheduled workers
-    let num_schedule_workers = std::env::var("SCOUTER_SCHEDULE_WORKER_COUNT")
-        .unwrap_or_else(|_| "4".to_string())
-        .parse::<usize>()
-        .with_context(|| "Failed to parse SCOUTER_SCHEDULE_WORKER_COUNT")?;
-
-    let router = create_app(num_schedule_workers).await?;
-
-    let port = std::env::var("SCOUTER_SERVER_PORT").unwrap_or_else(|_| "8000".to_string());
-    let addr = format!("0.0.0.0:{}", port);
+    let config = ScouterServerConfig::default();
+    let addr = format!("0.0.0.0:{}", config.server_port.clone());
     let listener = tokio::net::TcpListener::bind(addr)
         .await
         .with_context(|| "Failed to bind to port 8000")?;
+
+    let router = create_app(config).await?;
 
     info!("🚀 Scouter Server started successfully");
     axum::serve(listener, router)
@@ -167,9 +162,12 @@ mod tests {
 
     impl TestHelper {
         pub async fn new() -> Result<Self, anyhow::Error> {
-            let app = create_app().await?;
+            let mut config = ScouterServerConfig::default();
+            config.polling_settings.num_workers = 1;
 
-            let db_client = PostgresClient::new(None)
+            let app = create_app(config).await?;
+
+            let db_client = PostgresClient::new(None, None)
                 .await
                 .with_context(|| "Failed to create Postgres client")?;
 
