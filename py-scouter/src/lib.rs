@@ -1,6 +1,4 @@
-mod py_scouter;
-use crate::py_scouter::_scouter::{CustomDrifter, PsiDrifter};
-use py_scouter::_scouter::{ScouterProfiler, SpcDrifter};
+
 use pyo3::prelude::*;
 use scouter_client::*;
 

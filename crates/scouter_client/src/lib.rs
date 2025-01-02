@@ -1,3 +1,5 @@
+pub mod scouter;
+pub use scouter::*;
 pub use scouter_types::{
     create_feature_map,
     cron::*,

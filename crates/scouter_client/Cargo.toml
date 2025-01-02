@@ -18,6 +18,11 @@ scouter-error = { workspace = true }
 scouter-observability = { workspace = true }
 scouter-profile = { workspace = true }
 scouter-types = { workspace = true }
+ndarray = { workspace = true }
+pyo3 = { workspace = true }
+numpy = { workspace = true }
+num-traits = { workspace = true }
+ndarray-stats = { workspace = true }
 
 
 [profile.release]

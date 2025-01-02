@@ -146,6 +146,7 @@ mod tests {
     use http_body_util::BodyExt; // for `collect`
     use sqlx::{Pool, Postgres};
     use tower::util::ServiceExt;
+    use crate::api::routes::health::Alive;
 
     pub async fn cleanup(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> {
         sqlx::raw_sql(
@@ -215,10 +216,9 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
         let body = response.into_body().collect().await.unwrap().to_bytes();
 
-        let v: serde_json::Value = serde_json::from_str(std::str::from_utf8(&body[..]).unwrap())
-            .expect("Failed to parse response body");
+        let v: Alive = serde_json::from_slice(&body).unwrap();
 
-        println!("Response: {:?}", v);
+        assert_eq!(v.status, "Alive");
     }
 }
 
