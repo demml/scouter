@@ -6,11 +6,38 @@ pub mod psi_drifter {
     use scouter_contracts::ServiceInfo;
     use scouter_dispatch::AlertDispatcher;
     use scouter_error::DriftError;
-    use scouter_sql::PostgresClient;
+    use scouter_sql::{PostgresClient, sql::schema::FeatureBinProportion};
     use scouter_types::psi::{PsiDriftProfile, PsiFeatureAlerts, PsiFeatureDriftProfile};
     use std::collections::{BTreeMap, HashMap};
     use tracing::error;
     use tracing::info;
+    use serde::{Deserialize, Serialize};
+
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct FeatureBinProportionPair {
+        pub expected: f64,
+        pub observed: f64,
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct FeatureBinProportionPairs {
+        pub features: HashMap<String, Vec<FeatureBinProportionPair>>,
+    }
+
+    impl FeatureBinProportionPairs {
+        pub fn from_observed_bin_proportions(
+            observed_bin_proportions: Vec<FeatureBinProportion>,
+            profile: &PsiFeatureDriftProfile,
+        ) -> Self {
+            let mut features = HashMap::new();
+            for bin_proportion in observed_bin_proportions {
+                let bin_id = bin_proportion.bin_id.clone();
+                let feature = bin_proportion.feature.clone();
+                
+            }
+            Self { features }
+        }
+    }
 
     pub struct PsiDrifter {
         service_info: ServiceInfo,

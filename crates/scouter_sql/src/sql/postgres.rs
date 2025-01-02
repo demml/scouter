@@ -1,6 +1,6 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::{
-    AlertResult, FeatureBinProportion, ObservabilityResult, SpcFeatureResult, TaskRequest,
+    AlertResult, FeatureBinProportion,FeatureBinProportions, ObservabilityResult, SpcFeatureResult, TaskRequest,
 };
 
 use chrono::{NaiveDateTime, Utc};
@@ -646,22 +646,25 @@ impl PostgresClient {
         service_info: &ServiceInfo,
         limit_datetime: &str,
         features_to_monitor: &[String],
-    ) -> Result<Vec<FeatureBinProportion>, SqlError> {
+    ) -> Result<FeatureBinProportions, SqlError> {
         let query = Queries::GetFeatureBinProportions.get_query();
 
-        let binned: Result<Vec<FeatureBinProportion>, sqlx::Error> = sqlx::query_as(&query.sql)
+        let binned: Vec<FeatureBinProportion> = sqlx::query_as(&query.sql)
             .bind(&service_info.name)
             .bind(&service_info.repository)
             .bind(&service_info.version)
             .bind(limit_datetime)
             .bind(features_to_monitor)
             .fetch_all(&self.pool)
-            .await;
+            .await.map_err(|e| {
+                error!("Failed to get bin proportions from database: {:?}", e);
+                SqlError::GeneralError(format!(
+                    "Failed to get bin proportions from database: {:?}",
+                    e
+                ))
+            })?;
 
-        binned.map_err(|e| {
-            error!("Failed to run query: {:?}", e);
-            SqlError::QueryError(format!("Failed to run query: {:?}", e))
-        })
+        Ok(FeatureBinProportions::from_bins(binned))
     }
 
     pub async fn get_custom_metric_values(

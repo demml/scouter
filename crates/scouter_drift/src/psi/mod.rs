@@ -1,5 +1,6 @@
 pub mod feature_queue;
 pub mod monitor;
+pub mod types;
 
 #[cfg(feature = "sql")]
 pub mod drift;

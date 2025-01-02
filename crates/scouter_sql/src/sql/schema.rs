@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, Error, FromRow, Row};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::hash::Hash;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRecord {
@@ -42,6 +43,22 @@ pub struct FeatureBinProportion {
     pub feature: String,
     pub bin_id: String,
     pub proportion: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct FeatureBinProportions {
+    pub features: HashMap<String, HashMap<String, f64>>,
+}
+
+impl FeatureBinProportions {
+    pub fn from_bins(bins: Vec<FeatureBinProportion>) -> Self {
+        let mut features: HashMap<String, HashMap<String, f64>> = HashMap::new();
+        for bin in bins {
+            let feature = features.entry(bin.feature).or_insert(HashMap::new());
+            feature.insert(bin.bin_id, bin.proportion);
+        }
+        FeatureBinProportions { features }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
