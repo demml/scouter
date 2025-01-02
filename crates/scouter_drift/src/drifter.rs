@@ -213,13 +213,7 @@ pub mod drift_executor {
         use super::*;
         use scouter_contracts::DriftAlertRequest;
         use scouter_sql::PostgresClient;
-        use std::collections::BTreeMap;
-        use std::result::Result;
-        use std::result::Result::Ok;
-        use std::str::FromStr;
-        use tracing::info;
-
-        use scouter_types::spc::SpcDriftProfile;
+    
         use sqlx::{postgres::Postgres, Pool};
 
         pub async fn cleanup(pool: &Pool<Postgres>) {
@@ -250,7 +244,7 @@ pub mod drift_executor {
         }
 
         #[tokio::test]
-        async fn test_drift_executor() {
+        async fn test_drift_executor_spc() {
             let client = PostgresClient::new(None, None).await.unwrap();
             cleanup(&client.pool).await;
 
@@ -277,6 +271,66 @@ pub mod drift_executor {
             let alerts = client.get_drift_alerts(&request).await.unwrap();
 
             assert_eq!(alerts.len(), 2);
+        }
+
+        #[tokio::test]
+        async fn test_drift_executor_psi() {
+            let client = PostgresClient::new(None, None).await.unwrap();
+            cleanup(&client.pool).await;
+
+            let mut populate_path =
+                std::env::current_dir().expect("Failed to get current directory");
+            populate_path.push("src/scripts/populate_psi.sql");
+
+            let script = std::fs::read_to_string(populate_path).unwrap();
+            sqlx::raw_sql(&script).execute(&client.pool).await.unwrap();
+
+            let mut drift_executor = DriftExecutor::new(client.clone());
+
+            drift_executor.poll_for_tasks().await.unwrap();
+
+            // get alerts from db
+            let request = DriftAlertRequest {
+                repository: "scouter".to_string(),
+                name: "model".to_string(),
+                version: "0.1.0".to_string(),
+                limit_datetime: None,
+                active: None,
+                limit: None,
+            };
+            let alerts = client.get_drift_alerts(&request).await.unwrap();
+
+            assert_eq!(alerts.len(), 3);
+        }
+
+        #[tokio::test]
+        async fn test_drift_executor_custom() {
+            let client = PostgresClient::new(None, None).await.unwrap();
+            cleanup(&client.pool).await;
+
+            let mut populate_path =
+                std::env::current_dir().expect("Failed to get current directory");
+            populate_path.push("src/scripts/populate_custom.sql");
+
+            let script = std::fs::read_to_string(populate_path).unwrap();
+            sqlx::raw_sql(&script).execute(&client.pool).await.unwrap();
+
+            let mut drift_executor = DriftExecutor::new(client.clone());
+
+            drift_executor.poll_for_tasks().await.unwrap();
+
+            // get alerts from db
+            let request = DriftAlertRequest {
+                repository: "scouter".to_string(),
+                name: "model".to_string(),
+                version: "0.1.0".to_string(),
+                limit_datetime: None,
+                active: None,
+                limit: None,
+            };
+            let alerts = client.get_drift_alerts(&request).await.unwrap();
+
+            assert_eq!(alerts.len(), 1);
         }
     }
 }

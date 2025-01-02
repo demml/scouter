@@ -145,8 +145,6 @@ pub struct CustomDriftProfile {
     #[pyo3(get)]
     pub scouter_version: String,
 
-    #[pyo3(get)]
-    pub custom_metrics: Vec<CustomMetric>,
 }
 
 #[pymethods]
@@ -172,7 +170,6 @@ impl CustomDriftProfile {
             config,
             metrics: metric_vals,
             scouter_version,
-            custom_metrics: metrics,
         })
     }
 

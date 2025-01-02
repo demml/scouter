@@ -103,6 +103,7 @@ pub mod psi_drifter {
 
         fn filter_drift_map(&self, drift_map: &HashMap<String, f64>) -> HashMap<String, f64> {
             let psi_threshold = self.profile.config.alert_config.psi_threshold;
+
             let filtered_drift_map: HashMap<String, f64> = drift_map
                 .iter()
                 .filter(|(_, &value)| value > psi_threshold)
