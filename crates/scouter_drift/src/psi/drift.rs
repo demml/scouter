@@ -6,7 +6,7 @@ pub mod psi_drifter {
     use scouter_contracts::ServiceInfo;
     use scouter_dispatch::AlertDispatcher;
     use scouter_error::DriftError;
-    use scouter_sql::{PostgresClient, sql::schema::FeatureBinProportion};
+    use scouter_sql::{PostgresClient, sql::schema::FeatureBinProportions};
     use scouter_types::psi::{PsiDriftProfile, PsiFeatureAlerts, PsiFeatureDriftProfile};
     use std::collections::{BTreeMap, HashMap};
     use tracing::error;
@@ -21,21 +21,57 @@ pub mod psi_drifter {
 
     #[derive(Debug, Clone, Serialize, Deserialize)]
     pub struct FeatureBinProportionPairs {
-        pub features: HashMap<String, Vec<FeatureBinProportionPair>>,
+        pub pairs: Vec<FeatureBinProportionPair>,
     }
 
     impl FeatureBinProportionPairs {
         pub fn from_observed_bin_proportions(
-            observed_bin_proportions: Vec<FeatureBinProportion>,
+            observed_bin_proportions: &FeatureBinProportions,
             profile: &PsiFeatureDriftProfile,
-        ) -> Self {
-            let mut features = HashMap::new();
-            for bin_proportion in observed_bin_proportions {
-                let bin_id = bin_proportion.bin_id.clone();
-                let feature = bin_proportion.feature.clone();
-                
-            }
-            Self { features }
+        ) -> Result<Self, DriftError> {
+
+            let pairs: Vec<FeatureBinProportionPair> = profile
+                .bins
+                .iter()
+                .map(|bin| {
+                    let observed_proportion = observed_bin_proportions.get(&profile.id,&bin.id).ok_or_else(|| {
+                        error!(
+                            "Error: Unable to fetch observed bin proportion for {}/{}",
+                            profile.id, bin.id
+                        );
+                        DriftError::Error("Error processing alerts".to_string())
+                    }).unwrap().clone();
+                    FeatureBinProportionPair{expected: bin.proportion, observed: observed_proportion}
+                })
+                .collect();
+
+            Ok(Self { pairs })
+        }
+    }
+
+    #[derive(Debug, Clone, Serialize, Deserialize)]
+    pub struct FeatureBinMapping {
+        pub features: HashMap<String, FeatureBinProportionPairs>,
+    }
+    
+
+    impl FeatureBinMapping {
+        pub fn from_observed_bin_proportions(
+            observed_bin_proportions: &FeatureBinProportions,
+            profiles_to_monitor: &Vec<PsiFeatureDriftProfile>,
+        ) -> Result<Self, DriftError> {
+
+
+            let features: HashMap<String, FeatureBinProportionPairs> = profiles_to_monitor
+                    .iter()
+                    .map(|profile| {
+                        let proportion_pairs = FeatureBinProportionPairs::from_observed_bin_proportions(observed_bin_proportions, profile).unwrap();
+                        (profile.id.clone(), proportion_pairs)
+                    })
+                    .collect();
+            
+
+            Ok(Self { features })
         }
     }
 

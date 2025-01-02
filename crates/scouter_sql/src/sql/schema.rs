@@ -59,6 +59,14 @@ impl FeatureBinProportions {
         }
         FeatureBinProportions { features }
     }
+
+    pub fn get(&self, feature: &str, bin: &str) -> Option<&f64> {
+        self.features.get(feature).and_then(|f| f.get(bin))
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.features.is_empty()
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
