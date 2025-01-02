@@ -3277,6 +3277,7 @@ dependencies = [
 name = "scouter-contracts"
 version = "0.3.3"
 dependencies = [
+ "chrono",
  "scouter-types",
  "serde",
  "serde_json",

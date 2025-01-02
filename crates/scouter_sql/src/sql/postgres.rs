@@ -143,39 +143,31 @@ impl PostgresClient {
         &self,
         params: &DriftAlertRequest,
     ) -> Result<Vec<AlertResult>, SqlError> {
-        let active = params.active.unwrap_or(false);
-
-        let query = Queries::GetDriftAlerts.get_query();
+    
+        let query = Queries::GetDriftAlerts.get_query().sql;
 
         // check if active
-        let built_query = if active {
-            format!("{} AND status = 'active'", query.sql)
+        let query = if params.active.unwrap_or(false) {
+            format!("{} AND status = 'active'", query)
         } else {
-            query.sql
+            query
+        };
+    
+        let query = format!("{} ORDER BY created_at DESC", query);
+    
+        let query = if let Some(limit) = params.limit {
+            format!("{} LIMIT {}", query, limit)
+        } else {
+            query
         };
 
-        // check if limit timestamp is provided
-        let built_query = if params.limit_timestamp.is_some() {
-            format!(
-                "{} AND created_at >= '{}' ORDER BY created_at DESC",
-                built_query,
-                params.limit_timestamp.as_ref().unwrap()
-            )
-        } else {
-            format!("{} ORDER BY created_at DESC", built_query)
-        };
-
-        // check if limit is provided
-        let built_query = if params.limit.is_some() {
-            format!("{} LIMIT {};", built_query, params.limit.unwrap())
-        } else {
-            format!("{};", built_query)
-        };
-
-        let result: Result<Vec<AlertResult>, sqlx::Error> = sqlx::query_as(&built_query)
+        // convert limit timestamp to string if it exists, leave as None if not
+       
+        let result: Result<Vec<AlertResult>, sqlx::Error> = sqlx::query_as(&query)
             .bind(&params.version)
             .bind(&params.name)
             .bind(&params.repository)
+            .bind(&params.limit_timestamp.map_or(None, |ts| Some(ts.to_string())))
             .fetch_all(&self.pool)
             .await;
 
@@ -925,6 +917,71 @@ mod tests {
         let client = PostgresClient::new(None).await.unwrap();
 
         cleanup(&client.pool).await;
+    }
+
+    #[tokio::test]
+    async fn test_postgres_drift_alert() {
+        let client = PostgresClient::new(None).await.unwrap();
+        cleanup(&client.pool).await;
+
+        let timestamp = chrono::Utc::now().naive_utc();
+
+        println!("Timestamp: {:?}", timestamp);
+
+        let service_info = ServiceInfo {
+            name: "test".to_string(),
+            repository: "test".to_string(),
+            version: "test".to_string(),
+        };
+
+        let alert = (0..10)
+            .map(|i| (i.to_string(), i.to_string()))
+            .collect::<BTreeMap<String, String>>();
+
+        let result = client.insert_drift_alert(&service_info, "test", &alert).await.unwrap();
+
+        assert_eq!(result.rows_affected(), 1);
+
+        // get alerts
+        let alert_request = DriftAlertRequest {
+            name: "test".to_string(),
+            repository: "test".to_string(),
+            version: "test".to_string(),
+            active: Some(true),
+            limit: None,
+            limit_timestamp: None,
+        };
+
+        let alerts = client.get_drift_alerts(&alert_request).await.unwrap();
+        assert_eq!(alerts.len(), 1);
+
+        // get alerts limit 1
+        let alert_request = DriftAlertRequest {
+            name: "test".to_string(),
+            repository: "test".to_string(),
+            version: "test".to_string(),
+            active: Some(true),
+            limit: Some(1),
+            limit_timestamp: None,
+        };
+
+        let alerts = client.get_drift_alerts(&alert_request).await.unwrap();
+        assert_eq!(alerts.len(), 1);
+
+        // get alerts limit timestamp
+        let alert_request = DriftAlertRequest {
+            name: "test".to_string(),
+            repository: "test".to_string(),
+            version: "test".to_string(),
+            active: Some(true),
+            limit: None,
+            limit_timestamp: Some(timestamp),
+        };
+
+        let alerts = client.get_drift_alerts(&alert_request).await.unwrap();
+        assert_eq!(alerts.len(), 1);
+
+
     }
 }
 

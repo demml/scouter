@@ -9,6 +9,8 @@ id,
 status
 FROM drift_alerts
 WHERE
-    version = $1
+    1=1
+    AND version = $1
     AND name = $2
     AND repository = $3
+    AND ($4 IS NULL OR created_at >= TO_DATE($4, 'YYYY-MM-DD'))

@@ -1,6 +1,7 @@
 use scouter_types::DriftType;
 use serde::Deserialize;
 use serde::Serialize;
+use chrono::NaiveDateTime;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRequest {
@@ -30,7 +31,7 @@ pub struct DriftAlertRequest {
     pub name: String,
     pub repository: String,
     pub version: String,
-    pub limit_timestamp: Option<String>,
+    pub limit_timestamp: Option<NaiveDateTime>,
     pub active: Option<bool>,
     pub limit: Option<i32>,
 }
