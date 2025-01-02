@@ -52,6 +52,7 @@ serde_json = { workspace = true }
 serde_qs = { workspace = true }
 tower = { version = "0.*", features = ["util"] }
 
+
 [features]
 default = []
 kafka = ["rdkafka"]

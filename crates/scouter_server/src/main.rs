@@ -419,6 +419,67 @@ mod tests {
 
         assert_eq!(results.len(), 10);
     }
+
+    #[cfg(feature = "kafka")]
+    #[tokio::test]
+    async fn test_kafka_startup() {
+        use rdkafka::producer::Producer;
+        
+        let helper = TestHelper::new().await.unwrap();
+
+
+        let config = ScouterServerConfig::default();
+        
+        let kafka_brokers =
+            std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_owned());
+        let producer: &rdkafka::producer::FutureProducer = &rdkafka::ClientConfig::new()
+            .set("bootstrap.servers", &kafka_brokers)
+            .set("statistics.interval.ms", "500")
+            .set("api.version.request", "true")
+            .set("debug", "all")
+            .set("message.timeout.ms", "30000")
+            .create()
+            .expect("Producer creation error");
+
+        for i in 0..15 {
+            // The send operation on the topic returns a future, which will be
+            // completed once the result or failure from Kafka is received.
+            let feature_names = vec!["feature0", "feature1", "feature2"];
+
+            for feature_name in feature_names {
+                let record = ServerRecord::Spc(
+                    SpcServerRecord {
+                        created_at: chrono::Utc::now().naive_utc(),
+                        name: "test_app".to_string(),
+                        repository: "test".to_string(),
+                        feature: feature_name.to_string(),
+                        value: i as f64,
+                        version: "1.0.0".to_string(),
+                        record_type: RecordType::Spc,
+                    });
+
+                let server_records = ServerRecords {
+                    record_type: RecordType::Spc,
+                    records: vec![record],
+                };
+
+                let record_string = serde_json::to_string(&server_records).unwrap();
+
+                let produce_future = producer.send(
+                    rdkafka::producer::FutureRecord::to("scouter_monitoring")
+                        .payload(&record_string)
+                        .key("Key"),
+                        tokio::time::Duration::from_secs(1),
+                );
+
+                match produce_future.await {
+                    Ok(delivery) => println!("Sent: {:?}", delivery),
+                    Err((e, _)) => println!("Error: {:?}", e),
+                }
+            }
+        }
+        producer.flush(tokio::time::Duration::from_secs(1)).unwrap();
+    }
 }
 
 //#[cfg(test)]
