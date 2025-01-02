@@ -15,3 +15,7 @@ build.sql:
 .PHONY: test.sql
 test.sql:
 	cargo test -p scouter-sql test_postgres -- --nocapture --test-threads=1
+
+.PHONY: test.types
+test.types:
+	cargo test -p scouter-types -- --nocapture --test-threads=1
