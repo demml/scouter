@@ -34,6 +34,14 @@ async fn start_metrics_server() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+/// Setup drift polling workers
+/// 
+/// This function will start a number of drift polling workers based on the number of workers
+/// 
+/// # Arguments
+/// 
+/// * `config` - The server configuration
+/// 
 async fn setup_polling_workers(config: &ScouterServerConfig) -> Result<(), anyhow::Error> {
     for i in 0..config.polling_settings.num_workers {
         info!("Starting drift schedule poller: {}", i);
@@ -56,6 +64,18 @@ async fn setup_polling_workers(config: &ScouterServerConfig) -> Result<(), anyho
     Ok(())
 }
 
+
+/// Create the main server
+/// 
+/// This function will create the main server with the given configuration
+/// 
+/// # Arguments
+/// 
+/// * `config` - The server configuration
+/// 
+/// # Returns
+/// 
+/// The main server router
 async fn create_app(config: ScouterServerConfig) -> Result<Router, anyhow::Error> {
     // setup logging
     setup_logging()
