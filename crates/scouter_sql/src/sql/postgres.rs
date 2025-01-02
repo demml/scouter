@@ -1092,6 +1092,44 @@ mod tests {
         let bin_proportion = binned_records.features.get("test").unwrap().get("decile_1").unwrap();
         assert!(*bin_proportion > 0.4 && *bin_proportion < 0.6);
     }
+
+
+    #[tokio::test]
+    async fn test_postgres_cru_custom_metric() {
+        let client = PostgresClient::new(None).await.unwrap();
+        cleanup(&client.pool).await;
+        let timestamp = chrono::Utc::now().naive_utc();
+
+        let record = CustomMetricServerRecord {
+            created_at: chrono::Utc::now().naive_utc(),
+            name: "test".to_string(),
+            repository: "test".to_string(),
+            version: "test".to_string(),
+            metric: "test".to_string(),
+            value: 1.0,
+            record_type: RecordType::Custom,
+        };
+
+        let result = client.insert_custom_metric_value(&record).await.unwrap();
+
+        assert_eq!(result.rows_affected(), 1);
+
+        let metrics = client
+            .get_custom_metric_values(
+                &ServiceInfo {
+                    name: "test".to_string(),
+                    repository: "test".to_string(),
+                    version: "test".to_string(),
+                },
+                &timestamp,
+                &vec!["test".to_string()],
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(metrics.get("test").unwrap(), &1.0);
+        
+    }
 }
 
 // integration tests
