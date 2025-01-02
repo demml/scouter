@@ -45,7 +45,7 @@ impl Default for DatabaseSettings {
 #[derive(Debug, Clone, Serialize)]
 pub struct KafkaSettings {
     pub brokers: String,
-    pub worker_count: usize,
+    pub num_workers: usize,
     pub topics: Vec<String>,
     pub group_id: String,
     pub username: Option<String>,
@@ -59,7 +59,7 @@ impl Default for KafkaSettings {
         let brokers =
             std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_string());
 
-        let worker_count = std::env::var("KAFKA_WORKER_COUNT")
+        let num_workers = std::env::var("KAFKA_WORKER_COUNT")
             .unwrap_or_else(|_| "3".to_string())
             .parse::<usize>()
             .map_err(|e| ConfigError::Error(format!("{:?}", e)))
@@ -80,7 +80,7 @@ impl Default for KafkaSettings {
 
         Self {
             brokers,
-            worker_count,
+            num_workers,
             topics,
             group_id,
             username,

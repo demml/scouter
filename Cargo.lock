@@ -3399,6 +3399,7 @@ dependencies = [
  "scouter-drift",
  "scouter-error",
  "scouter-observability",
+ "scouter-settings",
  "scouter-sql",
  "scouter-types",
  "serde",
@@ -3413,6 +3414,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "scouter-settings"
+version = "0.3.3"
+dependencies = [
+ "scouter-error",
+ "serde",
+]
+
+[[package]]
 name = "scouter-sql"
 version = "0.3.3"
 dependencies = [
@@ -3424,6 +3433,7 @@ dependencies = [
  "rand",
  "scouter-contracts",
  "scouter-error",
+ "scouter-settings",
  "scouter-types",
  "serde",
  "serde_json",

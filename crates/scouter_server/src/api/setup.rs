@@ -6,6 +6,8 @@ use tracing_subscriber::fmt::time::UtcTime;
 const DEFAULT_TIME_PATTERN: &str =
     "[year]-[month]-[day]T[hour repr:24]:[minute]:[second]::[subsecond digits:4]";
 
+// TODO: add ability to configure log level
+
 /// Setup logging for the application
 ///
 /// This function initializes the logging system for the application

@@ -2,7 +2,6 @@ use crate::sql::query::Queries;
 use crate::sql::schema::{
     AlertResult, FeatureBinProportionWrapper, ObservabilityResult, SpcFeatureResult, TaskRequest,
 };
-
 use chrono::{NaiveDateTime, Utc};
 use cron::Schedule;
 use scouter_contracts::{
@@ -10,6 +9,7 @@ use scouter_contracts::{
 };
 use scouter_error::ScouterError;
 use scouter_error::SqlError;
+use scouter_settings::DatabaseSettings;
 use scouter_types::{
     psi::{FeatureBinProportion, FeatureBinProportions},
     CustomMetricServerRecord, DriftProfile, ObservabilityMetrics, PsiServerRecord, RecordType,
@@ -42,8 +42,11 @@ impl PostgresClient {
     /// # Returns
     ///     
     /// * `Result<Self, SqlError>` - Result of the database pool
-    pub async fn new(pool: Option<Pool<Postgres>>) -> Result<Self, SqlError> {
-        let pool = pool.unwrap_or(Self::create_db_pool().await.map_err(|e| {
+    pub async fn new(
+        pool: Option<Pool<Postgres>>,
+        database_settings: Option<&DatabaseSettings>,
+    ) -> Result<Self, SqlError> {
+        let pool = pool.unwrap_or(Self::create_db_pool(database_settings).await.map_err(|e| {
             error!("Failed to create database pool: {:?}", e);
             SqlError::ConnectionError(format!("{:?}", e))
         })?);
@@ -61,20 +64,18 @@ impl PostgresClient {
     /// # Returns
     ///
     /// * `Result<Pool<Postgres>, anyhow::Error>` - Result of the database pool
-    pub async fn create_db_pool() -> Result<Pool<Postgres>, SqlError> {
-        // get env var
-        let database_url = std::env::var("DATABASE_URL")
-            .unwrap_or("postgresql://postgres:postgres@localhost:5432/postgres".to_string());
-
-        // get max connections from env or set to 10
-        let max_connections = std::env::var("MAX_CONNECTIONS")
-            .unwrap_or_else(|_| "10".to_string())
-            .parse::<u32>()
-            .map_err(|e| SqlError::ConnectionError(format!("{:?}", e)))?;
+    pub async fn create_db_pool(
+        database_settings: Option<&DatabaseSettings>,
+    ) -> Result<Pool<Postgres>, SqlError> {
+        let database_settings = if database_settings.is_none() {
+            &DatabaseSettings::default()
+        } else {
+            database_settings.unwrap()
+        };
 
         let pool = match PgPoolOptions::new()
-            .max_connections(max_connections)
-            .connect(&database_url)
+            .max_connections(database_settings.max_connections.clone())
+            .connect(&database_settings.connection_uri)
             .await
         {
             Ok(pool) => {
@@ -831,14 +832,14 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres() {
-        let client = PostgresClient::new(None).await.unwrap();
+        let client = PostgresClient::new(None, None).await.unwrap();
 
         cleanup(&client.pool).await;
     }
 
     #[tokio::test]
     async fn test_postgres_drift_alert() {
-        let client = PostgresClient::new(None).await.unwrap();
+        let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
 
         let timestamp = chrono::Utc::now().naive_utc();
@@ -902,7 +903,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres_spc_drift_record() {
-        let client = PostgresClient::new(None).await.unwrap();
+        let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
 
         let record = SpcServerRecord {
@@ -922,7 +923,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres_bin_count() {
-        let client = PostgresClient::new(None).await.unwrap();
+        let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
 
         let record = PsiServerRecord {
@@ -943,7 +944,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres_observability_record() {
-        let client = PostgresClient::new(None).await.unwrap();
+        let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
 
         let record = ObservabilityMetrics::default();
@@ -955,7 +956,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres_cru_drift_profile() {
-        let client = PostgresClient::new(None).await.unwrap();
+        let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
 
         let mut spc_profile = SpcDriftProfile::default();
@@ -1002,7 +1003,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres_get_features() {
-        let client = PostgresClient::new(None).await.unwrap();
+        let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
 
         let timestamp = chrono::Utc::now().naive_utc();
@@ -1056,7 +1057,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres_bin_proportions() {
-        let client = PostgresClient::new(None).await.unwrap();
+        let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
         let timestamp = chrono::Utc::now().naive_utc();
         for _ in 0..1000 {
@@ -1104,7 +1105,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres_cru_custom_metric() {
-        let client = PostgresClient::new(None).await.unwrap();
+        let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
         let timestamp = chrono::Utc::now().naive_utc();
 

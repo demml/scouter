@@ -1,6 +1,7 @@
 pub mod api;
 pub mod consumer;
 
+use crate::api::config::ScouterServerConfig;
 use crate::api::middleware::metrics::metrics_app;
 use crate::api::setup::setup_logging;
 use crate::api::state::AppState;
@@ -53,6 +54,8 @@ async fn setup_polling_workers(num_workers: usize) -> Result<(), anyhow::Error> 
 }
 
 async fn create_app(schedule_workers: usize) -> Result<Router, anyhow::Error> {
+    let config = ScouterServerConfig::default();
+
     // setup logging
     setup_logging()
         .await
@@ -60,7 +63,7 @@ async fn create_app(schedule_workers: usize) -> Result<Router, anyhow::Error> {
 
     // db for app state and kafka
     // start server
-    let db_client = PostgresClient::new(None)
+    let db_client = PostgresClient::new(None, &config.database_settings)
         .await
         .with_context(|| "Failed to create Postgres client")?;
 

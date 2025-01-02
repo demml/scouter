@@ -25,6 +25,7 @@ scouter-error = { path = "crates/scouter_error" }
 scouter-observability = { path = "crates/scouter_observability" }
 scouter-profile = { path = "crates/scouter_profile" }
 scouter-server = { path = "crates/scouter_server" }
+scouter-settings = { path = "crates/scouter_settings" }
 scouter-sql = { path = "crates/scouter_sql" }
 scouter-types = { path = "crates/scouter_types" }
 

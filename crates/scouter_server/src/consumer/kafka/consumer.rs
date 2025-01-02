@@ -25,8 +25,8 @@ pub mod kafka_consumer {
         topics: Vec<String>,
         username: Option<String>,
         password: Option<String>,
-        security_protocol: Option<String>,
-        sasl_mechanism: Option<String>,
+        security_protocol: String,
+        sasl_mechanism: String,
         config_overrides: Option<HashMap<&str, &str>>,
     ) -> Result<StreamConsumer, anyhow::Error> {
         let mut config = ClientConfig::new();
@@ -40,8 +40,8 @@ pub mod kafka_consumer {
 
         if username.is_some() && password.is_some() {
             config
-                .set("security.protocol", security_protocol.unwrap())
-                .set("sasl.mechanisms", sasl_mechanism.unwrap())
+                .set("security.protocol", security_protocol)
+                .set("sasl.mechanisms", sasl_mechanism)
                 .set("sasl.username", username.unwrap())
                 .set("sasl.password", password.unwrap());
         }
@@ -146,8 +146,8 @@ pub mod kafka_consumer {
         topics: Vec<String>,
         username: Option<String>,
         password: Option<String>,
-        security_protocol: Option<String>,
-        sasl_mechanism: Option<String>,
+        security_protocol: String,
+        sasl_mechanism: String,
     ) -> Result<(), anyhow::Error> {
         let consumer = create_kafka_consumer(
             group_id,

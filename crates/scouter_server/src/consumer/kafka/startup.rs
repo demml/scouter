@@ -3,40 +3,31 @@ pub mod kafka_startup {
 
     use crate::consumer::kafka::consumer::kafka_consumer::start_kafka_background_poll;
     use anyhow::*;
+    use scouter_settings::ScouterServerConfig;
     use scouter_sql::{MessageHandler, PostgresClient};
     use sqlx::{Pool, Postgres};
     use tracing::info;
 
-    pub async fn startup_kafka(pool: &Pool<Postgres>) -> Result<()> {
+    pub async fn startup_kafka(pool: &Pool<Postgres>, config: &ScouterServerConfig) -> Result<()> {
         info!("Starting Kafka consumer");
 
-        let num_kafka_workers = std::env::var("KAFKA_WORKER_COUNT")
-            .unwrap_or_else(|_| "3".to_string())
-            .parse::<usize>()
-            .with_context(|| "Failed to parse NUM_KAFKA_WORKERS")?;
+        let kafka_settings = config.kafka_settings.as_ref().unwrap().clone();
+        let database_settings = &config.database_settings;
+        let num_consumers = kafka_settings.num_workers.clone();
 
-        for _ in 0..num_kafka_workers {
-            let kafka_db_client = PostgresClient::new(Some(pool.clone()))
+        for _ in 0..num_consumers {
+            let kafka_db_client = PostgresClient::new(Some(pool.clone()), Some(database_settings))
                 .await
                 .with_context(|| "Failed to create Postgres client")?;
             let message_handler = MessageHandler::Postgres(kafka_db_client);
-            let brokers =
-                std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_owned());
-            let topics =
-                vec![std::env::var("KAFKA_TOPIC").unwrap_or("scouter_monitoring".to_string())];
-            let group_id = std::env::var("KAFKA_GROUP").unwrap_or("scouter".to_string());
-            let username: Option<String> = std::env::var("KAFKA_USERNAME").ok();
-            let password: Option<String> = std::env::var("KAFKA_PASSWORD").ok();
-            let security_protocol: Option<String> = Some(
-                std::env::var("KAFKA_SECURITY_PROTOCOL")
-                    .ok()
-                    .unwrap_or_else(|| "SASL_SSL".to_string()),
-            );
-            let sasl_mechanism: Option<String> = Some(
-                std::env::var("KAFKA_SASL_MECHANISM")
-                    .ok()
-                    .unwrap_or_else(|| "PLAIN".to_string()),
-            );
+
+            let group_id = kafka_settings.group_id.clone();
+            let brokers = kafka_settings.brokers.clone();
+            let topics = kafka_settings.topics.clone();
+            let username = kafka_settings.username.clone();
+            let password = kafka_settings.password.clone();
+            let security_protocol = kafka_settings.security_protocol.clone();
+            let sasl_mechanism = kafka_settings.sasl_mechanism.clone();
 
             // send task to background
             tokio::spawn(async move {
