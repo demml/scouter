@@ -27,3 +27,7 @@ test.dispatch:
 .PHONY: test.drift
 test.drift:
 	cargo test -p scouter-drift --all-features -- --nocapture --test-threads=1
+
+.PHONY: test.profile
+test.profile:
+	cargo test -p scouter-profile -- --nocapture --test-threads=1

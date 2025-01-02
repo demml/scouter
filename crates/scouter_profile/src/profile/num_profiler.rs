@@ -507,6 +507,7 @@ mod tests {
             0.25,
             epsilon = 0.05
         ));
+
         assert!(relative_eq!(
             profile[0].numeric_stats.as_ref().unwrap().quantiles.q50,
             0.5,
