@@ -7,12 +7,24 @@ use numpy::PyReadonlyArray2;
 use numpy::ToPyArray;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use scouter_drift::{
+    psi::PsiMonitor,
+    spc::{generate_alerts, SpcDriftMap, SpcMonitor},
+    CategoricalFeatureHelpers,
+};
+use scouter_error::{ProfilerError, ScouterError};
+use scouter_profile::{
+    compute_feature_correlations, DataProfile, FeatureProfile, NumProfiler, StringProfiler,
+};
+use scouter_types::{
+    create_feature_map,
+    custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
+    psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile},
+    spc::{SpcAlertRule, SpcDriftConfig, SpcDriftProfile, SpcFeatureAlerts},
+    ServerRecords,
+};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
-use scouter_profile::{NumProfiler, StringProfiler, DataProfile, compute_feature_correlations, FeatureProfile};
-use scouter_types::{ServerRecords, spc::{SpcDriftConfig, SpcAlertRule, SpcFeatureAlerts, SpcDriftProfile}, psi::{PsiDriftConfig, PsiDriftProfile, PsiDriftMap}, custom::{CustomMetricDriftConfig, CustomMetric, CustomDriftProfile}, create_feature_map};
-use scouter_drift::{CategoricalFeatureHelpers, spc::{SpcMonitor, SpcDriftMap, generate_alerts}, psi::PsiMonitor};
-use scouter_error::{ProfilerError, ScouterError};
 
 #[pyclass]
 pub struct ScouterProfiler {

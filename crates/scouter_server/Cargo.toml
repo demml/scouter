@@ -44,8 +44,10 @@ lapin = { workspace = true, optional = true }
 [dev-dependencies]
 approx = "0.*"
 http-body-util = "0.*"
+ndarray = { workspace = true }
 ndarray-rand = "0.*"
 mockito = "1.*"
+serde_json = { workspace = true }
 tower = { version = "0.*", features = ["util"] }
 
 [features]

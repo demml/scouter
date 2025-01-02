@@ -22,7 +22,8 @@ pub async fn setup_logging() -> Result<(), anyhow::Error> {
         .with_thread_ids(true)
         .with_timer(UtcTime::new(time_format))
         .with_writer(io::stdout)
-        .init();
+        .try_init()
+        .map_err(|e| anyhow::anyhow!("Failed to setup logging: {:?}", e))?;
 
     Ok(())
 }

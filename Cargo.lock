@@ -3397,6 +3397,7 @@ dependencies = [
  "metrics",
  "metrics-exporter-prometheus",
  "mockito",
+ "ndarray",
  "ndarray-rand",
  "rdkafka",
  "scouter-contracts",

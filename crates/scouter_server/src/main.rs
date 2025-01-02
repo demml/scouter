@@ -35,13 +35,13 @@ async fn start_metrics_server() -> Result<(), anyhow::Error> {
 }
 
 /// Setup drift polling workers
-/// 
+///
 /// This function will start a number of drift polling workers based on the number of workers
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `config` - The server configuration
-/// 
+///
 async fn setup_polling_workers(config: &ScouterServerConfig) -> Result<(), anyhow::Error> {
     for i in 0..config.polling_settings.num_workers {
         info!("Starting drift schedule poller: {}", i);
@@ -64,23 +64,20 @@ async fn setup_polling_workers(config: &ScouterServerConfig) -> Result<(), anyho
     Ok(())
 }
 
-
 /// Create the main server
-/// 
+///
 /// This function will create the main server with the given configuration
-/// 
+///
 /// # Arguments
-/// 
+///
 /// * `config` - The server configuration
-/// 
+///
 /// # Returns
-/// 
+///
 /// The main server router
 async fn create_app(config: ScouterServerConfig) -> Result<Router, anyhow::Error> {
-    // setup logging
-    setup_logging()
-        .await
-        .with_context(|| "Failed to setup logging")?;
+    // setup logging, soft fail if it fails
+    let _ = setup_logging().await.is_ok();
 
     // db for app state and kafka
     // start server
@@ -140,13 +137,21 @@ mod tests {
     use axum::response::Response;
     use axum::{
         body::Body,
-        http::{Request, StatusCode},
+        http::{header, Request, StatusCode},
         Router,
     };
-    use http_body_util::BodyExt; // for `collect`
+    use http_body_util::BodyExt;
+    use scouter_contracts::ProfileRequest;
+    use scouter_types::DriftType;
+    // for `collect`
+    use crate::api::routes::health::Alive;
+    use ndarray::Array;
+    use ndarray_rand::rand_distr::Uniform;
+    use ndarray_rand::RandomExt;
+    use scouter_drift::spc::monitor::SpcMonitor;
+    use scouter_types::spc::{SpcAlertConfig, SpcDriftConfig};
     use sqlx::{Pool, Postgres};
     use tower::util::ServiceExt;
-    use crate::api::routes::health::Alive;
 
     pub async fn cleanup(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> {
         sqlx::raw_sql(
@@ -219,6 +224,56 @@ mod tests {
         let v: Alive = serde_json::from_slice(&body).unwrap();
 
         assert_eq!(v.status, "Alive");
+    }
+
+    #[tokio::test]
+    async fn test_create_spc_profile() {
+        let helper = TestHelper::new().await.unwrap();
+
+        let array = Array::random((1030, 3), Uniform::new(0., 10.));
+
+        let features = vec![
+            "feature_1".to_string(),
+            "feature_2".to_string(),
+            "feature_3".to_string(),
+        ];
+        let alert_config = SpcAlertConfig::default();
+        let config = SpcDriftConfig::new(
+            Some("name".to_string()),
+            Some("repo".to_string()),
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(alert_config),
+            None,
+        );
+
+        let monitor = SpcMonitor::new();
+
+        let profile = monitor
+            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
+            .unwrap();
+
+        let request = ProfileRequest {
+            profile: profile.model_dump_json(),
+            drift_type: DriftType::Spc,
+        };
+
+        let body = serde_json::to_string(&request).unwrap();
+
+        let request = Request::builder()
+            .uri("/scouter/profile")
+            .method("POST")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body))
+            .unwrap();
+
+        let response = helper.send_oneshot(request).await;
+
+        //assert response
+        assert_eq!(response.status(), StatusCode::OK);
     }
 }
 
