@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, Error, FromRow, Row};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
-use std::hash::Hash;
+use scouter_types::psi::FeatureBinProportion;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRecord {
@@ -38,36 +38,19 @@ impl<'r> FromRow<'r, PgRow> for SpcFeatureResult {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct FeatureBinProportion {
-    pub feature: String,
-    pub bin_id: String,
-    pub proportion: f64,
-}
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct FeatureBinProportions {
-    pub features: HashMap<String, HashMap<String, f64>>,
-}
+pub struct FeatureBinProportionWrapper(pub FeatureBinProportion);
 
-impl FeatureBinProportions {
-    pub fn from_bins(bins: Vec<FeatureBinProportion>) -> Self {
-        let mut features: HashMap<String, HashMap<String, f64>> = HashMap::new();
-        for bin in bins {
-            let feature = features.entry(bin.feature).or_insert(HashMap::new());
-            feature.insert(bin.bin_id, bin.proportion);
-        }
-        FeatureBinProportions { features }
-    }
-
-    pub fn get(&self, feature: &str, bin: &str) -> Option<&f64> {
-        self.features.get(feature).and_then(|f| f.get(bin))
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.features.is_empty()
+impl<'r> FromRow<'r, PgRow> for FeatureBinProportionWrapper {
+    fn from_row(row: &'r PgRow) -> Result<Self, Error> {
+        Ok(FeatureBinProportionWrapper(FeatureBinProportion {
+            feature: row.try_get("feature")?,
+            bin_id: row.try_get("bin_id")?,
+            proportion: row.try_get("proportion")?,
+        }))
     }
 }
+
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AlertResult {

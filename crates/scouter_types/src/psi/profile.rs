@@ -346,6 +346,37 @@ impl ProfileBaseArgs for PsiDriftProfile {
     }
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FeatureBinProportion {
+    pub feature: String,
+    pub bin_id: String,
+    pub proportion: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FeatureBinProportions {
+    pub features: HashMap<String, HashMap<String, f64>>,
+}
+
+impl FeatureBinProportions {
+    pub fn from_bins(bins: Vec<FeatureBinProportion>) -> Self {
+        let mut features: HashMap<String, HashMap<String, f64>> = HashMap::new();
+        for bin in bins {
+            let feature = features.entry(bin.feature).or_insert(HashMap::new());
+            feature.insert(bin.bin_id, bin.proportion);
+        }
+        FeatureBinProportions { features }
+    }
+
+    pub fn get(&self, feature: &str, bin: &str) -> Option<&f64> {
+        self.features.get(feature).and_then(|f| f.get(bin))
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.features.is_empty()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

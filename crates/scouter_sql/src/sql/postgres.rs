@@ -1,6 +1,6 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::{
-    AlertResult, FeatureBinProportion,FeatureBinProportions, ObservabilityResult, SpcFeatureResult, TaskRequest,
+    AlertResult, FeatureBinProportionWrapper, ObservabilityResult, SpcFeatureResult, TaskRequest,
 };
 
 use chrono::{NaiveDateTime, Utc};
@@ -10,11 +10,11 @@ use scouter_contracts::{
 };
 use scouter_error::ScouterError;
 use scouter_error::SqlError;
-use scouter_types::DriftProfile;
 use scouter_types::{
-    CustomMetricServerRecord, ObservabilityMetrics, PsiServerRecord, SpcServerRecord,
+    CustomMetricServerRecord, ObservabilityMetrics, PsiServerRecord, SpcServerRecord, DriftProfile,
+    RecordType, ServerRecords, TimeInterval, ToDriftRecords, psi::{FeatureBinProportions,FeatureBinProportion},
 };
-use scouter_types::{RecordType, ServerRecords, TimeInterval, ToDriftRecords};
+
 use serde_json::Value;
 use sqlx::{
     postgres::{PgPoolOptions, PgQueryResult, PgRow},
@@ -649,7 +649,7 @@ impl PostgresClient {
     ) -> Result<FeatureBinProportions, SqlError> {
         let query = Queries::GetFeatureBinProportions.get_query();
 
-        let binned: Vec<FeatureBinProportion> = sqlx::query_as(&query.sql)
+        let binned: Vec<FeatureBinProportionWrapper> = sqlx::query_as(&query.sql)
             .bind(&service_info.name)
             .bind(&service_info.repository)
             .bind(&service_info.version)
@@ -664,7 +664,12 @@ impl PostgresClient {
                 ))
             })?;
 
-        Ok(FeatureBinProportions::from_bins(binned))
+            let feature_bin_proportions: Vec<FeatureBinProportion> = binned
+                .into_iter()
+                .map(|wrapper| wrapper.0)
+                .collect();
+
+        Ok(FeatureBinProportions::from_bins(feature_bin_proportions))
     }
 
     pub async fn get_custom_metric_values(
