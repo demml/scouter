@@ -38,7 +38,7 @@ impl<'r> FromRow<'r, PgRow> for SpcFeatureResult {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct FeatureBinProportions {
+pub struct FeatureBinProportion {
     pub feature: String,
     pub bin_id: String,
     pub proportion: f64,

@@ -1,6 +1,6 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::{
-    AlertResult, FeatureBinProportions, ObservabilityResult, SpcFeatureResult, TaskRequest,
+    AlertResult, FeatureBinProportion, ObservabilityResult, SpcFeatureResult, TaskRequest,
 };
 
 use chrono::{NaiveDateTime, Utc};
@@ -646,10 +646,10 @@ impl PostgresClient {
         service_info: &ServiceInfo,
         limit_datetime: &str,
         features_to_monitor: &[String],
-    ) -> Result<Vec<FeatureBinProportions>, SqlError> {
+    ) -> Result<Vec<FeatureBinProportion>, SqlError> {
         let query = Queries::GetFeatureBinProportions.get_query();
 
-        let binned: Result<Vec<FeatureBinProportions>, sqlx::Error> = sqlx::query_as(&query.sql)
+        let binned: Result<Vec<FeatureBinProportion>, sqlx::Error> = sqlx::query_as(&query.sql)
             .bind(&service_info.name)
             .bind(&service_info.repository)
             .bind(&service_info.version)
