@@ -20,7 +20,10 @@ test.sql:
 test.types:
 	cargo test -p scouter-types -- --nocapture --test-threads=1
 
-
 .PHONY: test.dispatch
 test.dispatch:
 	cargo test -p scouter-dispatch -- --nocapture --test-threads=1
+
+.PHONY: test.drift
+test.drift:
+	cargo test -p scouter-drift --all-features -- --nocapture --test-threads=1
