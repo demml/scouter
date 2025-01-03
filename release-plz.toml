@@ -1,16 +1,13 @@
 [workspace]
 dependencies_update = true
-changelog_update = false
+changelog_update = true
 pr_labels = ["release"]
 semver_check = true
 publish_timeout = "10m" # set a timeout for `cargo publish`
 git_tag_enable = false
 git_release_enable = false
-publish = false
-
-[[package]]
-name = "scouter"
-publish = true 
+publish = true
+repo_url = "https://github.com/demml/scouter"
 
 [[package]]
 name = "py-scouter"
