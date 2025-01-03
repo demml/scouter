@@ -37,15 +37,16 @@ test.drift.executor:
 test.profile:
 	cargo test -p scouter-profile -- --nocapture --test-threads=1
 
-.PHONY: build.sql_kafka
-build.sql_kafka:
-	docker-compose down
-	docker-compose up --build postgres-kafka
 
 .PHONY: test.server
 test.server:
 	cargo test -p scouter-server --all-features -- --nocapture --test-threads=1
 
-.PHONY: run.server
-run.server:
-	cargo run -p scouter-server --all-features
+.PHONY: build.sql_kafka
+build.sql_kafka:
+	docker-compose down
+	docker-compose up -d --build postgres-kafka --wait
+
+.PHONY: test.events
+test.events: build.sql_kafka
+	cargo run --example kafka_integration --all-features -- --nocapture

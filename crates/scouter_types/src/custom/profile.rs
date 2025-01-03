@@ -144,7 +144,6 @@ pub struct CustomDriftProfile {
 
     #[pyo3(get)]
     pub scouter_version: String,
-
 }
 
 #[pymethods]

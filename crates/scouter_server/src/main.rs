@@ -192,7 +192,6 @@ mod tests {
 
     impl TestHelper {
         pub async fn new(enable_kafka: bool, enable_rabbitmq: bool) -> Result<Self, anyhow::Error> {
-    
             if enable_kafka {
                 std::env::set_var("KAFKA_BROKERS", "localhost:9092");
             }
@@ -200,7 +199,6 @@ mod tests {
             if enable_rabbitmq {
                 std::env::set_var("RABBITMQ_ADDRESS", "amqp://guest:guest@127.0.0.1:5672/%2f");
             }
-
 
             let mut config = ScouterServerConfig::default();
             config.polling_settings.num_workers = 1;
@@ -434,13 +432,11 @@ mod tests {
     #[cfg(feature = "kafka")]
     #[tokio::test]
     async fn test_kafka_startup() {
-
         let helper = TestHelper::new(true, false).await.unwrap();
         assert!(helper.config.kafka_enabled());
 
         // wait 5 sec
         tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-
 
         // get drift records
         let params = DriftRequest {

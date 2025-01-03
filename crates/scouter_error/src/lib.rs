@@ -245,4 +245,20 @@ pub enum ConfigError {
     Error(String),
 }
 
+#[derive(Error, Debug, Deserialize)]
+pub enum LoggingError {
+    #[error("{0}")]
+    Error(String),
+}
+
+#[derive(Error, Debug, Deserialize)]
+pub enum EventError {
+    #[error("Event error: {0}")]
+    Error(String),
+
+    // inherit SqlError
+    #[error(transparent)]
+    SqlError(#[from] SqlError),
+}
+
 create_exception!(scouter, PyScouterError, PyException);

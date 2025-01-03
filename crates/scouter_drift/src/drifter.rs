@@ -213,7 +213,7 @@ pub mod drift_executor {
         use super::*;
         use scouter_contracts::DriftAlertRequest;
         use scouter_sql::PostgresClient;
-    
+
         use sqlx::{postgres::Postgres, Pool};
 
         pub async fn cleanup(pool: &Pool<Postgres>) {

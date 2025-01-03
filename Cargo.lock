@@ -3345,6 +3345,27 @@ dependencies = [
 ]
 
 [[package]]
+name = "scouter-events"
+version = "0.3.3"
+dependencies = [
+ "chrono",
+ "futures",
+ "lapin",
+ "rdkafka",
+ "scouter-contracts",
+ "scouter-error",
+ "scouter-settings",
+ "scouter-sql",
+ "scouter-types",
+ "serde_json",
+ "sqlx",
+ "time",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "scouter-observability"
 version = "0.3.3"
 dependencies = [
