@@ -169,8 +169,7 @@ impl PostgresClient {
             .bind(&params.repository)
             .bind(
                 &params
-                    .limit_datetime
-                    .map_or(None, |ts| Some(ts.to_string())),
+                    .limit_datetime.map(|ts| ts.to_string()),
             )
             .fetch_all(&self.pool)
             .await;
@@ -480,7 +479,7 @@ impl PostgresClient {
             .bind(&service_info.name)
             .bind(&service_info.repository)
             .bind(&service_info.version)
-            .bind(&features)
+            .bind(features)
             .fetch_all(&self.pool)
             .await
             .map_err(|e| {
@@ -1088,7 +1087,7 @@ mod tests {
                     version: "test".to_string(),
                 },
                 &timestamp,
-                &vec!["test".to_string()],
+                &["test".to_string()],
             )
             .await
             .unwrap();
@@ -1131,7 +1130,7 @@ mod tests {
                     version: "test".to_string(),
                 },
                 &timestamp,
-                &vec!["test".to_string()],
+                &["test".to_string()],
             )
             .await
             .unwrap();
