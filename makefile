@@ -9,11 +9,6 @@ lints:
 # For tests that need postgres
 .PHONY: build.sql
 build.sql:
-	docker-compose down
-	docker-compose up -d --build postgres --wait
-
-.PHONY: build.sql.gh
-build.sql.gh:
 	docker compose down
 	docker compose up -d --build postgres --wait
 
@@ -31,12 +26,7 @@ test.drift.executor:
 
 .PHONY: test.needs_sql
 test.needs_sql: build.sql test.sql test.server test.drift.executor
-	docker-compose down
-
-.PHONY: test.needs_sql.gh
-test.needs_sql.gh: build.sql.gh test.sql test.server test.drift.executor
 	docker compose down
-
 
 #### Unit tests
 .PHONY: test.types
@@ -61,8 +51,8 @@ test.unit: test.types test.dispatch test.drift test.profile
 #### Event tests
 .PHONY: build.sql_kafka
 build.sql_kafka:
-	docker-compose down
-	docker-compose up -d --build postgres-kafka --wait
+	docker compose down
+	docker compose up -d --build postgres-kafka --wait
 
 .PHONY: test.kafka_events
 test.kafka_events: build.sql_kafka
@@ -71,8 +61,8 @@ test.kafka_events: build.sql_kafka
 
 .PHONY: build.sql_rabbitmq
 build.sql_rabbitmq:
-	docker-compose down
-	docker-compose up -d --build postgres-rabbitmq --wait
+	docker compose down
+	docker compose up -d --build postgres-rabbitmq --wait
 
 .PHONY: test.rabbitmq_events
 test.rabbitmq_events: build.sql_rabbitmq
@@ -83,7 +73,3 @@ test.events: test.kafka_events test.rabbitmq_events
 
 .PHONY: test
 test: test.needs_sql test.unit
-
-
-.PHONY: test.gh
-test.gh: test.needs_sql.gh
