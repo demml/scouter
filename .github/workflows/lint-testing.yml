@@ -28,19 +28,11 @@ jobs:
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
 
-      - name: Run cargo clippy
-        working-directory: ./crates/scouter
-        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Run Lints
+        run: make lints
 
       - name: Tests
-        working-directory: ./crates/scouter
-        run: cargo test
-        env:
-          RUST_BACKTRACE: 1
-
-      - name: Bench
-        working-directory: ./crates/scouter
-        run: cargo bench
+        run: make test
         env:
           RUST_BACKTRACE: 1
 
