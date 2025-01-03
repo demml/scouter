@@ -31,8 +31,13 @@ jobs:
       - name: Run Lints
         run: make lints
 
-      - name: Tests
+      - name: Unit Tests
         run: make test
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Integration Tests
+        run: make test.events
         env:
           RUST_BACKTRACE: 1
 
