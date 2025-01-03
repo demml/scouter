@@ -167,10 +167,7 @@ impl PostgresClient {
             .bind(&params.version)
             .bind(&params.name)
             .bind(&params.repository)
-            .bind(
-                &params
-                    .limit_datetime.map(|ts| ts.to_string()),
-            )
+            .bind(&params.limit_datetime)
             .fetch_all(&self.pool)
             .await;
 
