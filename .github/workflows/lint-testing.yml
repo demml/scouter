@@ -32,7 +32,7 @@ jobs:
         run: make lints
 
       - name: Tests
-        run: make test.gh
+        run: make test
         env:
           RUST_BACKTRACE: 1
 
@@ -132,6 +132,58 @@ jobs:
       - name: Run tests and report coverage
         working-directory: ./py-scouter
         run: make test.unit
+
+
+  test-os-integration:
+    needs: [test-os]
+    name: test ${{ matrix.os }}-${{ matrix.python-version }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu]
+        python-version: ["3.11"]
+
+    runs-on: ${{ matrix.os }}-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cache rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.os }}-${{ matrix.python-version }}-v1
+
+      - name: Setup Kafka
+        run: make build.kafka
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Set up uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: set up python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Create virtual environment
+        working-directory: ./py-scouter
+        run: make setup.project
+
+      - name: Install dependencies
+        working-directory: ./py-scouter
+        run: make setup.integration
+
+      - name: Run tests
+        working-directory: ./py-scouter
+        run: make test.integration
+
+      - name: Stop Containers
+        if: always()
+        run: make shutdown
 
   test-build:
     needs: [test-os]

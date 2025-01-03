@@ -6,12 +6,18 @@ format:
 lints:
 	cargo clippy --workspace --all-targets --all-features -- -D warnings
 
+# build for kafka
+.PHONY: build.kafka
+build.kafka:
+	docker compose down
+	docker compose up -d --build init-kafka --wait
+
 # For tests that need postgres
 .PHONY: build.sql
 build.sql:
 	docker compose down
 	docker compose up -d --build postgres --wait
-
+	
 .PHONY: test.sql
 test.sql:
 	cargo test -p scouter-sql test_postgres -- --nocapture --test-threads=1
@@ -73,3 +79,8 @@ test.events: test.kafka_events test.rabbitmq_events
 
 .PHONY: test
 test: test.needs_sql test.unit
+
+
+.PHONY: shutdown
+shutdown:
+	docker compose down
