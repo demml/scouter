@@ -1,5 +1,4 @@
 pub mod api;
-pub mod consumer;
 
 use crate::api::middleware::metrics::metrics_app;
 use crate::api::setup::setup_logging;
@@ -14,10 +13,10 @@ use std::sync::Arc;
 use tracing::{error, info};
 
 #[cfg(feature = "kafka")]
-use crate::consumer::kafka::startup::kafka_startup::startup_kafka;
+use scouter_events::kafka::startup_kafka;
 
 #[cfg(feature = "rabbitmq")]
-use crate::consumer::rabbitmq::startup::rabbitmq_startup::startup_rabbitmq;
+use scouter_events::rabbitmq::startup_rabbitmq;
 
 /// Start the metrics server for prometheus
 async fn start_metrics_server() -> Result<(), anyhow::Error> {
@@ -187,7 +186,6 @@ mod tests {
 
     pub struct TestHelper {
         app: Router,
-        config: ScouterServerConfig,
     }
 
     impl TestHelper {
@@ -211,7 +209,7 @@ mod tests {
 
             cleanup(&db_client.pool).await?;
 
-            Ok(Self { app, config })
+            Ok(Self { app })
         }
         pub async fn send_oneshot(&self, request: Request<Body>) -> Response<Body> {
             self.app.clone().oneshot(request).await.unwrap()
@@ -252,7 +250,7 @@ mod tests {
         }
     }
 
-    //#[tokio::test]
+    #[tokio::test]
     async fn test_health_check() {
         let helper = TestHelper::new(false, false).await.unwrap();
 
@@ -272,7 +270,7 @@ mod tests {
         assert_eq!(v.status, "Alive");
     }
 
-    //#[tokio::test]
+    #[tokio::test]
     async fn test_create_spc_profile() {
         let helper = TestHelper::new(false, false).await.unwrap();
 
@@ -382,7 +380,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    //#[tokio::test]
+    #[tokio::test]
     async fn test_server_records() {
         let helper = TestHelper::new(false, false).await.unwrap();
         let records = helper.get_drift_records();
@@ -427,45 +425,5 @@ mod tests {
         let results: Vec<SpcFeatureResult> = serde_json::from_slice(&body).unwrap();
 
         assert_eq!(results.len(), 10);
-    }
-
-    #[cfg(feature = "kafka")]
-    #[tokio::test]
-    async fn test_kafka_startup() {
-        let helper = TestHelper::new(true, false).await.unwrap();
-        assert!(helper.config.kafka_enabled());
-
-        // wait 5 sec
-        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
-
-        // get drift records
-        let params = DriftRequest {
-            name: "test".to_string(),
-            repository: "test".to_string(),
-            version: "1.0.0".to_string(),
-            time_window: TimeInterval::FiveMinutes,
-            max_data_points: 100,
-        };
-
-        let query_string = serde_qs::to_string(&params).unwrap();
-
-        let request = Request::builder()
-            .uri(format!("/scouter/drift?{}", query_string))
-            .method("GET")
-            .body(Body::empty())
-            .unwrap();
-
-        let response = helper.send_oneshot(request).await;
-
-        //assert response
-        assert_eq!(response.status(), StatusCode::OK);
-
-        let body = response.into_body().collect().await.unwrap().to_bytes();
-
-        let results: Vec<SpcFeatureResult> = serde_json::from_slice(&body).unwrap();
-
-        assert_eq!(results.len(), 3);
-
-        //assert_eq!(results.len(), 3);
     }
 }

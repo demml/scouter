@@ -13,6 +13,7 @@ description = "Rust Scouter server logic"
 
 [dependencies]
 scouter-error = { workspace = true }
+scouter-events = { workspace = true}
 scouter-types = { workspace = true }
 scouter-contracts = { workspace = true }
 scouter-dispatch = { workspace = true }
@@ -35,12 +36,6 @@ tower-http = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true}
 
-# Kafka dependencies
-rdkafka = { workspace = true, optional = true}
-
-# RabbitMQ dependencies
-lapin = { workspace = true, optional = true }
-
 [dev-dependencies]
 approx = "0.*"
 chrono = { workspace = true }
@@ -55,8 +50,8 @@ tower = { version = "0.*", features = ["util"] }
 
 [features]
 default = []
-kafka = ["rdkafka"]
-rabbitmq = ["lapin"]
+kafka = ["scouter-events/kafka"]
+rabbitmq = ["scouter-events/rabbitmq"]
 
 [profile.release]
 lto = "fat"
