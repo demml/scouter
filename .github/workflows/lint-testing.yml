@@ -230,6 +230,7 @@ jobs:
         run: twine check --strict dist/*
 
   test-build-rust-binaries:
+    needs: [rust-lints-test]
     name: build - ${{ matrix.target }}
     strategy:
       fail-fast: false
