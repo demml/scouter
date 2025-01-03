@@ -65,7 +65,11 @@ impl Default for KafkaSettings {
             .map_err(|e| ConfigError::Error(format!("{:?}", e)))
             .unwrap();
 
-        let topics = vec![std::env::var("KAFKA_TOPIC").unwrap_or("scouter_monitoring".to_string())];
+        let topics = std::env::var("KAFKA_TOPICS")
+            .unwrap_or_else(|_| "scouter_monitoring".to_string())
+            .split(',')
+            .map(|s| s.to_string())
+            .collect();
 
         let group_id = std::env::var("KAFKA_GROUP").unwrap_or("scouter".to_string());
         let username: Option<String> = std::env::var("KAFKA_USERNAME").ok();

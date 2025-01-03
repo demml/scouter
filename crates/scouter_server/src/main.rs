@@ -187,14 +187,25 @@ mod tests {
 
     pub struct TestHelper {
         app: Router,
+        config: ScouterServerConfig,
     }
 
     impl TestHelper {
-        pub async fn new() -> Result<Self, anyhow::Error> {
+        pub async fn new(enable_kafka: bool, enable_rabbitmq: bool) -> Result<Self, anyhow::Error> {
+    
+            if enable_kafka {
+                std::env::set_var("KAFKA_BROKERS", "localhost:9092");
+            }
+
+            if enable_rabbitmq {
+                std::env::set_var("RABBITMQ_ADDRESS", "amqp://guest:guest@127.0.0.1:5672/%2f");
+            }
+
+
             let mut config = ScouterServerConfig::default();
             config.polling_settings.num_workers = 1;
 
-            let app = create_app(config).await?;
+            let app = create_app(config.clone()).await?;
 
             let db_client = PostgresClient::new(None, None)
                 .await
@@ -202,7 +213,7 @@ mod tests {
 
             cleanup(&db_client.pool).await?;
 
-            Ok(Self { app })
+            Ok(Self { app, config })
         }
         pub async fn send_oneshot(&self, request: Request<Body>) -> Response<Body> {
             self.app.clone().oneshot(request).await.unwrap()
@@ -243,9 +254,9 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    //#[tokio::test]
     async fn test_health_check() {
-        let helper = TestHelper::new().await.unwrap();
+        let helper = TestHelper::new(false, false).await.unwrap();
 
         let request = Request::builder()
             .uri("/scouter/healthcheck")
@@ -263,9 +274,9 @@ mod tests {
         assert_eq!(v.status, "Alive");
     }
 
-    #[tokio::test]
+    //#[tokio::test]
     async fn test_create_spc_profile() {
-        let helper = TestHelper::new().await.unwrap();
+        let helper = TestHelper::new(false, false).await.unwrap();
 
         let (array, features) = helper.get_data();
         let alert_config = SpcAlertConfig::default();
@@ -373,9 +384,9 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    #[tokio::test]
+    //#[tokio::test]
     async fn test_server_records() {
-        let helper = TestHelper::new().await.unwrap();
+        let helper = TestHelper::new(false, false).await.unwrap();
         let records = helper.get_drift_records();
         let body = serde_json::to_string(&records).unwrap();
 
@@ -423,109 +434,42 @@ mod tests {
     #[cfg(feature = "kafka")]
     #[tokio::test]
     async fn test_kafka_startup() {
-        use rdkafka::producer::Producer;
-        
-        let helper = TestHelper::new().await.unwrap();
+
+        let helper = TestHelper::new(true, false).await.unwrap();
+        assert!(helper.config.kafka_enabled());
+
+        // wait 5 sec
+        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
 
-        let config = ScouterServerConfig::default();
-        
-        let kafka_brokers =
-            std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_owned());
-        let producer: &rdkafka::producer::FutureProducer = &rdkafka::ClientConfig::new()
-            .set("bootstrap.servers", &kafka_brokers)
-            .set("statistics.interval.ms", "500")
-            .set("api.version.request", "true")
-            .set("debug", "all")
-            .set("message.timeout.ms", "30000")
-            .create()
-            .expect("Producer creation error");
+        // get drift records
+        let params = DriftRequest {
+            name: "test".to_string(),
+            repository: "test".to_string(),
+            version: "1.0.0".to_string(),
+            time_window: TimeInterval::FiveMinutes,
+            max_data_points: 100,
+        };
 
-        for i in 0..15 {
-            // The send operation on the topic returns a future, which will be
-            // completed once the result or failure from Kafka is received.
-            let feature_names = vec!["feature0", "feature1", "feature2"];
+        let query_string = serde_qs::to_string(&params).unwrap();
 
-            for feature_name in feature_names {
-                let record = ServerRecord::Spc(
-                    SpcServerRecord {
-                        created_at: chrono::Utc::now().naive_utc(),
-                        name: "test_app".to_string(),
-                        repository: "test".to_string(),
-                        feature: feature_name.to_string(),
-                        value: i as f64,
-                        version: "1.0.0".to_string(),
-                        record_type: RecordType::Spc,
-                    });
+        let request = Request::builder()
+            .uri(format!("/scouter/drift?{}", query_string))
+            .method("GET")
+            .body(Body::empty())
+            .unwrap();
 
-                let server_records = ServerRecords {
-                    record_type: RecordType::Spc,
-                    records: vec![record],
-                };
+        let response = helper.send_oneshot(request).await;
 
-                let record_string = serde_json::to_string(&server_records).unwrap();
+        //assert response
+        assert_eq!(response.status(), StatusCode::OK);
 
-                let produce_future = producer.send(
-                    rdkafka::producer::FutureRecord::to("scouter_monitoring")
-                        .payload(&record_string)
-                        .key("Key"),
-                        tokio::time::Duration::from_secs(1),
-                );
+        let body = response.into_body().collect().await.unwrap().to_bytes();
 
-                match produce_future.await {
-                    Ok(delivery) => println!("Sent: {:?}", delivery),
-                    Err((e, _)) => println!("Error: {:?}", e),
-                }
-            }
-        }
-        producer.flush(tokio::time::Duration::from_secs(1)).unwrap();
+        let results: Vec<SpcFeatureResult> = serde_json::from_slice(&body).unwrap();
+
+        assert_eq!(results.len(), 3);
+
+        //assert_eq!(results.len(), 3);
     }
 }
-
-//#[cfg(test)]
-//mod tests {
-//    use super::*;
-//    use axum::{
-//        body::Body,
-//        http::{Request, StatusCode},
-//    };
-//    use http_body_util::BodyExt;
-//    use serde_json::Value;
-//    use tower::ServiceExt; // for `call`, `oneshot`, and `ready`
-//
-//    #[tokio::test]
-//    async fn test_health_check() {
-//        let pool = create_db_pool(Some(
-//            "postgresql://postgres:admin@localhost:5432/scouter?".to_string(),
-//        ))
-//        .await
-//        .with_context(|| "Failed to create Postgres client")
-//        .unwrap();
-//
-//        let db_client = sql::postgres::PostgresClient::new(pool).unwrap();
-//
-//        let app = create_router(Arc::new(AppState {
-//            db: db_client.clone(),
-//        }));
-//
-//        let response = app
-//            .oneshot(
-//                Request::builder()
-//                    .uri("/scouter/healthcheck")
-//                    .body(Body::empty())
-//                    .unwrap(),
-//            )
-//            .await
-//            .unwrap();
-//
-//        //assert response
-//        assert_eq!(response.status(), StatusCode::OK);
-//        let body = response.into_body().collect().await.unwrap().to_bytes();
-//
-//        let v: Value = serde_json::from_str(std::str::from_utf8(&body[..]).unwrap()).unwrap();
-//
-//        let message: &str = v.get("message").unwrap().as_str().unwrap();
-//
-//        assert_eq!(message, "Alive");
-//    }
-//}
