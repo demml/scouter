@@ -13,10 +13,10 @@ use std::sync::Arc;
 use tracing::{error, info};
 
 #[cfg(feature = "kafka")]
-use scouter_events::kafka::startup_kafka;
+use scouter_events::consumer::kafka::startup_kafka;
 
 #[cfg(feature = "rabbitmq")]
-use scouter_events::rabbitmq::startup_rabbitmq;
+use scouter_events::consumer::rabbitmq::startup_rabbitmq;
 
 /// Start the metrics server for prometheus
 async fn start_metrics_server() -> Result<(), anyhow::Error> {

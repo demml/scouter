@@ -16,7 +16,7 @@ pub mod rabbitmq_startup {
 
         let rabbit_settings = config.rabbitmq_settings.as_ref().unwrap().clone();
         let database_settings = &config.database_settings;
-        let num_consumers = rabbit_settings.num_consumers.clone();
+        let num_consumers = rabbit_settings.num_consumers;
 
         for _ in 0..num_consumers {
             let rabbit_db_client =

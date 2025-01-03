@@ -1,15 +1,21 @@
 pub mod utils;
 
 use crate::utils::setup_logging;
-use rdkafka::config::RDKafkaLogLevel;
+
 use scouter_contracts::ServiceInfo;
-use scouter_events::kafka::startup_kafka;
 use scouter_types::{RecordType, ServerRecord, ServerRecords, SpcServerRecord};
 use std::time::{Duration, Instant};
 use utils::TestHelper;
 
 #[cfg(feature = "kafka")]
-use rdkafka::producer::{FutureProducer, FutureRecord};
+use rdkafka::{
+    config::RDKafkaLogLevel,
+    producer::{FutureProducer, FutureRecord},
+    ClientConfig,
+};
+
+#[cfg(feature = "kafka")]
+use scouter_events::consumer::kafka::startup_kafka;
 
 trait KafkaSetup {
     async fn start_background_producer(&self);
@@ -22,7 +28,7 @@ impl KafkaSetup for TestHelper {
         let kafka_brokers =
             std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_owned());
 
-        let producer: FutureProducer = rdkafka::ClientConfig::new()
+        let producer: FutureProducer = ClientConfig::new()
             .set("bootstrap.servers", &kafka_brokers)
             .set("statistics.interval.ms", "500")
             .set("message.timeout.ms", "5000")
@@ -75,7 +81,7 @@ impl KafkaSetup for TestHelper {
         //let msg_handler = MessageHandler::Postgres(self.db_client.clone());
         //
         //(consumer, msg_handler)
-
+        #[cfg(feature = "kafka")]
         startup_kafka(&self.db_client.pool, &self.config)
             .await
             .unwrap();

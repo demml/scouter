@@ -3,7 +3,6 @@ use scouter_settings::ScouterServerConfig;
 use scouter_sql::PostgresClient;
 use sqlx::{Pool, Postgres};
 use std::io;
-use tracing_subscriber;
 use tracing_subscriber::fmt::time::UtcTime;
 
 const DEFAULT_TIME_PATTERN: &str =

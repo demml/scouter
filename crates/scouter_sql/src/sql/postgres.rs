@@ -67,14 +67,14 @@ impl PostgresClient {
     pub async fn create_db_pool(
         database_settings: Option<&DatabaseSettings>,
     ) -> Result<Pool<Postgres>, SqlError> {
-        let database_settings = if database_settings.is_none() {
-            &DatabaseSettings::default()
+        let database_settings = if let Some(settings) = database_settings {
+            settings
         } else {
-            database_settings.unwrap()
+            &DatabaseSettings::default()
         };
 
         let pool = match PgPoolOptions::new()
-            .max_connections(database_settings.max_connections.clone())
+            .max_connections(database_settings.max_connections)
             .connect(&database_settings.connection_uri)
             .await
         {
@@ -167,7 +167,7 @@ impl PostgresClient {
             .bind(&params.version)
             .bind(&params.name)
             .bind(&params.repository)
-            .bind(&params.limit_datetime)
+            .bind(params.limit_datetime)
             .fetch_all(&self.pool)
             .await;
 

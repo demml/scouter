@@ -1,13 +1,21 @@
 pub mod utils;
 
 use crate::utils::setup_logging;
-use lapin::BasicProperties;
-use lapin::{options::*, types::FieldTable, Connection, ConnectionProperties};
 use scouter_contracts::ServiceInfo;
-use scouter_events::rabbitmq::startup_rabbitmq;
+
 use scouter_types::{RecordType, ServerRecord, ServerRecords, SpcServerRecord};
 use std::time::{Duration, Instant};
 use utils::TestHelper;
+
+#[cfg(feature = "rabbitmq")]
+use scouter_events::consumer::rabbitmq::startup_rabbitmq;
+
+#[cfg(feature = "rabbitmq")]
+use lapin::{
+    options::{BasicPublishOptions, QueueDeclareOptions},
+    types::FieldTable,
+    BasicProperties, Connection, ConnectionProperties,
+};
 
 trait RabbitMQSetup {
     async fn start_background_producer(&self);

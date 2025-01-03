@@ -18,7 +18,7 @@ impl FeatureBinProportionPairs {
             .bins
             .iter()
             .map(|bin| {
-                let observed_proportion = observed_bin_proportions
+                let observed_proportion = *observed_bin_proportions
                     .get(&profile.id, &bin.id)
                     .ok_or_else(|| {
                         error!(
@@ -27,8 +27,7 @@ impl FeatureBinProportionPairs {
                         );
                         DriftError::Error("Error processing alerts".to_string())
                     })
-                    .unwrap()
-                    .clone();
+                    .unwrap();
                 (bin.proportion, observed_proportion)
             })
             .collect();
@@ -45,7 +44,7 @@ pub struct FeatureBinMapping {
 impl FeatureBinMapping {
     pub fn from_observed_bin_proportions(
         observed_bin_proportions: &FeatureBinProportions,
-        profiles_to_monitor: &Vec<PsiFeatureDriftProfile>,
+        profiles_to_monitor: &[PsiFeatureDriftProfile],
     ) -> Result<Self, DriftError> {
         let features: HashMap<String, FeatureBinProportionPairs> = profiles_to_monitor
             .iter()

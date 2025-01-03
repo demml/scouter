@@ -16,7 +16,7 @@ pub mod kafka_startup {
 
         let kafka_settings = config.kafka_settings.as_ref().unwrap().clone();
         let database_settings = &config.database_settings;
-        let num_consumers = kafka_settings.num_workers.clone();
+        let num_consumers = kafka_settings.num_workers;
 
         for _ in 0..num_consumers {
             let kafka_db_client =

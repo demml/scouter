@@ -98,7 +98,7 @@ pub mod spc_drifter {
             let drift_features = self
                 .get_drift_features(
                     db_client,
-                    &limit_datetime,
+                    limit_datetime,
                     &self.profile.config.alert_config.features_to_monitor,
                 )
                 .await?;

@@ -4,8 +4,7 @@ format:
 
 .PHONY: lints
 lints:
-	cargo clippy --workspace --all-targets -- -D warnings
-
+	cargo clippy --workspace --all-targets --all-features -- -D warnings
 
 .PHONY: build.sql
 build.sql:
