@@ -99,6 +99,8 @@ impl Default for KafkaSettings {
 pub struct RabbitMQSettings {
     pub num_consumers: usize,
     pub prefetch_count: u16,
+    pub queue: String,
+    pub consumer_tag: String,
     pub address: String,
 }
 impl Default for RabbitMQSettings {
@@ -118,9 +120,17 @@ impl Default for RabbitMQSettings {
         let address = std::env::var("RABBITMQ_ADDRESS")
             .unwrap_or_else(|_| "amqp://guest:guest@127.0.0.1:5672/%2f".to_string());
 
+        let queue =
+            std::env::var("RABBITMQ_QUEUE").unwrap_or_else(|_| "scouter_monitoring".to_string());
+
+        let consumer_tag =
+            std::env::var("RABBITMQ_CONSUMER_TAG").unwrap_or_else(|_| "scouter".to_string());
+
         Self {
             num_consumers,
             prefetch_count,
+            queue,
+            consumer_tag,
             address,
         }
     }

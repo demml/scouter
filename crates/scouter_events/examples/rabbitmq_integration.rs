@@ -1,36 +1,37 @@
 pub mod utils;
 
 use crate::utils::setup_logging;
-use rdkafka::config::RDKafkaLogLevel;
+use lapin::BasicProperties;
+use lapin::{options::*, types::FieldTable, Connection, ConnectionProperties};
 use scouter_contracts::ServiceInfo;
-use scouter_events::kafka::startup_kafka;
+use scouter_events::rabbitmq::startup_rabbitmq;
 use scouter_types::{RecordType, ServerRecord, ServerRecords, SpcServerRecord};
 use std::time::{Duration, Instant};
 use utils::TestHelper;
 
-#[cfg(feature = "kafka")]
-use rdkafka::producer::{FutureProducer, FutureRecord};
-
-trait KafkaSetup {
+trait RabbitMQSetup {
     async fn start_background_producer(&self);
 
     async fn start_background_consumer(&self);
 }
 
-impl KafkaSetup for TestHelper {
+impl RabbitMQSetup for TestHelper {
     async fn start_background_producer(&self) {
-        let kafka_brokers =
-            std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_owned());
+        let config = self.config.rabbitmq_settings.clone().unwrap();
 
-        let producer: FutureProducer = rdkafka::ClientConfig::new()
-            .set("bootstrap.servers", &kafka_brokers)
-            .set("statistics.interval.ms", "500")
-            .set("message.timeout.ms", "5000")
-            .set_log_level(RDKafkaLogLevel::Error)
-            .create()
-            .expect("Producer creation error");
+        let conn = Connection::connect(&config.address, ConnectionProperties::default())
+            .await
+            .unwrap();
+        let channel = conn.create_channel().await.unwrap();
+        channel
+            .queue_declare(
+                &config.queue,
+                QueueDeclareOptions::default(),
+                FieldTable::default(),
+            )
+            .await
+            .unwrap();
 
-        let topic_name = self.config.kafka_settings.as_ref().unwrap().topics[0].clone();
         tokio::spawn(async move {
             loop {
                 let mut records = Vec::new();
@@ -52,17 +53,15 @@ impl KafkaSetup for TestHelper {
                     records,
                 };
 
-                let record_string = serde_json::to_string(&server_records).unwrap();
-
-                producer
-                    .send_result(
-                        FutureRecord::to(&topic_name)
-                            .key("key")
-                            .payload(&record_string),
+                let _confirm = channel
+                    .basic_publish(
+                        "",
+                        &config.queue,
+                        BasicPublishOptions::default(),
+                        &serde_json::to_string(&server_records).unwrap().into_bytes(),
+                        BasicProperties::default(),
                     )
-                    .unwrap()
                     .await
-                    .unwrap()
                     .unwrap();
             }
         });
@@ -76,7 +75,7 @@ impl KafkaSetup for TestHelper {
         //
         //(consumer, msg_handler)
 
-        startup_kafka(&self.db_client.pool, &self.config)
+        startup_rabbitmq(&self.db_client.pool, &self.config)
             .await
             .unwrap();
     }
@@ -108,13 +107,8 @@ async fn main() {
                 .get_spc_drift_records(&service_info, &timestamp, &["feature".to_string()])
                 .await
                 .unwrap();
-
             assert!(records[0].values.len() > 5000);
             break;
         }
     }
-
-    //startup_kafka(&helper.db_client.pool, &helper.config).await.unwrap();
-
-    //helper.populate_kafka().await.unwrap();
 }

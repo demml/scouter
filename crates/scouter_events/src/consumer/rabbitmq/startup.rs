@@ -22,11 +22,10 @@ pub mod rabbitmq_startup {
             let rabbit_db_client =
                 PostgresClient::new(Some(pool.clone()), Some(database_settings)).await?;
             let message_handler = MessageHandler::Postgres(rabbit_db_client);
-            let address = rabbit_settings.address.clone();
-            let prefetch_count = rabbit_settings.prefetch_count.clone();
+            let settings = rabbit_settings.clone();
 
             tokio::spawn(async move {
-                start_rabbitmq_background_poll(message_handler, address, prefetch_count)
+                start_rabbitmq_background_poll(message_handler, &settings)
                     .await
                     .unwrap();
             });

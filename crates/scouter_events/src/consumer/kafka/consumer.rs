@@ -107,7 +107,6 @@ pub mod kafka_consumer {
         match message_handler.insert_server_records(&records).await {
             Ok(_) => {
                 consumer.commit_message(message, CommitMode::Async).unwrap();
-                info!("Inserted drift record");
             }
             Err(e) => {
                 error!("Failed to insert drift record: {:?}", e);

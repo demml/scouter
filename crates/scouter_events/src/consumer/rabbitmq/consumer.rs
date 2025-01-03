@@ -1,6 +1,7 @@
 #[cfg(feature = "rabbitmq")]
 pub mod rabbitmq_consumer {
 
+    use scouter_settings::RabbitMQSettings;
     use scouter_sql::MessageHandler;
     use scouter_types::ServerRecords;
 
@@ -14,16 +15,16 @@ pub mod rabbitmq_consumer {
         options::*, types::FieldTable, Connection, ConnectionProperties, Consumer, Result,
     };
 
-    pub async fn create_rabbitmq_consumer(address: &str, prefetch_count: &u16) -> Result<Consumer> {
-        let conn = Connection::connect(address, ConnectionProperties::default()).await?;
+    pub async fn create_rabbitmq_consumer(settings: &RabbitMQSettings) -> Result<Consumer> {
+        let conn = Connection::connect(&settings.address, ConnectionProperties::default()).await?;
         let channel = conn.create_channel().await.unwrap();
         channel
-            .basic_qos(*prefetch_count, BasicQosOptions::default())
+            .basic_qos(settings.prefetch_count, BasicQosOptions::default())
             .await?;
 
         channel
             .queue_declare(
-                "scouter_monitoring",
+                &settings.queue,
                 QueueDeclareOptions::default(),
                 FieldTable::default(),
             )
@@ -31,8 +32,8 @@ pub mod rabbitmq_consumer {
 
         let consumer = channel
             .basic_consume(
-                "scouter_monitoring",
-                "scouter_consumer",
+                &settings.queue,
+                &settings.consumer_tag,
                 BasicConsumeOptions::default(),
                 FieldTable::default(),
             )
@@ -99,10 +100,9 @@ pub mod rabbitmq_consumer {
 
     pub async fn start_rabbitmq_background_poll(
         message_handler: MessageHandler,
-        address: String,
-        prefetch_count: u16,
+        settings: &RabbitMQSettings,
     ) -> Result<()> {
-        let mut consumer = create_rabbitmq_consumer(&address, &prefetch_count).await?;
+        let mut consumer = create_rabbitmq_consumer(settings).await?;
 
         loop {
             if let Err(e) = stream_from_rabbit_queue(&message_handler, &mut consumer).await {
