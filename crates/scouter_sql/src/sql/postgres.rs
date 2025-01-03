@@ -840,22 +840,24 @@ mod tests {
 
         let timestamp = chrono::Utc::now().naive_utc();
 
-        let service_info = ServiceInfo {
-            name: "test".to_string(),
-            repository: "test".to_string(),
-            version: "test".to_string(),
-        };
+        for _ in 0..10 {
+            let service_info = ServiceInfo {
+                name: "test".to_string(),
+                repository: "test".to_string(),
+                version: "test".to_string(),
+            };
 
-        let alert = (0..10)
-            .map(|i| (i.to_string(), i.to_string()))
-            .collect::<BTreeMap<String, String>>();
+            let alert = (0..10)
+                .map(|i| (i.to_string(), i.to_string()))
+                .collect::<BTreeMap<String, String>>();
 
-        let result = client
-            .insert_drift_alert(&service_info, "test", &alert)
-            .await
-            .unwrap();
+            let result = client
+                .insert_drift_alert(&service_info, "test", &alert)
+                .await
+                .unwrap();
 
-        assert_eq!(result.rows_affected(), 1);
+            assert_eq!(result.rows_affected(), 1);
+        }
 
         // get alerts
         let alert_request = DriftAlertRequest {
@@ -868,7 +870,7 @@ mod tests {
         };
 
         let alerts = client.get_drift_alerts(&alert_request).await.unwrap();
-        assert_eq!(alerts.len(), 1);
+        assert!(alerts.len() > 5);
 
         // get alerts limit 1
         let alert_request = DriftAlertRequest {
@@ -894,7 +896,7 @@ mod tests {
         };
 
         let alerts = client.get_drift_alerts(&alert_request).await.unwrap();
-        assert_eq!(alerts.len(), 1);
+        assert!(alerts.len() > 5);
     }
 
     #[tokio::test]

@@ -6,15 +6,29 @@ format:
 lints:
 	cargo clippy --workspace --all-targets --all-features -- -D warnings
 
+# For tests that need postgres
 .PHONY: build.sql
 build.sql:
 	docker-compose down
-	docker-compose up -d --build postgres
+	docker-compose up -d --build postgres --wait
 
 .PHONY: test.sql
 test.sql:
 	cargo test -p scouter-sql test_postgres -- --nocapture --test-threads=1
 
+.PHONY: test.server
+test.server:
+	cargo test -p scouter-server --all-features -- --nocapture --test-threads=1
+
+.PHONY: test.drift.executor
+test.drift.executor:
+	cargo test -p scouter-drift test_drift_executor --all-features -- --nocapture --test-threads=1
+
+.PHONY: test.needs_sql
+test.needs_sql: build.sql test.sql test.server test.drift.executor
+	docker-compose down
+
+#### Unit tests
 .PHONY: test.types
 test.types:
 	cargo test -p scouter-types -- --nocapture --test-threads=1
@@ -25,21 +39,14 @@ test.dispatch:
 
 .PHONY: test.drift
 test.drift:
-	cargo test -p scouter-drift --all-features -- --nocapture --test-threads=1
-
-.PHONY: test.drift.executor
-test.drift.executor:
-	cargo test -p scouter-drift test_drift_executor --all-features -- --nocapture --test-threads=1
-
+	cargo test -p scouter-drift --all-features -- --nocapture --test-threads=1 --skip test_drift_executor
 
 .PHONY: test.profile
 test.profile:
 	cargo test -p scouter-profile -- --nocapture --test-threads=1
 
-.PHONY: test.server
-test.server:
-	cargo test -p scouter-server --all-features -- --nocapture --test-threads=1
-
+.PHONY: test.unit
+test.unit: test.types test.dispatch test.drift test.profile
 
 #### Event tests
 .PHONY: build.sql_kafka
@@ -60,3 +67,9 @@ build.sql_rabbitmq:
 .PHONY: test.rabbitmq_events
 test.rabbitmq_events: build.sql_rabbitmq
 	cargo run --example rabbitmq_integration --all-features -- --nocapture
+
+.PHONY: test.integration
+test.events: test.kafka_events test.rabbitmq_events
+
+.PHONY: test
+test: test.needs_sql test.unit
