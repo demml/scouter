@@ -362,7 +362,7 @@ impl FeatureBinProportions {
     pub fn from_bins(bins: Vec<FeatureBinProportion>) -> Self {
         let mut features: HashMap<String, HashMap<String, f64>> = HashMap::new();
         for bin in bins {
-            let feature = features.entry(bin.feature).or_insert(HashMap::new());
+            let feature = features.entry(bin.feature).or_default();
             feature.insert(bin.bin_id, bin.proportion);
         }
         FeatureBinProportions { features }
