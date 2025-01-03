@@ -19,6 +19,8 @@ def test_process_queue(mock_kafka_producer, scouter_observer) -> None:
     metrics: ServerRecords = scouter_observer._observer.collect_metrics()
     record = metrics.records[0].record
 
+    print(record.__class__.__name__)
+
     assert isinstance(record, ObservabilityMetrics)
     assert record.request_count == 1
     scouter_observer.stop()

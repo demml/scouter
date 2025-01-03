@@ -339,6 +339,7 @@ impl ServerRecord {
         }
     }
 
+    #[getter]
     pub fn record(&self, py: Python) -> PyResult<PyObject> {
         match self {
             ServerRecord::Spc(record) => Ok(record
@@ -357,6 +358,16 @@ impl ServerRecord {
                 .clone()
                 .into_py_any(py)
                 .map_err(PyScouterError::new_err)?),
+        }
+    }
+
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        match self {
+            ServerRecord::Spc(record) => record.__str__(),
+            ServerRecord::Psi(record) => record.__str__(),
+            ServerRecord::Custom(record) => record.__str__(),
+            ServerRecord::Observability(record) => record.__str__(),
         }
     }
 }

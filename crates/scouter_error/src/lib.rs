@@ -175,6 +175,9 @@ pub enum ScouterError {
 
     #[error("{0}")]
     FeatureError(String),
+
+    #[error("{0}")]
+    Error(String),
 }
 
 // impl From for PyErr

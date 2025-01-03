@@ -230,6 +230,39 @@ impl CustomDriftProfile {
         self.config
             .update_config_args(repository, name, version, alert_config)
     }
+
+    #[getter]
+    pub fn custom_metrics(&self) -> Result<Vec<CustomMetric>, ScouterError> {
+        let alert_conditions =
+            &self
+                .config
+                .alert_config
+                .alert_conditions
+                .clone()
+                .ok_or(ScouterError::Error(
+                    "Custom alert threshols have not been set".to_string(),
+                ))?;
+        Ok(self
+            .metrics
+            .iter()
+            .map(|(name, value)| {
+                // get the alert threshold for the metric
+                let alert = alert_conditions
+                    .get(name)
+                    .ok_or(ScouterError::Error(
+                        "Custom alert threshold not found".to_string(),
+                    ))
+                    .unwrap();
+                CustomMetric::new(
+                    name.clone(),
+                    *value,
+                    alert.alert_threshold.clone(),
+                    alert.alert_threshold_value,
+                )
+                .unwrap()
+            })
+            .collect())
+    }
 }
 
 impl ProfileBaseArgs for CustomDriftProfile {
