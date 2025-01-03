@@ -28,19 +28,16 @@ jobs:
       - name: Cache Rust
         uses: Swatinem/rust-cache@v2
 
-      - name: Run cargo clippy
-        working-directory: ./crates/scouter
-        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: Run Lints
+        run: make lints
 
-      - name: Tests
-        working-directory: ./crates/scouter
-        run: cargo test
+      - name: Unit Tests
+        run: make test
         env:
           RUST_BACKTRACE: 1
 
-      - name: Bench
-        working-directory: ./crates/scouter
-        run: cargo bench
+      - name: Integration Tests
+        run: make test.events
         env:
           RUST_BACKTRACE: 1
 
@@ -141,7 +138,59 @@ jobs:
         working-directory: ./py-scouter
         run: make test.unit
 
-  test-build:
+
+  test-os-integration:
+    needs: [test-os]
+    name: test ${{ matrix.os }}-${{ matrix.python-version }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu]
+        python-version: ["3.11"]
+
+    runs-on: ${{ matrix.os }}-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: install rust stable
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cache rust
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.os }}-${{ matrix.python-version }}-v1
+
+      - name: Setup Kafka
+        run: make build.kafka
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Set up uv
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+
+      - name: set up python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Create virtual environment
+        working-directory: ./py-scouter
+        run: make setup.project
+
+      - name: Install dependencies
+        working-directory: ./py-scouter
+        run: make setup.integration
+
+      - name: Run tests
+        working-directory: ./py-scouter
+        run: make test.integration
+
+      - name: Stop Containers
+        if: always()
+        run: make shutdown
+
+  test-py-build:
     needs: [test-os]
     name: build - ubuntu - ${{ matrix.manylinux }} - ${{ matrix.target }}
     strategy:
@@ -179,3 +228,52 @@ jobs:
       - name: Check wheel
         working-directory: ./py-scouter
         run: twine check --strict dist/*
+
+  test-build-rust-binaries:
+    needs: [rust-lints-test]
+    name: build - ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            archive: tar.xz
+
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive: zip
+
+    env:
+      TARGET: ${{ matrix.target }}
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Rust
+        run: |
+          rustup override set stable
+          rustup update
+          rustup target add ${{ matrix.target }}
+          rustup component add rust-src
+
+      - name: Update apt repositories
+        if: contains(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install
+
+      - name: Build Scouter Server with Kakfa Binaries
+        run: cargo build -p scouter-server --features kafka --release --target ${{ matrix.target }}
+
+      - name: Build Scouter Server with RabbitMQ Binaries
+        run: cargo build -p scouter-server --features rabbitmq --release --target ${{ matrix.target }}

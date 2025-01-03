@@ -38,7 +38,7 @@ test.unit:
 
 setup.integration:
 	uv sync --all-extras --group dev --group docs
-	uv run maturin develop --extras kafka,rabbitmq,fastap 
+	uv run maturin develop --extras kafka,rabbitmq,fastapi
 
 test.integration:
 	uv run pytest -s tests/integration

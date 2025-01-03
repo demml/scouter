@@ -1,0 +1,50 @@
+[package]
+name = "scouter-drift"
+version = { workspace = true }
+edition = { workspace = true }
+repository = { workspace = true }
+
+authors = [
+  "Steven Forrester <sjforrester32@gmail.com>"
+]
+
+license = "MIT"
+description = "Drift logic for Scouter"
+
+[dependencies]
+scouter-contracts = { workspace = true }
+scouter-dispatch = { workspace = true }
+scouter-error = { workspace = true }
+scouter-sql = { workspace = true, optional = true }
+scouter-types = { workspace = true }
+
+cron = { workspace = true }
+pyo3 = { workspace = true }
+serde = { workspace = true }
+itertools = { workspace = true }
+rayon = { workspace = true }
+noisy_float = { workspace = true }
+chrono = { workspace = true }
+num-traits = { workspace = true }
+serde_json = { workspace = true }
+indicatif = { workspace = true }
+ndarray = { workspace = true }
+numpy = { workspace = true }
+ndarray-stats = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+approx = { workspace = true }
+ndarray-rand = { workspace = true }
+rand = { workspace = true }
+sqlx = { workspace = true }
+
+[features]
+default = []
+sql = ["scouter-sql"]
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true

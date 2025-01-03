@@ -1,0 +1,24 @@
+[package]
+name = "scouter-error"
+version = { workspace = true }
+edition = { workspace = true }
+repository = { workspace = true }
+
+authors = [
+  "Steven Forrester <sjforrester32@gmail.com>"
+]
+
+license = "MIT"
+description = "Error logic for Scouter"
+
+[dependencies]
+pyo3 = { workspace = true }
+serde = { workspace = true }
+thiserror = { workspace = true }
+
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true
+

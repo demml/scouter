@@ -1,0 +1,36 @@
+[package]
+name = "scouter-observability"
+version = { workspace = true }
+edition = { workspace = true }
+repository = { workspace = true }
+
+authors = [
+  "Steven Forrester <sjforrester32@gmail.com>"
+]
+
+license = "MIT"
+description = "Drift logic for Scouter"
+
+[dependencies]
+scouter-error = { workspace = true }
+scouter-types = { workspace = true }
+
+
+pyo3 = { workspace = true }
+serde = { workspace = true }
+itertools = { workspace = true }
+rayon = { workspace = true }
+noisy_float = { workspace = true }
+ndarray = { workspace = true }
+ndarray-stats = { workspace = true }
+tracing = { workspace = true }
+
+
+
+[dev-dependencies]
+rand = "0.8.5"
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true

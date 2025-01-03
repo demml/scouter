@@ -1,0 +1,43 @@
+[package]
+name = "scouter-events"
+version = { workspace = true }
+edition = { workspace = true }
+repository = { workspace = true }
+
+authors = [
+  "Steven Forrester <sjforrester32@gmail.com>"
+]
+
+license = "MIT"
+description = "Logic for setting up and running SCouter event-driven consumers"
+
+[dependencies]
+chrono = { workspace = true }
+futures = { workspace = true }
+serde_json = { workspace = true }
+scouter-contracts = { workspace = true }
+scouter-error = { workspace = true }
+scouter-settings = { workspace = true }
+scouter-sql = { workspace = true }
+scouter-types = { workspace = true }
+sqlx = { workspace = true }
+time = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Kafka dependencies
+rdkafka = { workspace = true, optional = true}
+
+# RabbitMQ dependencies
+lapin = { workspace = true, optional = true }
+
+[features]
+default = []
+kafka = ["rdkafka"]
+rabbitmq = ["lapin"]
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true
