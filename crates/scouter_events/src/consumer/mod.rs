@@ -1,5 +1,5 @@
 #[cfg(feature = "kafka")]
 pub mod kafka;
 
-#[cfg(feature = "kafka")]
+#[cfg(feature = "rabbitmq")]
 pub mod rabbitmq;

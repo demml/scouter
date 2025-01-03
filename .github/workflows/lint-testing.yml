@@ -272,8 +272,8 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install
 
-      - name: Build Kakfa Binaries
-        run: cargo build --features kafka --release --target ${{ matrix.target }}
+      - name: Build Scouter Server with Kakfa Binaries
+        run: cargo build -p scouter-server --features kafka --release --target ${{ matrix.target }}
 
-      - name: Build Rabbit Binaries
-        run: cargo build --features rabbitmq --release --target ${{ matrix.target }}
+      - name: Build Scouter Server with RabbitMQ Binaries
+        run: cargo build -p scouter-server --features rabbitmq --release --target ${{ matrix.target }}
