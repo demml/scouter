@@ -12,6 +12,11 @@ build.sql:
 	docker-compose down
 	docker-compose up -d --build postgres --wait
 
+.PHONY: build.sql.gh
+build.sql.gh:
+	docker compose down
+	docker compose up -d --build postgres --wait
+
 .PHONY: test.sql
 test.sql:
 	cargo test -p scouter-sql test_postgres -- --nocapture --test-threads=1
@@ -27,6 +32,11 @@ test.drift.executor:
 .PHONY: test.needs_sql
 test.needs_sql: build.sql test.sql test.server test.drift.executor
 	docker-compose down
+
+.PHONY: test.needs_sql.gh
+test.needs_sql.gh: build.sql.gh test.sql test.server test.drift.executor
+	docker compose down
+
 
 #### Unit tests
 .PHONY: test.types
@@ -73,3 +83,7 @@ test.events: test.kafka_events test.rabbitmq_events
 
 .PHONY: test
 test: test.needs_sql test.unit
+
+
+.PHONY: test.gh
+test.gh: test.needs_sql.gh
