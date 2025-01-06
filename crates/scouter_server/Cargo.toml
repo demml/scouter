@@ -1,0 +1,60 @@
+[package]
+name = "scouter-server"
+version = { workspace = true }
+edition = { workspace = true }
+repository = { workspace = true }
+
+authors = [
+  "Steven Forrester <sjforrester32@gmail.com>"
+]
+
+license = "MIT"
+description = "Rust Scouter server logic"
+
+[dependencies]
+scouter-error = { workspace = true }
+scouter-events = { workspace = true}
+scouter-types = { workspace = true }
+scouter-contracts = { workspace = true }
+scouter-dispatch = { workspace = true }
+scouter-drift = { workspace = true, features = ["sql"] }
+scouter-observability = { workspace = true }
+scouter-sql = { workspace = true }
+
+anyhow = {workspace = true}
+axum = {workspace = true}
+futures = { workspace = true }
+metrics = { workspace = true }
+metrics-exporter-prometheus = { workspace = true }
+scouter-settings = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+sqlx = { workspace = true }
+time = { workspace = true }
+tokio = { workspace = true }
+tower-http = { workspace = true }
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true}
+
+[dev-dependencies]
+approx = "0.*"
+chrono = { workspace = true }
+http-body-util = "0.*"
+ndarray = { workspace = true }
+ndarray-rand = "0.*"
+mockito = "1.*"
+serde_json = { workspace = true }
+serde_qs = { workspace = true }
+tower = { version = "0.*", features = ["util"] }
+
+
+[features]
+default = []
+kafka = ["scouter-events/kafka"]
+rabbitmq = ["scouter-events/rabbitmq"]
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true
+

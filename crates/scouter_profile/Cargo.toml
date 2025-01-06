@@ -1,0 +1,41 @@
+[package]
+name = "scouter-profile"
+version = { workspace = true }
+edition = { workspace = true }
+repository = { workspace = true }
+
+authors = [
+  "Steven Forrester <sjforrester32@gmail.com>"
+]
+
+license = "MIT"
+description = "Drift logic for Scouter"
+
+[dependencies]
+scouter-error = { workspace = true }
+scouter-types = { workspace = true }
+
+
+pyo3 = { workspace = true }
+serde = { workspace = true }
+itertools = { workspace = true }
+rayon = { workspace = true }
+noisy_float = { workspace = true }
+chrono = { workspace = true }
+num-traits = { workspace = true }
+serde_json = { workspace = true }
+indicatif = { workspace = true }
+ndarray = { workspace = true }
+numpy = { workspace = true }
+ndarray-stats = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+approx = { workspace = true }
+ndarray-rand = { workspace = true }
+rand = { workspace = true }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true

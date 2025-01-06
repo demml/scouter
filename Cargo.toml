@@ -1,7 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
-  "crates/scouter",
+  "crates/*",
   "py-scouter",
 ]
 default-members = [
@@ -9,7 +9,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.3.3"
+version = "0.4.0"
 authors = ["Steven Forrester <sjforrester32@gmail.com>"]
 edition = "2021"
 license = "MIT"
@@ -17,23 +17,65 @@ repository = "https://github.com/demml/scouter"
 
 
 [workspace.dependencies]
+scouter-client = { path = "crates/scouter_client" }
+scouter-contracts = { path = "crates/scouter_contracts" }
+scouter-dispatch = { path = "crates/scouter_dispatch" }
+scouter-drift = { path = "crates/scouter_drift" }
+scouter-error = { path = "crates/scouter_error" }
+scouter-events = { path = "crates/scouter_events" }
+consumer-events = { path = "crates/consumer_events" }
+scouter-observability = { path = "crates/scouter_observability" }
+scouter-profile = { path = "crates/scouter_profile" }
+scouter-server = { path = "crates/scouter_server" }
+scouter-settings = { path = "crates/scouter_settings" }
+scouter-sql = { path = "crates/scouter_sql" }
+scouter-types = { path = "crates/scouter_types" }
+
+anyhow = "1.*"
+axum = "0.*"
+approx = "0.*"
+
 chrono ={ version = "0.*", features = ["serde"] }
 colored_json = "*"
 cron = "0.*"
+
+futures = "0.*"
+
+include_dir = "0.*"
 indicatif = "0.*"
 itertools = "0.*"
+
+metrics = "0.*"
+metrics-exporter-prometheus = "0.*"
+mockito = "1.*"
 ndarray = { version = "0.*", features = ["rayon"] }
+ndarray-rand = "0.*"
 ndarray-stats = "0.*"
 noisy_float = "0.*"
 numpy = "0.*"
 num-traits = "0.*"
 pyo3 = { version = ">=0.23.3, <1.0.0", features = ["chrono", "anyhow", "extension-module"] }
+rand = "0.*"
 rayon = "1.*"
+reqwest = { version = "0.12.*", features = ["json", "stream", "multipart", "rustls-tls", "rustls-tls-native-roots", "json" ], default-features = false }
+
 serde = { version = "1.*", features = ["derive"] }
 serde_json = "1.*"
-scouter = { path = "crates/scouter" }
+serde_qs = "0.*"
+sqlx = { version = "0.*", features = [ "runtime-tokio", "tls-native-tls", "postgres", "mysql", "sqlite", "chrono", "json"] }
+
 thiserror = "1.*"
+time = "0.*"
+tokio = { version = "1.*", features = ["rt", "rt-multi-thread", "macros"] }
+tower-http = { version = "0.*", features = ["cors"] }
 tracing = "0.*"
+tracing-subscriber = {version = "0.*", features = ["json", "time"]}
+
+# Kafka dependencies
+rdkafka = { version = "0.*", features = ["cmake-build", "ssl"] }
+
+# RabbitMQ dependencies
+lapin = { version = "2.*" }
 
 
 [profile.release]

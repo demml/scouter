@@ -1,0 +1,32 @@
+[package]
+name = "scouter-dispatch"
+version = { workspace = true }
+edition = { workspace = true }
+repository = { workspace = true }
+
+authors = [
+  "Steven Forrester <sjforrester32@gmail.com>"
+]
+
+license = "MIT"
+description = "Rust Scouter logic"
+
+[dependencies]
+futures  = { workspace = true }
+scouter-error = { workspace = true }
+scouter-types = { workspace = true }
+pyo3 = { workspace = true }
+reqwest  = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+tracing = { workspace = true }
+
+[dev-dependencies]
+scouter-drift = { workspace = true }
+mockito = { workspace = true }
+tokio = { workspace = true }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true
