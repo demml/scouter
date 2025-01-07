@@ -1,3 +1,4 @@
+use crate::profiler::pandas::prepare_pandas_data;
 use ndarray_stats::MaybeNan;
 use num_traits::{Float, FromPrimitive, Num};
 use numpy::ndarray::ArrayView2;
@@ -13,7 +14,6 @@ use scouter_types::DataType;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use tracing::info;
-use crate::profiler::pandas::prepare_pandas_data;
 
 #[pyclass]
 pub struct ScouterProfiler {
@@ -45,9 +45,7 @@ impl ScouterProfiler {
         let compute_correlations = compute_correlations.unwrap_or(false);
 
         let (num_features, num_array, string_features, string_vec) = match data_type {
-            DataType::Pandas => {
-                prepare_pandas_data(data)?
-            }
+            DataType::Pandas => prepare_pandas_data(data)?,
 
             _ => {
                 return Err(PyValueError::new_err("Invalid data type"));

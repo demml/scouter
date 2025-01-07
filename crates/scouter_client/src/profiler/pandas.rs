@@ -3,7 +3,6 @@ use numpy::{PyArray2, PyArrayMethods};
 use pyo3::prelude::*;
 use scouter_error::ScouterError;
 
-
 fn check_for_non_numeric(
     data: &Bound<'_, PyAny>,
 ) -> Result<(Vec<String>, Vec<String>), ScouterError> {
@@ -24,7 +23,9 @@ fn check_for_non_numeric(
     Ok((numeric_columns, non_numeric_columns))
 }
 
-pub fn prepare_pandas_data<'py>(data: &Bound<'py, PyAny>) -> Result<ConvertedArray<'py>, ScouterError> {
+pub fn prepare_pandas_data<'py>(
+    data: &Bound<'py, PyAny>,
+) -> Result<ConvertedArray<'py>, ScouterError> {
     let (numeric_columns, non_numeric_columns) = check_for_non_numeric(data)?;
 
     let numeric_array = if !&numeric_columns.is_empty() {
