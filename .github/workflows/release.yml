@@ -39,12 +39,26 @@ jobs:
           path: ./py-scouter/dist
 
   build-ubuntu:
-    name: build - ubuntu - ${{ matrix.manylinux }} - ${{ matrix.target }}
+    name: build - ubuntu - ${{ matrix.platform.manylinux }} - ${{ matrix.platform.target }}
     strategy:
       fail-fast: false
       matrix:
-        target: [x86_64, x86, aarch64, armv7, s390x, ppc64le]
-        manylinux: [auto]
+        #arget: [x86_64, x86, aarch64, armv7, s390x, ppc64le]
+        #manylinux: [auto]
+        platform:
+          - target: x86_64
+            manylinux: auto
+          - target: x86
+            manylinux: auto
+          - target: aarch64
+            manylinux: "2_28"
+          - target: armv7
+            manylinux: auto
+          - target: s390x
+            manylinux: auto
+          - target: ppc64le
+            manylinux: auto
+
 
     runs-on: ubuntu-latest
     steps:
@@ -57,25 +71,11 @@ jobs:
 
       - run: pip install -U twine 'black>=22.3.0,<23' typing_extensions
 
-      - name: set up environment
-        run: |
-          if [[ "${{ matrix.target }}" == "aarch64" ]]; then
-            echo "CFLAGS=-march=armv8-a" >> $GITHUB_ENV
-          fi
-
-      - name: Install cross-compilation tools
-        if: matrix.target == 'aarch64'
-        run: sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu
-
-      - name: Print GCC version
-        run: |
-          gcc --version
-
       - name: build wheels
         uses: PyO3/maturin-action@v1
         with:
-          target: ${{ matrix.target }}
-          manylinux: ${{ matrix.manylinux }}
+          target: ${{ matrix.platform.target }}
+          manylinux: ${{ matrix.platform.manylinux }}
           args: --release --out dist --interpreter ${{ env.INTERPRETER }}
           rust-toolchain: stable
           docker-options: -e CI
@@ -91,7 +91,7 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: pypi_files_ubuntu_${{ matrix.target }}_all_${{ matrix.manylinux }}
+          name: pypi_files_ubuntu_${{ matrix.platform.target }}_all_${{ matrix.platform.manylinux }}
           path: ./py-scouter/dist
 
   build-ubuntu-musllinux:
