@@ -1,15 +1,8 @@
 name: Release
 
-#on:
-  #release:
-    #types: [published]
-
 on:
-  push:
-    branches:
-      - main
-      - master
-  pull_request:
+  release:
+    types: [published]
 
 permissions:
   contents: read
@@ -51,7 +44,7 @@ jobs:
           - target: x86
             manylinux: auto
           - target: aarch64
-            manylinux: "2_28"
+            manylinux: "2_28" # ring will not compile here 
           - target: armv7
             manylinux: auto
           - target: s390x

@@ -1,0 +1,146 @@
+name: Build Assets
+
+permissions:
+  pull-requests: write
+  contents: write
+
+
+#on:
+  #push:
+    #branches:
+     # - main
+  #release:
+    #types: [published]
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  
+env:
+  INTERPRETER: "3.12"
+  RUSTFLAGS: -C debuginfo=0
+
+
+jobs:
+  build:
+    name: build - ${{ matrix.target }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+            feature: "kafka"
+
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+            feature: "rabbitmq"
+
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            archive: tar.xz
+            feature: "kafka"
+
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            archive: tar.xz
+            feature: "rabbitmq"
+
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive: zip
+            feature: "kafka"
+
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive: zip
+            feature: "rabbitmq"
+
+    env:
+      TARGET: ${{ matrix.target }}
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Rust
+        run: |
+          rustup override set stable
+          rustup update
+          rustup target add ${{ matrix.target }}
+          rustup component add rust-src
+
+      - name: Update apt repositories
+        if: contains(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install
+
+      - name: Build Binaries
+        run: cargo build --release --target ${{ matrix.target }} --feature ${{ matrix.feature }}
+
+      - name: Zip MacOS binaries
+        if: contains(matrix.archive, 'zip') && contains(matrix.os, 'macos')
+        run: zip -r scouter-server--${{ matrix.feature }}-${{ matrix.target }}.zip ./target/${{ matrix.target }}
+
+      - name: gzip binaries
+        if: contains(matrix.archive, 'tar.gz')
+        run: tar -czf scouter-server-${{ matrix.feature }}-${{ matrix.target }}.tar.gz ./target/${{ matrix.target }}
+
+      - name: xz binaries
+        if: contains(matrix.archive, 'tar.xz')
+        run: tar -cJf scouter-server-${{ matrix.feature }}-${{ matrix.target }}.tar.xz ./target/${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scouter_server_${{ matrix.target }}_${{matrix.archive}}
+          path: scouter-server-${{ matrix.target }}.${{matrix.archive}}
+
+
+  build-mac-x86_64:
+    name: build-macos-x86_64
+    runs-on: macos-13
+
+    strategy:
+      matrix:
+          include:
+            - target: x86_64-apple-darwin
+              archive: zip
+              feature: "kafka"
+
+            - target: x86_64-apple-darwin
+              archive: zip
+              feature: "rabbitmq"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Rust
+        run: |
+          rustup override set stable
+          rustup update
+          rustup target add ${{ matrix.target }}
+          rustup component add rust-src
+
+      - name: Build Binaries
+        run: cargo build --release --target ${{ matrix.target }} --feature ${{ matrix.feature }}
+
+      - name: Zip MacOS binaries
+        run: zip -r scouter-server-${{ matrix.feature }}-${{ matrix.target }}.zip ./target/${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scouter_server_${{ matrix.target }}_${{ matrix.archive }}
+          path: scouter-server-${{ matrix.target }}.${{ matrix.archive }}
