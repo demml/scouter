@@ -1,9 +1,16 @@
 name: Release
 
-on:
-  release:
-    types: [published]
+#on:
+  #release:
+    #types: [published]
 
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  
 permissions:
   contents: read
 
@@ -49,6 +56,20 @@ jobs:
           python-version: "3.11"
 
       - run: pip install -U twine 'black>=22.3.0,<23' typing_extensions
+
+      - name: set up environment
+        run: |
+          if [[ "${{ matrix.target }}" == "aarch64" ]]; then
+            echo "CFLAGS=-march=armv8-a" >> $GITHUB_ENV
+          fi
+
+      - name: Print GCC version
+        run: |
+          if [[ "${{ matrix.target }}" == "aarch64" ]]; then
+            aarch64-unknown-linux-gnu-gcc --version
+          else
+            gcc --version
+          fi
 
       - name: build wheels
         uses: PyO3/maturin-action@v1
