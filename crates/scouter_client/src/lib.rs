@@ -1,4 +1,5 @@
 pub mod scouter;
+pub mod profiler;
 pub use scouter::*;
 pub use scouter_types::{
     create_feature_map,

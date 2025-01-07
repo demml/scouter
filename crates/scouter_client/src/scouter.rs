@@ -22,9 +22,11 @@ use scouter_types::{
     psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile},
     spc::{SpcAlertRule, SpcDriftConfig, SpcDriftProfile, SpcFeatureAlerts},
     ServerRecords,
+    DataType,
 };
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use tracing::info;
 
 #[pyclass]
 pub struct ScouterProfiler {
@@ -32,7 +34,139 @@ pub struct ScouterProfiler {
     string_profiler: StringProfiler,
 }
 
+#[pymethods]
 impl ScouterProfiler {
+    #[new]
+    pub fn new() -> Self {
+        Self {
+            num_profiler: NumProfiler::default(),
+            string_profiler: StringProfiler::default(),
+        }
+    }
+
+    #[pyo3(signature = (data, data_type, bin_size=None, compute_correlations=None))]
+    pub fn create_data_profile(&self,  data: &Bound<'_, PyAny>, data_type: &DataType, bin_size: Option<usize>, compute_correlations: Option<bool>) -> PyResult<()> {
+
+        info!("Creating data profile");
+
+
+
+        let bin_ize = bin_size.unwrap_or(20);
+        let compute_correlations = compute_correlations.unwrap_or(false);
+
+        Ok(())
+    }
+       
+}
+
+impl ScouterProfiler {
+
+    pub fn create_data_profile_f32(
+        &mut self,
+        compute_correlations: bool,
+        numeric_array: Option<PyReadonlyArray2<f32>>,
+        string_array: Option<Vec<Vec<String>>>,
+        numeric_features: Option<Vec<String>>,
+        string_features: Option<Vec<String>>,
+        bin_size: Option<usize>,
+    ) -> PyResult<DataProfile> {
+        if string_features.is_some() && string_array.is_some() && numeric_array.is_none() {
+            let profile = self
+                .string_profiler
+                .process_string_array::<f32>(
+                    string_array.unwrap(),
+                    string_features.unwrap(),
+                    compute_correlations,
+                )
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                })?;
+            Ok(profile)
+        } else if string_array.is_none() && numeric_array.is_some() && numeric_features.is_some() {
+            let profile = self
+                .num_profiler
+                .process_num_array(
+                    compute_correlations,
+                    &numeric_array.unwrap().as_array(),
+                    numeric_features.unwrap(),
+                    bin_size,
+                )
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                })?;
+
+            Ok(profile)
+        } else {
+            let profile = self
+                .process_string_and_num_array(
+                    compute_correlations,
+                    numeric_array.unwrap().as_array(),
+                    string_array.unwrap(),
+                    numeric_features.unwrap(),
+                    string_features.unwrap(),
+                    bin_size,
+                )
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                })?;
+
+            Ok(profile)
+        }
+    }
+
+    pub fn create_data_profile_f64(
+        &mut self,
+        compute_correlations: bool,
+        numeric_array: Option<PyReadonlyArray2<f64>>,
+        string_array: Option<Vec<Vec<String>>>,
+        numeric_features: Option<Vec<String>>,
+        string_features: Option<Vec<String>>,
+        bin_size: Option<usize>,
+    ) -> PyResult<DataProfile> {
+        if string_features.is_some() && string_array.is_some() && numeric_array.is_none() {
+            let profile = self
+                .string_profiler
+                .process_string_array::<f32>(
+                    string_array.unwrap(),
+                    string_features.unwrap(),
+                    compute_correlations,
+                )
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                })?;
+            Ok(profile)
+        } else if string_array.is_none() && numeric_array.is_some() && numeric_features.is_some() {
+            let profile = self
+                .num_profiler
+                .process_num_array(
+                    compute_correlations,
+                    &numeric_array.unwrap().as_array(),
+                    numeric_features.unwrap(),
+                    bin_size,
+                )
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                })?;
+
+            Ok(profile)
+        } else {
+            let profile = self
+                .process_string_and_num_array(
+                    compute_correlations,
+                    numeric_array.unwrap().as_array(),
+                    string_array.unwrap(),
+                    numeric_features.unwrap(),
+                    string_features.unwrap(),
+                    bin_size,
+                )
+                .map_err(|e| {
+                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                })?;
+
+            Ok(profile)
+        }
+    }
+
     fn process_string_and_num_array<F>(
         &mut self,
         compute_correlations: bool,
@@ -146,124 +280,10 @@ impl ScouterProfiler {
     }
 }
 
-#[pymethods]
-#[allow(clippy::new_without_default)]
+
 impl ScouterProfiler {
-    #[new]
-    pub fn new() -> Self {
-        Self {
-            num_profiler: NumProfiler::default(),
-            string_profiler: StringProfiler::default(),
-        }
-    }
-
-    #[pyo3(signature = (compute_correlations, numeric_array=None, string_array=None, numeric_features=None, string_features=None, bin_size=None))]
-    pub fn create_data_profile_f32(
-        &mut self,
-        compute_correlations: bool,
-        numeric_array: Option<PyReadonlyArray2<f32>>,
-        string_array: Option<Vec<Vec<String>>>,
-        numeric_features: Option<Vec<String>>,
-        string_features: Option<Vec<String>>,
-        bin_size: Option<usize>,
-    ) -> PyResult<DataProfile> {
-        if string_features.is_some() && string_array.is_some() && numeric_array.is_none() {
-            let profile = self
-                .string_profiler
-                .process_string_array::<f32>(
-                    string_array.unwrap(),
-                    string_features.unwrap(),
-                    compute_correlations,
-                )
-                .map_err(|e| {
-                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
-                })?;
-            Ok(profile)
-        } else if string_array.is_none() && numeric_array.is_some() && numeric_features.is_some() {
-            let profile = self
-                .num_profiler
-                .process_num_array(
-                    compute_correlations,
-                    &numeric_array.unwrap().as_array(),
-                    numeric_features.unwrap(),
-                    bin_size,
-                )
-                .map_err(|e| {
-                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
-                })?;
-
-            Ok(profile)
-        } else {
-            let profile = self
-                .process_string_and_num_array(
-                    compute_correlations,
-                    numeric_array.unwrap().as_array(),
-                    string_array.unwrap(),
-                    numeric_features.unwrap(),
-                    string_features.unwrap(),
-                    bin_size,
-                )
-                .map_err(|e| {
-                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
-                })?;
-
-            Ok(profile)
-        }
-    }
-
-    #[pyo3(signature = (compute_correlations, numeric_array=None, string_array=None, numeric_features=None, string_features=None, bin_size=None))]
-    pub fn create_data_profile_f64(
-        &mut self,
-        compute_correlations: bool,
-        numeric_array: Option<PyReadonlyArray2<f64>>,
-        string_array: Option<Vec<Vec<String>>>,
-        numeric_features: Option<Vec<String>>,
-        string_features: Option<Vec<String>>,
-        bin_size: Option<usize>,
-    ) -> PyResult<DataProfile> {
-        if string_features.is_some() && string_array.is_some() && numeric_array.is_none() {
-            let profile = self
-                .string_profiler
-                .process_string_array::<f32>(
-                    string_array.unwrap(),
-                    string_features.unwrap(),
-                    compute_correlations,
-                )
-                .map_err(|e| {
-                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
-                })?;
-            Ok(profile)
-        } else if string_array.is_none() && numeric_array.is_some() && numeric_features.is_some() {
-            let profile = self
-                .num_profiler
-                .process_num_array(
-                    compute_correlations,
-                    &numeric_array.unwrap().as_array(),
-                    numeric_features.unwrap(),
-                    bin_size,
-                )
-                .map_err(|e| {
-                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
-                })?;
-
-            Ok(profile)
-        } else {
-            let profile = self
-                .process_string_and_num_array(
-                    compute_correlations,
-                    numeric_array.unwrap().as_array(),
-                    string_array.unwrap(),
-                    numeric_features.unwrap(),
-                    string_features.unwrap(),
-                    bin_size,
-                )
-                .map_err(|e| {
-                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
-                })?;
-
-            Ok(profile)
-        }
-    }
+   
+   
 }
 
 #[pyclass]

@@ -283,6 +283,15 @@ pub trait ValidateAlertConfig {
     }
 }
 
+#[pyclass(eq)]
+#[derive(PartialEq)]
+pub enum DataType {
+    Pandas,
+    Polars,
+    Numpy,
+    Arrow
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

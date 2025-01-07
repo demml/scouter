@@ -3276,6 +3276,7 @@ dependencies = [
  "scouter-observability",
  "scouter-profile",
  "scouter-types",
+ "tracing",
 ]
 
 [[package]]
