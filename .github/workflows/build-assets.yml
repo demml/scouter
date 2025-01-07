@@ -146,7 +146,7 @@ jobs:
           path: scouter-server-${{ matrix.feature }}-${{ matrix.target }}.${{ matrix.archive }}
 
   release-binary-assets:
-    if: github.event_name == 'release'
+    #if: github.event_name == 'release'
     needs: [build, build-mac-x86_64]
     runs-on: ubuntu-latest
 
