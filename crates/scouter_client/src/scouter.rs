@@ -21,8 +21,7 @@ use scouter_types::{
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
     psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile},
     spc::{SpcAlertRule, SpcDriftConfig, SpcDriftProfile, SpcFeatureAlerts},
-    ServerRecords,
-    DataType,
+    DataType, ServerRecords,
 };
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -45,22 +44,23 @@ impl ScouterProfiler {
     }
 
     #[pyo3(signature = (data, data_type, bin_size=None, compute_correlations=None))]
-    pub fn create_data_profile(&self,  data: &Bound<'_, PyAny>, data_type: &DataType, bin_size: Option<usize>, compute_correlations: Option<bool>) -> PyResult<()> {
-
+    pub fn create_data_profile(
+        &self,
+        data: &Bound<'_, PyAny>,
+        data_type: &DataType,
+        bin_size: Option<usize>,
+        compute_correlations: Option<bool>,
+    ) -> PyResult<()> {
         info!("Creating data profile");
-
-
 
         let bin_ize = bin_size.unwrap_or(20);
         let compute_correlations = compute_correlations.unwrap_or(false);
 
         Ok(())
     }
-       
 }
 
 impl ScouterProfiler {
-
     pub fn create_data_profile_f32(
         &mut self,
         compute_correlations: bool,
@@ -280,11 +280,7 @@ impl ScouterProfiler {
     }
 }
 
-
-impl ScouterProfiler {
-   
-   
-}
+impl ScouterProfiler {}
 
 #[pyclass]
 pub struct SpcDrifter {

@@ -1,8 +1,8 @@
-use ndarray::ArrayView2;
+use numpy::PyReadonlyArray2;
 
-pub struct ArrayData<'a> {
-    pub string_features: Vec<String>,
-    pub string_array: Vec<Vec<String>>,
-    pub numeric_features: Vec<String>,
-    pub numeric_array: Option<ArrayView2<f32>>,
-}
+pub type ConvertedArray<'py> = (
+    Vec<String>,
+    Option<PyReadonlyArray2<'py, f64>>,
+    Vec<String>,
+    Option<Vec<Vec<String>>>,
+);

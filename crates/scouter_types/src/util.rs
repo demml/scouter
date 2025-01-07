@@ -289,7 +289,7 @@ pub enum DataType {
     Pandas,
     Polars,
     Numpy,
-    Arrow
+    Arrow,
 }
 
 #[cfg(test)]

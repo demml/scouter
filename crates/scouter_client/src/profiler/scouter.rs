@@ -2,31 +2,18 @@ use ndarray_stats::MaybeNan;
 use num_traits::{Float, FromPrimitive, Num};
 use numpy::ndarray::ArrayView2;
 use numpy::ndarray::{concatenate, Axis};
-use numpy::PyArray2;
 use numpy::PyReadonlyArray2;
-use numpy::ToPyArray;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use scouter_drift::{
-    psi::PsiMonitor,
-    spc::{generate_alerts, SpcDriftMap, SpcMonitor},
-    CategoricalFeatureHelpers,
-};
-use scouter_error::{ProfilerError, ScouterError};
+use scouter_error::ProfilerError;
 use scouter_profile::{
     compute_feature_correlations, DataProfile, FeatureProfile, NumProfiler, StringProfiler,
 };
-use scouter_types::{
-    create_feature_map,
-    custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
-    psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile},
-    spc::{SpcAlertRule, SpcDriftConfig, SpcDriftProfile, SpcFeatureAlerts},
-    ServerRecords,
-    DataType,
-};
+use scouter_types::DataType;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use tracing::info;
+use crate::profiler::pandas::prepare_pandas_data;
 
 #[pyclass]
 pub struct ScouterProfiler {
@@ -45,21 +32,23 @@ impl ScouterProfiler {
     }
 
     #[pyo3(signature = (data, data_type, bin_size=None, compute_correlations=None))]
-    pub fn create_data_profile(&self,  data: &Bound<'_, PyAny>, data_type: &DataType, bin_size: Option<usize>, compute_correlations: Option<bool>) -> PyResult<()> {
-
+    pub fn create_data_profile(
+        &self,
+        data: &Bound<'_, PyAny>,
+        data_type: &DataType,
+        bin_size: Option<usize>,
+        compute_correlations: Option<bool>,
+    ) -> PyResult<()> {
         info!("Creating data profile");
-
-
 
         let bin_ize = bin_size.unwrap_or(20);
         let compute_correlations = compute_correlations.unwrap_or(false);
 
-        let array = match data_type {
+        let (num_features, num_array, string_features, string_vec) = match data_type {
             DataType::Pandas => {
-                let array = data.extract::<PyReadonlyArray2<f32>>()?;
-                self.create_data_profile_f32(compute_correlations, Some(array), None, None, None, Some(bin_size))?;
+                prepare_pandas_data(data)?
             }
-           
+
             _ => {
                 return Err(PyValueError::new_err("Invalid data type"));
             }
@@ -67,11 +56,9 @@ impl ScouterProfiler {
 
         Ok(())
     }
-       
 }
 
 impl ScouterProfiler {
-
     pub fn create_data_profile_f32(
         &mut self,
         compute_correlations: bool,
@@ -291,8 +278,4 @@ impl ScouterProfiler {
     }
 }
 
-
-impl ScouterProfiler {
-   
-   
-}
+impl ScouterProfiler {}
