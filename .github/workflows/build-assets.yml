@@ -26,7 +26,7 @@ env:
 
 jobs:
   build:
-    name: build - ${{ matrix.target }}
+    name: build - ${{ matrix.target }} - ${{ matrix.feature }}
     strategy:
       fail-fast: false
       matrix:
@@ -90,7 +90,7 @@ jobs:
 
       - name: Zip MacOS binaries
         if: contains(matrix.archive, 'zip') && contains(matrix.os, 'macos')
-        run: zip -r scouter-server--${{ matrix.feature }}-${{ matrix.target }}.zip ./target/${{ matrix.target }}
+        run: zip -r scouter-server-${{ matrix.feature }}-${{ matrix.target }}.zip ./target/${{ matrix.target }}
 
       - name: gzip binaries
         if: contains(matrix.archive, 'tar.gz')
@@ -102,12 +102,12 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: scouter_server_${{ matrix.target }}_${{matrix.archive}}
-          path: scouter-server-${{ matrix.target }}.${{matrix.archive}}
+          name: scouter_server_${{ matrix.feature }}_${{ matrix.target }}_${{matrix.archive}}
+          path: scouter-server-${{ matrix.feature }}-${{ matrix.target }}.${{matrix.archive}}
 
 
   build-mac-x86_64:
-    name: build-macos-x86_64
+    name: build-macos-x86_64 - ${{ matrix.feature }}
     runs-on: macos-13
 
     strategy:
@@ -142,5 +142,33 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: scouter_server_${{ matrix.target }}_${{ matrix.archive }}
-          path: scouter-server-${{ matrix.target }}.${{ matrix.archive }}
+          name: scouter_server_${{ matrix.feature }}_${{ matrix.target }}_${{ matrix.archive }}
+          path: scouter-server-${{ matrix.feature }}-${{ matrix.target }}.${{ matrix.archive }}
+
+  release-binary-assets:
+    if: github.event_name == 'release'
+    needs: [build, build-mac-x86_64]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: get dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: scouter_server_*
+          path: dist
+
+      - name: list dist files
+        run: |
+          ls -lhR dist
+          echo "`ls dist | wc -l` files"
+
+      #- name: Upload files to release tag
+      #  env:
+      #    GH_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
+      #  run: |
+      #    for i in $(find dist -type f -print)
+      #    do
+      #      gh release upload ${{ github.event.release.name }} $i
+      #    done
