@@ -1,0 +1,167 @@
+name: Build Assets
+
+permissions:
+  pull-requests: write
+  contents: write
+
+
+on:
+  push:
+    branches:
+      - main
+  release:
+    types: [published]
+
+env:
+  INTERPRETER: "3.12"
+  RUSTFLAGS: -C debuginfo=0
+
+
+jobs:
+  build:
+    name: build - ${{ matrix.target }} - ${{ matrix.feature }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+            feature: "kafka"
+
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            archive: tar.gz
+            feature: "rabbitmq"
+
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            archive: tar.xz
+            feature: "kafka"
+
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            archive: tar.xz
+            feature: "rabbitmq"
+
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive: zip
+            feature: "kafka"
+
+          - os: macos-latest
+            target: aarch64-apple-darwin
+            archive: zip
+            feature: "rabbitmq"
+
+    env:
+      TARGET: ${{ matrix.target }}
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Rust
+        run: |
+          rustup override set stable
+          rustup update
+          rustup target add ${{ matrix.target }}
+          rustup component add rust-src
+
+      - name: Update apt repositories
+        if: contains(matrix.os, 'ubuntu')
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install
+
+      - name: Build Binaries
+        run: cargo build -p scouter-server --release --target ${{ matrix.target }} --features ${{ matrix.feature }}
+
+      - name: Zip MacOS binaries
+        if: contains(matrix.archive, 'zip') && contains(matrix.os, 'macos')
+        run: zip -r scouter-server-${{ matrix.feature }}-${{ matrix.target }}.zip ./target/${{ matrix.target }}
+
+      - name: gzip binaries
+        if: contains(matrix.archive, 'tar.gz')
+        run: tar -czf scouter-server-${{ matrix.feature }}-${{ matrix.target }}.tar.gz ./target/${{ matrix.target }}
+
+      - name: xz binaries
+        if: contains(matrix.archive, 'tar.xz')
+        run: tar -cJf scouter-server-${{ matrix.feature }}-${{ matrix.target }}.tar.xz ./target/${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scouter_server_${{ matrix.feature }}_${{ matrix.target }}_${{matrix.archive}}
+          path: scouter-server-${{ matrix.feature }}-${{ matrix.target }}.${{matrix.archive}}
+
+
+  build-mac-x86_64:
+    name: build-macos-x86_64 - ${{ matrix.feature }}
+    runs-on: macos-13
+
+    strategy:
+      matrix:
+          include:
+            - target: x86_64-apple-darwin
+              archive: zip
+              feature: "kafka"
+
+            - target: x86_64-apple-darwin
+              archive: zip
+              feature: "rabbitmq"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Rust
+        run: |
+          rustup override set stable
+          rustup update
+          rustup target add ${{ matrix.target }}
+          rustup component add rust-src
+
+      - name: Build Binaries
+        run: cargo build -p scouter-server --release --target ${{ matrix.target }} --features ${{ matrix.feature }}
+
+      - name: Zip MacOS binaries
+        run: zip -r scouter-server-${{ matrix.feature }}-${{ matrix.target }}.zip ./target/${{ matrix.target }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: scouter_server_${{ matrix.feature }}_${{ matrix.target }}_${{ matrix.archive }}
+          path: scouter-server-${{ matrix.feature }}-${{ matrix.target }}.${{ matrix.archive }}
+
+  release-binary-assets:
+    if: github.event_name == 'release'
+    needs: [build, build-mac-x86_64]
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: get dist artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: scouter_server_*
+          path: dist
+
+      - name: list dist files
+        run: |
+          ls -lhR dist
+          echo "`ls dist | wc -l` files"
+
+      - name: Upload files to release tag
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
+        run: |
+          for i in $(find dist -type f -print)
+          do
+            gh release upload ${{ github.event.release.name }} $i
+          done
