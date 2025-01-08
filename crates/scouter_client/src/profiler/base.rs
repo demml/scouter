@@ -11,8 +11,17 @@ pub trait DataConverter {
         data: &Bound<'_, PyAny>,
     ) -> Result<(Vec<String>, Vec<String>), ScouterError>;
 
+    fn process_numeric_features<'py>(
+        data: &Bound<'py, PyAny>,
+        features: &[String],
+    ) -> Result<(Option<Bound<'py, PyAny>>, Option<String>), ScouterError>;
+
+    fn process_string_features<'py>(
+        data: &Bound<'py, PyAny>,
+        features: &[String],
+    ) -> Result<Option<Vec<Vec<String>>>, ScouterError>;
+
     fn convert_array_type<'py, F>(
-        &self,
         data: &Bound<'py, PyAny>,
     ) -> Result<PyReadonlyArray2<'py, F>, ScouterError>
     where
@@ -26,7 +35,7 @@ pub trait DataConverter {
             .to_string();
 
         let array = if dtype.contains("int") {
-            data.call_method1("astype", ("float32",))?
+            data.call_method1("astype", ("float64",))?
         } else {
             data.clone()
         };
@@ -38,10 +47,5 @@ pub trait DataConverter {
         Ok(array.readonly())
     }
 
-    fn prepare_data<'py, F>(
-        &self,
-        data: &Bound<'py, PyAny>,
-    ) -> Result<ConvertedArray<'py, F>, ScouterError>
-    where
-        F: Float + numpy::Element;
+    fn prepare_data<'py>(data: &Bound<'py, PyAny>) -> Result<ConvertedArray<'py>, ScouterError>;
 }

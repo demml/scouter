@@ -1,6 +1,5 @@
 use crate::profiler::base::DataConverter;
 use crate::profiler::types::ConvertedArray;
-use num_traits::Float;
 use pyo3::prelude::*;
 use scouter_error::ScouterError;
 
@@ -27,45 +26,53 @@ impl DataConverter for PandasDataConverter {
         Ok((numeric_columns, non_numeric_columns))
     }
 
-    fn prepare_data<'py, F>(
-        &self,
+    fn process_numeric_features<'py>(
         data: &Bound<'py, PyAny>,
-    ) -> Result<ConvertedArray<'py, F>, ScouterError>
-    where
-        F: Float + numpy::Element,
-    {
-        let (numeric_columns, non_numeric_columns) =
-            PandasDataConverter::check_for_non_numeric(data)?;
+        features: &[String],
+    ) -> Result<(Option<Bound<'py, PyAny>>, Option<String>), ScouterError> {
+        if features.is_empty() {
+            return Ok((None, None));
+        }
 
-        let numeric_array = if !&numeric_columns.is_empty() {
-            // create slice of numeric columns
-            let array = data.get_item(&numeric_columns)?.call_method0("to_numpy")?;
+        let array = data.get_item(features)?.call_method0("to_numpy")?;
+        let dtype = Some(array.getattr("dtype")?.str()?.to_string());
 
-            // downcast to PyArray2
-            let array = self.convert_array_type(&array)?;
-            Some(array)
-        } else {
-            None
-        };
+        // downcast to PyArray2
+        //let array = PandasDataConverter::convert_array_type(&array)?;
+        Ok((Some(array), dtype))
+    }
 
-        let string_array = if !&non_numeric_columns.is_empty() {
-            let string_cols = data
-                .get_item(&non_numeric_columns)?
-                .call_method1("astype", ("str",))?
-                .getattr("values")?
-                .getattr("T")?
-                .call_method0("tolist")?;
-            let string_array = string_cols.extract::<Vec<Vec<String>>>()?;
+    fn process_string_features<'py>(
+        data: &Bound<'py, PyAny>,
+        features: &[String],
+    ) -> Result<Option<Vec<Vec<String>>>, ScouterError> {
+        if features.is_empty() {
+            return Ok(None);
+        }
 
-            Some(string_array)
-        } else {
-            None
-        };
+        let string_cols = data
+            .get_item(features)?
+            .call_method1("astype", ("str",))?
+            .getattr("values")?
+            .getattr("T")?
+            .call_method0("tolist")?;
+        let string_array = string_cols.extract::<Vec<Vec<String>>>()?;
+
+        Ok(Some(string_array))
+    }
+
+    fn prepare_data<'py>(data: &Bound<'py, PyAny>) -> Result<ConvertedArray<'py>, ScouterError> {
+        let (numeric_features, string_features) = PandasDataConverter::check_for_non_numeric(data)?;
+
+        let (numeric_array, dtype) =
+            PandasDataConverter::process_numeric_features(data, &numeric_features)?;
+        let string_array = PandasDataConverter::process_string_features(data, &string_features)?;
 
         Ok((
-            numeric_columns,
+            numeric_features,
             numeric_array,
-            non_numeric_columns,
+            dtype,
+            string_features,
             string_array,
         ))
     }

@@ -1,6 +1,5 @@
 use crate::profiler::base::DataConverter;
 use crate::profiler::types::ConvertedArray;
-use num_traits::Float;
 use pyo3::prelude::*;
 use scouter_error::ScouterError;
 
@@ -36,35 +35,47 @@ impl DataConverter for NumpyDataConverter {
         Ok((numeric_features, string_features))
     }
 
-    fn prepare_data<'py, F>(
-        &self,
+    fn process_numeric_features<'py>(
         data: &Bound<'py, PyAny>,
-    ) -> Result<ConvertedArray<'py, F>, ScouterError>
-    where
-        F: Float + numpy::Element,
-    {
+        features: &[String],
+    ) -> Result<(Option<Bound<'py, PyAny>>, Option<String>), ScouterError> {
+        if features.is_empty() {
+            return Ok((None, None));
+        }
+        let dtype = Some(data.getattr("dtype")?.str()?.to_string());
+
+
+        Ok((Some(data.clone()), dtype))
+
+    }
+
+    fn process_string_features<'py>(
+        data: &Bound<'py, PyAny>,
+        features: &[String],
+    ) -> Result<Option<Vec<Vec<String>>>, ScouterError> {
+        if features.is_empty() {
+            return Ok(None);
+        }
+
+        Ok(Some(
+            data.call_method1("astype", ("str",))?
+                .call_method0("to_list")?
+                .extract::<Vec<Vec<String>>>()?,
+        ))
+     
+    }
+
+    fn prepare_data<'py>(data: &Bound<'py, PyAny>) -> Result<ConvertedArray<'py>, ScouterError> {
         let (numeric_features, string_features) = NumpyDataConverter::check_for_non_numeric(data)?;
 
-        let numeric_array = if !&numeric_features.is_empty() {
-            let array = self.convert_array_type(&data)?;
-            Some(array)
-        } else {
-            None
-        };
-
-        let string_array = if !&string_features.is_empty() {
-            Some(
-                data.call_method1("astype", ("str",))?
-                    .call_method0("to_list")?
-                    .extract::<Vec<Vec<String>>>()?,
-            )
-        } else {
-            None
-        };
+        let (numeric_array, dtype) =
+            NumpyDataConverter::process_numeric_features(data, &numeric_features)?;
+        let string_array = NumpyDataConverter::process_string_features(data, &string_features)?;
 
         Ok((
             numeric_features,
             numeric_array,
+            dtype,
             string_features,
             string_array,
         ))

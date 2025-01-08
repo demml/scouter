@@ -1,4 +1,7 @@
-use crate::profiler::pandas::prepare_pandas_data;
+use crate::profiler::arrow::ArrowDataConverter;
+use crate::profiler::numpy::NumpyDataConverter;
+use crate::profiler::pandas::PandasDataConverter;
+use crate::profiler::polars::PolarsDataConverter;
 use ndarray_stats::MaybeNan;
 use num_traits::{Float, FromPrimitive, Num};
 use numpy::ndarray::ArrayView2;
@@ -14,6 +17,8 @@ use scouter_types::DataType;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use tracing::info;
+
+use super::base::DataConverter;
 
 #[pyclass]
 pub struct RustScouterProfiler {
@@ -44,13 +49,24 @@ impl RustScouterProfiler {
         let bin_ize = bin_size.unwrap_or(20);
         let compute_correlations = compute_correlations.unwrap_or(false);
 
-        let (num_features, num_array, string_features, string_vec) = match data_type {
-            DataType::Pandas => prepare_pandas_data(data)?,
+        println!("data: {:?}", data);
+        println!("data_type: {:?}", data_type);
+
+        let (num_features, num_array, dtype, string_features, _string_vec) = match data_type {
+            DataType::Pandas => PandasDataConverter::prepare_data(data)?,
+            DataType::Polars => PolarsDataConverter::prepare_data(data)?,
+            DataType::Numpy => NumpyDataConverter::prepare_data(data)?,
+            DataType::Arrow => ArrowDataConverter::prepare_data(data)?,
 
             _ => {
                 return Err(PyValueError::new_err("Invalid data type"));
             }
         };
+
+        println!("num_features: {:?}", num_features);
+        println!("num_array: {:?}", num_array);
+        println!("dtype: {:?}", dtype);
+        println!("string_features: {:?}", string_features);
 
         Ok(())
     }

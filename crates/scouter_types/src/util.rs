@@ -284,7 +284,7 @@ pub trait ValidateAlertConfig {
 }
 
 #[pyclass(eq)]
-#[derive(PartialEq)]
+#[derive(PartialEq, Debug)]
 pub enum DataType {
     Pandas,
     Polars,
