@@ -43,6 +43,7 @@ from ._scouter import (
     PsiFeatureQueue,
     PsiServerRecord,
     RecordType,
+    ScouterError,
     ServerRecord,
     ServerRecords,
     SpcAlert,
@@ -56,7 +57,6 @@ from ._scouter import (
     SpcFeatureDriftProfile,
     SpcFeatureQueue,
     SpcServerRecord,
-    ScouterError,
 )
 from .drift.drifter import CommonCrons, Drifter
 from .monitor.monitor import MonitorQueue

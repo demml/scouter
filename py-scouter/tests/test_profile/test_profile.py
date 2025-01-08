@@ -70,14 +70,11 @@ def test_data_profile_polars(array: NDArray):
 def test_data_profile_pandas(array: NDArray):
     df = pd.DataFrame(array)
     scouter = DataProfiler()
-    
-   
-    
-    with pytest.raises(ScouterError)as error:
-         profile: DataProfile = scouter.create_data_profile(df)
-         
+
+    with pytest.raises(ScouterError) as error:
+        profile: DataProfile = scouter.create_data_profile(df)
+
     assert str(error.value) == "Column names must be string type"
-        
 
     df.columns = df.columns.astype(str)
     profile: DataProfile = scouter.create_data_profile(df)
