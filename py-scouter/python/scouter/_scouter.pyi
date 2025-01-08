@@ -1142,7 +1142,6 @@ class SpcDriftMap:
     def to_numpy(self) -> Tuple[NDArray, NDArray, List[str]]:
         """Return drift map as a a tuple of sample_array, drift_array and list of features"""
 
-
 class SpcDrifter:
     def __init__(self) -> None:
         """Instantiate Rust ScouterMonitor class that is
