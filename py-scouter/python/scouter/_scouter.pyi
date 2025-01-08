@@ -2462,3 +2462,37 @@ class CustomMetricServerRecord:
 
     def to_dict(self) -> Dict[str, str]:
         """Return the dictionary representation of the record."""
+
+class DataType:
+    Pandas: "DataType"
+    Polars: "DataType"
+    Numpy: "DataType"
+    Arrow: "DataType"
+
+class RustScouterProfiler:
+    def __init__(self):
+        """Instantiate Rust TestProfiler class that is
+        used to profile data"""
+
+    def create_data_profile(
+        self,
+        data: Any,
+        data_type: DataType,
+        bin_size: int = 20,
+        compute_correlations: bool = False,
+    ) -> None:
+        """Create a data profile from a numpy array.
+
+        Args:
+            data:
+                Numpy array to profile.
+            data_type:
+                Type of data (f32, f64, string).
+            bin_size:
+                Optional bin size for histograms. Defaults to 20 bins.
+            compute_correlations:
+                Whether to compute correlations or not.
+
+        Returns:
+            Monitoring profile
+        """

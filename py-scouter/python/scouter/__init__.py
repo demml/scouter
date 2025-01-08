@@ -18,6 +18,7 @@ from ._scouter import (
     CustomMetricDriftConfig,
     CustomMetricServerRecord,
     DataProfile,
+    DataType,
     DriftType,
     Every1Minute,
     Every5Minutes,
@@ -41,6 +42,7 @@ from ._scouter import (
     PsiFeatureQueue,
     PsiServerRecord,
     RecordType,
+    RustScouterProfiler,
     ServerRecord,
     ServerRecords,
     SpcAlert,
@@ -122,4 +124,6 @@ __all__ = [
     "CustomMetricServerRecord",
     "Feature",
     "Features",
+    "RustScouterProfiler",
+    "DataType",
 ]

@@ -172,6 +172,10 @@ def pandas_dataframe_multi_type(array: NDArray) -> YieldFixture:
     # change column_0 to be int
     df["column_0"] = df["column_0"].astype(int)
 
+    # column 3 should be string of ints between 1 and 3
+    # df["column_3"]  = np.random.randint(1, 4, df.shape[0])
+    # df["column_3"] = df["column_3"].astype(str)
+
     yield df
 
     cleanup()

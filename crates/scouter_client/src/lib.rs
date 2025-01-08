@@ -20,6 +20,7 @@ pub use scouter_types::{
     ServerRecord, ServerRecords, SpcServerRecord,
 };
 
+pub use profiler::scouter::RustScouterProfiler;
 pub use scouter_drift::{
     psi::{PsiFeatureQueue, PsiMonitor},
     spc::{generate_alerts, SpcDriftMap, SpcFeatureDrift, SpcFeatureQueue, SpcMonitor},

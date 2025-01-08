@@ -16,13 +16,13 @@ use std::collections::HashMap;
 use tracing::info;
 
 #[pyclass]
-pub struct ScouterProfiler {
+pub struct RustScouterProfiler {
     num_profiler: NumProfiler,
     string_profiler: StringProfiler,
 }
 
 #[pymethods]
-impl ScouterProfiler {
+impl RustScouterProfiler {
     #[new]
     pub fn new() -> Self {
         Self {
@@ -31,7 +31,7 @@ impl ScouterProfiler {
         }
     }
 
-    #[pyo3(signature = (data, data_type, bin_size=None, compute_correlations=None))]
+    #[pyo3(signature = (data, data_type, bin_size=20, compute_correlations=false))]
     pub fn create_data_profile(
         &self,
         data: &Bound<'_, PyAny>,
@@ -56,7 +56,7 @@ impl ScouterProfiler {
     }
 }
 
-impl ScouterProfiler {
+impl RustScouterProfiler {
     pub fn create_data_profile_f32(
         &mut self,
         compute_correlations: bool,
@@ -275,5 +275,3 @@ impl ScouterProfiler {
         Ok(DataProfile { features })
     }
 }
-
-impl ScouterProfiler {}

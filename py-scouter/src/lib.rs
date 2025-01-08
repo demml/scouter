@@ -64,5 +64,7 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<CustomMetricServerRecord>()?;
     m.add_class::<Feature>()?;
     m.add_class::<Features>()?;
+    m.add_class::<RustScouterProfiler>()?;
+    m.add_class::<DataType>()?;
     Ok(())
 }
