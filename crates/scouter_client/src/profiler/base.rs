@@ -3,7 +3,7 @@ use num_traits::Float;
 use numpy::PyArray2;
 use numpy::PyArrayMethods;
 use numpy::PyReadonlyArray2;
-use pyo3::{prelude::*, types::PyString};
+use pyo3::prelude::*;
 use scouter_error::ScouterError;
 
 pub fn convert_array_type<'py, F>(

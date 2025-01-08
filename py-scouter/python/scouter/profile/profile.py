@@ -15,7 +15,7 @@ from .._scouter import DataProfile, ScouterProfiler  # pylint: disable=no-name-i
 logger = ScouterLogger.get_logger()
 
 
-class Profiler:
+class _Profiler:
     def __init__(self) -> None:
         """Scouter class for creating data profiles. This class will generate
         baseline statistics for a given dataset."""

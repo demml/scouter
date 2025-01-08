@@ -293,7 +293,6 @@ pub enum DataType {
 }
 
 impl DataType {
-
     pub fn from_module_name(module_name: &str) -> Result<Self, ScouterError> {
         match module_name {
             "pandas.core.frame.DataFrame" => Ok(DataType::Pandas),

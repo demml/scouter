@@ -1,4 +1,3 @@
-use numpy::PyReadonlyArray2;
 use pyo3::prelude::*;
 
 pub type ConvertedArray<'py> = (

@@ -7,7 +7,7 @@ use ndarray_stats::MaybeNan;
 use num_traits::{Float, FromPrimitive, Num};
 use numpy::ndarray::ArrayView2;
 use numpy::ndarray::{concatenate, Axis};
-use numpy::{dtype, PyReadonlyArray2};
+use numpy::PyReadonlyArray2;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use scouter_error::ProfilerError;
@@ -22,13 +22,13 @@ use tracing::info;
 use super::base::DataConverter;
 
 #[pyclass]
-pub struct RustScouterProfiler {
+pub struct DataProfiler {
     num_profiler: NumProfiler,
     string_profiler: StringProfiler,
 }
 
 #[pymethods]
-impl RustScouterProfiler {
+impl DataProfiler {
     #[new]
     pub fn new() -> Self {
         Self {
@@ -63,7 +63,6 @@ impl RustScouterProfiler {
             }
         };
 
-        
         let (num_features, num_array, dtype, string_features, string_vec) = match data_type {
             DataType::Pandas => PandasDataConverter::prepare_data(data)?,
             DataType::Polars => PolarsDataConverter::prepare_data(data)?,
@@ -83,7 +82,6 @@ impl RustScouterProfiler {
                     Some(read_array),
                     string_features,
                     string_vec,
-             
                 );
             } else {
                 let read_array = convert_array_type::<f32>(num_array.unwrap(), &dtype)?;
@@ -94,7 +92,6 @@ impl RustScouterProfiler {
                     Some(read_array),
                     string_features,
                     string_vec,
-             
                 );
             }
         }
@@ -110,7 +107,7 @@ impl RustScouterProfiler {
     }
 }
 
-impl RustScouterProfiler {
+impl DataProfiler {
     pub fn create_data_profile_f32(
         &mut self,
         compute_correlations: bool,
@@ -132,7 +129,8 @@ impl RustScouterProfiler {
                     PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
                 })?;
             Ok(profile)
-        } else if string_array.is_none() && numeric_array.is_some() && !numeric_features.is_empty() {
+        } else if string_array.is_none() && numeric_array.is_some() && !numeric_features.is_empty()
+        {
             let profile = self
                 .num_profiler
                 .process_num_array(
@@ -185,7 +183,8 @@ impl RustScouterProfiler {
                     PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
                 })?;
             Ok(profile)
-        } else if string_array.is_none() && numeric_array.is_some() && !numeric_features.is_empty() {
+        } else if string_array.is_none() && numeric_array.is_some() && !numeric_features.is_empty()
+        {
             let profile = self
                 .num_profiler
                 .process_num_array(

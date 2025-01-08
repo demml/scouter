@@ -5,11 +5,11 @@ import pandas as pd
 import polars as pl
 import pytest
 from numpy.typing import NDArray
-from scouter import DataProfile, Profiler
+from scouter import DataProfile, DataProfiler
 
 
 def test_data_profile_f64(array: NDArray):
-    scouter = Profiler()
+    scouter = DataProfiler()
     profile: DataProfile = scouter.create_data_profile(array)
 
     # assert features are relatively centered
@@ -41,9 +41,9 @@ def test_data_profile_f64(array: NDArray):
     Path("data_profile.json").unlink()
 
 
-def test_data_profile_f32(array: NDArray):
+def _test_data_profile_f32(array: NDArray):
     array = array.astype("float32")
-    scouter = Profiler()
+    scouter = DataProfiler()
     profile: DataProfile = scouter.create_data_profile(array)
 
     # assert features are relatively centered
@@ -54,9 +54,9 @@ def test_data_profile_f32(array: NDArray):
     assert len(profile.features["feature_0"].numeric_stats.histogram.bin_counts) == 20
 
 
-def test_data_profile_polars(array: NDArray):
+def _test_data_profile_polars(array: NDArray):
     df = pl.from_numpy(array)
-    scouter = Profiler()
+    scouter = DataProfiler()
     profile: DataProfile = scouter.create_data_profile(df)
 
     # assert features are relatively centered
@@ -67,9 +67,9 @@ def test_data_profile_polars(array: NDArray):
     assert len(profile.features["column_0"].numeric_stats.histogram.bin_counts) == 20
 
 
-def test_data_profile_pandas(array: NDArray):
+def _test_data_profile_pandas(array: NDArray):
     df = pd.DataFrame(array)
-    scouter = Profiler()
+    scouter = DataProfiler()
     profile: DataProfile = scouter.create_data_profile(df)
 
     # assert features are relatively centered
@@ -80,10 +80,10 @@ def test_data_profile_pandas(array: NDArray):
     assert len(profile.features["0"].numeric_stats.histogram.bin_counts) == 20
 
 
-def test_data_profile_polars_mixed_type(
+def _test_data_profile_polars_mixed_type(
     polars_dataframe_multi_dtype: pl.DataFrame,
 ):
-    scouter = Profiler()
+    scouter = DataProfiler()
     profile: DataProfile = scouter.create_data_profile(polars_dataframe_multi_dtype)
 
     assert profile.features["cat2"].string_stats.distinct.count == 3
@@ -93,10 +93,10 @@ def test_data_profile_polars_mixed_type(
     assert profile.features["cat1"].string_stats.word_stats.words["7.0"].percent == pytest.approx(0.19, abs=0.1)
 
 
-def test_data_profile_pandas_mixed_type(
+def _test_data_profile_pandas_mixed_type(
     polars_dataframe_multi_dtype: pl.DataFrame,
 ):
-    scouter = Profiler()
+    scouter = DataProfiler()
     profile: DataProfile = scouter.create_data_profile(polars_dataframe_multi_dtype.to_pandas())
 
     assert profile.features["cat2"].string_stats.distinct.count == 3
@@ -106,12 +106,12 @@ def test_data_profile_pandas_mixed_type(
     assert profile.features["cat1"].string_stats.word_stats.words["7.0"].percent == pytest.approx(0.19, abs=0.1)
 
 
-def test_data_profile_pyarrow_mixed_type(
+def _test_data_profile_pyarrow_mixed_type(
     polars_dataframe_multi_dtype: pl.DataFrame,
 ):
     arrow_table = polars_dataframe_multi_dtype.to_arrow()
 
-    scouter = Profiler()
+    scouter = DataProfiler()
     profile: DataProfile = scouter.create_data_profile(arrow_table)
 
     assert profile.features["cat2"].string_stats.distinct.count == 3

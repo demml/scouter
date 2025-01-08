@@ -42,7 +42,7 @@ from ._scouter import (
     PsiFeatureQueue,
     PsiServerRecord,
     RecordType,
-    RustScouterProfiler,
+    DataProfiler,
     ServerRecord,
     ServerRecords,
     SpcAlert,
@@ -60,7 +60,6 @@ from ._scouter import (
 from .drift.drifter import CommonCrons, Drifter
 from .monitor.monitor import MonitorQueue
 from .observability.observer import ScouterObserver
-from .profile.profile import Profiler
 from .version import __version__
 
 __all__ = [
@@ -124,6 +123,6 @@ __all__ = [
     "CustomMetricServerRecord",
     "Feature",
     "Features",
-    "RustScouterProfiler",
     "DataType",
+    "DataProfiler",
 ]
