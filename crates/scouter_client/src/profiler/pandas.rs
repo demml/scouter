@@ -9,6 +9,18 @@ impl DataConverter for PandasDataConverter {
     fn check_for_non_numeric(
         data: &Bound<'_, PyAny>,
     ) -> Result<(Vec<String>, Vec<String>), ScouterError> {
+        let column_name_dtype = data
+            .getattr("columns")?
+            .getattr("dtype")?
+            .str()?
+            .to_string();
+
+        if !column_name_dtype.contains("object") {
+            return Err(ScouterError::Error(
+                "Column names must be string type".to_string(),
+            ));
+        }
+
         let all_columns = data.getattr("columns")?.extract::<Vec<String>>()?;
 
         // Check for non-numeric columns

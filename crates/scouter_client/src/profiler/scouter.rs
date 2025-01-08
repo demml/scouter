@@ -11,6 +11,7 @@ use numpy::PyReadonlyArray2;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use scouter_error::ProfilerError;
+use scouter_error::PyScouterError;
 use scouter_profile::{
     compute_feature_correlations, DataProfile, FeatureProfile, NumProfiler, StringProfiler,
 };
@@ -64,10 +65,14 @@ impl DataProfiler {
         };
 
         let (num_features, num_array, dtype, string_features, string_vec) = match data_type {
-            DataType::Pandas => PandasDataConverter::prepare_data(data)?,
-            DataType::Polars => PolarsDataConverter::prepare_data(data)?,
-            DataType::Numpy => NumpyDataConverter::prepare_data(data)?,
-            DataType::Arrow => ArrowDataConverter::prepare_data(data)?,
+            DataType::Pandas => PandasDataConverter::prepare_data(data)
+                .map_err(|e| PyScouterError::new_err(e.to_string()))?,
+            DataType::Polars => PolarsDataConverter::prepare_data(data)
+                .map_err(|e| PyScouterError::new_err(e.to_string()))?,
+            DataType::Numpy => NumpyDataConverter::prepare_data(data)
+                .map_err(|e| PyScouterError::new_err(e.to_string()))?,
+            DataType::Arrow => ArrowDataConverter::prepare_data(data)
+                .map_err(|e| PyScouterError::new_err(e.to_string()))?,
         };
 
         // if num_features is not empty, check dtype. If dtype == "float64", process as f64, else process as f32
@@ -75,24 +80,28 @@ impl DataProfiler {
             if dtype == "float64" {
                 let read_array = convert_array_type::<f64>(num_array.unwrap(), &dtype)?;
 
-                return self.create_data_profile_f64(
-                    compute_correlations,
-                    bin_size,
-                    num_features,
-                    Some(read_array),
-                    string_features,
-                    string_vec,
-                );
+                return self
+                    .create_data_profile_f64(
+                        compute_correlations,
+                        bin_size,
+                        num_features,
+                        Some(read_array),
+                        string_features,
+                        string_vec,
+                    )
+                    .map_err(|e| PyScouterError::new_err(e.to_string()));
             } else {
                 let read_array = convert_array_type::<f32>(num_array.unwrap(), &dtype)?;
-                return self.create_data_profile_f32(
-                    compute_correlations,
-                    bin_size,
-                    num_features,
-                    Some(read_array),
-                    string_features,
-                    string_vec,
-                );
+                return self
+                    .create_data_profile_f32(
+                        compute_correlations,
+                        bin_size,
+                        num_features,
+                        Some(read_array),
+                        string_features,
+                        string_vec,
+                    )
+                    .map_err(|e| PyScouterError::new_err(e.to_string()));
             }
         }
 
@@ -104,6 +113,7 @@ impl DataProfiler {
             string_features,
             string_vec,
         )
+        .map_err(|e| PyScouterError::new_err(e.to_string()))
     }
 }
 

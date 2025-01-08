@@ -3,8 +3,9 @@ use scouter_client::*;
 
 #[pymodule]
 fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    tracing_subscriber::fmt::init();
 
+    // opsml_errors
+    m.add("ScouterError", m.py().get_type::<PyScouterError>())?;
     m.add_class::<SpcDrifter>()?;
     m.add_class::<ScouterProfiler>()?;
     m.add_class::<SpcDriftProfile>()?;

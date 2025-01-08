@@ -26,7 +26,7 @@ pub use scouter_drift::{
     spc::{generate_alerts, SpcDriftMap, SpcFeatureDrift, SpcFeatureQueue, SpcMonitor},
     utils::CategoricalFeatureHelpers,
 };
-pub use scouter_error::{ProfilerError, ScouterError};
+pub use scouter_error::{ProfilerError, ScouterError, PyScouterError};
 pub use scouter_observability::Observer;
 pub use scouter_profile::{
     compute_feature_correlations, DataProfile, Distinct, FeatureProfile, Histogram, NumProfiler,
