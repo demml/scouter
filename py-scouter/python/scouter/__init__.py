@@ -65,7 +65,6 @@ from .version import __version__
 
 __all__ = [
     "DriftType",
-    "Profiler",
     "Drifter",
     "__version__",
     "DataProfile",
