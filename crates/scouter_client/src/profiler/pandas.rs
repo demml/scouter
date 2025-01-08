@@ -54,6 +54,7 @@ impl DataConverter for PandasDataConverter {
         Ok((Some(array), dtype))
     }
 
+    #[allow(clippy::needless_lifetimes)]
     fn process_string_features<'py>(
         data: &Bound<'py, PyAny>,
         features: &[String],

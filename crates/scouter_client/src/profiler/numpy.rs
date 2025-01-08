@@ -47,6 +47,7 @@ impl DataConverter for NumpyDataConverter {
         Ok((Some(data.clone()), dtype))
     }
 
+    #[allow(clippy::needless_lifetimes)]
     fn process_string_features<'py>(
         data: &Bound<'py, PyAny>,
         features: &[String],

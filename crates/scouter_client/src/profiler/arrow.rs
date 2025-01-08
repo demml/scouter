@@ -6,6 +6,8 @@ use scouter_error::ScouterError;
 pub struct ArrowDataConverter;
 
 impl DataConverter for ArrowDataConverter {
+
+    #[allow(clippy::if_same_then_else)]
     fn check_for_non_numeric(
         data: &Bound<'_, PyAny>,
     ) -> Result<(Vec<String>, Vec<String>), ScouterError> {
@@ -73,6 +75,7 @@ impl DataConverter for ArrowDataConverter {
         Ok((Some(array), dtype))
     }
 
+    #[allow(clippy::needless_lifetimes)]
     fn process_string_features<'py>(
         data: &Bound<'py, PyAny>,
         features: &[String],

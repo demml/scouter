@@ -31,11 +31,13 @@ pub trait DataConverter {
         data: &Bound<'_, PyAny>,
     ) -> Result<(Vec<String>, Vec<String>), ScouterError>;
 
+    #[allow(clippy::needless_lifetimes)]
     fn process_numeric_features<'py>(
         data: &Bound<'py, PyAny>,
         features: &[String],
     ) -> Result<(Option<Bound<'py, PyAny>>, Option<String>), ScouterError>;
 
+    #[allow(clippy::needless_lifetimes)]
     fn process_string_features<'py>(
         data: &Bound<'py, PyAny>,
         features: &[String],

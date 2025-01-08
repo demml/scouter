@@ -5,3 +5,5 @@ pub mod pandas;
 pub mod polars;
 pub mod scouter;
 pub mod types;
+
+pub use scouter::*;

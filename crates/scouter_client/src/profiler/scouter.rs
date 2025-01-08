@@ -29,6 +29,7 @@ pub struct DataProfiler {
 }
 
 #[pymethods]
+#[allow(clippy::new_without_default)]
 impl DataProfiler {
     #[new]
     pub fn new() -> Self {

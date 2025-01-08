@@ -27,6 +27,7 @@ impl DataConverter for PolarsDataConverter {
         Ok((numeric_features, string_features))
     }
 
+    #[allow(clippy::needless_lifetimes)]
     fn process_numeric_features<'py>(
         data: &Bound<'py, PyAny>,
         features: &[String],
@@ -41,6 +42,7 @@ impl DataConverter for PolarsDataConverter {
         Ok((Some(array), dtype))
     }
 
+    #[allow(clippy::needless_lifetimes)]
     fn process_string_features<'py>(
         data: &Bound<'py, PyAny>,
         features: &[String],
@@ -54,7 +56,7 @@ impl DataConverter for PolarsDataConverter {
                 .iter()
                 .map(|feature| {
                     let array = data
-                        .get_item(&feature)?
+                        .get_item(feature)?
                         .call_method0("to_list")?
                         .extract::<Vec<String>>()?;
                     Ok(array)
