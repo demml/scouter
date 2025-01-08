@@ -292,6 +292,19 @@ pub enum DataType {
     Arrow,
 }
 
+impl DataType {
+
+    pub fn from_module_name(module_name: &str) -> Result<Self, ScouterError> {
+        match module_name {
+            "pandas.core.frame.DataFrame" => Ok(DataType::Pandas),
+            "polars.dataframe.frame.DataFrame" => Ok(DataType::Polars),
+            "numpy.ndarray" => Ok(DataType::Numpy),
+            "pyarrow.lib.Table" => Ok(DataType::Arrow),
+            _ => Err(ScouterError::Error("Invalid data type".to_string())),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

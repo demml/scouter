@@ -1,4 +1,5 @@
 use crate::profiler::arrow::ArrowDataConverter;
+use crate::profiler::base::convert_array_type;
 use crate::profiler::numpy::NumpyDataConverter;
 use crate::profiler::pandas::PandasDataConverter;
 use crate::profiler::polars::PolarsDataConverter;
@@ -6,7 +7,7 @@ use ndarray_stats::MaybeNan;
 use num_traits::{Float, FromPrimitive, Num};
 use numpy::ndarray::ArrayView2;
 use numpy::ndarray::{concatenate, Axis};
-use numpy::PyReadonlyArray2;
+use numpy::{dtype, PyReadonlyArray2};
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use scouter_error::ProfilerError;
@@ -36,39 +37,76 @@ impl RustScouterProfiler {
         }
     }
 
-    #[pyo3(signature = (data, data_type, bin_size=20, compute_correlations=false))]
+    #[pyo3(signature = (data, data_type=None, bin_size=20, compute_correlations=false))]
     pub fn create_data_profile(
-        &self,
+        &mut self,
         data: &Bound<'_, PyAny>,
-        data_type: &DataType,
+        data_type: Option<&DataType>,
         bin_size: Option<usize>,
         compute_correlations: Option<bool>,
-    ) -> PyResult<()> {
+    ) -> PyResult<DataProfile> {
         info!("Creating data profile");
 
-        let bin_ize = bin_size.unwrap_or(20);
+        let bin_size = bin_size.unwrap_or(20);
         let compute_correlations = compute_correlations.unwrap_or(false);
 
-        println!("data: {:?}", data);
-        println!("data_type: {:?}", data_type);
+        // if data_type is None, try to infer it from the class name
+        let data_type = match data_type {
+            Some(data_type) => data_type,
+            None => {
+                let class = data.getattr("__class__")?;
+                let module = class.getattr("__module__")?.str()?.to_string();
+                let name = class.getattr("__name__")?.str()?.to_string();
+                let full_class_name = format!("{}.{}", module, name);
 
-        let (num_features, num_array, dtype, string_features, _string_vec) = match data_type {
+                &DataType::from_module_name(&full_class_name)?
+            }
+        };
+
+        
+        let (num_features, num_array, dtype, string_features, string_vec) = match data_type {
             DataType::Pandas => PandasDataConverter::prepare_data(data)?,
             DataType::Polars => PolarsDataConverter::prepare_data(data)?,
             DataType::Numpy => NumpyDataConverter::prepare_data(data)?,
             DataType::Arrow => ArrowDataConverter::prepare_data(data)?,
-
-            _ => {
-                return Err(PyValueError::new_err("Invalid data type"));
-            }
         };
 
-        println!("num_features: {:?}", num_features);
-        println!("num_array: {:?}", num_array);
-        println!("dtype: {:?}", dtype);
-        println!("string_features: {:?}", string_features);
+        // if num_features is not empty, check dtype. If dtype == "float64", process as f64, else process as f32
+        if let Some(dtype) = dtype {
+            if dtype == "float64" {
+                let read_array = convert_array_type::<f64>(num_array.unwrap(), &dtype)?;
 
-        Ok(())
+                return self.create_data_profile_f64(
+                    compute_correlations,
+                    bin_size,
+                    num_features,
+                    Some(read_array),
+                    string_features,
+                    string_vec,
+             
+                );
+            } else {
+                let read_array = convert_array_type::<f32>(num_array.unwrap(), &dtype)?;
+                return self.create_data_profile_f32(
+                    compute_correlations,
+                    bin_size,
+                    num_features,
+                    Some(read_array),
+                    string_features,
+                    string_vec,
+             
+                );
+            }
+        }
+
+        self.create_data_profile_f32(
+            compute_correlations,
+            bin_size,
+            num_features,
+            None,
+            string_features,
+            string_vec,
+        )
     }
 }
 
@@ -76,31 +114,31 @@ impl RustScouterProfiler {
     pub fn create_data_profile_f32(
         &mut self,
         compute_correlations: bool,
+        bin_size: usize,
+        numeric_features: Vec<String>,
         numeric_array: Option<PyReadonlyArray2<f32>>,
+        string_features: Vec<String>,
         string_array: Option<Vec<Vec<String>>>,
-        numeric_features: Option<Vec<String>>,
-        string_features: Option<Vec<String>>,
-        bin_size: Option<usize>,
     ) -> PyResult<DataProfile> {
-        if string_features.is_some() && string_array.is_some() && numeric_array.is_none() {
+        if !string_features.is_empty() && string_array.is_some() && numeric_array.is_none() {
             let profile = self
                 .string_profiler
                 .process_string_array::<f32>(
                     string_array.unwrap(),
-                    string_features.unwrap(),
+                    string_features,
                     compute_correlations,
                 )
                 .map_err(|e| {
                     PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
                 })?;
             Ok(profile)
-        } else if string_array.is_none() && numeric_array.is_some() && numeric_features.is_some() {
+        } else if string_array.is_none() && numeric_array.is_some() && !numeric_features.is_empty() {
             let profile = self
                 .num_profiler
                 .process_num_array(
                     compute_correlations,
                     &numeric_array.unwrap().as_array(),
-                    numeric_features.unwrap(),
+                    numeric_features,
                     bin_size,
                 )
                 .map_err(|e| {
@@ -114,8 +152,8 @@ impl RustScouterProfiler {
                     compute_correlations,
                     numeric_array.unwrap().as_array(),
                     string_array.unwrap(),
-                    numeric_features.unwrap(),
-                    string_features.unwrap(),
+                    numeric_features,
+                    string_features,
                     bin_size,
                 )
                 .map_err(|e| {
@@ -129,31 +167,31 @@ impl RustScouterProfiler {
     pub fn create_data_profile_f64(
         &mut self,
         compute_correlations: bool,
+        bin_size: usize,
+        numeric_features: Vec<String>,
         numeric_array: Option<PyReadonlyArray2<f64>>,
+        string_features: Vec<String>,
         string_array: Option<Vec<Vec<String>>>,
-        numeric_features: Option<Vec<String>>,
-        string_features: Option<Vec<String>>,
-        bin_size: Option<usize>,
     ) -> PyResult<DataProfile> {
-        if string_features.is_some() && string_array.is_some() && numeric_array.is_none() {
+        if !string_features.is_empty() && string_array.is_some() && numeric_array.is_none() {
             let profile = self
                 .string_profiler
                 .process_string_array::<f32>(
                     string_array.unwrap(),
-                    string_features.unwrap(),
+                    string_features,
                     compute_correlations,
                 )
                 .map_err(|e| {
                     PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
                 })?;
             Ok(profile)
-        } else if string_array.is_none() && numeric_array.is_some() && numeric_features.is_some() {
+        } else if string_array.is_none() && numeric_array.is_some() && !numeric_features.is_empty() {
             let profile = self
                 .num_profiler
                 .process_num_array(
                     compute_correlations,
                     &numeric_array.unwrap().as_array(),
-                    numeric_features.unwrap(),
+                    numeric_features,
                     bin_size,
                 )
                 .map_err(|e| {
@@ -167,8 +205,8 @@ impl RustScouterProfiler {
                     compute_correlations,
                     numeric_array.unwrap().as_array(),
                     string_array.unwrap(),
-                    numeric_features.unwrap(),
-                    string_features.unwrap(),
+                    numeric_features,
+                    string_features,
                     bin_size,
                 )
                 .map_err(|e| {
@@ -186,7 +224,7 @@ impl RustScouterProfiler {
         string_array: Vec<Vec<String>>,
         numeric_features: Vec<String>,
         string_features: Vec<String>,
-        bin_size: Option<usize>,
+        bin_size: usize,
     ) -> Result<DataProfile, ProfilerError>
     where
         F: Float
@@ -213,7 +251,7 @@ impl RustScouterProfiler {
 
         let num_profiles = self
             .num_profiler
-            .compute_stats(&numeric_features, &numeric_array, &bin_size.unwrap_or(20))
+            .compute_stats(&numeric_features, &numeric_array, &bin_size)
             .map_err(|e| {
                 ProfilerError::ComputeError(format!("Failed to create feature data profile: {}", e))
             })?;

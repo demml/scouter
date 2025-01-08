@@ -68,7 +68,7 @@ impl ScouterProfiler {
         string_array: Option<Vec<Vec<String>>>,
         numeric_features: Option<Vec<String>>,
         string_features: Option<Vec<String>>,
-        bin_size: Option<usize>,
+        bin_size: usize,
     ) -> PyResult<DataProfile> {
         if string_features.is_some() && string_array.is_some() && numeric_array.is_none() {
             let profile = self
@@ -121,7 +121,7 @@ impl ScouterProfiler {
         string_array: Option<Vec<Vec<String>>>,
         numeric_features: Option<Vec<String>>,
         string_features: Option<Vec<String>>,
-        bin_size: Option<usize>,
+        bin_size: usize,
     ) -> PyResult<DataProfile> {
         if string_features.is_some() && string_array.is_some() && numeric_array.is_none() {
             let profile = self
@@ -174,7 +174,7 @@ impl ScouterProfiler {
         string_array: Vec<Vec<String>>,
         numeric_features: Vec<String>,
         string_features: Vec<String>,
-        bin_size: Option<usize>,
+        bin_size: usize,
     ) -> Result<DataProfile, ProfilerError>
     where
         F: Float
@@ -201,7 +201,7 @@ impl ScouterProfiler {
 
         let num_profiles = self
             .num_profiler
-            .compute_stats(&numeric_features, &numeric_array, &bin_size.unwrap_or(20))
+            .compute_stats(&numeric_features, &numeric_array, &bin_size)
             .map_err(|e| {
                 ProfilerError::ComputeError(format!("Failed to create feature data profile: {}", e))
             })?;

@@ -9,8 +9,6 @@ impl DataConverter for PolarsDataConverter {
     fn check_for_non_numeric(
         data: &Bound<'_, PyAny>,
     ) -> Result<(Vec<String>, Vec<String>), ScouterError> {
-
-
         let py = data.py();
         let cs = py.import("polars")?.getattr("selectors")?;
 
@@ -40,9 +38,7 @@ impl DataConverter for PolarsDataConverter {
         let array = data.get_item(features)?.call_method0("to_numpy")?;
         let dtype = Some(array.getattr("dtype")?.str()?.to_string());
 
-
         Ok((Some(array), dtype))
-
     }
 
     fn process_string_features<'py>(

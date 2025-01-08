@@ -6,6 +6,26 @@ use numpy::PyReadonlyArray2;
 use pyo3::{prelude::*, types::PyString};
 use scouter_error::ScouterError;
 
+pub fn convert_array_type<'py, F>(
+    data: Bound<'py, PyAny>,
+    dtype: &str,
+) -> Result<PyReadonlyArray2<'py, F>, ScouterError>
+where
+    F: Float + numpy::Element,
+{
+    let array = if dtype.contains("int") {
+        data.call_method1("astype", ("float32",))?
+    } else {
+        data.clone()
+    };
+
+    let array = array
+        .downcast_into::<PyArray2<F>>()
+        .map_err(|e| ScouterError::Error(e.to_string()))?;
+
+    Ok(array.readonly())
+}
+
 pub trait DataConverter {
     fn check_for_non_numeric(
         data: &Bound<'_, PyAny>,
@@ -20,32 +40,6 @@ pub trait DataConverter {
         data: &Bound<'py, PyAny>,
         features: &[String],
     ) -> Result<Option<Vec<Vec<String>>>, ScouterError>;
-
-    fn convert_array_type<'py, F>(
-        data: &Bound<'py, PyAny>,
-    ) -> Result<PyReadonlyArray2<'py, F>, ScouterError>
-    where
-        F: Float + numpy::Element,
-    {
-        let dtype = data
-            .getattr("dtype")?
-            .downcast::<PyString>()
-            .map_err(|_| ScouterError::Error("Failed to downcast dtype".to_string()))?
-            .to_string_lossy()
-            .to_string();
-
-        let array = if dtype.contains("int") {
-            data.call_method1("astype", ("float64",))?
-        } else {
-            data.clone()
-        };
-
-        let array = array
-            .downcast_into::<PyArray2<F>>()
-            .map_err(|e| ScouterError::Error(e.to_string()))?;
-
-        Ok(array.readonly())
-    }
 
     fn prepare_data<'py>(data: &Bound<'py, PyAny>) -> Result<ConvertedArray<'py>, ScouterError>;
 }

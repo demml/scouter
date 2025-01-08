@@ -44,9 +44,7 @@ impl DataConverter for NumpyDataConverter {
         }
         let dtype = Some(data.getattr("dtype")?.str()?.to_string());
 
-
         Ok((Some(data.clone()), dtype))
-
     }
 
     fn process_string_features<'py>(
@@ -62,7 +60,6 @@ impl DataConverter for NumpyDataConverter {
                 .call_method0("to_list")?
                 .extract::<Vec<Vec<String>>>()?,
         ))
-     
     }
 
     fn prepare_data<'py>(data: &Bound<'py, PyAny>) -> Result<ConvertedArray<'py>, ScouterError> {

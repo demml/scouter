@@ -43,38 +43,34 @@ impl DataConverter for ArrowDataConverter {
         Ok((numeric_features, string_features))
     }
 
-
     fn process_numeric_features<'py>(
         data: &Bound<'py, PyAny>,
         features: &[String],
     ) -> Result<(Option<Bound<'py, PyAny>>, Option<String>), ScouterError> {
-
         let py = data.py();
         if features.is_empty() {
             return Ok((None, None));
         }
 
         let array = features
-                .iter()
-                .map(|feature| {
-                    let array = data
-                        .call_method1("column", (&feature,))?
-                        .call_method0("to_numpy")?;
+            .iter()
+            .map(|feature| {
+                let array = data
+                    .call_method1("column", (&feature,))?
+                    .call_method0("to_numpy")?;
 
-                    Ok(array)
-                })
-                .collect::<Result<Vec<Bound<'py, PyAny>>, ScouterError>>()?;
+                Ok(array)
+            })
+            .collect::<Result<Vec<Bound<'py, PyAny>>, ScouterError>>()?;
 
         let numpy = py.import("numpy")?;
 
         // call numpy.column_stack on array
         let array = numpy.call_method1("column_stack", (array,))?;
-            //let array = ArrowDataConverter::convert_array_type(&array)?;
+        //let array = ArrowDataConverter::convert_array_type(&array)?;
         let dtype = Some(array.getattr("dtype")?.str()?.to_string());
 
-
         Ok((Some(array), dtype))
-
     }
 
     fn process_string_features<'py>(
@@ -86,20 +82,19 @@ impl DataConverter for ArrowDataConverter {
         }
 
         let array = features
-                .iter()
-                .map(|feature| {
-                    let array = data
-                        .call_method1("column", (&feature,))?
-                        .call_method0("to_pylist")?
-                        .extract::<Vec<String>>()?;
-                    Ok(array)
-                })
-                .collect::<Result<Vec<Vec<String>>, ScouterError>>()?;
+            .iter()
+            .map(|feature| {
+                let array = data
+                    .call_method1("column", (&feature,))?
+                    .call_method0("to_pylist")?
+                    .extract::<Vec<String>>()?;
+                Ok(array)
+            })
+            .collect::<Result<Vec<Vec<String>>, ScouterError>>()?;
         Ok(Some(array))
     }
 
     fn prepare_data<'py>(data: &Bound<'py, PyAny>) -> Result<ConvertedArray<'py>, ScouterError> {
-       
         let (numeric_features, string_features) = ArrowDataConverter::check_for_non_numeric(data)?;
 
         let (numeric_array, dtype) =
