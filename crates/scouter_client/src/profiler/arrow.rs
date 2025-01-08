@@ -6,7 +6,6 @@ use scouter_error::ScouterError;
 pub struct ArrowDataConverter;
 
 impl DataConverter for ArrowDataConverter {
-
     #[allow(clippy::if_same_then_else)]
     fn check_for_non_numeric(
         data: &Bound<'_, PyAny>,
