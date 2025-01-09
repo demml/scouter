@@ -27,7 +27,7 @@ where
 }
 
 pub trait DataConverter {
-    fn check_for_non_numeric(
+    fn categorize_features(
         data: &Bound<'_, PyAny>,
     ) -> Result<(Vec<String>, Vec<String>), ScouterError>;
 

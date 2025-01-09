@@ -7,7 +7,7 @@ pub struct ArrowDataConverter;
 
 impl DataConverter for ArrowDataConverter {
     #[allow(clippy::if_same_then_else)]
-    fn check_for_non_numeric(
+    fn categorize_features(
         data: &Bound<'_, PyAny>,
     ) -> Result<(Vec<String>, Vec<String>), ScouterError> {
         let py = data.py();
@@ -97,7 +97,7 @@ impl DataConverter for ArrowDataConverter {
     }
 
     fn prepare_data<'py>(data: &Bound<'py, PyAny>) -> Result<ConvertedArray<'py>, ScouterError> {
-        let (numeric_features, string_features) = ArrowDataConverter::check_for_non_numeric(data)?;
+        let (numeric_features, string_features) = ArrowDataConverter::categorize_features(data)?;
 
         let (numeric_array, dtype) =
             ArrowDataConverter::process_numeric_features(data, &numeric_features)?;

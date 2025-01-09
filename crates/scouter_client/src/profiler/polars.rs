@@ -6,7 +6,7 @@ use scouter_error::ScouterError;
 pub struct PolarsDataConverter;
 
 impl DataConverter for PolarsDataConverter {
-    fn check_for_non_numeric(
+    fn categorize_features(
         data: &Bound<'_, PyAny>,
     ) -> Result<(Vec<String>, Vec<String>), ScouterError> {
         let py = data.py();
@@ -66,7 +66,7 @@ impl DataConverter for PolarsDataConverter {
     }
 
     fn prepare_data<'py>(data: &Bound<'py, PyAny>) -> Result<ConvertedArray<'py>, ScouterError> {
-        let (numeric_features, string_features) = PolarsDataConverter::check_for_non_numeric(data)?;
+        let (numeric_features, string_features) = PolarsDataConverter::categorize_features(data)?;
 
         let (numeric_array, dtype) =
             PolarsDataConverter::process_numeric_features(data, &numeric_features)?;

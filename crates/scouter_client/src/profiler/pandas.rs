@@ -6,7 +6,7 @@ use scouter_error::ScouterError;
 pub struct PandasDataConverter;
 
 impl DataConverter for PandasDataConverter {
-    fn check_for_non_numeric(
+    fn categorize_features(
         data: &Bound<'_, PyAny>,
     ) -> Result<(Vec<String>, Vec<String>), ScouterError> {
         let column_name_dtype = data
@@ -75,7 +75,7 @@ impl DataConverter for PandasDataConverter {
     }
 
     fn prepare_data<'py>(data: &Bound<'py, PyAny>) -> Result<ConvertedArray<'py>, ScouterError> {
-        let (numeric_features, string_features) = PandasDataConverter::check_for_non_numeric(data)?;
+        let (numeric_features, string_features) = PandasDataConverter::categorize_features(data)?;
 
         let (numeric_array, dtype) =
             PandasDataConverter::process_numeric_features(data, &numeric_features)?;
