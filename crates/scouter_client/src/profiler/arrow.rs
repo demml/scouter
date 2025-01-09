@@ -68,7 +68,6 @@ impl DataConverter for ArrowDataConverter {
 
         // call numpy.column_stack on array
         let array = numpy.call_method1("column_stack", (array,))?;
-        //let array = ArrowDataConverter::convert_array_type(&array)?;
         let dtype = Some(array.getattr("dtype")?.str()?.to_string());
 
         Ok((Some(array), dtype))

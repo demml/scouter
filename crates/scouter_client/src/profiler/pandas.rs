@@ -49,8 +49,6 @@ impl DataConverter for PandasDataConverter {
         let array = data.get_item(features)?.call_method0("to_numpy")?;
         let dtype = Some(array.getattr("dtype")?.str()?.to_string());
 
-        // downcast to PyArray2
-        //let array = PandasDataConverter::convert_array_type(&array)?;
         Ok((Some(array), dtype))
     }
 
