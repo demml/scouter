@@ -5,11 +5,11 @@ import pandas as pd
 import polars as pl
 import pytest
 from numpy.typing import NDArray
-from scouter import DataProfile, Profiler
+from scouter import DataProfile, DataProfiler, ScouterError
 
 
 def test_data_profile_f64(array: NDArray):
-    scouter = Profiler()
+    scouter = DataProfiler()
     profile: DataProfile = scouter.create_data_profile(array)
 
     # assert features are relatively centered
@@ -43,7 +43,7 @@ def test_data_profile_f64(array: NDArray):
 
 def test_data_profile_f32(array: NDArray):
     array = array.astype("float32")
-    scouter = Profiler()
+    scouter = DataProfiler()
     profile: DataProfile = scouter.create_data_profile(array)
 
     # assert features are relatively centered
@@ -56,7 +56,7 @@ def test_data_profile_f32(array: NDArray):
 
 def test_data_profile_polars(array: NDArray):
     df = pl.from_numpy(array)
-    scouter = Profiler()
+    scouter = DataProfiler()
     profile: DataProfile = scouter.create_data_profile(df)
 
     # assert features are relatively centered
@@ -69,7 +69,14 @@ def test_data_profile_polars(array: NDArray):
 
 def test_data_profile_pandas(array: NDArray):
     df = pd.DataFrame(array)
-    scouter = Profiler()
+    scouter = DataProfiler()
+
+    with pytest.raises(ScouterError) as error:
+        profile: DataProfile = scouter.create_data_profile(df)
+
+    assert str(error.value) == "Column names must be string type"
+
+    df.columns = df.columns.astype(str)
     profile: DataProfile = scouter.create_data_profile(df)
 
     # assert features are relatively centered
@@ -83,7 +90,7 @@ def test_data_profile_pandas(array: NDArray):
 def test_data_profile_polars_mixed_type(
     polars_dataframe_multi_dtype: pl.DataFrame,
 ):
-    scouter = Profiler()
+    scouter = DataProfiler()
     profile: DataProfile = scouter.create_data_profile(polars_dataframe_multi_dtype)
 
     assert profile.features["cat2"].string_stats.distinct.count == 3
@@ -96,7 +103,7 @@ def test_data_profile_polars_mixed_type(
 def test_data_profile_pandas_mixed_type(
     polars_dataframe_multi_dtype: pl.DataFrame,
 ):
-    scouter = Profiler()
+    scouter = DataProfiler()
     profile: DataProfile = scouter.create_data_profile(polars_dataframe_multi_dtype.to_pandas())
 
     assert profile.features["cat2"].string_stats.distinct.count == 3
@@ -111,7 +118,7 @@ def test_data_profile_pyarrow_mixed_type(
 ):
     arrow_table = polars_dataframe_multi_dtype.to_arrow()
 
-    scouter = Profiler()
+    scouter = DataProfiler()
     profile: DataProfile = scouter.create_data_profile(arrow_table)
 
     assert profile.features["cat2"].string_stats.distinct.count == 3

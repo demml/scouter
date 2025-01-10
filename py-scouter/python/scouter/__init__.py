@@ -18,6 +18,8 @@ from ._scouter import (
     CustomMetricDriftConfig,
     CustomMetricServerRecord,
     DataProfile,
+    DataProfiler,
+    DataType,
     DriftType,
     Every1Minute,
     Every5Minutes,
@@ -41,6 +43,7 @@ from ._scouter import (
     PsiFeatureQueue,
     PsiServerRecord,
     RecordType,
+    ScouterError,
     ServerRecord,
     ServerRecords,
     SpcAlert,
@@ -58,12 +61,10 @@ from ._scouter import (
 from .drift.drifter import CommonCrons, Drifter
 from .monitor.monitor import MonitorQueue
 from .observability.observer import ScouterObserver
-from .profile.profile import Profiler
 from .version import __version__
 
 __all__ = [
     "DriftType",
-    "Profiler",
     "Drifter",
     "__version__",
     "DataProfile",
@@ -122,4 +123,7 @@ __all__ = [
     "CustomMetricServerRecord",
     "Feature",
     "Features",
+    "DataType",
+    "DataProfiler",
+    "ScouterError",
 ]

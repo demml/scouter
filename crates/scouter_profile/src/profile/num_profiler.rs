@@ -386,7 +386,7 @@ impl NumProfiler {
         compute_correlations: bool,
         numeric_array: &ArrayView2<F>,
         numeric_features: Vec<String>,
-        bin_size: Option<usize>,
+        bin_size: usize,
     ) -> Result<DataProfile, ProfilerError>
     where
         F: Float
@@ -405,7 +405,7 @@ impl NumProfiler {
         <F as MaybeNan>::NotNan: Clone,
     {
         let profiles = self
-            .compute_stats(&numeric_features, numeric_array, &bin_size.unwrap_or(20))
+            .compute_stats(&numeric_features, numeric_array, &bin_size)
             .map_err(|e| {
                 ProfilerError::ComputeError(format!("Failed to create feature data profile: {}", e))
             })?;

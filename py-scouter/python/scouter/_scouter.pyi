@@ -1142,69 +1142,6 @@ class SpcDriftMap:
     def to_numpy(self) -> Tuple[NDArray, NDArray, List[str]]:
         """Return drift map as a a tuple of sample_array, drift_array and list of features"""
 
-class ScouterProfiler:
-    def __init__(self) -> None:
-        """Instantiate Rust ScouterProfiler class that is
-        used to profile data"""
-
-    def create_data_profile_f32(
-        self,
-        compute_correlations: bool,
-        numeric_array: NDArray,
-        string_array: List[List[str]],
-        numeric_features: List[str],
-        string_features: List[str],
-        bin_size: int,
-    ) -> DataProfile:
-        """Create a data profile from a f32 numpy array.
-
-        Args:
-            compute_correlations:
-                Whether to compute correlations or not.
-            numeric_array:
-                Numpy array to profile.
-            string_array:
-                List of string arrays to profile.
-            numeric_features:
-                List of numeric feature names.
-            string_features:
-                List of string feature names.
-            bin_size:
-                Optional bin size for histograms. Defaults to 20 bins.
-
-        Returns:
-            Monitoring profile
-        """
-
-    def create_data_profile_f64(
-        self,
-        compute_correlations: bool,
-        numeric_array: NDArray,
-        string_array: List[List[str]],
-        numeric_features: List[str],
-        string_features: List[str],
-        bin_size: int,
-    ) -> DataProfile:
-        """Create a data profile from a f32 numpy array.
-
-        Args:
-            compute_correlations:
-                Whether to compute correlations or not.
-            numeric_array:
-                Numpy array to profile.
-            string_array:
-                List of string arrays to profile.
-            numeric_features:
-                List of numeric feature names.
-            string_features:
-                List of string feature names.
-            bin_size:
-                Optional bin size for histograms. Defaults to 20 bins.
-
-        Returns:
-            Monitoring profile
-        """
-
 class SpcDrifter:
     def __init__(self) -> None:
         """Instantiate Rust ScouterMonitor class that is
@@ -2462,3 +2399,45 @@ class CustomMetricServerRecord:
 
     def to_dict(self) -> Dict[str, str]:
         """Return the dictionary representation of the record."""
+
+class DataType:
+    Pandas: "DataType"
+    Polars: "DataType"
+    Numpy: "DataType"
+    Arrow: "DataType"
+
+class DataProfiler:
+    def __init__(self):
+        """Instantiate Rust TestProfiler class that is
+        used to profile data"""
+
+    def create_data_profile(
+        self,
+        data: Any,
+        data_type: Optional[DataType] = None,
+        bin_size: int = 20,
+        compute_correlations: bool = False,
+    ) -> None:
+        """Create a data profile from data.
+
+        Args:
+            data:
+                Data to create a data profile from. Data can be a numpy array,
+                a polars dataframe or pandas dataframe. Data is expected to not contain
+                any missing values, NaNs or infinities. These values must be removed or imputed.
+                If NaNs or infinities are present, the data profile will not be created.
+            data_type:
+                Optional data type. Inferred from data if not provided.
+            bin_size:
+                Optional bin size for histograms. Defaults to 20 bins.
+            compute_correlations:
+                Whether to compute correlations or not.
+
+        Returns:
+            DataProfile
+        """
+
+# Errors
+class ScouterError(Exception):
+    def __init__(self, message: str) -> None: ...
+    def __str__(self) -> str: ...

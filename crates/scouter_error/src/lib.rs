@@ -182,6 +182,18 @@ pub enum ScouterError {
 
 // impl From for PyErr
 
+impl From<std::io::Error> for ScouterError {
+    fn from(err: std::io::Error) -> ScouterError {
+        ScouterError::Error(err.to_string())
+    }
+}
+
+impl From<PyErr> for ScouterError {
+    fn from(err: PyErr) -> ScouterError {
+        ScouterError::Error(err.to_string())
+    }
+}
+
 impl From<ScouterError> for PyErr {
     fn from(err: ScouterError) -> PyErr {
         PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())

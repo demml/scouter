@@ -3,10 +3,9 @@ use scouter_client::*;
 
 #[pymodule]
 fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    tracing_subscriber::fmt::init();
-
+    // opsml_errors
+    m.add("ScouterError", m.py().get_type::<PyScouterError>())?;
     m.add_class::<SpcDrifter>()?;
-    m.add_class::<ScouterProfiler>()?;
     m.add_class::<SpcDriftProfile>()?;
     m.add_class::<SpcFeatureDriftProfile>()?;
     m.add_class::<DataProfile>()?;
@@ -64,5 +63,7 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<CustomMetricServerRecord>()?;
     m.add_class::<Feature>()?;
     m.add_class::<Features>()?;
+    m.add_class::<DataProfiler>()?;
+    m.add_class::<DataType>()?;
     Ok(())
 }
