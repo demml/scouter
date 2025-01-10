@@ -122,9 +122,9 @@ pub mod spc_drifter {
         /// # Returns
         ///
         /// * `Result<Option<TaskAlerts>>` - Task alerts
-        pub async fn generate_alerts<'a>(
+        pub async fn generate_alerts(
             &self,
-            array: &ArrayView2<'a, f64>,
+            array: &ArrayView2<'_, f64>,
             features: &[String],
         ) -> Result<Option<TaskAlerts>, DriftError> {
             let mut task_alerts = TaskAlerts::default();
