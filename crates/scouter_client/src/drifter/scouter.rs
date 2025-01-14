@@ -9,6 +9,7 @@ use scouter_drift::{
     CategoricalFeatureHelpers,
 };
 use scouter_error::ScouterError;
+use scouter_types::DriftType;
 use scouter_types::{
     create_feature_map,
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
@@ -473,4 +474,42 @@ impl CustomDrifter {
             scouter_version,
         )?)
     }
+}
+
+pub enum DriftHelper {
+    Spc(SpcDrifter),
+    Psi(PsiDrifter),
+    Custom(CustomDrifter),
+}
+
+impl DriftHelper {
+    fn from_drift_type(drift_type: DriftType) -> Self {
+        match drift_type {
+            DriftType::Spc => DriftHelper::Spc(SpcDrifter::new()),
+            DriftType::Psi => DriftHelper::Psi(PsiDrifter::new()),
+            DriftType::Custom => DriftHelper::Custom(CustomDrifter::new()),
+        }
+    }
+}
+
+
+#[pyclass(name="Drifter")]
+pub struct PyDrifter {
+    drift_helper: DriftHelper
+}
+
+#[pymethods]
+impl PyDrifter {
+    #[new]
+    #[pyo3(signature = (drift_type=None))]
+    pub fn new(drift_type: Option<DriftType>) -> Self {
+
+        let drift_type = drift_type.unwrap_or(DriftType::Spc);
+        Self {
+            
+            drift_helper: DriftHelper::from_drift_type(drift_type)
+
+        }
+    }
+
 }
