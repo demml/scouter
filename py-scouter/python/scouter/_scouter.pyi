@@ -1968,7 +1968,6 @@ class CustomDriftProfile:
         Returns:
             None
         """
-  
 
 class CustomMetricServerRecord:
     def __init__(
@@ -2068,19 +2067,17 @@ class DriftProfile:
     Spc = "DriftProfile"
     Psi = "DriftProfile"
     Custom = "DriftProfile"
-    
+
     @property
     def profile(self) -> Any:
         """Return the drift profile"""
-        
-  
-    
+
 class Drifter:
     def __init__(self) -> None:
         """Instantiate Rust Drifter class that is
         used to create monitoring profiles and compute drifts.
         """
-        
+
     def create_drift_profile(
         self,
         data: Any,
@@ -2102,7 +2099,7 @@ class Drifter:
         Returns:
             SpcDriftProfile, PsiDriftProfile or CustomMetricDriftProfile
         """
-        
+
     def compute_drift(
         self,
         data: Any,
@@ -2124,7 +2121,7 @@ class Drifter:
         Returns:
             SpcDriftMap or PsiDriftMap
         """
-        
+
 # Errors
 class ScouterError(Exception):
     def __init__(self, message: str) -> None: ...

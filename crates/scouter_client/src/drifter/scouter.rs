@@ -150,7 +150,7 @@ impl PyDrifter {
         data: &Bound<'py, PyAny>,
         config: Option<&Bound<'py, PyAny>>,
         data_type: Option<&DataType>,
-    ) -> PyResult<Bound<'py, PyAny>>{
+    ) -> PyResult<Bound<'py, PyAny>> {
         // if config is None, then we need to create a default config
 
         let (config_helper, drift_type) = if config.is_some() {
@@ -192,7 +192,7 @@ impl PyDrifter {
             }
         };
 
-        let profile =drift_helper
+        let profile = drift_helper
             .create_drift_profile(py, data, data_type, config_helper)
             .map_err(|e| PyScouterError::new_err(e.to_string()))?;
 
@@ -270,7 +270,6 @@ impl PyDrifter {
 }
 
 impl PyDrifter {
-
     // method used internally to return DriftProfile Enum
     pub fn internal_create_drift_profile<'py>(
         &self,
@@ -324,5 +323,4 @@ impl PyDrifter {
             .create_drift_profile(py, data, data_type, config_helper)
             .map_err(|e| PyScouterError::new_err(e.to_string()))
     }
-
 }

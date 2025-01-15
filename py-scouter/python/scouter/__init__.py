@@ -20,6 +20,8 @@ from ._scouter import (
     DataProfile,
     DataProfiler,
     DataType,
+    Drifter,
+    DriftProfile,
     DriftType,
     Every1Minute,
     Every5Minutes,
@@ -57,10 +59,9 @@ from ._scouter import (
     SpcFeatureDriftProfile,
     SpcFeatureQueue,
     SpcServerRecord,
-    Drifter,
-    DriftProfile
 )
-#from .drift.drifter import CommonCrons, Drifter
+
+# from .drift.drifter import CommonCrons, Drifter
 from .monitor.monitor import MonitorQueue
 from .observability.observer import ScouterObserver
 from .version import __version__

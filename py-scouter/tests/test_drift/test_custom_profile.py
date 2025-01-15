@@ -18,7 +18,7 @@ def test_custom_profile(custom_metric_drift_config: CustomMetricDriftConfig):
     )
 
     # create custom drifter
-    drifter = Drifter(DriftType.Custom)
+    drifter = Drifter()
 
     # create custom drift profile
     profile: CustomDriftProfile = drifter.create_drift_profile(data=accuracy, config=custom_metric_drift_config)

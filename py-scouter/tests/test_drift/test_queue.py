@@ -22,7 +22,7 @@ def test_psi_monitor_pandas(
     mock_kafka_producer,
     kafka_config: KafkaConfig,
 ):
-    scouter = Drifter(DriftType.Psi)
+    scouter = Drifter()
     profile: PsiDriftProfile = scouter.create_drift_profile(pandas_dataframe, psi_drift_config)
 
     queue = MonitorQueue(

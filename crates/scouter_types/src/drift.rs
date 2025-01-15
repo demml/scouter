@@ -8,7 +8,6 @@ use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use scouter_error::{PyScouterError, ScouterError};
 use serde::{Deserialize, Serialize};
-use std::f32::consts::E;
 use std::str::FromStr;
 
 #[pyclass(eq)]
