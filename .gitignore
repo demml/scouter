@@ -72,3 +72,5 @@ test_scripts/
 # Pyenv
 .python-version
 
+# Docker PG volume
+postgres-data/
