@@ -6,7 +6,7 @@ import polars as pl
 import pytest
 from numpy.typing import NDArray
 from scouter import Drifter
-from scouter._scouter import DriftType, PsiDriftConfig, PsiDriftProfile
+from scouter._scouter import PsiDriftConfig, PsiDriftProfile
 
 
 def test_drift_f64(array: NDArray, psi_drift_config: PsiDriftConfig):

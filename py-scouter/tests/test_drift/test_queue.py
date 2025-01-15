@@ -3,7 +3,6 @@ from typing import Optional
 import pandas as pd
 from scouter import (
     Drifter,
-    DriftType,
     Feature,
     Features,
     KafkaConfig,

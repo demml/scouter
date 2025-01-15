@@ -1,10 +1,4 @@
-from scouter import (
-    AlertThreshold,
-    CustomMetric,
-    CustomMetricDriftConfig,
-    Drifter,
-    DriftType,
-)
+from scouter import AlertThreshold, CustomMetric, CustomMetricDriftConfig, Drifter
 from scouter._scouter import CustomDriftProfile
 
 
