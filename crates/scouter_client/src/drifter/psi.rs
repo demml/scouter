@@ -1,7 +1,7 @@
 use crate::data_utils::{convert_array_type, ConvertedData};
+use ndarray::{concatenate, Array2, Axis};
 use num_traits::{Float, FromPrimitive};
 use numpy::PyReadonlyArray2;
-use ndarray::{Array2, concatenate, Axis};
 use scouter_drift::{psi::PsiMonitor, CategoricalFeatureHelpers};
 use scouter_error::ScouterError;
 use scouter_types::psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile};
@@ -46,7 +46,6 @@ impl PsiDrifter {
 
         Ok(array)
     }
-
 
     pub fn create_string_drift_profile(
         &mut self,

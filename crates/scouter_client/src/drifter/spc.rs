@@ -2,10 +2,7 @@ use crate::data_utils::{convert_array_type, ConvertedData};
 use ndarray::Axis;
 use ndarray::{concatenate, Array2};
 use num_traits::{Float, FromPrimitive, Num};
-use numpy::ToPyArray;
-use numpy::{PyArray2, PyReadonlyArray2};
-use pyo3::exceptions::PyValueError;
-use pyo3::prelude::*;
+use numpy::PyReadonlyArray2;
 use scouter_drift::{
     spc::{generate_alerts, SpcDriftMap, SpcMonitor},
     CategoricalFeatureHelpers,

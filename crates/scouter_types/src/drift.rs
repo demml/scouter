@@ -174,14 +174,18 @@ impl DriftProfile {
     pub fn get_spc_profile(&self) -> Result<&SpcDriftProfile, ScouterError> {
         match self {
             DriftProfile::Spc(profile) => Ok(profile),
-            _ => Err(ScouterError::Error("Invalid drift profile type".to_string())),
+            _ => Err(ScouterError::Error(
+                "Invalid drift profile type".to_string(),
+            )),
         }
     }
 
     pub fn get_psi_profile(&self) -> Result<&PsiDriftProfile, ScouterError> {
         match self {
             DriftProfile::Psi(profile) => Ok(profile),
-            _ => Err(ScouterError::Error("Invalid drift profile type".to_string())),
+            _ => Err(ScouterError::Error(
+                "Invalid drift profile type".to_string(),
+            )),
         }
     }
 }

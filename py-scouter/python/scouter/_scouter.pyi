@@ -2102,7 +2102,14 @@ class DriftProfile:
     def profile(self) -> Union[SpcDriftProfile, PsiDriftProfile, CustomDriftProfile]:
         """Return the drift profile"""
     
+class DriftMap:
+    Spc = "DriftMap"
+    Psi = "DriftMap"
     
+    @property
+    def map(self) -> Union[SpcDriftMap, PsiDriftMap]:
+        """Return the drift map"""
+        
 class Drifter:
     def __init__(self) -> None:
         """Instantiate Rust Drifter class that is
@@ -2129,6 +2136,28 @@ class Drifter:
 
         Returns:
             DriftProfile
+        """
+        
+    def compute_drift(
+        self,
+        data: Any,
+        drift_profile: Union[SpcDriftProfile, PsiDriftProfile],
+        data_type: Optional[DataType] = None,
+    ) -> Union[SpcDriftMap, PsiDriftMap]:
+        """Create a drift profile from data.
+
+        Args:
+            data:
+                Data to create a data profile from. Data can be a numpy array,
+                a polars dataframe, pandas dataframe or a list of CustomMetric if creating
+                a custom metric profile.
+            drift_profile:
+                Drift profile to use to compute drift map
+            data_type:
+                Optional data type. Inferred from data if not provided.
+
+        Returns:
+            DriftMap
         """
         
 # Errors
