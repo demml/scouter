@@ -13,7 +13,9 @@ use scouter_drift::{
     CategoricalFeatureHelpers,
 };
 use scouter_error::{PyScouterError, ScouterError};
+use scouter_types::DriftProfile;
 use scouter_types::{
+    traits::{Config, Profile},
     create_feature_map,
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
     psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile},
@@ -21,9 +23,123 @@ use scouter_types::{
     DataType, DriftType, ServerRecords,
 };
 
+
+pub trait Drifter {
+    fn create_string_drift_profile<T: Config, P: Profile>(
+        &mut self,
+        array: Vec<Vec<String>>,
+        features: Vec<String>, 
+        drift_config: T,
+    ) -> Result<P, ScouterError>;
+
+    fn create_numeric_drift_profile_f32<T: Config, P: Profile>(
+        &mut self,
+        array: PyReadonlyArray2<f32>,
+        features: Vec<String>,
+        drift_config: T,
+    ) -> Result<P, ScouterError>;
+
+    fn create_numeric_drift_profile_f64<T: Config, P: Profile>(
+        &mut self,
+        array: PyReadonlyArray2<f64>,
+        features: Vec<String>,
+        drift_config: T,
+    ) -> Result<P, ScouterError>;
+}
+
+
 #[pyclass]
 pub struct SpcDrifter {
     monitor: SpcMonitor,
+}
+
+impl Drifter for SpcDrifter {
+ 
+
+    fn create_string_drift_profile(
+        &mut self,
+        array: Vec<Vec<String>>,
+        features: Vec<String>,
+        mut drift_config: SpcDriftConfig,
+    ) -> PyResult<SpcDriftProfile> {
+        let feature_map = match create_feature_map(&features, &array) {
+            Ok(feature_map) => feature_map,
+            Err(_e) => {
+                let msg = format!("Failed to create feature map: {}", _e);
+                return Err(PyValueError::new_err(msg));
+            }
+        };
+
+        drift_config.update_feature_map(feature_map.clone());
+
+        let array =
+            match self
+                .monitor
+                .convert_strings_to_ndarray_f32(&features, &array, &feature_map)
+            {
+                Ok(array) => array,
+                Err(_e) => {
+                    return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
+                }
+            };
+
+        let profile =
+            match self
+                .monitor
+                .create_2d_drift_profile(&features, &array.view(), &drift_config)
+            {
+                Ok(profile) => profile,
+                Err(_e) => {
+                    return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
+                }
+            };
+
+        Ok(profile)
+    }
+
+    fn create_numeric_drift_profile_f32(
+        &mut self,
+        array: PyReadonlyArray2<f32>,
+        features: Vec<String>,
+        drift_config: SpcDriftConfig,
+    ) -> PyResult<SpcDriftProfile> {
+        let array = array.as_array();
+
+        let profile = match self
+            .monitor
+            .create_2d_drift_profile(&features, &array, &drift_config)
+        {
+            Ok(profile) => profile,
+            Err(_e) => {
+                return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
+            }
+        };
+
+        Ok(profile)
+    }
+
+    fn create_numeric_drift_profile_f64(
+        &mut self,
+        array: PyReadonlyArray2<f64>,
+        features: Vec<String>,
+        drift_config: SpcDriftConfig,
+    ) -> PyResult<SpcDriftProfile> {
+        let array = array.as_array();
+
+        let profile = match self
+            .monitor
+            .create_2d_drift_profile(&features, &array, &drift_config)
+        {
+            Ok(profile) => profile,
+            Err(_e) => {
+                return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
+            }
+        };
+
+        Ok(profile)
+    }
+
+
 }
 
 #[pymethods]
@@ -91,89 +207,8 @@ impl SpcDrifter {
         Ok(array.to_pyarray(py))
     }
 
-    pub fn create_string_drift_profile(
-        &mut self,
-        array: Vec<Vec<String>>,
-        features: Vec<String>,
-        mut drift_config: SpcDriftConfig,
-    ) -> PyResult<SpcDriftProfile> {
-        let feature_map = match create_feature_map(&features, &array) {
-            Ok(feature_map) => feature_map,
-            Err(_e) => {
-                let msg = format!("Failed to create feature map: {}", _e);
-                return Err(PyValueError::new_err(msg));
-            }
-        };
-
-        drift_config.update_feature_map(feature_map.clone());
-
-        let array =
-            match self
-                .monitor
-                .convert_strings_to_ndarray_f32(&features, &array, &feature_map)
-            {
-                Ok(array) => array,
-                Err(_e) => {
-                    return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
-                }
-            };
-
-        let profile =
-            match self
-                .monitor
-                .create_2d_drift_profile(&features, &array.view(), &drift_config)
-            {
-                Ok(profile) => profile,
-                Err(_e) => {
-                    return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
-                }
-            };
-
-        Ok(profile)
-    }
-
-    pub fn create_numeric_drift_profile_f32(
-        &mut self,
-        array: PyReadonlyArray2<f32>,
-        features: Vec<String>,
-        drift_config: SpcDriftConfig,
-    ) -> PyResult<SpcDriftProfile> {
-        let array = array.as_array();
-
-        let profile = match self
-            .monitor
-            .create_2d_drift_profile(&features, &array, &drift_config)
-        {
-            Ok(profile) => profile,
-            Err(_e) => {
-                return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
-            }
-        };
-
-        Ok(profile)
-    }
-
-    pub fn create_numeric_drift_profile_f64(
-        &mut self,
-        array: PyReadonlyArray2<f64>,
-        features: Vec<String>,
-        drift_config: SpcDriftConfig,
-    ) -> PyResult<SpcDriftProfile> {
-        let array = array.as_array();
-
-        let profile = match self
-            .monitor
-            .create_2d_drift_profile(&features, &array, &drift_config)
-        {
-            Ok(profile) => profile,
-            Err(_e) => {
-                return Err(PyValueError::new_err("Failed to create 2D monitor profile"));
-            }
-        };
-
-        Ok(profile)
-    }
-
+    
+    
     pub fn compute_drift_f32(
         &mut self,
         array: PyReadonlyArray2<f32>,
@@ -479,6 +514,14 @@ impl CustomDrifter {
     }
 }
 
+
+pub enum DriftConfigHelper {
+    Spc(SpcDriftConfig),
+    Psi(PsiDriftConfig),
+    Custom(CustomMetricDriftConfig),
+}
+
+
 pub enum DriftHelper {
     Spc(SpcDrifter),
     Psi(PsiDrifter),
@@ -494,69 +537,54 @@ impl DriftHelper {
         }
     }
 
-    fn create_spc_drit_profile<'py>(&mut self, data: ConvertedData<'py>) -> PyResult<()> {
+    fn create_drift_profile<'py, T: Drifter>(
+        &mut self,
+        data: ConvertedData<'py>,
+        config: T::Config,
+        drifter: &mut T,
+    ) -> PyResult<DriftProfile> {
         let (num_features, num_array, dtype, string_features, string_array) = data;
-
         let mut features = HashMap::new();
+        let mut final_config = config.clone();
 
-        if string_array.is_some() {
-            if let DriftHelper::Spc(ref mut drifter) = self {
-                //insert string profile into features
-                features.extend(
-                    drifter
-                        .create_string_drift_profile(
-                            string_array.unwrap(),
-                            string_features,
-                            SpcDriftConfig::default(),
-                        )?
-                        .features,
-                );
+        if let Some(string_array) = string_array {
+            let profile = drifter.create_string_drift_profile(string_array, string_features, config.clone())?;
+            final_config.update_feature_map(profile.config.feature_map.clone());
+            features.extend(profile.features);
+        }
+
+        if let Some(num_array) = num_array {
+            if let Some(dtype) = dtype {
+                let array = if dtype == "float64" {
+                    convert_array_type::<f64>(num_array, &dtype)?
+                } else {
+                    convert_array_type::<f32>(num_array, &dtype)?
+                };
+                let profile = drifter.create_numeric_drift_profile(array, num_features, config)?;
+                features.extend(profile.features);
             } else {
                 return Err(PyValueError::new_err("Invalid drift helper type"));
             }
         }
 
-        if num_array.is_some() {
-            if let DriftHelper::Spc(ref mut drifter) = self {
-                //insert numeric profile into features
-                if let Some(ref dtype) = dtype {
-                    if dtype == "float64" {
-                        let array = convert_array_type::<f64>(num_array.unwrap(), &dtype)?;
-                        features.extend(
-                            drifter
-                                .create_numeric_drift_profile_f64(
-                                    array,
-                                    num_features,
-                                    SpcDriftConfig::default(),
-                                )?
-                                .features,
-                        );
-                    } else {
-                        let array = convert_array_type::<f32>(num_array.unwrap(), &dtype)?;
-                        features.extend(
-                            drifter
-                                .create_numeric_drift_profile_f32(
-                                    array,
-                                    num_features,
-                                    SpcDriftConfig::default(),
-                                )?
-                                .features,
-                        );
-                    }
-                } else {
-                    return Err(PyValueError::new_err("Invalid drift helper type"));
-                }
-            }
-        }
-
-        Ok(())
+        Ok(T::Profile::new(features, final_config, None))
     }
-}
 
-pub enum DriftConfigHelper {
-    Spc(SpcDriftConfig),
-    Psi(PsiDriftConfig),
-    Custom(CustomMetricDriftConfig),
+    fn create_psi_drit_profile<'py>(&mut self, data: ConvertedData<'py>, config: PsiDriftConfig) -> PyResult<DriftProfile> {
+        if let DriftHelper::Psi(ref mut drifter) = self {
+            self.create_drift_profile(data, config, drifter)
+        } else {
+            Err(PyValueError::new_err("Invalid drift helper type"))
+        }
+    }
+
+    fn create_spc_drit_profile<'py>(&mut self, data: ConvertedData<'py>, config: SpcDriftConfig) -> PyResult<DriftProfile> {
+        if let DriftHelper::Spc(ref mut drifter) = self {
+            self.create_drift_profile(data, config, drifter)
+        } else {
+            Err(PyValueError::new_err("Invalid drift helper type"))
+        }
+    }
 }
 
 #[pyclass(name = "Drifter")]
@@ -623,34 +651,7 @@ impl PyDrifter {
             DataConverterEnum::convert_data(data_type, data)?;
 
         // if num_features is not empty, check dtype. If dtype == "float64", process as f64, else process as f32
-        if let Some(dtype) = dtype {
-            if dtype == "float64" {
-                let read_array = convert_array_type::<f64>(num_array.unwrap(), &dtype)?;
-
-                return self
-                    .create_data_profile_f64(
-                        compute_correlations,
-                        bin_size,
-                        num_features,
-                        Some(read_array),
-                        string_features,
-                        string_vec,
-                    )
-                    .map_err(|e| PyScouterError::new_err(e.to_string()));
-            } else {
-                let read_array = convert_array_type::<f32>(num_array.unwrap(), &dtype)?;
-                return self
-                    .create_data_profile_f32(
-                        compute_correlations,
-                        bin_size,
-                        num_features,
-                        Some(read_array),
-                        string_features,
-                        string_vec,
-                    )
-                    .map_err(|e| PyScouterError::new_err(e.to_string()));
-            }
-        }
+        DriftHelper::create_spc_drit_profile(&mut self, data, config)
 
         // convert data to ndarray
         Ok(())
