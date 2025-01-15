@@ -172,6 +172,14 @@ jobs:
           path: .
       - name: check pwd
         run: ls
+      - name: Extract the binary
+        run: |
+          tar -xzf scouter-server-kafka-x86_64-unknown-linux-gnu.tar.gz -C .
+          ls
+      - name: Move binary to root folder
+        run: |
+          mv ./x86_64-unknown-linux-gnu/release/scouter-server ./
+          ls
       - name: check bin
         run: ldd scouter-server
 #      - name: build image
