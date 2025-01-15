@@ -83,7 +83,7 @@ jobs:
         run: cargo build -p scouter-server --release --target ${{ matrix.target }} --features ${{ matrix.feature }}
 
       - name: create linux binary artifacts
-        if: matrix.target == 'x86_64-unknown-linux-gnu' && (matrix.feature == 'kafka' || matrix.feature == 'rabbitmq')
+        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' && (matrix.feature == 'kafka' || matrix.feature == 'rabbitmq') && matrix.archive == 'tar.gz' }}
         uses: actions/upload-artifact@v4
         with:
           name: scouter_server_${{ matrix.target }}_${{ matrix.feature }}
@@ -174,7 +174,7 @@ jobs:
 #      - name: build image
 #        run: |
 #          docker build \
-#          --build-arg SCOUTER_SERVER_BINARY=./scouter-server-${{ matrix.feature }}-${{ matrix.target }} \
+#          --build-arg SCOUTER_SERVER_BINARY=./scouter-server \
 #          -f docker/official-base-image/${{ matrix.image }}/Dockerfile -t demml/scouter:CHANGETHIS-${{ matrix.feature }}
 
 
