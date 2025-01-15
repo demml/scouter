@@ -19,8 +19,8 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_USER: postgres
       POSTGRES_DB: postgres
-#    volumes:
-#      - ./postgres-data:/var/lib/postgresql/data
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
     ports:
       - 5432:5432
     healthcheck:
@@ -193,3 +193,6 @@ services:
       dockerfile: Dockerfile
     environment:
       DATABASE_URI: postgresql://postgres:postgres@postgres-rabbitmq:5432/postgres
+
+volumes:
+  postgres_data:
