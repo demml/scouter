@@ -5,7 +5,8 @@ use crate::spc::SpcDriftProfile;
 use crate::util::ProfileBaseArgs;
 use crate::ProfileArgs;
 use pyo3::prelude::*;
-use scouter_error::ScouterError;
+use pyo3::IntoPyObjectExt;
+use scouter_error::{PyScouterError, ScouterError};
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -62,7 +63,7 @@ pub struct DriftArgs {
 
 // Generic enum to be used on scouter server
 #[pyclass]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DriftProfile {
     SpcDriftProfile(SpcDriftProfile),
     PsiDriftProfile(PsiDriftProfile),
@@ -71,24 +72,20 @@ pub enum DriftProfile {
 
 #[pymethods]
 impl DriftProfile {
-    pub fn spc_profile(&self) -> Option<SpcDriftProfile> {
+    pub fn profile<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         match self {
-            DriftProfile::SpcDriftProfile(profile) => Some(profile.clone()),
-            _ => None,
-        }
-    }
-
-    pub fn psi_profile(&self) -> Option<PsiDriftProfile> {
-        match self {
-            DriftProfile::PsiDriftProfile(profile) => Some(profile.clone()),
-            _ => None,
-        }
-    }
-
-    pub fn custom_profile(&self) -> Option<CustomDriftProfile> {
-        match self {
-            DriftProfile::CustomDriftProfile(profile) => Some(profile.clone()),
-            _ => None,
+            DriftProfile::SpcDriftProfile(profile) => profile
+                .clone()
+                .into_bound_py_any(py)
+                .map_err(|e| PyScouterError::new_err(e.to_string())),
+            DriftProfile::PsiDriftProfile(profile) => profile
+                .clone()
+                .into_bound_py_any(py)
+                .map_err(|e| PyScouterError::new_err(e.to_string())),
+            DriftProfile::CustomDriftProfile(profile) => profile
+                .clone()
+                .into_bound_py_any(py)
+                .map_err(|e| PyScouterError::new_err(e.to_string())),
         }
     }
 }
@@ -178,6 +175,7 @@ impl Default for DriftProfile {
         DriftProfile::SpcDriftProfile(SpcDriftProfile::default())
     }
 }
+
 
 #[cfg(test)]
 mod tests {
