@@ -46,8 +46,8 @@ dev = [
     "pip>=24.3.1",
 ]
 docs = [
-    "mkdocs-material >= 9.5.0, < 10.0.0",
-    "mkdocstrings[python] >= 0.25.0, < 1.0.0",
+    "mkdocs-material >= 9.5.4, < 10.0.0",
+    "mkdocstrings[python] >= 0.26.0, < 1.0.0",
 ]
 
 [project.optional-dependencies]
