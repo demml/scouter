@@ -8,6 +8,7 @@ use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use scouter_error::{PyScouterError, ScouterError};
 use serde::{Deserialize, Serialize};
+use std::f32::consts::E;
 use std::str::FromStr;
 
 #[pyclass(eq)]
@@ -167,6 +168,20 @@ impl DriftProfile {
                     serde_json::from_value(body).map_err(|_| ScouterError::DeSerializeError)?;
                 Ok(DriftProfile::Custom(profile))
             }
+        }
+    }
+
+    pub fn get_spc_profile(&self) -> Result<&SpcDriftProfile, ScouterError> {
+        match self {
+            DriftProfile::Spc(profile) => Ok(profile),
+            _ => Err(ScouterError::Error("Invalid drift profile type".to_string())),
+        }
+    }
+
+    pub fn get_psi_profile(&self) -> Result<&PsiDriftProfile, ScouterError> {
+        match self {
+            DriftProfile::Psi(profile) => Ok(profile),
+            _ => Err(ScouterError::Error("Invalid drift profile type".to_string())),
         }
     }
 }

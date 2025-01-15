@@ -3,12 +3,19 @@ use crate::drifter::{custom::CustomDrifter, psi::PsiDrifter, spc::SpcDrifter};
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use scouter_error::{PyScouterError, ScouterError};
-use scouter_types::custom::CustomMetric;
-use scouter_types::DataType;
-use scouter_types::DriftProfile;
 use scouter_types::{
-    custom::CustomMetricDriftConfig, psi::PsiDriftConfig, spc::SpcDriftConfig, DriftType,
+    DataType,
+    DriftProfile,
+    custom::{CustomMetricDriftConfig,CustomMetric}, psi::{PsiDriftConfig,PsiDriftMap}, spc::SpcDriftConfig, DriftType,
 };
+use scouter_drift::spc::SpcDriftMap;
+
+
+
+pub enum DriftMap {
+    Spc(SpcDriftMap),
+    Psi(PsiDriftMap),
+}
 
 pub enum DriftConfig {
     Spc(SpcDriftConfig),
@@ -94,6 +101,36 @@ impl Drifter {
             }
         }
     }
+
+    fn compute_drift<'py>(
+        &mut self,
+        py: Python<'py>,
+        data: &Bound<'py, PyAny>,
+        data_type: &DataType,
+        profile: &DriftProfile,
+    ) -> Result<DriftMap, ScouterError> {
+        
+        match self {
+            Drifter::Spc(drifter) => {
+                let data = DataConverterEnum::convert_data(py, data_type, data)?;
+                let drift_profile = profile.get_spc_profile()?;
+                let drift_map = drifter.compute_drift(data, drift_profile.clone())?;
+                Ok(DriftMap::Spc(drift_map))
+            }
+            Drifter::Psi(drifter) => {
+                let data = DataConverterEnum::convert_data(py, data_type, data)?;
+                let drift_profile = profile.get_psi_profile()?;
+                let drift_map = drifter.compute_drift(data, drift_profile.clone())?;
+                Ok(DriftMap::Psi(drift_map))
+            }
+            Drifter::Custom(_) => {
+                // check if data is pylist. If it is, convert to Vec<CustomMetric>
+                Err(ScouterError::Error("Custom drift not implemented".to_string()))
+            }
+        }
+
+    }
+    
 }
 
 #[pyclass(name = "Drifter")]
