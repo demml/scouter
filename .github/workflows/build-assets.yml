@@ -15,8 +15,6 @@ on:
 env:
   INTERPRETER: "3.12"
   RUSTFLAGS: "-C debuginfo=0 -C target-feature=+crt-static"
-#  PYO3_CROSS_LIB_DIR: "/usr/lib"
-#  PYO3_CROSS: "1"
 
 jobs:
   build:
@@ -81,13 +79,6 @@ jobs:
 
       - name: Build Binaries with static linking
         run: cargo build -p scouter-server --release --target ${{ matrix.target }} --features ${{ matrix.feature }}
-
-      - name: create linux binary artifacts
-        if: ${{ matrix.target == 'x86_64-unknown-linux-gnu' && (matrix.feature == 'kafka' || matrix.feature == 'rabbitmq') && matrix.archive == 'tar.gz' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: scouter_server_${{ matrix.target }}_${{ matrix.feature }}
-          path: ./target/${{ matrix.target }}/release/scouter-server
 
       - name: Zip MacOS binaries
         if: contains(matrix.archive, 'zip') && contains(matrix.os, 'macos')
@@ -167,31 +158,23 @@ jobs:
       - name: Download binary
         uses: actions/download-artifact@v4
         with:
-         # name: scouter_server_x86_64-unknown-linux-gnu_${{ matrix.feature }}
           name: scouter_server_${{ matrix.feature }}_x86_64-unknown-linux-gnu_tar.gz
           path: .
-      - name: check pwd
-        run: ls
       - name: Extract binary
-        run: |
-          tar -xzf scouter-server-${{ matrix.feature }}-x86_64-unknown-linux-gnu.tar.gz -C .
-          ls
+        run: tar -xzf scouter-server-${{ matrix.feature }}-x86_64-unknown-linux-gnu.tar.gz -C .
       - name: Move binary to root folder
+        run: mv target/x86_64-unknown-linux-gnu/release/scouter-server .
+      - name: build image
         run: |
-          mv target/x86_64-unknown-linux-gnu/release/scouter-server .
-          ls
-      - name: check bin
-        run: ldd scouter-server
-#      - name: build image
-#        run: |
-#          docker build \
-#          --build-arg SCOUTER_SERVER_BINARY=./scouter-server \
-#          -f docker/official-base-image/${{ matrix.image }}/Dockerfile \
-#          -t demml/scouter:CHANGETHISTORELEASEVERSION-${{ matrix.feature }} .
-#      - name: push image to docker hub
-#        run: |
-#          docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
-#          docker push demml/scouter:CHANGETHISTORELEASEVERSION-${{ matrix.feature }}
+          docker build \
+          --build-arg SCOUTER_SERVER_BINARY=./scouter-server \
+          -f docker/official-base-image/${{ matrix.image }}/Dockerfile \
+          -t demml/scouter:CHANGETHISTORELEASEVERSION-${{ matrix.feature }} .
+      - name: push image to docker hub
+        run: |
+          docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+          docker push demml/scouter:CHANGETHISTORELEASEVERSION-${{ matrix.feature }}
+
 
 
 
