@@ -4,9 +4,8 @@ use num_traits::{Float, FromPrimitive, Num};
 use numpy::ndarray::ArrayView2;
 use numpy::ndarray::{concatenate, Axis};
 use numpy::PyReadonlyArray2;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use scouter_error::{ProfilerError, PyScouterError};
+use scouter_error::{ProfilerError, PyScouterError, ScouterError};
 use scouter_profile::{
     compute_feature_correlations, DataProfile, FeatureProfile, NumProfiler, StringProfiler,
 };
@@ -55,12 +54,14 @@ impl DataProfiler {
                 let name = class.getattr("__name__")?.str()?.to_string();
                 let full_class_name = format!("{}.{}", module, name);
 
-                &DataType::from_module_name(&full_class_name)?
+                &DataType::from_module_name(&full_class_name)
+                    .map_err(|e| PyScouterError::new_err(e.to_string()))?
             }
         };
 
         let (num_features, num_array, dtype, string_features, string_vec) =
-            DataConverterEnum::convert_data(py, data_type, data)?;
+            DataConverterEnum::convert_data(py, data_type, data)
+                .map_err(|e| PyScouterError::new_err(e.to_string()))?;
 
         // if num_features is not empty, check dtype. If dtype == "float64", process as f64, else process as f32
         if let Some(dtype) = dtype {
@@ -113,7 +114,7 @@ impl DataProfiler {
         numeric_array: Option<PyReadonlyArray2<f32>>,
         string_features: Vec<String>,
         string_array: Option<Vec<Vec<String>>>,
-    ) -> PyResult<DataProfile> {
+    ) -> Result<DataProfile, ScouterError> {
         if !string_features.is_empty() && string_array.is_some() && numeric_array.is_none() {
             let profile = self
                 .string_profiler
@@ -123,7 +124,7 @@ impl DataProfiler {
                     compute_correlations,
                 )
                 .map_err(|e| {
-                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                    ScouterError::Error(format!("Failed to create feature data profile: {}", e))
                 })?;
             Ok(profile)
         } else if string_array.is_none() && numeric_array.is_some() && !numeric_features.is_empty()
@@ -137,7 +138,7 @@ impl DataProfiler {
                     bin_size,
                 )
                 .map_err(|e| {
-                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                    ScouterError::Error(format!("Failed to create feature data profile: {}", e))
                 })?;
 
             Ok(profile)
@@ -152,7 +153,7 @@ impl DataProfiler {
                     bin_size,
                 )
                 .map_err(|e| {
-                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                    ScouterError::Error(format!("Failed to create feature data profile: {}", e))
                 })?;
 
             Ok(profile)
@@ -167,7 +168,7 @@ impl DataProfiler {
         numeric_array: Option<PyReadonlyArray2<f64>>,
         string_features: Vec<String>,
         string_array: Option<Vec<Vec<String>>>,
-    ) -> PyResult<DataProfile> {
+    ) -> Result<DataProfile, ScouterError> {
         if !string_features.is_empty() && string_array.is_some() && numeric_array.is_none() {
             let profile = self
                 .string_profiler
@@ -177,7 +178,7 @@ impl DataProfiler {
                     compute_correlations,
                 )
                 .map_err(|e| {
-                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                    ScouterError::Error(format!("Failed to create feature data profile: {}", e))
                 })?;
             Ok(profile)
         } else if string_array.is_none() && numeric_array.is_some() && !numeric_features.is_empty()
@@ -191,7 +192,7 @@ impl DataProfiler {
                     bin_size,
                 )
                 .map_err(|e| {
-                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                    ScouterError::Error(format!("Failed to create feature data profile: {}", e))
                 })?;
 
             Ok(profile)
@@ -206,7 +207,7 @@ impl DataProfiler {
                     bin_size,
                 )
                 .map_err(|e| {
-                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                    ScouterError::Error(format!("Failed to create feature data profile: {}", e))
                 })?;
 
             Ok(profile)

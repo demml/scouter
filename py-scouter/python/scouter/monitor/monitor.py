@@ -9,7 +9,6 @@ from scouter.monitor.queueing_strategies.spc import SpcQueueingStrategy
 from scouter.utils.logger import ScouterLogger
 
 from .._scouter import (  # pylint: disable=no-name-in-module
-    CommonCron,
     Features,
     PsiDriftProfile,
     ServerRecords,
@@ -17,8 +16,6 @@ from .._scouter import (  # pylint: disable=no-name-in-module
 )
 
 logger = ScouterLogger.get_logger()
-
-CommonCrons = CommonCron()  # type: ignore
 
 
 def _get_queueing_strategy(

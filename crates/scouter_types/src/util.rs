@@ -1,5 +1,5 @@
 use crate::FeatureMap;
-use crate::{DriftType, CommonCrons};
+use crate::{CommonCrons, DriftType};
 use colored_json::{Color, ColorMode, ColoredFormatter, PrettyFormatter, Styler};
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;

@@ -121,117 +121,16 @@ class ServerRecords:
     def __str__(self) -> str:
         """Return the string representation of the record."""
 
-class Every1Minute:
-    def __init__(self) -> None:
-        """Initialize the cron schedule"""
-
-    @property
-    def cron(self) -> str:
-        """Return the cron schedule"""
-
-class Every5Minutes:
-    def __init__(self) -> None:
-        """Initialize the cron schedule"""
-
-    @property
-    def cron(self) -> str:
-        """Return the cron schedule"""
-
-class Every15Minutes:
-    def __init__(self) -> None:
-        """Initialize the cron schedule"""
-
-    @property
-    def cron(self) -> str:
-        """Return the cron schedule"""
-
-class Every30Minutes:
-    def __init__(self) -> None:
-        """Initialize the cron schedule"""
-
-    @property
-    def cron(self) -> str:
-        """Return the cron schedule"""
-
-class EveryHour:
-    def __init__(self) -> None:
-        """Initialize the cron schedule"""
-
-    @property
-    def cron(self) -> str:
-        """Return the cron schedule"""
-
-class Every6Hours:
-    def __init__(self) -> None:
-        """Initialize the cron schedule"""
-
-    @property
-    def cron(self) -> str:
-        """Return the cron schedule"""
-
-class Every12Hours:
-    def __init__(self) -> None:
-        """Initialize the cron schedule"""
-
-    @property
-    def cron(self) -> str:
-        """Return the cron schedule"""
-
-class EveryDay:
-    def __init__(self) -> None:
-        """Initialize the cron schedule"""
-
-    @property
-    def cron(self) -> str:
-        """Return the cron schedule"""
-
-class EveryWeek:
-    def __init__(self) -> None:
-        """Initialize the cron schedule"""
-
-    @property
-    def cron(self) -> str:
-        """Return the cron schedule"""
-
-class CommonCron:
-    def __init__(self) -> None:
-        """Initialize the common cron class from rust"""
-
-    @property
-    def EVERY_1_MINUTE(self) -> str:
-        """Every 1 minute cron schedule"""
-
-    @property
-    def EVERY_5_MINUTES(self) -> str:
-        """Every 5 minutes cron schedule"""
-
-    @property
-    def EVERY_15_MINUTES(self) -> str:
-        """Every 15 minutes cron schedule"""
-
-    @property
-    def EVERY_30_MINUTES(self) -> str:
-        """Every 30 minutes cron schedule"""
-
-    @property
-    def EVERY_HOUR(self) -> str:
-        """Every hour cron schedule"""
-
-    @property
-    def EVERY_6_HOURS(self) -> str:
-        """Every 6 hours cron schedule"""
-
-    @property
-    def EVERY_12_HOURS(self) -> str:
-        """Every 12 hours cron schedule"""
-
-    @property
-    def EVERY_DAY(self) -> str:
-        """Every day cron schedule"""
-
-    @property
-    def EVERY_WEEK(self) -> str:
-        """Every week cron schedule"""
+class CommonCrons:
+    Every1Minute: "CommonCrons"
+    Every5Minutes: "CommonCrons"
+    Every15Minutes: "CommonCrons"
+    Every30Minutes: "CommonCrons"
+    EveryHour: "CommonCrons"
+    Every6Hours: "CommonCrons"
+    Every12Hours: "CommonCrons"
+    EveryDay: "CommonCrons"
+    EveryWeek: "CommonCrons"
 
 class AlertZone:
     Zone1: "AlertZone"

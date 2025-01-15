@@ -1,5 +1,5 @@
 use crate::{
-    CommonCrons, dispatch::AlertDispatchType, DispatchAlertDescription, ProfileFuncs,
+    dispatch::AlertDispatchType, CommonCrons, DispatchAlertDescription, ProfileFuncs,
     ValidateAlertConfig,
 };
 use core::fmt::Debug;

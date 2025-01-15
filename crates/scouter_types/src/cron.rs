@@ -25,7 +25,9 @@ impl CommonCrons {
     pub fn cron(&self) -> String {
         match self {
             CommonCrons::Every1Minute => "0 * * * * * *".to_string(),
-            CommonCrons::Every5Minutes => "0 0,5,10,15,20,25,30,35,40,45,50,55 * * * * *".to_string(),
+            CommonCrons::Every5Minutes => {
+                "0 0,5,10,15,20,25,30,35,40,45,50,55 * * * * *".to_string()
+            }
             CommonCrons::Every15Minutes => "0 0,15,30,45 * * * * *".to_string(),
             CommonCrons::Every30Minutes => "0 0,30 * * * * *".to_string(),
             CommonCrons::EveryHour => "0 0 * * * *".to_string(),
@@ -43,7 +45,8 @@ impl CommonCrons {
                 schedule.upcoming(Utc).next().unwrap().to_string()
             }
             CommonCrons::Every5Minutes => {
-                let schedule = Schedule::from_str("0 0,5,10,15,20,25,30,35,40,45,50,55 * * * * *").unwrap();
+                let schedule =
+                    Schedule::from_str("0 0,5,10,15,20,25,30,35,40,45,50,55 * * * * *").unwrap();
                 schedule.upcoming(Utc).next().unwrap().to_string()
             }
             CommonCrons::Every15Minutes => {
@@ -200,7 +203,6 @@ mod tests {
         let _next = cron.get_next();
     }
 
- 
     #[test]
     fn test_cron_schedule_cron() {
         let cron = CommonCrons::Every1Minute;

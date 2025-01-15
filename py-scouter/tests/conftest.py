@@ -15,7 +15,6 @@ from scouter import (
     CustomMetricAlertConfig,
     CustomMetricDriftConfig,
     Drifter,
-    DriftType,
     HTTPConfig,
     KafkaConfig,
     PsiDriftConfig,
@@ -342,7 +341,7 @@ def drift_profile():
     config = SpcDriftConfig(repository="scouter", name="model", version="0.1.0")
 
     # create drifter
-    drifter = Drifter(DriftType.Spc)
+    drifter = Drifter()
 
     # create drift profile
     profile = drifter.create_drift_profile(data, config)
