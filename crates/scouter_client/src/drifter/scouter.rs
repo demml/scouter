@@ -18,7 +18,6 @@ pub enum DriftMap {
     Psi(PsiDriftMap),
 }
 
-
 pub enum DriftConfig {
     Spc(SpcDriftConfig),
     Psi(PsiDriftConfig),
@@ -147,11 +146,11 @@ impl PyDrifter {
     #[pyo3(signature = (data, config=None, data_type=None))]
     pub fn create_drift_profile<'py>(
         &self,
-        py: Python,
+        py: Python<'py>,
         data: &Bound<'py, PyAny>,
         config: Option<&Bound<'py, PyAny>>,
         data_type: Option<&DataType>,
-    ) -> PyResult<DriftProfile> {
+    ) -> PyResult<Bound<'py, PyAny>>{
         // if config is None, then we need to create a default config
 
         let (config_helper, drift_type) = if config.is_some() {
@@ -193,9 +192,21 @@ impl PyDrifter {
             }
         };
 
-        drift_helper
+        let profile =drift_helper
             .create_drift_profile(py, data, data_type, config_helper)
-            .map_err(|e| PyScouterError::new_err(e.to_string()))
+            .map_err(|e| PyScouterError::new_err(e.to_string()))?;
+
+        match profile {
+            DriftProfile::Spc(profile) => profile
+                .into_bound_py_any(py)
+                .map_err(|e| PyScouterError::new_err(e.to_string())),
+            DriftProfile::Psi(profile) => profile
+                .into_bound_py_any(py)
+                .map_err(|e| PyScouterError::new_err(e.to_string())),
+            DriftProfile::Custom(profile) => profile
+                .into_bound_py_any(py)
+                .map_err(|e| PyScouterError::new_err(e.to_string())),
+        }
     }
 
     #[pyo3(signature = (data, drift_profile, data_type=None))]
@@ -256,4 +267,62 @@ impl PyDrifter {
                 .map_err(|e| PyScouterError::new_err(e.to_string())),
         }
     }
+}
+
+impl PyDrifter {
+
+    // method used internally to return DriftProfile Enum
+    pub fn internal_create_drift_profile<'py>(
+        &self,
+        py: Python,
+        data: &Bound<'py, PyAny>,
+        config: Option<&Bound<'py, PyAny>>,
+        data_type: Option<&DataType>,
+    ) -> PyResult<DriftProfile> {
+        // if config is None, then we need to create a default config
+
+        let (config_helper, drift_type) = if config.is_some() {
+            let obj = config.unwrap();
+            let drift_type = obj.getattr("drift_type")?.extract::<DriftType>()?;
+            let drift_config = match drift_type {
+                DriftType::Spc => {
+                    let config = obj.extract::<SpcDriftConfig>()?;
+                    DriftConfig::Spc(config)
+                }
+                DriftType::Psi => {
+                    let config = obj.extract::<PsiDriftConfig>()?;
+                    DriftConfig::Psi(config)
+                }
+                DriftType::Custom => {
+                    let config = obj.extract::<CustomMetricDriftConfig>()?;
+                    DriftConfig::Custom(config)
+                }
+            };
+            (drift_config, drift_type)
+        } else {
+            (DriftConfig::Spc(SpcDriftConfig::default()), DriftType::Spc)
+        };
+
+        let mut drift_helper = Drifter::from_drift_type(drift_type);
+
+        // if data_type is None, try to infer it from the class name
+        // This is for handling, numpy, pandas, pyarrow
+        let data_type = match data_type {
+            Some(data_type) => data_type,
+            None => {
+                let class = data.getattr("__class__")?;
+                let module = class.getattr("__module__")?.str()?.to_string();
+                let name = class.getattr("__name__")?.str()?.to_string();
+                let full_class_name = format!("{}.{}", module, name);
+
+                &DataType::from_module_name(&full_class_name).unwrap_or(DataType::Unknown)
+                // for handling custom
+            }
+        };
+
+        drift_helper
+            .create_drift_profile(py, data, data_type, config_helper)
+            .map_err(|e| PyScouterError::new_err(e.to_string()))
+    }
+
 }

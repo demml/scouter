@@ -21,7 +21,7 @@ from scouter.utils.types import Constants
 
 def test_drift_f64(array: NDArray, drift_config: SpcDriftConfig):
     drifter = Drifter()
-    profile: SpcDriftProfile = drifter.create_drift_profile(array, drift_config)
+    profile: SpcDriftProfile = drifter.create_drift_profile(array, drift_config).profile
 
     # assert features are relatively centered
     assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)
@@ -48,7 +48,7 @@ def test_drift_f64(array: NDArray, drift_config: SpcDriftConfig):
 def test_drift_f32(array: NDArray, drift_config: SpcDriftConfig):
     array = array.astype("float32")
     scouter = Drifter()
-    profile: SpcDriftProfile = scouter.create_drift_profile(array, drift_config)
+    profile: SpcDriftProfile = scouter.create_drift_profile(array, drift_config).profile
 
     # assert features are relatively centered
     assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)

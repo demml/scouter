@@ -1968,36 +1968,7 @@ class CustomDriftProfile:
         Returns:
             None
         """
-    # @property # hide this for now until we need it
-    # def custom_metrics(self) -> list[CustomMetric]:
-    #    """Return custom metric objects that were used to create the drift profile"""
-
-class CustomDrifter:
-    def __init__(self) -> None:
-        """Instantiate Rust CustomMonitor class that is
-        used to create monitoring profiles and compute drifts.
-        """
-
-    def create_drift_profile(
-        self,
-        config: CustomMetricDriftConfig,
-        metrics: list[CustomMetric],
-        scouter_version: Optional[str] = None,
-    ) -> CustomDriftProfile:
-        """Create a monitoring profile.
-
-        Args:
-            config:
-                Custom metric drift config.
-            metrics:
-                List of custom metrics.
-            scouter_version:
-                Scouter version used to create DriftProfile
-
-
-        Returns:
-            Monitoring profile.
-        """
+  
 
 class CustomMetricServerRecord:
     def __init__(
@@ -2099,17 +2070,11 @@ class DriftProfile:
     Custom = "DriftProfile"
     
     @property
-    def profile(self) -> Union[SpcDriftProfile, PsiDriftProfile, CustomDriftProfile]:
+    def profile(self) -> Any:
         """Return the drift profile"""
-    
-class DriftMap:
-    Spc = "DriftMap"
-    Psi = "DriftMap"
-    
-    @property
-    def map(self) -> Union[SpcDriftMap, PsiDriftMap]:
-        """Return the drift map"""
         
+  
+    
 class Drifter:
     def __init__(self) -> None:
         """Instantiate Rust Drifter class that is
@@ -2121,7 +2086,7 @@ class Drifter:
         data: Any,
         config: Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig],
         data_type: Optional[DataType] = None,
-    ) -> DriftProfile:
+    ) -> Any:
         """Create a drift profile from data.
 
         Args:
@@ -2135,7 +2100,7 @@ class Drifter:
                 Optional data type. Inferred from data if not provided.
 
         Returns:
-            DriftProfile
+            SpcDriftProfile, PsiDriftProfile or CustomMetricDriftProfile
         """
         
     def compute_drift(
@@ -2143,7 +2108,7 @@ class Drifter:
         data: Any,
         drift_profile: Union[SpcDriftProfile, PsiDriftProfile],
         data_type: Optional[DataType] = None,
-    ) -> Union[SpcDriftMap, PsiDriftMap]:
+    ) -> Any:
         """Create a drift profile from data.
 
         Args:
@@ -2157,7 +2122,7 @@ class Drifter:
                 Optional data type. Inferred from data if not provided.
 
         Returns:
-            DriftMap
+            SpcDriftMap or PsiDriftMap
         """
         
 # Errors

@@ -57,8 +57,10 @@ from ._scouter import (
     SpcFeatureDriftProfile,
     SpcFeatureQueue,
     SpcServerRecord,
+    Drifter,
+    DriftProfile
 )
-from .drift.drifter import CommonCrons, Drifter
+#from .drift.drifter import CommonCrons, Drifter
 from .monitor.monitor import MonitorQueue
 from .observability.observer import ScouterObserver
 from .version import __version__
@@ -126,4 +128,5 @@ __all__ = [
     "DataType",
     "DataProfiler",
     "ScouterError",
+    "DriftProfile",
 ]

@@ -6,6 +6,7 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // opsml_errors
     m.add("ScouterError", m.py().get_type::<PyScouterError>())?;
     m.add_class::<PyDrifter>()?;
+    m.add_class::<DriftProfile>()?;
     m.add_class::<SpcDriftProfile>()?;
     m.add_class::<SpcFeatureDriftProfile>()?;
     m.add_class::<DataProfile>()?;

@@ -19,9 +19,9 @@ pub use scouter_types::{
         AlertZone, SpcAlert, SpcAlertConfig, SpcAlertRule, SpcAlertType, SpcDriftConfig,
         SpcDriftProfile, SpcFeatureAlert, SpcFeatureAlerts, SpcFeatureDriftProfile,
     },
-    AlertDispatchType, CustomMetricServerRecord, DataType, DriftType, Feature, FeatureMap,
-    Features, LatencyMetrics, ObservabilityMetrics, PsiServerRecord, RecordType, RouteMetrics,
-    ServerRecord, ServerRecords, SpcServerRecord,
+    AlertDispatchType, CustomMetricServerRecord, DataType, DriftProfile, DriftType, Feature,
+    FeatureMap, Features, LatencyMetrics, ObservabilityMetrics, PsiServerRecord, RecordType,
+    RouteMetrics, ServerRecord, ServerRecords, SpcServerRecord,
 };
 
 pub use scouter_drift::{
