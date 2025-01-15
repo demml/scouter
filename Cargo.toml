@@ -9,7 +9,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.4.1"
+version = "0.4.0"
 authors = ["Steven Forrester <sjforrester32@gmail.com>"]
 edition = "2021"
 license = "MIT"
@@ -54,7 +54,7 @@ ndarray-stats = "0.*"
 noisy_float = "0.*"
 numpy = "0.*"
 num-traits = "0.*"
-pyo3 = { version = ">=0.23.3, <1.0.0", features = ["chrono", "anyhow", "extension-module"] }
+pyo3 = { version = ">=0.23.3, <1.0.0", features = ["chrono", "anyhow", "abi3", "extension-module"] }
 rand = "0.*"
 rayon = "1.*"
 reqwest = { version = "0.12.*", features = ["json", "stream", "multipart", "rustls-tls", "rustls-tls-native-roots", "json" ], default-features = false }
@@ -62,7 +62,7 @@ reqwest = { version = "0.12.*", features = ["json", "stream", "multipart", "rust
 serde = { version = "1.*", features = ["derive"] }
 serde_json = "1.*"
 serde_qs = "0.*"
-sqlx = { version = "0.*", features = [ "runtime-tokio", "tls-native-tls", "postgres", "mysql", "sqlite", "chrono", "json"] }
+sqlx = { version = "0.*", features = [ "runtime-tokio", "tls-native-tls", "postgres", "chrono", "json"] }
 
 thiserror = "1.*"
 time = "0.*"
@@ -72,7 +72,7 @@ tracing = "0.*"
 tracing-subscriber = {version = "0.*", features = ["json", "time"]}
 
 # Kafka dependencies
-rdkafka = { version = "0.*", features = ["cmake-build", "ssl"] }
+rdkafka = { version = "0.*", features = ["cmake-build", "ssl-vendored"] }
 
 # RabbitMQ dependencies
 lapin = { version = "2.*" }

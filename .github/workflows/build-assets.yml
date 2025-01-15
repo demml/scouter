@@ -4,18 +4,18 @@ permissions:
   pull-requests: write
   contents: write
 
-
 on:
   push:
     branches:
-      - main
+      - [main, addDockerBaseImages]
   release:
     types: [published]
 
 env:
   INTERPRETER: "3.12"
-  RUSTFLAGS: -C debuginfo=0
-
+  RUSTFLAGS: "-C debuginfo=0 -C target-feature=+crt-static"
+  PYO3_CROSS_LIB_DIR: "/usr/lib"
+  PYO3_CROSS: "1"
 
 jobs:
   build:
@@ -78,7 +78,7 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install
 
-      - name: Build Binaries
+      - name: Build Binaries with static linking
         run: cargo build -p scouter-server --release --target ${{ matrix.target }} --features ${{ matrix.feature }}
 
       - name: Zip MacOS binaries
@@ -98,21 +98,20 @@ jobs:
           name: scouter_server_${{ matrix.feature }}_${{ matrix.target }}_${{matrix.archive}}
           path: scouter-server-${{ matrix.feature }}-${{ matrix.target }}.${{matrix.archive}}
 
-
   build-mac-x86_64:
     name: build-macos-x86_64 - ${{ matrix.feature }}
     runs-on: macos-13
 
     strategy:
       matrix:
-          include:
-            - target: x86_64-apple-darwin
-              archive: zip
-              feature: "kafka"
+        include:
+          - target: x86_64-apple-darwin
+            archive: zip
+            feature: "kafka"
 
-            - target: x86_64-apple-darwin
-              archive: zip
-              feature: "rabbitmq"
+          - target: x86_64-apple-darwin
+            archive: zip
+            feature: "rabbitmq"
 
     steps:
       - name: Checkout repository

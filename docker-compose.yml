@@ -1,9 +1,8 @@
-
 services:
   postgres:
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: ./docker/dev/postgres/Dockerfile
     command:
       [
         "postgres",
@@ -15,17 +14,32 @@ services:
         "shared_preload_libraries=pg_cron",
       ]
     restart: always
+    user: postgres
     environment:
       POSTGRES_PASSWORD: postgres
       POSTGRES_USER: postgres
       POSTGRES_DB: postgres
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
     ports:
       - 5432:5432
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready"]
+      test: [ "CMD-SHELL", "pg_isready" ]
       interval: 10s
       timeout: 5s
       retries: 5
+
+  scouter-server:
+    depends_on:
+      - postgres
+    container_name: scouter_server
+    volumes:
+      - ./crates:/app/crates:ro
+    build:
+      context: .
+      dockerfile: ./docker/dev/scouter-server/Dockerfile
+    environment:
+      DATABASE_URI: postgresql://postgres:postgres@postgres:5432/postgres
 
   zookeeper:
     image: confluentinc/cp-zookeeper:latest
@@ -62,7 +76,6 @@ services:
     depends_on:
       - kafka
 
-
   init-kafka:
     image: confluentinc/cp-kafka:latest
     depends_on:
@@ -79,12 +92,14 @@ services:
       echo -e 'Successfully created the following topics:'
       kafka-topics --bootstrap-server kafka:29092 --list
       "
+
+
   postgres-kafka:
     depends_on:
       - init-kafka
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: ./docker/dev/postgres/Dockerfile
     command:
       [
         "postgres",
@@ -96,6 +111,9 @@ services:
         "shared_preload_libraries=pg_cron",
       ]
     restart: always
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    user: postgres
     environment:
       POSTGRES_PASSWORD: postgres
       POSTGRES_USER: postgres
@@ -107,6 +125,21 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  scouter-server-kafka:
+    depends_on:
+      - postgres-kafka
+    container_name: scouter_server_kafka
+    volumes:
+      - /crates:/app/crates:ro
+    build:
+      context: .
+      dockerfile: ./docker/dev/scouter-server/Dockerfile
+    environment:
+      DATABASE_URI: postgresql://postgres:postgres@postgres-kafka:5432/postgres
+      KAFKA_BROKER: kafka:29092
+    ports:
+      - "8000:8000"
 
 
   rabbitmq:
@@ -122,7 +155,7 @@ services:
       - rabbitmq
     build:
       context: .
-      dockerfile: Dockerfile
+      dockerfile: ./docker/dev/postgres/Dockerfile
     command:
       [
         "postgres",
@@ -133,6 +166,9 @@ services:
         "-c",
         "shared_preload_libraries=pg_cron",
       ]
+    volumes:
+      - ./postgres-data:/var/lib/postgresql/data
+    user: postgres
     restart: always
     environment:
       POSTGRES_PASSWORD: postgres
@@ -145,3 +181,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  scouter-server-rabbitmq:
+    depends_on:
+      - postgres-rabbitmq
+    container_name: scouter_server_rabbitmq
+    volumes:
+      - /crates:/app/crates:ro
+    build:
+      context: ./docker/dev/scouter-server
+      dockerfile: Dockerfile
+    environment:
+      DATABASE_URI: postgresql://postgres:postgres@postgres-rabbitmq:5432/postgres
