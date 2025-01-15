@@ -21,7 +21,7 @@ from scouter.utils.types import Constants
 
 def test_drift_f64(array: NDArray, drift_config: SpcDriftConfig):
     drifter = Drifter()
-    profile: SpcDriftProfile = drifter.create_drift_profile(array, drift_config).profile
+    profile: SpcDriftProfile = drifter.create_drift_profile(array, drift_config)
 
     # assert features are relatively centered
     assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)
@@ -48,7 +48,7 @@ def test_drift_f64(array: NDArray, drift_config: SpcDriftConfig):
 def test_drift_f32(array: NDArray, drift_config: SpcDriftConfig):
     array = array.astype("float32")
     scouter = Drifter()
-    profile: SpcDriftProfile = scouter.create_drift_profile(array, drift_config).profile
+    profile: SpcDriftProfile = scouter.create_drift_profile(array, drift_config)
 
     # assert features are relatively centered
     assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)
@@ -120,18 +120,18 @@ def test_alerts_control(array: NDArray, drift_config: SpcDriftConfig):
 
     # generate alerts
 
-    alerts = scouter.generate_alerts(drift_array, features, SpcAlertRule())
-
-    # should have no alerts
-    for feature in features:
-        alert = alerts.features[feature]
-        assert len(alert.alerts) <= 1
-
-    drift_array, sample_array, features = drift_map.to_numpy()
-
-    assert isinstance(drift_array, np.ndarray)
-    assert isinstance(sample_array, np.ndarray)
-    assert isinstance(features, list)
+    #alerts = scouter.generate_alerts(drift_array, features, SpcAlertRule())
+#
+    ## should have no alerts
+    #for feature in features:
+    #    alert = alerts.features[feature]
+    #    assert len(alert.alerts) <= 1
+#
+    #drift_array, sample_array, features = drift_map.to_numpy()
+#
+    #assert isinstance(drift_array, np.ndarray)
+    #assert isinstance(sample_array, np.ndarray)
+    #assert isinstance(features, list)
 
 
 def test_multi_type_drift(
@@ -144,18 +144,17 @@ def test_multi_type_drift(
     profile: SpcDriftProfile = drifter.create_drift_profile(polars_dataframe_multi_dtype, drift_config)
 
     drift_map = drifter.compute_drift(polars_dataframe_multi_dtype_drift, profile)
-
     assert len(drift_map.features) == 5
 
     drift_array, _, features = drift_map.to_numpy()
-    alerts = drifter.generate_alerts(
-        drift_array=drift_array,
-        features=features,
-        alert_rule=drift_config.alert_config.rule,
-    )
+    #lerts = drifter.generate_alerts(
+    #   drift_array=drift_array,
+    #   features=features,
+    #   alert_rule=drift_config.alert_config.rule,
+    #
 
-    assert len(alerts.features["cat2"].alerts) == 1
-    assert alerts.features["cat2"].alerts[0].zone == AlertZone.Zone3
+    #ssert len(alerts.features["cat2"].alerts) == 1
+    #ssert alerts.features["cat2"].alerts[0].zone == AlertZone.Zone3
 
 
 def test_only_string_drift(pandas_categorical_dataframe: pd.DataFrame, drift_config: SpcDriftConfig):

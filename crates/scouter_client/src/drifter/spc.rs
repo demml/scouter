@@ -152,7 +152,7 @@ impl SpcDrifter {
         drift_profile: SpcDriftProfile,
     ) -> Result<SpcDriftMap, ScouterError> {
         let (num_features, num_array, dtype, string_features, string_array) = data;
-        let dtype = dtype.unwrap();
+        let dtype = dtype.unwrap_or("float32".to_string());
 
         let mut features = num_features.clone();
         features.extend(string_features.clone());
