@@ -8,6 +8,7 @@ use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use scouter_error::{PyScouterError, ScouterError};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::str::FromStr;
 
 #[pyclass(eq)]
@@ -185,6 +186,22 @@ impl DriftProfile {
             _ => Err(ScouterError::Error(
                 "Invalid drift profile type".to_string(),
             )),
+        }
+    }
+
+    pub fn drift_type(&self) -> DriftType {
+        match self {
+            DriftProfile::Spc(_) => DriftType::Spc,
+            DriftProfile::Psi(_) => DriftType::Psi,
+            DriftProfile::Custom(_) => DriftType::Custom,
+        }
+    }
+
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
+        match self {
+            DriftProfile::Spc(profile) => profile.save_to_json(path),
+            DriftProfile::Psi(profile) => profile.save_to_json(path),
+            DriftProfile::Custom(profile) => profile.save_to_json(path),
         }
     }
 }
