@@ -4,7 +4,7 @@ use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, ProfileArgs, ProfileBaseArgs,
     ProfileFuncs, MISSING,
 };
-use crate::traits::{Config, Profile};
+
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -234,12 +234,7 @@ impl SpcDriftConfig {
     }
 }
 
-impl Config for SpcDriftConfig {
-    fn update_feature_map(&mut self, feature_map: FeatureMap) -> Result<(), ScouterError> {
-        self.feature_map = Some(feature_map);
-        Ok(())
-    }
-}
+
 impl SpcDriftConfig {
     pub fn load_map_from_json(path: PathBuf) -> Result<HashMap<String, Value>, ScouterError> {
         // deserialize the string to a struct
@@ -374,12 +369,6 @@ impl SpcDriftProfile {
     }
 }
 
-impl Profile for SpcDriftProfile {
-    /// Get the base arguments for the profile (convenience method on the server)
-    fn get_feature_map(&self) -> Option<FeatureMap> {
-        self.config.feature_map.clone()
-    }
-}
 
 impl ProfileBaseArgs for SpcDriftProfile {
     /// Get the base arguments for the profile (convenience method on the server)

@@ -178,6 +178,9 @@ pub enum ScouterError {
 
     #[error("{0}")]
     Error(String),
+
+    #[error(transparent)]
+    MonitorError(#[from] MonitorError),
 }
 
 // impl From for PyErr

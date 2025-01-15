@@ -13,7 +13,6 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::debug;
-use crate::traits::{Config, Profile};
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -131,12 +130,6 @@ impl CustomMetricDriftConfig {
         }
 
         Ok(())
-    }
-}
-
-impl Config for CustomMetricDriftConfig {
-    fn update_feature_map(&mut self, _feature_map: crate::FeatureMap) -> Result<(), ScouterError> {
-        Err(ScouterError::Error("Feature map not supported for drift config".to_string()))
     }
 }
 
@@ -286,12 +279,6 @@ impl ProfileBaseArgs for CustomDriftProfile {
 
     fn to_value(&self) -> Value {
         serde_json::to_value(self).unwrap()
-    }
-}
-
-impl Profile for CustomDriftProfile {
-    fn get_feature_map(&self) -> Option<crate::FeatureMap> {
-        None
     }
 }
 

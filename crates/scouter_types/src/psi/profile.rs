@@ -13,7 +13,6 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use tracing::debug;
-use crate::traits::{Config, Profile};
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -142,12 +141,7 @@ impl PsiDriftConfig {
     }
 }
 
-impl Config for PsiDriftConfig { 
-    fn update_feature_map(&mut self, feature_map: FeatureMap) -> Result<(), ScouterError> {
-        self.feature_map = feature_map;
-        Ok(())
-    }
-}
+
 
 // TODO dry this out
 impl DispatchDriftConfig for PsiDriftConfig {
@@ -281,11 +275,7 @@ impl PsiDriftProfile {
     }
 }
 
-impl Profile for PsiDriftProfile {
-    fn get_feature_map(&self) -> Option<FeatureMap> {
-        Some(self.config.feature_map.clone())
-    }
-}
+
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
