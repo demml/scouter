@@ -131,7 +131,7 @@ services:
       - postgres-kafka
     container_name: scouter_server_kafka
     volumes:
-      - /crates:/app/crates:ro
+      - ./crates:/app/crates:ro
     build:
       context: .
       dockerfile: ./docker/dev/scouter-server/Dockerfile
@@ -187,7 +187,7 @@ services:
       - postgres-rabbitmq
     container_name: scouter_server_rabbitmq
     volumes:
-      - /crates:/app/crates:ro
+      - ./crates:/app/crates:ro
     build:
       context: ./docker/dev/scouter-server
       dockerfile: Dockerfile
