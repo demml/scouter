@@ -171,11 +171,14 @@ jobs:
           path: .
       - name: check pwd
         run: ls
+      - name: check bin
+        run: ldd scouter-server
 #      - name: build image
 #        run: |
 #          docker build \
 #          --build-arg SCOUTER_SERVER_BINARY=./scouter-server \
-#          -f docker/official-base-image/${{ matrix.image }}/Dockerfile -t demml/scouter:CHANGETHIS-${{ matrix.feature }}
+#          -f docker/official-base-image/${{ matrix.image }}/Dockerfile \
+#          -t demml/scouter:CHANGETHIS-${{ matrix.feature }} .
 
 
 
