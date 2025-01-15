@@ -164,7 +164,7 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-      - name: Download binary artifact
+      - name: Download binary
         uses: actions/download-artifact@v4
         with:
          # name: scouter_server_x86_64-unknown-linux-gnu_${{ matrix.feature }}
@@ -172,11 +172,11 @@ jobs:
           path: .
       - name: check pwd
         run: ls
-      - name: Extract the binary
+      - name: Extract binary
         run: |
-          tar -xzf scouter-server-kafka-x86_64-unknown-linux-gnu.tar.gz -C .
+          tar -xzf scouter-server-${{ matrix.feature }}-x86_64-unknown-linux-gnu.tar.gz -C .
           ls
-      - name: Move binary to root folder
+      - name: Move binary
         run: |
           mv ./x86_64-unknown-linux-gnu/release/scouter-server ./
           ls
