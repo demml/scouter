@@ -80,7 +80,9 @@ jobs:
           sudo apt-get install
 
       - name: Build Binaries with static linking
-        run: cargo build -p scouter-server --release --target ${{ matrix.target }} --features ${{ matrix.feature }}
+        run: |
+          cargo build -p scouter-server --release --target ${{ matrix.target }} --features ${{ matrix.feature }}
+          ldd ./target/${{ matrix.target }}/release/scouter-server
 
       - name: Zip MacOS binaries
         if: contains(matrix.archive, 'zip') && contains(matrix.os, 'macos')
