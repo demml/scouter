@@ -97,8 +97,7 @@ impl Drifter {
 }
 
 #[pyclass(name = "Drifter")]
-pub struct PyDrifter {
-}
+pub struct PyDrifter {}
 
 #[pymethods]
 impl PyDrifter {

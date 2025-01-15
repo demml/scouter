@@ -62,12 +62,8 @@ pub mod drift_executor {
         /// * `Drifter` - Drifter enum
         fn get_drifter(&self) -> Drifter {
             match self {
-                DriftProfile::Spc(profile) => {
-                    Drifter::SpcDrifter(SpcDrifter::new(profile.clone()))
-                }
-                DriftProfile::Psi(profile) => {
-                    Drifter::PsiDrifter(PsiDrifter::new(profile.clone()))
-                }
+                DriftProfile::Spc(profile) => Drifter::SpcDrifter(SpcDrifter::new(profile.clone())),
+                DriftProfile::Psi(profile) => Drifter::PsiDrifter(PsiDrifter::new(profile.clone())),
                 DriftProfile::Custom(profile) => {
                     Drifter::CustomDrifter(CustomDrifter::new(profile.clone()))
                 }

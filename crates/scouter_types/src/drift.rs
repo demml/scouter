@@ -177,7 +177,6 @@ impl Default for DriftProfile {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

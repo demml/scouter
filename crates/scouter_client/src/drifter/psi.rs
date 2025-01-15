@@ -1,6 +1,7 @@
 use crate::data_utils::{convert_array_type, ConvertedData};
 use num_traits::{Float, FromPrimitive};
 use numpy::PyReadonlyArray2;
+use ndarray::{Array2, concatenate, Axis};
 use scouter_drift::{psi::PsiMonitor, CategoricalFeatureHelpers};
 use scouter_error::ScouterError;
 use scouter_types::psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile};
@@ -16,22 +17,36 @@ impl PsiDrifter {
         PsiDrifter { monitor }
     }
 
-    pub fn compute_drift<F>(
+    pub fn convert_strings_to_numpy_f32(
         &mut self,
-        array: PyReadonlyArray2<F>,
         features: Vec<String>,
+        array: Vec<Vec<String>>,
         drift_profile: PsiDriftProfile,
-    ) -> Result<PsiDriftMap, ScouterError>
-    where
-        F: Float + Sync + FromPrimitive + Default,
-        F: Into<f64>,
-        F: numpy::Element,
-    {
-        let drift_map = self
-            .monitor
-            .compute_drift(&features, &array.as_array(), &drift_profile)?;
-        Ok(drift_map)
+    ) -> Result<Array2<f32>, ScouterError> {
+        let array = self.monitor.convert_strings_to_ndarray_f32(
+            &features,
+            &array,
+            &drift_profile.config.feature_map,
+        )?;
+
+        Ok(array)
     }
+
+    pub fn convert_strings_to_numpy_f64(
+        &mut self,
+        features: Vec<String>,
+        array: Vec<Vec<String>>,
+        drift_profile: PsiDriftProfile,
+    ) -> Result<Array2<f64>, ScouterError> {
+        let array = self.monitor.convert_strings_to_ndarray_f64(
+            &features,
+            &array,
+            &drift_profile.config.feature_map,
+        )?;
+
+        Ok(array)
+    }
+
 
     pub fn create_string_drift_profile(
         &mut self,
@@ -132,5 +147,85 @@ impl PsiDrifter {
         }
 
         Ok(PsiDriftProfile::new(features, final_config, None))
+    }
+
+    pub fn compute_drift<'py>(
+        &mut self,
+        data: ConvertedData<'py>,
+        drift_profile: PsiDriftProfile,
+    ) -> Result<PsiDriftMap, ScouterError> {
+        let (num_features, num_array, dtype, string_features, string_array) = data;
+        let dtype = dtype.unwrap();
+
+        let mut features = num_features.clone();
+        features.extend(string_features.clone());
+
+        if let Some(string_array) = string_array {
+            if dtype == "float64" {
+                let string_array = self.convert_strings_to_numpy_f64(
+                    string_features,
+                    string_array,
+                    drift_profile.clone(),
+                )?;
+
+                if num_array.is_some() {
+                    let array = convert_array_type::<f64>(num_array.unwrap(), &dtype)?;
+                    let concatenated =
+                        concatenate(Axis(1), &[array.as_array(), string_array.view()])
+                            .map_err(|e| ScouterError::Error(e.to_string()))?;
+                    return Ok(self.monitor.compute_drift(
+                        &features,
+                        &concatenated.view(),
+                        &drift_profile,
+                    )?);
+                } else {
+                    return Ok(self.monitor.compute_drift(
+                        &features,
+                        &string_array.view(),
+                        &drift_profile,
+                    )?);
+                };
+            } else {
+                let string_array = self.convert_strings_to_numpy_f32(
+                    string_features,
+                    string_array,
+                    drift_profile.clone(),
+                )?;
+
+                if num_array.is_some() {
+                    let array = convert_array_type::<f32>(num_array.unwrap(), &dtype)?;
+                    let concatenated =
+                        concatenate(Axis(1), &[array.as_array(), string_array.view()])
+                            .map_err(|e| ScouterError::Error(e.to_string()))?;
+                    return Ok(self.monitor.compute_drift(
+                        &features,
+                        &concatenated.view(),
+                        &drift_profile,
+                    )?);
+                } else {
+                    return Ok(self.monitor.compute_drift(
+                        &features,
+                        &string_array.view(),
+                        &drift_profile,
+                    )?);
+                }
+            };
+        } else {
+            if dtype == "float64" {
+                let array = convert_array_type::<f64>(num_array.unwrap(), &dtype)?;
+                return Ok(self.monitor.compute_drift(
+                    &num_features,
+                    &array.as_array(),
+                    &drift_profile,
+                )?);
+            } else {
+                let array = convert_array_type::<f32>(num_array.unwrap(), &dtype)?;
+                return Ok(self.monitor.compute_drift(
+                    &num_features,
+                    &array.as_array(),
+                    &drift_profile,
+                )?);
+            }
+        }
     }
 }
