@@ -1,6 +1,4 @@
-# Create a postgres image with pg_partman
-
-FROM postgres:16.3-bookworm AS builder
+FROM postgres:16.3-bookworm as builder
 
 RUN apt-get update \
     && apt-get install -y \
