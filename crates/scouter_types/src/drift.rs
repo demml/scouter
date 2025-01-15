@@ -65,24 +65,25 @@ pub struct DriftArgs {
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum DriftProfile {
-    SpcDriftProfile(SpcDriftProfile),
-    PsiDriftProfile(PsiDriftProfile),
-    CustomDriftProfile(CustomDriftProfile),
+    Spc(SpcDriftProfile),
+    Psi(PsiDriftProfile),
+    Custom(CustomDriftProfile),
 }
 
 #[pymethods]
 impl DriftProfile {
+    #[getter]
     pub fn profile<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         match self {
-            DriftProfile::SpcDriftProfile(profile) => profile
+            DriftProfile::Spc(profile) => profile
                 .clone()
                 .into_bound_py_any(py)
                 .map_err(|e| PyScouterError::new_err(e.to_string())),
-            DriftProfile::PsiDriftProfile(profile) => profile
+            DriftProfile::Psi(profile) => profile
                 .clone()
                 .into_bound_py_any(py)
                 .map_err(|e| PyScouterError::new_err(e.to_string())),
-            DriftProfile::CustomDriftProfile(profile) => profile
+            DriftProfile::Custom(profile) => profile
                 .clone()
                 .into_bound_py_any(py)
                 .map_err(|e| PyScouterError::new_err(e.to_string())),
@@ -107,17 +108,17 @@ impl DriftProfile {
             DriftType::Spc => {
                 let profile =
                     serde_json::from_str(&profile).map_err(|_| ScouterError::DeSerializeError)?;
-                Ok(DriftProfile::SpcDriftProfile(profile))
+                Ok(DriftProfile::Spc(profile))
             }
             DriftType::Psi => {
                 let profile =
                     serde_json::from_str(&profile).map_err(|_| ScouterError::DeSerializeError)?;
-                Ok(DriftProfile::PsiDriftProfile(profile))
+                Ok(DriftProfile::Psi(profile))
             }
             DriftType::Custom => {
                 let profile =
                     serde_json::from_str(&profile).map_err(|_| ScouterError::DeSerializeError)?;
-                Ok(DriftProfile::CustomDriftProfile(profile))
+                Ok(DriftProfile::Custom(profile))
             }
         }
     }
@@ -125,17 +126,17 @@ impl DriftProfile {
     /// Get the base arguments for a drift profile
     pub fn get_base_args(&self) -> ProfileArgs {
         match self {
-            DriftProfile::SpcDriftProfile(profile) => profile.get_base_args(),
-            DriftProfile::PsiDriftProfile(profile) => profile.get_base_args(),
-            DriftProfile::CustomDriftProfile(profile) => profile.get_base_args(),
+            DriftProfile::Spc(profile) => profile.get_base_args(),
+            DriftProfile::Psi(profile) => profile.get_base_args(),
+            DriftProfile::Custom(profile) => profile.get_base_args(),
         }
     }
 
     pub fn to_value(&self) -> serde_json::Value {
         match self {
-            DriftProfile::SpcDriftProfile(profile) => profile.to_value(),
-            DriftProfile::PsiDriftProfile(profile) => profile.to_value(),
-            DriftProfile::CustomDriftProfile(profile) => profile.to_value(),
+            DriftProfile::Spc(profile) => profile.to_value(),
+            DriftProfile::Psi(profile) => profile.to_value(),
+            DriftProfile::Custom(profile) => profile.to_value(),
         }
     }
 
@@ -154,17 +155,17 @@ impl DriftProfile {
             DriftType::Spc => {
                 let profile =
                     serde_json::from_value(body).map_err(|_| ScouterError::DeSerializeError)?;
-                Ok(DriftProfile::SpcDriftProfile(profile))
+                Ok(DriftProfile::Spc(profile))
             }
             DriftType::Psi => {
                 let profile =
                     serde_json::from_value(body).map_err(|_| ScouterError::DeSerializeError)?;
-                Ok(DriftProfile::PsiDriftProfile(profile))
+                Ok(DriftProfile::Psi(profile))
             }
             DriftType::Custom => {
                 let profile =
                     serde_json::from_value(body).map_err(|_| ScouterError::DeSerializeError)?;
-                Ok(DriftProfile::CustomDriftProfile(profile))
+                Ok(DriftProfile::Custom(profile))
             }
         }
     }
@@ -172,7 +173,7 @@ impl DriftProfile {
 
 impl Default for DriftProfile {
     fn default() -> Self {
-        DriftProfile::SpcDriftProfile(SpcDriftProfile::default())
+        DriftProfile::Spc(SpcDriftProfile::default())
     }
 }
 

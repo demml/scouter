@@ -5,7 +5,7 @@ use scouter_client::*;
 fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // opsml_errors
     m.add("ScouterError", m.py().get_type::<PyScouterError>())?;
-    m.add_class::<SpcDrifter>()?;
+    m.add_class::<PyDrifter>()?;
     m.add_class::<SpcDriftProfile>()?;
     m.add_class::<SpcFeatureDriftProfile>()?;
     m.add_class::<DataProfile>()?;
@@ -52,14 +52,12 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<PsiFeatureDriftProfile>()?;
     m.add_class::<PsiDriftProfile>()?;
     m.add_class::<PsiDriftMap>()?;
-    m.add_class::<PsiDrifter>()?;
     m.add_class::<CustomMetricAlertCondition>()?;
     m.add_class::<CustomMetricAlertConfig>()?;
     m.add_class::<CustomMetricDriftConfig>()?;
     m.add_class::<CustomMetric>()?;
     m.add_class::<AlertThreshold>()?;
     m.add_class::<CustomDriftProfile>()?;
-    m.add_class::<CustomDrifter>()?;
     m.add_class::<CustomMetricServerRecord>()?;
     m.add_class::<Feature>()?;
     m.add_class::<Features>()?;

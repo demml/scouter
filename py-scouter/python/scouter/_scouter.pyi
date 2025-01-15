@@ -1142,208 +1142,6 @@ class SpcDriftMap:
     def to_numpy(self) -> Tuple[NDArray, NDArray, List[str]]:
         """Return drift map as a a tuple of sample_array, drift_array and list of features"""
 
-class SpcDrifter:
-    def __init__(self) -> None:
-        """Instantiate Rust ScouterMonitor class that is
-        used to create monitoring profiles and compute drifts.
-        """
-
-    def convert_strings_to_numpy_f32(
-        self,
-        features: List[str],
-        array: List[List[str]],
-        drift_profile: SpcDriftProfile,
-    ) -> NDArray[Any]:
-        """Convert string array to numpy f32 array
-
-        Args:
-            features:
-                List of feature names.
-            array:
-                List of string arrays to convert.
-            drift_profile:
-                Monitoring profile.
-        """
-
-    def convert_strings_to_numpy_f64(
-        self,
-        features: List[str],
-        array: List[List[str]],
-        drift_profile: SpcDriftProfile,
-    ) -> NDArray[Any]:
-        """Convert string array to numpy f64 array
-
-        Args:
-            features:
-                List of feature names.
-            array:
-                List of string arrays to convert.
-            drift_profile:
-                Monitoring profile.
-        """
-
-    def create_string_drift_profile(
-        self,
-        array: List[List[str]],
-        drift_config: SpcDriftConfig,
-        features: List[str],
-    ) -> SpcDriftProfile:
-        """Create a monitoring profile from a f32 numpy array.
-
-        Args:
-            features:
-                List of feature names.
-            array:
-                List of string arrays to profile.
-            drift_config:
-                Monitor config.
-
-        Returns:
-            Monitoring profile.
-        """
-
-    def create_numeric_drift_profile_f32(
-        self,
-        array: NDArray,
-        features: List[str],
-        drift_config: SpcDriftConfig,
-    ) -> SpcDriftProfile:
-        """Create a monitoring profile from a f64 numpy array.
-
-        Args:
-            features:
-                List of feature names.
-            array:
-                Numpy array to profile.
-            drift_config:
-                Monitor config.
-
-        Returns:
-            Monitoring profile.
-        """
-
-    def create_numeric_drift_profile_f64(
-        self,
-        array: NDArray,
-        features: List[str],
-        drift_config: SpcDriftConfig,
-    ) -> SpcDriftProfile:
-        """Create a monitoring profile from a f64 numpy array.
-
-        Args:
-            features:
-                List of feature names.
-            array:
-                Numpy array to profile.
-            drift_config:
-                monitor config.
-
-        Returns:
-            Monitoring profile.
-        """
-
-    def compute_drift_f32(
-        self,
-        array: NDArray,
-        features: List[str],
-        drift_profile: SpcDriftProfile,
-    ) -> SpcDriftMap:
-        """Compute drift from a f32 numpy array.
-
-        Args:
-            features:
-                List of feature names.
-            array:
-                Numpy array to profile.
-            drift_profile:
-                Monitoring profile.
-
-
-        Returns:
-            DriftMap
-        """
-
-    def compute_drift_f64(
-        self,
-        array: NDArray,
-        features: List[str],
-        drift_profile: SpcDriftProfile,
-    ) -> SpcDriftMap:
-        """Compute drift from a f64 numpy array.
-
-        Args:
-            features:
-                List of feature names.
-            array:
-                Numpy array to profile.
-            drift_profile:
-                Monitoring profile.
-
-
-        Returns:
-            DriftMap.
-        """
-
-    def generate_alerts(
-        self,
-        drift_array: NDArray,
-        features: List[str],
-        alert_rule: SpcAlertRule,
-    ) -> SpcFeatureAlerts:
-        """Generate alerts from a drift array and feature list
-
-        Args:
-            drift_array:
-                Numpy array of drift values.
-            features:
-                List of feature names. Must match drift array.
-            alert_rule:
-                Alert rule to use.
-
-        Returns:
-            List of alerts.
-        """
-
-    def sample_data_f32(
-        self,
-        array: NDArray,
-        features: List[str],
-        drift_profile: SpcDriftProfile,
-    ) -> ServerRecords:
-        """Sample data from a f32 numpy array.
-
-        Args:
-            features:
-                List of feature names.
-            array:
-                Numpy array to profile.
-            drift_profile:
-                Monitoring profile.
-
-        Returns:
-            List of server records
-        """
-
-    def sample_data_f64(
-        self,
-        array: NDArray,
-        features: List[str],
-        drift_profile: SpcDriftProfile,
-    ) -> ServerRecords:
-        """Sample data from a f64 numpy array.
-
-        Args:
-            features:
-                List of feature names.
-            array:
-                Numpy array to profile.
-            drift_profile:
-                Monitoring profile.
-
-        Returns:
-            List of server records
-        """
-
 class PsiDriftProfile:
     def __init__(
         self,
@@ -1740,148 +1538,6 @@ class PsiDriftMap:
             path:
                 Optional path to save the drift map. If None, outputs to "drift_map.json.
 
-        """
-
-class PsiDrifter:
-    def __init__(self) -> None:
-        """Instantiate Rust ScouterMonitor class that is
-        used to create monitoring profiles and compute drifts.
-        """
-
-    def convert_strings_to_numpy_f32(
-        self,
-        features: List[str],
-        array: List[List[str]],
-        drift_profile: PsiDriftProfile,
-    ) -> NDArray[Any]:
-        """Convert string array to numpy f32 array
-
-        Args:
-            features:
-                List of feature names.
-            array:
-                List of string arrays to convert.
-            drift_profile:
-                Monitoring profile.
-        """
-
-    def convert_strings_to_numpy_f64(
-        self,
-        features: List[str],
-        array: List[List[str]],
-        drift_profile: PsiDriftProfile,
-    ) -> NDArray[Any]:
-        """Convert string array to numpy f64 array
-
-        Args:
-            features:
-                List of feature names.
-            array:
-                List of string arrays to convert.
-            drift_profile:
-                Monitoring profile.
-        """
-
-    def create_string_drift_profile(
-        self,
-        array: List[List[str]],
-        drift_config: PsiDriftConfig,
-        features: List[str],
-    ) -> PsiDriftProfile:
-        """Create a monitoring profile from a f32 numpy array.
-
-        Args:
-            features:
-                List of feature names.
-            array:
-                List of string arrays to profile.
-            drift_config:
-                Monitor config.
-
-        Returns:
-            Monitoring profile.
-        """
-
-    def create_numeric_drift_profile_f32(
-        self,
-        array: NDArray,
-        features: List[str],
-        drift_config: PsiDriftConfig,
-    ) -> PsiDriftProfile:
-        """Create a monitoring profile from a f64 numpy array.
-
-        Args:
-            features:
-                List of feature names.
-            array:
-                Numpy array to profile.
-            drift_config:
-                Monitor config.
-
-        Returns:
-            Monitoring profile.
-        """
-
-    def create_numeric_drift_profile_f64(
-        self,
-        array: NDArray,
-        features: List[str],
-        drift_config: PsiDriftConfig,
-    ) -> PsiDriftProfile:
-        """Create a monitoring profile from a f64 numpy array.
-
-        Args:
-            features:
-                List of feature names.
-            array:
-                Numpy array to profile.
-            drift_config:
-                monitor config.
-
-        Returns:
-            Monitoring profile.
-        """
-
-    def compute_drift_f32(
-        self,
-        array: NDArray,
-        features: List[str],
-        drift_profile: PsiDriftProfile,
-    ) -> PsiDriftMap:
-        """Compute drift from a f32 numpy array.
-
-        Args:
-            features:
-                List of feature names.
-            array:
-                Numpy array to profile.
-            drift_profile:
-                Monitoring profile.
-
-
-        Returns:
-            DriftMap
-        """
-
-    def compute_drift_f64(
-        self,
-        array: NDArray,
-        features: List[str],
-        drift_profile: PsiDriftProfile,
-    ) -> PsiDriftMap:
-        """Compute drift from a f64 numpy array.
-
-        Args:
-            features:
-                List of feature names.
-            array:
-                Numpy array to profile.
-            drift_profile:
-                Monitoring profile.
-
-
-        Returns:
-            DriftMap.
         """
 
 class PsiServerRecord:
@@ -2437,6 +2093,44 @@ class DataProfiler:
             DataProfile
         """
 
+class DriftProfile:
+    Spc = "DriftProfile"
+    Psi = "DriftProfile"
+    Custom = "DriftProfile"
+    
+    @property
+    def profile(self) -> Union[SpcDriftProfile, PsiDriftProfile, CustomDriftProfile]:
+        """Return the drift profile"""
+    
+    
+class Drifter:
+    def __init__(self) -> None:
+        """Instantiate Rust Drifter class that is
+        used to create monitoring profiles and compute drifts.
+        """
+        
+    def create_drift_profile(
+        self,
+        data: Any,
+        config: Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig],
+        data_type: Optional[DataType] = None,
+    ) -> DriftProfile:
+        """Create a drift profile from data.
+
+        Args:
+            data:
+                Data to create a data profile from. Data can be a numpy array,
+                a polars dataframe, pandas dataframe or a list of CustomMetric if creating
+                a custom metric profile.
+            config:
+                Drift config that will be used for monitoring
+            data_type:
+                Optional data type. Inferred from data if not provided.
+
+        Returns:
+            DriftProfile
+        """
+        
 # Errors
 class ScouterError(Exception):
     def __init__(self, message: str) -> None: ...

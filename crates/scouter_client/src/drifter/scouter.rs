@@ -98,30 +98,26 @@ impl Drifter {
 
 #[pyclass(name = "Drifter")]
 pub struct PyDrifter {
-    _drifter: Drifter,
 }
 
 #[pymethods]
 impl PyDrifter {
     #[new]
-    #[pyo3(signature = (drift_type=None))]
-    pub fn new(drift_type: Option<DriftType>) -> Self {
-        let drift_type = drift_type.unwrap_or(DriftType::Spc);
-        Self {
-            _drifter: Drifter::from_drift_type(drift_type),
-        }
+    pub fn new() -> Self {
+        Self {}
     }
 
     #[pyo3(signature = (data, config=None, data_type=None))]
     pub fn create_drift_profile<'py>(
-        &mut self,
+        &self,
         py: Python,
         data: &Bound<'py, PyAny>,
         config: Option<&Bound<'py, PyAny>>,
         data_type: Option<&DataType>,
     ) -> PyResult<DriftProfile> {
         // if config is None, then we need to create a default config
-        let config_helper = if config.is_some() {
+
+        let (config_helper, drift_type) = if config.is_some() {
             let obj = config.unwrap();
             let drift_type = obj.getattr("drift_type")?.extract::<DriftType>()?;
             let drift_config = match drift_type {
@@ -138,10 +134,12 @@ impl PyDrifter {
                     DriftConfig::Custom(config)
                 }
             };
-            drift_config
+            (drift_config, drift_type)
         } else {
-            DriftConfig::Spc(SpcDriftConfig::default())
+            (DriftConfig::Spc(SpcDriftConfig::default()), DriftType::Spc)
         };
+
+        let mut drift_helper = Drifter::from_drift_type(drift_type);
 
         // if data_type is None, try to infer it from the class name
         // This is for handling, numpy, pandas, pyarrow
@@ -158,7 +156,7 @@ impl PyDrifter {
             }
         };
 
-        self._drifter
+        drift_helper
             .create_drift_profile(py, data, data_type, config_helper)
             .map_err(|e| PyScouterError::new_err(e.to_string()))
     }

@@ -6,7 +6,6 @@ pub mod feature;
 pub mod psi;
 pub mod records;
 pub mod spc;
-pub mod traits;
 pub mod util;
 
 pub use cron::*;
