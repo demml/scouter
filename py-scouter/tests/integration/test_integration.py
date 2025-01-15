@@ -3,7 +3,6 @@ from typing import Optional
 import pandas as pd
 from scouter import (
     Drifter,
-    DriftType,
     Feature,
     Features,
     KafkaConfig,
@@ -18,7 +17,7 @@ def test_monitor_pandas(
     pandas_dataframe: pd.DataFrame,
     drift_config: SpcDriftConfig,
 ):
-    scouter = Drifter(DriftType.Spc)
+    scouter = Drifter()
     profile: SpcDriftProfile = scouter.create_drift_profile(pandas_dataframe, drift_config)
 
     kafka_config = KafkaConfig(

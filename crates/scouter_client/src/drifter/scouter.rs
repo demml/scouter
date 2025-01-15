@@ -134,6 +134,7 @@ impl Drifter {
 }
 
 #[pyclass(name = "Drifter")]
+#[derive(Debug, Default)]
 pub struct PyDrifter {}
 
 #[pymethods]

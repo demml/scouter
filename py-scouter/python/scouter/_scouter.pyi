@@ -1980,7 +1980,7 @@ class Drifter:
     def create_drift_profile(
         self,
         data: Any,
-        config: Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig],
+        config: Optional[Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]] = None,
         data_type: Optional[DataType] = None,
     ) -> Any:
         """Create a drift profile from data.

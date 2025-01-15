@@ -15,6 +15,7 @@ use scouter_types::{
 use std::collections::HashMap;
 use std::fmt::Debug;
 
+#[derive(Default)]
 pub struct SpcDrifter {
     monitor: SpcMonitor,
 }
@@ -146,9 +147,9 @@ impl SpcDrifter {
         Ok(profile)
     }
 
-    pub fn compute_drift<'py>(
+    pub fn compute_drift(
         &mut self,
-        data: ConvertedData<'py>,
+        data: ConvertedData<'_>,
         drift_profile: SpcDriftProfile,
     ) -> Result<SpcDriftMap, ScouterError> {
         let (num_features, num_array, dtype, string_features, string_array) = data;
@@ -170,18 +171,18 @@ impl SpcDrifter {
                     let concatenated =
                         concatenate(Axis(1), &[array.as_array(), string_array.view()])
                             .map_err(|e| ScouterError::Error(e.to_string()))?;
-                    return Ok(self.monitor.compute_drift(
+                    Ok(self.monitor.compute_drift(
                         &features,
                         &concatenated.view(),
                         &drift_profile,
-                    )?);
+                    )?)
                 } else {
-                    return Ok(self.monitor.compute_drift(
+                    Ok(self.monitor.compute_drift(
                         &features,
                         &string_array.view(),
                         &drift_profile,
-                    )?);
-                };
+                    )?)
+                }
             } else {
                 let string_array = self.convert_strings_to_numpy_f32(
                     string_features,
@@ -194,41 +195,35 @@ impl SpcDrifter {
                     let concatenated =
                         concatenate(Axis(1), &[array.as_array(), string_array.view()])
                             .map_err(|e| ScouterError::Error(e.to_string()))?;
-                    return Ok(self.monitor.compute_drift(
+                    Ok(self.monitor.compute_drift(
                         &features,
                         &concatenated.view(),
                         &drift_profile,
-                    )?);
+                    )?)
                 } else {
-                    return Ok(self.monitor.compute_drift(
+                    Ok(self.monitor.compute_drift(
                         &features,
                         &string_array.view(),
                         &drift_profile,
-                    )?);
+                    )?)
                 }
-            };
-        } else {
-            if dtype == "float64" {
-                let array = convert_array_type::<f64>(num_array.unwrap(), &dtype)?;
-                return Ok(self.monitor.compute_drift(
-                    &num_features,
-                    &array.as_array(),
-                    &drift_profile,
-                )?);
-            } else {
-                let array = convert_array_type::<f32>(num_array.unwrap(), &dtype)?;
-                return Ok(self.monitor.compute_drift(
-                    &num_features,
-                    &array.as_array(),
-                    &drift_profile,
-                )?);
             }
+        } else if dtype == "float64" {
+            let array = convert_array_type::<f64>(num_array.unwrap(), &dtype)?;
+            Ok(self
+                .monitor
+                .compute_drift(&num_features, &array.as_array(), &drift_profile)?)
+        } else {
+            let array = convert_array_type::<f32>(num_array.unwrap(), &dtype)?;
+            Ok(self
+                .monitor
+                .compute_drift(&num_features, &array.as_array(), &drift_profile)?)
         }
     }
 
-    pub fn create_drift_profile<'py>(
+    pub fn create_drift_profile(
         &mut self,
-        data: ConvertedData<'py>,
+        data: ConvertedData<'_>,
         config: SpcDriftConfig,
     ) -> Result<SpcDriftProfile, ScouterError> {
         let (num_features, num_array, dtype, string_features, string_array) = data;

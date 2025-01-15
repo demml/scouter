@@ -1,6 +1,7 @@
 use scouter_error::ScouterError;
 use scouter_types::custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig};
 
+#[derive(Default)]
 pub struct CustomDrifter {}
 
 impl CustomDrifter {
