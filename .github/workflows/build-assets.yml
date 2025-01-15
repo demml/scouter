@@ -168,7 +168,7 @@ jobs:
         uses: actions/download-artifact@v4
         with:
          # name: scouter_server_x86_64-unknown-linux-gnu_${{ matrix.feature }}
-          name: scouter_server_${{ matrix.feature }}_x86_64-unknown-linux-gnu_zip
+          name: scouter_server_${{ matrix.feature }}_x86_64-unknown-linux-gnu_tar.gz
           path: .
       - name: check pwd
         run: ls
