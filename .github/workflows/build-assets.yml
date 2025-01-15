@@ -169,13 +169,11 @@ jobs:
           docker build \
           --build-arg SCOUTER_SERVER_BINARY=./scouter-server \
           -f docker/official-base-image/${{ matrix.image }}/Dockerfile \
-          -t demml/scouter:CHANGETHISTORELEASEVERSION-${{ matrix.feature }} .
+          -t demml/scouter:CHANGETHISTORELEASEVERSION-${{ matrix.image }}-${{ matrix.feature }} .
       - name: push image to docker hub
         run: |
           docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
-          docker push demml/scouter:CHANGETHISTORELEASEVERSION-${{ matrix.feature }}
-
-
+          docker push demml/scouter:CHANGETHISTORELEASEVERSION-${{ matrix.image }}-${{ matrix.feature }}
 
 
   release-binary-assets:
