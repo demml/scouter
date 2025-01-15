@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 
-pub type ConvertedArray<'py> = (
+pub type ConvertedData<'py> = (
     Vec<String>,
     Option<Bound<'py, PyAny>>,
     Option<String>,

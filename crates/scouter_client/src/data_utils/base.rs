@@ -1,4 +1,4 @@
-use crate::profiler::types::ConvertedArray;
+use crate::data_utils::ConvertedData;
 use num_traits::Float;
 use numpy::PyArray2;
 use numpy::PyArrayMethods;
@@ -43,5 +43,5 @@ pub trait DataConverter {
         features: &[String],
     ) -> Result<Option<Vec<Vec<String>>>, ScouterError>;
 
-    fn prepare_data<'py>(data: &Bound<'py, PyAny>) -> Result<ConvertedArray<'py>, ScouterError>;
+    fn prepare_data<'py>(data: &Bound<'py, PyAny>) -> Result<ConvertedData<'py>, ScouterError>;
 }

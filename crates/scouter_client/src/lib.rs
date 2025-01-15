@@ -1,3 +1,4 @@
+pub mod data_utils;
 pub mod drifter;
 pub mod profiler;
 

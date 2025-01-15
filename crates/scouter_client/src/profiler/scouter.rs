@@ -1,8 +1,4 @@
-use crate::profiler::arrow::ArrowDataConverter;
-use crate::profiler::base::convert_array_type;
-use crate::profiler::numpy::NumpyDataConverter;
-use crate::profiler::pandas::PandasDataConverter;
-use crate::profiler::polars::PolarsDataConverter;
+use crate::data_utils::{convert_array_type, DataConverterEnum};
 use ndarray_stats::MaybeNan;
 use num_traits::{Float, FromPrimitive, Num};
 use numpy::ndarray::ArrayView2;
@@ -10,8 +6,7 @@ use numpy::ndarray::{concatenate, Axis};
 use numpy::PyReadonlyArray2;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use scouter_error::ProfilerError;
-use scouter_error::PyScouterError;
+use scouter_error::{ProfilerError, PyScouterError};
 use scouter_profile::{
     compute_feature_correlations, DataProfile, FeatureProfile, NumProfiler, StringProfiler,
 };
@@ -19,8 +14,6 @@ use scouter_types::DataType;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use tracing::info;
-
-use super::base::DataConverter;
 
 #[pyclass]
 pub struct DataProfiler {
@@ -65,16 +58,8 @@ impl DataProfiler {
             }
         };
 
-        let (num_features, num_array, dtype, string_features, string_vec) = match data_type {
-            DataType::Pandas => PandasDataConverter::prepare_data(data)
-                .map_err(|e| PyScouterError::new_err(e.to_string()))?,
-            DataType::Polars => PolarsDataConverter::prepare_data(data)
-                .map_err(|e| PyScouterError::new_err(e.to_string()))?,
-            DataType::Numpy => NumpyDataConverter::prepare_data(data)
-                .map_err(|e| PyScouterError::new_err(e.to_string()))?,
-            DataType::Arrow => ArrowDataConverter::prepare_data(data)
-                .map_err(|e| PyScouterError::new_err(e.to_string()))?,
-        };
+        let (num_features, num_array, dtype, string_features, string_vec) =
+            DataConverterEnum::convert_data(data_type, data)?;
 
         // if num_features is not empty, check dtype. If dtype == "float64", process as f64, else process as f32
         if let Some(dtype) = dtype {

@@ -61,11 +61,36 @@ pub struct DriftArgs {
 }
 
 // Generic enum to be used on scouter server
+#[pyclass]
 #[derive(Debug, Clone)]
 pub enum DriftProfile {
     SpcDriftProfile(SpcDriftProfile),
     PsiDriftProfile(PsiDriftProfile),
     CustomDriftProfile(CustomDriftProfile),
+}
+
+#[pymethods]
+impl DriftProfile {
+    pub fn spc_profile(&self) -> Option<SpcDriftProfile> {
+        match self {
+            DriftProfile::SpcDriftProfile(profile) => Some(profile.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn psi_profile(&self) -> Option<PsiDriftProfile> {
+        match self {
+            DriftProfile::PsiDriftProfile(profile) => Some(profile.clone()),
+            _ => None,
+        }
+    }
+
+    pub fn custom_profile(&self) -> Option<CustomDriftProfile> {
+        match self {
+            DriftProfile::CustomDriftProfile(profile) => Some(profile.clone()),
+            _ => None,
+        }
+    }
 }
 
 impl DriftProfile {

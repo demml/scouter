@@ -1,5 +1,4 @@
-use crate::profiler::base::DataConverter;
-use crate::profiler::types::ConvertedArray;
+use crate::data_utils::{ConvertedData, DataConverter};
 use pyo3::prelude::*;
 use scouter_error::ScouterError;
 
@@ -95,7 +94,7 @@ impl DataConverter for ArrowDataConverter {
         Ok(Some(array))
     }
 
-    fn prepare_data<'py>(data: &Bound<'py, PyAny>) -> Result<ConvertedArray<'py>, ScouterError> {
+    fn prepare_data<'py>(data: &Bound<'py, PyAny>) -> Result<ConvertedData<'py>, ScouterError> {
         let (numeric_features, string_features) = ArrowDataConverter::categorize_features(data)?;
 
         let (numeric_array, dtype) =

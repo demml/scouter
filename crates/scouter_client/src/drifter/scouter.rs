@@ -1,3 +1,7 @@
+use std::collections::HashMap;
+
+use crate::data_utils::ConvertedData;
+use crate::data_utils::{convert_array_type, DataConverterEnum};
 use numpy::PyArray2;
 use numpy::PyReadonlyArray2;
 use numpy::ToPyArray;
@@ -8,14 +12,13 @@ use scouter_drift::{
     spc::{generate_alerts, SpcDriftMap, SpcMonitor},
     CategoricalFeatureHelpers,
 };
-use scouter_error::ScouterError;
-use scouter_types::DriftType;
+use scouter_error::{PyScouterError, ScouterError};
 use scouter_types::{
     create_feature_map,
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
     psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile},
     spc::{SpcAlertRule, SpcDriftConfig, SpcDriftProfile, SpcFeatureAlerts},
-    ServerRecords,
+    DataType, DriftType, ServerRecords,
 };
 
 #[pyclass]
@@ -490,12 +493,75 @@ impl DriftHelper {
             DriftType::Custom => DriftHelper::Custom(CustomDrifter::new()),
         }
     }
+
+    fn create_spc_drit_profile<'py>(&mut self, data: ConvertedData<'py>) -> PyResult<()> {
+        let (num_features, num_array, dtype, string_features, string_array) = data;
+
+        let mut features = HashMap::new();
+
+        if string_array.is_some() {
+            if let DriftHelper::Spc(ref mut drifter) = self {
+                //insert string profile into features
+                features.extend(
+                    drifter
+                        .create_string_drift_profile(
+                            string_array.unwrap(),
+                            string_features,
+                            SpcDriftConfig::default(),
+                        )?
+                        .features,
+                );
+            } else {
+                return Err(PyValueError::new_err("Invalid drift helper type"));
+            }
+        }
+
+        if num_array.is_some() {
+            if let DriftHelper::Spc(ref mut drifter) = self {
+                //insert numeric profile into features
+                if let Some(ref dtype) = dtype {
+                    if dtype == "float64" {
+                        let array = convert_array_type::<f64>(num_array.unwrap(), &dtype)?;
+                        features.extend(
+                            drifter
+                                .create_numeric_drift_profile_f64(
+                                    array,
+                                    num_features,
+                                    SpcDriftConfig::default(),
+                                )?
+                                .features,
+                        );
+                    } else {
+                        let array = convert_array_type::<f32>(num_array.unwrap(), &dtype)?;
+                        features.extend(
+                            drifter
+                                .create_numeric_drift_profile_f32(
+                                    array,
+                                    num_features,
+                                    SpcDriftConfig::default(),
+                                )?
+                                .features,
+                        );
+                    }
+                } else {
+                    return Err(PyValueError::new_err("Invalid drift helper type"));
+                }
+            }
+        }
+
+        Ok(())
+    }
 }
 
+pub enum DriftConfigHelper {
+    Spc(SpcDriftConfig),
+    Psi(PsiDriftConfig),
+    Custom(CustomMetricDriftConfig),
+}
 
-#[pyclass(name="Drifter")]
+#[pyclass(name = "Drifter")]
 pub struct PyDrifter {
-    drift_helper: DriftHelper
+    drift_helper: DriftHelper,
 }
 
 #[pymethods]
@@ -503,13 +569,90 @@ impl PyDrifter {
     #[new]
     #[pyo3(signature = (drift_type=None))]
     pub fn new(drift_type: Option<DriftType>) -> Self {
-
         let drift_type = drift_type.unwrap_or(DriftType::Spc);
         Self {
-            
-            drift_helper: DriftHelper::from_drift_type(drift_type)
-
+            drift_helper: DriftHelper::from_drift_type(drift_type),
         }
     }
 
+    #[pyo3(signature = (data, config=None, data_type=None))]
+    pub fn create_drift_profile(
+        &mut self,
+        py: Python,
+        data: &Bound<'_, PyAny>,
+        config: Option<&Bound<'_, PyAny>>,
+        data_type: Option<&DataType>,
+    ) -> PyResult<()> {
+        // if config is None, then we need to create a default config
+        let config_helper = if config.is_some() {
+            let obj = config.unwrap();
+            let drift_type = obj.getattr("drift_type")?.extract::<DriftType>()?;
+            let drift_config = match drift_type {
+                DriftType::Spc => {
+                    let config = obj.extract::<SpcDriftConfig>()?;
+                    DriftConfigHelper::Spc(config)
+                }
+                DriftType::Psi => {
+                    let config = obj.extract::<PsiDriftConfig>()?;
+                    DriftConfigHelper::Psi(config)
+                }
+                DriftType::Custom => {
+                    let config = obj.extract::<CustomMetricDriftConfig>()?;
+                    DriftConfigHelper::Custom(config)
+                }
+            };
+            drift_config
+        } else {
+            DriftConfigHelper::Spc(SpcDriftConfig::default())
+        };
+
+        // if data_type is None, try to infer it from the class name
+        let data_type = match data_type {
+            Some(data_type) => data_type,
+            None => {
+                let class = data.getattr("__class__")?;
+                let module = class.getattr("__module__")?.str()?.to_string();
+                let name = class.getattr("__name__")?.str()?.to_string();
+                let full_class_name = format!("{}.{}", module, name);
+
+                &DataType::from_module_name(&full_class_name)?
+            }
+        };
+
+        let (num_features, num_array, dtype, string_features, string_vec) =
+            DataConverterEnum::convert_data(data_type, data)?;
+
+        // if num_features is not empty, check dtype. If dtype == "float64", process as f64, else process as f32
+        if let Some(dtype) = dtype {
+            if dtype == "float64" {
+                let read_array = convert_array_type::<f64>(num_array.unwrap(), &dtype)?;
+
+                return self
+                    .create_data_profile_f64(
+                        compute_correlations,
+                        bin_size,
+                        num_features,
+                        Some(read_array),
+                        string_features,
+                        string_vec,
+                    )
+                    .map_err(|e| PyScouterError::new_err(e.to_string()));
+            } else {
+                let read_array = convert_array_type::<f32>(num_array.unwrap(), &dtype)?;
+                return self
+                    .create_data_profile_f32(
+                        compute_correlations,
+                        bin_size,
+                        num_features,
+                        Some(read_array),
+                        string_features,
+                        string_vec,
+                    )
+                    .map_err(|e| PyScouterError::new_err(e.to_string()));
+            }
+        }
+
+        // convert data to ndarray
+        Ok(())
+    }
 }
