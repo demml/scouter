@@ -1,5 +1,5 @@
 use crate::FeatureMap;
-use crate::{DriftType, EveryDay};
+use crate::{DriftType, CommonCrons};
 use colored_json::{Color, ColorMode, ColoredFormatter, PrettyFormatter, Styler};
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
@@ -267,7 +267,7 @@ pub trait ProfileBaseArgs {
 
 pub trait ValidateAlertConfig {
     fn resolve_schedule(schedule: Option<String>) -> String {
-        let default_schedule = EveryDay::new().cron;
+        let default_schedule = CommonCrons::EveryDay.cron();
 
         match schedule {
             Some(s) => {
@@ -322,7 +322,7 @@ mod tests {
 
         let invalid_schedule = "invalid_cron".to_string();
 
-        let default_schedule = EveryDay::new().cron;
+        let default_schedule = CommonCrons::EveryDay.cron();
 
         let result = TestStruct::resolve_schedule(Some(invalid_schedule));
 

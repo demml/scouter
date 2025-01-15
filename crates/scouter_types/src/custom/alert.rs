@@ -1,5 +1,5 @@
 use crate::{
-    cron::EveryDay, dispatch::AlertDispatchType, DispatchAlertDescription, ProfileFuncs,
+    CommonCrons, dispatch::AlertDispatchType, DispatchAlertDescription, ProfileFuncs,
     ValidateAlertConfig,
 };
 use core::fmt::Debug;
@@ -194,7 +194,7 @@ impl Default for CustomMetricAlertConfig {
     fn default() -> CustomMetricAlertConfig {
         Self {
             dispatch_type: AlertDispatchType::default(),
-            schedule: EveryDay::new().cron,
+            schedule: CommonCrons::EveryDay.cron(),
             dispatch_kwargs: HashMap::new(),
             alert_conditions: None,
         }

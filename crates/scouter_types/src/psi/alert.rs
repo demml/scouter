@@ -1,4 +1,4 @@
-use crate::{cron::EveryDay, AlertDispatchType, DispatchAlertDescription, ValidateAlertConfig};
+use crate::{CommonCrons, AlertDispatchType, DispatchAlertDescription, ValidateAlertConfig};
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -26,7 +26,7 @@ impl Default for PsiAlertConfig {
     fn default() -> PsiAlertConfig {
         Self {
             dispatch_type: AlertDispatchType::default(),
-            schedule: EveryDay::new().cron,
+            schedule: CommonCrons::EveryDay.cron(),
             features_to_monitor: Vec::new(),
             dispatch_kwargs: HashMap::new(),
             psi_threshold: 0.25,

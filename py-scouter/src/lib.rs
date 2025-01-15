@@ -23,16 +23,7 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SpcFeatureAlerts>()?;
     m.add_class::<SpcFeatureAlert>()?;
     m.add_class::<SpcAlertRule>()?;
-    m.add_class::<Every1Minute>()?;
-    m.add_class::<Every5Minutes>()?;
-    m.add_class::<Every15Minutes>()?;
-    m.add_class::<Every30Minutes>()?;
-    m.add_class::<EveryHour>()?;
-    m.add_class::<Every6Hours>()?;
-    m.add_class::<Every12Hours>()?;
-    m.add_class::<EveryDay>()?;
-    m.add_class::<EveryWeek>()?;
-    m.add_class::<CommonCron>()?;
+    m.add_class::<CommonCrons>()?;
     m.add_class::<SpcAlertConfig>()?;
     m.add_class::<AlertDispatchType>()?;
     m.add_class::<FeatureMap>()?;
