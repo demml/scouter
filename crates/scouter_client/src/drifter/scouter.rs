@@ -71,12 +71,12 @@ impl Drifter {
             Drifter::Spc(drifter) => {
                 let data = DataConverterEnum::convert_data(py, data_type, data)?;
                 let profile = drifter.create_drift_profile(data, config.spc_config()?.clone())?;
-                Ok(DriftProfile::SpcDriftProfile(profile))
+                Ok(DriftProfile::Spc(profile))
             }
             Drifter::Psi(drifter) => {
                 let data = DataConverterEnum::convert_data(py, data_type, data)?;
                 let profile = drifter.create_drift_profile(data, config.psi_config()?.clone())?;
-                Ok(DriftProfile::PsiDriftProfile(profile))
+                Ok(DriftProfile::Psi(profile))
             }
             Drifter::Custom(drifter) => {
                 // check if data is pylist. If it is, convert to Vec<CustomMetric>
@@ -90,7 +90,7 @@ impl Drifter {
 
                 let profile =
                     drifter.create_drift_profile(config.custom_config()?.clone(), data, None)?;
-                Ok(DriftProfile::CustomDriftProfile(profile))
+                Ok(DriftProfile::Custom(profile))
             }
         }
     }

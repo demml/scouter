@@ -960,7 +960,7 @@ mod tests {
         let mut spc_profile = SpcDriftProfile::default();
 
         let result = client
-            .insert_drift_profile(&DriftProfile::SpcDriftProfile(spc_profile.clone()))
+            .insert_drift_profile(&DriftProfile::Spc(spc_profile.clone()))
             .await
             .unwrap();
 
@@ -969,7 +969,7 @@ mod tests {
         spc_profile.scouter_version = "test".to_string();
 
         let result = client
-            .update_drift_profile(&DriftProfile::SpcDriftProfile(spc_profile.clone()))
+            .update_drift_profile(&DriftProfile::Spc(spc_profile.clone()))
             .await
             .unwrap();
 
