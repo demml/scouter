@@ -82,6 +82,13 @@ jobs:
       - name: Build Binaries with static linking
         run: cargo build -p scouter-server --release --target ${{ matrix.target }} --features ${{ matrix.feature }}
 
+      - name: create linux binary artifacts
+        if: matrix.target == 'x86_64-unknown-linux-gnu' && (matrix.feature == 'kafka' || matrix.feature == 'rabbitmq')
+        uses: actions/upload-artifact@v4
+        with:
+          name: scouter_server_${{ matrix.target }}_${{ matrix.feature }}
+          path: ./target/${{ matrix.target }}/release/scouter-server
+
       - name: Zip MacOS binaries
         if: contains(matrix.archive, 'zip') && contains(matrix.os, 'macos')
         run: zip -r scouter-server-${{ matrix.feature }}-${{ matrix.target }}.zip ./target/${{ matrix.target }}
@@ -137,6 +144,40 @@ jobs:
         with:
           name: scouter_server_${{ matrix.feature }}_${{ matrix.target }}_${{ matrix.archive }}
           path: scouter-server-${{ matrix.feature }}-${{ matrix.target }}.${{ matrix.archive }}
+
+  publish-docker-images:
+    # if: github.event_name == 'release'
+    needs: build
+    name: Publish scouter base images to Dockerhub
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        include:
+          - image: "scratch"
+            feature: "kafka"
+          - image: "scratch"
+            feature: "rabbitmq"
+          - image: "alpine"
+            feature: "kafka"
+          - image: "alpine"
+            feature: "rabbitmq"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Download binary artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: scouter_server_x86_64-unknown-linux-gnu_${{ matrix.feature }}
+          path: .
+      - name: check pwd
+        run: ls
+#      - name: build image
+#        run: |
+#          docker build \
+#          --build-arg SCOUTER_SERVER_BINARY=./scouter-server-${{ matrix.feature }}-${{ matrix.target }} \
+#          -f docker/official-base-image/${{ matrix.image }}/Dockerfile -t demml/scouter:CHANGETHIS-${{ matrix.feature }}
+
+
 
   release-binary-assets:
     if: github.event_name == 'release'
