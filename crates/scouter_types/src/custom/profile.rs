@@ -282,7 +282,6 @@ impl ProfileBaseArgs for CustomDriftProfile {
     }
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::*;

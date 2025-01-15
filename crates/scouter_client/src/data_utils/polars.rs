@@ -5,10 +5,10 @@ use scouter_error::ScouterError;
 pub struct PolarsDataConverter;
 
 impl DataConverter for PolarsDataConverter {
-    fn categorize_features(
-        data: &Bound<'_, PyAny>,
+    fn categorize_features<'py>(
+        py: Python<'py>,
+        data: &Bound<'py, PyAny>,
     ) -> Result<(Vec<String>, Vec<String>), ScouterError> {
-        let py = data.py();
         let cs = py.import("polars")?.getattr("selectors")?;
 
         let columns = data.getattr("columns")?.extract::<Vec<String>>()?;
@@ -64,8 +64,12 @@ impl DataConverter for PolarsDataConverter {
         ))
     }
 
-    fn prepare_data<'py>(data: &Bound<'py, PyAny>) -> Result<ConvertedData<'py>, ScouterError> {
-        let (numeric_features, string_features) = PolarsDataConverter::categorize_features(data)?;
+    fn prepare_data<'py>(
+        py: Python<'py>,
+        data: &Bound<'py, PyAny>,
+    ) -> Result<ConvertedData<'py>, ScouterError> {
+        let (numeric_features, string_features) =
+            PolarsDataConverter::categorize_features(py, data)?;
 
         let (numeric_array, dtype) =
             PolarsDataConverter::process_numeric_features(data, &numeric_features)?;

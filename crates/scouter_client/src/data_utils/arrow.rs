@@ -6,10 +6,10 @@ pub struct ArrowDataConverter;
 
 impl DataConverter for ArrowDataConverter {
     #[allow(clippy::if_same_then_else)]
-    fn categorize_features(
-        data: &Bound<'_, PyAny>,
+    fn categorize_features<'py>(
+        py: Python<'py>,
+        data: &Bound<'py, PyAny>,
     ) -> Result<(Vec<String>, Vec<String>), ScouterError> {
-        let py = data.py();
         let mut string_features = Vec::new();
         let mut numeric_features = Vec::new();
         let features = data.getattr("column_names")?.extract::<Vec<String>>()?;
@@ -94,8 +94,12 @@ impl DataConverter for ArrowDataConverter {
         Ok(Some(array))
     }
 
-    fn prepare_data<'py>(data: &Bound<'py, PyAny>) -> Result<ConvertedData<'py>, ScouterError> {
-        let (numeric_features, string_features) = ArrowDataConverter::categorize_features(data)?;
+    fn prepare_data<'py>(
+        py: Python<'py>,
+        data: &Bound<'py, PyAny>,
+    ) -> Result<ConvertedData<'py>, ScouterError> {
+        let (numeric_features, string_features) =
+            ArrowDataConverter::categorize_features(py, data)?;
 
         let (numeric_array, dtype) =
             ArrowDataConverter::process_numeric_features(data, &numeric_features)?;

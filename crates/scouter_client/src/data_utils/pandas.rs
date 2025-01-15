@@ -5,8 +5,9 @@ use scouter_error::ScouterError;
 pub struct PandasDataConverter;
 
 impl DataConverter for PandasDataConverter {
-    fn categorize_features(
-        data: &Bound<'_, PyAny>,
+    fn categorize_features<'py>(
+        _py: Python<'py>,
+        data: &Bound<'py, PyAny>,
     ) -> Result<(Vec<String>, Vec<String>), ScouterError> {
         let column_name_dtype = data
             .getattr("columns")?
@@ -71,8 +72,12 @@ impl DataConverter for PandasDataConverter {
         Ok(Some(string_array))
     }
 
-    fn prepare_data<'py>(data: &Bound<'py, PyAny>) -> Result<ConvertedData<'py>, ScouterError> {
-        let (numeric_features, string_features) = PandasDataConverter::categorize_features(data)?;
+    fn prepare_data<'py>(
+        py: Python<'py>,
+        data: &Bound<'py, PyAny>,
+    ) -> Result<ConvertedData<'py>, ScouterError> {
+        let (numeric_features, string_features) =
+            PandasDataConverter::categorize_features(py, data)?;
 
         let (numeric_array, dtype) =
             PandasDataConverter::process_numeric_features(data, &numeric_features)?;

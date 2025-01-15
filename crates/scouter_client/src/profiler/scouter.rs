@@ -33,9 +33,10 @@ impl DataProfiler {
     }
 
     #[pyo3(signature = (data, data_type=None, bin_size=20, compute_correlations=false))]
-    pub fn create_data_profile(
+    pub fn create_data_profile<'py>(
         &mut self,
-        data: &Bound<'_, PyAny>,
+        py: Python<'py>,
+        data: &Bound<'py, PyAny>,
         data_type: Option<&DataType>,
         bin_size: Option<usize>,
         compute_correlations: Option<bool>,
@@ -59,7 +60,7 @@ impl DataProfiler {
         };
 
         let (num_features, num_array, dtype, string_features, string_vec) =
-            DataConverterEnum::convert_data(data_type, data)?;
+            DataConverterEnum::convert_data(py, data_type, data)?;
 
         // if num_features is not empty, check dtype. If dtype == "float64", process as f64, else process as f32
         if let Some(dtype) = dtype {

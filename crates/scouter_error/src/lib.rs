@@ -181,6 +181,12 @@ pub enum ScouterError {
 
     #[error(transparent)]
     MonitorError(#[from] MonitorError),
+
+    #[error(transparent)]
+    AlertError(#[from] AlertError),
+
+    #[error(transparent)]
+    CustomError(#[from] CustomMetricError),
 }
 
 // impl From for PyErr

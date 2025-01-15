@@ -5,11 +5,11 @@ use scouter_error::ScouterError;
 pub struct NumpyDataConverter;
 
 impl DataConverter for NumpyDataConverter {
-    fn categorize_features(
-        data: &Bound<'_, PyAny>,
+    fn categorize_features<'py>(
+        py: Python<'py>,
+        data: &Bound<'py, PyAny>,
     ) -> Result<(Vec<String>, Vec<String>), ScouterError> {
-        let py = data.py();
-        let numpy = PyModule::import(py, "numpy")?.getattr("ndarray")?;
+        let numpy = py.import("numpy")?.getattr("ndarray")?;
 
         if !data.is_instance(&numpy)? {
             return Err(ScouterError::Error("Data is not a numpy array".to_string()));
@@ -62,8 +62,12 @@ impl DataConverter for NumpyDataConverter {
         ))
     }
 
-    fn prepare_data<'py>(data: &Bound<'py, PyAny>) -> Result<ConvertedData<'py>, ScouterError> {
-        let (numeric_features, string_features) = NumpyDataConverter::categorize_features(data)?;
+    fn prepare_data<'py>(
+        py: Python<'py>,
+        data: &Bound<'py, PyAny>,
+    ) -> Result<ConvertedData<'py>, ScouterError> {
+        let (numeric_features, string_features) =
+            NumpyDataConverter::categorize_features(py, data)?;
 
         let (numeric_array, dtype) =
             NumpyDataConverter::process_numeric_features(data, &numeric_features)?;

@@ -234,7 +234,6 @@ impl SpcDriftConfig {
     }
 }
 
-
 impl SpcDriftConfig {
     pub fn load_map_from_json(path: PathBuf) -> Result<HashMap<String, Value>, ScouterError> {
         // deserialize the string to a struct
@@ -368,7 +367,6 @@ impl SpcDriftProfile {
         )
     }
 }
-
 
 impl ProfileBaseArgs for SpcDriftProfile {
     /// Get the base arguments for the profile (convenience method on the server)

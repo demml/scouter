@@ -290,6 +290,7 @@ pub enum DataType {
     Polars,
     Numpy,
     Arrow,
+    Unknown,
 }
 
 impl DataType {

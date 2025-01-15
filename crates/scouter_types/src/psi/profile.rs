@@ -141,8 +141,6 @@ impl PsiDriftConfig {
     }
 }
 
-
-
 // TODO dry this out
 impl DispatchDriftConfig for PsiDriftConfig {
     fn get_drift_args(&self) -> DriftArgs {
@@ -274,8 +272,6 @@ impl PsiDriftProfile {
             .update_config_args(repository, name, version, targets, alert_config)
     }
 }
-
-
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]

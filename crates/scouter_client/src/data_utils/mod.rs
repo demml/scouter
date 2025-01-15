@@ -35,14 +35,16 @@ impl DataConverterEnum {
     ///
     /// The converted data
     pub fn convert_data<'py>(
+        py: Python<'py>,
         data_type: &DataType,
         data: &Bound<'py, PyAny>,
     ) -> Result<ConvertedData<'py>, ScouterError> {
         match data_type {
-            DataType::Arrow => ArrowDataConverter::prepare_data(data),
-            DataType::Numpy => NumpyDataConverter::prepare_data(data),
-            DataType::Pandas => PandasDataConverter::prepare_data(data),
-            DataType::Polars => PolarsDataConverter::prepare_data(data),
+            DataType::Arrow => ArrowDataConverter::prepare_data(py, data),
+            DataType::Numpy => NumpyDataConverter::prepare_data(py, data),
+            DataType::Pandas => PandasDataConverter::prepare_data(py, data),
+            DataType::Polars => PolarsDataConverter::prepare_data(py, data),
+            _ => Err(ScouterError::Error("Unsupported data type".to_string())),
         }
     }
 }

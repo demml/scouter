@@ -27,8 +27,9 @@ where
 }
 
 pub trait DataConverter {
-    fn categorize_features(
-        data: &Bound<'_, PyAny>,
+    fn categorize_features<'py>(
+        py: Python<'py>,
+        data: &Bound<'py, PyAny>,
     ) -> Result<(Vec<String>, Vec<String>), ScouterError>;
 
     #[allow(clippy::needless_lifetimes)]
@@ -43,5 +44,8 @@ pub trait DataConverter {
         features: &[String],
     ) -> Result<Option<Vec<Vec<String>>>, ScouterError>;
 
-    fn prepare_data<'py>(data: &Bound<'py, PyAny>) -> Result<ConvertedData<'py>, ScouterError>;
+    fn prepare_data<'py>(
+        py: Python<'py>,
+        data: &Bound<'py, PyAny>,
+    ) -> Result<ConvertedData<'py>, ScouterError>;
 }

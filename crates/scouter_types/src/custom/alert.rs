@@ -58,6 +58,11 @@ impl CustomMetric {
     pub fn alert_threshold_value(&self) -> Option<f64> {
         self.alert_condition.alert_threshold_value
     }
+
+    #[getter]
+    pub fn class_id(&self) -> String {
+        self.name.clone()
+    }
 }
 
 #[pyclass(eq)]
