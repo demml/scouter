@@ -4,13 +4,13 @@ use crate::psi::PsiDriftProfile;
 use crate::spc::SpcDriftProfile;
 use crate::util::ProfileBaseArgs;
 use crate::ProfileArgs;
+use crate::{FileName, ProfileFuncs};
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use scouter_error::{PyScouterError, ScouterError};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::str::FromStr;
-use crate::{ProfileFuncs, FileName};
 
 #[pyclass(eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
@@ -202,7 +202,6 @@ impl DriftProfile {
         ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
     }
 
-    
     pub fn load_from_json(path: PathBuf) -> Result<Self, ScouterError> {
         let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
         serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)
@@ -253,7 +252,5 @@ mod tests {
 
         // assert profile is the same
         assert_eq!(profile, loaded_profile);
-        
-
     }
 }

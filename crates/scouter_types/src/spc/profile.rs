@@ -420,6 +420,4 @@ mod tests {
 
         assert_eq!(drift_config.name, "test");
     }
-
- 
 }
