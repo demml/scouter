@@ -1,11 +1,10 @@
-use serde::{Deserialize, Serialize};
 use pyo3::prelude::*;
+use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]
 pub struct JwtToken {
     pub token: String,
 }
-
 
 #[derive(Debug, Clone)]
 pub enum RequestType {
@@ -52,8 +51,7 @@ impl HTTPConfig {
         auth_token: Option<String>,
     ) -> Self {
         let server_url = server_url.unwrap_or_else(|| {
-            std::env::var("HTTP_SERVER_URL")
-                .unwrap_or_else(|_| "http://localhost:8000".to_string())
+            std::env::var("HTTP_SERVER_URL").unwrap_or_else(|_| "http://localhost:8000".to_string())
         });
         let use_auth = use_auth.unwrap_or(false);
         let username = username.unwrap_or_else(|| {
@@ -65,7 +63,6 @@ impl HTTPConfig {
         let auth_token = auth_token.unwrap_or_else(|| {
             std::env::var("SCOUTER_AUTH_TOKEN").unwrap_or_else(|_| "".to_string())
         });
-   
 
         HTTPConfig {
             server_url,

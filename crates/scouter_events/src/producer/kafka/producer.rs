@@ -17,6 +17,7 @@ pub mod kafka_producer {
     use std::time::Duration;
     use tracing::{debug, error, info};
 
+    #[derive(Clone)]
     pub struct KafkaProducer {
         pub config: KafkaConfig,
         pub max_retries: i32,
