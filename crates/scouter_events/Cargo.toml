@@ -9,11 +9,12 @@ authors = [
 ]
 
 license = "MIT"
-description = "Logic for setting up and running SCouter event-driven consumers"
+description = "Logic for setting up and running Scouter event-driven consumers and producers"
 
 [dependencies]
 chrono = { workspace = true }
 futures = { workspace = true }
+pyo3 = { workspace = true }
 serde_json = { workspace = true }
 scouter-contracts = { workspace = true }
 scouter-error = { workspace = true }
