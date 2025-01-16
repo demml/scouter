@@ -3,12 +3,12 @@ from typing import Any, Optional
 import tenacity
 from pydantic import BaseModel, field_validator
 from scouter.integrations.base import BaseProducer
-from scouter.utils.logger import ScouterLogger
+#from scouter.utils.logger import ScouterLogger
 from scouter.utils.types import ProducerTypes
 
 from .._scouter import ServerRecords
 
-logger = ScouterLogger.get_logger()
+#logger = ScouterLogger.get_logger()
 
 RabbitConnectionParams = Any
 RabbitPublishProperties = Any
@@ -72,7 +72,7 @@ class RabbitMQProducer(BaseProducer):
             self._producer.queue_declare(queue=self._rabbit_config.queue)
 
         except ModuleNotFoundError as e:
-            logger.error("Could not import pika. Please install it using: pip install 'scouter[rabbitmq]'")
+            #logger.error("Could not import pika. Please install it using: pip install 'scouter[rabbitmq]'")
             raise e
 
     def _publish(self, records: ServerRecords) -> None:
@@ -91,7 +91,7 @@ class RabbitMQProducer(BaseProducer):
                 body=records.model_dump_json(),
             )
         except Exception as e:  # pylint: disable=broad-except
-            logger.error(f"Failed to publish message: {e}")
+            #logger.error(f"Failed to publish message: {e}")
             if self._rabbit_config.raise_on_err:
                 raise e
 

@@ -7,9 +7,7 @@ from pydantic import BaseModel
 from scouter import MonitorQueue, PsiDriftProfile, ScouterObserver, SpcDriftProfile
 from scouter.integrations.http import HTTPConfig
 from scouter.integrations.kafka import KafkaConfig
-from scouter.utils.logger import ScouterLogger
 
-logger = ScouterLogger.get_logger()
 
 try:
     from fastapi import APIRouter, BackgroundTasks, FastAPI, Request, Response
@@ -74,9 +72,7 @@ class ScouterRouter(ScouterMixin, APIRouter):
             Yields:
                 None
             """
-            logger.info("Starting scouter queue")
             yield
-            logger.info("Flushing scouter queue")
             self._queue.flush()
 
         kwargs["lifespan"] = lifespan
@@ -123,10 +119,7 @@ class FastAPIScouterObserver:
         @asynccontextmanager
         async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             # Code to run when the application starts
-            logger.info("Starting scouter observer.")
             yield
-            # Code to run when the application shuts down
-            logger.info("Shutting down scouter observer.")
             self._observer.stop()
 
         if app.router.lifespan_context:

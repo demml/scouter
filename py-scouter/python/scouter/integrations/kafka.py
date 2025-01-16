@@ -5,13 +5,10 @@ from typing import Any, Dict, Literal, Optional
 import tenacity
 from pydantic import BaseModel, field_validator, model_validator
 from scouter.integrations.base import BaseProducer
-from scouter.utils.logger import ScouterLogger
 from scouter.utils.types import ProducerTypes
 from typing_extensions import Self
 
 from .._scouter import ServerRecords
-
-logger = ScouterLogger.get_logger()
 MESSAGE_MAX_BYTES_DEFAULT = 2097164
 
 
@@ -80,10 +77,10 @@ class KafkaConfig(BaseModel):
             sasl_username = os.getenv("KAFKA_SASL_USERNAME")
             sasl_password = os.getenv("KAFKA_SASL_PASSWORD")
             if (sasl_username is not None) and (sasl_password is not None):
-                logger.info(
-                    """KAFKA_SASL_USERNAME and KAFKA_SASL_PASSWORD found in environment. 
-                    Assigning security.protocol and sasl.mechanism"""
-                )
+                #logger.info(
+                #    """KAFKA_SASL_USERNAME and KAFKA_SASL_PASSWORD found in environment. 
+                #    Assigning security.protocol and sasl.mechanism"""
+                #)
                 self.config["sasl.username"] = sasl_username
                 self.config["sasl.password"] = sasl_password
                 self.config["security.protocol"] = "SASL_SSL"
@@ -126,7 +123,7 @@ class KafkaProducer(BaseProducer):
             self._producer = Producer(self._kafka_config.config)
 
         except ModuleNotFoundError as e:
-            logger.error("Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'")
+            #logger.error("Could not import confluent_kafka. Please install it using: pip install 'scouter[kafka]'")
             raise e
 
     def _delivery_report(self, err: Optional[str], msg: Any, raise_on_err: bool = True) -> None:
@@ -141,25 +138,27 @@ class KafkaProducer(BaseProducer):
             ProduceError: When message delivery to the kafka broker fails and raise_on_err is True.
         """
         if err:
-            err_data = {
+            _err_data = {
                 "kafka_message": msg.value(),
                 "kafka_error": err,
             }
             err_msg = f"Failed delivery to topic: {msg.topic()}"
-            logger.error(
-                "Failed delivery to topic: {} error_data: {}",
-                msg.topic(),
-                err_data,
-            )
+            #logger.error(
+            #    "Failed delivery to topic: {} error_data: {}",
+            #    msg.topic(),
+            #    err_data,
+            #)
             if raise_on_err:
                 raise ValueError(err_msg)
         else:
-            logger.debug(
-                "Successful delivery to topic: %s, partition: %d, offset: %d",
-                msg.topic(),
-                msg.partition(),
-                msg.offset(),
-            )
+            pass
+            # revisit this. can we re-write in rust?
+            #ogger.debug(
+            #   "Successful delivery to topic: %s, partition: %d, offset: %d",
+            #   msg.topic(),
+            #   msg.partition(),
+            #   msg.offset(),
+            #
 
     def _publish(self, records: ServerRecords) -> None:
         try:
@@ -171,11 +170,11 @@ class KafkaProducer(BaseProducer):
                     raise_on_err=self._kafka_config.raise_on_err,
                 ),  # type: ignore
             )
-            logger.debug(f"Sent to topic: {self._kafka_config.topic}")
+            #logger.debug(f"Sent to topic: {self._kafka_config.topic}")
             self._producer.poll(0)
 
         except Exception as e:  # pylint: disable=broad-except
-            logger.error(f"Could not send message to Kafka due to: {e}")
+            #logger.error(f"Could not send message to Kafka due to: {e}")
             if self._kafka_config.raise_on_err:
                 raise e
 
@@ -209,10 +208,11 @@ class KafkaProducer(BaseProducer):
 
         num_remaining = self._producer.flush(timeout=timeout)
         if num_remaining > 0:
-            logger.warning(
-                "flush timed out with %s messages remaining. Undelivered messages will be discarded.",
-                num_remaining,
-            )
+            pass
+            #logger.warning(
+            #    "flush timed out with %s messages remaining. Undelivered messages will be discarded.",
+            #    num_remaining,
+            #)
 
     @staticmethod
     def type() -> str:

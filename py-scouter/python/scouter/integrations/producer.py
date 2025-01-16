@@ -4,10 +4,7 @@ from scouter.integrations.base import BaseProducer
 from scouter.integrations.http import HTTPConfig, HTTPProducer
 from scouter.integrations.kafka import KafkaConfig, KafkaProducer
 from scouter.integrations.rabbitmq import RabbitMQConfig, RabbitMQProducer
-from scouter.utils.logger import ScouterLogger
 from scouter.utils.types import ProducerTypes
-
-logger = ScouterLogger.get_logger()
 
 
 class DriftRecordProducer:

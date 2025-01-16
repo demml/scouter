@@ -4,13 +4,11 @@ from typing import Any, Dict, Optional, cast
 import httpx
 from pydantic import BaseModel
 from scouter.integrations.base import BaseProducer
-from scouter.utils.logger import ScouterLogger
 from scouter.utils.types import ProducerTypes
 from tenacity import retry, stop_after_attempt
 
 from .._scouter import ServerRecords
 
-logger = ScouterLogger.get_logger()
 MESSAGE_MAX_BYTES_DEFAULT = 2097164
 
 
@@ -127,7 +125,7 @@ class HTTPProducer(BaseProducer):
 
     def flush(self, timeout: Optional[float] = None) -> None:
         """Flushes the producer"""
-        logger.info("Flushing not supported for HTTP producer.")
+        #logger.info("Flushing not supported for HTTP producer.")
 
     @staticmethod
     def type() -> str:
