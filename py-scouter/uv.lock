@@ -224,7 +224,7 @@ name = "click"
 version = "8.1.7"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "colorama", marker = "platform_system == 'Windows'" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/96/d3/f04c7bfcf5c1862a2a5b845c6b2b360488cf47af55dfa79c98f6a6bf98b5/click-8.1.7.tar.gz", hash = "sha256:ca9853ad459e787e2192211578cc907e7594e294c7ccc834310722b41b9ca6de", size = 336121 }
 wheels = [
@@ -625,7 +625,7 @@ version = "1.6.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "click" },
-    { name = "colorama", marker = "platform_system == 'Windows'" },
+    { name = "colorama", marker = "sys_platform == 'win32'" },
     { name = "ghp-import" },
     { name = "importlib-metadata", marker = "python_full_version < '3.10'" },
     { name = "jinja2" },
@@ -1838,8 +1838,8 @@ dev = [
     { name = "uvicorn", specifier = ">=0.31.0,<1.0.0" },
 ]
 docs = [
-    { name = "mkdocs-material", specifier = ">=9.5.0,<10.0.0" },
-    { name = "mkdocstrings", extras = ["python"], specifier = ">=0.25.0,<1.0.0" },
+    { name = "mkdocs-material", specifier = ">=9.5.4,<10.0.0" },
+    { name = "mkdocstrings", extras = ["python"], specifier = ">=0.26.0,<1.0.0" },
 ]
 
 [[package]]

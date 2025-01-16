@@ -4,18 +4,16 @@ permissions:
   pull-requests: write
   contents: write
 
-
 on:
   push:
-    branches:
-      - main
+      branches:
+        - main
   release:
     types: [published]
 
 env:
   INTERPRETER: "3.12"
-  RUSTFLAGS: -C debuginfo=0
-
+  RUSTFLAGS: "-C debuginfo=0 -C target-feature=+crt-static"
 
 jobs:
   build:
@@ -78,7 +76,7 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install
 
-      - name: Build Binaries
+      - name: Build Binaries with static linking
         run: cargo build -p scouter-server --release --target ${{ matrix.target }} --features ${{ matrix.feature }}
 
       - name: Zip MacOS binaries
@@ -98,21 +96,20 @@ jobs:
           name: scouter_server_${{ matrix.feature }}_${{ matrix.target }}_${{matrix.archive}}
           path: scouter-server-${{ matrix.feature }}-${{ matrix.target }}.${{matrix.archive}}
 
-
   build-mac-x86_64:
     name: build-macos-x86_64 - ${{ matrix.feature }}
     runs-on: macos-13
 
     strategy:
       matrix:
-          include:
-            - target: x86_64-apple-darwin
-              archive: zip
-              feature: "kafka"
+        include:
+          - target: x86_64-apple-darwin
+            archive: zip
+            feature: "kafka"
 
-            - target: x86_64-apple-darwin
-              archive: zip
-              feature: "rabbitmq"
+          - target: x86_64-apple-darwin
+            archive: zip
+            feature: "rabbitmq"
 
     steps:
       - name: Checkout repository
@@ -137,6 +134,46 @@ jobs:
         with:
           name: scouter_server_${{ matrix.feature }}_${{ matrix.target }}_${{ matrix.archive }}
           path: scouter-server-${{ matrix.feature }}-${{ matrix.target }}.${{ matrix.archive }}
+
+  publish-docker-images:
+    if: github.event_name == 'release'
+    needs: build
+    name: Publish scouter base images to Dockerhub
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        include:
+          - image: "scratch"
+            feature: "kafka"
+          - image: "scratch"
+            feature: "rabbitmq"
+          - image: "alpine"
+            feature: "kafka"
+          - image: "alpine"
+            feature: "rabbitmq"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Download binary
+        uses: actions/download-artifact@v4
+        with:
+          name: scouter_server_${{ matrix.feature }}_x86_64-unknown-linux-gnu_tar.gz
+          path: .
+      - name: Extract binary
+        run: tar -xzf scouter-server-${{ matrix.feature }}-x86_64-unknown-linux-gnu.tar.gz -C .
+      - name: Move binary to root folder
+        run: mv target/x86_64-unknown-linux-gnu/release/scouter-server .
+      - name: build image
+        run: |
+          docker build \
+          --build-arg SCOUTER_SERVER_BINARY=./scouter-server \
+          -f docker/official-base-image/${{ matrix.image }}/Dockerfile \
+          -t demml/scouter:${{ matrix.image }}-${{ matrix.feature }}-${{ github.event.release.tag_name }} .
+      - name: push image to docker hub
+        run: |
+          docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+          docker push demml/scouter:${{ matrix.image }}-${{ matrix.feature }}-${{ github.event.release.tag_name }}
+
 
   release-binary-assets:
     if: github.event_name == 'release'

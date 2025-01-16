@@ -9,7 +9,7 @@ permissions:
 
 env:
   PACKAGE_NAME: scouter
-  INTERPRETER: "3.9 3.10 3.11 3.12 pypy3.9 pypy3.10"
+  INTERPRETER: "3.10 3.11 3.12 3.13 pypy3.9 pypy3.10"
   RUSTFLAGS: -C debuginfo=0
 
 jobs:
@@ -60,7 +60,7 @@ jobs:
       - name: set up python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       - run: pip install -U twine 'black>=22.3.0,<23' typing_extensions
 
@@ -102,7 +102,7 @@ jobs:
       - name: set up python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       - run: pip install -U twine 'black>=22.3.0,<23' typing_extensions
 
@@ -143,7 +143,7 @@ jobs:
       - name: set up python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       - run: pip install -U twine 'black>=22.3.0,<23' typing_extensions
 
@@ -196,7 +196,7 @@ jobs:
       - name: set up python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           architecture: ${{ matrix.python-architecture }}
 
       - run: pip install -U twine 'black>=22.3.0,<23' typing_extensions
@@ -272,7 +272,7 @@ jobs:
       - name: set up python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
 
       - name: Create virtual environment
         working-directory: ./py-scouter
@@ -312,7 +312,7 @@ jobs:
       - name: set up python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.10"
+          python-version: "3.12"
       - run: pip install -U twine
       - name: get dist artifacts
         uses: actions/download-artifact@v4
