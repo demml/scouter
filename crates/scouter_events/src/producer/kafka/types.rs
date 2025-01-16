@@ -54,7 +54,7 @@ fn add_kafka_security(config: &mut HashMap<String, String>) -> Result<(), Scoute
     Ok(())
 }
 
-fn add_kafka_args(brokers: String, compression: CompressionType, message_timeout: i32, message_max_bytes: i32, config: &mut HashMap<String, String>) -> Result<(), ScouterError> {
+fn add_kafka_args(brokers: String, compression: CompressionType, message_timeout: u64, message_max_bytes: i32, config: &mut HashMap<String, String>) -> Result<(), ScouterError> {
     config.insert("bootstrap.servers".to_string(), brokers);
     config.insert("compression.type".to_string(), compression.to_string());
     config.insert("message.timeout.ms".to_string(), message_timeout.to_string());
@@ -69,7 +69,7 @@ pub struct KafkaConfig {
     pub topic: String,
     pub compression_type: CompressionType,
     pub raise_on_error: bool,
-    pub message_timeout_ms: i32,
+    pub message_timeout_ms: u64,
     pub message_max_bytes: i32,
     pub log_level: LogLevel,
     pub config: HashMap<String, String>,
@@ -86,7 +86,7 @@ impl KafkaConfig {
         topic: Option<String>,
         compression_type: Option<String>,
         raise_on_error: Option<bool>,
-        message_timeout_ms: Option<i32>,
+        message_timeout_ms: Option<u64>,
         message_max_bytes:  Option<i32>,
         log_level: Option<LogLevel>,
         config: Option<&Bound<'_, PyDict>>,
