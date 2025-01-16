@@ -1,152 +1,70 @@
 #[cfg(feature = "kafka")]
 pub mod kafka_producer {
-    use rdkafka::config::ClientConfig;
-    use rdkafka::consumer::CommitMode;
-    use rdkafka::consumer::Consumer;
-    use rdkafka::consumer::StreamConsumer;
-    use rdkafka::message::BorrowedMessage;
-    use rdkafka::message::Message;
-    use scouter_error::EventError;
-    use scouter_settings::KafkaSettings;
-    use scouter_sql::MessageHandler;
-    use scouter_types::ServerRecords;
-    use std::collections::HashMap;
+    use crate::producer::kafka::types::KafkaConfig;
+    use rusty_logging::logger::LogLevel;
+    use rdkafka::{
+        config::RDKafkaLogLevel,
+        producer::{FutureProducer, FutureRecord},
+        ClientConfig,
+    };
+    use scouter_error::ScouterError;
     use std::result::Result::Ok;
-    use tracing::error;
+
+    use pyo3::prelude::*;
+    use std::collections::HashMap;
     use tracing::info;
 
     // Get table name constant
+    #[pyclass]
+    pub struct KafkaProducer{
+        #[pyo3(get)]
+        pub config:KafkaConfig,
 
-    #[allow(clippy::too_many_arguments)]
-    #[allow(clippy::unnecessary_unwrap)]
-    pub async fn create_kafka_consumer(
-        settings: &KafkaSettings,
-        config_overrides: Option<HashMap<&str, &str>>,
-    ) -> Result<StreamConsumer, EventError> {
-        let mut config = ClientConfig::new();
-
-        config
-            .set("group.id", &settings.group_id)
-            .set("bootstrap.servers", &settings.brokers)
-            .set("enable.partition.eof", "false")
-            .set("session.timeout.ms", "6000")
-            .set("enable.auto.commit", "true");
-
-        if settings.username.is_some() && settings.password.is_some() {
-            config
-                .set("security.protocol", &settings.security_protocol)
-                .set("sasl.mechanisms", &settings.sasl_mechanism)
-                .set("sasl.username", settings.username.as_ref().unwrap())
-                .set("sasl.password", settings.password.as_ref().unwrap());
-        }
-
-        if let Some(overrides) = config_overrides {
-            for (key, value) in overrides {
-                config.set(key, value);
-            }
-        }
-
-        let consumer: StreamConsumer = config.create().expect("Consumer creation error");
-
-        let topics = settings
-            .topics
-            .iter()
-            .map(|s| s.as_str())
-            .collect::<Vec<&str>>();
-
-        consumer
-            .subscribe(&topics)
-            .expect("Can't subscribe to specified topics");
-
-        info!("✅ Started consumer for topics: {:?}", topics);
-        Ok(consumer)
+        max_retries: i32,
+        producer: FutureProducer
     }
 
-    pub async fn stream_from_kafka_topic(
-        message_handler: &MessageHandler,
-        consumer: &StreamConsumer,
-    ) -> Result<(), EventError> {
-        loop {
-            match consumer.recv().await {
-                Err(e) => error!("Kafka error: {}", e),
-                Ok(message) => {
-                    if let Err(e) = process_kafka_message(message_handler, consumer, &message).await
-                    {
-                        error!("Error processing Kafka message: {:?}", e);
-                    }
-                }
-            }
+    #[pymethods]
+    impl KafkaProducer {
+        #[new]
+        #[pyo3(signature = (config, max_retries=3))]
+        pub fn new(
+            config: KafkaConfig,
+            max_retries: Option<i32>,
+        ) -> PyResult<Self> {
+
+            let max_retries = max_retries.unwrap_or(3);
+            let producer = KafkaProducer::setup_producer(&config.config, &config.log_level)?;
+
+            Ok(KafkaProducer { config, max_retries, producer })
         }
     }
 
-    pub async fn process_kafka_message(
-        message_handler: &MessageHandler,
-        consumer: &StreamConsumer,
-        message: &BorrowedMessage<'_>,
-    ) -> Result<(), EventError> {
-        let payload = match message.payload_view::<str>() {
-            None => {
-                error!("No payload received");
-                return Ok(());
-            }
-            Some(Ok(s)) => s,
-            Some(Err(e)) => {
-                error!("Error while deserializing message payload: {:?}", e);
-                return Ok(());
-            }
-        };
+    impl KafkaProducer {
+        fn setup_producer(config: &HashMap<String, String>, log_level: &LogLevel) -> Result<rdkafka::producer::FutureProducer, ScouterError> {
+            info!("Setting up Kafka producer");
+            let mut kafka_config = ClientConfig::new();
 
-        let records: ServerRecords = match serde_json::from_str(payload) {
-            Ok(records) => records,
-            Err(e) => {
-                error!("Failed to deserialize message: {:?}", e);
-                return Ok(());
-            }
-        };
+            config.iter().for_each(|(key, value)| {
+                kafka_config.set(key, value);
+            });
 
-        match message_handler.insert_server_records(&records).await {
-            Ok(_) => {
-                consumer.commit_message(message, CommitMode::Async).unwrap();
-            }
-            Err(e) => {
-                error!("Failed to insert drift record: {:?}", e);
-            }
-        }
+            let kafka_log_level = match log_level {
+                LogLevel::Error => RDKafkaLogLevel::Error,
+                LogLevel::Warn => RDKafkaLogLevel::Warning,
+                LogLevel::Info => RDKafkaLogLevel::Info,
+                LogLevel::Debug => RDKafkaLogLevel::Debug,
+                LogLevel::Trace => RDKafkaLogLevel::Debug,
+            };
 
-        Ok(())
-    }
+            let producer = kafka_config
+                .set_log_level(kafka_log_level)
+                .create()
+                .map_err(|e| ScouterError::Error(e.to_string()))?;
 
-    // Start background task to poll kafka topic
-    //
-    // This function will poll the kafka topic and insert the records into the database
-    // using the provided message handler.
-    //
-    // # Arguments
-    //
-    // * `message_handler` - The message handler to process the records
-    // * `group_id` - The kafka consumer group id
-    // * `brokers` - The kafka brokers
-    // * `topics` - The kafka topics to subscribe to
-    // * `username` - The kafka username
-    // * `password` - The kafka password
-    // * `security_protocol` - The kafka security protocol
-    // * `sasl_mechanism` - The kafka SASL mechanism
-    //
-    // # Returns
-    //
-    // * `Result<(), anyhow::Error>` - The result of the operation
-    #[allow(clippy::unnecessary_unwrap)]
-    #[allow(clippy::too_many_arguments)]
-    pub async fn start_kafka_background_poll(
-        message_handler: MessageHandler,
-        settings: &KafkaSettings,
-    ) -> Result<(), EventError> {
-        let consumer = create_kafka_consumer(settings, None).await.unwrap();
-
-        loop {
-            if let Err(e) = stream_from_kafka_topic(&message_handler, &consumer).await {
-                error!("Error in stream_from_kafka_topic: {:?}", e);
-            }
+            info!("Kafka producer setup complete");
+            Ok(producer)
         }
     }
+
 }

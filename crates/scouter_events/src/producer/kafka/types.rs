@@ -1,7 +1,9 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use scouter_error::ScouterError;
+use std::collections::HashMap;
 use std::env;
+use rusty_logging::logger::LogLevel;
 
 #[pyclass(eq)]
 #[derive(PartialEq, Clone)]
@@ -40,27 +42,28 @@ impl std::fmt::Display for CompressionType {
     }
 }
 
-fn add_kafka_security<'py>(config: &Bound<'py, PyDict>) -> Result<Bound<'py, PyDict>, ScouterError> {
-    if !config.contains("sasl.username")? || !config.contains("sasl.password")? {
+fn add_kafka_security(config: &mut HashMap<String, String>) -> Result<(), ScouterError> {
+    if !config.contains_key("sasl.username") || !config.contains_key("sasl.password") {
         if let (Ok(sasl_username), Ok(sasl_password)) = (env::var("KAFKA_SASL_USERNAME"), env::var("KAFKA_SASL_PASSWORD")) {
-            config.set_item("sasl.username", sasl_username).map_err(|e| ScouterError::Error(e.to_string()))?;
-            config.set_item("sasl.password", sasl_password).map_err(|e| ScouterError::Error(e.to_string()))?;
-            config.set_item("security.protocol", "SASL_SSL").map_err(|e| ScouterError::Error(e.to_string()))?;
-            config.set_item("sasl.mechanisms", "PLAIN").map_err(|e| ScouterError::Error(e.to_string()))?;
+            config.insert("sasl.username".to_string(), sasl_username);
+            config.insert("sasl.password".to_string(), sasl_password);
+            config.insert("security.protocol".to_string(), "SASL_SSL".to_string());
+            config.insert("sasl.mechanisms".to_string(), "PLAIN".to_string());
         }
     }
-    Ok(config.clone())
+    Ok(())
 }
 
-fn add_kafka_args<'py>(brokers:String, compression:CompressionType, message_timeout: i32, message_max_bytes:i32, config: &Bound<'py, PyDict>) -> Result<Bound<'py, PyDict>, ScouterError> {
-    config.set_item("bootstrap.servers", brokers).map_err(|e| ScouterError::Error(e.to_string()))?;
-    config.set_item("compression.type", compression.to_string()).map_err(|e| ScouterError::Error(e.to_string()))?;
-    config.set_item("message.timeout.ms", message_timeout).map_err(|e| ScouterError::Error(e.to_string()))?;
-    config.set_item("message.max.bytes", message_max_bytes).map_err(|e| ScouterError::Error(e.to_string()))?;
-    Ok(config.clone())
+fn add_kafka_args(brokers: String, compression: CompressionType, message_timeout: i32, message_max_bytes: i32, config: &mut HashMap<String, String>) -> Result<(), ScouterError> {
+    config.insert("bootstrap.servers".to_string(), brokers);
+    config.insert("compression.type".to_string(), compression.to_string());
+    config.insert("message.timeout.ms".to_string(), message_timeout.to_string());
+    config.insert("message.max.bytes".to_string(), message_max_bytes.to_string());
+    Ok(())
 }
 
 #[pyclass]
+#[derive(Clone)]
 pub struct KafkaConfig {
     pub brokers: String,
     pub topic: String,
@@ -68,22 +71,24 @@ pub struct KafkaConfig {
     pub raise_on_error: bool,
     pub message_timeout_ms: i32,
     pub message_max_bytes: i32,
-    pub config: Py<PyDict>,
+    pub log_level: LogLevel,
+    pub config: HashMap<String, String>,
 
 }
+
 
 #[pymethods]
 impl KafkaConfig {
     #[new]
-    #[pyo3(signature = (brokers=None, topic=None, compression_type=CompressionType::Gzip.to_string(), raise_on_error=false, message_timeout_ms=600000, message_max_bytes=2097164, config=None))]
+    #[pyo3(signature = (brokers=None, topic=None, compression_type=CompressionType::Gzip.to_string(), raise_on_error=false, message_timeout_ms=600000, message_max_bytes=2097164, log_level=LogLevel::Info, config=None))]
     pub fn new(
-        py: Python,
         brokers: Option<String>,
         topic: Option<String>,
         compression_type: Option<String>,
         raise_on_error: Option<bool>,
         message_timeout_ms: Option<i32>,
         message_max_bytes:  Option<i32>,
+        log_level: Option<LogLevel>,
         config: Option<&Bound<'_, PyDict>>,
     ) -> Result<Self, ScouterError> {
         let brokers = brokers.unwrap_or_else(|| env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_string()));
@@ -92,15 +97,31 @@ impl KafkaConfig {
         let raise_on_error = raise_on_error.unwrap_or(false);
         let message_timeout_ms = message_timeout_ms.unwrap_or(600_000);
         let message_max_bytes = message_max_bytes.unwrap_or(2097164);
-        
-        // if config is None, create a new PyDict, else unwrap the config
-        let config = match config {
-            Some(config) => config.clone(),
-            None => PyDict::new(py),
+
+       
+        let mut config = match config {
+            Some(config) => config.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect(),
+            None => HashMap::new(),
         };
 
-        let config = add_kafka_security(&config)?;
-        let config = add_kafka_args(brokers.clone(), compression_type.clone(), message_timeout_ms, message_max_bytes, &config)?;
+
+
+        add_kafka_security(&mut config)?;
+        add_kafka_args(brokers.clone(), compression_type.clone(), message_timeout_ms, message_max_bytes, &mut config)?;
+
+        let log_level = if log_level.is_none() {
+            let env_var = env::var("LOG_LEVEL").unwrap_or_else(|_| "info".to_string()).to_lowercase();
+            match env_var.as_str() {
+                "info" => LogLevel::Info,
+                "debug" => LogLevel::Debug,
+                "error" => LogLevel::Error,
+                "warn" => LogLevel::Warn,
+                "trace" => LogLevel::Trace,
+                _ => LogLevel::Info,
+            }
+        } else {
+            log_level.unwrap()
+        };
         
 
         Ok(KafkaConfig {
@@ -110,7 +131,9 @@ impl KafkaConfig {
             raise_on_error,
             message_timeout_ms,
             message_max_bytes,
-            config: config.unbind(),
+            log_level,
+            config,
         })
     }
 }
+
