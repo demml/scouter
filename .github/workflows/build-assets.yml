@@ -6,9 +6,8 @@ permissions:
 
 on:
   push:
-    branches:
-      - main
-      - addDockerBaseImages
+      branches:
+        - main
   release:
     types: [published]
 
@@ -169,11 +168,11 @@ jobs:
           docker build \
           --build-arg SCOUTER_SERVER_BINARY=./scouter-server \
           -f docker/official-base-image/${{ matrix.image }}/Dockerfile \
-          -t demml/scouter:${{ github.event.release.name }}-${{ matrix.image }}-${{ matrix.feature }} .
+          -t demml/scouter:${{ matrix.image }}-${{ matrix.feature }}-${{ github.event.release.tag_name }} .
       - name: push image to docker hub
         run: |
           docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
-          docker push demml/scouter:${{ github.event.release.name }}-${{ matrix.image }}-${{ matrix.feature }}
+          docker push demml/scouter:${{ matrix.image }}-${{ matrix.feature }}-${{ github.event.release.tag_name }}
 
 
   release-binary-assets:

@@ -2660,7 +2660,7 @@ dependencies = [
 
 [[package]]
 name = "py-scouter"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "ndarray-stats",
  "num-traits",
@@ -3273,7 +3273,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scouter-client"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "ndarray",
  "ndarray-stats",
@@ -3291,7 +3291,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-contracts"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "chrono",
  "scouter-types",
@@ -3301,7 +3301,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-dispatch"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "futures",
  "mockito",
@@ -3318,7 +3318,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-drift"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "approx",
  "chrono",
@@ -3348,7 +3348,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-error"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "pyo3",
  "serde",
@@ -3357,7 +3357,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-events"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "chrono",
  "futures",
@@ -3378,7 +3378,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-observability"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "itertools 0.10.5",
  "ndarray",
@@ -3395,7 +3395,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-profile"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "approx",
  "chrono",
@@ -3419,7 +3419,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-server"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "anyhow",
  "approx",
@@ -3455,7 +3455,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-settings"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "scouter-error",
  "serde",
@@ -3463,7 +3463,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-sql"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3487,7 +3487,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-types"
-version = "0.4.0"
+version = "0.4.1"
 dependencies = [
  "chrono",
  "colored_json",
