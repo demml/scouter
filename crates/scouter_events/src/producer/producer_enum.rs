@@ -5,7 +5,6 @@ pub use crate::producer::kafka::{KafkaConfig, KafkaProducer};
 pub use crate::producer::rabbitmq::{RabbitMQConfig, RabbitMQProducer};
 
 pub use crate::producer::http::{HTTPConfig, HTTPProducer};
-use rdkafka::producer;
 use scouter_error::{PyScouterError, ScouterError};
 use scouter_types::ServerRecords;
 
