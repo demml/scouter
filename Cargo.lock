@@ -3487,6 +3487,7 @@ dependencies = [
  "scouter-error",
  "serde",
  "serde_json",
+ "tempfile",
  "tracing",
 ]
 

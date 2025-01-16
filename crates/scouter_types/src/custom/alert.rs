@@ -101,7 +101,7 @@ impl AlertThreshold {
 }
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CustomMetricAlertCondition {
     #[pyo3(get, set)]
     pub alert_threshold: AlertThreshold,
@@ -132,7 +132,7 @@ impl CustomMetricAlertCondition {
 }
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CustomMetricAlertConfig {
     pub dispatch_type: AlertDispatchType,
 

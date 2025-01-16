@@ -10,6 +10,7 @@ use scouter_error::{PyScouterError, ScouterError};
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use std::str::FromStr;
+use crate::{ProfileFuncs, FileName};
 
 #[pyclass(eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
@@ -64,7 +65,7 @@ pub struct DriftArgs {
 
 // Generic enum to be used on scouter server
 #[pyclass]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum DriftProfile {
     Spc(SpcDriftProfile),
     Psi(PsiDriftProfile),
@@ -198,11 +199,13 @@ impl DriftProfile {
     }
 
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
-        match self {
-            DriftProfile::Spc(profile) => profile.save_to_json(path),
-            DriftProfile::Psi(profile) => profile.save_to_json(path),
-            DriftProfile::Custom(profile) => profile.save_to_json(path),
-        }
+        ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
+    }
+
+    
+    pub fn load_from_json(path: PathBuf) -> Result<Self, ScouterError> {
+        let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
+        serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)
     }
 }
 
@@ -215,6 +218,7 @@ impl Default for DriftProfile {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::TempDir;
 
     #[test]
     fn test_drift_type_from_str_base() {
@@ -229,5 +233,27 @@ mod tests {
         assert_eq!(DriftType::Spc.to_string(), "Spc");
         assert_eq!(DriftType::Psi.to_string(), "Psi");
         assert_eq!(DriftType::Custom.to_string(), "Custom");
+    }
+
+    #[test]
+    fn test_drift_profile_enum() {
+        let profile = DriftProfile::Spc(SpcDriftProfile::default());
+
+        // save to temppath
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("profile.json");
+
+        profile.save_to_json(Some(path.clone())).unwrap();
+
+        // assert path exists
+        assert!(path.exists());
+
+        // load from path
+        let loaded_profile = DriftProfile::load_from_json(path).unwrap();
+
+        // assert profile is the same
+        assert_eq!(profile, loaded_profile);
+        
+
     }
 }

@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use tracing::debug;
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct PsiDriftConfig {
     #[pyo3(get, set)]
     pub repository: String,
@@ -154,7 +154,7 @@ impl DispatchDriftConfig for PsiDriftConfig {
 }
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Bin {
     #[pyo3(get)]
     pub id: String,
@@ -170,7 +170,7 @@ pub struct Bin {
 }
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct PsiFeatureDriftProfile {
     #[pyo3(get)]
     pub id: String,
@@ -183,7 +183,7 @@ pub struct PsiFeatureDriftProfile {
 }
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct PsiDriftProfile {
     #[pyo3(get, set)]
     pub features: HashMap<String, PsiFeatureDriftProfile>,
