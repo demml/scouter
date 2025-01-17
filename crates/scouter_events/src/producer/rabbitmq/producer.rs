@@ -10,6 +10,7 @@ pub mod rabbitmq_producer {
     use scouter_types::ServerRecords;
     use tracing::{debug, error, info};
 
+    #[derive(Clone)]
     pub struct RabbitMQProducer {
         pub config: RabbitMQConfig,
         pub max_retries: i32,

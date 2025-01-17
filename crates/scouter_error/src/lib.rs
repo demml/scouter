@@ -52,7 +52,7 @@ pub enum ProfilerError {
     StringProfileError(String),
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Deserialize)]
 pub enum FeatureQueueError {
     #[error("{0}")]
     InvalidFormatError(String),
@@ -187,6 +187,9 @@ pub enum ScouterError {
 
     #[error(transparent)]
     CustomError(#[from] CustomMetricError),
+
+    #[error(transparent)]
+    FeatureQueueError(#[from] FeatureQueueError),
 }
 
 // impl From for PyErr

@@ -10,6 +10,7 @@ use scouter_types::ServerRecords;
 
 use pyo3::prelude::*;
 
+#[derive(Clone)]
 pub enum ProducerEnum {
     HTTP(HTTPProducer),
 
@@ -43,24 +44,23 @@ impl ProducerEnum {
 }
 
 #[pyclass]
+#[derive(Clone)]
 pub struct ScouterProducer {
     producer: ProducerEnum,
-    rt: tokio::runtime::Runtime,
+    pub rt: tokio::runtime::Handle,
 }
 
 #[pymethods]
 impl ScouterProducer {
     #[new]
-    pub fn new(config: &Bound<'_, PyAny>) -> PyResult<Self> {
+    pub fn new(config: &Bound<'_, PyAny>) -> Result<Self, ScouterError> {
         // create tokio runtime for handling async funcs
         let rt = tokio::runtime::Runtime::new().unwrap();
 
         // check for http config
         let producer = if config.is_instance_of::<HTTPConfig>() {
             let config = config.extract::<HTTPConfig>()?;
-            let producer = rt
-                .block_on(async { HTTPProducer::new(config).await })
-                .map_err(|e| PyScouterError::new_err(e.to_string()))?;
+            let producer = rt.block_on(async { HTTPProducer::new(config).await })?;
             ProducerEnum::HTTP(producer)
 
         // check for kafka config
@@ -88,7 +88,7 @@ impl ScouterProducer {
             #[cfg(not(feature = "rabbitmq"))]
             {
                 return Err(
-                    PyScouterError::new_err("RabbitMQ feature is not enabled".to_string()).into(),
+                    ScouterError::Error("RabbitMQ feature is not enabled".to_string()).into(),
                 );
             }
 
@@ -97,20 +97,20 @@ impl ScouterProducer {
             return Err(PyScouterError::new_err("Invalid config".to_string()).into());
         };
 
-        Ok(ScouterProducer { producer, rt })
+        Ok(ScouterProducer {
+            producer,
+            rt: rt.handle().clone(),
+        })
     }
 
-    pub fn publish(&mut self, message: ServerRecords) -> PyResult<()> {
+    pub fn publish(&mut self, message: ServerRecords) -> Result<(), ScouterError> {
         self.rt
-            .block_on(async { self.producer.publish(message).await })
-            .map_err(|e| PyScouterError::new_err(e.to_string()))?;
+            .block_on(async { self.producer.publish(message).await })?;
         Ok(())
     }
 
-    pub fn flush(&self) -> PyResult<()> {
-        self.rt
-            .block_on(async { self.producer.flush().await })
-            .map_err(|e| PyScouterError::new_err(e.to_string()))?;
+    pub fn flush(&self) -> Result<(), ScouterError> {
+        self.rt.block_on(async { self.producer.flush().await })?;
         Ok(())
     }
 }

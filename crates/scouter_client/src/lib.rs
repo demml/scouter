@@ -1,6 +1,7 @@
 pub mod data_utils;
 pub mod drifter;
 pub mod profiler;
+pub mod queue;
 
 pub use drifter::scouter::PyDrifter;
 pub use profiler::scouter::DataProfiler;

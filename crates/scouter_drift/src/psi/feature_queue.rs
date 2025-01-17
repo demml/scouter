@@ -191,7 +191,7 @@ impl PsiFeatureQueue {
             .any(|bin_map| bin_map.values().any(|count| *count > 0))
     }
 
-    fn clear_queue(&mut self) {
+    pub fn clear_queue(&mut self) {
         self.queue.values_mut().for_each(|bin_map| {
             bin_map.values_mut().for_each(|count| *count = 0);
         });

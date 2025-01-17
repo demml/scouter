@@ -78,7 +78,7 @@ impl SpcFeatureQueue {
     // Create drift records from queue items
     //
     // returns: DriftServerRecords
-    fn create_drift_records(&self) -> Result<ServerRecords, FeatureQueueError> {
+    pub fn create_drift_records(&self) -> Result<ServerRecords, FeatureQueueError> {
         // concatenate all the feature queues into a single ndarray
         let mut arrays: Vec<Array2<f64>> = Vec::new();
         let mut feature_names: Vec<String> = Vec::new();
@@ -118,7 +118,7 @@ impl SpcFeatureQueue {
     }
 
     // Clear all queues
-    fn clear_queue(&mut self) {
+    pub fn clear_queue(&mut self) {
         self.queue.iter_mut().for_each(|(_, queue)| {
             queue.clear();
         });
