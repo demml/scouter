@@ -29,14 +29,14 @@ impl PsiQueue {
         let queue = Arc::new(Mutex::new(PsiFeatureQueue::new(drift_profile)));
         let producer = ScouterProducer::new(config)?;
 
-        let mut psi_queue = PsiQueue {
+        let psi_queue = PsiQueue {
             queue: queue.clone(),
             producer,
             count: 0,
             last_publish: Utc::now().naive_utc(),
         };
 
-        psi_queue.start_background_task(queue);
+        psi_queue.start_background_task(queue)?;
 
         Ok(psi_queue)
     }
