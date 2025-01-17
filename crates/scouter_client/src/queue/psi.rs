@@ -5,9 +5,10 @@ use scouter_error::ScouterError;
 use scouter_events::producer::ScouterProducer;
 use scouter_types::psi::PsiDriftProfile;
 use scouter_types::Features;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
+use tokio::sync::{watch, Mutex};
 use tokio::time::{self, Duration};
-use tracing::error;
+use tracing::{error, info};
 
 const PSI_MAX_QUEUE_SIZE: usize = 1000;
 
@@ -17,6 +18,7 @@ pub struct PsiQueue {
     producer: ScouterProducer,
     count: usize,
     last_publish: NaiveDateTime,
+    stop_tx: Option<watch::Sender<()>>,
 }
 
 #[pymethods]
@@ -29,21 +31,24 @@ impl PsiQueue {
         let queue = Arc::new(Mutex::new(PsiFeatureQueue::new(drift_profile)));
         let producer = ScouterProducer::new(config)?;
 
+        let (stop_tx, stop_rx) = watch::channel(());
+
         let psi_queue = PsiQueue {
             queue: queue.clone(),
             producer,
             count: 0,
             last_publish: Utc::now().naive_utc(),
+            stop_tx: Some(stop_tx),
         };
 
-        psi_queue.start_background_task(queue)?;
+        psi_queue.start_background_task(queue, stop_rx)?;
 
         Ok(psi_queue)
     }
 
     pub fn insert(&mut self, features: Features) -> Result<(), ScouterError> {
         {
-            let mut queue = self.queue.lock().unwrap();
+            let mut queue = self.queue.blocking_lock();
             let insert = queue.insert(features);
 
             // silently fail if insert fails
@@ -78,7 +83,7 @@ impl PsiQueue {
     }
 
     fn _publish(&mut self) -> Result<(), ScouterError> {
-        let mut queue = self.queue.lock().unwrap();
+        let mut queue = self.queue.blocking_lock();
         let records = queue.create_drift_records()?;
 
         if !records.records.is_empty() {
@@ -89,12 +94,20 @@ impl PsiQueue {
 
         Ok(())
     }
+
+    pub fn flush(&mut self) -> Result<(), ScouterError> {
+        if let Some(stop_tx) = self.stop_tx.take() {
+            let _ = stop_tx.send(());
+        }
+        self.producer.flush()
+    }
 }
 
 impl PsiQueue {
     fn start_background_task(
         &self,
         queue: Arc<Mutex<PsiFeatureQueue>>,
+        mut stop_rx: watch::Receiver<()>,
     ) -> Result<(), ScouterError> {
         let queue = queue.clone();
         let mut producer = self.producer.clone();
@@ -106,43 +119,36 @@ impl PsiQueue {
         // spawn the background task using the already cloned handle
         handle.spawn(async move {
             loop {
-                time::sleep(Duration::from_secs(30)).await;
+                tokio::select! {
+                    _ = time::sleep(Duration::from_secs(30)) => {
+                        let now = Utc::now().naive_utc();
+                        let elapsed = now - last_publish;
 
-                let now = Utc::now().naive_utc();
-                let elapsed = now - last_publish;
+                        if elapsed.num_seconds() >= 30 {
+                            let mut queue = queue.blocking_lock();
+                            let records = match queue.create_drift_records() {
+                                Ok(records) => records,
+                                Err(e) => {
+                                    error!("Failed to create drift records: {:?}", e.to_string());
+                                    continue;
+                                }
+                            };
 
-                if elapsed.num_seconds() >= 30 {
-                    let mut queue = match queue.lock() {
-                        Ok(queue) => queue,
-                        Err(e) => {
-                            error!("Failed to lock queue: {:?}", e.to_string());
-                            continue;
+                            if let Err(e) = producer.publish(records) {
+                                error!("Failed to publish drift records: {:?}", e.to_string());
+                                continue;
+                            }
+
+                            queue.clear_queue();
                         }
-                    };
-
-                    let records = match queue.create_drift_records() {
-                        Ok(records) => records,
-                        Err(e) => {
-                            error!("Failed to create drift records: {:?}", e.to_string());
-                            continue;
-                        }
-                    };
-
-                    // no records to publish
-                    if records.records.is_empty() {
-                        continue;
+                    },
+                    _ = stop_rx.changed() => {
+                        info!("Stopping background task");
+                        break;
                     }
-
-                    if let Err(e) = producer.publish(records) {
-                        error!("Failed to publish drift records: {:?}", e.to_string());
-                        continue;
-                    }
-
-                    queue.clear_queue();
                 }
             }
         });
-
         Ok(())
     }
 }

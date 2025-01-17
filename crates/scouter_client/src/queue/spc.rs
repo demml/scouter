@@ -67,4 +67,8 @@ impl SpcQueue {
 
         Ok(())
     }
+
+    pub fn flush(&mut self) -> Result<(), ScouterError> {
+        self.producer.flush()
+    }
 }

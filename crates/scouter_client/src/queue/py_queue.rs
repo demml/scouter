@@ -1,70 +1,86 @@
+use crate::queue::psi::PsiQueue;
+use crate::queue::spc::SpcQueue;
 use pyo3::prelude::*;
-use scouter_drift::spc::SpcFeatureQueue;
-use scouter_error::ScouterError;
-use scouter_events::producer::ScouterProducer;
+use scouter_error::{PyScouterError, ScouterError};
+use scouter_types::psi::PsiDriftProfile;
 use scouter_types::spc::SpcDriftProfile;
+use scouter_types::DriftType;
 use scouter_types::Features;
-use tracing::error;
 
-#[pyclass]
-pub struct SpcQueue {
-    queue: SpcFeatureQueue,
-    producer: ScouterProducer,
-    count: usize,
+pub enum Queue {
+    Spc(SpcQueue),
+    Psi(PsiQueue),
 }
 
-#[pymethods]
-impl SpcQueue {
-    #[new]
+impl Queue {
     pub fn new(
-        drift_profile: SpcDriftProfile,
+        drift_profile: &Bound<'_, PyAny>,
         config: &Bound<'_, PyAny>,
     ) -> Result<Self, ScouterError> {
-        Ok(SpcQueue {
-            queue: SpcFeatureQueue::new(drift_profile),
-            producer: ScouterProducer::new(config)?,
-            count: 0,
-        })
+        let drift_type = drift_profile
+            .getattr("config")?
+            .getattr("drift_type")?
+            .extract::<DriftType>()?;
+
+        match drift_type {
+            DriftType::Spc => {
+                let drift_profile = drift_profile.extract::<SpcDriftProfile>()?;
+                Ok(Queue::Spc(SpcQueue::new(drift_profile, config)?))
+            }
+            DriftType::Psi => {
+                let drift_profile = drift_profile.extract::<PsiDriftProfile>()?;
+                Ok(Queue::Psi(PsiQueue::new(drift_profile, config)?))
+            }
+            _ => Err(ScouterError::Error("Invalid drift type".to_string())),
+        }
     }
 
     pub fn insert(&mut self, features: Features) -> Result<(), ScouterError> {
-        let insert = self.queue.insert(features);
-
-        // silently fail if insert fails
-        if insert.is_err() {
-            error!(
-                "Failed to insert features into queue: {:?}",
-                insert.unwrap_err().to_string()
-            );
-            return Ok(());
+        match self {
+            Queue::Spc(queue) => queue.insert(features),
+            Queue::Psi(queue) => queue.insert(features),
         }
-
-        self.count += 1;
-
-        if self.count >= self.queue.drift_profile.config.sample_size {
-            let publish = self._publish();
-
-            // silently fail if publish fails
-            if publish.is_err() {
-                // log error as string
-                error!(
-                    "Failed to publish drift records: {:?}",
-                    publish.unwrap_err().to_string()
-                );
-                return Ok(());
-            }
-
-            self.count = 0;
-        }
-
-        Ok(())
     }
 
-    fn _publish(&mut self) -> Result<(), ScouterError> {
-        let records = self.queue.create_drift_records()?;
-        self.producer.publish(records)?;
-        self.queue.clear_queue();
+    pub fn flush(&mut self) -> Result<(), ScouterError> {
+        match self {
+            Queue::Spc(queue) => queue.flush(),
+            Queue::Psi(queue) => queue.flush(),
+        }
+    }
+}
 
-        Ok(())
+#[pyclass]
+pub struct ScouterQueue {
+    queue: Queue,
+}
+
+#[pymethods]
+impl ScouterQueue {
+    #[new]
+    pub fn new(
+        drift_profile: &Bound<'_, PyAny>,
+        config: &Bound<'_, PyAny>,
+    ) -> Result<Self, ScouterError> {
+        Ok(ScouterQueue {
+            queue: Queue::new(drift_profile, config)?,
+        })
+    }
+
+    pub fn insert(&mut self, features: Features) -> PyResult<()> {
+        self.queue
+            .insert(features)
+            .map_err(|e| PyScouterError::new_err(e.to_string()))
+    }
+
+    pub fn flush(&mut self) -> PyResult<()> {
+        match &mut self.queue {
+            Queue::Spc(queue) => queue
+                .flush()
+                .map_err(|e| PyScouterError::new_err(e.to_string())),
+            Queue::Psi(queue) => queue
+                .flush()
+                .map_err(|e| PyScouterError::new_err(e.to_string())),
+        }
     }
 }
