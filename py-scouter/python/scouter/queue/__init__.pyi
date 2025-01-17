@@ -1,6 +1,6 @@
-from typing import Dict, Optional
+from typing import Dict, Optional, Union
 
-from scouter import LogLevel
+from scouter import LogLevel, ServerRecords
 
 class KafkaConfig:
     brokers: str
@@ -124,3 +124,31 @@ class RabbitMQConfig:
                 Whether to raise an error if message delivery fails.
                 Default is False.
         """
+
+
+class ScouterProducer:
+    
+    def __init__(self, config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig]) -> None:
+        """Top-level Producer class. 
+
+        Args:
+            config:
+                Configuration object for the producer that specifies the type of producer to use.
+        """
+
+        ...
+        
+    def publish(self, message: ServerRecords) -> None:
+        """Publish a message to the queue.
+
+        Args:
+            message:
+                Message to publish.
+        """
+
+        ...
+        
+    def flush(self) -> None:
+        """Flush the producer queue."""
+
+        ...
