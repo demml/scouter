@@ -121,7 +121,7 @@ impl PsiQueue {
         handle.spawn(async move {
             loop {
                 tokio::select! {
-                    _ = time::sleep(Duration::from_secs(30)) => {
+                    _ = time::sleep(Duration::from_secs(2)) => {
                         let now = Utc::now().naive_utc();
                         let elapsed = now - last_publish;
 

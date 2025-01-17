@@ -96,7 +96,9 @@ build.all_backends:
 
 .PHONE: build.server
 build.server: build.all_backends
-	cargo build -p scouter-server --all-features
+	export KAFKA_BROKERS=localhost:9092 && \
+	export RABBITMQ_ADDR=amqp://guest:guest@127.0.0.1:5672/%2f && \
+	cargo build -p scouter-server --all-features && \
 	./target/debug/scouter-server &
 
 

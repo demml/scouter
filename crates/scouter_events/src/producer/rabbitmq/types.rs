@@ -32,7 +32,7 @@ impl RabbitMQConfig {
     ) -> Self {
 
         // build address
-        let address =  std::env::var("RABBITMQ_ADDRESS")
+        let address =  std::env::var("RABBITMQ_ADDR")
             .unwrap_or_else(|_| {
                
                     let host = host.unwrap_or_else(|| {

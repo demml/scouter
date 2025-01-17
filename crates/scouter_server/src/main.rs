@@ -195,7 +195,7 @@ mod tests {
             }
 
             if enable_rabbitmq {
-                std::env::set_var("RABBITMQ_ADDRESS", "amqp://guest:guest@127.0.0.1:5672/%2f");
+                std::env::set_var("RABBITMQ_ADDR", "amqp://guest:guest@127.0.0.1:5672/%2f");
             }
 
             let mut config = ScouterServerConfig::default();
