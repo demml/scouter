@@ -35,7 +35,7 @@ impl PsiQueue {
         // psi queue needs a tokio runtime to run background tasks
         // This runtime needs to be separate from the producer runtime
         let rt = Arc::new(tokio::runtime::Runtime::new().unwrap());
-        
+
         let producer = ScouterProducer::new(config)?;
 
         let (stop_tx, stop_rx) = watch::channel(());

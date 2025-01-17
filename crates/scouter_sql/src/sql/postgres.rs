@@ -1,6 +1,7 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::{
-    AlertResult, FeatureBinProportionWrapper, ObservabilityResult, SpcFeatureResult, TaskRequest,
+    AlertResult, FeatureBinProportionResult, FeatureBinProportionWrapper, ObservabilityResult,
+    SpcFeatureResult, TaskRequest,
 };
 use chrono::{NaiveDateTime, Utc};
 use cron::Schedule;
@@ -442,8 +443,11 @@ impl PostgresClient {
 
     // Queries the database for all features under a service
     // Private method that'll be used to run drift retrieval in parallel
-    pub async fn get_features(&self, service_info: &ServiceInfo) -> Result<Vec<String>, SqlError> {
-        let query = Queries::GetFeatures.get_query();
+    pub async fn get_spc_features(
+        &self,
+        service_info: &ServiceInfo,
+    ) -> Result<Vec<String>, SqlError> {
+        let query = Queries::GetSpcFeatures.get_query();
 
         sqlx::query(&query.sql)
             .bind(&service_info.name)
@@ -513,10 +517,9 @@ impl PostgresClient {
         })
     }
 
-    async fn get_spc_binned_feature_values(
+    async fn get_binned_spc_feature_values(
         &self,
         bin: &f64,
-        features: &[String],
         version: &str,
         time_window: &TimeInterval,
         repository: &str,
@@ -530,7 +533,6 @@ impl PostgresClient {
             .bind(name)
             .bind(repository)
             .bind(version)
-            .bind(features)
             .fetch_all(&self.pool)
             .await;
 
@@ -538,6 +540,35 @@ impl PostgresClient {
             error!("Failed to run query: {:?}", e);
             SqlError::QueryError(format!("Failed to run query: {:?}", e))
         })
+    }
+
+    async fn get_binned_psi_feature_values(
+        &self,
+        bin: &f64,
+        version: &str,
+        time_window: &TimeInterval,
+        repository: &str,
+        name: &str,
+    ) -> Result<Vec<FeatureBinProportionResult>, SqlError> {
+        let query = Queries::GetBinnedPsiFeatureBins.get_query();
+
+        let binned: Result<Vec<FeatureBinProportionResult>, sqlx::Error> =
+            sqlx::query_as(&query.sql)
+                .bind(bin)
+                .bind(time_window.to_minutes())
+                .bind(name)
+                .bind(repository)
+                .bind(version)
+                .fetch_all(&self.pool)
+                .await;
+        
+
+        binned.map_err(|e| {
+            error!("Failed to run query: {:?}", e);
+            SqlError::QueryError(format!("Failed to run query: {:?}", e))
+        })
+
+    
     }
 
     // Queries the database for drift records based on a time window and aggregation
@@ -553,23 +584,46 @@ impl PostgresClient {
     // # Returns
     //
     // * A vector of drift records
-    pub async fn get_binned_drift_records(
+    pub async fn get_binned_spc_drift_records(
         &self,
         params: &DriftRequest,
     ) -> Result<Vec<SpcFeatureResult>, SqlError> {
-        let service_info = ServiceInfo {
-            repository: params.repository.clone(),
-            name: params.name.clone(),
-            version: params.version.clone(),
-        };
-        // get features
-        let features = self.get_features(&service_info).await?;
+        //let features = self.get_spc_features(&service_info).await?;
         let time_window_f64 = params.time_window.to_minutes() as f64;
         let bin = time_window_f64 / params.max_data_points as f64;
 
-        self.get_spc_binned_feature_values(
+        self.get_binned_spc_feature_values(
             &bin,
-            &features,
+            &params.version,
+            &params.time_window,
+            &params.repository,
+            &params.name,
+        )
+        .await
+    }
+
+    // Queries the database for drift records based on a time window and aggregation
+    //
+    // # Arguments
+    //
+    // * `name` - The name of the service to query drift records for
+    // * `repository` - The name of the repository to query drift records for
+    // * `feature` - The name of the feature to query drift records for
+    // * `aggregation` - The aggregation to use for the query
+    // * `time_window` - The time window to query drift records for
+    //
+    // # Returns
+    //
+    // * A vector of drift records
+    pub async fn get_binned_psi_drift_records(
+        &self,
+        params: &DriftRequest,
+    ) -> Result<Vec<FeatureBinProportionResult>, SqlError> {
+        // get features
+        let time_window_f64 = params.time_window.to_minutes() as f64;
+        let bin = time_window_f64 / params.max_data_points as f64;
+        self.get_binned_psi_feature_values(
+            &bin,
             &params.version,
             &params.time_window,
             &params.repository,
@@ -584,7 +638,7 @@ impl PostgresClient {
         limit_datetime: &NaiveDateTime,
         features_to_monitor: &[String],
     ) -> Result<Vec<SpcFeatureResult>, SqlError> {
-        let mut features = self.get_features(service_info).await?;
+        let mut features = self.get_spc_features(service_info).await?;
 
         if !features_to_monitor.is_empty() {
             features.retain(|feature| features_to_monitor.contains(feature));
@@ -953,7 +1007,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_postgres_cru_drift_profile() {
+    async fn test_postgres_crud_drift_profile() {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
 
@@ -1029,7 +1083,7 @@ mod tests {
             version: "test".to_string(),
         };
 
-        let features = client.get_features(&service_info).await.unwrap();
+        let features = client.get_spc_features(&service_info).await.unwrap();
         assert_eq!(features.len(), 10);
 
         let records = client
@@ -1040,7 +1094,7 @@ mod tests {
         assert_eq!(records.len(), 10);
 
         let binned_records = client
-            .get_binned_drift_records(&DriftRequest {
+            .get_binned_spc_drift_records(&DriftRequest {
                 name: "test".to_string(),
                 repository: "test".to_string(),
                 version: "test".to_string(),
@@ -1099,6 +1153,19 @@ mod tests {
             .get("decile_1")
             .unwrap();
         assert!(*bin_proportion > 0.4 && *bin_proportion < 0.6);
+
+        let binned_records = client
+           .get_binned_psi_drift_records(&DriftRequest {
+               name: "test".to_string(),
+               repository: "test".to_string(),
+               version: "test".to_string(),
+               time_window: TimeInterval::OneHour,
+               max_data_points: 1000,
+           })
+           .await
+           .unwrap();
+//
+        assert_eq!(binned_records.len(), 1);
     }
 
     #[tokio::test]

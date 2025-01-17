@@ -32,7 +32,6 @@ impl Routes {
 #[pyclass]
 #[derive(Debug, Clone)]
 pub struct HTTPConfig {
-
     #[pyo3(get, set)]
     pub server_url: String,
 

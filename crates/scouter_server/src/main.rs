@@ -116,7 +116,10 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
 
     let router = create_app(config).await?;
 
-    info!("🚀 Scouter Server started successfully on {:?}", addr.clone().to_string());
+    info!(
+        "🚀 Scouter Server started successfully on {:?}",
+        addr.clone().to_string()
+    );
     axum::serve(listener, router)
         .await
         .with_context(|| "Failed to start main server")?;

@@ -82,7 +82,6 @@ fn add_kafka_args(
 #[pyclass]
 #[derive(Clone)]
 pub struct KafkaConfig {
-
     #[pyo3(get, set)]
     pub brokers: String,
 
@@ -125,7 +124,7 @@ impl KafkaConfig {
         message_max_bytes: Option<i32>,
         log_level: Option<LogLevel>,
         config: Option<&Bound<'_, PyDict>>,
-        max_retries : Option<i32>,
+        max_retries: Option<i32>,
     ) -> Result<Self, ScouterError> {
         let brokers = brokers.unwrap_or_else(|| {
             env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_string())

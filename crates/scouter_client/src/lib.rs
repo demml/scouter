@@ -1,8 +1,8 @@
 pub mod data_utils;
 pub mod drifter;
+pub mod http;
 pub mod profiler;
 pub mod queue;
-pub mod http;
 
 pub use drifter::scouter::PyDrifter;
 pub use profiler::scouter::DataProfiler;
@@ -26,7 +26,9 @@ pub use scouter_types::{
     RouteMetrics, ServerRecord, ServerRecords, SpcServerRecord, TimeInterval,
 };
 
+pub use crate::http::{ScouterClient, SpcFeatureResult};
 pub use queue::ScouterQueue;
+pub use scouter_contracts::DriftRequest;
 pub use scouter_drift::{
     psi::{PsiFeatureQueue, PsiMonitor},
     spc::{generate_alerts, SpcDriftMap, SpcFeatureDrift, SpcFeatureQueue, SpcMonitor},
@@ -41,6 +43,3 @@ pub use scouter_profile::{
     compute_feature_correlations, DataProfile, Distinct, FeatureProfile, Histogram, NumProfiler,
     StringProfiler,
 };
-pub use crate::http::{ScouterClient, SpcFeatureResult};
-pub use scouter_contracts::DriftRequest;
-

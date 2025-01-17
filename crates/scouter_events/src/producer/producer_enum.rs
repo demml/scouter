@@ -5,10 +5,10 @@ pub use crate::producer::kafka::{KafkaConfig, KafkaProducer};
 pub use crate::producer::rabbitmq::{RabbitMQConfig, RabbitMQProducer};
 
 pub use crate::producer::http::{HTTPConfig, HTTPProducer};
+use pyo3::prelude::*;
 use scouter_error::{PyScouterError, ScouterError};
 use scouter_types::ServerRecords;
 use std::sync::Arc;
-use pyo3::prelude::*;
 
 #[derive(Clone)]
 pub enum ProducerEnum {
@@ -98,11 +98,7 @@ impl ScouterProducer {
             return Err(PyScouterError::new_err("Invalid config".to_string()).into());
         };
 
-        Ok(ScouterProducer {
-
-            producer,
-            rt,
-        })
+        Ok(ScouterProducer { producer, rt })
     }
 
     pub fn publish(&mut self, message: ServerRecords) -> Result<(), ScouterError> {

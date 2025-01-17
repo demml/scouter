@@ -17,15 +17,10 @@ pub mod rabbitmq_producer {
     }
 
     impl RabbitMQProducer {
-        pub async fn new(
-            config: RabbitMQConfig,
-        ) -> Result<Self, ScouterError> {
+        pub async fn new(config: RabbitMQConfig) -> Result<Self, ScouterError> {
             let producer = RabbitMQProducer::setup_producer(&config).await?;
 
-            Ok(RabbitMQProducer {
-                config,
-                producer,
-            })
+            Ok(RabbitMQProducer { config, producer })
         }
 
         async fn setup_producer(config: &RabbitMQConfig) -> Result<Channel, ScouterError> {

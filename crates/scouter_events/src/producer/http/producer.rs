@@ -212,7 +212,6 @@ impl HTTPClient {
 
         Ok(response)
     }
-
 }
 
 #[derive(Debug, Clone)]
@@ -221,18 +220,17 @@ pub struct HTTPProducer {
 }
 
 impl HTTPProducer {
-
     pub async fn new(config: HTTPConfig) -> Result<Self, ScouterError> {
         let client = HTTPClient::new(config).await?;
         Ok(HTTPProducer { client })
     }
-    
 
     pub async fn publish(&mut self, message: ServerRecords) -> Result<(), ScouterError> {
         let serialized_msg: Value = serde_json::to_value(&message).map_err(|e| {
             ScouterError::Error(format!("Failed to serialize message with error: {}", e))
         })?;
-        let response = self.client
+        let response = self
+            .client
             .request_with_retry(
                 Routes::Drift,
                 RequestType::Post,

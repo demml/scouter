@@ -2,8 +2,10 @@
 
 const INSERT_DRIFT_RECORD: &str = include_str!("scripts/insert_drift_record.sql");
 const INSERT_BIN_COUNTS: &str = include_str!("scripts/insert_bin_counts.sql");
-const GET_FEATURES: &str = include_str!("scripts/unique_features.sql");
+const GET_SPC_FEATURES: &str = include_str!("scripts/unique_spc_features.sql");
 const GET_BINNED_SPC_FEATURE_VALUES: &str = include_str!("scripts/binned_spc_feature_values.sql");
+const GET_BINNED_PSI_FEATURE_BINS: &str =
+    include_str!("scripts/binned_psi_feature_bin_proportions.sql");
 const GET_SPC_FEATURE_VALUES: &str = include_str!("scripts/get_spc_feature_values.sql");
 const GET_BINNED_OBSERVABILITY_METRICS: &str =
     include_str!("scripts/binned_observability_metrics.sql");
@@ -23,7 +25,7 @@ const INSERT_CUSTOM_METRIC_VALUES: &str = include_str!("scripts/insert_custom_me
 
 #[allow(dead_code)]
 pub enum Queries {
-    GetFeatures,
+    GetSpcFeatures,
     InsertDriftRecord,
     InsertBinCounts,
     InsertDriftProfile,
@@ -31,6 +33,7 @@ pub enum Queries {
     InsertObservabilityRecord,
     GetDriftAlerts,
     GetBinnedSpcFeatureValues,
+    GetBinnedPsiFeatureBins,
     GetBinnedObservabilityMetrics,
     GetSpcFeatureValues,
     GetDriftTask,
@@ -47,9 +50,10 @@ impl Queries {
     pub fn get_query(&self) -> SqlQuery {
         match self {
             // load sql file from scripts/insert.sql
-            Queries::GetFeatures => SqlQuery::new(GET_FEATURES),
+            Queries::GetSpcFeatures => SqlQuery::new(GET_SPC_FEATURES),
             Queries::InsertDriftRecord => SqlQuery::new(INSERT_DRIFT_RECORD),
             Queries::GetBinnedSpcFeatureValues => SqlQuery::new(GET_BINNED_SPC_FEATURE_VALUES),
+            Queries::GetBinnedPsiFeatureBins => SqlQuery::new(GET_BINNED_PSI_FEATURE_BINS),
             Queries::GetBinnedObservabilityMetrics => {
                 SqlQuery::new(GET_BINNED_OBSERVABILITY_METRICS)
             }

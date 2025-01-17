@@ -1,6 +1,6 @@
+pub mod client;
 pub mod logging;
 pub mod queue;
-pub mod client;
 
 use pyo3::prelude::*;
 use scouter_client::*;

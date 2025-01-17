@@ -21,7 +21,6 @@ pub struct FeatureResult {
     pub values: Vec<f64>,
 }
 
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpcFeatureResult {
     pub feature: String,
@@ -147,6 +146,36 @@ impl<'r> FromRow<'r, PgRow> for ObservabilityResult {
             total_error_count: row.try_get("total_error_count")?,
             error_latency: row.try_get("error_latency")?,
             status_counts,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct BinProportion {
+    pub bin_id: String,
+    pub proportion: f64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FeatureBinProportionResult {
+    pub feature: String,
+    pub created_at: Vec<NaiveDateTime>,
+    pub bin_proportions: Vec<Vec<BinProportion>>,
+}
+
+impl<'r> FromRow<'r, PgRow> for FeatureBinProportionResult {
+    fn from_row(row: &'r PgRow) -> Result<Self, Error> {
+        // Extract the bin_proportions as a Vec of tuples
+        let bin_proportions_json: serde_json::Value = row.try_get("bin_proportions")?;
+
+        // Convert the Vec of tuples into a Vec of BinProportion structs
+        let bin_proportions: Vec<Vec<BinProportion>> = serde_json::from_value(bin_proportions_json).unwrap();
+
+        Ok(FeatureBinProportionResult {
+            feature: row.try_get("feature")?,
+            created_at: row.try_get("created_at")?,
+            bin_proportions: bin_proportions,
+        
         })
     }
 }

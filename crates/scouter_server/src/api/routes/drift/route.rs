@@ -20,7 +20,7 @@ pub async fn get_drift(
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // validate time window
 
-    let query_result = &data.db.get_binned_drift_records(&params).await;
+    let query_result = &data.db.get_binned_spc_drift_records(&params).await;
 
     match query_result {
         Ok(result) => {

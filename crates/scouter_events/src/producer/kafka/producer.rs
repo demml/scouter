@@ -27,10 +27,7 @@ pub mod kafka_producer {
         pub fn new(config: KafkaConfig) -> Result<Self, ScouterError> {
             let producer = KafkaProducer::setup_producer(&config.config, &config.log_level)?;
 
-            Ok(KafkaProducer {
-                config,
-                producer,
-            })
+            Ok(KafkaProducer { config, producer })
         }
 
         pub async fn publish(&self, message: ServerRecords) -> Result<(), ScouterError> {

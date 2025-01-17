@@ -13,7 +13,6 @@ WITH subquery1 AS (
         AND name = $3
         AND repository = $4
         AND version = $5
-        AND feature = ANY($6)
     ),
 
     subquery2 AS (
