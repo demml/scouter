@@ -33,7 +33,7 @@ pub use scouter_drift::{
 };
 pub use scouter_error::{ProfilerError, PyScouterError, ScouterError};
 pub use scouter_events::producer::{
-    http::HTTPConfig, kafka::KafkaConfig, rabbitmq::RabbitMQConfig,
+    http::HTTPConfig, kafka::KafkaConfig, rabbitmq::RabbitMQConfig, ScouterProducer,
 };
 pub use scouter_observability::Observer;
 pub use scouter_profile::{

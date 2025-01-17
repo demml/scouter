@@ -125,11 +125,9 @@ class RabbitMQConfig:
                 Default is False.
         """
 
-
 class ScouterProducer:
-    
     def __init__(self, config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig]) -> None:
-        """Top-level Producer class. 
+        """Top-level Producer class.
 
         Args:
             config:
@@ -137,7 +135,7 @@ class ScouterProducer:
         """
 
         ...
-        
+
     def publish(self, message: ServerRecords) -> None:
         """Publish a message to the queue.
 
@@ -147,7 +145,7 @@ class ScouterProducer:
         """
 
         ...
-        
+
     def flush(self) -> None:
         """Flush the producer queue."""
 
