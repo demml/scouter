@@ -15,14 +15,14 @@ from scouter import (
     CustomMetricAlertConfig,
     CustomMetricDriftConfig,
     Drifter,
-    HTTPConfig,
-    KafkaConfig,
+    Feature,
+    Features,
     PsiDriftConfig,
+    SpcDriftConfig,
     SpcDriftProfile,
 )
-from scouter._scouter import Feature, Features, SpcDriftConfig
-from scouter.integrations.fastapi import FastAPIScouterObserver, ScouterRouter
-from scouter.observability.observer import ScouterObserver
+from scouter.integrations.fastapi import ScouterRouter
+from scouter.queue import HTTPConfig, KafkaConfig
 
 T = TypeVar("T")
 YieldFixture = Generator[T, None, None]
@@ -262,14 +262,6 @@ def pandas_categorical_dataframe() -> YieldFixture:
     cleanup()
 
 
-@pytest.fixture
-def mock_kafka_producer():
-    with patch("confluent_kafka.Producer") as mocked_kafka:
-        mocked_kafka.return_value.produce.return_value = None
-        mocked_kafka.return_value.poll.return_value = 0
-        mocked_kafka.return_value.flush.return_value = 0
-        yield mocked_kafka
-
 
 @pytest.fixture
 def mock_rabbit_connection():
@@ -312,11 +304,11 @@ def mock_httpx_producer():
 
 
 @pytest.fixture
-def client(mock_kafka_producer, drift_profile: SpcDriftProfile) -> TestClient:
+def kafka_client(drift_profile: SpcDriftProfile) -> TestClient:
     config = KafkaConfig(
         topic="test-topic",
         brokers="localhost:9092",
-        raise_on_err=True,
+        raise_on_error=True,
         config={"bootstrap.servers": "localhost:9092"},
     )
 
@@ -358,7 +350,6 @@ def client_insert(
 
     # define scouter router
     scouter_router = ScouterRouter(drift_profile=drift_profile, config=config)
-    observer = FastAPIScouterObserver(drift_profile, config)
 
     @scouter_router.post("/predict", response_model=TestResponse)
     async def predict(request: Request, payload: PredictRequest) -> TestResponse:
@@ -367,7 +358,6 @@ def client_insert(
         return TestResponse(message="success")
 
     app.include_router(scouter_router)
-    observer.observe(app)
 
     return TestClient(app)
 
@@ -380,19 +370,6 @@ def kafka_config():
         raise_on_err=True,
     )
 
-
-@pytest.fixture
-def scouter_observer(kafka_config: KafkaConfig):
-    with patch("scouter.Observer") as MockObserver:
-        mock_observer = MockObserver.return_value
-        scouter_observer = ScouterObserver(
-            "repo",
-            "name",
-            "version",
-            kafka_config,
-        )
-        yield scouter_observer, mock_observer
-        scouter_observer.stop()
 
 
 @pytest.fixture(scope="function")

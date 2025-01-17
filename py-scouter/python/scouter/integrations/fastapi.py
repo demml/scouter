@@ -1,15 +1,14 @@
 import functools
-import time
 from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Awaitable, Callable, Union
 
 from pydantic import BaseModel
-from scouter import MonitorQueue, PsiDriftProfile, ScouterObserver, SpcDriftProfile
+from scouter import PsiDriftProfile, SpcDriftProfile
+from scouter.queue import ScouterQueue
 
 try:
-    from fastapi import APIRouter, BackgroundTasks, FastAPI, Request, Response
+    from fastapi import APIRouter, BackgroundTasks, FastAPI, Request
     from fastapi.responses import JSONResponse
-    from starlette.middleware.base import BaseHTTPMiddleware
 except ImportError as exc:
     raise ImportError(
         """FastAPI is not installed as a scouter extra. 
@@ -23,7 +22,7 @@ class ScouterMixin:
         drift_profile: Union[SpcDriftProfile, PsiDriftProfile],
         config: Any,
     ) -> None:
-        self._queue = MonitorQueue(drift_profile, config)
+        self._queue = ScouterQueue(drift_profile, config)
 
     def add_api_route(self, path: str, endpoint: Callable[..., Awaitable[Any]], **kwargs: Any) -> None:
         if "request" not in endpoint.__code__.co_varnames:
@@ -74,62 +73,3 @@ class ScouterRouter(ScouterMixin, APIRouter):
 
         kwargs["lifespan"] = lifespan
         APIRouter.__init__(self, *args, **kwargs)
-
-
-class _ScouterMiddleware:
-    def __init__(self, observer: ScouterObserver):
-        self.observer = observer
-
-    async def __call__(self, request: Request, call_next: Callable):
-        start_time = time.time()
-        response: Response = await call_next(request)
-        process_time = time.time() - start_time
-
-        self.observer.add_request_metrics(
-            route=request.url.path,
-            latency=process_time,
-            status_code=response.status_code,
-        )
-
-        return response
-
-
-class FastAPIScouterObserver:
-    def __init__(
-        self,
-        drift_profile: Union[SpcDriftProfile],
-        config: Any,
-    ) -> None:
-        self._observer = ScouterObserver(
-            repository=drift_profile.config.repository,
-            name=drift_profile.config.name,
-            version=drift_profile.config.version,
-            config=config,
-        )
-
-    def observe(self, app: FastAPI) -> None:
-        app.add_middleware(
-            BaseHTTPMiddleware,
-            dispatch=_ScouterMiddleware(self._observer),
-        )
-
-        @asynccontextmanager
-        async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-            # Code to run when the application starts
-            yield
-            self._observer.stop()
-
-        if app.router.lifespan_context:
-            original_lifespan = app.router.lifespan_context
-
-            @asynccontextmanager
-            async def combined_lifespan(
-                app: FastAPI,
-            ) -> AsyncGenerator[None, None]:
-                async with original_lifespan(app):
-                    async with lifespan(app):
-                        yield
-
-            app.router.lifespan_context = combined_lifespan
-        else:
-            app.router.lifespan_context = lifespan

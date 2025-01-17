@@ -1,6 +1,6 @@
 from typing import Dict, Optional, Union
 
-from scouter import LogLevel, PsiDriftProfile, ServerRecords, SpcDriftProfile, Features
+from scouter import Features, LogLevel, PsiDriftProfile, ServerRecords, SpcDriftProfile
 
 class KafkaConfig:
     brokers: str
@@ -16,7 +16,7 @@ class KafkaConfig:
         brokers: Optional[str] = None,
         topic: Optional[str] = None,
         compression_type: Optional[str] = None,
-        raise_one_error: bool = False,
+        raise_on_error: bool = False,
         message_timeout_ms: int = 600_000,
         message_max_bytes: int = 2097164,
         log_level: LogLevel = LogLevel.Info,
@@ -168,7 +168,7 @@ class ScouterQueue:
         """
 
         ...
-        
+
     def insert(self, features: Features) -> None:
         """Insert features into the queue.
 
@@ -178,7 +178,7 @@ class ScouterQueue:
         """
 
         ...
-        
+
     def flush(self) -> None:
         """Flush the queue."""
 

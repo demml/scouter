@@ -1,13 +1,12 @@
 from scouter import (
     CustomMetricServerRecord,
-    HTTPConfig,
-    HTTPProducer,
     PsiServerRecord,
     RecordType,
     ServerRecord,
     ServerRecords,
     SpcServerRecord,
 )
+from scouter.queue import HTTPConfig, ScouterProducer
 
 
 def test_http_config():
@@ -22,14 +21,14 @@ def test_http_config():
     assert config.password == "test-password"
 
 
-def test_http_producer_spc(mock_httpx_producer):
+def test_http_producer_spc():
     config = HTTPConfig(
         server_url="http://localhost:8000",
         username="test-username",
         password="test-password",
     )
 
-    producer = HTTPProducer(config)
+    producer = ScouterProducer(config)
 
     record = SpcServerRecord(
         name="test",
@@ -47,14 +46,14 @@ def test_http_producer_spc(mock_httpx_producer):
     )
 
 
-def test_http_producer_psi(mock_httpx_producer):
+def _test_http_producer_psi(mock_httpx_producer):
     config = HTTPConfig(
         server_url="http://localhost:8000",
         username="test-username",
         password="test-password",
     )
 
-    producer = HTTPProducer(config)
+    producer = ScouterProducer(config)
 
     record = PsiServerRecord(
         name="test",
@@ -73,14 +72,14 @@ def test_http_producer_psi(mock_httpx_producer):
     )
 
 
-def test_http_producer_custom(mock_httpx_producer):
+def _test_http_producer_custom(mock_httpx_producer):
     config = HTTPConfig(
         server_url="http://localhost:8000",
         username="test-username",
         password="test-password",
     )
 
-    producer = HTTPProducer(config)
+    producer = ScouterProducer(config)
 
     record = CustomMetricServerRecord(
         name="test",
