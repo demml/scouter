@@ -84,3 +84,22 @@ test: test.needs_sql test.unit
 .PHONY: shutdown
 shutdown:
 	docker compose down
+
+
+
+###### Server tests
+
+.PHONY: build.all_backends
+build.all_backends:
+	docker compose down
+	docker compose up -d --build server-backends --wait
+
+
+.PHONE: build.server
+build.server:
+	cargo build -p scouter-server --all-features
+	./target/debug/scouter-server &
+
+.PHONE: stop.server
+stop.server:
+	lsof -ti:8000 | xargs kill -9

@@ -110,13 +110,13 @@ async fn create_app(config: ScouterServerConfig) -> Result<Router, anyhow::Error
 async fn start_main_server() -> Result<(), anyhow::Error> {
     let config = ScouterServerConfig::default();
     let addr = format!("0.0.0.0:{}", config.server_port.clone());
-    let listener = tokio::net::TcpListener::bind(addr)
+    let listener = tokio::net::TcpListener::bind(addr.clone())
         .await
         .with_context(|| "Failed to bind to port 8000")?;
 
     let router = create_app(config).await?;
 
-    info!("🚀 Scouter Server started successfully");
+    info!("🚀 Scouter Server started successfully on {:?}", addr.clone().to_string());
     axum::serve(listener, router)
         .await
         .with_context(|| "Failed to start main server")?;

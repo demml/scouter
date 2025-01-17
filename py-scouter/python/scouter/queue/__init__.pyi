@@ -105,16 +105,31 @@ class RabbitMQConfig:
 
     def __init__(
         self,
-        address: Optional[str] = None,
+        host: Optional[str] = None,
+        port: Optional[int] = None,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
         queue: Optional[str] = None,
         raise_on_error: bool = False,
     ) -> None:
         """RabbitMQ configuration to use with the RabbitMQProducer.
 
         Args:
-            address:
-                RabbitMQ address.
-                If not provided, the value of the RABBITMQ_ADDRESS environment variable is used.
+            host:
+                RabbitMQ host.
+                If not provided, the value of the RABBITMQ_HOST environment variable is used.
+
+            port:
+                RabbitMQ port.
+                If not provided, the value of the RABBITMQ_PORT environment variable is used.
+
+            username:
+                RabbitMQ username.
+                If not provided, the value of the RABBITMQ_USERNAME environment variable is used.
+
+            password:
+                RabbitMQ password.
+                If not provided, the value of the RABBITMQ_PASSWORD environment variable is used.
 
             queue:
                 RabbitMQ queue to publish messages to.
@@ -126,12 +141,20 @@ class RabbitMQConfig:
         """
 
 class ScouterProducer:
-    def __init__(self, config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig]) -> None:
+    def __init__(
+        self,
+        config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig],
+        max_retries: Optional[int] = 3,
+    ) -> None:
         """Top-level Producer class.
 
         Args:
             config:
                 Configuration object for the producer that specifies the type of producer to use.
+
+            max_retries:
+                Maximum number of retries to attempt when publishing messages.
+                Default is 3.
         """
 
         ...
@@ -156,6 +179,7 @@ class ScouterQueue:
         self,
         drift_profile: Union[SpcDriftProfile, PsiDriftProfile],
         config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig],
+        max_retries: Optional[int] = 3,
     ) -> None:
         """Scouter monitoring queue.
 
@@ -165,6 +189,10 @@ class ScouterQueue:
 
             config:
                 Configuration object for the queue that specifies the type of queue to use.
+
+            max_retries:
+                Maximum number of retries to attempt when publishing via the producer.
+                Default is 3.
         """
 
         ...

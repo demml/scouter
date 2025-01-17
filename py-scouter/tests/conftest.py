@@ -262,7 +262,6 @@ def pandas_categorical_dataframe() -> YieldFixture:
     cleanup()
 
 
-
 @pytest.fixture
 def mock_rabbit_connection():
     class BlockingConnection:
@@ -369,7 +368,6 @@ def kafka_config():
         brokers="localhost:9092",
         raise_on_err=True,
     )
-
 
 
 @pytest.fixture(scope="function")

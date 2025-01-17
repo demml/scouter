@@ -82,13 +82,29 @@ fn add_kafka_args(
 #[pyclass]
 #[derive(Clone)]
 pub struct KafkaConfig {
+
+    #[pyo3(get, set)]
     pub brokers: String,
+
+    #[pyo3(get, set)]
     pub topic: String,
+
+    #[pyo3(get, set)]
     pub compression_type: CompressionType,
+
+    #[pyo3(get, set)]
     pub raise_on_error: bool,
+
+    #[pyo3(get, set)]
     pub message_timeout_ms: u64,
+
+    #[pyo3(get, set)]
     pub message_max_bytes: i32,
+
+    #[pyo3(get, set)]
     pub log_level: LogLevel,
+
+    #[pyo3(get, set)]
     pub config: HashMap<String, String>,
 }
 

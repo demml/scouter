@@ -1,6 +1,6 @@
 # pylint: disable=no-name-in-module
 # type: ignore
-
+from .scouter import queue  # noqa: F401
 from .scouter import (
     AlertDispatchType,
     AlertThreshold,

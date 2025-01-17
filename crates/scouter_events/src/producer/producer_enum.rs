@@ -7,7 +7,7 @@ pub use crate::producer::rabbitmq::{RabbitMQConfig, RabbitMQProducer};
 pub use crate::producer::http::{HTTPConfig, HTTPProducer};
 use scouter_error::{PyScouterError, ScouterError};
 use scouter_types::ServerRecords;
-
+use std::sync::Arc;
 use pyo3::prelude::*;
 
 #[derive(Clone)]
@@ -46,16 +46,20 @@ impl ProducerEnum {
 #[pyclass]
 #[derive(Clone)]
 pub struct ScouterProducer {
+    #[pyo3(get)]
+    pub max_retries: i32,
+
     producer: ProducerEnum,
-    pub rt: tokio::runtime::Handle,
+    pub rt: Arc<tokio::runtime::Runtime>,
 }
 
 #[pymethods]
 impl ScouterProducer {
     #[new]
-    pub fn new(config: &Bound<'_, PyAny>) -> Result<Self, ScouterError> {
+    #[pyo3(signature = (config, max_retries=3))]
+    pub fn new(config: &Bound<'_, PyAny>, max_retries: Option<i32>) -> Result<Self, ScouterError> {
         // create tokio runtime for handling async funcs
-        let rt = tokio::runtime::Runtime::new().unwrap();
+        let rt = Arc::new(tokio::runtime::Runtime::new().unwrap());
 
         // check for http config
         let producer = if config.is_instance_of::<HTTPConfig>() {
@@ -68,7 +72,7 @@ impl ScouterProducer {
             let config = config.extract::<KafkaConfig>()?;
             #[cfg(feature = "kafka")]
             {
-                ProducerEnum::Kafka(KafkaProducer::new(config, None)?)
+                ProducerEnum::Kafka(KafkaProducer::new(config, max_retries)?)
             }
             #[cfg(not(feature = "kafka"))]
             {
@@ -82,7 +86,7 @@ impl ScouterProducer {
             let config = config.extract::<RabbitMQConfig>()?;
             #[cfg(feature = "rabbitmq")]
             {
-                let producer = rt.block_on(async { RabbitMQProducer::new(config, None).await })?;
+                let producer = rt.block_on(async { RabbitMQProducer::new(config, max_retries).await })?;
                 ProducerEnum::RabbitMQ(producer)
             }
             #[cfg(not(feature = "rabbitmq"))]
@@ -98,8 +102,10 @@ impl ScouterProducer {
         };
 
         Ok(ScouterProducer {
+            max_retries: max_retries.unwrap_or(3),
+            
             producer,
-            rt: rt.handle().clone(),
+            rt,
         })
     }
 

@@ -39,14 +39,15 @@ def test_http_producer_spc():
     )
 
     producer.publish(
-        records=ServerRecords(
+        message=ServerRecords(
             records=[ServerRecord(record)],
             record_type=RecordType.Spc,
         )
     )
+    producer.flush()
 
 
-def _test_http_producer_psi(mock_httpx_producer):
+def test_http_producer_psi():
     config = HTTPConfig(
         server_url="http://localhost:8000",
         username="test-username",
@@ -65,14 +66,15 @@ def _test_http_producer_psi(mock_httpx_producer):
     )
 
     producer.publish(
-        records=ServerRecords(
+        message=ServerRecords(
             records=[ServerRecord(record)],
             record_type=RecordType.Spc,
         )
     )
+    producer.flush()
 
 
-def _test_http_producer_custom(mock_httpx_producer):
+def test_http_producer_custom():
     config = HTTPConfig(
         server_url="http://localhost:8000",
         username="test-username",
@@ -90,8 +92,10 @@ def _test_http_producer_custom(mock_httpx_producer):
     )
 
     producer.publish(
-        records=ServerRecords(
+        message=ServerRecords(
             records=[ServerRecord(record)],
             record_type=RecordType.Spc,
         )
     )
+
+    producer.flush()

@@ -32,10 +32,20 @@ impl Routes {
 #[pyclass]
 #[derive(Debug, Clone)]
 pub struct HTTPConfig {
+
+    #[pyo3(get, set)]
     pub server_url: String,
+
+    #[pyo3(get, set)]
     pub use_auth: bool,
+
+    #[pyo3(get, set)]
     pub username: String,
+
+    #[pyo3(get, set)]
     pub password: String,
+
+    #[pyo3(get, set)]
     pub auth_token: String,
 }
 
