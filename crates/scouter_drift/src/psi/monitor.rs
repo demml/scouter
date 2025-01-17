@@ -310,7 +310,7 @@ impl PsiMonitor {
         ))
     }
 
-    pub fn compute_psi(&self, proportion_pairs: &[(f64, f64)]) -> f64 {
+    pub fn compute_psi(proportion_pairs: &[(f64, f64)]) -> f64 {
         let epsilon = 1e-10;
         proportion_pairs
             .iter()
@@ -338,7 +338,7 @@ impl PsiMonitor {
             .map(|bin| self.compute_psi_proportion_pairs(column_vector, bin, category_map))
             .collect::<Result<Vec<(f64, f64)>, MonitorError>>()?;
 
-        Ok(self.compute_psi(&feature_proportions))
+        Ok(PsiMonitor::compute_psi(&feature_proportions))
     }
 
     fn check_features<F>(
@@ -467,7 +467,7 @@ mod tests {
         let psi_monitor = PsiMonitor::default();
         let proportions = vec![(0.3, 0.2), (0.4, 0.4), (0.3, 0.4)];
 
-        let result = psi_monitor.compute_psi(&proportions);
+        let result = PsiMonitor::compute_psi(&proportions);
 
         // Manually compute expected PSI for this case
         let expected_psi = (0.3 - 0.2) * (0.3 / 0.2).ln()

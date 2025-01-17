@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use chrono::NaiveDateTime;
 use pyo3::prelude::*;
 use scouter_types::{DriftType, TimeInterval};
@@ -74,3 +76,4 @@ pub struct ObservabilityMetricRequest {
     pub time_window: String,
     pub max_data_points: i32,
 }
+

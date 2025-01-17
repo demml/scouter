@@ -4,13 +4,14 @@ pub mod psi_drifter {
     use crate::psi::monitor::PsiMonitor;
     use crate::psi::types::{FeatureBinMapping, FeatureBinProportionPairs};
     use chrono::NaiveDateTime;
+    use rayon::iter::{IntoParallelIterator, ParallelIterator};
     use scouter_contracts::DriftRequest;
     use scouter_contracts::ServiceInfo;
     use scouter_dispatch::AlertDispatcher;
     use scouter_error::DriftError;
     use scouter_sql::{sql::schema::FeatureBinProportionResult, PostgresClient};
     use scouter_types::psi::{
-        FeatureBinProportions, PsiDriftProfile, PsiFeatureAlerts, PsiFeatureDriftProfile,
+        FeatureBinProportions, PsiDriftProfile, PsiFeatureAlerts, PsiFeatureDriftProfile, BinnedPsiFeatureMetrics, BinnedPsiMetric,
     };
     use std::collections::{BTreeMap, HashMap};
     use tracing::error;
@@ -97,7 +98,7 @@ pub mod psi_drifter {
                         .features
                         .iter()
                         .map(|(feature, pairs)| {
-                            (feature.clone(), PsiMonitor::new().compute_psi(&pairs.pairs))
+                            (feature.clone(), PsiMonitor::compute_psi(&pairs.pairs))
                         })
                         .collect())
                 })
@@ -235,42 +236,34 @@ pub mod psi_drifter {
 
         fn into_feature_bin_proportions(
             &self,
-            bin_proportions: &Vec<FeatureBinProportionResult>,
+            bin_proportions: &FeatureBinProportionResult,
             idx: usize,
-        ) -> Result<FeatureBinMapping, DriftError> {
-            let mut features = HashMap::new();
-            for result in bin_proportions {
-                let feature = result.feature.clone();
+        ) -> Result<FeatureBinProportionPairs, DriftError> {
 
-                // get profile
-                let profile = match self.profile.features.get(&feature) {
-                    Some(profile) => profile,
-                    None => {
-                        error!(
-                            "Error: Unable to fetch profile for feature {}",
-                            feature
-                        );
-                        return Err(DriftError::Error("Error processing alerts".to_string()));
-                    }
-                };
-                // collect bin proportions into hashmap
-
-                // FeatureBinProportionPairs.from_observed_bin_proportion
-
-                let mut bin_map = HashMap::new();
-                for bin_proportion in &result.bin_proportions[idx] {
-                    bin_map.insert(bin_proportion.bin_id.clone(), bin_proportion.proportion);
+            let feature = bin_proportions.feature.clone();
+            // get profile
+            let profile = match self.profile.features.get(&feature) {
+                Some(profile) => profile,
+                None => {
+                    error!(
+                        "Error: Unable to fetch profile for feature {}",
+                        feature
+                    );
+                    return Err(DriftError::Error("Error processing alerts".to_string()));
                 }
-
-                let proportion_pairs =
-                    FeatureBinProportionPairs::from_observed_bin_proportions(&bin_map, profile)
-                        .unwrap();
-                features.insert(feature, proportion_pairs);
-         
-              
+            };
+            let mut bin_map = HashMap::new();
+            for bin_proportion in &bin_proportions.bin_proportions[idx] {
+                bin_map.insert(bin_proportion.bin_id.clone(), bin_proportion.proportion);
             }
 
-            Ok(FeatureBinMapping { features })
+
+            let proportion_pairs =
+            FeatureBinProportionPairs::from_observed_bin_proportions(&bin_map, profile)
+                .unwrap();
+
+
+            Ok(proportion_pairs)
         }
 
         /// Get a binned drift map. This is used on the server for vizualization purposes
@@ -284,17 +277,39 @@ pub mod psi_drifter {
             &self,
             drift_request: &DriftRequest,
             db_client: &PostgresClient,
-        ) -> Result<Option<HashMap<String, f64>>, DriftError> {
+        ) -> Result<BinnedPsiFeatureMetrics, DriftError> {
             let binned_records = db_client
                 .get_binned_psi_drift_records(drift_request)
                 .await?;
 
-            // get length of created_at array
-            let time_idx = binned_records[0].created_at.len(); // we will iterate over each timestamp
-
-            for idx in 0..time_idx {
-                let proportions = self.into_feature_bin_proportions(&binned_records, idx);
+            if binned_records.is_empty() {
+                info!(
+                    "No binned drift records available for {}/{}/{}",
+                    self.service_info.repository, self.service_info.name, self.service_info.version
+                );
+                return Ok(BinnedPsiFeatureMetrics::default());
             }
+        
+            // iterate over each figure and calculate psi
+            let binned_map = binned_records.into_par_iter().map(|record| -> Result<_, DriftError> {
+                let mut psi_vec = Vec::new();
+                for idx in 0..record.created_at.len() {
+                    let proportions = self.into_feature_bin_proportions(&record, idx)?;
+                    let psi = PsiMonitor::compute_psi(&proportions.pairs);
+                    psi_vec.push(psi);
+                }
+
+                Ok((record.feature.clone(), BinnedPsiMetric {
+                    date: record.created_at,
+                    psi: psi_vec,
+                }))
+            }).collect::<Result<BTreeMap<String, BinnedPsiMetric>, DriftError>>()?;
+
+            Ok(BinnedPsiFeatureMetrics {
+                features: binned_map,
+            })
+
+          
 
         }
     }
@@ -418,7 +433,7 @@ pub mod psi_drifter {
             ]);
 
             let pairs = FeatureBinProportionPairs::from_observed_bin_proportions(
-                &observed_proportions,
+                &observed_proportions.features.get("feature_1").unwrap(),
                 &feature_drift_profile,
             )
             .unwrap();
