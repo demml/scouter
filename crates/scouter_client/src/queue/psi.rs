@@ -19,6 +19,7 @@ pub struct PsiQueue {
     count: usize,
     last_publish: NaiveDateTime,
     stop_tx: Option<watch::Sender<()>>,
+    rt: Arc<tokio::runtime::Runtime>,
 }
 
 #[pymethods]
@@ -30,6 +31,11 @@ impl PsiQueue {
         config: &Bound<'_, PyAny>,
     ) -> Result<Self, ScouterError> {
         let queue = Arc::new(Mutex::new(PsiFeatureQueue::new(drift_profile)));
+
+        // psi queue needs a tokio runtime to run background tasks
+        // This runtime needs to be separate from the producer runtime
+        let rt = Arc::new(tokio::runtime::Runtime::new().unwrap());
+        
         let producer = ScouterProducer::new(config)?;
 
         let (stop_tx, stop_rx) = watch::channel(());
@@ -40,6 +46,7 @@ impl PsiQueue {
             count: 0,
             last_publish: Utc::now().naive_utc(),
             stop_tx: Some(stop_tx),
+            rt: rt.clone(),
         };
 
         psi_queue.start_background_task(queue, stop_rx)?;
@@ -113,9 +120,7 @@ impl PsiQueue {
         let queue = queue.clone();
         let mut producer = self.producer.clone();
         let last_publish = self.last_publish;
-
-        // clone the handle
-        let handle = producer.rt.clone();
+        let handle = self.rt.clone();
 
         // spawn the background task using the already cloned handle
         handle.spawn(async move {
@@ -126,7 +131,8 @@ impl PsiQueue {
                         let elapsed = now - last_publish;
 
                         if elapsed.num_seconds() >= 30 {
-                            let mut queue = queue.blocking_lock();
+                            let mut queue = queue.lock().await;
+
                             let records = match queue.create_drift_records() {
                                 Ok(records) => records,
                                 Err(e) => {

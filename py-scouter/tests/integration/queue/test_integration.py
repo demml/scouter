@@ -11,7 +11,10 @@ from scouter import (
     SpcDriftConfig,
     SpcDriftProfile,
 )
+from scouter.logging import RustyLogger
 from scouter.queue import HTTPConfig, ScouterQueue
+
+RustyLogger.setup_logging
 
 
 def test_psi_monitor_pandas(

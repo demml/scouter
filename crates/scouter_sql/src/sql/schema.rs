@@ -21,6 +21,7 @@ pub struct FeatureResult {
     pub values: Vec<f64>,
 }
 
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpcFeatureResult {
     pub feature: String,

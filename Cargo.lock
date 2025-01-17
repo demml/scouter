@@ -3340,6 +3340,7 @@ dependencies = [
  "num-traits",
  "numpy",
  "pyo3",
+ "scouter-contracts",
  "scouter-dispatch",
  "scouter-drift",
  "scouter-error",
@@ -3347,6 +3348,9 @@ dependencies = [
  "scouter-observability",
  "scouter-profile",
  "scouter-types",
+ "serde",
+ "serde_json",
+ "serde_qs",
  "tokio",
  "tracing",
 ]
@@ -3356,6 +3360,7 @@ name = "scouter-contracts"
 version = "0.4.1"
 dependencies = [
  "chrono",
+ "pyo3",
  "scouter-types",
  "serde",
  "serde_json",

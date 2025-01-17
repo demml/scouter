@@ -2,7 +2,9 @@ use chrono::NaiveDateTime;
 use scouter_types::{DriftType, TimeInterval};
 use serde::Deserialize;
 use serde::Serialize;
+use pyo3::prelude::*;
 
+#[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRequest {
     pub name: String,
@@ -10,6 +12,21 @@ pub struct DriftRequest {
     pub version: String,
     pub time_window: TimeInterval,
     pub max_data_points: i32,
+}
+
+#[pymethods]
+impl DriftRequest {
+    #[new]
+    #[pyo3(signature = (name, repository, version, time_window, max_data_points))]
+    pub fn new(name: String, repository: String, version: String, time_window: TimeInterval, max_data_points: i32) -> Self {
+        DriftRequest {
+            name,
+            repository,
+            version,
+            time_window,
+            max_data_points,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

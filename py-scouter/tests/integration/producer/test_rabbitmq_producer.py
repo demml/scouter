@@ -38,9 +38,9 @@ def test_rabbit_producer_spc():
 
 def test_rabbit_producer_psi():
     config = RabbitMQConfig()
+    assert config.max_retries == 3
 
     producer = ScouterProducer(config)
-    assert producer.max_retries == 3
 
     record = PsiServerRecord(
         name="test",

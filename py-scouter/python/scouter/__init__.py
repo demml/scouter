@@ -1,7 +1,6 @@
 # pylint: disable=no-name-in-module
 # type: ignore
-from .scouter import queue  # noqa: F401
-from .scouter import (
+from .scouter import (  # noqa: F401
     AlertDispatchType,
     AlertThreshold,
     AlertZone,
@@ -46,6 +45,8 @@ from .scouter import (
     SpcFeatureDriftProfile,
     SpcFeatureQueue,
     SpcServerRecord,
+    logging,
+    queue,
 )
 from .version import __version__
 

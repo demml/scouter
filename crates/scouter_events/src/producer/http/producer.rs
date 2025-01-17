@@ -24,16 +24,16 @@ pub fn build_http_client() -> Result<Client, ScouterError> {
 }
 
 #[derive(Debug, Clone)]
-pub struct HTTPProducer {
+pub struct HTTPClient {
     client: Client,
     config: HTTPConfig,
 }
 
-impl HTTPProducer {
+impl HTTPClient {
     pub async fn new(config: HTTPConfig) -> Result<Self, ScouterError> {
         let client = build_http_client()?;
 
-        let mut api_client = HTTPProducer { client, config };
+        let mut api_client = HTTPClient { client, config };
 
         if api_client.config.use_auth {
             api_client.get_jwt_token().await?;
@@ -168,7 +168,7 @@ impl HTTPProducer {
         Ok(response)
     }
 
-    async fn request_with_retry(
+    pub async fn request_with_retry(
         &mut self,
         route: Routes,
         request_type: RequestType,
@@ -213,11 +213,26 @@ impl HTTPProducer {
         Ok(response)
     }
 
+}
+
+#[derive(Debug, Clone)]
+pub struct HTTPProducer {
+    client: HTTPClient,
+}
+
+impl HTTPProducer {
+
+    pub async fn new(config: HTTPConfig) -> Result<Self, ScouterError> {
+        let client = HTTPClient::new(config).await?;
+        Ok(HTTPProducer { client })
+    }
+    
+
     pub async fn publish(&mut self, message: ServerRecords) -> Result<(), ScouterError> {
         let serialized_msg: Value = serde_json::to_value(&message).map_err(|e| {
             ScouterError::Error(format!("Failed to serialize message with error: {}", e))
         })?;
-        let response = self
+        let response = self.client
             .request_with_retry(
                 Routes::Drift,
                 RequestType::Post,
