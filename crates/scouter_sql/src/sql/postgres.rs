@@ -561,14 +561,11 @@ impl PostgresClient {
                 .bind(version)
                 .fetch_all(&self.pool)
                 .await;
-        
 
         binned.map_err(|e| {
             error!("Failed to run query: {:?}", e);
             SqlError::QueryError(format!("Failed to run query: {:?}", e))
         })
-
-    
     }
 
     // Queries the database for drift records based on a time window and aggregation
@@ -1155,16 +1152,16 @@ mod tests {
         assert!(*bin_proportion > 0.4 && *bin_proportion < 0.6);
 
         let binned_records = client
-           .get_binned_psi_drift_records(&DriftRequest {
-               name: "test".to_string(),
-               repository: "test".to_string(),
-               version: "test".to_string(),
-               time_window: TimeInterval::OneHour,
-               max_data_points: 1000,
-           })
-           .await
-           .unwrap();
-//
+            .get_binned_psi_drift_records(&DriftRequest {
+                name: "test".to_string(),
+                repository: "test".to_string(),
+                version: "test".to_string(),
+                time_window: TimeInterval::OneHour,
+                max_data_points: 1000,
+            })
+            .await
+            .unwrap();
+        //
         assert_eq!(binned_records.len(), 1);
     }
 
