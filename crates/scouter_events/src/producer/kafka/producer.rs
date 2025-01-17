@@ -20,24 +20,21 @@ pub mod kafka_producer {
     #[derive(Clone)]
     pub struct KafkaProducer {
         pub config: KafkaConfig,
-        pub max_retries: i32,
         producer: FutureProducer,
     }
 
     impl KafkaProducer {
-        pub fn new(config: KafkaConfig, max_retries: Option<i32>) -> Result<Self, ScouterError> {
-            let max_retries = max_retries.unwrap_or(3);
+        pub fn new(config: KafkaConfig) -> Result<Self, ScouterError> {
             let producer = KafkaProducer::setup_producer(&config.config, &config.log_level)?;
 
             Ok(KafkaProducer {
                 config,
-                max_retries,
                 producer,
             })
         }
 
         pub async fn publish(&self, message: ServerRecords) -> Result<(), ScouterError> {
-            let mut retries = self.max_retries;
+            let mut retries = self.config.max_retries;
 
             loop {
                 match self

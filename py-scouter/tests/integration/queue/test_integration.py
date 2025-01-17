@@ -1,33 +1,30 @@
 from typing import Optional
+
 import pandas as pd
 from scouter import (
-   Drifter,
-   Feature,
-   Features,
-   PsiDriftConfig,
-   PsiDriftProfile,
-   ServerRecords,
-   SpcDriftConfig,
-   SpcDriftProfile,
+    Drifter,
+    Feature,
+    Features,
+    PsiDriftConfig,
+    PsiDriftProfile,
+    ServerRecords,
+    SpcDriftConfig,
+    SpcDriftProfile,
 )
-from scouter.queue import ScouterQueue, HTTPConfig
+from scouter.queue import HTTPConfig, ScouterQueue
 
 
 def test_psi_monitor_pandas(
-   pandas_dataframe: pd.DataFrame,
-   psi_drift_config: PsiDriftConfig,
-
+    pandas_dataframe: pd.DataFrame,
+    psi_drift_config: PsiDriftConfig,
 ):
     scouter = Drifter()
     profile: PsiDriftProfile = scouter.create_drift_profile(pandas_dataframe, psi_drift_config)
     config = HTTPConfig()
 
-    queue = ScouterQueue(
-        drift_profile=profile,
-        config=config
-    )
+    queue = ScouterQueue(drift_profile=profile, config=config)
     records = pandas_dataframe.to_dict(orient="records")
-    
+
     for record in records:
         features = Features(
             features=[
@@ -37,9 +34,8 @@ def test_psi_monitor_pandas(
             ]
         )
         queue.insert(features)
-        
-    queue.flush()
 
+    queue.flush()
 
 
 # def test_spc_monitor_pandas(

@@ -24,14 +24,13 @@ pub struct PsiQueue {
 #[pymethods]
 impl PsiQueue {
     #[new]
-    #[pyo3(signature = (drift_profile, config, max_retries=None))]
+    #[pyo3(signature = (drift_profile, config))]
     pub fn new(
         drift_profile: PsiDriftProfile,
         config: &Bound<'_, PyAny>,
-        max_retries: Option<i32>,
     ) -> Result<Self, ScouterError> {
         let queue = Arc::new(Mutex::new(PsiFeatureQueue::new(drift_profile)));
-        let producer = ScouterProducer::new(config, max_retries)?;
+        let producer = ScouterProducer::new(config)?;
 
         let (stop_tx, stop_rx) = watch::channel(());
 

@@ -11,13 +11,16 @@ pub struct RabbitMQConfig {
 
     #[pyo3(get, set)]
     pub raise_on_error: bool,
+
+    #[pyo3(get, set)]
+    pub max_retries: i32,
 }
 
 
 #[pymethods]
 impl RabbitMQConfig {
     #[new]
-    #[pyo3(signature = (host=None, port=None, username=None, password=None, queue="scouter_monitoring".to_string(), raise_on_error=false))]
+    #[pyo3(signature = (host=None, port=None, username=None, password=None, queue="scouter_monitoring".to_string(), raise_on_error=false, max_retries=3))]
     pub fn new(
         host: Option<String>,
         port: Option<u16>,
@@ -25,6 +28,7 @@ impl RabbitMQConfig {
         password: Option<String>,
         queue: Option<String>,
         raise_on_error: Option<bool>,
+        max_retries: Option<i32>,
     ) -> Self {
 
         // build address
@@ -67,6 +71,7 @@ impl RabbitMQConfig {
             address,
             queue,
             raise_on_error,
+            max_retries: max_retries.unwrap_or(3),
         }
     }
 }

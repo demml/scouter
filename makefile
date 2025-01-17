@@ -94,12 +94,17 @@ build.all_backends:
 	docker compose down
 	docker compose up -d --build server-backends --wait
 
-
 .PHONE: build.server
-build.server:
+build.server: build.all_backends
 	cargo build -p scouter-server --all-features
 	./target/debug/scouter-server &
 
+
+.PHONY: build.shutdown_backends
+build.shutdown_backends:
+	docker compose down
+
+
 .PHONE: stop.server
-stop.server:
+stop.server: build.shutdown_backends
 	lsof -ti:8000 | xargs kill -9

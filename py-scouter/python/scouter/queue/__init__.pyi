@@ -10,6 +10,7 @@ class KafkaConfig:
     message_max_bytes: int
     log_level: LogLevel
     config: Dict[str, str]
+    max_retries: int
 
     def __init__(
         self,
@@ -21,6 +22,7 @@ class KafkaConfig:
         message_max_bytes: int = 2097164,
         log_level: LogLevel = LogLevel.Info,
         config: Dict[str, str] = {},
+        max_retries: int = 3
     ) -> None:
         """Kafka configuration to use with the KafkaProducer.
 
@@ -55,7 +57,11 @@ class KafkaConfig:
 
             config:
                 Additional Kafka configuration options. These will be passed to the Kafka producer.
-                See https://kafka.apache.org/documentation/#configuration
+                See https://kafka.apache.org/documentation/#configuration.
+                
+            max_retries:
+                Maximum number of retries to attempt when publishing messages.
+                Default is 3.
 
         """
 
@@ -102,6 +108,7 @@ class RabbitMQConfig:
     address: str
     queue: str
     raise_on_error: bool
+    max_retries: int
 
     def __init__(
         self,
@@ -111,6 +118,7 @@ class RabbitMQConfig:
         password: Optional[str] = None,
         queue: Optional[str] = None,
         raise_on_error: bool = False,
+        max_retries: int = 3
     ) -> None:
         """RabbitMQ configuration to use with the RabbitMQProducer.
 
@@ -138,13 +146,16 @@ class RabbitMQConfig:
             raise_on_error:
                 Whether to raise an error if message delivery fails.
                 Default is False.
+                
+            max_retries:
+                Maximum number of retries to attempt when publishing messages.
+                Default is 3.
         """
 
 class ScouterProducer:
     def __init__(
         self,
         config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig],
-        max_retries: Optional[int] = 3,
     ) -> None:
         """Top-level Producer class.
 
@@ -179,7 +190,6 @@ class ScouterQueue:
         self,
         drift_profile: Union[SpcDriftProfile, PsiDriftProfile],
         config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig],
-        max_retries: Optional[int] = 3,
     ) -> None:
         """Scouter monitoring queue.
 

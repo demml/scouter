@@ -46,9 +46,6 @@ impl ProducerEnum {
 #[pyclass]
 #[derive(Clone)]
 pub struct ScouterProducer {
-    #[pyo3(get)]
-    pub max_retries: i32,
-
     producer: ProducerEnum,
     pub rt: Arc<tokio::runtime::Runtime>,
 }
@@ -56,8 +53,8 @@ pub struct ScouterProducer {
 #[pymethods]
 impl ScouterProducer {
     #[new]
-    #[pyo3(signature = (config, max_retries=3))]
-    pub fn new(config: &Bound<'_, PyAny>, max_retries: Option<i32>) -> Result<Self, ScouterError> {
+    #[pyo3(signature = (config))]
+    pub fn new(config: &Bound<'_, PyAny>) -> Result<Self, ScouterError> {
         // create tokio runtime for handling async funcs
         let rt = Arc::new(tokio::runtime::Runtime::new().unwrap());
 
@@ -72,7 +69,7 @@ impl ScouterProducer {
             let config = config.extract::<KafkaConfig>()?;
             #[cfg(feature = "kafka")]
             {
-                ProducerEnum::Kafka(KafkaProducer::new(config, max_retries)?)
+                ProducerEnum::Kafka(KafkaProducer::new(config)?)
             }
             #[cfg(not(feature = "kafka"))]
             {
@@ -86,7 +83,7 @@ impl ScouterProducer {
             let config = config.extract::<RabbitMQConfig>()?;
             #[cfg(feature = "rabbitmq")]
             {
-                let producer = rt.block_on(async { RabbitMQProducer::new(config, max_retries).await })?;
+                let producer = rt.block_on(async { RabbitMQProducer::new(config).await })?;
                 ProducerEnum::RabbitMQ(producer)
             }
             #[cfg(not(feature = "rabbitmq"))]
@@ -102,8 +99,7 @@ impl ScouterProducer {
         };
 
         Ok(ScouterProducer {
-            max_retries: max_retries.unwrap_or(3),
-            
+
             producer,
             rt,
         })

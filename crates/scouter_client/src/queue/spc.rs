@@ -16,15 +16,14 @@ pub struct SpcQueue {
 #[pymethods]
 impl SpcQueue {
     #[new]
-    #[pyo3(signature = (drift_profile, config, max_retries=None))]
+    #[pyo3(signature = (drift_profile, config))]
     pub fn new(
         drift_profile: SpcDriftProfile,
         config: &Bound<'_, PyAny>,
-        max_retries: Option<i32>,
     ) -> Result<Self, ScouterError> {
         Ok(SpcQueue {
             queue: SpcFeatureQueue::new(drift_profile),
-            producer: ScouterProducer::new(config, max_retries)?,
+            producer: ScouterProducer::new(config)?,
             count: 0,
         })
     }

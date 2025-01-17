@@ -13,21 +13,17 @@ pub mod rabbitmq_producer {
     #[derive(Clone)]
     pub struct RabbitMQProducer {
         pub config: RabbitMQConfig,
-        pub max_retries: i32,
         producer: Channel,
     }
 
     impl RabbitMQProducer {
         pub async fn new(
             config: RabbitMQConfig,
-            max_retries: Option<i32>,
         ) -> Result<Self, ScouterError> {
-            let max_retries = max_retries.unwrap_or(3);
             let producer = RabbitMQProducer::setup_producer(&config).await?;
 
             Ok(RabbitMQProducer {
                 config,
-                max_retries,
                 producer,
             })
         }
@@ -53,7 +49,7 @@ pub mod rabbitmq_producer {
         }
 
         pub async fn publish(&self, message: ServerRecords) -> Result<(), ScouterError> {
-            let mut retries = self.max_retries;
+            let mut retries = self.config.max_retries;
 
             loop {
                 match self

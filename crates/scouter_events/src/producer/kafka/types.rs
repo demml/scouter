@@ -106,13 +106,16 @@ pub struct KafkaConfig {
 
     #[pyo3(get, set)]
     pub config: HashMap<String, String>,
+
+    #[pyo3(get, set)]
+    pub max_retries: i32,
 }
 
 #[pymethods]
 #[allow(clippy::too_many_arguments)]
 impl KafkaConfig {
     #[new]
-    #[pyo3(signature = (brokers=None, topic=None, compression_type=CompressionType::Gzip.to_string(), raise_on_error=false, message_timeout_ms=600000, message_max_bytes=2097164, log_level=LogLevel::Info, config=None))]
+    #[pyo3(signature = (brokers=None, topic=None, compression_type=CompressionType::Gzip.to_string(), raise_on_error=false, message_timeout_ms=600000, message_max_bytes=2097164, log_level=LogLevel::Info, config=None, max_retries=3))]
     pub fn new(
         brokers: Option<String>,
         topic: Option<String>,
@@ -122,6 +125,7 @@ impl KafkaConfig {
         message_max_bytes: Option<i32>,
         log_level: Option<LogLevel>,
         config: Option<&Bound<'_, PyDict>>,
+        max_retries : Option<i32>,
     ) -> Result<Self, ScouterError> {
         let brokers = brokers.unwrap_or_else(|| {
             env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_string())
@@ -177,6 +181,7 @@ impl KafkaConfig {
             message_max_bytes,
             log_level,
             config,
+            max_retries: max_retries.unwrap_or(3),
         })
     }
 }

@@ -16,7 +16,6 @@ impl Queue {
     pub fn new(
         drift_profile: &Bound<'_, PyAny>,
         config: &Bound<'_, PyAny>,
-        max_retries: Option<i32>,
     ) -> Result<Self, ScouterError> {
         let drift_type = drift_profile
             .getattr("config")?
@@ -26,11 +25,11 @@ impl Queue {
         match drift_type {
             DriftType::Spc => {
                 let drift_profile = drift_profile.extract::<SpcDriftProfile>()?;
-                Ok(Queue::Spc(SpcQueue::new(drift_profile, config, max_retries)?))
+                Ok(Queue::Spc(SpcQueue::new(drift_profile, config)?))
             }
             DriftType::Psi => {
                 let drift_profile = drift_profile.extract::<PsiDriftProfile>()?;
-                Ok(Queue::Psi(PsiQueue::new(drift_profile, config, max_retries)?))
+                Ok(Queue::Psi(PsiQueue::new(drift_profile, config)?))
             }
             _ => Err(ScouterError::Error("Invalid drift type".to_string())),
         }
@@ -59,14 +58,13 @@ pub struct ScouterQueue {
 #[pymethods]
 impl ScouterQueue {
     #[new]
-    #[pyo3(signature = (drift_profile, config, max_retries=3))]
+    #[pyo3(signature = (drift_profile, config))]
     pub fn new(
         drift_profile: &Bound<'_, PyAny>,
         config: &Bound<'_, PyAny>,
-        max_retries: Option<i32>,
     ) -> Result<Self, ScouterError> {
         Ok(ScouterQueue {
-            queue: Queue::new(drift_profile, config, max_retries)?,
+            queue: Queue::new(drift_profile, config)?,
         })
     }
 
