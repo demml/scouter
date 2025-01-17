@@ -5,9 +5,6 @@ from typing import Any, AsyncGenerator, Awaitable, Callable, Union
 
 from pydantic import BaseModel
 from scouter import MonitorQueue, PsiDriftProfile, ScouterObserver, SpcDriftProfile
-from scouter.integrations.http import HTTPConfig
-from scouter.integrations.kafka import KafkaConfig
-
 
 try:
     from fastapi import APIRouter, BackgroundTasks, FastAPI, Request, Response
@@ -24,7 +21,7 @@ class ScouterMixin:
     def __init__(
         self,
         drift_profile: Union[SpcDriftProfile, PsiDriftProfile],
-        config: Union[KafkaConfig, HTTPConfig],
+        config: Any,
     ) -> None:
         self._queue = MonitorQueue(drift_profile, config)
 
@@ -55,7 +52,7 @@ class ScouterRouter(ScouterMixin, APIRouter):
     def __init__(
         self,
         drift_profile: Union[SpcDriftProfile, PsiDriftProfile],
-        config: Union[KafkaConfig, HTTPConfig],
+        config: Any,
         *args: Any,
         **kwargs: Any,
     ) -> None:
@@ -101,7 +98,7 @@ class FastAPIScouterObserver:
     def __init__(
         self,
         drift_profile: Union[SpcDriftProfile],
-        config: Union[KafkaConfig, HTTPConfig],
+        config: Any,
     ) -> None:
         self._observer = ScouterObserver(
             repository=drift_profile.config.repository,

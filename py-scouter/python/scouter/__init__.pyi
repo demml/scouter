@@ -2025,3 +2025,10 @@ class Drifter:
 class ScouterError(Exception):
     def __init__(self, message: str) -> None: ...
     def __str__(self) -> str: ...
+
+class LogLevel:
+    Debug: "LogLevel"
+    Info: "LogLevel"
+    Warn: "LogLevel"
+    Error: "LogLevel"
+    Trace: "LogLevel"

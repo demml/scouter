@@ -4,6 +4,7 @@ use rusty_logging::logger::LogLevel;
 use scouter_error::ScouterError;
 use std::collections::HashMap;
 use std::env;
+use std::str::FromStr;
 
 #[pyclass(eq)]
 #[derive(PartialEq, Clone)]
@@ -15,9 +16,11 @@ pub enum CompressionType {
     Zstd,
 }
 
-impl CompressionType {
-    pub fn from_str(compression_type: &str) -> Result<CompressionType, ScouterError> {
-        match compression_type {
+impl FromStr for CompressionType {
+    type Err = ScouterError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
             "none" => Ok(CompressionType::None),
             "gzip" => Ok(CompressionType::Gzip),
             "snappy" => Ok(CompressionType::Snappy),
@@ -90,6 +93,7 @@ pub struct KafkaConfig {
 }
 
 #[pymethods]
+#[allow(clippy::too_many_arguments)]
 impl KafkaConfig {
     #[new]
     #[pyo3(signature = (brokers=None, topic=None, compression_type=CompressionType::Gzip.to_string(), raise_on_error=false, message_timeout_ms=600000, message_max_bytes=2097164, log_level=LogLevel::Info, config=None))]
@@ -132,7 +136,9 @@ impl KafkaConfig {
             &mut config,
         )?;
 
-        let log_level = if log_level.is_none() {
+        let log_level = if let Some(level) = log_level {
+            level
+        } else {
             let env_var = env::var("LOG_LEVEL")
                 .unwrap_or_else(|_| "info".to_string())
                 .to_lowercase();
@@ -144,8 +150,6 @@ impl KafkaConfig {
                 "trace" => LogLevel::Trace,
                 _ => LogLevel::Info,
             }
-        } else {
-            log_level.unwrap()
         };
 
         Ok(KafkaConfig {

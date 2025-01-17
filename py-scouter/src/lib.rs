@@ -1,8 +1,11 @@
 use pyo3::prelude::*;
 use scouter_client::*;
+use rusty_logging::logger::LogLevel;
+pub mod queue;
+use pyo3::wrap_pymodule;
 
 #[pymodule]
-fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // opsml_errors
     m.add("ScouterError", m.py().get_type::<PyScouterError>())?;
     m.add_class::<PyDrifter>()?;
@@ -55,5 +58,7 @@ fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Features>()?;
     m.add_class::<DataProfiler>()?;
     m.add_class::<DataType>()?;
+    m.add_class::<LogLevel>()?;
+    m.add_wrapped(wrap_pymodule!(queue::queue))?;
     Ok(())
 }

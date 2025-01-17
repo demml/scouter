@@ -83,3 +83,8 @@ lapin = { version = "2.*" }
 lto = "fat"
 codegen-units = 1
 strip = true
+opt-level = 3
+
+[profile.release-no-lto]
+inherits = "release"
+lto = false

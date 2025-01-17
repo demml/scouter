@@ -25,12 +25,16 @@ pub use scouter_types::{
     RouteMetrics, ServerRecord, ServerRecords, SpcServerRecord,
 };
 
+pub use queue::ScouterQueue;
 pub use scouter_drift::{
     psi::{PsiFeatureQueue, PsiMonitor},
     spc::{generate_alerts, SpcDriftMap, SpcFeatureDrift, SpcFeatureQueue, SpcMonitor},
     utils::CategoricalFeatureHelpers,
 };
 pub use scouter_error::{ProfilerError, PyScouterError, ScouterError};
+pub use scouter_events::producer::{
+    http::HTTPConfig, kafka::KafkaConfig, rabbitmq::RabbitMQConfig,
+};
 pub use scouter_observability::Observer;
 pub use scouter_profile::{
     compute_feature_correlations, DataProfile, Distinct, FeatureProfile, Histogram, NumProfiler,
