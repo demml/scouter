@@ -1,6 +1,6 @@
 from typing import Dict, Optional, Union
 
-from scouter import LogLevel, ServerRecords
+from scouter import LogLevel, PsiDriftProfile, ServerRecords, SpcDriftProfile, Features
 
 class KafkaConfig:
     brokers: str
@@ -148,5 +148,38 @@ class ScouterProducer:
 
     def flush(self) -> None:
         """Flush the producer queue."""
+
+        ...
+
+class ScouterQueue:
+    def __init__(
+        self,
+        drift_profile: Union[SpcDriftProfile, PsiDriftProfile],
+        config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig],
+    ) -> None:
+        """Scouter monitoring queue.
+
+        Args:
+            drift_profile:
+                Drift profile to use for monitoring.
+
+            config:
+                Configuration object for the queue that specifies the type of queue to use.
+        """
+
+        ...
+        
+    def insert(self, features: Features) -> None:
+        """Insert features into the queue.
+
+        Args:
+            features:
+                Features to insert.
+        """
+
+        ...
+        
+    def flush(self) -> None:
+        """Flush the queue."""
 
         ...
