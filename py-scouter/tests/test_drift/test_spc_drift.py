@@ -6,10 +6,10 @@ import pandas as pd
 import polars as pl
 import pytest
 from numpy.typing import NDArray
-from scouter import Drifter
-from scouter._scouter import (
+from scouter import (
     AlertDispatchType,
     AlertZone,
+    Drifter,
     SpcAlertConfig,
     SpcDriftConfig,
     SpcDriftMap,
