@@ -2,13 +2,16 @@
 pub mod psi_drifter {
 
     use crate::psi::monitor::PsiMonitor;
-    use crate::psi::types::FeatureBinMapping;
+    use crate::psi::types::{FeatureBinMapping, FeatureBinProportionPairs};
     use chrono::NaiveDateTime;
+    use scouter_contracts::DriftRequest;
     use scouter_contracts::ServiceInfo;
     use scouter_dispatch::AlertDispatcher;
     use scouter_error::DriftError;
-    use scouter_sql::PostgresClient;
-    use scouter_types::psi::{PsiDriftProfile, PsiFeatureAlerts, PsiFeatureDriftProfile};
+    use scouter_sql::{sql::schema::FeatureBinProportionResult, PostgresClient};
+    use scouter_types::psi::{
+        FeatureBinProportions, PsiDriftProfile, PsiFeatureAlerts, PsiFeatureDriftProfile,
+    };
     use std::collections::{BTreeMap, HashMap};
     use tracing::error;
     use tracing::info;
@@ -228,6 +231,71 @@ pub mod psi_drifter {
                 }
                 None => Ok(None),
             }
+        }
+
+        fn into_feature_bin_proportions(
+            &self,
+            bin_proportions: &Vec<FeatureBinProportionResult>,
+            idx: usize,
+        ) -> Result<FeatureBinMapping, DriftError> {
+            let mut features = HashMap::new();
+            for result in bin_proportions {
+                let feature = result.feature.clone();
+
+                // get profile
+                let profile = match self.profile.features.get(&feature) {
+                    Some(profile) => profile,
+                    None => {
+                        error!(
+                            "Error: Unable to fetch profile for feature {}",
+                            feature
+                        );
+                        return Err(DriftError::Error("Error processing alerts".to_string()));
+                    }
+                };
+                // collect bin proportions into hashmap
+
+                // FeatureBinProportionPairs.from_observed_bin_proportion
+
+                let mut bin_map = HashMap::new();
+                for bin_proportion in &result.bin_proportions[idx] {
+                    bin_map.insert(bin_proportion.bin_id.clone(), bin_proportion.proportion);
+                }
+
+                let proportion_pairs =
+                    FeatureBinProportionPairs::from_observed_bin_proportions(&bin_map, profile)
+                        .unwrap();
+                features.insert(feature, proportion_pairs);
+         
+              
+            }
+
+            Ok(FeatureBinMapping { features })
+        }
+
+        /// Get a binned drift map. This is used on the server for vizualization purposes
+        ///
+        /// # Arguments
+        ///
+        /// * `drift_request` - DriftRequest containing the profile to monitor
+        /// * `db_client` - PostgresClient to use for fetching data
+        ///
+        pub async fn get_binned_drift_map(
+            &self,
+            drift_request: &DriftRequest,
+            db_client: &PostgresClient,
+        ) -> Result<Option<HashMap<String, f64>>, DriftError> {
+            let binned_records = db_client
+                .get_binned_psi_drift_records(drift_request)
+                .await?;
+
+            // get length of created_at array
+            let time_idx = binned_records[0].created_at.len(); // we will iterate over each timestamp
+
+            for idx in 0..time_idx {
+                let proportions = self.into_feature_bin_proportions(&binned_records, idx);
+            }
+
         }
     }
 

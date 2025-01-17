@@ -11,7 +11,7 @@ pub struct FeatureBinProportionPairs {
 
 impl FeatureBinProportionPairs {
     pub fn from_observed_bin_proportions(
-        observed_bin_proportions: &FeatureBinProportions,
+        observed_bin_proportions: &HashMap<String, f64>,
         profile: &PsiFeatureDriftProfile,
     ) -> Result<Self, DriftError> {
         let pairs: Vec<(f64, f64)> = profile
@@ -19,7 +19,7 @@ impl FeatureBinProportionPairs {
             .iter()
             .map(|bin| {
                 let observed_proportion = *observed_bin_proportions
-                    .get(&profile.id, &bin.id)
+                    .get(&bin.id)
                     .ok_or_else(|| {
                         error!(
                             "Error: Unable to fetch observed bin proportion for {}/{}",
@@ -50,7 +50,7 @@ impl FeatureBinMapping {
             .iter()
             .map(|profile| {
                 let proportion_pairs = FeatureBinProportionPairs::from_observed_bin_proportions(
-                    observed_bin_proportions,
+                    observed_bin_proportions.features.get(&profile.id).unwrap(),
                     profile,
                 )
                 .unwrap();
