@@ -332,7 +332,8 @@ pub mod psi_drifter {
         use ndarray_rand::rand_distr::Uniform;
         use ndarray_rand::RandomExt;
         use scouter_types::psi::{
-            Bin, BinType, FeatureBinProportion, FeatureBinProportions, PsiAlertConfig, PsiDriftConfig, PsiFeatureDriftProfile
+            Bin, BinType, FeatureBinProportion, FeatureBinProportions, PsiAlertConfig,
+            PsiDriftConfig, PsiFeatureDriftProfile,
         };
 
         fn get_test_drifter() -> PsiDrifter {
@@ -427,17 +428,17 @@ pub mod psi_drifter {
             let observed_proportions = FeatureBinProportions::from_bins(vec![
                 FeatureBinProportion {
                     feature: "feature_1".to_string(),
-                    bin_id: "decile_1".to_string(),
+                    bin_id: 1,
                     proportion: observed_feat1_decile1_prop,
                 },
                 FeatureBinProportion {
                     feature: "feature_1".to_string(),
-                    bin_id: "decile_2".to_string(),
+                    bin_id: 2,
                     proportion: observed_feat1_decile2_prop,
                 },
                 FeatureBinProportion {
                     feature: "feature_1".to_string(),
-                    bin_id: "decile_3".to_string(),
+                    bin_id: 3,
                     proportion: observed_feat1_decile3_prop,
                 },
             ]);

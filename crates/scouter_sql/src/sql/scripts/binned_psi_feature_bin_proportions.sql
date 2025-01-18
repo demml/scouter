@@ -59,7 +59,7 @@ bin_agg as (
         jsonb_build_object(
             'bin_id', bin_id,
             'proportion', proportion::FLOAT8
-        ) ORDER BY substring(bin_id from 'decile_(\d+)')::int
+        )
     ) as bin_proportions
 	FROM feature_bin_proportions
 	WHERE 1=1

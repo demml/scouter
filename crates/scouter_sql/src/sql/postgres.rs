@@ -13,9 +13,8 @@ use scouter_error::ScouterError;
 use scouter_error::SqlError;
 use scouter_settings::DatabaseSettings;
 use scouter_types::{
-    psi::{FeatureBinProportion, FeatureBinProportions},
-    CustomMetricServerRecord, DriftProfile, ObservabilityMetrics, PsiServerRecord, RecordType,
-    ServerRecords, SpcServerRecord, TimeInterval, ToDriftRecords,
+    psi::FeatureBinProportions, CustomMetricServerRecord, DriftProfile, ObservabilityMetrics,
+    PsiServerRecord, RecordType, ServerRecords, SpcServerRecord, TimeInterval, ToDriftRecords,
 };
 
 use serde_json::Value;
@@ -707,10 +706,9 @@ impl PostgresClient {
                 ))
             })?;
 
-        let feature_bin_proportions: Vec<FeatureBinProportion> =
-            binned.into_iter().map(|wrapper| wrapper.0).collect();
+        let binned: FeatureBinProportions = binned.into_iter().map(|wrapper| wrapper.0).collect();
 
-        Ok(FeatureBinProportions::from_bins(feature_bin_proportions))
+        Ok(binned)
     }
 
     pub async fn get_custom_metric_values(
@@ -1104,23 +1102,23 @@ mod tests {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
         let timestamp = chrono::Utc::now().naive_utc();
-        for _ in 0..1000 {
-            for j in 0..2 {
-                let num = rand::thread_rng().gen_range(0..10);
-                let record = PsiServerRecord {
-                    created_at: chrono::Utc::now().naive_utc(),
-                    name: "test".to_string(),
-                    repository: "test".to_string(),
-                    version: "test".to_string(),
-                    feature: "test".to_string(),
-                    bin_id: j,
-                    bin_count: num,
-                    record_type: RecordType::Psi,
-                };
 
-                let result = client.insert_bin_counts(&record).await.unwrap();
+        for feature in 0..3 {
+            for bin in 0..=5 {
+                for _ in 0..=100 {
+                    let record = PsiServerRecord {
+                        created_at: chrono::Utc::now().naive_utc(),
+                        name: "test".to_string(),
+                        repository: "test".to_string(),
+                        version: "test".to_string(),
+                        feature: format!("feature{}", feature),
+                        bin_id: bin,
+                        bin_count: rand::thread_rng().gen_range(0..10),
+                        record_type: RecordType::Psi,
+                    };
 
-                assert_eq!(result.rows_affected(), 1);
+                    client.insert_bin_counts(&record).await.unwrap();
+                }
             }
         }
 
@@ -1132,7 +1130,7 @@ mod tests {
                     version: "test".to_string(),
                 },
                 &timestamp,
-                &["test".to_string()],
+                &["feature0".to_string()],
             )
             .await
             .unwrap();
@@ -1140,11 +1138,12 @@ mod tests {
         // assert binned_records.features["test"]["decile_1"] is around .5
         let bin_proportion = binned_records
             .features
-            .get("test")
+            .get("feature0")
             .unwrap()
             .get(&1)
             .unwrap();
-        assert!(*bin_proportion > 0.4 && *bin_proportion < 0.6);
+
+        assert!(*bin_proportion > 0.1 && *bin_proportion < 0.2);
 
         let binned_records = client
             .get_binned_psi_drift_records(&DriftRequest {
@@ -1158,7 +1157,7 @@ mod tests {
             .await
             .unwrap();
         //
-        assert_eq!(binned_records.len(), 1);
+        assert_eq!(binned_records.len(), 3);
     }
 
     #[tokio::test]

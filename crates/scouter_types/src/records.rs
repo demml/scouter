@@ -144,8 +144,6 @@ impl PsiServerRecord {
         // serialize the struct to a string
         ProfileFuncs::__json__(self)
     }
-
-
 }
 
 #[pyclass]

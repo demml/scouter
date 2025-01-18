@@ -6,7 +6,7 @@ use num_traits::{Float, FromPrimitive};
 use rayon::prelude::*;
 use scouter_error::MonitorError;
 use scouter_types::psi::{
-    Bin, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile, BinType
+    Bin, BinType, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
 };
 use std::collections::HashMap;
 
@@ -191,13 +191,16 @@ impl PsiMonitor {
         F: Into<f64>,
     {
         if let Some(categorical_feature_map) = drift_config.feature_map.features.get(feature_name) {
-            return Ok((self.create_categorical_bins(column_vector, categorical_feature_map), BinType::Category));
+            return Ok((
+                self.create_categorical_bins(column_vector, categorical_feature_map),
+                BinType::Category,
+            ));
         }
 
         if self.data_are_binary(column_vector) {
             Ok((self.create_binary_bins(column_vector)?, BinType::Binary))
         } else {
-            Ok(( self.create_numeric_bins(column_vector)?, BinType::Numeric))
+            Ok((self.create_numeric_bins(column_vector)?, BinType::Numeric))
         }
     }
 
@@ -293,7 +296,7 @@ impl PsiMonitor {
 
         if self.data_are_binary(column_vector) {
             let column_vector_mean = self.compute_1d_array_mean(column_vector)?;
-            if bin.id == 1  {
+            if bin.id == 1 {
                 return Ok((bin.proportion, 1.0 - column_vector_mean));
             }
             return Ok((bin.proportion, column_vector_mean));

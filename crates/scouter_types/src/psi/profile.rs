@@ -19,7 +19,7 @@ use tracing::debug;
 pub enum BinType {
     Binary,
     Numeric,
-    Category
+    Category,
 }
 
 #[pyclass]
@@ -190,7 +190,7 @@ pub struct PsiFeatureDriftProfile {
     pub timestamp: chrono::NaiveDateTime,
 
     #[pyo3(get)]
-    pub bin_type: BinType
+    pub bin_type: BinType,
 }
 
 #[pyclass]
@@ -360,8 +360,7 @@ impl ProfileBaseArgs for PsiDriftProfile {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FeatureBinProportion {
     pub feature: String,
-    pub bin_id: String,
-    pub proportion: f64,
+    pub bins: BTreeMap<usize, f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -369,15 +368,27 @@ pub struct FeatureBinProportions {
     pub features: BTreeMap<String, BTreeMap<usize, f64>>,
 }
 
-impl FeatureBinProportions {
-    pub fn from_bins(bins: Vec<FeatureBinProportion>) -> Self {
-        let mut features: BTreeMap<String, BTreeMap<usize, f64>> = BTreeMap::new();
-        for bin in bins {
-            let feature = features.entry(bin.feature).or_default();
-            let decile = bin.bin_id.split('_').last().unwrap().parse::<usize>().unwrap();
-            feature.insert(decile, bin.proportion);
+impl FromIterator<FeatureBinProportion> for FeatureBinProportions {
+    fn from_iter<T: IntoIterator<Item = FeatureBinProportion>>(iter: T) -> Self {
+        let mut feature_map: BTreeMap<String, BTreeMap<usize, f64>> = BTreeMap::new();
+        for feature in iter {
+            feature_map.insert(feature.feature, feature.bins);
         }
-        FeatureBinProportions { features }
+        FeatureBinProportions {
+            features: feature_map,
+        }
+    }
+}
+
+impl FeatureBinProportions {
+    pub fn from_features(features: Vec<FeatureBinProportion>) -> Self {
+        let mut feature_map: BTreeMap<String, BTreeMap<usize, f64>> = BTreeMap::new();
+        for feature in features {
+            feature_map.insert(feature.feature, feature.bins);
+        }
+        FeatureBinProportions {
+            features: feature_map,
+        }
     }
 
     pub fn get(&self, feature: &str, bin: &usize) -> Option<&f64> {
@@ -387,7 +398,6 @@ impl FeatureBinProportions {
     pub fn is_empty(&self) -> bool {
         self.features.is_empty()
     }
-
 }
 
 #[cfg(test)]

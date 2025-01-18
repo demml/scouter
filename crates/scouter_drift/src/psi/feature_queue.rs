@@ -1,4 +1,6 @@
-use scouter_types::{psi::BinType, Features, PsiServerRecord, RecordType, ServerRecord, ServerRecords};
+use scouter_types::{
+    psi::BinType, Features, PsiServerRecord, RecordType, ServerRecord, ServerRecords,
+};
 
 use crate::psi::monitor::PsiMonitor;
 use core::result::Result::Ok;
@@ -15,8 +17,6 @@ pub struct PsiFeatureQueue {
 }
 
 impl PsiFeatureQueue {
-   
-
     fn find_numeric_bin_given_scaler(value: f64, bins: &[Bin]) -> &usize {
         bins.iter()
             .find(|bin| value > bin.lower_limit.unwrap() && value <= bin.upper_limit.unwrap())
@@ -66,7 +66,7 @@ impl PsiFeatureQueue {
 
     fn process_categorical_queue(
         queue: &mut HashMap<usize, usize>,
-        value: &usize
+        value: &usize,
     ) -> Result<(), FeatureQueueError> {
         let count = queue.get_mut(value).ok_or(FeatureQueueError::GetBinError)?;
         *count += 1;
@@ -109,7 +109,6 @@ impl PsiFeatureQueue {
                     .get_mut(name)
                     .ok_or(FeatureQueueError::GetFeatureError)?;
 
-
                 match feature_drift_profile.bin_type {
                     BinType::Numeric => {
                         let value = feature.to_float(None, &None).map_err(|e| {
@@ -137,16 +136,18 @@ impl PsiFeatureQueue {
                         };
                     }
                     BinType::Category => {
-    
-                        let value = self.drift_profile.config.feature_map.features.get(name).ok_or(FeatureQueueError::GetFeatureError)?.get(&feature.to_string()).ok_or(FeatureQueueError::GetFeatureError)?;
+                        let value = self
+                            .drift_profile
+                            .config
+                            .feature_map
+                            .features
+                            .get(name)
+                            .ok_or(FeatureQueueError::GetFeatureError)?
+                            .get(&feature.to_string())
+                            .ok_or(FeatureQueueError::GetFeatureError)?;
                         Self::process_categorical_queue(queue, value)?;
                     }
-
-                    _ => {
-                        return Err(FeatureQueueError::InvalidFeatureTypeError(name.to_string()));
-                    }
                 }
-
             }
         }
         Ok(())

@@ -42,10 +42,12 @@ pub struct FeatureBinProportionWrapper(pub FeatureBinProportion);
 
 impl<'r> FromRow<'r, PgRow> for FeatureBinProportionWrapper {
     fn from_row(row: &'r PgRow) -> Result<Self, Error> {
+        let value: serde_json::Value = row.try_get("bins")?;
+        let bins: BTreeMap<usize, f64> = serde_json::from_value(value).unwrap_or_default();
+
         Ok(FeatureBinProportionWrapper(FeatureBinProportion {
             feature: row.try_get("feature")?,
-            bin_id: row.try_get("bin_id")?,
-            proportion: row.try_get("proportion")?,
+            bins,
         }))
     }
 }
