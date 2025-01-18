@@ -404,7 +404,6 @@ mod tests {
             feature_queue.insert(features).unwrap();
         }
 
-        println!("{:?}", feature_queue.queue);
 
         assert_eq!(
             *feature_queue
