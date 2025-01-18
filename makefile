@@ -16,7 +16,7 @@ build.kafka:
 .PHONY: build.sql
 build.sql:
 	docker compose down
-	docker compose up -d --build postgres --wait
+	docker compose up --build postgres --wait
 	
 .PHONY: test.sql
 test.sql:
@@ -79,7 +79,6 @@ test.events: test.kafka_events test.rabbitmq_events
 
 .PHONY: test
 test: test.needs_sql test.unit
-
 
 .PHONY: shutdown
 shutdown:

@@ -2,7 +2,6 @@ use scouter_error::DriftError;
 use scouter_types::psi::{FeatureBinProportions, PsiFeatureDriftProfile};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tracing::error;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FeatureBinProportionPairs {
@@ -18,16 +17,7 @@ impl FeatureBinProportionPairs {
             .bins
             .iter()
             .map(|bin| {
-                let observed_proportion = *observed_bin_proportions
-                    .get(&bin.id)
-                    .ok_or_else(|| {
-                        error!(
-                            "Error: Unable to fetch observed bin proportion for {}/{}",
-                            profile.id, bin.id
-                        );
-                        DriftError::Error("Error processing alerts".to_string())
-                    })
-                    .unwrap();
+                let observed_proportion = *observed_bin_proportions.get(&bin.id).unwrap_or(&0.0); // It's possible that there is no data for a bin, which would mean 0
                 (bin.proportion, observed_proportion)
             })
             .collect();

@@ -192,10 +192,10 @@ impl PostgresClient {
     pub async fn insert_spc_drift_record(
         &self,
         record: &SpcServerRecord,
-    ) -> Result<PgQueryResult, anyhow::Error> {
+    ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertDriftRecord.get_query();
 
-        let query_result = sqlx::query(&query.sql)
+        sqlx::query(&query.sql)
             .bind(record.created_at)
             .bind(&record.name)
             .bind(&record.repository)
@@ -205,27 +205,19 @@ impl PostgresClient {
             .execute(&self.pool)
             .await
             .map_err(|e| {
-                error!("Failed to insert record into database: {:?}", e);
-                SqlError::QueryError(format!("{:?}", e))
-            });
-
-        //drop params
-        match query_result {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                error!("Failed to insert record into database: {:?}", e);
-                Err(SqlError::QueryError(format!("{:?}", e)).into())
-            }
-        }
+                let msg = format!("Failed to insert drift record into database: {:?}", e);
+                error!(msg);
+                SqlError::QueryError(msg)
+            })
     }
 
     pub async fn insert_bin_counts(
         &self,
         record: &PsiServerRecord,
-    ) -> Result<PgQueryResult, anyhow::Error> {
+    ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertBinCounts.get_query();
 
-        let query_result = sqlx::query(&query.sql)
+        sqlx::query(&query.sql)
             .bind(record.created_at)
             .bind(&record.name)
             .bind(&record.repository)
@@ -234,16 +226,12 @@ impl PostgresClient {
             .bind(&record.bin_id)
             .bind(record.bin_count as i64)
             .execute(&self.pool)
-            .await;
-
-        //drop params
-        match query_result {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                error!("Failed to insert PSI bin count data into database: {:?}", e);
-                Err(SqlError::QueryError(format!("{:?}", e)).into())
-            }
-        }
+            .await
+            .map_err(|e| {
+                let msg = format!("Failed to insert PSI bin count data into database: {:?}", e);
+                error!(msg);
+                SqlError::QueryError(msg)
+            })
     }
 
     // Inserts a drift record into the database
@@ -316,7 +304,6 @@ impl PostgresClient {
             .bind(base_args.name)
             .bind(base_args.repository)
             .bind(base_args.version)
-            .bind(base_args.drift_type.to_string())
             .bind(base_args.scouter_version)
             .bind(drift_profile.to_value())
             .bind(base_args.drift_type.to_string())

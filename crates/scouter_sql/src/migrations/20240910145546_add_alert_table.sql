@@ -22,9 +22,3 @@ SELECT create_parent(
 
 UPDATE part_config SET retention = '21 days' WHERE parent_table = 'alerts';
 
--- Add scouter_version column to drift_profile, this can be used for backward compatibility checks down the road
--- Add type column to drift_profile, this can be used to differentiate between different types of drift profiles
-ALTER TABLE drift_profile
-add column scouter_version varchar(256) not null default '0.1.0',
-add column drift_type varchar(256) not null;
-

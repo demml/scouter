@@ -136,10 +136,6 @@ async fn main() -> Result<(), anyhow::Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::Rng;
-    use scouter_drift::psi::PsiMonitor;
-    use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
-    use scouter_types::PsiServerRecord;
     use axum::response::Response;
     use axum::{
         body::Body,
@@ -147,8 +143,15 @@ mod tests {
         Router,
     };
     use http_body_util::BodyExt;
-    use scouter_contracts::{DriftRequest, ProfileRequest, ProfileStatusRequest, ServiceInfo};
+    use rand::Rng;
+    use scouter_contracts::{
+        DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
+    };
+    use scouter_drift::psi::PsiMonitor;
     use scouter_sql::sql::schema::SpcFeatureResult;
+    use scouter_types::psi::BinnedPsiFeatureMetrics;
+    use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
+    use scouter_types::PsiServerRecord;
     use scouter_types::{
         DriftType, RecordType, ServerRecord, ServerRecords, SpcServerRecord, TimeInterval,
     };
@@ -258,24 +261,25 @@ mod tests {
 
         pub fn get_psi_drift_records(&self) -> ServerRecords {
             let mut records: Vec<ServerRecord> = Vec::new();
-            for _ in 0..1000 {
-                for j in 0..2 {
-                    let num = rand::thread_rng().gen_range(0..10);
-                    let record = PsiServerRecord {
-                        created_at: chrono::Utc::now().naive_utc(),
-                        name: "test".to_string(),
-                        repository: "test".to_string(),
-                        version: "1.0.0".to_string(),
-                        feature: format!("feature_{}", j),
-                        bin_id: format!("decile_{}", j),
-                        bin_count: num,
-                        record_type: RecordType::Psi,
-                    };
 
-                    records.push(ServerRecord::Psi(record));
+            for feature in 1..3 {
+                for decile in 0..10 {
+                    for _ in 0..100 {
+                        let record = PsiServerRecord {
+                            created_at: chrono::Utc::now().naive_utc(),
+                            name: "test".to_string(),
+                            repository: "test".to_string(),
+                            version: "1.0.0".to_string(),
+                            feature: format!("feature_{}", feature),
+                            bin_id: format!("decile_{}", decile),
+                            bin_count: rand::thread_rng().gen_range(0..10),
+                            record_type: RecordType::Psi,
+                        };
+
+                        records.push(ServerRecord::Psi(record));
+                    }
                 }
             }
-
             ServerRecords::new(records, RecordType::Psi)
         }
     }
@@ -368,10 +372,11 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         // get profile
-        let params = ServiceInfo {
+        let params = GetProfileRequest {
             name: profile.config.name.clone(),
             repository: profile.config.repository.clone(),
             version: profile.config.version.clone(),
+            drift_type: DriftType::Spc,
         };
 
         let query_string = serde_qs::to_string(&params).unwrap();
@@ -458,11 +463,8 @@ mod tests {
         assert_eq!(results.len(), 10);
     }
 
-
     #[tokio::test]
     async fn test_psi_server_records() {
-
-
         let helper = TestHelper::new(false, false).await.unwrap();
 
         let (array, features) = helper.get_data();
@@ -485,7 +487,7 @@ mod tests {
 
         let request = ProfileRequest {
             profile: profile.model_dump_json(),
-            drift_type: DriftType::Spc,
+            drift_type: DriftType::Psi,
         };
 
         let body = serde_json::to_string(&request).unwrap();
@@ -501,7 +503,6 @@ mod tests {
 
         //assert response
         assert_eq!(response.status(), StatusCode::OK);
-
 
         let records = helper.get_psi_drift_records();
         let body = serde_json::to_string(&records).unwrap();
@@ -541,10 +542,12 @@ mod tests {
         //assert response
         assert_eq!(response.status(), StatusCode::OK);
 
-        let body = response.into_body().collect().await.unwrap().to_bytes();
+        // collect body into serde Value
 
-        let results: Vec<SpcFeatureResult> = serde_json::from_slice(&body).unwrap();
+        let val = response.into_body().collect().await.unwrap().to_bytes();
 
-        assert_eq!(results.len(), 10);
+        let results: BinnedPsiFeatureMetrics = serde_json::from_slice(&val).unwrap();
+
+        assert!(results.features.len() > 0);
     }
 }

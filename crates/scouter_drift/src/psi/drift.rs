@@ -241,6 +241,7 @@ pub mod psi_drifter {
             idx: usize,
         ) -> Result<FeatureBinProportionPairs, DriftError> {
             let feature = bin_proportions.feature.clone();
+
             // get profile
             let profile = match self.profile.features.get(&feature) {
                 Some(profile) => profile,
@@ -250,6 +251,7 @@ pub mod psi_drifter {
                 }
             };
             let mut bin_map = HashMap::new();
+
             for bin_proportion in &bin_proportions.bin_proportions[idx] {
                 bin_map.insert(bin_proportion.bin_id.clone(), bin_proportion.proportion);
             }
@@ -291,9 +293,13 @@ pub mod psi_drifter {
                 .map(|record| -> Result<_, DriftError> {
                     let mut psi_vec = Vec::new();
                     for idx in 0..record.created_at.len() {
-                        let proportions = self.into_feature_bin_proportions(&record, idx)?;
-                        let psi = PsiMonitor::compute_psi(&proportions.pairs);
-                        psi_vec.push(psi);
+                        let exists = self.profile.features.contains_key(&record.feature);
+
+                        if exists {
+                            let proportions = self.into_feature_bin_proportions(&record, idx)?;
+                            let psi = PsiMonitor::compute_psi(&proportions.pairs);
+                            psi_vec.push(psi);
+                        }
                     }
 
                     Ok((
@@ -305,6 +311,12 @@ pub mod psi_drifter {
                     ))
                 })
                 .collect::<Result<BTreeMap<String, BinnedPsiMetric>, DriftError>>()?;
+
+            // filter out any features that are not in the profile
+            let binned_map = binned_map
+                .into_iter()
+                .filter(|(feature, _)| self.profile.features.contains_key(feature))
+                .collect();
 
             Ok(BinnedPsiFeatureMetrics {
                 features: binned_map,

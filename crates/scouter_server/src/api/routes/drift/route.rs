@@ -9,7 +9,9 @@ use axum::{
 };
 use scouter_contracts::{DriftRequest, GetProfileRequest};
 use scouter_drift::psi::PsiDrifter;
-use scouter_types::{psi::PsiDriftProfile, DriftType, ServerRecords, ToDriftRecords};
+use scouter_error::ScouterError;
+use scouter_sql::PostgresClient;
+use scouter_types::{psi::PsiDriftProfile, DriftType, RecordType, ServerRecords, ToDriftRecords};
 use serde_json::json;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
@@ -86,43 +88,72 @@ pub async fn get_psi_drift(
     }
 }
 
+async fn insert_spc_drift(
+    records: &ServerRecords,
+    db: &PostgresClient,
+) -> Result<(), ScouterError> {
+    let records = records.to_spc_drift_records()?;
+
+    for record in records {
+        let _ = db.insert_spc_drift_record(&record).await?;
+    }
+
+    Ok(())
+}
+
+async fn insert_psi_drift(
+    records: &ServerRecords,
+    db: &PostgresClient,
+) -> Result<(), ScouterError> {
+    let records = records.to_psi_drift_records()?;
+
+    for record in records {
+        let _ = db.insert_bin_counts(&record).await?;
+    }
+
+    Ok(())
+}
+
+async fn insert_custom_drift(
+    records: &ServerRecords,
+    db: &PostgresClient,
+) -> Result<(), ScouterError> {
+    let records = records.to_custom_metric_drift_records()?;
+
+    for record in records {
+        let _ = db.insert_custom_metric_value(&record).await?;
+    }
+
+    Ok(())
+}
 pub async fn insert_drift(
     State(data): State<Arc<AppState>>,
     Json(body): Json<ServerRecords>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    let records = body.to_spc_drift_records().map_err(|e| {
-        error!("Failed to convert drift records: {:?}", e);
-        (
-            StatusCode::BAD_REQUEST,
-            json!({ "status": "error", "message": format!("{:?}", e) }),
-        )
-    });
+    let inserted = match body.record_type {
+        RecordType::Spc => insert_spc_drift(&body, &data.db).await,
+        RecordType::Psi => insert_psi_drift(&body, &data.db).await,
+        RecordType::Custom => insert_custom_drift(&body, &data.db).await,
+        _ => Err(ScouterError::Error("Invalid record type".to_string())),
+    };
 
-    if records.is_err() {
-        return Err((
-            StatusCode::BAD_REQUEST,
-            Json(json!({ "status": "error", "message": "Invalid drift record" })),
-        ));
+    match inserted {
+        Ok(_) => {
+            let json_response = json!({
+                "status": "success",
+                "message": "Record inserted successfully"
+            });
+            Ok(Json(json_response))
+        }
+        Err(e) => {
+            error!("Failed to insert drift record: {:?}", e);
+            let json_response = json!({
+                "status": "error",
+                "message": format!("{:?}", e)
+            });
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+        }
     }
-
-    for record in records.unwrap() {
-        let _ = &data
-            .db
-            .insert_spc_drift_record(&record)
-            .await
-            .map_err(|e| {
-                error!("Failed to insert drift record: {:?}", e);
-                (
-                    StatusCode::INTERNAL_SERVER_ERROR,
-                    Json(json!({ "status": "error", "message": format!("{:?}", e) })),
-                )
-            })?;
-    }
-
-    Ok(Json(json!({
-        "status": "success",
-        "message": "Record inserted successfully"
-    })))
 }
 
 pub async fn get_drift_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
