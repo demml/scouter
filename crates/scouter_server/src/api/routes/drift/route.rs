@@ -67,7 +67,7 @@ async fn get_binned_psi_feature_metrics(
     };
 
     let drifter = PsiDrifter::new(profile.clone());
-    Ok((drifter.get_binned_drift_map(&params, &db).await?, profile))
+    Ok((drifter.get_binned_drift_map(params, db).await?, profile))
 }
 
 pub async fn get_psi_drift(

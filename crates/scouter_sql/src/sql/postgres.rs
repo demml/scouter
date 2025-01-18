@@ -365,7 +365,7 @@ impl PostgresClient {
             .bind(&request.name)
             .bind(&request.repository)
             .bind(&request.version)
-            .bind(&request.drift_type.to_string())
+            .bind(request.drift_type.to_string())
             .fetch_optional(&self.pool)
             .await
             .map_err(|e| {

@@ -135,7 +135,6 @@ async fn main() -> Result<(), anyhow::Error> {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
 
     use super::*;
     use axum::response::Response;
@@ -286,7 +285,7 @@ mod tests {
         }
     }
 
-    //#[tokio::test]
+    #[tokio::test]
     async fn test_health_check() {
         let helper = TestHelper::new(false, false).await.unwrap();
 
@@ -306,7 +305,7 @@ mod tests {
         assert_eq!(v.status, "Alive");
     }
 
-    //#[tokio::test]
+    #[tokio::test]
     async fn test_create_spc_profile() {
         let helper = TestHelper::new(false, false).await.unwrap();
 
@@ -417,7 +416,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    //#[tokio::test]
+    #[tokio::test]
     async fn test_spc_server_records() {
         let helper = TestHelper::new(false, false).await.unwrap();
         let records = helper.get_spc_drift_records();
@@ -560,7 +559,7 @@ mod tests {
 
         let results: BinnedPsiFeatureMetrics = serde_json::from_slice(&val).unwrap();
 
-        assert!(results.features.len() > 0);
+        assert!(!results.features.is_empty());
 
         // get psi viz data
         let request = Request::builder()
@@ -578,8 +577,6 @@ mod tests {
 
         let val = response.into_body().collect().await.unwrap().to_bytes();
 
-        let results: PsiDriftViz = serde_json::from_slice(&val).unwrap();
-
-        println!("{:?}", results);
+        let _results: PsiDriftViz = serde_json::from_slice(&val).unwrap();
     }
 }

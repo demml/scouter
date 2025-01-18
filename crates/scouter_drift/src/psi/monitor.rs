@@ -108,7 +108,7 @@ impl PsiMonitor {
                     .count();
 
                 Bin {
-                    id: *numeric_key as usize,
+                    id: *numeric_key,
                     lower_limit: None,
                     upper_limit: None,
                     proportion: (count as f64) / (column_vector.len() as f64),
@@ -170,7 +170,7 @@ impl PsiMonitor {
                 };
                 let bin_count = self.compute_bin_count(column_vector, &lower.into(), &upper.into());
                 Bin {
-                    id: decile as usize + 1,
+                    id: decile + 1,
                     lower_limit: Some(lower.into()),
                     upper_limit: Some(upper.into()),
                     proportion: (bin_count as f64) / (column_vector.len() as f64),
@@ -283,7 +283,7 @@ impl PsiMonitor {
         F: Float + FromPrimitive,
         F: Into<f64>,
     {
-        if let Some(_) = categorical_feature_map {
+        if categorical_feature_map.is_some() {
             let bin_count = column_vector
                 .iter()
                 .filter(|&&value| value.into() == bin.id as f64)

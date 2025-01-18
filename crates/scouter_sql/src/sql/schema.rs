@@ -162,7 +162,7 @@ pub struct BinProportion {
 pub struct FeatureBinProportionResult {
     pub feature: String,
     pub created_at: Vec<NaiveDateTime>,
-    pub bin_proportions: Vec<Vec<BinProportion>>,
+    pub bin_proportions: Vec<BTreeMap<usize, f64>>,
 }
 
 impl<'r> FromRow<'r, PgRow> for FeatureBinProportionResult {
@@ -171,13 +171,13 @@ impl<'r> FromRow<'r, PgRow> for FeatureBinProportionResult {
         let bin_proportions_json: serde_json::Value = row.try_get("bin_proportions")?;
 
         // Convert the Vec of tuples into a Vec of BinProportion structs
-        let bin_proportions: Vec<Vec<BinProportion>> =
+        let bin_proportions: Vec<BTreeMap<usize, f64>> =
             serde_json::from_value(bin_proportions_json).unwrap();
 
         Ok(FeatureBinProportionResult {
             feature: row.try_get("feature")?,
             created_at: row.try_get("created_at")?,
-            bin_proportions: bin_proportions,
+            bin_proportions,
         })
     }
 }

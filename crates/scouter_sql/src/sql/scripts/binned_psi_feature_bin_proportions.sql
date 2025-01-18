@@ -55,11 +55,9 @@ bin_agg as (
 	SELECT 
 	    feature,
 	    created_at,
-	    array_agg(
-        jsonb_build_object(
-            'bin_id', bin_id,
-            'proportion', proportion::FLOAT8
-        )
+	    jsonb_object_agg(
+            bin_id, proportion::FLOAT8
+        ) AS bin_proportions
     ) as bin_proportions
 	FROM feature_bin_proportions
 	WHERE 1=1
@@ -72,7 +70,7 @@ bin_agg as (
 select
  feature,
  array_agg(created_at order by created_at desc) as created_at,
- jsonb_agg(bin_proportions order by created_at desc) as bin_proportions
+ array_agg(bin_proportions order by created_at desc) as bin_proportions
 FROM bin_agg
 WHERE 1=1
 GROUP BY feature

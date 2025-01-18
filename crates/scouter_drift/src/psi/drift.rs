@@ -9,7 +9,7 @@ pub mod psi_drifter {
     use scouter_contracts::ServiceInfo;
     use scouter_dispatch::AlertDispatcher;
     use scouter_error::DriftError;
-    use scouter_sql::{sql::schema::FeatureBinProportionResult, PostgresClient};
+    use scouter_sql::PostgresClient;
     use scouter_types::psi::{
         BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiDriftProfile, PsiFeatureAlerts,
         PsiFeatureDriftProfile,
@@ -235,29 +235,22 @@ pub mod psi_drifter {
             }
         }
 
-        fn into_feature_bin_proportions(
+        fn create_feature_bin_proportion_pairs(
             &self,
-            bin_proportions: &FeatureBinProportionResult,
-            idx: usize,
+            feature: &str,
+            bin_proportions: &BTreeMap<usize, f64>,
         ) -> Result<FeatureBinProportionPairs, DriftError> {
-            let feature = bin_proportions.feature.clone();
-
             // get profile
-            let profile = match self.profile.features.get(&feature) {
+            let profile = match self.profile.features.get(feature) {
                 Some(profile) => profile,
                 None => {
                     error!("Error: Unable to fetch profile for feature {}", feature);
                     return Err(DriftError::Error("Error processing alerts".to_string()));
                 }
             };
-            let mut bin_map = BTreeMap::new();
-
-            for bin_proportion in &bin_proportions.bin_proportions[idx] {
-                bin_map.insert(bin_proportion.bin_id.clone(), bin_proportion.proportion);
-            }
 
             let proportion_pairs =
-                FeatureBinProportionPairs::from_observed_bin_proportions(&bin_map, profile)
+                FeatureBinProportionPairs::from_observed_bin_proportions(bin_proportions, profile)
                     .unwrap();
 
             Ok(proportion_pairs)
@@ -287,16 +280,18 @@ pub mod psi_drifter {
                 return Ok(BinnedPsiFeatureMetrics::default());
             }
 
-            // iterate over each figure and calculate psi
+            // iterate over each feature and calculate psi for each time period
             let binned_map = binned_records
                 .into_par_iter()
                 .map(|record| -> Result<_, DriftError> {
                     let mut psi_vec = Vec::new();
                     for idx in 0..record.created_at.len() {
                         let exists = self.profile.features.contains_key(&record.feature);
-
                         if exists {
-                            let proportions = self.into_feature_bin_proportions(&record, idx)?;
+                            let proportions = self.create_feature_bin_proportion_pairs(
+                                &record.feature,
+                                &record.bin_proportions[idx],
+                            )?;
                             let psi = PsiMonitor::compute_psi(&proportions.pairs);
                             psi_vec.push(psi);
                         }
@@ -425,26 +420,19 @@ pub mod psi_drifter {
             let observed_feat1_decile2_prop = 0.3;
             let observed_feat1_decile3_prop = 0.1;
 
-            let observed_proportions = FeatureBinProportions::from_bins(vec![
-                FeatureBinProportion {
+            let mut feat1_bins = BTreeMap::new();
+            feat1_bins.insert(1, observed_feat1_decile1_prop);
+            feat1_bins.insert(2, observed_feat1_decile2_prop);
+            feat1_bins.insert(3, observed_feat1_decile3_prop);
+
+            let observed_proportions =
+                FeatureBinProportions::from_features(vec![FeatureBinProportion {
                     feature: "feature_1".to_string(),
-                    bin_id: 1,
-                    proportion: observed_feat1_decile1_prop,
-                },
-                FeatureBinProportion {
-                    feature: "feature_1".to_string(),
-                    bin_id: 2,
-                    proportion: observed_feat1_decile2_prop,
-                },
-                FeatureBinProportion {
-                    feature: "feature_1".to_string(),
-                    bin_id: 3,
-                    proportion: observed_feat1_decile3_prop,
-                },
-            ]);
+                    bins: feat1_bins,
+                }]);
 
             let pairs = FeatureBinProportionPairs::from_observed_bin_proportions(
-                &observed_proportions.features.get("feature_1").unwrap(),
+                observed_proportions.features.get("feature_1").unwrap(),
                 &feature_drift_profile,
             )
             .unwrap();

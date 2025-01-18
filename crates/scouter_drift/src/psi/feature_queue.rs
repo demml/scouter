@@ -85,7 +85,7 @@ impl PsiFeatureQueue {
                 let inner_map: HashMap<usize, usize> = feature_drift_profile
                     .bins
                     .iter()
-                    .map(|bin| (bin.id.clone(), 0))
+                    .map(|bin| (bin.id, 0))
                     .collect();
                 (feature_name.clone(), inner_map)
             })
@@ -164,7 +164,7 @@ impl PsiFeatureQueue {
                         self.drift_profile.config.name.clone(),
                         self.drift_profile.config.version.clone(),
                         feature_name.clone(),
-                        bin_id.clone(),
+                        *bin_id,
                         *count,
                     ))
                 })
