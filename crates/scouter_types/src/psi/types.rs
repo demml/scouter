@@ -1,3 +1,4 @@
+use crate::psi::profile::FeatureBinProportions;
 use chrono::NaiveDateTime;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -11,4 +12,10 @@ pub struct BinnedPsiMetric {
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct BinnedPsiFeatureMetrics {
     pub features: BTreeMap<String, BinnedPsiMetric>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct PsiDriftViz {
+    pub feature_metrics: BinnedPsiFeatureMetrics,
+    pub bin_proportions: FeatureBinProportions,
 }

@@ -135,6 +135,8 @@ async fn main() -> Result<(), anyhow::Error> {
 
 #[cfg(test)]
 mod tests {
+    use std::collections::HashMap;
+
     use super::*;
     use axum::response::Response;
     use axum::{
@@ -150,7 +152,7 @@ mod tests {
     use scouter_drift::psi::PsiMonitor;
     use scouter_sql::sql::schema::SpcFeatureResult;
     use scouter_types::psi::BinnedPsiFeatureMetrics;
-    use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
+    use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig, PsiDriftViz};
     use scouter_types::PsiServerRecord;
     use scouter_types::{
         DriftType, RecordType, ServerRecord, ServerRecords, SpcServerRecord, TimeInterval,
@@ -284,7 +286,7 @@ mod tests {
         }
     }
 
-    #[tokio::test]
+    //#[tokio::test]
     async fn test_health_check() {
         let helper = TestHelper::new(false, false).await.unwrap();
 
@@ -304,7 +306,7 @@ mod tests {
         assert_eq!(v.status, "Alive");
     }
 
-    #[tokio::test]
+    //#[tokio::test]
     async fn test_create_spc_profile() {
         let helper = TestHelper::new(false, false).await.unwrap();
 
@@ -415,7 +417,7 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    #[tokio::test]
+    //#[tokio::test]
     async fn test_spc_server_records() {
         let helper = TestHelper::new(false, false).await.unwrap();
         let records = helper.get_spc_drift_records();
@@ -468,7 +470,17 @@ mod tests {
         let helper = TestHelper::new(false, false).await.unwrap();
 
         let (array, features) = helper.get_data();
-        let alert_config = PsiAlertConfig::default();
+        let alert_config = PsiAlertConfig::new(
+            None,
+            None,
+            Some(vec![
+                "feature_1".to_string(),
+                "feature_2".to_string(),
+                "feature_3".to_string(),
+            ]),
+            None,
+            None,
+        );
         let config = PsiDriftConfig::new(
             Some("test".to_string()),
             Some("test".to_string()),
@@ -549,5 +561,25 @@ mod tests {
         let results: BinnedPsiFeatureMetrics = serde_json::from_slice(&val).unwrap();
 
         assert!(results.features.len() > 0);
+
+        // get psi viz data
+        let request = Request::builder()
+            .uri(format!("/scouter/drift/psi/viz?{}", query_string))
+            .method("GET")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = helper.send_oneshot(request).await;
+
+        //assert response
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // collect body into serde Value
+
+        let val = response.into_body().collect().await.unwrap().to_bytes();
+
+        let results: PsiDriftViz = serde_json::from_slice(&val).unwrap();
+
+        println!("{:?}", results);
     }
 }

@@ -1,28 +1,29 @@
 use scouter_error::DriftError;
 use scouter_types::psi::{FeatureBinProportions, PsiFeatureDriftProfile};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FeatureBinProportionPairs {
+    pub bins: Vec<String>,
     pub pairs: Vec<(f64, f64)>,
 }
 
 impl FeatureBinProportionPairs {
     pub fn from_observed_bin_proportions(
-        observed_bin_proportions: &HashMap<String, f64>,
+        observed_bin_proportions: &BTreeMap<u32, f64>,
         profile: &PsiFeatureDriftProfile,
     ) -> Result<Self, DriftError> {
-        let pairs: Vec<(f64, f64)> = profile
+        let (bins, pairs): (Vec<String>, Vec<(f64, f64)>) = profile
             .bins
             .iter()
             .map(|bin| {
                 let observed_proportion = *observed_bin_proportions.get(&bin.id).unwrap_or(&0.0); // It's possible that there is no data for a bin, which would mean 0
-                (bin.proportion, observed_proportion)
+                (bin.id.to_string(), (bin.proportion, observed_proportion))
             })
-            .collect();
+            .unzip();
 
-        Ok(Self { pairs })
+        Ok(Self { bins, pairs })
     }
 }
 

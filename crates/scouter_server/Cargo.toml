@@ -23,6 +23,7 @@ scouter-sql = { workspace = true }
 
 anyhow = {workspace = true}
 axum = {workspace = true}
+chrono = { workspace = true }
 futures = { workspace = true }
 metrics = { workspace = true }
 metrics-exporter-prometheus = { workspace = true }
@@ -38,7 +39,6 @@ tracing-subscriber = { workspace = true}
 
 [dev-dependencies]
 approx = "0.*"
-chrono = { workspace = true }
 http-body-util = "0.*"
 ndarray = { workspace = true }
 ndarray-rand = "0.*"

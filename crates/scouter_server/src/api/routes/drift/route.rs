@@ -7,11 +7,15 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use scouter_contracts::{DriftRequest, GetProfileRequest};
+use chrono::TimeDelta;
+use scouter_contracts::{DriftRequest, GetProfileRequest, ServiceInfo};
 use scouter_drift::psi::PsiDrifter;
 use scouter_error::ScouterError;
 use scouter_sql::PostgresClient;
-use scouter_types::{psi::PsiDriftProfile, DriftType, RecordType, ServerRecords, ToDriftRecords};
+use scouter_types::{
+    psi::{BinnedPsiFeatureMetrics, PsiDriftProfile, PsiDriftViz},
+    DriftType, RecordType, ServerRecords, ToDriftRecords,
+};
 use serde_json::json;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
@@ -41,12 +45,11 @@ pub async fn get_spc_drift(
     }
 }
 
-pub async fn get_psi_drift(
-    State(data): State<Arc<AppState>>,
-    Query(params): Query<DriftRequest>,
-) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    // validate time window
-
+/// Common method used in both the get_psi_drift and get_psi_viz_drift routes
+async fn get_binned_psi_feature_metrics(
+    params: &DriftRequest,
+    db: &PostgresClient,
+) -> Result<(BinnedPsiFeatureMetrics, PsiDriftProfile), ScouterError> {
     let profile_request = GetProfileRequest {
         name: params.name.clone(),
         repository: params.repository.clone(),
@@ -54,27 +57,89 @@ pub async fn get_psi_drift(
         drift_type: DriftType::Psi,
     };
 
-    let value = data.db.get_drift_profile(&profile_request).await;
+    let value = db.get_drift_profile(&profile_request).await?;
 
     let profile: PsiDriftProfile = match value {
-        Ok(Some(profile)) => serde_json::from_value(profile).unwrap(),
-        _ => {
-            let msg = "Failed to load profile";
-            error!("Failed to load profile");
+        Some(profile) => serde_json::from_value(profile).unwrap(),
+        None => {
+            return Err(ScouterError::Error("Failed to load profile".to_string()));
+        }
+    };
+
+    let drifter = PsiDrifter::new(profile.clone());
+    Ok((drifter.get_binned_drift_map(&params, &db).await?, profile))
+}
+
+pub async fn get_psi_drift(
+    State(data): State<Arc<AppState>>,
+    Query(params): Query<DriftRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    // validate time window
+
+    let feature_metrics = get_binned_psi_feature_metrics(&params, &data.db).await;
+
+    match feature_metrics {
+        Ok((metrics, _)) => {
+            let json_response = serde_json::json!(metrics);
+            Ok(Json(json_response))
+        }
+        Err(e) => {
+            error!("Failed to query drift records: {:?}", e);
             let json_response = json!({
                 "status": "error",
-                "message": msg
+                "message": format!("{:?}", e)
+            });
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+        }
+    }
+}
+
+/// This route is used to get the drift data for the PSI visualization
+///
+/// The route will both psi calculations for each feature and time interval as well as overall bin proportions
+pub async fn get_psi_viz_drift(
+    State(data): State<Arc<AppState>>,
+    Query(params): Query<DriftRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    // validate time window
+
+    let feature_metrics = get_binned_psi_feature_metrics(&params, &data.db).await;
+
+    let (feature_metrics, profile) = match feature_metrics {
+        Ok((metrics, profile)) => (metrics, profile),
+        Err(e) => {
+            error!("Failed to query drift records: {:?}", e);
+            let json_response = json!({
+                "status": "error",
+                "message": format!("{:?}", e)
             });
             return Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)));
         }
     };
 
-    let drifter = PsiDrifter::new(profile);
-    let feature_metrics = drifter.get_binned_drift_map(&params, &data.db).await;
+    let service_info = ServiceInfo {
+        name: params.name.clone(),
+        repository: params.repository.clone(),
+        version: params.version.clone(),
+    };
 
-    match feature_metrics {
-        Ok(metrics) => {
-            let json_response = serde_json::json!(metrics);
+    let minutes = params.time_window.to_minutes() as i64;
+    let limit_datetime = chrono::Utc::now().naive_utc() - TimeDelta::minutes(minutes);
+    let bin_proportions = data
+        .db
+        .get_feature_bin_proportions(
+            &service_info,
+            &limit_datetime,
+            &profile.config.alert_config.features_to_monitor,
+        )
+        .await;
+
+    match bin_proportions {
+        Ok(bin_proportions) => {
+            let json_response = json!(PsiDriftViz {
+                feature_metrics,
+                bin_proportions,
+            });
             Ok(Json(json_response))
         }
         Err(e) => {
@@ -162,6 +227,7 @@ pub async fn get_drift_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
             .route(&format!("{}/drift", prefix), post(insert_drift))
             .route(&format!("{}/drift/spc", prefix), get(get_spc_drift))
             .route(&format!("{}/drift/psi", prefix), get(get_psi_drift))
+            .route(&format!("{}/drift/psi/viz", prefix), get(get_psi_viz_drift))
     }));
 
     match result {

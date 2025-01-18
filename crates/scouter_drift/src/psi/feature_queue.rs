@@ -36,7 +36,7 @@ impl PsiFeatureQueue {
         no_thresholds && all_non_numeric_ids
     }
 
-    fn find_numeric_bin_given_scaler(value: f64, bins: &[Bin]) -> &String {
+    fn find_numeric_bin_given_scaler(value: f64, bins: &[Bin]) -> &u32 {
         bins.iter()
             .find(|bin| value > bin.lower_limit.unwrap() && value <= bin.upper_limit.unwrap())
             .map(|bin| &bin.id)

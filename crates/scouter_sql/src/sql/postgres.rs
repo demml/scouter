@@ -1142,7 +1142,7 @@ mod tests {
             .features
             .get("test")
             .unwrap()
-            .get("decile_1")
+            .get(&1)
             .unwrap();
         assert!(*bin_proportion > 0.4 && *bin_proportion < 0.6);
 

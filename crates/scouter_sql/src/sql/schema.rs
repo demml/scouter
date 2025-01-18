@@ -152,7 +152,7 @@ impl<'r> FromRow<'r, PgRow> for ObservabilityResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BinProportion {
-    pub bin_id: String,
+    pub bin_id: u32,
     pub proportion: f64,
 }
 

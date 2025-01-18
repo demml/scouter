@@ -10,9 +10,17 @@ use pyo3::types::PyDict;
 use scouter_error::ScouterError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use tracing::debug;
+
+#[pyclass(eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub enum BinType {
+    Binary,
+    Numeric,
+    Category
+}
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -157,7 +165,7 @@ impl DispatchDriftConfig for PsiDriftConfig {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Bin {
     #[pyo3(get)]
-    pub id: String,
+    pub id: u32,
 
     #[pyo3(get)]
     pub lower_limit: Option<f64>,
@@ -180,6 +188,9 @@ pub struct PsiFeatureDriftProfile {
 
     #[pyo3(get)]
     pub timestamp: chrono::NaiveDateTime,
+
+    #[pyo3(get)]
+    pub bin_type: BinType
 }
 
 #[pyclass]
@@ -355,26 +366,28 @@ pub struct FeatureBinProportion {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FeatureBinProportions {
-    pub features: HashMap<String, HashMap<String, f64>>,
+    pub features: BTreeMap<String, BTreeMap<u32, f64>>,
 }
 
 impl FeatureBinProportions {
     pub fn from_bins(bins: Vec<FeatureBinProportion>) -> Self {
-        let mut features: HashMap<String, HashMap<String, f64>> = HashMap::new();
+        let mut features: BTreeMap<String, BTreeMap<u32, f64>> = BTreeMap::new();
         for bin in bins {
             let feature = features.entry(bin.feature).or_default();
-            feature.insert(bin.bin_id, bin.proportion);
+            let decile = bin.bin_id.split('_').last().unwrap().parse::<u32>().unwrap();
+            feature.insert(decile, bin.proportion);
         }
         FeatureBinProportions { features }
     }
 
-    pub fn get(&self, feature: &str, bin: &str) -> Option<&f64> {
+    pub fn get(&self, feature: &str, bin: &u32) -> Option<&f64> {
         self.features.get(feature).and_then(|f| f.get(bin))
     }
 
     pub fn is_empty(&self) -> bool {
         self.features.is_empty()
     }
+
 }
 
 #[cfg(test)]

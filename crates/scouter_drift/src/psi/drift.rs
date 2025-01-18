@@ -250,7 +250,7 @@ pub mod psi_drifter {
                     return Err(DriftError::Error("Error processing alerts".to_string()));
                 }
             };
-            let mut bin_map = HashMap::new();
+            let mut bin_map = BTreeMap::new();
 
             for bin_proportion in &bin_proportions.bin_proportions[idx] {
                 bin_map.insert(bin_proportion.bin_id.clone(), bin_proportion.proportion);
@@ -399,19 +399,19 @@ pub mod psi_drifter {
                 id: "feature_1".to_string(),
                 bins: vec![
                     Bin {
-                        id: "decile_1".to_string(),
+                        id: 1,
                         lower_limit: Some(0.1),
                         upper_limit: Some(0.2),
                         proportion: training_feat1_decile1_prop,
                     },
                     Bin {
-                        id: "decile_2".to_string(),
+                        id: 2,
                         lower_limit: Some(0.2),
                         upper_limit: Some(0.4),
                         proportion: training_feat1_decile2_prop,
                     },
                     Bin {
-                        id: "decile_3".to_string(),
+                        id: 3,
                         lower_limit: Some(0.4),
                         upper_limit: Some(0.8),
                         proportion: training_feat1_decile3_prop,
