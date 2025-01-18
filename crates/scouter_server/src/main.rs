@@ -273,7 +273,7 @@ mod tests {
                             repository: "test".to_string(),
                             version: "1.0.0".to_string(),
                             feature: format!("feature_{}", feature),
-                            bin_id: format!("decile_{}", decile),
+                            bin_id: decile,
                             bin_count: rand::thread_rng().gen_range(0..10),
                             record_type: RecordType::Psi,
                         };

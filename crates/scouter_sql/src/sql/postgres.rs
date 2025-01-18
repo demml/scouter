@@ -223,7 +223,7 @@ impl PostgresClient {
             .bind(&record.repository)
             .bind(&record.version)
             .bind(&record.feature)
-            .bind(&record.bin_id)
+            .bind(record.bin_id as i64)
             .bind(record.bin_count as i64)
             .execute(&self.pool)
             .await
@@ -974,7 +974,7 @@ mod tests {
             repository: "test".to_string(),
             version: "test".to_string(),
             feature: "test".to_string(),
-            bin_id: "decile_1".to_string(),
+            bin_id: 1,
             bin_count: 1,
             record_type: RecordType::Psi,
         };
@@ -1113,7 +1113,7 @@ mod tests {
                     repository: "test".to_string(),
                     version: "test".to_string(),
                     feature: "test".to_string(),
-                    bin_id: format!("decile_{}", j),
+                    bin_id: j,
                     bin_count: num,
                     record_type: RecordType::Psi,
                 };

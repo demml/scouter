@@ -165,7 +165,7 @@ impl DispatchDriftConfig for PsiDriftConfig {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Bin {
     #[pyo3(get)]
-    pub id: u32,
+    pub id: usize,
 
     #[pyo3(get)]
     pub lower_limit: Option<f64>,
@@ -366,21 +366,21 @@ pub struct FeatureBinProportion {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FeatureBinProportions {
-    pub features: BTreeMap<String, BTreeMap<u32, f64>>,
+    pub features: BTreeMap<String, BTreeMap<usize, f64>>,
 }
 
 impl FeatureBinProportions {
     pub fn from_bins(bins: Vec<FeatureBinProportion>) -> Self {
-        let mut features: BTreeMap<String, BTreeMap<u32, f64>> = BTreeMap::new();
+        let mut features: BTreeMap<String, BTreeMap<usize, f64>> = BTreeMap::new();
         for bin in bins {
             let feature = features.entry(bin.feature).or_default();
-            let decile = bin.bin_id.split('_').last().unwrap().parse::<u32>().unwrap();
+            let decile = bin.bin_id.split('_').last().unwrap().parse::<usize>().unwrap();
             feature.insert(decile, bin.proportion);
         }
         FeatureBinProportions { features }
     }
 
-    pub fn get(&self, feature: &str, bin: &u32) -> Option<&f64> {
+    pub fn get(&self, feature: &str, bin: &usize) -> Option<&f64> {
         self.features.get(feature).and_then(|f| f.get(bin))
     }
 

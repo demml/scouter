@@ -108,7 +108,7 @@ impl PsiMonitor {
                     .count();
 
                 Bin {
-                    id: *numeric_key as u32,
+                    id: *numeric_key as usize,
                     lower_limit: None,
                     upper_limit: None,
                     proportion: (count as f64) / (column_vector.len() as f64),
@@ -170,7 +170,7 @@ impl PsiMonitor {
                 };
                 let bin_count = self.compute_bin_count(column_vector, &lower.into(), &upper.into());
                 Bin {
-                    id: decile as u32 + 1,
+                    id: decile as usize + 1,
                     lower_limit: Some(lower.into()),
                     upper_limit: Some(upper.into()),
                     proportion: (bin_count as f64) / (column_vector.len() as f64),

@@ -1,4 +1,4 @@
-use scouter_types::{Features, PsiServerRecord, RecordType, ServerRecord, ServerRecords};
+use scouter_types::{psi::BinType, Features, PsiServerRecord, RecordType, ServerRecord, ServerRecords};
 
 use crate::psi::monitor::PsiMonitor;
 use core::result::Result::Ok;
@@ -10,33 +10,14 @@ use std::collections::HashMap;
 #[pyclass]
 pub struct PsiFeatureQueue {
     pub drift_profile: PsiDriftProfile,
-    pub queue: HashMap<String, HashMap<String, usize>>,
+    pub queue: HashMap<String, HashMap<usize, usize>>,
     pub monitor: PsiMonitor,
 }
 
 impl PsiFeatureQueue {
-    fn feature_is_numeric(bins: &[Bin]) -> bool {
-        bins.iter()
-            .any(|q| q.lower_limit.is_some() && q.upper_limit.is_some())
-    }
+   
 
-    fn feature_is_binary(bins: &[Bin]) -> bool {
-        let no_thresholds = bins
-            .iter()
-            .any(|bin| bin.lower_limit.is_none() && bin.upper_limit.is_none());
-        let binary_bin_ids = bins.iter().all(|bin| bin.id == "0" || bin.id == "1");
-        no_thresholds && bins.len() == 2 && binary_bin_ids
-    }
-
-    fn feature_is_categorical(bins: &[Bin]) -> bool {
-        let no_thresholds = bins
-            .iter()
-            .any(|bin| bin.lower_limit.is_none() && bin.upper_limit.is_none());
-        let all_non_numeric_ids = bins.iter().all(|bin| bin.id.parse::<f64>().is_err());
-        no_thresholds && all_non_numeric_ids
-    }
-
-    fn find_numeric_bin_given_scaler(value: f64, bins: &[Bin]) -> &u32 {
+    fn find_numeric_bin_given_scaler(value: f64, bins: &[Bin]) -> &usize {
         bins.iter()
             .find(|bin| value > bin.lower_limit.unwrap() && value <= bin.upper_limit.unwrap())
             .map(|bin| &bin.id)
@@ -44,7 +25,7 @@ impl PsiFeatureQueue {
     }
 
     fn process_numeric_queue(
-        queue: &mut HashMap<String, usize>,
+        queue: &mut HashMap<usize, usize>,
         value: f64,
         bins: &[Bin],
     ) -> Result<(), FeatureQueueError> {
@@ -59,17 +40,17 @@ impl PsiFeatureQueue {
 
     fn process_binary_queue(
         feature: &str,
-        queue: &mut HashMap<String, usize>,
+        queue: &mut HashMap<usize, usize>,
         value: f64,
     ) -> Result<(), FeatureQueueError> {
         if value == 0.0 {
-            let bin_id = "0".to_string();
+            let bin_id = 0;
             let count = queue
                 .get_mut(&bin_id)
                 .ok_or(FeatureQueueError::GetBinError)?;
             *count += 1;
         } else if value == 1.0 {
-            let bin_id = "1".to_string();
+            let bin_id = 1;
             let count = queue
                 .get_mut(&bin_id)
                 .ok_or(FeatureQueueError::GetBinError)?;
@@ -84,8 +65,8 @@ impl PsiFeatureQueue {
     }
 
     fn process_categorical_queue(
-        queue: &mut HashMap<String, usize>,
-        value: &str,
+        queue: &mut HashMap<usize, usize>,
+        value: &usize
     ) -> Result<(), FeatureQueueError> {
         let count = queue.get_mut(value).ok_or(FeatureQueueError::GetBinError)?;
         *count += 1;
@@ -97,11 +78,11 @@ impl PsiFeatureQueue {
 impl PsiFeatureQueue {
     #[new]
     pub fn new(drift_profile: PsiDriftProfile) -> Self {
-        let queue: HashMap<String, HashMap<String, usize>> = drift_profile
+        let queue: HashMap<String, HashMap<usize, usize>> = drift_profile
             .features
             .iter()
             .map(|(feature_name, feature_drift_profile)| {
-                let inner_map: HashMap<String, usize> = feature_drift_profile
+                let inner_map: HashMap<usize, usize> = feature_drift_profile
                     .bins
                     .iter()
                     .map(|bin| (bin.id.clone(), 0))
@@ -128,36 +109,44 @@ impl PsiFeatureQueue {
                     .get_mut(name)
                     .ok_or(FeatureQueueError::GetFeatureError)?;
 
-                if Self::feature_is_numeric(bins) {
-                    let value = feature.to_float(None, &None).map_err(|e| {
-                        FeatureQueueError::InvalidValueError(
-                            feature.name().to_string(),
-                            e.to_string(),
-                        )
-                    })?;
 
-                    // check if some, if not return error
-                    if let Some(value) = value {
-                        Self::process_numeric_queue(queue, value, bins)?;
+                match feature_drift_profile.bin_type {
+                    BinType::Numeric => {
+                        let value = feature.to_float(None, &None).map_err(|e| {
+                            FeatureQueueError::InvalidValueError(
+                                feature.name().to_string(),
+                                e.to_string(),
+                            )
+                        })?;
+
+                        // check if some, if not return error
+                        if let Some(value) = value {
+                            Self::process_numeric_queue(queue, value, bins)?;
+                        }
                     }
-                } else if Self::feature_is_binary(bins) {
-                    let value = feature.to_float(None, &None).map_err(|e| {
-                        FeatureQueueError::InvalidValueError(
-                            feature.name().to_string(),
-                            e.to_string(),
-                        )
-                    })?;
+                    BinType::Binary => {
+                        let value = feature.to_float(None, &None).map_err(|e| {
+                            FeatureQueueError::InvalidValueError(
+                                feature.name().to_string(),
+                                e.to_string(),
+                            )
+                        })?;
 
-                    if let Some(value) = value {
-                        Self::process_binary_queue(feature.name(), queue, value)?
-                    };
-                } else if Self::feature_is_categorical(bins) {
-                    let value = feature.to_string();
+                        if let Some(value) = value {
+                            Self::process_binary_queue(feature.name(), queue, value)?
+                        };
+                    }
+                    BinType::Category => {
+    
+                        let value = self.drift_profile.config.feature_map.features.get(name).ok_or(FeatureQueueError::GetFeatureError)?.get(&feature.to_string()).ok_or(FeatureQueueError::GetFeatureError)?;
+                        Self::process_categorical_queue(queue, value)?;
+                    }
 
-                    Self::process_categorical_queue(queue, &value)?;
-                } else {
-                    return Err(FeatureQueueError::InvalidFeatureTypeError(name.to_string()));
+                    _ => {
+                        return Err(FeatureQueueError::InvalidFeatureTypeError(name.to_string()));
+                    }
                 }
+
             }
         }
         Ok(())
@@ -265,7 +254,7 @@ mod tests {
                 .queue
                 .get("feature_1")
                 .unwrap()
-                .get("decile_1")
+                .get(&1)
                 .unwrap(),
             9
         );
@@ -274,7 +263,7 @@ mod tests {
                 .queue
                 .get("feature_2")
                 .unwrap()
-                .get("decile_1")
+                .get(&1)
                 .unwrap(),
             9
         );
@@ -283,7 +272,7 @@ mod tests {
                 .queue
                 .get("feature_3")
                 .unwrap()
-                .get("decile_10")
+                .get(&10)
                 .unwrap(),
             9
         );
@@ -335,7 +324,7 @@ mod tests {
                 .queue
                 .get("feature_1")
                 .unwrap()
-                .get("0")
+                .get(&0)
                 .unwrap(),
             9
         );
@@ -344,7 +333,7 @@ mod tests {
                 .queue
                 .get("feature_2")
                 .unwrap()
-                .get("decile_1")
+                .get(&1)
                 .unwrap(),
             9
         );
@@ -419,7 +408,7 @@ mod tests {
                 .queue
                 .get("feature_1")
                 .unwrap()
-                .get("c")
+                .get(&1)
                 .unwrap(),
             9
         );
@@ -428,7 +417,7 @@ mod tests {
                 .queue
                 .get("feature_2")
                 .unwrap()
-                .get("a")
+                .get(&0)
                 .unwrap(),
             9
         );
