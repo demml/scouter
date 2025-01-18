@@ -3503,6 +3503,7 @@ dependencies = [
  "mockito",
  "ndarray",
  "ndarray-rand",
+ "rand",
  "scouter-contracts",
  "scouter-dispatch",
  "scouter-drift",
