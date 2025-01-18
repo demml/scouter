@@ -11,7 +11,8 @@ pub mod psi_drifter {
     use scouter_error::DriftError;
     use scouter_sql::{sql::schema::FeatureBinProportionResult, PostgresClient};
     use scouter_types::psi::{
-        FeatureBinProportions, PsiDriftProfile, PsiFeatureAlerts, PsiFeatureDriftProfile, BinnedPsiFeatureMetrics, BinnedPsiMetric,
+        BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiDriftProfile, PsiFeatureAlerts,
+        PsiFeatureDriftProfile,
     };
     use std::collections::{BTreeMap, HashMap};
     use tracing::error;
@@ -239,16 +240,12 @@ pub mod psi_drifter {
             bin_proportions: &FeatureBinProportionResult,
             idx: usize,
         ) -> Result<FeatureBinProportionPairs, DriftError> {
-
             let feature = bin_proportions.feature.clone();
             // get profile
             let profile = match self.profile.features.get(&feature) {
                 Some(profile) => profile,
                 None => {
-                    error!(
-                        "Error: Unable to fetch profile for feature {}",
-                        feature
-                    );
+                    error!("Error: Unable to fetch profile for feature {}", feature);
                     return Err(DriftError::Error("Error processing alerts".to_string()));
                 }
             };
@@ -257,11 +254,9 @@ pub mod psi_drifter {
                 bin_map.insert(bin_proportion.bin_id.clone(), bin_proportion.proportion);
             }
 
-
             let proportion_pairs =
-            FeatureBinProportionPairs::from_observed_bin_proportions(&bin_map, profile)
-                .unwrap();
-
+                FeatureBinProportionPairs::from_observed_bin_proportions(&bin_map, profile)
+                    .unwrap();
 
             Ok(proportion_pairs)
         }
@@ -289,28 +284,31 @@ pub mod psi_drifter {
                 );
                 return Ok(BinnedPsiFeatureMetrics::default());
             }
-        
-            // iterate over each figure and calculate psi
-            let binned_map = binned_records.into_par_iter().map(|record| -> Result<_, DriftError> {
-                let mut psi_vec = Vec::new();
-                for idx in 0..record.created_at.len() {
-                    let proportions = self.into_feature_bin_proportions(&record, idx)?;
-                    let psi = PsiMonitor::compute_psi(&proportions.pairs);
-                    psi_vec.push(psi);
-                }
 
-                Ok((record.feature.clone(), BinnedPsiMetric {
-                    date: record.created_at,
-                    psi: psi_vec,
-                }))
-            }).collect::<Result<BTreeMap<String, BinnedPsiMetric>, DriftError>>()?;
+            // iterate over each figure and calculate psi
+            let binned_map = binned_records
+                .into_par_iter()
+                .map(|record| -> Result<_, DriftError> {
+                    let mut psi_vec = Vec::new();
+                    for idx in 0..record.created_at.len() {
+                        let proportions = self.into_feature_bin_proportions(&record, idx)?;
+                        let psi = PsiMonitor::compute_psi(&proportions.pairs);
+                        psi_vec.push(psi);
+                    }
+
+                    Ok((
+                        record.feature.clone(),
+                        BinnedPsiMetric {
+                            date: record.created_at,
+                            psi: psi_vec,
+                        },
+                    ))
+                })
+                .collect::<Result<BTreeMap<String, BinnedPsiMetric>, DriftError>>()?;
 
             Ok(BinnedPsiFeatureMetrics {
                 features: binned_map,
             })
-
-          
-
         }
     }
 

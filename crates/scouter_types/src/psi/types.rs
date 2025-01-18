@@ -1,6 +1,6 @@
 use chrono::NaiveDateTime;
-use serde::{Serialize, Deserialize};
-use std::{collections::BTreeMap};
+use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BinnedPsiMetric {

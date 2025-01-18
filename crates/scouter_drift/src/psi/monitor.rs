@@ -464,7 +464,6 @@ mod tests {
 
     #[test]
     fn test_compute_psi_basic() {
-        let psi_monitor = PsiMonitor::default();
         let proportions = vec![(0.3, 0.2), (0.4, 0.4), (0.3, 0.4)];
 
         let result = PsiMonitor::compute_psi(&proportions);

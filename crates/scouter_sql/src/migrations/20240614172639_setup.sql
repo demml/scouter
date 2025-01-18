@@ -30,12 +30,13 @@ CREATE table IF NOT exists drift_profile (
   name varchar(256),
   repository varchar(256),
   version varchar(256),
+  drift_type varchar(64),
   profile jsonb,
   active boolean default true,
   schedule  varchar(256),
   next_run timestamp,
   previous_run timestamp,
-  PRIMARY KEY (name, repository, version)
+  PRIMARY KEY (name, repository, version, profile_type)
 );
 
 -- Run maintenance every hour

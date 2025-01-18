@@ -190,6 +190,12 @@ pub enum ScouterError {
 
     #[error(transparent)]
     FeatureQueueError(#[from] FeatureQueueError),
+
+    #[error(transparent)]
+    SqlError(#[from] SqlError),
+
+    #[error(transparent)]
+    DriftError(#[from] DriftError),
 }
 
 // impl From for PyErr

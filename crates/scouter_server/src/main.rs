@@ -230,7 +230,7 @@ mod tests {
             (array, features)
         }
 
-        pub fn get_drift_records(&self) -> ServerRecords {
+        pub fn get_spc_drift_records(&self) -> ServerRecords {
             let mut records: Vec<ServerRecord> = Vec::new();
             let record_type = RecordType::Spc;
             for _ in 0..10 {
@@ -386,7 +386,7 @@ mod tests {
     #[tokio::test]
     async fn test_server_records() {
         let helper = TestHelper::new(false, false).await.unwrap();
-        let records = helper.get_drift_records();
+        let records = helper.get_spc_drift_records();
         let body = serde_json::to_string(&records).unwrap();
 
         let request = Request::builder()
@@ -408,12 +408,13 @@ mod tests {
             version: "test".to_string(),
             time_window: TimeInterval::FiveMinutes,
             max_data_points: 100,
+            drift_type: DriftType::Spc,
         };
 
         let query_string = serde_qs::to_string(&params).unwrap();
 
         let request = Request::builder()
-            .uri(format!("/scouter/drift?{}", query_string))
+            .uri(format!("/scouter/drift/spc?{}", query_string))
             .method("GET")
             .body(Body::empty())
             .unwrap();

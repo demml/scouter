@@ -6,7 +6,8 @@ use crate::sql::schema::{
 use chrono::{NaiveDateTime, Utc};
 use cron::Schedule;
 use scouter_contracts::{
-    DriftAlertRequest, DriftRequest, ObservabilityMetricRequest, ProfileStatusRequest, ServiceInfo,
+    DriftAlertRequest, DriftRequest, GetProfileRequest, ObservabilityMetricRequest,
+    ProfileStatusRequest, ServiceInfo,
 };
 use scouter_error::ScouterError;
 use scouter_error::SqlError;
@@ -315,6 +316,7 @@ impl PostgresClient {
             .bind(base_args.name)
             .bind(base_args.repository)
             .bind(base_args.version)
+            .bind(base_args.drift_type.to_string())
             .bind(base_args.scouter_version)
             .bind(drift_profile.to_value())
             .bind(base_args.drift_type.to_string())
@@ -367,13 +369,17 @@ impl PostgresClient {
         }
     }
 
-    pub async fn get_drift_profile(&self, params: &ServiceInfo) -> Result<Option<Value>, SqlError> {
+    pub async fn get_drift_profile(
+        &self,
+        request: &GetProfileRequest,
+    ) -> Result<Option<Value>, SqlError> {
         let query = Queries::GetDriftProfile.get_query();
 
         let result = sqlx::query(&query.sql)
-            .bind(&params.name)
-            .bind(&params.repository)
-            .bind(&params.version)
+            .bind(&request.name)
+            .bind(&request.repository)
+            .bind(&request.version)
+            .bind(&request.drift_type.to_string())
             .fetch_optional(&self.pool)
             .await
             .map_err(|e| {
@@ -848,7 +854,7 @@ mod tests {
 
     use super::*;
     use rand::Rng;
-    use scouter_types::spc::SpcDriftProfile;
+    use scouter_types::{spc::SpcDriftProfile, DriftType};
 
     pub async fn cleanup(pool: &Pool<Postgres>) {
         sqlx::raw_sql(
@@ -1027,10 +1033,11 @@ mod tests {
         assert_eq!(result.rows_affected(), 1);
 
         let profile = client
-            .get_drift_profile(&ServiceInfo {
+            .get_drift_profile(&GetProfileRequest {
                 name: spc_profile.config.name.clone(),
                 repository: spc_profile.config.repository.clone(),
                 version: spc_profile.config.version.clone(),
+                drift_type: DriftType::Spc,
             })
             .await
             .unwrap();
@@ -1097,6 +1104,7 @@ mod tests {
                 version: "test".to_string(),
                 time_window: TimeInterval::FiveMinutes,
                 max_data_points: 10,
+                drift_type: DriftType::Spc,
             })
             .await
             .unwrap();
@@ -1158,6 +1166,7 @@ mod tests {
                 version: "test".to_string(),
                 time_window: TimeInterval::OneHour,
                 max_data_points: 1000,
+                drift_type: DriftType::Psi,
             })
             .await
             .unwrap();
