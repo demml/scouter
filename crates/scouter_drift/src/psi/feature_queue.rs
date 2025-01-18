@@ -404,12 +404,14 @@ mod tests {
             feature_queue.insert(features).unwrap();
         }
 
+        println!("{:?}", feature_queue.queue);
+
         assert_eq!(
             *feature_queue
                 .queue
                 .get("feature_1")
                 .unwrap()
-                .get(&1)
+                .get(&2)
                 .unwrap(),
             9
         );

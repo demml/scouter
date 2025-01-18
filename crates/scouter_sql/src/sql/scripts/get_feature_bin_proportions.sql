@@ -42,7 +42,7 @@ feature_bin_proportions AS (
 
 SELECT 
   feature,
-  jsonb_object_agg(bin_id, proportion::FLOAT8) AS bins
+  jsonb_object_agg(bin_id, proportion::FLOAT8) as bins
 FROM feature_bin_proportions
 WHERE feature_total_count > 1000
-GROUP BY feature
+GROUP BY feature;

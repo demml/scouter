@@ -109,8 +109,6 @@ services:
         "shared_preload_libraries=pg_cron",
       ]
     restart: always
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
     user: postgres
     environment:
       POSTGRES_PASSWORD: postgres
@@ -163,8 +161,6 @@ services:
         "-c",
         "shared_preload_libraries=pg_cron",
       ]
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
     user: postgres
     restart: always
     environment:

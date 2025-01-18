@@ -168,11 +168,13 @@ pub struct FeatureBinProportionResult {
 impl<'r> FromRow<'r, PgRow> for FeatureBinProportionResult {
     fn from_row(row: &'r PgRow) -> Result<Self, Error> {
         // Extract the bin_proportions as a Vec of tuples
-        let bin_proportions_json: serde_json::Value = row.try_get("bin_proportions")?;
+        let bin_proportions_json: Vec<serde_json::Value> = row.try_get("bin_proportions")?;
 
         // Convert the Vec of tuples into a Vec of BinProportion structs
-        let bin_proportions: Vec<BTreeMap<usize, f64>> =
-            serde_json::from_value(bin_proportions_json).unwrap();
+        let bin_proportions: Vec<BTreeMap<usize, f64>> = bin_proportions_json
+            .into_iter()
+            .map(|json| serde_json::from_value(json).unwrap_or_default())
+            .collect();
 
         Ok(FeatureBinProportionResult {
             feature: row.try_get("feature")?,

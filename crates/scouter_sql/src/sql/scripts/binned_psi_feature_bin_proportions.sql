@@ -16,6 +16,7 @@ WITH feature_bin_total AS (
         AND version = $5
     GROUP BY 1, 2, 3, 4, 5, 6
 ),
+
 feature_total AS (
     SELECT 
         date_bin('$1 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
@@ -58,7 +59,6 @@ bin_agg as (
 	    jsonb_object_agg(
             bin_id, proportion::FLOAT8
         ) AS bin_proportions
-    ) as bin_proportions
 	FROM feature_bin_proportions
 	WHERE 1=1
 	    AND feature_total_count > 100
