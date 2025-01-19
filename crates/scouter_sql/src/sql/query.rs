@@ -6,6 +6,8 @@ const GET_SPC_FEATURES: &str = include_str!("scripts/unique_spc_features.sql");
 const GET_BINNED_SPC_FEATURE_VALUES: &str = include_str!("scripts/binned_spc_feature_values.sql");
 const GET_BINNED_PSI_FEATURE_BINS: &str =
     include_str!("scripts/binned_psi_feature_bin_proportions.sql");
+const GET_BINNED_CUSTOM_METRIC_VALUES: &str =
+    include_str!("scripts/binned_custom_metric_values.sql");
 const GET_SPC_FEATURE_VALUES: &str = include_str!("scripts/get_spc_feature_values.sql");
 const GET_BINNED_OBSERVABILITY_METRICS: &str =
     include_str!("scripts/binned_observability_metrics.sql");
@@ -34,6 +36,7 @@ pub enum Queries {
     GetDriftAlerts,
     GetBinnedSpcFeatureValues,
     GetBinnedPsiFeatureBins,
+    GetBinnedCustomMetricValues,
     GetBinnedObservabilityMetrics,
     GetSpcFeatureValues,
     GetDriftTask,
@@ -54,6 +57,7 @@ impl Queries {
             Queries::InsertDriftRecord => SqlQuery::new(INSERT_DRIFT_RECORD),
             Queries::GetBinnedSpcFeatureValues => SqlQuery::new(GET_BINNED_SPC_FEATURE_VALUES),
             Queries::GetBinnedPsiFeatureBins => SqlQuery::new(GET_BINNED_PSI_FEATURE_BINS),
+            Queries::GetBinnedCustomMetricValues => SqlQuery::new(GET_BINNED_CUSTOM_METRIC_VALUES),
             Queries::GetBinnedObservabilityMetrics => {
                 SqlQuery::new(GET_BINNED_OBSERVABILITY_METRICS)
             }

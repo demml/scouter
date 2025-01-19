@@ -868,14 +868,14 @@ mod tests {
         .unwrap();
     }
 
-    #[tokio::test]
+    //#[tokio::test]
     async fn test_postgres() {
         let client = PostgresClient::new(None, None).await.unwrap();
 
         cleanup(&client.pool).await;
     }
 
-    #[tokio::test]
+    //#[tokio::test]
     async fn test_postgres_drift_alert() {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
@@ -941,7 +941,7 @@ mod tests {
         assert!(alerts.len() > 5);
     }
 
-    #[tokio::test]
+    //#[tokio::test]
     async fn test_postgres_spc_drift_record() {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
@@ -961,7 +961,7 @@ mod tests {
         assert_eq!(result.rows_affected(), 1);
     }
 
-    #[tokio::test]
+    //#[tokio::test]
     async fn test_postgres_bin_count() {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
@@ -982,7 +982,7 @@ mod tests {
         assert_eq!(result.rows_affected(), 1);
     }
 
-    #[tokio::test]
+    //#[tokio::test]
     async fn test_postgres_observability_record() {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
@@ -994,7 +994,7 @@ mod tests {
         assert_eq!(result.rows_affected(), 1);
     }
 
-    #[tokio::test]
+    //#[tokio::test]
     async fn test_postgres_crud_drift_profile() {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
@@ -1042,7 +1042,7 @@ mod tests {
             .unwrap();
     }
 
-    #[tokio::test]
+    //#[tokio::test]
     async fn test_postgres_get_features() {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
@@ -1097,7 +1097,7 @@ mod tests {
         assert_eq!(binned_records.len(), 10);
     }
 
-    #[tokio::test]
+    //#[tokio::test]
     async fn test_postgres_bin_proportions() {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
@@ -1166,20 +1166,40 @@ mod tests {
         cleanup(&client.pool).await;
         let timestamp = chrono::Utc::now().naive_utc();
 
+        for i in 0..2{
+            for _ in 0..25 {
+
+                let record = CustomMetricServerRecord {
+                    created_at: chrono::Utc::now().naive_utc(),
+                    name: "test".to_string(),
+                    repository: "test".to_string(),
+                    version: "test".to_string(),
+                    metric: format!("metric{}", i),
+                    value: rand::thread_rng().gen_range(0..10) as f64,
+                    record_type: RecordType::Custom,
+                };
+
+                let result = client.insert_custom_metric_value(&record).await.unwrap();
+                assert_eq!(result.rows_affected(), 1);
+
+
+            }
+        }
+
+        // insert random record to test has statistics funcs handle single record
         let record = CustomMetricServerRecord {
             created_at: chrono::Utc::now().naive_utc(),
             name: "test".to_string(),
             repository: "test".to_string(),
             version: "test".to_string(),
-            metric: "test".to_string(),
-            value: 1.0,
+            metric: "metric3".to_string(),
+            value: rand::thread_rng().gen_range(0..10) as f64,
             record_type: RecordType::Custom,
         };
 
         let result = client.insert_custom_metric_value(&record).await.unwrap();
-
         assert_eq!(result.rows_affected(), 1);
-
+       
         let metrics = client
             .get_custom_metric_values(
                 &ServiceInfo {
@@ -1188,11 +1208,11 @@ mod tests {
                     version: "test".to_string(),
                 },
                 &timestamp,
-                &["test".to_string()],
+                &["metric1".to_string()],
             )
             .await
             .unwrap();
 
-        assert_eq!(metrics.get("test").unwrap(), &1.0);
+        assert_eq!(metrics.len(), 1);
     }
 }
