@@ -53,7 +53,7 @@ pub struct BinnedCustomMetricWrapper(pub BinnedCustomMetric);
 
 impl<'r> FromRow<'r, PgRow> for BinnedCustomMetricWrapper {
     fn from_row(row: &'r PgRow) -> Result<Self, Error> {
-        let stats_json: Vec<serde_json::Value> = row.try_get("value_bounds")?;
+        let stats_json: Vec<serde_json::Value> = row.try_get("stats")?;
 
         let stats: Vec<BinnedCustomMetricStats> = stats_json
             .into_iter()

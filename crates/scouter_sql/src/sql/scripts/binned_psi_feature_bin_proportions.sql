@@ -77,19 +77,19 @@ bin_agg as (
 
 feature_agg as (
 select
- a.feature,
+ feature,
  array_agg(created_at order by created_at desc) as created_at,
- array_agg(bin_proportions order by created_at desc) as bin_proportions,
+ array_agg(bin_proportions order by created_at desc) as bin_proportions
 FROM bin_agg
 WHERE 1=1
 GROUP BY feature
 )
 
 SELECT 
-    feature,
+    feature_agg.feature,
     created_at,
     bin_proportions,
-    bins
+    bins as overall_proportions
 FROM feature_agg
 JOIN overall_agg
     ON overall_agg.feature = feature_agg.feature
