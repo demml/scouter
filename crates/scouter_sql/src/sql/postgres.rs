@@ -17,10 +17,9 @@ use scouter_types::{
     PsiServerRecord, RecordType, ServerRecords, SpcServerRecord, TimeInterval, ToDriftRecords,
 };
 
-use core::time;
 use serde_json::Value;
 use sqlx::{
-    postgres::{PgPoolOptions, PgQueryResult, PgRow},
+    postgres::{PgPoolOptions, PgQueryResult},
     Pool, Postgres, Row, Transaction,
 };
 use std::collections::{BTreeMap, HashMap};
@@ -589,13 +588,13 @@ impl PostgresClient {
         params: &DriftRequest,
     ) -> Result<Vec<SpcFeatureResult>, SqlError> {
         let minutes = params.time_window.to_minutes();
-        let bin = &minutes / params.max_data_points;
+        let bin = minutes / params.max_data_points;
 
         let query = Queries::GetBinnedSpcFeatureValues.get_query();
 
         let binned: Result<Vec<SpcFeatureResult>, sqlx::Error> = sqlx::query_as(&query.sql)
             .bind(bin)
-            .bind(&minutes)
+            .bind(minutes)
             .bind(&params.name)
             .bind(&params.repository)
             .bind(&params.version)
@@ -624,14 +623,14 @@ impl PostgresClient {
         // get features
 
         let minutes = params.time_window.to_minutes();
-        let bin = &params.time_window.to_minutes() / params.max_data_points;
+        let bin = params.time_window.to_minutes() / params.max_data_points;
 
         let query = Queries::GetBinnedPsiFeatureBins.get_query();
 
         let binned: Result<Vec<FeatureBinProportionResult>, sqlx::Error> =
             sqlx::query_as(&query.sql)
                 .bind(bin)
-                .bind(&minutes)
+                .bind(minutes)
                 .bind(&params.name)
                 .bind(&params.repository)
                 .bind(&params.version)
@@ -660,13 +659,13 @@ impl PostgresClient {
         // get features
 
         let minutes = params.time_window.to_minutes();
-        let bin = &params.time_window.to_minutes() / params.max_data_points;
+        let bin = params.time_window.to_minutes() / params.max_data_points;
 
         let query = Queries::GetBinnedCustomMetricValues.get_query();
 
         let binned: Vec<BinnedCustomMetricResult> = sqlx::query_as(&query.sql)
             .bind(bin)
-            .bind(&minutes)
+            .bind(minutes)
             .bind(&params.name)
             .bind(&params.repository)
             .bind(&params.version)
