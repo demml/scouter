@@ -1,8 +1,8 @@
 import datetime
-from typing import List, Any, Dict
+from typing import Any, Dict, List
 
-from ..queue import HTTPConfig
 from .. import DriftType
+from ..queue import HTTPConfig
 
 class SpcFeatureResult:
     feature: str
@@ -72,29 +72,27 @@ class BinnedCustomMetricStats:
     avg: float
     lower_bound: float
     upper_bound: float
-    
+
 class BinnedCustomMetric:
     metric: str
     created_at: List[datetime.datetime]
     stats: List[BinnedCustomMetricStats]
-    
+
 class BinnedCustomMetrics:
     metrics: Dict[str, BinnedCustomMetric]
-    
-    
+
 class BinnedPsiMetric:
     created_at: List[datetime.datetime]
     psi: List[float]
     overall_psi: float
-    bins : Dict[int,  float]
-    
+    bins: Dict[int, float]
+
 class BinnedPsiFeatureMetrics:
     features: Dict[str, BinnedCustomMetric]
-    
 
 class SpcDriftFeature:
     created_at: List[datetime.datetime]
     values: List[float]
-    
+
 class BinnedSpcFeatureMetrics:
     features: Dict[str, BinnedCustomMetric]

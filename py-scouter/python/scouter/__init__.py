@@ -45,6 +45,7 @@ from .scouter import (  # noqa: F401
     SpcFeatureDriftProfile,
     SpcFeatureQueue,
     SpcServerRecord,
+    client,
     logging,
     queue,
 )
