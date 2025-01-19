@@ -309,7 +309,7 @@ pub mod psi_drifter {
                     Ok((
                         record.feature.clone(),
                         BinnedPsiMetric {
-                            date: record.created_at,
+                            created_at: record.created_at,
                             psi: psi_vec?,
                             overall_psi,
                             bins: record.overall_proportions,

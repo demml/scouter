@@ -1,4 +1,4 @@
-use pyo3::prelude::*;
+use pyo3::{prelude::*, IntoPyObjectExt};
 use scouter_contracts::DriftRequest;
 use scouter_error::{PyScouterError, ScouterError};
 use scouter_events::producer::http::{HTTPClient, HTTPConfig, RequestType, Routes};
@@ -33,13 +33,17 @@ impl ScouterClient {
         }
     }
 
-    pub fn get_drift(&mut self, drift_request: DriftRequest) -> PyResult<()> {
+    pub fn get_drift<'py>(
+        &mut self,
+        py: Python<'py>,
+        drift_request: DriftRequest,
+    ) -> PyResult<Bound<'py, PyAny>> {
         let query_string = serde_qs::to_string(&drift_request)
             .map_err(|e| PyScouterError::new_err(e.to_string()))?;
 
         match drift_request.drift_type {
             DriftType::Spc => {
-                let _response = self
+                let drift = self
                     .rt
                     .block_on(async {
                         let response = self
@@ -61,9 +65,10 @@ impl ScouterClient {
                     .map_err(|e: scouter_error::ScouterError| {
                         PyScouterError::new_err(e.to_string())
                     })?;
+                Ok(drift.into_bound_py_any(py).unwrap())
             }
             DriftType::Psi => {
-                let _response = self
+                let drift = self
                     .rt
                     .block_on(async {
                         let response = self
@@ -85,10 +90,12 @@ impl ScouterClient {
                     .map_err(|e: scouter_error::ScouterError| {
                         PyScouterError::new_err(e.to_string())
                     })?;
+
+                Ok(drift.into_bound_py_any(py).unwrap())
             }
 
             DriftType::Custom => {
-                let _response = self
+                let drift = self
                     .rt
                     .block_on(async {
                         let response = self
@@ -110,9 +117,9 @@ impl ScouterClient {
                     .map_err(|e: scouter_error::ScouterError| {
                         PyScouterError::new_err(e.to_string())
                     })?;
+
+                Ok(drift.into_bound_py_any(py).unwrap())
             }
         }
-
-        Ok(())
     }
 }

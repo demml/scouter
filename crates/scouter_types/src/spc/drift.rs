@@ -9,7 +9,7 @@ pub struct SpcDriftFeature {
     pub values: Vec<f64>,
 }
 
-#[pyclass]
+#[pyclass(name = "BinnedSpcFeatureMetrics")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpcDriftFeatures {
     pub features: BTreeMap<String, SpcDriftFeature>,

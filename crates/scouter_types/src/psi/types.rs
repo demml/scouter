@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BinnedPsiMetric {
-    pub date: Vec<NaiveDateTime>,
+    pub created_at: Vec<NaiveDateTime>,
     pub psi: Vec<f64>,
     pub overall_psi: f64,
     pub bins: BTreeMap<usize, f64>,

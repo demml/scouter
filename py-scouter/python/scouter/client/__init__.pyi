@@ -1,7 +1,8 @@
 import datetime
-from typing import List
+from typing import List, Any, Dict
 
 from ..queue import HTTPConfig
+from .. import DriftType
 
 class SpcFeatureResult:
     feature: str
@@ -28,6 +29,7 @@ class DriftRequest:
         version: str,
         time_window: TimeInterval,
         max_data_points: int,
+        drift_type: DriftType,
     ) -> None:
         """Initialize drift request
 
@@ -42,6 +44,8 @@ class DriftRequest:
                 Time window for drift request
             max_data_points:
                 Maximum data points to return
+            drift_type:
+                Drift type for request
         """
 
 # Client
@@ -56,10 +60,41 @@ class ScouterClient:
                 HTTPConfig object
         """
 
-    def get_drift(self, drift_request) -> List[SpcFeatureResult]:
+    def get_binned_drift(self, drift_request) -> Any:
         """Get drift map from server
 
         Args:
             drift_request:
                 DriftRequest object
         """
+
+class BinnedCustomMetricStats:
+    avg: float
+    lower_bound: float
+    upper_bound: float
+    
+class BinnedCustomMetric:
+    metric: str
+    created_at: List[datetime.datetime]
+    stats: List[BinnedCustomMetricStats]
+    
+class BinnedCustomMetrics:
+    metrics: Dict[str, BinnedCustomMetric]
+    
+    
+class BinnedPsiMetric:
+    created_at: List[datetime.datetime]
+    psi: List[float]
+    overall_psi: float
+    bins : Dict[int,  float]
+    
+class BinnedPsiFeatureMetrics:
+    features: Dict[str, BinnedCustomMetric]
+    
+
+class SpcDriftFeature:
+    created_at: List[datetime.datetime]
+    values: List[float]
+    
+class BinnedSpcFeatureMetrics:
+    features: Dict[str, BinnedCustomMetric]

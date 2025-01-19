@@ -11,15 +11,18 @@ pub use scouter_types::{
     create_feature_map,
     cron::*,
     custom::{
-        AlertThreshold, CustomDriftProfile, CustomMetric, CustomMetricAlertCondition,
-        CustomMetricAlertConfig, CustomMetricDriftConfig,
+        AlertThreshold, BinnedCustomMetric, BinnedCustomMetricStats, BinnedCustomMetrics,
+        CustomDriftProfile, CustomMetric, CustomMetricAlertCondition, CustomMetricAlertConfig,
+        CustomMetricDriftConfig,
     },
     psi::{
-        Bin, PsiAlertConfig, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
+        Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiDriftConfig, PsiDriftMap,
+        PsiDriftProfile, PsiFeatureDriftProfile,
     },
     spc::{
         AlertZone, SpcAlert, SpcAlertConfig, SpcAlertRule, SpcAlertType, SpcDriftConfig,
-        SpcDriftProfile, SpcFeatureAlert, SpcFeatureAlerts, SpcFeatureDriftProfile,
+        SpcDriftFeature, SpcDriftFeatures, SpcDriftProfile, SpcFeatureAlert, SpcFeatureAlerts,
+        SpcFeatureDriftProfile,
     },
     AlertDispatchType, CustomMetricServerRecord, DataType, DriftProfile, DriftType, Feature,
     FeatureMap, Features, LatencyMetrics, ObservabilityMetrics, PsiServerRecord, RecordType,

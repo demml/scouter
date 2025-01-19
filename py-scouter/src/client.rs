@@ -6,5 +6,16 @@ pub fn client(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ScouterClient>()?;
     m.add_class::<DriftRequest>()?;
     m.add_class::<TimeInterval>()?;
+
+    m.add_class::<BinnedCustomMetricStats>()?;
+    m.add_class::<BinnedCustomMetric>()?;
+    m.add_class::<BinnedCustomMetrics>()?;
+
+    m.add_class::<BinnedPsiFeatureMetrics>()?;
+    m.add_class::<BinnedPsiMetric>()?;
+
+    m.add_class::<SpcDriftFeatures>()?;
+    m.add_class::<SpcDriftFeature>()?;
+
     Ok(())
 }
