@@ -194,7 +194,8 @@ pub async fn get_drift_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
             .route(&format!("{}/drift", prefix), post(insert_drift))
             .route(&format!("{}/drift/spc", prefix), get(get_spc_drift))
             .route(&format!("{}/drift/custom", prefix), get(get_custom_drift))
-            .route(&format!("{}/drift/psi", prefix), get(get_psi_drift))}));
+            .route(&format!("{}/drift/psi", prefix), get(get_psi_drift))
+    }));
 
     match result {
         Ok(router) => Ok(router),

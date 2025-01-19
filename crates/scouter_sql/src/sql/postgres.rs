@@ -1,6 +1,6 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::{
-    AlertResult, BinnedCustomMetricResult, BinnedCustomMetrics, FeatureBinProportionResult,
+    AlertResult, BinnedCustomMetricWrapper, FeatureBinProportionResult,
     FeatureBinProportionWrapper, ObservabilityResult, SpcFeatureResult, TaskRequest,
 };
 use chrono::{NaiveDateTime, Utc};
@@ -13,6 +13,7 @@ use scouter_error::ScouterError;
 use scouter_error::SqlError;
 use scouter_settings::DatabaseSettings;
 use scouter_types::{
+    custom::BinnedCustomMetrics,
     psi::FeatureBinProportions,
     spc::{SpcDriftFeature, SpcDriftFeatures},
     CustomMetricServerRecord, DriftProfile, ObservabilityMetrics, PsiServerRecord, RecordType,
@@ -692,7 +693,7 @@ impl PostgresClient {
 
         let query = Queries::GetBinnedCustomMetricValues.get_query();
 
-        let binned: Vec<BinnedCustomMetricResult> = sqlx::query_as(&query.sql)
+        let records: Vec<BinnedCustomMetricWrapper> = sqlx::query_as(&query.sql)
             .bind(bin)
             .bind(minutes)
             .bind(&params.name)
@@ -705,7 +706,9 @@ impl PostgresClient {
                 SqlError::QueryError(format!("Failed to run query: {:?}", e))
             })?;
 
-        Ok(BinnedCustomMetrics::from_results(binned))
+        Ok(BinnedCustomMetrics::from_vec(
+            records.into_iter().map(|wrapper| wrapper.0).collect(),
+        ))
     }
 
     pub async fn update_drift_profile_status(

@@ -1,3 +1,3 @@
 pub mod client;
 
-pub use client::{ScouterClient, SpcFeatureResult};
+pub use client::ScouterClient;

@@ -1,5 +1,8 @@
 use chrono::NaiveDateTime;
-use scouter_types::psi::FeatureBinProportion;
+use scouter_types::{
+    custom::{BinnedCustomMetric, BinnedCustomMetricStats},
+    psi::FeatureBinProportion,
+};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, Error, FromRow, Row};
 use std::collections::BTreeMap;
@@ -46,49 +49,22 @@ impl<'r> FromRow<'r, PgRow> for FeatureBinProportionWrapper {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct BinnedCustomMetric {
-    pub avg: f64,
-    pub lower_bound: f64,
-    pub upper_bound: f64,
-}
+pub struct BinnedCustomMetricWrapper(pub BinnedCustomMetric);
 
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct BinnedCustomMetricResult {
-    pub metric: String,
-    pub created_at: Vec<chrono::NaiveDateTime>,
-    pub value_bounds: Vec<BinnedCustomMetric>,
-}
-
-impl<'r> FromRow<'r, PgRow> for BinnedCustomMetricResult {
+impl<'r> FromRow<'r, PgRow> for BinnedCustomMetricWrapper {
     fn from_row(row: &'r PgRow) -> Result<Self, Error> {
-        let value_bounds: Vec<serde_json::Value> = row.try_get("value_bounds")?;
+        let stats_json: Vec<serde_json::Value> = row.try_get("value_bounds")?;
 
-        let value_bounds: Vec<BinnedCustomMetric> = value_bounds
+        let stats: Vec<BinnedCustomMetricStats> = stats_json
             .into_iter()
             .map(|value| serde_json::from_value(value).unwrap_or_default())
             .collect();
 
-        Ok(BinnedCustomMetricResult {
+        Ok(BinnedCustomMetricWrapper(BinnedCustomMetric {
             metric: row.try_get("metric")?,
             created_at: row.try_get("created_at")?,
-            value_bounds,
-        })
-    }
-}
-#[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct BinnedCustomMetrics {
-    pub metrics: BTreeMap<String, BinnedCustomMetricResult>,
-}
-
-impl BinnedCustomMetrics {
-    pub fn from_results(results: Vec<BinnedCustomMetricResult>) -> Self {
-        let mut metrics = BTreeMap::new();
-        for result in results {
-            metrics.insert(result.metric.clone(), result);
-        }
-
-        BinnedCustomMetrics { metrics }
+            stats,
+        }))
     }
 }
 

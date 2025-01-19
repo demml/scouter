@@ -149,10 +149,9 @@ mod tests {
         DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
     };
     use scouter_drift::psi::PsiMonitor;
-    use scouter_sql::sql::schema::BinnedCustomMetrics;
     use scouter_types::custom::{
-        AlertThreshold, CustomDriftProfile, CustomMetric, CustomMetricAlertConfig,
-        CustomMetricDriftConfig,
+        AlertThreshold, BinnedCustomMetrics, CustomDriftProfile, CustomMetric,
+        CustomMetricAlertConfig, CustomMetricDriftConfig,
     };
     use scouter_types::psi::BinnedPsiFeatureMetrics;
     use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
@@ -585,8 +584,6 @@ mod tests {
         let results: BinnedPsiFeatureMetrics = serde_json::from_slice(&val).unwrap();
 
         assert!(!results.features.is_empty());
-
-    
     }
 
     #[tokio::test]

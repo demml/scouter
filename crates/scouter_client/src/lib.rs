@@ -26,7 +26,7 @@ pub use scouter_types::{
     RouteMetrics, ServerRecord, ServerRecords, SpcServerRecord, TimeInterval,
 };
 
-pub use crate::http::{ScouterClient, SpcFeatureResult};
+pub use crate::http::ScouterClient;
 pub use queue::ScouterQueue;
 pub use scouter_contracts::DriftRequest;
 pub use scouter_drift::{

@@ -3,7 +3,9 @@ use scouter_contracts::DriftRequest;
 use scouter_error::{PyScouterError, ScouterError};
 use scouter_events::producer::http::{HTTPClient, HTTPConfig, RequestType, Routes};
 use scouter_types::DriftType;
-use scouter_types::{psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures};
+use scouter_types::{
+    custom::BinnedCustomMetrics, psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures,
+};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
@@ -37,7 +39,7 @@ impl ScouterClient {
 
         match drift_request.drift_type {
             DriftType::Spc => {
-                let response = self
+                let _response = self
                     .rt
                     .block_on(async {
                         let response = self
@@ -62,7 +64,7 @@ impl ScouterClient {
                 ()
             }
             DriftType::Psi => {
-                let response = self
+                let _response = self
                     .rt
                     .block_on(async {
                         let response = self
@@ -88,7 +90,7 @@ impl ScouterClient {
             }
 
             DriftType::Custom => {
-                let response = self
+                let _response = self
                     .rt
                     .block_on(async {
                         let response = self

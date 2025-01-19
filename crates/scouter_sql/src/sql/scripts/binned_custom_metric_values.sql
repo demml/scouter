@@ -32,13 +32,13 @@ subquery3 AS (
             'avg', average,
             'lower_bound', average - coalesce(standard_dev,0),
             'upper_bound', average + coalesce(standard_dev,0)
-        ) as value_bounds
+        ) as stats
     FROM subquery2
 )
 
 SELECT 
     metric,
     array_agg(created_at) as created_at,
-    array_agg(value_bounds) as value_bounds
+    array_agg(stats) as stats
 FROM subquery3
 GROUP BY metric;
