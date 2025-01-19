@@ -94,6 +94,30 @@ pub async fn get_psi_drift(
     }
 }
 
+pub async fn get_custom_drift(
+    State(data): State<Arc<AppState>>,
+    Query(params): Query<DriftRequest>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    // validate time window
+
+    let metrics = data.db.get_binned_custom_drift_records(&params).await;
+
+    match metrics {
+        Ok(metrics) => {
+            let json_response = serde_json::json!(metrics);
+            Ok(Json(json_response))
+        }
+        Err(e) => {
+            error!("Failed to query drift records: {:?}", e);
+            let json_response = json!({
+                "status": "error",
+                "message": format!("{:?}", e)
+            });
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+        }
+    }
+}
+
 /// This route is used to get the drift data for the PSI visualization
 ///
 /// The route will both psi calculations for each feature and time interval as well as overall bin proportions
@@ -226,6 +250,7 @@ pub async fn get_drift_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
         Router::new()
             .route(&format!("{}/drift", prefix), post(insert_drift))
             .route(&format!("{}/drift/spc", prefix), get(get_spc_drift))
+            .route(&format!("{}/drift/custom", prefix), get(get_custom_drift))
             .route(&format!("{}/drift/psi", prefix), get(get_psi_drift))
             .route(&format!("{}/drift/psi/viz", prefix), get(get_psi_viz_drift))
     }));
