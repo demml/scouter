@@ -22,10 +22,14 @@ use sqlx::{
     postgres::{PgPoolOptions, PgQueryResult, PgRow},
     Pool, Postgres, Row, Transaction,
 };
+use core::time;
 use std::collections::{BTreeMap, HashMap};
 use std::result::Result::Ok;
 use std::str::FromStr;
 use tracing::{error, info};
+
+// TODO: Explore refactoring and breaking this out into multiple client types (i.e., spc, psi, etc.)
+// Postgres client is one of the lowest-level abstractions so it may not be worth it, as it could make server logic annoying. Worth exploring though.
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -102,15 +106,15 @@ impl PostgresClient {
         Ok(())
     }
 
-    // Inserts a drift alert into the database
-    //
-    // # Arguments
-    //
-    // * `name` - The name of the service to insert the alert for
-    // * `repository` - The name of the repository to insert the alert for
-    // * `version` - The version of the service to insert the alert for
-    // * `alert` - The alert to insert into the database
-    //
+    /// Inserts a drift alert into the database
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the service to insert the alert for
+    /// * `repository` - The name of the repository to insert the alert for
+    /// * `version` - The version of the service to insert the alert for
+    /// * `alert` - The alert to insert into the database
+    ///
     pub async fn insert_drift_alert(
         &self,
         service_info: &ServiceInfo,
@@ -141,6 +145,15 @@ impl PostgresClient {
         }
     }
 
+    /// Get drift alerts from the database
+    /// 
+    /// # Arguments
+    /// 
+    /// * `params` - The drift alert request parameters
+    /// 
+    /// # Returns
+    /// 
+    /// * `Result<Vec<AlertResult>, SqlError>` - Result of the query
     pub async fn get_drift_alerts(
         &self,
         params: &DriftAlertRequest,
@@ -181,13 +194,13 @@ impl PostgresClient {
         }
     }
 
-    // Inserts a drift record into the database
-    //
-    // # Arguments
-    //
-    // * `record` - A drift record to insert into the database
-    // * `table_name` - The name of the table to insert the record into
-    //
+    /// Inserts a drift record into the database
+    ///
+    /// # Arguments
+    ///
+    /// * `record` - A drift record to insert into the database
+    /// * `table_name` - The name of the table to insert the record into
+    ///
     pub async fn insert_spc_drift_record(
         &self,
         record: &SpcServerRecord,
@@ -280,6 +293,15 @@ impl PostgresClient {
         }
     }
 
+    /// Insert a drift profile into the database
+    /// 
+    /// # Arguments
+    /// 
+    /// * `drift_profile` - The drift profile to insert
+    /// 
+    /// # Returns
+    /// 
+    /// * `Result<PgQueryResult, SqlError>` - Result of the query
     pub async fn insert_drift_profile(
         &self,
         drift_profile: &DriftProfile,
@@ -326,6 +348,15 @@ impl PostgresClient {
         }
     }
 
+    /// Update a drift profile in the database
+    /// 
+    /// # Arguments
+    /// 
+    /// * `drift_profile` - The drift profile to update
+    /// 
+    /// # Returns
+    /// 
+    /// * `Result<PgQueryResult, SqlError>` - Result of the query
     pub async fn update_drift_profile(
         &self,
         drift_profile: &DriftProfile,
@@ -355,6 +386,13 @@ impl PostgresClient {
         }
     }
 
+    /// Get a drift profile from the database
+    /// 
+    /// # Arguments
+    /// 
+    /// * `request` - The request to get the profile for
+    /// 
+    /// # Returns
     pub async fn get_drift_profile(
         &self,
         request: &GetProfileRequest,
@@ -396,6 +434,17 @@ impl PostgresClient {
         })
     }
 
+    /// Update the drift profile run dates in the database
+    /// 
+    /// # Arguments
+    /// 
+    /// * `transaction` - The database transaction
+    /// * `service_info` - The service info to update the run dates for
+    /// * `schedule` - The schedule to update the run dates with
+    /// 
+    /// # Returns
+    /// 
+    /// * `Result<(), SqlError>` - Result of the query
     pub async fn update_drift_profile_run_dates(
         transaction: &mut Transaction<'_, Postgres>,
         service_info: &ServiceInfo,
@@ -509,56 +558,7 @@ impl PostgresClient {
         })
     }
 
-    async fn get_binned_spc_feature_values(
-        &self,
-        bin: &f64,
-        version: &str,
-        time_window: &TimeInterval,
-        repository: &str,
-        name: &str,
-    ) -> Result<Vec<SpcFeatureResult>, SqlError> {
-        let query = Queries::GetBinnedSpcFeatureValues.get_query();
-
-        let binned: Result<Vec<SpcFeatureResult>, sqlx::Error> = sqlx::query_as(&query.sql)
-            .bind(bin)
-            .bind(time_window.to_minutes())
-            .bind(name)
-            .bind(repository)
-            .bind(version)
-            .fetch_all(&self.pool)
-            .await;
-
-        binned.map_err(|e| {
-            error!("Failed to run query: {:?}", e);
-            SqlError::QueryError(format!("Failed to run query: {:?}", e))
-        })
-    }
-
-    async fn get_binned_psi_feature_values(
-        &self,
-        bin: &f64,
-        version: &str,
-        time_window: &TimeInterval,
-        repository: &str,
-        name: &str,
-    ) -> Result<Vec<FeatureBinProportionResult>, SqlError> {
-        let query = Queries::GetBinnedPsiFeatureBins.get_query();
-
-        let binned: Result<Vec<FeatureBinProportionResult>, sqlx::Error> =
-            sqlx::query_as(&query.sql)
-                .bind(bin)
-                .bind(time_window.to_minutes())
-                .bind(name)
-                .bind(repository)
-                .bind(version)
-                .fetch_all(&self.pool)
-                .await;
-
-        binned.map_err(|e| {
-            error!("Failed to run query: {:?}", e);
-            SqlError::QueryError(format!("Failed to run query: {:?}", e))
-        })
-    }
+  
 
     // Queries the database for drift records based on a time window and aggregation
     //
@@ -578,18 +578,27 @@ impl PostgresClient {
         params: &DriftRequest,
     ) -> Result<Vec<SpcFeatureResult>, SqlError> {
         //let features = self.get_spc_features(&service_info).await?;
-        let time_window_f64 = params.time_window.to_minutes() as f64;
-        let bin = time_window_f64 / params.max_data_points as f64;
+        let minutes = params.time_window.to_minutes();
+        let bin = &minutes / params.max_data_points;
 
-        self.get_binned_spc_feature_values(
-            &bin,
-            &params.version,
-            &params.time_window,
-            &params.repository,
-            &params.name,
-        )
-        .await
+        let query = Queries::GetBinnedSpcFeatureValues.get_query();
+
+        let binned: Result<Vec<SpcFeatureResult>, sqlx::Error> = sqlx::query_as(&query.sql)
+            .bind(bin)
+            .bind(&minutes)
+            .bind(&params.name)
+            .bind(&params.repository)
+            .bind(&params.version)
+            .fetch_all(&self.pool)
+            .await;
+
+        binned.map_err(|e| {
+            error!("Failed to run query: {:?}", e);
+            SqlError::QueryError(format!("Failed to run query: {:?}", e))
+        })
     }
+
+   
 
     // Queries the database for drift records based on a time window and aggregation
     //
@@ -607,20 +616,40 @@ impl PostgresClient {
     pub async fn get_binned_psi_drift_records(
         &self,
         params: &DriftRequest,
-    ) -> Result<Vec<FeatureBinProportionResult>, SqlError> {
+    ) -> Result<Vec<FeatureBinProportionResult>, SqlError>  {
         // get features
-        let time_window_f64 = params.time_window.to_minutes() as f64;
-        let bin = time_window_f64 / params.max_data_points as f64;
-        self.get_binned_psi_feature_values(
-            &bin,
-            &params.version,
-            &params.time_window,
-            &params.repository,
-            &params.name,
-        )
-        .await
+
+        let minutes = params.time_window.to_minutes();
+        let bin = &params.time_window.to_minutes() / params.max_data_points;
+
+        let query = Queries::GetBinnedPsiFeatureBins.get_query();
+
+        let binned: Result<Vec<FeatureBinProportionResult>, sqlx::Error> =
+            sqlx::query_as(&query.sql)
+                .bind(bin)
+                .bind(&minutes)
+                .bind(&params.name)
+                .bind(&params.repository)
+                .bind(&params.version)
+                .fetch_all(&self.pool)
+                .await;
+
+        binned.map_err(|e| {
+            error!("Failed to run query: {:?}", e);
+            SqlError::QueryError(format!("Failed to run query: {:?}", e))
+        })
+
+
+      
     }
 
+    /// Get SPC drift records
+    /// 
+    /// # Arguments
+    /// 
+    /// * `service_info` - The service to get drift records for
+    /// * `limit_datetime` - The limit datetime to get drift records for
+    /// * `features_to_monitor` - The features to monitor
     pub async fn get_spc_drift_records(
         &self,
         service_info: &ServiceInfo,
@@ -1166,9 +1195,8 @@ mod tests {
         cleanup(&client.pool).await;
         let timestamp = chrono::Utc::now().naive_utc();
 
-        for i in 0..2{
+        for i in 0..2 {
             for _ in 0..25 {
-
                 let record = CustomMetricServerRecord {
                     created_at: chrono::Utc::now().naive_utc(),
                     name: "test".to_string(),
@@ -1181,8 +1209,6 @@ mod tests {
 
                 let result = client.insert_custom_metric_value(&record).await.unwrap();
                 assert_eq!(result.rows_affected(), 1);
-
-
             }
         }
 
@@ -1199,7 +1225,7 @@ mod tests {
 
         let result = client.insert_custom_metric_value(&record).await.unwrap();
         assert_eq!(result.rows_affected(), 1);
-       
+
         let metrics = client
             .get_custom_metric_values(
                 &ServiceInfo {
