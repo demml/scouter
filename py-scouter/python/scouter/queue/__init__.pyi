@@ -1,6 +1,7 @@
 from typing import Dict, Optional, Union
 
-from scouter import Features, LogLevel, PsiDriftProfile, ServerRecords, SpcDriftProfile
+from .. import Features,  PsiDriftProfile, ServerRecords, SpcDriftProfile
+from ..logging import LogLevel
 
 class KafkaConfig:
     brokers: str

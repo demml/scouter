@@ -63,5 +63,6 @@ fn scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<DataType>()?;
     m.add_wrapped(wrap_pymodule!(queue::queue))?;
     m.add_wrapped(wrap_pymodule!(logging::logging))?;
+    m.add_wrapped(wrap_pymodule!(client::client))?;
     Ok(())
 }
