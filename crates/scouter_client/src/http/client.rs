@@ -2,8 +2,8 @@ use pyo3::prelude::*;
 use scouter_contracts::DriftRequest;
 use scouter_error::{PyScouterError, ScouterError};
 use scouter_events::producer::http::{HTTPClient, HTTPConfig, RequestType, Routes};
-use scouter_types::spc::SpcDriftFeatures;
 use scouter_types::DriftType;
+use scouter_types::{psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures};
 use std::sync::Arc;
 use tokio::runtime::Runtime;
 
@@ -76,7 +76,7 @@ impl ScouterClient {
                             )
                             .await?;
                         let body = response.bytes().await.unwrap().to_vec();
-                        let results: Vec<SpcFeatureResult> = serde_json::from_slice(&body)
+                        let results: BinnedPsiFeatureMetrics = serde_json::from_slice(&body)
                             .map_err(|e| ScouterError::Error(e.to_string()))?;
 
                         Ok(results)
@@ -86,7 +86,32 @@ impl ScouterClient {
                     })?;
                 ()
             }
-            _ => (),
+
+            DriftType::Custom => {
+                let response = self
+                    .rt
+                    .block_on(async {
+                        let response = self
+                            .client
+                            .request_with_retry(
+                                Routes::CustomDrift,
+                                RequestType::Get,
+                                None,
+                                Some(query_string),
+                                None,
+                            )
+                            .await?;
+                        let body = response.bytes().await.unwrap().to_vec();
+                        let results: BinnedCustomMetrics = serde_json::from_slice(&body)
+                            .map_err(|e| ScouterError::Error(e.to_string()))?;
+
+                        Ok(results)
+                    })
+                    .map_err(|e: scouter_error::ScouterError| {
+                        PyScouterError::new_err(e.to_string())
+                    })?;
+                ()
+            }
         }
 
         Ok(())

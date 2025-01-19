@@ -51,6 +51,14 @@ feature_bin_proportions AS (
         AND f.created_at = b.created_at
 ),
 
+overall_agg as (
+    SELECT 
+        feature,
+        jsonb_object_agg(bin_id, proportion::FLOAT8) as bins
+    FROM feature_bin_proportions
+    WHERE feature_total_count > 1000
+    GROUP BY feature
+),
 
 bin_agg as (
 	SELECT 
@@ -65,12 +73,23 @@ bin_agg as (
 	GROUP BY 
 		feature, 
 		created_at
-)
+),
 
+feature_agg as (
 select
- feature,
+ a.feature,
  array_agg(created_at order by created_at desc) as created_at,
- array_agg(bin_proportions order by created_at desc) as bin_proportions
+ array_agg(bin_proportions order by created_at desc) as bin_proportions,
 FROM bin_agg
 WHERE 1=1
 GROUP BY feature
+)
+
+SELECT 
+    feature,
+    created_at,
+    bin_proportions,
+    bins
+FROM feature_agg
+JOIN overall_agg
+    ON overall_agg.feature = feature_agg.feature
