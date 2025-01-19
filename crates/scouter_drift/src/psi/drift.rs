@@ -283,35 +283,42 @@ pub mod psi_drifter {
             // iterate over each feature and calculate psi for each time period
             let binned_map = binned_records
                 .into_par_iter()
+                // filter out any records that are not in the profile
+                .filter(|record| self.profile.features.contains_key(&record.feature))
+                // get psi for binned features and create data structure that's usable for UI
                 .map(|record| -> Result<_, DriftError> {
-                    let mut psi_vec = Vec::new();
-                    for idx in 0..record.created_at.len() {
-                        let exists = self.profile.features.contains_key(&record.feature);
-                        if exists {
+                    let psi_vec: Result<Vec<_>, DriftError> = record
+                        .bin_proportions
+                        .iter()
+                        .map(|bin_proportion| {
                             let proportions = self.create_feature_bin_proportion_pairs(
                                 &record.feature,
-                                &record.bin_proportions[idx],
+                                bin_proportion,
                             )?;
                             let psi = PsiMonitor::compute_psi(&proportions.pairs);
-                            psi_vec.push(psi);
-                        }
-                    }
+                            Ok(psi)
+                        })
+                        .collect();
+
+                    let overall_proportions = self.create_feature_bin_proportion_pairs(
+                        &record.feature,
+                        &record.overall_proportions,
+                    )?;
+                    let overall_psi = PsiMonitor::compute_psi(&overall_proportions.pairs);
 
                     Ok((
                         record.feature.clone(),
                         BinnedPsiMetric {
                             date: record.created_at,
-                            psi: psi_vec,
+                            psi: psi_vec?,
+                            overall_psi,
+                            bins: record.overall_proportions,
                         },
                     ))
+
+                    // calculate overall psi
                 })
                 .collect::<Result<BTreeMap<String, BinnedPsiMetric>, DriftError>>()?;
-
-            // filter out any features that are not in the profile
-            let binned_map = binned_map
-                .into_iter()
-                .filter(|(feature, _)| self.profile.features.contains_key(feature))
-                .collect();
 
             Ok(BinnedPsiFeatureMetrics {
                 features: binned_map,

@@ -155,7 +155,7 @@ mod tests {
         CustomMetricDriftConfig,
     };
     use scouter_types::psi::BinnedPsiFeatureMetrics;
-    use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig, PsiDriftViz};
+    use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
     use scouter_types::{CustomMetricServerRecord, PsiServerRecord};
     use scouter_types::{
         DriftType, RecordType, ServerRecord, ServerRecords, SpcServerRecord, TimeInterval,
@@ -586,23 +586,7 @@ mod tests {
 
         assert!(!results.features.is_empty());
 
-        // get psi viz data
-        let request = Request::builder()
-            .uri(format!("/scouter/drift/psi/viz?{}", query_string))
-            .method("GET")
-            .body(Body::empty())
-            .unwrap();
-
-        let response = helper.send_oneshot(request).await;
-
-        //assert response
-        assert_eq!(response.status(), StatusCode::OK);
-
-        // collect body into serde Value
-
-        let val = response.into_body().collect().await.unwrap().to_bytes();
-
-        let _results: PsiDriftViz = serde_json::from_slice(&val).unwrap();
+    
     }
 
     #[tokio::test]
