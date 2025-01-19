@@ -1,4 +1,3 @@
-use crate::psi::profile::FeatureBinProportions;
 use chrono::NaiveDateTime;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};

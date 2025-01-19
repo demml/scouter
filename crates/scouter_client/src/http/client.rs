@@ -61,7 +61,6 @@ impl ScouterClient {
                     .map_err(|e: scouter_error::ScouterError| {
                         PyScouterError::new_err(e.to_string())
                     })?;
-                ()
             }
             DriftType::Psi => {
                 let _response = self
@@ -86,7 +85,6 @@ impl ScouterClient {
                     .map_err(|e: scouter_error::ScouterError| {
                         PyScouterError::new_err(e.to_string())
                     })?;
-                ()
             }
 
             DriftType::Custom => {
@@ -112,7 +110,6 @@ impl ScouterClient {
                     .map_err(|e: scouter_error::ScouterError| {
                         PyScouterError::new_err(e.to_string())
                     })?;
-                ()
             }
         }
 
