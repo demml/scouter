@@ -13,8 +13,10 @@ use scouter_error::ScouterError;
 use scouter_error::SqlError;
 use scouter_settings::DatabaseSettings;
 use scouter_types::{
-    psi::FeatureBinProportions, CustomMetricServerRecord, DriftProfile, ObservabilityMetrics,
-    PsiServerRecord, RecordType, ServerRecords, SpcServerRecord, TimeInterval, ToDriftRecords,
+    psi::FeatureBinProportions,
+    spc::{SpcDriftFeature, SpcDriftFeatures},
+    CustomMetricServerRecord, DriftProfile, ObservabilityMetrics, PsiServerRecord, RecordType,
+    ServerRecords, SpcServerRecord, TimeInterval, ToDriftRecords,
 };
 
 use serde_json::Value;
@@ -519,7 +521,7 @@ impl PostgresClient {
         service_info: &ServiceInfo,
         limit_datetime: &NaiveDateTime,
         features_to_monitor: &[String],
-    ) -> Result<Vec<SpcFeatureResult>, SqlError> {
+    ) -> Result<SpcDriftFeatures, SqlError> {
         let mut features = self.get_spc_features(service_info).await?;
 
         if !features_to_monitor.is_empty() {
@@ -528,7 +530,7 @@ impl PostgresClient {
 
         let query = Queries::GetSpcFeatureValues.get_query();
 
-        let feature_values: Result<Vec<SpcFeatureResult>, SqlError> = sqlx::query_as(&query.sql)
+        let records: Vec<SpcFeatureResult> = sqlx::query_as(&query.sql)
             .bind(limit_datetime)
             .bind(&service_info.name)
             .bind(&service_info.repository)
@@ -539,9 +541,22 @@ impl PostgresClient {
             .map_err(|e| {
                 error!("Failed to run query: {:?}", e);
                 SqlError::QueryError(format!("Failed to run query: {:?}", e))
-            });
+            })?;
 
-        feature_values
+        let feature_drift = records
+            .into_iter()
+            .map(|record| {
+                let feature = SpcDriftFeature {
+                    created_at: record.created_at,
+                    values: record.values,
+                };
+                (record.feature.clone(), feature)
+            })
+            .collect::<BTreeMap<String, SpcDriftFeature>>();
+
+        Ok(SpcDriftFeatures {
+            features: feature_drift,
+        })
     }
 
     pub async fn get_binned_observability_metrics(
@@ -586,24 +601,38 @@ impl PostgresClient {
     pub async fn get_binned_spc_drift_records(
         &self,
         params: &DriftRequest,
-    ) -> Result<Vec<SpcFeatureResult>, SqlError> {
+    ) -> Result<SpcDriftFeatures, SqlError> {
         let minutes = params.time_window.to_minutes();
         let bin = minutes / params.max_data_points;
 
         let query = Queries::GetBinnedSpcFeatureValues.get_query();
 
-        let binned: Result<Vec<SpcFeatureResult>, sqlx::Error> = sqlx::query_as(&query.sql)
+        let records: Vec<SpcFeatureResult> = sqlx::query_as(&query.sql)
             .bind(bin)
             .bind(minutes)
             .bind(&params.name)
             .bind(&params.repository)
             .bind(&params.version)
             .fetch_all(&self.pool)
-            .await;
+            .await
+            .map_err(|e| {
+                error!("Failed to run query: {:?}", e);
+                SqlError::QueryError(format!("Failed to run query: {:?}", e))
+            })?;
 
-        binned.map_err(|e| {
-            error!("Failed to run query: {:?}", e);
-            SqlError::QueryError(format!("Failed to run query: {:?}", e))
+        let feature_drift = records
+            .into_iter()
+            .map(|record| {
+                let feature = SpcDriftFeature {
+                    created_at: record.created_at,
+                    values: record.values,
+                };
+                (record.feature.clone(), feature)
+            })
+            .collect::<BTreeMap<String, SpcDriftFeature>>();
+
+        Ok(SpcDriftFeatures {
+            features: feature_drift,
         })
     }
 
@@ -1103,7 +1132,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(records.len(), 10);
+        assert_eq!(records.features.len(), 10);
 
         let binned_records = client
             .get_binned_spc_drift_records(&DriftRequest {
@@ -1117,7 +1146,7 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(binned_records.len(), 10);
+        assert_eq!(binned_records.features.len(), 10);
     }
 
     #[tokio::test]

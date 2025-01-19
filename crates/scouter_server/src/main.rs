@@ -149,7 +149,7 @@ mod tests {
         DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
     };
     use scouter_drift::psi::PsiMonitor;
-    use scouter_sql::sql::schema::{BinnedCustomMetrics, SpcFeatureResult};
+    use scouter_sql::sql::schema::BinnedCustomMetrics;
     use scouter_types::custom::{
         AlertThreshold, CustomDriftProfile, CustomMetric, CustomMetricAlertConfig,
         CustomMetricDriftConfig,
@@ -166,7 +166,7 @@ mod tests {
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
     use scouter_drift::spc::monitor::SpcMonitor;
-    use scouter_types::spc::{SpcAlertConfig, SpcDriftConfig};
+    use scouter_types::spc::{SpcAlertConfig, SpcDriftConfig, SpcDriftFeatures};
     use sqlx::{Pool, Postgres};
     use tower::util::ServiceExt;
 
@@ -484,9 +484,9 @@ mod tests {
 
         let body = response.into_body().collect().await.unwrap().to_bytes();
 
-        let results: Vec<SpcFeatureResult> = serde_json::from_slice(&body).unwrap();
+        let results: SpcDriftFeatures = serde_json::from_slice(&body).unwrap();
 
-        assert_eq!(results.len(), 10);
+        assert_eq!(results.features.len(), 10);
     }
 
     #[tokio::test]

@@ -8,9 +8,8 @@ pub mod spc_drifter {
     use scouter_contracts::ServiceInfo;
     use scouter_dispatch::AlertDispatcher;
     use scouter_error::DriftError;
-    use scouter_sql::sql::schema::SpcFeatureResult;
     use scouter_sql::PostgresClient;
-    use scouter_types::spc::{SpcDriftProfile, TaskAlerts};
+    use scouter_types::spc::{SpcDriftFeatures, SpcDriftProfile, TaskAlerts};
     use std::collections::BTreeMap;
     use tracing::error;
     use tracing::info;
@@ -22,12 +21,12 @@ pub mod spc_drifter {
     }
 
     impl SpcDriftArray {
-        pub fn new(records: Vec<SpcFeatureResult>) -> Self {
+        pub fn new(records: SpcDriftFeatures) -> Self {
             let mut features = Vec::new();
             let mut flattened = Vec::new();
-            for record in records {
-                features.push(record.feature);
-                flattened.extend(record.values);
+            for (feature, drift) in records.features.into_iter() {
+                features.push(feature);
+                flattened.extend(drift.values);
             }
 
             let rows = features.len();

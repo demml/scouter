@@ -115,7 +115,7 @@ async fn main() {
                 .await
                 .unwrap();
 
-            assert!(records[0].values.len() > 5000);
+            assert!(records.features["feature"].values.len() > 5000);
             break;
         }
     }

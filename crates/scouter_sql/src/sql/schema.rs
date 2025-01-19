@@ -16,12 +16,6 @@ pub struct DriftRecord {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FeatureResult {
-    pub created_at: Vec<chrono::NaiveDateTime>,
-    pub values: Vec<f64>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpcFeatureResult {
     pub feature: String,
     pub created_at: Vec<chrono::NaiveDateTime>,

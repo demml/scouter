@@ -17,6 +17,9 @@ pub enum Routes {
     AuthApiLogin,
     AuthApiRefresh,
     Drift,
+    SpcDrift,
+    PsiDrift,
+    CustomDrift,
 }
 
 impl Routes {
@@ -25,6 +28,9 @@ impl Routes {
             Routes::AuthApiLogin => "auth/api/login",
             Routes::AuthApiRefresh => "auth/api/refresh",
             Routes::Drift => "drift",
+            Routes::SpcDrift => "drift/spc",
+            Routes::PsiDrift => "drift/psi",
+            Routes::CustomDrift => "drift/custom",
         }
     }
 }
