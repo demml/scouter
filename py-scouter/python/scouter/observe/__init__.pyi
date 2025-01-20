@@ -1,4 +1,6 @@
+from typing import Dict, List, Optional
 
+from ..queue import ServerRecords
 
 class LatencyMetrics:
     @property
@@ -107,5 +109,3 @@ class Observer:
 
     def reset_metrics(self) -> None:
         """Reset the observer metrics"""
-
-

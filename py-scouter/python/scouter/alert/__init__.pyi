@@ -1,4 +1,4 @@
-
+from typing import Any, Dict, List, Optional
 
 class AlertZone:
     Zone1: "AlertZone"
@@ -228,8 +228,6 @@ class SpcFeatureAlerts:
     @property
     def has_alerts(self) -> bool:
         """Returns true if there are alerts"""
-
-
 
 class AlertThreshold:
     """

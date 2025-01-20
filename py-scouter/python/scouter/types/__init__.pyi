@@ -12,8 +12,7 @@ class DriftType:
     def value(self) -> str: ...
     @staticmethod
     def from_value(value: str) -> "DriftType": ...
-    
-    
+
 class CommonCrons:
     Every1Minute: "CommonCrons"
     Every5Minutes: "CommonCrons"
@@ -31,13 +30,12 @@ class CommonCrons:
 
     def get_next(self) -> str:
         """Return the next cron time"""
-        
+
 class DataType:
     Pandas: "DataType"
     Polars: "DataType"
     Numpy: "DataType"
     Arrow: "DataType"
-
 
 # Errors
 class ScouterError(Exception):

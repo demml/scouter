@@ -1,11 +1,11 @@
-from typing import Dict, Optional, Union, List, Any
 import datetime
+from typing import Any, Dict, List, Optional, Union
 
-from ..drift import PsiDriftProfile, SpcDriftProfile
 from ..client import HTTPConfig
+from ..drift import PsiDriftProfile, SpcDriftProfile
 from ..logging import LogLevel
-from ..types import RecordType
 from ..observe import ObservabilityMetrics
+from ..types import RecordType
 
 class KafkaConfig:
     brokers: str
@@ -176,7 +176,6 @@ class ScouterQueue:
     def flush(self) -> None:
         """Flush the queue."""
 
-
 class SpcServerRecord:
     def __init__(
         self,
@@ -297,7 +296,6 @@ class PsiServerRecord:
 
     def to_dict(self) -> Dict[str, str]:
         """Return the dictionary representation of the record."""
-    
 
 class CustomMetricServerRecord:
     def __init__(
@@ -356,7 +354,6 @@ class CustomMetricServerRecord:
     def to_dict(self) -> Dict[str, str]:
         """Return the dictionary representation of the record."""
 
-
 class ServerRecord:
     Spc: "ServerRecord"
     Psi: "ServerRecord"
@@ -399,8 +396,6 @@ class ServerRecords:
 
     def __str__(self) -> str:
         """Return the string representation of the record."""
-
-
 
 class Feature:
     @staticmethod
