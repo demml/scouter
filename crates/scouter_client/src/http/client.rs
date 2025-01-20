@@ -1,5 +1,5 @@
 use pyo3::{prelude::*, IntoPyObjectExt};
-use scouter_contracts::{DriftRequest, ProfileRequest};
+use scouter_contracts::{DriftRequest, ProfileRequest, ProfileStatusRequest};
 use scouter_error::{PyScouterError, ScouterError};
 use scouter_events::producer::http::{HTTPClient, HTTPConfig, RequestType, Routes};
 use scouter_types::DriftType;
@@ -8,7 +8,7 @@ use scouter_types::{
 };
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use tracing::error;
+use tracing::{error, debug};
 
 #[pyclass]
 pub struct ScouterClient {
@@ -48,18 +48,24 @@ impl ScouterClient {
     /// # Returns
     ///
     /// * `Ok(())` if the profile was inserted successfully
-    pub fn register_profile(&mut self, profile: &Bound<'_, PyAny>) -> PyResult<()> {
+    #[pyo3(signature = (profile, set_active=false))]
+    pub fn register_profile(
+        &mut self,
+        profile: &Bound<'_, PyAny>,
+        set_active: bool,
+    ) -> PyResult<bool> {
         let drift_type = profile
             .getattr("config")?
             .getattr("drift_type")?
             .extract::<DriftType>()?;
-        let profile = profile
+
+        let profile_str = profile
             .call_method0("model_dump_json")?
             .extract::<String>()?;
 
         let request = ProfileRequest {
-            drift_type,
-            profile,
+            drift_type: drift_type.clone(),
+            profile: profile_str,
         };
 
         let response = self
@@ -81,7 +87,34 @@ impl ScouterClient {
             .map_err(|e: scouter_error::ScouterError| PyScouterError::new_err(e.to_string()))?;
 
         if response.status().is_success() {
-            Ok(())
+            debug!("Profile inserted successfully");
+            if set_active {
+                let name = profile
+                    .getattr("config")?
+                    .getattr("name")?
+                    .extract::<String>()?;
+
+                let repository = profile
+                    .getattr("config")?
+                    .getattr("repository")?
+                    .extract::<String>()?;
+
+                let version = profile
+                    .getattr("config")?
+                    .getattr("version")?
+                    .extract::<String>()?;
+
+                let request = ProfileStatusRequest {
+                    name,
+                    repository,
+                    version,
+                    active: true,
+                };
+
+                self.update_profile_status(request)
+            } else {
+                Ok(true)
+            }
         } else {
             Err(PyScouterError::new_err(format!(
                 "Failed to insert profile. Status: {:?}",
@@ -236,5 +269,28 @@ impl ScouterClient {
                 Ok(drift.into_bound_py_any(py).unwrap())
             }
         }
+    }
+
+    pub fn update_profile_status(&mut self, request: ProfileStatusRequest) -> PyResult<bool> {
+        debug!("Updating profile status: {:?}", request);
+        let response = self
+            .rt
+            .block_on(async {
+                let response = self
+                    .client
+                    .request_with_retry(
+                        Routes::ProfileStatus,
+                        RequestType::Put,
+                        Some(serde_json::to_value(request).unwrap()),
+                        None,
+                        None,
+                    )
+                    .await?;
+
+                Ok(response)
+            })
+            .map_err(|e: scouter_error::ScouterError| PyScouterError::new_err(e.to_string()))?;
+
+        Ok(response.status().is_success())
     }
 }

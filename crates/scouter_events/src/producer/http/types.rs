@@ -10,6 +10,7 @@ pub struct JwtToken {
 pub enum RequestType {
     Get,
     Post,
+    Put,
 }
 
 #[derive(Debug, Clone)]
@@ -21,6 +22,7 @@ pub enum Routes {
     PsiDrift,
     CustomDrift,
     Profile,
+    ProfileStatus,
 }
 
 impl Routes {
@@ -33,6 +35,7 @@ impl Routes {
             Routes::SpcDrift => "drift/spc",
             Routes::PsiDrift => "drift/psi",
             Routes::CustomDrift => "drift/custom",
+            Routes::ProfileStatus => "profile/status",
         }
     }
 }

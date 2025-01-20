@@ -53,6 +53,7 @@ pub struct ProfileRequest {
     pub profile: String,
 }
 
+#[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProfileStatusRequest {
     pub name: String,

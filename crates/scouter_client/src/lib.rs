@@ -31,7 +31,7 @@ pub use scouter_types::{
 
 pub use crate::http::ScouterClient;
 pub use queue::ScouterQueue;
-pub use scouter_contracts::DriftRequest;
+pub use scouter_contracts::{DriftRequest, ProfileStatusRequest};
 pub use scouter_drift::{
     psi::{PsiFeatureQueue, PsiMonitor},
     spc::{generate_alerts, SpcDriftMap, SpcFeatureDrift, SpcFeatureQueue, SpcMonitor},

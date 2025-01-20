@@ -56,7 +56,7 @@ overall_agg as (
         feature,
         jsonb_object_agg(bin_id, proportion::FLOAT8) as bins
     FROM feature_bin_proportions
-    WHERE feature_total_count > 1000
+    WHERE feature_total_count > 100
     GROUP BY feature
 ),
 

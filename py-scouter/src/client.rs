@@ -5,6 +5,7 @@ use scouter_client::*;
 pub fn client(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ScouterClient>()?;
     m.add_class::<DriftRequest>()?;
+    m.add_class::<ProfileStatusRequest>()?;
     m.add_class::<TimeInterval>()?;
 
     m.add_class::<BinnedCustomMetricStats>()?;

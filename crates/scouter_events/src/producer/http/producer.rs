@@ -163,6 +163,18 @@ impl HTTPClient {
                 .map_err(|e| {
                     ScouterError::Error(format!("Failed to send request with error: {}", e))
                 })?,
+
+            RequestType::Put => self
+                .client
+                .put(url)
+                .headers(headers)
+                .json(&body_params)
+                .bearer_auth(self.config.auth_token)
+                .send()
+                .await
+                .map_err(|e| {
+                    ScouterError::Error(format!("Failed to send request with error: {}", e))
+                })?,
         };
 
         Ok(response)

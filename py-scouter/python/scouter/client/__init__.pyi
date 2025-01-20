@@ -79,6 +79,24 @@ class DriftRequest:
                 Drift type for request
         """
 
+class ProfileStatusRequest:
+    
+    def __init__(self, name: str, repository: str, version: str, drift_type: DriftType, active: bool) -> None:
+        """Initialize profile status request
+
+        Args:
+            name:
+                Model name
+            repository:
+                Model repository
+            version:
+                Model version
+            drift_type:
+                Profile drift type. A (repo/name/version can be associated with more than one drift type)
+            active:
+                Whether to set the profile as active or inactive
+        """
+        
 # Client
 class ScouterClient:
     """Helper client for interacting with Scouter Server"""
@@ -102,39 +120,78 @@ class ScouterClient:
             Drift map of type BinnedCustomMetrics | BinnedPsiFeatureMetrics | BinnedSpcFeatureMetrics
         """
         
-    def register_profile(self, profile: Any) -> None:
+    def register_profile(self, profile: Any, set_active: bool = False) -> bool:
         """Insert drift profile into server
 
         Args:
             profile:
                 Drift profile
+            set_active:
+                Whether to set the profile as active or inactive
+                
+        Returns:
+            boolean
+        """
+        
+    def update_profile_status(self, request: ProfileStatusRequest) -> bool:
+        """Update profile status
+
+        Args:
+            request:
+                ProfileStatusRequest 
+                
+        Returns:
+            boolean
         """
 
 class BinnedCustomMetricStats:
     avg: float
     lower_bound: float
     upper_bound: float
+    
+    def __str__(self) -> str:
+        ...
 
 class BinnedCustomMetric:
     metric: str
     created_at: List[datetime.datetime]
     stats: List[BinnedCustomMetricStats]
+    
+    def __str__(self) -> str:
+        ...
 
 class BinnedCustomMetrics:
     metrics: Dict[str, BinnedCustomMetric]
+    
+    def __str__(self) -> str:
+        ...
 
 class BinnedPsiMetric:
     created_at: List[datetime.datetime]
     psi: List[float]
     overall_psi: float
     bins: Dict[int, float]
+    
+    def __str__(self) -> str:
+        ...
 
 class BinnedPsiFeatureMetrics:
     features: Dict[str, BinnedCustomMetric]
+    
+    def __str__(self) -> str:
+        ...
 
 class SpcDriftFeature:
     created_at: List[datetime.datetime]
     values: List[float]
+    
+    def __str__(self) -> str:
+        ...
 
 class BinnedSpcFeatureMetrics:
     features: Dict[str, SpcDriftFeature]
+    
+    def __str__(self) -> str:
+        ...
+
+
