@@ -6,7 +6,6 @@ use std::collections::BTreeMap;
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BinnedCustomMetricStats {
-
     #[pyo3(get)]
     pub avg: f64,
 
@@ -28,7 +27,6 @@ impl BinnedCustomMetricStats {
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BinnedCustomMetric {
-
     #[pyo3(get)]
     pub metric: String,
 
@@ -50,7 +48,6 @@ impl BinnedCustomMetric {
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct BinnedCustomMetrics {
-
     #[pyo3(get)]
     pub metrics: BTreeMap<String, BinnedCustomMetric>,
 }

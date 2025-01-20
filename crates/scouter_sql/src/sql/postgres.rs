@@ -1,6 +1,6 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::{
-    AlertResult, BinnedCustomMetricWrapper, FeatureBinProportionResult,
+    AlertWrapper, BinnedCustomMetricWrapper, FeatureBinProportionResult,
     FeatureBinProportionWrapper, ObservabilityResult, SpcFeatureResult, TaskRequest,
 };
 use chrono::{NaiveDateTime, Utc};
@@ -13,6 +13,7 @@ use scouter_error::ScouterError;
 use scouter_error::SqlError;
 use scouter_settings::DatabaseSettings;
 use scouter_types::{
+    alert::Alert,
     custom::BinnedCustomMetrics,
     psi::FeatureBinProportions,
     spc::{SpcDriftFeature, SpcDriftFeatures},
@@ -155,14 +156,14 @@ impl PostgresClient {
     ///
     /// # Returns
     ///
-    /// * `Result<Vec<AlertResult>, SqlError>` - Result of the query
+    /// * `Result<Vec<Alert>, SqlError>` - Result of the query
     pub async fn get_drift_alerts(
         &self,
         params: &DriftAlertRequest,
-    ) -> Result<Vec<AlertResult>, SqlError> {
+    ) -> Result<Vec<Alert>, SqlError> {
         let query = Queries::GetDriftAlerts.get_query().sql;
 
-        // check if active
+        // check if active (status can be 'active' or  'acknowledged')
         let query = if params.active.unwrap_or(false) {
             format!("{} AND status = 'active'", query)
         } else {
@@ -179,21 +180,19 @@ impl PostgresClient {
 
         // convert limit timestamp to string if it exists, leave as None if not
 
-        let result: Result<Vec<AlertResult>, sqlx::Error> = sqlx::query_as(&query)
+        let result: Result<Vec<AlertWrapper>, SqlError> = sqlx::query_as(&query)
             .bind(&params.version)
             .bind(&params.name)
             .bind(&params.repository)
             .bind(params.limit_datetime)
             .fetch_all(&self.pool)
-            .await;
+            .await
+            .map_err(|e| {
+                error!("Failed to get drift alerts from database: {:?}", e);
+                SqlError::QueryError(format!("{:?}", e))
+            });
 
-        match result {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                error!("Failed to get alerts from database: {:?}", e);
-                Err(SqlError::QueryError(format!("{:?}", e)))
-            }
-        }
+        result.map(|result| result.into_iter().map(|wrapper| wrapper.0).collect())
     }
 
     /// Inserts a drift record into the database

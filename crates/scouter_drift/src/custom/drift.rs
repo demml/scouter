@@ -97,7 +97,9 @@ pub mod custom_drifter {
             match alert_condition {
                 AlertThreshold::Below => below_threshold(alert_boundary),
                 AlertThreshold::Above => above_threshold(alert_boundary),
-                AlertThreshold::Outside => true, // Handled by early equality check
+                AlertThreshold::Outside => {
+                    below_threshold(alert_boundary) || above_threshold(alert_boundary)
+                } // Handled by early equality check
             }
         }
 
@@ -216,6 +218,8 @@ pub mod custom_drifter {
             );
 
             let metric_map = self.get_metric_map(&previous_run, db_client).await?;
+
+            println!("metric_map: {:?}", metric_map);
 
             match metric_map {
                 Some(metric_map) => {

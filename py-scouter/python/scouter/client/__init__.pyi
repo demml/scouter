@@ -80,7 +80,6 @@ class DriftRequest:
         """
 
 class ProfileStatusRequest:
-    
     def __init__(self, name: str, repository: str, version: str, drift_type: DriftType, active: bool) -> None:
         """Initialize profile status request
 
@@ -96,7 +95,44 @@ class ProfileStatusRequest:
             active:
                 Whether to set the profile as active or inactive
         """
-        
+
+class Alert:
+    created_at: datetime.datetime
+    name: str
+    repository: str
+    version: str
+    feature: str
+    alert: str
+    id: int
+    status: str
+
+class DriftAlertRequest:
+    def __init__(
+        self,
+        name: str,
+        repository: str,
+        version: str,
+        active: bool = False,
+        limit_datetime: Optional[datetime.datetime] = None,
+        limit: Optional[int] = None,
+    ) -> None:
+        """Initialize drift alert request
+
+        Args:
+            name:
+                Name
+            repository:
+                Repository
+            version:
+                Version
+            active:
+                Whether to get active alerts
+            limit_datetime:
+                Limit datetime for alerts
+            limit:
+                Limit for number of alerts to return
+        """
+
 # Client
 class ScouterClient:
     """Helper client for interacting with Scouter Server"""
@@ -119,7 +155,7 @@ class ScouterClient:
         Returns:
             Drift map of type BinnedCustomMetrics | BinnedPsiFeatureMetrics | BinnedSpcFeatureMetrics
         """
-        
+
     def register_profile(self, profile: Any, set_active: bool = False) -> bool:
         """Insert drift profile into server
 
@@ -128,70 +164,72 @@ class ScouterClient:
                 Drift profile
             set_active:
                 Whether to set the profile as active or inactive
-                
+
         Returns:
             boolean
         """
-        
+
     def update_profile_status(self, request: ProfileStatusRequest) -> bool:
         """Update profile status
 
         Args:
             request:
-                ProfileStatusRequest 
-                
+                ProfileStatusRequest
+
         Returns:
             boolean
+        """
+
+    def get_alerts(self, request: DriftAlertRequest) -> List[Alert]:
+        """Get alerts
+
+        Args:
+            request:
+                DriftAlertRequest
+
+        Returns:
+            List[Alert]
         """
 
 class BinnedCustomMetricStats:
     avg: float
     lower_bound: float
     upper_bound: float
-    
-    def __str__(self) -> str:
-        ...
+
+    def __str__(self) -> str: ...
 
 class BinnedCustomMetric:
     metric: str
     created_at: List[datetime.datetime]
     stats: List[BinnedCustomMetricStats]
-    
-    def __str__(self) -> str:
-        ...
+
+    def __str__(self) -> str: ...
 
 class BinnedCustomMetrics:
-    metrics: Dict[str, BinnedCustomMetric]
-    
-    def __str__(self) -> str:
-        ...
+    @property
+    def metrics(self) -> Dict[str, BinnedCustomMetric]: ...
+    def __str__(self) -> str: ...
 
 class BinnedPsiMetric:
     created_at: List[datetime.datetime]
     psi: List[float]
     overall_psi: float
     bins: Dict[int, float]
-    
-    def __str__(self) -> str:
-        ...
+
+    def __str__(self) -> str: ...
 
 class BinnedPsiFeatureMetrics:
     features: Dict[str, BinnedCustomMetric]
-    
-    def __str__(self) -> str:
-        ...
+
+    def __str__(self) -> str: ...
 
 class SpcDriftFeature:
     created_at: List[datetime.datetime]
     values: List[float]
-    
-    def __str__(self) -> str:
-        ...
+
+    def __str__(self) -> str: ...
 
 class BinnedSpcFeatureMetrics:
     features: Dict[str, SpcDriftFeature]
-    
-    def __str__(self) -> str:
-        ...
 
-
+    def __str__(self) -> str: ...

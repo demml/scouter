@@ -2,7 +2,7 @@
 
 import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple, Union
+from typing import Any, Dict, List, Optional, Tuple, Union, overload
 
 from numpy.typing import NDArray
 
@@ -131,6 +131,13 @@ class CommonCrons:
     Every12Hours: "CommonCrons"
     EveryDay: "CommonCrons"
     EveryWeek: "CommonCrons"
+
+    @property
+    def cron(self) -> str:
+        """Return the cron"""
+
+    def get_next(self) -> str:
+        """Return the next cron time"""
 
 class AlertZone:
     Zone1: "AlertZone"
@@ -1716,7 +1723,7 @@ class CustomMetric:
         name: str,
         value: float,
         alert_threshold: AlertThreshold,
-        alert_threshold_value: Optional[float],
+        alert_threshold_value: Optional[float] = None,
     ):
         """
         Initialize a custom metric for alerting.
@@ -1728,10 +1735,12 @@ class CustomMetric:
             name (str): The name of the metric being monitored. This should be a
                 descriptive identifier for the metric.
             value (float): The current value of the metric.
-             alert_threshold (AlertThreshold): The condition used to determine when an alert
-                should be triggered.
-             alert_threshold_value (Optional[float]): The threshold value used in conjunction with
-                the  alert_threshold. If None, some alert conditions may not be applicable.
+            alert_threshold (AlertThreshold):
+                The condition used to determine when an alert should be triggered.
+            alert_threshold_value (Optional[float]):
+                The threshold or boundary value used in conjunction with the alert_threshold.
+                If supplied, this value will be added or subtracted from the provided metric value to
+                determine if an alert should be triggered.
 
         """
 
@@ -1977,12 +1986,77 @@ class Drifter:
         used to create monitoring profiles and compute drifts.
         """
 
+    @overload
     def create_drift_profile(
+        self,
+        data: Any,
+        config: SpcDriftConfig,
+        data_type: Optional[DataType] = None,
+    ) -> SpcDriftProfile:
+        """Create a SPC (Statistical process control) drift profile from the provided data.
+
+        Args:
+            data:
+                Data to create a data profile from. Data can be a numpy array,
+                a polars dataframe or a pandas dataframe.
+            config:
+                SpcDriftConfig
+            data_type:
+                Optional data type. Inferred from data if not provided.
+
+        Returns:
+            PsiDriftProfile
+        """
+
+    @overload
+    def create_drift_profile(
+        self,
+        data: Any,
+        config: PsiDriftConfig,
+        data_type: Optional[DataType] = None,
+    ) -> PsiDriftProfile:
+        """Create a PSI (population stability index) drift profile from the provided data.
+
+        Args:
+            data:
+                Data to create a data profile from. Data can be a numpy array,
+                a polars dataframe or a pandas dataframe.
+            config:
+                PsiDriftConfig
+            data_type:
+                Optional data type. Inferred from data if not provided.
+
+        Returns:
+            SpcDriftProfile
+        """
+
+    @overload
+    def create_drift_profile(
+        self,
+        data: Union[CustomMetric, List[CustomMetric]],
+        config: CustomMetricDriftConfig,
+        data_type: Optional[DataType] = None,
+    ) -> CustomDriftProfile:
+        """Create a custom drift profile from data.
+
+        Args:
+            data:
+                CustomMetric or list of CustomMetric.
+            config:
+                CustomMetricDriftConfig
+            data_type:
+                Optional data type. Inferred from data if not provided.
+
+        Returns:
+            CustomDriftProfile
+        """
+
+    def create_drift_profile(  # type: ignore
         self,
         data: Any,
         config: Optional[Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]] = None,
         data_type: Optional[DataType] = None,
-    ) -> Any:
+    ) -> Union[SpcDriftProfile, PsiDriftProfile, CustomDriftProfile]:
         """Create a drift profile from data.
 
         Args:
@@ -1996,7 +2070,7 @@ class Drifter:
                 Optional data type. Inferred from data if not provided.
 
         Returns:
-            SpcDriftProfile, PsiDriftProfile or CustomMetricDriftProfile
+            SpcDriftProfile, PsiDriftProfile or CustomDriftProfile
         """
 
     def compute_drift(

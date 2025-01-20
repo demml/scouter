@@ -1,14 +1,14 @@
 use pyo3::{prelude::*, IntoPyObjectExt};
-use scouter_contracts::{DriftRequest, ProfileRequest, ProfileStatusRequest};
+use scouter_contracts::{DriftAlertRequest, DriftRequest, ProfileRequest, ProfileStatusRequest};
 use scouter_error::{PyScouterError, ScouterError};
 use scouter_events::producer::http::{HTTPClient, HTTPConfig, RequestType, Routes};
-use scouter_types::DriftType;
 use scouter_types::{
-    custom::BinnedCustomMetrics, psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures,
+    alert::Alert, custom::BinnedCustomMetrics, psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures,
+    DriftType,
 };
 use std::sync::Arc;
 use tokio::runtime::Runtime;
-use tracing::{error, debug};
+use tracing::{debug, error};
 
 #[pyclass]
 pub struct ScouterClient {
@@ -292,5 +292,50 @@ impl ScouterClient {
             .map_err(|e: scouter_error::ScouterError| PyScouterError::new_err(e.to_string()))?;
 
         Ok(response.status().is_success())
+    }
+
+    pub fn get_alerts(&mut self, request: DriftAlertRequest) -> PyResult<Vec<Alert>> {
+        debug!("Getting alerts for: {:?}", request);
+
+        let query_string =
+            serde_qs::to_string(&request).map_err(|e| PyScouterError::new_err(e.to_string()))?;
+
+        self.rt
+            .block_on(async {
+                let response = self
+                    .client
+                    .request_with_retry(
+                        Routes::Alerts,
+                        RequestType::Get,
+                        None,
+                        Some(query_string),
+                        None,
+                    )
+                    .await?;
+
+                if response.status().is_client_error() || response.status().is_server_error() {
+                    return Err(ScouterError::Error(format!(
+                        "Failed to get drift data. Status: {:?}",
+                        response.status()
+                    )));
+                } else {
+                    let body: serde_json::Value = response.json().await.unwrap();
+
+                    debug!("Response: {:?}", body);
+
+                    let data = body.get("data").unwrap().to_owned();
+
+                    let results: Vec<Alert> = serde_json::from_value(data).map_err(|e| {
+                        error!(
+                            "Failed to parse drift response for {:?}. Error: {:?}",
+                            &request, e
+                        );
+                        ScouterError::Error(e.to_string())
+                    })?;
+
+                    Ok(results)
+                }
+            })
+            .map_err(|e: scouter_error::ScouterError| PyScouterError::new_err(e.to_string()))
     }
 }

@@ -62,6 +62,21 @@ pub struct ProfileStatusRequest {
     pub active: bool,
 }
 
+#[pymethods]
+impl ProfileStatusRequest {
+    #[new]
+    #[pyo3(signature = (name, repository, version, active=false))]
+    pub fn new(name: String, repository: String, version: String, active: bool) -> Self {
+        ProfileStatusRequest {
+            name,
+            repository,
+            version,
+            active,
+        }
+    }
+}
+
+#[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftAlertRequest {
     pub name: String,
@@ -70,6 +85,29 @@ pub struct DriftAlertRequest {
     pub limit_datetime: Option<NaiveDateTime>,
     pub active: Option<bool>,
     pub limit: Option<i32>,
+}
+
+#[pymethods]
+impl DriftAlertRequest {
+    #[new]
+    #[pyo3(signature = (name, repository, version, active=false, limit_datetime=None, limit=None))]
+    pub fn new(
+        name: String,
+        repository: String,
+        version: String,
+        active: bool,
+        limit_datetime: Option<NaiveDateTime>,
+        limit: Option<i32>,
+    ) -> Self {
+        DriftAlertRequest {
+            name,
+            repository,
+            version,
+            limit_datetime,
+            active: Some(active),
+            limit,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

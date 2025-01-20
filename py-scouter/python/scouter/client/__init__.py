@@ -13,6 +13,9 @@ BinnedPsiFeatureMetrics = client.BinnedPsiFeatureMetrics
 SpcDriftFeature = client.SpcDriftFeature
 BinnedSpcFeatureMetrics = client.BinnedSpcFeatureMetrics
 HTTPConfig = client.HTTPConfig
+ProfileStatusRequest = client.ProfileStatusRequest
+Alert = client.Alert
+DriftAlertRequest = client.DriftAlertRequest
 
 __all__ = [
     "TimeInterval",
@@ -26,4 +29,7 @@ __all__ = [
     "SpcDriftFeature",
     "BinnedSpcFeatureMetrics",
     "HTTPConfig",
+    "ProfileStatusRequest",
+    "Alert",
+    "DriftAlertRequest",
 ]

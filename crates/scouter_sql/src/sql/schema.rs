@@ -1,5 +1,6 @@
 use chrono::NaiveDateTime;
 use scouter_types::{
+    alert::Alert,
     custom::{BinnedCustomMetric, BinnedCustomMetricStats},
     psi::FeatureBinProportion,
 };
@@ -68,25 +69,15 @@ impl<'r> FromRow<'r, PgRow> for BinnedCustomMetricWrapper {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AlertResult {
-    pub created_at: NaiveDateTime,
-    pub name: String,
-    pub repository: String,
-    pub version: String,
-    pub feature: String,
-    pub alert: BTreeMap<String, String>,
-    pub id: i32,
-    pub status: String,
-}
+pub struct AlertWrapper(pub Alert);
 
-impl<'r> FromRow<'r, PgRow> for AlertResult {
+impl<'r> FromRow<'r, PgRow> for AlertWrapper {
     fn from_row(row: &'r PgRow) -> Result<Self, Error> {
         let alert_value: serde_json::Value = row.try_get("alert")?;
         let alert: BTreeMap<String, String> =
             serde_json::from_value(alert_value).unwrap_or_default();
 
-        Ok(AlertResult {
+        Ok(AlertWrapper(Alert {
             created_at: row.try_get("created_at")?,
             name: row.try_get("name")?,
             repository: row.try_get("repository")?,
@@ -95,7 +86,7 @@ impl<'r> FromRow<'r, PgRow> for AlertResult {
             feature: row.try_get("feature")?,
             id: row.try_get("id")?,
             status: row.try_get("status")?,
-        })
+        }))
     }
 }
 

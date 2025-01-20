@@ -6,7 +6,6 @@ use std::collections::BTreeMap;
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpcDriftFeature {
-
     #[pyo3(get)]
     pub created_at: Vec<chrono::NaiveDateTime>,
 
@@ -25,7 +24,6 @@ impl SpcDriftFeature {
 #[pyclass(name = "BinnedSpcFeatureMetrics")]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpcDriftFeatures {
-
     #[pyo3(get)]
     pub features: BTreeMap<String, SpcDriftFeature>,
 }

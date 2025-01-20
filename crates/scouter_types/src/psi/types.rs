@@ -7,7 +7,6 @@ use std::collections::BTreeMap;
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BinnedPsiMetric {
-
     #[pyo3(get)]
     pub created_at: Vec<NaiveDateTime>,
 
@@ -32,7 +31,6 @@ impl BinnedPsiMetric {
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct BinnedPsiFeatureMetrics {
-
     #[pyo3(get)]
     pub features: BTreeMap<String, BinnedPsiMetric>,
 }

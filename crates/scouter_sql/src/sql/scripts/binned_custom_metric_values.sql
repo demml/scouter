@@ -1,15 +1,15 @@
 WITH subquery1 AS (
     SELECT
-        date_bin('0.06 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
+        date_bin('$1 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
         metric,
         value
     FROM custom_metrics
     WHERE 
         1=1
-        AND created_at > timezone('utc', now()) - interval '10 minute'
-        AND name = 'test'
-        AND repository = 'test'
-        AND version ='test'
+        AND created_at > timezone('utc', now()) - interval '$2 minute'
+        AND name = $3
+        AND repository = $4
+        AND version = $5
     ),
 
 subquery2 AS (
