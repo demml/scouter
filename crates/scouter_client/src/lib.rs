@@ -8,6 +8,7 @@ pub use drifter::scouter::PyDrifter;
 pub use profiler::scouter::DataProfiler;
 
 pub use scouter_types::{
+    alert::Alert,
     create_feature_map,
     cron::*,
     custom::{
@@ -27,12 +28,11 @@ pub use scouter_types::{
     AlertDispatchType, CustomMetricServerRecord, DataType, DriftProfile, DriftType, Feature,
     FeatureMap, Features, LatencyMetrics, ObservabilityMetrics, PsiServerRecord, RecordType,
     RouteMetrics, ServerRecord, ServerRecords, SpcServerRecord, TimeInterval,
-    alert::Alert,
 };
 
 pub use crate::http::ScouterClient;
 pub use queue::ScouterQueue;
-pub use scouter_contracts::{DriftRequest, ProfileStatusRequest, DriftAlertRequest};
+pub use scouter_contracts::{DriftAlertRequest, DriftRequest, ProfileStatusRequest};
 pub use scouter_drift::{
     psi::{PsiFeatureQueue, PsiMonitor},
     spc::{generate_alerts, SpcDriftMap, SpcFeatureDrift, SpcFeatureQueue, SpcMonitor},

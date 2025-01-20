@@ -4,7 +4,6 @@ import time
 import pandas as pd
 from scouter import (
     AlertThreshold,
-    CommonCrons,
     CustomMetric,
     CustomMetricAlertConfig,
     CustomMetricDriftConfig,
@@ -23,6 +22,7 @@ from scouter.client import (
     BinnedCustomMetrics,
     BinnedPsiFeatureMetrics,
     BinnedSpcFeatureMetrics,
+    DriftAlertRequest,
     DriftRequest,
     HTTPConfig,
     ProfileStatusRequest,
@@ -133,12 +133,13 @@ def test_custom_monitor_pandas_rabbitmq():
         name="test",
         repository="test",
         version=semver,
-        alert_config=CustomMetricAlertConfig(schedule=CommonCrons.Every1Minute.cron),
+        alert_config=CustomMetricAlertConfig(schedule="0/15 * * * * * *"),  # every 15 seconds
     )
 
     profile = scouter.create_drift_profile(data=metrics, config=drift_config)
     client.register_profile(profile)
     producer = ScouterProducer(config=RabbitMQConfig())
+    time.sleep(2)
 
     for i in range(10, 20):
 
@@ -160,8 +161,6 @@ def test_custom_monitor_pandas_rabbitmq():
     producer.flush()
 
     # wait for rabbitmq to process the message
-    time.sleep(2)
-
     request = DriftRequest(
         name=profile.config.name,
         repository=profile.config.repository,
@@ -180,3 +179,15 @@ def test_custom_monitor_pandas_rabbitmq():
             name=profile.config.name, repository=profile.config.repository, version=profile.config.version, active=True
         )
     )
+
+    # wait for alerts to process
+    time.sleep(15)  # wait for 11 because background drift task runs every 10 seconds
+    alerts = client.get_alerts(
+        DriftAlertRequest(
+            name=profile.config.name,
+            repository=profile.config.repository,
+            version=profile.config.version,
+        )
+    )
+
+    assert len(alerts) > 0

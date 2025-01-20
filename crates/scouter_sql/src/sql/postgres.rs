@@ -310,8 +310,11 @@ impl PostgresClient {
         let query = Queries::InsertDriftProfile.get_query();
         let base_args = drift_profile.get_base_args();
 
+        let  current_time = Utc::now();
+
         let schedule = Schedule::from_str(&base_args.schedule)
             .map_err(|e| SqlError::GeneralError(e.to_string()))?;
+
 
         let next_run = schedule
             .upcoming(Utc)
@@ -321,6 +324,7 @@ impl PostgresClient {
                 "Failed to get next run time for cron expression: {}",
                 base_args.schedule
             )))?;
+
 
         let query_result = sqlx::query(&query.sql)
             .bind(base_args.name)
@@ -332,7 +336,7 @@ impl PostgresClient {
             .bind(false)
             .bind(base_args.schedule)
             .bind(next_run.naive_utc())
-            .bind(next_run.naive_utc())
+            .bind(current_time.naive_utc())
             .execute(&self.pool)
             .await
             .map_err(|e| {

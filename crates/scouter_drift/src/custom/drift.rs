@@ -219,8 +219,6 @@ pub mod custom_drifter {
 
             let metric_map = self.get_metric_map(&previous_run, db_client).await?;
 
-            println!("metric_map: {:?}", metric_map);
-
             match metric_map {
                 Some(metric_map) => {
                     let alerts = self.generate_alerts(&metric_map).await.map_err(|e| {

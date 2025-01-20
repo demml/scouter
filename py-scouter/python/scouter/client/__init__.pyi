@@ -126,7 +126,7 @@ class DriftAlertRequest:
             version:
                 Version
             active:
-                Whether to get active alerts
+                Whether to get active alerts only
             limit_datetime:
                 Limit datetime for alerts
             limit:
