@@ -10,20 +10,17 @@ from fastapi.testclient import TestClient
 from httpx import Response
 from numpy.typing import NDArray
 from pydantic import BaseModel
-from scouter import (
-    AlertDispatchType,
-    CustomMetricAlertConfig,
+from scouter.alert import AlertDispatchType, CustomMetricAlertConfig
+from scouter.client import HTTPConfig
+from scouter.drift import (
     CustomMetricDriftConfig,
     Drifter,
-    Feature,
-    Features,
     PsiDriftConfig,
     SpcDriftConfig,
     SpcDriftProfile,
 )
-from scouter.client import HTTPConfig
 from scouter.integrations.fastapi import ScouterRouter
-from scouter.queue import KafkaConfig
+from scouter.queue import Feature, Features, KafkaConfig
 
 T = TypeVar("T")
 YieldFixture = Generator[T, None, None]

@@ -2,8 +2,8 @@ import pandas as pd
 import polars as pl
 import pytest
 from numpy.typing import NDArray
-from scouter import Drifter
-from scouter._scouter import ScouterError, SpcDriftConfig, SpcDriftProfile
+from scouter.drift import Drifter, SpcDriftConfig, SpcDriftProfile
+from scouter.types import ScouterError
 
 
 def test_monitor_f64(array: NDArray, drift_config: SpcDriftConfig):

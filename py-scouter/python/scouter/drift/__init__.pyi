@@ -993,7 +993,28 @@ class Drifter:
                 Optional data type. Inferred from data if not provided.
 
         Returns:
-            PsiDriftProfile
+            SpcDriftProfile
+        """
+
+    @overload
+    def create_drift_profile(
+        self,
+        data: Any,
+        data_type: Optional[DataType] = None,
+    ) -> SpcDriftProfile:
+        """Create a SPC (Statistical process control) drift profile from the provided data.
+
+        Args:
+            data:
+                Data to create a data profile from. Data can be a numpy array,
+                a polars dataframe or a pandas dataframe.
+            config:
+                SpcDriftConfig
+            data_type:
+                Optional data type. Inferred from data if not provided.
+
+        Returns:
+            SpcDriftProfile
         """
 
     @overload
@@ -1015,7 +1036,7 @@ class Drifter:
                 Optional data type. Inferred from data if not provided.
 
         Returns:
-            SpcDriftProfile
+            PsiDriftProfile
         """
 
     @overload

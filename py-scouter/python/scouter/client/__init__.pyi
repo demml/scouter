@@ -1,7 +1,7 @@
 import datetime
 from typing import Any, Dict, List, Optional
 
-from .. import DriftType
+from ..types import DriftType
 
 class HTTPConfig:
     server_url: str

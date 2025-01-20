@@ -2,22 +2,7 @@ import random
 import time
 
 import pandas as pd
-from scouter import (
-    AlertThreshold,
-    CustomMetric,
-    CustomMetricAlertConfig,
-    CustomMetricDriftConfig,
-    CustomMetricServerRecord,
-    Drifter,
-    DriftType,
-    Feature,
-    Features,
-    PsiDriftConfig,
-    RecordType,
-    ServerRecord,
-    ServerRecords,
-    SpcDriftConfig,
-)
+from scouter.alert import AlertThreshold, CustomMetricAlertConfig
 from scouter.client import (
     BinnedCustomMetrics,
     BinnedPsiFeatureMetrics,
@@ -29,8 +14,26 @@ from scouter.client import (
     ScouterClient,
     TimeInterval,
 )
+from scouter.drift import (
+    CustomMetric,
+    CustomMetricDriftConfig,
+    Drifter,
+    PsiDriftConfig,
+    SpcDriftConfig,
+)
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
-from scouter.queue import KafkaConfig, RabbitMQConfig, ScouterProducer, ScouterQueue
+from scouter.queue import (
+    CustomMetricServerRecord,
+    Feature,
+    Features,
+    KafkaConfig,
+    RabbitMQConfig,
+    ScouterProducer,
+    ScouterQueue,
+    ServerRecord,
+    ServerRecords,
+)
+from scouter.types import DriftType, RecordType
 
 RustyLogger.setup_logging(
     LoggingConfig(log_level=LogLevel.Debug),
