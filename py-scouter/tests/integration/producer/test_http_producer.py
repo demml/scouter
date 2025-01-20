@@ -6,7 +6,8 @@ from scouter import (
     ServerRecords,
     SpcServerRecord,
 )
-from scouter.queue import HTTPConfig, ScouterProducer
+from scouter.client import HTTPConfig
+from scouter.queue import ScouterProducer
 
 
 def test_http_config():

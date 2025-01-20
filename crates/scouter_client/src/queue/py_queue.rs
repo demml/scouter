@@ -6,6 +6,7 @@ use scouter_types::psi::PsiDriftProfile;
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::DriftType;
 use scouter_types::Features;
+use tracing::debug;
 
 pub enum Queue {
     Spc(SpcQueue),
@@ -71,10 +72,13 @@ impl ScouterQueue {
     pub fn insert(&mut self, features: Features) -> PyResult<()> {
         self.queue
             .insert(features)
-            .map_err(|e| PyScouterError::new_err(e.to_string()))
+            .map_err(|e| PyScouterError::new_err(e.to_string()))?;
+        debug!("Inserted features into queue");
+        Ok(())
     }
 
     pub fn flush(&mut self) -> PyResult<()> {
+        debug!("Flushing queue");
         match &mut self.queue {
             Queue::Spc(queue) => queue
                 .flush()

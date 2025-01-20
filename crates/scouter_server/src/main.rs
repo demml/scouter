@@ -463,7 +463,7 @@ mod tests {
             name: "test".to_string(),
             repository: "test".to_string(),
             version: "test".to_string(),
-            time_window: TimeInterval::FiveMinutes,
+            time_interval: TimeInterval::FiveMinutes,
             max_data_points: 100,
             drift_type: DriftType::Spc,
         };
@@ -559,7 +559,7 @@ mod tests {
             name: "test".to_string(),
             repository: "test".to_string(),
             version: "1.0.0".to_string(),
-            time_window: TimeInterval::FiveMinutes,
+            time_interval: TimeInterval::FiveMinutes,
             max_data_points: 100,
             drift_type: DriftType::Psi,
         };
@@ -644,7 +644,7 @@ mod tests {
             name: "test".to_string(),
             repository: "test".to_string(),
             version: "1.0.0".to_string(),
-            time_window: TimeInterval::FiveMinutes,
+            time_interval: TimeInterval::FiveMinutes,
             max_data_points: 100,
             drift_type: DriftType::Custom,
         };

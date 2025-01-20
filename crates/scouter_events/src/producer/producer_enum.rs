@@ -9,6 +9,7 @@ use pyo3::prelude::*;
 use scouter_error::{PyScouterError, ScouterError};
 use scouter_types::ServerRecords;
 use std::sync::Arc;
+use tracing::debug;
 
 #[derive(Clone)]
 pub enum ProducerEnum {
@@ -62,6 +63,7 @@ impl ScouterProducer {
         let producer = if config.is_instance_of::<HTTPConfig>() {
             let config = config.extract::<HTTPConfig>()?;
             let producer = rt.block_on(async { HTTPProducer::new(config).await })?;
+            debug!("Creating HTTP producer");
             ProducerEnum::HTTP(producer)
 
         // check for kafka config
@@ -69,6 +71,7 @@ impl ScouterProducer {
             let config = config.extract::<KafkaConfig>()?;
             #[cfg(feature = "kafka")]
             {
+                debug!("Creating Kafka producer");
                 ProducerEnum::Kafka(KafkaProducer::new(config)?)
             }
             #[cfg(not(feature = "kafka"))]
@@ -84,6 +87,7 @@ impl ScouterProducer {
             #[cfg(feature = "rabbitmq")]
             {
                 let producer = rt.block_on(async { RabbitMQProducer::new(config).await })?;
+                debug!("Creating RabbitMQ producer");
                 ProducerEnum::RabbitMQ(producer)
             }
             #[cfg(not(feature = "rabbitmq"))]

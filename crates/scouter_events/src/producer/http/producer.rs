@@ -229,6 +229,7 @@ impl HTTPProducer {
         let serialized_msg: Value = serde_json::to_value(&message).map_err(|e| {
             ScouterError::Error(format!("Failed to serialize message with error: {}", e))
         })?;
+
         let response = self
             .client
             .request_with_retry(

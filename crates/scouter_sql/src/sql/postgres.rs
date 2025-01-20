@@ -566,14 +566,14 @@ impl PostgresClient {
     ) -> Result<Vec<ObservabilityResult>, SqlError> {
         let query = Queries::GetBinnedObservabilityMetrics.get_query();
 
-        let time_window = TimeInterval::from_string(&params.time_window).to_minutes();
+        let time_interval = TimeInterval::from_string(&params.time_interval).to_minutes();
 
-        let bin = time_window as f64 / params.max_data_points as f64;
+        let bin = time_interval as f64 / params.max_data_points as f64;
 
         let observability_metrics: Result<Vec<ObservabilityResult>, sqlx::Error> =
             sqlx::query_as(&query.sql)
                 .bind(bin)
-                .bind(time_window)
+                .bind(time_interval)
                 .bind(&params.name)
                 .bind(&params.repository)
                 .bind(&params.version)
@@ -594,7 +594,7 @@ impl PostgresClient {
     // * `repository` - The name of the repository to query drift records for
     // * `feature` - The name of the feature to query drift records for
     // * `aggregation` - The aggregation to use for the query
-    // * `time_window` - The time window to query drift records for
+    // * `time_interval` - The time window to query drift records for
     //
     // # Returns
     //
@@ -603,7 +603,7 @@ impl PostgresClient {
         &self,
         params: &DriftRequest,
     ) -> Result<SpcDriftFeatures, SqlError> {
-        let minutes = params.time_window.to_minutes();
+        let minutes = params.time_interval.to_minutes();
         let bin = minutes / params.max_data_points;
 
         let query = Queries::GetBinnedSpcFeatureValues.get_query();
@@ -652,8 +652,8 @@ impl PostgresClient {
     ) -> Result<Vec<FeatureBinProportionResult>, SqlError> {
         // get features
 
-        let minutes = params.time_window.to_minutes();
-        let bin = params.time_window.to_minutes() / params.max_data_points;
+        let minutes = params.time_interval.to_minutes();
+        let bin = params.time_interval.to_minutes() / params.max_data_points;
 
         let query = Queries::GetBinnedPsiFeatureBins.get_query();
 
@@ -688,8 +688,8 @@ impl PostgresClient {
     ) -> Result<BinnedCustomMetrics, SqlError> {
         // get features
 
-        let minutes = params.time_window.to_minutes();
-        let bin = params.time_window.to_minutes() / params.max_data_points;
+        let minutes = params.time_interval.to_minutes();
+        let bin = params.time_interval.to_minutes() / params.max_data_points;
 
         let query = Queries::GetBinnedCustomMetricValues.get_query();
 
@@ -1142,7 +1142,7 @@ mod tests {
                 name: "test".to_string(),
                 repository: "test".to_string(),
                 version: "test".to_string(),
-                time_window: TimeInterval::FiveMinutes,
+                time_interval: TimeInterval::FiveMinutes,
                 max_data_points: 10,
                 drift_type: DriftType::Spc,
             })
@@ -1205,7 +1205,7 @@ mod tests {
                 name: "test".to_string(),
                 repository: "test".to_string(),
                 version: "test".to_string(),
-                time_window: TimeInterval::OneHour,
+                time_interval: TimeInterval::OneHour,
                 max_data_points: 1000,
                 drift_type: DriftType::Psi,
             })
@@ -1272,7 +1272,7 @@ mod tests {
                 name: "test".to_string(),
                 repository: "test".to_string(),
                 version: "test".to_string(),
-                time_window: TimeInterval::OneHour,
+                time_interval: TimeInterval::OneHour,
                 max_data_points: 1000,
                 drift_type: DriftType::Custom,
             })

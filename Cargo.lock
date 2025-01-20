@@ -3504,6 +3504,7 @@ dependencies = [
  "ndarray",
  "ndarray-rand",
  "rand",
+ "rusty-logging",
  "scouter-contracts",
  "scouter-dispatch",
  "scouter-drift",

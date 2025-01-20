@@ -20,6 +20,7 @@ pub enum Routes {
     SpcDrift,
     PsiDrift,
     CustomDrift,
+    Profile,
 }
 
 impl Routes {
@@ -27,6 +28,7 @@ impl Routes {
         match self {
             Routes::AuthApiLogin => "auth/api/login",
             Routes::AuthApiRefresh => "auth/api/refresh",
+            Routes::Profile => "profile",
             Routes::Drift => "drift",
             Routes::SpcDrift => "drift/spc",
             Routes::PsiDrift => "drift/psi",
@@ -66,7 +68,8 @@ impl HTTPConfig {
         auth_token: Option<String>,
     ) -> Self {
         let server_url = server_url.unwrap_or_else(|| {
-            std::env::var("HTTP_SERVER_URL").unwrap_or_else(|_| "http://localhost:8000".to_string())
+            std::env::var("SCOUTER_SERVER_URL")
+                .unwrap_or_else(|_| "http://localhost:8000/scouter".to_string())
         });
         let use_auth = use_auth.unwrap_or(false);
         let username = username.unwrap_or_else(|| {
@@ -85,6 +88,18 @@ impl HTTPConfig {
             username,
             password,
             auth_token,
+        }
+    }
+}
+
+impl Default for HTTPConfig {
+    fn default() -> Self {
+        HTTPConfig {
+            server_url: "http://localhost:8000/scouter".to_string(),
+            use_auth: false,
+            username: "admin".to_string(),
+            password: "admin".to_string(),
+            auth_token: "".to_string(),
         }
     }
 }

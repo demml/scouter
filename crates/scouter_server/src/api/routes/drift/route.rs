@@ -18,7 +18,7 @@ use scouter_types::{
 use serde_json::json;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
-use tracing::error;
+use tracing::{debug, error};
 
 pub async fn get_spc_drift(
     State(data): State<Arc<AppState>>,
@@ -162,6 +162,8 @@ pub async fn insert_drift(
     State(data): State<Arc<AppState>>,
     Json(body): Json<ServerRecords>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    debug!("Inserting drift record: {:?}", body);
+
     let inserted = match body.record_type {
         RecordType::Spc => insert_spc_drift(&body, &data.db).await,
         RecordType::Psi => insert_psi_drift(&body, &data.db).await,

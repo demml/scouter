@@ -1,13 +1,44 @@
 import datetime
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 from .. import DriftType
-from ..queue import HTTPConfig
 
-class SpcFeatureResult:
-    feature: str
-    created_at: List[datetime.datetime]
-    values: List[float]
+class HTTPConfig:
+    server_url: str
+    use_auth: bool
+    username: str
+    password: str
+    auth_token: str
+
+    def __init__(
+        self,
+        server_url: Optional[str] = None,
+        use_auth: bool = False,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
+        auth_token: Optional[str] = None,
+    ) -> None:
+        """HTTP configuration to use with the HTTPProducer.
+
+        Args:
+            server_url:
+                URL of the HTTP server to publish messages to.
+                If not provided, the value of the HTTP_SERVER_URL environment variable is used.
+
+            use_auth:
+                Whether to use basic authentication.
+                Default is False.
+
+            username:
+                Username for basic authentication.
+
+            password:
+                Password for basic authentication.
+
+            auth_token:
+                Authorization token to use for authentication.
+
+        """
 
 class TimeInterval:
     FiveMinutes: "TimeInterval"
@@ -27,7 +58,7 @@ class DriftRequest:
         name: str,
         repository: str,
         version: str,
-        time_window: TimeInterval,
+        time_interval: TimeInterval,
         max_data_points: int,
         drift_type: DriftType,
     ) -> None:
@@ -40,7 +71,7 @@ class DriftRequest:
                 Model repository
             version:
                 Model version
-            time_window:
+            time_interval:
                 Time window for drift request
             max_data_points:
                 Maximum data points to return
@@ -52,20 +83,31 @@ class DriftRequest:
 class ScouterClient:
     """Helper client for interacting with Scouter Server"""
 
-    def __init__(self, config: HTTPConfig) -> None:
+    def __init__(self, config: Optional[HTTPConfig] = None) -> None:
         """Initialize ScouterClient
 
         Args:
             config:
-                HTTPConfig object
+                HTTP configuration for interacting with the server.
         """
 
-    def get_binned_drift(self, drift_request) -> Any:
+    def get_binned_drift(self, drift_request: DriftRequest) -> Any:
         """Get drift map from server
 
         Args:
             drift_request:
                 DriftRequest object
+
+        Returns:
+            Drift map of type BinnedCustomMetrics | BinnedPsiFeatureMetrics | BinnedSpcFeatureMetrics
+        """
+        
+    def register_profile(self, profile: Any) -> None:
+        """Insert drift profile into server
+
+        Args:
+            profile:
+                Drift profile
         """
 
 class BinnedCustomMetricStats:
@@ -95,4 +137,4 @@ class SpcDriftFeature:
     values: List[float]
 
 class BinnedSpcFeatureMetrics:
-    features: Dict[str, BinnedCustomMetric]
+    features: Dict[str, SpcDriftFeature]

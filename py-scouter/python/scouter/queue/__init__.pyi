@@ -1,6 +1,7 @@
 from typing import Dict, Optional, Union
 
-from .. import Features,  PsiDriftProfile, ServerRecords, SpcDriftProfile
+from .. import Features, PsiDriftProfile, ServerRecords, SpcDriftProfile
+from ..client import HTTPConfig
 from ..logging import LogLevel
 
 class KafkaConfig:
@@ -67,43 +68,6 @@ class KafkaConfig:
         """
 
         ...
-
-class HTTPConfig:
-    server_url: str
-    use_auth: bool
-    username: str
-    password: str
-    auth_token: str
-
-    def __init__(
-        self,
-        server_url: Optional[str] = None,
-        use_auth: bool = False,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        auth_token: Optional[str] = None,
-    ) -> None:
-        """HTTP configuration to use with the HTTPProducer.
-
-        Args:
-            server_url:
-                URL of the HTTP server to publish messages to.
-                If not provided, the value of the HTTP_SERVER_URL environment variable is used.
-
-            use_auth:
-                Whether to use basic authentication.
-                Default is False.
-
-            username:
-                Username for basic authentication.
-
-            password:
-                Password for basic authentication.
-
-            auth_token:
-                Authorization token to use for authentication.
-
-        """
 
 class RabbitMQConfig:
     address: str

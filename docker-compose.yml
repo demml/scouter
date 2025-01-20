@@ -204,8 +204,6 @@ services:
         "-c",
         "shared_preload_libraries=pg_cron",
       ]
-    volumes:
-      - postgres_data:/var/lib/postgresql/data
     user: postgres
     restart: always
     environment:

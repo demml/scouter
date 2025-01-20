@@ -21,8 +21,9 @@ from scouter import (
     SpcDriftConfig,
     SpcDriftProfile,
 )
+from scouter.client import HTTPConfig
 from scouter.integrations.fastapi import ScouterRouter
-from scouter.queue import HTTPConfig, KafkaConfig
+from scouter.queue import KafkaConfig
 
 T = TypeVar("T")
 YieldFixture = Generator[T, None, None]

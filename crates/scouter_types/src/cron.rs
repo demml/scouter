@@ -112,8 +112,8 @@ impl TimeInterval {
         }
     }
 
-    pub fn from_string(time_window: &str) -> TimeInterval {
-        match time_window {
+    pub fn from_string(time_interval: &str) -> TimeInterval {
+        match time_interval {
             "5minute" => TimeInterval::FiveMinutes,
             "15minute" => TimeInterval::FifteenMinutes,
             "30minute" => TimeInterval::ThirtyMinutes,
