@@ -36,10 +36,6 @@ test.unit:
 		--cov-report xml:./coverage.xml \
 		--cov-report term 
 
-setup.integration:
-	uv sync --all-extras --group dev --group docs
-	uv run maturin develop --extras kafka,rabbitmq,fastapi
-
 test.integration:
 	uv run pytest -s tests/integration
 

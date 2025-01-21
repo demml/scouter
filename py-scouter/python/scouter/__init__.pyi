@@ -1,3 +1,6 @@
+# type: ignore
+# pylint: disable=relative-beyond-top-level
+
 from typing import Any, List, Optional, Union, overload
 
 from ..scouter.drift import (

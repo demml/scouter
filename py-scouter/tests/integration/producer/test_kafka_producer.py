@@ -1,12 +1,13 @@
-from scouter import (
+from scouter.queue import (
     CustomMetricServerRecord,
+    KafkaConfig,
     PsiServerRecord,
     RecordType,
+    ScouterProducer,
     ServerRecord,
     ServerRecords,
     SpcServerRecord,
 )
-from scouter.queue import KafkaConfig, ScouterProducer
 
 
 def test_kafka_config():
@@ -97,7 +98,7 @@ def test_kafka_producer_psi():
         repository="test",
         version="1.0.0",
         feature="test",
-        bin_id="test",
+        bin_id=0,
         bin_count=1,
     )
 

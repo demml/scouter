@@ -1,3 +1,5 @@
+# pylint: skip-file
+
 import datetime
 from typing import Any, Dict, List, Optional, Union
 
@@ -122,6 +124,49 @@ class RabbitMQConfig:
                 Maximum number of retries to attempt when publishing messages.
                 Default is 3.
         """
+
+class ServerRecord:
+    Spc: "ServerRecord"
+    Psi: "ServerRecord"
+    Custom: "ServerRecord"
+    Observability: "ServerRecord"
+
+    def __init__(self, record: Any) -> None:
+        """Initialize server record
+
+        Args:
+            record:
+                Server record to initialize
+        """
+
+    @property
+    def record(self) -> Union[SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics]:
+        """Return the drift server record."""
+
+class ServerRecords:
+    def __init__(self, records: List[ServerRecord], record_type: RecordType) -> None:
+        """Initialize server records
+
+        Args:
+            records:
+                List of server records
+            record_type:
+                Type of server records
+        """
+
+    @property
+    def record_type(self) -> RecordType:
+        """Return the drift type."""
+
+    @property
+    def records(self) -> List[ServerRecord]:
+        """Return the drift server records."""
+
+    def model_dump_json(self) -> str:
+        """Return the json representation of the record."""
+
+    def __str__(self) -> str:
+        """Return the string representation of the record."""
 
 class ScouterProducer:
     def __init__(
@@ -358,49 +403,6 @@ class CustomMetricServerRecord:
 
     def to_dict(self) -> Dict[str, str]:
         """Return the dictionary representation of the record."""
-
-class ServerRecord:
-    Spc: "ServerRecord"
-    Psi: "ServerRecord"
-    Custom: "ServerRecord"
-    Observability: "ServerRecord"
-
-    def __init__(self, record: Any) -> None:
-        """Initialize server record
-
-        Args:
-            record:
-                Server record to initialize
-        """
-
-    @property
-    def record(self) -> Union[SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics]:
-        """Return the drift server record."""
-
-class ServerRecords:
-    def __init__(self, records: List[ServerRecord], record_type: RecordType) -> None:
-        """Initialize server records
-
-        Args:
-            records:
-                List of server records
-            record_type:
-                Type of server records
-        """
-
-    @property
-    def record_type(self) -> RecordType:
-        """Return the drift type."""
-
-    @property
-    def records(self) -> List[ServerRecord]:
-        """Return the drift server records."""
-
-    def model_dump_json(self) -> str:
-        """Return the json representation of the record."""
-
-    def __str__(self) -> str:
-        """Return the string representation of the record."""
 
 class Feature:
     @staticmethod

@@ -295,7 +295,7 @@ mod tests {
                         created_at: chrono::Utc::now().naive_utc(),
                         name: "test".to_string(),
                         repository: "test".to_string(),
-                        version: "test".to_string(),
+                        version: "1.0.0".to_string(),
                         metric: format!("metric{}", i),
                         value: rand::thread_rng().gen_range(0..10) as f64,
                         record_type: RecordType::Custom,

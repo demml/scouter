@@ -1,12 +1,13 @@
-from scouter import (
+from scouter.queue import (
     CustomMetricServerRecord,
     PsiServerRecord,
+    RabbitMQConfig,
     RecordType,
+    ScouterProducer,
     ServerRecord,
     ServerRecords,
     SpcServerRecord,
 )
-from scouter.queue import RabbitMQConfig, ScouterProducer
 
 
 def test_rabbit_config():
@@ -47,7 +48,7 @@ def test_rabbit_producer_psi():
         repository="test",
         version="1.0.0",
         feature="test",
-        bin_id="test",
+        bin_id=0,
         bin_count=1,
     )
 

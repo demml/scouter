@@ -1,4 +1,4 @@
-from scouter import Drifter
+from scouter import Drifter  # type: ignore
 from scouter.alert import AlertThreshold
 from scouter.drift import CustomDriftProfile, CustomMetric, CustomMetricDriftConfig
 

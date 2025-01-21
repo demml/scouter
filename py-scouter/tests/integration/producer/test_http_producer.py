@@ -1,13 +1,13 @@
-from scouter import (
+from scouter.client import HTTPConfig
+from scouter.queue import (
     CustomMetricServerRecord,
     PsiServerRecord,
     RecordType,
+    ScouterProducer,
     ServerRecord,
     ServerRecords,
     SpcServerRecord,
 )
-from scouter.client import HTTPConfig
-from scouter.queue import ScouterProducer
 
 
 def test_http_config():
@@ -62,7 +62,7 @@ def test_http_producer_psi():
         repository="test",
         version="1.0.0",
         feature="test",
-        bin_id="test",
+        bin_id=0,
         bin_count=1,
     )
 

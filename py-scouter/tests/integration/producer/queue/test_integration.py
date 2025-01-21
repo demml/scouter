@@ -21,23 +21,25 @@ from scouter.drift import (
     PsiDriftConfig,
     SpcDriftConfig,
 )
-from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.queue import (
     CustomMetricServerRecord,
     Feature,
     Features,
     KafkaConfig,
     RabbitMQConfig,
+    RecordType,
     ScouterProducer,
     ScouterQueue,
     ServerRecord,
     ServerRecords,
 )
-from scouter.types import DriftType, RecordType
+from scouter.types import DriftType
 
-RustyLogger.setup_logging(
-    LoggingConfig(log_level=LogLevel.Debug),
-)
+# uncomment for debugging
+# from scouter.logging import LoggingConfig, LogLevel, RustyLogger
+# RustyLogger.setup_logging(
+# LoggingConfig(log_level=LogLevel.Debug),
+# )
 
 
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"

@@ -87,7 +87,6 @@ def psi_drift_config() -> YieldFixture[PsiDriftConfig]:
 
 @pytest.fixture(scope="function")
 def pandas_dataframe(array: NDArray) -> YieldFixture:
-    import pandas as pd
 
     df = pd.DataFrame(array)
 
@@ -101,7 +100,6 @@ def pandas_dataframe(array: NDArray) -> YieldFixture:
 
 @pytest.fixture(scope="function")
 def pandas_dataframe_multi_type(array: NDArray) -> YieldFixture:
-    import pandas as pd
 
     df = pd.DataFrame(array)
 
@@ -187,7 +185,6 @@ def polars_dataframe_multi_dtype_drift(array: NDArray) -> YieldFixture:
 
 @pytest.fixture(scope="function")
 def pandas_categorical_dataframe() -> YieldFixture:
-    import pandas as pd
 
     df = pd.DataFrame(
         {

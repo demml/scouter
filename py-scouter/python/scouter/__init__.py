@@ -16,4 +16,4 @@ from .version import __version__
 Drifter = drift.Drifter
 DataProfiler = profile.DataProfiler
 
-__all__ = ["__version__", "Drifter"]
+__all__ = ["__version__", "Drifter", "DataProfiler"]

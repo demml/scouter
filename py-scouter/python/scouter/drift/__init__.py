@@ -20,7 +20,6 @@ __all__ = [
     "SpcFeatureDriftProfile",
     "SpcDriftConfig",
     "SpcDriftProfile",
-    "FeatureDrift",
     "SpcFeatureDrift",
     "SpcDriftMap",
     "PsiDriftConfig",

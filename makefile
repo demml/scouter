@@ -31,8 +31,7 @@ test.drift.executor:
 	cargo test -p scouter-drift test_drift_executor --all-features -- --nocapture --test-threads=1
 
 .PHONY: test.needs_sql
-test.needs_sql: build.sql test.sql test.server test.drift.executor
-	docker compose down
+test.needs_sql: test.sql test.server test.drift.executor
 
 #### Unit tests
 .PHONY: test.types
@@ -74,11 +73,11 @@ build.sql_rabbitmq:
 test.rabbitmq_events: build.sql_rabbitmq
 	cargo run --example rabbitmq_integration --all-features -- --nocapture
 
-.PHONY: test.integration
+.PHONY: test.events
 test.events: test.kafka_events test.rabbitmq_events
 
 .PHONY: test
-test: test.needs_sql test.unit
+test: build.all_backends test.needs_sql test.unit test.events shutdown
 
 .PHONY: shutdown
 shutdown:
@@ -92,11 +91,10 @@ build.all_backends:
 	docker compose down
 	docker compose up -d --build server-backends --wait
 
-.PHONE: build.server
-build.server: build.all_backends
+.PHONE: start.server
+start.server: build.all_backends
 	export KAFKA_BROKERS=localhost:9092 && \
 	export RABBITMQ_ADDR=amqp://guest:guest@127.0.0.1:5672/%2f && \
-	export LOG_LEVEL=debug && \
 	cargo build -p scouter-server --all-features && \
 	./target/debug/scouter-server &
 

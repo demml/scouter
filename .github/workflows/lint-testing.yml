@@ -36,11 +36,6 @@ jobs:
         env:
           RUST_BACKTRACE: 1
 
-      - name: Integration Tests
-        run: make test.events
-        env:
-          RUST_BACKTRACE: 1
-
   test-os:
     name: test ${{ matrix.os }}-${{ matrix.python-version }}
 
@@ -162,7 +157,7 @@ jobs:
           key: ${{ matrix.os }}-${{ matrix.python-version }}-v1
 
       - name: Setup Kafka
-        run: make build.kafka
+        run: make start.server
         env:
           RUST_BACKTRACE: 1
 
@@ -178,17 +173,13 @@ jobs:
         working-directory: ./py-scouter
         run: make setup.project
 
-      - name: Install dependencies
-        working-directory: ./py-scouter
-        run: make setup.integration
-
       - name: Run tests
         working-directory: ./py-scouter
         run: make test.integration
 
       - name: Stop Containers
         if: always()
-        run: make shutdown
+        run: make stop.server
 
   test-py-build:
     needs: [test-os]
