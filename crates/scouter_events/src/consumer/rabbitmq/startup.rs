@@ -1,4 +1,4 @@
-#[cfg(feature = "rabbitmq")]
+#[cfg(all(feature = "rabbitmq", feature = "sql"))]
 pub mod rabbitmq_startup {
     use crate::consumer::rabbitmq::consumer::rabbitmq_consumer::start_rabbitmq_background_poll;
     use scouter_error::EventError;

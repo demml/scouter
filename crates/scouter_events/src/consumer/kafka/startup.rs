@@ -1,4 +1,4 @@
-#[cfg(feature = "kafka")]
+#[cfg(all(feature = "kafka", feature = "sql"))]
 pub mod kafka_startup {
 
     use crate::consumer::kafka::consumer::kafka_consumer::start_kafka_background_poll;

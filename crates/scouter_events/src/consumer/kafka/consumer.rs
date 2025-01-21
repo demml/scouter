@@ -1,4 +1,4 @@
-#[cfg(feature = "kafka")]
+#[cfg(all(feature = "kafka", feature = "sql"))]
 pub mod kafka_consumer {
     use rdkafka::config::ClientConfig;
     use rdkafka::consumer::CommitMode;

@@ -1293,18 +1293,6 @@ source = { editable = "." }
 fastapi = [
     { name = "fastapi" },
 ]
-httpx = [
-    { name = "httpx" },
-    { name = "tenacity" },
-]
-kafka = [
-    { name = "confluent-kafka" },
-    { name = "tenacity" },
-]
-rabbitmq = [
-    { name = "pika" },
-    { name = "tenacity" },
-]
 
 [package.dev-dependencies]
 dev = [
@@ -1339,15 +1327,7 @@ docs = [
 ]
 
 [package.metadata]
-requires-dist = [
-    { name = "confluent-kafka", marker = "extra == 'kafka'", specifier = ">=2.3.0,<3.0.0" },
-    { name = "fastapi", marker = "extra == 'fastapi'", specifier = ">=0.113.0,<1.0.0" },
-    { name = "httpx", marker = "extra == 'httpx'", specifier = ">=0.27.0,<1.0.0" },
-    { name = "pika", marker = "extra == 'rabbitmq'", specifier = ">=1.2.0,<2.0.0" },
-    { name = "tenacity", marker = "extra == 'httpx'", specifier = ">=8.4.2,<9.0.0" },
-    { name = "tenacity", marker = "extra == 'kafka'", specifier = ">=8.4.2,<9.0.0" },
-    { name = "tenacity", marker = "extra == 'rabbitmq'", specifier = ">=8.4.2,<9.0.0" },
-]
+requires-dist = [{ name = "fastapi", marker = "extra == 'fastapi'", specifier = ">=0.113.0,<1.0.0" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -1410,15 +1390,6 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/1a/4c/9b5764bd22eec91c4039ef4c55334e9187085da2d8a2df7bd570869aae18/starlette-0.41.3.tar.gz", hash = "sha256:0e4ab3d16522a255be6b28260b938eae2482f98ce5cc934cb08dce8dc3ba5835", size = 2574159 }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/96/00/2b325970b3060c7cecebab6d295afe763365822b1306a12eeab198f74323/starlette-0.41.3-py3-none-any.whl", hash = "sha256:44cedb2b7c77a9de33a8b74b2b90e9f50d11fcf25d8270ea525ad71a25374ff7", size = 73225 },
-]
-
-[[package]]
-name = "tenacity"
-version = "8.5.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/a3/4d/6a19536c50b849338fcbe9290d562b52cbdcf30d8963d3588a68a4107df1/tenacity-8.5.0.tar.gz", hash = "sha256:8bc6c0c8a09b31e6cad13c47afbed1a567518250a9a171418582ed8d9c20ca78", size = 47309 }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/d2/3f/8ba87d9e287b9d385a02a7114ddcef61b26f86411e121c9003eb509a1773/tenacity-8.5.0-py3-none-any.whl", hash = "sha256:b594c2a5945830c267ce6b79a166228323ed52718f30302c1359836112346687", size = 28165 },
 ]
 
 [[package]]

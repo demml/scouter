@@ -1,11 +1,11 @@
-#[cfg(feature = "kafka")]
+#[cfg(all(feature = "kafka", feature = "sql"))]
 pub mod consumer;
 
-#[cfg(feature = "kafka")]
+#[cfg(all(feature = "kafka", feature = "sql"))]
 pub mod startup;
 
-#[cfg(feature = "kafka")]
+#[cfg(all(feature = "kafka", feature = "sql"))]
 pub use consumer::kafka_consumer::*;
 
-#[cfg(feature = "kafka")]
+#[cfg(all(feature = "kafka", feature = "sql"))]
 pub use startup::kafka_startup::*;
