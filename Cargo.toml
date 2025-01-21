@@ -54,6 +54,7 @@ ndarray-stats = "0.*"
 noisy_float = "0.*"
 numpy = "0.*"
 num-traits = "0.*"
+openssl = { version = "0.10", features = ["vendored"] }
 pyo3 = { version = ">=0.23.3, <1.0.0", features = ["chrono", "anyhow", "extension-module"] }
 rand = "0.*"
 rayon = "1.*"

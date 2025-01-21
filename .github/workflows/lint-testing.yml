@@ -182,7 +182,7 @@ jobs:
         run: make stop.server
 
   test-py-build:
-    needs: [test-os]
+    #needs: [test-os]
     name: build - ubuntu - ${{ matrix.manylinux }} - ${{ matrix.target }}
     strategy:
       fail-fast: false
@@ -201,6 +201,7 @@ jobs:
 
       - run: pip install -U twine 'black>=22.3.0,<23' typing_extensions
 
+   
       - name: build wheels
         uses: PyO3/maturin-action@v1
 
