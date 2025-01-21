@@ -54,11 +54,11 @@ test.profile:
 test.unit: test.types test.dispatch test.drift test.profile
 
 .PHONY: test.kafka_events
-test.kafka_events: build.sql_kafka
+test.kafka_events:
 	cargo run --example kafka_integration --all-features -- --nocapture
 
 .PHONY: test.rabbitmq_events
-test.rabbitmq_events: build.sql_rabbitmq
+test.rabbitmq_events:
 	cargo run --example rabbitmq_integration --all-features -- --nocapture
 
 .PHONY: test.events
