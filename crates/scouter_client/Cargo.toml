@@ -13,10 +13,9 @@ description = "Client and server contract for scouter"
 
 [dependencies]
 chrono = { workspace = true }
-openssl = { workspace = true, features = ["vendored"] }
 scouter-contracts = { workspace = true }
 scouter-dispatch = { workspace = true }
-scouter-drift = { workspace = true }
+scouter-drift = { workspace = true, default-features = false }
 scouter-error = { workspace = true }
 scouter-events = { workspace = true, features = ["kafka", "rabbitmq"], default-features = false }
 scouter-observability = { workspace = true }

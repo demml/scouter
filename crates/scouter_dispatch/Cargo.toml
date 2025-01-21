@@ -22,7 +22,6 @@ serde_json = { workspace = true }
 tracing = { workspace = true }
 
 [dev-dependencies]
-scouter-drift = { workspace = true }
 mockito = { workspace = true }
 tokio = { workspace = true }
 

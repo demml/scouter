@@ -41,8 +41,9 @@ rand = { workspace = true }
 sqlx = { workspace = true }
 rusty-logging = { workspace = true }
 
+
 [features]
-default = []
+default = ["sql"]
 sql = ["scouter-sql"]
 
 [profile.release]

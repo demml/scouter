@@ -20,9 +20,9 @@ repository = "https://github.com/demml/scouter"
 scouter-client = { path = "crates/scouter_client" }
 scouter-contracts = { path = "crates/scouter_contracts" }
 scouter-dispatch = { path = "crates/scouter_dispatch" }
-scouter-drift = { path = "crates/scouter_drift" }
+scouter-drift = { path = "crates/scouter_drift", default-features = false }
 scouter-error = { path = "crates/scouter_error" }
-scouter-events = { path = "crates/scouter_events" }
+scouter-events = { path = "crates/scouter_events", default-features = false }
 consumer-events = { path = "crates/consumer_events" }
 scouter-observability = { path = "crates/scouter_observability" }
 scouter-profile = { path = "crates/scouter_profile" }
@@ -54,7 +54,6 @@ ndarray-stats = "0.*"
 noisy_float = "0.*"
 numpy = "0.*"
 num-traits = "0.*"
-openssl = { version = "0.10", features = ["vendored"] }
 pyo3 = { version = ">=0.23.3, <1.0.0", features = ["chrono", "anyhow", "extension-module"] }
 rand = "0.*"
 rayon = "1.*"
