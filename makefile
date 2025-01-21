@@ -53,21 +53,9 @@ test.profile:
 .PHONY: test.unit
 test.unit: test.types test.dispatch test.drift test.profile
 
-#### Event tests
-.PHONY: build.sql_kafka
-build.sql_kafka:
-	docker compose down
-	docker compose up -d --build postgres-kafka --wait
-
 .PHONY: test.kafka_events
 test.kafka_events: build.sql_kafka
 	cargo run --example kafka_integration --all-features -- --nocapture
-
-
-.PHONY: build.sql_rabbitmq
-build.sql_rabbitmq:
-	docker compose down
-	docker compose up -d --build postgres-rabbitmq --wait
 
 .PHONY: test.rabbitmq_events
 test.rabbitmq_events: build.sql_rabbitmq
@@ -77,12 +65,7 @@ test.rabbitmq_events: build.sql_rabbitmq
 test.events: test.kafka_events test.rabbitmq_events
 
 .PHONY: test
-test: build.all_backends test.needs_sql test.unit test.events shutdown
-
-.PHONY: shutdown
-shutdown:
-	docker compose down
-
+test: build.all_backends test.needs_sql test.unit test.events build.shutdown_backends
 
 
 ###### Server tests

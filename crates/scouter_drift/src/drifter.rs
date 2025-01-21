@@ -12,7 +12,7 @@ pub mod drift_executor {
     use std::result::Result;
     use std::result::Result::Ok;
     use std::str::FromStr;
-    use tracing::{error, info};
+    use tracing::{debug, error, info};
 
     #[allow(clippy::enum_variant_names)]
     pub enum Drifter {
@@ -127,6 +127,8 @@ pub mod drift_executor {
                 }
             };
 
+            debug!("Task: {:?}", task);
+
             let Some(task) = task else {
                 transaction
                     .commit()
@@ -207,6 +209,7 @@ pub mod drift_executor {
     #[cfg(test)]
     mod tests {
         use super::*;
+        use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
         use scouter_contracts::DriftAlertRequest;
         use scouter_sql::PostgresClient;
 
@@ -236,6 +239,14 @@ pub mod drift_executor {
             )
             .fetch_all(pool)
             .await
+            .unwrap();
+
+            RustyLogger::setup_logging(Some(LoggingConfig::new(
+                None,
+                Some(LogLevel::Info),
+                None,
+                None,
+            )))
             .unwrap();
         }
 
