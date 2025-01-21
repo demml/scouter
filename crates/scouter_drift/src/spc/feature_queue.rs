@@ -7,12 +7,12 @@ use scouter_error::FeatureQueueError;
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::{Features, ServerRecords};
 use std::collections::HashMap;
+use tracing::debug;
 
 #[pyclass]
 pub struct SpcFeatureQueue {
     pub drift_profile: SpcDriftProfile,
     pub queue: HashMap<String, Vec<f64>>,
-    pub mapped_features: Vec<String>,
     pub feature_names: Vec<String>,
     pub monitor: SpcMonitor,
 }
@@ -27,26 +27,11 @@ impl SpcFeatureQueue {
             .map(|feature| (feature.clone(), Vec::new()))
             .collect();
 
-        let mapped_features = if drift_profile.config.feature_map.is_some() {
-            drift_profile
-                .config
-                .feature_map
-                .as_ref()
-                .unwrap()
-                .features
-                .keys()
-                .cloned()
-                .collect()
-        } else {
-            Vec::new()
-        };
-
         let feature_names = queue.keys().cloned().collect();
 
         SpcFeatureQueue {
             drift_profile,
             queue,
-            mapped_features,
             feature_names,
             monitor: SpcMonitor::new(),
         }
@@ -55,22 +40,20 @@ impl SpcFeatureQueue {
     // create a python function that will take a python dictionary of string keys and either int, float or string values
     // and append the values to the corresponding feature queue
     pub fn insert(&mut self, features: Features) -> Result<(), FeatureQueueError> {
-        for feature in features.iter() {
+        let feat_map = &self.drift_profile.config.feature_map;
+
+        debug!(
+            "Inserting features into queue {:?} with keys {:?}",
+            features, self.feature_names
+        );
+        features.iter().for_each(|feature| {
             let name = feature.name();
             if let Some(queue) = self.queue.get_mut(name) {
-                let value = feature
-                    .to_float(
-                        Some(&self.mapped_features),
-                        &self.drift_profile.config.feature_map,
-                    )
-                    .map_err(|e| {
-                        FeatureQueueError::InvalidValueError(name.to_string(), e.to_string())
-                    })?;
-                if let Some(value) = value {
+                if let Ok(value) = feature.to_float(feat_map) {
                     queue.push(value);
                 }
             }
-        }
+        });
 
         Ok(())
     }
@@ -79,22 +62,22 @@ impl SpcFeatureQueue {
     //
     // returns: DriftServerRecords
     pub fn create_drift_records(&self) -> Result<ServerRecords, FeatureQueueError> {
-        // concatenate all the feature queues into a single ndarray
-        let mut arrays: Vec<Array2<f64>> = Vec::new();
-        let mut feature_names: Vec<String> = Vec::new();
-
-        self.queue.iter().for_each(|(feature, values)| {
-            arrays.push(Array2::from_shape_vec((values.len(), 1), values.clone()).unwrap());
-            feature_names.push(feature.clone());
-        });
+        let (arrays, feature_names): (Vec<_>, Vec<_>) = self
+            .queue
+            .iter()
+            .map(|(feature, values)| {
+                (
+                    Array2::from_shape_vec((values.len(), 1), values.clone()).unwrap(),
+                    feature.clone(),
+                )
+            })
+            .unzip();
 
         let n = arrays[0].dim().0;
-        for array in &arrays {
-            if array.dim().0 != n {
-                return Err(FeatureQueueError::DriftRecordError(
-                    "Shape mismatch".to_string(),
-                ));
-            }
+        if arrays.iter().any(|array| array.dim().0 != n) {
+            return Err(FeatureQueueError::DriftRecordError(
+                "Shape mismatch".to_string(),
+            ));
         }
 
         let concatenated = ndarray::concatenate(
@@ -114,6 +97,7 @@ impl SpcFeatureQueue {
                     e
                 ))
             })?;
+
         Ok(records)
     }
 

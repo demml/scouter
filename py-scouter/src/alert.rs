@@ -3,7 +3,6 @@ use scouter_client::*;
 
 #[pymodule]
 pub fn alert(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    
     m.add_class::<SpcAlertType>()?;
     m.add_class::<AlertZone>()?;
     m.add_class::<SpcAlert>()?;

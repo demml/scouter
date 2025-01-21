@@ -314,10 +314,10 @@ impl ScouterClient {
                     .await?;
 
                 if response.status().is_client_error() || response.status().is_server_error() {
-                    return Err(ScouterError::Error(format!(
+                    Err(ScouterError::Error(format!(
                         "Failed to get drift data. Status: {:?}",
                         response.status()
-                    )));
+                    )))
                 } else {
                     let body: serde_json::Value = response.json().await.unwrap();
 

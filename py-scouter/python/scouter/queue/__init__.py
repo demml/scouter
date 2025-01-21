@@ -15,6 +15,7 @@ Feature = queue.Feature
 Features = queue.Features
 PsiFeatureQueue = queue.PsiFeatureQueue
 SpcFeatureQueue = queue.SpcFeatureQueue
+RecordType = queue.RecordType
 
 __all__ = [
     "ScouterQueue",
@@ -30,4 +31,5 @@ __all__ = [
     "Features",
     "PsiFeatureQueue",
     "SpcFeatureQueue",
+    "RecordType",
 ]

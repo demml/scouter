@@ -1,17 +1,18 @@
 # type: ignore
 
-from ..profile import (
-    CharStats,
-    DataProfile,
-    DataProfiler,
-    Distinct,
-    FeatureProfile,
-    Histogram,
-    NumericStats,
-    Quantiles,
-    StringStats,
-    WordStats,
-)
+from .. import profile
+
+CharStats = profile.CharStats
+DataProfile = profile.DataProfile
+DataProfiler = profile.DataProfiler
+Distinct = profile.Distinct
+FeatureProfile = profile.FeatureProfile
+Histogram = profile.Histogram
+NumericStats = profile.NumericStats
+Quantiles = profile.Quantiles
+StringStats = profile.StringStats
+WordStats = profile.WordStats
+
 
 __all__ = [
     "Distinct",

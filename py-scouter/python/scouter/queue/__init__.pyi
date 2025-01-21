@@ -5,7 +5,12 @@ from ..client import HTTPConfig
 from ..drift import PsiDriftProfile, SpcDriftProfile
 from ..logging import LogLevel
 from ..observe import ObservabilityMetrics
-from ..types import RecordType
+
+class RecordType:
+    Spc = "RecordType"
+    Psi = "RecordType"
+    Observability = "RecordType"
+    Custom = "RecordType"
 
 class KafkaConfig:
     brokers: str

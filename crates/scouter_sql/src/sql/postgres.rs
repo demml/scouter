@@ -29,7 +29,7 @@ use sqlx::{
 use std::collections::{BTreeMap, HashMap};
 use std::result::Result::Ok;
 use std::str::FromStr;
-use tracing::{error, info};
+use tracing::{debug, error, info};
 
 // TODO: Explore refactoring and breaking this out into multiple client types (i.e., spc, psi, etc.)
 // Postgres client is one of the lowest-level abstractions so it may not be worth it, as it could make server logic annoying. Worth exploring though.
@@ -310,11 +310,10 @@ impl PostgresClient {
         let query = Queries::InsertDriftProfile.get_query();
         let base_args = drift_profile.get_base_args();
 
-        let  current_time = Utc::now();
+        let current_time = Utc::now();
 
         let schedule = Schedule::from_str(&base_args.schedule)
             .map_err(|e| SqlError::GeneralError(e.to_string()))?;
-
 
         let next_run = schedule
             .upcoming(Utc)
@@ -324,7 +323,6 @@ impl PostgresClient {
                 "Failed to get next run time for cron expression: {}",
                 base_args.schedule
             )))?;
-
 
         let query_result = sqlx::query(&query.sql)
             .bind(base_args.name)
@@ -843,6 +841,7 @@ pub enum MessageHandler {
 
 impl MessageHandler {
     pub async fn insert_server_records(&self, records: &ServerRecords) -> Result<(), ScouterError> {
+        debug!("Inserting server records: {:?}", records);
         match self {
             Self::Postgres(client) => {
                 match records.record_type {

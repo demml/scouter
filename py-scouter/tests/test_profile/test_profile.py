@@ -5,7 +5,8 @@ import pandas as pd
 import polars as pl
 import pytest
 from numpy.typing import NDArray
-from scouter import DataProfile, DataProfiler, ScouterError
+from scouter.profile import DataProfile, DataProfiler
+from scouter.types import ScouterError
 
 
 def test_data_profile_f64(array: NDArray):

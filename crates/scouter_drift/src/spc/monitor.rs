@@ -552,7 +552,7 @@ mod tests {
                 Some("1.0.0".to_string()),
                 Some(loaded_profile.config.sample),
                 Some(loaded_profile.config.sample_size),
-                loaded_profile.config.feature_map.clone(),
+                Some(loaded_profile.config.feature_map.clone()),
                 Some(loaded_profile.config.targets.clone()),
                 Some(loaded_profile.config.alert_config.clone()),
             )

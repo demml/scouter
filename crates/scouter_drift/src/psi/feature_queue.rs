@@ -99,6 +99,8 @@ impl PsiFeatureQueue {
     }
 
     pub fn insert(&mut self, features: Features) -> Result<(), FeatureQueueError> {
+        let feat_map = &self.drift_profile.config.feature_map;
+
         for feature in features.iter() {
             if let Some(feature_drift_profile) = self.drift_profile.features.get(feature.name()) {
                 let name = feature.name();
@@ -110,30 +112,21 @@ impl PsiFeatureQueue {
                     .ok_or(FeatureQueueError::GetFeatureError)?;
 
                 match feature_drift_profile.bin_type {
-                    BinType::Numeric => {
-                        let value = feature.to_float(None, &None).map_err(|e| {
+                    BinType::Numeric | BinType::Binary => {
+                        let value = feature.to_float(feat_map).map_err(|e| {
                             FeatureQueueError::InvalidValueError(
                                 feature.name().to_string(),
                                 e.to_string(),
                             )
                         })?;
 
-                        // check if some, if not return error
-                        if let Some(value) = value {
-                            Self::process_numeric_queue(queue, value, bins)?;
+                        match feature_drift_profile.bin_type {
+                            BinType::Numeric => Self::process_numeric_queue(queue, value, bins)?,
+                            BinType::Binary => {
+                                Self::process_binary_queue(feature.name(), queue, value)?
+                            }
+                            _ => unreachable!(),
                         }
-                    }
-                    BinType::Binary => {
-                        let value = feature.to_float(None, &None).map_err(|e| {
-                            FeatureQueueError::InvalidValueError(
-                                feature.name().to_string(),
-                                e.to_string(),
-                            )
-                        })?;
-
-                        if let Some(value) = value {
-                            Self::process_binary_queue(feature.name(), queue, value)?
-                        };
                     }
                     BinType::Category => {
                         let value = self

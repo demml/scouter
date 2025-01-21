@@ -1,9 +1,3 @@
-class RecordType:
-    Spc = "RecordType"
-    Psi = "RecordType"
-    Observability = "RecordType"
-    Custom = "RecordType"
-
 class DriftType:
     Spc: "DriftType"
     Psi: "DriftType"

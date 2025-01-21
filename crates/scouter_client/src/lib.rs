@@ -27,7 +27,7 @@ pub use scouter_types::{
     },
     AlertDispatchType, CustomMetricServerRecord, DataType, DriftProfile, DriftType, Feature,
     FeatureMap, Features, LatencyMetrics, ObservabilityMetrics, PsiServerRecord, RecordType,
-    RouteMetrics, ServerRecord, ServerRecords, SpcServerRecord, TimeInterval
+    RouteMetrics, ServerRecord, ServerRecords, SpcServerRecord, TimeInterval,
 };
 
 pub use crate::http::ScouterClient;
@@ -44,6 +44,6 @@ pub use scouter_events::producer::{
 };
 pub use scouter_observability::Observer;
 pub use scouter_profile::{
-    compute_feature_correlations, DataProfile, Distinct, FeatureProfile, Histogram, NumProfiler,
-    StringProfiler, Quantiles, NumericStats, WordStats, CharStats, StringStats,
+    compute_feature_correlations, CharStats, DataProfile, Distinct, FeatureProfile, Histogram,
+    NumProfiler, NumericStats, Quantiles, StringProfiler, StringStats, WordStats,
 };

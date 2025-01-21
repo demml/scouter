@@ -6,16 +6,8 @@ import pandas as pd
 import polars as pl
 import pytest
 from numpy.typing import NDArray
-from scouter import (
-    AlertDispatchType,
-    AlertZone,
-    Drifter,
-    SpcAlertConfig,
-    SpcDriftConfig,
-    SpcDriftMap,
-    SpcDriftProfile,
-)
-from scouter.utils.types import Constants
+from scouter.alert import AlertDispatchType, AlertZone, SpcAlertConfig
+from scouter.drift import Drifter, SpcDriftConfig, SpcDriftMap, SpcDriftProfile
 
 
 def test_drift_f64(array: NDArray, drift_config: SpcDriftConfig):
@@ -194,8 +186,8 @@ def test_load_from_file_error():
 def test_empty_params():
     config = SpcDriftConfig()
 
-    assert config.name == Constants.MISSING
-    assert config.repository == Constants.MISSING
+    assert config.name == "__missing__"
+    assert config.repository == "__missing__"
 
     # update
     config.name = "name"

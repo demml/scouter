@@ -15,7 +15,7 @@ pub mod kafka_producer {
 
     use std::collections::HashMap;
     use std::time::Duration;
-    use tracing::{debug, error, info};
+    use tracing::{error, info};
 
     #[derive(Clone)]
     pub struct KafkaProducer {
@@ -95,7 +95,6 @@ pub mod kafka_producer {
         pub async fn _publish(&self, message: ServerRecords) -> Result<(), ScouterError> {
             let serialized_msg = serde_json::to_string(&message).unwrap();
 
-            debug!("Publishing message to Kafka");
             let record: FutureRecord<'_, (), String> =
                 FutureRecord::to(&self.config.topic).payload(&serialized_msg);
 

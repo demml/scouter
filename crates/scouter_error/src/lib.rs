@@ -196,6 +196,9 @@ pub enum ScouterError {
 
     #[error(transparent)]
     DriftError(#[from] DriftError),
+
+    #[error("Missing value in map")]
+    MissingValue,
 }
 
 // impl From for PyErr

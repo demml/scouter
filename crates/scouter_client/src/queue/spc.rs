@@ -4,7 +4,7 @@ use scouter_error::ScouterError;
 use scouter_events::producer::ScouterProducer;
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::Features;
-use tracing::error;
+use tracing::{debug, error, info};
 
 #[pyclass]
 pub struct SpcQueue {
@@ -21,6 +21,8 @@ impl SpcQueue {
         drift_profile: SpcDriftProfile,
         config: &Bound<'_, PyAny>,
     ) -> Result<Self, ScouterError> {
+        info!("Starting up SpcQueue");
+
         Ok(SpcQueue {
             queue: SpcFeatureQueue::new(drift_profile),
             producer: ScouterProducer::new(config)?,
@@ -41,6 +43,11 @@ impl SpcQueue {
         }
 
         self.count += 1;
+
+        debug!(
+            "count: {}, sample_size: {}",
+            self.count, self.queue.drift_profile.config.sample_size
+        );
 
         if self.count >= self.queue.drift_profile.config.sample_size {
             let publish = self._publish();

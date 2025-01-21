@@ -90,7 +90,7 @@ pub struct SpcDriftConfig {
     pub alert_config: SpcAlertConfig,
 
     #[pyo3(get, set)]
-    pub feature_map: Option<FeatureMap>,
+    pub feature_map: FeatureMap,
 
     #[pyo3(get, set)]
     pub targets: Vec<String>,
@@ -140,14 +140,14 @@ impl SpcDriftConfig {
             repository,
             version,
             alert_config,
-            feature_map,
+            feature_map: feature_map.unwrap_or_default(),
             targets,
             drift_type: DriftType::Spc,
         })
     }
 
     pub fn update_feature_map(&mut self, feature_map: FeatureMap) {
-        self.feature_map = Some(feature_map);
+        self.feature_map = feature_map;
     }
 
     #[staticmethod]
@@ -218,7 +218,7 @@ impl SpcDriftConfig {
         }
 
         if feature_map.is_some() {
-            self.feature_map = feature_map;
+            self.feature_map = feature_map.unwrap();
         }
 
         if targets.is_some() {

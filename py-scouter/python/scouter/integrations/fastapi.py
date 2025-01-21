@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Awaitable, Callable, Union
 
 from pydantic import BaseModel
-from scouter import PsiDriftProfile, SpcDriftProfile
+from scouter.drift import PsiDriftProfile, SpcDriftProfile
 from scouter.queue import ScouterQueue
 
 try:

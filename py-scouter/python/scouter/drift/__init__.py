@@ -5,7 +5,6 @@ FeatureMap = drift.FeatureMap
 SpcFeatureDriftProfile = drift.SpcFeatureDriftProfile
 SpcDriftConfig = drift.SpcDriftConfig
 SpcDriftProfile = drift.SpcDriftProfile
-FeatureDrift = drift.FeatureDrift
 SpcFeatureDrift = drift.SpcFeatureDrift
 SpcDriftMap = drift.SpcDriftMap
 PsiDriftConfig = drift.PsiDriftConfig

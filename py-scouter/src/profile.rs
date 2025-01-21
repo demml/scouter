@@ -3,7 +3,6 @@ use scouter_client::*;
 
 #[pymodule]
 pub fn profile(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    
     m.add_class::<DataProfile>()?;
     m.add_class::<FeatureProfile>()?;
     m.add_class::<Distinct>()?;

@@ -1,4 +1,5 @@
-from scouter import AlertZone, DriftType, SpcAlert, SpcAlertRule, SpcAlertType
+from scouter.alert import AlertZone, SpcAlert, SpcAlertRule, SpcAlertType
+from scouter.types import DriftType
 
 
 def test_kinds():
