@@ -212,6 +212,8 @@ jobs:
           rust-toolchain: stable
           docker-options: -e CI
           working-directory: ./py-scouter
+          before-script-linux: |
+            apt update -y && apt-get install -y libssl-dev openssl pkg-config
 
       - name: Check dist
         working-directory: ./py-scouter
