@@ -277,7 +277,7 @@ pub mod drift_executor {
             };
             let alerts = client.get_drift_alerts(&request).await.unwrap();
 
-            assert!(alerts.len() >= 1);
+            assert!(!alerts.is_empty());
         }
 
         #[tokio::test]
