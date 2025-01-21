@@ -5,7 +5,7 @@ import pandas as pd
 import polars as pl
 import pytest
 from numpy.typing import NDArray
-from scouter import Drifter # type: ignore
+from scouter import Drifter  # type: ignore
 from scouter.drift import PsiDriftConfig, PsiDriftProfile
 
 

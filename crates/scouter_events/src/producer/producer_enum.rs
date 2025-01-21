@@ -1,10 +1,13 @@
 #[cfg(feature = "kafka")]
-pub use crate::producer::kafka::{KafkaConfig, KafkaProducer};
+pub use crate::producer::kafka::KafkaProducer;
 
 #[cfg(feature = "rabbitmq")]
-pub use crate::producer::rabbitmq::{RabbitMQConfig, RabbitMQProducer};
+pub use crate::producer::rabbitmq::RabbitMQProducer;
 
 pub use crate::producer::http::{HTTPConfig, HTTPProducer};
+pub use crate::producer::kafka::KafkaConfig;
+pub use crate::producer::rabbitmq::RabbitMQConfig;
+
 use pyo3::prelude::*;
 use scouter_error::{PyScouterError, ScouterError};
 use scouter_types::ServerRecords;
@@ -68,9 +71,9 @@ impl ScouterProducer {
 
         // check for kafka config
         } else if config.is_instance_of::<KafkaConfig>() {
-            let config = config.extract::<KafkaConfig>()?;
             #[cfg(feature = "kafka")]
             {
+                let config = config.extract::<KafkaConfig>()?;
                 debug!("Creating Kafka producer");
                 ProducerEnum::Kafka(KafkaProducer::new(config)?)
             }
@@ -83,9 +86,9 @@ impl ScouterProducer {
 
         // check for rabbitmq config
         } else if config.is_instance_of::<RabbitMQConfig>() {
-            let config = config.extract::<RabbitMQConfig>()?;
             #[cfg(feature = "rabbitmq")]
             {
+                let config = config.extract::<RabbitMQConfig>()?;
                 let producer = rt.block_on(async { RabbitMQProducer::new(config).await })?;
                 debug!("Creating RabbitMQ producer");
                 ProducerEnum::RabbitMQ(producer)
