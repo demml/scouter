@@ -6,6 +6,9 @@
     "version": "1.0.0",
     "targets": [],
     "drift_type": "Spc",
+    "feature_map": {
+      "features": {}
+    },
     "alert_config": {
         "rule": {
             "rule": "8 8 8 8 8 8 4 4",

@@ -158,6 +158,7 @@ def test_drift_config_alert_kwargs():
         repository="test",
         alert_config=alert_config,
     )
+    
 
     assert config.alert_config.rule.zones_to_monitor == [
         AlertZone.Zone1,
