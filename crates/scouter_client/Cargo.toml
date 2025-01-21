@@ -13,6 +13,7 @@ description = "Client and server contract for scouter"
 
 [dependencies]
 chrono = { workspace = true }
+openssl = { workspace = true, features = ["vendored"] }
 scouter-contracts = { workspace = true }
 scouter-dispatch = { workspace = true }
 scouter-drift = { workspace = true }
