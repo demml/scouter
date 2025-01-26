@@ -137,7 +137,7 @@ jobs:
           path: scouter-server-${{ matrix.feature }}-${{ matrix.target }}.${{ matrix.archive }}
 
   publish-docker-images:
-  #  if: github.event_name == 'release'
+    if: github.event_name == 'release'
     needs: build
     name: Publish scouter base images to Dockerhub
     runs-on: ubuntu-22.04
