@@ -20,9 +20,9 @@ repository = "https://github.com/demml/scouter"
 scouter-client = { path = "crates/scouter_client" }
 scouter-contracts = { path = "crates/scouter_contracts" }
 scouter-dispatch = { path = "crates/scouter_dispatch" }
-scouter-drift = { path = "crates/scouter_drift" }
+scouter-drift = { path = "crates/scouter_drift", default-features = false }
 scouter-error = { path = "crates/scouter_error" }
-scouter-events = { path = "crates/scouter_events" }
+scouter-events = { path = "crates/scouter_events", default-features = false }
 consumer-events = { path = "crates/consumer_events" }
 scouter-observability = { path = "crates/scouter_observability" }
 scouter-profile = { path = "crates/scouter_profile" }
@@ -58,12 +58,13 @@ pyo3 = { version = ">=0.23.3, <1.0.0", features = ["chrono", "anyhow", "extensio
 rand = "0.*"
 rayon = "1.*"
 reqwest = { version = "0.12.*", features = ["json", "stream", "multipart", "rustls-tls", "rustls-tls-native-roots", "json" ], default-features = false }
-
+rusty-logging="0.*"
 serde = { version = "1.*", features = ["derive"] }
 serde_json = "1.*"
 serde_qs = "0.*"
 sqlx = { version = "0.*", features = [ "runtime-tokio", "tls-native-tls", "postgres", "chrono", "json"] }
 
+tempfile = "3.*"
 thiserror = "1.*"
 time = "0.*"
 tokio = { version = "1.*", features = ["rt", "rt-multi-thread", "macros"] }
@@ -82,3 +83,8 @@ lapin = { version = "2.*" }
 lto = "fat"
 codegen-units = 1
 strip = true
+opt-level = 3
+
+[profile.release-no-lto]
+inherits = "release"
+lto = false

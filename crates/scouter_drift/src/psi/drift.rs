@@ -2,13 +2,18 @@
 pub mod psi_drifter {
 
     use crate::psi::monitor::PsiMonitor;
-    use crate::psi::types::FeatureBinMapping;
+    use crate::psi::types::{FeatureBinMapping, FeatureBinProportionPairs};
     use chrono::NaiveDateTime;
+    use rayon::iter::{IntoParallelIterator, ParallelIterator};
+    use scouter_contracts::DriftRequest;
     use scouter_contracts::ServiceInfo;
     use scouter_dispatch::AlertDispatcher;
     use scouter_error::DriftError;
     use scouter_sql::PostgresClient;
-    use scouter_types::psi::{PsiDriftProfile, PsiFeatureAlerts, PsiFeatureDriftProfile};
+    use scouter_types::psi::{
+        BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiDriftProfile, PsiFeatureAlerts,
+        PsiFeatureDriftProfile,
+    };
     use std::collections::{BTreeMap, HashMap};
     use tracing::error;
     use tracing::info;
@@ -94,7 +99,7 @@ pub mod psi_drifter {
                         .features
                         .iter()
                         .map(|(feature, pairs)| {
-                            (feature.clone(), PsiMonitor::new().compute_psi(&pairs.pairs))
+                            (feature.clone(), PsiMonitor::compute_psi(&pairs.pairs))
                         })
                         .collect())
                 })
@@ -229,6 +234,96 @@ pub mod psi_drifter {
                 None => Ok(None),
             }
         }
+
+        fn create_feature_bin_proportion_pairs(
+            &self,
+            feature: &str,
+            bin_proportions: &BTreeMap<usize, f64>,
+        ) -> Result<FeatureBinProportionPairs, DriftError> {
+            // get profile
+            let profile = match self.profile.features.get(feature) {
+                Some(profile) => profile,
+                None => {
+                    error!("Error: Unable to fetch profile for feature {}", feature);
+                    return Err(DriftError::Error("Error processing alerts".to_string()));
+                }
+            };
+
+            let proportion_pairs =
+                FeatureBinProportionPairs::from_observed_bin_proportions(bin_proportions, profile)
+                    .unwrap();
+
+            Ok(proportion_pairs)
+        }
+
+        /// Get a binned drift map. This is used on the server for vizualization purposes
+        ///
+        /// # Arguments
+        ///
+        /// * `drift_request` - DriftRequest containing the profile to monitor
+        /// * `db_client` - PostgresClient to use for fetching data
+        ///
+        pub async fn get_binned_drift_map(
+            &self,
+            drift_request: &DriftRequest,
+            db_client: &PostgresClient,
+        ) -> Result<BinnedPsiFeatureMetrics, DriftError> {
+            let binned_records = db_client
+                .get_binned_psi_drift_records(drift_request)
+                .await?;
+
+            if binned_records.is_empty() {
+                info!(
+                    "No binned drift records available for {}/{}/{}",
+                    self.service_info.repository, self.service_info.name, self.service_info.version
+                );
+                return Ok(BinnedPsiFeatureMetrics::default());
+            }
+
+            // iterate over each feature and calculate psi for each time period
+            let binned_map = binned_records
+                .into_par_iter()
+                // filter out any records that are not in the profile
+                .filter(|record| self.profile.features.contains_key(&record.feature))
+                // get psi for binned features and create data structure that's usable for UI
+                .map(|record| -> Result<_, DriftError> {
+                    let psi_vec: Result<Vec<_>, DriftError> = record
+                        .bin_proportions
+                        .iter()
+                        .map(|bin_proportion| {
+                            let proportions = self.create_feature_bin_proportion_pairs(
+                                &record.feature,
+                                bin_proportion,
+                            )?;
+                            let psi = PsiMonitor::compute_psi(&proportions.pairs);
+                            Ok(psi)
+                        })
+                        .collect();
+
+                    let overall_proportions = self.create_feature_bin_proportion_pairs(
+                        &record.feature,
+                        &record.overall_proportions,
+                    )?;
+                    let overall_psi = PsiMonitor::compute_psi(&overall_proportions.pairs);
+
+                    Ok((
+                        record.feature.clone(),
+                        BinnedPsiMetric {
+                            created_at: record.created_at,
+                            psi: psi_vec?,
+                            overall_psi,
+                            bins: record.overall_proportions,
+                        },
+                    ))
+
+                    // calculate overall psi
+                })
+                .collect::<Result<BTreeMap<String, BinnedPsiMetric>, DriftError>>()?;
+
+            Ok(BinnedPsiFeatureMetrics {
+                features: binned_map,
+            })
+        }
     }
 
     #[cfg(test)]
@@ -239,8 +334,8 @@ pub mod psi_drifter {
         use ndarray_rand::rand_distr::Uniform;
         use ndarray_rand::RandomExt;
         use scouter_types::psi::{
-            Bin, FeatureBinProportion, FeatureBinProportions, PsiAlertConfig, PsiDriftConfig,
-            PsiFeatureDriftProfile,
+            Bin, BinType, FeatureBinProportion, FeatureBinProportions, PsiAlertConfig,
+            PsiDriftConfig, PsiFeatureDriftProfile,
         };
 
         fn get_test_drifter() -> PsiDrifter {
@@ -304,21 +399,22 @@ pub mod psi_drifter {
 
             let feature_drift_profile = PsiFeatureDriftProfile {
                 id: "feature_1".to_string(),
+                bin_type: BinType::Numeric,
                 bins: vec![
                     Bin {
-                        id: "decile_1".to_string(),
+                        id: 1,
                         lower_limit: Some(0.1),
                         upper_limit: Some(0.2),
                         proportion: training_feat1_decile1_prop,
                     },
                     Bin {
-                        id: "decile_2".to_string(),
+                        id: 2,
                         lower_limit: Some(0.2),
                         upper_limit: Some(0.4),
                         proportion: training_feat1_decile2_prop,
                     },
                     Bin {
-                        id: "decile_3".to_string(),
+                        id: 3,
                         lower_limit: Some(0.4),
                         upper_limit: Some(0.8),
                         proportion: training_feat1_decile3_prop,
@@ -331,26 +427,19 @@ pub mod psi_drifter {
             let observed_feat1_decile2_prop = 0.3;
             let observed_feat1_decile3_prop = 0.1;
 
-            let observed_proportions = FeatureBinProportions::from_bins(vec![
-                FeatureBinProportion {
+            let mut feat1_bins = BTreeMap::new();
+            feat1_bins.insert(1, observed_feat1_decile1_prop);
+            feat1_bins.insert(2, observed_feat1_decile2_prop);
+            feat1_bins.insert(3, observed_feat1_decile3_prop);
+
+            let observed_proportions =
+                FeatureBinProportions::from_features(vec![FeatureBinProportion {
                     feature: "feature_1".to_string(),
-                    bin_id: "decile_1".to_string(),
-                    proportion: observed_feat1_decile1_prop,
-                },
-                FeatureBinProportion {
-                    feature: "feature_1".to_string(),
-                    bin_id: "decile_2".to_string(),
-                    proportion: observed_feat1_decile2_prop,
-                },
-                FeatureBinProportion {
-                    feature: "feature_1".to_string(),
-                    bin_id: "decile_3".to_string(),
-                    proportion: observed_feat1_decile3_prop,
-                },
-            ]);
+                    bins: feat1_bins,
+                }]);
 
             let pairs = FeatureBinProportionPairs::from_observed_bin_proportions(
-                &observed_proportions,
+                observed_proportions.features.get("feature_1").unwrap(),
                 &feature_drift_profile,
             )
             .unwrap();

@@ -15,7 +15,7 @@ use std::path::PathBuf;
 use tracing::debug;
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CustomMetricDriftConfig {
     #[pyo3(get, set)]
     pub repository: String,
@@ -134,7 +134,7 @@ impl CustomMetricDriftConfig {
 }
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CustomDriftProfile {
     #[pyo3(get)]
     pub config: CustomMetricDriftConfig,

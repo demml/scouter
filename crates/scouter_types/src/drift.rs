@@ -4,9 +4,12 @@ use crate::psi::PsiDriftProfile;
 use crate::spc::SpcDriftProfile;
 use crate::util::ProfileBaseArgs;
 use crate::ProfileArgs;
+use crate::{FileName, ProfileFuncs};
 use pyo3::prelude::*;
-use scouter_error::ScouterError;
+use pyo3::IntoPyObjectExt;
+use scouter_error::{PyScouterError, ScouterError};
 use serde::{Deserialize, Serialize};
+use std::path::PathBuf;
 use std::str::FromStr;
 
 #[pyclass(eq)]
@@ -61,11 +64,33 @@ pub struct DriftArgs {
 }
 
 // Generic enum to be used on scouter server
-#[derive(Debug, Clone)]
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum DriftProfile {
-    SpcDriftProfile(SpcDriftProfile),
-    PsiDriftProfile(PsiDriftProfile),
-    CustomDriftProfile(CustomDriftProfile),
+    Spc(SpcDriftProfile),
+    Psi(PsiDriftProfile),
+    Custom(CustomDriftProfile),
+}
+
+#[pymethods]
+impl DriftProfile {
+    #[getter]
+    pub fn profile<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        match self {
+            DriftProfile::Spc(profile) => profile
+                .clone()
+                .into_bound_py_any(py)
+                .map_err(|e| PyScouterError::new_err(e.to_string())),
+            DriftProfile::Psi(profile) => profile
+                .clone()
+                .into_bound_py_any(py)
+                .map_err(|e| PyScouterError::new_err(e.to_string())),
+            DriftProfile::Custom(profile) => profile
+                .clone()
+                .into_bound_py_any(py)
+                .map_err(|e| PyScouterError::new_err(e.to_string())),
+        }
+    }
 }
 
 impl DriftProfile {
@@ -85,17 +110,17 @@ impl DriftProfile {
             DriftType::Spc => {
                 let profile =
                     serde_json::from_str(&profile).map_err(|_| ScouterError::DeSerializeError)?;
-                Ok(DriftProfile::SpcDriftProfile(profile))
+                Ok(DriftProfile::Spc(profile))
             }
             DriftType::Psi => {
                 let profile =
                     serde_json::from_str(&profile).map_err(|_| ScouterError::DeSerializeError)?;
-                Ok(DriftProfile::PsiDriftProfile(profile))
+                Ok(DriftProfile::Psi(profile))
             }
             DriftType::Custom => {
                 let profile =
                     serde_json::from_str(&profile).map_err(|_| ScouterError::DeSerializeError)?;
-                Ok(DriftProfile::CustomDriftProfile(profile))
+                Ok(DriftProfile::Custom(profile))
             }
         }
     }
@@ -103,17 +128,17 @@ impl DriftProfile {
     /// Get the base arguments for a drift profile
     pub fn get_base_args(&self) -> ProfileArgs {
         match self {
-            DriftProfile::SpcDriftProfile(profile) => profile.get_base_args(),
-            DriftProfile::PsiDriftProfile(profile) => profile.get_base_args(),
-            DriftProfile::CustomDriftProfile(profile) => profile.get_base_args(),
+            DriftProfile::Spc(profile) => profile.get_base_args(),
+            DriftProfile::Psi(profile) => profile.get_base_args(),
+            DriftProfile::Custom(profile) => profile.get_base_args(),
         }
     }
 
     pub fn to_value(&self) -> serde_json::Value {
         match self {
-            DriftProfile::SpcDriftProfile(profile) => profile.to_value(),
-            DriftProfile::PsiDriftProfile(profile) => profile.to_value(),
-            DriftProfile::CustomDriftProfile(profile) => profile.to_value(),
+            DriftProfile::Spc(profile) => profile.to_value(),
+            DriftProfile::Psi(profile) => profile.to_value(),
+            DriftProfile::Custom(profile) => profile.to_value(),
         }
     }
 
@@ -132,31 +157,67 @@ impl DriftProfile {
             DriftType::Spc => {
                 let profile =
                     serde_json::from_value(body).map_err(|_| ScouterError::DeSerializeError)?;
-                Ok(DriftProfile::SpcDriftProfile(profile))
+                Ok(DriftProfile::Spc(profile))
             }
             DriftType::Psi => {
                 let profile =
                     serde_json::from_value(body).map_err(|_| ScouterError::DeSerializeError)?;
-                Ok(DriftProfile::PsiDriftProfile(profile))
+                Ok(DriftProfile::Psi(profile))
             }
             DriftType::Custom => {
                 let profile =
                     serde_json::from_value(body).map_err(|_| ScouterError::DeSerializeError)?;
-                Ok(DriftProfile::CustomDriftProfile(profile))
+                Ok(DriftProfile::Custom(profile))
             }
         }
+    }
+
+    pub fn get_spc_profile(&self) -> Result<&SpcDriftProfile, ScouterError> {
+        match self {
+            DriftProfile::Spc(profile) => Ok(profile),
+            _ => Err(ScouterError::Error(
+                "Invalid drift profile type".to_string(),
+            )),
+        }
+    }
+
+    pub fn get_psi_profile(&self) -> Result<&PsiDriftProfile, ScouterError> {
+        match self {
+            DriftProfile::Psi(profile) => Ok(profile),
+            _ => Err(ScouterError::Error(
+                "Invalid drift profile type".to_string(),
+            )),
+        }
+    }
+
+    pub fn drift_type(&self) -> DriftType {
+        match self {
+            DriftProfile::Spc(_) => DriftType::Spc,
+            DriftProfile::Psi(_) => DriftType::Psi,
+            DriftProfile::Custom(_) => DriftType::Custom,
+        }
+    }
+
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
+        ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
+    }
+
+    pub fn load_from_json(path: PathBuf) -> Result<Self, ScouterError> {
+        let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
+        serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)
     }
 }
 
 impl Default for DriftProfile {
     fn default() -> Self {
-        DriftProfile::SpcDriftProfile(SpcDriftProfile::default())
+        DriftProfile::Spc(SpcDriftProfile::default())
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use tempfile::TempDir;
 
     #[test]
     fn test_drift_type_from_str_base() {
@@ -171,5 +232,25 @@ mod tests {
         assert_eq!(DriftType::Spc.to_string(), "Spc");
         assert_eq!(DriftType::Psi.to_string(), "Psi");
         assert_eq!(DriftType::Custom.to_string(), "Custom");
+    }
+
+    #[test]
+    fn test_drift_profile_enum() {
+        let profile = DriftProfile::Spc(SpcDriftProfile::default());
+
+        // save to temppath
+        let temp_dir = TempDir::new().unwrap();
+        let path = temp_dir.path().join("profile.json");
+
+        profile.save_to_json(Some(path.clone())).unwrap();
+
+        // assert path exists
+        assert!(path.exists());
+
+        // load from path
+        let loaded_profile = DriftProfile::load_from_json(path).unwrap();
+
+        // assert profile is the same
+        assert_eq!(profile, loaded_profile);
     }
 }

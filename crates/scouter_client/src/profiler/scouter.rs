@@ -1,17 +1,11 @@
-use crate::profiler::arrow::ArrowDataConverter;
-use crate::profiler::base::convert_array_type;
-use crate::profiler::numpy::NumpyDataConverter;
-use crate::profiler::pandas::PandasDataConverter;
-use crate::profiler::polars::PolarsDataConverter;
+use crate::data_utils::{convert_array_type, DataConverterEnum};
 use ndarray_stats::MaybeNan;
 use num_traits::{Float, FromPrimitive, Num};
 use numpy::ndarray::ArrayView2;
 use numpy::ndarray::{concatenate, Axis};
 use numpy::PyReadonlyArray2;
-use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
-use scouter_error::ProfilerError;
-use scouter_error::PyScouterError;
+use scouter_error::{ProfilerError, PyScouterError, ScouterError};
 use scouter_profile::{
     compute_feature_correlations, DataProfile, FeatureProfile, NumProfiler, StringProfiler,
 };
@@ -19,8 +13,6 @@ use scouter_types::DataType;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
 use tracing::info;
-
-use super::base::DataConverter;
 
 #[pyclass]
 pub struct DataProfiler {
@@ -40,9 +32,10 @@ impl DataProfiler {
     }
 
     #[pyo3(signature = (data, data_type=None, bin_size=20, compute_correlations=false))]
-    pub fn create_data_profile(
+    pub fn create_data_profile<'py>(
         &mut self,
-        data: &Bound<'_, PyAny>,
+        py: Python<'py>,
+        data: &Bound<'py, PyAny>,
         data_type: Option<&DataType>,
         bin_size: Option<usize>,
         compute_correlations: Option<bool>,
@@ -61,20 +54,14 @@ impl DataProfiler {
                 let name = class.getattr("__name__")?.str()?.to_string();
                 let full_class_name = format!("{}.{}", module, name);
 
-                &DataType::from_module_name(&full_class_name)?
+                &DataType::from_module_name(&full_class_name)
+                    .map_err(|e| PyScouterError::new_err(e.to_string()))?
             }
         };
 
-        let (num_features, num_array, dtype, string_features, string_vec) = match data_type {
-            DataType::Pandas => PandasDataConverter::prepare_data(data)
-                .map_err(|e| PyScouterError::new_err(e.to_string()))?,
-            DataType::Polars => PolarsDataConverter::prepare_data(data)
-                .map_err(|e| PyScouterError::new_err(e.to_string()))?,
-            DataType::Numpy => NumpyDataConverter::prepare_data(data)
-                .map_err(|e| PyScouterError::new_err(e.to_string()))?,
-            DataType::Arrow => ArrowDataConverter::prepare_data(data)
-                .map_err(|e| PyScouterError::new_err(e.to_string()))?,
-        };
+        let (num_features, num_array, dtype, string_features, string_vec) =
+            DataConverterEnum::convert_data(py, data_type, data)
+                .map_err(|e| PyScouterError::new_err(e.to_string()))?;
 
         // if num_features is not empty, check dtype. If dtype == "float64", process as f64, else process as f32
         if let Some(dtype) = dtype {
@@ -127,7 +114,7 @@ impl DataProfiler {
         numeric_array: Option<PyReadonlyArray2<f32>>,
         string_features: Vec<String>,
         string_array: Option<Vec<Vec<String>>>,
-    ) -> PyResult<DataProfile> {
+    ) -> Result<DataProfile, ScouterError> {
         if !string_features.is_empty() && string_array.is_some() && numeric_array.is_none() {
             let profile = self
                 .string_profiler
@@ -137,7 +124,7 @@ impl DataProfiler {
                     compute_correlations,
                 )
                 .map_err(|e| {
-                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                    ScouterError::Error(format!("Failed to create feature data profile: {}", e))
                 })?;
             Ok(profile)
         } else if string_array.is_none() && numeric_array.is_some() && !numeric_features.is_empty()
@@ -151,7 +138,7 @@ impl DataProfiler {
                     bin_size,
                 )
                 .map_err(|e| {
-                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                    ScouterError::Error(format!("Failed to create feature data profile: {}", e))
                 })?;
 
             Ok(profile)
@@ -166,7 +153,7 @@ impl DataProfiler {
                     bin_size,
                 )
                 .map_err(|e| {
-                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                    ScouterError::Error(format!("Failed to create feature data profile: {}", e))
                 })?;
 
             Ok(profile)
@@ -181,7 +168,7 @@ impl DataProfiler {
         numeric_array: Option<PyReadonlyArray2<f64>>,
         string_features: Vec<String>,
         string_array: Option<Vec<Vec<String>>>,
-    ) -> PyResult<DataProfile> {
+    ) -> Result<DataProfile, ScouterError> {
         if !string_features.is_empty() && string_array.is_some() && numeric_array.is_none() {
             let profile = self
                 .string_profiler
@@ -191,7 +178,7 @@ impl DataProfiler {
                     compute_correlations,
                 )
                 .map_err(|e| {
-                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                    ScouterError::Error(format!("Failed to create feature data profile: {}", e))
                 })?;
             Ok(profile)
         } else if string_array.is_none() && numeric_array.is_some() && !numeric_features.is_empty()
@@ -205,7 +192,7 @@ impl DataProfiler {
                     bin_size,
                 )
                 .map_err(|e| {
-                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                    ScouterError::Error(format!("Failed to create feature data profile: {}", e))
                 })?;
 
             Ok(profile)
@@ -220,7 +207,7 @@ impl DataProfiler {
                     bin_size,
                 )
                 .map_err(|e| {
-                    PyValueError::new_err(format!("Failed to create feature data profile: {}", e))
+                    ScouterError::Error(format!("Failed to create feature data profile: {}", e))
                 })?;
 
             Ok(profile)

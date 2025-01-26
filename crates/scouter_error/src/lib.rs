@@ -52,7 +52,7 @@ pub enum ProfilerError {
     StringProfileError(String),
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, Deserialize)]
 pub enum FeatureQueueError {
     #[error("{0}")]
     InvalidFormatError(String),
@@ -178,6 +178,27 @@ pub enum ScouterError {
 
     #[error("{0}")]
     Error(String),
+
+    #[error(transparent)]
+    MonitorError(#[from] MonitorError),
+
+    #[error(transparent)]
+    AlertError(#[from] AlertError),
+
+    #[error(transparent)]
+    CustomError(#[from] CustomMetricError),
+
+    #[error(transparent)]
+    FeatureQueueError(#[from] FeatureQueueError),
+
+    #[error(transparent)]
+    SqlError(#[from] SqlError),
+
+    #[error(transparent)]
+    DriftError(#[from] DriftError),
+
+    #[error("Missing value in map")]
+    MissingValue,
 }
 
 // impl From for PyErr

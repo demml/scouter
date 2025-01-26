@@ -1,30 +1,38 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::{
-    AlertResult, FeatureBinProportionWrapper, ObservabilityResult, SpcFeatureResult, TaskRequest,
+    AlertWrapper, BinnedCustomMetricWrapper, FeatureBinProportionResult,
+    FeatureBinProportionWrapper, ObservabilityResult, SpcFeatureResult, TaskRequest,
 };
 use chrono::{NaiveDateTime, Utc};
 use cron::Schedule;
 use scouter_contracts::{
-    DriftAlertRequest, DriftRequest, ObservabilityMetricRequest, ProfileStatusRequest, ServiceInfo,
+    DriftAlertRequest, DriftRequest, GetProfileRequest, ObservabilityMetricRequest,
+    ProfileStatusRequest, ServiceInfo,
 };
 use scouter_error::ScouterError;
 use scouter_error::SqlError;
 use scouter_settings::DatabaseSettings;
 use scouter_types::{
-    psi::{FeatureBinProportion, FeatureBinProportions},
+    alert::Alert,
+    custom::BinnedCustomMetrics,
+    psi::FeatureBinProportions,
+    spc::{SpcDriftFeature, SpcDriftFeatures},
     CustomMetricServerRecord, DriftProfile, ObservabilityMetrics, PsiServerRecord, RecordType,
     ServerRecords, SpcServerRecord, TimeInterval, ToDriftRecords,
 };
 
 use serde_json::Value;
 use sqlx::{
-    postgres::{PgPoolOptions, PgQueryResult, PgRow},
+    postgres::{PgPoolOptions, PgQueryResult},
     Pool, Postgres, Row, Transaction,
 };
 use std::collections::{BTreeMap, HashMap};
 use std::result::Result::Ok;
 use std::str::FromStr;
-use tracing::{error, info};
+use tracing::{debug, error, info};
+
+// TODO: Explore refactoring and breaking this out into multiple client types (i.e., spc, psi, etc.)
+// Postgres client is one of the lowest-level abstractions so it may not be worth it, as it could make server logic annoying. Worth exploring though.
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -101,15 +109,15 @@ impl PostgresClient {
         Ok(())
     }
 
-    // Inserts a drift alert into the database
-    //
-    // # Arguments
-    //
-    // * `name` - The name of the service to insert the alert for
-    // * `repository` - The name of the repository to insert the alert for
-    // * `version` - The version of the service to insert the alert for
-    // * `alert` - The alert to insert into the database
-    //
+    /// Inserts a drift alert into the database
+    ///
+    /// # Arguments
+    ///
+    /// * `name` - The name of the service to insert the alert for
+    /// * `repository` - The name of the repository to insert the alert for
+    /// * `version` - The version of the service to insert the alert for
+    /// * `alert` - The alert to insert into the database
+    ///
     pub async fn insert_drift_alert(
         &self,
         service_info: &ServiceInfo,
@@ -140,13 +148,22 @@ impl PostgresClient {
         }
     }
 
+    /// Get drift alerts from the database
+    ///
+    /// # Arguments
+    ///
+    /// * `params` - The drift alert request parameters
+    ///
+    /// # Returns
+    ///
+    /// * `Result<Vec<Alert>, SqlError>` - Result of the query
     pub async fn get_drift_alerts(
         &self,
         params: &DriftAlertRequest,
-    ) -> Result<Vec<AlertResult>, SqlError> {
+    ) -> Result<Vec<Alert>, SqlError> {
         let query = Queries::GetDriftAlerts.get_query().sql;
 
-        // check if active
+        // check if active (status can be 'active' or  'acknowledged')
         let query = if params.active.unwrap_or(false) {
             format!("{} AND status = 'active'", query)
         } else {
@@ -163,37 +180,35 @@ impl PostgresClient {
 
         // convert limit timestamp to string if it exists, leave as None if not
 
-        let result: Result<Vec<AlertResult>, sqlx::Error> = sqlx::query_as(&query)
+        let result: Result<Vec<AlertWrapper>, SqlError> = sqlx::query_as(&query)
             .bind(&params.version)
             .bind(&params.name)
             .bind(&params.repository)
             .bind(params.limit_datetime)
             .fetch_all(&self.pool)
-            .await;
+            .await
+            .map_err(|e| {
+                error!("Failed to get drift alerts from database: {:?}", e);
+                SqlError::QueryError(format!("{:?}", e))
+            });
 
-        match result {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                error!("Failed to get alerts from database: {:?}", e);
-                Err(SqlError::QueryError(format!("{:?}", e)))
-            }
-        }
+        result.map(|result| result.into_iter().map(|wrapper| wrapper.0).collect())
     }
 
-    // Inserts a drift record into the database
-    //
-    // # Arguments
-    //
-    // * `record` - A drift record to insert into the database
-    // * `table_name` - The name of the table to insert the record into
-    //
+    /// Inserts a drift record into the database
+    ///
+    /// # Arguments
+    ///
+    /// * `record` - A drift record to insert into the database
+    /// * `table_name` - The name of the table to insert the record into
+    ///
     pub async fn insert_spc_drift_record(
         &self,
         record: &SpcServerRecord,
-    ) -> Result<PgQueryResult, anyhow::Error> {
+    ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertDriftRecord.get_query();
 
-        let query_result = sqlx::query(&query.sql)
+        sqlx::query(&query.sql)
             .bind(record.created_at)
             .bind(&record.name)
             .bind(&record.repository)
@@ -203,45 +218,33 @@ impl PostgresClient {
             .execute(&self.pool)
             .await
             .map_err(|e| {
-                error!("Failed to insert record into database: {:?}", e);
-                SqlError::QueryError(format!("{:?}", e))
-            });
-
-        //drop params
-        match query_result {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                error!("Failed to insert record into database: {:?}", e);
-                Err(SqlError::QueryError(format!("{:?}", e)).into())
-            }
-        }
+                let msg = format!("Failed to insert drift record into database: {:?}", e);
+                error!(msg);
+                SqlError::QueryError(msg)
+            })
     }
 
     pub async fn insert_bin_counts(
         &self,
         record: &PsiServerRecord,
-    ) -> Result<PgQueryResult, anyhow::Error> {
+    ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertBinCounts.get_query();
 
-        let query_result = sqlx::query(&query.sql)
+        sqlx::query(&query.sql)
             .bind(record.created_at)
             .bind(&record.name)
             .bind(&record.repository)
             .bind(&record.version)
             .bind(&record.feature)
-            .bind(&record.bin_id)
+            .bind(record.bin_id as i64)
             .bind(record.bin_count as i64)
             .execute(&self.pool)
-            .await;
-
-        //drop params
-        match query_result {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                error!("Failed to insert PSI bin count data into database: {:?}", e);
-                Err(SqlError::QueryError(format!("{:?}", e)).into())
-            }
-        }
+            .await
+            .map_err(|e| {
+                let msg = format!("Failed to insert PSI bin count data into database: {:?}", e);
+                error!(msg);
+                SqlError::QueryError(msg)
+            })
     }
 
     // Inserts a drift record into the database
@@ -291,12 +294,23 @@ impl PostgresClient {
         }
     }
 
+    /// Insert a drift profile into the database
+    ///
+    /// # Arguments
+    ///
+    /// * `drift_profile` - The drift profile to insert
+    ///
+    /// # Returns
+    ///
+    /// * `Result<PgQueryResult, SqlError>` - Result of the query
     pub async fn insert_drift_profile(
         &self,
         drift_profile: &DriftProfile,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertDriftProfile.get_query();
         let base_args = drift_profile.get_base_args();
+
+        let current_time = Utc::now();
 
         let schedule = Schedule::from_str(&base_args.schedule)
             .map_err(|e| SqlError::GeneralError(e.to_string()))?;
@@ -320,7 +334,7 @@ impl PostgresClient {
             .bind(false)
             .bind(base_args.schedule)
             .bind(next_run.naive_utc())
-            .bind(next_run.naive_utc())
+            .bind(current_time.naive_utc())
             .execute(&self.pool)
             .await
             .map_err(|e| {
@@ -337,6 +351,15 @@ impl PostgresClient {
         }
     }
 
+    /// Update a drift profile in the database
+    ///
+    /// # Arguments
+    ///
+    /// * `drift_profile` - The drift profile to update
+    ///
+    /// # Returns
+    ///
+    /// * `Result<PgQueryResult, SqlError>` - Result of the query
     pub async fn update_drift_profile(
         &self,
         drift_profile: &DriftProfile,
@@ -366,13 +389,24 @@ impl PostgresClient {
         }
     }
 
-    pub async fn get_drift_profile(&self, params: &ServiceInfo) -> Result<Option<Value>, SqlError> {
+    /// Get a drift profile from the database
+    ///
+    /// # Arguments
+    ///
+    /// * `request` - The request to get the profile for
+    ///
+    /// # Returns
+    pub async fn get_drift_profile(
+        &self,
+        request: &GetProfileRequest,
+    ) -> Result<Option<Value>, SqlError> {
         let query = Queries::GetDriftProfile.get_query();
 
         let result = sqlx::query(&query.sql)
-            .bind(&params.name)
-            .bind(&params.repository)
-            .bind(&params.version)
+            .bind(&request.name)
+            .bind(&request.repository)
+            .bind(&request.version)
+            .bind(request.drift_type.to_string())
             .fetch_optional(&self.pool)
             .await
             .map_err(|e| {
@@ -403,6 +437,17 @@ impl PostgresClient {
         })
     }
 
+    /// Update the drift profile run dates in the database
+    ///
+    /// # Arguments
+    ///
+    /// * `transaction` - The database transaction
+    /// * `service_info` - The service info to update the run dates for
+    /// * `schedule` - The schedule to update the run dates with
+    ///
+    /// # Returns
+    ///
+    /// * `Result<(), SqlError>` - Result of the query
     pub async fn update_drift_profile_run_dates(
         transaction: &mut Transaction<'_, Postgres>,
         service_info: &ServiceInfo,
@@ -442,8 +487,11 @@ impl PostgresClient {
 
     // Queries the database for all features under a service
     // Private method that'll be used to run drift retrieval in parallel
-    pub async fn get_features(&self, service_info: &ServiceInfo) -> Result<Vec<String>, SqlError> {
-        let query = Queries::GetFeatures.get_query();
+    pub async fn get_spc_features(
+        &self,
+        service_info: &ServiceInfo,
+    ) -> Result<Vec<String>, SqlError> {
+        let query = Queries::GetSpcFeatures.get_query();
 
         sqlx::query(&query.sql)
             .bind(&service_info.name)
@@ -463,15 +511,28 @@ impl PostgresClient {
             })
     }
 
-    async fn run_spc_features_query(
+    /// Get SPC drift records
+    ///
+    /// # Arguments
+    ///
+    /// * `service_info` - The service to get drift records for
+    /// * `limit_datetime` - The limit datetime to get drift records for
+    /// * `features_to_monitor` - The features to monitor
+    pub async fn get_spc_drift_records(
         &self,
-        features: &[String],
         service_info: &ServiceInfo,
         limit_datetime: &NaiveDateTime,
-    ) -> Result<Vec<SpcFeatureResult>, SqlError> {
+        features_to_monitor: &[String],
+    ) -> Result<SpcDriftFeatures, SqlError> {
+        let mut features = self.get_spc_features(service_info).await?;
+
+        if !features_to_monitor.is_empty() {
+            features.retain(|feature| features_to_monitor.contains(feature));
+        }
+
         let query = Queries::GetSpcFeatureValues.get_query();
 
-        let feature_values: Result<Vec<SpcFeatureResult>, SqlError> = sqlx::query_as(&query.sql)
+        let records: Vec<SpcFeatureResult> = sqlx::query_as(&query.sql)
             .bind(limit_datetime)
             .bind(&service_info.name)
             .bind(&service_info.repository)
@@ -482,9 +543,22 @@ impl PostgresClient {
             .map_err(|e| {
                 error!("Failed to run query: {:?}", e);
                 SqlError::QueryError(format!("Failed to run query: {:?}", e))
-            });
+            })?;
 
-        feature_values
+        let feature_drift = records
+            .into_iter()
+            .map(|record| {
+                let feature = SpcDriftFeature {
+                    created_at: record.created_at,
+                    values: record.values,
+                };
+                (record.feature.clone(), feature)
+            })
+            .collect::<BTreeMap<String, SpcDriftFeature>>();
+
+        Ok(SpcDriftFeatures {
+            features: feature_drift,
+        })
     }
 
     pub async fn get_binned_observability_metrics(
@@ -493,14 +567,14 @@ impl PostgresClient {
     ) -> Result<Vec<ObservabilityResult>, SqlError> {
         let query = Queries::GetBinnedObservabilityMetrics.get_query();
 
-        let time_window = TimeInterval::from_string(&params.time_window).to_minutes();
+        let time_interval = TimeInterval::from_string(&params.time_interval).to_minutes();
 
-        let bin = time_window as f64 / params.max_data_points as f64;
+        let bin = time_interval as f64 / params.max_data_points as f64;
 
         let observability_metrics: Result<Vec<ObservabilityResult>, sqlx::Error> =
             sqlx::query_as(&query.sql)
                 .bind(bin)
-                .bind(time_window)
+                .bind(time_interval)
                 .bind(&params.name)
                 .bind(&params.repository)
                 .bind(&params.version)
@@ -508,33 +582,6 @@ impl PostgresClient {
                 .await;
 
         observability_metrics.map_err(|e| {
-            error!("Failed to run query: {:?}", e);
-            SqlError::QueryError(format!("Failed to run query: {:?}", e))
-        })
-    }
-
-    async fn get_spc_binned_feature_values(
-        &self,
-        bin: &f64,
-        features: &[String],
-        version: &str,
-        time_window: &TimeInterval,
-        repository: &str,
-        name: &str,
-    ) -> Result<Vec<SpcFeatureResult>, SqlError> {
-        let query = Queries::GetBinnedSpcFeatureValues.get_query();
-
-        let binned: Result<Vec<SpcFeatureResult>, sqlx::Error> = sqlx::query_as(&query.sql)
-            .bind(bin)
-            .bind(time_window.to_minutes())
-            .bind(name)
-            .bind(repository)
-            .bind(version)
-            .bind(features)
-            .fetch_all(&self.pool)
-            .await;
-
-        binned.map_err(|e| {
             error!("Failed to run query: {:?}", e);
             SqlError::QueryError(format!("Failed to run query: {:?}", e))
         })
@@ -548,69 +595,121 @@ impl PostgresClient {
     // * `repository` - The name of the repository to query drift records for
     // * `feature` - The name of the feature to query drift records for
     // * `aggregation` - The aggregation to use for the query
-    // * `time_window` - The time window to query drift records for
+    // * `time_interval` - The time window to query drift records for
     //
     // # Returns
     //
     // * A vector of drift records
-    pub async fn get_binned_drift_records(
+    pub async fn get_binned_spc_drift_records(
         &self,
         params: &DriftRequest,
-    ) -> Result<Vec<SpcFeatureResult>, SqlError> {
-        let service_info = ServiceInfo {
-            repository: params.repository.clone(),
-            name: params.name.clone(),
-            version: params.version.clone(),
-        };
-        // get features
-        let features = self.get_features(&service_info).await?;
-        let time_window_f64 = params.time_window.to_minutes() as f64;
-        let bin = time_window_f64 / params.max_data_points as f64;
+    ) -> Result<SpcDriftFeatures, SqlError> {
+        let minutes = params.time_interval.to_minutes();
+        let bin = minutes / params.max_data_points;
 
-        self.get_spc_binned_feature_values(
-            &bin,
-            &features,
-            &params.version,
-            &params.time_window,
-            &params.repository,
-            &params.name,
-        )
-        .await
-    }
+        let query = Queries::GetBinnedSpcFeatureValues.get_query();
 
-    pub async fn get_spc_drift_records(
-        &self,
-        service_info: &ServiceInfo,
-        limit_datetime: &NaiveDateTime,
-        features_to_monitor: &[String],
-    ) -> Result<Vec<SpcFeatureResult>, SqlError> {
-        let mut features = self.get_features(service_info).await?;
-
-        if !features_to_monitor.is_empty() {
-            features.retain(|feature| features_to_monitor.contains(feature));
-        }
-
-        self.run_spc_features_query(&features, service_info, limit_datetime)
+        let records: Vec<SpcFeatureResult> = sqlx::query_as(&query.sql)
+            .bind(bin)
+            .bind(minutes)
+            .bind(&params.name)
+            .bind(&params.repository)
+            .bind(&params.version)
+            .fetch_all(&self.pool)
             .await
+            .map_err(|e| {
+                error!("Failed to run query: {:?}", e);
+                SqlError::QueryError(format!("Failed to run query: {:?}", e))
+            })?;
+
+        let feature_drift = records
+            .into_iter()
+            .map(|record| {
+                let feature = SpcDriftFeature {
+                    created_at: record.created_at,
+                    values: record.values,
+                };
+                (record.feature.clone(), feature)
+            })
+            .collect::<BTreeMap<String, SpcDriftFeature>>();
+
+        Ok(SpcDriftFeatures {
+            features: feature_drift,
+        })
     }
 
-    #[allow(dead_code)]
-    pub async fn raw_query(&self, query: &str) -> Result<Vec<PgRow>, SqlError> {
-        let result = sqlx::raw_sql(query).fetch_all(&self.pool).await;
+    // Queries the database for drift records based on a time window and aggregation
+    //
+    // # Arguments
+    //
+    // * `name` - The name of the service to query drift records for
+    // * `params` - The drift request parameters
+    // # Returns
+    //
+    // * A vector of drift records
+    pub async fn get_binned_psi_drift_records(
+        &self,
+        params: &DriftRequest,
+    ) -> Result<Vec<FeatureBinProportionResult>, SqlError> {
+        // get features
 
-        match result {
-            Ok(result) => {
-                // pretty print
-                Ok(result)
-            }
-            Err(e) => {
+        let minutes = params.time_interval.to_minutes();
+        let bin = params.time_interval.to_minutes() / params.max_data_points;
+
+        let query = Queries::GetBinnedPsiFeatureBins.get_query();
+
+        let binned: Result<Vec<FeatureBinProportionResult>, sqlx::Error> =
+            sqlx::query_as(&query.sql)
+                .bind(bin)
+                .bind(minutes)
+                .bind(&params.name)
+                .bind(&params.repository)
+                .bind(&params.version)
+                .fetch_all(&self.pool)
+                .await;
+
+        binned.map_err(|e| {
+            error!("Failed to run query: {:?}", e);
+            SqlError::QueryError(format!("Failed to run query: {:?}", e))
+        })
+    }
+
+    // Queries the database for drift records based on a time window and aggregation
+    //
+    // # Arguments
+    //
+    // * `name` - The name of the service to query drift records for
+    // * `params` - The drift request parameters
+    // # Returns
+    //
+    // * A vector of drift records
+    pub async fn get_binned_custom_drift_records(
+        &self,
+        params: &DriftRequest,
+    ) -> Result<BinnedCustomMetrics, SqlError> {
+        // get features
+
+        let minutes = params.time_interval.to_minutes();
+        let bin = params.time_interval.to_minutes() / params.max_data_points;
+
+        let query = Queries::GetBinnedCustomMetricValues.get_query();
+
+        let records: Vec<BinnedCustomMetricWrapper> = sqlx::query_as(&query.sql)
+            .bind(bin)
+            .bind(minutes)
+            .bind(&params.name)
+            .bind(&params.repository)
+            .bind(&params.version)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| {
                 error!("Failed to run query: {:?}", e);
-                Err(SqlError::GeneralError(format!(
-                    "Failed to run query: {:?}",
-                    e
-                )))
-            }
-        }
+                SqlError::QueryError(format!("Failed to run query: {:?}", e))
+            })?;
+
+        Ok(BinnedCustomMetrics::from_vec(
+            records.into_iter().map(|wrapper| wrapper.0).collect(),
+        ))
     }
 
     pub async fn update_drift_profile_status(
@@ -663,10 +762,9 @@ impl PostgresClient {
                 ))
             })?;
 
-        let feature_bin_proportions: Vec<FeatureBinProportion> =
-            binned.into_iter().map(|wrapper| wrapper.0).collect();
+        let binned: FeatureBinProportions = binned.into_iter().map(|wrapper| wrapper.0).collect();
 
-        Ok(FeatureBinProportions::from_bins(feature_bin_proportions))
+        Ok(binned)
     }
 
     pub async fn get_custom_metric_values(
@@ -743,6 +841,7 @@ pub enum MessageHandler {
 
 impl MessageHandler {
     pub async fn insert_server_records(&self, records: &ServerRecords) -> Result<(), ScouterError> {
+        debug!("Inserting server records: {:?}", records);
         match self {
             Self::Postgres(client) => {
                 match records.record_type {
@@ -797,7 +896,7 @@ mod tests {
 
     use super::*;
     use rand::Rng;
-    use scouter_types::spc::SpcDriftProfile;
+    use scouter_types::{spc::SpcDriftProfile, DriftType};
 
     pub async fn cleanup(pool: &Pool<Postgres>) {
         sqlx::raw_sql(
@@ -930,7 +1029,7 @@ mod tests {
             repository: "test".to_string(),
             version: "test".to_string(),
             feature: "test".to_string(),
-            bin_id: "decile_1".to_string(),
+            bin_id: 1,
             bin_count: 1,
             record_type: RecordType::Psi,
         };
@@ -953,14 +1052,14 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_postgres_cru_drift_profile() {
+    async fn test_postgres_crud_drift_profile() {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
 
         let mut spc_profile = SpcDriftProfile::default();
 
         let result = client
-            .insert_drift_profile(&DriftProfile::SpcDriftProfile(spc_profile.clone()))
+            .insert_drift_profile(&DriftProfile::Spc(spc_profile.clone()))
             .await
             .unwrap();
 
@@ -969,17 +1068,18 @@ mod tests {
         spc_profile.scouter_version = "test".to_string();
 
         let result = client
-            .update_drift_profile(&DriftProfile::SpcDriftProfile(spc_profile.clone()))
+            .update_drift_profile(&DriftProfile::Spc(spc_profile.clone()))
             .await
             .unwrap();
 
         assert_eq!(result.rows_affected(), 1);
 
         let profile = client
-            .get_drift_profile(&ServiceInfo {
+            .get_drift_profile(&GetProfileRequest {
                 name: spc_profile.config.name.clone(),
                 repository: spc_profile.config.repository.clone(),
                 version: spc_profile.config.version.clone(),
+                drift_type: DriftType::Spc,
             })
             .await
             .unwrap();
@@ -1029,7 +1129,7 @@ mod tests {
             version: "test".to_string(),
         };
 
-        let features = client.get_features(&service_info).await.unwrap();
+        let features = client.get_spc_features(&service_info).await.unwrap();
         assert_eq!(features.len(), 10);
 
         let records = client
@@ -1037,20 +1137,21 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(records.len(), 10);
+        assert_eq!(records.features.len(), 10);
 
         let binned_records = client
-            .get_binned_drift_records(&DriftRequest {
+            .get_binned_spc_drift_records(&DriftRequest {
                 name: "test".to_string(),
                 repository: "test".to_string(),
                 version: "test".to_string(),
-                time_window: TimeInterval::FiveMinutes,
+                time_interval: TimeInterval::FiveMinutes,
                 max_data_points: 10,
+                drift_type: DriftType::Spc,
             })
             .await
             .unwrap();
 
-        assert_eq!(binned_records.len(), 10);
+        assert_eq!(binned_records.features.len(), 10);
     }
 
     #[tokio::test]
@@ -1058,23 +1159,23 @@ mod tests {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
         let timestamp = chrono::Utc::now().naive_utc();
-        for _ in 0..1000 {
-            for j in 0..2 {
-                let num = rand::thread_rng().gen_range(0..10);
-                let record = PsiServerRecord {
-                    created_at: chrono::Utc::now().naive_utc(),
-                    name: "test".to_string(),
-                    repository: "test".to_string(),
-                    version: "test".to_string(),
-                    feature: "test".to_string(),
-                    bin_id: format!("decile_{}", j),
-                    bin_count: num,
-                    record_type: RecordType::Psi,
-                };
 
-                let result = client.insert_bin_counts(&record).await.unwrap();
+        for feature in 0..3 {
+            for bin in 0..=5 {
+                for _ in 0..=100 {
+                    let record = PsiServerRecord {
+                        created_at: chrono::Utc::now().naive_utc(),
+                        name: "test".to_string(),
+                        repository: "test".to_string(),
+                        version: "test".to_string(),
+                        feature: format!("feature{}", feature),
+                        bin_id: bin,
+                        bin_count: rand::thread_rng().gen_range(0..10),
+                        record_type: RecordType::Psi,
+                    };
 
-                assert_eq!(result.rows_affected(), 1);
+                    client.insert_bin_counts(&record).await.unwrap();
+                }
             }
         }
 
@@ -1086,7 +1187,7 @@ mod tests {
                     version: "test".to_string(),
                 },
                 &timestamp,
-                &["test".to_string()],
+                &["feature0".to_string()],
             )
             .await
             .unwrap();
@@ -1094,11 +1195,26 @@ mod tests {
         // assert binned_records.features["test"]["decile_1"] is around .5
         let bin_proportion = binned_records
             .features
-            .get("test")
+            .get("feature0")
             .unwrap()
-            .get("decile_1")
+            .get(&1)
             .unwrap();
-        assert!(*bin_proportion > 0.4 && *bin_proportion < 0.6);
+
+        assert!(*bin_proportion > 0.1 && *bin_proportion < 0.2);
+
+        let binned_records = client
+            .get_binned_psi_drift_records(&DriftRequest {
+                name: "test".to_string(),
+                repository: "test".to_string(),
+                version: "test".to_string(),
+                time_interval: TimeInterval::OneHour,
+                max_data_points: 1000,
+                drift_type: DriftType::Psi,
+            })
+            .await
+            .unwrap();
+        //
+        assert_eq!(binned_records.len(), 3);
     }
 
     #[tokio::test]
@@ -1107,18 +1223,35 @@ mod tests {
         cleanup(&client.pool).await;
         let timestamp = chrono::Utc::now().naive_utc();
 
+        for i in 0..2 {
+            for _ in 0..25 {
+                let record = CustomMetricServerRecord {
+                    created_at: chrono::Utc::now().naive_utc(),
+                    name: "test".to_string(),
+                    repository: "test".to_string(),
+                    version: "test".to_string(),
+                    metric: format!("metric{}", i),
+                    value: rand::thread_rng().gen_range(0..10) as f64,
+                    record_type: RecordType::Custom,
+                };
+
+                let result = client.insert_custom_metric_value(&record).await.unwrap();
+                assert_eq!(result.rows_affected(), 1);
+            }
+        }
+
+        // insert random record to test has statistics funcs handle single record
         let record = CustomMetricServerRecord {
             created_at: chrono::Utc::now().naive_utc(),
             name: "test".to_string(),
             repository: "test".to_string(),
             version: "test".to_string(),
-            metric: "test".to_string(),
-            value: 1.0,
+            metric: "metric3".to_string(),
+            value: rand::thread_rng().gen_range(0..10) as f64,
             record_type: RecordType::Custom,
         };
 
         let result = client.insert_custom_metric_value(&record).await.unwrap();
-
         assert_eq!(result.rows_affected(), 1);
 
         let metrics = client
@@ -1129,11 +1262,25 @@ mod tests {
                     version: "test".to_string(),
                 },
                 &timestamp,
-                &["test".to_string()],
+                &["metric1".to_string()],
             )
             .await
             .unwrap();
 
-        assert_eq!(metrics.get("test").unwrap(), &1.0);
+        assert_eq!(metrics.len(), 1);
+
+        let binned_records = client
+            .get_binned_custom_drift_records(&DriftRequest {
+                name: "test".to_string(),
+                repository: "test".to_string(),
+                version: "test".to_string(),
+                time_interval: TimeInterval::OneHour,
+                max_data_points: 1000,
+                drift_type: DriftType::Custom,
+            })
+            .await
+            .unwrap();
+        //
+        assert_eq!(binned_records.metrics.len(), 3);
     }
 }

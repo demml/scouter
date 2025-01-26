@@ -1,76 +1,15 @@
 import shutil
 from typing import Generator, TypeVar
-from unittest.mock import patch
 
 import numpy as np
 import pandas as pd
 import pytest
-from fastapi import FastAPI, Request
-from fastapi.testclient import TestClient
-from httpx import Response
 from numpy.typing import NDArray
-from pydantic import BaseModel
-from scouter import (
-    AlertDispatchType,
-    CustomMetricAlertConfig,
-    CustomMetricDriftConfig,
-    Drifter,
-    DriftType,
-    HTTPConfig,
-    KafkaConfig,
-    PsiDriftConfig,
-    SpcDriftProfile,
-)
-from scouter._scouter import Feature, Features, SpcDriftConfig
-from scouter.integrations.fastapi import FastAPIScouterObserver, ScouterRouter
-from scouter.observability.observer import ScouterObserver
+from scouter.alert import AlertDispatchType, CustomMetricAlertConfig
+from scouter.drift import CustomMetricDriftConfig, PsiDriftConfig, SpcDriftConfig
 
 T = TypeVar("T")
 YieldFixture = Generator[T, None, None]
-
-
-def generate_data() -> pd.DataFrame:
-    """Create a fake data frame for testing"""
-    n = 10_00
-
-    X_train = np.random.normal(-4, 2.0, size=(n, 10))
-
-    col_names = []
-    for i in range(0, X_train.shape[1]):
-        col_names.append(f"col_{i}")
-
-    X = pd.DataFrame(X_train, columns=col_names)
-    X["col_11"] = np.random.randint(1, 20, size=(n, 1))
-    X["target"] = np.random.randint(1, 10, size=(n, 1))
-
-    return X
-
-
-class TestResponse(BaseModel):
-    message: str
-
-
-class TestDriftRecord(BaseModel):
-    name: str
-    repository: str
-    version: str
-    feature: str
-    value: float
-
-
-class PredictRequest(BaseModel):
-    feature_0: float
-    feature_1: float
-    feature_2: float
-
-    def to_features(self) -> Features:
-        return Features(
-            features=[
-                Feature.float("feature_0", self.feature_0),
-                Feature.float("feature_1", self.feature_1),
-                Feature.float("feature_2", self.feature_2),
-            ]
-        )
 
 
 def cleanup() -> None:
@@ -148,7 +87,6 @@ def psi_drift_config() -> YieldFixture[PsiDriftConfig]:
 
 @pytest.fixture(scope="function")
 def pandas_dataframe(array: NDArray) -> YieldFixture:
-    import pandas as pd
 
     df = pd.DataFrame(array)
 
@@ -162,7 +100,6 @@ def pandas_dataframe(array: NDArray) -> YieldFixture:
 
 @pytest.fixture(scope="function")
 def pandas_dataframe_multi_type(array: NDArray) -> YieldFixture:
-    import pandas as pd
 
     df = pd.DataFrame(array)
 
@@ -248,7 +185,6 @@ def polars_dataframe_multi_dtype_drift(array: NDArray) -> YieldFixture:
 
 @pytest.fixture(scope="function")
 def pandas_categorical_dataframe() -> YieldFixture:
-    import pandas as pd
 
     df = pd.DataFrame(
         {
@@ -261,139 +197,6 @@ def pandas_categorical_dataframe() -> YieldFixture:
     yield df
 
     cleanup()
-
-
-@pytest.fixture
-def mock_kafka_producer():
-    with patch("confluent_kafka.Producer") as mocked_kafka:
-        mocked_kafka.return_value.produce.return_value = None
-        mocked_kafka.return_value.poll.return_value = 0
-        mocked_kafka.return_value.flush.return_value = 0
-        yield mocked_kafka
-
-
-@pytest.fixture
-def mock_rabbit_connection():
-    class BlockingConnection:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def channel(self):
-            return self
-
-        def exchange_declare(self, *args, **kwargs):
-            pass
-
-        def queue_declare(self, *args, **kwargs):
-            pass
-
-        def queue_bind(self, *args, **kwargs):
-            pass
-
-        def basic_publish(self, *args, **kwargs):
-            pass
-
-        def close(self):
-            pass
-
-    with patch("pika.BlockingConnection") as mocked_connection:
-        mocked_connection.return_value = BlockingConnection()
-        yield mocked_connection
-
-
-@pytest.fixture
-def mock_httpx_producer():
-    with patch("httpx.Client") as mocked_client:
-        mocked_client.return_value.post.return_value = Response(
-            status_code=200,
-            json={"access_token": "test-token"},
-        )
-
-        yield mocked_client
-
-
-@pytest.fixture
-def client(mock_kafka_producer, drift_profile: SpcDriftProfile) -> TestClient:
-    config = KafkaConfig(
-        topic="test-topic",
-        brokers="localhost:9092",
-        raise_on_err=True,
-        config={"bootstrap.servers": "localhost:9092"},
-    )
-
-    app = FastAPI()
-    router = ScouterRouter(drift_profile=drift_profile, config=config)
-
-    # create a test route
-    @router.get("/test", response_model=TestResponse)
-    async def test_route(request: Request) -> TestResponse:
-        request.state.scouter_data = [Feature.string("test", "test")]
-        return TestResponse(message="success")
-
-    app.include_router(router)
-    return TestClient(app)
-
-
-@pytest.fixture
-def drift_profile():
-    data = generate_data()
-
-    # create drift config (usually associated with a model name, repository name, version)
-    config = SpcDriftConfig(repository="scouter", name="model", version="0.1.0")
-
-    # create drifter
-    drifter = Drifter(DriftType.Spc)
-
-    # create drift profile
-    profile = drifter.create_drift_profile(data, config)
-
-    return profile
-
-
-@pytest.fixture
-def client_insert(
-    drift_profile: SpcDriftProfile,
-) -> TestClient:
-    config = HTTPConfig(server_url="http://testserver")
-    app = FastAPI()
-
-    # define scouter router
-    scouter_router = ScouterRouter(drift_profile=drift_profile, config=config)
-    observer = FastAPIScouterObserver(drift_profile, config)
-
-    @scouter_router.post("/predict", response_model=TestResponse)
-    async def predict(request: Request, payload: PredictRequest) -> TestResponse:
-        request.state.scouter_data = payload.to_features()
-
-        return TestResponse(message="success")
-
-    app.include_router(scouter_router)
-    observer.observe(app)
-
-    return TestClient(app)
-
-
-@pytest.fixture
-def kafka_config():
-    return KafkaConfig(
-        topic="test-topic",
-        brokers="localhost:9092",
-        raise_on_err=True,
-    )
-
-
-@pytest.fixture
-def scouter_observer(kafka_config: KafkaConfig):
-    with patch("scouter.Observer") as MockObserver:
-        mock_observer = MockObserver.return_value
-        scouter_observer = ScouterObserver(
-            "repo",
-            "name",
-            "version",
-            kafka_config,
-        )
-        yield scouter_observer, mock_observer
-        scouter_observer.stop()
 
 
 @pytest.fixture(scope="function")

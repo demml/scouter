@@ -1,4 +1,4 @@
-#[cfg(feature = "rabbitmq")]
+#[cfg(all(feature = "rabbitmq", feature = "sql"))]
 pub mod rabbitmq_consumer {
 
     use scouter_settings::RabbitMQSettings;

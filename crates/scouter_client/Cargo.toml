@@ -12,12 +12,19 @@ license = "MIT"
 description = "Client and server contract for scouter"
 
 [dependencies]
+chrono = { workspace = true }
+scouter-contracts = { workspace = true }
 scouter-dispatch = { workspace = true }
-scouter-drift = { workspace = true }
+scouter-drift = { workspace = true, default-features = false }
 scouter-error = { workspace = true }
+scouter-events = { workspace = true, features = ["kafka", "rabbitmq"], default-features = false }
 scouter-observability = { workspace = true }
 scouter-profile = { workspace = true }
 scouter-types = { workspace = true }
+serde = { workspace = true, features = ["derive"] }
+serde_json = { workspace = true }
+serde_qs = { workspace = true }
+tokio = { workspace = true }
 ndarray = { workspace = true }
 pyo3 = { workspace = true }
 numpy = { workspace = true }

@@ -1,38 +1,29 @@
 use scouter_error::DriftError;
 use scouter_types::psi::{FeatureBinProportions, PsiFeatureDriftProfile};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
-use tracing::error;
+use std::collections::{BTreeMap, HashMap};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FeatureBinProportionPairs {
+    pub bins: Vec<String>,
     pub pairs: Vec<(f64, f64)>,
 }
 
 impl FeatureBinProportionPairs {
     pub fn from_observed_bin_proportions(
-        observed_bin_proportions: &FeatureBinProportions,
+        observed_bin_proportions: &BTreeMap<usize, f64>,
         profile: &PsiFeatureDriftProfile,
     ) -> Result<Self, DriftError> {
-        let pairs: Vec<(f64, f64)> = profile
+        let (bins, pairs): (Vec<String>, Vec<(f64, f64)>) = profile
             .bins
             .iter()
             .map(|bin| {
-                let observed_proportion = *observed_bin_proportions
-                    .get(&profile.id, &bin.id)
-                    .ok_or_else(|| {
-                        error!(
-                            "Error: Unable to fetch observed bin proportion for {}/{}",
-                            profile.id, bin.id
-                        );
-                        DriftError::Error("Error processing alerts".to_string())
-                    })
-                    .unwrap();
-                (bin.proportion, observed_proportion)
+                let observed_proportion = *observed_bin_proportions.get(&bin.id).unwrap_or(&0.0); // It's possible that there is no data for a bin, which would mean 0
+                (bin.id.to_string(), (bin.proportion, observed_proportion))
             })
-            .collect();
+            .unzip();
 
-        Ok(Self { pairs })
+        Ok(Self { bins, pairs })
     }
 }
 
@@ -50,7 +41,7 @@ impl FeatureBinMapping {
             .iter()
             .map(|profile| {
                 let proportion_pairs = FeatureBinProportionPairs::from_observed_bin_proportions(
-                    observed_bin_proportions,
+                    observed_bin_proportions.features.get(&profile.id).unwrap(),
                     profile,
                 )
                 .unwrap();

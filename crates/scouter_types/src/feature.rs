@@ -8,7 +8,7 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 
 #[pyclass]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct IntFeature {
     pub name: String,
     pub value: i64,
@@ -28,7 +28,7 @@ impl IntFeature {
 }
 
 #[pyclass]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct FloatFeature {
     pub name: String,
     pub value: f64,
@@ -42,7 +42,7 @@ impl FloatFeature {
 }
 
 #[pyclass]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct StringFeature {
     pub name: String,
     pub value: String,
@@ -56,40 +56,22 @@ impl StringFeature {
 }
 
 impl StringFeature {
-    pub fn to_float(
-        &self,
-        mapped_features: Option<&Vec<String>>,
-        feature_map: &Option<FeatureMap>,
-    ) -> Result<Option<f64>, ScouterError> {
-        if let Some(mapped_features) = mapped_features {
-            if mapped_features.contains(&self.name) {
-                let feature_map = feature_map
-                    .as_ref()
-                    .ok_or(ScouterError::MissingFeatureMapError)?
-                    .features
-                    .get(&self.name)
-                    .ok_or_else(|| {
-                        ScouterError::FeatureError("Failed to get feature".to_string())
-                    })?;
-
-                let transformed_val = feature_map
+    pub fn to_float(&self, feature_map: &FeatureMap) -> Result<f64, ScouterError> {
+        feature_map
+            .features
+            .get(&self.name)
+            .and_then(|feat_map| {
+                feat_map
                     .get(&self.value)
-                    .unwrap_or_else(|| feature_map.get("missing").unwrap());
-
-                return Ok(Some(*transformed_val as f64));
-            } else {
-                return Err(ScouterError::FeatureError(format!(
-                    "Feature {} is not a mapped feature",
-                    self.name
-                )));
-            }
-        }
-        Ok(None)
+                    .or_else(|| feat_map.get("missing"))
+            })
+            .map(|&val| val as f64)
+            .ok_or(ScouterError::MissingValue)
     }
 }
 
 #[pyclass]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Feature {
     Int(IntFeature),
     Float(FloatFeature),
@@ -119,15 +101,11 @@ impl Feature {
 }
 
 impl Feature {
-    pub fn to_float(
-        &self,
-        mapped_features: Option<&Vec<String>>,
-        feature_map: &Option<FeatureMap>,
-    ) -> Result<Option<f64>, ScouterError> {
+    pub fn to_float(&self, feature_map: &FeatureMap) -> Result<f64, ScouterError> {
         match self {
-            Feature::Int(feature) => Ok(Some(feature.to_float())),
-            Feature::Float(feature) => Ok(Some(feature.value)),
-            Feature::String(feature) => feature.to_float(mapped_features, feature_map),
+            Feature::Int(feature) => Ok(feature.to_float()),
+            Feature::Float(feature) => Ok(feature.value),
+            Feature::String(feature) => feature.to_float(feature_map),
         }
     }
 
@@ -151,7 +129,7 @@ impl Display for Feature {
 }
 
 #[pyclass]
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct Features {
     pub features: Vec<Feature>,
 }

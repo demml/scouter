@@ -1,5 +1,5 @@
 use crate::{
-    cron::EveryDay, dispatch::AlertDispatchType, DispatchAlertDescription, ProfileFuncs,
+    dispatch::AlertDispatchType, CommonCrons, DispatchAlertDescription, ProfileFuncs,
     ValidateAlertConfig,
 };
 use core::fmt::Debug;
@@ -143,7 +143,7 @@ impl Default for SpcAlertConfig {
         Self {
             rule: SpcAlertRule::default(),
             dispatch_type: AlertDispatchType::default(),
-            schedule: EveryDay::new().cron,
+            schedule: CommonCrons::EveryDay.cron(),
             features_to_monitor: Vec::new(),
             dispatch_kwargs: HashMap::new(),
         }

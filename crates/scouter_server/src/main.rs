@@ -110,13 +110,16 @@ async fn create_app(config: ScouterServerConfig) -> Result<Router, anyhow::Error
 async fn start_main_server() -> Result<(), anyhow::Error> {
     let config = ScouterServerConfig::default();
     let addr = format!("0.0.0.0:{}", config.server_port.clone());
-    let listener = tokio::net::TcpListener::bind(addr)
+    let listener = tokio::net::TcpListener::bind(addr.clone())
         .await
         .with_context(|| "Failed to bind to port 8000")?;
 
     let router = create_app(config).await?;
 
-    info!("🚀 Scouter Server started successfully");
+    info!(
+        "🚀 Scouter Server started successfully on {:?}",
+        addr.clone().to_string()
+    );
     axum::serve(listener, router)
         .await
         .with_context(|| "Failed to start main server")?;
@@ -132,6 +135,7 @@ async fn main() -> Result<(), anyhow::Error> {
 
 #[cfg(test)]
 mod tests {
+
     use super::*;
     use axum::response::Response;
     use axum::{
@@ -140,8 +144,18 @@ mod tests {
         Router,
     };
     use http_body_util::BodyExt;
-    use scouter_contracts::{DriftRequest, ProfileRequest, ProfileStatusRequest, ServiceInfo};
-    use scouter_sql::sql::schema::SpcFeatureResult;
+    use rand::Rng;
+    use scouter_contracts::{
+        DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
+    };
+    use scouter_drift::psi::PsiMonitor;
+    use scouter_types::custom::{
+        AlertThreshold, BinnedCustomMetrics, CustomDriftProfile, CustomMetric,
+        CustomMetricAlertConfig, CustomMetricDriftConfig,
+    };
+    use scouter_types::psi::BinnedPsiFeatureMetrics;
+    use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
+    use scouter_types::{CustomMetricServerRecord, PsiServerRecord};
     use scouter_types::{
         DriftType, RecordType, ServerRecord, ServerRecords, SpcServerRecord, TimeInterval,
     };
@@ -151,7 +165,7 @@ mod tests {
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
     use scouter_drift::spc::monitor::SpcMonitor;
-    use scouter_types::spc::{SpcAlertConfig, SpcDriftConfig};
+    use scouter_types::spc::{SpcAlertConfig, SpcDriftConfig, SpcDriftFeatures};
     use sqlx::{Pool, Postgres};
     use tower::util::ServiceExt;
 
@@ -195,7 +209,7 @@ mod tests {
             }
 
             if enable_rabbitmq {
-                std::env::set_var("RABBITMQ_ADDRESS", "amqp://guest:guest@127.0.0.1:5672/%2f");
+                std::env::set_var("RABBITMQ_ADDR", "amqp://guest:guest@127.0.0.1:5672/%2f");
             }
 
             let mut config = ScouterServerConfig::default();
@@ -227,7 +241,7 @@ mod tests {
             (array, features)
         }
 
-        pub fn get_drift_records(&self) -> ServerRecords {
+        pub fn get_spc_drift_records(&self) -> ServerRecords {
             let mut records: Vec<ServerRecord> = Vec::new();
             let record_type = RecordType::Spc;
             for _ in 0..10 {
@@ -247,6 +261,51 @@ mod tests {
             }
 
             ServerRecords::new(records, record_type)
+        }
+
+        pub fn get_psi_drift_records(&self) -> ServerRecords {
+            let mut records: Vec<ServerRecord> = Vec::new();
+
+            for feature in 1..3 {
+                for decile in 0..10 {
+                    for _ in 0..100 {
+                        let record = PsiServerRecord {
+                            created_at: chrono::Utc::now().naive_utc(),
+                            name: "test".to_string(),
+                            repository: "test".to_string(),
+                            version: "1.0.0".to_string(),
+                            feature: format!("feature_{}", feature),
+                            bin_id: decile,
+                            bin_count: rand::thread_rng().gen_range(0..10),
+                            record_type: RecordType::Psi,
+                        };
+
+                        records.push(ServerRecord::Psi(record));
+                    }
+                }
+            }
+            ServerRecords::new(records, RecordType::Psi)
+        }
+
+        pub fn get_custom_drift_records(&self) -> ServerRecords {
+            let mut records: Vec<ServerRecord> = Vec::new();
+            for i in 0..2 {
+                for _ in 0..25 {
+                    let record = CustomMetricServerRecord {
+                        created_at: chrono::Utc::now().naive_utc(),
+                        name: "test".to_string(),
+                        repository: "test".to_string(),
+                        version: "1.0.0".to_string(),
+                        metric: format!("metric{}", i),
+                        value: rand::thread_rng().gen_range(0..10) as f64,
+                        record_type: RecordType::Custom,
+                    };
+
+                    records.push(ServerRecord::Custom(record));
+                }
+            }
+
+            ServerRecords::new(records, RecordType::Custom)
         }
     }
 
@@ -338,10 +397,11 @@ mod tests {
         assert_eq!(response.status(), StatusCode::OK);
 
         // get profile
-        let params = ServiceInfo {
+        let params = GetProfileRequest {
             name: profile.config.name.clone(),
             repository: profile.config.repository.clone(),
             version: profile.config.version.clone(),
+            drift_type: DriftType::Spc,
         };
 
         let query_string = serde_qs::to_string(&params).unwrap();
@@ -381,9 +441,9 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_server_records() {
+    async fn test_spc_server_records() {
         let helper = TestHelper::new(false, false).await.unwrap();
-        let records = helper.get_drift_records();
+        let records = helper.get_spc_drift_records();
         let body = serde_json::to_string(&records).unwrap();
 
         let request = Request::builder()
@@ -403,14 +463,15 @@ mod tests {
             name: "test".to_string(),
             repository: "test".to_string(),
             version: "test".to_string(),
-            time_window: TimeInterval::FiveMinutes,
+            time_interval: TimeInterval::FiveMinutes,
             max_data_points: 100,
+            drift_type: DriftType::Spc,
         };
 
         let query_string = serde_qs::to_string(&params).unwrap();
 
         let request = Request::builder()
-            .uri(format!("/scouter/drift?{}", query_string))
+            .uri(format!("/scouter/drift/spc?{}", query_string))
             .method("GET")
             .body(Body::empty())
             .unwrap();
@@ -422,8 +483,191 @@ mod tests {
 
         let body = response.into_body().collect().await.unwrap().to_bytes();
 
-        let results: Vec<SpcFeatureResult> = serde_json::from_slice(&body).unwrap();
+        let results: SpcDriftFeatures = serde_json::from_slice(&body).unwrap();
 
-        assert_eq!(results.len(), 10);
+        assert_eq!(results.features.len(), 10);
+    }
+
+    #[tokio::test]
+    async fn test_psi_server_records() {
+        let helper = TestHelper::new(false, false).await.unwrap();
+
+        let (array, features) = helper.get_data();
+        let alert_config = PsiAlertConfig::new(
+            None,
+            None,
+            Some(vec![
+                "feature_1".to_string(),
+                "feature_2".to_string(),
+                "feature_3".to_string(),
+            ]),
+            None,
+            None,
+        );
+        let config = PsiDriftConfig::new(
+            Some("test".to_string()),
+            Some("test".to_string()),
+            Some("1.0.0".to_string()),
+            None,
+            None,
+            Some(alert_config),
+            None,
+        );
+
+        let monitor = PsiMonitor::new();
+
+        let profile = monitor
+            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
+            .unwrap();
+
+        let request = ProfileRequest {
+            profile: profile.model_dump_json(),
+            drift_type: DriftType::Psi,
+        };
+
+        let body = serde_json::to_string(&request).unwrap();
+
+        let request = Request::builder()
+            .uri("/scouter/profile")
+            .method("POST")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body))
+            .unwrap();
+
+        let response = helper.send_oneshot(request).await;
+
+        //assert response
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let records = helper.get_psi_drift_records();
+        let body = serde_json::to_string(&records).unwrap();
+
+        let request = Request::builder()
+            .uri("/scouter/drift")
+            .method("POST")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body))
+            .unwrap();
+
+        let response = helper.send_oneshot(request).await;
+
+        //assert response
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // get drift records
+        let params = DriftRequest {
+            name: "test".to_string(),
+            repository: "test".to_string(),
+            version: "1.0.0".to_string(),
+            time_interval: TimeInterval::FiveMinutes,
+            max_data_points: 100,
+            drift_type: DriftType::Psi,
+        };
+
+        let query_string = serde_qs::to_string(&params).unwrap();
+
+        let request = Request::builder()
+            .uri(format!("/scouter/drift/psi?{}", query_string))
+            .method("GET")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = helper.send_oneshot(request).await;
+
+        //assert response
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // collect body into serde Value
+
+        let val = response.into_body().collect().await.unwrap().to_bytes();
+
+        let results: BinnedPsiFeatureMetrics = serde_json::from_slice(&val).unwrap();
+
+        assert!(!results.features.is_empty());
+    }
+
+    #[tokio::test]
+    async fn test_custom_server_records() {
+        let helper = TestHelper::new(false, false).await.unwrap();
+
+        let alert_config = CustomMetricAlertConfig::new(None, None, None);
+        let config = CustomMetricDriftConfig::new(
+            Some("test".to_string()),
+            Some("test".to_string()),
+            Some("1.0.0".to_string()),
+            Some(alert_config),
+            None,
+        )
+        .unwrap();
+
+        let alert_threshold = AlertThreshold::Above;
+        let metric1 =
+            CustomMetric::new("metric1".to_string(), 1.0, alert_threshold.clone(), None).unwrap();
+        let metric2 = CustomMetric::new("metric2".to_string(), 1.0, alert_threshold, None).unwrap();
+        let profile = CustomDriftProfile::new(config, vec![metric1, metric2], None).unwrap();
+
+        let request = ProfileRequest {
+            profile: profile.model_dump_json(),
+            drift_type: DriftType::Custom,
+        };
+
+        let body = serde_json::to_string(&request).unwrap();
+        let request = Request::builder()
+            .uri("/scouter/profile")
+            .method("POST")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body))
+            .unwrap();
+
+        let response = helper.send_oneshot(request).await;
+
+        //assert response
+        assert_eq!(response.status(), StatusCode::OK);
+
+        let records = helper.get_custom_drift_records();
+        let body = serde_json::to_string(&records).unwrap();
+
+        let request = Request::builder()
+            .uri("/scouter/drift")
+            .method("POST")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body))
+            .unwrap();
+
+        let response = helper.send_oneshot(request).await;
+
+        //assert response
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // get drift records
+        let params = DriftRequest {
+            name: "test".to_string(),
+            repository: "test".to_string(),
+            version: "1.0.0".to_string(),
+            time_interval: TimeInterval::FiveMinutes,
+            max_data_points: 100,
+            drift_type: DriftType::Custom,
+        };
+
+        let query_string = serde_qs::to_string(&params).unwrap();
+
+        let request = Request::builder()
+            .uri(format!("/scouter/drift/custom?{}", query_string))
+            .method("GET")
+            .body(Body::empty())
+            .unwrap();
+
+        let response = helper.send_oneshot(request).await;
+
+        //assert response
+        assert_eq!(response.status(), StatusCode::OK);
+
+        // collect body into serde Value
+
+        let val = response.into_body().collect().await.unwrap().to_bytes();
+
+        let results: BinnedCustomMetrics = serde_json::from_slice(&val).unwrap();
+
+        assert!(!results.metrics.is_empty());
     }
 }

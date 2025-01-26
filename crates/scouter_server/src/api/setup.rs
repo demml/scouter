@@ -1,29 +1,21 @@
-use std::io;
+use std::str::FromStr;
 
-use tracing_subscriber;
-use tracing_subscriber::fmt::time::UtcTime;
-
-const DEFAULT_TIME_PATTERN: &str =
-    "[year]-[month]-[day]T[hour repr:24]:[minute]:[second]::[subsecond digits:4]";
-
-// TODO: add ability to configure log level
+use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
+use tracing::info;
 
 /// Setup logging for the application
 ///
 /// This function initializes the logging system for the application
 pub async fn setup_logging() -> Result<(), anyhow::Error> {
-    let time_format = time::format_description::parse(DEFAULT_TIME_PATTERN).unwrap();
+    let log_level = LogLevel::from_str(
+        std::env::var("LOG_LEVEL")
+            .unwrap_or_else(|_| "info".to_string())
+            .as_str(),
+    )?;
+    let config = LoggingConfig::new(Some(true), Some(log_level), None, Some(true));
+    RustyLogger::setup_logging(Some(config))?;
 
-    tracing_subscriber::fmt()
-        .json()
-        .with_ansi(true)
-        .with_target(false)
-        .flatten_event(true)
-        .with_thread_ids(true)
-        .with_timer(UtcTime::new(time_format))
-        .with_writer(io::stdout)
-        .try_init()
-        .map_err(|e| anyhow::anyhow!("Failed to setup logging: {:?}", e))?;
+    info!("Logging setup successfully");
 
     Ok(())
 }

@@ -2,8 +2,8 @@ import pandas as pd
 import polars as pl
 import pytest
 from numpy.typing import NDArray
-from scouter import Drifter
-from scouter._scouter import SpcDriftConfig, SpcDriftProfile
+from scouter.drift import Drifter, SpcDriftConfig, SpcDriftProfile
+from scouter.types import ScouterError
 
 
 def test_monitor_f64(array: NDArray, drift_config: SpcDriftConfig):
@@ -42,6 +42,8 @@ def test_monitor_polars(array: NDArray, drift_config: SpcDriftConfig):
 
 def test_monitor_pandas(array: NDArray, drift_config: SpcDriftConfig):
     df = pd.DataFrame(array)
+    # convert column names to string
+    df.columns = [str(col) for col in df.columns]  # type: ignore
     scouter = Drifter()
     profile: SpcDriftProfile = scouter.create_drift_profile(df, drift_config)
 
@@ -54,7 +56,7 @@ def test_monitor_pandas(array: NDArray, drift_config: SpcDriftConfig):
 def test_fail(array: NDArray, drift_config: SpcDriftConfig):
     scouter = Drifter()
 
-    with pytest.raises(ValueError):
+    with pytest.raises(ScouterError):
         scouter.create_drift_profile(array.astype("str"), config=drift_config)
 
 

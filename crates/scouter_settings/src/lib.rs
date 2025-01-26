@@ -117,7 +117,7 @@ impl Default for RabbitMQSettings {
             .map_err(|e| ConfigError::Error(format!("{:?}", e)))
             .unwrap();
 
-        let address = std::env::var("RABBITMQ_ADDRESS")
+        let address = std::env::var("RABBITMQ_ADDR")
             .unwrap_or_else(|_| "amqp://guest:guest@127.0.0.1:5672/%2f".to_string());
 
         let queue =

@@ -103,7 +103,7 @@ pub struct PsiServerRecord {
     pub feature: String,
 
     #[pyo3(get)]
-    pub bin_id: String,
+    pub bin_id: usize,
 
     #[pyo3(get)]
     pub bin_count: usize,
@@ -120,7 +120,7 @@ impl PsiServerRecord {
         name: String,
         version: String,
         feature: String,
-        bin_id: String,
+        bin_id: usize,
         bin_count: usize,
     ) -> Self {
         Self {
@@ -143,17 +143,6 @@ impl PsiServerRecord {
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__json__(self)
-    }
-
-    pub fn to_dict(&self) -> HashMap<String, String> {
-        let mut record = HashMap::new();
-        record.insert("created_at".to_string(), self.created_at.to_string());
-        record.insert("name".to_string(), self.name.clone());
-        record.insert("repository".to_string(), self.repository.clone());
-        record.insert("version".to_string(), self.version.clone());
-        record.insert("feature".to_string(), self.feature.clone());
-        record.insert("bind_id".to_string(), self.bin_id.clone());
-        record
     }
 }
 
@@ -316,25 +305,25 @@ pub enum ServerRecord {
 #[pymethods]
 impl ServerRecord {
     #[new]
-    pub fn new(record: &Bound<'_, PyAny>) -> Self {
+    pub fn new(record: &Bound<'_, PyAny>) -> PyResult<Self> {
         let record_type: RecordType = record.getattr("record_type").unwrap().extract().unwrap();
 
         match record_type {
             RecordType::Spc => {
                 let record: SpcServerRecord = record.extract().unwrap();
-                ServerRecord::Spc(record)
+                Ok(ServerRecord::Spc(record))
             }
             RecordType::Psi => {
                 let record: PsiServerRecord = record.extract().unwrap();
-                ServerRecord::Psi(record)
+                Ok(ServerRecord::Psi(record))
             }
             RecordType::Custom => {
                 let record: CustomMetricServerRecord = record.extract().unwrap();
-                ServerRecord::Custom(record)
+                Ok(ServerRecord::Custom(record))
             }
             RecordType::Observability => {
                 let record: ObservabilityMetrics = record.extract().unwrap();
-                ServerRecord::Observability(record)
+                Ok(ServerRecord::Observability(record))
             }
         }
     }
@@ -439,13 +428,7 @@ impl ToDriftRecords for ServerRecords {
                 }
                 Ok(records)
             }
-            RecordType::Observability => Err(ScouterError::InvalidDriftTypeError(
-                "Unexpected record type".to_string(),
-            )),
-            RecordType::Psi => Err(ScouterError::InvalidDriftTypeError(
-                "Unexpected record type".to_string(),
-            )),
-            RecordType::Custom => Err(ScouterError::InvalidDriftTypeError(
+            _ => Err(ScouterError::InvalidDriftTypeError(
                 "Unexpected record type".to_string(),
             )),
         }
@@ -453,9 +436,6 @@ impl ToDriftRecords for ServerRecords {
 
     fn to_observability_drift_records(&self) -> Result<Vec<ObservabilityMetrics>, ScouterError> {
         match self.record_type {
-            RecordType::Spc => Err(ScouterError::InvalidDriftTypeError(
-                "Unexpected record type".to_string(),
-            )),
             RecordType::Observability => {
                 let mut records = Vec::new();
                 for record in self.records.iter() {
@@ -470,10 +450,7 @@ impl ToDriftRecords for ServerRecords {
                 }
                 Ok(records)
             }
-            RecordType::Psi => Err(ScouterError::InvalidDriftTypeError(
-                "Unexpected record type".to_string(),
-            )),
-            RecordType::Custom => Err(ScouterError::InvalidDriftTypeError(
+            _ => Err(ScouterError::InvalidDriftTypeError(
                 "Unexpected record type".to_string(),
             )),
         }
@@ -495,13 +472,7 @@ impl ToDriftRecords for ServerRecords {
                 }
                 Ok(records)
             }
-            RecordType::Observability => Err(ScouterError::InvalidDriftTypeError(
-                "Unexpected record type".to_string(),
-            )),
-            RecordType::Spc => Err(ScouterError::InvalidDriftTypeError(
-                "Unexpected record type".to_string(),
-            )),
-            RecordType::Custom => Err(ScouterError::InvalidDriftTypeError(
+            _ => Err(ScouterError::InvalidDriftTypeError(
                 "Unexpected record type".to_string(),
             )),
         }
@@ -525,13 +496,7 @@ impl ToDriftRecords for ServerRecords {
                 }
                 Ok(records)
             }
-            RecordType::Observability => Err(ScouterError::InvalidDriftTypeError(
-                "Unexpected record type".to_string(),
-            )),
-            RecordType::Spc => Err(ScouterError::InvalidDriftTypeError(
-                "Unexpected record type".to_string(),
-            )),
-            RecordType::Psi => Err(ScouterError::InvalidDriftTypeError(
+            _ => Err(ScouterError::InvalidDriftTypeError(
                 "Unexpected record type".to_string(),
             )),
         }

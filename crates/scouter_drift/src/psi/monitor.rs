@@ -6,7 +6,7 @@ use num_traits::{Float, FromPrimitive};
 use rayon::prelude::*;
 use scouter_error::MonitorError;
 use scouter_types::psi::{
-    Bin, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
+    Bin, BinType, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
 };
 use std::collections::HashMap;
 
@@ -101,14 +101,14 @@ impl PsiMonitor {
     {
         categorical_feature_map
             .into_par_iter()
-            .map(|(key, numeric_key)| {
+            .map(|(_, numeric_key)| {
                 let count = column_vector
                     .iter()
                     .filter(|&&value| value.into() == *numeric_key as f64)
                     .count();
 
                 Bin {
-                    id: key.to_string(),
+                    id: *numeric_key,
                     lower_limit: None,
                     upper_limit: None,
                     proportion: (count as f64) / (column_vector.len() as f64),
@@ -129,13 +129,13 @@ impl PsiMonitor {
 
         Ok(vec![
             Bin {
-                id: 0.to_string(),
+                id: 0,
                 lower_limit: None,
                 upper_limit: None,
                 proportion: 1.0 - column_vector_mean,
             },
             Bin {
-                id: 1.to_string(),
+                id: 1,
                 lower_limit: None,
                 upper_limit: None,
                 proportion: column_vector_mean,
@@ -170,7 +170,7 @@ impl PsiMonitor {
                 };
                 let bin_count = self.compute_bin_count(column_vector, &lower.into(), &upper.into());
                 Bin {
-                    id: format!("decile_{}", decile + 1),
+                    id: decile + 1,
                     lower_limit: Some(lower.into()),
                     upper_limit: Some(upper.into()),
                     proportion: (bin_count as f64) / (column_vector.len() as f64),
@@ -185,19 +185,22 @@ impl PsiMonitor {
         feature_name: &String,
         column_vector: &ArrayView<F, Ix1>,
         drift_config: &PsiDriftConfig,
-    ) -> Result<Vec<Bin>, MonitorError>
+    ) -> Result<(Vec<Bin>, BinType), MonitorError>
     where
         F: Float + FromPrimitive + Default + Sync,
         F: Into<f64>,
     {
         if let Some(categorical_feature_map) = drift_config.feature_map.features.get(feature_name) {
-            return Ok(self.create_categorical_bins(column_vector, categorical_feature_map));
+            return Ok((
+                self.create_categorical_bins(column_vector, categorical_feature_map),
+                BinType::Category,
+            ));
         }
 
         if self.data_are_binary(column_vector) {
-            self.create_binary_bins(column_vector)
+            Ok((self.create_binary_bins(column_vector)?, BinType::Binary))
         } else {
-            self.create_numeric_bins(column_vector)
+            Ok((self.create_numeric_bins(column_vector)?, BinType::Numeric))
         }
     }
 
@@ -211,7 +214,7 @@ impl PsiMonitor {
         F: Float + Sync + FromPrimitive + Default,
         F: Into<f64>,
     {
-        let bins = self
+        let (bins, bin_type) = self
             .create_bins(&feature_name, column_vector, drift_config)
             .map_err(|err| MonitorError::CreateError(format!("Failed to create bins: {}", err)))?;
 
@@ -219,6 +222,7 @@ impl PsiMonitor {
             id: feature_name,
             bins,
             timestamp: chrono::Utc::now().naive_utc(),
+            bin_type,
         })
     }
 
@@ -279,11 +283,10 @@ impl PsiMonitor {
         F: Float + FromPrimitive,
         F: Into<f64>,
     {
-        if let Some(category_map) = categorical_feature_map {
-            let cat_int = category_map.get(&bin.id).unwrap();
+        if categorical_feature_map.is_some() {
             let bin_count = column_vector
                 .iter()
-                .filter(|&&value| value.into() == *cat_int as f64)
+                .filter(|&&value| value.into() == bin.id as f64)
                 .count();
             return Ok((
                 bin.proportion,
@@ -293,7 +296,7 @@ impl PsiMonitor {
 
         if self.data_are_binary(column_vector) {
             let column_vector_mean = self.compute_1d_array_mean(column_vector)?;
-            if bin.id == 1.to_string() {
+            if bin.id == 1 {
                 return Ok((bin.proportion, 1.0 - column_vector_mean));
             }
             return Ok((bin.proportion, column_vector_mean));
@@ -310,7 +313,7 @@ impl PsiMonitor {
         ))
     }
 
-    pub fn compute_psi(&self, proportion_pairs: &[(f64, f64)]) -> f64 {
+    pub fn compute_psi(proportion_pairs: &[(f64, f64)]) -> f64 {
         let epsilon = 1e-10;
         proportion_pairs
             .iter()
@@ -338,7 +341,7 @@ impl PsiMonitor {
             .map(|bin| self.compute_psi_proportion_pairs(column_vector, bin, category_map))
             .collect::<Result<Vec<(f64, f64)>, MonitorError>>()?;
 
-        Ok(self.compute_psi(&feature_proportions))
+        Ok(PsiMonitor::compute_psi(&feature_proportions))
     }
 
     fn check_features<F>(
@@ -464,10 +467,9 @@ mod tests {
 
     #[test]
     fn test_compute_psi_basic() {
-        let psi_monitor = PsiMonitor::default();
         let proportions = vec![(0.3, 0.2), (0.4, 0.4), (0.3, 0.4)];
 
-        let result = psi_monitor.compute_psi(&proportions);
+        let result = PsiMonitor::compute_psi(&proportions);
 
         // Manually compute expected PSI for this case
         let expected_psi = (0.3 - 0.2) * (0.3 / 0.2).ln()
@@ -501,7 +503,7 @@ mod tests {
         let binary_vector = Array::from_vec(vec![0.0, 1.0, 0.0, 1.0, 0.0, 1.0]);
 
         let binary_zero_bin = Bin {
-            id: 0.to_string(),
+            id: 0,
             lower_limit: None,
             upper_limit: None,
             proportion: 0.4,
@@ -528,7 +530,7 @@ mod tests {
         ]);
 
         let bin = Bin {
-            id: 1.to_string(),
+            id: 1,
             lower_limit: Some(0.0),
             upper_limit: Some(11.0),
             proportion: 0.4,

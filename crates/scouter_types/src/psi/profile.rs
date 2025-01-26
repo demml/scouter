@@ -10,12 +10,20 @@ use pyo3::types::PyDict;
 use scouter_error::ScouterError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use tracing::debug;
 
+#[pyclass(eq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub enum BinType {
+    Binary,
+    Numeric,
+    Category,
+}
+
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct PsiDriftConfig {
     #[pyo3(get, set)]
     pub repository: String,
@@ -154,10 +162,10 @@ impl DispatchDriftConfig for PsiDriftConfig {
 }
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Bin {
     #[pyo3(get)]
-    pub id: String,
+    pub id: usize,
 
     #[pyo3(get)]
     pub lower_limit: Option<f64>,
@@ -170,7 +178,7 @@ pub struct Bin {
 }
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct PsiFeatureDriftProfile {
     #[pyo3(get)]
     pub id: String,
@@ -180,10 +188,13 @@ pub struct PsiFeatureDriftProfile {
 
     #[pyo3(get)]
     pub timestamp: chrono::NaiveDateTime,
+
+    #[pyo3(get)]
+    pub bin_type: BinType,
 }
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct PsiDriftProfile {
     #[pyo3(get, set)]
     pub features: HashMap<String, PsiFeatureDriftProfile>,
@@ -349,26 +360,38 @@ impl ProfileBaseArgs for PsiDriftProfile {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FeatureBinProportion {
     pub feature: String,
-    pub bin_id: String,
-    pub proportion: f64,
+    pub bins: BTreeMap<usize, f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FeatureBinProportions {
-    pub features: HashMap<String, HashMap<String, f64>>,
+    pub features: BTreeMap<String, BTreeMap<usize, f64>>,
+}
+
+impl FromIterator<FeatureBinProportion> for FeatureBinProportions {
+    fn from_iter<T: IntoIterator<Item = FeatureBinProportion>>(iter: T) -> Self {
+        let mut feature_map: BTreeMap<String, BTreeMap<usize, f64>> = BTreeMap::new();
+        for feature in iter {
+            feature_map.insert(feature.feature, feature.bins);
+        }
+        FeatureBinProportions {
+            features: feature_map,
+        }
+    }
 }
 
 impl FeatureBinProportions {
-    pub fn from_bins(bins: Vec<FeatureBinProportion>) -> Self {
-        let mut features: HashMap<String, HashMap<String, f64>> = HashMap::new();
-        for bin in bins {
-            let feature = features.entry(bin.feature).or_default();
-            feature.insert(bin.bin_id, bin.proportion);
+    pub fn from_features(features: Vec<FeatureBinProportion>) -> Self {
+        let mut feature_map: BTreeMap<String, BTreeMap<usize, f64>> = BTreeMap::new();
+        for feature in features {
+            feature_map.insert(feature.feature, feature.bins);
         }
-        FeatureBinProportions { features }
+        FeatureBinProportions {
+            features: feature_map,
+        }
     }
 
-    pub fn get(&self, feature: &str, bin: &str) -> Option<&f64> {
+    pub fn get(&self, feature: &str, bin: &usize) -> Option<&f64> {
         self.features.get(feature).and_then(|f| f.get(bin))
     }
 

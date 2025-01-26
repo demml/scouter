@@ -97,7 +97,9 @@ pub mod custom_drifter {
             match alert_condition {
                 AlertThreshold::Below => below_threshold(alert_boundary),
                 AlertThreshold::Above => above_threshold(alert_boundary),
-                AlertThreshold::Outside => true, // Handled by early equality check
+                AlertThreshold::Outside => {
+                    below_threshold(alert_boundary) || above_threshold(alert_boundary)
+                } // Handled by early equality check
             }
         }
 

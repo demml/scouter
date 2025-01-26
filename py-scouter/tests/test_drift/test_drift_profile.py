@@ -1,12 +1,11 @@
+import numpy as np
 import pytest
-from numpy.typing import NDArray
-from scouter import Drifter
-from scouter._scouter import SpcDriftProfile
+from scouter.drift import Drifter, SpcDriftProfile
 
 
-def test_drift_profile_methods(array: NDArray):
+def test_drift_profile_methods(array: np.ndarray):
     drifter = Drifter()
-    profile: SpcDriftProfile = drifter.create_drift_profile(array)
+    profile = drifter.create_drift_profile(array)
 
     profile_dict = profile.model_dump()
 

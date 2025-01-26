@@ -13,7 +13,7 @@ description = "Rust Scouter server logic"
 
 [dependencies]
 scouter-error = { workspace = true }
-scouter-events = { workspace = true}
+scouter-events = { workspace = true, features = ["kafka", "rabbitmq", "sql"], default-features = false }
 scouter-types = { workspace = true }
 scouter-contracts = { workspace = true }
 scouter-dispatch = { workspace = true }
@@ -23,9 +23,11 @@ scouter-sql = { workspace = true }
 
 anyhow = {workspace = true}
 axum = {workspace = true}
+chrono = { workspace = true }
 futures = { workspace = true }
 metrics = { workspace = true }
 metrics-exporter-prometheus = { workspace = true }
+rusty-logging= { workspace = true }
 scouter-settings = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
@@ -38,11 +40,11 @@ tracing-subscriber = { workspace = true}
 
 [dev-dependencies]
 approx = "0.*"
-chrono = { workspace = true }
 http-body-util = "0.*"
 ndarray = { workspace = true }
 ndarray-rand = "0.*"
 mockito = "1.*"
+rand = { workspace = true }
 serde_json = { workspace = true }
 serde_qs = { workspace = true }
 tower = { version = "0.*", features = ["util"] }

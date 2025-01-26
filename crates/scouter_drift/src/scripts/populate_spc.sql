@@ -64,7 +64,9 @@ VALUES
           "features_to_monitor": ["col_1", "col_3"],
           "dispatch_kwargs": {}
         },
-        "feature_map": null,
+        "feature_map": {
+          "features": {}
+        },
         "targets": [],
         "drift_type": "Spc"
       },
@@ -73,8 +75,8 @@ VALUES
     'SPC',
     true,
     '0 0 0 * * *',
-    timezone('utc', now() - interval '1 days'),
-    timezone('utc', now() - interval '2 days')
+    timezone('utc', now() - interval '2 days'),
+    timezone('utc', now() - interval '3 days')
   ),
     (
       timezone('utc', now()),
@@ -134,7 +136,9 @@ VALUES
             "features_to_monitor": [],
             "dispatch_kwargs": {}
         },
-        "feature_map": null,
+        "feature_map": {
+          "features": {}
+        },
         "targets": [],
         "drift_type": "SPC"
       },
@@ -143,8 +147,8 @@ VALUES
       'SPC',
       false,
       '0 0 0 * * *',
-       timezone('utc', now() - interval '1 days'),
-      timezone('utc', now() - interval '2 days')
+       timezone('utc', now() - interval '2 days'),
+      timezone('utc', now() - interval '3 days')
     ),
     (
     timezone('utc', now()),
@@ -209,7 +213,9 @@ VALUES
           "features_to_monitor": ["col_1", "col_3"],
           "dispatch_kwargs": {}
         },
-        "feature_map": null,
+        "feature_map": {
+          "features": {}
+        },
         "targets": [],
         "drift_type": "Spc"
       },
@@ -218,8 +224,8 @@ VALUES
     'SPC',
     true,
     '0 0 0 * * *',
-    timezone('utc', now() - interval '1 days'),
-    timezone('utc', now() - interval '2 days')
+    timezone('utc', now() - interval '2 days'),
+    timezone('utc', now() - interval '3 days')
   );
    
 INSERT INTO drift (created_at, name, repository, feature, value, version)

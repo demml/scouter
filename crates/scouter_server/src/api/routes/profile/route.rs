@@ -1,4 +1,4 @@
-use scouter_contracts::{ProfileRequest, ProfileStatusRequest, ServiceInfo};
+use scouter_contracts::{GetProfileRequest, ProfileRequest, ProfileStatusRequest};
 
 use scouter_types::DriftProfile;
 
@@ -118,7 +118,7 @@ pub async fn update_drift_profile(
 /// * `Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)>` - Result of the request
 pub async fn get_profile(
     State(data): State<Arc<AppState>>,
-    params: Query<ServiceInfo>,
+    params: Query<GetProfileRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     let profile = &data.db.get_drift_profile(&params).await;
 

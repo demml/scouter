@@ -1,5 +1,5 @@
 use crate::{
-    cron::EveryDay, dispatch::AlertDispatchType, DispatchAlertDescription, ProfileFuncs,
+    dispatch::AlertDispatchType, CommonCrons, DispatchAlertDescription, ProfileFuncs,
     ValidateAlertConfig,
 };
 use core::fmt::Debug;
@@ -58,6 +58,11 @@ impl CustomMetric {
     pub fn alert_threshold_value(&self) -> Option<f64> {
         self.alert_condition.alert_threshold_value
     }
+
+    #[getter]
+    pub fn class_id(&self) -> String {
+        self.name.clone()
+    }
 }
 
 #[pyclass(eq)]
@@ -96,7 +101,7 @@ impl AlertThreshold {
 }
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CustomMetricAlertCondition {
     #[pyo3(get, set)]
     pub alert_threshold: AlertThreshold,
@@ -127,7 +132,7 @@ impl CustomMetricAlertCondition {
 }
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CustomMetricAlertConfig {
     pub dispatch_type: AlertDispatchType,
 
@@ -189,7 +194,7 @@ impl Default for CustomMetricAlertConfig {
     fn default() -> CustomMetricAlertConfig {
         Self {
             dispatch_type: AlertDispatchType::default(),
-            schedule: EveryDay::new().cron,
+            schedule: CommonCrons::EveryDay.cron(),
             dispatch_kwargs: HashMap::new(),
             alert_conditions: None,
         }
