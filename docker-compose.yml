@@ -102,7 +102,7 @@ services:
       context: .
       dockerfile: ./docker/dev/scouter-server/Dockerfile
     environment:
-      DATABASE_URI: postgresql://postgres:postgres@postgres-kafka:5432/postgres
+      DATABASE_URI: postgresql://postgres:postgres@postgres:5432/postgres
       KAFKA_BROKER: kafka:29092
     ports:
       - "8000:8000"
@@ -127,7 +127,7 @@ services:
       context: ./docker/dev/scouter-server
       dockerfile: Dockerfile
     environment:
-      DATABASE_URI: postgresql://postgres:postgres@postgres-rabbitmq:5432/postgres
+      DATABASE_URI: postgresql://postgres:postgres@postgres:5432/postgres
 
   server-backends:
     depends_on:
