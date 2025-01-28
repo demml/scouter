@@ -1,4 +1,8 @@
 -- Migrations
+CREATE SCHEMA if not exists scouter;
+
+SET search_path TO scouter;
+
 CREATE EXTENSION if not exists pg_partman;
 CREATE EXTENSION if not exists pg_cron;
 
@@ -16,7 +20,7 @@ PARTITION BY RANGE (created_at);
 CREATE INDEX ON drift (name, repository, version, created_at);
 
 SELECT create_parent(
-    'public.drift', 
+    'scouter.drift',
     'created_at',
     '1 day'
 );

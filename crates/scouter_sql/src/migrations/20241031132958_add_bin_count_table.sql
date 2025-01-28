@@ -13,7 +13,7 @@ PARTITION BY RANGE (created_at);
 CREATE INDEX ON observed_bin_count (name, repository, version, created_at, feature);
 
 SELECT create_parent(
-               'public.observed_bin_count',
+               'scouter.observed_bin_count',
                'created_at',
                '1 day'
 );
