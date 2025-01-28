@@ -1,6 +1,8 @@
 use scouter_types::{
     psi::BinType, Features, PsiServerRecord, RecordType, ServerRecord, ServerRecords,
 };
+use serde::de;
+use tracing::{debug, span, Level, error};
 
 use crate::psi::monitor::PsiMonitor;
 use core::result::Result::Ok;
@@ -17,11 +19,38 @@ pub struct PsiFeatureQueue {
 }
 
 impl PsiFeatureQueue {
-    fn find_numeric_bin_given_scaler(value: f64, bins: &[Bin]) -> &usize {
-        bins.iter()
-            .find(|bin| value > bin.lower_limit.unwrap() && value <= bin.upper_limit.unwrap())
-            .map(|bin| &bin.id)
-            .expect("-inf and +inf occupy the first and last threshold so a bin should always be returned.")
+    fn find_numeric_bin_given_scaler(
+        value: f64,
+        bins: &[Bin],
+    ) -> Result<&usize, FeatureQueueError> {
+        let span = span!(Level::INFO, "Find numeric bin").entered();
+        let _ = span.enter();
+
+        debug!("Finding bin for value: {}", value);
+        for bin in bins.iter() {
+            match (bin.lower_limit, bin.upper_limit) {
+                // First bin (-inf to upper)
+                (None, Some(upper)) => {
+                    if value <= upper {
+                        return Ok(&bin.id);
+                    }
+                }
+                // Last bin (lower to +inf)
+                (Some(lower), None) => {
+                    if value > lower {
+                        return Ok(&bin.id);
+                    }
+                }
+                // Middle bins
+                (Some(lower), Some(upper)) => {
+                    if value > lower && value <= upper {
+                        return Ok(&bin.id);
+                    }
+                }
+                (None, None) => return Err(FeatureQueueError::GetBinError),
+            }
+        }
+        Err(FeatureQueueError::GetBinError)
     }
 
     fn process_numeric_queue(
@@ -29,10 +58,17 @@ impl PsiFeatureQueue {
         value: f64,
         bins: &[Bin],
     ) -> Result<(), FeatureQueueError> {
-        let bin_id = Self::find_numeric_bin_given_scaler(value, bins);
+        let span = span!(Level::INFO, "Process numeric queue").entered();
+        let _ = span.enter();
+
+    
+        let bin_id = Self::find_numeric_bin_given_scaler(value, bins)?;
         let count = queue
             .get_mut(bin_id)
-            .ok_or(FeatureQueueError::GetBinError)?;
+            .ok_or(FeatureQueueError::GetBinError).map_err(|e| {
+                error!("Error processing numeric queue: {:?}", e);
+                e
+            })?;
         *count += 1;
 
         Ok(())
@@ -43,19 +79,30 @@ impl PsiFeatureQueue {
         queue: &mut HashMap<usize, usize>,
         value: f64,
     ) -> Result<(), FeatureQueueError> {
+        let span = span!(Level::INFO, "Process binary queue").entered();
+        let _ = span.enter();
+
+       
         if value == 0.0 {
             let bin_id = 0;
             let count = queue
                 .get_mut(&bin_id)
-                .ok_or(FeatureQueueError::GetBinError)?;
+                .ok_or(FeatureQueueError::GetBinError).map_err(|e| {
+                    error!("Error processing binary queue: {:?}", e);
+                    e
+                })?;
             *count += 1;
         } else if value == 1.0 {
             let bin_id = 1;
             let count = queue
                 .get_mut(&bin_id)
-                .ok_or(FeatureQueueError::GetBinError)?;
+                .ok_or(FeatureQueueError::GetBinError).map_err(|e| {
+                    error!("Error processing binary queue: {:?}", e);
+                    e
+                })?;
             *count += 1;
         } else {
+            error!("Failed to convert binary value");
             return Err(FeatureQueueError::InvalidValueError(
                 feature.to_string(),
                 "failed to convert binary value".to_string(),
@@ -68,7 +115,12 @@ impl PsiFeatureQueue {
         queue: &mut HashMap<usize, usize>,
         value: &usize,
     ) -> Result<(), FeatureQueueError> {
-        let count = queue.get_mut(value).ok_or(FeatureQueueError::GetBinError)?;
+        let span = span!(Level::INFO, "Process categorical queue").entered();
+        let _ = span.enter();
+        let count = queue.get_mut(value).ok_or(FeatureQueueError::GetBinError).map_err(|e| {
+            error!("Error processing categorical queue: {:?}", e);
+            e
+        })?;
         *count += 1;
         Ok(())
     }
@@ -78,6 +130,9 @@ impl PsiFeatureQueue {
 impl PsiFeatureQueue {
     #[new]
     pub fn new(drift_profile: PsiDriftProfile) -> Self {
+        let span = span!(Level::INFO, "Initialize PsiFeatureQueue").entered();
+        let _ = span.enter();
+
         let queue: HashMap<String, HashMap<usize, usize>> = drift_profile
             .features
             .iter()
@@ -99,7 +154,12 @@ impl PsiFeatureQueue {
     }
 
     pub fn insert(&mut self, features: Features) -> Result<(), FeatureQueueError> {
+        let span = span!(Level::INFO, "FeatureQueue insert").entered();
+        let _ = span.enter();
+
         let feat_map = &self.drift_profile.config.feature_map;
+
+        debug!("Inserting features into queue");
 
         for feature in features.iter() {
             if let Some(feature_drift_profile) = self.drift_profile.features.get(feature.name()) {
@@ -147,6 +207,10 @@ impl PsiFeatureQueue {
     }
 
     pub fn create_drift_records(&self) -> Result<ServerRecords, FeatureQueueError> {
+        let span = span!(Level::INFO, "FeatureQueue create drift record").entered();
+        let _ = span.enter();
+
+        debug!("Creating drift records");
         let records = self
             .queue
             .iter()
@@ -175,6 +239,9 @@ impl PsiFeatureQueue {
     }
 
     pub fn clear_queue(&mut self) {
+        let span = span!(Level::INFO, "FeatureQueue clear queue").entered();
+        let _ = span.enter();
+
         self.queue.values_mut().for_each(|bin_map| {
             bin_map.values_mut().for_each(|count| *count = 0);
         });

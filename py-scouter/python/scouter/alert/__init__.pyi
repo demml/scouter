@@ -1,5 +1,5 @@
 from typing import Any, Dict, List, Optional
-
+from ..types import CommonCrons
 class AlertZone:
     Zone1: "AlertZone"
     Zone2: "AlertZone"
@@ -56,7 +56,7 @@ class PsiAlertConfig:
     def __init__(
         self,
         dispatch_type: Optional[AlertDispatchType] = None,
-        schedule: Optional[str] = None,
+        schedule: Optional[str | CommonCrons] = None,
         features_to_monitor: Optional[List[str]] = None,
         dispatch_kwargs: Optional[Dict[str, Any]] = None,
         psi_threshold: Optional[float] = None,
@@ -129,7 +129,7 @@ class SpcAlertConfig:
         self,
         rule: Optional[SpcAlertRule] = None,
         dispatch_type: Optional[AlertDispatchType] = None,
-        schedule: Optional[str] = None,
+        schedule: Optional[str | CommonCrons] = None,
         features_to_monitor: Optional[List[str]] = None,
         dispatch_kwargs: Optional[Dict[str, Any]] = None,
     ):

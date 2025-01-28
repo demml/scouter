@@ -11,7 +11,7 @@ from scouter.queue import Feature, Features, KafkaConfig
 
 def generate_data() -> pd.DataFrame:
     """Create a fake data frame for testing"""
-    n = 10_00
+    n = 10_000
 
     X_train = np.random.normal(-4, 2.0, size=(n, 4))
 
