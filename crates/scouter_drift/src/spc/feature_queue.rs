@@ -7,7 +7,7 @@ use scouter_error::FeatureQueueError;
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::{Features, ServerRecords};
 use std::collections::HashMap;
-use tracing::debug;
+use tracing::{debug, error, span, Level};
 
 #[pyclass]
 pub struct SpcFeatureQueue {
@@ -21,6 +21,9 @@ pub struct SpcFeatureQueue {
 impl SpcFeatureQueue {
     #[new]
     pub fn new(drift_profile: SpcDriftProfile) -> Self {
+        let span = span!(Level::INFO, "Initialize SpcFeatureQueue").entered();
+        let _ = span.enter();
+
         let queue: HashMap<String, Vec<f64>> = drift_profile
             .features
             .keys()
@@ -40,6 +43,9 @@ impl SpcFeatureQueue {
     // create a python function that will take a python dictionary of string keys and either int, float or string values
     // and append the values to the corresponding feature queue
     pub fn insert(&mut self, features: Features) -> Result<(), FeatureQueueError> {
+        let span = span!(Level::INFO, "SPC Insert").entered();
+        let _ = span.enter();
+
         let feat_map = &self.drift_profile.config.feature_map;
 
         debug!(
@@ -62,6 +68,9 @@ impl SpcFeatureQueue {
     //
     // returns: DriftServerRecords
     pub fn create_drift_records(&self) -> Result<ServerRecords, FeatureQueueError> {
+        let span = span!(Level::INFO, "SPC create drift record").entered();
+        let _ = span.enter();
+
         let (arrays, feature_names): (Vec<_>, Vec<_>) = self
             .queue
             .iter()
@@ -75,6 +84,7 @@ impl SpcFeatureQueue {
 
         let n = arrays[0].dim().0;
         if arrays.iter().any(|array| array.dim().0 != n) {
+            error!("Shape mismatch");
             return Err(FeatureQueueError::DriftRecordError(
                 "Shape mismatch".to_string(),
             ));
@@ -85,6 +95,7 @@ impl SpcFeatureQueue {
             &arrays.iter().map(|a| a.view()).collect::<Vec<_>>(),
         )
         .map_err(|e| {
+            error!("Failed to concatenate arrays: {:?}", e);
             FeatureQueueError::DriftRecordError(format!("Failed to concatenate arrays: {:?}", e))
         })?;
 
@@ -92,6 +103,7 @@ impl SpcFeatureQueue {
             .monitor
             .sample_data(&feature_names, &concatenated.view(), &self.drift_profile)
             .map_err(|e| {
+                error!("Failed to create drift record: {:?}", e);
                 FeatureQueueError::DriftRecordError(format!(
                     "Failed to create drift record: {:?}",
                     e
@@ -103,6 +115,10 @@ impl SpcFeatureQueue {
 
     // Clear all queues
     pub fn clear_queue(&mut self) {
+        let span = span!(Level::INFO, "SPC Clear").entered();
+
+        debug!("Clearing feature queue");
+        let _ = span.enter();
         self.queue.iter_mut().for_each(|(_, queue)| {
             queue.clear();
         });

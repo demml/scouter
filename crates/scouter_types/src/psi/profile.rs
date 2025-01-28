@@ -250,6 +250,13 @@ impl PsiDriftProfile {
     }
 
     #[staticmethod]
+    pub fn from_file(path: PathBuf) -> Result<PsiDriftProfile, ScouterError> {
+        let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
+
+        serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)
+    }
+
+    #[staticmethod]
     pub fn model_validate(data: &Bound<'_, PyDict>) -> PsiDriftProfile {
         let json_value = pyobject_to_json(data).unwrap();
 

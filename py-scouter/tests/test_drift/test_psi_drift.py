@@ -21,12 +21,15 @@ def test_drift_f64(array: NDArray, psi_drift_config: PsiDriftConfig):
 
     ## save profile to json
     with TemporaryDirectory() as temp_dir:
-        profile.save_to_json(Path(temp_dir) / "profile.json")
+        path = Path(temp_dir) / "profile.json"
+        profile.save_to_json(path)
         assert (Path(temp_dir) / "profile.json").exists()
 
         with open(Path(temp_dir) / "profile.json", "r") as f:
             PsiDriftProfile.model_validate_json(f.read())
         _ = drifter.compute_drift(array, profile)
+        
+        PsiDriftProfile.from_file(path)
 
     profile.update_config_args(repository="repo1", name="name1")
 

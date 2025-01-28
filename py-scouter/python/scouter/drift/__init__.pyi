@@ -274,6 +274,14 @@ class SpcDriftProfile:
                 JSON string representation of the drift profile
 
         """
+        
+    @staticmethod
+    def from_file(path: Path) -> "SpcDriftProfile":
+        """Load drift profile from file
+
+        Args:
+            path: Path to the file
+        """
 
     @staticmethod
     def model_validate(data: Dict[str, Any]) -> "SpcDriftProfile":
@@ -598,6 +606,14 @@ class PsiDriftProfile:
 
         """
 
+    @staticmethod
+    def from_file(path: Path) -> "PsiDriftProfile":
+        """Load drift profile from file
+
+        Args:
+            path: Path to the file
+        """
+        
     @staticmethod
     def model_validate(data: Dict[str, Any]) -> "PsiDriftProfile":
         """Load drift profile from dictionary
@@ -943,6 +959,14 @@ class CustomDriftProfile:
         Args:
             data:
                 DriftProfile dictionary
+        """
+        
+    @staticmethod
+    def from_file(path: Path) -> "CustomDriftProfile":
+        """Load drift profile from file
+
+        Args:
+            path: Path to the file
         """
 
     def update_config_args(

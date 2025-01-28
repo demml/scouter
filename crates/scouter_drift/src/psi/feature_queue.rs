@@ -1,8 +1,7 @@
 use scouter_types::{
     psi::BinType, Features, PsiServerRecord, RecordType, ServerRecord, ServerRecords,
 };
-use serde::de;
-use tracing::{debug, span, Level, error};
+use tracing::{debug, error, span, Level};
 
 use crate::psi::monitor::PsiMonitor;
 use core::result::Result::Ok;
@@ -61,11 +60,11 @@ impl PsiFeatureQueue {
         let span = span!(Level::INFO, "Process numeric queue").entered();
         let _ = span.enter();
 
-    
         let bin_id = Self::find_numeric_bin_given_scaler(value, bins)?;
         let count = queue
             .get_mut(bin_id)
-            .ok_or(FeatureQueueError::GetBinError).map_err(|e| {
+            .ok_or(FeatureQueueError::GetBinError)
+            .map_err(|e| {
                 error!("Error processing numeric queue: {:?}", e);
                 e
             })?;
@@ -82,12 +81,12 @@ impl PsiFeatureQueue {
         let span = span!(Level::INFO, "Process binary queue").entered();
         let _ = span.enter();
 
-       
         if value == 0.0 {
             let bin_id = 0;
             let count = queue
                 .get_mut(&bin_id)
-                .ok_or(FeatureQueueError::GetBinError).map_err(|e| {
+                .ok_or(FeatureQueueError::GetBinError)
+                .map_err(|e| {
                     error!("Error processing binary queue: {:?}", e);
                     e
                 })?;
@@ -96,7 +95,8 @@ impl PsiFeatureQueue {
             let bin_id = 1;
             let count = queue
                 .get_mut(&bin_id)
-                .ok_or(FeatureQueueError::GetBinError).map_err(|e| {
+                .ok_or(FeatureQueueError::GetBinError)
+                .map_err(|e| {
                     error!("Error processing binary queue: {:?}", e);
                     e
                 })?;
@@ -117,10 +117,13 @@ impl PsiFeatureQueue {
     ) -> Result<(), FeatureQueueError> {
         let span = span!(Level::INFO, "Process categorical queue").entered();
         let _ = span.enter();
-        let count = queue.get_mut(value).ok_or(FeatureQueueError::GetBinError).map_err(|e| {
-            error!("Error processing categorical queue: {:?}", e);
-            e
-        })?;
+        let count = queue
+            .get_mut(value)
+            .ok_or(FeatureQueueError::GetBinError)
+            .map_err(|e| {
+                error!("Error processing categorical queue: {:?}", e);
+                e
+            })?;
         *count += 1;
         Ok(())
     }

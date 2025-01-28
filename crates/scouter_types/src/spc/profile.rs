@@ -329,6 +329,13 @@ impl SpcDriftProfile {
         ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
     }
 
+    #[staticmethod]
+    pub fn from_file(path: PathBuf) -> Result<SpcDriftProfile, ScouterError> {
+        let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
+
+        serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)
+    }
+
     // update the arguments of the drift config
     //
     // # Arguments

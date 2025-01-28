@@ -218,6 +218,13 @@ impl CustomDriftProfile {
         serde_json::from_str(&json_string).expect("Failed to load monitor profile")
     }
 
+    #[staticmethod]
+    pub fn from_file(path: PathBuf) -> Result<CustomDriftProfile, ScouterError> {
+        let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
+
+        serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)
+    }
+
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (repository=None, name=None, version=None, alert_config=None))]
     pub fn update_config_args(
