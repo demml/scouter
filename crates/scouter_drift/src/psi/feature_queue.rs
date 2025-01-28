@@ -8,7 +8,7 @@ use core::result::Result::Ok;
 use pyo3::prelude::*;
 use scouter_error::FeatureQueueError;
 use scouter_types::psi::{Bin, PsiDriftProfile};
-use std::collections::HashMap;
+use std::{collections::HashMap};
 
 #[pyclass]
 pub struct PsiFeatureQueue {
@@ -213,26 +213,36 @@ impl PsiFeatureQueue {
         let span = span!(Level::INFO, "FeatureQueue create drift record").entered();
         let _ = span.enter();
 
+        let features_to_monitor = self.drift_profile.config.alert_config.features_to_monitor.clone();
+
         debug!("Creating drift records");
         let records = self
             .queue
             .iter()
             .flat_map(|(feature_name, bin_map)| {
-                bin_map.iter().map(move |(bin_id, count)| {
-                    ServerRecord::Psi(PsiServerRecord::new(
-                        self.drift_profile.config.repository.clone(),
-                        self.drift_profile.config.name.clone(),
-                        self.drift_profile.config.version.clone(),
-                        feature_name.clone(),
-                        *bin_id,
-                        *count,
-                    ))
-                })
+
+                // check if the feature is in the features to monitor
+                if features_to_monitor.contains(feature_name) {
+                    bin_map.iter().map(move |(bin_id, count)| {
+                        ServerRecord::Psi(PsiServerRecord::new(
+                            self.drift_profile.config.repository.clone(),
+                            self.drift_profile.config.name.clone(),
+                            self.drift_profile.config.version.clone(),
+                            feature_name.clone(),
+                            *bin_id,
+                            *count,
+                        ))
+                    }).collect::<Vec<_>>()
+                } else {
+                    Vec::new()
+                }.into_iter()
             })
             .collect::<Vec<ServerRecord>>();
 
         Ok(ServerRecords::new(records, RecordType::Psi))
     }
+
+    
 
     pub fn is_empty(&self) -> bool {
         !self
@@ -248,6 +258,33 @@ impl PsiFeatureQueue {
         self.queue.values_mut().for_each(|bin_map| {
             bin_map.values_mut().for_each(|count| *count = 0);
         });
+    }
+}
+
+impl PsiFeatureQueue {
+    pub fn has_records(&self, records: &ServerRecords) -> Result<bool, FeatureQueueError> {
+        let span = span!(Level::INFO, "FeatureQueue filter records").entered();
+        let _ = span.enter();
+
+        if records.records.is_empty() {
+            return Ok(false);
+        }
+
+        //iterate over the records, if bin count is greater than 0 return true else false
+        for record in records.records.iter() {
+            match record {
+                ServerRecord::Psi(psi_record) => {
+                    if psi_record.bin_count > 0 {
+                        return Ok(true);
+                    }
+                }
+                _ => Err(FeatureQueueError::DriftRecordError(
+                    "Invalid drift record type".to_string(),
+                ))?,
+            }
+        }
+
+        Ok(false)
     }
 }
 

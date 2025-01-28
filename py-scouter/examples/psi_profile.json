@@ -6,199 +6,65 @@
         {
           "id": 1,
           "lower_limit": null,
-          "upper_limit": -6.635108079580538,
+          "upper_limit": -6.48547942420816,
           "proportion": 0.1
         },
         {
           "id": 2,
-          "lower_limit": -6.635108079580538,
-          "upper_limit": -5.690774495432661,
+          "lower_limit": -6.48547942420816,
+          "upper_limit": -5.696198462175255,
           "proportion": 0.1
         },
         {
           "id": 3,
-          "lower_limit": -5.690774495432661,
-          "upper_limit": -5.055590605966692,
+          "lower_limit": -5.696198462175255,
+          "upper_limit": -5.081985393242514,
           "proportion": 0.1
         },
         {
           "id": 4,
-          "lower_limit": -5.055590605966692,
-          "upper_limit": -4.508081215937433,
+          "lower_limit": -5.081985393242514,
+          "upper_limit": -4.526173503739424,
           "proportion": 0.1
         },
         {
           "id": 5,
-          "lower_limit": -4.508081215937433,
-          "upper_limit": -4.00354740381015,
+          "lower_limit": -4.526173503739424,
+          "upper_limit": -4.034451821502961,
           "proportion": 0.1
         },
         {
           "id": 6,
-          "lower_limit": -4.00354740381015,
-          "upper_limit": -3.497173553739507,
+          "lower_limit": -4.034451821502961,
+          "upper_limit": -3.572179629691216,
           "proportion": 0.1
         },
         {
           "id": 7,
-          "lower_limit": -3.497173553739507,
-          "upper_limit": -2.9451242823329684,
+          "lower_limit": -3.572179629691216,
+          "upper_limit": -3.032488194337848,
           "proportion": 0.1
         },
         {
           "id": 8,
-          "lower_limit": -2.9451242823329684,
-          "upper_limit": -2.3205424474141623,
+          "lower_limit": -3.032488194337848,
+          "upper_limit": -2.3979365386981737,
           "proportion": 0.1
         },
         {
           "id": 9,
-          "lower_limit": -2.3205424474141623,
-          "upper_limit": -1.414478281503495,
+          "lower_limit": -2.3979365386981737,
+          "upper_limit": -1.5014381181895233,
           "proportion": 0.1
         },
         {
           "id": 10,
-          "lower_limit": -1.414478281503495,
+          "lower_limit": -1.5014381181895233,
           "upper_limit": null,
           "proportion": 0.1
         }
       ],
-      "timestamp": "2025-01-28T15:57:22.612530",
-      "bin_type": "Numeric"
-    },
-    "feature_3": {
-      "id": "feature_3",
-      "bins": [
-        {
-          "id": 1,
-          "lower_limit": null,
-          "upper_limit": -6.588110993917937,
-          "proportion": 0.1
-        },
-        {
-          "id": 2,
-          "lower_limit": -6.588110993917937,
-          "upper_limit": -5.689740752295608,
-          "proportion": 0.1
-        },
-        {
-          "id": 3,
-          "lower_limit": -5.689740752295608,
-          "upper_limit": -5.059973471680356,
-          "proportion": 0.1
-        },
-        {
-          "id": 4,
-          "lower_limit": -5.059973471680356,
-          "upper_limit": -4.544769377077937,
-          "proportion": 0.1
-        },
-        {
-          "id": 5,
-          "lower_limit": -4.544769377077937,
-          "upper_limit": -4.010761971160744,
-          "proportion": 0.1
-        },
-        {
-          "id": 6,
-          "lower_limit": -4.010761971160744,
-          "upper_limit": -3.499916767472616,
-          "proportion": 0.1
-        },
-        {
-          "id": 7,
-          "lower_limit": -3.499916767472616,
-          "upper_limit": -2.9443527550911126,
-          "proportion": 0.1
-        },
-        {
-          "id": 8,
-          "lower_limit": -2.9443527550911126,
-          "upper_limit": -2.324247314010151,
-          "proportion": 0.1
-        },
-        {
-          "id": 9,
-          "lower_limit": -2.324247314010151,
-          "upper_limit": -1.4915784000244496,
-          "proportion": 0.1
-        },
-        {
-          "id": 10,
-          "lower_limit": -1.4915784000244496,
-          "upper_limit": null,
-          "proportion": 0.1
-        }
-      ],
-      "timestamp": "2025-01-28T15:57:22.612727",
-      "bin_type": "Numeric"
-    },
-    "feature_0": {
-      "id": "feature_0",
-      "bins": [
-        {
-          "id": 1,
-          "lower_limit": null,
-          "upper_limit": -6.5970600548300204,
-          "proportion": 0.1
-        },
-        {
-          "id": 2,
-          "lower_limit": -6.5970600548300204,
-          "upper_limit": -5.696215054787693,
-          "proportion": 0.1
-        },
-        {
-          "id": 3,
-          "lower_limit": -5.696215054787693,
-          "upper_limit": -5.070587023876925,
-          "proportion": 0.1
-        },
-        {
-          "id": 4,
-          "lower_limit": -5.070587023876925,
-          "upper_limit": -4.541138448507068,
-          "proportion": 0.1
-        },
-        {
-          "id": 5,
-          "lower_limit": -4.541138448507068,
-          "upper_limit": -4.0245357016997065,
-          "proportion": 0.1
-        },
-        {
-          "id": 6,
-          "lower_limit": -4.0245357016997065,
-          "upper_limit": -3.514867821536331,
-          "proportion": 0.1
-        },
-        {
-          "id": 7,
-          "lower_limit": -3.514867821536331,
-          "upper_limit": -2.9877703602406096,
-          "proportion": 0.1
-        },
-        {
-          "id": 8,
-          "lower_limit": -2.9877703602406096,
-          "upper_limit": -2.3396218974145917,
-          "proportion": 0.1
-        },
-        {
-          "id": 9,
-          "lower_limit": -2.3396218974145917,
-          "upper_limit": -1.434831288827041,
-          "proportion": 0.1
-        },
-        {
-          "id": 10,
-          "lower_limit": -1.434831288827041,
-          "upper_limit": null,
-          "proportion": 0.1
-        }
-      ],
-      "timestamp": "2025-01-28T15:57:22.612759",
+      "timestamp": "2025-01-28T18:41:58.139827",
       "bin_type": "Numeric"
     },
     "feature_1": {
@@ -207,65 +73,199 @@
         {
           "id": 1,
           "lower_limit": null,
-          "upper_limit": -6.613567518339369,
+          "upper_limit": -6.53088993039311,
           "proportion": 0.1
         },
         {
           "id": 2,
-          "lower_limit": -6.613567518339369,
-          "upper_limit": -5.714110345566592,
+          "lower_limit": -6.53088993039311,
+          "upper_limit": -5.6557407436512595,
           "proportion": 0.1
         },
         {
           "id": 3,
-          "lower_limit": -5.714110345566592,
-          "upper_limit": -5.080023570734557,
+          "lower_limit": -5.6557407436512595,
+          "upper_limit": -5.023493670159294,
           "proportion": 0.1
         },
         {
           "id": 4,
-          "lower_limit": -5.080023570734557,
-          "upper_limit": -4.5280309261226925,
+          "lower_limit": -5.023493670159294,
+          "upper_limit": -4.503018009547683,
           "proportion": 0.1
         },
         {
           "id": 5,
-          "lower_limit": -4.5280309261226925,
-          "upper_limit": -4.009454803221567,
+          "lower_limit": -4.503018009547683,
+          "upper_limit": -3.9893334164597434,
           "proportion": 0.1
         },
         {
           "id": 6,
-          "lower_limit": -4.009454803221567,
-          "upper_limit": -3.491592921396065,
+          "lower_limit": -3.9893334164597434,
+          "upper_limit": -3.471622216668325,
           "proportion": 0.1
         },
         {
           "id": 7,
-          "lower_limit": -3.491592921396065,
-          "upper_limit": -2.9636023057657255,
+          "lower_limit": -3.471622216668325,
+          "upper_limit": -2.9606337019241593,
           "proportion": 0.1
         },
         {
           "id": 8,
-          "lower_limit": -2.9636023057657255,
-          "upper_limit": -2.2983888585639716,
+          "lower_limit": -2.9606337019241593,
+          "upper_limit": -2.300630669696125,
           "proportion": 0.1
         },
         {
           "id": 9,
-          "lower_limit": -2.2983888585639716,
-          "upper_limit": -1.4278326608232175,
+          "lower_limit": -2.300630669696125,
+          "upper_limit": -1.4382570991793084,
           "proportion": 0.1
         },
         {
           "id": 10,
-          "lower_limit": -1.4278326608232175,
+          "lower_limit": -1.4382570991793084,
           "upper_limit": null,
           "proportion": 0.1
         }
       ],
-      "timestamp": "2025-01-28T15:57:22.612669",
+      "timestamp": "2025-01-28T18:41:58.139772",
+      "bin_type": "Numeric"
+    },
+    "feature_3": {
+      "id": "feature_3",
+      "bins": [
+        {
+          "id": 1,
+          "lower_limit": null,
+          "upper_limit": -6.567489065704793,
+          "proportion": 0.1
+        },
+        {
+          "id": 2,
+          "lower_limit": -6.567489065704793,
+          "upper_limit": -5.69358166449649,
+          "proportion": 0.1
+        },
+        {
+          "id": 3,
+          "lower_limit": -5.69358166449649,
+          "upper_limit": -5.07905577112266,
+          "proportion": 0.1
+        },
+        {
+          "id": 4,
+          "lower_limit": -5.07905577112266,
+          "upper_limit": -4.518005952378008,
+          "proportion": 0.1
+        },
+        {
+          "id": 5,
+          "lower_limit": -4.518005952378008,
+          "upper_limit": -4.041107253619784,
+          "proportion": 0.1
+        },
+        {
+          "id": 6,
+          "lower_limit": -4.041107253619784,
+          "upper_limit": -3.5253076583092526,
+          "proportion": 0.1
+        },
+        {
+          "id": 7,
+          "lower_limit": -3.5253076583092526,
+          "upper_limit": -2.9842009007687658,
+          "proportion": 0.1
+        },
+        {
+          "id": 8,
+          "lower_limit": -2.9842009007687658,
+          "upper_limit": -2.3272980418360802,
+          "proportion": 0.1
+        },
+        {
+          "id": 9,
+          "lower_limit": -2.3272980418360802,
+          "upper_limit": -1.4780235181036896,
+          "proportion": 0.1
+        },
+        {
+          "id": 10,
+          "lower_limit": -1.4780235181036896,
+          "upper_limit": null,
+          "proportion": 0.1
+        }
+      ],
+      "timestamp": "2025-01-28T18:41:58.139808",
+      "bin_type": "Numeric"
+    },
+    "feature_0": {
+      "id": "feature_0",
+      "bins": [
+        {
+          "id": 1,
+          "lower_limit": null,
+          "upper_limit": -6.512885304193073,
+          "proportion": 0.1
+        },
+        {
+          "id": 2,
+          "lower_limit": -6.512885304193073,
+          "upper_limit": -5.678449951921098,
+          "proportion": 0.1
+        },
+        {
+          "id": 3,
+          "lower_limit": -5.678449951921098,
+          "upper_limit": -5.036019083395149,
+          "proportion": 0.1
+        },
+        {
+          "id": 4,
+          "lower_limit": -5.036019083395149,
+          "upper_limit": -4.478288731983834,
+          "proportion": 0.1
+        },
+        {
+          "id": 5,
+          "lower_limit": -4.478288731983834,
+          "upper_limit": -3.97879393568994,
+          "proportion": 0.1
+        },
+        {
+          "id": 6,
+          "lower_limit": -3.97879393568994,
+          "upper_limit": -3.4506203180530624,
+          "proportion": 0.1
+        },
+        {
+          "id": 7,
+          "lower_limit": -3.4506203180530624,
+          "upper_limit": -2.9199580037268023,
+          "proportion": 0.1
+        },
+        {
+          "id": 8,
+          "lower_limit": -2.9199580037268023,
+          "upper_limit": -2.274639462840689,
+          "proportion": 0.1
+        },
+        {
+          "id": 9,
+          "lower_limit": -2.274639462840689,
+          "upper_limit": -1.3784679432558407,
+          "proportion": 0.1
+        },
+        {
+          "id": 10,
+          "lower_limit": -1.3784679432558407,
+          "upper_limit": null,
+          "proportion": 0.1
+        }
+      ],
+      "timestamp": "2025-01-28T18:41:58.139739",
       "bin_type": "Numeric"
     }
   },

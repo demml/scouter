@@ -28,7 +28,7 @@ def test_drift_f64(array: NDArray, psi_drift_config: PsiDriftConfig):
         with open(Path(temp_dir) / "profile.json", "r") as f:
             PsiDriftProfile.model_validate_json(f.read())
         _ = drifter.compute_drift(array, profile)
-        
+
         PsiDriftProfile.from_file(path)
 
     profile.update_config_args(repository="repo1", name="name1")

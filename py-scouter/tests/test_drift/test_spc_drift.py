@@ -28,7 +28,7 @@ def test_drift_f64(array: NDArray, drift_config: SpcDriftConfig):
         # test loading from json file
         with open(Path(temp_dir) / "profile.json", "r") as f:
             SpcDriftProfile.model_validate_json(f.read())
-            
+
         SpcDriftProfile.from_file(path)
 
     _ = drifter.compute_drift(array, profile)

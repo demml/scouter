@@ -2,11 +2,10 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scouter.client import ScouterClient
-from scouter.drift import Drifter, SpcDriftConfig, PsiDriftConfig
-from scouter.types import CommonCrons
 from scouter.alert import SpcAlertConfig
-
+from scouter.client import ScouterClient
+from scouter.drift import Drifter, PsiDriftConfig, SpcDriftConfig
+from scouter.types import CommonCrons
 
 
 def generate_data() -> pd.DataFrame:
@@ -28,21 +27,30 @@ if __name__ == "__main__":
 
     # Drfter class for creating drift profiles
     scouter = Drifter()
-    
+
     # Simple client to register drift profiles
     client = ScouterClient()
 
     # create fake data
     data = generate_data()
-    
-    # create config for population stability index
-    config = PsiDriftConfig(
+
+    # create psi profile
+    psi_config = PsiDriftConfig(
         name="test",
         repository="test",
         version="0.0.1",
     )
 
-    profile = scouter.create_drift_profile(data, config)
-    client.register_profile(profile)
+    psi_profile = scouter.create_drift_profile(data, psi_config)
+    client.register_profile(psi_profile)
+    psi_profile.save_to_json(path=Path("psi_profile.json"))
 
-    profile.save_to_json(path=Path("drift_profile.json"))
+    # create spc profile
+    spc_config = SpcDriftConfig(
+        name="test",
+        repository="test",
+        version="0.0.1",
+    )
+    spc_profile = scouter.create_drift_profile(data, spc_config)
+    client.register_profile(spc_profile)
+    spc_profile.save_to_json(path=Path("spc_profile.json"))

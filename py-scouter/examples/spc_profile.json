@@ -1,0 +1,76 @@
+{
+  "features": {
+    "feature_1": {
+      "id": "feature_1",
+      "center": -3.9803683944230537,
+      "one_ucl": -1.9930004634842593,
+      "one_lcl": -5.967736325361848,
+      "two_ucl": -0.005632532545464919,
+      "two_lcl": -7.955104256300642,
+      "three_ucl": 1.9817353983933295,
+      "three_lcl": -9.942472187239437,
+      "timestamp": "2025-01-28T18:41:58.165607"
+    },
+    "feature_3": {
+      "id": "feature_3",
+      "center": -4.020006632164511,
+      "one_ucl": -2.027118849378966,
+      "one_lcl": -6.012894414950057,
+      "two_ucl": -0.03423106659342068,
+      "two_lcl": -8.005782197735602,
+      "three_ucl": 1.9586567161921247,
+      "three_lcl": -9.998669980521147,
+      "timestamp": "2025-01-28T18:41:58.165608"
+    },
+    "feature_0": {
+      "id": "feature_0",
+      "center": -3.9713184543760804,
+      "one_ucl": -1.966295556041561,
+      "one_lcl": -5.9763413527106,
+      "two_ucl": 0.0387273422929586,
+      "two_lcl": -7.98136425104512,
+      "three_ucl": 2.0437502406274777,
+      "three_lcl": -9.986387149379638,
+      "timestamp": "2025-01-28T18:41:58.165603"
+    },
+    "feature_2": {
+      "id": "feature_2",
+      "center": -4.034314478128324,
+      "one_ucl": -2.0783811042537668,
+      "one_lcl": -5.990247852002881,
+      "two_ucl": -0.12244773037920975,
+      "two_lcl": -7.946181225877438,
+      "three_ucl": 1.8334856434953473,
+      "three_lcl": -9.902114599751995,
+      "timestamp": "2025-01-28T18:41:58.165607"
+    }
+  },
+  "config": {
+    "sample_size": 25,
+    "sample": true,
+    "repository": "test",
+    "name": "test",
+    "version": "0.0.1",
+    "alert_config": {
+      "rule": {
+        "rule": "8 16 4 8 2 4 1 1",
+        "zones_to_monitor": [
+          "Zone1",
+          "Zone2",
+          "Zone3",
+          "Zone4"
+        ]
+      },
+      "dispatch_type": "Console",
+      "schedule": "0 0 0 * * *",
+      "features_to_monitor": [],
+      "dispatch_kwargs": {}
+    },
+    "feature_map": {
+      "features": {}
+    },
+    "targets": [],
+    "drift_type": "Spc"
+  },
+  "scouter_version": "0.4.1"
+}

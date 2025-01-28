@@ -1,5 +1,7 @@
 from typing import Any, Dict, List, Optional
+
 from ..types import CommonCrons
+
 class AlertZone:
     Zone1: "AlertZone"
     Zone2: "AlertZone"
