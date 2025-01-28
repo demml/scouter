@@ -1,8 +1,4 @@
 -- Migrations
-CREATE SCHEMA if not exists scouter;
-
-SET search_path TO scouter;
-
 CREATE EXTENSION if not exists pg_partman;
 CREATE EXTENSION if not exists pg_cron;
 
