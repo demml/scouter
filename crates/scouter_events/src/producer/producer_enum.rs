@@ -11,6 +11,7 @@ pub use crate::producer::rabbitmq::RabbitMQConfig;
 use pyo3::prelude::*;
 use scouter_error::{PyScouterError, ScouterError};
 use scouter_types::ServerRecords;
+use tracing_subscriber::field::debug;
 use std::sync::Arc;
 use tracing::debug;
 
@@ -175,6 +176,7 @@ impl RustScouterProducer {
     }
 
     pub async fn publish(&mut self, message: ServerRecords) -> Result<(), ScouterError> {
+        debug!("message length: {}", message.len());
         self.producer.publish(message).await
     }
 

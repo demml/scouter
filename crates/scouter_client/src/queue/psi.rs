@@ -165,18 +165,15 @@ impl PsiQueue {
                                 }
                             };
 
-                            match queue.has_records(&records) {
-                                Ok(true) => {
+                            match !records.is_empty() {
+                                true => {
                                     debug!("Publishing drift records");
                                     if let Err(e) = producer.publish(records).await {
                                         error!("Failed to publish drift records: {:?}", e.to_string());
                                     }
                                 }
-                                Ok(false) => {
+                                false => {
                                     debug!("No drift records to publish");
-                                }
-                                Err(e) => {
-                                    error!("Failed to check for existing records: {:?}", e.to_string());
                                 }
                             }
 

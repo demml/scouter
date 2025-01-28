@@ -67,17 +67,17 @@ async def psi_predict(request: Request) -> Response:
     request.state.scouter_data = payload.to_features()
     return Response(message="success")
 
-@spc_router.get("/spc_predict", response_model=Response)
-async def spc_predict(request: Request) -> Response:
-    payload = PredictRequest(
-        feature_0=np.random.rand(),
-        feature_1=np.random.rand(),
-        feature_2=np.random.rand(),
-        feature_3=np.random.rand(),
-    )
-    request.state.scouter_data = payload.to_features()
-    return Response(message="success")
+#@spc_router.get("/spc_predict", response_model=Response)
+#async def spc_predict(request: Request) -> Response:
+#    payload = PredictRequest(
+#        feature_0=np.random.rand(),
+#        feature_1=np.random.rand(),
+#        feature_2=np.random.rand(),
+#        feature_3=np.random.rand(),
+#    )
+#    request.state.scouter_data = payload.to_features()
+#    return Response(message="success")
 
 
 app.include_router(psi_router)
-app.include_router(spc_router)
+#app.include_router(spc_router)

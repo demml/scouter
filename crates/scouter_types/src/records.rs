@@ -402,6 +402,14 @@ impl ServerRecords {
             serde_json::from_slice(bytes).map_err(|_| ScouterError::DeSerializeError)?;
         Ok(records)
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.records.is_empty()
+    }
+
+    pub fn len(&self) -> usize {
+        self.records.len()
+    }
 }
 
 pub trait ToDriftRecords {
