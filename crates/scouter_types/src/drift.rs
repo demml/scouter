@@ -125,7 +125,6 @@ impl DriftProfile {
         }
     }
 
-  
     /// Get the base arguments for a drift profile
     pub fn get_base_args(&self) -> ProfileArgs {
         match self {
@@ -177,7 +176,6 @@ impl DriftProfile {
         drift_type: DriftType,
         profile: &Bound<'_, PyAny>,
     ) -> Result<Self, ScouterError> {
-
         match drift_type {
             DriftType::Spc => {
                 let profile = profile.extract::<SpcDriftProfile>()?;

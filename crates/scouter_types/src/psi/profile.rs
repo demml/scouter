@@ -52,12 +52,13 @@ pub struct PsiDriftConfig {
 impl PsiDriftConfig {
     // TODO dry this out
     #[new]
-    #[pyo3(signature = (repository=None, name=None, version=None, feature_map=None, targets=None, alert_config=None, config_path=None))]
+    #[pyo3(signature = (repository=None, name=None, version=None, feature_map=None, features_to_monitor=None, targets=None, alert_config=None, config_path=None))]
     pub fn new(
         repository: Option<String>,
         name: Option<String>,
         version: Option<String>,
         feature_map: Option<FeatureMap>,
+        features_to_monitor: Option<Vec<String>>,
         targets: Option<Vec<String>>,
         alert_config: Option<PsiAlertConfig>,
         config_path: Option<PathBuf>,
@@ -76,8 +77,12 @@ impl PsiDriftConfig {
 
         let version = version.unwrap_or("0.1.0".to_string());
         let targets = targets.unwrap_or_default();
-        let alert_config = alert_config.unwrap_or_default();
+        let mut alert_config = alert_config.unwrap_or_default();
         let feature_map = feature_map.unwrap_or_default();
+
+        if features_to_monitor.is_some() {
+            alert_config.features_to_monitor = features_to_monitor.unwrap();
+        }
 
         Ok(Self {
             name,
@@ -414,7 +419,7 @@ mod tests {
     #[test]
     fn test_drift_config() {
         let mut drift_config =
-            PsiDriftConfig::new(None, None, None, None, None, None, None).unwrap();
+            PsiDriftConfig::new(None, None, None, None, None, None, None, None).unwrap();
         assert_eq!(drift_config.name, "__missing__");
         assert_eq!(drift_config.repository, "__missing__");
         assert_eq!(drift_config.version, "0.1.0");

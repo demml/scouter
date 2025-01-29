@@ -345,6 +345,7 @@ pub mod psi_drifter {
                 None,
                 None,
                 None,
+                None,
                 Some(PsiAlertConfig::new(
                     None,
                     None,

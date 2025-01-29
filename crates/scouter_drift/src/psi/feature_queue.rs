@@ -308,6 +308,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
 
         let profile = monitor
@@ -374,6 +375,7 @@ mod tests {
         let config = PsiDriftConfig::new(
             Some("name".to_string()),
             Some("repo".to_string()),
+            None,
             None,
             None,
             None,
@@ -463,6 +465,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
 
         let profile = psi_monitor
@@ -547,6 +550,7 @@ mod tests {
             None,
             None,
             None,
+            None,
         );
 
         let profile = psi_monitor
@@ -589,6 +593,7 @@ mod tests {
         let config = PsiDriftConfig::new(
             Some("name".to_string()),
             Some("repo".to_string()),
+            None,
             None,
             None,
             None,

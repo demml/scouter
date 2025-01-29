@@ -53,6 +53,7 @@ impl CustomMetricDriftConfig {
         repository: Option<String>,
         name: Option<String>,
         version: Option<String>,
+
         alert_config: Option<CustomMetricAlertConfig>,
         config_path: Option<PathBuf>,
     ) -> Result<Self, CustomMetricError> {

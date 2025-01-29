@@ -528,6 +528,7 @@ mod tests {
             None,
             None,
             None,
+            None,
             Some(alert_config),
             None,
         );
@@ -584,6 +585,7 @@ mod tests {
             None,
             None,
             None,
+            None,
             Some(alert_config),
             None,
         );
@@ -625,6 +627,7 @@ mod tests {
         let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repo".to_string()),
+            None,
             None,
             None,
             None,
@@ -678,6 +681,7 @@ mod tests {
             None,
             None,
             None,
+            None,
             Some(alert_config),
             None,
         );
@@ -712,6 +716,7 @@ mod tests {
         let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repo".to_string()),
+            None,
             None,
             None,
             None,

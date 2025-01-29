@@ -24,5 +24,3 @@ pub async fn setup_logging() -> Result<(), anyhow::Error> {
 
     Ok(())
 }
-
-
