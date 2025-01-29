@@ -29,7 +29,7 @@ use sqlx::{
 use std::collections::{BTreeMap, HashMap};
 use std::result::Result::Ok;
 use std::str::FromStr;
-use tracing::{debug, error, info, span, Instrument, Level};
+use tracing::{debug, error, info, instrument};
 
 // TODO: Explore refactoring and breaking this out into multiple client types (i.e., spc, psi, etc.)
 // Postgres client is one of the lowest-level abstractions so it may not be worth it, as it could make server logic annoying. Worth exploring though.
@@ -847,10 +847,9 @@ pub enum MessageHandler {
 }
 
 impl MessageHandler {
+    #[instrument(skip(self, records), name = "Insert Server Records")]
     pub async fn insert_server_records(&self, records: &ServerRecords) -> Result<(), ScouterError> {
-        let span = span!(Level::DEBUG, "Insert Server Records");
-
-        let _ = match self {
+        match self {
             Self::Postgres(client) => {
                 match records.record_type {
                     RecordType::Spc => {
@@ -898,7 +897,6 @@ impl MessageHandler {
                 };
             }
         }
-        .instrument(span);
 
         Ok(())
     }

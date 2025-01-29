@@ -326,9 +326,11 @@ mod tests {
             AlertDispatchType::Console
         );
 
-        let mut new_alert_config = CustomMetricAlertConfig::default();
-        new_alert_config.schedule = "0 0 * * * *".to_string();
-        new_alert_config.dispatch_type = AlertDispatchType::Slack;
+        let new_alert_config = CustomMetricAlertConfig {
+            schedule: "0 0 * * * *".to_string(),
+            dispatch_type: AlertDispatchType::Slack,
+            ..Default::default()
+        };
 
         // update
         drift_config
@@ -348,9 +350,11 @@ mod tests {
 
     #[test]
     fn test_custom_drift_profile() {
-        let mut alert_config = CustomMetricAlertConfig::default();
-        alert_config.schedule = "0 0 * * * *".to_string();
-        alert_config.dispatch_type = AlertDispatchType::OpsGenie;
+        let alert_config = CustomMetricAlertConfig {
+            schedule: "0 0 * * * *".to_string(),
+            dispatch_type: AlertDispatchType::OpsGenie,
+            ..Default::default()
+        };
 
         let drift_config =
             CustomMetricDriftConfig::new("scouter", "ML", "0.1.0", false, 25, alert_config, None)

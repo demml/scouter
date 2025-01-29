@@ -154,12 +154,9 @@ mod tests {
 
         // check average of mae
         for record in records.records.iter() {
-            match record {
-                ServerRecord::Custom(custom_record) => {
-                    assert_eq!(custom_record.metric.contains("ma"), true);
-                    assert_eq!(custom_record.value, 12.0);
-                }
-                _ => {}
+            if let ServerRecord::Custom(custom_record) = record {
+                assert!(custom_record.metric.contains("ma"));
+                assert_eq!(custom_record.value, 12.0);
             }
         }
 

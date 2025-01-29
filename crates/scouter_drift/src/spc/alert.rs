@@ -420,8 +420,10 @@ mod tests {
     #[test]
     fn test_check_rule_zones_to_monitor() {
         let zones_to_monitor = [AlertZone::Zone1, AlertZone::Zone4].to_vec();
-        let mut process = SpcAlertRule::default();
-        process.zones_to_monitor = zones_to_monitor;
+        let process = SpcAlertRule {
+            zones_to_monitor,
+            ..Default::default()
+        };
 
         let mut alerter = Alerter::new(process);
 

@@ -342,9 +342,10 @@ pub mod psi_drifter {
         };
 
         fn get_test_drifter() -> PsiDrifter {
-            let mut alert_config = PsiAlertConfig::default();
-            alert_config.features_to_monitor =
-                vec!["feature_1".to_string(), "feature_3".to_string()];
+            let alert_config = PsiAlertConfig {
+                features_to_monitor: vec!["feature_1".to_string(), "feature_3".to_string()],
+                ..Default::default()
+            };
 
             let config = PsiDriftConfig::new(
                 "name",

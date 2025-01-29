@@ -270,7 +270,7 @@ pub trait ValidateAlertConfig {
     fn resolve_schedule(schedule: &str) -> String {
         let default_schedule = CommonCrons::EveryDay.cron();
 
-        cron::Schedule::from_str(&schedule) // Pass by reference here
+        cron::Schedule::from_str(schedule) // Pass by reference here
             .map(|_| schedule) // If valid, return the schedule
             .unwrap_or_else(|_| {
                 tracing::error!("Invalid cron schedule, using default schedule");

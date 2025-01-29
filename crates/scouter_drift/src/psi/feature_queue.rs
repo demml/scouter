@@ -511,8 +511,10 @@ mod tests {
 
         assert_eq!(array.shape(), &[5, 2]);
 
-        let mut config = PsiDriftConfig::default();
-        config.feature_map = feature_map;
+        let config = PsiDriftConfig {
+            feature_map,
+            ..Default::default()
+        };
 
         let profile = psi_monitor
             .create_2d_drift_profile(&string_features, &array.view(), &config)

@@ -143,8 +143,10 @@ mod tests {
         assert_eq!(AlertDispatchType::Console.value(), "Console");
 
         //test slack alert config
-        let mut alert_config = PsiAlertConfig::default();
-        alert_config.dispatch_type = AlertDispatchType::Slack;
+        let alert_config = PsiAlertConfig {
+            dispatch_type: AlertDispatchType::Slack,
+            ..Default::default()
+        };
         assert_eq!(alert_config.dispatch_type, AlertDispatchType::Slack);
         assert_eq!(alert_config.dispatch_type(), "Slack");
         assert_eq!(AlertDispatchType::Slack.value(), "Slack");
@@ -153,9 +155,11 @@ mod tests {
         let mut alert_kwargs = HashMap::new();
         alert_kwargs.insert("channel".to_string(), "test".to_string());
 
-        let mut alert_config = PsiAlertConfig::default();
-        alert_config.dispatch_type = AlertDispatchType::OpsGenie;
-        alert_config.dispatch_kwargs = alert_kwargs;
+        let alert_config = PsiAlertConfig {
+            dispatch_type: AlertDispatchType::OpsGenie,
+            dispatch_kwargs: alert_kwargs,
+            ..Default::default()
+        };
 
         assert_eq!(alert_config.dispatch_type, AlertDispatchType::OpsGenie);
         assert_eq!(alert_config.dispatch_type(), "OpsGenie");

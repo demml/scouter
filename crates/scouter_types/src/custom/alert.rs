@@ -293,11 +293,11 @@ mod tests {
         //test console alert config
         let dispatch_type = AlertDispatchType::OpsGenie;
         let schedule = "0 0 * * * *".to_string();
-        let mut alert_config = CustomMetricAlertConfig::default();
-
-        alert_config.dispatch_type = dispatch_type;
-        alert_config.schedule = schedule;
-
+        let mut alert_config = CustomMetricAlertConfig {
+            dispatch_type,
+            schedule,
+            ..Default::default()
+        };
         assert_eq!(alert_config.dispatch_type(), "OpsGenie");
 
         let custom_metrics = vec![

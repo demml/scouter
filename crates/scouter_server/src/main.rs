@@ -500,12 +500,14 @@ mod tests {
         let helper = TestHelper::new(false, false).await.unwrap();
 
         let (array, features) = helper.get_data();
-        let mut alert_config = PsiAlertConfig::default();
-        alert_config.features_to_monitor = vec![
-            "feature_1".to_string(),
-            "feature_2".to_string(),
-            "feature_3".to_string(),
-        ];
+        let alert_config = PsiAlertConfig {
+            features_to_monitor: vec![
+                "feature_1".to_string(),
+                "feature_2".to_string(),
+                "feature_3".to_string(),
+            ],
+            ..Default::default()
+        };
 
         let config = PsiDriftConfig::new(
             "test",

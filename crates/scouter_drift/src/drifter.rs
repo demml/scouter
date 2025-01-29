@@ -179,7 +179,6 @@ pub mod drift_executor {
         /// # Returns
         ///
         /// * `Result<()>` - Result of drift computation and alerting
-
         pub async fn poll_for_tasks(&mut self) -> Result<(), DriftError> {
             // this will pull a drift profile from the db
             let (task, mut trx) = self.do_poll().await?;
