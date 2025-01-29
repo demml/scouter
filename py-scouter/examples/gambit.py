@@ -1,3 +1,5 @@
+# pylint: disable=invalid-name
+
 from pathlib import Path
 
 import numpy as np

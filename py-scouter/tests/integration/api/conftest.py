@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from pydantic import BaseModel
 from scouter.drift import Drifter, SpcDriftConfig, SpcDriftProfile
 from scouter.integrations.fastapi import ScouterRouter
-from scouter.queue import Feature, Features, KafkaConfig
+from scouter.queue import DriftTransportConfig, Feature, Features, KafkaConfig
 
 
 def generate_data() -> pd.DataFrame:
@@ -69,12 +69,23 @@ def client(
     config = KafkaConfig()
     app = FastAPI()
 
+    transport = DriftTransportConfig(
+        id="test",
+        config=config,
+        drift_profile=drift_profile,
+    )
+
     # define scouter router
-    scouter_router = ScouterRouter(drift_profile=drift_profile, config=config)
+    scouter_router = ScouterRouter([transport])
 
     @scouter_router.post("/predict", response_model=TestResponse)
     async def predict(request: Request, payload: PredictRequest) -> TestResponse:
         request.state.scouter_data = payload.to_features()
+
+        request.state.scouter_data = {
+            transport.id: payload.to_features(),
+        }
+
         return TestResponse(message="success")
 
     app.include_router(scouter_router)

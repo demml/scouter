@@ -1,4 +1,6 @@
-from typing import Any, Dict, List, Optional
+# pylint: disable=dangerous-default-value
+
+from typing import Dict, List, Optional
 
 from ..types import CommonCrons
 

@@ -23,6 +23,7 @@ from scouter.drift import (
 )
 from scouter.queue import (
     CustomMetricServerRecord,
+    DriftTransportConfig,
     Feature,
     Features,
     KafkaConfig,
@@ -32,7 +33,6 @@ from scouter.queue import (
     ScouterQueue,
     ServerRecord,
     ServerRecords,
-    DriftTransportConfig,
 )
 from scouter.types import DriftType
 
@@ -52,7 +52,6 @@ def test_psi_monitor_pandas_http(
 ):
     scouter = Drifter()
     client = ScouterClient()
-
 
     profile = scouter.create_drift_profile(pandas_dataframe, psi_drift_config)
     client.register_profile(profile)

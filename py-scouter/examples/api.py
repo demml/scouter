@@ -4,10 +4,9 @@ import numpy as np
 from config import config
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
-from scouter.drift import PsiDriftProfile, SpcDriftProfile
 from scouter.integrations.fastapi import ScouterRouter
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
-from scouter.queue import DriftTransportConfig, Feature, Features, KafkaConfig
+from scouter.queue import DriftTransportConfig, Feature, Features
 
 # Sets up logging for tests
 RustyLogger.setup_logging(LoggingConfig(log_level=LogLevel.Debug))
