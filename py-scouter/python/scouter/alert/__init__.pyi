@@ -116,7 +116,7 @@ class PsiAlertConfig:
         """Set the features to monitor"""
 
     @property
-    def dispatch_kwargs(self) -> Dict[str, Any]:
+    def dispatch_kwargs(self) -> Dict[str, str]:
         """Return the dispatch kwargs"""
 
     @dispatch_kwargs.setter
@@ -200,7 +200,7 @@ class SpcAlertConfig:
         """Return the dispatch kwargs"""
 
     @dispatch_kwargs.setter
-    def dispatch_kwargs(self, dispatch_kwargs: Dict[str, Any]) -> None:
+    def dispatch_kwargs(self, dispatch_kwargs: Dict[str, str]) -> None:
         """Set the dispatch kwargs"""
 
 class SpcAlert:
@@ -339,11 +339,11 @@ class CustomMetricAlertConfig:
         """Set the schedule"""
 
     @property
-    def dispatch_kwargs(self) -> Dict[str, Any]:
+    def dispatch_kwargs(self) -> Dict[str, str]:
         """Return the dispatch kwargs"""
 
     @dispatch_kwargs.setter
-    def dispatch_kwargs(self, dispatch_kwargs: Dict[str, Any]) -> None:
+    def dispatch_kwargs(self, dispatch_kwargs: Dict[str, str]) -> None:
         """Set the dispatch kwargs"""
 
     @property
