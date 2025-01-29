@@ -594,12 +594,12 @@ mod tests {
 
         let alert_config = CustomMetricAlertConfig::new(None, None, None);
         let config = CustomMetricDriftConfig::new(
-            Some("test".to_string()),
-            Some("test".to_string()),
-            Some("1.0.0".to_string()),
-            None,
-            None,
-            Some(alert_config),
+            "test",
+            "test",
+            "1.0.0",
+            true,
+            25,
+            alert_config,
             None,
         )
         .unwrap();

@@ -103,7 +103,7 @@ impl CustomMetricFeatureQueue {
 mod tests {
 
     use super::*;
-    use scouter_types::custom::{AlertThreshold, CustomMetric, CustomMetricDriftConfig};
+    use scouter_types::custom::{AlertThreshold, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig};
     use scouter_types::{Metric, Metrics};
 
     #[test]
@@ -118,12 +118,12 @@ mod tests {
             CustomMetric::new("empty".to_string(), 10.0, AlertThreshold::Above, None).unwrap();
 
         let custom_config = CustomMetricDriftConfig::new(
-            Some("test".to_string()),
-            Some("test".to_string()),
-            Some("0.1.0".to_string()),
-            None,
-            None,
-            None,
+            "test",
+            "test",
+            "0.1.0",
+            true,
+            25,
+            CustomMetricAlertConfig::default(),
             None,
         )
         .unwrap();

@@ -258,12 +258,12 @@ pub mod custom_drifter {
             ];
 
             let drift_config = CustomMetricDriftConfig::new(
-                Some("scouter".to_string()),
-                Some("model".to_string()),
-                Some("0.1.0".to_string()),
-                None,
-                None,
-                Some(CustomMetricAlertConfig::new(None, None, None)),
+                "scouter",
+                "model",
+                "0.1.0",
+                true,
+                25,
+                CustomMetricAlertConfig::default(),
                 None,
             )
             .unwrap();

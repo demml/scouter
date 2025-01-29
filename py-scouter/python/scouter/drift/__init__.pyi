@@ -744,10 +744,12 @@ class PsiDriftMap:
 class CustomMetricDriftConfig:
     def __init__(
         self,
-        repository: Optional[str] = None,
-        name: Optional[str] = None,
-        version: Optional[str] = None,
-        alert_config: Optional[CustomMetricAlertConfig] = None,
+        repository: str = "__missing__",
+        name: str = "__missing__",
+        version: str = "0.1.0",
+        sample: bool = True,
+        sample_size: int = 25,
+        alert_config: CustomMetricAlertConfig = CustomMetricAlertConfig(),
     ):
         """Initialize drift config
         Args:

@@ -28,7 +28,7 @@ impl CustomMetric {
     #[new]
     #[pyo3(signature = (name, value, alert_threshold, alert_threshold_value=None))]
     pub fn new(
-        name: String,
+        name: &str,
         value: f64,
         alert_threshold: AlertThreshold,
         alert_threshold_value: Option<f64>,
@@ -283,8 +283,8 @@ mod tests {
         assert_eq!(alert_config.dispatch_type(), "OpsGenie");
 
         let custom_metrics = vec![
-            CustomMetric::new("mae".to_string(), 12.4, AlertThreshold::Above, Some(2.3)).unwrap(),
-            CustomMetric::new("accuracy".to_string(), 0.85, AlertThreshold::Below, None).unwrap(),
+            CustomMetric::new("mae", 12.4, AlertThreshold::Above, Some(2.3)).unwrap(),
+            CustomMetric::new("accuracy", 0.85, AlertThreshold::Below, None).unwrap(),
         ];
 
         alert_config.set_alert_conditions(&custom_metrics);
