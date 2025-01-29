@@ -18,13 +18,11 @@ pub struct PsiFeatureQueue {
 }
 
 impl PsiFeatureQueue {
-
     #[instrument(name = "Numeric Scalar")]
     fn find_numeric_bin_given_scaler(
         value: f64,
         bins: &[Bin],
     ) -> Result<&usize, FeatureQueueError> {
-      
         for bin in bins.iter() {
             match (bin.lower_limit, bin.upper_limit) {
                 // First bin (-inf to upper)
@@ -57,7 +55,6 @@ impl PsiFeatureQueue {
         value: f64,
         bins: &[Bin],
     ) -> Result<(), FeatureQueueError> {
-     
         let bin_id = Self::find_numeric_bin_given_scaler(value, bins)?;
         let count = queue
             .get_mut(bin_id)
@@ -77,7 +74,6 @@ impl PsiFeatureQueue {
         queue: &mut HashMap<usize, usize>,
         value: f64,
     ) -> Result<(), FeatureQueueError> {
-    
         if value == 0.0 {
             let bin_id = 0;
             let count = queue
@@ -155,7 +151,6 @@ impl PsiFeatureQueue {
 
     #[instrument(skip(self, features), name = "Insert")]
     pub fn insert(&mut self, features: Features) -> Result<(), FeatureQueueError> {
-      
         let feat_map = &self.drift_profile.config.feature_map;
         for feature in features.iter() {
             if let Some(feature_drift_profile) = self.drift_profile.features.get(feature.name()) {
@@ -205,7 +200,6 @@ impl PsiFeatureQueue {
 
     #[instrument(skip(self), name = "Create records")]
     pub fn create_drift_records(&self) -> Result<ServerRecords, FeatureQueueError> {
-       
         let features_to_monitor = self
             .drift_profile
             .config

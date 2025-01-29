@@ -7,6 +7,7 @@ use scouter_error::FeatureQueueError;
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::{Features, ServerRecords};
 use std::collections::HashMap;
+use tracing::instrument;
 use tracing::{debug, error, span, Level};
 
 #[pyclass]
@@ -20,10 +21,8 @@ pub struct SpcFeatureQueue {
 #[pymethods]
 impl SpcFeatureQueue {
     #[new]
+    #[instrument(skip(drift_profile))]
     pub fn new(drift_profile: SpcDriftProfile) -> Self {
-        let span = span!(Level::INFO, "Initialize SpcFeatureQueue").entered();
-        let _ = span.enter();
-
         let queue: HashMap<String, Vec<f64>> = drift_profile
             .features
             .keys()
@@ -40,10 +39,8 @@ impl SpcFeatureQueue {
         }
     }
 
+    #[instrument(skip(self, features), name = "Insert")]
     pub fn insert(&mut self, features: Features) -> Result<(), FeatureQueueError> {
-        let span = span!(Level::INFO, "SPC Insert").entered();
-        let _ = span.enter();
-
         let feat_map = &self.drift_profile.config.feature_map;
 
         debug!("Inserting features into queue");
@@ -62,13 +59,13 @@ impl SpcFeatureQueue {
     // Create drift records from queue items
     //
     // returns: DriftServerRecords
+    #[instrument(skip(self), name = "Create Server Records")]
     pub fn create_drift_records(&self) -> Result<ServerRecords, FeatureQueueError> {
-        let span = span!(Level::INFO, "SPC create drift record").entered();
-        let _ = span.enter();
-
+        // filter out empty queues
         let (arrays, feature_names): (Vec<_>, Vec<_>) = self
             .queue
             .iter()
+            .filter(|(_, values)| !values.is_empty())
             .map(|(feature, values)| {
                 (
                     Array2::from_shape_vec((values.len(), 1), values.clone()).unwrap(),

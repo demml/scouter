@@ -300,6 +300,39 @@ pub mod drift_executor {
         }
 
         #[tokio::test]
+        async fn test_drift_executor_spc_missing_feature_data() {
+            // this tests the scenario where only 1 of 2 features has data in the db when polling
+            // for tasks. Need to ensure this does not fail and the present feature and data are
+            // still processed
+            let client = PostgresClient::new(None, None).await.unwrap();
+            cleanup(&client.pool).await;
+
+            let mut populate_path =
+                std::env::current_dir().expect("Failed to get current directory");
+            populate_path.push("src/scripts/populate_spc_alert.sql");
+
+            let script = std::fs::read_to_string(populate_path).unwrap();
+            sqlx::raw_sql(&script).execute(&client.pool).await.unwrap();
+
+            let mut drift_executor = DriftExecutor::new(client.clone());
+
+            drift_executor.poll_for_tasks().await.unwrap();
+
+            // get alerts from db
+            let request = DriftAlertRequest {
+                repository: "statworld".to_string(),
+                name: "test_app".to_string(),
+                version: "0.1.0".to_string(),
+                limit_datetime: None,
+                active: None,
+                limit: None,
+            };
+            let alerts = client.get_drift_alerts(&request).await.unwrap();
+
+            assert!(!alerts.is_empty());
+        }
+
+        #[tokio::test]
         async fn test_drift_executor_psi() {
             let client = PostgresClient::new(None, None).await.unwrap();
             cleanup(&client.pool).await;

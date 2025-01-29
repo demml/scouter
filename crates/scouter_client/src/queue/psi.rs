@@ -64,7 +64,6 @@ impl PsiQueue {
 
     #[instrument(skip(self), name = "Insert")]
     pub fn insert(&mut self, features: Features) -> Result<(), ScouterError> {
-        
         {
             let mut queue = self.queue.blocking_lock();
             let insert = queue.insert(features);
@@ -136,8 +135,6 @@ impl PsiQueue {
         let mut producer = self.producer.clone();
         let mut last_publish = self.last_publish;
         let handle = self.rt.clone();
-
-   
 
         // spawn the background task using the already cloned handle
         let future = async move {

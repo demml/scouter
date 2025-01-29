@@ -143,7 +143,6 @@ impl CustomQueue {
         let mut last_publish = self.last_publish;
         let handle = self.rt.clone();
 
-       
         // spawn the background task using the already cloned handle
         let future = async move {
             loop {

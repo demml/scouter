@@ -454,7 +454,7 @@ impl SpcMonitor {
         drift_profile: &SpcDriftProfile,
     ) -> Result<Array2<f64>, MonitorError> {
         // iterate through each row of samples
-        let num_features = drift_profile.features.len();
+        let num_features = features.len();
         let drift_array = sample_array
             .axis_iter(Axis(0))
             .into_par_iter()
