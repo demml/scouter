@@ -1,8 +1,9 @@
 -- Migrations
-CREATE EXTENSION if not exists pg_partman;
+
+CREATE EXTENSION if not exists pg_partman SCHEMA scouter;
 CREATE EXTENSION if not exists pg_cron;
 
-CREATE TABLE IF NOT exists drift (
+CREATE TABLE IF NOT exists scouter.drift (
   created_at timestamp not null default (timezone('utc', now())),
   name varchar(256),
   repository varchar(256),
@@ -13,18 +14,18 @@ CREATE TABLE IF NOT exists drift (
 )
 PARTITION BY RANGE (created_at);
 
-CREATE INDEX ON drift (name, repository, version, created_at);
+CREATE INDEX ON scouter.drift (name, repository, version, created_at);
 
-SELECT create_parent(
+SELECT scouter.create_parent(
     'scouter.drift',
     'created_at',
     '1 day'
 );
 
-UPDATE part_config SET retention = '7 days' WHERE parent_table = 'drift';
+UPDATE scouter.part_config SET retention = '7 days' WHERE parent_table = 'scouter.drift';
 
 -- Create table for service drift configuration
-CREATE table IF NOT exists drift_profile (
+CREATE table IF NOT exists scouter.drift_profile (
   created_at timestamp not null default (timezone('utc', now())),
   updated_at timestamp not null default (timezone('utc', now())),
   name varchar(256),

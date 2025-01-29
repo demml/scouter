@@ -1,5 +1,5 @@
 -- Insert custom profile into scouter.drift_profile
-INSERT INTO drift_profile (created_at, updated_at, name, repository, version, profile, drift_type, active, schedule, next_run, previous_run)
+INSERT INTO scouter.drift_profile (created_at, updated_at, name, repository, version, profile, drift_type, active, schedule, next_run, previous_run)
 VALUES
     (
         timezone('utc', now()),
@@ -59,7 +59,7 @@ DO $$
                             metric_value := random() + 16.0;
                         END IF;
 
-                        INSERT INTO custom_metrics (created_at, name, repository, version, metric, value)
+                        INSERT INTO scouter.custom_metrics (created_at, name, repository, version, metric, value)
                         VALUES
                             (created_at + (random() * INTERVAL '1 second'), 'model', 'scouter', '0.1.0', metric_names[j], metric_value);
                     END LOOP;

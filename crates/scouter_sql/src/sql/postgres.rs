@@ -22,7 +22,10 @@ use scouter_types::{
 };
 
 use serde_json::Value;
-use sqlx::{postgres::{PgPoolOptions, PgQueryResult}, Executor, Pool, Postgres, Row, Transaction};
+use sqlx::{
+    postgres::{PgPoolOptions, PgQueryResult},
+    Pool, Postgres, Row, Transaction,
+};
 use std::collections::{BTreeMap, HashMap};
 use std::result::Result::Ok;
 use std::str::FromStr;
@@ -80,13 +83,6 @@ impl PostgresClient {
 
         let pool = match PgPoolOptions::new()
             .max_connections(database_settings.max_connections)
-            .after_connect(|conn, _meta| {
-                Box::pin(async move {
-                    conn.execute("CREATE SCHEMA if not exists scouter;").await?;
-                    conn.execute("SET search_path = scouter;").await?;
-                    Ok(())
-                })
-            })
             .connect(&database_settings.connection_uri)
             .await
         {
@@ -906,22 +902,22 @@ mod tests {
         sqlx::raw_sql(
             r#"
             DELETE 
-            FROM drift;
+            FROM scouter.drift;
 
             DELETE 
-            FROM observability_metrics;
+            FROM scouter.observability_metrics;
 
             DELETE
-            FROM custom_metrics;
+            FROM scouter.custom_metrics;
 
             DELETE
-            FROM drift_alerts;
+            FROM scouter.drift_alerts;
 
             DELETE
-            FROM drift_profile;
+            FROM scouter.drift_profile;
 
             DELETE
-            FROM observed_bin_count;
+            FROM scouter.observed_bin_count;
             "#,
         )
         .fetch_all(pool)

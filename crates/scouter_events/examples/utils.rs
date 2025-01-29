@@ -34,22 +34,22 @@ pub async fn cleanup(pool: &Pool<Postgres>) -> Result<(), sqlx::Error> {
     sqlx::raw_sql(
         r#"
         DELETE 
-        FROM drift;
+        FROM scouter.drift;
 
         DELETE 
-        FROM observability_metrics;
+        FROM scouter.observability_metrics;
 
         DELETE
-        FROM custom_metrics;
+        FROM scouter.custom_metrics;
 
         DELETE
-        FROM drift_alerts;
+        FROM scouter.drift_alerts;
 
         DELETE
-        FROM drift_profile;
+        FROM scouter.drift_profile;
 
         DELETE
-        FROM observed_bin_count;
+        FROM scouter.observed_bin_count;
         "#,
     )
     .fetch_all(pool)
