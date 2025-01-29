@@ -13,7 +13,6 @@ use scouter_error::{PyScouterError, ScouterError};
 use scouter_types::ServerRecords;
 use std::sync::Arc;
 use tracing::debug;
-use tracing_subscriber::field::debug;
 
 #[derive(Clone)]
 pub enum ProducerEnum {
