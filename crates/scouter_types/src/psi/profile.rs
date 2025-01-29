@@ -2,7 +2,7 @@ use crate::psi::alert::PsiAlertConfig;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, ProfileArgs, ProfileBaseArgs,
-    ProfileFuncs, MISSING,
+    ProfileFuncs, DEFAULT_VERSION, MISSING,
 };
 use core::fmt::Debug;
 use pyo3::prelude::*;
@@ -52,15 +52,15 @@ pub struct PsiDriftConfig {
 impl PsiDriftConfig {
     // TODO dry this out
     #[new]
-    #[pyo3(signature = (repository=None, name=None, version=None, feature_map=None, features_to_monitor=None, targets=None, alert_config=None, config_path=None))]
+    #[pyo3(signature = (repository=MISSING, name=MISSING, version=DEFAULT_VERSION, feature_map=None, features_to_monitor=None, targets=None, alert_config=PsiAlertConfig::default(), config_path=None))]
     pub fn new(
-        repository: Option<String>,
-        name: Option<String>,
-        version: Option<String>,
+        repository: &str,
+        name: &str,
+        version: &str,
         feature_map: Option<FeatureMap>,
         features_to_monitor: Option<Vec<String>>,
         targets: Option<Vec<String>>,
-        alert_config: Option<PsiAlertConfig>,
+        mut alert_config: PsiAlertConfig,
         config_path: Option<PathBuf>,
     ) -> Result<Self, ScouterError> {
         if let Some(config_path) = config_path {
@@ -68,16 +68,11 @@ impl PsiDriftConfig {
             return config;
         }
 
-        let name = name.unwrap_or(MISSING.to_string());
-        let repository = repository.unwrap_or(MISSING.to_string());
-
         if name == MISSING || repository == MISSING {
             debug!("Name and repository were not provided. Defaulting to __missing__");
         }
 
-        let version = version.unwrap_or("0.1.0".to_string());
         let targets = targets.unwrap_or_default();
-        let mut alert_config = alert_config.unwrap_or_default();
         let feature_map = feature_map.unwrap_or_default();
 
         if features_to_monitor.is_some() {
@@ -85,9 +80,9 @@ impl PsiDriftConfig {
         }
 
         Ok(Self {
-            name,
-            repository,
-            version,
+            name: name.to_string(),
+            repository: repository.to_string(),
+            version: version.to_string(),
             alert_config,
             feature_map,
             targets,
@@ -418,8 +413,17 @@ mod tests {
 
     #[test]
     fn test_drift_config() {
-        let mut drift_config =
-            PsiDriftConfig::new(None, None, None, None, None, None, None, None).unwrap();
+        let mut drift_config = PsiDriftConfig::new(
+            MISSING,
+            MISSING,
+            DEFAULT_VERSION,
+            None,
+            None,
+            None,
+            PsiAlertConfig::default(),
+            None,
+        )
+        .unwrap();
         assert_eq!(drift_config.name, "__missing__");
         assert_eq!(drift_config.repository, "__missing__");
         assert_eq!(drift_config.version, "0.1.0");

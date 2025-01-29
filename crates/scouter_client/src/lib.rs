@@ -14,7 +14,7 @@ pub use scouter_types::{
     custom::{
         AlertThreshold, BinnedCustomMetric, BinnedCustomMetricStats, BinnedCustomMetrics,
         CustomDriftProfile, CustomMetric, CustomMetricAlertCondition, CustomMetricAlertConfig,
-        CustomMetricDriftConfig
+        CustomMetricDriftConfig,
     },
     psi::{
         Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiDriftConfig, PsiDriftMap,
@@ -26,17 +26,17 @@ pub use scouter_types::{
         SpcFeatureDriftProfile,
     },
     AlertDispatchType, CustomMetricServerRecord, DataType, DriftProfile, DriftType, Feature,
-    FeatureMap, Features, LatencyMetrics, ObservabilityMetrics, PsiServerRecord, RecordType,
-    RouteMetrics, ServerRecord, ServerRecords, SpcServerRecord, TimeInterval, Metric, Metrics,
+    FeatureMap, Features, LatencyMetrics, Metric, Metrics, ObservabilityMetrics, PsiServerRecord,
+    RecordType, RouteMetrics, ServerRecord, ServerRecords, SpcServerRecord, TimeInterval,
 };
 
 pub use crate::http::ScouterClient;
 pub use queue::{DriftTransportConfig, ScouterQueue};
 pub use scouter_contracts::{DriftAlertRequest, DriftRequest, ProfileStatusRequest};
 pub use scouter_drift::{
+    custom::CustomMetricFeatureQueue,
     psi::{PsiFeatureQueue, PsiMonitor},
     spc::{generate_alerts, SpcDriftMap, SpcFeatureDrift, SpcFeatureQueue, SpcMonitor},
-    custom::CustomMetricFeatureQueue,
     utils::CategoricalFeatureHelpers,
 };
 pub use scouter_error::{ProfilerError, PyScouterError, ScouterError};

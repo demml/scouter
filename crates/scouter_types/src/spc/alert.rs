@@ -44,13 +44,9 @@ pub struct SpcAlertRule {
 #[pymethods]
 impl SpcAlertRule {
     #[new]
-    #[pyo3(signature = (rule=None, zones_to_monitor=None))]
-    pub fn new(rule: Option<String>, zones_to_monitor: Option<Vec<AlertZone>>) -> Self {
-        let rule = match rule {
-            Some(r) => r,
-            None => "8 16 4 8 2 4 1 1".to_string(),
-        };
-
+    #[pyo3(signature = (rule="8 16 4 8 2 4 1 1", zones_to_monitor=None))]
+    pub fn new(rule: &str, zones_to_monitor: Option<Vec<AlertZone>>) -> Self {
+        
         let zones = zones_to_monitor.unwrap_or(
             [
                 AlertZone::Zone1,
@@ -61,7 +57,7 @@ impl SpcAlertRule {
             .to_vec(),
         );
         Self {
-            rule,
+            rule: rule.to_string(),
             zones_to_monitor: zones,
         }
     }
@@ -104,21 +100,17 @@ impl ValidateAlertConfig for SpcAlertConfig {}
 #[pymethods]
 impl SpcAlertConfig {
     #[new]
-    #[pyo3(signature = (rule=None, dispatch_type=None, schedule=None, features_to_monitor=None, dispatch_kwargs=None))]
+    #[pyo3(signature = (rule=SpcAlertRule::default(), dispatch_type=AlertDispatchType::default(), schedule=None, features_to_monitor=vec![], dispatch_kwargs=HashMap::new()))]
     pub fn new(
-        rule: Option<SpcAlertRule>,
-        dispatch_type: Option<AlertDispatchType>,
-        schedule: Option<String>,
-        features_to_monitor: Option<Vec<String>>,
-        dispatch_kwargs: Option<HashMap<String, String>>,
+        rule: SpcAlertRule,
+        dispatch_type: AlertDispatchType,
+        schedule: Option<&str>,
+        features_to_monitor: Vec<String>,
+        dispatch_kwargs: HashMap<String, String>,
     ) -> Self {
-        let rule = rule.unwrap_or_default();
 
         let schedule = Self::resolve_schedule(schedule);
-        let dispatch_type = dispatch_type.unwrap_or_default();
-        let features_to_monitor = features_to_monitor.unwrap_or_default();
-        let dispatch_kwargs = dispatch_kwargs.unwrap_or_default();
-
+     
         Self {
             rule,
             dispatch_type,
@@ -361,14 +353,14 @@ mod tests {
     #[test]
     fn test_alert_config() {
         //test console alert config
-        let alert_config = SpcAlertConfig::new(None, None, None, None, None);
+        let alert_config = SpcAlertConfig::default();
         assert_eq!(alert_config.dispatch_type, AlertDispatchType::Console);
         assert_eq!(alert_config.dispatch_type(), "Console");
         assert_eq!(AlertDispatchType::Console.value(), "Console");
 
         //test slack alert config
-        let alert_config =
-            SpcAlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None);
+        let mut alert_config = SpcAlertConfig::default();
+        alert_config.dispatch_type = AlertDispatchType::Slack;
         assert_eq!(alert_config.dispatch_type, AlertDispatchType::Slack);
         assert_eq!(alert_config.dispatch_type(), "Slack");
         assert_eq!(AlertDispatchType::Slack.value(), "Slack");
@@ -377,13 +369,11 @@ mod tests {
         let mut alert_kwargs = HashMap::new();
         alert_kwargs.insert("channel".to_string(), "test".to_string());
 
-        let alert_config = SpcAlertConfig::new(
-            None,
-            Some(AlertDispatchType::OpsGenie),
-            None,
-            None,
-            Some(alert_kwargs),
-        );
+        let mut alert_config = SpcAlertConfig::default();
+        alert_config.dispatch_type = AlertDispatchType::OpsGenie;
+        alert_config.dispatch_kwargs = alert_kwargs;
+
+        
         assert_eq!(alert_config.dispatch_type, AlertDispatchType::OpsGenie);
         assert_eq!(alert_config.dispatch_type(), "OpsGenie");
         assert_eq!(alert_config.dispatch_kwargs.get("channel").unwrap(), "test");

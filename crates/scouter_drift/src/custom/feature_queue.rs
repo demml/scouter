@@ -103,7 +103,9 @@ impl CustomMetricFeatureQueue {
 mod tests {
 
     use super::*;
-    use scouter_types::custom::{AlertThreshold, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig};
+    use scouter_types::custom::{
+        AlertThreshold, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig,
+    };
     use scouter_types::{Metric, Metrics};
 
     #[test]

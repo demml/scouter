@@ -15,6 +15,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 pub const MISSING: &str = "__missing__";
+pub const DEFAULT_VERSION: &str = "0.1.0";
 
 pub enum FileName {
     SpcDrift,
@@ -266,7 +267,7 @@ pub trait ProfileBaseArgs {
 }
 
 pub trait ValidateAlertConfig {
-    fn resolve_schedule(schedule: Option<String>) -> String {
+    fn resolve_schedule(schedule: Option<&str>) -> String {
         let default_schedule = CommonCrons::EveryDay.cron();
 
         match schedule {
@@ -275,8 +276,8 @@ pub trait ValidateAlertConfig {
                     .map(|_| s) // If valid, return the schedule
                     .unwrap_or_else(|_| {
                         tracing::error!("Invalid cron schedule, using default schedule");
-                        default_schedule
-                    })
+                        &default_schedule
+                    }).to_string()
             }
             None => default_schedule,
         }

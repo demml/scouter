@@ -1,8 +1,7 @@
 use crate::custom::alert::{CustomMetric, CustomMetricAlertConfig};
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::{
-    DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
-    ProfileFuncs, MISSING,
+    DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs, ProfileFuncs, DEFAULT_VERSION, MISSING
 };
 use core::fmt::Debug;
 use pyo3::prelude::*;
@@ -53,11 +52,11 @@ impl DispatchDriftConfig for CustomMetricDriftConfig {
 #[allow(clippy::too_many_arguments)]
 impl CustomMetricDriftConfig {
     #[new]
-    #[pyo3(signature = (repository=MISSING, name=MISSING, version="0.1.0", sample=true, sample_size=25, alert_config=CustomMetricAlertConfig::default(), config_path=None))]
+    #[pyo3(signature = (repository=MISSING, name=MISSING, version=DEFAULT_VERSION, sample=true, sample_size=25, alert_config=CustomMetricAlertConfig::default(), config_path=None))]
     pub fn new(
         repository: &str,
         name: &str,
-        version:&str,
+        version: &str,
         sample: bool,
         sample_size: usize,
         alert_config: CustomMetricAlertConfig,
@@ -65,7 +64,7 @@ impl CustomMetricDriftConfig {
     ) -> Result<Self, CustomMetricError> {
         //let name = name.unwrap_or(MISSING.to_string());
         //let repository = repository.unwrap_or(MISSING.to_string());
-//
+        //
         //if name == MISSING || repository == MISSING {
         //    debug!("Name and repository were not provided. Defaulting to __missing__");
         //}
@@ -308,8 +307,16 @@ mod tests {
 
     #[test]
     fn test_drift_config() {
-        let mut drift_config =
-            CustomMetricDriftConfig::new(MISSING, MISSING, "0.1.0", false, 25, CustomMetricAlertConfig::default(), None).unwrap();
+        let mut drift_config = CustomMetricDriftConfig::new(
+            MISSING,
+            MISSING,
+            "0.1.0",
+            false,
+            25,
+            CustomMetricAlertConfig::default(),
+            None,
+        )
+        .unwrap();
         assert_eq!(drift_config.name, "__missing__");
         assert_eq!(drift_config.repository, "__missing__");
         assert_eq!(drift_config.version, "0.1.0");
@@ -347,16 +354,9 @@ mod tests {
             Some("0 0 * * * *".to_string()),
             None,
         );
-        let drift_config = CustomMetricDriftConfig::new(
-            "scouter",
-            "ML",
-            "0.1.0",
-            false,
-            25,
-            alert_config,
-            None,
-        )
-        .unwrap();
+        let drift_config =
+            CustomMetricDriftConfig::new("scouter", "ML", "0.1.0", false, 25, alert_config, None)
+                .unwrap();
 
         let custom_metrics = vec![
             CustomMetric::new("mae", 12.4, AlertThreshold::Above, Some(2.3)).unwrap(),

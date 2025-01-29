@@ -593,16 +593,9 @@ mod tests {
         let helper = TestHelper::new(false, false).await.unwrap();
 
         let alert_config = CustomMetricAlertConfig::new(None, None, None);
-        let config = CustomMetricDriftConfig::new(
-            "test",
-            "test",
-            "1.0.0",
-            true,
-            25,
-            alert_config,
-            None,
-        )
-        .unwrap();
+        let config =
+            CustomMetricDriftConfig::new("test", "test", "1.0.0", true, 25, alert_config, None)
+                .unwrap();
 
         let alert_threshold = AlertThreshold::Above;
         let metric1 =
