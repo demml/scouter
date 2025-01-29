@@ -10,7 +10,6 @@ use tokio::sync::{watch, Mutex};
 use tokio::time::{self, Duration};
 use tracing::{debug, error, info, span, Instrument, Level};
 
-
 #[pyclass]
 pub struct CustomQueue {
     queue: Arc<Mutex<CustomMetricFeatureQueue>>,
@@ -48,8 +47,6 @@ impl CustomQueue {
         let producer = rt.block_on(async { RustScouterProducer::new(config).await })?;
 
         let (stop_tx, stop_rx) = watch::channel(());
-
-
 
         let custom_queue = CustomQueue {
             queue: queue.clone(),

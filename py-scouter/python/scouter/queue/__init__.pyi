@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from ..client import HTTPConfig
-from ..drift import PsiDriftProfile, SpcDriftProfile
+from ..drift import PsiDriftProfile, SpcDriftProfile, CustomDriftProfile
 from ..logging import LogLevel
 from ..observe import ObservabilityMetrics
 
@@ -478,6 +478,32 @@ class Features:
 
     def __str__(self) -> str:
         """Return the string representation of the features"""
+        
+class Metric:
+    def __init__(self, name: str, value: float) -> None:
+        """Initialize metric
+
+        Args:
+            name:
+                Name of the metric
+            value:
+                Value to assign to the metric
+        """
+
+    def __str__(self) -> str:
+        """Return the string representation of the metric"""
+        
+class Metrics:
+    def __init__(self, metrics: List[Metric]) -> None:
+        """Initialize metrics
+
+        Args:
+            metrics:
+                List of metrics
+        """
+
+    def __str__(self) -> str:
+        """Return the string representation of the metrics"""
 
 class PsiFeatureQueue:
     def __init__(self, drift_profile: PsiDriftProfile) -> None:
@@ -539,3 +565,37 @@ class SpcFeatureQueue:
 
     def clear_queue(self) -> None:
         """Clears the feature queue"""
+        
+class CustomMetricFeatureQueue:
+    def __init__(self, drift_profile: CustomDriftProfile) -> None:
+        """Initialize the feature queue
+
+        Args:
+            drift_profile:
+                Drift profile to use for feature queue.
+        """
+
+    def insert(self, metrics: Metrics) -> None:
+        """Insert data into the feature queue
+
+        Args:
+            metrics:
+                List of metrics to insert into the monitoring queue.
+        """
+
+    def create_drift_records(self) -> ServerRecords:
+        """Create drift server record from data
+
+
+        Returns:
+            `DriftServerRecord`
+        """
+
+    def clear_queue(self) -> None:
+        """Clears the feature queue"""
+        
+    def is_empty(self) -> bool:
+        """check if queue is empty
+        Returns:
+            bool
+        """

@@ -2,11 +2,11 @@ use crate::queue::psi::PsiQueue;
 use crate::queue::spc::SpcQueue;
 use pyo3::prelude::*;
 use scouter_error::{PyScouterError, ScouterError};
+use scouter_types::custom::CustomDriftProfile;
 use scouter_types::psi::PsiDriftProfile;
 use scouter_types::spc::SpcDriftProfile;
-use scouter_types::custom::CustomDriftProfile;
-use scouter_types::{Features, Metrics};
 use scouter_types::{DriftProfile, DriftType};
+use scouter_types::{Features, Metrics};
 use serde_json::Value;
 use std::path::PathBuf;
 use tracing::{error, info, span, Level};
@@ -42,22 +42,19 @@ impl Queue {
                 let drift_profile = drift_profile.extract::<CustomDriftProfile>()?;
                 Ok(Queue::Custom(CustomQueue::new(drift_profile, config)?))
             }
-            _ => Err(ScouterError::Error("Invalid drift type".to_string())),
         }
     }
 
     pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> Result<(), ScouterError> {
-
         match self {
             Queue::Spc(queue) => {
                 let features = entity.extract::<Features>()?;
                 queue.insert(features)
-            },
+            }
             Queue::Psi(queue) => {
                 let features = entity.extract::<Features>()?;
                 queue.insert(features)
-            },
-
+            }
             Queue::Custom(queue) => {
                 let metrics = entity.extract::<Metrics>()?;
                 queue.insert(metrics)
