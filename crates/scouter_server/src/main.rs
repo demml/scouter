@@ -597,6 +597,8 @@ mod tests {
             Some("test".to_string()),
             Some("test".to_string()),
             Some("1.0.0".to_string()),
+            None,
+            None,
             Some(alert_config),
             None,
         )

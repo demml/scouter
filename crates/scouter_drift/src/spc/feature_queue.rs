@@ -40,18 +40,13 @@ impl SpcFeatureQueue {
         }
     }
 
-    // create a python function that will take a python dictionary of string keys and either int, float or string values
-    // and append the values to the corresponding feature queue
     pub fn insert(&mut self, features: Features) -> Result<(), FeatureQueueError> {
         let span = span!(Level::INFO, "SPC Insert").entered();
         let _ = span.enter();
 
         let feat_map = &self.drift_profile.config.feature_map;
 
-        debug!(
-            "Inserting features into queue {:?} with keys {:?}",
-            features, self.feature_names
-        );
+        debug!("Inserting features into queue");
         features.iter().for_each(|feature| {
             let name = feature.name();
             if let Some(queue) = self.queue.get_mut(name) {

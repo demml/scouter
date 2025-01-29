@@ -18,6 +18,12 @@ use tracing::debug;
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CustomMetricDriftConfig {
     #[pyo3(get, set)]
+    pub sample_size: usize,
+
+    #[pyo3(get, set)]
+    pub sample: bool,
+
+    #[pyo3(get, set)]
     pub repository: String,
 
     #[pyo3(get, set)]
@@ -48,12 +54,13 @@ impl DispatchDriftConfig for CustomMetricDriftConfig {
 #[allow(clippy::too_many_arguments)]
 impl CustomMetricDriftConfig {
     #[new]
-    #[pyo3(signature = (repository=None, name=None, version=None, alert_config=None, config_path=None))]
+    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, alert_config=None, config_path=None))]
     pub fn new(
         repository: Option<String>,
         name: Option<String>,
         version: Option<String>,
-
+        sample: Option<bool>,
+        sample_size: Option<usize>,
         alert_config: Option<CustomMetricAlertConfig>,
         config_path: Option<PathBuf>,
     ) -> Result<Self, CustomMetricError> {
@@ -64,6 +71,8 @@ impl CustomMetricDriftConfig {
             debug!("Name and repository were not provided. Defaulting to __missing__");
         }
 
+        let sample = sample.unwrap_or(true);
+        let sample_size = sample_size.unwrap_or(25);
         let version = version.unwrap_or("0.1.0".to_string());
 
         if let Some(config_path) = config_path {
@@ -76,6 +85,8 @@ impl CustomMetricDriftConfig {
         let alert_config = alert_config.unwrap_or_default();
 
         Ok(Self {
+            sample_size,
+            sample,
             repository,
             name,
             version,
@@ -298,7 +309,8 @@ mod tests {
 
     #[test]
     fn test_drift_config() {
-        let mut drift_config = CustomMetricDriftConfig::new(None, None, None, None, None).unwrap();
+        let mut drift_config =
+            CustomMetricDriftConfig::new(None, None, None, None, None, None, None).unwrap();
         assert_eq!(drift_config.name, "__missing__");
         assert_eq!(drift_config.repository, "__missing__");
         assert_eq!(drift_config.version, "0.1.0");
@@ -340,6 +352,8 @@ mod tests {
             Some("scouter".to_string()),
             Some("ML".to_string()),
             Some("0.1.0".to_string()),
+            None,
+            None,
             Some(alert_config),
             None,
         )

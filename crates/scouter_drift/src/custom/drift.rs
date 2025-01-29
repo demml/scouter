@@ -261,6 +261,8 @@ pub mod custom_drifter {
                 Some("scouter".to_string()),
                 Some("model".to_string()),
                 Some("0.1.0".to_string()),
+                None,
+                None,
                 Some(CustomMetricAlertConfig::new(None, None, None)),
                 None,
             )
