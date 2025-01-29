@@ -44,21 +44,18 @@ pub struct SpcAlertRule {
 #[pymethods]
 impl SpcAlertRule {
     #[new]
-    #[pyo3(signature = (rule="8 16 4 8 2 4 1 1", zones_to_monitor=None))]
-    pub fn new(rule: &str, zones_to_monitor: Option<Vec<AlertZone>>) -> Self {
+    #[pyo3(signature = (rule="8 16 4 8 2 4 1 1", zones_to_monitor=vec![
+        AlertZone::Zone1,
+        AlertZone::Zone2,
+        AlertZone::Zone3,
+        AlertZone::Zone4,
+    ]))]
+    pub fn new(rule: &str, zones_to_monitor: Vec<AlertZone>) -> Self {
         
-        let zones = zones_to_monitor.unwrap_or(
-            [
-                AlertZone::Zone1,
-                AlertZone::Zone2,
-                AlertZone::Zone3,
-                AlertZone::Zone4,
-            ]
-            .to_vec(),
-        );
+       
         Self {
             rule: rule.to_string(),
-            zones_to_monitor: zones,
+            zones_to_monitor,
         }
     }
 }
@@ -373,7 +370,7 @@ mod tests {
         alert_config.dispatch_type = AlertDispatchType::OpsGenie;
         alert_config.dispatch_kwargs = alert_kwargs;
 
-        
+
         assert_eq!(alert_config.dispatch_type, AlertDispatchType::OpsGenie);
         assert_eq!(alert_config.dispatch_type(), "OpsGenie");
         assert_eq!(alert_config.dispatch_kwargs.get("channel").unwrap(), "test");

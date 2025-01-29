@@ -41,7 +41,6 @@ def setup_router() -> ScouterRouter:
         config=config.kafka,
         drift_profile=None,
         drift_profile_path=Path("spc_profile.json"),
-     
     )
 
     psi_transport = DriftTransportConfig(

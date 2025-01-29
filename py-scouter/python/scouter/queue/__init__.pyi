@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from ..client import HTTPConfig
-from ..drift import PsiDriftProfile, SpcDriftProfile, CustomDriftProfile
+from ..drift import CustomDriftProfile, PsiDriftProfile, SpcDriftProfile
 from ..logging import LogLevel
 from ..observe import ObservabilityMetrics
 
@@ -478,7 +478,7 @@ class Features:
 
     def __str__(self) -> str:
         """Return the string representation of the features"""
-        
+
 class Metric:
     def __init__(self, name: str, value: float) -> None:
         """Initialize metric
@@ -492,7 +492,7 @@ class Metric:
 
     def __str__(self) -> str:
         """Return the string representation of the metric"""
-        
+
 class Metrics:
     def __init__(self, metrics: List[Metric]) -> None:
         """Initialize metrics
@@ -565,7 +565,7 @@ class SpcFeatureQueue:
 
     def clear_queue(self) -> None:
         """Clears the feature queue"""
-        
+
 class CustomMetricFeatureQueue:
     def __init__(self, drift_profile: CustomDriftProfile) -> None:
         """Initialize the feature queue
@@ -593,7 +593,7 @@ class CustomMetricFeatureQueue:
 
     def clear_queue(self) -> None:
         """Clears the feature queue"""
-        
+
     def is_empty(self) -> bool:
         """check if queue is empty
         Returns:

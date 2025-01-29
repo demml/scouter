@@ -58,15 +58,15 @@ class SpcFeatureDriftProfile:
 class SpcDriftConfig:
     def __init__(
         self,
-        repository: Optional[str] = None,
-        name: Optional[str] = None,
-        version: Optional[str] = None,
+        repository: str = "__missing__",
+        name: str = "__missing__",
+        version: str = "0.1.0",
         sample: bool = True,
         sample_size: int = 25,
-        alert_config: Optional[SpcAlertConfig] = None,
-        feature_map: Optional[FeatureMap] = None,
-        features_to_monitor: Optional[List[str]] = None,
-        targets: Optional[List[str]] = None,
+        alert_config: SpcAlertConfig = SpcAlertConfig(),
+        feature_map: FeatureMap = FeatureMap,  # type: ignore
+        features_to_monitor: List[str] = [],
+        targets: List[str] = [],
         config_path: Optional[Path] = None,
     ):
         """Initialize monitor config
@@ -420,13 +420,13 @@ class SpcDriftMap:
 class PsiDriftConfig:
     def __init__(
         self,
-        repository: Optional[str] = None,
-        name: Optional[str] = None,
-        version: Optional[str] = None,
-        alert_config: Optional[PsiAlertConfig] = None,
-        feature_map: Optional[FeatureMap] = None,
-        features_to_monitor: Optional[List[str]] = None,
-        targets: Optional[List[str]] = None,
+        repository: str = "__missing__",
+        name: str = "__missing__",
+        version: str = "0.1.0",
+        alert_config: PsiAlertConfig = PsiAlertConfig(),
+        feature_map: FeatureMap = FeatureMap,  # type: ignore
+        features_to_monitor: List[str] = [],
+        targets: List[str] = [],
         config_path: Optional[Path] = None,
     ):
         """Initialize monitor config
