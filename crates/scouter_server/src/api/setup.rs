@@ -12,7 +12,7 @@ pub async fn setup_logging() -> Result<(), anyhow::Error> {
             .unwrap_or_else(|_| "info".to_string())
             .as_str(),
     )?;
-    
+
     let use_json = std::env::var("LOG_JSON")
         .unwrap_or_else(|_| "false".to_string())
         .parse::<bool>()?;
@@ -24,3 +24,5 @@ pub async fn setup_logging() -> Result<(), anyhow::Error> {
 
     Ok(())
 }
+
+

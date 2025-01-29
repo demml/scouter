@@ -10,7 +10,7 @@ CREATE TABLE IF NOT exists scouter.observed_bin_count (
 )
 PARTITION BY RANGE (created_at);
 
-CREATE INDEX ON scouter.observed_bin_count (name, repository, version, created_at, feature);
+CREATE INDEX ON scouter.observed_bin_count (name, repository, version, created_at, feature, bin_id);
 
 SELECT scouter.create_parent(
                'scouter.observed_bin_count',

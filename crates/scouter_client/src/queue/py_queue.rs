@@ -7,8 +7,7 @@ use scouter_types::spc::SpcDriftProfile;
 use scouter_types::{DriftType, DriftProfile };
 use scouter_types::Features;
 use serde_json::Value;
-use tracing::debug;
-use tracing::info;
+use tracing::{info, span, Level, error};
 use std::path::PathBuf;
 
 pub enum Queue {
@@ -77,23 +76,32 @@ impl ScouterQueue {
     }
 
     pub fn insert(&mut self, features: Features) -> PyResult<()> {
-        debug!("Inserting features into queue: {:?}", features);
+        let span = span!(Level::INFO, "ScouterQueue Insert").entered();
+        let _ = span.enter();
         self.queue
             .insert(features)
-            .map_err(|e| PyScouterError::new_err(e.to_string()))?;
-        debug!("Inserted features into queue");
+            .map_err(|e| {
+                error!("Failed to insert features into queue: {:?}", e.to_string());
+                PyScouterError::new_err(e.to_string())})?;
         Ok(())
     }
 
     pub fn flush(&mut self) -> PyResult<()> {
-        debug!("Flushing queue");
+        let span = span!(Level::INFO, "ScouterQueue Flush").entered();
+        let _ = span.enter();
         match &mut self.queue {
             Queue::Spc(queue) => queue
                 .flush()
-                .map_err(|e| PyScouterError::new_err(e.to_string())),
+                .map_err(|e| {
+                    error!("Failed to flush queue: {:?}", e.to_string());   
+                    PyScouterError::new_err(e.to_string())
+            }),
             Queue::Psi(queue) => queue
                 .flush()
-                .map_err(|e| PyScouterError::new_err(e.to_string())),
+                .map_err(|e| {
+                    error!("Failed to flush queue: {:?}", e.to_string());  
+                    PyScouterError::new_err(e.to_string())
+        }),
         }
     }
 }

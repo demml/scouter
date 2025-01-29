@@ -9,7 +9,7 @@ CREATE TABLE IF NOT exists scouter.custom_metrics (
 )
 PARTITION BY RANGE (created_at);
 
-CREATE INDEX ON scouter.custom_metrics (name, repository, version, created_at);
+CREATE INDEX ON scouter.custom_metrics (name, repository, version, created_at, metric);
 
 SELECT scouter.create_parent(
                'scouter.custom_metrics',
