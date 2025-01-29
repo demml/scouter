@@ -4,15 +4,19 @@ use pyo3::prelude::*;
 use scouter_error::{PyScouterError, ScouterError};
 use scouter_types::psi::PsiDriftProfile;
 use scouter_types::spc::SpcDriftProfile;
-use scouter_types::Features;
+use scouter_types::custom::CustomDriftProfile;
+use scouter_types::{Features, Metrics};
 use scouter_types::{DriftProfile, DriftType};
 use serde_json::Value;
 use std::path::PathBuf;
 use tracing::{error, info, span, Level};
 
+use super::custom::CustomQueue;
+
 pub enum Queue {
     Spc(SpcQueue),
     Psi(PsiQueue),
+    Custom(CustomQueue),
 }
 
 impl Queue {
@@ -34,14 +38,30 @@ impl Queue {
                 let drift_profile = drift_profile.extract::<PsiDriftProfile>()?;
                 Ok(Queue::Psi(PsiQueue::new(drift_profile, config)?))
             }
+            DriftType::Custom => {
+                let drift_profile = drift_profile.extract::<CustomDriftProfile>()?;
+                Ok(Queue::Custom(CustomQueue::new(drift_profile, config)?))
+            }
             _ => Err(ScouterError::Error("Invalid drift type".to_string())),
         }
     }
 
-    pub fn insert(&mut self, features: Features) -> Result<(), ScouterError> {
+    pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> Result<(), ScouterError> {
+
         match self {
-            Queue::Spc(queue) => queue.insert(features),
-            Queue::Psi(queue) => queue.insert(features),
+            Queue::Spc(queue) => {
+                let features = entity.extract::<Features>()?;
+                queue.insert(features)
+            },
+            Queue::Psi(queue) => {
+                let features = entity.extract::<Features>()?;
+                queue.insert(features)
+            },
+
+            Queue::Custom(queue) => {
+                let metrics = entity.extract::<Metrics>()?;
+                queue.insert(metrics)
+            }
         }
     }
 
@@ -49,6 +69,7 @@ impl Queue {
         match self {
             Queue::Spc(queue) => queue.flush(),
             Queue::Psi(queue) => queue.flush(),
+            Queue::Custom(queue) => queue.flush(),
         }
     }
 }
@@ -73,10 +94,10 @@ impl ScouterQueue {
         })
     }
 
-    pub fn insert(&mut self, features: Features) -> PyResult<()> {
+    pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> PyResult<()> {
         let span = span!(Level::INFO, "ScouterQueue Insert").entered();
         let _ = span.enter();
-        self.queue.insert(features).map_err(|e| {
+        self.queue.insert(entity).map_err(|e| {
             error!("Failed to insert features into queue: {:?}", e.to_string());
             PyScouterError::new_err(e.to_string())
         })?;
@@ -92,6 +113,10 @@ impl ScouterQueue {
                 PyScouterError::new_err(e.to_string())
             }),
             Queue::Psi(queue) => queue.flush().map_err(|e| {
+                error!("Failed to flush queue: {:?}", e.to_string());
+                PyScouterError::new_err(e.to_string())
+            }),
+            Queue::Custom(queue) => queue.flush().map_err(|e| {
                 error!("Failed to flush queue: {:?}", e.to_string());
                 PyScouterError::new_err(e.to_string())
             }),
