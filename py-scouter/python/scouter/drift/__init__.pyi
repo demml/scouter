@@ -65,6 +65,7 @@ class SpcDriftConfig:
         sample_size: int = 25,
         alert_config: Optional[SpcAlertConfig] = None,
         feature_map: Optional[FeatureMap] = None,
+        features_to_monitor: Optional[List[str]] = None,
         targets: Optional[List[str]] = None,
         config_path: Optional[Path] = None,
     ):
@@ -83,6 +84,8 @@ class SpcDriftConfig:
                 Sample size
             feature_map:
                 Feature map
+            features_to_monitor:
+                List of features to monitor. If provided, will overwrite alert_config features_to_monitor.
             targets:
                 List of features that are targets in your dataset.
                 This is typically the name of your dependent variable(s).
@@ -422,6 +425,7 @@ class PsiDriftConfig:
         version: Optional[str] = None,
         alert_config: Optional[PsiAlertConfig] = None,
         feature_map: Optional[FeatureMap] = None,
+        features_to_monitor: Optional[List[str]] = None,
         targets: Optional[List[str]] = None,
         config_path: Optional[Path] = None,
     ):
@@ -436,6 +440,8 @@ class PsiDriftConfig:
                 Model version. Defaults to 0.1.0
             feature_map:
                 Feature map
+            features_to_monitor:
+                List of features to monitor. If provided, will overwrite alert_config features_to_monitor.
             targets:
                 List of features that are targets in your dataset.
                 This is typically the name of your dependent variable(s).
