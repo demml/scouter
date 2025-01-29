@@ -1,5 +1,5 @@
 -- Insert psi profile into drift_profile
-INSERT INTO drift_profile (created_at, updated_at, name, repository, version, profile, drift_type, active, schedule, next_run, previous_run)
+INSERT INTO scouter.drift_profile (created_at, updated_at, name, repository, version, profile, drift_type, active, schedule, next_run, previous_run)
 VALUES
     (
         timezone('utc', now()),
@@ -326,7 +326,7 @@ DO $$
         FOR i IN 1..10 LOOP
                 bin_id := i;
                 bin_count := (random() * 1000)::integer; -- random integer between 0 and 1000
-                INSERT INTO observed_bin_count (created_at, name, repository, version, feature, bin_id, bin_count)
+                INSERT INTO scouter.observed_bin_count (created_at, name, repository, version, feature, bin_id, bin_count)
                 VALUES (created_at_1, name, repository, version, feature, bin_id, bin_count);
                 created_at_1 := created_at_1 + (random() * INTERVAL '1 second'); -- Adjust time slightly for each row
             END LOOP;
@@ -335,7 +335,7 @@ DO $$
         FOR i IN 1..10 LOOP
                 bin_id := i;
                 bin_count := (random() * 1000)::integer;
-                INSERT INTO observed_bin_count (created_at, name, repository, version, feature, bin_id, bin_count)
+                INSERT INTO scouter.observed_bin_count (created_at, name, repository, version, feature, bin_id, bin_count)
                 VALUES (created_at_1, name, repository, version, feature, bin_id, bin_count);
                 created_at_1 := created_at_1 + (random() * INTERVAL '1 second');
             END LOOP;
@@ -344,7 +344,7 @@ DO $$
         FOR i IN 1..10 LOOP
                 bin_id := i;
                 bin_count := (random() * 1000)::integer;
-                INSERT INTO observed_bin_count (created_at, name, repository, version, feature, bin_id, bin_count)
+                INSERT INTO scouter.observed_bin_count (created_at, name, repository, version, feature, bin_id, bin_count)
                 VALUES (created_at_1, name, repository, version, feature, bin_id, bin_count);
                 created_at_1 := created_at_1 + (random() * INTERVAL '1 second');
             END LOOP;
@@ -365,7 +365,7 @@ DO $$
         FOR i IN 1..10 LOOP
                 bin_id := i;
                 bin_count := (random() * 1000)::integer;
-                INSERT INTO observed_bin_count (created_at, name, repository, version, feature, bin_id, bin_count)
+                INSERT INTO scouter.observed_bin_count (created_at, name, repository, version, feature, bin_id, bin_count)
                 VALUES (created_at_2, name, repository, version, feature, bin_id, bin_count);
                 created_at_2 := created_at_2 + (random() * INTERVAL '1 second');
             END LOOP;
@@ -374,7 +374,7 @@ DO $$
         FOR i IN 1..10 LOOP
                 bin_id := i;
                 bin_count := (random() * 1000)::integer;
-                INSERT INTO observed_bin_count (created_at, name, repository, version, feature, bin_id, bin_count)
+                INSERT INTO scouter.observed_bin_count (created_at, name, repository, version, feature, bin_id, bin_count)
                 VALUES (created_at_2, name, repository, version, feature, bin_id, bin_count);
                 created_at_2 := created_at_2 + (random() * INTERVAL '1 second');
             END LOOP;
@@ -383,7 +383,7 @@ DO $$
         FOR i IN 1..10 LOOP
                 bin_id := i;
                 bin_count := (random() * 1000)::integer;
-                INSERT INTO observed_bin_count (created_at, name, repository, version, feature, bin_id, bin_count)
+                INSERT INTO scouter.observed_bin_count (created_at, name, repository, version, feature, bin_id, bin_count)
                 VALUES (created_at_2, name, repository, version, feature, bin_id, bin_count);
                 created_at_2 := created_at_2 + (random() * INTERVAL '1 second');
             END LOOP;
@@ -403,7 +403,7 @@ DO $$
         FOR i IN 1..10 LOOP
                 bin_id := i;
                 bin_count := (random() * 1000)::integer;
-                INSERT INTO observed_bin_count (created_at, name, repository, version, feature, bin_id, bin_count)
+                INSERT INTO scouter.observed_bin_count (created_at, name, repository, version, feature, bin_id, bin_count)
                 VALUES (created_at_3, name, repository, version, feature, bin_id, bin_count);
                 created_at_3 := created_at_3 + (random() * INTERVAL '1 second');
             END LOOP;
@@ -412,7 +412,7 @@ DO $$
         FOR i IN 1..10 LOOP
                 bin_id := i;
                 bin_count := (random() * 1000)::integer;
-                INSERT INTO observed_bin_count (created_at, name, repository, version, feature, bin_id, bin_count)
+                INSERT INTO scouter.observed_bin_count (created_at, name, repository, version, feature, bin_id, bin_count)
                 VALUES (created_at_3, name, repository, version, feature, bin_id, bin_count);
                 created_at_3 := created_at_3 + (random() * INTERVAL '1 second');
             END LOOP;
@@ -421,7 +421,7 @@ DO $$
         FOR i IN 1..10 LOOP
                 bin_id := i;
                 bin_count := (random() * 1000)::integer;
-                INSERT INTO observed_bin_count (created_at, name, repository, version, feature, bin_id, bin_count)
+                INSERT INTO scouter.observed_bin_count (created_at, name, repository, version, feature, bin_id, bin_count)
                 VALUES (created_at_3, name, repository, version, feature, bin_id, bin_count);
                 created_at_3 := created_at_3 + (random() * INTERVAL '1 second');
             END LOOP;
