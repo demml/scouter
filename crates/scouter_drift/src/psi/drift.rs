@@ -333,26 +333,23 @@ pub mod psi_drifter {
         use ndarray::Array;
         use ndarray_rand::rand_distr::Uniform;
         use ndarray_rand::RandomExt;
-        use scouter_types::psi::{
+        use scouter_types::{psi::{
             Bin, BinType, FeatureBinProportion, FeatureBinProportions, PsiAlertConfig,
             PsiDriftConfig, PsiFeatureDriftProfile,
-        };
+        }, DEFAULT_VERSION};
 
         fn get_test_drifter() -> PsiDrifter {
+            let mut alert_config = PsiAlertConfig::default();
+            alert_config.features_to_monitor = vec!["feature_1".to_string(), "feature_3".to_string()];
+
             let config = PsiDriftConfig::new(
-                Some("name".to_string()),
-                Some("repo".to_string()),
+            "name",
+                "repo",
+                DEFAULT_VERSION,
                 None,
                 None,
                 None,
-                None,
-                Some(PsiAlertConfig::new(
-                    None,
-                    None,
-                    Some(vec!["feature_1".to_string(), "feature_3".to_string()]),
-                    None,
-                    None,
-                )),
+                alert_config,
                 None,
             )
             .unwrap();

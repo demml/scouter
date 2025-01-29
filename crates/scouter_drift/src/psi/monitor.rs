@@ -444,19 +444,9 @@ mod tests {
             "feature_2".to_string(),
             "feature_3".to_string(),
         ];
-        let config = PsiDriftConfig::new(
-            Some("name".to_string()),
-            Some("repo".to_string()),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        );
 
         let profile = psi_monitor
-            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
+            .create_2d_drift_profile(&features, &array.view(), &PsiDriftConfig::default())
             .unwrap();
         assert_eq!(profile.features.len(), 3);
 
@@ -659,19 +649,8 @@ mod tests {
         ];
 
         let monitor = PsiMonitor::default();
-        let config = PsiDriftConfig::new(
-            Some("name".to_string()),
-            Some("repo".to_string()),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        );
-
         let profile = monitor
-            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
+            .create_2d_drift_profile(&features, &array.view(), &PsiDriftConfig::default())
             .unwrap();
 
         assert_eq!(profile.features.len(), 3);
@@ -692,19 +671,9 @@ mod tests {
         ];
 
         let monitor = PsiMonitor::default();
-        let config = PsiDriftConfig::new(
-            Some("name".to_string()),
-            Some("repo".to_string()),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        );
 
         let profile = monitor
-            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
+            .create_2d_drift_profile(&features, &array.view(), &PsiDriftConfig::default())
             .unwrap();
 
         let drift_map = monitor

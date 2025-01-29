@@ -494,25 +494,22 @@ mod tests {
         let helper = TestHelper::new(false, false).await.unwrap();
 
         let (array, features) = helper.get_data();
-        let alert_config = PsiAlertConfig::new(
-            None,
-            None,
-            Some(vec![
-                "feature_1".to_string(),
-                "feature_2".to_string(),
-                "feature_3".to_string(),
-            ]),
-            None,
-            None,
-        );
+        let mut alert_config = PsiAlertConfig::default();
+        alert_config.features_to_monitor = vec![
+            "feature_1".to_string(),
+            "feature_2".to_string(),
+            "feature_3".to_string(),
+        ];
+
+
         let config = PsiDriftConfig::new(
-            Some("test".to_string()),
-            Some("test".to_string()),
-            Some("1.0.0".to_string()),
+            "test",
+            "test",
+            "1.0.0",
             None,
             None,
             None,
-            Some(alert_config),
+            alert_config,
             None,
         );
 
@@ -592,15 +589,15 @@ mod tests {
     async fn test_custom_server_records() {
         let helper = TestHelper::new(false, false).await.unwrap();
 
-        let alert_config = CustomMetricAlertConfig::new(None, None, None);
+        let alert_config = CustomMetricAlertConfig::default()   ;
         let config =
             CustomMetricDriftConfig::new("test", "test", "1.0.0", true, 25, alert_config, None)
                 .unwrap();
 
         let alert_threshold = AlertThreshold::Above;
         let metric1 =
-            CustomMetric::new("metric1".to_string(), 1.0, alert_threshold.clone(), None).unwrap();
-        let metric2 = CustomMetric::new("metric2".to_string(), 1.0, alert_threshold, None).unwrap();
+            CustomMetric::new("metric1", 1.0, alert_threshold.clone(), None).unwrap();
+        let metric2 = CustomMetric::new("metric2", 1.0, alert_threshold, None).unwrap();
         let profile = CustomDriftProfile::new(config, vec![metric1, metric2], None).unwrap();
 
         let request = ProfileRequest {

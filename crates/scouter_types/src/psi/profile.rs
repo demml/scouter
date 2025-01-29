@@ -149,6 +149,19 @@ impl PsiDriftConfig {
     }
 }
 
+impl Default for PsiDriftConfig {
+    fn default() -> Self {
+        PsiDriftConfig {
+            name: "__missing__".to_string(),
+            repository: "__missing__".to_string(),
+            version: DEFAULT_VERSION.to_string(),
+            feature_map: FeatureMap::default(),
+            alert_config: PsiAlertConfig::default(),
+            targets: Vec::new(),
+            drift_type: DriftType::Psi,
+        }
+    }
+}
 // TODO dry this out
 impl DispatchDriftConfig for PsiDriftConfig {
     fn get_drift_args(&self) -> DriftArgs {

@@ -279,7 +279,8 @@ mod tests {
     use ndarray_rand::RandomExt;
     use rand::distributions::Bernoulli;
     use scouter_types::psi::PsiDriftConfig;
-    use scouter_types::Feature;
+    use scouter_types::{Feature, DEFAULT_VERSION};
+    use scouter_types::psi::PsiAlertConfig;
 
     #[test]
     fn test_feature_queue_insert_numeric() {
@@ -300,14 +301,15 @@ mod tests {
         ];
 
         let monitor = PsiMonitor::new();
+        let alert_config = PsiAlertConfig::default();
         let config = PsiDriftConfig::new(
-            Some("name".to_string()),
-            Some("repo".to_string()),
+            "name",
+            "repo",
+            DEFAULT_VERSION,
             None,
             None,
             None,
-            None,
-            None,
+            alert_config,
             None,
         );
 
@@ -372,19 +374,10 @@ mod tests {
         let features = vec!["feature_1".to_string(), "feature_2".to_string()];
 
         let monitor = PsiMonitor::new();
-        let config = PsiDriftConfig::new(
-            Some("name".to_string()),
-            Some("repo".to_string()),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        );
+
 
         let profile = monitor
-            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
+            .create_2d_drift_profile(&features, &array.view(), &PsiDriftConfig::default())
             .unwrap();
         assert_eq!(profile.features.len(), 2);
 
@@ -457,19 +450,8 @@ mod tests {
 
         assert_eq!(array.shape(), &[5, 2]);
 
-        let config = PsiDriftConfig::new(
-            Some("name".to_string()),
-            Some("repo".to_string()),
-            None,
-            Some(feature_map),
-            None,
-            None,
-            None,
-            None,
-        );
-
         let profile = psi_monitor
-            .create_2d_drift_profile(&string_features, &array.view(), &config.unwrap())
+            .create_2d_drift_profile(&string_features, &array.view(), &PsiDriftConfig::default())
             .unwrap();
         assert_eq!(profile.features.len(), 2);
 
@@ -542,19 +524,12 @@ mod tests {
 
         assert_eq!(array.shape(), &[5, 2]);
 
-        let config = PsiDriftConfig::new(
-            Some("name".to_string()),
-            Some("repo".to_string()),
-            None,
-            Some(feature_map),
-            None,
-            None,
-            None,
-            None,
-        );
+        let mut config = PsiDriftConfig::default();
+        config.feature_map = feature_map;
 
+        
         let profile = psi_monitor
-            .create_2d_drift_profile(&string_features, &array.view(), &config.unwrap())
+            .create_2d_drift_profile(&string_features, &array.view(), &config)
             .unwrap();
         assert_eq!(profile.features.len(), 2);
 
@@ -590,19 +565,10 @@ mod tests {
         ];
 
         let monitor = PsiMonitor::new();
-        let config = PsiDriftConfig::new(
-            Some("name".to_string()),
-            Some("repo".to_string()),
-            None,
-            None,
-            None,
-            None,
-            None,
-            None,
-        );
+     
 
         let profile = monitor
-            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
+            .create_2d_drift_profile(&features, &array.view(), &PsiDriftConfig::default())
             .unwrap();
         assert_eq!(profile.features.len(), 3);
 
