@@ -152,7 +152,7 @@ impl PsiQueue {
                         let now = Utc::now().naive_utc();
                         let elapsed = now - last_publish;
 
-                        if elapsed.num_seconds() >= 10 {
+                        if elapsed.num_seconds() >= 30 {
                             debug!("Locking queue");
                             let mut queue = queue.lock().await;
 

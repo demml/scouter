@@ -8,7 +8,7 @@ use core::result::Result::Ok;
 use pyo3::prelude::*;
 use scouter_error::FeatureQueueError;
 use scouter_types::psi::{Bin, PsiDriftProfile};
-use std::{collections::HashMap};
+use std::collections::HashMap;
 
 #[pyclass]
 pub struct PsiFeatureQueue {
@@ -213,19 +213,29 @@ impl PsiFeatureQueue {
         let span = span!(Level::INFO, "FeatureQueue create drift record").entered();
         let _ = span.enter();
 
-        let features_to_monitor = self.drift_profile.config.alert_config.features_to_monitor.clone();
+        let features_to_monitor = self
+            .drift_profile
+            .config
+            .alert_config
+            .features_to_monitor
+            .clone();
 
         // filter out any feature thats not in features_to_monitor
-        // Filter out features that have no counts across all bins
+        // Keep feature if any value in the bin map is greater than 0
 
-        let filtered_queue = self.queue.iter().filter(|(feature_name, bin_map)| {
-            features_to_monitor.contains(feature_name)
-                && bin_map.iter().any(|(_, count)| *count > 0)
-        }).collect::<HashMap<_, _>>();
+        let filtered_queue = self
+            .queue
+            .iter()
+            .filter(|(feature_name, bin_map)| {
+                features_to_monitor.contains(feature_name)
+                    && bin_map.iter().any(|(_, count)| *count > 0)
+            })
+            .collect::<HashMap<_, _>>();
 
         debug!("Creating drift records");
         let records = filtered_queue
-        .iter().flat_map(|(feature_name, bin_map)| {
+            .iter()
+            .flat_map(|(feature_name, bin_map)| {
                 bin_map.iter().map(move |(bin_id, count)| {
                     ServerRecord::Psi(PsiServerRecord::new(
                         self.drift_profile.config.repository.clone(),
@@ -241,8 +251,6 @@ impl PsiFeatureQueue {
 
         Ok(ServerRecords::new(records, RecordType::Psi))
     }
-
-    
 
     pub fn is_empty(&self) -> bool {
         !self
@@ -260,7 +268,6 @@ impl PsiFeatureQueue {
         });
     }
 }
-
 
 #[cfg(test)]
 mod tests {
