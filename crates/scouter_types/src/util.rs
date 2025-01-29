@@ -315,13 +315,13 @@ mod tests {
 
     #[test]
     fn test_resolve_schedule_base() {
-        let valid_schedule = "0 0 5 * * *".to_string(); // Every day at 5:00 AM
+        let valid_schedule = "0 0 5 * * *"; // Every day at 5:00 AM
 
         let result = TestStruct::resolve_schedule(Some(valid_schedule));
 
         assert_eq!(result, "0 0 5 * * *".to_string());
 
-        let invalid_schedule = "invalid_cron".to_string();
+        let invalid_schedule = "invalid_cron";
 
         let default_schedule = CommonCrons::EveryDay.cron();
 

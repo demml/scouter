@@ -162,16 +162,14 @@ impl ValidateAlertConfig for CustomMetricAlertConfig {}
 #[pymethods]
 impl CustomMetricAlertConfig {
     #[new]
-    #[pyo3(signature = (dispatch_type=None, schedule=None, dispatch_kwargs=None))]
+    #[pyo3(signature = (dispatch_type=AlertDispatchType::default(), schedule=None, dispatch_kwargs=HashMap::new()))]
     pub fn new(
-        dispatch_type: Option<AlertDispatchType>,
-        schedule: Option<String>,
-        dispatch_kwargs: Option<HashMap<String, String>>,
+        dispatch_type: AlertDispatchType,
+        schedule: Option<&str>,
+        dispatch_kwargs: HashMap<String, String>,
     ) -> Self {
         let schedule = Self::resolve_schedule(schedule);
-        let dispatch_type = dispatch_type.unwrap_or_default();
-        let dispatch_kwargs = dispatch_kwargs.unwrap_or_default();
-
+        
         Self {
             dispatch_type,
             schedule,
@@ -279,7 +277,11 @@ mod tests {
         let dispatch_type = AlertDispatchType::OpsGenie;
         let schedule = "0 0 * * * *".to_string();
         let mut alert_config =
-            CustomMetricAlertConfig::new(Some(dispatch_type), Some(schedule), None);
+            CustomMetricAlertConfig::default();
+
+        alert_config.dispatch_type = dispatch_type;
+        alert_config.schedule = schedule;
+        
         assert_eq!(alert_config.dispatch_type(), "OpsGenie");
 
         let custom_metrics = vec![
