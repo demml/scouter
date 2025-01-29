@@ -244,12 +244,12 @@ class ScouterQueue:
                 Configuration object containing profile and producer configuration.
         """
 
-    def insert(self, features: Features) -> None:
+    def insert(self, entity: Features | Metrics) -> None:
         """Insert features into the queue.
 
         Args:
-            features:
-                Features to insert.
+            entity:
+                Features or metrics to insert into the monitoring queue.
         """
 
     def flush(self) -> None:

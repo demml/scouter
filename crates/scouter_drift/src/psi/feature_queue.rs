@@ -1,7 +1,7 @@
 use scouter_types::{
     psi::BinType, Features, PsiServerRecord, RecordType, ServerRecord, ServerRecords,
 };
-use tracing::{debug, error, span, Level};
+use tracing::{debug, error, instrument, span, Level};
 
 use crate::psi::monitor::PsiMonitor;
 use core::result::Result::Ok;
@@ -18,14 +18,13 @@ pub struct PsiFeatureQueue {
 }
 
 impl PsiFeatureQueue {
+
+    #[instrument(name = "Numeric Scalar")]
     fn find_numeric_bin_given_scaler(
         value: f64,
         bins: &[Bin],
     ) -> Result<&usize, FeatureQueueError> {
-        let span = span!(Level::INFO, "Find numeric bin").entered();
-        let _ = span.enter();
-
-        debug!("Finding bin for value: {}", value);
+      
         for bin in bins.iter() {
             match (bin.lower_limit, bin.upper_limit) {
                 // First bin (-inf to upper)
@@ -52,14 +51,13 @@ impl PsiFeatureQueue {
         Err(FeatureQueueError::GetBinError)
     }
 
+    #[instrument(name = "Numeric Queue")]
     fn process_numeric_queue(
         queue: &mut HashMap<usize, usize>,
         value: f64,
         bins: &[Bin],
     ) -> Result<(), FeatureQueueError> {
-        let span = span!(Level::INFO, "Process numeric queue").entered();
-        let _ = span.enter();
-
+     
         let bin_id = Self::find_numeric_bin_given_scaler(value, bins)?;
         let count = queue
             .get_mut(bin_id)
@@ -73,14 +71,13 @@ impl PsiFeatureQueue {
         Ok(())
     }
 
+    #[instrument(name = "Binary Queue")]
     fn process_binary_queue(
         feature: &str,
         queue: &mut HashMap<usize, usize>,
         value: f64,
     ) -> Result<(), FeatureQueueError> {
-        let span = span!(Level::INFO, "Process binary queue").entered();
-        let _ = span.enter();
-
+    
         if value == 0.0 {
             let bin_id = 0;
             let count = queue
@@ -156,14 +153,10 @@ impl PsiFeatureQueue {
         }
     }
 
+    #[instrument(skip(self, features), name = "Insert")]
     pub fn insert(&mut self, features: Features) -> Result<(), FeatureQueueError> {
-        let span = span!(Level::INFO, "FeatureQueue insert").entered();
-        let _ = span.enter();
-
+      
         let feat_map = &self.drift_profile.config.feature_map;
-
-        debug!("Inserting features into queue");
-
         for feature in features.iter() {
             if let Some(feature_drift_profile) = self.drift_profile.features.get(feature.name()) {
                 let name = feature.name();
@@ -206,13 +199,13 @@ impl PsiFeatureQueue {
                 }
             }
         }
+        debug!("queue: {:?}", self.queue);
         Ok(())
     }
 
+    #[instrument(skip(self), name = "Create records")]
     pub fn create_drift_records(&self) -> Result<ServerRecords, FeatureQueueError> {
-        let span = span!(Level::INFO, "FeatureQueue create drift record").entered();
-        let _ = span.enter();
-
+       
         let features_to_monitor = self
             .drift_profile
             .config
@@ -232,7 +225,8 @@ impl PsiFeatureQueue {
             })
             .collect::<HashMap<_, _>>();
 
-        debug!("Creating drift records");
+        debug!("Filtered queue: {:?}", filtered_queue);
+
         let records = filtered_queue
             .iter()
             .flat_map(|(feature_name, bin_map)| {

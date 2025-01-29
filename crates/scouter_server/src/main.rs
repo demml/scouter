@@ -10,7 +10,7 @@ use scouter_drift::DriftExecutor;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::PostgresClient;
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::{error, info, span, Instrument, Level};
 
 #[cfg(feature = "kafka")]
 use scouter_events::consumer::kafka::startup_kafka;
@@ -50,14 +50,20 @@ async fn setup_polling_workers(config: &ScouterServerConfig) -> Result<(), anyho
             .await
             .with_context(|| "Failed to create Postgres client")?;
 
-        tokio::spawn(async move {
+        let future = async move {
             let mut drift_executor = DriftExecutor::new(db_client);
             loop {
-                if let Err(e) = drift_executor.poll_for_tasks().await {
+                if let Err(e) = drift_executor
+                    .poll_for_tasks()
+                    .instrument(span!(Level::INFO, "Poll"))
+                    .await
+                {
                     error!("Alert poller error: {:?}", e);
                 }
             }
-        });
+        };
+
+        tokio::spawn(future.instrument(span!(Level::INFO, "Background")));
     }
 
     Ok(())

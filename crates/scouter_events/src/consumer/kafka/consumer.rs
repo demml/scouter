@@ -12,8 +12,8 @@ pub mod kafka_consumer {
     use scouter_types::ServerRecords;
     use std::collections::HashMap;
     use std::result::Result::Ok;
-    use tracing::error;
-    use tracing::info;
+    use tracing::Instrument;
+    use tracing::{error, info, span, Level};
 
     // Get table name constant
 
@@ -144,7 +144,10 @@ pub mod kafka_consumer {
         let consumer = create_kafka_consumer(settings, None).await.unwrap();
 
         loop {
-            if let Err(e) = stream_from_kafka_topic(&message_handler, &consumer).await {
+            if let Err(e) = stream_from_kafka_topic(&message_handler, &consumer)
+                .instrument(span!(Level::INFO, "Kafka Consumer"))
+                .await
+            {
                 error!("Error in stream_from_kafka_topic: {:?}", e);
             }
         }

@@ -4,8 +4,16 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from scouter.alert import AlertThreshold
 from scouter.client import ScouterClient
-from scouter.drift import Drifter, PsiDriftConfig, SpcDriftConfig
+from scouter.drift import (
+    CustomDriftProfile,
+    CustomMetric,
+    CustomMetricDriftConfig,
+    Drifter,
+    PsiDriftConfig,
+    SpcDriftConfig,
+)
 
 
 def generate_data() -> pd.DataFrame:
@@ -39,6 +47,7 @@ if __name__ == "__main__":
         name="test",
         repository="test",
         version="0.0.1",
+        features_to_monitor=["feature_1"],
     )
 
     psi_profile = scouter.create_drift_profile(data, psi_config)
@@ -50,7 +59,29 @@ if __name__ == "__main__":
         name="test",
         repository="test",
         version="0.0.1",
+        features_to_monitor=["feature_1"],
     )
+    
     spc_profile = scouter.create_drift_profile(data, spc_config)
     client.register_profile(spc_profile)
     spc_profile.save_to_json(path=Path("spc_profile.json"))
+
+    custom_config = CustomMetricDriftConfig(
+        name="test",
+        repository="test",
+        version="0.0.1",
+    )
+
+    custom_profile = CustomDriftProfile(
+        config=custom_config,
+        metrics=[
+            CustomMetric(
+                name="mae",
+                value=10,
+                alert_threshold=AlertThreshold.Above,
+            ),
+        ],
+    )
+
+    client.register_profile(custom_profile)
+    custom_profile.save_to_json(path=Path("custom_profile.json"))

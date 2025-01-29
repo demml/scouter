@@ -22,26 +22,16 @@ from scouter.drift import (
     SpcDriftConfig,
 )
 from scouter.queue import (
-    CustomMetricServerRecord,
     DriftTransportConfig,
     Feature,
     Features,
     KafkaConfig,
+    Metric,
+    Metrics,
     RabbitMQConfig,
-    RecordType,
-    ScouterProducer,
     ScouterQueue,
-    ServerRecord,
-    ServerRecords,
 )
 from scouter.types import DriftType
-
-# uncomment for debugging
-# from scouter.logging import LoggingConfig, LogLevel, RustyLogger
-# RustyLogger.setup_logging(
-# LoggingConfig(log_level=LogLevel.Debug),
-# )
-
 
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"
 
@@ -146,27 +136,19 @@ def test_custom_monitor_pandas_rabbitmq():
 
     profile = scouter.create_drift_profile(data=metrics, config=drift_config)
     client.register_profile(profile)
-    producer = ScouterProducer(config=RabbitMQConfig())
-    time.sleep(2)
+    config = DriftTransportConfig(id="test", config=RabbitMQConfig(), drift_profile=profile)
+    queue = ScouterQueue(config)
 
-    for i in range(10, 20):
-
-        record = CustomMetricServerRecord(
-            repository="test",
-            name="test",
-            version=semver,
-            metric="mae",
-            value=i,
+    for i in range(0, 30):
+        metrics = Metrics(
+            metrics=[
+                Metric("mae", i),
+                Metric("mape", i + 1),
+            ]
         )
+        queue.insert(metrics)
 
-        producer.publish(
-            message=ServerRecords(
-                records=[ServerRecord(record)],
-                record_type=RecordType.Custom,
-            )
-        )
-
-    producer.flush()
+    queue.flush()
 
     # wait for rabbitmq to process the message
     request = DriftRequest(

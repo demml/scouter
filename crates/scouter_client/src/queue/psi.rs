@@ -8,7 +8,7 @@ use scouter_types::Features;
 use std::sync::Arc;
 use tokio::sync::{watch, Mutex};
 use tokio::time::{self, Duration};
-use tracing::{debug, error, info, span, Instrument, Level};
+use tracing::{debug, error, info, instrument, span, Instrument, Level};
 
 const PSI_MAX_QUEUE_SIZE: usize = 1000;
 
@@ -62,10 +62,9 @@ impl PsiQueue {
         Ok(psi_queue)
     }
 
+    #[instrument(skip(self), name = "Insert")]
     pub fn insert(&mut self, features: Features) -> Result<(), ScouterError> {
-        let span = span!(Level::INFO, "PsiQueue Insert").entered();
-        let _ = span.enter();
-        debug!("Starting Inserting features");
+        
         {
             let mut queue = self.queue.blocking_lock();
             let insert = queue.insert(features);
@@ -117,6 +116,9 @@ impl PsiQueue {
     }
 
     pub fn flush(&mut self) -> Result<(), ScouterError> {
+        // publish any remaining drift records
+        self._publish()?;
+
         if let Some(stop_tx) = self.stop_tx.take() {
             let _ = stop_tx.send(());
         }
@@ -135,9 +137,7 @@ impl PsiQueue {
         let mut last_publish = self.last_publish;
         let handle = self.rt.clone();
 
-        let span = tracing::span!(tracing::Level::INFO, "Background Polling");
-
-        let _ = span.enter();
+   
 
         // spawn the background task using the already cloned handle
         let future = async move {
@@ -147,8 +147,7 @@ impl PsiQueue {
                     _ = time::sleep(Duration::from_secs(2)) => {
 
 
-                        debug!("Checking if drift records need to be published");
-
+                        debug!("Checking for records");
                         let now = Utc::now().naive_utc();
                         let elapsed = now - last_publish;
 
@@ -156,7 +155,6 @@ impl PsiQueue {
                             debug!("Locking queue");
                             let mut queue = queue.lock().await;
 
-                            debug!("Creating drift records");
                             let records = match queue.create_drift_records() {
                                 Ok(records) => records,
                                 Err(e) => {
@@ -192,7 +190,7 @@ impl PsiQueue {
             }
         };
 
-        handle.spawn(future.instrument(span));
+        handle.spawn(future.instrument(span!(Level::INFO, "PSI Background Polling")));
 
         Ok(())
     }

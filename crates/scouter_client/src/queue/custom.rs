@@ -122,6 +122,9 @@ impl CustomQueue {
     }
 
     pub fn flush(&mut self) -> Result<(), ScouterError> {
+        // publish any remaining drift records
+        self._publish()?;
+
         if let Some(stop_tx) = self.stop_tx.take() {
             let _ = stop_tx.send(());
         }
@@ -140,10 +143,7 @@ impl CustomQueue {
         let mut last_publish = self.last_publish;
         let handle = self.rt.clone();
 
-        let span = tracing::span!(tracing::Level::INFO, "Background Polling");
-
-        let _ = span.enter();
-
+       
         // spawn the background task using the already cloned handle
         let future = async move {
             loop {
@@ -196,7 +196,7 @@ impl CustomQueue {
             }
         };
 
-        handle.spawn(future.instrument(span));
+        handle.spawn(future.instrument(span!(Level::INFO, "Custom Background Polling")));
 
         Ok(())
     }

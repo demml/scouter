@@ -8,8 +8,8 @@ pub mod rabbitmq_consumer {
     use futures::StreamExt;
 
     use std::result::Result::Ok;
-    use tracing::error;
-    use tracing::info;
+    use tracing::Instrument;
+    use tracing::{error, info, span, Level};
 
     use lapin::{
         options::*, types::FieldTable, Connection, ConnectionProperties, Consumer, Result,
@@ -105,7 +105,10 @@ pub mod rabbitmq_consumer {
         let mut consumer = create_rabbitmq_consumer(settings).await?;
 
         loop {
-            if let Err(e) = stream_from_rabbit_queue(&message_handler, &mut consumer).await {
+            if let Err(e) = stream_from_rabbit_queue(&message_handler, &mut consumer)
+                .instrument(span!(Level::INFO, "RabbitMQ Consumer"))
+                .await
+            {
                 error!("Error in stream_from_rabbit_queue: {:?}", e);
             }
         }

@@ -1,0 +1,25 @@
+{
+  "config": {
+    "sample_size": 25,
+    "sample": true,
+    "repository": "test",
+    "name": "test",
+    "version": "0.0.1",
+    "alert_config": {
+      "dispatch_type": "Console",
+      "schedule": "0 0 0 * * *",
+      "dispatch_kwargs": {},
+      "alert_conditions": {
+        "mae": {
+          "alert_threshold": "Above",
+          "alert_threshold_value": null
+        }
+      }
+    },
+    "drift_type": "Custom"
+  },
+  "metrics": {
+    "mae": 10.0
+  },
+  "scouter_version": "0.4.1"
+}

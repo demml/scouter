@@ -29,7 +29,7 @@ use sqlx::{
 use std::collections::{BTreeMap, HashMap};
 use std::result::Result::Ok;
 use std::str::FromStr;
-use tracing::{debug, error, info, span, Level};
+use tracing::{debug, error, info, span, Instrument, Level};
 
 // TODO: Explore refactoring and breaking this out into multiple client types (i.e., spc, psi, etc.)
 // Postgres client is one of the lowest-level abstractions so it may not be worth it, as it could make server logic annoying. Worth exploring though.
@@ -456,6 +456,7 @@ impl PostgresClient {
         let query = Queries::UpdateDriftProfileRunDates.get_query();
 
         let schedule = Schedule::from_str(schedule).map_err(|_| {
+            error!("Failed to parse cron expression: {}", schedule);
             SqlError::GeneralError(format!("Failed to parse cron expression: {}", schedule))
         })?;
 
@@ -478,10 +479,16 @@ impl PostgresClient {
 
         match query_result {
             Ok(_) => Ok(()),
-            Err(e) => Err(SqlError::GeneralError(format!(
-                "Failed to update drift profile run dates in database: {:?}",
-                e
-            ))),
+            Err(e) => {
+                error!(
+                    "Failed to update drift profile run dates in database: {:?}",
+                    e
+                );
+                Err(SqlError::GeneralError(format!(
+                    "Failed to update drift profile run dates in database: {:?}",
+                    e
+                )))
+            }
         }
     }
 
@@ -841,11 +848,9 @@ pub enum MessageHandler {
 
 impl MessageHandler {
     pub async fn insert_server_records(&self, records: &ServerRecords) -> Result<(), ScouterError> {
-        let span = span!(Level::DEBUG, "Insert drift records");
-        let _enter = span.enter();
+        let span = span!(Level::DEBUG, "Insert Server Records");
 
-        debug!("Inserting server records: {:?}", records);
-        match self {
+        let _ = match self {
             Self::Postgres(client) => {
                 match records.record_type {
                     RecordType::Spc => {
@@ -893,6 +898,7 @@ impl MessageHandler {
                 };
             }
         }
+        .instrument(span);
 
         Ok(())
     }

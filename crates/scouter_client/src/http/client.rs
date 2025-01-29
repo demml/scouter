@@ -321,7 +321,6 @@ impl ScouterClient {
                 } else {
                     let body: serde_json::Value = response.json().await.unwrap();
 
-                    debug!("Response: {:?}", body);
 
                     let data = body.get("data").unwrap().to_owned();
 

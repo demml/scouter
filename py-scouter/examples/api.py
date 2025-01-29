@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from scouter.integrations.fastapi import ScouterRouter
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
-from scouter.queue import DriftTransportConfig, Feature, Features
+from scouter.queue import DriftTransportConfig, Feature, Features, Metric, Metrics
 
 # Sets up logging for tests
 RustyLogger.setup_logging(LoggingConfig(log_level=LogLevel.Debug))
@@ -32,6 +32,13 @@ class PredictRequest(BaseModel):
             ]
         )
 
+    def to_metrics(self) -> Metrics:
+        return Metrics(
+            metrics=[
+                Metric("mae", self.feature_0),
+            ]
+        )
+
 
 def setup_router() -> ScouterRouter:
     # setup kafka
@@ -49,7 +56,20 @@ def setup_router() -> ScouterRouter:
         drift_profile_path=Path("psi_profile.json"),
     )
 
-    return ScouterRouter(transport=[spc_transport, psi_transport])
+    custom_transport = DriftTransportConfig(
+        id=config.custom_id,
+        config=config.kafka,
+        drift_profile=None,
+        drift_profile_path=Path("custom_profile.json"),
+    )
+
+    return ScouterRouter(
+        transport=[
+            spc_transport,
+            psi_transport,
+            #custom_transport,
+        ]
+    )
 
 
 app = FastAPI(title="Example Drift App")
@@ -68,6 +88,7 @@ async def psi_predict(request: Request) -> Response:
     request.state.scouter_data = {
         config.psi_id: payload.to_features(),
         config.spc_id: payload.to_features(),
+        #config.custom_id: payload.to_metrics(),
     }
 
     return Response(message="success")
