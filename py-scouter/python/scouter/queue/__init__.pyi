@@ -1,6 +1,7 @@
 # pylint: skip-file
 
 import datetime
+from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from ..client import HTTPConfig
@@ -195,24 +196,52 @@ class ScouterProducer:
     def flush(self) -> None:
         """Flush the producer queue."""
 
+class DriftTransportConfig:
+    def __init__(
+        self,
+        id: str,
+        config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig],
+        drift_profile: Optional[Union[SpcDriftProfile, PsiDriftProfile]] = None,
+        drift_profile_path: Optional[Path] = None,
+    ) -> None:
+        """Drift transport configuration. To be used with ScouterQueue.
+
+        Args:
+            id:
+                Unique identifier for the drift transport configuration.
+            config:
+                Configuration object for the producer that specifies the type of producer to use.
+
+            drift_profile:
+                Drift profile to use for monitoring. Priority is given to the drift profile over the drift profile path.
+
+            drift_profile_path:
+                Path to the drift profile to use for monitoring. If provided, and drift profile is not provided,
+                the drift profile will be loaded from the path.
+        """
+
+    @property
+    def id(self) -> str:
+        """Return the id."""
+
+    @property
+    def drift_profile(self) -> Union[SpcDriftProfile, PsiDriftProfile]:
+        """Return the drift profile."""
+
+    @property
+    def config(self) -> Union[KafkaConfig, HTTPConfig, RabbitMQConfig]:
+        """Return the configuration object."""
+
 class ScouterQueue:
     def __init__(
         self,
-        drift_profile: Union[SpcDriftProfile, PsiDriftProfile],
-        config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig],
+        transport_config: DriftTransportConfig,
     ) -> None:
         """Scouter monitoring queue.
 
         Args:
-            drift_profile:
-                Drift profile to use for monitoring.
-
-            config:
-                Configuration object for the queue that specifies the type of queue to use.
-
-            max_retries:
-                Maximum number of retries to attempt when publishing via the producer.
-                Default is 3.
+            transport_config:
+                Configuration object containing profile and producer configuration.
         """
 
     def insert(self, features: Features) -> None:

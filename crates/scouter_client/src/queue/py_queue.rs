@@ -4,8 +4,9 @@ use pyo3::prelude::*;
 use scouter_error::{PyScouterError, ScouterError};
 use scouter_types::psi::PsiDriftProfile;
 use scouter_types::spc::SpcDriftProfile;
-use scouter_types::DriftType;
+use scouter_types::{DriftType, DriftProfile };
 use scouter_types::Features;
+use serde_json::Value;
 use tracing::debug;
 use tracing::info;
 
@@ -60,14 +61,17 @@ pub struct ScouterQueue {
 #[pymethods]
 impl ScouterQueue {
     #[new]
-    #[pyo3(signature = (drift_profile, config))]
+    #[pyo3(signature = (transport_config,))]
     pub fn new(
-        drift_profile: &Bound<'_, PyAny>,
-        config: &Bound<'_, PyAny>,
+        transport_config: &Bound<'_, DriftTransportConfig>,
     ) -> Result<Self, ScouterError> {
         info!("Starting ScouterQueue");
+
+        let profile = &transport_config.getattr("drift_profile")?;
+        let config = &transport_config.getattr("config")?;
+
         Ok(ScouterQueue {
-            queue: Queue::new(drift_profile, config)?,
+            queue: Queue::new(profile, config)?,
         })
     }
 
@@ -90,5 +94,74 @@ impl ScouterQueue {
                 .flush()
                 .map_err(|e| PyScouterError::new_err(e.to_string())),
         }
+    }
+}
+
+#[pyclass]
+pub struct DriftTransportConfig {
+    pub drift_profile: DriftProfile,
+    pub config: PyObject,
+
+    #[pyo3(get)]
+    pub id: String,
+}
+
+#[pymethods]
+impl DriftTransportConfig {
+    #[new]
+    #[pyo3(signature = (id, config, drift_profile=None, drift_profile_path=None))]
+    pub fn new(
+        id: String,
+        config: &Bound<'_, PyAny>,
+        drift_profile: Option<&Bound<'_, PyAny>>,
+        drift_profile_path: Option<&Bound<'_, PyAny>>,
+    ) -> PyResult<Self> {
+
+
+
+        // if drift_profile_path and drift_profile are both missing, raise an error
+        if drift_profile.is_none() && drift_profile_path.is_none() {
+            return Err(PyScouterError::new_err(
+                "Either drift_profile or drift_profile_path must be provided",
+            ))
+        }
+
+        if drift_profile.is_none() && drift_profile_path.is_some() {
+            // load drift_profile from path to serde_json::Value
+            let profile =
+                std::fs::read_to_string(drift_profile_path.unwrap().extract::<String>()?)?;
+            let profile_value: Value = serde_json::from_str(&profile).unwrap();
+
+            // get the drift_type from the drift_profile
+            let drift_type = profile_value["config"]["drift_type"].as_str().unwrap();
+
+            let drift_profile = DriftProfile::from_value(profile_value.clone(), drift_type)?;
+
+            return Ok(DriftTransportConfig {
+                id,
+                drift_profile,
+                config: config.clone().unbind(),
+            });
+            
+            };
+    
+
+        let drift_type = drift_profile.unwrap().getattr("config")?.getattr("drift_type")?.extract::<DriftType>()?;
+        Ok(DriftTransportConfig {
+            id,
+            drift_profile: DriftProfile::from_python(drift_type, drift_profile.unwrap())?,
+            config: config.clone().unbind(),
+        })
+      
+    }
+
+    #[getter]
+    pub fn drift_profile<'py>(&self, py:Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.drift_profile.profile(py)
+    }
+
+    #[getter]
+    pub fn config<'py>(&self, py: Python<'py>) -> PyResult<&Bound<'py, PyAny>> {
+        Ok(self.config.bind(py))
     }
 }

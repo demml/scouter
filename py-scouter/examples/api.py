@@ -40,7 +40,8 @@ def setup_psi_router() -> ScouterRouter:
         drift_profile=PsiDriftProfile.from_file(Path("psi_profile.json")),
         config=config,
     )
-    
+
+
 def setup_spc_router() -> ScouterRouter:
     # setup kafka
     config = KafkaConfig()
@@ -55,7 +56,6 @@ psi_router = setup_psi_router()
 spc_router = setup_spc_router()
 
 
-
 @psi_router.get("/psi_predict", response_model=Response)
 async def psi_predict(request: Request) -> Response:
     payload = PredictRequest(
@@ -67,8 +67,9 @@ async def psi_predict(request: Request) -> Response:
     request.state.scouter_data = payload.to_features()
     return Response(message="success")
 
-#@spc_router.get("/spc_predict", response_model=Response)
-#async def spc_predict(request: Request) -> Response:
+
+# @spc_router.get("/spc_predict", response_model=Response)
+# async def spc_predict(request: Request) -> Response:
 #    payload = PredictRequest(
 #        feature_0=np.random.rand(),
 #        feature_1=np.random.rand(),
@@ -80,4 +81,4 @@ async def psi_predict(request: Request) -> Response:
 
 
 app.include_router(psi_router)
-#app.include_router(spc_router)
+# app.include_router(spc_router)

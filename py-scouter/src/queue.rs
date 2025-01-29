@@ -14,6 +14,7 @@ pub fn queue(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ServerRecord>()?;
     m.add_class::<ServerRecords>()?;
     m.add_class::<RecordType>()?;
+    m.add_class::<DriftTransportConfig>()?;
 
     m.add_class::<Feature>()?;
     m.add_class::<Features>()?;

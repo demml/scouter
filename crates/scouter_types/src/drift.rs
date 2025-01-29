@@ -125,6 +125,7 @@ impl DriftProfile {
         }
     }
 
+  
     /// Get the base arguments for a drift profile
     pub fn get_base_args(&self) -> ProfileArgs {
         match self {
@@ -167,6 +168,27 @@ impl DriftProfile {
             DriftType::Custom => {
                 let profile =
                     serde_json::from_value(body).map_err(|_| ScouterError::DeSerializeError)?;
+                Ok(DriftProfile::Custom(profile))
+            }
+        }
+    }
+
+    pub fn from_python(
+        drift_type: DriftType,
+        profile: &Bound<'_, PyAny>,
+    ) -> Result<Self, ScouterError> {
+
+        match drift_type {
+            DriftType::Spc => {
+                let profile = profile.extract::<SpcDriftProfile>()?;
+                Ok(DriftProfile::Spc(profile))
+            }
+            DriftType::Psi => {
+                let profile = profile.extract::<PsiDriftProfile>()?;
+                Ok(DriftProfile::Psi(profile))
+            }
+            DriftType::Custom => {
+                let profile = profile.extract::<CustomDriftProfile>()?;
                 Ok(DriftProfile::Custom(profile))
             }
         }
