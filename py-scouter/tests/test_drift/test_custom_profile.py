@@ -17,6 +17,7 @@ def test_custom_profile(custom_metric_drift_config: CustomMetricDriftConfig):
 
     # create custom drift profile
     profile: CustomDriftProfile = drifter.create_drift_profile(data=accuracy, config=custom_metric_drift_config)
+    
     # assert profile is what we expect
     assert profile.model_dump()["config"] == {
         "alert_config": {
@@ -28,7 +29,10 @@ def test_custom_profile(custom_metric_drift_config: CustomMetricDriftConfig):
         "drift_type": "Custom",
         "name": "test",
         "repository": "test",
+        "sample": True, 
+        "sample_size": 25,
         "version": "0.1.0",
+        
     }
 
     assert profile.model_dump()["metrics"] == {"accuracy": 0.75}
