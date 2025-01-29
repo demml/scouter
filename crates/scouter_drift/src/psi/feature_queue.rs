@@ -278,9 +278,9 @@ mod tests {
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
     use rand::distributions::Bernoulli;
+    use scouter_types::psi::PsiAlertConfig;
     use scouter_types::psi::PsiDriftConfig;
     use scouter_types::{Feature, DEFAULT_VERSION};
-    use scouter_types::psi::PsiAlertConfig;
 
     #[test]
     fn test_feature_queue_insert_numeric() {
@@ -374,7 +374,6 @@ mod tests {
         let features = vec!["feature_1".to_string(), "feature_2".to_string()];
 
         let monitor = PsiMonitor::new();
-
 
         let profile = monitor
             .create_2d_drift_profile(&features, &array.view(), &PsiDriftConfig::default())
@@ -527,7 +526,6 @@ mod tests {
         let mut config = PsiDriftConfig::default();
         config.feature_map = feature_map;
 
-        
         let profile = psi_monitor
             .create_2d_drift_profile(&string_features, &array.view(), &config)
             .unwrap();
@@ -565,7 +563,6 @@ mod tests {
         ];
 
         let monitor = PsiMonitor::new();
-     
 
         let profile = monitor
             .create_2d_drift_profile(&features, &array.view(), &PsiDriftConfig::default())

@@ -267,20 +267,16 @@ pub trait ProfileBaseArgs {
 }
 
 pub trait ValidateAlertConfig {
-    fn resolve_schedule(schedule: Option<&str>) -> String {
+    fn resolve_schedule(schedule: &str) -> String {
         let default_schedule = CommonCrons::EveryDay.cron();
 
-        match schedule {
-            Some(s) => {
-                cron::Schedule::from_str(&s) // Pass by reference here
-                    .map(|_| s) // If valid, return the schedule
-                    .unwrap_or_else(|_| {
-                        tracing::error!("Invalid cron schedule, using default schedule");
-                        &default_schedule
-                    }).to_string()
-            }
-            None => default_schedule,
-        }
+        cron::Schedule::from_str(&schedule) // Pass by reference here
+            .map(|_| schedule) // If valid, return the schedule
+            .unwrap_or_else(|_| {
+                tracing::error!("Invalid cron schedule, using default schedule");
+                &default_schedule
+            })
+            .to_string()
     }
 }
 
@@ -317,7 +313,7 @@ mod tests {
     fn test_resolve_schedule_base() {
         let valid_schedule = "0 0 5 * * *"; // Every day at 5:00 AM
 
-        let result = TestStruct::resolve_schedule(Some(valid_schedule));
+        let result = TestStruct::resolve_schedule(valid_schedule);
 
         assert_eq!(result, "0 0 5 * * *".to_string());
 
@@ -325,7 +321,7 @@ mod tests {
 
         let default_schedule = CommonCrons::EveryDay.cron();
 
-        let result = TestStruct::resolve_schedule(Some(invalid_schedule));
+        let result = TestStruct::resolve_schedule(invalid_schedule);
 
         assert_eq!(result, default_schedule);
     }

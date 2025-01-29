@@ -251,10 +251,8 @@ pub mod custom_drifter {
 
         fn get_test_drifter() -> CustomDrifter {
             let custom_metrics = vec![
-                CustomMetric::new("mse", 12.02, AlertThreshold::Above, Some(1.0))
-                    .unwrap(),
-                CustomMetric::new("accuracy", 0.75, AlertThreshold::Below, None)
-                    .unwrap(),
+                CustomMetric::new("mse", 12.02, AlertThreshold::Above, Some(1.0)).unwrap(),
+                CustomMetric::new("accuracy", 0.75, AlertThreshold::Below, None).unwrap(),
             ];
 
             let drift_config = CustomMetricDriftConfig::new(

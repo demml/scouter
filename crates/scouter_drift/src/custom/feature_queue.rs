@@ -110,14 +110,11 @@ mod tests {
 
     #[test]
     fn test_feature_queue_custom_insert_metric() {
-        let metric1 =
-            CustomMetric::new("mae", 10.0, AlertThreshold::Above, None).unwrap();
+        let metric1 = CustomMetric::new("mae", 10.0, AlertThreshold::Above, None).unwrap();
 
-        let metric2 =
-            CustomMetric::new("mape", 10.0, AlertThreshold::Above, None).unwrap();
+        let metric2 = CustomMetric::new("mape", 10.0, AlertThreshold::Above, None).unwrap();
 
-        let metric3 =
-            CustomMetric::new("empty", 10.0, AlertThreshold::Above, None).unwrap();
+        let metric3 = CustomMetric::new("empty", 10.0, AlertThreshold::Above, None).unwrap();
 
         let custom_config = CustomMetricDriftConfig::new(
             "test",

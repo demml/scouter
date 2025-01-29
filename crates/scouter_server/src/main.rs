@@ -501,7 +501,6 @@ mod tests {
             "feature_3".to_string(),
         ];
 
-
         let config = PsiDriftConfig::new(
             "test",
             "test",
@@ -589,14 +588,13 @@ mod tests {
     async fn test_custom_server_records() {
         let helper = TestHelper::new(false, false).await.unwrap();
 
-        let alert_config = CustomMetricAlertConfig::default()   ;
+        let alert_config = CustomMetricAlertConfig::default();
         let config =
             CustomMetricDriftConfig::new("test", "test", "1.0.0", true, 25, alert_config, None)
                 .unwrap();
 
         let alert_threshold = AlertThreshold::Above;
-        let metric1 =
-            CustomMetric::new("metric1", 1.0, alert_threshold.clone(), None).unwrap();
+        let metric1 = CustomMetric::new("metric1", 1.0, alert_threshold.clone(), None).unwrap();
         let metric2 = CustomMetric::new("metric2", 1.0, alert_threshold, None).unwrap();
         let profile = CustomDriftProfile::new(config, vec![metric1, metric2], None).unwrap();
 

@@ -422,7 +422,7 @@ mod tests {
         let zones_to_monitor = [AlertZone::Zone1, AlertZone::Zone4].to_vec();
         let mut process = SpcAlertRule::default();
         process.zones_to_monitor = zones_to_monitor;
-        
+
         let mut alerter = Alerter::new(process);
 
         let values = [

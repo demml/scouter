@@ -3,6 +3,9 @@ use core::fmt::Debug;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use pyo3::types::PyString;
+use scouter_error::PyScouterError;
+use tracing::error;
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -42,21 +45,35 @@ impl PsiAlertConfig {
     #[pyo3(signature = (dispatch_type=AlertDispatchType::default(), schedule=None, features_to_monitor=vec![], dispatch_kwargs=HashMap::new(), psi_threshold=0.25))]
     pub fn new(
         dispatch_type: AlertDispatchType,
-        schedule: Option<&str>,
+        schedule: Option<&Bound<'_,PyAny>>,
         features_to_monitor: Vec<String>,
         dispatch_kwargs: HashMap<String, String>,
         psi_threshold: f64,
-    ) -> Self {
+    ) -> PyResult<Self> {
 
-        let schedule = Self::resolve_schedule(schedule);
+        let schedule = match schedule {
+            Some(schedule) => {
+                if schedule.is_instance_of::<PyString>() {
+                    schedule.to_string()
+                } else if schedule.is_instance_of::<CommonCrons>() {
+                    schedule.extract::<CommonCrons>().unwrap().cron()
+                } else {
+                    error!("Invalid schedule type");
+                    return Err(PyScouterError::new_err("Invalid schedule type"))?;
+                }
+            }
+            None => CommonCrons::EveryDay.cron(),
+        };
 
-        Self {
+        let schedule = Self::resolve_schedule(&schedule);
+
+        Ok(Self {
             dispatch_type,
             schedule,
             features_to_monitor,
             dispatch_kwargs,
             psi_threshold,
-        }
+        })
     }
 
     #[getter]

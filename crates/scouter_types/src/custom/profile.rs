@@ -1,7 +1,8 @@
 use crate::custom::alert::{CustomMetric, CustomMetricAlertConfig};
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::{
-    DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs, ProfileFuncs, DEFAULT_VERSION, MISSING
+    DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
+    ProfileFuncs, DEFAULT_VERSION, MISSING,
 };
 use core::fmt::Debug;
 use pyo3::prelude::*;
@@ -347,12 +348,10 @@ mod tests {
 
     #[test]
     fn test_custom_drift_profile() {
-
         let mut alert_config = CustomMetricAlertConfig::default();
         alert_config.schedule = "0 0 * * * *".to_string();
         alert_config.dispatch_type = AlertDispatchType::OpsGenie;
 
-      
         let drift_config =
             CustomMetricDriftConfig::new("scouter", "ML", "0.1.0", false, 25, alert_config, None)
                 .unwrap();

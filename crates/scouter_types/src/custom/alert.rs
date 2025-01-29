@@ -9,6 +9,9 @@ use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::fmt::Formatter;
+use pyo3::types::PyString;
+use tracing::error;
+use scouter_error::PyScouterError;
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -165,17 +168,32 @@ impl CustomMetricAlertConfig {
     #[pyo3(signature = (dispatch_type=AlertDispatchType::default(), schedule=None, dispatch_kwargs=HashMap::new()))]
     pub fn new(
         dispatch_type: AlertDispatchType,
-        schedule: Option<&str>,
+        schedule: Option<&Bound<'_, PyAny>>,
         dispatch_kwargs: HashMap<String, String>,
-    ) -> Self {
-        let schedule = Self::resolve_schedule(schedule);
-        
-        Self {
+    ) -> PyResult<Self> {
+
+        let schedule = match schedule {
+            Some(schedule) => {
+                if schedule.is_instance_of::<PyString>() {
+                    schedule.to_string()
+                } else if schedule.is_instance_of::<CommonCrons>() {
+                    schedule.extract::<CommonCrons>().unwrap().cron()
+                } else {
+                    error!("Invalid schedule type");
+                    return Err(PyScouterError::new_err("Invalid schedule type"))?;
+                }
+            }
+            None => CommonCrons::EveryDay.cron(),
+        };
+
+        let schedule = Self::resolve_schedule(&schedule);
+
+        Ok(Self {
             dispatch_type,
             schedule,
             dispatch_kwargs,
             alert_conditions: None,
-        }
+        })
     }
 
     #[getter]
@@ -276,12 +294,11 @@ mod tests {
         //test console alert config
         let dispatch_type = AlertDispatchType::OpsGenie;
         let schedule = "0 0 * * * *".to_string();
-        let mut alert_config =
-            CustomMetricAlertConfig::default();
+        let mut alert_config = CustomMetricAlertConfig::default();
 
         alert_config.dispatch_type = dispatch_type;
         alert_config.schedule = schedule;
-        
+
         assert_eq!(alert_config.dispatch_type(), "OpsGenie");
 
         let custom_metrics = vec![

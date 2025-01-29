@@ -4,10 +4,13 @@ use crate::{
 };
 use core::fmt::Debug;
 use pyo3::prelude::*;
+use pyo3::types::PyString;
+use scouter_error::PyScouterError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
+use tracing::error;
 
 #[pyclass(eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, std::cmp::Eq, Hash)]
@@ -51,8 +54,6 @@ impl SpcAlertRule {
         AlertZone::Zone4,
     ]))]
     pub fn new(rule: &str, zones_to_monitor: Vec<AlertZone>) -> Self {
-        
-       
         Self {
             rule: rule.to_string(),
             zones_to_monitor,
@@ -101,20 +102,35 @@ impl SpcAlertConfig {
     pub fn new(
         rule: SpcAlertRule,
         dispatch_type: AlertDispatchType,
-        schedule: Option<&str>,
+        schedule: Option<&Bound<'_, PyAny>>,
         features_to_monitor: Vec<String>,
         dispatch_kwargs: HashMap<String, String>,
-    ) -> Self {
+    ) -> PyResult<Self> {
+        // check if schedule is None, string or CommonCrons
 
-        let schedule = Self::resolve_schedule(schedule);
-     
-        Self {
+        let schedule = match schedule {
+            Some(schedule) => {
+                if schedule.is_instance_of::<PyString>() {
+                    schedule.to_string()
+                } else if schedule.is_instance_of::<CommonCrons>() {
+                    schedule.extract::<CommonCrons>().unwrap().cron()
+                } else {
+                    error!("Invalid schedule type");
+                    return Err(PyScouterError::new_err("Invalid schedule type"))?;
+                }
+            }
+            None => CommonCrons::EveryDay.cron(),
+        };
+
+        let schedule = Self::resolve_schedule(&schedule);
+
+        Ok(Self {
             rule,
             dispatch_type,
             schedule,
             features_to_monitor,
             dispatch_kwargs,
-        }
+        })
     }
 
     #[getter]
@@ -369,7 +385,6 @@ mod tests {
         let mut alert_config = SpcAlertConfig::default();
         alert_config.dispatch_type = AlertDispatchType::OpsGenie;
         alert_config.dispatch_kwargs = alert_kwargs;
-
 
         assert_eq!(alert_config.dispatch_type, AlertDispatchType::OpsGenie);
         assert_eq!(alert_config.dispatch_type(), "OpsGenie");
