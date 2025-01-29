@@ -1,6 +1,6 @@
 SELECT metric,
        AVG(value) AS value
-FROM custom_metrics
+FROM scouter.custom_metrics
 WHERE name = $1
   AND repository = $2
   AND version = $3

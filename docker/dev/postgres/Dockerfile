@@ -25,3 +25,4 @@ RUN apt-get update && apt-get install -y --fix-missing libcurl4-openssl-dev libl
 FROM postgres:16.3-bookworm
 COPY --from=builder /usr/share/postgresql/16/extension /usr/share/postgresql/16/extension
 COPY --from=builder /usr/lib/postgresql/16/lib /usr/lib/postgresql/16/lib
+COPY docker/dev/postgres/init.sql /docker-entrypoint-initdb.d/init.sql
