@@ -3,14 +3,7 @@ from contextlib import asynccontextmanager
 from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, List
 
 from pydantic import BaseModel
-from scouter.client import HTTPConfig
-from scouter.drift import PsiDriftProfile, SpcDriftProfile
-from scouter.queue import (
-    DriftTransportConfig,
-    KafkaConfig,
-    RabbitMQConfig,
-    ScouterQueue,
-)
+from scouter.queue import DriftTransportConfig, ScouterQueue
 
 try:
     from fastapi import APIRouter, BackgroundTasks, FastAPI, Request
@@ -20,11 +13,6 @@ except ImportError as exc:
         """FastAPI is not installed as a scouter extra. 
         Install scouter with the fastapi extra (scouter[fastapi]) to use the FastAPI integration."""
     ) from exc
-
-
-class ApiProfile(BaseModel):
-    profile: SpcDriftProfile | PsiDriftProfile
-    producer_config: KafkaConfig | HTTPConfig | RabbitMQConfig
 
 
 class ScouterMixin:
@@ -52,7 +40,7 @@ class ScouterMixin:
             background_tasks = BackgroundTasks()
 
             for t in self._queue:
-                background_tasks.add_task(self._queue[t].insert, getattr(request.state, f"scouter_{t}"))
+                background_tasks.add_task(self._queue[t].insert, request.state.scouter_data[t])
 
             response.background = background_tasks
 

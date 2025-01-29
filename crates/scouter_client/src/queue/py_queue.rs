@@ -9,6 +9,7 @@ use scouter_types::Features;
 use serde_json::Value;
 use tracing::debug;
 use tracing::info;
+use std::path::PathBuf;
 
 pub enum Queue {
     Spc(SpcQueue),
@@ -114,7 +115,7 @@ impl DriftTransportConfig {
         id: String,
         config: &Bound<'_, PyAny>,
         drift_profile: Option<&Bound<'_, PyAny>>,
-        drift_profile_path: Option<&Bound<'_, PyAny>>,
+        drift_profile_path: Option<PathBuf>,
     ) -> PyResult<Self> {
 
 
@@ -129,7 +130,7 @@ impl DriftTransportConfig {
         if drift_profile.is_none() && drift_profile_path.is_some() {
             // load drift_profile from path to serde_json::Value
             let profile =
-                std::fs::read_to_string(drift_profile_path.unwrap().extract::<String>()?)?;
+                std::fs::read_to_string(drift_profile_path.unwrap())?;
             let profile_value: Value = serde_json::from_str(&profile).unwrap();
 
             // get the drift_type from the drift_profile

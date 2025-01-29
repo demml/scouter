@@ -1,12 +1,13 @@
 from pathlib import Path
 
 import numpy as np
+from config import config
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from scouter.drift import PsiDriftProfile, SpcDriftProfile
 from scouter.integrations.fastapi import ScouterRouter
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
-from scouter.queue import Feature, Features, KafkaConfig
+from scouter.queue import DriftTransportConfig, Feature, Features, KafkaConfig
 
 # Sets up logging for tests
 RustyLogger.setup_logging(LoggingConfig(log_level=LogLevel.Debug))
@@ -33,30 +34,31 @@ class PredictRequest(BaseModel):
         )
 
 
-def setup_psi_router() -> ScouterRouter:
+def setup_router() -> ScouterRouter:
     # setup kafka
-    config = KafkaConfig()
-    return ScouterRouter(
-        drift_profile=PsiDriftProfile.from_file(Path("psi_profile.json")),
-        config=config,
+    spc_transport = DriftTransportConfig(
+        id=config.spc_id,
+        config=config.kafka,
+        drift_profile=None,
+        drift_profile_path=Path("spc_profile.json"),
+     
     )
 
-
-def setup_spc_router() -> ScouterRouter:
-    # setup kafka
-    config = KafkaConfig()
-    return ScouterRouter(
-        drift_profile=SpcDriftProfile.from_file(Path("spc_profile.json")),
-        config=config,
+    psi_transport = DriftTransportConfig(
+        id=config.psi_id,
+        config=config.kafka,
+        drift_profile=None,
+        drift_profile_path=Path("psi_profile.json"),
     )
+
+    return ScouterRouter(transport=[spc_transport, psi_transport])
 
 
 app = FastAPI(title="Example Drift App")
-psi_router = setup_psi_router()
-spc_router = setup_spc_router()
+scouter_router = setup_router()
 
 
-@psi_router.get("/psi_predict", response_model=Response)
+@scouter_router.get("/predict", response_model=Response)
 async def psi_predict(request: Request) -> Response:
     payload = PredictRequest(
         feature_0=np.random.rand(),
@@ -64,21 +66,13 @@ async def psi_predict(request: Request) -> Response:
         feature_2=np.random.rand(),
         feature_3=np.random.rand(),
     )
-    request.state.scouter_data = payload.to_features()
+
+    request.state.scouter_data = {
+        config.psi_id: payload.to_features(),
+        config.spc_id: payload.to_features(),
+    }
+
     return Response(message="success")
 
 
-# @spc_router.get("/spc_predict", response_model=Response)
-# async def spc_predict(request: Request) -> Response:
-#    payload = PredictRequest(
-#        feature_0=np.random.rand(),
-#        feature_1=np.random.rand(),
-#        feature_2=np.random.rand(),
-#        feature_3=np.random.rand(),
-#    )
-#    request.state.scouter_data = payload.to_features()
-#    return Response(message="success")
-
-
-app.include_router(psi_router)
-# app.include_router(spc_router)
+app.include_router(scouter_router)

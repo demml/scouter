@@ -12,7 +12,12 @@ pub async fn setup_logging() -> Result<(), anyhow::Error> {
             .unwrap_or_else(|_| "info".to_string())
             .as_str(),
     )?;
-    let config = LoggingConfig::new(Some(true), Some(log_level), None, Some(true));
+    
+    let use_json = std::env::var("LOG_JSON")
+        .unwrap_or_else(|_| "false".to_string())
+        .parse::<bool>()?;
+
+    let config = LoggingConfig::new(Some(true), Some(log_level), None, Some(use_json));
     RustyLogger::setup_logging(Some(config))?;
 
     info!("Logging setup successfully");

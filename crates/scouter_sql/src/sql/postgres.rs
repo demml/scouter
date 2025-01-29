@@ -29,7 +29,7 @@ use sqlx::{
 use std::collections::{BTreeMap, HashMap};
 use std::result::Result::Ok;
 use std::str::FromStr;
-use tracing::{debug, error, info};
+use tracing::{debug, error, info, span, Level};
 
 // TODO: Explore refactoring and breaking this out into multiple client types (i.e., spc, psi, etc.)
 // Postgres client is one of the lowest-level abstractions so it may not be worth it, as it could make server logic annoying. Worth exploring though.
@@ -841,11 +841,15 @@ pub enum MessageHandler {
 
 impl MessageHandler {
     pub async fn insert_server_records(&self, records: &ServerRecords) -> Result<(), ScouterError> {
+        let span = span!(Level::DEBUG, "Insert drift records");
+        let _enter = span.enter();
+
         debug!("Inserting server records: {:?}", records);
         match self {
             Self::Postgres(client) => {
                 match records.record_type {
                     RecordType::Spc => {
+                        debug!("SPC record count: {:?}", records.len());
                         let records = records.to_spc_drift_records()?;
                         for record in records.iter() {
                             let _ = client.insert_spc_drift_record(record).await.map_err(|e| {
@@ -854,6 +858,7 @@ impl MessageHandler {
                         }
                     }
                     RecordType::Observability => {
+                        debug!("Observability record count: {:?}", records.len());
                         let records = records.to_observability_drift_records()?;
                         for record in records.iter() {
                             let _ = client
@@ -865,6 +870,7 @@ impl MessageHandler {
                         }
                     }
                     RecordType::Psi => {
+                        debug!("PSI record count: {:?}", records.len());
                         let records = records.to_psi_drift_records()?;
                         for record in records.iter() {
                             let _ = client.insert_bin_counts(record).await.map_err(|e| {
@@ -873,6 +879,7 @@ impl MessageHandler {
                         }
                     }
                     RecordType::Custom => {
+                        debug!("Custom record count: {:?}", records.len());
                         let records = records.to_custom_metric_drift_records()?;
                         for record in records.iter() {
                             let _ = client

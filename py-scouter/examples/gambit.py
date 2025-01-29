@@ -2,10 +2,8 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scouter.alert import SpcAlertConfig
 from scouter.client import ScouterClient
 from scouter.drift import Drifter, PsiDriftConfig, SpcDriftConfig
-from scouter.types import CommonCrons
 
 
 def generate_data() -> pd.DataFrame:
