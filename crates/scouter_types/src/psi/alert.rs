@@ -1,10 +1,10 @@
 use crate::{AlertDispatchType, CommonCrons, DispatchAlertDescription, ValidateAlertConfig};
 use core::fmt::Debug;
 use pyo3::prelude::*;
-use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use pyo3::types::PyString;
 use scouter_error::PyScouterError;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use tracing::error;
 
 #[pyclass]
@@ -45,12 +45,11 @@ impl PsiAlertConfig {
     #[pyo3(signature = (dispatch_type=AlertDispatchType::default(), schedule=None, features_to_monitor=vec![], dispatch_kwargs=HashMap::new(), psi_threshold=0.25))]
     pub fn new(
         dispatch_type: AlertDispatchType,
-        schedule: Option<&Bound<'_,PyAny>>,
+        schedule: Option<&Bound<'_, PyAny>>,
         features_to_monitor: Vec<String>,
         dispatch_kwargs: HashMap<String, String>,
         psi_threshold: f64,
     ) -> PyResult<Self> {
-
         let schedule = match schedule {
             Some(schedule) => {
                 if schedule.is_instance_of::<PyString>() {

@@ -4,14 +4,14 @@ use crate::{
 };
 use core::fmt::Debug;
 use pyo3::prelude::*;
+use pyo3::types::PyString;
+use scouter_error::PyScouterError;
 use scouter_error::{CustomMetricError, ScouterError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::fmt::Formatter;
-use pyo3::types::PyString;
 use tracing::error;
-use scouter_error::PyScouterError;
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -171,7 +171,6 @@ impl CustomMetricAlertConfig {
         schedule: Option<&Bound<'_, PyAny>>,
         dispatch_kwargs: HashMap<String, String>,
     ) -> PyResult<Self> {
-
         let schedule = match schedule {
             Some(schedule) => {
                 if schedule.is_instance_of::<PyString>() {
