@@ -75,13 +75,21 @@ def multivariate_array_drift() -> YieldFixture[NDArray]:
 
 @pytest.fixture(scope="function")
 def drift_config() -> YieldFixture[SpcDriftConfig]:
-    config = SpcDriftConfig(name="test", repository="test")
+    config = SpcDriftConfig(
+        name="test",
+        repository="test",
+        features_to_monitor=["column_0", "column_1", "column_2"],
+    )
     yield config
 
 
 @pytest.fixture(scope="function")
 def psi_drift_config() -> YieldFixture[PsiDriftConfig]:
-    config = PsiDriftConfig(name="test", repository="test")
+    config = PsiDriftConfig(
+        name="test",
+        repository="test",
+        features_to_monitor=["column_0", "column_1", "column_2"],
+    )
     yield config
 
 

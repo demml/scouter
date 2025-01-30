@@ -4,7 +4,7 @@ pub mod rabbitmq_producer {
     use lapin::{
         options::{BasicPublishOptions, QueueDeclareOptions},
         types::FieldTable,
-        BasicProperties, Channel, Connection, ConnectionProperties,
+        BasicProperties, Channel, ChannelState, Connection, ConnectionProperties,
     };
     use scouter_error::ScouterError;
     use scouter_types::ServerRecords;
@@ -91,10 +91,28 @@ pub mod rabbitmq_producer {
         }
 
         pub async fn flush(&self) -> Result<(), ScouterError> {
-            self.producer
-                .close(0, "Normal shutdown")
-                .await
-                .map_err(|e| ScouterError::Error(e.to_string()))
+            let status = self.producer.status().state();
+
+            match status {
+                ChannelState::Closed => {
+                    info!("RabbitMQ producer channel is closed");
+                    Ok(())
+                }
+                ChannelState::Closing => {
+                    error!("RabbitMQ producer channel is closing");
+                    Ok(())
+                }
+                _ => {
+                    self.producer
+                        .close(0, "Normal shutdown")
+                        .await
+                        .map_err(|e| {
+                            error!("Failed to flush RabbitMQ producer: {:?}", e.to_string());
+                            ScouterError::Error(e.to_string())
+                        })?;
+                    Ok(())
+                }
+            }
         }
     }
 }

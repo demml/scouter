@@ -150,6 +150,8 @@ def test_custom_monitor_pandas_rabbitmq():
 
     queue.flush()
 
+    time.sleep(2)
+
     # wait for rabbitmq to process the message
     request = DriftRequest(
         name=profile.config.name,

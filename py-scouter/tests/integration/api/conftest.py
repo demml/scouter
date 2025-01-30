@@ -29,7 +29,12 @@ def drift_profile():
     data = generate_data()
 
     # create drift config (usually associated with a model name, repository name, version)
-    config = SpcDriftConfig(repository="scouter", name="model", version="0.1.0")
+    config = SpcDriftConfig(
+        repository="scouter",
+        name="model",
+        version="0.1.0",
+        features_to_monitor=data.columns,
+    )
 
     # create drifter
     drifter = Drifter()
