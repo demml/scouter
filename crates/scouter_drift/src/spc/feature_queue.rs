@@ -8,13 +8,12 @@ use scouter_types::spc::SpcDriftProfile;
 use scouter_types::{Features, ServerRecords};
 use std::collections::HashMap;
 use tracing::instrument;
-use tracing::{debug, error, span, Level};
+use tracing::{debug, error};
 
 #[pyclass]
 pub struct SpcFeatureQueue {
     pub drift_profile: SpcDriftProfile,
     pub queue: HashMap<String, Vec<f64>>,
-    pub feature_names: Vec<String>,
     pub monitor: SpcMonitor,
 }
 
@@ -24,17 +23,16 @@ impl SpcFeatureQueue {
     #[instrument(skip(drift_profile))]
     pub fn new(drift_profile: SpcDriftProfile) -> Self {
         let queue: HashMap<String, Vec<f64>> = drift_profile
-            .features
-            .keys()
+            .config
+            .alert_config
+            .features_to_monitor
+            .iter()
             .map(|feature| (feature.clone(), Vec::new()))
             .collect();
-
-        let feature_names = queue.keys().cloned().collect();
 
         SpcFeatureQueue {
             drift_profile,
             queue,
-            feature_names,
             monitor: SpcMonitor::new(),
         }
     }
@@ -107,10 +105,6 @@ impl SpcFeatureQueue {
 
     // Clear all queues
     pub fn clear_queue(&mut self) {
-        let span = span!(Level::INFO, "SPC Clear").entered();
-
-        debug!("Clearing feature queue");
-        let _ = span.enter();
         self.queue.iter_mut().for_each(|(_, queue)| {
             queue.clear();
         });

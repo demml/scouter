@@ -8,7 +8,7 @@ use scouter_types::Metrics;
 use std::sync::Arc;
 use tokio::sync::{watch, Mutex};
 use tokio::time::{self, Duration};
-use tracing::{debug, error, info, span, Instrument, Level};
+use tracing::{debug, error, info, info_span, instrument, Instrument};
 
 #[pyclass]
 pub struct CustomQueue {
@@ -30,9 +30,6 @@ impl CustomQueue {
         drift_profile: CustomDriftProfile,
         config: &Bound<'_, PyAny>,
     ) -> Result<Self, ScouterError> {
-        let span = span!(Level::INFO, "Custom Metric Queue").entered();
-        let _ = span.enter();
-
         let sample = drift_profile.config.sample;
         let sample_size = drift_profile.config.sample_size;
 
@@ -59,17 +56,14 @@ impl CustomQueue {
             sample,
         };
 
-        span.exit();
-
         debug!("Starting Background Task");
         custom_queue.start_background_task(queue, stop_rx)?;
 
         Ok(custom_queue)
     }
 
+    #[instrument(skip(self), name = "Insert", level = "debug")]
     pub fn insert(&mut self, metrics: Metrics) -> Result<(), ScouterError> {
-        let span = span!(Level::INFO, "CustomQueue Insert").entered();
-        let _ = span.enter();
         debug!("Inserting features");
         {
             let mut queue = self.queue.blocking_lock();
@@ -150,7 +144,7 @@ impl CustomQueue {
 
                     _ = time::sleep(Duration::from_secs(2)) => {
 
-                        debug!("Checking if drift records need to be published");
+                        debug!("Checking for records");
 
                         let now = Utc::now().naive_utc();
                         let elapsed = now - last_publish;
@@ -195,7 +189,7 @@ impl CustomQueue {
             }
         };
 
-        handle.spawn(future.instrument(span!(Level::INFO, "Custom Background Polling")));
+        handle.spawn(future.instrument(info_span!("Custom Background Polling")));
 
         Ok(())
     }

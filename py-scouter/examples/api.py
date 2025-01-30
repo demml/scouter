@@ -67,7 +67,7 @@ def setup_router() -> ScouterRouter:
         transport=[
             spc_transport,
             psi_transport,
-            #custom_transport,
+            custom_transport,
         ]
     )
 
@@ -88,7 +88,7 @@ async def psi_predict(request: Request) -> Response:
     request.state.scouter_data = {
         config.psi_id: payload.to_features(),
         config.spc_id: payload.to_features(),
-        #config.custom_id: payload.to_metrics(),
+        config.custom_id: payload.to_metrics(),
     }
 
     return Response(message="success")

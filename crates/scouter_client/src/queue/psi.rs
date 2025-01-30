@@ -8,7 +8,7 @@ use scouter_types::Features;
 use std::sync::Arc;
 use tokio::sync::{watch, Mutex};
 use tokio::time::{self, Duration};
-use tracing::{debug, error, info, instrument, span, Instrument, Level};
+use tracing::{debug, error, info, info_span, instrument, Instrument};
 
 const PSI_MAX_QUEUE_SIZE: usize = 1000;
 
@@ -30,17 +30,12 @@ impl PsiQueue {
         drift_profile: PsiDriftProfile,
         config: &Bound<'_, PyAny>,
     ) -> Result<Self, ScouterError> {
-        let span = span!(Level::INFO, "Creating PSI Queue").entered();
-        let _ = span.enter();
-
-        debug!("Creating PSI Queue");
         let queue = Arc::new(Mutex::new(PsiFeatureQueue::new(drift_profile)));
 
         // psi queue needs a tokio runtime to run background tasks
         // This runtime needs to be separate from the producer runtime
         let rt = Arc::new(tokio::runtime::Runtime::new().unwrap());
 
-        debug!("Creating Producer");
         let producer = rt.block_on(async { RustScouterProducer::new(config).await })?;
 
         let (stop_tx, stop_rx) = watch::channel(());
@@ -53,8 +48,6 @@ impl PsiQueue {
             stop_tx: Some(stop_tx),
             rt: rt.clone(),
         };
-
-        span.exit();
 
         debug!("Starting Background Task");
         psi_queue.start_background_task(queue, stop_rx)?;
@@ -187,7 +180,7 @@ impl PsiQueue {
             }
         };
 
-        handle.spawn(future.instrument(span!(Level::INFO, "PSI Background Polling")));
+        handle.spawn(future.instrument(info_span!("PSI Background Polling")));
 
         Ok(())
     }

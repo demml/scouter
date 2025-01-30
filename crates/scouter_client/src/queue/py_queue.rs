@@ -9,7 +9,7 @@ use scouter_types::{DriftProfile, DriftType};
 use scouter_types::{Features, Metrics};
 use serde_json::Value;
 use std::path::PathBuf;
-use tracing::{error, info, span, Level};
+use tracing::{error, info, instrument};
 
 use super::custom::CustomQueue;
 
@@ -91,9 +91,8 @@ impl ScouterQueue {
         })
     }
 
+    #[instrument(skip(self, entity), name = "Insert", level = "debug")]
     pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> PyResult<()> {
-        let span = span!(Level::INFO, "ScouterQueue Insert").entered();
-        let _ = span.enter();
         self.queue.insert(entity).map_err(|e| {
             error!("Failed to insert features into queue: {:?}", e.to_string());
             PyScouterError::new_err(e.to_string())
@@ -101,9 +100,8 @@ impl ScouterQueue {
         Ok(())
     }
 
+    #[instrument(skip(self), name = "Flush", level = "debug")]
     pub fn flush(&mut self) -> PyResult<()> {
-        let span = span!(Level::INFO, "ScouterQueue Flush").entered();
-        let _ = span.enter();
         match &mut self.queue {
             Queue::Spc(queue) => queue.flush().map_err(|e| {
                 error!("Failed to flush queue: {:?}", e.to_string());

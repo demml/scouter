@@ -6,7 +6,6 @@ use scouter_types::{
     custom::CustomDriftProfile, CustomMetricServerRecord, RecordType, ServerRecord, ServerRecords,
 };
 use std::collections::HashMap;
-use tracing::{debug, span, Level};
 
 #[pyclass]
 pub struct CustomMetricFeatureQueue {
@@ -19,9 +18,6 @@ pub struct CustomMetricFeatureQueue {
 impl CustomMetricFeatureQueue {
     #[new]
     pub fn new(drift_profile: CustomDriftProfile) -> Self {
-        let span = span!(Level::INFO, "Initialize CustomMetricFeatureQueue").entered();
-        let _ = span.enter();
-
         let queue: HashMap<String, Vec<f64>> = drift_profile
             .metrics
             .keys()
@@ -47,11 +43,6 @@ impl CustomMetricFeatureQueue {
     ///
     /// * `Result<(), FeatureQueueError>` - A result indicating success or failure
     pub fn insert(&mut self, metrics: Metrics) -> Result<(), FeatureQueueError> {
-        let span = span!(Level::INFO, "Custom Insert").entered();
-        let _ = span.enter();
-
-        debug!("Inserting features into queue");
-
         metrics.iter().for_each(|metric| {
             if let Some(queue) = self.queue.get_mut(&metric.name) {
                 queue.push(metric.value);
@@ -62,9 +53,6 @@ impl CustomMetricFeatureQueue {
     }
 
     pub fn create_drift_records(&mut self) -> Result<ServerRecords, FeatureQueueError> {
-        let span = span!(Level::INFO, "Create Drift Records").entered();
-        let _ = span.enter();
-
         let averages = self
             .queue
             .iter()
@@ -90,9 +78,6 @@ impl CustomMetricFeatureQueue {
     }
 
     pub fn clear_queue(&mut self) {
-        let span = span!(Level::INFO, "FeatureQueue clear queue").entered();
-        let _ = span.enter();
-
         self.queue.values_mut().for_each(|vals| {
             vals.clear();
         });

@@ -1,7 +1,7 @@
 use scouter_types::{
     psi::BinType, Features, PsiServerRecord, RecordType, ServerRecord, ServerRecords,
 };
-use tracing::{debug, error, instrument, span, Level};
+use tracing::{debug, error, instrument};
 
 use crate::psi::monitor::PsiMonitor;
 use core::result::Result::Ok;
@@ -18,7 +18,7 @@ pub struct PsiFeatureQueue {
 }
 
 impl PsiFeatureQueue {
-    #[instrument(name = "Numeric Scalar")]
+    #[instrument(skip(value, bins), name = "Numeric Scalar", level = "debug")]
     fn find_numeric_bin_given_scaler(
         value: f64,
         bins: &[Bin],
@@ -46,10 +46,11 @@ impl PsiFeatureQueue {
                 (None, None) => return Err(FeatureQueueError::GetBinError),
             }
         }
+        error!("Failed to find bin for value: {}", value);
         Err(FeatureQueueError::GetBinError)
     }
 
-    #[instrument(name = "Numeric Queue")]
+    #[instrument(skip(queue, value, bins), name = "Numeric Queue", level = "debug")]
     fn process_numeric_queue(
         queue: &mut HashMap<usize, usize>,
         value: f64,
@@ -68,7 +69,7 @@ impl PsiFeatureQueue {
         Ok(())
     }
 
-    #[instrument(name = "Binary Queue")]
+    #[instrument(skip(feature, queue, value), name = "Binary Queue", level = "debug")]
     fn process_binary_queue(
         feature: &str,
         queue: &mut HashMap<usize, usize>,
@@ -104,12 +105,11 @@ impl PsiFeatureQueue {
         Ok(())
     }
 
+    #[instrument(skip(queue, value), name = "Process Categorical", level = "debug")]
     fn process_categorical_queue(
         queue: &mut HashMap<usize, usize>,
         value: &usize,
     ) -> Result<(), FeatureQueueError> {
-        let span = span!(Level::INFO, "Process categorical queue").entered();
-        let _ = span.enter();
         let count = queue
             .get_mut(value)
             .ok_or(FeatureQueueError::GetBinError)
@@ -126,12 +126,16 @@ impl PsiFeatureQueue {
 impl PsiFeatureQueue {
     #[new]
     pub fn new(drift_profile: PsiDriftProfile) -> Self {
-        let span = span!(Level::INFO, "Initialize PsiFeatureQueue").entered();
-        let _ = span.enter();
+        let features_to_monitor = drift_profile
+            .config
+            .alert_config
+            .features_to_monitor
+            .clone();
 
         let queue: HashMap<String, HashMap<usize, usize>> = drift_profile
             .features
             .iter()
+            .filter(|(feature_name, _)| features_to_monitor.contains(feature_name))
             .map(|(feature_name, feature_drift_profile)| {
                 let inner_map: HashMap<usize, usize> = feature_drift_profile
                     .bins
@@ -149,7 +153,7 @@ impl PsiFeatureQueue {
         }
     }
 
-    #[instrument(skip(self, features), name = "Insert")]
+    #[instrument(skip(self, features), name = "Insert", level = "debug")]
     pub fn insert(&mut self, features: Features) -> Result<(), FeatureQueueError> {
         let feat_map = &self.drift_profile.config.feature_map;
         for feature in features.iter() {
@@ -165,6 +169,7 @@ impl PsiFeatureQueue {
                 match feature_drift_profile.bin_type {
                     BinType::Numeric | BinType::Binary => {
                         let value = feature.to_float(feat_map).map_err(|e| {
+                            error!("Error converting feature to float: {:?}", e);
                             FeatureQueueError::InvalidValueError(
                                 feature.name().to_string(),
                                 e.to_string(),
@@ -194,32 +199,21 @@ impl PsiFeatureQueue {
                 }
             }
         }
-        debug!("queue: {:?}", self.queue);
         Ok(())
     }
 
-    #[instrument(skip(self), name = "Create records")]
+    #[instrument(skip(self), name = "Create records", level = "debug")]
     pub fn create_drift_records(&self) -> Result<ServerRecords, FeatureQueueError> {
-        let features_to_monitor = self
-            .drift_profile
-            .config
-            .alert_config
-            .features_to_monitor
-            .clone();
-
         // filter out any feature thats not in features_to_monitor
         // Keep feature if any value in the bin map is greater than 0
 
         let filtered_queue = self
             .queue
             .iter()
-            .filter(|(feature_name, bin_map)| {
-                features_to_monitor.contains(feature_name)
-                    && bin_map.iter().any(|(_, count)| *count > 0)
-            })
+            .filter(|(_, bin_map)| bin_map.iter().any(|(_, count)| *count > 0))
             .collect::<HashMap<_, _>>();
 
-        debug!("Filtered queue: {:?}", filtered_queue);
+        debug!("Filtered queue count: {:?}", filtered_queue.len());
 
         let records = filtered_queue
             .iter()
@@ -248,9 +242,6 @@ impl PsiFeatureQueue {
     }
 
     pub fn clear_queue(&mut self) {
-        let span = span!(Level::INFO, "FeatureQueue clear queue").entered();
-        let _ = span.enter();
-
         self.queue.values_mut().for_each(|bin_map| {
             bin_map.values_mut().for_each(|count| *count = 0);
         });

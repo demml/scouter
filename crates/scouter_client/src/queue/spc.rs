@@ -5,7 +5,7 @@ use scouter_events::producer::RustScouterProducer;
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::Features;
 use std::sync::Arc;
-use tracing::{debug, error, info, span, Level};
+use tracing::{debug, error, instrument};
 
 #[pyclass]
 pub struct SpcQueue {
@@ -23,13 +23,8 @@ impl SpcQueue {
         drift_profile: SpcDriftProfile,
         config: &Bound<'_, PyAny>,
     ) -> Result<Self, ScouterError> {
-        let span = span!(Level::INFO, "Creating SPC Queue").entered();
-        let _ = span.enter();
-
         let rt = Arc::new(tokio::runtime::Runtime::new().unwrap());
         let producer = rt.block_on(async { RustScouterProducer::new(config).await })?;
-
-        info!("Starting up SpcQueue");
 
         Ok(SpcQueue {
             queue: SpcFeatureQueue::new(drift_profile),
@@ -39,10 +34,8 @@ impl SpcQueue {
         })
     }
 
+    #[instrument(skip(self), name = "SPC Insert", level = "debug")]
     pub fn insert(&mut self, features: Features) -> Result<(), ScouterError> {
-        let span = span!(Level::INFO, "SpcQueue Insert").entered();
-        let _ = span.enter();
-
         let insert = self.queue.insert(features);
 
         // silently fail if insert fails
@@ -81,10 +74,6 @@ impl SpcQueue {
     }
 
     fn _publish(&mut self) -> Result<(), ScouterError> {
-        let span = span!(Level::INFO, "SpcQueue Publish").entered();
-        let _ = span.enter();
-        debug!("Publishing drift records");
-
         let records = self.queue.create_drift_records()?;
         self.rt
             .block_on(async { self.producer.publish(records).await })?;
@@ -94,9 +83,6 @@ impl SpcQueue {
     }
 
     pub fn flush(&mut self) -> Result<(), ScouterError> {
-        let span = span!(Level::INFO, "SpcQueue Flush").entered();
-        let _ = span.enter();
-        debug!("Flushing SpcQueue");
         self.rt.block_on(async { self.producer.flush().await })
     }
 }
