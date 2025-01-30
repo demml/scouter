@@ -296,7 +296,7 @@ mod tests {
             "repo",
             DEFAULT_VERSION,
             None,
-            None,
+            Some(features.clone()),
             None,
             alert_config,
             None,
@@ -512,10 +512,13 @@ mod tests {
 
         assert_eq!(array.shape(), &[5, 2]);
 
-        let config = PsiDriftConfig {
+        let mut config = PsiDriftConfig {
             feature_map,
             ..Default::default()
         };
+
+        config.alert_config.features_to_monitor =
+            vec!["feature_1".to_string(), "feature_2".to_string()];
 
         let profile = psi_monitor
             .create_2d_drift_profile(&string_features, &array.view(), &config)
