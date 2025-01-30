@@ -364,9 +364,11 @@ mod tests {
 
         let monitor = PsiMonitor::new();
 
-        let profile = monitor
+        let mut profile = monitor
             .create_2d_drift_profile(&features, &array.view(), &PsiDriftConfig::default())
             .unwrap();
+        profile.config.alert_config.features_to_monitor = features.clone();
+
         assert_eq!(profile.features.len(), 2);
 
         let mut feature_queue = PsiFeatureQueue::new(profile);
@@ -432,6 +434,14 @@ mod tests {
 
         assert_eq!(feature_map.features.len(), 2);
 
+        let mut config = PsiDriftConfig {
+            feature_map: feature_map.clone(),
+            ..Default::default()
+        };
+
+        config.alert_config.features_to_monitor =
+            vec!["feature_1".to_string(), "feature_2".to_string()];
+
         let array = psi_monitor
             .convert_strings_to_ndarray_f64(&string_features, &string_vec, &feature_map)
             .unwrap();
@@ -439,7 +449,7 @@ mod tests {
         assert_eq!(array.shape(), &[5, 2]);
 
         let profile = psi_monitor
-            .create_2d_drift_profile(&string_features, &array.view(), &PsiDriftConfig::default())
+            .create_2d_drift_profile(&string_features, &array.view(), &config)
             .unwrap();
         assert_eq!(profile.features.len(), 2);
 
@@ -558,9 +568,12 @@ mod tests {
 
         let monitor = PsiMonitor::new();
 
-        let profile = monitor
+        let mut profile = monitor
             .create_2d_drift_profile(&features, &array.view(), &PsiDriftConfig::default())
             .unwrap();
+
+        profile.config.alert_config.features_to_monitor = features.clone();
+
         assert_eq!(profile.features.len(), 3);
 
         let mut feature_queue = PsiFeatureQueue::new(profile);
