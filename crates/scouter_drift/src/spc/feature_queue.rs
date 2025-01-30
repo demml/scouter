@@ -15,6 +15,7 @@ pub struct SpcFeatureQueue {
     pub drift_profile: SpcDriftProfile,
     pub queue: HashMap<String, Vec<f64>>,
     pub monitor: SpcMonitor,
+    pub feature_names: Vec<String>,
 }
 
 #[pymethods]
@@ -30,10 +31,13 @@ impl SpcFeatureQueue {
             .map(|feature| (feature.clone(), Vec::new()))
             .collect();
 
+        let feature_names = queue.keys().cloned().collect();
+
         SpcFeatureQueue {
             drift_profile,
             queue,
             monitor: SpcMonitor::new(),
+            feature_names,
         }
     }
 
@@ -43,10 +47,13 @@ impl SpcFeatureQueue {
 
         debug!("Inserting features into queue");
         features.iter().for_each(|feature| {
-            let name = feature.name();
-            if let Some(queue) = self.queue.get_mut(name) {
-                if let Ok(value) = feature.to_float(feat_map) {
-                    queue.push(value);
+            let name = feature.name().to_string();
+
+            if self.feature_names.contains(&name) {
+                if let Some(queue) = self.queue.get_mut(&name) {
+                    if let Ok(value) = feature.to_float(feat_map) {
+                        queue.push(value);
+                    }
                 }
             }
         });

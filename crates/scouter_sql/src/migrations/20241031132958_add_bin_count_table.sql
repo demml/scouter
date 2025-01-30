@@ -6,11 +6,11 @@ CREATE TABLE IF NOT exists scouter.observed_bin_count (
   feature varchar(256) not null,
   bin_id integer not null,
   bin_count integer not null,
-  UNIQUE (created_at,name,repository,version)
+  UNIQUE (created_at,name,repository,version,feature,bin_id)
 )
 PARTITION BY RANGE (created_at);
 
-CREATE INDEX ON scouter.observed_bin_count (name, repository, version, created_at, feature, bin_id);
+CREATE INDEX ON scouter.observed_bin_count (name, repository, version, created_at, feature);
 
 SELECT scouter.create_parent(
                'scouter.observed_bin_count',

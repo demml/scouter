@@ -61,7 +61,7 @@ if __name__ == "__main__":
         version="0.0.1",
         features_to_monitor=["feature_1"],
     )
-    
+
     spc_profile = scouter.create_drift_profile(data, spc_config)
     client.register_profile(spc_profile)
     spc_profile.save_to_json(path=Path("spc_profile.json"))

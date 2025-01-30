@@ -34,7 +34,7 @@ impl SpcQueue {
         })
     }
 
-    #[instrument(skip(self), name = "SPC Insert", level = "debug")]
+    #[instrument(skip(self, features), name = "SPC Insert", level = "debug")]
     pub fn insert(&mut self, features: Features) -> Result<(), ScouterError> {
         let insert = self.queue.insert(features);
 

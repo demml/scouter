@@ -15,6 +15,7 @@ pub struct PsiFeatureQueue {
     pub drift_profile: PsiDriftProfile,
     pub queue: HashMap<String, HashMap<usize, usize>>,
     pub monitor: PsiMonitor,
+    pub feature_names: Vec<String>,
 }
 
 impl PsiFeatureQueue {
@@ -146,10 +147,13 @@ impl PsiFeatureQueue {
             })
             .collect();
 
+        let feature_names = queue.keys().cloned().collect();
+
         PsiFeatureQueue {
             drift_profile,
             queue,
             monitor: PsiMonitor::new(),
+            feature_names,
         }
     }
 
@@ -158,12 +162,18 @@ impl PsiFeatureQueue {
         let feat_map = &self.drift_profile.config.feature_map;
         for feature in features.iter() {
             if let Some(feature_drift_profile) = self.drift_profile.features.get(feature.name()) {
-                let name = feature.name();
+                let name = feature.name().to_string();
+
+                // if feature not in features_to_monitor, skip
+                if !self.feature_names.contains(&name) {
+                    continue;
+                }
+
                 let bins = &feature_drift_profile.bins;
 
                 let queue = self
                     .queue
-                    .get_mut(name)
+                    .get_mut(&name)
                     .ok_or(FeatureQueueError::GetFeatureError)?;
 
                 match feature_drift_profile.bin_type {
@@ -190,7 +200,7 @@ impl PsiFeatureQueue {
                             .config
                             .feature_map
                             .features
-                            .get(name)
+                            .get(&name)
                             .ok_or(FeatureQueueError::GetFeatureError)?
                             .get(&feature.to_string())
                             .ok_or(FeatureQueueError::GetFeatureError)?;

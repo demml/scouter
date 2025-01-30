@@ -419,7 +419,7 @@ impl SpcMonitor {
             + ndarray::ScalarOperand,
         F: Into<f64>,
     {
-        let num_features = drift_profile.features.len();
+        let num_features = drift_profile.config.alert_config.features_to_monitor.len();
 
         // iterate through each feature
         let sample_data = self
