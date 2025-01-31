@@ -42,7 +42,7 @@ impl Default for DatabaseSettings {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Clone, Serialize)]
 pub struct KafkaSettings {
     pub brokers: String,
     pub num_workers: usize,
@@ -52,6 +52,21 @@ pub struct KafkaSettings {
     pub password: Option<String>,
     pub security_protocol: String,
     pub sasl_mechanism: String,
+}
+
+impl std::fmt::Debug for KafkaSettings {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("KafkaSettings")
+            .field("brokers", &self.brokers)
+            .field("num_workers", &self.num_workers)
+            .field("topics", &self.topics)
+            .field("group_id", &self.group_id)
+            .field("username", &self.username)
+            .field("password", &self.password.as_ref().map(|_| "***"))
+            .field("security_protocol", &self.security_protocol)
+            .field("sasl_mechanism", &self.sasl_mechanism)
+            .finish()
+    }
 }
 
 impl Default for KafkaSettings {

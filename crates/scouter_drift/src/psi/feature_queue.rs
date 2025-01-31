@@ -19,36 +19,21 @@ pub struct PsiFeatureQueue {
 }
 
 impl PsiFeatureQueue {
+
     #[instrument(skip(value, bins), name = "Numeric Scalar", level = "debug")]
-    fn find_numeric_bin_given_scaler(
-        value: f64,
-        bins: &[Bin],
-    ) -> Result<&usize, FeatureQueueError> {
-        for bin in bins.iter() {
-            match (bin.lower_limit, bin.upper_limit) {
-                // First bin (-inf to upper)
-                (None, Some(upper)) => {
-                    if value <= upper {
-                        return Ok(&bin.id);
-                    }
-                }
-                // Last bin (lower to +inf)
-                (Some(lower), None) => {
-                    if value > lower {
-                        return Ok(&bin.id);
-                    }
-                }
-                // Middle bins
-                (Some(lower), Some(upper)) => {
-                    if value > lower && value <= upper {
-                        return Ok(&bin.id);
-                    }
-                }
-                (None, None) => return Err(FeatureQueueError::GetBinError),
-            }
+    fn find_numeric_bin_given_scaler(value: f64, bins: &[Bin]) -> Result<&usize, FeatureQueueError> {
+        let bin = bins.iter()
+            .find(|bin| value > bin.lower_limit.unwrap() && value <= bin.upper_limit.unwrap())
+            .map(|bin| &bin.id);
+
+        match bin {
+            Some(bin) => Ok(bin),
+            None => {
+                error!("Failed to find bin for value: {}", value);
+                Err(FeatureQueueError::GetBinError)
+            },
         }
-        error!("Failed to find bin for value: {}", value);
-        Err(FeatureQueueError::GetBinError)
+            
     }
 
     #[instrument(skip(queue, value, bins), name = "Numeric Queue", level = "debug")]

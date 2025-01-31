@@ -6,7 +6,7 @@ pub mod kafka_startup {
     use scouter_settings::ScouterServerConfig;
     use scouter_sql::{MessageHandler, PostgresClient};
     use sqlx::{Pool, Postgres};
-    use tracing::info;
+    use tracing::{debug, info};
 
     pub async fn startup_kafka(
         pool: &Pool<Postgres>,
@@ -26,9 +26,11 @@ pub mod kafka_startup {
 
             // send task to background
             tokio::spawn(async move {
+
+                debug!("Starting Kafka consumer background task");
                 start_kafka_background_poll(message_handler, &settings)
                     .await
-                    .unwrap();
+                    .map_err(|e| EventError::Error(format!("Failed to start Kafka consumer with error: {}", e))).unwrap();
             });
         }
 
