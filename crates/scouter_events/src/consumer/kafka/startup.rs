@@ -12,12 +12,18 @@ pub mod kafka_startup {
         pool: &Pool<Postgres>,
         config: &ScouterServerConfig,
     ) -> Result<(), EventError> {
-        info!("Starting Kafka consumer");
+    
 
         let kafka_settings = config.kafka_settings.as_ref().unwrap().clone();
         let database_settings = &config.database_settings;
         let num_consumers = kafka_settings.num_workers;
 
+        if num_consumers == 0 {
+            info!("Number of Kafka consumers is set to 0 but env vars found, skipping Kafka consumer startup");
+            return Ok(());
+        }
+
+        info!("Starting Kafka consumer");
         for _ in 0..num_consumers {
             let kafka_db_client =
                 PostgresClient::new(Some(pool.clone()), Some(database_settings)).await?;
