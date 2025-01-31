@@ -33,7 +33,12 @@ pub mod kafka_consumer {
             .set("bootstrap.servers", &settings.brokers)
             .set("enable.partition.eof", "false")
             .set("session.timeout.ms", "6000")
-            .set("enable.auto.commit", "true");
+            .set("enable.auto.commit", "true")
+
+            // Set the max message size to 1MB
+            .set("message.max.bytes", "1000000")
+            .set("fetch.message.max.bytes", "1000000")
+            .set("queue.buffering.max.messages", "100000");
 
         debug!("Kafka settings: {:?}", settings);
 
