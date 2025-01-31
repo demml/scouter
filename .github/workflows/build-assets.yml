@@ -14,7 +14,7 @@ on:
 
 env:
   INTERPRETER: "3.12"
-  RUSTFLAGS: "-C debuginfo=0 -C target-feature=+crt-static"
+  RUSTFLAGS: "-C debuginfo=0"
 
 jobs:
   build:
@@ -77,7 +77,7 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install
 
-      - name: Build Binaries with static linking
+      - name: Build Binaries with dynamic linking
         run: cargo build -p scouter-server --release --target ${{ matrix.target }} --features ${{ matrix.feature }}
 
       - name: Zip MacOS binaries
@@ -137,21 +137,20 @@ jobs:
           path: scouter-server-${{ matrix.feature }}-${{ matrix.target }}.${{ matrix.archive }}
 
   publish-docker-images:
-    if: github.event_name == 'release'
     needs: build
     name: Publish scouter base images to Dockerhub
     runs-on: ubuntu-22.04
     strategy:
       matrix:
         include:
-          - image: "scratch"
+          - image: "ubuntu"
             feature: "kafka"
-          - image: "scratch"
+          - image: "ubuntu"
             feature: "rabbitmq"
-          - image: "alpine"
-            feature: "kafka"
-          - image: "alpine"
-            feature: "rabbitmq"
+#          - image: "alpine"
+#            feature: "kafka"
+#          - image: "alpine"
+#            feature: "rabbitmq"
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -169,11 +168,11 @@ jobs:
           docker build \
           --build-arg SCOUTER_SERVER_BINARY=./scouter-server \
           -f docker/official-base-image/${{ matrix.image }}/Dockerfile \
-          -t demml/scouter:${{ matrix.image }}-${{ matrix.feature }}-${{ github.event.release.tag_name }} .
+          -t demml/scouter:${{ matrix.image }}-${{ matrix.feature }}-dynamictest .
       - name: push image to docker hub
         run: |
           docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
-          docker push demml/scouter:${{ matrix.image }}-${{ matrix.feature }}-${{ github.event.release.tag_name }}
+          docker push demml/scouter:${{ matrix.image }}-${{ matrix.feature }}-dynamictest
 
 
   release-binary-assets:
