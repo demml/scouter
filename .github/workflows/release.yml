@@ -15,6 +15,10 @@ env:
   PACKAGE_NAME: scouter
   INTERPRETER: "3.10 3.11 3.12 3.13 pypy3.9 pypy3.10"
   RUSTFLAGS: -C debuginfo=0
+  PYTHON_VERSION: "3.12"
+  CARGO_INCREMENTAL: 0
+  CARGO_NET_RETRY: 10
+  CARGO_TERM_COLOR: always
 
 jobs:
   build-sdist:
@@ -35,6 +39,60 @@ jobs:
           name: pypi_sdist
           path: ./py-scouter/dist
 
+  build-linux-s390x:
+    runs-on: depot-ubuntu-latest-4
+    strategy:
+      matrix:
+        platform:
+          - target: s390x-unknown-linux-gnu
+            arch: s390x
+            manylinux: auto
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: set up python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - run: pip install -U twine
+
+      - name: build wheels
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          manylinux: ${{ matrix.platform.manylinux }}
+          args: --release --out dist --interpreter ${{ env.INTERPRETER }}  --features self-update
+          rust-toolchain: stable
+          docker-options: -e CI
+          working-directory: ./py-scouter
+
+      - uses: uraimo/run-on-arch-action@v2
+        name: Test wheel
+        with:
+          arch: ${{ matrix.platform.arch }}
+          distro: ubuntu20.04
+          githubToken: ${{ github.token }}
+          install: |
+            apt-get update
+            apt-get install -y --no-install-recommends python3 python3-pip
+            pip3 install -U pip
+          run: |
+            pip3 install ${{ env.PACKAGE_NAME }} --no-index --find-links dist/ --force-reinstall
+
+      - name: Check dist
+        working-directory: ./py-scouter
+        run: ls -lh dist/
+
+      - name: Check wheel
+        working-directory: ./py-scouter
+        run: twine check --strict dist/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pypi_files_ubuntu_${{ matrix.platform.target }}_all_${{ matrix.platform.manylinux }}
+          path: ./py-scouter/dist
+
   build-ubuntu:
     name: build - ubuntu - ${{ matrix.platform.manylinux }} - ${{ matrix.platform.target }}
     strategy:
@@ -51,8 +109,6 @@ jobs:
             manylinux: "2_28" # ring will not compile here 
           - target: armv7
             manylinux: auto
-          - target: s390x
-            manylinux: auto
           - target: ppc64le
             manylinux: auto
 
@@ -64,7 +120,7 @@ jobs:
       - name: set up python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - run: pip install -U twine 'black>=22.3.0,<23' typing_extensions
 
@@ -83,16 +139,6 @@ jobs:
             # If we're running on rhel centos, install needed packages.
             if command -v yum &> /dev/null; then
                 yum update -y && yum install -y perl-core openssl openssl-devel pkgconfig libatomic
-
-                          # Special handling for S390x
-                if [[ "${{ matrix.platform.target }}" == "s390x" ]]; then
-                    export OPENSSL_VERSION=3.2.2
-                    export OPENSSL_CONFIGURE_FLAGS="no-asm enable-ktls"
-                    export CFLAGS="-O2 -fPIC -march=z196 -mzarch"
-                    export OPENSSL_LIBS="-ldl -pthread"
-                    export OPENSSL_STATIC=1
-                    export OPENSSL_BUILD_COMPILER_FLAGS="-Wa,--noexecstack"
-                fi
 
                 # If we're running on i686 we need to symlink libatomic
                 # in order to build openssl with -latomic flag.
