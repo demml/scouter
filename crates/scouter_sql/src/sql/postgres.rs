@@ -72,6 +72,7 @@ impl PostgresClient {
     /// # Returns
     ///
     /// * `Result<Pool<Postgres>, anyhow::Error>` - Result of the database pool
+    #[instrument(skip(database_settings))]
     pub async fn create_db_pool(
         database_settings: Option<&DatabaseSettings>,
     ) -> Result<Pool<Postgres>, SqlError> {
