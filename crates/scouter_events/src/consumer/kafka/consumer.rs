@@ -37,8 +37,7 @@ pub mod kafka_consumer {
 
             // Set the max message size to 1MB
             .set("message.max.bytes", "1000000")
-            .set("fetch.message.max.bytes", "1000000")
-            .set("queue.buffering.max.messages", "100000");
+            .set("fetch.message.max.bytes", "1000000");
 
         debug!("Kafka settings: {:?}", settings);
 
