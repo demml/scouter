@@ -84,6 +84,16 @@ jobs:
             if command -v yum &> /dev/null; then
                 yum update -y && yum install -y perl-core openssl openssl-devel pkgconfig libatomic
 
+                          # Special handling for S390x
+                if [[ "${{ matrix.platform.target }}" == "s390x" ]]; then
+                    export OPENSSL_VERSION=3.2.2
+                    export OPENSSL_CONFIGURE_FLAGS="no-asm enable-ktls"
+                    export CFLAGS="-O2 -fPIC -march=z196 -mzarch"
+                    export OPENSSL_LIBS="-ldl -pthread"
+                    export OPENSSL_STATIC=1
+                    export OPENSSL_BUILD_COMPILER_FLAGS="-Wa,--noexecstack"
+                fi
+
                 # If we're running on i686 we need to symlink libatomic
                 # in order to build openssl with -latomic flag.
                 if [[ ! -d "/usr/lib64" ]]; then
