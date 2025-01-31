@@ -8,7 +8,9 @@ use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use scouter_error::ScouterError;
-use serde::{Deserialize, Serialize};
+use serde::{Serialize, Deserialize, Serializer, Deserializer};
+use serde::ser::SerializeStruct;
+use serde::de::{self, Visitor, MapAccess};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
@@ -175,7 +177,7 @@ impl DispatchDriftConfig for PsiDriftConfig {
 }
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Bin {
     #[pyo3(get)]
     pub id: usize,
@@ -188,6 +190,121 @@ pub struct Bin {
 
     #[pyo3(get)]
     pub proportion: f64,
+}
+
+impl Serialize for Bin {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("Bin", 4)?;
+        state.serialize_field("id", &self.id)?;
+
+
+        state.serialize_field("lower_limit", &self.lower_limit.map(|v| {
+            if v.is_infinite() {
+                serde_json::Value::String(
+                    if v.is_sign_positive() { "inf".to_string() } 
+                    else { "-inf".to_string() }
+                )
+            } else {
+                serde_json::Value::Number(serde_json::Number::from_f64(v).unwrap())
+            }
+        }))?;
+        state.serialize_field("upper_limit", &self.upper_limit.map(|v| {
+            if v.is_infinite() {
+                serde_json::Value::String(
+                    if v.is_sign_positive() { "inf".to_string() } 
+                    else { "-inf".to_string() }
+                )
+            } else {
+                serde_json::Value::Number(serde_json::Number::from_f64(v).unwrap())
+            }
+        }))?;
+        state.serialize_field("proportion", &self.proportion)?;
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for Bin {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum NumberOrString {
+            Number(f64),
+            String(String),
+        }
+
+        #[derive(Deserialize)]
+        #[serde(field_identifier, rename_all = "snake_case")]
+        enum Field { Id, LowerLimit, UpperLimit, Proportion }
+
+        struct BinVisitor;
+
+        impl<'de> Visitor<'de> for BinVisitor {
+            type Value = Bin;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("struct Bin")
+            }
+
+            fn visit_map<V>(self, mut map: V) -> Result<Bin, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut id = None;
+                let mut lower_limit = None;
+                let mut upper_limit = None;
+                let mut proportion = None;
+
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::Id => {
+                            id = Some(map.next_value()?);
+                        }
+                        Field::LowerLimit => {
+                            let val: Option<NumberOrString> = map.next_value()?;
+                            lower_limit = Some(val.map(|v| match v {
+                                NumberOrString::String(s) => match s.as_str() {
+                                    "inf" => f64::INFINITY,
+                                    "-inf" => f64::NEG_INFINITY,
+                                    _ => s.parse().unwrap()
+                                },
+                                NumberOrString::Number(n) => n
+                            }));
+                        }
+                        Field::UpperLimit => {
+                            let val: Option<NumberOrString> = map.next_value()?;
+                            upper_limit = Some(val.map(|v| match v {
+                                NumberOrString::String(s) => match s.as_str() {
+                                    "inf" => f64::INFINITY,
+                                    "-inf" => f64::NEG_INFINITY,
+                                    _ => s.parse().unwrap()
+                                },
+                                NumberOrString::Number(n) => n
+                            }));
+                        }
+                        Field::Proportion => {
+                            proportion = Some(map.next_value()?);
+                        }
+                    }
+                }
+
+                Ok(Bin {
+                    id: id.ok_or_else(|| de::Error::missing_field("id"))?,
+                    lower_limit: lower_limit.ok_or_else(|| de::Error::missing_field("lower_limit"))?,
+                    upper_limit: upper_limit.ok_or_else(|| de::Error::missing_field("upper_limit"))?,
+                    proportion: proportion.ok_or_else(|| de::Error::missing_field("proportion"))?,
+                })
+            }
+        }
+
+        const FIELDS: &[&str] = &["id", "lower_limit", "upper_limit", "proportion"];
+        deserializer.deserialize_struct("Bin", FIELDS, BinVisitor)
+    }
 }
 
 #[pyclass]
@@ -205,6 +322,8 @@ pub struct PsiFeatureDriftProfile {
     #[pyo3(get)]
     pub bin_type: BinType,
 }
+
+
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]

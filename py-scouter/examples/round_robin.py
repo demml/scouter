@@ -13,6 +13,7 @@ from scouter.drift import (
     Drifter,
     PsiDriftConfig,
     SpcDriftConfig,
+    PsiDriftProfile
 )
 
 
@@ -51,9 +52,12 @@ if __name__ == "__main__":
     )
 
     psi_profile = scouter.create_drift_profile(data, psi_config)
+    
+    bins = psi_profile.features["feature_1"].bins
+ 
     client.register_profile(psi_profile)
     psi_profile.save_to_json(path=Path("psi_profile.json"))
-
+    
     # create spc profile
     spc_config = SpcDriftConfig(
         name="test",

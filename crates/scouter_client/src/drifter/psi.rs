@@ -146,6 +146,7 @@ impl PsiDrifter {
             features.extend(drift_profile.features);
         }
 
+
         Ok(PsiDriftProfile::new(features, final_config, None))
     }
 
