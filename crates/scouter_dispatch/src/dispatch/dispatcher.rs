@@ -615,13 +615,16 @@ mod tests {
         unsafe {
             env::remove_var("OPSGENIE_API_KEY");
         }
-        let alert_config =
-            SpcAlertConfig::new(None, Some(AlertDispatchType::OpsGenie), None, None, None);
+        let alert_config = SpcAlertConfig {
+            dispatch_type: AlertDispatchType::OpsGenie,
+            ..Default::default()
+        };
 
         let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repository".to_string()),
             Some("1.0.0".to_string()),
+            None,
             None,
             None,
             None,
@@ -645,12 +648,16 @@ mod tests {
             env::remove_var("SLACK_APP_TOKEN");
         }
 
-        let alert_config =
-            SpcAlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None);
+        let alert_config = SpcAlertConfig {
+            dispatch_type: AlertDispatchType::Slack,
+            ..Default::default()
+        };
+
         let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repository".to_string()),
             Some("1.0.0".to_string()),
+            None,
             None,
             None,
             None,
@@ -673,12 +680,16 @@ mod tests {
             env::set_var("SLACK_API_URL", "url");
             env::set_var("SLACK_APP_TOKEN", "bot_token");
         }
-        let alert_config =
-            SpcAlertConfig::new(None, Some(AlertDispatchType::Slack), None, None, None);
+        let alert_config = SpcAlertConfig {
+            dispatch_type: AlertDispatchType::Slack,
+            ..Default::default()
+        };
+
         let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repository".to_string()),
             Some("1.0.0".to_string()),
+            None,
             None,
             None,
             None,

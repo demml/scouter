@@ -2,13 +2,15 @@ use crate::psi::alert::PsiAlertConfig;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, ProfileArgs, ProfileBaseArgs,
-    ProfileFuncs, MISSING,
+    ProfileFuncs, DEFAULT_VERSION, MISSING,
 };
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use scouter_error::ScouterError;
-use serde::{Deserialize, Serialize};
+use serde::de::{self, MapAccess, Visitor};
+use serde::ser::SerializeStruct;
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
@@ -52,14 +54,15 @@ pub struct PsiDriftConfig {
 impl PsiDriftConfig {
     // TODO dry this out
     #[new]
-    #[pyo3(signature = (repository=None, name=None, version=None, feature_map=None, targets=None, alert_config=None, config_path=None))]
+    #[pyo3(signature = (repository=MISSING, name=MISSING, version=DEFAULT_VERSION, feature_map=None, features_to_monitor=None, targets=None, alert_config=PsiAlertConfig::default(), config_path=None))]
     pub fn new(
-        repository: Option<String>,
-        name: Option<String>,
-        version: Option<String>,
+        repository: &str,
+        name: &str,
+        version: &str,
         feature_map: Option<FeatureMap>,
+        features_to_monitor: Option<Vec<String>>,
         targets: Option<Vec<String>>,
-        alert_config: Option<PsiAlertConfig>,
+        mut alert_config: PsiAlertConfig,
         config_path: Option<PathBuf>,
     ) -> Result<Self, ScouterError> {
         if let Some(config_path) = config_path {
@@ -67,22 +70,21 @@ impl PsiDriftConfig {
             return config;
         }
 
-        let name = name.unwrap_or(MISSING.to_string());
-        let repository = repository.unwrap_or(MISSING.to_string());
-
         if name == MISSING || repository == MISSING {
             debug!("Name and repository were not provided. Defaulting to __missing__");
         }
 
-        let version = version.unwrap_or("0.1.0".to_string());
         let targets = targets.unwrap_or_default();
-        let alert_config = alert_config.unwrap_or_default();
         let feature_map = feature_map.unwrap_or_default();
 
+        if features_to_monitor.is_some() {
+            alert_config.features_to_monitor = features_to_monitor.unwrap();
+        }
+
         Ok(Self {
-            name,
-            repository,
-            version,
+            name: name.to_string(),
+            repository: repository.to_string(),
+            version: version.to_string(),
             alert_config,
             feature_map,
             targets,
@@ -149,6 +151,19 @@ impl PsiDriftConfig {
     }
 }
 
+impl Default for PsiDriftConfig {
+    fn default() -> Self {
+        PsiDriftConfig {
+            name: "__missing__".to_string(),
+            repository: "__missing__".to_string(),
+            version: DEFAULT_VERSION.to_string(),
+            feature_map: FeatureMap::default(),
+            alert_config: PsiAlertConfig::default(),
+            targets: Vec::new(),
+            drift_type: DriftType::Psi,
+        }
+    }
+}
 // TODO dry this out
 impl DispatchDriftConfig for PsiDriftConfig {
     fn get_drift_args(&self) -> DriftArgs {
@@ -162,7 +177,7 @@ impl DispatchDriftConfig for PsiDriftConfig {
 }
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct Bin {
     #[pyo3(get)]
     pub id: usize,
@@ -175,6 +190,135 @@ pub struct Bin {
 
     #[pyo3(get)]
     pub proportion: f64,
+}
+
+impl Serialize for Bin {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let mut state = serializer.serialize_struct("Bin", 4)?;
+        state.serialize_field("id", &self.id)?;
+
+        state.serialize_field(
+            "lower_limit",
+            &self.lower_limit.map(|v| {
+                if v.is_infinite() {
+                    serde_json::Value::String(if v.is_sign_positive() {
+                        "inf".to_string()
+                    } else {
+                        "-inf".to_string()
+                    })
+                } else {
+                    serde_json::Value::Number(serde_json::Number::from_f64(v).unwrap())
+                }
+            }),
+        )?;
+        state.serialize_field(
+            "upper_limit",
+            &self.upper_limit.map(|v| {
+                if v.is_infinite() {
+                    serde_json::Value::String(if v.is_sign_positive() {
+                        "inf".to_string()
+                    } else {
+                        "-inf".to_string()
+                    })
+                } else {
+                    serde_json::Value::Number(serde_json::Number::from_f64(v).unwrap())
+                }
+            }),
+        )?;
+        state.serialize_field("proportion", &self.proportion)?;
+        state.end()
+    }
+}
+
+impl<'de> Deserialize<'de> for Bin {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(untagged)]
+        enum NumberOrString {
+            Number(f64),
+            String(String),
+        }
+
+        #[derive(Deserialize)]
+        #[serde(field_identifier, rename_all = "snake_case")]
+        enum Field {
+            Id,
+            LowerLimit,
+            UpperLimit,
+            Proportion,
+        }
+
+        struct BinVisitor;
+
+        impl<'de> Visitor<'de> for BinVisitor {
+            type Value = Bin;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                formatter.write_str("struct Bin")
+            }
+
+            fn visit_map<V>(self, mut map: V) -> Result<Bin, V::Error>
+            where
+                V: MapAccess<'de>,
+            {
+                let mut id = None;
+                let mut lower_limit = None;
+                let mut upper_limit = None;
+                let mut proportion = None;
+
+                while let Some(key) = map.next_key()? {
+                    match key {
+                        Field::Id => {
+                            id = Some(map.next_value()?);
+                        }
+                        Field::LowerLimit => {
+                            let val: Option<NumberOrString> = map.next_value()?;
+                            lower_limit = Some(val.map(|v| match v {
+                                NumberOrString::String(s) => match s.as_str() {
+                                    "inf" => f64::INFINITY,
+                                    "-inf" => f64::NEG_INFINITY,
+                                    _ => s.parse().unwrap(),
+                                },
+                                NumberOrString::Number(n) => n,
+                            }));
+                        }
+                        Field::UpperLimit => {
+                            let val: Option<NumberOrString> = map.next_value()?;
+                            upper_limit = Some(val.map(|v| match v {
+                                NumberOrString::String(s) => match s.as_str() {
+                                    "inf" => f64::INFINITY,
+                                    "-inf" => f64::NEG_INFINITY,
+                                    _ => s.parse().unwrap(),
+                                },
+                                NumberOrString::Number(n) => n,
+                            }));
+                        }
+                        Field::Proportion => {
+                            proportion = Some(map.next_value()?);
+                        }
+                    }
+                }
+
+                Ok(Bin {
+                    id: id.ok_or_else(|| de::Error::missing_field("id"))?,
+                    lower_limit: lower_limit
+                        .ok_or_else(|| de::Error::missing_field("lower_limit"))?,
+                    upper_limit: upper_limit
+                        .ok_or_else(|| de::Error::missing_field("upper_limit"))?,
+                    proportion: proportion.ok_or_else(|| de::Error::missing_field("proportion"))?,
+                })
+            }
+        }
+
+        const FIELDS: &[&str] = &["id", "lower_limit", "upper_limit", "proportion"];
+        deserializer.deserialize_struct("Bin", FIELDS, BinVisitor)
+    }
 }
 
 #[pyclass]
@@ -247,6 +391,13 @@ impl PsiDriftProfile {
 
         // Return the Python dictionary
         Ok(dict.into())
+    }
+
+    #[staticmethod]
+    pub fn from_file(path: PathBuf) -> Result<PsiDriftProfile, ScouterError> {
+        let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
+
+        serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)
     }
 
     #[staticmethod]
@@ -406,8 +557,17 @@ mod tests {
 
     #[test]
     fn test_drift_config() {
-        let mut drift_config =
-            PsiDriftConfig::new(None, None, None, None, None, None, None).unwrap();
+        let mut drift_config = PsiDriftConfig::new(
+            MISSING,
+            MISSING,
+            DEFAULT_VERSION,
+            None,
+            None,
+            None,
+            PsiAlertConfig::default(),
+            None,
+        )
+        .unwrap();
         assert_eq!(drift_config.name, "__missing__");
         assert_eq!(drift_config.repository, "__missing__");
         assert_eq!(drift_config.version, "0.1.0");

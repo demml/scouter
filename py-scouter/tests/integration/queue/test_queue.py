@@ -22,25 +22,16 @@ from scouter.drift import (
     SpcDriftConfig,
 )
 from scouter.queue import (
-    CustomMetricServerRecord,
+    DriftTransportConfig,
     Feature,
     Features,
     KafkaConfig,
+    Metric,
+    Metrics,
     RabbitMQConfig,
-    RecordType,
-    ScouterProducer,
     ScouterQueue,
-    ServerRecord,
-    ServerRecords,
 )
 from scouter.types import DriftType
-
-# uncomment for debugging
-# from scouter.logging import LoggingConfig, LogLevel, RustyLogger
-# RustyLogger.setup_logging(
-# LoggingConfig(log_level=LogLevel.Debug),
-# )
-
 
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"
 
@@ -55,7 +46,8 @@ def test_psi_monitor_pandas_http(
     profile = scouter.create_drift_profile(pandas_dataframe, psi_drift_config)
     client.register_profile(profile)
 
-    queue = ScouterQueue(drift_profile=profile, config=HTTPConfig())
+    config = DriftTransportConfig(id="test", config=HTTPConfig(), drift_profile=profile)
+    queue = ScouterQueue(config)
     records = pandas_dataframe.to_dict(orient="records")
 
     for record in records:
@@ -94,7 +86,8 @@ def test_spc_monitor_pandas_kafka(
     profile = scouter.create_drift_profile(pandas_dataframe, drift_config)
     client.register_profile(profile)
 
-    queue = ScouterQueue(drift_profile=profile, config=KafkaConfig())
+    config = DriftTransportConfig(id="test", config=KafkaConfig(), drift_profile=profile)
+    queue = ScouterQueue(config)
     records = pandas_dataframe.to_dict(orient="records")
 
     for record in records:
@@ -143,27 +136,21 @@ def test_custom_monitor_pandas_rabbitmq():
 
     profile = scouter.create_drift_profile(data=metrics, config=drift_config)
     client.register_profile(profile)
-    producer = ScouterProducer(config=RabbitMQConfig())
+    config = DriftTransportConfig(id="test", config=RabbitMQConfig(), drift_profile=profile)
+    queue = ScouterQueue(config)
+
+    for i in range(0, 30):
+        metrics = Metrics(
+            metrics=[
+                Metric("mae", i),
+                Metric("mape", i + 1),
+            ]
+        )
+        queue.insert(metrics)
+
+    queue.flush()
+
     time.sleep(2)
-
-    for i in range(10, 20):
-
-        record = CustomMetricServerRecord(
-            repository="test",
-            name="test",
-            version=semver,
-            metric="mae",
-            value=i,
-        )
-
-        producer.publish(
-            message=ServerRecords(
-                records=[ServerRecord(record)],
-                record_type=RecordType.Custom,
-            )
-        )
-
-    producer.flush()
 
     # wait for rabbitmq to process the message
     request = DriftRequest(

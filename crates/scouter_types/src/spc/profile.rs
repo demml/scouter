@@ -103,7 +103,7 @@ pub struct SpcDriftConfig {
 #[allow(clippy::too_many_arguments)]
 impl SpcDriftConfig {
     #[new]
-    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, feature_map=None, targets=None, alert_config=None, config_path=None))]
+    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None,feature_map=None,  features_to_monitor=None, targets=None, alert_config=None, config_path=None))]
     pub fn new(
         repository: Option<String>,
         name: Option<String>,
@@ -111,6 +111,7 @@ impl SpcDriftConfig {
         sample: Option<bool>,
         sample_size: Option<usize>,
         feature_map: Option<FeatureMap>,
+        features_to_monitor: Option<Vec<String>>,
         targets: Option<Vec<String>>,
         alert_config: Option<SpcAlertConfig>,
         config_path: Option<PathBuf>,
@@ -131,7 +132,11 @@ impl SpcDriftConfig {
         let sample_size = sample_size.unwrap_or(25);
         let version = version.unwrap_or("0.1.0".to_string());
         let targets = targets.unwrap_or_default();
-        let alert_config = alert_config.unwrap_or_default();
+        let mut alert_config = alert_config.unwrap_or_default();
+
+        if features_to_monitor.is_some() {
+            alert_config.features_to_monitor = features_to_monitor.unwrap();
+        }
 
         Ok(Self {
             sample_size,
@@ -329,6 +334,13 @@ impl SpcDriftProfile {
         ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
     }
 
+    #[staticmethod]
+    pub fn from_file(path: PathBuf) -> Result<SpcDriftProfile, ScouterError> {
+        let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
+
+        serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)
+    }
+
     // update the arguments of the drift config
     //
     // # Arguments
@@ -395,7 +407,8 @@ mod tests {
     #[test]
     fn test_drift_config() {
         let mut drift_config =
-            SpcDriftConfig::new(None, None, None, None, None, None, None, None, None).unwrap();
+            SpcDriftConfig::new(None, None, None, None, None, None, None, None, None, None)
+                .unwrap();
         assert_eq!(drift_config.sample_size, 25);
         assert!(drift_config.sample);
         assert_eq!(drift_config.name, "__missing__");

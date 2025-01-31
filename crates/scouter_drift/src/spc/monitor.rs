@@ -419,7 +419,7 @@ impl SpcMonitor {
             + ndarray::ScalarOperand,
         F: Into<f64>,
     {
-        let num_features = drift_profile.features.len();
+        let num_features = drift_profile.config.alert_config.features_to_monitor.len();
 
         // iterate through each feature
         let sample_data = self
@@ -454,7 +454,7 @@ impl SpcMonitor {
         drift_profile: &SpcDriftProfile,
     ) -> Result<Array2<f64>, MonitorError> {
         // iterate through each row of samples
-        let num_features = drift_profile.features.len();
+        let num_features = features.len();
         let drift_array = sample_array
             .axis_iter(Axis(0))
             .into_par_iter()
@@ -528,6 +528,7 @@ mod tests {
             None,
             None,
             None,
+            None,
             Some(alert_config),
             None,
         );
@@ -584,6 +585,7 @@ mod tests {
             None,
             None,
             None,
+            None,
             Some(alert_config),
             None,
         );
@@ -625,6 +627,7 @@ mod tests {
         let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repo".to_string()),
+            None,
             None,
             None,
             None,
@@ -677,6 +680,11 @@ mod tests {
             None,
             None,
             None,
+            Some(vec![
+                "feature_1".to_string(),
+                "feature_2".to_string(),
+                "feature_3".to_string(),
+            ]),
             None,
             Some(alert_config),
             None,
@@ -712,6 +720,7 @@ mod tests {
         let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repo".to_string()),
+            None,
             None,
             None,
             None,

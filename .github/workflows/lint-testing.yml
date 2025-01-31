@@ -136,7 +136,7 @@ jobs:
 
   test-os-integration:
     needs: [test-os]
-    name: test ${{ matrix.os }}-${{ matrix.python-version }}
+    name: test integration
 
     strategy:
       fail-fast: false

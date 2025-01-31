@@ -12,6 +12,8 @@ VALUES
                     "repository": "scouter",
                     "name": "model",
                     "version": "0.1.0",
+                    "sample_size": 25,
+                    "sample": true,
                     "alert_config": {
                         "dispatch_type": "Console",
                         "schedule": "0 0 0 * * *",

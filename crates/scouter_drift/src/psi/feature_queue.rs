@@ -1,6 +1,7 @@
 use scouter_types::{
     psi::BinType, Features, PsiServerRecord, RecordType, ServerRecord, ServerRecords,
 };
+use tracing::{debug, error, instrument};
 
 use crate::psi::monitor::PsiMonitor;
 use core::result::Result::Ok;
@@ -14,30 +15,49 @@ pub struct PsiFeatureQueue {
     pub drift_profile: PsiDriftProfile,
     pub queue: HashMap<String, HashMap<usize, usize>>,
     pub monitor: PsiMonitor,
+    pub feature_names: Vec<String>,
 }
 
 impl PsiFeatureQueue {
-    fn find_numeric_bin_given_scaler(value: f64, bins: &[Bin]) -> &usize {
-        bins.iter()
+    #[instrument(skip(value, bins), name = "Numeric Scalar", level = "debug")]
+    fn find_numeric_bin_given_scaler(
+        value: f64,
+        bins: &[Bin],
+    ) -> Result<&usize, FeatureQueueError> {
+        let bin = bins
+            .iter()
             .find(|bin| value > bin.lower_limit.unwrap() && value <= bin.upper_limit.unwrap())
-            .map(|bin| &bin.id)
-            .expect("-inf and +inf occupy the first and last threshold so a bin should always be returned.")
+            .map(|bin| &bin.id);
+
+        match bin {
+            Some(bin) => Ok(bin),
+            None => {
+                error!("Failed to find bin for value: {}", value);
+                Err(FeatureQueueError::GetBinError)
+            }
+        }
     }
 
+    #[instrument(skip(queue, value, bins), name = "Numeric Queue", level = "debug")]
     fn process_numeric_queue(
         queue: &mut HashMap<usize, usize>,
         value: f64,
         bins: &[Bin],
     ) -> Result<(), FeatureQueueError> {
-        let bin_id = Self::find_numeric_bin_given_scaler(value, bins);
+        let bin_id = Self::find_numeric_bin_given_scaler(value, bins)?;
         let count = queue
             .get_mut(bin_id)
-            .ok_or(FeatureQueueError::GetBinError)?;
+            .ok_or(FeatureQueueError::GetBinError)
+            .map_err(|e| {
+                error!("Error processing numeric queue: {:?}", e);
+                e
+            })?;
         *count += 1;
 
         Ok(())
     }
 
+    #[instrument(skip(feature, queue, value), name = "Binary Queue", level = "debug")]
     fn process_binary_queue(
         feature: &str,
         queue: &mut HashMap<usize, usize>,
@@ -47,15 +67,24 @@ impl PsiFeatureQueue {
             let bin_id = 0;
             let count = queue
                 .get_mut(&bin_id)
-                .ok_or(FeatureQueueError::GetBinError)?;
+                .ok_or(FeatureQueueError::GetBinError)
+                .map_err(|e| {
+                    error!("Error processing binary queue: {:?}", e);
+                    e
+                })?;
             *count += 1;
         } else if value == 1.0 {
             let bin_id = 1;
             let count = queue
                 .get_mut(&bin_id)
-                .ok_or(FeatureQueueError::GetBinError)?;
+                .ok_or(FeatureQueueError::GetBinError)
+                .map_err(|e| {
+                    error!("Error processing binary queue: {:?}", e);
+                    e
+                })?;
             *count += 1;
         } else {
+            error!("Failed to convert binary value");
             return Err(FeatureQueueError::InvalidValueError(
                 feature.to_string(),
                 "failed to convert binary value".to_string(),
@@ -64,11 +93,18 @@ impl PsiFeatureQueue {
         Ok(())
     }
 
+    #[instrument(skip(queue, value), name = "Process Categorical", level = "debug")]
     fn process_categorical_queue(
         queue: &mut HashMap<usize, usize>,
         value: &usize,
     ) -> Result<(), FeatureQueueError> {
-        let count = queue.get_mut(value).ok_or(FeatureQueueError::GetBinError)?;
+        let count = queue
+            .get_mut(value)
+            .ok_or(FeatureQueueError::GetBinError)
+            .map_err(|e| {
+                error!("Error processing categorical queue: {:?}", e);
+                e
+            })?;
         *count += 1;
         Ok(())
     }
@@ -78,9 +114,16 @@ impl PsiFeatureQueue {
 impl PsiFeatureQueue {
     #[new]
     pub fn new(drift_profile: PsiDriftProfile) -> Self {
+        let features_to_monitor = drift_profile
+            .config
+            .alert_config
+            .features_to_monitor
+            .clone();
+
         let queue: HashMap<String, HashMap<usize, usize>> = drift_profile
             .features
             .iter()
+            .filter(|(feature_name, _)| features_to_monitor.contains(feature_name))
             .map(|(feature_name, feature_drift_profile)| {
                 let inner_map: HashMap<usize, usize> = feature_drift_profile
                     .bins
@@ -91,29 +134,39 @@ impl PsiFeatureQueue {
             })
             .collect();
 
+        let feature_names = queue.keys().cloned().collect();
+
         PsiFeatureQueue {
             drift_profile,
             queue,
             monitor: PsiMonitor::new(),
+            feature_names,
         }
     }
 
+    #[instrument(skip(self, features), name = "Insert", level = "debug")]
     pub fn insert(&mut self, features: Features) -> Result<(), FeatureQueueError> {
         let feat_map = &self.drift_profile.config.feature_map;
-
         for feature in features.iter() {
             if let Some(feature_drift_profile) = self.drift_profile.features.get(feature.name()) {
-                let name = feature.name();
+                let name = feature.name().to_string();
+
+                // if feature not in features_to_monitor, skip
+                if !self.feature_names.contains(&name) {
+                    continue;
+                }
+
                 let bins = &feature_drift_profile.bins;
 
                 let queue = self
                     .queue
-                    .get_mut(name)
+                    .get_mut(&name)
                     .ok_or(FeatureQueueError::GetFeatureError)?;
 
                 match feature_drift_profile.bin_type {
                     BinType::Numeric | BinType::Binary => {
                         let value = feature.to_float(feat_map).map_err(|e| {
+                            error!("Error converting feature to float: {:?}", e);
                             FeatureQueueError::InvalidValueError(
                                 feature.name().to_string(),
                                 e.to_string(),
@@ -134,7 +187,7 @@ impl PsiFeatureQueue {
                             .config
                             .feature_map
                             .features
-                            .get(name)
+                            .get(&name)
                             .ok_or(FeatureQueueError::GetFeatureError)?
                             .get(&feature.to_string())
                             .ok_or(FeatureQueueError::GetFeatureError)?;
@@ -146,9 +199,20 @@ impl PsiFeatureQueue {
         Ok(())
     }
 
+    #[instrument(skip(self), name = "Create records", level = "debug")]
     pub fn create_drift_records(&self) -> Result<ServerRecords, FeatureQueueError> {
-        let records = self
+        // filter out any feature thats not in features_to_monitor
+        // Keep feature if any value in the bin map is greater than 0
+
+        let filtered_queue = self
             .queue
+            .iter()
+            .filter(|(_, bin_map)| bin_map.iter().any(|(_, count)| *count > 0))
+            .collect::<HashMap<_, _>>();
+
+        debug!("Filtered queue count: {:?}", filtered_queue.len());
+
+        let records = filtered_queue
             .iter()
             .flat_map(|(feature_name, bin_map)| {
                 bin_map.iter().map(move |(bin_id, count)| {
@@ -156,7 +220,7 @@ impl PsiFeatureQueue {
                         self.drift_profile.config.repository.clone(),
                         self.drift_profile.config.name.clone(),
                         self.drift_profile.config.version.clone(),
-                        feature_name.clone(),
+                        feature_name.to_string(),
                         *bin_id,
                         *count,
                     ))
@@ -190,8 +254,9 @@ mod tests {
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
     use rand::distributions::Bernoulli;
+    use scouter_types::psi::PsiAlertConfig;
     use scouter_types::psi::PsiDriftConfig;
-    use scouter_types::Feature;
+    use scouter_types::{Feature, DEFAULT_VERSION};
 
     #[test]
     fn test_feature_queue_insert_numeric() {
@@ -212,13 +277,15 @@ mod tests {
         ];
 
         let monitor = PsiMonitor::new();
+        let alert_config = PsiAlertConfig::default();
         let config = PsiDriftConfig::new(
-            Some("name".to_string()),
-            Some("repo".to_string()),
+            "name",
+            "repo",
+            DEFAULT_VERSION,
             None,
+            Some(features.clone()),
             None,
-            None,
-            None,
+            alert_config,
             None,
         );
 
@@ -283,19 +350,12 @@ mod tests {
         let features = vec!["feature_1".to_string(), "feature_2".to_string()];
 
         let monitor = PsiMonitor::new();
-        let config = PsiDriftConfig::new(
-            Some("name".to_string()),
-            Some("repo".to_string()),
-            None,
-            None,
-            None,
-            None,
-            None,
-        );
 
-        let profile = monitor
-            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
+        let mut profile = monitor
+            .create_2d_drift_profile(&features, &array.view(), &PsiDriftConfig::default())
             .unwrap();
+        profile.config.alert_config.features_to_monitor = features.clone();
+
         assert_eq!(profile.features.len(), 2);
 
         let mut feature_queue = PsiFeatureQueue::new(profile);
@@ -361,24 +421,22 @@ mod tests {
 
         assert_eq!(feature_map.features.len(), 2);
 
+        let mut config = PsiDriftConfig {
+            feature_map: feature_map.clone(),
+            ..Default::default()
+        };
+
+        config.alert_config.features_to_monitor =
+            vec!["feature_1".to_string(), "feature_2".to_string()];
+
         let array = psi_monitor
             .convert_strings_to_ndarray_f64(&string_features, &string_vec, &feature_map)
             .unwrap();
 
         assert_eq!(array.shape(), &[5, 2]);
 
-        let config = PsiDriftConfig::new(
-            Some("name".to_string()),
-            Some("repo".to_string()),
-            None,
-            Some(feature_map),
-            None,
-            None,
-            None,
-        );
-
         let profile = psi_monitor
-            .create_2d_drift_profile(&string_features, &array.view(), &config.unwrap())
+            .create_2d_drift_profile(&string_features, &array.view(), &config)
             .unwrap();
         assert_eq!(profile.features.len(), 2);
 
@@ -451,18 +509,16 @@ mod tests {
 
         assert_eq!(array.shape(), &[5, 2]);
 
-        let config = PsiDriftConfig::new(
-            Some("name".to_string()),
-            Some("repo".to_string()),
-            None,
-            Some(feature_map),
-            None,
-            None,
-            None,
-        );
+        let mut config = PsiDriftConfig {
+            feature_map,
+            ..Default::default()
+        };
+
+        config.alert_config.features_to_monitor =
+            vec!["feature_1".to_string(), "feature_2".to_string()];
 
         let profile = psi_monitor
-            .create_2d_drift_profile(&string_features, &array.view(), &config.unwrap())
+            .create_2d_drift_profile(&string_features, &array.view(), &config)
             .unwrap();
         assert_eq!(profile.features.len(), 2);
 
@@ -498,19 +554,13 @@ mod tests {
         ];
 
         let monitor = PsiMonitor::new();
-        let config = PsiDriftConfig::new(
-            Some("name".to_string()),
-            Some("repo".to_string()),
-            None,
-            None,
-            None,
-            None,
-            None,
-        );
 
-        let profile = monitor
-            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
+        let mut profile = monitor
+            .create_2d_drift_profile(&features, &array.view(), &PsiDriftConfig::default())
             .unwrap();
+
+        profile.config.alert_config.features_to_monitor = features.clone();
+
         assert_eq!(profile.features.len(), 3);
 
         let mut feature_queue = PsiFeatureQueue::new(profile);

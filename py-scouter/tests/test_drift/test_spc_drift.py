@@ -21,12 +21,15 @@ def test_drift_f64(array: NDArray, drift_config: SpcDriftConfig):
 
     # save profile to json
     with TemporaryDirectory() as temp_dir:
-        profile.save_to_json(Path(temp_dir) / "profile.json")
+        path = Path(temp_dir) / "profile.json"
+        profile.save_to_json(path)
         assert (Path(temp_dir) / "profile.json").exists()
 
         # test loading from json file
         with open(Path(temp_dir) / "profile.json", "r") as f:
             SpcDriftProfile.model_validate_json(f.read())
+
+        SpcDriftProfile.from_file(path)
 
     _ = drifter.compute_drift(array, profile)
 

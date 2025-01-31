@@ -16,6 +16,10 @@ Features = queue.Features
 PsiFeatureQueue = queue.PsiFeatureQueue
 SpcFeatureQueue = queue.SpcFeatureQueue
 RecordType = queue.RecordType
+DriftTransportConfig = queue.DriftTransportConfig
+Metric = queue.Metric
+Metrics = queue.Metrics
+CustomMetricFeatureQueue = queue.CustomMetricFeatureQueue
 
 __all__ = [
     "ScouterQueue",
@@ -32,4 +36,8 @@ __all__ = [
     "PsiFeatureQueue",
     "SpcFeatureQueue",
     "RecordType",
+    "DriftTransportConfig",
+    "Metric",
+    "Metrics",
+    "CustomMetricFeatureQueue",
 ]

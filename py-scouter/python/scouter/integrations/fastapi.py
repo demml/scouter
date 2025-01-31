@@ -1,10 +1,9 @@
 import functools
 from contextlib import asynccontextmanager
-from typing import Any, AsyncGenerator, Awaitable, Callable, Union
+from typing import Any, AsyncGenerator, Awaitable, Callable, Dict, List
 
 from pydantic import BaseModel
-from scouter.drift import PsiDriftProfile, SpcDriftProfile
-from scouter.queue import ScouterQueue
+from scouter.queue import DriftTransportConfig, ScouterQueue
 
 try:
     from fastapi import APIRouter, BackgroundTasks, FastAPI, Request
@@ -19,10 +18,10 @@ except ImportError as exc:
 class ScouterMixin:
     def __init__(
         self,
-        drift_profile: Union[SpcDriftProfile, PsiDriftProfile],
-        config: Any,
+        transport: List[DriftTransportConfig],
     ) -> None:
-        self._queue = ScouterQueue(drift_profile, config)
+
+        self._queue: Dict[str, ScouterQueue] = {t.id: ScouterQueue(t) for t in transport}
 
     def add_api_route(self, path: str, endpoint: Callable[..., Awaitable[Any]], **kwargs: Any) -> None:
         if "request" not in endpoint.__code__.co_varnames:
@@ -39,7 +38,10 @@ class ScouterMixin:
 
             response = JSONResponse(content=response_data.model_dump())
             background_tasks = BackgroundTasks()
-            background_tasks.add_task(self._queue.insert, request.state.scouter_data)
+
+            for t in self._queue:
+                background_tasks.add_task(self._queue[t].insert, request.state.scouter_data[t])
+
             response.background = background_tasks
 
             return response
@@ -50,12 +52,12 @@ class ScouterMixin:
 class ScouterRouter(ScouterMixin, APIRouter):
     def __init__(
         self,
-        drift_profile: Union[SpcDriftProfile, PsiDriftProfile],
-        config: Any,
+        transport: List[DriftTransportConfig],
         *args: Any,
         **kwargs: Any,
     ) -> None:
-        ScouterMixin.__init__(self, drift_profile, config)
+
+        ScouterMixin.__init__(self, transport)
 
         @asynccontextmanager
         async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -69,7 +71,9 @@ class ScouterRouter(ScouterMixin, APIRouter):
                 None
             """
             yield
-            self._queue.flush()
+
+            for t in self._queue:
+                self._queue[t].flush()
 
         kwargs["lifespan"] = lifespan
         APIRouter.__init__(self, *args, **kwargs)

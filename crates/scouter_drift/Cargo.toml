@@ -31,20 +31,21 @@ indicatif = { workspace = true }
 ndarray = { workspace = true }
 numpy = { workspace = true }
 ndarray-stats = { workspace = true }
+sqlx = { workspace = true, optional = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
+
 
 [dev-dependencies]
 approx = { workspace = true }
 ndarray-rand = { workspace = true }
 rand = { workspace = true }
-sqlx = { workspace = true }
 rusty-logging = { workspace = true }
 
 
 [features]
 default = ["sql"]
-sql = ["scouter-sql"]
+sql = ["scouter-sql", "sqlx"]
 
 [profile.release]
 lto = "fat"

@@ -1,6 +1,6 @@
 PROJECT=scouter
 PYTHON_VERSION=3.11.2
-SOURCE_OBJECTS=python/scouter tests
+SOURCE_OBJECTS=python/scouter tests examples
 
 format.isort:
 	uv run isort ${SOURCE_OBJECTS}
@@ -38,6 +38,15 @@ test.unit:
 
 test.integration:
 	uv run pytest -s tests/integration
+
+test.integration.api:
+	uv run pytest -s tests/integration/api
+
+test.integration.queue:
+	uv run pytest -s tests/integration/queue
+
+test.integration.producer:
+	uv run pytest -s tests/integration/producer
 
 uv.pre.patch:
 

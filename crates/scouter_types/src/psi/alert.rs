@@ -1,8 +1,11 @@
 use crate::{AlertDispatchType, CommonCrons, DispatchAlertDescription, ValidateAlertConfig};
 use core::fmt::Debug;
 use pyo3::prelude::*;
+use pyo3::types::PyString;
+use scouter_error::PyScouterError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use tracing::error;
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -39,27 +42,37 @@ impl ValidateAlertConfig for PsiAlertConfig {}
 #[pymethods]
 impl PsiAlertConfig {
     #[new]
-    #[pyo3(signature = (dispatch_type=None, schedule=None, features_to_monitor=None, dispatch_kwargs=None, psi_threshold=None))]
+    #[pyo3(signature = (dispatch_type=AlertDispatchType::default(), schedule=None, features_to_monitor=vec![], dispatch_kwargs=HashMap::new(), psi_threshold=0.25))]
     pub fn new(
-        dispatch_type: Option<AlertDispatchType>,
-        schedule: Option<String>,
-        features_to_monitor: Option<Vec<String>>,
-        dispatch_kwargs: Option<HashMap<String, String>>,
-        psi_threshold: Option<f64>,
-    ) -> Self {
-        let schedule = Self::resolve_schedule(schedule);
-        let dispatch_type = dispatch_type.unwrap_or_default();
-        let features_to_monitor = features_to_monitor.unwrap_or_default();
-        let dispatch_kwargs = dispatch_kwargs.unwrap_or_default();
-        let psi_threshold = psi_threshold.unwrap_or(0.25);
+        dispatch_type: AlertDispatchType,
+        schedule: Option<&Bound<'_, PyAny>>,
+        features_to_monitor: Vec<String>,
+        dispatch_kwargs: HashMap<String, String>,
+        psi_threshold: f64,
+    ) -> PyResult<Self> {
+        let schedule = match schedule {
+            Some(schedule) => {
+                if schedule.is_instance_of::<PyString>() {
+                    schedule.to_string()
+                } else if schedule.is_instance_of::<CommonCrons>() {
+                    schedule.extract::<CommonCrons>().unwrap().cron()
+                } else {
+                    error!("Invalid schedule type");
+                    return Err(PyScouterError::new_err("Invalid schedule type"))?;
+                }
+            }
+            None => CommonCrons::EveryDay.cron(),
+        };
 
-        Self {
+        let schedule = Self::resolve_schedule(&schedule);
+
+        Ok(Self {
             dispatch_type,
             schedule,
             features_to_monitor,
             dispatch_kwargs,
             psi_threshold,
-        }
+        })
     }
 
     #[getter]
@@ -124,14 +137,16 @@ mod tests {
     #[test]
     fn test_alert_config() {
         //test console alert config
-        let alert_config = PsiAlertConfig::new(None, None, None, None, None);
+        let alert_config = PsiAlertConfig::default();
         assert_eq!(alert_config.dispatch_type, AlertDispatchType::Console);
         assert_eq!(alert_config.dispatch_type(), "Console");
         assert_eq!(AlertDispatchType::Console.value(), "Console");
 
         //test slack alert config
-        let alert_config =
-            PsiAlertConfig::new(Some(AlertDispatchType::Slack), None, None, None, None);
+        let alert_config = PsiAlertConfig {
+            dispatch_type: AlertDispatchType::Slack,
+            ..Default::default()
+        };
         assert_eq!(alert_config.dispatch_type, AlertDispatchType::Slack);
         assert_eq!(alert_config.dispatch_type(), "Slack");
         assert_eq!(AlertDispatchType::Slack.value(), "Slack");
@@ -140,13 +155,12 @@ mod tests {
         let mut alert_kwargs = HashMap::new();
         alert_kwargs.insert("channel".to_string(), "test".to_string());
 
-        let alert_config = PsiAlertConfig::new(
-            Some(AlertDispatchType::OpsGenie),
-            None,
-            None,
-            Some(alert_kwargs),
-            None,
-        );
+        let alert_config = PsiAlertConfig {
+            dispatch_type: AlertDispatchType::OpsGenie,
+            dispatch_kwargs: alert_kwargs,
+            ..Default::default()
+        };
+
         assert_eq!(alert_config.dispatch_type, AlertDispatchType::OpsGenie);
         assert_eq!(alert_config.dispatch_type(), "OpsGenie");
         assert_eq!(alert_config.dispatch_kwargs.get("channel").unwrap(), "test");

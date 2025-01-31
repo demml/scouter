@@ -7,23 +7,27 @@ use scouter_error::FeatureQueueError;
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::{Features, ServerRecords};
 use std::collections::HashMap;
-use tracing::debug;
+use tracing::instrument;
+use tracing::{debug, error};
 
 #[pyclass]
 pub struct SpcFeatureQueue {
     pub drift_profile: SpcDriftProfile,
     pub queue: HashMap<String, Vec<f64>>,
-    pub feature_names: Vec<String>,
     pub monitor: SpcMonitor,
+    pub feature_names: Vec<String>,
 }
 
 #[pymethods]
 impl SpcFeatureQueue {
     #[new]
+    #[instrument(skip(drift_profile))]
     pub fn new(drift_profile: SpcDriftProfile) -> Self {
         let queue: HashMap<String, Vec<f64>> = drift_profile
-            .features
-            .keys()
+            .config
+            .alert_config
+            .features_to_monitor
+            .iter()
             .map(|feature| (feature.clone(), Vec::new()))
             .collect();
 
@@ -32,25 +36,24 @@ impl SpcFeatureQueue {
         SpcFeatureQueue {
             drift_profile,
             queue,
-            feature_names,
             monitor: SpcMonitor::new(),
+            feature_names,
         }
     }
 
-    // create a python function that will take a python dictionary of string keys and either int, float or string values
-    // and append the values to the corresponding feature queue
+    #[instrument(skip(self, features), name = "Insert")]
     pub fn insert(&mut self, features: Features) -> Result<(), FeatureQueueError> {
         let feat_map = &self.drift_profile.config.feature_map;
 
-        debug!(
-            "Inserting features into queue {:?} with keys {:?}",
-            features, self.feature_names
-        );
+        debug!("Inserting features into queue");
         features.iter().for_each(|feature| {
-            let name = feature.name();
-            if let Some(queue) = self.queue.get_mut(name) {
-                if let Ok(value) = feature.to_float(feat_map) {
-                    queue.push(value);
+            let name = feature.name().to_string();
+
+            if self.feature_names.contains(&name) {
+                if let Some(queue) = self.queue.get_mut(&name) {
+                    if let Ok(value) = feature.to_float(feat_map) {
+                        queue.push(value);
+                    }
                 }
             }
         });
@@ -61,10 +64,13 @@ impl SpcFeatureQueue {
     // Create drift records from queue items
     //
     // returns: DriftServerRecords
+    #[instrument(skip(self), name = "Create Server Records")]
     pub fn create_drift_records(&self) -> Result<ServerRecords, FeatureQueueError> {
+        // filter out empty queues
         let (arrays, feature_names): (Vec<_>, Vec<_>) = self
             .queue
             .iter()
+            .filter(|(_, values)| !values.is_empty())
             .map(|(feature, values)| {
                 (
                     Array2::from_shape_vec((values.len(), 1), values.clone()).unwrap(),
@@ -75,6 +81,7 @@ impl SpcFeatureQueue {
 
         let n = arrays[0].dim().0;
         if arrays.iter().any(|array| array.dim().0 != n) {
+            error!("Shape mismatch");
             return Err(FeatureQueueError::DriftRecordError(
                 "Shape mismatch".to_string(),
             ));
@@ -85,6 +92,7 @@ impl SpcFeatureQueue {
             &arrays.iter().map(|a| a.view()).collect::<Vec<_>>(),
         )
         .map_err(|e| {
+            error!("Failed to concatenate arrays: {:?}", e);
             FeatureQueueError::DriftRecordError(format!("Failed to concatenate arrays: {:?}", e))
         })?;
 
@@ -92,6 +100,7 @@ impl SpcFeatureQueue {
             .monitor
             .sample_data(&feature_names, &concatenated.view(), &self.drift_profile)
             .map_err(|e| {
+                error!("Failed to create drift record: {:?}", e);
                 FeatureQueueError::DriftRecordError(format!(
                     "Failed to create drift record: {:?}",
                     e
@@ -139,6 +148,11 @@ mod tests {
             None,
             None,
             None,
+            Some(vec![
+                "feature_1".to_string(),
+                "feature_2".to_string(),
+                "feature_3".to_string(),
+            ]),
             None,
             Some(alert_config),
             None,

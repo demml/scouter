@@ -3,7 +3,8 @@ pub mod drift_executor {
 
     use scouter_contracts::ServiceInfo;
     use scouter_error::DriftError;
-    use scouter_sql::PostgresClient;
+    use scouter_sql::{sql::schema::TaskRequest, PostgresClient};
+    use sqlx::{Postgres, Transaction};
 
     use crate::{custom::CustomDrifter, psi::PsiDrifter, spc::SpcDrifter};
     use chrono::NaiveDateTime;
@@ -12,7 +13,7 @@ pub mod drift_executor {
     use std::result::Result;
     use std::result::Result::Ok;
     use std::str::FromStr;
-    use tracing::{debug, error, info};
+    use tracing::{debug, error, info, span, Instrument, Level};
 
     #[allow(clippy::enum_variant_names)]
     pub enum Drifter {
@@ -91,7 +92,7 @@ pub mod drift_executor {
         ///
         /// # Returns
         ///
-        pub async fn process_task(
+        pub async fn _process_task(
             &mut self,
             profile: DriftProfile,
             previous_run: NaiveDateTime,
@@ -104,18 +105,14 @@ pub mod drift_executor {
                 .await
         }
 
-        /// Execute single drift computation and alerting
-        ///
-        /// # Returns
-        ///
-        /// * `Result<()>` - Result of drift computation and alerting
-        pub async fn poll_for_tasks(&mut self) -> Result<(), DriftError> {
-            let mut transaction = self
-                .db_client
-                .pool
-                .begin()
-                .await
-                .map_err(|e| DriftError::Error(e.to_string()))?;
+        async fn do_poll(
+            &mut self,
+        ) -> Result<(Option<TaskRequest>, Transaction<'static, Postgres>), DriftError> {
+            debug!("Polling for drift tasks");
+            let mut transaction = self.db_client.pool.begin().await.map_err(|e| {
+                error!("Error starting transaction: {:?}", e);
+                DriftError::Error(e.to_string())
+            })?;
 
             // this will pull a drift profile from the db
             let task = match PostgresClient::get_drift_profile_task(&mut transaction).await {
@@ -123,34 +120,23 @@ pub mod drift_executor {
                 Err(e) => {
                     error!("Error getting drift profile task: {:?}", e);
                     tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-                    return Ok(());
+                    None
                 }
             };
 
-            debug!("Task: {:?}", task);
+            Ok((task, transaction))
+        }
 
-            let Some(task) = task else {
-                transaction
-                    .commit()
-                    .await
-                    .map_err(|e| DriftError::Error(e.to_string()))?;
-                info!("No triggered schedules found in db. Sleeping for 10 seconds");
-                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-                return Ok(());
-            };
-
-            let service_info = ServiceInfo {
-                repository: task.repository.clone(),
-                name: task.name.clone(),
-                version: task.version.clone(),
-            };
-
-            // match drift_type
+        async fn process_task(
+            &mut self,
+            task: &TaskRequest,
+            service_info: &ServiceInfo,
+        ) -> Result<(), DriftError> {
             match DriftType::from_str(&task.drift_type) {
                 // match drift_profile
-                Ok(drift_type) => match DriftProfile::from_str(drift_type, task.profile) {
+                Ok(drift_type) => match DriftProfile::from_str(drift_type, task.profile.clone()) {
                     // process drift profile task
-                    Ok(profile) => match self.process_task(profile, task.previous_run).await {
+                    Ok(profile) => match self._process_task(profile, task.previous_run).await {
                         // check for alerts
                         Ok(alerts) => {
                             info!("Drift task processed successfully");
@@ -161,7 +147,7 @@ pub mod drift_executor {
                                     if let Err(e) = self
                                         .db_client
                                         .insert_drift_alert(
-                                            &service_info,
+                                            service_info,
                                             alert.get("feature").unwrap_or(&"NA".to_string()),
                                             &alert,
                                         )
@@ -185,11 +171,43 @@ pub mod drift_executor {
                 }
             }
 
+            Ok(())
+        }
+
+        /// Execute single drift computation and alerting
+        ///
+        /// # Returns
+        ///
+        /// * `Result<()>` - Result of drift computation and alerting
+        pub async fn poll_for_tasks(&mut self) -> Result<(), DriftError> {
+            // this will pull a drift profile from the db
+            let (task, mut trx) = self.do_poll().await?;
+
+            let Some(task) = task else {
+                trx.commit()
+                    .await
+                    .map_err(|e| DriftError::Error(e.to_string()))?;
+                info!("No triggered schedules found in db. Sleeping for 10 seconds");
+                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+                return Ok(());
+            };
+
+            let service_info = ServiceInfo {
+                repository: task.repository.clone(),
+                name: task.name.clone(),
+                version: task.version.clone(),
+            };
+
+            self.process_task(&task, &service_info)
+                .instrument(span!(Level::INFO, "Process Task"))
+                .await?;
+
             if let Err(e) = PostgresClient::update_drift_profile_run_dates(
-                &mut transaction,
+                &mut trx,
                 &service_info,
                 &task.schedule,
             )
+            .instrument(span!(Level::INFO, "Update Run Dates"))
             .await
             {
                 error!("Error updating drift profile run dates: {:?}", e);
@@ -197,10 +215,10 @@ pub mod drift_executor {
                 info!("Drift profile run dates updated successfully");
             }
 
-            transaction
-                .commit()
-                .await
-                .map_err(|e| DriftError::Error(e.to_string()))?;
+            trx.commit().await.map_err(|e| {
+                error!("Error committing transaction: {:?}", e);
+                DriftError::Error(e.to_string())
+            })?;
 
             Ok(())
         }
@@ -258,6 +276,39 @@ pub mod drift_executor {
             let mut populate_path =
                 std::env::current_dir().expect("Failed to get current directory");
             populate_path.push("src/scripts/populate_spc.sql");
+
+            let script = std::fs::read_to_string(populate_path).unwrap();
+            sqlx::raw_sql(&script).execute(&client.pool).await.unwrap();
+
+            let mut drift_executor = DriftExecutor::new(client.clone());
+
+            drift_executor.poll_for_tasks().await.unwrap();
+
+            // get alerts from db
+            let request = DriftAlertRequest {
+                repository: "statworld".to_string(),
+                name: "test_app".to_string(),
+                version: "0.1.0".to_string(),
+                limit_datetime: None,
+                active: None,
+                limit: None,
+            };
+            let alerts = client.get_drift_alerts(&request).await.unwrap();
+
+            assert!(!alerts.is_empty());
+        }
+
+        #[tokio::test]
+        async fn test_drift_executor_spc_missing_feature_data() {
+            // this tests the scenario where only 1 of 2 features has data in the db when polling
+            // for tasks. Need to ensure this does not fail and the present feature and data are
+            // still processed
+            let client = PostgresClient::new(None, None).await.unwrap();
+            cleanup(&client.pool).await;
+
+            let mut populate_path =
+                std::env::current_dir().expect("Failed to get current directory");
+            populate_path.push("src/scripts/populate_spc_alert.sql");
 
             let script = std::fs::read_to_string(populate_path).unwrap();
             sqlx::raw_sql(&script).execute(&client.pool).await.unwrap();

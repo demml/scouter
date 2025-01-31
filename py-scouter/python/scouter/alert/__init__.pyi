@@ -1,4 +1,8 @@
-from typing import Any, Dict, List, Optional
+# pylint: disable=dangerous-default-value
+
+from typing import Dict, List, Optional
+
+from ..types import CommonCrons
 
 class AlertZone:
     Zone1: "AlertZone"
@@ -17,8 +21,13 @@ class SpcAlertType:
 class SpcAlertRule:
     def __init__(
         self,
-        rule: Optional[str] = None,
-        zones_to_monitor: Optional[List[AlertZone]] = None,
+        rule: str = "8 16 4 8 2 4 1 1",
+        zones_to_monitor: List[AlertZone] = [
+            AlertZone.Zone1,
+            AlertZone.Zone2,
+            AlertZone.Zone3,
+            AlertZone.Zone4,
+        ],
     ) -> None:
         """Initialize alert rule
 
@@ -55,11 +64,11 @@ class AlertDispatchType:
 class PsiAlertConfig:
     def __init__(
         self,
-        dispatch_type: Optional[AlertDispatchType] = None,
-        schedule: Optional[str] = None,
-        features_to_monitor: Optional[List[str]] = None,
-        dispatch_kwargs: Optional[Dict[str, Any]] = None,
-        psi_threshold: Optional[float] = None,
+        dispatch_type: AlertDispatchType = AlertDispatchType.Console,
+        schedule: Optional[str | CommonCrons] = None,
+        features_to_monitor: List[str] = [],
+        dispatch_kwargs: Dict[str, str] = {},
+        psi_threshold: float = 0.25,
     ):
         """Initialize alert config
 
@@ -109,11 +118,11 @@ class PsiAlertConfig:
         """Set the features to monitor"""
 
     @property
-    def dispatch_kwargs(self) -> Dict[str, Any]:
+    def dispatch_kwargs(self) -> Dict[str, str]:
         """Return the dispatch kwargs"""
 
     @dispatch_kwargs.setter
-    def dispatch_kwargs(self, dispatch_kwargs: Dict[str, Any]) -> None:
+    def dispatch_kwargs(self, dispatch_kwargs: Dict[str, str]) -> None:
         """Set the dispatch kwargs"""
 
     @property
@@ -127,11 +136,11 @@ class PsiAlertConfig:
 class SpcAlertConfig:
     def __init__(
         self,
-        rule: Optional[SpcAlertRule] = None,
-        dispatch_type: Optional[AlertDispatchType] = None,
-        schedule: Optional[str] = None,
-        features_to_monitor: Optional[List[str]] = None,
-        dispatch_kwargs: Optional[Dict[str, Any]] = None,
+        rule: SpcAlertRule = SpcAlertRule(),
+        dispatch_type: AlertDispatchType = AlertDispatchType.Console,
+        schedule: Optional[str | CommonCrons] = None,
+        features_to_monitor: List[str] = [],
+        dispatch_kwargs: Dict[str, str] = {},
     ):
         """Initialize alert config
 
@@ -189,11 +198,11 @@ class SpcAlertConfig:
         """Set the features to monitor"""
 
     @property
-    def dispatch_kwargs(self) -> Dict[str, Any]:
+    def dispatch_kwargs(self) -> Dict[str, str]:
         """Return the dispatch kwargs"""
 
     @dispatch_kwargs.setter
-    def dispatch_kwargs(self, dispatch_kwargs: Dict[str, Any]) -> None:
+    def dispatch_kwargs(self, dispatch_kwargs: Dict[str, str]) -> None:
         """Set the dispatch kwargs"""
 
 class SpcAlert:
@@ -292,9 +301,9 @@ class CustomMetricAlertCondition:
 class CustomMetricAlertConfig:
     def __init__(
         self,
-        dispatch_type: Optional[AlertDispatchType] = None,
-        schedule: Optional[str] = None,
-        dispatch_kwargs: Optional[Dict[str, Any]] = None,
+        dispatch_type: AlertDispatchType = AlertDispatchType.Console,
+        schedule: Optional[str | CommonCrons] = None,
+        dispatch_kwargs: Dict[str, str] = {},
     ):
         """Initialize alert config
 
@@ -332,11 +341,11 @@ class CustomMetricAlertConfig:
         """Set the schedule"""
 
     @property
-    def dispatch_kwargs(self) -> Dict[str, Any]:
+    def dispatch_kwargs(self) -> Dict[str, str]:
         """Return the dispatch kwargs"""
 
     @dispatch_kwargs.setter
-    def dispatch_kwargs(self, dispatch_kwargs: Dict[str, Any]) -> None:
+    def dispatch_kwargs(self, dispatch_kwargs: Dict[str, str]) -> None:
         """Set the dispatch kwargs"""
 
     @property

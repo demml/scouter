@@ -2,7 +2,7 @@ use crate::custom::alert::{CustomMetric, CustomMetricAlertConfig};
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
-    ProfileFuncs, MISSING,
+    ProfileFuncs, DEFAULT_VERSION, MISSING,
 };
 use core::fmt::Debug;
 use pyo3::prelude::*;
@@ -12,11 +12,16 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use tracing::debug;
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CustomMetricDriftConfig {
+    #[pyo3(get, set)]
+    pub sample_size: usize,
+
+    #[pyo3(get, set)]
+    pub sample: bool,
+
     #[pyo3(get, set)]
     pub repository: String,
 
@@ -48,22 +53,26 @@ impl DispatchDriftConfig for CustomMetricDriftConfig {
 #[allow(clippy::too_many_arguments)]
 impl CustomMetricDriftConfig {
     #[new]
-    #[pyo3(signature = (repository=None, name=None, version=None, alert_config=None, config_path=None))]
+    #[pyo3(signature = (repository=MISSING, name=MISSING, version=DEFAULT_VERSION, sample=true, sample_size=25, alert_config=CustomMetricAlertConfig::default(), config_path=None))]
     pub fn new(
-        repository: Option<String>,
-        name: Option<String>,
-        version: Option<String>,
-        alert_config: Option<CustomMetricAlertConfig>,
+        repository: &str,
+        name: &str,
+        version: &str,
+        sample: bool,
+        sample_size: usize,
+        alert_config: CustomMetricAlertConfig,
         config_path: Option<PathBuf>,
     ) -> Result<Self, CustomMetricError> {
-        let name = name.unwrap_or(MISSING.to_string());
-        let repository = repository.unwrap_or(MISSING.to_string());
+        //let name = name.unwrap_or(MISSING.to_string());
+        //let repository = repository.unwrap_or(MISSING.to_string());
+        //
+        //if name == MISSING || repository == MISSING {
+        //    debug!("Name and repository were not provided. Defaulting to __missing__");
+        //}
 
-        if name == MISSING || repository == MISSING {
-            debug!("Name and repository were not provided. Defaulting to __missing__");
-        }
-
-        let version = version.unwrap_or("0.1.0".to_string());
+        //let sample = sample.unwrap_or(true);
+        //let sample_size = sample_size.unwrap_or(25);
+        //let version = version.unwrap_or("0.1.0".to_string());
 
         if let Some(config_path) = config_path {
             let config = CustomMetricDriftConfig::load_from_json_file(config_path)
@@ -72,12 +81,14 @@ impl CustomMetricDriftConfig {
             return config;
         }
 
-        let alert_config = alert_config.unwrap_or_default();
+        //let alert_config = alert_config.unwrap_or_default();
 
         Ok(Self {
-            repository,
-            name,
-            version,
+            sample_size,
+            sample,
+            repository: repository.to_string(),
+            name: name.to_string(),
+            version: version.to_string(),
             alert_config,
             drift_type: DriftType::Custom,
         })
@@ -218,6 +229,13 @@ impl CustomDriftProfile {
         serde_json::from_str(&json_string).expect("Failed to load monitor profile")
     }
 
+    #[staticmethod]
+    pub fn from_file(path: PathBuf) -> Result<CustomDriftProfile, ScouterError> {
+        let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
+
+        serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)
+    }
+
     #[allow(clippy::too_many_arguments)]
     #[pyo3(signature = (repository=None, name=None, version=None, alert_config=None))]
     pub fn update_config_args(
@@ -254,7 +272,7 @@ impl CustomDriftProfile {
                     ))
                     .unwrap();
                 CustomMetric::new(
-                    name.clone(),
+                    name,
                     *value,
                     alert.alert_threshold.clone(),
                     alert.alert_threshold_value,
@@ -290,7 +308,16 @@ mod tests {
 
     #[test]
     fn test_drift_config() {
-        let mut drift_config = CustomMetricDriftConfig::new(None, None, None, None, None).unwrap();
+        let mut drift_config = CustomMetricDriftConfig::new(
+            MISSING,
+            MISSING,
+            "0.1.0",
+            false,
+            25,
+            CustomMetricAlertConfig::default(),
+            None,
+        )
+        .unwrap();
         assert_eq!(drift_config.name, "__missing__");
         assert_eq!(drift_config.repository, "__missing__");
         assert_eq!(drift_config.version, "0.1.0");
@@ -299,11 +326,11 @@ mod tests {
             AlertDispatchType::Console
         );
 
-        let new_alert_config = CustomMetricAlertConfig::new(
-            Some(AlertDispatchType::Slack),
-            Some("0 0 * * * *".to_string()),
-            None,
-        );
+        let new_alert_config = CustomMetricAlertConfig {
+            schedule: "0 0 * * * *".to_string(),
+            dispatch_type: AlertDispatchType::Slack,
+            ..Default::default()
+        };
 
         // update
         drift_config
@@ -323,23 +350,19 @@ mod tests {
 
     #[test]
     fn test_custom_drift_profile() {
-        let alert_config = CustomMetricAlertConfig::new(
-            Some(AlertDispatchType::OpsGenie),
-            Some("0 0 * * * *".to_string()),
-            None,
-        );
-        let drift_config = CustomMetricDriftConfig::new(
-            Some("scouter".to_string()),
-            Some("ML".to_string()),
-            Some("0.1.0".to_string()),
-            Some(alert_config),
-            None,
-        )
-        .unwrap();
+        let alert_config = CustomMetricAlertConfig {
+            schedule: "0 0 * * * *".to_string(),
+            dispatch_type: AlertDispatchType::OpsGenie,
+            ..Default::default()
+        };
+
+        let drift_config =
+            CustomMetricDriftConfig::new("scouter", "ML", "0.1.0", false, 25, alert_config, None)
+                .unwrap();
 
         let custom_metrics = vec![
-            CustomMetric::new("mae".to_string(), 12.4, AlertThreshold::Above, Some(2.3)).unwrap(),
-            CustomMetric::new("accuracy".to_string(), 0.85, AlertThreshold::Below, None).unwrap(),
+            CustomMetric::new("mae", 12.4, AlertThreshold::Above, Some(2.3)).unwrap(),
+            CustomMetric::new("accuracy", 0.85, AlertThreshold::Below, None).unwrap(),
         ];
 
         let profile = CustomDriftProfile::new(drift_config, custom_metrics, None).unwrap();

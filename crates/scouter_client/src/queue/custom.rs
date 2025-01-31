@@ -1,65 +1,73 @@
 use chrono::{NaiveDateTime, Utc};
 use pyo3::prelude::*;
-use scouter_drift::psi::PsiFeatureQueue;
+use scouter_drift::custom::CustomMetricFeatureQueue;
 use scouter_error::ScouterError;
 use scouter_events::producer::RustScouterProducer;
-use scouter_types::psi::PsiDriftProfile;
-use scouter_types::Features;
+use scouter_types::custom::CustomDriftProfile;
+use scouter_types::Metrics;
 use std::sync::Arc;
 use tokio::sync::{watch, Mutex};
 use tokio::time::{self, Duration};
 use tracing::{debug, error, info, info_span, instrument, Instrument};
 
-const PSI_MAX_QUEUE_SIZE: usize = 1000;
-
 #[pyclass]
-pub struct PsiQueue {
-    queue: Arc<Mutex<PsiFeatureQueue>>,
+pub struct CustomQueue {
+    queue: Arc<Mutex<CustomMetricFeatureQueue>>,
     producer: RustScouterProducer,
     count: usize,
     last_publish: NaiveDateTime,
     stop_tx: Option<watch::Sender<()>>,
     rt: Arc<tokio::runtime::Runtime>,
+    sample_size: usize,
+    sample: bool,
 }
 
 #[pymethods]
-impl PsiQueue {
+impl CustomQueue {
     #[new]
     #[pyo3(signature = (drift_profile, config))]
     pub fn new(
-        drift_profile: PsiDriftProfile,
+        drift_profile: CustomDriftProfile,
         config: &Bound<'_, PyAny>,
     ) -> Result<Self, ScouterError> {
-        let queue = Arc::new(Mutex::new(PsiFeatureQueue::new(drift_profile)));
+        let sample = drift_profile.config.sample;
+        let sample_size = drift_profile.config.sample_size;
+
+        debug!("Creating Custom Metric Queue");
+        let queue = Arc::new(Mutex::new(CustomMetricFeatureQueue::new(drift_profile)));
 
         // psi queue needs a tokio runtime to run background tasks
         // This runtime needs to be separate from the producer runtime
         let rt = Arc::new(tokio::runtime::Runtime::new().unwrap());
 
+        debug!("Creating Producer");
         let producer = rt.block_on(async { RustScouterProducer::new(config).await })?;
 
         let (stop_tx, stop_rx) = watch::channel(());
 
-        let psi_queue = PsiQueue {
+        let custom_queue = CustomQueue {
             queue: queue.clone(),
             producer,
             count: 0,
             last_publish: Utc::now().naive_utc(),
             stop_tx: Some(stop_tx),
             rt: rt.clone(),
+            sample_size,
+            sample,
         };
 
         debug!("Starting Background Task");
-        psi_queue.start_background_task(queue, stop_rx)?;
+        custom_queue.start_background_task(queue, stop_rx)?;
 
-        Ok(psi_queue)
+        Ok(custom_queue)
     }
 
-    #[instrument(skip(self), name = "Insert")]
-    pub fn insert(&mut self, features: Features) -> Result<(), ScouterError> {
+    #[instrument(skip(self), name = "Insert", level = "debug")]
+    pub fn insert(&mut self, metrics: Metrics) -> Result<(), ScouterError> {
+        debug!("Inserting features");
         {
             let mut queue = self.queue.blocking_lock();
-            let insert = queue.insert(features);
+            let insert = queue.insert(metrics);
 
             // silently fail if insert fails
             if insert.is_err() {
@@ -73,7 +81,7 @@ impl PsiQueue {
             self.count += 1;
         }
 
-        if self.count >= PSI_MAX_QUEUE_SIZE {
+        if self.count >= self.sample_size && self.sample {
             debug!("Queue is full, publishing drift records");
             let publish = self._publish();
 
@@ -118,10 +126,10 @@ impl PsiQueue {
     }
 }
 
-impl PsiQueue {
+impl CustomQueue {
     fn start_background_task(
         &self,
-        queue: Arc<Mutex<PsiFeatureQueue>>,
+        queue: Arc<Mutex<CustomMetricFeatureQueue>>,
         mut stop_rx: watch::Receiver<()>,
     ) -> Result<(), ScouterError> {
         let queue = queue.clone();
@@ -136,8 +144,8 @@ impl PsiQueue {
 
                     _ = time::sleep(Duration::from_secs(2)) => {
 
-
                         debug!("Checking for records");
+
                         let now = Utc::now().naive_utc();
                         let elapsed = now - last_publish;
 
@@ -145,6 +153,7 @@ impl PsiQueue {
                             debug!("Locking queue");
                             let mut queue = queue.lock().await;
 
+                            debug!("Creating drift records");
                             let records = match queue.create_drift_records() {
                                 Ok(records) => records,
                                 Err(e) => {
@@ -180,7 +189,7 @@ impl PsiQueue {
             }
         };
 
-        handle.spawn(future.instrument(info_span!("PSI Background Polling")));
+        handle.spawn(future.instrument(info_span!("Custom Background Polling")));
 
         Ok(())
     }

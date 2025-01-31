@@ -166,3 +166,44 @@ impl FeatureMap {
         ProfileFuncs::__str__(self)
     }
 }
+
+#[pyclass]
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct Metric {
+    pub name: String,
+    pub value: f64,
+}
+
+#[pymethods]
+impl Metric {
+    #[new]
+    pub fn new(name: String, value: f64) -> Self {
+        Metric { name, value }
+    }
+    pub fn __str__(&self) -> String {
+        ProfileFuncs::__str__(self)
+    }
+}
+
+#[pyclass]
+#[derive(Clone, Serialize, Deserialize, Debug)]
+pub struct Metrics {
+    pub metrics: Vec<Metric>,
+}
+
+#[pymethods]
+impl Metrics {
+    #[new]
+    pub fn new(metrics: Vec<Metric>) -> Self {
+        Metrics { metrics }
+    }
+    pub fn __str__(&self) -> String {
+        ProfileFuncs::__str__(self)
+    }
+}
+
+impl Metrics {
+    pub fn iter(&self) -> std::slice::Iter<'_, Metric> {
+        self.metrics.iter()
+    }
+}

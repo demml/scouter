@@ -12,13 +12,16 @@ pub mod kafka_consumer {
     use scouter_types::ServerRecords;
     use std::collections::HashMap;
     use std::result::Result::Ok;
-    use tracing::error;
-    use tracing::info;
+    use tracing::debug;
+    use tracing::instrument;
+    use tracing::Instrument;
+    use tracing::{error, info, span, Level};
 
     // Get table name constant
 
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::unnecessary_unwrap)]
+    #[instrument(skip(settings, config_overrides))]
     pub async fn create_kafka_consumer(
         settings: &KafkaSettings,
         config_overrides: Option<HashMap<&str, &str>>,
@@ -31,6 +34,8 @@ pub mod kafka_consumer {
             .set("enable.partition.eof", "false")
             .set("session.timeout.ms", "6000")
             .set("enable.auto.commit", "true");
+
+        debug!("Kafka settings: {:?}", settings);
 
         if settings.username.is_some() && settings.password.is_some() {
             config
@@ -46,7 +51,10 @@ pub mod kafka_consumer {
             }
         }
 
-        let consumer: StreamConsumer = config.create().expect("Consumer creation error");
+        let consumer: StreamConsumer = config.create().map_err(|e| {
+            error!("Failed to create Kafka consumer: {:?}", e);
+            EventError::Error(format!("Failed to create Kafka consumer: {:?}", e))
+        })?;
 
         let topics = settings
             .topics
@@ -54,9 +62,10 @@ pub mod kafka_consumer {
             .map(|s| s.as_str())
             .collect::<Vec<&str>>();
 
-        consumer
-            .subscribe(&topics)
-            .expect("Can't subscribe to specified topics");
+        consumer.subscribe(&topics).map_err(|e| {
+            error!("Failed to subscribe to topics: {:?}", e);
+            EventError::Error(format!("Failed to subscribe to topics: {:?}", e))
+        })?;
 
         info!("✅ Started consumer for topics: {:?}", topics);
         Ok(consumer)
@@ -144,7 +153,10 @@ pub mod kafka_consumer {
         let consumer = create_kafka_consumer(settings, None).await.unwrap();
 
         loop {
-            if let Err(e) = stream_from_kafka_topic(&message_handler, &consumer).await {
+            if let Err(e) = stream_from_kafka_topic(&message_handler, &consumer)
+                .instrument(span!(Level::INFO, "Kafka Consumer"))
+                .await
+            {
                 error!("Error in stream_from_kafka_topic: {:?}", e);
             }
         }

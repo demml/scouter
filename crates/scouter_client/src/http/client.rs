@@ -321,8 +321,6 @@ impl ScouterClient {
                 } else {
                     let body: serde_json::Value = response.json().await.unwrap();
 
-                    debug!("Response: {:?}", body);
-
                     let data = body.get("data").unwrap().to_owned();
 
                     let results: Vec<Alert> = serde_json::from_value(data).map_err(|e| {

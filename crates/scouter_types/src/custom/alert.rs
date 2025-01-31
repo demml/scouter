@@ -4,11 +4,14 @@ use crate::{
 };
 use core::fmt::Debug;
 use pyo3::prelude::*;
+use pyo3::types::PyString;
+use scouter_error::PyScouterError;
 use scouter_error::{CustomMetricError, ScouterError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::fmt::Formatter;
+use tracing::error;
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -28,7 +31,7 @@ impl CustomMetric {
     #[new]
     #[pyo3(signature = (name, value, alert_threshold, alert_threshold_value=None))]
     pub fn new(
-        name: String,
+        name: &str,
         value: f64,
         alert_threshold: AlertThreshold,
         alert_threshold_value: Option<f64>,
@@ -162,22 +165,34 @@ impl ValidateAlertConfig for CustomMetricAlertConfig {}
 #[pymethods]
 impl CustomMetricAlertConfig {
     #[new]
-    #[pyo3(signature = (dispatch_type=None, schedule=None, dispatch_kwargs=None))]
+    #[pyo3(signature = (dispatch_type=AlertDispatchType::default(), schedule=None, dispatch_kwargs=HashMap::new()))]
     pub fn new(
-        dispatch_type: Option<AlertDispatchType>,
-        schedule: Option<String>,
-        dispatch_kwargs: Option<HashMap<String, String>>,
-    ) -> Self {
-        let schedule = Self::resolve_schedule(schedule);
-        let dispatch_type = dispatch_type.unwrap_or_default();
-        let dispatch_kwargs = dispatch_kwargs.unwrap_or_default();
+        dispatch_type: AlertDispatchType,
+        schedule: Option<&Bound<'_, PyAny>>,
+        dispatch_kwargs: HashMap<String, String>,
+    ) -> PyResult<Self> {
+        let schedule = match schedule {
+            Some(schedule) => {
+                if schedule.is_instance_of::<PyString>() {
+                    schedule.to_string()
+                } else if schedule.is_instance_of::<CommonCrons>() {
+                    schedule.extract::<CommonCrons>().unwrap().cron()
+                } else {
+                    error!("Invalid schedule type");
+                    return Err(PyScouterError::new_err("Invalid schedule type"))?;
+                }
+            }
+            None => CommonCrons::EveryDay.cron(),
+        };
 
-        Self {
+        let schedule = Self::resolve_schedule(&schedule);
+
+        Ok(Self {
             dispatch_type,
             schedule,
             dispatch_kwargs,
             alert_conditions: None,
-        }
+        })
     }
 
     #[getter]
@@ -278,13 +293,16 @@ mod tests {
         //test console alert config
         let dispatch_type = AlertDispatchType::OpsGenie;
         let schedule = "0 0 * * * *".to_string();
-        let mut alert_config =
-            CustomMetricAlertConfig::new(Some(dispatch_type), Some(schedule), None);
+        let mut alert_config = CustomMetricAlertConfig {
+            dispatch_type,
+            schedule,
+            ..Default::default()
+        };
         assert_eq!(alert_config.dispatch_type(), "OpsGenie");
 
         let custom_metrics = vec![
-            CustomMetric::new("mae".to_string(), 12.4, AlertThreshold::Above, Some(2.3)).unwrap(),
-            CustomMetric::new("accuracy".to_string(), 0.85, AlertThreshold::Below, None).unwrap(),
+            CustomMetric::new("mae", 12.4, AlertThreshold::Above, Some(2.3)).unwrap(),
+            CustomMetric::new("accuracy", 0.85, AlertThreshold::Below, None).unwrap(),
         ];
 
         alert_config.set_alert_conditions(&custom_metrics);

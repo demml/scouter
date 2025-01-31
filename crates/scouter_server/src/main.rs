@@ -10,7 +10,7 @@ use scouter_drift::DriftExecutor;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::PostgresClient;
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::{debug, error, info, span, Instrument, Level};
 
 #[cfg(feature = "kafka")]
 use scouter_events::consumer::kafka::startup_kafka;
@@ -50,14 +50,22 @@ async fn setup_polling_workers(config: &ScouterServerConfig) -> Result<(), anyho
             .await
             .with_context(|| "Failed to create Postgres client")?;
 
-        tokio::spawn(async move {
+        let future = async move {
             let mut drift_executor = DriftExecutor::new(db_client);
+
+            debug!("Starting drift executor");
             loop {
-                if let Err(e) = drift_executor.poll_for_tasks().await {
+                if let Err(e) = drift_executor
+                    .poll_for_tasks()
+                    .instrument(span!(Level::INFO, "Poll"))
+                    .await
+                {
                     error!("Alert poller error: {:?}", e);
                 }
             }
-        });
+        };
+
+        tokio::spawn(future.instrument(span!(Level::INFO, "Background")));
     }
 
     Ok(())
@@ -343,6 +351,7 @@ mod tests {
             None,
             None,
             None,
+            None,
             Some(alert_config),
             None,
         );
@@ -493,24 +502,23 @@ mod tests {
         let helper = TestHelper::new(false, false).await.unwrap();
 
         let (array, features) = helper.get_data();
-        let alert_config = PsiAlertConfig::new(
-            None,
-            None,
-            Some(vec![
+        let alert_config = PsiAlertConfig {
+            features_to_monitor: vec![
                 "feature_1".to_string(),
                 "feature_2".to_string(),
                 "feature_3".to_string(),
-            ]),
-            None,
-            None,
-        );
+            ],
+            ..Default::default()
+        };
+
         let config = PsiDriftConfig::new(
-            Some("test".to_string()),
-            Some("test".to_string()),
-            Some("1.0.0".to_string()),
+            "test",
+            "test",
+            "1.0.0",
             None,
             None,
-            Some(alert_config),
+            None,
+            alert_config,
             None,
         );
 
@@ -590,20 +598,14 @@ mod tests {
     async fn test_custom_server_records() {
         let helper = TestHelper::new(false, false).await.unwrap();
 
-        let alert_config = CustomMetricAlertConfig::new(None, None, None);
-        let config = CustomMetricDriftConfig::new(
-            Some("test".to_string()),
-            Some("test".to_string()),
-            Some("1.0.0".to_string()),
-            Some(alert_config),
-            None,
-        )
-        .unwrap();
+        let alert_config = CustomMetricAlertConfig::default();
+        let config =
+            CustomMetricDriftConfig::new("test", "test", "1.0.0", true, 25, alert_config, None)
+                .unwrap();
 
         let alert_threshold = AlertThreshold::Above;
-        let metric1 =
-            CustomMetric::new("metric1".to_string(), 1.0, alert_threshold.clone(), None).unwrap();
-        let metric2 = CustomMetric::new("metric2".to_string(), 1.0, alert_threshold, None).unwrap();
+        let metric1 = CustomMetric::new("metric1", 1.0, alert_threshold.clone(), None).unwrap();
+        let metric2 = CustomMetric::new("metric2", 1.0, alert_threshold, None).unwrap();
         let profile = CustomDriftProfile::new(config, vec![metric1, metric2], None).unwrap();
 
         let request = ProfileRequest {

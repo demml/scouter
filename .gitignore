@@ -74,3 +74,6 @@ test_scripts/
 
 # Docker PG volume
 postgres-data/
+py-scouter/examples/custom_profile.json
+py-scouter/examples/psi_profile.json
+py-scouter/examples/spc_profile.json

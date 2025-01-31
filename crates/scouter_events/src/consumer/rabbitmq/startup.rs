@@ -12,12 +12,16 @@ pub mod rabbitmq_startup {
         pool: &Pool<Postgres>,
         config: &ScouterServerConfig,
     ) -> Result<(), EventError> {
-        info!("Starting RabbitMQ consumer");
-
         let rabbit_settings = config.rabbitmq_settings.as_ref().unwrap().clone();
         let database_settings = &config.database_settings;
         let num_consumers = rabbit_settings.num_consumers;
 
+        if num_consumers == 0 {
+            info!("Number of RabbitMQ consumers is set to 0 but env vars found, skipping RabbitMQ consumer startup");
+            return Ok(());
+        }
+
+        info!("Starting RabbitMQ consumer");
         for _ in 0..num_consumers {
             let rabbit_db_client =
                 PostgresClient::new(Some(pool.clone()), Some(database_settings)).await?;
@@ -27,7 +31,13 @@ pub mod rabbitmq_startup {
             tokio::spawn(async move {
                 start_rabbitmq_background_poll(message_handler, &settings)
                     .await
-                    .unwrap();
+                    .map_err(|e| {
+                        EventError::Error(format!(
+                            "Failed to start RabbitMQ consumer with error: {}",
+                            e
+                        ))
+                    })
+                    .unwrap()
             });
         }
 
