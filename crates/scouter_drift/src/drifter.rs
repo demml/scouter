@@ -207,7 +207,7 @@ pub mod drift_executor {
                 &service_info,
                 &task.schedule,
             )
-            .instrument(span!(Level::INFO, "Upate Run Dates"))
+            .instrument(span!(Level::INFO, "Update Run Dates"))
             .await
             {
                 error!("Error updating drift profile run dates: {:?}", e);
