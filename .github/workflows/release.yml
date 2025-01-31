@@ -39,67 +39,12 @@ jobs:
           name: pypi_sdist
           path: ./py-scouter/dist
 
-  build-linux-s390x:
-    runs-on: ubuntu-latest
-    strategy:
-      matrix:
-        platform:
-          - target: s390x-unknown-linux-gnu
-            arch: s390x
-            manylinux: auto
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: set up python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ env.PYTHON_VERSION }}
-
-      - run: pip install -U twine
-
-      - name: build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.platform.target }}
-          manylinux: ${{ matrix.platform.manylinux }}
-          args: --release --out dist --interpreter ${{ env.INTERPRETER }}  --features self-update
-          rust-toolchain: stable
-          docker-options: -e CI
-          working-directory: ./py-scouter
-
-      - uses: uraimo/run-on-arch-action@v2
-        name: Test wheel
-        with:
-          arch: ${{ matrix.platform.arch }}
-          distro: ubuntu20.04
-          githubToken: ${{ github.token }}
-          install: |
-            apt-get update
-            apt-get install -y --no-install-recommends python3 python3-pip
-            pip3 install -U pip
-          run: |
-            pip3 install ${{ env.PACKAGE_NAME }} --no-index --find-links dist/ --force-reinstall
-
-      - name: Check dist
-        working-directory: ./py-scouter
-        run: ls -lh dist/
-
-      - name: Check wheel
-        working-directory: ./py-scouter
-        run: twine check --strict dist/*
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: pypi_files_ubuntu_${{ matrix.platform.target }}_all_${{ matrix.platform.manylinux }}
-          path: ./py-scouter/dist
 
   build-ubuntu:
     name: build - ubuntu - ${{ matrix.platform.manylinux }} - ${{ matrix.platform.target }}
     strategy:
       fail-fast: false
       matrix:
-        #arget: [x86_64, x86, aarch64, armv7, s390x, ppc64le]
-        #manylinux: [auto]
         platform:
           - target: x86_64
             manylinux: auto
@@ -219,7 +164,7 @@ jobs:
       - name: set up python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - run: pip install -U twine 'black>=22.3.0,<23' typing_extensions
 
@@ -272,7 +217,7 @@ jobs:
       - name: set up python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
           architecture: ${{ matrix.python-architecture }}
 
       - run: pip install -U twine 'black>=22.3.0,<23' typing_extensions
