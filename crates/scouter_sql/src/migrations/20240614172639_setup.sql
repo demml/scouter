@@ -42,7 +42,7 @@ CREATE table IF NOT exists scouter.drift_profile (
 );
 
 -- Run maintenance every hour
-SELECT  cron.schedule('partition-maintenance', '0 * * * *', $$CALL run_maintenance_proc()$$);
+SELECT  cron.schedule('partition-maintenance', '0 * * * *', $$CALL scouter.run_maintenance_proc()$$);
 
 -- Run maintenance once a day at midnight utc with p_analyze set to true
-SELECT  cron.schedule('partition-maintenance-analyze', '30 0 * * *', $$CALL run_maintenance_proc(0, true, true)$$);
+SELECT  cron.schedule('partition-maintenance-analyze', '30 0 * * *', $$CALL scouter.run_maintenance_proc(0, true, true)$$);
