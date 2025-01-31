@@ -1,8 +1,8 @@
 use crate::util::ProfileFuncs;
 use chrono::NaiveDateTime;
 use pyo3::prelude::*;
-use std::collections::BTreeMap;
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -42,4 +42,3 @@ impl BinnedPsiFeatureMetrics {
         ProfileFuncs::__str__(self)
     }
 }
-

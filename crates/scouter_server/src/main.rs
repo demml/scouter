@@ -9,9 +9,8 @@ use axum::Router;
 use scouter_drift::DriftExecutor;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::PostgresClient;
-use tracing_subscriber::field::debug;
 use std::sync::Arc;
-use tracing::{error, info, span, Instrument, Level, debug};
+use tracing::{debug, error, info, span, Instrument, Level};
 
 #[cfg(feature = "kafka")]
 use scouter_events::consumer::kafka::startup_kafka;
@@ -50,7 +49,6 @@ async fn setup_polling_workers(config: &ScouterServerConfig) -> Result<(), anyho
         let db_client = PostgresClient::new(None, Some(&db_settings))
             .await
             .with_context(|| "Failed to create Postgres client")?;
-
 
         let future = async move {
             let mut drift_executor = DriftExecutor::new(db_client);

@@ -10,10 +10,10 @@ pub mod kafka_consumer {
     use scouter_settings::KafkaSettings;
     use scouter_sql::MessageHandler;
     use scouter_types::ServerRecords;
-    use tracing::debug;
-    use tracing::instrument;
     use std::collections::HashMap;
     use std::result::Result::Ok;
+    use tracing::debug;
+    use tracing::instrument;
     use tracing::Instrument;
     use tracing::{error, info, span, Level};
 
@@ -62,11 +62,10 @@ pub mod kafka_consumer {
             .map(|s| s.as_str())
             .collect::<Vec<&str>>();
 
-        consumer
-            .subscribe(&topics)
-            .map_err(|e| {
-                error!("Failed to subscribe to topics: {:?}", e);
-                EventError::Error(format!("Failed to subscribe to topics: {:?}", e))})?;
+        consumer.subscribe(&topics).map_err(|e| {
+            error!("Failed to subscribe to topics: {:?}", e);
+            EventError::Error(format!("Failed to subscribe to topics: {:?}", e))
+        })?;
 
         info!("✅ Started consumer for topics: {:?}", topics);
         Ok(consumer)

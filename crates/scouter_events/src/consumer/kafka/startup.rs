@@ -12,8 +12,6 @@ pub mod kafka_startup {
         pool: &Pool<Postgres>,
         config: &ScouterServerConfig,
     ) -> Result<(), EventError> {
-    
-
         let kafka_settings = config.kafka_settings.as_ref().unwrap().clone();
         let database_settings = &config.database_settings;
         let num_consumers = kafka_settings.num_workers;
@@ -32,11 +30,16 @@ pub mod kafka_startup {
 
             // send task to background
             tokio::spawn(async move {
-
                 debug!("Starting Kafka consumer background task");
                 start_kafka_background_poll(message_handler, &settings)
                     .await
-                    .map_err(|e| EventError::Error(format!("Failed to start Kafka consumer with error: {}", e))).unwrap();
+                    .map_err(|e| {
+                        EventError::Error(format!(
+                            "Failed to start Kafka consumer with error: {}",
+                            e
+                        ))
+                    })
+                    .unwrap();
             });
         }
 

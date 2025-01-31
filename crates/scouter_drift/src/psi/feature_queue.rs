@@ -19,10 +19,13 @@ pub struct PsiFeatureQueue {
 }
 
 impl PsiFeatureQueue {
-
     #[instrument(skip(value, bins), name = "Numeric Scalar", level = "debug")]
-    fn find_numeric_bin_given_scaler(value: f64, bins: &[Bin]) -> Result<&usize, FeatureQueueError> {
-        let bin = bins.iter()
+    fn find_numeric_bin_given_scaler(
+        value: f64,
+        bins: &[Bin],
+    ) -> Result<&usize, FeatureQueueError> {
+        let bin = bins
+            .iter()
             .find(|bin| value > bin.lower_limit.unwrap() && value <= bin.upper_limit.unwrap())
             .map(|bin| &bin.id);
 
@@ -31,9 +34,8 @@ impl PsiFeatureQueue {
             None => {
                 error!("Failed to find bin for value: {}", value);
                 Err(FeatureQueueError::GetBinError)
-            },
+            }
         }
-            
     }
 
     #[instrument(skip(queue, value, bins), name = "Numeric Queue", level = "debug")]
