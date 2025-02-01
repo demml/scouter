@@ -14,7 +14,7 @@ on:
 
 env:
   INTERPRETER: "3.12"
-  RUSTFLAGS: "-C debuginfo=0"
+  RUSTFLAGS: "-C debuginfo=0 -C target-feature=+crt-static"
 
 jobs:
   build:
@@ -138,10 +138,10 @@ jobs:
             feature: "kafka"
           - image: "ubuntu"
             feature: "rabbitmq"
-#          - image: "alpine"
-#            feature: "kafka"
-#          - image: "alpine"
-#            feature: "rabbitmq" 
+          - image: "alpine"
+            feature: "kafka"
+          - image: "alpine"
+            feature: "rabbitmq"
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -159,11 +159,11 @@ jobs:
           docker build \
           --build-arg SCOUTER_SERVER_BINARY=./scouter-server \
           -f docker/official-base-image/${{ matrix.image }}/Dockerfile \
-          -t demml/scouter:${{ matrix.image }}-${{ matrix.feature }}-troubleshoot .
+          -t demml/scouter:${{ matrix.image }}-${{ matrix.feature }}-${{ github.event.release.tag_name }} .
       - name: push image to docker hub
         run: |
           docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
-          docker push demml/scouter:${{ matrix.image }}-${{ matrix.feature }}-troubleshoot
+          docker push demml/scouter:${{ matrix.image }}-${{ matrix.feature }}-${{ github.event.release.tag_name }}
 
 
   release-binary-assets:
