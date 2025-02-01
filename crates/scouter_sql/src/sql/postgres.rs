@@ -107,6 +107,8 @@ impl PostgresClient {
             .await
             .map_err(|e| SqlError::MigrationError(format!("{}", e)))?;
 
+        debug!("Migrations complete");
+
         Ok(())
     }
 

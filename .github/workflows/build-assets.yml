@@ -33,16 +33,6 @@ jobs:
             archive: tar.gz
             feature: "rabbitmq"
 
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            archive: tar.xz
-            feature: "kafka"
-
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            archive: tar.xz
-            feature: "rabbitmq"
-
           - os: macos-latest
             target: aarch64-apple-darwin
             archive: zip
@@ -88,9 +78,10 @@ jobs:
         if: contains(matrix.archive, 'tar.gz')
         run: tar -czf scouter-server-${{ matrix.feature }}-${{ matrix.target }}.tar.gz ./target/${{ matrix.target }}
 
-      - name: xz binaries
-        if: contains(matrix.archive, 'tar.xz')
-        run: tar -cJf scouter-server-${{ matrix.feature }}-${{ matrix.target }}.tar.xz ./target/${{ matrix.target }}
+      # Redundant, but kept for reference
+      #- name: xz binaries
+      #  if: contains(matrix.archive, 'tar.xz')
+      #  run: tar -cJf scouter-server-${{ matrix.feature }}-${{ matrix.target }}.tar.xz ./target/${{ matrix.target }}
 
       - uses: actions/upload-artifact@v4
         with:
@@ -144,14 +135,14 @@ jobs:
     strategy:
       matrix:
         include:
-          - image: "scratch"
+          - image: "ubuntu"
             feature: "kafka"
-          - image: "scratch"
+          - image: "ubuntu"
             feature: "rabbitmq"
-          - image: "alpine"
-            feature: "kafka"
-          - image: "alpine"
-            feature: "rabbitmq"
+#          - image: "alpine"
+#            feature: "kafka"
+#          - image: "alpine"
+#            feature: "rabbitmq" 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4

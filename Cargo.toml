@@ -9,7 +9,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.4.1"
+version = "0.4.4"
 authors = ["Steven Forrester <sjforrester32@gmail.com>"]
 edition = "2021"
 license = "MIT"

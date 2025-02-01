@@ -22,6 +22,8 @@ pub mod kafka_startup {
         }
 
         info!("Starting Kafka consumer");
+        debug!("Kafka settings: {:?}", kafka_settings);
+
         for _ in 0..num_consumers {
             let kafka_db_client =
                 PostgresClient::new(Some(pool.clone()), Some(database_settings)).await?;
