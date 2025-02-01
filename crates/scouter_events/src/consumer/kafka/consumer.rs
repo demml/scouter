@@ -33,11 +33,9 @@ pub mod kafka_consumer {
             .set("enable.partition.eof", "false")
             .set("session.timeout.ms", "6000")
             .set("enable.auto.commit", "true")
-
             // Set the max message size to 1MB
             .set("message.max.bytes", "1000000")
             .set("fetch.message.max.bytes", "1000000");
-
 
         if settings.username.is_some() && settings.password.is_some() {
             config
