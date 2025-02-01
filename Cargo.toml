@@ -73,7 +73,7 @@ tracing = "0.*"
 tracing-subscriber = {version = "0.*", features = ["json", "time"]}
 
 # Kafka dependencies
-rdkafka = { version = "0.*", features = ["cmake-build", "ssl"] }
+rdkafka = { version = "0.*", features = ["cmake-build", "ssl-vendored"] }
 
 # RabbitMQ dependencies
 lapin = { version = "2.*" }

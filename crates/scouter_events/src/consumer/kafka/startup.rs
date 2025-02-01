@@ -22,6 +22,7 @@ pub mod kafka_startup {
         }
 
         info!("Starting Kafka consumer");
+        debug!("Kafka settings: {:?}", kafka_settings);
 
         for _ in 0..num_consumers {
 
@@ -29,8 +30,6 @@ pub mod kafka_startup {
                 PostgresClient::new(Some(pool.clone()), Some(database_settings)).await?;
             let message_handler = MessageHandler::Postgres(kafka_db_client);
             let settings = kafka_settings.clone();
-
-            debug!("Kafka settings: {:?}", settings);
 
             // send task to background
             tokio::spawn(async move {

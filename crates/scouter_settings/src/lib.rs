@@ -80,7 +80,7 @@ impl Default for KafkaSettings {
             .map_err(|e| ConfigError::Error(format!("{:?}", e)))
             .unwrap();
 
-        let topics = std::env::var("KAFKA_TOPICS")
+        let topics = std::env::var("KAFKA_TOPIC")
             .unwrap_or_else(|_| "scouter_monitoring".to_string())
             .split(',')
             .map(|s| s.to_string())

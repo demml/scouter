@@ -12,7 +12,6 @@ pub mod kafka_consumer {
     use scouter_types::ServerRecords;
     use std::collections::HashMap;
     use std::result::Result::Ok;
-    use tracing::debug;
     use tracing::instrument;
     use tracing::Instrument;
     use tracing::{error, info, span, Level};
@@ -39,7 +38,6 @@ pub mod kafka_consumer {
             .set("message.max.bytes", "1000000")
             .set("fetch.message.max.bytes", "1000000");
 
-        debug!("Kafka settings: {:?}", settings);
 
         if settings.username.is_some() && settings.password.is_some() {
             config
