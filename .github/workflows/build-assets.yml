@@ -159,11 +159,11 @@ jobs:
           docker build \
           --build-arg SCOUTER_SERVER_BINARY=./scouter-server \
           -f docker/official-base-image/${{ matrix.image }}/Dockerfile \
-          -t demml/scouter:${{ matrix.image }}-${{ matrix.feature }}-${{ github.event.release.tag_name }} .
+          -t demml/scouter:${{ matrix.image }}-${{ matrix.feature }}-troubleshoot .
       - name: push image to docker hub
         run: |
           docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
-          docker push demml/scouter:${{ matrix.image }}-${{ matrix.feature }}-${{ github.event.release.tag_name }}
+          docker push demml/scouter:${{ matrix.image }}-${{ matrix.feature }}-troubleshoot
 
 
   release-binary-assets:
