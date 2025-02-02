@@ -3,5 +3,3 @@ pub mod kafka;
 
 #[cfg(all(feature = "rabbitmq", feature = "sql"))]
 pub mod rabbitmq;
-
-pub mod metrics;

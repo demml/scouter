@@ -19,6 +19,7 @@ pub mod kafka_consumer {
     use sqlx::Postgres;
     use scouter_sql::PostgresClient;
     use sqlx::Pool;
+    use metrics::counter;
     pub use crate::consumer::metrics::ConsumerMetrics;
     
 
@@ -35,7 +36,6 @@ pub mod kafka_consumer {
             kafka_settings: &KafkaSettings,
             db_settings: &DatabaseSettings,
             pool: &Pool<Postgres>,
-            metrics: Arc<ConsumerMetrics>,
         ) -> Result<Self, EventError> {
             let shutdown = Arc::new(AtomicBool::new(false));
             let num_consumers = kafka_settings.num_workers;
@@ -53,7 +53,6 @@ pub mod kafka_consumer {
                     consumer,
                     message_handler,
                     shutdown.clone(),
-                    metrics.clone(),
                 )));
             }
 
@@ -68,7 +67,6 @@ pub mod kafka_consumer {
             consumer: StreamConsumer,
             handler: MessageHandler,
             shutdown: Arc<AtomicBool>,
-            metrics: Arc<ConsumerMetrics>,
         ) {
     
     
@@ -77,7 +75,7 @@ pub mod kafka_consumer {
                     Ok(msg) => {
                         if msg.payload_len() > MAX_MESSAGE_SIZE {
                             error!("Worker {}: Message too large", id);
-                            metrics.messages_too_large.increment(1);
+                            counter!("messages_too_large").increment(1);
                             continue;
                         }
 
@@ -86,13 +84,13 @@ pub mod kafka_consumer {
                             if let Some(records) = records {
                                 if let Err(e) = handler.insert_server_records(&records).await {
                                     error!("Worker {}: Error handling message: {}", id, e);
-                                    metrics.db_insert_errors.increment(1);
+                                    counter!("db_insert_errors").increment(1);
                                 } else {
-                                    metrics.records_inserted.increment(records.records.len() as u64);
-                                    metrics.messages_processed.increment(1);
+                                    counter!("records_inserted").absolute(records.records.len() as u64);
+                                    counter!("messages_processed").increment(1);
                                     consumer.commit_message(&msg, CommitMode::Async).map_err(|e| {
                                         error!("Worker {}: Failed to commit message: {}", id, e);
-                                        metrics.consumer_errors.increment(1);
+                                        counter!("consumer_errors").increment(1);
                                     }).unwrap();
                                 }
                             }
@@ -101,7 +99,7 @@ pub mod kafka_consumer {
 
                     Err(e) => {
                         error!("Worker {}: Kafka error: {}", id, e);
-                        metrics.consumer_errors.increment(1);
+                        counter!("consumer_errors").increment(1);
                     }
                 }
             }
