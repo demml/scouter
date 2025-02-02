@@ -3429,6 +3429,7 @@ dependencies = [
  "chrono",
  "futures",
  "lapin",
+ "metrics",
  "pyo3",
  "rdkafka",
  "reqwest",

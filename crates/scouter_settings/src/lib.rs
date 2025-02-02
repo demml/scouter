@@ -52,6 +52,8 @@ pub struct KafkaSettings {
     pub password: Option<String>,
     pub security_protocol: String,
     pub sasl_mechanism: String,
+    pub offset_reset: String,
+    pub cert_location: Option<String>,
 }
 
 impl std::fmt::Debug for KafkaSettings {
@@ -64,6 +66,7 @@ impl std::fmt::Debug for KafkaSettings {
             .field("username", &self.username)
             .field("password", &self.password.as_ref().map(|_| "***"))
             .field("security_protocol", &self.security_protocol)
+            .field("offset_reset", &self.offset_reset)
             .field("sasl_mechanism", &self.sasl_mechanism)
             .finish()
     }
@@ -87,6 +90,9 @@ impl Default for KafkaSettings {
             .collect();
 
         let group_id = std::env::var("KAFKA_GROUP").unwrap_or("scouter".to_string());
+        let offset_reset = std::env::var("KAFKA_OFFSET_RESET")
+            .unwrap_or_else(|_| "earliest".to_string())
+            .to_string();
         let username: Option<String> = std::env::var("KAFKA_USERNAME").ok();
         let password: Option<String> = std::env::var("KAFKA_PASSWORD").ok();
 
@@ -96,6 +102,8 @@ impl Default for KafkaSettings {
         let sasl_mechanism = std::env::var("KAFKA_SASL_MECHANISM")
             .ok()
             .unwrap_or_else(|| "PLAIN".to_string());
+        let cert_location = std::env::var("KAFKA_CERT_LOCATION").ok();
+        
 
         Self {
             brokers,
@@ -106,6 +114,8 @@ impl Default for KafkaSettings {
             password,
             security_protocol,
             sasl_mechanism,
+            offset_reset,
+            cert_location,
         }
     }
 }

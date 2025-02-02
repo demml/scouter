@@ -14,6 +14,7 @@ description = "Logic for setting up and running Scouter event-driven consumers a
 [dependencies]
 chrono = { workspace = true }
 futures = { workspace = true }
+metrics = { workspace = true }
 pyo3 = { workspace = true }
 reqwest = { workspace = true }
 rusty-logging = { workspace = true }

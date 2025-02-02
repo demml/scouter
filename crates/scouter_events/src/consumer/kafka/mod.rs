@@ -1,3 +1,8 @@
+
+
+#[cfg(all(feature = "kafka", feature = "sql"))]
+pub mod _consumer;
+
 #[cfg(all(feature = "kafka", feature = "sql"))]
 pub mod consumer;
 
@@ -5,7 +10,10 @@ pub mod consumer;
 pub mod startup;
 
 #[cfg(all(feature = "kafka", feature = "sql"))]
-pub use consumer::kafka_consumer::*;
+pub use _consumer::kafka_consumer::*;
 
 #[cfg(all(feature = "kafka", feature = "sql"))]
 pub use startup::kafka_startup::*;
+
+#[cfg(all(feature = "kafka", feature = "sql"))]
+pub use consumer::kafka_consumer::{KafkaConsumerManager};
