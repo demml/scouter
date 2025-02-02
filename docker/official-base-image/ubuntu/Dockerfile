@@ -17,7 +17,6 @@ WORKDIR /app
 
 ARG SCOUTER_SERVER_BINARY
 
-COPY ${SCOUTER_SERVER_BINARY} /scouter-server
-
+COPY ${SCOUTER_SERVER_BINARY} ./scouter-server
 
 CMD ["./scouter-server"]
