@@ -35,10 +35,10 @@ pub mod kafka_consumer {
             kafka_settings: &KafkaSettings,
             db_settings: &DatabaseSettings,
             pool: &Pool<Postgres>,
-            num_consumers: usize,
             metrics: Arc<ConsumerMetrics>,
         ) -> Result<Self, EventError> {
             let shutdown = Arc::new(AtomicBool::new(false));
+            let num_consumers = kafka_settings.num_workers;
             let mut workers = Vec::with_capacity(num_consumers);
 
             for id in 0..num_consumers {

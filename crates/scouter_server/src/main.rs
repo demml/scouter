@@ -11,9 +11,10 @@ use scouter_settings::ScouterServerConfig;
 use scouter_sql::PostgresClient;
 use std::sync::Arc;
 use tracing::{debug, error, info, span, Instrument, Level};
+use scouter_events::consumer::metrics::ConsumerMetrics;
 
 #[cfg(feature = "kafka")]
-use scouter_events::consumer::kafka::startup_kafka;
+use scouter_events::consumer::kafka::KafkaConsumerManager;
 
 #[cfg(feature = "rabbitmq")]
 use scouter_events::consumer::rabbitmq::startup_rabbitmq;
@@ -85,6 +86,7 @@ async fn setup_polling_workers(config: &ScouterServerConfig) -> Result<(), anyho
 async fn create_app(config: ScouterServerConfig) -> Result<Router, anyhow::Error> {
     // setup logging, soft fail if it fails
     let _ = setup_logging().await.is_ok();
+    let metrics = Arc::new(ConsumerMetrics::new());
 
     // db for app state and kafka
     // start server
@@ -95,7 +97,8 @@ async fn create_app(config: ScouterServerConfig) -> Result<Router, anyhow::Error
     // setup background kafka task if kafka is enabled
     #[cfg(feature = "kafka")]
     if config.kafka_enabled() {
-        startup_kafka(&db_client.pool, &config).await?;
+        let kafka_settings = &config.kafka_settings.as_ref().unwrap().clone();
+        KafkaConsumerManager::start_workers(kafka_settings, &config.database_settings, &db_client.pool, metrics.clone()).await?;
     }
 
     // setup background rabbitmq task if rabbitmq is enabled
@@ -107,7 +110,7 @@ async fn create_app(config: ScouterServerConfig) -> Result<Router, anyhow::Error
     // ##################### run drift polling background tasks #####################
     setup_polling_workers(&config).await?;
 
-    let router = create_router(Arc::new(AppState { db: db_client }))
+    let router = create_router(Arc::new(AppState { db: db_client, metrics }))
         .await
         .with_context(|| "Failed to create router")?;
 
