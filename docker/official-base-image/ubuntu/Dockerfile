@@ -5,6 +5,7 @@ ENV LANG=en_US.UTF-8
 ENV LANGUAGE=en_US.UTF-8
 ENV PROJECT_HOME=scouter
 
+
 RUN apt-get update --no-install-recommends \
   && apt-get install --no-install-recommends --yes \
   ca-certificates tzdata curl \
@@ -12,8 +13,13 @@ RUN apt-get update --no-install-recommends \
   && apt-get autoremove \
   && apt-get clean
 
+WORKDIR /app
+
 ARG SCOUTER_SERVER_BINARY
 
 COPY ${SCOUTER_SERVER_BINARY} /scouter-server
 
-CMD ["/scouter-server"]
+
+EXPOSE 8080
+
+CMD ["./scouter-server"]
