@@ -15,7 +15,7 @@ use rdkafka::{
 };
 
 #[cfg(feature = "kafka")]
-use scouter_events::consumer::kafka::startup_kafka;
+use scouter_events::consumer::kafka::KafkaConsumerManager;
 
 trait KafkaSetup {
     async fn start_background_producer(&self);
@@ -82,7 +82,9 @@ impl KafkaSetup for TestHelper {
         //
         //(consumer, msg_handler)
         #[cfg(feature = "kafka")]
-        startup_kafka(&self.db_client.pool, &self.config)
+        let kafka_settings = self.config.kafka_settings.as_ref().unwrap().clone();
+        let db_settings = self.config.database_settings.clone();
+        KafkaConsumerManager::start_workers(&kafka_settings, &db_settings, &self.db_client.pool)
             .await
             .unwrap();
     }

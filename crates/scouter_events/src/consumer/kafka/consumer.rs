@@ -20,7 +20,6 @@ pub mod kafka_consumer {
     use scouter_sql::PostgresClient;
     use sqlx::Pool;
     use metrics::counter;
-    pub use crate::consumer::metrics::ConsumerMetrics;
     
 
     const MAX_MESSAGE_SIZE: usize = 10 * 1024 * 1024; // 10MB
