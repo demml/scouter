@@ -20,6 +20,4 @@ ARG SCOUTER_SERVER_BINARY
 COPY ${SCOUTER_SERVER_BINARY} /scouter-server
 
 
-EXPOSE 8080
-
 CMD ["./scouter-server"]
