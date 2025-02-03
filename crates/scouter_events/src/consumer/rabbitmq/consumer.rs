@@ -61,12 +61,9 @@ pub mod rabbitmq_consumer {
                 let message_handler = MessageHandler::Postgres(kafka_db_client);
 
                 let worker_shutdown_rx = shutdown_rx.clone();
-                workers.push(tokio::spawn(Self::start_worker(
-                    id,
-                    consumer,
-                    message_handler,
-                    worker_shutdown_rx,
-                )));
+                workers.push(tokio::spawn(async move {
+                    Self::start_worker(id, consumer, message_handler, worker_shutdown_rx).await;
+                }));
             }
 
             debug!("✅ Started {} RabbitMQ workers", num_consumers);
