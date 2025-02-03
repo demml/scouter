@@ -121,15 +121,24 @@ jobs:
         shell: powershell
         run: |
           echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
-          vcpkg install openssl:x64-windows-static-md
+          vcpkg install openssl:x64-windows-static
+          vcpkg integrate install
 
       - name: Set OpenSSL environment variables
         shell: powershell
         run: |
-          $env:OPENSSL_DIR = "C:\\vcpkg\\installed\\x64-windows-static-md"
-          echo "OPENSSL_DIR=C:\\vcpkg\\installed\\x64-windows-static-md" | Out-File -FilePath $env:GITHUB_ENV -Append
-          echo "OPENSSL_LIB_DIR=C:\\vcpkg\\installed\\x64-windows-static-md\\lib" | Out-File -FilePath $env:GITHUB_ENV -Append
-          echo "OPENSSL_INCLUDE_DIR=C:\\vcpkg\\installed\\x64-windows-static-md\\include" | Out-File -FilePath $env:GITHUB_ENV -Append
+          $env:OPENSSL_DIR = "C:\\vcpkg\\installed\\x64-windows-static"
+          echo "OPENSSL_DIR=C:\\vcpkg\\installed\\x64-windows-static" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "OPENSSL_LIB_DIR=C:\\vcpkg\\installed\\x64-windows-static\\lib" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "OPENSSL_INCLUDE_DIR=C:\\vcpkg\\installed\\x64-windows-static\\include" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "OPENSSL_STATIC=1" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "VCPKGRS_DYNAMIC=0" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Set Rust environment
+        shell: powershell
+        run: |
+          echo "RUSTFLAGS=-Ctarget-feature=+crt-static" | Out-File -FilePath $env:GITHUB_ENV -Append
+          echo "LIBRDKAFKA_STATIC=1" | Out-File -FilePath $env:GITHUB_ENV -Append
 
       - name: install rust stable
         uses: dtolnay/rust-toolchain@stable
