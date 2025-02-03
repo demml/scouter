@@ -79,7 +79,7 @@ start.server: build.all_backends
 	export KAFKA_BROKERS=localhost:9092 && \
 	export RABBITMQ_ADDR=amqp://guest:guest@127.0.0.1:5672/%2f && \
 	cargo build -p scouter-server --all-features && \
-	./target/debug/scouter-server
+	./target/debug/scouter-server &
 
 .PHONY: build.shutdown_backends
 build.shutdown_backends:
