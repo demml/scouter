@@ -82,26 +82,24 @@ pub mod kafka_consumer {
                                     continue;
                                 }
 
-                                if let Ok(records) = process_message(&msg).await {
-                                    if let Some(records) = records {
-                                        if let Err(e) = handler.insert_server_records(&records).await {
-                                            error!("Worker {}: Error handling message: {}", id, e);
-                                            counter!("db_insert_errors").increment(1);
-                                        } else {
-                                            counter!("records_inserted")
-                                                .absolute(records.records.len() as u64);
-                                            counter!("messages_processed").increment(1);
-                                            consumer
-                                                .commit_message(&msg, CommitMode::Async)
-                                                .map_err(|e| {
-                                                    error!(
-                                                        "Worker {}: Failed to commit message: {}",
-                                                        id, e
-                                                    );
-                                                    counter!("consumer_errors").increment(1);
-                                                })
-                                                .unwrap_or(());
-                                        }
+                                if let Ok(Some(records)) = process_message(&msg).await {
+                                    if let Err(e) = handler.insert_server_records(&records).await {
+                                        error!("Worker {}: Error handling message: {}", id, e);
+                                        counter!("db_insert_errors").increment(1);
+                                    } else {
+                                        counter!("records_inserted")
+                                            .absolute(records.records.len() as u64);
+                                        counter!("messages_processed").increment(1);
+                                        consumer
+                                            .commit_message(&msg, CommitMode::Async)
+                                            .map_err(|e| {
+                                                error!(
+                                                    "Worker {}: Failed to commit message: {}",
+                                                    id, e
+                                                );
+                                                counter!("consumer_errors").increment(1);
+                                            })
+                                            .unwrap_or(());
                                     }
                                 }
                             }

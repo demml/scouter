@@ -35,7 +35,7 @@ pub async fn shutdown_signal(app_state: Arc<AppState>) {
     }
 }
 
-pub async fn shutdown_signal_() {
+pub async fn shutdown_metric_signal() {
     let ctrl_c = async {
         signal::ctrl_c()
             .await

@@ -188,8 +188,8 @@ pub mod rabbitmq_consumer {
         Ok(consumer)
     }
 
-    pub async fn process_message(message: &Vec<u8>) -> Result<Option<ServerRecords>, EventError> {
-        let records: ServerRecords = match serde_json::from_slice::<ServerRecords>(&message) {
+    pub async fn process_message(message: &[u8]) -> Result<Option<ServerRecords>, EventError> {
+        let records: ServerRecords = match serde_json::from_slice::<ServerRecords>(message) {
             Ok(records) => records,
             Err(e) => {
                 error!("Failed to deserialize message: {:?}", e);

@@ -3,16 +3,15 @@ pub mod api;
 use crate::api::middleware::metrics::metrics_app;
 use crate::api::poller::BackgroundPollManager;
 use crate::api::setup::setup_logging;
-use crate::api::shutdown::{shutdown_signal, shutdown_signal_};
+use crate::api::shutdown::{shutdown_metric_signal, shutdown_signal};
 use crate::api::state::AppState;
 use anyhow::Context;
 use api::router::create_router;
 use axum::Router;
-use scouter_drift::DriftExecutor;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::PostgresClient;
 use std::sync::Arc;
-use tracing::{debug, error, info, span, Instrument, Level};
+use tracing::info;
 
 #[cfg(feature = "kafka")]
 use scouter_events::consumer::kafka::KafkaConsumerManager;
@@ -29,7 +28,7 @@ async fn start_metrics_server() -> Result<(), anyhow::Error> {
         .with_context(|| "Failed to bind to port 3001 for metrics server")?;
 
     axum::serve(listener, app)
-        .with_graceful_shutdown(shutdown_signal_())
+        .with_graceful_shutdown(shutdown_metric_signal())
         .await
         .with_context(|| "Failed to start metrics server")?;
 
