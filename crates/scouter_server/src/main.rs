@@ -11,6 +11,8 @@ use scouter_settings::ScouterServerConfig;
 use scouter_sql::PostgresClient;
 use std::sync::Arc;
 use tracing::{debug, error, info, span, Instrument, Level};
+use std::sync::atomic::AtomicBool;
+use crate::api::shutdown::shutdown_signal;
 
 #[cfg(feature = "kafka")]
 use scouter_events::consumer::kafka::KafkaConsumerManager;
@@ -84,7 +86,7 @@ async fn setup_polling_workers(config: &ScouterServerConfig) -> Result<(), anyho
 /// # Returns
 ///
 /// The main server router
-async fn create_app(config: ScouterServerConfig) -> Result<Router, anyhow::Error> {
+async fn create_app(config: ScouterServerConfig) -> Result<(Router, Arc<AppState>), anyhow::Error> {
     // setup logging, soft fail if it fails
     let _ = setup_logging().await.is_ok();
 
@@ -94,6 +96,8 @@ async fn create_app(config: ScouterServerConfig) -> Result<Router, anyhow::Error
         .await
         .with_context(|| "Failed to create Postgres client")?;
 
+    let shutdown = Arc::new(AtomicBool::new(false));
+
     // setup background kafka task if kafka is enabled
     #[cfg(feature = "kafka")]
     if config.kafka_enabled() {
@@ -102,6 +106,7 @@ async fn create_app(config: ScouterServerConfig) -> Result<Router, anyhow::Error
             kafka_settings,
             &config.database_settings,
             &db_client.pool,
+            shutdown.clone(),
         )
         .await?;
         info!("✅ Started Kafka workers");
@@ -123,11 +128,13 @@ async fn create_app(config: ScouterServerConfig) -> Result<Router, anyhow::Error
     // ##################### run drift polling background tasks #####################
     setup_polling_workers(&config).await?;
 
-    let router = create_router(Arc::new(AppState { db: db_client }))
+    let app_state = Arc::new(AppState { db: db_client, shutdown });
+
+    let router = create_router(app_state.clone())
         .await
         .with_context(|| "Failed to create router")?;
 
-    Ok(router)
+    Ok((router, app_state))
 }
 
 /// Start the main server
@@ -138,15 +145,16 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
         .await
         .with_context(|| "Failed to bind to port 8000")?;
 
-    let router = create_app(config).await?;
+    let (router, app_state) = create_app(config).await?;
 
     info!(
         "🚀 Scouter Server started successfully on {:?}",
         addr.clone().to_string()
     );
     axum::serve(listener, router)
-        .await
-        .with_context(|| "Failed to start main server")?;
+    .with_graceful_shutdown(shutdown_signal(app_state.clone()))
+    .await
+    .with_context(|| "Failed to start main server")?;
 
     Ok(())
 }
@@ -239,8 +247,9 @@ mod tests {
             let mut config = ScouterServerConfig::default();
             config.polling_settings.num_workers = 1;
 
-            let app = create_app(config.clone()).await?;
+            let (app, app_state) = create_app(config.clone()).await?;
 
+            
             let db_client = PostgresClient::new(None, None)
                 .await
                 .with_context(|| "Failed to create Postgres client")?;
