@@ -123,7 +123,7 @@ jobs:
         run: |
           echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Append
           vcpkg install openssl:x64-windows-static-md
-          
+
       - name: install rust stable
         uses: dtolnay/rust-toolchain@stable
 
@@ -196,7 +196,10 @@ jobs:
 
       - name: Run tests
         working-directory: ./py-scouter
-        run: make test.integration
+        run: |
+          make test.integration.queue
+          make test.integration.api
+          make test.integration.producer
 
       - name: Stop Containers
         if: always()
