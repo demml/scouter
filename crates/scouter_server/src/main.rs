@@ -1,6 +1,7 @@
 pub mod api;
 
 use crate::api::middleware::metrics::metrics_app;
+use crate::api::poller::BackgroundPollManager;
 use crate::api::setup::setup_logging;
 use crate::api::shutdown::{shutdown_signal, shutdown_signal_};
 use crate::api::state::AppState;
@@ -31,44 +32,6 @@ async fn start_metrics_server() -> Result<(), anyhow::Error> {
         .with_graceful_shutdown(shutdown_signal_())
         .await
         .with_context(|| "Failed to start metrics server")?;
-
-    Ok(())
-}
-
-/// Setup drift polling workers
-///
-/// This function will start a number of drift polling workers based on the number of workers
-///
-/// # Arguments
-///
-/// * `config` - The server configuration
-///
-async fn setup_polling_workers(config: &ScouterServerConfig) -> Result<(), anyhow::Error> {
-    for i in 0..config.polling_settings.num_workers {
-        info!("Starting drift schedule poller: {}", i);
-
-        let db_settings = config.database_settings.clone();
-        let db_client = PostgresClient::new(None, Some(&db_settings))
-            .await
-            .with_context(|| "Failed to create Postgres client")?;
-
-        let future = async move {
-            let mut drift_executor = DriftExecutor::new(db_client);
-
-            debug!("Starting drift executor");
-            loop {
-                if let Err(e) = drift_executor
-                    .poll_for_tasks()
-                    .instrument(span!(Level::INFO, "Poll"))
-                    .await
-                {
-                    error!("Alert poller error: {:?}", e);
-                }
-            }
-        };
-
-        tokio::spawn(future.instrument(span!(Level::INFO, "Background")));
-    }
 
     Ok(())
 }
@@ -125,7 +88,14 @@ async fn create_app(config: ScouterServerConfig) -> Result<(Router, Arc<AppState
     }
 
     // ##################### run drift polling background tasks #####################
-    setup_polling_workers(&config).await?;
+    BackgroundPollManager::start_workers(
+        &db_client.pool,
+        &config.polling_settings,
+        &config.database_settings,
+        shutdown_rx,
+    )
+    .await?;
+    info!("✅ Started drift workers");
 
     let app_state = Arc::new(AppState {
         db: db_client,
