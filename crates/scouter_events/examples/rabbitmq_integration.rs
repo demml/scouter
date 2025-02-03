@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 use utils::TestHelper;
 
 #[cfg(feature = "rabbitmq")]
-use scouter_events::consumer::rabbitmq::startup_rabbitmq;
+use scouter_events::consumer::rabbitmq::RabbitMQConsumerManager;
 
 #[cfg(feature = "rabbitmq")]
 use lapin::{
@@ -83,9 +83,11 @@ impl RabbitMQSetup for TestHelper {
         //
         //(consumer, msg_handler)
 
-        startup_rabbitmq(&self.db_client.pool, &self.config)
-            .await
-            .unwrap();
+        RabbitMQConsumerManager::start_workers(
+            &self.config.rabbitmq_settings.as_ref().unwrap().clone(),
+            &self.config.database_settings.clone(),
+            &self.db_client.pool,
+        ).await.unwrap();
     }
 }
 

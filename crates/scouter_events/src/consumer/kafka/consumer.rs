@@ -76,7 +76,8 @@ pub mod kafka_consumer {
                                     error!("Worker {}: Error handling message: {}", id, e);
                                     counter!("db_insert_errors").increment(1);
                                 } else {
-                                    counter!("records_inserted").absolute(records.records.len() as u64);
+                                    counter!("records_inserted")
+                                        .absolute(records.records.len() as u64);
                                     counter!("messages_processed").increment(1);
                                     consumer
                                         .commit_message(&msg, CommitMode::Async)
@@ -87,7 +88,7 @@ pub mod kafka_consumer {
                                             );
                                             counter!("consumer_errors").increment(1);
                                         })
-                                        .unwrap();
+                                        .unwrap_or(());
                                 }
                             }
                         }
