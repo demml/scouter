@@ -65,8 +65,7 @@ test.rabbitmq_events:
 test.events: test.kafka_events test.rabbitmq_events
 
 .PHONY: test
-test: build.all_backends test.needs_sql test.unit build.shutdown_backends start.server test.events stop.server
-
+test: build.all_backends test.needs_sql test.unit build.shutdown_backends
 
 ###### Server tests
 .PHONY: build.all_backends

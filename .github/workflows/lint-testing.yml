@@ -36,6 +36,20 @@ jobs:
         env:
           RUST_BACKTRACE: 1
 
+      - name: Setup Server
+        run: make start.server
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Test Events
+        run: make test.events
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Stop Server
+        if: always()
+        run: make stop.server
+
   test-os:
     name: test ${{ matrix.os }}-${{ matrix.python-version }}
 
