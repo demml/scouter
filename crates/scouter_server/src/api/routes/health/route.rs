@@ -3,7 +3,6 @@ use anyhow::{Context, Result};
 use axum::response::IntoResponse;
 use axum::Json;
 use axum::{routing::get, Router};
-use metrics::counter;
 /// file containing schema for health module
 use serde::{Deserialize, Serialize};
 use std::panic::{catch_unwind, AssertUnwindSafe};

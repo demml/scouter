@@ -13,11 +13,9 @@ pub mod rabbitmq_consumer {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
     use tokio::task::JoinHandle;
-    use tracing::{error, info, debug, instrument};
+    use tracing::{debug, error, info, instrument};
 
-    use lapin::{
-        options::*, types::FieldTable, Connection, ConnectionProperties, Consumer
-    };
+    use lapin::{options::*, types::FieldTable, Connection, ConnectionProperties, Consumer};
 
     const MAX_MESSAGE_SIZE: usize = 10 * 1024 * 1024; // 10MB
 
@@ -30,19 +28,18 @@ pub mod rabbitmq_consumer {
     }
 
     impl RabbitMQConsumerManager {
-
         /// Start a number of workers to consume messages from RabbitMQ
-        /// 
+        ///
         /// This function creates a number of workers to consume messages from RabbitMQ. Each worker will consume messages from RabbitMQ and insert them into the database
-        /// 
+        ///
         /// # Arguments
-        /// 
+        ///
         /// * `rabbit_settings` - The RabbitMQ settings
         /// * `db_settings` - The database settings
         /// * `pool` - The database connection pool
-        /// 
+        ///
         /// # Returns
-        /// 
+        ///
         /// * `Result<RabbitMQConsumerManager, EventError>` - The result of the operation
         #[instrument(skip(rabbit_settings, db_settings, pool))]
         pub async fn start_workers(
@@ -68,7 +65,7 @@ pub mod rabbitmq_consumer {
                 )));
             }
 
-            debug!("✅ Started RabbitMQ workers");
+            debug!("✅ Started {} RabbitMQ workers", num_consumers);
 
             Ok(Self { shutdown, workers })
         }
@@ -83,7 +80,6 @@ pub mod rabbitmq_consumer {
                 while let Some(delivery) = consumer.next().await {
                     match delivery {
                         Ok(msg) => {
-
                             // check message size
                             if msg.data.len() > MAX_MESSAGE_SIZE {
                                 error!("Message too large: {:?}", msg.data.len());
@@ -95,13 +91,16 @@ pub mod rabbitmq_consumer {
                             if let Ok(records) = process_message(&msg.data).await {
                                 if let Some(records) = records {
                                     if let Err(e) = handler.insert_server_records(&records).await {
-                                        error!("Worker {}: Failed to insert drift record: {:?}", id, e);
+                                        error!(
+                                            "Worker {}: Failed to insert drift record: {:?}",
+                                            id, e
+                                        );
                                         counter!("db_insert_errors").increment(1);
-                                    }
-                                    else {
-                                        counter!("records_inserted").increment(records.records.len() as u64);
+                                    } else {
+                                        counter!("records_inserted")
+                                            .increment(records.records.len() as u64);
                                         counter!("messages_processed").increment(1);
-                                        
+
                                         // acknowledge the message. If acknowledgment fails, log the error
                                         if let Err(e) = msg.ack(BasicAckOptions::default()).await {
                                             error!("Failed to acknowledge message: {:?}", e);
@@ -121,15 +120,20 @@ pub mod rabbitmq_consumer {
         }
     }
 
-    pub async fn create_rabbitmq_consumer(settings: &RabbitMQSettings) -> Result<Consumer, EventError> {
-        let conn = Connection::connect(&settings.address, ConnectionProperties::default()).await.map_err(|e| {
-            error!("Failed to connect to RabbitMQ: {:?}", e);
-            EventError::Error(format!("Failed to connect to RabbitMQ: {:?}", e))
-        })?;
+    pub async fn create_rabbitmq_consumer(
+        settings: &RabbitMQSettings,
+    ) -> Result<Consumer, EventError> {
+        let conn = Connection::connect(&settings.address, ConnectionProperties::default())
+            .await
+            .map_err(|e| {
+                error!("Failed to connect to RabbitMQ: {:?}", e);
+                EventError::Error(format!("Failed to connect to RabbitMQ: {:?}", e))
+            })?;
         let channel = conn.create_channel().await.unwrap();
         channel
             .basic_qos(settings.prefetch_count, BasicQosOptions::default())
-            .await.map_err(|e| {
+            .await
+            .map_err(|e| {
                 error!("Failed to set QoS: {:?}", e);
                 EventError::Error(format!("Failed to set QoS: {:?}", e))
             })?;
@@ -140,7 +144,8 @@ pub mod rabbitmq_consumer {
                 QueueDeclareOptions::default(),
                 FieldTable::default(),
             )
-            .await.map_err(|e| {
+            .await
+            .map_err(|e| {
                 error!("Failed to declare queue: {:?}", e);
                 EventError::Error(format!("Failed to declare queue: {:?}", e))
             })?;
@@ -152,7 +157,8 @@ pub mod rabbitmq_consumer {
                 BasicConsumeOptions::default(),
                 FieldTable::default(),
             )
-            .await.map_err(|e| {
+            .await
+            .map_err(|e| {
                 error!("Failed to consume queue: {:?}", e);
                 EventError::Error(format!("Failed to consume queue: {:?}", e))
             })?;
@@ -162,11 +168,7 @@ pub mod rabbitmq_consumer {
         Ok(consumer)
     }
 
-   
-    pub async fn process_message(
-        message: &Vec<u8>,
-    ) -> Result<Option<ServerRecords>, EventError> {
-
+    pub async fn process_message(message: &Vec<u8>) -> Result<Option<ServerRecords>, EventError> {
         let records: ServerRecords = match serde_json::from_slice::<ServerRecords>(&message) {
             Ok(records) => records,
             Err(e) => {
@@ -177,6 +179,4 @@ pub mod rabbitmq_consumer {
 
         Ok(Some(records))
     }
-
-    
 }

@@ -16,7 +16,7 @@ use tracing::{debug, error, info, span, Instrument, Level};
 use scouter_events::consumer::kafka::KafkaConsumerManager;
 
 #[cfg(feature = "rabbitmq")]
-use scouter_events::consumer::rabbitmq::startup_rabbitmq;
+use scouter_events::consumer::rabbitmq::RabbitMQConsumerManager;
 
 /// Start the metrics server for prometheus
 async fn start_metrics_server() -> Result<(), anyhow::Error> {
@@ -104,12 +104,20 @@ async fn create_app(config: ScouterServerConfig) -> Result<Router, anyhow::Error
             &db_client.pool,
         )
         .await?;
+        info!("✅ Started Kafka workers");
     }
 
     // setup background rabbitmq task if rabbitmq is enabled
     #[cfg(feature = "rabbitmq")]
     if config.rabbitmq_enabled() {
-        startup_rabbitmq(&db_client.pool, &config).await?;
+        let rabbit_settings = &config.rabbitmq_settings.as_ref().unwrap().clone();
+        RabbitMQConsumerManager::start_workers(
+            rabbit_settings,
+            &config.database_settings,
+            &db_client.pool,
+        )
+        .await?;
+        info!("✅ Started RabbitMQ workers");
     }
 
     // ##################### run drift polling background tasks #####################

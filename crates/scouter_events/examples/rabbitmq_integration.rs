@@ -87,7 +87,9 @@ impl RabbitMQSetup for TestHelper {
             &self.config.rabbitmq_settings.as_ref().unwrap().clone(),
             &self.config.database_settings.clone(),
             &self.db_client.pool,
-        ).await.unwrap();
+        )
+        .await
+        .unwrap();
     }
 }
 

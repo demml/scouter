@@ -18,6 +18,7 @@ pub mod kafka_consumer {
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
     use tokio::task::JoinHandle;
+    use tracing::debug;
     use tracing::instrument;
     use tracing::{error, info};
 
@@ -29,6 +30,7 @@ pub mod kafka_consumer {
     }
 
     impl KafkaConsumerManager {
+        #[instrument(skip(kafka_settings, db_settings, pool))]
         pub async fn start_workers(
             kafka_settings: &KafkaSettings,
             db_settings: &DatabaseSettings,
@@ -51,6 +53,8 @@ pub mod kafka_consumer {
                     shutdown.clone(),
                 )));
             }
+
+            debug!("✅ Started {} Kafka workers", num_consumers);
 
             Ok(Self { shutdown, workers })
         }
