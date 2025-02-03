@@ -1,5 +1,5 @@
 pub mod kafka_consumer {
-    use metrics::counter;
+    //use metrics::counter;
     use rdkafka::config::ClientConfig;
     use rdkafka::consumer::CommitMode;
     use rdkafka::consumer::Consumer;
@@ -78,18 +78,18 @@ pub mod kafka_consumer {
                             Ok(msg) => {
                                 if msg.payload_len() > MAX_MESSAGE_SIZE {
                                     error!("Worker {}: Message too large", id);
-                                    counter!("messages_too_large").increment(1);
+                                    //counter!("messages_too_large").increment(1);
                                     continue;
                                 }
 
                                 if let Ok(Some(records)) = process_message(&msg).await {
                                     if let Err(e) = handler.insert_server_records(&records).await {
                                         error!("Worker {}: Error handling message: {}", id, e);
-                                        counter!("db_insert_errors").increment(1);
+                                        //counter!("db_insert_errors").increment(1);
                                     } else {
-                                        counter!("records_inserted")
-                                            .absolute(records.records.len() as u64);
-                                        counter!("messages_processed").increment(1);
+                                        //counter!("records_inserted")
+                                        //    .absolute(records.records.len() as u64);
+                                        //counter!("messages_processed").increment(1);
                                         consumer
                                             .commit_message(&msg, CommitMode::Async)
                                             .map_err(|e| {
@@ -97,7 +97,7 @@ pub mod kafka_consumer {
                                                     "Worker {}: Failed to commit message: {}",
                                                     id, e
                                                 );
-                                                counter!("consumer_errors").increment(1);
+                                               //counter!("consumer_errors").increment(1);
                                             })
                                             .unwrap_or(());
                                     }
@@ -106,7 +106,7 @@ pub mod kafka_consumer {
 
                             Err(e) => {
                                 error!("Worker {}: Kafka error: {}", id, e);
-                                counter!("consumer_errors").increment(1);
+                                //counter!("consumer_errors").increment(1);
                             }
                         }
                     }

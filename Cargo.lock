@@ -690,6 +690,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cmake"
+version = "0.1.53"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e24a03c8b52922d68a1589ad61032f2c1aa5a8158d2aa0d93c6e9534944bbad6"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "cms"
 version = "0.2.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2816,6 +2825,7 @@ version = "4.8.0+2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ced38182dc436b3d9df0c77976f37a67134df26b050df1f0006688e46fc4c8be"
 dependencies = [
+ "cmake",
  "libc",
  "libz-sys",
  "num_enum",
