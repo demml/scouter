@@ -15,8 +15,7 @@ pub mod kafka_consumer {
     use sqlx::Postgres;
     use std::collections::HashMap;
     use std::result::Result::Ok;
-    use std::sync::atomic::{AtomicBool, Ordering};
-    use std::sync::Arc;
+    use tokio::sync::watch;
     use tokio::task::JoinHandle;
     use tracing::debug;
     use tracing::instrument;
@@ -25,19 +24,20 @@ pub mod kafka_consumer {
     const MAX_MESSAGE_SIZE: usize = 10 * 1024 * 1024; // 10MB
 
     pub struct KafkaConsumerManager {
-        shutdown: Arc<AtomicBool>,
         workers: Vec<JoinHandle<()>>,
     }
 
     impl KafkaConsumerManager {
-        #[instrument(skip(kafka_settings, db_settings, pool))]
+        #[instrument(
+            skip(kafka_settings, db_settings, pool, shutdown_rx),
+            name = "start_kafka_workers"
+        )]
         pub async fn start_workers(
             kafka_settings: &KafkaSettings,
             db_settings: &DatabaseSettings,
             pool: &Pool<Postgres>,
-            shutdown: Arc<AtomicBool>,
+            shutdown_rx: watch::Receiver<()>,
         ) -> Result<Self, EventError> {
-      
             let num_consumers = kafka_settings.num_workers;
             let mut workers = Vec::with_capacity(num_consumers);
 
@@ -47,68 +47,76 @@ pub mod kafka_consumer {
                     PostgresClient::new(Some(pool.clone()), Some(db_settings)).await?;
                 let message_handler = MessageHandler::Postgres(kafka_db_client);
 
+                let worker_shutdown_rx = shutdown_rx.clone();
                 workers.push(tokio::spawn(Self::start_worker(
                     id,
                     consumer,
                     message_handler,
-                    shutdown.clone(),
+                    worker_shutdown_rx,
                 )));
             }
 
             debug!("✅ Started {} Kafka workers", num_consumers);
 
-            Ok(Self { shutdown, workers })
+            Ok(Self { workers })
         }
 
         async fn start_worker(
             id: usize,
             consumer: StreamConsumer,
             handler: MessageHandler,
-            shutdown: Arc<AtomicBool>,
+            mut shutdown: watch::Receiver<()>,
         ) {
-            while !shutdown.load(Ordering::Relaxed) {
-                match consumer.recv().await {
-                    Ok(msg) => {
-                        if msg.payload_len() > MAX_MESSAGE_SIZE {
-                            error!("Worker {}: Message too large", id);
-                            counter!("messages_too_large").increment(1);
-                            continue;
-                        }
+            loop {
+                tokio::select! {
+                    _ = shutdown.changed() => {
+                        info!("Kafka worker {}: Shutting down", id);
+                        break;
+                    }
+                    msg = consumer.recv() => {
+                        match msg {
+                            Ok(msg) => {
+                                if msg.payload_len() > MAX_MESSAGE_SIZE {
+                                    error!("Worker {}: Message too large", id);
+                                    counter!("messages_too_large").increment(1);
+                                    continue;
+                                }
 
-                        if let Ok(records) = process_message(&msg).await {
-                            if let Some(records) = records {
-                                if let Err(e) = handler.insert_server_records(&records).await {
-                                    error!("Worker {}: Error handling message: {}", id, e);
-                                    counter!("db_insert_errors").increment(1);
-                                } else {
-                                    counter!("records_inserted")
-                                        .absolute(records.records.len() as u64);
-                                    counter!("messages_processed").increment(1);
-                                    consumer
-                                        .commit_message(&msg, CommitMode::Async)
-                                        .map_err(|e| {
-                                            error!(
-                                                "Worker {}: Failed to commit message: {}",
-                                                id, e
-                                            );
-                                            counter!("consumer_errors").increment(1);
-                                        })
-                                        .unwrap_or(());
+                                if let Ok(records) = process_message(&msg).await {
+                                    if let Some(records) = records {
+                                        if let Err(e) = handler.insert_server_records(&records).await {
+                                            error!("Worker {}: Error handling message: {}", id, e);
+                                            counter!("db_insert_errors").increment(1);
+                                        } else {
+                                            counter!("records_inserted")
+                                                .absolute(records.records.len() as u64);
+                                            counter!("messages_processed").increment(1);
+                                            consumer
+                                                .commit_message(&msg, CommitMode::Async)
+                                                .map_err(|e| {
+                                                    error!(
+                                                        "Worker {}: Failed to commit message: {}",
+                                                        id, e
+                                                    );
+                                                    counter!("consumer_errors").increment(1);
+                                                })
+                                                .unwrap_or(());
+                                        }
+                                    }
                                 }
                             }
-                        }
-                    }
 
-                    Err(e) => {
-                        error!("Worker {}: Kafka error: {}", id, e);
-                        counter!("consumer_errors").increment(1);
+                            Err(e) => {
+                                error!("Worker {}: Kafka error: {}", id, e);
+                                counter!("consumer_errors").increment(1);
+                            }
+                        }
                     }
                 }
             }
         }
 
         pub async fn shutdown(&self) {
-            self.shutdown.store(true, Ordering::Relaxed);
             for worker in &self.workers {
                 worker.abort();
             }

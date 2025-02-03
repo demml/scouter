@@ -1,8 +1,7 @@
 use scouter_sql::PostgresClient;
-use std::sync::Arc;
-use std::sync::atomic::AtomicBool;
+use tokio::sync::watch;
 
 pub struct AppState {
     pub db: PostgresClient,
-    pub shutdown: Arc<AtomicBool>,
+    pub shutdown_tx: watch::Sender<()>,
 }

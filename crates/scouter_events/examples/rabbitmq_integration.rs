@@ -82,11 +82,12 @@ impl RabbitMQSetup for TestHelper {
         //let msg_handler = MessageHandler::Postgres(self.db_client.clone());
         //
         //(consumer, msg_handler)
-
+        let (_shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(());
         RabbitMQConsumerManager::start_workers(
             &self.config.rabbitmq_settings.as_ref().unwrap().clone(),
             &self.config.database_settings.clone(),
             &self.db_client.pool,
+            shutdown_rx,
         )
         .await
         .unwrap();

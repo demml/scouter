@@ -2,6 +2,7 @@ pub mod api;
 
 use crate::api::middleware::metrics::metrics_app;
 use crate::api::setup::setup_logging;
+use crate::api::shutdown::{shutdown_signal, shutdown_signal_};
 use crate::api::state::AppState;
 use anyhow::Context;
 use api::router::create_router;
@@ -11,8 +12,6 @@ use scouter_settings::ScouterServerConfig;
 use scouter_sql::PostgresClient;
 use std::sync::Arc;
 use tracing::{debug, error, info, span, Instrument, Level};
-use std::sync::atomic::AtomicBool;
-use crate::api::shutdown::shutdown_signal;
 
 #[cfg(feature = "kafka")]
 use scouter_events::consumer::kafka::KafkaConsumerManager;
@@ -29,10 +28,9 @@ async fn start_metrics_server() -> Result<(), anyhow::Error> {
         .with_context(|| "Failed to bind to port 3001 for metrics server")?;
 
     axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_signal_())
         .await
         .with_context(|| "Failed to start metrics server")?;
-
-    info!("Metrics server started successfully on port 3001");
 
     Ok(())
 }
@@ -96,7 +94,7 @@ async fn create_app(config: ScouterServerConfig) -> Result<(Router, Arc<AppState
         .await
         .with_context(|| "Failed to create Postgres client")?;
 
-    let shutdown = Arc::new(AtomicBool::new(false));
+    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(());
 
     // setup background kafka task if kafka is enabled
     #[cfg(feature = "kafka")]
@@ -106,7 +104,7 @@ async fn create_app(config: ScouterServerConfig) -> Result<(Router, Arc<AppState
             kafka_settings,
             &config.database_settings,
             &db_client.pool,
-            shutdown.clone(),
+            shutdown_rx.clone(),
         )
         .await?;
         info!("✅ Started Kafka workers");
@@ -120,6 +118,7 @@ async fn create_app(config: ScouterServerConfig) -> Result<(Router, Arc<AppState
             rabbit_settings,
             &config.database_settings,
             &db_client.pool,
+            shutdown_rx.clone(),
         )
         .await?;
         info!("✅ Started RabbitMQ workers");
@@ -128,7 +127,10 @@ async fn create_app(config: ScouterServerConfig) -> Result<(Router, Arc<AppState
     // ##################### run drift polling background tasks #####################
     setup_polling_workers(&config).await?;
 
-    let app_state = Arc::new(AppState { db: db_client, shutdown });
+    let app_state = Arc::new(AppState {
+        db: db_client,
+        shutdown_tx,
+    });
 
     let router = create_router(app_state.clone())
         .await
@@ -152,9 +154,9 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
         addr.clone().to_string()
     );
     axum::serve(listener, router)
-    .with_graceful_shutdown(shutdown_signal(app_state.clone()))
-    .await
-    .with_context(|| "Failed to start main server")?;
+        .with_graceful_shutdown(shutdown_signal(app_state.clone()))
+        .await
+        .with_context(|| "Failed to start main server")?;
 
     Ok(())
 }
@@ -247,9 +249,8 @@ mod tests {
             let mut config = ScouterServerConfig::default();
             config.polling_settings.num_workers = 1;
 
-            let (app, app_state) = create_app(config.clone()).await?;
+            let (app, _app_state) = create_app(config.clone()).await?;
 
-            
             let db_client = PostgresClient::new(None, None)
                 .await
                 .with_context(|| "Failed to create Postgres client")?;

@@ -6,8 +6,6 @@ use scouter_contracts::ServiceInfo;
 use scouter_types::{RecordType, ServerRecord, ServerRecords, SpcServerRecord};
 use std::time::{Duration, Instant};
 use utils::TestHelper;
-use std::sync::atomic::AtomicBool;
-use std::sync::Arc;
 
 #[cfg(feature = "kafka")]
 use rdkafka::{
@@ -83,13 +81,19 @@ impl KafkaSetup for TestHelper {
         //let msg_handler = MessageHandler::Postgres(self.db_client.clone());
         //
         //(consumer, msg_handler)
+        let (_shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(());
+
         #[cfg(feature = "kafka")]
         let kafka_settings = self.config.kafka_settings.as_ref().unwrap().clone();
         let db_settings = self.config.database_settings.clone();
-        let shutdown = Arc::new(AtomicBool::new(false));
-        KafkaConsumerManager::start_workers(&kafka_settings, &db_settings, &self.db_client.pool, shutdown)
-            .await
-            .unwrap();
+        KafkaConsumerManager::start_workers(
+            &kafka_settings,
+            &db_settings,
+            &self.db_client.pool,
+            shutdown_rx,
+        )
+        .await
+        .unwrap();
     }
 }
 
