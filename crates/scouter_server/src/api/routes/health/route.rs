@@ -7,6 +7,7 @@ use axum::{routing::get, Router};
 use serde::{Deserialize, Serialize};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
+use metrics::counter;
 
 #[derive(Serialize, Deserialize)]
 pub struct Alive {

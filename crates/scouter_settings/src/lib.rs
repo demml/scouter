@@ -103,7 +103,6 @@ impl Default for KafkaSettings {
             .ok()
             .unwrap_or_else(|| "PLAIN".to_string());
         let cert_location = std::env::var("KAFKA_CERT_LOCATION").ok();
-        
 
         Self {
             brokers,

@@ -11,7 +11,6 @@ use scouter_settings::ScouterServerConfig;
 use scouter_sql::PostgresClient;
 use std::sync::Arc;
 use tracing::{debug, error, info, span, Instrument, Level};
-use scouter_events::consumer::metrics::ConsumerMetrics;
 
 #[cfg(feature = "kafka")]
 use scouter_events::consumer::kafka::KafkaConsumerManager;
@@ -23,13 +22,15 @@ use scouter_events::consumer::rabbitmq::startup_rabbitmq;
 async fn start_metrics_server() -> Result<(), anyhow::Error> {
     let app = metrics_app().with_context(|| "Failed to setup metrics app")?;
 
-    // NOTE: expose metrics endpoint on a different port
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8001")
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3001")
         .await
-        .with_context(|| "Failed to bind to port 8001 for metrics server")?;
+        .with_context(|| "Failed to bind to port 3001 for metrics server")?;
+    
     axum::serve(listener, app)
         .await
         .with_context(|| "Failed to start metrics server")?;
+
+    info!("Metrics server started successfully on port 3001");
 
     Ok(())
 }
@@ -97,7 +98,12 @@ async fn create_app(config: ScouterServerConfig) -> Result<Router, anyhow::Error
     #[cfg(feature = "kafka")]
     if config.kafka_enabled() {
         let kafka_settings = &config.kafka_settings.as_ref().unwrap().clone();
-        KafkaConsumerManager::start_workers(kafka_settings, &config.database_settings, &db_client.pool).await?;
+        KafkaConsumerManager::start_workers(
+            kafka_settings,
+            &config.database_settings,
+            &db_client.pool,
+        )
+        .await?;
     }
 
     // setup background rabbitmq task if rabbitmq is enabled
@@ -109,7 +115,7 @@ async fn create_app(config: ScouterServerConfig) -> Result<Router, anyhow::Error
     // ##################### run drift polling background tasks #####################
     setup_polling_workers(&config).await?;
 
-    let router = create_router(Arc::new(AppState { db: db_client}))
+    let router = create_router(Arc::new(AppState { db: db_client }))
         .await
         .with_context(|| "Failed to create router")?;
 

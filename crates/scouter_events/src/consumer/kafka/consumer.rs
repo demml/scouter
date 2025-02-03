@@ -1,4 +1,5 @@
 pub mod kafka_consumer {
+    use metrics::counter;
     use rdkafka::config::ClientConfig;
     use rdkafka::consumer::CommitMode;
     use rdkafka::consumer::Consumer;
@@ -6,24 +7,21 @@ pub mod kafka_consumer {
     use rdkafka::message::BorrowedMessage;
     use rdkafka::message::Message;
     use scouter_error::EventError;
-    use scouter_settings::{KafkaSettings, DatabaseSettings};
+    use scouter_settings::{DatabaseSettings, KafkaSettings};
     use scouter_sql::MessageHandler;
+    use scouter_sql::PostgresClient;
     use scouter_types::ServerRecords;
+    use sqlx::Pool;
+    use sqlx::Postgres;
     use std::collections::HashMap;
     use std::result::Result::Ok;
-    use tracing::instrument;
-    use tracing::{error, info};
     use std::sync::atomic::{AtomicBool, Ordering};
     use std::sync::Arc;
     use tokio::task::JoinHandle;
-    use sqlx::Postgres;
-    use scouter_sql::PostgresClient;
-    use sqlx::Pool;
-    use metrics::counter;
-    
+    use tracing::instrument;
+    use tracing::{error, info};
 
     const MAX_MESSAGE_SIZE: usize = 10 * 1024 * 1024; // 10MB
-
 
     pub struct KafkaConsumerManager {
         shutdown: Arc<AtomicBool>,
@@ -43,10 +41,9 @@ pub mod kafka_consumer {
             for id in 0..num_consumers {
                 let consumer = create_kafka_consumer(kafka_settings, None).await?;
                 let kafka_db_client =
-                PostgresClient::new(Some(pool.clone()), Some(db_settings)).await?;
+                    PostgresClient::new(Some(pool.clone()), Some(db_settings)).await?;
                 let message_handler = MessageHandler::Postgres(kafka_db_client);
 
-                
                 workers.push(tokio::spawn(Self::start_worker(
                     id,
                     consumer,
@@ -55,20 +52,15 @@ pub mod kafka_consumer {
                 )));
             }
 
-            Ok(Self {
-                shutdown,
-                workers,
-            })
+            Ok(Self { shutdown, workers })
         }
-    
+
         async fn start_worker(
             id: usize,
             consumer: StreamConsumer,
             handler: MessageHandler,
             shutdown: Arc<AtomicBool>,
         ) {
-    
-    
             while !shutdown.load(Ordering::Relaxed) {
                 match consumer.recv().await {
                     Ok(msg) => {
@@ -78,7 +70,6 @@ pub mod kafka_consumer {
                             continue;
                         }
 
-                    
                         if let Ok(records) = process_message(&msg).await {
                             if let Some(records) = records {
                                 if let Err(e) = handler.insert_server_records(&records).await {
@@ -87,10 +78,16 @@ pub mod kafka_consumer {
                                 } else {
                                     counter!("records_inserted").absolute(records.records.len() as u64);
                                     counter!("messages_processed").increment(1);
-                                    consumer.commit_message(&msg, CommitMode::Async).map_err(|e| {
-                                        error!("Worker {}: Failed to commit message: {}", id, e);
-                                        counter!("consumer_errors").increment(1);
-                                    }).unwrap();
+                                    consumer
+                                        .commit_message(&msg, CommitMode::Async)
+                                        .map_err(|e| {
+                                            error!(
+                                                "Worker {}: Failed to commit message: {}",
+                                                id, e
+                                            );
+                                            counter!("consumer_errors").increment(1);
+                                        })
+                                        .unwrap();
                                 }
                             }
                         }
@@ -103,8 +100,7 @@ pub mod kafka_consumer {
                 }
             }
         }
-    
-    
+
         pub async fn shutdown(&self) {
             self.shutdown.store(true, Ordering::Relaxed);
             for worker in &self.workers {
@@ -112,7 +108,6 @@ pub mod kafka_consumer {
             }
         }
     }
-
 
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::unnecessary_unwrap)]
@@ -192,9 +187,6 @@ pub mod kafka_consumer {
             }
         };
 
-
         Ok(Some(records))
     }
-
-
 }

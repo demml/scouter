@@ -1,6 +1,3 @@
-
-
-
 #[cfg(all(feature = "kafka", feature = "sql"))]
 pub mod consumer;
 

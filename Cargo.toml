@@ -45,8 +45,8 @@ include_dir = "0.*"
 indicatif = "0.*"
 itertools = "0.*"
 
-metrics = "0.*"
-metrics-exporter-prometheus = "0.*"
+metrics = { version = "0.*", default-features = false }
+metrics-exporter-prometheus = { version = "0.*", default-features = false }
 mockito = "1.*"
 ndarray = { version = "0.*", features = ["rayon"] }
 ndarray-rand = "0.*"
