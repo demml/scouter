@@ -13,7 +13,7 @@ use scouter_sql::PostgresClient;
 use std::sync::Arc;
 use tracing::info;
 
-#[cfg(feature = "kafka")]
+#[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
 use scouter_events::consumer::kafka::KafkaConsumerManager;
 
 #[cfg(feature = "rabbitmq")]
@@ -59,7 +59,7 @@ async fn create_app(config: ScouterServerConfig) -> Result<(Router, Arc<AppState
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(());
 
     // setup background kafka task if kafka is enabled
-    #[cfg(feature = "kafka")]
+    #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
     if config.kafka_enabled() {
         let kafka_settings = &config.kafka_settings.as_ref().unwrap().clone();
         KafkaConsumerManager::start_workers(

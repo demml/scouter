@@ -7,7 +7,7 @@ use scouter_types::{RecordType, ServerRecord, ServerRecords, SpcServerRecord};
 use std::time::{Duration, Instant};
 use utils::TestHelper;
 
-#[cfg(feature = "kafka")]
+#[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
 use rdkafka::{
     config::RDKafkaLogLevel,
     producer::{FutureProducer, FutureRecord},

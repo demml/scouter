@@ -1,4 +1,4 @@
-#[cfg(feature = "kafka")]
+#[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
 pub mod kafka_producer {
     use crate::producer::kafka::types::KafkaConfig;
 
