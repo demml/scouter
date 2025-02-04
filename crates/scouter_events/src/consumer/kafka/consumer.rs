@@ -1,5 +1,5 @@
-#[cfg(all(feature = "kafka", feature = "sql"))]
 pub mod kafka_consumer {
+    use metrics::counter;
     use rdkafka::config::ClientConfig;
     use rdkafka::consumer::CommitMode;
     use rdkafka::consumer::Consumer;
@@ -7,16 +7,110 @@ pub mod kafka_consumer {
     use rdkafka::message::BorrowedMessage;
     use rdkafka::message::Message;
     use scouter_error::EventError;
-    use scouter_settings::KafkaSettings;
+    use scouter_settings::{DatabaseSettings, KafkaSettings};
     use scouter_sql::MessageHandler;
+    use scouter_sql::PostgresClient;
     use scouter_types::ServerRecords;
+    use sqlx::Pool;
+    use sqlx::Postgres;
     use std::collections::HashMap;
     use std::result::Result::Ok;
+    use tokio::sync::watch;
+    use tokio::task::JoinHandle;
+    use tracing::debug;
     use tracing::instrument;
-    use tracing::Instrument;
-    use tracing::{error, info, span, Level};
+    use tracing::{error, info};
 
-    // Get table name constant
+    const MAX_MESSAGE_SIZE: usize = 10 * 1024 * 1024; // 10MB
+
+    pub struct KafkaConsumerManager {
+        pub workers: Vec<JoinHandle<()>>,
+    }
+
+    impl KafkaConsumerManager {
+        #[instrument(
+            skip(kafka_settings, db_settings, pool, shutdown_rx),
+            name = "start_kafka_workers"
+        )]
+        pub async fn start_workers(
+            kafka_settings: &KafkaSettings,
+            db_settings: &DatabaseSettings,
+            pool: &Pool<Postgres>,
+            shutdown_rx: watch::Receiver<()>,
+        ) -> Result<Self, EventError> {
+            let num_consumers = kafka_settings.num_workers;
+            let mut workers = Vec::with_capacity(num_consumers);
+
+            for id in 0..num_consumers {
+                let consumer = create_kafka_consumer(kafka_settings, None).await?;
+                let kafka_db_client =
+                    PostgresClient::new(Some(pool.clone()), Some(db_settings)).await?;
+                let message_handler = MessageHandler::Postgres(kafka_db_client);
+
+                let worker_shutdown_rx = shutdown_rx.clone();
+                workers.push(tokio::spawn(async move {
+                    Self::start_worker(id, consumer, message_handler, worker_shutdown_rx).await;
+                }));
+            }
+
+            debug!("✅ Started {} Kafka workers", num_consumers);
+
+            Ok(Self { workers })
+        }
+
+        async fn start_worker(
+            id: usize,
+            consumer: StreamConsumer,
+            handler: MessageHandler,
+            mut shutdown: watch::Receiver<()>,
+        ) {
+            loop {
+                tokio::select! {
+                    _ = shutdown.changed() => {
+                        info!("Kafka worker {}: Shutting down", id);
+                        break;
+                    }
+                    msg = consumer.recv() => {
+                        match msg {
+                            Ok(msg) => {
+                                if msg.payload_len() > MAX_MESSAGE_SIZE {
+                                    error!("Worker {}: Message too large", id);
+                                    counter!("messages_too_large").increment(1);
+                                    continue;
+                                }
+
+                                if let Ok(Some(records)) = process_message(&msg).await {
+                                    if let Err(e) = handler.insert_server_records(&records).await {
+                                        error!("Worker {}: Error handling message: {}", id, e);
+                                        counter!("db_insert_errors").increment(1);
+                                    } else {
+                                        counter!("records_inserted")
+                                            .absolute(records.records.len() as u64);
+                                        counter!("messages_processed").increment(1);
+                                        consumer
+                                            .commit_message(&msg, CommitMode::Async)
+                                            .map_err(|e| {
+                                                error!(
+                                                    "Worker {}: Failed to commit message: {}",
+                                                    id, e
+                                                );
+                                               counter!("consumer_errors").increment(1);
+                                            })
+                                            .unwrap_or(());
+                                    }
+                                }
+                            }
+
+                            Err(e) => {
+                                error!("Worker {}: Kafka error: {}", id, e);
+                                counter!("consumer_errors").increment(1);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     #[allow(clippy::too_many_arguments)]
     #[allow(clippy::unnecessary_unwrap)]
@@ -32,6 +126,7 @@ pub mod kafka_consumer {
             .set("bootstrap.servers", &settings.brokers)
             .set("enable.partition.eof", "false")
             .set("session.timeout.ms", "6000")
+            .set("auto.offset.reset", &settings.offset_reset)
             .set("enable.auto.commit", "true");
 
         if settings.username.is_some() && settings.password.is_some() {
@@ -40,6 +135,10 @@ pub mod kafka_consumer {
                 .set("sasl.mechanisms", &settings.sasl_mechanism)
                 .set("sasl.username", settings.username.as_ref().unwrap())
                 .set("sasl.password", settings.password.as_ref().unwrap());
+
+            if let Some(cert_location) = &settings.cert_location {
+                config.set("ssl.ca.location", cert_location);
+            }
         }
 
         if let Some(overrides) = config_overrides {
@@ -68,37 +167,18 @@ pub mod kafka_consumer {
         Ok(consumer)
     }
 
-    pub async fn stream_from_kafka_topic(
-        message_handler: &MessageHandler,
-        consumer: &StreamConsumer,
-    ) -> Result<(), EventError> {
-        loop {
-            match consumer.recv().await {
-                Err(e) => error!("Kafka error: {}", e),
-                Ok(message) => {
-                    if let Err(e) = process_kafka_message(message_handler, consumer, &message).await
-                    {
-                        error!("Error processing Kafka message: {:?}", e);
-                    }
-                }
-            }
-        }
-    }
-
-    pub async fn process_kafka_message(
-        message_handler: &MessageHandler,
-        consumer: &StreamConsumer,
+    pub async fn process_message(
         message: &BorrowedMessage<'_>,
-    ) -> Result<(), EventError> {
+    ) -> Result<Option<ServerRecords>, EventError> {
         let payload = match message.payload_view::<str>() {
             None => {
                 error!("No payload received");
-                return Ok(());
+                return Ok(None);
             }
             Some(Ok(s)) => s,
             Some(Err(e)) => {
                 error!("Error while deserializing message payload: {:?}", e);
-                return Ok(());
+                return Ok(None);
             }
         };
 
@@ -106,56 +186,10 @@ pub mod kafka_consumer {
             Ok(records) => records,
             Err(e) => {
                 error!("Failed to deserialize message: {:?}", e);
-                return Ok(());
+                return Ok(None);
             }
         };
 
-        match message_handler.insert_server_records(&records).await {
-            Ok(_) => {
-                consumer.commit_message(message, CommitMode::Async).unwrap();
-            }
-            Err(e) => {
-                error!("Failed to insert drift record: {:?}", e);
-            }
-        }
-
-        Ok(())
-    }
-
-    // Start background task to poll kafka topic
-    //
-    // This function will poll the kafka topic and insert the records into the database
-    // using the provided message handler.
-    //
-    // # Arguments
-    //
-    // * `message_handler` - The message handler to process the records
-    // * `group_id` - The kafka consumer group id
-    // * `brokers` - The kafka brokers
-    // * `topics` - The kafka topics to subscribe to
-    // * `username` - The kafka username
-    // * `password` - The kafka password
-    // * `security_protocol` - The kafka security protocol
-    // * `sasl_mechanism` - The kafka SASL mechanism
-    //
-    // # Returns
-    //
-    // * `Result<(), anyhow::Error>` - The result of the operation
-    #[allow(clippy::unnecessary_unwrap)]
-    #[allow(clippy::too_many_arguments)]
-    pub async fn start_kafka_background_poll(
-        message_handler: MessageHandler,
-        settings: &KafkaSettings,
-    ) -> Result<(), EventError> {
-        let consumer = create_kafka_consumer(settings, None).await.unwrap();
-
-        loop {
-            if let Err(e) = stream_from_kafka_topic(&message_handler, &consumer)
-                .instrument(span!(Level::INFO, "Kafka Consumer"))
-                .await
-            {
-                error!("Error in stream_from_kafka_topic: {:?}", e);
-            }
-        }
+        Ok(Some(records))
     }
 }

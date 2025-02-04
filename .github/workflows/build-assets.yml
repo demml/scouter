@@ -14,7 +14,7 @@ on:
 
 env:
   INTERPRETER: "3.12"
-  RUSTFLAGS: "-C debuginfo=0 -C target-feature=+crt-static"
+  RUSTFLAGS: "-C debuginfo=0"
 
 jobs:
   build:
@@ -67,7 +67,7 @@ jobs:
           sudo apt-get update -y
           sudo apt-get install
 
-      - name: Build Binaries with static linking
+      - name: Build Binaries
         run: cargo build -p scouter-server --release --target ${{ matrix.target }} --features ${{ matrix.feature }}
 
       - name: Zip MacOS binaries
@@ -139,10 +139,6 @@ jobs:
             feature: "kafka"
           - image: "ubuntu"
             feature: "rabbitmq"
-#          - image: "alpine"
-#            feature: "kafka"
-#          - image: "alpine"
-#            feature: "rabbitmq" 
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4

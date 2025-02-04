@@ -14,13 +14,10 @@ use rdkafka::{
     ClientConfig,
 };
 
-#[cfg(feature = "kafka")]
-use scouter_events::consumer::kafka::startup_kafka;
-
 trait KafkaSetup {
     async fn start_background_producer(&self);
 
-    async fn start_background_consumer(&self);
+    //async fn start_background_consumer(&self) -> tokio::sync::watch::Sender<()>;
 }
 
 impl KafkaSetup for TestHelper {
@@ -74,18 +71,26 @@ impl KafkaSetup for TestHelper {
         });
     }
 
-    async fn start_background_consumer(&self) {
-        //let settings = self.config.kafka_settings.as_ref().unwrap();
-        //
-        //let consumer = create_kafka_consumer(&settings, None).await.unwrap();
-        //let msg_handler = MessageHandler::Postgres(self.db_client.clone());
-        //
-        //(consumer, msg_handler)
-        #[cfg(feature = "kafka")]
-        startup_kafka(&self.db_client.pool, &self.config)
-            .await
-            .unwrap();
-    }
+    //async fn start_background_consumer(&self) -> tokio::sync::watch::Sender<()> {
+    //    //let settings = self.config.kafka_settings.as_ref().unwrap();
+    //    //
+    //    //let consumer = create_kafka_consumer(&settings, None).await.unwrap();
+    //    //let msg_handler = MessageHandler::Postgres(self.db_client.clone());
+    //    //
+    //    //(consumer, msg_handler)
+    //    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(());
+    //    let kafka_settings = self.config.kafka_settings.as_ref().unwrap().clone();
+    //    let db_settings = self.config.database_settings.clone();
+    //    let db_pool = self.db_client.pool.clone();
+    //
+    //    KafkaConsumerManager::start_workers(&kafka_settings, &db_settings, &db_pool, shutdown_rx)
+    //        .await
+    //        .unwrap();
+    //
+    //    // Store or use the manager and sender as needed
+    //
+    //    shutdown_tx
+    //}
 }
 
 #[tokio::main]
@@ -96,7 +101,6 @@ async fn main() {
     let helper = TestHelper::new().await;
 
     helper.start_background_producer().await;
-    helper.start_background_consumer().await;
 
     let start = Instant::now();
 
@@ -119,8 +123,4 @@ async fn main() {
             break;
         }
     }
-
-    //startup_kafka(&helper.db_client.pool, &helper.config).await.unwrap();
-
-    //helper.populate_kafka().await.unwrap();
 }

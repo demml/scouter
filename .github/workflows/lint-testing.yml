@@ -36,6 +36,20 @@ jobs:
         env:
           RUST_BACKTRACE: 1
 
+      - name: Setup Server
+        run: make start.server
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Test Events
+        run: make test.events
+        env:
+          RUST_BACKTRACE: 1
+
+      - name: Stop Server
+        if: always()
+        run: make stop.server
+
   test-os:
     name: test ${{ matrix.os }}-${{ matrix.python-version }}
 
@@ -175,7 +189,10 @@ jobs:
 
       - name: Run tests
         working-directory: ./py-scouter
-        run: make test.integration
+        run: |
+          make test.integration.queue
+          make test.integration.api
+          make test.integration.producer
 
       - name: Stop Containers
         if: always()

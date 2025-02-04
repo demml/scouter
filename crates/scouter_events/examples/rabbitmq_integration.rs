@@ -8,9 +8,6 @@ use std::time::{Duration, Instant};
 use utils::TestHelper;
 
 #[cfg(feature = "rabbitmq")]
-use scouter_events::consumer::rabbitmq::startup_rabbitmq;
-
-#[cfg(feature = "rabbitmq")]
 use lapin::{
     options::{BasicPublishOptions, QueueDeclareOptions},
     types::FieldTable,
@@ -20,7 +17,7 @@ use lapin::{
 trait RabbitMQSetup {
     async fn start_background_producer(&self);
 
-    async fn start_background_consumer(&self);
+    //async fn start_background_consumer(&self);
 }
 
 impl RabbitMQSetup for TestHelper {
@@ -75,18 +72,23 @@ impl RabbitMQSetup for TestHelper {
         });
     }
 
-    async fn start_background_consumer(&self) {
-        //let settings = self.config.kafka_settings.as_ref().unwrap();
-        //
-        //let consumer = create_kafka_consumer(&settings, None).await.unwrap();
-        //let msg_handler = MessageHandler::Postgres(self.db_client.clone());
-        //
-        //(consumer, msg_handler)
-
-        startup_rabbitmq(&self.db_client.pool, &self.config)
-            .await
-            .unwrap();
-    }
+    //async fn start_background_consumer(&self) {
+    //    //let settings = self.config.kafka_settings.as_ref().unwrap();
+    //    //
+    //    //let consumer = create_kafka_consumer(&settings, None).await.unwrap();
+    //    //let msg_handler = MessageHandler::Postgres(self.db_client.clone());
+    //    //
+    //    //(consumer, msg_handler)
+    //    let (_shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(());
+    //    RabbitMQConsumerManager::start_workers(
+    //        &self.config.rabbitmq_settings.as_ref().unwrap().clone(),
+    //        &self.config.database_settings.clone(),
+    //        &self.db_client.pool,
+    //        shutdown_rx,
+    //    )
+    //    .await
+    //    .unwrap();
+    //}
 }
 
 #[tokio::main]
@@ -97,7 +99,7 @@ async fn main() {
     let helper = TestHelper::new().await;
 
     helper.start_background_producer().await;
-    helper.start_background_consumer().await;
+    //helper.start_background_consumer().await;
 
     let start = Instant::now();
 

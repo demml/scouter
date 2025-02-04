@@ -1,72 +1,36 @@
 pub mod api;
 
 use crate::api::middleware::metrics::metrics_app;
+use crate::api::poller::BackgroundPollManager;
 use crate::api::setup::setup_logging;
+use crate::api::shutdown::{shutdown_metric_signal, shutdown_signal};
 use crate::api::state::AppState;
 use anyhow::Context;
 use api::router::create_router;
 use axum::Router;
-use scouter_drift::DriftExecutor;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::PostgresClient;
 use std::sync::Arc;
-use tracing::{debug, error, info, span, Instrument, Level};
+use tracing::info;
 
 #[cfg(feature = "kafka")]
-use scouter_events::consumer::kafka::startup_kafka;
+use scouter_events::consumer::kafka::KafkaConsumerManager;
 
 #[cfg(feature = "rabbitmq")]
-use scouter_events::consumer::rabbitmq::startup_rabbitmq;
+use scouter_events::consumer::rabbitmq::RabbitMQConsumerManager;
 
 /// Start the metrics server for prometheus
 async fn start_metrics_server() -> Result<(), anyhow::Error> {
     let app = metrics_app().with_context(|| "Failed to setup metrics app")?;
 
-    // NOTE: expose metrics endpoint on a different port
-    let listener = tokio::net::TcpListener::bind("0.0.0.0:8001")
+    let listener = tokio::net::TcpListener::bind("0.0.0.0:3001")
         .await
-        .with_context(|| "Failed to bind to port 8001 for metrics server")?;
+        .with_context(|| "Failed to bind to port 3001 for metrics server")?;
+
     axum::serve(listener, app)
+        .with_graceful_shutdown(shutdown_metric_signal())
         .await
         .with_context(|| "Failed to start metrics server")?;
-
-    Ok(())
-}
-
-/// Setup drift polling workers
-///
-/// This function will start a number of drift polling workers based on the number of workers
-///
-/// # Arguments
-///
-/// * `config` - The server configuration
-///
-async fn setup_polling_workers(config: &ScouterServerConfig) -> Result<(), anyhow::Error> {
-    for i in 0..config.polling_settings.num_workers {
-        info!("Starting drift schedule poller: {}", i);
-
-        let db_settings = config.database_settings.clone();
-        let db_client = PostgresClient::new(None, Some(&db_settings))
-            .await
-            .with_context(|| "Failed to create Postgres client")?;
-
-        let future = async move {
-            let mut drift_executor = DriftExecutor::new(db_client);
-
-            debug!("Starting drift executor");
-            loop {
-                if let Err(e) = drift_executor
-                    .poll_for_tasks()
-                    .instrument(span!(Level::INFO, "Poll"))
-                    .await
-                {
-                    error!("Alert poller error: {:?}", e);
-                }
-            }
-        };
-
-        tokio::spawn(future.instrument(span!(Level::INFO, "Background")));
-    }
 
     Ok(())
 }
@@ -82,7 +46,7 @@ async fn setup_polling_workers(config: &ScouterServerConfig) -> Result<(), anyho
 /// # Returns
 ///
 /// The main server router
-async fn create_app(config: ScouterServerConfig) -> Result<Router, anyhow::Error> {
+async fn create_app(config: ScouterServerConfig) -> Result<(Router, Arc<AppState>), anyhow::Error> {
     // setup logging, soft fail if it fails
     let _ = setup_logging().await.is_ok();
 
@@ -92,26 +56,56 @@ async fn create_app(config: ScouterServerConfig) -> Result<Router, anyhow::Error
         .await
         .with_context(|| "Failed to create Postgres client")?;
 
+    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(());
+
     // setup background kafka task if kafka is enabled
     #[cfg(feature = "kafka")]
     if config.kafka_enabled() {
-        startup_kafka(&db_client.pool, &config).await?;
+        let kafka_settings = &config.kafka_settings.as_ref().unwrap().clone();
+        KafkaConsumerManager::start_workers(
+            kafka_settings,
+            &config.database_settings,
+            &db_client.pool,
+            shutdown_rx.clone(),
+        )
+        .await?;
+        info!("✅ Started Kafka workers");
     }
 
     // setup background rabbitmq task if rabbitmq is enabled
     #[cfg(feature = "rabbitmq")]
     if config.rabbitmq_enabled() {
-        startup_rabbitmq(&db_client.pool, &config).await?;
+        let rabbit_settings = &config.rabbitmq_settings.as_ref().unwrap().clone();
+        RabbitMQConsumerManager::start_workers(
+            rabbit_settings,
+            &config.database_settings,
+            &db_client.pool,
+            shutdown_rx.clone(),
+        )
+        .await?;
+        info!("✅ Started RabbitMQ workers");
     }
 
     // ##################### run drift polling background tasks #####################
-    setup_polling_workers(&config).await?;
+    BackgroundPollManager::start_workers(
+        &db_client.pool,
+        &config.polling_settings,
+        &config.database_settings,
+        shutdown_rx,
+    )
+    .await?;
+    info!("✅ Started drift workers");
 
-    let router = create_router(Arc::new(AppState { db: db_client }))
+    let app_state = Arc::new(AppState {
+        db: db_client,
+        shutdown_tx,
+    });
+
+    let router = create_router(app_state.clone())
         .await
         .with_context(|| "Failed to create router")?;
 
-    Ok(router)
+    Ok((router, app_state))
 }
 
 /// Start the main server
@@ -122,13 +116,14 @@ async fn start_main_server() -> Result<(), anyhow::Error> {
         .await
         .with_context(|| "Failed to bind to port 8000")?;
 
-    let router = create_app(config).await?;
+    let (router, app_state) = create_app(config).await?;
 
     info!(
         "🚀 Scouter Server started successfully on {:?}",
         addr.clone().to_string()
     );
     axum::serve(listener, router)
+        .with_graceful_shutdown(shutdown_signal(app_state.clone()))
         .await
         .with_context(|| "Failed to start main server")?;
 
@@ -223,7 +218,7 @@ mod tests {
             let mut config = ScouterServerConfig::default();
             config.polling_settings.num_workers = 1;
 
-            let app = create_app(config.clone()).await?;
+            let (app, _app_state) = create_app(config.clone()).await?;
 
             let db_client = PostgresClient::new(None, None)
                 .await
