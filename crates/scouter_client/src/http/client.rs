@@ -1,12 +1,17 @@
 use pyo3::{prelude::*, IntoPyObjectExt};
-use scouter_contracts::{DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest};
+use scouter_contracts::{
+    DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
+};
 use scouter_error::{PyScouterError, ScouterError};
 use scouter_events::producer::http::{HTTPClient, HTTPConfig, RequestType, Routes};
 use scouter_types::{
     alert::Alert, custom::BinnedCustomMetrics, psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures,
-    DriftType,
+    DriftType, ProfileFuncs,
 };
+use std::path::PathBuf;
 use tracing::{debug, error};
+
+pub const DOWNLOAD_CHUNK_SIZE: usize = 1024 * 1024 * 5;
 
 #[pyclass]
 pub struct ScouterClient {
@@ -171,7 +176,7 @@ impl ScouterClient {
             return Err(PyScouterError::new_err(format!(
                 "Failed to get drift data. Status: {:?}",
                 response.status()
-            )))?
+            )))?;
         } else {
             let body: serde_json::Value = response.json().map_err(|e| {
                 error!(
@@ -191,12 +196,22 @@ impl ScouterClient {
                 ScouterError::Error(e.to_string())
             })?;
 
-            return Ok(results)
+            return Ok(results);
         }
     }
 
-    pub fn download_profile(&mut self, request: GetProfileRequest )-> PyResult<String> {
+    #[pyo3(signature = (request, path))]
+    pub fn download_profile(
+        &mut self,
+        request: GetProfileRequest,
+        path: Option<PathBuf>,
+    ) -> PyResult<String> {
         debug!("Downloading profile: {:?}", request);
+
+        let filename = format!(
+            "{}_{}_{}_{}.json",
+            request.name, request.repository, request.version, request.drift_type
+        );
 
         let query_string =
             serde_qs::to_string(&request).map_err(|e| PyScouterError::new_err(e.to_string()))?;
@@ -226,18 +241,10 @@ impl ScouterClient {
                 PyScouterError::new_err(e.to_string())
             })?;
 
-            let data = body.get("data").unwrap().to_owned();
+            ProfileFuncs::save_to_json(body, path.clone(), &filename)?;
+        };
 
-            let results: String = serde_json::from_value(data).map_err(|e| {
-                error!(
-                    "Failed to parse drift response for {:?}. Error: {:?}",
-                    &request.name, e
-                );
-                ScouterError::Error(e.to_string())
-            })?;
-
-            Ok(results)
-        }
+        Ok(path.map_or(filename, |p| p.to_string_lossy().to_string()))
     }
 }
 

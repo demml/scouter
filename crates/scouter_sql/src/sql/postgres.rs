@@ -727,7 +727,7 @@ impl PostgresClient {
         params: &ProfileStatusRequest,
     ) -> Result<(), SqlError> {
         let query = Queries::UpdateDriftProfileStatus.get_query();
-       
+
         // convert drift_type to string or None
         let query_result = sqlx::query(&query.sql)
             .bind(params.active)
@@ -738,7 +738,6 @@ impl PostgresClient {
             .execute(&self.pool)
             .await;
 
-      
         match query_result {
             Ok(_) => Ok(()),
             Err(e) => {

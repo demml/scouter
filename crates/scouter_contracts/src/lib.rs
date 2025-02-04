@@ -67,7 +67,13 @@ pub struct ProfileStatusRequest {
 impl ProfileStatusRequest {
     #[new]
     #[pyo3(signature = (name, repository, version, drift_type=None, active=false))]
-    pub fn new(name: String, repository: String, version: String, drift_type: Option<DriftType>,  active: bool, ) -> Self {
+    pub fn new(
+        name: String,
+        repository: String,
+        version: String,
+        drift_type: Option<DriftType>,
+        active: bool,
+    ) -> Self {
         ProfileStatusRequest {
             name,
             repository,

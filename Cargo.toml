@@ -37,7 +37,6 @@ scouter-types = { path = "crates/scouter_types" }
 anyhow = "1.*"
 axum = "0.*"
 approx = "0.*"
-
 chrono ={ version = "0.*", features = ["serde"] }
 colored_json = "*"
 cron = "0.*"
@@ -60,7 +59,7 @@ num-traits = "0.*"
 pyo3 = { version = ">=0.23.3, <1.0.0", features = ["chrono", "anyhow", "extension-module"] }
 rand = "0.*"
 rayon = "1.*"
-reqwest = { version = "0.12.*", features = ["json", "stream", "multipart", "rustls-tls", "rustls-tls-native-roots", "blocking" ], default-features = false }
+reqwest = { version = "0.12.*", features = ["json", "multipart", "rustls-tls", "rustls-tls-native-roots", "blocking" ], default-features = false }
 rusty-logging="0.*"
 serde = { version = "1.*", features = ["derive"] }
 serde_json = "1.*"

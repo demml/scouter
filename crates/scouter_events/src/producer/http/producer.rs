@@ -1,10 +1,7 @@
 use crate::producer::http::types::{HTTPConfig, JwtToken, RequestType, Routes};
 
 use reqwest::blocking::{Client as BlockingClient, Response};
-use reqwest::{
-    header::{HeaderMap, HeaderValue},
-    Client,
-};
+use reqwest::header::{HeaderMap, HeaderValue};
 use scouter_error::ScouterError;
 use scouter_types::ServerRecords;
 use serde_json::Value;
@@ -36,7 +33,7 @@ impl HTTPClient {
         let mut api_client = HTTPClient { client, config };
 
         if api_client.config.use_auth {
-            api_client.get_jwt_token();
+            api_client.get_jwt_token()?;
 
             // mask the username and password
             api_client.config.username = REDACTED.to_string();
