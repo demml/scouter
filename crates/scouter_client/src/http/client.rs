@@ -173,10 +173,10 @@ impl ScouterClient {
         )?;
 
         if response.status().is_client_error() || response.status().is_server_error() {
-            return Err(PyScouterError::new_err(format!(
+            Err(PyScouterError::new_err(format!(
                 "Failed to get drift data. Status: {:?}",
                 response.status()
-            )))?;
+            )))?
         } else {
             let body: serde_json::Value = response.json().map_err(|e| {
                 error!(
@@ -196,7 +196,7 @@ impl ScouterClient {
                 ScouterError::Error(e.to_string())
             })?;
 
-            return Ok(results);
+            Ok(results)
         }
     }
 
