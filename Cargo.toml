@@ -72,7 +72,6 @@ tower-http = { version = "0.*", features = ["cors"] }
 tracing = "0.*"
 tracing-subscriber = {version = "0.*", features = ["json", "time"]}
 
-
 # RabbitMQ dependencies
 lapin = { version = "2.*" }
 
