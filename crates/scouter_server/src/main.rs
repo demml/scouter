@@ -427,6 +427,7 @@ mod tests {
             repository: profile.config.repository.clone(),
             version: profile.config.version.clone(),
             active: true,
+            drift_type: None,
         };
 
         let body = serde_json::to_string(&request).unwrap();

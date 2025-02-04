@@ -16,10 +16,13 @@ use tracing::error;
 use crate::api::state::AppState;
 use anyhow::{Context, Result};
 use axum::{
-    routing::{post, put},
+    routing::{post, put, get},
     Router,
 };
 use std::panic::{catch_unwind, AssertUnwindSafe};
+use axum::response::Response;
+use axum::body::Body;
+use tokio_util::io::ReaderStream;
 
 pub async fn insert_drift_profile(
     State(data): State<Arc<AppState>>,
@@ -118,7 +121,7 @@ pub async fn update_drift_profile(
 /// * `Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)>` - Result of the request
 pub async fn get_profile(
     State(data): State<Arc<AppState>>,
-    params: Query<GetProfileRequest>,
+    Query(params): Query<GetProfileRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     let profile = &data.db.get_drift_profile(&params).await;
 
@@ -143,6 +146,36 @@ pub async fn get_profile(
         }
     }
 }
+
+pub async fn download_profile(
+    State(data): State<Arc<AppState>>,
+    Query(params): Query<GetProfileRequest>,
+) -> Response<Body> {
+
+    let profile = &data.db.get_drift_profile(&params).await;
+
+    match profile {
+        Ok(Some(result)) => {
+            // valie into stream
+            let vec = serde_json::to_vec(&result).unwrap();
+            let buf_reader = tokio::io::BufReader::new(std::io::Cursor::new(vec));
+            let stream = ReaderStream::new(buf_reader);
+            let body = Body::from_stream(stream);
+            return (StatusCode::OK, body).into_response();
+
+        },
+        Ok(None) => {
+            return (StatusCode::NOT_FOUND, Body::empty()).into_response();
+        },
+        Err(e) => {
+            error!("Failed to query drift profile: {:?}", e);
+            return (StatusCode::INTERNAL_SERVER_ERROR, Body::empty()).into_response();
+        }
+    }
+
+   
+}
+
 
 /// Update drift profile status
 ///
@@ -196,6 +229,9 @@ pub async fn get_profile_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
             .route(
                 &format!("{}/profile/status", prefix),
                 put(update_drift_profile_status),
+            ).route(
+                &format!("{}/profile/download", prefix),
+                get(download_profile),
             )
     }));
 
