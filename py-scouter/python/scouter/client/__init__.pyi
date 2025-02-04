@@ -1,6 +1,6 @@
 import datetime
-from typing import Any, Dict, List, Optional
 from pathlib import Path
+from typing import Any, Dict, List, Optional
 
 from ..types import DriftType
 
