@@ -86,4 +86,4 @@ build.shutdown_backends:
 
 .PHONE: stop.server
 stop.server: build.shutdown_backends
-	lsof -ti:8000 | xargs kill -9
+    @pids=$(lsof -ti:8000) && if [ -n "$$pids" ]; then kill -9 $$pids; fi
