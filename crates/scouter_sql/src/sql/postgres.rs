@@ -727,15 +727,18 @@ impl PostgresClient {
         params: &ProfileStatusRequest,
     ) -> Result<(), SqlError> {
         let query = Queries::UpdateDriftProfileStatus.get_query();
-
+       
+        // convert drift_type to string or None
         let query_result = sqlx::query(&query.sql)
             .bind(params.active)
             .bind(&params.name)
             .bind(&params.repository)
             .bind(&params.version)
+            .bind(params.drift_type.as_ref().map(|t| t.to_string()))
             .execute(&self.pool)
             .await;
 
+      
         match query_result {
             Ok(_) => Ok(()),
             Err(e) => {
@@ -1108,6 +1111,7 @@ mod tests {
                 repository: spc_profile.config.repository.clone(),
                 version: spc_profile.config.version.clone(),
                 active: false,
+                drift_type: Some(DriftType::Spc),
             })
             .await
             .unwrap();

@@ -2565,7 +2565,7 @@ dependencies = [
 
 [[package]]
 name = "py-scouter"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "ndarray-stats",
  "num-traits",
@@ -2911,6 +2911,7 @@ checksum = "a77c62af46e79de0a562e1a9849205ffcb7fc1238876e9bd743357570e04046f"
 dependencies = [
  "base64",
  "bytes",
+ "futures-channel",
  "futures-core",
  "futures-util",
  "http",
@@ -3191,7 +3192,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scouter-client"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "chrono",
  "ndarray",
@@ -3216,7 +3217,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-contracts"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "chrono",
  "pyo3",
@@ -3227,7 +3228,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-dispatch"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "futures",
  "mockito",
@@ -3243,7 +3244,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-drift"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "approx",
  "chrono",
@@ -3274,16 +3275,16 @@ dependencies = [
 
 [[package]]
 name = "scouter-error"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "pyo3",
  "serde",
- "thiserror 1.0.65",
+ "thiserror 2.0.11",
 ]
 
 [[package]]
 name = "scouter-events"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "chrono",
  "futures",
@@ -3309,7 +3310,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-observability"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "itertools",
  "ndarray",
@@ -3326,7 +3327,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-profile"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "approx",
  "chrono",
@@ -3350,7 +3351,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-server"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "anyhow",
  "approx",
@@ -3388,7 +3389,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-settings"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "scouter-error",
  "serde",
@@ -3396,7 +3397,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-sql"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "anyhow",
  "chrono",
@@ -3420,7 +3421,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-types"
-version = "0.4.4"
+version = "0.4.5"
 dependencies = [
  "chrono",
  "colored_json",
