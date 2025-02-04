@@ -11,7 +11,7 @@ use axum::{
 
 use serde_json::json;
 use std::sync::Arc;
-use tracing::error;
+use tracing::{debug, error, instrument};
 
 use crate::api::state::AppState;
 use anyhow::{Context, Result};
@@ -116,10 +116,12 @@ pub async fn update_drift_profile(
 /// # Returns
 ///
 /// * `Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)>` - Result of the request
+#[instrument(skip(data, params))]
 pub async fn get_profile(
     State(data): State<Arc<AppState>>,
     Query(params): Query<GetProfileRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    debug!("Getting drift profile: {:?}", &params);
     let profile = &data.db.get_drift_profile(&params).await;
 
     match profile {
@@ -154,10 +156,13 @@ pub async fn get_profile(
 /// # Returns
 ///
 /// * `Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)>` - Result of the request
+#[instrument(skip(data, body))]
 pub async fn update_drift_profile_status(
     State(data): State<Arc<AppState>>,
     Json(body): Json<ProfileStatusRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    debug!("Updating drift profile status: {:?}", &body);
+
     let query_result = &data.db.update_drift_profile_status(&body).await;
 
     match query_result {

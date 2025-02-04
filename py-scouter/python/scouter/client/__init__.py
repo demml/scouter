@@ -16,6 +16,7 @@ HTTPConfig = client.HTTPConfig
 ProfileStatusRequest = client.ProfileStatusRequest
 Alert = client.Alert
 DriftAlertRequest = client.DriftAlertRequest
+GetProfileRequest = client.GetProfileRequest
 
 __all__ = [
     "TimeInterval",
@@ -32,4 +33,5 @@ __all__ = [
     "ProfileStatusRequest",
     "Alert",
     "DriftAlertRequest",
+    "GetProfileRequest",
 ]

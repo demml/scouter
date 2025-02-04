@@ -18,13 +18,16 @@ use scouter_types::{
 use serde_json::json;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
-use tracing::{debug, error};
+use tracing::{debug, error, instrument};
 
+#[instrument(skip(data, params))]
 pub async fn get_spc_drift(
     State(data): State<Arc<AppState>>,
     Query(params): Query<DriftRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // validate time window
+
+    debug!("Querying drift records: {:?}", params);
 
     let query_result = &data.db.get_binned_spc_drift_records(&params).await;
 
@@ -45,10 +48,13 @@ pub async fn get_spc_drift(
 }
 
 /// Common method used in both the get_psi_drift and get_psi_viz_drift routes
+#[instrument(skip(params, db))]
 async fn get_binned_psi_feature_metrics(
     params: &DriftRequest,
     db: &PostgresClient,
 ) -> Result<BinnedPsiFeatureMetrics, ScouterError> {
+    debug!("Querying drift records: {:?}", params);
+
     let profile_request = GetProfileRequest {
         name: params.name.clone(),
         repository: params.repository.clone(),
@@ -72,12 +78,13 @@ async fn get_binned_psi_feature_metrics(
 /// This route is used to get the drift data for the PSI visualization
 ///
 /// The route will both psi calculations for each feature and time interval as well as overall bin proportions
+#[instrument(skip(data, params))]
 pub async fn get_psi_drift(
     State(data): State<Arc<AppState>>,
     Query(params): Query<DriftRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // validate time window
-
+    debug!("Querying drift records: {:?}", params);
     let feature_metrics = get_binned_psi_feature_metrics(&params, &data.db).await;
 
     match feature_metrics {
@@ -96,11 +103,14 @@ pub async fn get_psi_drift(
     }
 }
 
+#[instrument(skip(data, params))]
 pub async fn get_custom_drift(
     State(data): State<Arc<AppState>>,
     Query(params): Query<DriftRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // validate time window
+
+    debug!("Querying drift records: {:?}", params);
 
     let metrics = data.db.get_binned_custom_drift_records(&params).await;
 
@@ -120,6 +130,7 @@ pub async fn get_custom_drift(
     }
 }
 
+#[instrument(skip(records, db))]
 async fn insert_spc_drift(
     records: &ServerRecords,
     db: &PostgresClient,
@@ -127,12 +138,16 @@ async fn insert_spc_drift(
     let records = records.to_spc_drift_records()?;
 
     for record in records {
-        let _ = db.insert_spc_drift_record(&record).await?;
+        let _ = db.insert_spc_drift_record(&record).await.map_err(|e| {
+            error!("Failed to insert drift record: {:?}", e);
+            ScouterError::Error(format!("Failed to insert drift record: {:?}", e))
+        })?;
     }
 
     Ok(())
 }
 
+#[instrument(skip(records, db))]
 async fn insert_psi_drift(
     records: &ServerRecords,
     db: &PostgresClient,
@@ -140,12 +155,16 @@ async fn insert_psi_drift(
     let records = records.to_psi_drift_records()?;
 
     for record in records {
-        let _ = db.insert_bin_counts(&record).await?;
+        let _ = db.insert_bin_counts(&record).await.map_err(|e| {
+            error!("Failed to insert drift record: {:?}", e);
+            ScouterError::Error(format!("Failed to insert drift record: {:?}", e))
+        })?;
     }
 
     Ok(())
 }
 
+#[instrument(skip(records, db))]
 async fn insert_custom_drift(
     records: &ServerRecords,
     db: &PostgresClient,
@@ -153,11 +172,16 @@ async fn insert_custom_drift(
     let records = records.to_custom_metric_drift_records()?;
 
     for record in records {
-        let _ = db.insert_custom_metric_value(&record).await?;
+        let _ = db.insert_custom_metric_value(&record).await.map_err(|e| {
+            error!("Failed to insert drift record: {:?}", e);
+            ScouterError::Error(format!("Failed to insert drift record: {:?}", e))
+        })?;
     }
 
     Ok(())
 }
+
+#[instrument(skip(body, data))]
 pub async fn insert_drift(
     State(data): State<Arc<AppState>>,
     Json(body): Json<ServerRecords>,

@@ -1,5 +1,6 @@
 import datetime
 from typing import Any, Dict, List, Optional
+from pathlib import Path
 
 from ..types import DriftType
 
@@ -96,6 +97,21 @@ class ProfileStatusRequest:
                 Whether to set the profile as active or inactive
         """
 
+class GetProfileRequest:
+    def __init__(self, name: str, repository: str, version: str, drift_type: DriftType) -> None:
+        """Initialize get profile request
+
+        Args:
+            name:
+                Profile name
+            repository:
+                Profile repository
+            version:
+                Profile version
+            drift_type:
+                Profile drift type. A (repo/name/version can be associated with more than one drift type)
+        """
+
 class Alert:
     created_at: datetime.datetime
     name: str
@@ -189,6 +205,19 @@ class ScouterClient:
 
         Returns:
             List[Alert]
+        """
+
+    def download_profile(self, request: GetProfileRequest, path: Optional[Path]) -> str:
+        """Download profile
+
+        Args:
+            request:
+                GetProfileRequest
+            path:
+                Path to save profile
+
+        Returns:
+            Path to downloaded profile
         """
 
 class BinnedCustomMetricStats:

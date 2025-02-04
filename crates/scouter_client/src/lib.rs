@@ -32,7 +32,9 @@ pub use scouter_types::{
 
 pub use crate::http::ScouterClient;
 pub use queue::{DriftTransportConfig, ScouterQueue};
-pub use scouter_contracts::{DriftAlertRequest, DriftRequest, ProfileStatusRequest};
+pub use scouter_contracts::{
+    DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileStatusRequest,
+};
 pub use scouter_drift::{
     custom::CustomMetricFeatureQueue,
     psi::{PsiFeatureQueue, PsiMonitor},

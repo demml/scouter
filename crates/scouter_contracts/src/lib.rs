@@ -13,6 +13,20 @@ pub struct GetProfileRequest {
     pub drift_type: DriftType,
 }
 
+#[pymethods]
+impl GetProfileRequest {
+    #[new]
+    #[pyo3(signature = (name, repository, version, drift_type))]
+    pub fn new(name: String, repository: String, version: String, drift_type: DriftType) -> Self {
+        GetProfileRequest {
+            name,
+            repository,
+            version,
+            drift_type,
+        }
+    }
+}
+
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRequest {
