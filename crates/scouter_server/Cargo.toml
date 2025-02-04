@@ -13,7 +13,7 @@ description = "Rust Scouter server logic"
 
 [dependencies]
 scouter-error = { workspace = true }
-scouter-events = { workspace = true, features = ["kafka", "rabbitmq", "sql"], default-features = false }
+scouter-events = { workspace = true, features = ["kafka", "rabbitmq", "sql"], default-features = false } 
 scouter-types = { workspace = true }
 scouter-contracts = { workspace = true }
 scouter-dispatch = { workspace = true }
