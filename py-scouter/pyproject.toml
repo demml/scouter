@@ -7,9 +7,12 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
 dynamic = ["version"]
-version = "0.4.4"
+version = "0.4.5"
 description = ""
-authors = [{name = "Thorrester", email = "<support@demmlai.com>"}]
+authors = [
+    {name = "Thorrester", email = "<support@demmlai.com>"},
+    {name = "russellkemmit", email = "<support@demmlai.com>"}
+]
 readme = "README.md"
 dependencies = []
 

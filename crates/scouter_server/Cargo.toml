@@ -13,7 +13,7 @@ description = "Rust Scouter server logic"
 
 [dependencies]
 scouter-error = { workspace = true }
-scouter-events = { workspace = true, features = ["kafka", "rabbitmq", "sql"], default-features = false }
+scouter-events = { workspace = true, features = ["kafka", "rabbitmq", "sql"], default-features = false } 
 scouter-types = { workspace = true }
 scouter-contracts = { workspace = true }
 scouter-dispatch = { workspace = true }
@@ -52,6 +52,7 @@ tower = { version = "0.*", features = ["util"] }
 
 [features]
 default = []
+kafka-vendored = ["scouter-events/kafka-vendored"]
 kafka = ["scouter-events/kafka"]
 rabbitmq = ["scouter-events/rabbitmq"]
 

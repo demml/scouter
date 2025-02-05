@@ -6,7 +6,6 @@ on:
       - main
       - master
   pull_request:
-
 permissions:
   contents: read
 
@@ -190,9 +189,7 @@ jobs:
       - name: Run tests
         working-directory: ./py-scouter
         run: |
-          make test.integration.queue
-          make test.integration.api
-          make test.integration.producer
+          make test.integration
 
       - name: Stop Containers
         if: always()

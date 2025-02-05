@@ -9,6 +9,7 @@ use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use scouter_error::{PyScouterError, ScouterError};
 use serde::{Deserialize, Serialize};
+use std::fmt::Display;
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -52,6 +53,16 @@ impl FromStr for DriftType {
             "psi" => Ok(DriftType::Psi),
             "custom" => Ok(DriftType::Custom),
             _ => Err(ScouterError::InvalidDriftTypeError(value.to_string())),
+        }
+    }
+}
+
+impl Display for DriftType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DriftType::Spc => write!(f, "Spc"),
+            DriftType::Psi => write!(f, "Psi"),
+            DriftType::Custom => write!(f, "Custom"),
         }
     }
 }

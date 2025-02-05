@@ -31,10 +31,8 @@ tokio = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 
-
 # RabbitMQ dependencies
 lapin = { workspace = true, optional = true }
-
 
 [target.'cfg(not(target_os = "windows"))'.dependencies]
 rdkafka = { version = "0.*", features = ["cmake-build", "ssl"] , optional = true}
@@ -42,9 +40,11 @@ rdkafka = { version = "0.*", features = ["cmake-build", "ssl"] , optional = true
 [target.'cfg(target_os = "windows")'.dependencies]
 rdkafka = { version = "0.*", features = ["cmake-build", "ssl-vendored"] , optional = true}
 
+
 [features]
 default = ["sql"]
 kafka = ["rdkafka"]
+kafka-vendored = ["rdkafka/cmake-build", "rdkafka/ssl-vendored"]
 rabbitmq = ["lapin"]
 sql = ["scouter-sql", "sqlx"]
 

@@ -24,6 +24,7 @@ pub enum Routes {
     Profile,
     ProfileStatus,
     Alerts,
+    DownloadProfile,
 }
 
 impl Routes {
@@ -37,6 +38,7 @@ impl Routes {
             Routes::PsiDrift => "drift/psi",
             Routes::CustomDrift => "drift/custom",
             Routes::ProfileStatus => "profile/status",
+            Routes::DownloadProfile => "profile/download",
             Routes::Alerts => "alerts",
         }
     }

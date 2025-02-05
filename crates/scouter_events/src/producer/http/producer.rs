@@ -1,12 +1,8 @@
 use crate::producer::http::types::{HTTPConfig, JwtToken, RequestType, Routes};
 
+use reqwest::header::{HeaderMap, HeaderValue};
+use reqwest::{Client, Response};
 use scouter_error::ScouterError;
-
-use reqwest::Response;
-use reqwest::{
-    header::{HeaderMap, HeaderValue},
-    Client,
-};
 use scouter_types::ServerRecords;
 use serde_json::Value;
 use tracing::debug;
@@ -205,7 +201,10 @@ impl HTTPClient {
                     query_params.clone(),
                     headers.clone(),
                 )
-                .await;
+                .await
+                .map_err(|e| {
+                    ScouterError::Error(format!("Failed to send request with error: {}", e))
+                });
 
             if response.is_ok() || attempts >= max_attempts {
                 break;
@@ -258,7 +257,7 @@ impl HTTPProducer {
         Ok(())
     }
 
-    pub fn flush(&self) -> Result<(), ScouterError> {
+    pub async fn flush(&self) -> Result<(), ScouterError> {
         Ok(())
     }
 }

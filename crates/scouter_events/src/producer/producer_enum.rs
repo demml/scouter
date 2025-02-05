@@ -1,4 +1,4 @@
-#[cfg(feature = "kafka")]
+#[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
 pub use crate::producer::kafka::KafkaProducer;
 
 #[cfg(feature = "rabbitmq")]
@@ -18,7 +18,7 @@ use tracing::debug;
 pub enum ProducerEnum {
     HTTP(HTTPProducer),
 
-    #[cfg(feature = "kafka")]
+    #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
     Kafka(KafkaProducer),
 
     #[cfg(feature = "rabbitmq")]
@@ -29,7 +29,7 @@ impl ProducerEnum {
     pub async fn publish(&mut self, message: ServerRecords) -> Result<(), ScouterError> {
         match self {
             ProducerEnum::HTTP(producer) => producer.publish(message).await,
-            #[cfg(feature = "kafka")]
+            #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
             ProducerEnum::Kafka(producer) => producer.publish(message).await,
             #[cfg(feature = "rabbitmq")]
             ProducerEnum::RabbitMQ(producer) => producer.publish(message).await,
@@ -38,8 +38,8 @@ impl ProducerEnum {
 
     pub async fn flush(&self) -> Result<(), ScouterError> {
         match self {
-            ProducerEnum::HTTP(producer) => producer.flush(),
-            #[cfg(feature = "kafka")]
+            ProducerEnum::HTTP(producer) => producer.flush().await,
+            #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
             ProducerEnum::Kafka(producer) => producer.flush(),
             #[cfg(feature = "rabbitmq")]
             ProducerEnum::RabbitMQ(producer) => producer.flush().await,
@@ -71,13 +71,13 @@ impl ScouterProducer {
 
         // check for kafka config
         } else if config.is_instance_of::<KafkaConfig>() {
-            #[cfg(feature = "kafka")]
+            #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
             {
                 let config = config.extract::<KafkaConfig>()?;
                 debug!("Creating Kafka producer");
                 ProducerEnum::Kafka(KafkaProducer::new(config)?)
             }
-            #[cfg(not(feature = "kafka"))]
+            #[cfg(not(any(feature = "kafka", feature = "kafka-vendored")))]
             {
                 return Err(
                     PyScouterError::new_err("Kafka feature is not enabled".to_string()).into(),
@@ -137,13 +137,13 @@ impl RustScouterProducer {
 
         // check for kafka config
         } else if config.is_instance_of::<KafkaConfig>() {
-            #[cfg(feature = "kafka")]
+            #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
             {
                 let config = config.extract::<KafkaConfig>()?;
                 debug!("Creating Kafka producer");
                 ProducerEnum::Kafka(KafkaProducer::new(config)?)
             }
-            #[cfg(not(feature = "kafka"))]
+            #[cfg(not(any(feature = "kafka", feature = "kafka-vendored")))]
             {
                 return Err(
                     PyScouterError::new_err("Kafka feature is not enabled".to_string()).into(),
