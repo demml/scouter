@@ -154,7 +154,8 @@ impl HTTPClient {
                 .headers(headers)
                 .json(&body_params)
                 .bearer_auth(self.config.auth_token)
-                .send().await
+                .send()
+                .await
                 .map_err(|e| {
                     ScouterError::Error(format!("Failed to send request with error: {}", e))
                 })?,
@@ -165,7 +166,8 @@ impl HTTPClient {
                 .headers(headers)
                 .json(&body_params)
                 .bearer_auth(self.config.auth_token)
-                .send().await
+                .send()
+                .await
                 .map_err(|e| {
                     ScouterError::Error(format!("Failed to send request with error: {}", e))
                 })?,
@@ -198,7 +200,8 @@ impl HTTPClient {
                     body_params.clone(),
                     query_params.clone(),
                     headers.clone(),
-                ).await
+                )
+                .await
                 .map_err(|e| {
                     ScouterError::Error(format!("Failed to send request with error: {}", e))
                 });
@@ -238,13 +241,16 @@ impl HTTPProducer {
             ScouterError::Error(format!("Failed to serialize message with error: {}", e))
         })?;
 
-        let response = self.client.request_with_retry(
-            Routes::Drift,
-            RequestType::Post,
-            Some(serialized_msg),
-            None,
-            None,
-        ).await?;
+        let response = self
+            .client
+            .request_with_retry(
+                Routes::Drift,
+                RequestType::Post,
+                Some(serialized_msg),
+                None,
+                None,
+            )
+            .await?;
 
         debug!("Published message to drift with response: {:?}", response);
 

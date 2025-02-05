@@ -70,7 +70,6 @@ tempfile = "3.*"
 thiserror = "2.*"
 time = "0.*"
 tokio = { version = "1.*", features = ["rt", "rt-multi-thread", "macros", "signal"] }
-tokio-util = { version = "0.*",  features = ["codec", "io"]}
 tower-http = { version = "0.*", features = ["cors"] }
 tracing = "0.*"
 tracing-subscriber = {version = "0.*", features = ["json", "time"]}
