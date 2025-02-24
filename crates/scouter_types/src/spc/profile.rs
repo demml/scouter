@@ -297,7 +297,7 @@ impl SpcDriftProfile {
         // serialize the struct to a string
         ProfileFuncs::__json__(self)
     }
-
+    #[allow(clippy::useless_conversion)]
     pub fn model_dump(&self, py: Python) -> PyResult<Py<PyDict>> {
         let json_str = serde_json::to_string(&self).map_err(|_| ScouterError::SerializeError)?;
 

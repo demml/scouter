@@ -376,6 +376,7 @@ impl PsiDriftProfile {
         ProfileFuncs::__json__(self)
     }
     // TODO dry this out
+    #[allow(clippy::useless_conversion)]
     pub fn model_dump(&self, py: Python) -> PyResult<Py<PyDict>> {
         let json_str = serde_json::to_string(&self).map_err(|_| ScouterError::SerializeError)?;
 

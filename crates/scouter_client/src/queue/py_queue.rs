@@ -141,7 +141,10 @@ impl DriftTransportConfig {
         scouter_server_config: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
         // if drift_profile_path, drift_profile, and drift_profile_request are all missing, raise an error
-        if drift_profile.is_none() && drift_profile_path.is_none() && drift_profile_request.is_none() {
+        if drift_profile.is_none()
+            && drift_profile_path.is_none()
+            && drift_profile_request.is_none()
+        {
             return Err(PyScouterError::new_err(
                 "Either drift_profile, drift_profile_path, or drift_profile_request must be provided",
             ));
