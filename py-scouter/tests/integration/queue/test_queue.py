@@ -12,7 +12,7 @@ from scouter.client import (
     HTTPConfig,
     ProfileStatusRequest,
     ScouterClient,
-    TimeInterval,
+    TimeInterval, GetProfileRequest,
 )
 from scouter.drift import (
     CustomMetric,
@@ -37,8 +37,8 @@ semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 10
 
 
 def test_psi_monitor_pandas_http(
-    pandas_dataframe: pd.DataFrame,
-    psi_drift_config: PsiDriftConfig,
+        pandas_dataframe: pd.DataFrame,
+        psi_drift_config: PsiDriftConfig,
 ):
     scouter = Drifter()
     client = ScouterClient()
@@ -77,8 +77,8 @@ def test_psi_monitor_pandas_http(
 
 
 def test_spc_monitor_pandas_kafka(
-    pandas_dataframe: pd.DataFrame,
-    drift_config: SpcDriftConfig,
+        pandas_dataframe: pd.DataFrame,
+        drift_config: SpcDriftConfig,
 ):
     scouter = Drifter()
     client = ScouterClient()
@@ -150,7 +150,7 @@ def test_custom_monitor_pandas_rabbitmq():
 
     queue.flush()
 
-    time.sleep(5)
+    time.sleep(2)
 
     # wait for rabbitmq to process the message
     request = DriftRequest(
@@ -161,6 +161,7 @@ def test_custom_monitor_pandas_rabbitmq():
         max_data_points=1000,
         drift_type=DriftType.Custom,
     )
+
     binned_records: BinnedCustomMetrics = client.get_binned_drift(request)  # type: ignore
 
     assert len(binned_records.metrics["mae"].stats) > 0
@@ -182,3 +183,26 @@ def test_custom_monitor_pandas_rabbitmq():
     )
 
     assert len(alerts) > 0
+
+def test_drift_transport_config_no_profile_provided(
+        pandas_dataframe: pd.DataFrame,
+        psi_drift_config: PsiDriftConfig,
+):
+    scouter = Drifter()
+    client = ScouterClient()
+
+    profile = scouter.create_drift_profile(pandas_dataframe, psi_drift_config)
+    client.register_profile(profile)
+
+    config = DriftTransportConfig(
+        id="test",
+        config=HTTPConfig(),
+        drift_profile_request=GetProfileRequest(
+            name=profile.config.name,
+            repository=profile.config.repository,
+            version=profile.config.version,
+            drift_type=profile.config.drift_type,
+        )
+    )
+    queue = ScouterQueue(config)
+    assert queue is not None
