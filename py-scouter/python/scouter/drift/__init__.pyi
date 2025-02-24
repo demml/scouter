@@ -66,8 +66,6 @@ class SpcDriftConfig:
         sample: bool = True,
         sample_size: int = 25,
         alert_config: SpcAlertConfig = SpcAlertConfig(),
-        feature_map: FeatureMap = FeatureMap,  # type: ignore
-        features_to_monitor: List[str] = [],
         targets: List[str] = [],
         config_path: Optional[Path] = None,
     ):
@@ -84,10 +82,6 @@ class SpcDriftConfig:
                 Whether to sample or not
             sample_size:
                 Sample size
-            feature_map:
-                Feature map
-            features_to_monitor:
-                List of features to monitor. If provided, will overwrite alert_config features_to_monitor.
             targets:
                 List of features that are targets in your dataset.
                 This is typically the name of your dependent variable(s).
@@ -141,10 +135,6 @@ class SpcDriftConfig:
     @property
     def feature_map(self) -> Optional[FeatureMap]:
         """Feature map"""
-
-    @feature_map.setter
-    def feature_map(self, feature_map: FeatureMap) -> None:
-        """Set feature map"""
 
     @property
     def targets(self) -> List[str]:
@@ -426,8 +416,6 @@ class PsiDriftConfig:
         name: str = "__missing__",
         version: str = "0.1.0",
         alert_config: PsiAlertConfig = PsiAlertConfig(),
-        feature_map: FeatureMap = FeatureMap,  # type: ignore
-        features_to_monitor: List[str] = [],
         targets: List[str] = [],
         config_path: Optional[Path] = None,
     ):
@@ -440,10 +428,6 @@ class PsiDriftConfig:
                 Model name
             version:
                 Model version. Defaults to 0.1.0
-            feature_map:
-                Feature map
-            features_to_monitor:
-                List of features to monitor. If provided, will overwrite alert_config features_to_monitor.
             targets:
                 List of features that are targets in your dataset.
                 This is typically the name of your dependent variable(s).
@@ -481,10 +465,6 @@ class PsiDriftConfig:
     @property
     def feature_map(self) -> Optional[FeatureMap]:
         """Feature map"""
-
-    @feature_map.setter
-    def feature_map(self, feature_map: FeatureMap) -> None:
-        """Set feature map"""
 
     @property
     def targets(self) -> List[str]:

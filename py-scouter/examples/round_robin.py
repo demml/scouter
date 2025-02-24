@@ -4,7 +4,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scouter.alert import AlertThreshold
+from scouter.alert import AlertThreshold, PsiAlertConfig, SpcAlertConfig
 from scouter.client import ScouterClient
 from scouter.drift import (
     CustomDriftProfile,
@@ -44,10 +44,7 @@ if __name__ == "__main__":
 
     # create psi profile
     psi_config = PsiDriftConfig(
-        name="test",
-        repository="test",
-        version="0.0.1",
-        features_to_monitor=["feature_1"],
+        name="test", repository="test", version="0.0.1", alert_config=PsiAlertConfig(features_to_monitor=["feature_1"])
     )
 
     psi_profile = scouter.create_drift_profile(data, psi_config)
@@ -59,10 +56,7 @@ if __name__ == "__main__":
 
     # create spc profile
     spc_config = SpcDriftConfig(
-        name="test",
-        repository="test",
-        version="0.0.1",
-        features_to_monitor=["feature_1"],
+        name="test", repository="test", version="0.0.1", alert_config=SpcAlertConfig(features_to_monitor=["feature_1"])
     )
 
     spc_profile = scouter.create_drift_profile(data, spc_config)

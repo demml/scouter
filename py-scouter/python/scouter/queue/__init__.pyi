@@ -4,7 +4,7 @@ import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from ..client import HTTPConfig
+from ..client import GetProfileRequest, HTTPConfig
 from ..drift import CustomDriftProfile, PsiDriftProfile, SpcDriftProfile
 from ..logging import LogLevel
 from ..observe import ObservabilityMetrics
@@ -203,6 +203,8 @@ class DriftTransportConfig:
         config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig],
         drift_profile: Optional[Union[SpcDriftProfile, PsiDriftProfile]] = None,
         drift_profile_path: Optional[Path] = None,
+        drift_profile_request: Optional[GetProfileRequest] = None,
+        scouter_server_config: Optional[HTTPConfig] = None,
     ) -> None:
         """Drift transport configuration. To be used with ScouterQueue.
 
@@ -218,6 +220,14 @@ class DriftTransportConfig:
             drift_profile_path:
                 Path to the drift profile to use for monitoring. If provided, and drift profile is not provided,
                 the drift profile will be loaded from the path.
+
+            profile_request:
+                If both the drift_profile and drift_profile_path are not provided, the profile request object will be used
+                to construct a query string that is used to call the scouter server and obtain the drift profile.
+
+            scouter_server_config:
+                An optional HTTPConfig object to pass if the necessary scouter_server environment variables are not set;
+                for example, SCOUTER_SERVER_URL.
         """
 
     @property

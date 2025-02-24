@@ -5,7 +5,12 @@ import numpy as np
 import pandas as pd
 import pytest
 from numpy.typing import NDArray
-from scouter.alert import AlertDispatchType, CustomMetricAlertConfig
+from scouter.alert import (
+    AlertDispatchType,
+    CustomMetricAlertConfig,
+    PsiAlertConfig,
+    SpcAlertConfig,
+)
 from scouter.drift import CustomMetricDriftConfig, PsiDriftConfig, SpcDriftConfig
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 
@@ -82,7 +87,9 @@ def drift_config() -> YieldFixture[SpcDriftConfig]:
     config = SpcDriftConfig(
         name="test",
         repository="test",
-        features_to_monitor=["column_0", "column_1", "column_2"],
+        alert_config=SpcAlertConfig(
+            features_to_monitor=["column_0", "column_1", "column_2"],
+        ),
     )
     yield config
 
@@ -92,7 +99,9 @@ def psi_drift_config() -> YieldFixture[PsiDriftConfig]:
     config = PsiDriftConfig(
         name="test",
         repository="test",
-        features_to_monitor=["column_0", "column_1", "column_2"],
+        alert_config=PsiAlertConfig(
+            features_to_monitor=["column_0", "column_1", "column_2"],
+        ),
     )
     yield config
 

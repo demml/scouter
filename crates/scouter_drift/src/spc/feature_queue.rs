@@ -78,7 +78,6 @@ impl SpcFeatureQueue {
                 )
             })
             .unzip();
-
         let n = arrays[0].dim().0;
         if arrays.iter().any(|array| array.dim().0 != n) {
             error!("Shape mismatch");
@@ -144,7 +143,6 @@ mod tests {
         let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repo".to_string()),
-            None,
             None,
             None,
             None,

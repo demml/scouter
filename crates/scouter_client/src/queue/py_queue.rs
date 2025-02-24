@@ -1,6 +1,9 @@
+use super::custom::CustomQueue;
 use crate::queue::psi::PsiQueue;
 use crate::queue::spc::SpcQueue;
+use crate::ScouterClient;
 use pyo3::prelude::*;
+use scouter_contracts::GetProfileRequest;
 use scouter_error::{PyScouterError, ScouterError};
 use scouter_types::custom::CustomDriftProfile;
 use scouter_types::psi::PsiDriftProfile;
@@ -10,8 +13,6 @@ use scouter_types::{Features, Metrics};
 use serde_json::Value;
 use std::path::PathBuf;
 use tracing::{error, info, instrument};
-
-use super::custom::CustomQueue;
 
 pub enum Queue {
     Spc(SpcQueue),
@@ -123,7 +124,6 @@ impl ScouterQueue {
 pub struct DriftTransportConfig {
     pub drift_profile: DriftProfile,
     pub config: PyObject,
-
     #[pyo3(get)]
     pub id: String,
 }
@@ -131,17 +131,19 @@ pub struct DriftTransportConfig {
 #[pymethods]
 impl DriftTransportConfig {
     #[new]
-    #[pyo3(signature = (id, config, drift_profile=None, drift_profile_path=None))]
+    #[pyo3(signature = (id, config, drift_profile=None, drift_profile_path=None, drift_profile_request=None, scouter_server_config=None))]
     pub fn new(
         id: String,
         config: &Bound<'_, PyAny>,
         drift_profile: Option<&Bound<'_, PyAny>>,
         drift_profile_path: Option<PathBuf>,
+        drift_profile_request: Option<GetProfileRequest>,
+        scouter_server_config: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        // if drift_profile_path and drift_profile are both missing, raise an error
-        if drift_profile.is_none() && drift_profile_path.is_none() {
+        // if drift_profile_path, drift_profile, and drift_profile_request are all missing, raise an error
+        if drift_profile.is_none() && drift_profile_path.is_none() && drift_profile_request.is_none() {
             return Err(PyScouterError::new_err(
-                "Either drift_profile or drift_profile_path must be provided",
+                "Either drift_profile, drift_profile_path, or drift_profile_request must be provided",
             ));
         }
 
@@ -154,6 +156,18 @@ impl DriftTransportConfig {
             let drift_type = profile_value["config"]["drift_type"].as_str().unwrap();
 
             let drift_profile = DriftProfile::from_value(profile_value.clone(), drift_type)?;
+
+            return Ok(DriftTransportConfig {
+                id,
+                drift_profile,
+                config: config.clone().unbind(),
+            });
+        };
+
+        if drift_profile.is_none() && drift_profile_request.is_some() {
+            let mut client = ScouterClient::new(scouter_server_config)?;
+
+            let drift_profile = client.get_drift_profile(drift_profile_request.unwrap())?;
 
             return Ok(DriftTransportConfig {
                 id,

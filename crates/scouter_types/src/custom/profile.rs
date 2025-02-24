@@ -45,6 +45,7 @@ impl DispatchDriftConfig for CustomMetricDriftConfig {
             repository: self.repository.clone(),
             version: self.version.clone(),
             dispatch_type: self.alert_config.dispatch_type.clone(),
+            dispatch_kwargs: self.alert_config.dispatch_kwargs.clone(),
         }
     }
 }

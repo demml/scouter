@@ -9,6 +9,7 @@ use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use scouter_error::{PyScouterError, ScouterError};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -72,6 +73,7 @@ pub struct DriftArgs {
     pub repository: String,
     pub version: String,
     pub dispatch_type: AlertDispatchType,
+    pub dispatch_kwargs: HashMap<String, String>,
 }
 
 // Generic enum to be used on scouter server

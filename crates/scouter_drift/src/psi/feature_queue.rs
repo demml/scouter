@@ -282,7 +282,6 @@ mod tests {
             "name",
             "repo",
             DEFAULT_VERSION,
-            None,
             Some(features.clone()),
             None,
             alert_config,

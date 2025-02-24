@@ -150,7 +150,7 @@ def test_custom_monitor_pandas_rabbitmq():
 
     queue.flush()
 
-    time.sleep(2)
+    time.sleep(5)
 
     # wait for rabbitmq to process the message
     request = DriftRequest(
@@ -161,7 +161,6 @@ def test_custom_monitor_pandas_rabbitmq():
         max_data_points=1000,
         drift_type=DriftType.Custom,
     )
-
     binned_records: BinnedCustomMetrics = client.get_binned_drift(request)  # type: ignore
 
     assert len(binned_records.metrics["mae"].stats) > 0

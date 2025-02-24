@@ -102,11 +102,12 @@ impl HTTPConfig {
 impl Default for HTTPConfig {
     fn default() -> Self {
         HTTPConfig {
-            server_url: "http://localhost:8000/scouter".to_string(),
+            server_url: std::env::var("SCOUTER_SERVER_URL")
+                .unwrap_or_else(|_| "http://localhost:8000/scouter".to_string()),
             use_auth: false,
-            username: "admin".to_string(),
-            password: "admin".to_string(),
-            auth_token: "".to_string(),
+            username: std::env::var("SCOUTER_USERNAME").unwrap_or_else(|_| "admin".to_string()),
+            password: std::env::var("SCOUTER_PASSWORD").unwrap_or_else(|_| "admin".to_string()),
+            auth_token: std::env::var("SCOUTER_AUTH_TOKEN").unwrap_or_else(|_| "".to_string())
         }
     }
 }

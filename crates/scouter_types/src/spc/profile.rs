@@ -89,7 +89,7 @@ pub struct SpcDriftConfig {
     #[pyo3(get, set)]
     pub alert_config: SpcAlertConfig,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub feature_map: FeatureMap,
 
     #[pyo3(get, set)]
@@ -103,14 +103,13 @@ pub struct SpcDriftConfig {
 #[allow(clippy::too_many_arguments)]
 impl SpcDriftConfig {
     #[new]
-    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None,feature_map=None,  features_to_monitor=None, targets=None, alert_config=None, config_path=None))]
+    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, features_to_monitor=None, targets=None, alert_config=None, config_path=None))]
     pub fn new(
         repository: Option<String>,
         name: Option<String>,
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
-        feature_map: Option<FeatureMap>,
         features_to_monitor: Option<Vec<String>>,
         targets: Option<Vec<String>>,
         alert_config: Option<SpcAlertConfig>,
@@ -145,7 +144,7 @@ impl SpcDriftConfig {
             repository,
             version,
             alert_config,
-            feature_map: feature_map.unwrap_or_default(),
+            feature_map: FeatureMap::default(),
             targets,
             drift_type: DriftType::Spc,
         })
@@ -255,6 +254,7 @@ impl DispatchDriftConfig for SpcDriftConfig {
             repository: self.repository.clone(),
             version: self.version.clone(),
             dispatch_type: self.alert_config.dispatch_type.clone(),
+            dispatch_kwargs: self.alert_config.dispatch_kwargs.clone(),
         }
     }
 }
@@ -407,8 +407,7 @@ mod tests {
     #[test]
     fn test_drift_config() {
         let mut drift_config =
-            SpcDriftConfig::new(None, None, None, None, None, None, None, None, None, None)
-                .unwrap();
+            SpcDriftConfig::new(None, None, None, None, None, None, None, None, None).unwrap();
         assert_eq!(drift_config.sample_size, 25);
         assert!(drift_config.sample);
         assert_eq!(drift_config.name, "__missing__");

@@ -36,7 +36,7 @@ pub struct PsiDriftConfig {
     #[pyo3(get, set)]
     pub version: String,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub feature_map: FeatureMap,
 
     #[pyo3(get, set)]
@@ -45,7 +45,7 @@ pub struct PsiDriftConfig {
     #[pyo3(get, set)]
     pub targets: Vec<String>,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub drift_type: DriftType,
 }
 
@@ -54,12 +54,11 @@ pub struct PsiDriftConfig {
 impl PsiDriftConfig {
     // TODO dry this out
     #[new]
-    #[pyo3(signature = (repository=MISSING, name=MISSING, version=DEFAULT_VERSION, feature_map=None, features_to_monitor=None, targets=None, alert_config=PsiAlertConfig::default(), config_path=None))]
+    #[pyo3(signature = (repository=MISSING, name=MISSING, version=DEFAULT_VERSION, features_to_monitor=None, targets=None, alert_config=PsiAlertConfig::default(), config_path=None))]
     pub fn new(
         repository: &str,
         name: &str,
         version: &str,
-        feature_map: Option<FeatureMap>,
         features_to_monitor: Option<Vec<String>>,
         targets: Option<Vec<String>>,
         mut alert_config: PsiAlertConfig,
@@ -75,7 +74,6 @@ impl PsiDriftConfig {
         }
 
         let targets = targets.unwrap_or_default();
-        let feature_map = feature_map.unwrap_or_default();
 
         if features_to_monitor.is_some() {
             alert_config.features_to_monitor = features_to_monitor.unwrap();
@@ -86,7 +84,7 @@ impl PsiDriftConfig {
             repository: repository.to_string(),
             version: version.to_string(),
             alert_config,
-            feature_map,
+            feature_map: FeatureMap::default(),
             targets,
             drift_type: DriftType::Psi,
         })
@@ -172,6 +170,7 @@ impl DispatchDriftConfig for PsiDriftConfig {
             repository: self.repository.clone(),
             version: self.version.clone(),
             dispatch_type: self.alert_config.dispatch_type.clone(),
+            dispatch_kwargs: self.alert_config.dispatch_kwargs.clone(),
         }
     }
 }
@@ -561,7 +560,6 @@ mod tests {
             MISSING,
             MISSING,
             DEFAULT_VERSION,
-            None,
             None,
             None,
             PsiAlertConfig::default(),

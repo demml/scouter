@@ -353,7 +353,6 @@ pub mod psi_drifter {
                 DEFAULT_VERSION,
                 None,
                 None,
-                None,
                 alert_config,
                 None,
             )

@@ -6,6 +6,7 @@ use scouter_types::{
     custom::CustomDriftProfile, CustomMetricServerRecord, RecordType, ServerRecord, ServerRecords,
 };
 use std::collections::HashMap;
+use tracing::error;
 
 #[pyclass]
 pub struct CustomMetricFeatureQueue {
@@ -43,12 +44,25 @@ impl CustomMetricFeatureQueue {
     ///
     /// * `Result<(), FeatureQueueError>` - A result indicating success or failure
     pub fn insert(&mut self, metrics: Metrics) -> Result<(), FeatureQueueError> {
-        metrics.iter().for_each(|metric| {
+        for metric in metrics.metrics {
+            if !self.drift_profile.metrics.contains_key(&metric.name) {
+                let valid_metric_names = self
+                    .drift_profile
+                    .metrics
+                    .keys()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                error!(
+                    "Custom metric {} not found in drift profile. Valid metric names include {}",
+                    metric.name, valid_metric_names
+                );
+                continue;
+            }
             if let Some(queue) = self.queue.get_mut(&metric.name) {
                 queue.push(metric.value);
             }
-        });
-
+        }
         Ok(())
     }
 
