@@ -1,3 +1,4 @@
+#![allow(clippy::useless_conversion)]
 use super::custom::CustomQueue;
 use crate::queue::psi::PsiQueue;
 use crate::queue::spc::SpcQueue;
@@ -131,26 +132,22 @@ pub struct DriftTransportConfig {
 #[pymethods]
 impl DriftTransportConfig {
     #[new]
-    #[pyo3(signature = (id, config, drift_profile=None, drift_profile_path=None, drift_profile_request=None, scouter_server_config=None))]
+    #[pyo3(signature = (id, config, drift_profile_path=None, drift_profile_request=None, scouter_server_config=None))]
     pub fn new(
         id: String,
         config: &Bound<'_, PyAny>,
-        drift_profile: Option<&Bound<'_, PyAny>>,
         drift_profile_path: Option<PathBuf>,
         drift_profile_request: Option<GetProfileRequest>,
         scouter_server_config: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
-        // if drift_profile_path, drift_profile, and drift_profile_request are all missing, raise an error
-        if drift_profile.is_none()
-            && drift_profile_path.is_none()
-            && drift_profile_request.is_none()
-        {
+        // if drift_profile_path and drift_profile_request are both missing, raise an error
+        if drift_profile_path.is_none() && drift_profile_request.is_none() {
             return Err(PyScouterError::new_err(
                 "Either drift_profile, drift_profile_path, or drift_profile_request must be provided",
             ));
         }
 
-        if drift_profile.is_none() && drift_profile_path.is_some() {
+        if drift_profile_path.is_some() {
             // load drift_profile from path to serde_json::Value
             let profile = std::fs::read_to_string(drift_profile_path.unwrap())?;
             let profile_value: Value = serde_json::from_str(&profile).unwrap();
@@ -167,26 +164,13 @@ impl DriftTransportConfig {
             });
         };
 
-        if drift_profile.is_none() && drift_profile_request.is_some() {
-            let mut client = ScouterClient::new(scouter_server_config)?;
+        let mut client = ScouterClient::new(scouter_server_config)?;
 
-            let drift_profile = client.get_drift_profile(drift_profile_request.unwrap())?;
+        let drift_profile = client.get_drift_profile(drift_profile_request.unwrap())?;
 
-            return Ok(DriftTransportConfig {
-                id,
-                drift_profile,
-                config: config.clone().unbind(),
-            });
-        };
-
-        let drift_type = drift_profile
-            .unwrap()
-            .getattr("config")?
-            .getattr("drift_type")?
-            .extract::<DriftType>()?;
         Ok(DriftTransportConfig {
             id,
-            drift_profile: DriftProfile::from_python(drift_type, drift_profile.unwrap())?,
+            drift_profile,
             config: config.clone().unbind(),
         })
     }

@@ -2,6 +2,44 @@ use crate::drift::DriftArgs;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
+#[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct SlackDispatchConfig {
+    #[pyo3(get, set)]
+    pub channel: String,
+}
+
+#[pymethods]
+impl SlackDispatchConfig {
+    #[new]
+    pub fn new(channel: String) -> PyResult<Self> {
+        Ok(SlackDispatchConfig { channel })
+    }
+}
+
+#[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct OpsGenieDispatchConfig {
+    #[pyo3(get, set)]
+    pub team: String,
+}
+
+#[pymethods]
+impl OpsGenieDispatchConfig {
+    #[new]
+    pub fn new(team: String) -> PyResult<Self> {
+        Ok(OpsGenieDispatchConfig { team })
+    }
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+pub enum AlertDispatchConfig {
+    Slack(SlackDispatchConfig),
+    OpsGenie(OpsGenieDispatchConfig),
+    #[default]
+    Console,
+}
+
 #[pyclass(eq)]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub enum AlertDispatchType {
@@ -9,18 +47,6 @@ pub enum AlertDispatchType {
     #[default]
     Console,
     OpsGenie,
-}
-
-#[pymethods]
-impl AlertDispatchType {
-    #[getter]
-    pub fn value(&self) -> String {
-        match self {
-            AlertDispatchType::Slack => "Slack".to_string(),
-            AlertDispatchType::Console => "Console".to_string(),
-            AlertDispatchType::OpsGenie => "OpsGenie".to_string(),
-        }
-    }
 }
 
 pub trait DispatchAlertDescription {

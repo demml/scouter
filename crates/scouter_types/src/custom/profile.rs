@@ -1,3 +1,4 @@
+#![allow(clippy::useless_conversion)]
 use crate::custom::alert::{CustomMetric, CustomMetricAlertConfig};
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::{
@@ -44,8 +45,7 @@ impl DispatchDriftConfig for CustomMetricDriftConfig {
             name: self.name.clone(),
             repository: self.repository.clone(),
             version: self.version.clone(),
-            dispatch_type: self.alert_config.dispatch_type.clone(),
-            dispatch_kwargs: self.alert_config.dispatch_kwargs.clone(),
+            dispatch_config: self.alert_config.dispatch_config.clone(),
         }
     }
 }
@@ -194,7 +194,6 @@ impl CustomDriftProfile {
         ProfileFuncs::__json__(self)
     }
 
-    #[allow(clippy::useless_conversion)]
     pub fn model_dump(&self, py: Python) -> PyResult<Py<PyDict>> {
         let json_str = serde_json::to_string(&self).map_err(|_| ScouterError::SerializeError)?;
 
@@ -306,7 +305,7 @@ impl ProfileBaseArgs for CustomDriftProfile {
 mod tests {
     use super::*;
     use crate::custom::alert::AlertThreshold;
-    use crate::AlertDispatchType;
+    use crate::{AlertDispatchConfig, OpsGenieDispatchConfig, SlackDispatchConfig};
 
     #[test]
     fn test_drift_config() {
@@ -324,13 +323,16 @@ mod tests {
         assert_eq!(drift_config.repository, "__missing__");
         assert_eq!(drift_config.version, "0.1.0");
         assert_eq!(
-            drift_config.alert_config.dispatch_type,
-            AlertDispatchType::Console
+            drift_config.alert_config.dispatch_config,
+            AlertDispatchConfig::Console
         );
 
+        let test_slack_dispatch_config = SlackDispatchConfig {
+            channel: "test-channel".to_string(),
+        };
         let new_alert_config = CustomMetricAlertConfig {
             schedule: "0 0 * * * *".to_string(),
-            dispatch_type: AlertDispatchType::Slack,
+            dispatch_config: AlertDispatchConfig::Slack(test_slack_dispatch_config.clone()),
             ..Default::default()
         };
 
@@ -341,8 +343,8 @@ mod tests {
 
         assert_eq!(drift_config.name, "test");
         assert_eq!(
-            drift_config.alert_config.dispatch_type,
-            AlertDispatchType::Slack
+            drift_config.alert_config.dispatch_config,
+            AlertDispatchConfig::Slack(test_slack_dispatch_config)
         );
         assert_eq!(
             drift_config.alert_config.schedule,
@@ -354,7 +356,9 @@ mod tests {
     fn test_custom_drift_profile() {
         let alert_config = CustomMetricAlertConfig {
             schedule: "0 0 * * * *".to_string(),
-            dispatch_type: AlertDispatchType::OpsGenie,
+            dispatch_config: AlertDispatchConfig::OpsGenie(OpsGenieDispatchConfig {
+                team: "test-team".to_string(),
+            }),
             ..Default::default()
         };
 

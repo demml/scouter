@@ -1,3 +1,4 @@
+#![allow(clippy::useless_conversion)]
 use pyo3::{prelude::*, IntoPyObjectExt};
 use scouter_contracts::{
     DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,

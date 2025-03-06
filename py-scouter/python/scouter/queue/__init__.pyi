@@ -201,7 +201,6 @@ class DriftTransportConfig:
         self,
         id: str,
         config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig],
-        drift_profile: Optional[Union[SpcDriftProfile, PsiDriftProfile]] = None,
         drift_profile_path: Optional[Path] = None,
         drift_profile_request: Optional[GetProfileRequest] = None,
         scouter_server_config: Optional[HTTPConfig] = None,
@@ -213,9 +212,6 @@ class DriftTransportConfig:
                 Unique identifier for the drift transport configuration.
             config:
                 Configuration object for the producer that specifies the type of producer to use.
-
-            drift_profile:
-                Drift profile to use for monitoring. Priority is given to the drift profile over the drift profile path.
 
             drift_profile_path:
                 Path to the drift profile to use for monitoring. If provided, and drift profile is not provided,

@@ -1,6 +1,6 @@
 use crate::{
-    dispatch::AlertDispatchType, CommonCrons, DispatchAlertDescription, ProfileFuncs,
-    ValidateAlertConfig,
+    dispatch::AlertDispatchType, AlertDispatchConfig, CommonCrons, DispatchAlertDescription,
+    OpsGenieDispatchConfig, ProfileFuncs, SlackDispatchConfig, ValidateAlertConfig,
 };
 use core::fmt::Debug;
 use pyo3::prelude::*;
@@ -81,16 +81,13 @@ pub struct SpcAlertConfig {
     #[pyo3(get, set)]
     pub rule: SpcAlertRule,
 
-    pub dispatch_type: AlertDispatchType,
-
     #[pyo3(get, set)]
     pub schedule: String,
 
     #[pyo3(get, set)]
     pub features_to_monitor: Vec<String>,
 
-    #[pyo3(get, set)]
-    pub dispatch_kwargs: HashMap<String, String>,
+    pub dispatch_config: AlertDispatchConfig,
 }
 
 impl ValidateAlertConfig for SpcAlertConfig {}
@@ -98,14 +95,26 @@ impl ValidateAlertConfig for SpcAlertConfig {}
 #[pymethods]
 impl SpcAlertConfig {
     #[new]
-    #[pyo3(signature = (rule=SpcAlertRule::default(), dispatch_type=AlertDispatchType::default(), schedule=None, features_to_monitor=vec![], dispatch_kwargs=HashMap::new()))]
+    #[pyo3(signature = (rule=SpcAlertRule::default(), schedule=None, features_to_monitor=vec![], dispatch_config=None))]
     pub fn new(
         rule: SpcAlertRule,
-        dispatch_type: AlertDispatchType,
         schedule: Option<&Bound<'_, PyAny>>,
         features_to_monitor: Vec<String>,
-        dispatch_kwargs: HashMap<String, String>,
+        dispatch_config: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
+        let alert_dispatch_config = match dispatch_config {
+            None => AlertDispatchConfig::default(),
+            Some(config) => {
+                if config.is_instance_of::<SlackDispatchConfig>() {
+                    AlertDispatchConfig::Slack(config.extract::<SlackDispatchConfig>()?)
+                } else if config.is_instance_of::<OpsGenieDispatchConfig>() {
+                    AlertDispatchConfig::OpsGenie(config.extract::<OpsGenieDispatchConfig>()?)
+                } else {
+                    AlertDispatchConfig::default()
+                }
+            }
+        };
+
         // check if schedule is None, string or CommonCrons
 
         let schedule = match schedule {
@@ -126,19 +135,18 @@ impl SpcAlertConfig {
 
         Ok(Self {
             rule,
-            dispatch_type,
             schedule,
             features_to_monitor,
-            dispatch_kwargs,
+            dispatch_config: alert_dispatch_config,
         })
     }
 
     #[getter]
     pub fn dispatch_type(&self) -> String {
-        match self.dispatch_type {
-            AlertDispatchType::Slack => "Slack".to_string(),
-            AlertDispatchType::Console => "Console".to_string(),
-            AlertDispatchType::OpsGenie => "OpsGenie".to_string(),
+        match self.dispatch_config {
+            AlertDispatchConfig::Slack(_) => "Slack".to_string(),
+            AlertDispatchConfig::Console => "Console".to_string(),
+            AlertDispatchConfig::OpsGenie(_) => "OpsGenie".to_string(),
         }
     }
 }
@@ -147,10 +155,9 @@ impl Default for SpcAlertConfig {
     fn default() -> SpcAlertConfig {
         Self {
             rule: SpcAlertRule::default(),
-            dispatch_type: AlertDispatchType::default(),
+            dispatch_config: AlertDispatchConfig::default(),
             schedule: CommonCrons::EveryDay.cron(),
             features_to_monitor: Vec::new(),
-            dispatch_kwargs: HashMap::new(),
         }
     }
 }
@@ -367,32 +374,51 @@ mod tests {
     fn test_alert_config() {
         //test console alert config
         let alert_config = SpcAlertConfig::default();
-        assert_eq!(alert_config.dispatch_type, AlertDispatchType::Console);
+        assert_eq!(alert_config.dispatch_config, AlertDispatchConfig::Console);
         assert_eq!(alert_config.dispatch_type(), "Console");
-        assert_eq!(AlertDispatchType::Console.value(), "Console");
 
+        let slack_dispatch_config = SlackDispatchConfig {
+            channel: "test-channel".to_string(),
+        };
         //test slack alert config
         let alert_config = SpcAlertConfig {
-            dispatch_type: AlertDispatchType::Slack,
+            dispatch_config: AlertDispatchConfig::Slack(slack_dispatch_config.clone()),
             ..Default::default()
         };
-        assert_eq!(alert_config.dispatch_type, AlertDispatchType::Slack);
+        assert_eq!(
+            alert_config.dispatch_config,
+            AlertDispatchConfig::Slack(slack_dispatch_config)
+        );
         assert_eq!(alert_config.dispatch_type(), "Slack");
-        assert_eq!(AlertDispatchType::Slack.value(), "Slack");
+        assert_eq!(
+            match &alert_config.dispatch_config {
+                AlertDispatchConfig::Slack(config) => &config.channel,
+                _ => panic!("Expected Slack dispatch config"),
+            },
+            "test-channel"
+        );
 
         //test opsgenie alert config
-        let mut alert_kwargs = HashMap::new();
-        alert_kwargs.insert("channel".to_string(), "test".to_string());
+        let opsgenie_dispatch_config = OpsGenieDispatchConfig {
+            team: "test-team".to_string(),
+        };
 
         let alert_config = SpcAlertConfig {
-            dispatch_type: AlertDispatchType::OpsGenie,
-            dispatch_kwargs: alert_kwargs,
+            dispatch_config: AlertDispatchConfig::OpsGenie(opsgenie_dispatch_config.clone()),
             ..Default::default()
         };
-        assert_eq!(alert_config.dispatch_type, AlertDispatchType::OpsGenie);
+        assert_eq!(
+            alert_config.dispatch_config,
+            AlertDispatchConfig::OpsGenie(opsgenie_dispatch_config.clone())
+        );
         assert_eq!(alert_config.dispatch_type(), "OpsGenie");
-        assert_eq!(alert_config.dispatch_kwargs.get("channel").unwrap(), "test");
-        assert_eq!(AlertDispatchType::OpsGenie.value(), "OpsGenie");
+        assert_eq!(
+            match &alert_config.dispatch_config {
+                AlertDispatchConfig::OpsGenie(config) => &config.team,
+                _ => panic!("Expected OpsGenie dispatch config"),
+            },
+            "test-team"
+        );
     }
 
     #[test]

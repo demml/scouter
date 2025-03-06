@@ -1,15 +1,13 @@
 use crate::custom::CustomDriftProfile;
-use crate::dispatch::AlertDispatchType;
 use crate::psi::PsiDriftProfile;
 use crate::spc::SpcDriftProfile;
 use crate::util::ProfileBaseArgs;
-use crate::ProfileArgs;
+use crate::{AlertDispatchConfig, ProfileArgs};
 use crate::{FileName, ProfileFuncs};
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use scouter_error::{PyScouterError, ScouterError};
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
 use std::fmt::Display;
 use std::path::PathBuf;
 use std::str::FromStr;
@@ -72,8 +70,7 @@ pub struct DriftArgs {
     pub name: String,
     pub repository: String,
     pub version: String,
-    pub dispatch_type: AlertDispatchType,
-    pub dispatch_kwargs: HashMap<String, String>,
+    pub dispatch_config: AlertDispatchConfig,
 }
 
 // Generic enum to be used on scouter server

@@ -286,14 +286,13 @@ VALUES
                       "features": {}
                     },
                     "alert_config": {
-                      "dispatch_type": "Console",
+                      "dispatch_config": "Console",
                       "schedule": "0 0 0 * * *",
                       "features_to_monitor": [
                         "feature_1",
                         "feature_2",
                         "feature_3"
                       ],
-                      "dispatch_kwargs": {},
                       "psi_threshold": 0.03
                     },
                     "targets": [

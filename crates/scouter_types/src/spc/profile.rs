@@ -1,3 +1,4 @@
+#![allow(clippy::useless_conversion)]
 use crate::spc::alert::SpcAlertConfig;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::{
@@ -253,8 +254,7 @@ impl DispatchDriftConfig for SpcDriftConfig {
             name: self.name.clone(),
             repository: self.repository.clone(),
             version: self.version.clone(),
-            dispatch_type: self.alert_config.dispatch_type.clone(),
-            dispatch_kwargs: self.alert_config.dispatch_kwargs.clone(),
+            dispatch_config: self.alert_config.dispatch_config.clone(),
         }
     }
 }

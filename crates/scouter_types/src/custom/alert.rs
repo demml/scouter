@@ -1,6 +1,6 @@
 use crate::{
-    dispatch::AlertDispatchType, CommonCrons, DispatchAlertDescription, ProfileFuncs,
-    ValidateAlertConfig,
+    dispatch::AlertDispatchType, AlertDispatchConfig, CommonCrons, DispatchAlertDescription,
+    OpsGenieDispatchConfig, ProfileFuncs, SlackDispatchConfig, ValidateAlertConfig,
 };
 use core::fmt::Debug;
 use pyo3::prelude::*;
@@ -137,13 +137,10 @@ impl CustomMetricAlertCondition {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CustomMetricAlertConfig {
-    pub dispatch_type: AlertDispatchType,
+    pub dispatch_config: AlertDispatchConfig,
 
     #[pyo3(get, set)]
     pub schedule: String,
-
-    #[pyo3(get, set)]
-    pub dispatch_kwargs: HashMap<String, String>,
 
     #[pyo3(get, set)]
     pub alert_conditions: Option<HashMap<String, CustomMetricAlertCondition>>,
@@ -165,12 +162,24 @@ impl ValidateAlertConfig for CustomMetricAlertConfig {}
 #[pymethods]
 impl CustomMetricAlertConfig {
     #[new]
-    #[pyo3(signature = (dispatch_type=AlertDispatchType::default(), schedule=None, dispatch_kwargs=HashMap::new()))]
+    #[pyo3(signature = (schedule=None, dispatch_config=None))]
     pub fn new(
-        dispatch_type: AlertDispatchType,
         schedule: Option<&Bound<'_, PyAny>>,
-        dispatch_kwargs: HashMap<String, String>,
+        dispatch_config: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
+        let alert_dispatch_config = match dispatch_config {
+            None => AlertDispatchConfig::default(),
+            Some(config) => {
+                if config.is_instance_of::<SlackDispatchConfig>() {
+                    AlertDispatchConfig::Slack(config.extract::<SlackDispatchConfig>()?)
+                } else if config.is_instance_of::<OpsGenieDispatchConfig>() {
+                    AlertDispatchConfig::OpsGenie(config.extract::<OpsGenieDispatchConfig>()?)
+                } else {
+                    AlertDispatchConfig::default()
+                }
+            }
+        };
+
         let schedule = match schedule {
             Some(schedule) => {
                 if schedule.is_instance_of::<PyString>() {
@@ -188,19 +197,18 @@ impl CustomMetricAlertConfig {
         let schedule = Self::resolve_schedule(&schedule);
 
         Ok(Self {
-            dispatch_type,
             schedule,
-            dispatch_kwargs,
+            dispatch_config: alert_dispatch_config,
             alert_conditions: None,
         })
     }
 
     #[getter]
     pub fn dispatch_type(&self) -> String {
-        match self.dispatch_type {
-            AlertDispatchType::Slack => "Slack".to_string(),
-            AlertDispatchType::Console => "Console".to_string(),
-            AlertDispatchType::OpsGenie => "OpsGenie".to_string(),
+        match self.dispatch_config {
+            AlertDispatchConfig::Slack(_) => "Slack".to_string(),
+            AlertDispatchConfig::Console => "Console".to_string(),
+            AlertDispatchConfig::OpsGenie(_) => "OpsGenie".to_string(),
         }
     }
 }
@@ -208,9 +216,8 @@ impl CustomMetricAlertConfig {
 impl Default for CustomMetricAlertConfig {
     fn default() -> CustomMetricAlertConfig {
         Self {
-            dispatch_type: AlertDispatchType::default(),
+            dispatch_config: AlertDispatchConfig::default(),
             schedule: CommonCrons::EveryDay.cron(),
-            dispatch_kwargs: HashMap::new(),
             alert_conditions: None,
         }
     }
@@ -291,10 +298,12 @@ mod tests {
     #[test]
     fn test_alert_config() {
         //test console alert config
-        let dispatch_type = AlertDispatchType::OpsGenie;
+        let dispatch_config = AlertDispatchConfig::OpsGenie(OpsGenieDispatchConfig {
+            team: "test-team".to_string(),
+        });
         let schedule = "0 0 * * * *".to_string();
         let mut alert_config = CustomMetricAlertConfig {
-            dispatch_type,
+            dispatch_config,
             schedule,
             ..Default::default()
         };

@@ -43,6 +43,7 @@ if __name__ == "__main__":
     data = generate_data()
 
     # create psi profile
+    breakpoint()
     psi_config = PsiDriftConfig(
         name="test", repository="test", version="0.0.1", alert_config=PsiAlertConfig(features_to_monitor=["feature_1"])
     )

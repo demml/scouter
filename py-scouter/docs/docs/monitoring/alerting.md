@@ -143,7 +143,7 @@ config = SpcDriftConfig(
 ```
 
 
-::: scouter._scouter.SpcAlertRule
+::: scouter.alert.SpcAlertRule
     options:
         show_root_heading: true
         heading_level: 3

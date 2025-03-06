@@ -15,9 +15,8 @@ VALUES
                     "sample_size": 25,
                     "sample": true,
                     "alert_config": {
-                        "dispatch_type": "Console",
+                        "dispatch_config": "Console",
                         "schedule": "0 0 0 * * *",
-                        "dispatch_kwargs": {},
                         "alert_conditions": {
                             "mse": {
                                 "alert_threshold": "Above",

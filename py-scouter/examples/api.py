@@ -45,21 +45,18 @@ def setup_router() -> ScouterRouter:
     spc_transport = DriftTransportConfig(
         id=config.spc_id,
         config=config.kafka,
-        drift_profile=None,
         drift_profile_path=Path("spc_profile.json"),
     )
 
     psi_transport = DriftTransportConfig(
         id=config.psi_id,
         config=config.kafka,
-        drift_profile=None,
         drift_profile_path=Path("psi_profile.json"),
     )
 
     custom_transport = DriftTransportConfig(
         id=config.custom_id,
         config=config.kafka,
-        drift_profile=None,
         drift_profile_path=Path("custom_profile.json"),
     )
 

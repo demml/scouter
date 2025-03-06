@@ -1,3 +1,4 @@
+#![allow(clippy::useless_conversion)]
 use core::fmt::Debug;
 use ndarray::Array;
 use ndarray::Array2;
@@ -104,7 +105,7 @@ impl SpcDriftMap {
         Bound<'py, PyArray2<f64>>,
         Vec<String>,
     )> {
-        let (drift_array, sample_array, features) = self.to_array().unwrap();
+        let (drift_array, sample_array, features) = self.to_array()?;
 
         Ok((
             drift_array.into_pyarray(py).to_owned(),

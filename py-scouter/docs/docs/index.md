@@ -17,7 +17,14 @@
 Observability remains a challenge for all machine learning projects due to the complexity of needs and lack of tooling and functionality. `Scouter` was built on the following principles:
 
 - **Make it fast**: The core logic is written in `Rust` and exposed as a rust crate and Python package via Maturin and PyO3. This means super fast array processing and asynchronous execution for small and large datasets. In addition, the sister project `scouter-server` provides a centralized monitoring and alerting server for your models. This is still in development and not yet ready for production use, so stay tuned!!!
-- **Make it simple**: Most industries have been doing some sort of monitoring and alerting for decades. While machine learning is new to the space, it's not inventing it. Monitoring, alerting and profiling should rely on tried and true methods that are easy to understand, easily implemented and have been battle tested. Out of the box, `Scouter` leverages process control methodology that is widely used in manufacturing and other industries ([link](https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc31.htm)).
+
+  - **Make it simple**: Most industries have been doing some sort of monitoring and alerting for decades. While machine learning is new to the space, it's not inventing it. Monitoring, alerting and profiling should rely on tried and true methods that are easy to understand, easily implemented and have been battle tested. Out of the box, `Scouter` supports multiple drift detection approaches, including:
+      - **Statistical Process Control (SPC)** – A proven method widely used in manufacturing and operations.
+      - **Population Stability Index (PSI)** – A standard approach for detecting distribution shifts.
+      - **Custom Metrics** – Define your own drift detection method to match your specific needs.
+
+    And we’re not stopping there—**more drift detection approaches are on the way!** Need something custom? Don't sweat it, with Scouter you can specify custom drift detection metrics.
+
 - **Make it easy to use**: Setting up monitoring and profiling for a model should be easy to add to any workflow and shouldn't clog up the codebase and compute runtime (see 'make it fast').
 
 

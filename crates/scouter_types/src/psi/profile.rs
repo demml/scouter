@@ -1,3 +1,4 @@
+#![allow(clippy::useless_conversion)]
 use crate::psi::alert::PsiAlertConfig;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::{
@@ -163,14 +164,14 @@ impl Default for PsiDriftConfig {
     }
 }
 // TODO dry this out
+
 impl DispatchDriftConfig for PsiDriftConfig {
     fn get_drift_args(&self) -> DriftArgs {
         DriftArgs {
             name: self.name.clone(),
             repository: self.repository.clone(),
             version: self.version.clone(),
-            dispatch_type: self.alert_config.dispatch_type.clone(),
-            dispatch_kwargs: self.alert_config.dispatch_kwargs.clone(),
+            dispatch_config: self.alert_config.dispatch_config.clone(),
         }
     }
 }

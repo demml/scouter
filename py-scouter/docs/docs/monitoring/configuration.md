@@ -94,7 +94,7 @@ config = SpcDriftConfig(
 ```
 
 
-::: scouter._scouter.SpcDriftConfig
+::: scouter.drift.SpcDriftConfig
     options:
         show_root_heading: true
         heading_level: 3
