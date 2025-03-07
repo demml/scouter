@@ -4,6 +4,8 @@ import pytest
 from fastapi import FastAPI, Request
 from fastapi.testclient import TestClient
 from pydantic import BaseModel
+
+from scouter.client import ScouterClient, GetProfileRequest
 from scouter.drift import Drifter, SpcDriftConfig, SpcDriftProfile
 from scouter.integrations.fastapi import ScouterRouter
 from scouter.queue import DriftTransportConfig, Feature, Features, KafkaConfig
@@ -42,6 +44,8 @@ def drift_profile():
     # create drift profile
     profile = drifter.create_drift_profile(data, config)
 
+    ScouterClient().register_profile(profile)
+
     return profile
 
 
@@ -77,7 +81,12 @@ def client(
     transport = DriftTransportConfig(
         id="test",
         config=config,
-        drift_profile=drift_profile,
+        drift_profile_request=GetProfileRequest(
+            name=drift_profile.config.name,
+            repository=drift_profile.config.repository,
+            version=drift_profile.config.version,
+            drift_type=drift_profile.config.drift_type
+        )
     )
 
     # define scouter router

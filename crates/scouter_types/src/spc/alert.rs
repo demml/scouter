@@ -149,6 +149,25 @@ impl SpcAlertConfig {
             AlertDispatchConfig::OpsGenie(_) => "OpsGenie".to_string(),
         }
     }
+
+    #[getter]
+    pub fn dispatch_config(&self, py: Python<'_>) -> PyResult<PyObject> {
+        match &self.dispatch_config {
+            AlertDispatchConfig::Slack(config) => {
+                // Creating a new Python instance by calling the class constructor
+                let py_type = py.get_type::<SlackDispatchConfig>();
+                let args = (config.channel.clone(),);
+                Ok(py_type.call1(args)?.into())
+            }
+            AlertDispatchConfig::OpsGenie(config) => {
+                // Creating a new Python instance by calling the class constructor
+                let py_type = py.get_type::<OpsGenieDispatchConfig>();
+                let args = (config.team.clone(),);
+                Ok(py_type.call1(args)?.into())
+            }
+            AlertDispatchConfig::Console => Ok(py.None()),
+        }
+    }
 }
 
 impl Default for SpcAlertConfig {

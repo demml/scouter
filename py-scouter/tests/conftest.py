@@ -6,9 +6,9 @@ import pandas as pd
 import pytest
 from numpy.typing import NDArray
 from scouter.alert import (
-    AlertDispatchType,
     CustomMetricAlertConfig,
     PsiAlertConfig,
+    SlackDispatchConfig,
     SpcAlertConfig,
 )
 from scouter.drift import CustomMetricDriftConfig, PsiDriftConfig, SpcDriftConfig
@@ -225,6 +225,8 @@ def custom_metric_drift_config() -> YieldFixture[CustomMetricDriftConfig]:
     config = CustomMetricDriftConfig(
         name="test",
         repository="test",
-        alert_config=CustomMetricAlertConfig(dispatch_type=AlertDispatchType.Slack, schedule="0 0 * * * *"),
+        alert_config=CustomMetricAlertConfig(
+            schedule="0 0 * * * *", dispatch_config=SlackDispatchConfig(channel="test_channel")
+        ),
     )
     yield config

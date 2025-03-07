@@ -247,7 +247,7 @@ impl<T: HttpAlertWrapper> HttpAlertDispatcher<T> {
     }
 }
 
-impl<T: HttpAlertWrapper + DispatchHelpers + Sync> Dispatch
+impl<T: HttpAlertWrapper + DispatchHelpers + std::marker::Sync> Dispatch
     for HttpAlertDispatcher<T>
 {
     async fn process_alerts<J: DispatchAlertDescription>(

@@ -2,7 +2,6 @@
 
 from .. import alert
 
-AlertDispatchType = alert.AlertDispatchType
 OpsGenieDispatchConfig = alert.OpsGenieDispatchConfig
 AlertThreshold = alert.AlertThreshold
 AlertZone = alert.AlertZone
@@ -22,7 +21,6 @@ __all__ = [
     "AlertZone",
     "SpcAlertType",
     "SpcAlertRule",
-    "AlertDispatchType",
     "PsiAlertConfig",
     "SpcAlertConfig",
     "SpcAlert",
@@ -32,5 +30,5 @@ __all__ = [
     "CustomMetricAlertCondition",
     "CustomMetricAlertConfig",
     "SlackDispatchConfig",
-    "OpsGenieDispatchConfig"
+    "OpsGenieDispatchConfig",
 ]
