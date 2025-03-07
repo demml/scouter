@@ -24,6 +24,7 @@ def test_router_mixin_kafka(
 ):
 
     scouter_client = ScouterClient()
+
     for i in range(30):
         response = client.post(
             "/predict",
@@ -34,10 +35,10 @@ def test_router_mixin_kafka(
                 feature_3=1.0,
             ).model_dump(),
         )
-        breakpoint()
     assert response.status_code == 200
+
     time.sleep(2)
-    breakpoint()
+
     drift: BinnedSpcFeatureMetrics = scouter_client.get_binned_drift(
         DriftRequest(
             name=drift_profile.config.name,
@@ -48,6 +49,6 @@ def test_router_mixin_kafka(
             drift_type=DriftType.Spc,
         )
     )
-    breakpoint()
+
     assert drift.features.keys() == {"feature_0", "feature_1", "feature_2", "feature_3"}
     assert len(drift.features["feature_0"].values) == 1

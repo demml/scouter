@@ -47,7 +47,16 @@ def test_psi_monitor_pandas_http(
     profile = scouter.create_drift_profile(pandas_dataframe, psi_drift_config)
     client.register_profile(profile)
 
-    config = DriftTransportConfig(id="test", config=HTTPConfig())
+    config = DriftTransportConfig(
+        id="test",
+        config=HTTPConfig(),
+        drift_profile_request=GetProfileRequest(
+            name=profile.config.name,
+            version=profile.config.version,
+            repository=profile.config.repository,
+            drift_type=profile.config.drift_type,
+        ),
+    )
     queue = ScouterQueue(config)
     records = pandas_dataframe.to_dict(orient="records")
 
@@ -87,7 +96,16 @@ def test_spc_monitor_pandas_kafka(
     profile = scouter.create_drift_profile(pandas_dataframe, drift_config)
     client.register_profile(profile)
 
-    config = DriftTransportConfig(id="test", config=KafkaConfig())
+    config = DriftTransportConfig(
+        id="test",
+        config=KafkaConfig(),
+        drift_profile_request=GetProfileRequest(
+            name=profile.config.name,
+            version=profile.config.version,
+            repository=profile.config.repository,
+            drift_type=profile.config.drift_type,
+        ),
+    )
     queue = ScouterQueue(config)
     records = pandas_dataframe.to_dict(orient="records")
 
@@ -137,7 +155,16 @@ def test_custom_monitor_pandas_rabbitmq():
 
     profile = scouter.create_drift_profile(data=metrics, config=drift_config)
     client.register_profile(profile)
-    config = DriftTransportConfig(id="test", config=RabbitMQConfig())
+    config = DriftTransportConfig(
+        id="test",
+        config=RabbitMQConfig(),
+        drift_profile_request=GetProfileRequest(
+            name=profile.config.name,
+            version=profile.config.version,
+            repository=profile.config.repository,
+            drift_type=profile.config.drift_type,
+        ),
+    )
     queue = ScouterQueue(config)
 
     for i in range(0, 30):
@@ -184,27 +211,3 @@ def test_custom_monitor_pandas_rabbitmq():
     )
 
     assert len(alerts) > 0
-
-
-def test_drift_transport_config_no_profile_provided(
-    pandas_dataframe: pd.DataFrame,
-    psi_drift_config: PsiDriftConfig,
-):
-    scouter = Drifter()
-    client = ScouterClient()
-
-    profile = scouter.create_drift_profile(pandas_dataframe, psi_drift_config)
-    client.register_profile(profile)
-
-    config = DriftTransportConfig(
-        id="test",
-        config=HTTPConfig(),
-        drift_profile_request=GetProfileRequest(
-            name=profile.config.name,
-            repository=profile.config.repository,
-            version=profile.config.version,
-            drift_type=profile.config.drift_type,
-        ),
-    )
-    queue = ScouterQueue(config)
-    assert queue is not None

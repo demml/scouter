@@ -143,7 +143,7 @@ impl DriftTransportConfig {
         // if drift_profile_path and drift_profile_request are both missing, raise an error
         if drift_profile_path.is_none() && drift_profile_request.is_none() {
             return Err(PyScouterError::new_err(
-                "Either drift_profile, drift_profile_path, or drift_profile_request must be provided",
+                "Either drift_profile_path or drift_profile_request must be provided",
             ));
         }
 

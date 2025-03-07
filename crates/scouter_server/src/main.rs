@@ -57,14 +57,9 @@ async fn create_app(config: ScouterServerConfig) -> Result<(Router, Arc<AppState
         .with_context(|| "Failed to create Postgres client")?;
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(());
-    info!("above kafka");
-    println!("default: {}", cfg!(feature = "default"));
-    println!("kafka: {}", cfg!(feature = "kafka"));
-    println!("kafka-vendored: {}", cfg!(feature = "kafka-vendored"));
-    println!("rabbitmq: {}", cfg!(feature = "rabbitmq"));
+
     // setup background kafka task if kafka is enabled
     #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
-    println!("Inside the Kafka feature block");
     if config.kafka_enabled() {
         let kafka_settings = &config.kafka_settings.as_ref().unwrap().clone();
         KafkaConsumerManager::start_workers(
@@ -180,10 +175,10 @@ mod tests {
     pub async fn cleanup(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> {
         sqlx::raw_sql(
             r#"
-            DELETE 
+            DELETE
             FROM scouter.drift;
 
-            DELETE 
+            DELETE
             FROM scouter.observability_metrics;
 
             DELETE

@@ -4,7 +4,12 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from scouter.alert import AlertThreshold, PsiAlertConfig, SpcAlertConfig, SlackDispatchConfig
+from scouter.alert import (
+    AlertThreshold,
+    PsiAlertConfig,
+    SlackDispatchConfig,
+    SpcAlertConfig,
+)
 from scouter.client import ScouterClient
 from scouter.drift import (
     CustomDriftProfile,
@@ -44,7 +49,12 @@ if __name__ == "__main__":
 
     # create psi profile
     psi_config = PsiDriftConfig(
-        name="test", repository="test", version="0.0.1", alert_config=PsiAlertConfig(features_to_monitor=["feature_1"], dispatch_config=SlackDispatchConfig(channel='test_channel'))
+        name="test",
+        repository="test",
+        version="0.0.1",
+        alert_config=PsiAlertConfig(
+            features_to_monitor=["feature_1"], dispatch_config=SlackDispatchConfig(channel="test_channel")
+        ),
     )
 
     psi_profile = scouter.create_drift_profile(data, psi_config)

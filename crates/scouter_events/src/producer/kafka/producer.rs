@@ -41,7 +41,8 @@ pub mod kafka_producer {
                 {
                     Ok(_) => {
                         println!("sending kafka message");
-                        break},
+                        break;
+                    }
                     Err(e) => {
                         retries -= 1;
                         if retries == 0 {
