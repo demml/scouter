@@ -81,6 +81,7 @@ jobs:
         with:
           name: scouter_server_${{ matrix.feature }}_${{ matrix.target }}_${{matrix.archive}}
           path: scouter-server-${{ matrix.feature }}-${{ matrix.target }}.${{matrix.archive}}
+          retention-days: 1
 
   build-mac-x86_64:
     name: build-macos-x86_64 - ${{ matrix.feature }}
@@ -120,6 +121,7 @@ jobs:
         with:
           name: scouter_server_${{ matrix.feature }}_${{ matrix.target }}_${{ matrix.archive }}
           path: scouter-server-${{ matrix.feature }}-${{ matrix.target }}.${{ matrix.archive }}
+          retention-days: 1
 
   publish-docker-images:
     if: github.event_name == 'release'
