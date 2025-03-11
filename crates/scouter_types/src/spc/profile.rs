@@ -179,7 +179,7 @@ impl SpcDriftConfig {
     // * `alert_config` - The alerting configuration to use
     //
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, feature_map=None, targets=None, alert_config=None))]
+    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, targets=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         repository: Option<String>,
@@ -187,7 +187,6 @@ impl SpcDriftConfig {
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
-        feature_map: Option<FeatureMap>,
         targets: Option<Vec<String>>,
         alert_config: Option<SpcAlertConfig>,
     ) -> Result<(), ScouterError> {
@@ -211,10 +210,6 @@ impl SpcDriftConfig {
         if sample_size.is_some() {
             self.sample_size =
                 sample_size.ok_or(ScouterError::TypeError("sample size".to_string()))?;
-        }
-
-        if feature_map.is_some() {
-            self.feature_map = feature_map.unwrap();
         }
 
         if targets.is_some() {
@@ -350,7 +345,7 @@ impl SpcDriftProfile {
     // * `alert_config` - The alerting configuration to use
     //
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, feature_map=None, targets=None, alert_config=None))]
+    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, targets=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         repository: Option<String>,
@@ -358,7 +353,6 @@ impl SpcDriftProfile {
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
-        feature_map: Option<FeatureMap>,
         targets: Option<Vec<String>>,
         alert_config: Option<SpcAlertConfig>,
     ) -> Result<(), ScouterError> {
@@ -368,7 +362,6 @@ impl SpcDriftProfile {
             version,
             sample,
             sample_size,
-            feature_map,
             targets,
             alert_config,
         )
@@ -413,16 +406,7 @@ mod tests {
 
         // update
         drift_config
-            .update_config_args(
-                None,
-                Some("test".to_string()),
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-            )
+            .update_config_args(None, Some("test".to_string()), None, None, None, None, None)
             .unwrap();
 
         assert_eq!(drift_config.name, "test");
