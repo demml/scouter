@@ -174,7 +174,6 @@ impl SpcDriftConfig {
     // * `version` - The version of the model
     // * `sample` - Whether to sample data or not, Default is true
     // * `sample_size` - The sample size
-    // * `feature_map` - The feature map to use
     // * `targets` - The targets to monitor
     // * `alert_config` - The alerting configuration to use
     //
