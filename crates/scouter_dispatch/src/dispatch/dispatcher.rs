@@ -694,7 +694,6 @@ mod tests {
             None,
             None,
             None,
-            None,
             Some(alert_config),
             None,
         )
@@ -728,7 +727,6 @@ mod tests {
             None,
             None,
             None,
-            None,
             Some(alert_config),
             None,
         )
@@ -758,7 +756,6 @@ mod tests {
             Some("name".to_string()),
             Some("repository".to_string()),
             Some("1.0.0".to_string()),
-            None,
             None,
             None,
             None,

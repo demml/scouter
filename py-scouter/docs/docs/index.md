@@ -27,19 +27,27 @@ Observability remains a challenge for all machine learning projects due to the c
 
 - **Make it easy to use**: Setting up monitoring and profiling for a model should be easy to add to any workflow and shouldn't clog up the codebase and compute runtime (see 'make it fast').
 
+## Concepts
+
+- **Drift Profiles**: Drift profiles are generated during model training to establish a baseline for detecting data drift. Based on your selected drift detection method, specific attributes from the training data are captured and stored in a profile. This profile is then used to compare future inference data, allowing for continuous monitoring of data stability and model performance.
+- **Scouter Queues** – Scouter Queues allow you to capture the data being sent to your model during inference. This captured data is then sent to Scouter, where it will be stored and used in the future to detect any potential drift.
+- **Alerting** – Based on the drift profile you configure, a scheduled job periodically checks for data drift using the captured inference data. If drift is detected, an alert is triggered and sent via Slack or OpsGenie to notify the relevant team.
+
 
 ## Getting Started
 
-### Installation
+### **Installation**
+To install Scouter, simply run:
 
 ```bash
 pip install scouter
 ```
 
-## Usage
+### **Configuration**
+To register profiles and use Scouter queues, set your company's Scouter server URL as an environment variable:
 
-Refer to the different sections for usage:
+```bash
+export SCOUTER_SERVER_URL=your_scouter_server_url
+```
 
-- [Model Monitoring](./monitoring/overview.md)
-- [Data Profiling](./profiling/overview.md)
-
+If your company does not support Scouter server, refer your engineering team to the [Scouter Server Setup Guide](#) for installation instructions.  

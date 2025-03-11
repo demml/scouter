@@ -38,10 +38,16 @@ edit_uri: edit/main/py-scouter/docs/
 nav:
   - Scouter: 'index.md'
   - Monitoring:
-    - Overview: 'monitoring/overview.md'
-    - Alerting: 'monitoring/alerting.md'
-    - Configuration: 'monitoring/configuration.md'
-  - Data Profiling: 'profiling/overview.md'
+    - PSI:
+        - Theory: 'monitoring/psi_theory.md'
+        - Quickstart: 'monitoring/psi_quickstart.md'
+        - Drift Config: "monitoring/psi_drift_config.md"
+    - SPC:
+        - Theory: 'monitoring/spc_theory.md'
+        - Quickstart: 'monitoring/spc_quickstart.md'
+    - Custom Metric:
+        - Quickstart: 'monitoring/custom_quickstart.md'
+  - Data Profiling: 'monitoring/configuratsion.md'
   - API Documentation:
       - Specs: 'api/index.html'
 

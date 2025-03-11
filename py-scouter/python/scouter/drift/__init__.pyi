@@ -156,9 +156,6 @@ class SpcDriftConfig:
     def drift_type(self) -> DriftType:
         """Drift type"""
 
-    def update_feature_map(self, feature_map: FeatureMap) -> None:
-        """Update feature map"""
-
     @staticmethod
     def load_from_json_file(path: Path) -> "SpcDriftConfig":
         """Load config from json file
@@ -485,9 +482,6 @@ class PsiDriftConfig:
     @property
     def drift_type(self) -> DriftType:
         """Drift type"""
-
-    def update_feature_map(self, feature_map: FeatureMap) -> None:
-        """Update feature map"""
 
     @staticmethod
     def load_from_json_file(path: Path) -> "PsiDriftConfig":

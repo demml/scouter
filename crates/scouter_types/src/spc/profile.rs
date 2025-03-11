@@ -104,14 +104,13 @@ pub struct SpcDriftConfig {
 #[allow(clippy::too_many_arguments)]
 impl SpcDriftConfig {
     #[new]
-    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, features_to_monitor=None, targets=None, alert_config=None, config_path=None))]
+    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, targets=None, alert_config=None, config_path=None))]
     pub fn new(
         repository: Option<String>,
         name: Option<String>,
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
-        features_to_monitor: Option<Vec<String>>,
         targets: Option<Vec<String>>,
         alert_config: Option<SpcAlertConfig>,
         config_path: Option<PathBuf>,
@@ -132,11 +131,7 @@ impl SpcDriftConfig {
         let sample_size = sample_size.unwrap_or(25);
         let version = version.unwrap_or("0.1.0".to_string());
         let targets = targets.unwrap_or_default();
-        let mut alert_config = alert_config.unwrap_or_default();
-
-        if features_to_monitor.is_some() {
-            alert_config.features_to_monitor = features_to_monitor.unwrap();
-        }
+        let alert_config = alert_config.unwrap_or_default();
 
         Ok(Self {
             sample_size,
@@ -149,10 +144,6 @@ impl SpcDriftConfig {
             targets,
             drift_type: DriftType::Spc,
         })
-    }
-
-    pub fn update_feature_map(&mut self, feature_map: FeatureMap) {
-        self.feature_map = feature_map;
     }
 
     #[staticmethod]
@@ -240,6 +231,10 @@ impl SpcDriftConfig {
 }
 
 impl SpcDriftConfig {
+    pub fn update_feature_map(&mut self, feature_map: FeatureMap) {
+        self.feature_map = feature_map;
+    }
+
     pub fn load_map_from_json(path: PathBuf) -> Result<HashMap<String, Value>, ScouterError> {
         // deserialize the string to a struct
         let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
@@ -407,7 +402,7 @@ mod tests {
     #[test]
     fn test_drift_config() {
         let mut drift_config =
-            SpcDriftConfig::new(None, None, None, None, None, None, None, None, None).unwrap();
+            SpcDriftConfig::new(None, None, None, None, None, None, None, None).unwrap();
         assert_eq!(drift_config.sample_size, 25);
         assert!(drift_config.sample);
         assert_eq!(drift_config.name, "__missing__");

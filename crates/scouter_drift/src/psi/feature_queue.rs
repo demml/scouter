@@ -277,13 +277,16 @@ mod tests {
         ];
 
         let monitor = PsiMonitor::new();
-        let alert_config = PsiAlertConfig::default();
+
+        let alert_config = PsiAlertConfig {
+            features_to_monitor: features.clone(),
+            ..Default::default()
+        };
         let config = PsiDriftConfig::new(
             "name",
             "repo",
             DEFAULT_VERSION,
             Some(features.clone()),
-            None,
             alert_config,
             None,
         );

@@ -166,7 +166,6 @@ def test_custom_monitor_pandas_rabbitmq():
         ),
     )
     queue = ScouterQueue(config)
-
     for i in range(0, 30):
         metrics = Metrics(
             metrics=[
@@ -175,11 +174,9 @@ def test_custom_monitor_pandas_rabbitmq():
             ]
         )
         queue.insert(metrics)
-
     queue.flush()
 
     time.sleep(2)
-
     # wait for rabbitmq to process the message
     request = DriftRequest(
         name=profile.config.name,
@@ -191,7 +188,6 @@ def test_custom_monitor_pandas_rabbitmq():
     )
 
     binned_records: BinnedCustomMetrics = client.get_binned_drift(request)  # type: ignore
-
     assert len(binned_records.metrics["mae"].stats) > 0
 
     client.update_profile_status(

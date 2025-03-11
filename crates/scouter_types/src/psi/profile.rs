@@ -50,19 +50,24 @@ pub struct PsiDriftConfig {
     pub drift_type: DriftType,
 }
 
+impl PsiDriftConfig {
+    pub fn update_feature_map(&mut self, feature_map: FeatureMap) {
+        self.feature_map = feature_map;
+    }
+}
+
 #[pymethods]
 #[allow(clippy::too_many_arguments)]
 impl PsiDriftConfig {
     // TODO dry this out
     #[new]
-    #[pyo3(signature = (repository=MISSING, name=MISSING, version=DEFAULT_VERSION, features_to_monitor=None, targets=None, alert_config=PsiAlertConfig::default(), config_path=None))]
+    #[pyo3(signature = (repository=MISSING, name=MISSING, version=DEFAULT_VERSION, targets=None, alert_config=PsiAlertConfig::default(), config_path=None))]
     pub fn new(
         repository: &str,
         name: &str,
         version: &str,
-        features_to_monitor: Option<Vec<String>>,
         targets: Option<Vec<String>>,
-        mut alert_config: PsiAlertConfig,
+        alert_config: PsiAlertConfig,
         config_path: Option<PathBuf>,
     ) -> Result<Self, ScouterError> {
         if let Some(config_path) = config_path {
@@ -75,10 +80,6 @@ impl PsiDriftConfig {
         }
 
         let targets = targets.unwrap_or_default();
-
-        if features_to_monitor.is_some() {
-            alert_config.features_to_monitor = features_to_monitor.unwrap();
-        }
 
         Ok(Self {
             name: name.to_string(),
@@ -108,10 +109,6 @@ impl PsiDriftConfig {
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__json__(self)
-    }
-
-    pub fn update_feature_map(&mut self, feature_map: FeatureMap) {
-        self.feature_map = feature_map;
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -562,7 +559,6 @@ mod tests {
             MISSING,
             MISSING,
             DEFAULT_VERSION,
-            None,
             None,
             PsiAlertConfig::default(),
             None,

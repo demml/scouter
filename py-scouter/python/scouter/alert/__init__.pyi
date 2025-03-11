@@ -72,13 +72,6 @@ class PsiAlertConfig:
                 Schedule to run monitor. Defaults to daily at midnight
             features_to_monitor:
                 List of features to monitor. Defaults to empty list, which means all features
-
-                Supported alert_kwargs:
-                Slack:
-                    - channel: str (channel to send slack message)
-                OpsGenie:
-                    - team: str (team to send opsgenie message)
-                    - priority: str (priority for opsgenie alerts)
             psi_threshold:
                 What threshold must be met before sending alert messages default is 0.25
 

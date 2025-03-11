@@ -819,6 +819,7 @@ impl PostgresClient {
         &self,
         record: &CustomMetricServerRecord,
     ) -> Result<PgQueryResult, SqlError> {
+        print!("in insert_custom_metric_value");
         let query = Queries::InsertCustomMetricValues.get_query();
 
         let query_result = sqlx::query(&query.sql)
@@ -832,7 +833,10 @@ impl PostgresClient {
             .await;
 
         match query_result {
-            Ok(result) => Ok(result),
+            Ok(result) => {
+                println!("insserted");
+                Ok(result)
+            }
             Err(e) => {
                 error!(
                     "Failed to insert custom metric value into database: {:?}",

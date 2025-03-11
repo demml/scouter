@@ -66,7 +66,12 @@ if __name__ == "__main__":
 
     # create spc profile
     spc_config = SpcDriftConfig(
-        name="test", repository="test", version="0.0.1", alert_config=SpcAlertConfig(features_to_monitor=["feature_1"])
+        name="test",
+        repository="test",
+        version="0.0.1",
+        alert_config=SpcAlertConfig(
+            features_to_monitor=["feature_1"], dispatch_config=SlackDispatchConfig(channel="test_channel")
+        ),
     )
 
     spc_profile = scouter.create_drift_profile(data, spc_config)
