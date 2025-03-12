@@ -228,17 +228,9 @@ class SpcDriftProfile:
     def features(self) -> Dict[str, SpcFeatureDriftProfile]:
         """Return the list of features."""
 
-    @features.setter
-    def features(self, features: Dict[str, SpcFeatureDriftProfile]) -> None:
-        """Set the list of features."""
-
     @property
     def config(self) -> SpcDriftConfig:
         """Return the monitor config."""
-
-    @config.setter
-    def config(self, config: SpcDriftConfig) -> None:
-        """Set the monitor config."""
 
     def model_dump_json(self) -> str:
         """Return json representation of drift profile"""
@@ -543,17 +535,9 @@ class PsiDriftProfile:
     def features(self) -> Dict[str, PsiFeatureDriftProfile]:
         """Return the list of features."""
 
-    @features.setter
-    def features(self, features: Dict[str, PsiFeatureDriftProfile]) -> None:
-        """Set the list of features."""
-
     @property
     def config(self) -> PsiDriftConfig:
         """Return the monitor config."""
-
-    @config.setter
-    def config(self, config: PsiDriftConfig) -> None:
-        """Set the monitor config."""
 
     def model_dump_json(self) -> str:
         """Return json representation of drift profile"""

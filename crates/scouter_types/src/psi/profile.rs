@@ -337,13 +337,13 @@ pub struct PsiFeatureDriftProfile {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct PsiDriftProfile {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub features: HashMap<String, PsiFeatureDriftProfile>,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub config: PsiDriftConfig,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub scouter_version: String,
 }
 

@@ -251,13 +251,13 @@ impl DispatchDriftConfig for SpcDriftConfig {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct SpcDriftProfile {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub features: HashMap<String, SpcFeatureDriftProfile>,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub config: SpcDriftConfig,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub scouter_version: String,
 }
 

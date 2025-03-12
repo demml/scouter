@@ -83,6 +83,10 @@ class PsiAlertConfig:
         """Return the alert dispatch type"""
 
     @property
+    def dispatch_config(self) -> SlackDispatchConfig | OpsGenieDispatchConfig | None:
+        """Return the alert dispatch type"""
+
+    @property
     def schedule(self) -> str:
         """Return the schedule"""
 
