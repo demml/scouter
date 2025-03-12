@@ -601,7 +601,6 @@ class PsiDriftProfile:
         repository: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
-        feature_map: Optional[FeatureMap] = None,
         targets: Optional[List[str]] = None,
         alert_config: Optional[PsiAlertConfig] = None,
     ) -> None:
@@ -614,8 +613,6 @@ class PsiDriftProfile:
                 Model repository
             version:
                 Model version
-            feature_map:
-                Feature map
             targets:
                 List of features that are targets in your dataset.
                 This is typically the name of your dependent variable(s).

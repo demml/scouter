@@ -53,7 +53,8 @@ if __name__ == "__main__":
         repository="test",
         version="0.0.1",
         alert_config=PsiAlertConfig(
-            features_to_monitor=["feature_1"], dispatch_config=SlackDispatchConfig(channel="test_channel")
+            features_to_monitor=["feature_1"],
+            dispatch_config=SlackDispatchConfig(channel="test_channel"),
         ),
     )
 

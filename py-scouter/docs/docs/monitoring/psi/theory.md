@@ -46,71 +46,46 @@ where:
 
 The rule of thumb for interpreting PSI values is:
 
-
-| PSI Value  | Interpretation                     |
-
-|------------|----------------------------------|
-
-| < 0.1      | No significant change            |
-
-| 0.1 - 0.25 | Moderate shift, monitor closely  |
-
-| > 0.25     | Significant shift, investigate   |
-
+| **PSI Value** | **Interpretation**                |
+|---------------|-----------------------------------|
+| `< 0.1`       | No significant change             |
+| `0.1 - 0.25`  | Moderate shift, monitor closely   |
+| `> 0.25`      | Significant shift, investigate    |
 
 ## How PSI Works
 
 1. **Bin the Data**: Define bins (e.g., equal-width or quantile-based) for both the expected and observed distributions.
-
 2. **Calculate Proportions**: Compute \( p_i \) and \( q_i \) for each bin.
-
 3. **Apply PSI Formula**: Sum the PSI contributions across all bins.
-
 4. **Analyze Results**: If PSI is high, investigate the underlying cause of the drift.
-
 
 ## Example Calculation
 
 Consider an expected distribution and an observed distribution with the following bin frequencies:
 
-
-| Bin Range  | Expected Count | Observed Count |
-
-|------------|---------------|---------------|
-
-| 0-10       | 1000          | 800           |
-
-| 10-20      | 1500          | 1400          |
-
-| 20-30      | 1200          | 1600          |
-
-| 30-40      | 1300          | 1200          |
-
+| **Bin Range** | **Expected Count** | **Observed Count** |
+|---------------|--------------------|--------------------|
+| `0-10`        | `1000`             | `800`              |
+| `10-20`       | `1500`             | `1400`             |
+| `20-30`       | `1200`             | `1600`             |
+| `30-40`       | `1300`             | `1200`             |
 
 Convert these into proportions:
 
-
-| Bin Range  | Expected Proportion (\( p_i \)) | Observed Proportion (\( q_i \)) |
-
-|------------|--------------------------------|--------------------------------|
-
-| 0-10       | 0.2                            | 0.16                           |
-
-| 10-20      | 0.3                            | 0.28                           |
-
-| 20-30      | 0.24                           | 0.32                           |
-
-| 30-40      | 0.26                           | 0.24                           |
-
+| **Bin Range** | **Expected Proportion**  | **Observed Proportion**  |
+|---------------|--------------------------------------|--------------------------------------|
+| `0-10`        | `0.2`                                | `0.16`                               |
+| `10-20`       | `0.3`                                | `0.28`                               |
+| `20-30`       | `0.24`                               | `0.32`                               |
+| `30-40`       | `0.26`                               | `0.24`                               |
 
 Applying the PSI formula:
 
-
 $$PSI = (0.2 - 0.16) \ln\left(\frac{0.2}{0.16}\right) + (0.3 - 0.28) \ln\left(\frac{0.3}{0.28}\right) + (0.24 - 0.32) \ln\left(\frac{0.24}{0.32}\right) + (0.26 - 0.24) \ln\left(\frac{0.26}{0.24}\right)$$
 
-
 ## Binning Strategies
-Currently, scouter PSI supports the decile binning approach, which is widely recognized as an industry standard and has shown to provide optimal performance in most use cases.
+
+Currently, scouter PSI supports the decile binning approach, which is widely recognized as an industry standard and has shown to provide optimal performance in most use cases.  
 We are actively working on expanding the library to support additional binning strategies, offering more flexibility to handle various scenarios.
 
 

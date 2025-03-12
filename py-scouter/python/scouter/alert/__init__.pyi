@@ -67,7 +67,8 @@ class PsiAlertConfig:
 
         Args:
             dispatch_config:
-                Alert dispatch type to use. Defaults to console
+                Alert dispatch configuration to use. Defaults to an internal "Console" type where
+                the alerts will be logged to the console
             schedule:
                 Schedule to run monitor. Defaults to daily at midnight
             features_to_monitor:

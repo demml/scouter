@@ -39,12 +39,13 @@ nav:
   - Scouter: 'index.md'
   - Monitoring:
     - PSI:
-        - Theory: 'monitoring/psi_theory.md'
-        - Quickstart: 'monitoring/psi_quickstart.md'
-        - Drift Config: "monitoring/psi_drift_config.md"
+        - Theory: 'monitoring/psi/theory.md'
+        - Quickstart: 'monitoring/psi/quickstart.md'
+        - Drift Config: "monitoring/psi/drift_config.md"
+        - Alert Config: "monitoring/psi/alert_config.md"
     - SPC:
-        - Theory: 'monitoring/spc_theory.md'
-        - Quickstart: 'monitoring/spc_quickstart.md'
+        - Theory: 'monitoring/spc/theory.md'
+        - Quickstart: 'monitoring/spc/quickstart.md'
     - Custom Metric:
         - Quickstart: 'monitoring/custom_quickstart.md'
   - Data Profiling: 'monitoring/configuratsion.md'
