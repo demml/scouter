@@ -114,13 +114,8 @@ impl PsiAlertConfig {
     }
 }
 
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PsiFeatureAlerts {
-    #[pyo3(get)]
     pub features: HashMap<String, f64>,
-
-    #[pyo3(get)]
     pub threshold: f64,
 }
 

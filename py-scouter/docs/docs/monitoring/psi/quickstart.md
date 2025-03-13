@@ -18,7 +18,7 @@ export SCOUTER_SERVER_URL=your_scouter_server_url
 ```
 
 ### Creating a Drift Profile
-To detect model drift, we first need to create a drift profile using your baseline dataset $Y_{b}$
+To detect model drift, we first need to create a drift profile using your baseline dataset $Y_{b}$, this is typically done at the time of training your model.
 ```python
 from scouter.alert import PsiAlertConfig, SlackDispatchConfig
 from scouter.client import ScouterClient

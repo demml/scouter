@@ -41,8 +41,11 @@ nav:
     - PSI:
         - Theory: 'monitoring/psi/theory.md'
         - Quickstart: 'monitoring/psi/quickstart.md'
-        - Drift Config: "monitoring/psi/drift_config.md"
         - Alert Config: "monitoring/psi/alert_config.md"
+        - Drift Config: "monitoring/psi/drift_config.md"
+        - Drift Profile: "monitoring/psi/drift_profile.md"
+        - Feature Drift Profile: "monitoring/psi/feature_drift_profile.md"
+        - Drift Map: "monitoring/psi/drift_map.md"
     - SPC:
         - Theory: 'monitoring/spc/theory.md'
         - Quickstart: 'monitoring/spc/quickstart.md'

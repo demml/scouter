@@ -1,6 +1,11 @@
 # PSI Drift Configuration
 
+---
+
+!!! info "scouter.drift.PsiDriftConfig"
 All models that create a `PsiDriftProfile` will require a `PsiDriftConfig` object.
+
+---
 
 ```py
 from scouter.alert import PsiAlertConfig

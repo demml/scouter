@@ -1,5 +1,5 @@
 # pylint: disable=dangerous-default-value
-
+from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, overload
 
@@ -510,23 +510,6 @@ class PsiDriftConfig:
         """
 
 class PsiDriftProfile:
-    def __init__(
-        self,
-        features: Dict[str, PsiFeatureDriftProfile],
-        config: PsiDriftConfig,
-        scouter_version: Optional[str] = None,
-    ):
-        """Initialize drift profile
-
-        Args:
-            features:
-                Dictionary of features and their drift profiles
-            config:
-                Monitor config
-            scouter_version:
-                version of scouter used to generate profile
-        """
-
     @property
     def scouter_version(self) -> str:
         """Return scouter version used to create DriftProfile"""
@@ -625,6 +608,11 @@ class Bin:
     def proportion(self) -> float:
         """Return the proportion of data found in the bin."""
 
+class BinType(Enum):
+    Binary: "BinType"
+    Numeric: "BinType"
+    Category: "BinType"
+
 class PsiFeatureDriftProfile:
     @property
     def id(self) -> str:
@@ -638,16 +626,12 @@ class PsiFeatureDriftProfile:
     def timestamp(self) -> str:
         """Return the timestamp."""
 
+    @property
+    def bin_type(self) -> BinType:
+        """Return the timestamp."""
+
 class PsiDriftMap:
     """Drift map of features"""
-
-    def __init__(self, repository: str, name: str, version: str) -> None:
-        """Initialize data profile
-
-        Args:
-            service_name:
-                Optional name of service associated with drift map
-        """
 
     @property
     def repository(self) -> str:
@@ -663,7 +647,7 @@ class PsiDriftMap:
 
     @property
     def features(self) -> Dict[str, float]:
-        """Returns dictionary of features and their data profiles"""
+        """Returns dictionary of features and their reported drift, if any"""
 
     def __str__(self) -> str:
         """Return string representation of data drift"""

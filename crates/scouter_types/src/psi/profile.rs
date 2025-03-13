@@ -347,10 +347,7 @@ pub struct PsiDriftProfile {
     pub scouter_version: String,
 }
 
-#[pymethods]
 impl PsiDriftProfile {
-    #[new]
-    #[pyo3(signature = (features, config, scouter_version=None))]
     pub fn new(
         features: HashMap<String, PsiFeatureDriftProfile>,
         config: PsiDriftConfig,
@@ -363,7 +360,10 @@ impl PsiDriftProfile {
             scouter_version,
         }
     }
+}
 
+#[pymethods]
+impl PsiDriftProfile {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__str__(self)
@@ -449,10 +449,7 @@ pub struct PsiDriftMap {
     pub version: String,
 }
 
-#[pymethods]
-#[allow(clippy::new_without_default)]
 impl PsiDriftMap {
-    #[new]
     pub fn new(repository: String, name: String, version: String) -> Self {
         Self {
             features: HashMap::new(),
@@ -461,7 +458,11 @@ impl PsiDriftMap {
             version,
         }
     }
+}
 
+#[pymethods]
+#[allow(clippy::new_without_default)]
+impl PsiDriftMap {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__str__(self)

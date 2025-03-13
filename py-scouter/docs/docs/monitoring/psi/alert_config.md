@@ -1,8 +1,11 @@
-from scouter.types import CommonCrons
-
 # PSI Alert Configuration
 
+---
+
+!!! info "scouter.alert.PsiAlertConfig"
 Configure how you and your team want to be alerted in the event of model drift using `PsiAlertConfig`.
+
+---
 
 ```py
 from scouter.alert import PsiAlertConfig, SlackDispatchConfig
