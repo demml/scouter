@@ -5,12 +5,10 @@ use tracing::{debug, error, instrument};
 
 use crate::psi::monitor::PsiMonitor;
 use core::result::Result::Ok;
-use pyo3::prelude::*;
 use scouter_error::FeatureQueueError;
 use scouter_types::psi::{Bin, PsiDriftProfile};
 use std::collections::HashMap;
 
-#[pyclass]
 pub struct PsiFeatureQueue {
     pub drift_profile: PsiDriftProfile,
     pub queue: HashMap<String, HashMap<usize, usize>>,
@@ -108,11 +106,7 @@ impl PsiFeatureQueue {
         *count += 1;
         Ok(())
     }
-}
 
-#[pymethods]
-impl PsiFeatureQueue {
-    #[new]
     pub fn new(drift_profile: PsiDriftProfile) -> Self {
         let features_to_monitor = drift_profile
             .config

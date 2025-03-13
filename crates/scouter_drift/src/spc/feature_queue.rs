@@ -2,7 +2,6 @@ use crate::spc::monitor::SpcMonitor;
 use core::result::Result::Ok;
 use ndarray::prelude::*;
 use ndarray::Array2;
-use pyo3::prelude::*;
 use scouter_error::FeatureQueueError;
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::{Features, ServerRecords};
@@ -10,7 +9,6 @@ use std::collections::HashMap;
 use tracing::instrument;
 use tracing::{debug, error};
 
-#[pyclass]
 pub struct SpcFeatureQueue {
     pub drift_profile: SpcDriftProfile,
     pub queue: HashMap<String, Vec<f64>>,
@@ -18,9 +16,7 @@ pub struct SpcFeatureQueue {
     pub feature_names: Vec<String>,
 }
 
-#[pymethods]
 impl SpcFeatureQueue {
-    #[new]
     #[instrument(skip(drift_profile))]
     pub fn new(drift_profile: SpcDriftProfile) -> Self {
         let queue: HashMap<String, Vec<f64>> = drift_profile

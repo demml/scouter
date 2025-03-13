@@ -1,5 +1,4 @@
 use core::result::Result::Ok;
-use pyo3::prelude::*;
 use scouter_error::FeatureQueueError;
 use scouter_types::Metrics;
 use scouter_types::{
@@ -8,16 +7,13 @@ use scouter_types::{
 use std::collections::HashMap;
 use tracing::error;
 
-#[pyclass]
 pub struct CustomMetricFeatureQueue {
     pub drift_profile: CustomDriftProfile,
     pub queue: HashMap<String, Vec<f64>>,
     pub metric_names: Vec<String>,
 }
 
-#[pymethods]
 impl CustomMetricFeatureQueue {
-    #[new]
     pub fn new(drift_profile: CustomDriftProfile) -> Self {
         let queue: HashMap<String, Vec<f64>> = drift_profile
             .metrics
