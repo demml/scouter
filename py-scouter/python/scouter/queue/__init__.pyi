@@ -5,7 +5,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
 from ..client import GetProfileRequest, HTTPConfig
-from ..drift import CustomDriftProfile, PsiDriftProfile, SpcDriftProfile
+from ..drift import PsiDriftProfile, SpcDriftProfile
 from ..logging import LogLevel
 from ..observe import ObservabilityMetrics
 
@@ -510,4 +510,3 @@ class Metrics:
 
     def __str__(self) -> str:
         """Return the string representation of the metrics"""
-

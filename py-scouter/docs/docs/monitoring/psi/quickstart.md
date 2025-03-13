@@ -154,5 +154,4 @@ Now that we have both our base $Y_{b}$ and target $Y$ data, scouter server will 
 
 ## Next Steps
 
-- Check out the **Configuration Guide** for advanced options
-- Learn more about **Drift Detection Methods**
+- Check out the additional PSI configuration guides for more details.
