@@ -10,7 +10,6 @@ use tokio::sync::{watch, Mutex};
 use tokio::time::{self, Duration};
 use tracing::{debug, error, info, info_span, instrument, Instrument};
 
-#[pyclass]
 pub struct CustomQueue {
     queue: Arc<Mutex<CustomMetricFeatureQueue>>,
     producer: RustScouterProducer,
@@ -22,10 +21,7 @@ pub struct CustomQueue {
     sample: bool,
 }
 
-#[pymethods]
 impl CustomQueue {
-    #[new]
-    #[pyo3(signature = (drift_profile, config))]
     pub fn new(
         drift_profile: CustomDriftProfile,
         config: &Bound<'_, PyAny>,
@@ -124,9 +120,7 @@ impl CustomQueue {
         }
         self.rt.block_on(async { self.producer.flush().await })
     }
-}
 
-impl CustomQueue {
     fn start_background_task(
         &self,
         queue: Arc<Mutex<CustomMetricFeatureQueue>>,

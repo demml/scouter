@@ -12,7 +12,6 @@ use tracing::{debug, error, info, info_span, instrument, Instrument};
 
 const PSI_MAX_QUEUE_SIZE: usize = 1000;
 
-#[pyclass]
 pub struct PsiQueue {
     queue: Arc<Mutex<PsiFeatureQueue>>,
     producer: RustScouterProducer,
@@ -22,10 +21,7 @@ pub struct PsiQueue {
     rt: Arc<tokio::runtime::Runtime>,
 }
 
-#[pymethods]
 impl PsiQueue {
-    #[new]
-    #[pyo3(signature = (drift_profile, config))]
     pub fn new(
         drift_profile: PsiDriftProfile,
         config: &Bound<'_, PyAny>,
@@ -116,9 +112,7 @@ impl PsiQueue {
         }
         self.rt.block_on(async { self.producer.flush().await })
     }
-}
 
-impl PsiQueue {
     fn start_background_task(
         &self,
         queue: Arc<Mutex<PsiFeatureQueue>>,
