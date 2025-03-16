@@ -191,6 +191,9 @@ mod tests {
             FROM scouter.drift_profile;
 
             DELETE
+            FROM scouter.scouter_users;
+
+            DELETE
             FROM scouter.observed_bin_count;
             "#,
         )

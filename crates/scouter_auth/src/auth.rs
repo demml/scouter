@@ -3,7 +3,7 @@ use password_auth::verify_password;
 use rand::distributions::Alphanumeric;
 use rand::{thread_rng, Rng};
 use scouter_error::AuthError;
-use scouter_sql::schemas::schema::User;
+use scouter_sql::sql::schema::User;
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
 

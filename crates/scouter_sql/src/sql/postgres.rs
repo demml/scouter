@@ -846,7 +846,7 @@ impl PostgresClient {
         }
     }
 
-    async fn insert_user(&self, user: &User) -> Result<(), SqlError> {
+    pub async fn insert_user(&self, user: &User) -> Result<(), SqlError> {
         let query = Queries::InsertUser.get_query();
 
         let group_permissions = serde_json::to_value(&user.group_permissions)
@@ -869,7 +869,7 @@ impl PostgresClient {
         Ok(())
     }
 
-    async fn get_user(&self, username: &str) -> Result<Option<User>, SqlError> {
+    pub async fn get_user(&self, username: &str) -> Result<Option<User>, SqlError> {
         let query = Queries::GetUser.get_query();
 
         let user: Option<User> = sqlx::query_as(&query.sql)
@@ -881,7 +881,7 @@ impl PostgresClient {
         Ok(user)
     }
 
-    async fn update_user(&self, user: &User) -> Result<(), SqlError> {
+    pub async fn update_user(&self, user: &User) -> Result<(), SqlError> {
         let query = Queries::UpdateUser.get_query();
 
         let group_permissions = serde_json::to_value(&user.group_permissions)
@@ -904,7 +904,7 @@ impl PostgresClient {
         Ok(())
     }
 
-    async fn get_users(&self) -> Result<Vec<User>, SqlError> {
+    pub async fn get_users(&self) -> Result<Vec<User>, SqlError> {
         let query = Queries::GetUsers.get_query();
 
         let users = sqlx::query_as::<_, User>(&query.sql)
@@ -915,7 +915,7 @@ impl PostgresClient {
         Ok(users)
     }
 
-    async fn is_last_admin(&self) -> Result<bool, SqlError> {
+    pub async fn is_last_admin(&self) -> Result<bool, SqlError> {
         // Count admins in the system
         let query = Queries::LastAdmin.get_query();
 
@@ -928,7 +928,7 @@ impl PostgresClient {
         Ok(count <= 1)
     }
 
-    async fn delete_user(&self, username: &str) -> Result<(), SqlError> {
+    pub async fn delete_user(&self, username: &str) -> Result<(), SqlError> {
         let query = Queries::DeleteUser.get_query();
 
         sqlx::query(&query.sql)
