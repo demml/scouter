@@ -7,7 +7,7 @@ use scouter_settings::{
 use scouter_sql::sql::schema::User;
 use scouter_sql::PostgresClient;
 use std::str::FromStr;
-use tracing::{debug, info};
+use tracing::{debug, info, instrument};
 
 #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
 use scouter_events::consumer::kafka::KafkaConsumerManager;
@@ -96,6 +96,8 @@ pub async fn setup_database(db_settings: &DatabaseSettings) -> AnyhowResult<Post
         .await
         .with_context(|| "Failed to create Postgres client")?;
 
+    initialize_default_user(&db_client).await?;
+
     Ok(db_client)
 }
 
@@ -145,6 +147,7 @@ pub async fn setup_background_workers(
     Ok(())
 }
 
+#[instrument(skip_all)]
 pub async fn setup_components() -> AnyhowResult<(
     ScouterServerConfig,
     PostgresClient,
@@ -159,7 +162,6 @@ pub async fn setup_components() -> AnyhowResult<(
     }
 
     let db_client = setup_database(&config.database_settings).await?;
-    info!("✅ Database");
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(());
 

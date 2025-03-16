@@ -19,7 +19,7 @@ pub struct UpdateUserRequest {
     pub active: Option<bool>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UserResponse {
     pub username: String,
     pub active: bool,
@@ -27,7 +27,7 @@ pub struct UserResponse {
     pub group_permissions: Vec<String>,
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct UserListResponse {
     pub users: Vec<UserResponse>,
 }

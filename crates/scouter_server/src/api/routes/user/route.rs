@@ -16,7 +16,7 @@ use scouter_auth::permission::UserPermissions;
 use scouter_sql::sql::schema::User;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
-use tracing::{error, info};
+use tracing::{error, info, instrument};
 
 /// Create a new user via SDK
 ///
@@ -73,6 +73,7 @@ async fn create_user(
 }
 
 /// Get a user by username
+#[instrument(skip_all)]
 async fn get_user(
     State(state): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
@@ -113,6 +114,7 @@ async fn get_user(
 /// List all users
 ///
 /// Requires admin permissions
+#[instrument(skip_all)]
 async fn list_users(
     State(state): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
@@ -145,6 +147,7 @@ async fn list_users(
 }
 
 /// Update a user
+#[instrument(skip_all)]
 async fn update_user(
     State(state): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
@@ -201,6 +204,7 @@ async fn update_user(
 /// Delete a user
 ///
 /// Requires admin permissions
+#[instrument(skip_all)]
 async fn delete_user(
     State(state): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
@@ -208,6 +212,7 @@ async fn delete_user(
 ) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
     // Check if requester has admin permissions
     if !perms.group_permissions.contains(&"admin".to_string()) {
+        error!("User does not have admin permissions");
         return Err((
             StatusCode::FORBIDDEN,
             Json(serde_json::json!({"error": "Admin permissions required"})),
@@ -215,7 +220,7 @@ async fn delete_user(
     }
 
     // Prevent deleting the last admin user
-    let is_last_admin = match state.db.is_last_admin().await {
+    let is_last_admin = match state.db.is_last_admin(&username).await {
         Ok(is_last) => is_last,
         Err(e) => {
             error!("Failed to check if user is last admin: {}", e);
@@ -227,6 +232,7 @@ async fn delete_user(
     };
 
     if is_last_admin {
+        error!("Cannot delete the last admin user");
         return Err((
             StatusCode::FORBIDDEN,
             Json(serde_json::json!({"error": "Cannot delete the last admin user"})),

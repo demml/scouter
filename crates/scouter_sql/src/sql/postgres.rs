@@ -915,17 +915,27 @@ impl PostgresClient {
         Ok(users)
     }
 
-    pub async fn is_last_admin(&self) -> Result<bool, SqlError> {
+    pub async fn is_last_admin(&self, username: &str) -> Result<bool, SqlError> {
         // Count admins in the system
         let query = Queries::LastAdmin.get_query();
 
-        let count: i64 = sqlx::query_scalar(&query.sql)
-            .fetch_one(&self.pool)
+        let admins: Vec<String> = sqlx::query_scalar(&query.sql)
+            .fetch_all(&self.pool)
             .await
             .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
 
-        // If there are no other admins, this is the last one
-        Ok(count <= 1)
+        // check if length is 1 and the username is the same
+        if admins.len() > 1 {
+            return Ok(false);
+        }
+
+        // no admins found
+        if admins.len() == 0 {
+            return Ok(false);
+        }
+
+        // check if the username is the last admin
+        Ok(admins.len() == 1 && admins[0] == username)
     }
 
     pub async fn delete_user(&self, username: &str) -> Result<(), SqlError> {
@@ -1426,7 +1436,7 @@ mod tests {
         assert_eq!(users.len(), 1);
 
         // get last admin
-        let is_last_admin = client.is_last_admin().await.unwrap();
+        let is_last_admin = client.is_last_admin("user").await.unwrap();
         assert!(is_last_admin);
 
         // delete
