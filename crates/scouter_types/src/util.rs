@@ -1,5 +1,6 @@
 use crate::FeatureMap;
 use crate::{CommonCrons, DriftType};
+use chrono::NaiveDateTime;
 use colored_json::{Color, ColorMode, ColoredFormatter, PrettyFormatter, Styler};
 use pyo3::exceptions::{PyTypeError, PyValueError};
 use pyo3::prelude::*;
@@ -300,6 +301,10 @@ impl DataType {
             _ => Err(ScouterError::Error("Invalid data type".to_string())),
         }
     }
+}
+
+pub fn get_utc_datetime() -> NaiveDateTime {
+    chrono::Utc::now().naive_utc()
 }
 
 #[cfg(test)]

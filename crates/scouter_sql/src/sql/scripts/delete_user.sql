@@ -1,0 +1,1 @@
+DELETE FROM scouter.scouter_users WHERE username = $1

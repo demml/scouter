@@ -24,6 +24,12 @@ const UPDATE_DRIFT_PROFILE: &str = include_str!("scripts/update_drift_profile.sq
 const GET_FEATURE_BIN_PROPORTIONS: &str = include_str!("scripts/get_feature_bin_proportions.sql");
 const GET_CUSTOM_METRIC_VALUES: &str = include_str!("scripts/get_custom_metric_values.sql");
 const INSERT_CUSTOM_METRIC_VALUES: &str = include_str!("scripts/insert_custom_metric_values.sql");
+const INSERT_USER: &str = include_str!("scripts/insert_user.sql");
+const GET_USER: &str = include_str!("scripts/get_user.sql");
+const UPDATE_USER: &str = include_str!("scripts/update_user.sql");
+const GET_USERS: &str = include_str!("scripts/get_users.sql");
+const LAST_ADMIN: &str = include_str!("scripts/last_admin.sql");
+const DELETE_USER: &str = include_str!("scripts/delete_user.sql");
 
 #[allow(dead_code)]
 pub enum Queries {
@@ -47,6 +53,12 @@ pub enum Queries {
     GetFeatureBinProportions,
     GetCustomMetricValues,
     InsertCustomMetricValues,
+    InsertUser,
+    GetUser,
+    UpdateUser,
+    GetUsers,
+    LastAdmin,
+    DeleteUser,
 }
 
 impl Queries {
@@ -75,6 +87,12 @@ impl Queries {
             Queries::InsertBinCounts => SqlQuery::new(INSERT_BIN_COUNTS),
             Queries::GetCustomMetricValues => SqlQuery::new(GET_CUSTOM_METRIC_VALUES),
             Queries::InsertCustomMetricValues => SqlQuery::new(INSERT_CUSTOM_METRIC_VALUES),
+            Queries::InsertUser => SqlQuery::new(INSERT_USER),
+            Queries::GetUser => SqlQuery::new(GET_USER),
+            Queries::UpdateUser => SqlQuery::new(UPDATE_USER),
+            Queries::GetUsers => SqlQuery::new(GET_USERS),
+            Queries::LastAdmin => SqlQuery::new(LAST_ADMIN),
+            Queries::DeleteUser => SqlQuery::new(DELETE_USER),
         }
     }
 }

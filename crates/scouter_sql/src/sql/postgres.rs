@@ -1,7 +1,7 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::{
     AlertWrapper, BinnedCustomMetricWrapper, FeatureBinProportionResult,
-    FeatureBinProportionWrapper, ObservabilityResult, SpcFeatureResult, TaskRequest,
+    FeatureBinProportionWrapper, ObservabilityResult, SpcFeatureResult, TaskRequest, User,
 };
 use chrono::{NaiveDateTime, Utc};
 use cron::Schedule;
@@ -844,6 +844,100 @@ impl PostgresClient {
                 )))
             }
         }
+    }
+
+    async fn insert_user(&self, user: &User) -> Result<(), SqlError> {
+        let query = Queries::InsertUser.get_query();
+
+        let group_permissions = serde_json::to_value(&user.group_permissions)
+            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+
+        let permissions = serde_json::to_value(&user.permissions)
+            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+
+        sqlx::query(&query)
+            .bind(&user.username)
+            .bind(&user.password_hash)
+            .bind(&permissions)
+            .bind(&group_permissions)
+            .bind(&user.role)
+            .bind(user.active)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+
+        Ok(())
+    }
+
+    async fn get_user(&self, username: &str) -> Result<Option<User>, SqlError> {
+        let query = Queries::GetUser.get_query();
+
+        let user: Option<User> = sqlx::query_as(&query)
+            .bind(username)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+
+        Ok(user)
+    }
+
+    async fn update_user(&self, user: &User) -> Result<(), SqlError> {
+        let query = Queries::UpdateUser.get_query();
+
+        let group_permissions = serde_json::to_value(&user.group_permissions)
+            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+
+        let permissions = serde_json::to_value(&user.permissions)
+            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+
+        sqlx::query(&query)
+            .bind(user.active)
+            .bind(&user.password_hash)
+            .bind(&permissions)
+            .bind(&group_permissions)
+            .bind(&user.refresh_token)
+            .bind(&user.username)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+
+        Ok(())
+    }
+
+    async fn get_users(&self) -> Result<Vec<User>, SqlError> {
+        let query = Queries::GetUsers.get_query();
+
+        let users = sqlx::query_as::<_, User>(&query)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+
+        Ok(users)
+    }
+
+    async fn is_last_admin(&self) -> Result<bool, SqlError> {
+        // Count admins in the system
+        let query = Queries::LastAdmin.get_query();
+
+        let count: i64 = sqlx::query_scalar(&query)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+
+        // If there are no other admins, this is the last one
+        Ok(count <= 1)
+    }
+
+    async fn delete_user(&self, username: &str) -> Result<(), SqlError> {
+        let query = Queries::DeleteUser.get_query();
+
+        sqlx::query(&query)
+            .bind(username)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+
+        Ok(())
     }
 }
 

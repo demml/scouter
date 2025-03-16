@@ -1,0 +1,1 @@
+SELECT count(1) FROM scouter.scouter_users WHERE role = 'admin'

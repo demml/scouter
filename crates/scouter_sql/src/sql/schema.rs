@@ -1,4 +1,5 @@
 use chrono::NaiveDateTime;
+use scouter_types::get_utc_datetime;
 use scouter_types::{
     alert::Alert,
     custom::{BinnedCustomMetric, BinnedCustomMetricStats},
@@ -194,5 +195,42 @@ impl<'r> FromRow<'r, PgRow> for FeatureBinProportionResult {
             bin_proportions,
             overall_proportions,
         })
+    }
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub struct User {
+    pub id: Option<i32>,
+    pub created_at: NaiveDateTime,
+    pub active: bool,
+    pub username: String,
+    pub password_hash: String,
+    pub permissions: Vec<String>,
+    pub group_permissions: Vec<String>,
+    pub role: String,
+    pub refresh_token: Option<String>,
+}
+
+impl User {
+    pub fn new(
+        username: String,
+        password_hash: String,
+        permissions: Option<Vec<String>>,
+        group_permissions: Option<Vec<String>>,
+        role: Option<String>,
+    ) -> Self {
+        let created_at = get_utc_datetime();
+
+        User {
+            id: None,
+            created_at,
+            active: true,
+            username,
+            password_hash,
+            permissions: permissions.unwrap_or(vec!["read".to_string(), "write".to_string()]),
+            group_permissions: group_permissions.unwrap_or(vec!["user".to_string()]),
+            role: role.unwrap_or("user".to_string()),
+            refresh_token: None,
+        }
     }
 }
