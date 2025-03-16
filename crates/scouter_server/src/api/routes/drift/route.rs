@@ -205,7 +205,7 @@ async fn insert_custom_drift(
     Ok(())
 }
 
-#[instrument(skip(body, data))]
+#[instrument(skip_all)]
 pub async fn insert_drift(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
