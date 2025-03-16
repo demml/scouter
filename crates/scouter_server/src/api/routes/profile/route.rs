@@ -238,7 +238,7 @@ pub async fn get_profile_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
         Ok(router) => Ok(router),
         Err(_) => {
             // panic
-            Err(anyhow::anyhow!("Failed to create health router"))
+            Err(anyhow::anyhow!("Failed to create profile router"))
                 .context("Panic occurred while creating the router")
         }
     }

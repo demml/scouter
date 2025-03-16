@@ -188,6 +188,7 @@ pub struct ScouterServerConfig {
     pub kafka_settings: Option<KafkaSettings>,
     pub rabbitmq_settings: Option<RabbitMQSettings>,
     pub auth_settings: AuthSettings,
+    pub bootstrap_key: String,
 }
 
 impl Default for ScouterServerConfig {
@@ -224,12 +225,16 @@ impl Default for ScouterServerConfig {
             }),
         };
 
+        let bootstrap_key =
+            env::var("SCOUTER_BOOTSTRAP_KEY").unwrap_or_else(|_| generate_default_secret());
+
         Self {
             polling_settings: polling,
             database_settings: database,
             kafka_settings: kafka,
             rabbitmq_settings: rabbitmq,
             auth_settings,
+            bootstrap_key,
         }
     }
 }

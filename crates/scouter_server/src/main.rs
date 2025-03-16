@@ -50,6 +50,7 @@ async fn create_app() -> Result<(Router, Arc<AppState>), anyhow::Error> {
             &config.auth_settings.jwt_secret,
             &config.auth_settings.refresh_secret,
         ),
+        config,
     });
 
     let router = create_router(app_state.clone())

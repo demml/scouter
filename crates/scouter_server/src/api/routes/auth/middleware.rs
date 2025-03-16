@@ -27,6 +27,17 @@ pub async fn auth_api_middleware(
     mut req: Request,
     next: Next,
 ) -> Result<impl IntoResponse, (StatusCode, Json<AuthError>)> {
+    let headers = req.headers();
+    if let Some(key) = headers.get("X-Bootstrap-Key") {
+        let bootstrap_key = &state.config.bootstrap_key;
+        if key.as_bytes() == bootstrap_key.as_bytes()
+            && req.uri().path().contains("/users")
+            && req.method() == axum::http::Method::POST
+        {
+            return Ok(next.run(req).await);
+        }
+    }
+
     // get the access token from the cookie or the authorization header
     let access_token = cookie_jar
         .get("access_token")

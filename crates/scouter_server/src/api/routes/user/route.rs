@@ -18,6 +18,34 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::{error, info, instrument};
 
+pub async fn initialize_users(
+    State(state): State<AppState>,
+    Json(users): Json<Vec<User>>,
+) -> Result<(), StatusCode> {
+    // Only allow initialization if no users exist
+    if !state
+        .db
+        .get_users()
+        .await
+        .map_err(|e| {
+            error!("Failed to check existing users: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?
+        .is_empty()
+    {
+        return Err(StatusCode::FORBIDDEN);
+    }
+
+    for user in users {
+        state.db.insert_user(&user).await.map_err(|e| {
+            error!("Failed to insert user: {}", e);
+            StatusCode::INTERNAL_SERVER_ERROR
+        })?;
+    }
+
+    Ok(())
+}
+
 /// Create a new user via SDK
 ///
 /// Requires admin permissions
