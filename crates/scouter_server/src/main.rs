@@ -173,8 +173,10 @@ mod tests {
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
     use scouter_drift::spc::monitor::SpcMonitor;
+    use scouter_events::producer::http::types::JwtToken;
     use scouter_types::spc::{SpcAlertConfig, SpcDriftConfig, SpcDriftFeatures};
     use sqlx::{Pool, Postgres};
+    use std::env;
     use tower::util::ServiceExt;
 
     pub async fn cleanup(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> {
@@ -211,10 +213,15 @@ mod tests {
 
     pub struct TestHelper {
         app: Router,
+        token: JwtToken,
     }
 
     impl TestHelper {
         pub async fn new(enable_kafka: bool, enable_rabbitmq: bool) -> Result<Self, anyhow::Error> {
+            env::set_var("RUST_LOG", "debug");
+            env::set_var("LOG_LEVEL", "debug");
+            env::set_var("LOG_JSON", "false");
+
             if enable_kafka {
                 std::env::set_var("KAFKA_BROKERS", "localhost:9092");
             }
@@ -234,10 +241,48 @@ mod tests {
 
             cleanup(&db_client.pool).await?;
 
-            Ok(Self { app })
+            let token = TestHelper::login(&app).await;
+
+            Ok(Self { app, token })
         }
+
+        pub async fn login(app: &Router) -> JwtToken {
+            let response = app
+                .clone()
+                .oneshot(
+                    Request::builder()
+                        .uri("/scouter/auth/login")
+                        .header("Username", "admin")
+                        .header("Password", "admin")
+                        .body(Body::empty())
+                        .unwrap(),
+                )
+                .await
+                .unwrap();
+
+            assert_eq!(response.status(), StatusCode::OK);
+
+            let body = response.into_body().collect().await.unwrap().to_bytes();
+            let token: JwtToken = serde_json::from_slice(&body).unwrap();
+
+            token
+        }
+
+        pub fn with_auth_header(&self, mut request: Request<Body>) -> Request<Body> {
+            request.headers_mut().insert(
+                header::AUTHORIZATION,
+                format!("Bearer {}", self.token.token).parse().unwrap(),
+            );
+
+            request
+        }
+
         pub async fn send_oneshot(&self, request: Request<Body>) -> Response<Body> {
-            self.app.clone().oneshot(request).await.unwrap()
+            self.app
+                .clone()
+                .oneshot(self.with_auth_header(request))
+                .await
+                .unwrap()
         }
 
         pub fn get_data(&self) -> (Array<f64, ndarray::Dim<[usize; 2]>>, Vec<String>) {
@@ -366,6 +411,7 @@ mod tests {
             .unwrap();
 
         let request = ProfileRequest {
+            repository: profile.config.repository.clone(),
             profile: profile.model_dump_json(),
             drift_type: DriftType::Spc,
         };
@@ -390,6 +436,7 @@ mod tests {
         assert_eq!(profile.config.sample_size, 100);
 
         let request = ProfileRequest {
+            repository: profile.config.repository.clone(),
             profile: profile.model_dump_json(),
             drift_type: DriftType::Spc,
         };
@@ -533,6 +580,7 @@ mod tests {
             .unwrap();
 
         let request = ProfileRequest {
+            repository: profile.config.repository.clone(),
             profile: profile.model_dump_json(),
             drift_type: DriftType::Psi,
         };
@@ -613,6 +661,7 @@ mod tests {
         let profile = CustomDriftProfile::new(config, vec![metric1, metric2], None).unwrap();
 
         let request = ProfileRequest {
+            repository: profile.config.repository.clone(),
             profile: profile.model_dump_json(),
             drift_type: DriftType::Custom,
         };

@@ -27,6 +27,13 @@ pub async fn insert_drift_profile(
     Extension(perms): Extension<UserPermissions>,
     Json(body): Json<ProfileRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    if !perms.has_write_permission(&body.repository) {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Permission denied" })),
+        ));
+    }
+
     // validate profile is correct
     // this will be used to validate different versions of the drift profile in the future
 
@@ -72,8 +79,15 @@ pub async fn insert_drift_profile(
 ///
 pub async fn update_drift_profile(
     State(data): State<Arc<AppState>>,
+    Extension(perms): Extension<UserPermissions>,
     Json(body): Json<ProfileRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    if !perms.has_write_permission(&body.repository) {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Permission denied" })),
+        ));
+    }
     // validate profile is correct
     // this will be used to validate different versions of the drift profile in the future
     let body = DriftProfile::from_str(body.drift_type, body.profile);
@@ -122,7 +136,14 @@ pub async fn update_drift_profile(
 pub async fn get_profile(
     State(data): State<Arc<AppState>>,
     Query(params): Query<GetProfileRequest>,
+    Extension(perms): Extension<UserPermissions>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    if !perms.has_read_permission() {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Permission denied" })),
+        ));
+    }
     debug!("Getting drift profile: {:?}", &params);
     let profile = &data.db.get_drift_profile(&params).await;
 
@@ -161,8 +182,15 @@ pub async fn get_profile(
 #[instrument(skip(data, body))]
 pub async fn update_drift_profile_status(
     State(data): State<Arc<AppState>>,
+    Extension(perms): Extension<UserPermissions>,
     Json(body): Json<ProfileStatusRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    if !perms.has_write_permission(&body.repository) {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Permission denied" })),
+        ));
+    }
     debug!("Updating drift profile status: {:?}", &body);
 
     let query_result = &data.db.update_drift_profile_status(&body).await;
