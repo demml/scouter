@@ -23,7 +23,7 @@ pub struct PollingSettings {
 
 impl Default for PollingSettings {
     fn default() -> Self {
-        let num_workers = std::env::var("SCHEDULE_WORKER_COUNT")
+        let num_workers = std::env::var("POLLING_WORKER_COUNT")
             .unwrap_or_else(|_| "4".to_string())
             .parse::<usize>()
             .map_err(|e| ConfigError::Error(format!("{:?}", e)))
@@ -214,14 +214,14 @@ impl Default for ScouterServerConfig {
         };
 
         let auth_settings = AuthSettings {
-            jwt_secret: env::var("OPSML_ENCRYPT_SECRET").unwrap_or_else(|_| {
+            jwt_secret: env::var("SCOUTER_ENCRYPT_SECRET").unwrap_or_else(|_| {
                 warn!(
                     "Using default secret for encryption 
                         This is not recommended for production use."
                 );
                 generate_default_secret()
             }),
-            refresh_secret: env::var("OPSML_REFRESH_SECRET").unwrap_or_else(|_| {
+            refresh_secret: env::var("SCOUTER_REFRESH_SECRET").unwrap_or_else(|_| {
                 warn!(
                     "Using default secret for refreshing. 
                         This is not recommended for production use."

@@ -1,24 +1,15 @@
 pub mod api;
 
 use crate::api::middleware::metrics::metrics_app;
-use crate::api::poller::BackgroundPollManager;
-use crate::api::setup::setup_logging;
 use crate::api::shutdown::{shutdown_metric_signal, shutdown_signal};
 use crate::api::state::AppState;
 use anyhow::Context;
 use api::router::create_router;
+use api::setup::setup_components;
 use axum::Router;
 use scouter_auth::auth::AuthManager;
-use scouter_settings::ScouterServerConfig;
-use scouter_sql::PostgresClient;
 use std::sync::Arc;
 use tracing::info;
-
-#[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
-use scouter_events::consumer::kafka::KafkaConsumerManager;
-
-#[cfg(feature = "rabbitmq")]
-use scouter_events::consumer::rabbitmq::RabbitMQConsumerManager;
 
 /// Start the metrics server for prometheus
 async fn start_metrics_server() -> Result<(), anyhow::Error> {
@@ -47,55 +38,10 @@ async fn start_metrics_server() -> Result<(), anyhow::Error> {
 /// # Returns
 ///
 /// The main server router
-async fn create_app(config: ScouterServerConfig) -> Result<(Router, Arc<AppState>), anyhow::Error> {
+async fn create_app() -> Result<(Router, Arc<AppState>), anyhow::Error> {
     // setup logging, soft fail if it fails
-    let _ = setup_logging().await.is_ok();
 
-    // db for app state and kafka
-    // start server
-    let db_client = PostgresClient::new(None, Some(&config.database_settings))
-        .await
-        .with_context(|| "Failed to create Postgres client")?;
-
-    let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(());
-
-    // setup background kafka task if kafka is enabled
-    #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
-    if config.kafka_enabled() {
-        let kafka_settings = &config.kafka_settings.as_ref().unwrap().clone();
-        KafkaConsumerManager::start_workers(
-            kafka_settings,
-            &config.database_settings,
-            &db_client.pool,
-            shutdown_rx.clone(),
-        )
-        .await?;
-        info!("✅ Started Kafka workers");
-    }
-
-    // setup background rabbitmq task if rabbitmq is enabled
-    #[cfg(feature = "rabbitmq")]
-    if config.rabbitmq_enabled() {
-        let rabbit_settings = &config.rabbitmq_settings.as_ref().unwrap().clone();
-        RabbitMQConsumerManager::start_workers(
-            rabbit_settings,
-            &config.database_settings,
-            &db_client.pool,
-            shutdown_rx.clone(),
-        )
-        .await?;
-        info!("✅ Started RabbitMQ workers");
-    }
-
-    // ##################### run drift polling background tasks #####################
-    BackgroundPollManager::start_workers(
-        &db_client.pool,
-        &config.polling_settings,
-        &config.database_settings,
-        shutdown_rx,
-    )
-    .await?;
-    info!("✅ Started drift workers");
+    let (config, db_client, shutdown_tx) = setup_components().await?;
 
     let app_state = Arc::new(AppState {
         db: db_client,
@@ -115,13 +61,13 @@ async fn create_app(config: ScouterServerConfig) -> Result<(Router, Arc<AppState
 
 /// Start the main server
 async fn start_main_server() -> Result<(), anyhow::Error> {
-    let config = ScouterServerConfig::default();
-    let addr = format!("0.0.0.0:{}", config.server_port.clone());
+    let (router, app_state) = create_app().await?;
+
+    let port = std::env::var("OPSML_SERVER_PORT").unwrap_or_else(|_| "3000".to_string());
+    let addr = format!("0.0.0.0:{}", port);
     let listener = tokio::net::TcpListener::bind(addr.clone())
         .await
         .with_context(|| "Failed to bind to port 8000")?;
-
-    let (router, app_state) = create_app(config).await?;
 
     info!(
         "🚀 Scouter Server started successfully on {:?}",
@@ -174,6 +120,7 @@ mod tests {
     use ndarray_rand::RandomExt;
     use scouter_drift::spc::monitor::SpcMonitor;
     use scouter_events::producer::http::types::JwtToken;
+    use scouter_sql::PostgresClient;
     use scouter_types::spc::{SpcAlertConfig, SpcDriftConfig, SpcDriftFeatures};
     use sqlx::{Pool, Postgres};
     use std::env;
@@ -221,6 +168,7 @@ mod tests {
             env::set_var("RUST_LOG", "debug");
             env::set_var("LOG_LEVEL", "debug");
             env::set_var("LOG_JSON", "false");
+            env::set_var("POLLING_WORKER_COUNT", "1");
 
             if enable_kafka {
                 std::env::set_var("KAFKA_BROKERS", "localhost:9092");
@@ -230,10 +178,7 @@ mod tests {
                 std::env::set_var("RABBITMQ_ADDR", "amqp://guest:guest@127.0.0.1:5672/%2f");
             }
 
-            let mut config = ScouterServerConfig::default();
-            config.polling_settings.num_workers = 1;
-
-            let (app, _app_state) = create_app(config.clone()).await?;
+            let (app, _app_state) = create_app().await?;
 
             let db_client = PostgresClient::new(None, None)
                 .await
