@@ -1030,7 +1030,7 @@ mod tests {
             FROM scouter.observed_bin_count;
 
              DELETE
-            FROM scouter_users;
+            FROM scouter.scouter_users;
             "#,
         )
         .fetch_all(pool)

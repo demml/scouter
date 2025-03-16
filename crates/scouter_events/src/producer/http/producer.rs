@@ -8,8 +8,7 @@ use scouter_types::ServerRecords;
 use serde_json::Value;
 use tracing::{debug, error, instrument};
 
-const TIMEOUT_SECS: u64 = 30;
-const REDACTED: &str = "REDACTED";
+const TIMEOUT_SECS: u64 = 60;
 
 /// Create a new HTTP client that can be shared across different clients
 

@@ -1,16 +1,10 @@
-use crate::api::routes::auth::schema::{Authenticated, LoginRequest, LoginResponse};
+use crate::api::routes::auth::schema::Authenticated;
 use crate::api::routes::user::utils::get_user;
 use crate::api::state::AppState;
 use anyhow::{Context, Result};
 /// Route for debugging information
 use axum::extract::State;
-use axum::{
-    http::header,
-    http::header::HeaderMap,
-    http::StatusCode,
-    routing::{get, post},
-    Json, Router,
-};
+use axum::{http::header, http::header::HeaderMap, http::StatusCode, routing::get, Json, Router};
 
 use scouter_events::producer::http::types::JwtToken;
 use std::panic::{catch_unwind, AssertUnwindSafe};

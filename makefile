@@ -81,7 +81,7 @@ start.server: build.all_backends
 	./target/debug/scouter-server &
 
 .PHONY: build.shutdown_backends
-build.shutdown_backends:
+build.shutdown:
 	docker compose down
 
 .PHONE: stop.server

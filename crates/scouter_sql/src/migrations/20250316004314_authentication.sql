@@ -1,6 +1,6 @@
 -- Add migration script here
 
-CREATE TABLE IF NOT EXISTS scouter_users (
+CREATE TABLE IF NOT EXISTS scouter.scouter_users (
     id SERIAL PRIMARY KEY,
     created_at TIMESTAMP DEFAULT (TIMEZONE('utc', NOW())),
     active BOOLEAN DEFAULT TRUE,
