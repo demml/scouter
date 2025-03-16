@@ -183,7 +183,6 @@ impl Default for RabbitMQSettings {
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ScouterServerConfig {
-    pub server_port: u16,
     pub polling_settings: PollingSettings,
     pub database_settings: DatabaseSettings,
     pub kafka_settings: Option<KafkaSettings>,
@@ -193,12 +192,6 @@ pub struct ScouterServerConfig {
 
 impl Default for ScouterServerConfig {
     fn default() -> Self {
-        let server_port = std::env::var("SERVER_PORT")
-            .unwrap_or_else(|_| "8000".to_string())
-            .parse::<u16>()
-            .map_err(|e| ConfigError::Error(format!("{:?}", e)))
-            .unwrap();
-
         let polling = PollingSettings::default();
         let database = DatabaseSettings::default();
         let kafka = if std::env::var("KAFKA_BROKERS").is_ok() {
@@ -232,7 +225,6 @@ impl Default for ScouterServerConfig {
         };
 
         Self {
-            server_port,
             polling_settings: polling,
             database_settings: database,
             kafka_settings: kafka,

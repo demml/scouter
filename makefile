@@ -85,5 +85,5 @@ build.shutdown:
 	docker compose down
 
 .PHONE: stop.server
-stop.server: build.shutdown_backends
+stop.server: build.shutdown
 	lsof -ti:8000 | xargs kill -9
