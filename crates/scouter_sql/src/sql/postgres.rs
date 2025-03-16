@@ -855,7 +855,7 @@ impl PostgresClient {
         let permissions = serde_json::to_value(&user.permissions)
             .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
 
-        sqlx::query(&query)
+        sqlx::query(&query.sql)
             .bind(&user.username)
             .bind(&user.password_hash)
             .bind(&permissions)
@@ -872,7 +872,7 @@ impl PostgresClient {
     async fn get_user(&self, username: &str) -> Result<Option<User>, SqlError> {
         let query = Queries::GetUser.get_query();
 
-        let user: Option<User> = sqlx::query_as(&query)
+        let user: Option<User> = sqlx::query_as(&query.sql)
             .bind(username)
             .fetch_optional(&self.pool)
             .await
@@ -890,7 +890,7 @@ impl PostgresClient {
         let permissions = serde_json::to_value(&user.permissions)
             .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
 
-        sqlx::query(&query)
+        sqlx::query(&query.sql)
             .bind(user.active)
             .bind(&user.password_hash)
             .bind(&permissions)
@@ -907,7 +907,7 @@ impl PostgresClient {
     async fn get_users(&self) -> Result<Vec<User>, SqlError> {
         let query = Queries::GetUsers.get_query();
 
-        let users = sqlx::query_as::<_, User>(&query)
+        let users = sqlx::query_as::<_, User>(&query.sql)
             .fetch_all(&self.pool)
             .await
             .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
@@ -919,7 +919,7 @@ impl PostgresClient {
         // Count admins in the system
         let query = Queries::LastAdmin.get_query();
 
-        let count: i64 = sqlx::query_scalar(&query)
+        let count: i64 = sqlx::query_scalar(&query.sql)
             .fetch_one(&self.pool)
             .await
             .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
@@ -931,7 +931,7 @@ impl PostgresClient {
     async fn delete_user(&self, username: &str) -> Result<(), SqlError> {
         let query = Queries::DeleteUser.get_query();
 
-        sqlx::query(&query)
+        sqlx::query(&query.sql)
             .bind(username)
             .execute(&self.pool)
             .await
