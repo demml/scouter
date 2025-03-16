@@ -11,10 +11,9 @@ use axum::{
     routing::{delete, get, post, put},
     Extension, Json, Router,
 };
-use opsml_sql::schemas::schema::User;
 use password_auth::generate_hash;
 use scouter_auth::permission::UserPermissions;
-use scouter_sql::PostgresClient;
+use scouter_sql::sql::schema::User;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::{error, info};
@@ -61,7 +60,7 @@ async fn create_user(
     }
 
     // Save to database
-    if let Err(e) = state.sql_client.insert_user(&user).await {
+    if let Err(e) = state.db.insert_user(&user).await {
         error!("Failed to create user: {}", e);
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -91,7 +90,7 @@ async fn get_user(
     }
 
     // Get user from database
-    let user = match state.sql_client.get_user(&username).await {
+    let user = match state.db.get_user(&username).await {
         Ok(Some(user)) => user,
         Ok(None) => {
             return Err((
@@ -127,7 +126,7 @@ async fn list_users(
     }
 
     // Get users from database
-    let users = match state.sql_client.get_users().await {
+    let users = match state.db.get_users().await {
         Ok(users) => users,
         Err(e) => {
             error!("Failed to list users: {}", e);
@@ -187,7 +186,7 @@ async fn update_user(
     }
 
     // Save updated user to database
-    if let Err(e) = state.sql_client.update_user(&user).await {
+    if let Err(e) = state.db.update_user(&user).await {
         error!("Failed to update user: {}", e);
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -216,7 +215,7 @@ async fn delete_user(
     }
 
     // Prevent deleting the last admin user
-    let is_last_admin = match state.sql_client.is_last_admin().await {
+    let is_last_admin = match state.db.is_last_admin().await {
         Ok(is_last) => is_last,
         Err(e) => {
             error!("Failed to check if user is last admin: {}", e);
@@ -235,7 +234,7 @@ async fn delete_user(
     }
 
     // Delete the user
-    if let Err(e) = state.sql_client.delete_user(&username).await {
+    if let Err(e) = state.db.delete_user(&username).await {
         error!("Failed to delete user: {}", e);
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,

@@ -28,6 +28,7 @@ chrono = { workspace = true }
 futures = { workspace = true }
 metrics = { workspace = true }
 metrics-exporter-prometheus = { workspace = true }
+password-auth = { workspace = true }
 rusty-logging= { workspace = true }
 scouter-settings = { workspace = true }
 serde = { workspace = true, features = ["derive"] }

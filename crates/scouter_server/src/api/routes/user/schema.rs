@@ -1,4 +1,4 @@
-use opsml_sql::schemas::schema::User;
+use scouter_sql::sql::schema::User;
 use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize)]

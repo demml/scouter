@@ -1,9 +1,8 @@
-use crate::core::state::AppState;
+use crate::api::state::AppState;
 use anyhow::Result;
 /// Route for debugging information
 use axum::{http::StatusCode, Json};
-use opsml_sql::base::SqlClient;
-use opsml_sql::schemas::User;
+use scouter_sql::sql::schema::User;
 use std::sync::Arc;
 use tracing::error;
 
@@ -30,7 +29,7 @@ pub async fn get_user(
     username: &str,
 ) -> Result<User, (StatusCode, Json<serde_json::Value>)> {
     state
-        .sql_client
+        .db
         .get_user(username)
         .await
         .map_err(|e| {

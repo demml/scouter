@@ -3645,6 +3645,7 @@ dependencies = [
  "mockito",
  "ndarray",
  "ndarray-rand",
+ "password-auth",
  "rand 0.8.5",
  "rusty-logging",
  "scouter-auth",

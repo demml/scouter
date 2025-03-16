@@ -1,7 +1,7 @@
 use crate::api::routes::auth::middleware::header::HeaderValue;
 use crate::api::routes::auth::schema::AuthError;
+use crate::api::routes::user::utils::get_user;
 use crate::api::state::AppState;
-use crate::api::user::utils::get_user;
 use axum::http::{header, StatusCode};
 use axum::response::IntoResponse;
 use axum::{
