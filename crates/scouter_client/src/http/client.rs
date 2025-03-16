@@ -69,6 +69,10 @@ impl ScouterClient {
             .extract::<String>()?;
 
         let request = ProfileRequest {
+            repository: profile
+                .getattr("config")?
+                .getattr("repository")?
+                .extract::<String>()?,
             drift_type: drift_type.clone(),
             profile: profile_str,
         };

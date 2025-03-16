@@ -11,12 +11,13 @@ pub enum RequestType {
     Get,
     Post,
     Put,
+    Delete,
 }
 
 #[derive(Debug, Clone)]
 pub enum Routes {
-    AuthApiLogin,
-    AuthApiRefresh,
+    AuthLogin,
+    AuthRefresh,
     Drift,
     SpcDrift,
     PsiDrift,
@@ -30,8 +31,8 @@ pub enum Routes {
 impl Routes {
     pub fn as_str(&self) -> &str {
         match self {
-            Routes::AuthApiLogin => "auth/api/login",
-            Routes::AuthApiRefresh => "auth/api/refresh",
+            Routes::AuthLogin => "auth/login",
+            Routes::AuthRefresh => "auth/refresh",
             Routes::Profile => "profile",
             Routes::Drift => "drift",
             Routes::SpcDrift => "drift/spc",

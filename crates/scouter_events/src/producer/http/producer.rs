@@ -1,19 +1,39 @@
 use crate::producer::http::types::{HTTPConfig, JwtToken, RequestType, Routes};
 
+use reqwest::header;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, Response};
 use scouter_error::ScouterError;
 use scouter_types::ServerRecords;
 use serde_json::Value;
-use tracing::debug;
+use tracing::{debug, error, instrument};
 
 const TIMEOUT_SECS: u64 = 30;
 const REDACTED: &str = "REDACTED";
 
 /// Create a new HTTP client that can be shared across different clients
-pub fn build_http_client() -> Result<Client, ScouterError> {
+
+/// Create a new HTTP client that can be shared across different clients
+pub fn build_http_client(settings: &HTTPConfig) -> Result<Client, ScouterError> {
+    let mut headers = HeaderMap::new();
+
+    headers.insert(
+        "Username",
+        HeaderValue::from_str(&settings.username).map_err(|e| {
+            ScouterError::Error(format!("Failed to create header with error: {}", e))
+        })?,
+    );
+
+    headers.insert(
+        "Password",
+        HeaderValue::from_str(&settings.password).map_err(|e| {
+            ScouterError::Error(format!("Failed to create header with error: {}", e))
+        })?,
+    );
+
     let client_builder = Client::builder().timeout(std::time::Duration::from_secs(TIMEOUT_SECS));
     let client = client_builder
+        .default_headers(headers)
         .build()
         .map_err(|e| ScouterError::Error(format!("Failed to create client with error: {}", e)))?;
     Ok(client)
@@ -23,104 +43,64 @@ pub fn build_http_client() -> Result<Client, ScouterError> {
 pub struct HTTPClient {
     client: Client,
     config: HTTPConfig,
+    base_path: String,
 }
 
 impl HTTPClient {
     pub async fn new(config: HTTPConfig) -> Result<Self, ScouterError> {
-        let client = build_http_client()?;
+        let client = build_http_client(&config)?;
 
-        let mut api_client = HTTPClient { client, config };
+        let mut api_client = HTTPClient {
+            client,
+            config: config.clone(),
+            base_path: format!("{}/{}", config.server_url, "scouter"),
+        };
 
-        if api_client.config.use_auth {
-            api_client.get_jwt_token().await?;
-
-            // mask the username and password
-            api_client.config.username = REDACTED.to_string();
-            api_client.config.password = REDACTED.to_string();
-
-            // mask the env variables
-            std::env::set_var("SCOUTER_USERNAME", REDACTED);
-            std::env::set_var("SCOUTER_PASSWORD", REDACTED);
-        }
+        api_client.get_jwt_token().await.map_err(|e| {
+            error!("Failed to get JWT token: {}", e);
+            ScouterError::Error(format!("Failed to get JWT token with error: {}", e))
+        })?;
 
         Ok(api_client)
     }
 
+    #[instrument(skip_all)]
     async fn get_jwt_token(&mut self) -> Result<(), ScouterError> {
-        if !self.config.use_auth {
-            return Ok(());
+        let url = format!("{}/{}", self.base_path, Routes::AuthLogin.as_str());
+        debug!("Getting JWT token from {}", url);
+
+        let response = self.client.get(url).send().await.map_err(|e| {
+            ScouterError::Error(format!("Failed to send request with error: {}", e))
+        })?;
+
+        // check if unauthorized
+        if response.status().is_client_error() {
+            error!("Failed to get JWT token: Unauthorized");
+            return Err(ScouterError::Error("Unauthorized".to_string()));
         }
 
-        let mut headers = HeaderMap::new();
-        headers.insert(
-            "Username",
-            HeaderValue::from_str(&self.config.username).map_err(|e| {
-                ScouterError::Error(format!("Failed to create header with error: {}", e))
-            })?,
-        );
-
-        headers.insert(
-            "Password",
-            HeaderValue::from_str(&self.config.password).map_err(|e| {
-                ScouterError::Error(format!("Failed to create header with error: {}", e))
-            })?,
-        );
-
-        let url = format!(
-            "{}/{}",
-            self.config.server_url,
-            Routes::AuthApiLogin.as_str()
-        );
-        let response = self
-            .client
-            .get(url)
-            .headers(headers)
-            .send()
-            .await
-            .map_err(|e| ScouterError::Error(format!("Failed to send request with error: {}", e)))?
-            .json::<JwtToken>()
-            .await
-            .map_err(|e| {
-                ScouterError::Error(format!("Failed to parse response with error: {}", e))
-            })?;
+        let response = response.json::<JwtToken>().await.map_err(|e| {
+            ScouterError::Error(format!("Failed to parse jwt token with error: {}", e))
+        })?;
 
         self.config.auth_token = response.token;
 
         Ok(())
     }
 
-    /// Refresh the JWT token when it expires
-    /// This function is called with the old JWT token, which is then verified with the server refresh token
-    async fn refresh_token(&mut self) -> Result<(), ScouterError> {
-        if !self.config.use_auth {
-            return Ok(());
+    async fn update_token_from_response(&mut self, response: &Response) {
+        if let Some(new_token) = response
+            .headers()
+            .get(header::AUTHORIZATION)
+            .and_then(|h| h.to_str().ok())
+            .and_then(|h| h.strip_prefix("Bearer "))
+        {
+            self.config.auth_token = new_token.to_string();
         }
-
-        let url = format!(
-            "{}/{}",
-            self.config.server_url,
-            Routes::AuthApiRefresh.as_str()
-        );
-        let response = self
-            .client
-            .get(url)
-            .bearer_auth(&self.config.auth_token)
-            .send()
-            .await
-            .map_err(|e| ScouterError::Error(format!("Failed to send request with error: {}", e)))?
-            .json::<JwtToken>()
-            .await
-            .map_err(|e| {
-                ScouterError::Error(format!("Failed to parse response with error: {}", e))
-            })?;
-
-        self.config.auth_token = response.token;
-
-        Ok(())
     }
 
-    async fn request(
-        self,
+    async fn _request(
+        &self,
         route: Routes,
         request_type: RequestType,
         body_params: Option<Value>,
@@ -129,7 +109,7 @@ impl HTTPClient {
     ) -> Result<Response, ScouterError> {
         let headers = headers.unwrap_or_default();
 
-        let url = format!("{}/{}", self.config.server_url, route.as_str());
+        let url = format!("{}/{}", self.base_path, route.as_str());
         let response = match request_type {
             RequestType::Get => {
                 let url = if let Some(query_string) = query_string {
@@ -153,30 +133,45 @@ impl HTTPClient {
                 .post(url)
                 .headers(headers)
                 .json(&body_params)
-                .bearer_auth(self.config.auth_token)
+                .bearer_auth(&self.config.auth_token)
                 .send()
                 .await
                 .map_err(|e| {
                     ScouterError::Error(format!("Failed to send request with error: {}", e))
                 })?,
-
             RequestType::Put => self
                 .client
                 .put(url)
                 .headers(headers)
                 .json(&body_params)
-                .bearer_auth(self.config.auth_token)
+                .bearer_auth(&self.config.auth_token)
                 .send()
                 .await
                 .map_err(|e| {
                     ScouterError::Error(format!("Failed to send request with error: {}", e))
                 })?,
+            RequestType::Delete => {
+                let url = if let Some(query_string) = query_string {
+                    format!("{}?{}", url, query_string)
+                } else {
+                    url
+                };
+                self.client
+                    .delete(url)
+                    .headers(headers)
+                    .bearer_auth(&self.config.auth_token)
+                    .send()
+                    .await
+                    .map_err(|e| {
+                        ScouterError::Error(format!("Failed to send request with error: {}", e))
+                    })?
+            }
         };
 
         Ok(response)
     }
 
-    pub async fn request_with_retry(
+    pub async fn request(
         &mut self,
         route: Routes,
         request_type: RequestType,
@@ -184,42 +179,18 @@ impl HTTPClient {
         query_params: Option<String>,
         headers: Option<HeaderMap>,
     ) -> Result<Response, ScouterError> {
-        // this will attempt to send a request. If the request fails, it will refresh the token and try again. If it fails all 3 times it will return an error
-        let mut attempts = 0;
-        let max_attempts = 3;
-        let mut response: Result<Response, ScouterError>;
+        let response = self
+            ._request(
+                route.clone(),
+                request_type,
+                body_params,
+                query_params,
+                headers,
+            )
+            .await?;
 
-        loop {
-            attempts += 1;
-
-            let client = self.clone();
-            response = client
-                .request(
-                    route.clone(),
-                    request_type.clone(),
-                    body_params.clone(),
-                    query_params.clone(),
-                    headers.clone(),
-                )
-                .await
-                .map_err(|e| {
-                    ScouterError::Error(format!("Failed to send request with error: {}", e))
-                });
-
-            if response.is_ok() || attempts >= max_attempts {
-                break;
-            }
-
-            if response.is_err() {
-                self.refresh_token().await.map_err(|e| {
-                    ScouterError::Error(format!("Failed to refresh token with error: {}", e))
-                })?;
-            }
-        }
-
-        let response = response.map_err(|e| {
-            ScouterError::Error(format!("Failed to send request with error: {}", e))
-        })?;
+        // Check and update token if a new one was provided
+        self.update_token_from_response(&response).await;
 
         Ok(response)
     }
@@ -243,7 +214,7 @@ impl HTTPProducer {
 
         let response = self
             .client
-            .request_with_retry(
+            .request(
                 Routes::Drift,
                 RequestType::Post,
                 Some(serialized_msg),
