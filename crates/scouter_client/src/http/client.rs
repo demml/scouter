@@ -81,7 +81,7 @@ impl ScouterClient {
             .rt
             .block_on(async {
                 self.client
-                    .request_with_retry(
+                    .request(
                         Routes::Profile,
                         RequestType::Post,
                         Some(serde_json::to_value(&request).unwrap()),
@@ -163,7 +163,7 @@ impl ScouterClient {
             .rt
             .block_on(async {
                 self.client
-                    .request_with_retry(
+                    .request(
                         Routes::ProfileStatus,
                         RequestType::Put,
                         Some(serde_json::to_value(request).unwrap()),
@@ -188,7 +188,7 @@ impl ScouterClient {
             .block_on(async {
                 let response = self
                     .client
-                    .request_with_retry(
+                    .request(
                         Routes::Alerts,
                         RequestType::Get,
                         None,
@@ -249,7 +249,7 @@ impl ScouterClient {
         let results: Result<serde_json::Value, ScouterError> = self.rt.block_on(async {
             let response = self
                 .client
-                .request_with_retry(
+                .request(
                     Routes::Profile,
                     RequestType::Get,
                     None,
@@ -299,7 +299,7 @@ impl ScouterClient {
             .map_err(|e| PyScouterError::new_err(e.to_string()))?;
 
         let response = client
-            .request_with_retry(
+            .request(
                 Routes::SpcDrift,
                 RequestType::Get,
                 None,
@@ -342,7 +342,7 @@ impl ScouterClient {
             .map_err(|e| PyScouterError::new_err(e.to_string()))?;
 
         let response = client
-            .request_with_retry(
+            .request(
                 Routes::PsiDrift,
                 RequestType::Get,
                 None,
@@ -386,7 +386,7 @@ impl ScouterClient {
             .map_err(|e| PyScouterError::new_err(e.to_string()))?;
 
         let response = client
-            .request_with_retry(
+            .request(
                 Routes::CustomDrift,
                 RequestType::Get,
                 None,
