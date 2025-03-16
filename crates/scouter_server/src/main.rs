@@ -8,6 +8,7 @@ use crate::api::state::AppState;
 use anyhow::Context;
 use api::router::create_router;
 use axum::Router;
+use scouter_auth::auth::AuthManager;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::PostgresClient;
 use std::sync::Arc;
@@ -99,6 +100,10 @@ async fn create_app(config: ScouterServerConfig) -> Result<(Router, Arc<AppState
     let app_state = Arc::new(AppState {
         db: db_client,
         shutdown_tx,
+        auth_manager: AuthManager::new(
+            &config.auth_settings.jwt_secret,
+            &config.auth_settings.refresh_secret,
+        ),
     });
 
     let router = create_router(app_state.clone())

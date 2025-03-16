@@ -10,8 +10,7 @@ use axum::{
     response::Json,
 };
 use axum_extra::extract::cookie::CookieJar;
-use opsml_auth::permission::UserPermissions;
-use opsml_sql::base::SqlClient;
+use scouter_auth::permission::UserPermissions;
 use serde::Serialize;
 use std::sync::Arc;
 use tracing::info;
@@ -104,7 +103,7 @@ pub async fn auth_api_middleware(
                     // Update refresh token in database
                     user.refresh_token = Some(new_refresh_token.clone());
 
-                    if (state.sql_client.update_user(&user).await).is_err() {
+                    if (state.db.update_user(&user).await).is_err() {
                         return Err((
                             StatusCode::INTERNAL_SERVER_ERROR,
                             Json(AuthError {

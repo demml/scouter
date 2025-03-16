@@ -37,13 +37,13 @@ scouter-types = { path = "crates/scouter_types" }
 
 anyhow = "1.*"
 axum = "0.*"
+axum-extra = { version =  "0.*", features = ["cookie"] }
 approx = "0.*"
+base64 = "0.22.*"
 chrono ={ version = "0.*", features = ["serde"] }
 colored_json = "*"
 cron = "0.*"
-
 futures = "0.*"
-
 include_dir = "0.*"
 indicatif = "0.*"
 itertools = "0.*"

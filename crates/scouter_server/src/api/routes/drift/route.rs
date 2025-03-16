@@ -5,8 +5,9 @@ use axum::{
     http::StatusCode,
     response::IntoResponse,
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
+use scouter_auth::permission::UserPermissions;
 use scouter_contracts::{DriftRequest, GetProfileRequest};
 use scouter_drift::psi::PsiDrifter;
 use scouter_error::ScouterError;
@@ -23,11 +24,19 @@ use tracing::{debug, error, instrument};
 #[instrument(skip(data, params))]
 pub async fn get_spc_drift(
     State(data): State<Arc<AppState>>,
+    Extension(perms): Extension<UserPermissions>,
     Query(params): Query<DriftRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // validate time window
 
     debug!("Querying drift records: {:?}", params);
+
+    if !perms.has_read_permission() {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Permission denied" })),
+        ));
+    }
 
     let query_result = &data.db.get_binned_spc_drift_records(&params).await;
 
@@ -82,7 +91,14 @@ async fn get_binned_psi_feature_metrics(
 pub async fn get_psi_drift(
     State(data): State<Arc<AppState>>,
     Query(params): Query<DriftRequest>,
+    Extension(perms): Extension<UserPermissions>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    if !perms.has_read_permission() {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Permission denied" })),
+        ));
+    }
     // validate time window
     debug!("Querying drift records: {:?}", params);
     let feature_metrics = get_binned_psi_feature_metrics(&params, &data.db).await;
@@ -107,8 +123,16 @@ pub async fn get_psi_drift(
 pub async fn get_custom_drift(
     State(data): State<Arc<AppState>>,
     Query(params): Query<DriftRequest>,
+    Extension(perms): Extension<UserPermissions>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // validate time window
+
+    if !perms.has_read_permission() {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Permission denied" })),
+        ));
+    }
 
     debug!("Querying drift records: {:?}", params);
 
@@ -184,9 +208,17 @@ async fn insert_custom_drift(
 #[instrument(skip(body, data))]
 pub async fn insert_drift(
     State(data): State<Arc<AppState>>,
+    Extension(perms): Extension<UserPermissions>,
     Json(body): Json<ServerRecords>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     debug!("Inserting drift record: {:?}", body);
+
+    if !perms.has_write_permission(&body.repository()) {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(json!({ "error": "Permission denied" })),
+        ));
+    }
 
     let inserted = match body.record_type {
         RecordType::Spc => insert_spc_drift(&body, &data.db).await,

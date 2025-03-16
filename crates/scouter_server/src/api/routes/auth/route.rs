@@ -1,6 +1,6 @@
-use crate::core::auth::schema::{Authenticated, LoginRequest, LoginResponse};
-use crate::core::state::AppState;
-use crate::core::user::utils::get_user;
+use crate::api::routes::auth::schema::{Authenticated, LoginRequest, LoginResponse};
+use crate::api::routes::user::utils::get_user;
+use crate::api::state::AppState;
 use anyhow::{Context, Result};
 /// Route for debugging information
 use axum::extract::State;
@@ -11,8 +11,8 @@ use axum::{
     routing::{get, post},
     Json, Router,
 };
-use opsml_client::JwtToken;
-use opsml_sql::base::SqlClient;
+
+use scouter_events::producer::http::types::JwtToken;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::{debug, error, instrument};
@@ -105,7 +105,7 @@ pub async fn api_login_handler(
     user.refresh_token = Some(refresh_token);
 
     // set refresh token in db
-    state.sql_client.update_user(&user).await.map_err(|e| {
+    state.db.update_user(&user).await.map_err(|e| {
         error!("Failed to set refresh token in database: {}", e);
         (
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -161,7 +161,7 @@ pub async fn api_refresh_token_handler(
         user.refresh_token = Some(refresh_token);
 
         // set refresh token in db
-        state.sql_client.update_user(&user).await.map_err(|e| {
+        state.db.update_user(&user).await.map_err(|e| {
             error!("Failed to set refresh token in database: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,

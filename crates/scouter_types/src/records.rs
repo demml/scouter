@@ -350,6 +350,15 @@ impl ServerRecord {
         }
     }
 
+    pub fn repository(&self) -> String {
+        match self {
+            ServerRecord::Spc(record) => record.repository.clone(),
+            ServerRecord::Psi(record) => record.repository.clone(),
+            ServerRecord::Custom(record) => record.repository.clone(),
+            ServerRecord::Observability(record) => record.repository.clone(),
+        }
+    }
+
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         match self {
@@ -409,6 +418,13 @@ impl ServerRecords {
 
     pub fn len(&self) -> usize {
         self.records.len()
+    }
+
+    pub fn repository(&self) -> String {
+        match self.records.first() {
+            Some(record) => record.repository(),
+            None => "__missing__".to_string(),
+        }
     }
 }
 

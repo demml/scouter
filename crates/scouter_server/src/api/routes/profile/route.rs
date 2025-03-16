@@ -6,7 +6,7 @@ use axum::{
     extract::{Query, State},
     http::StatusCode,
     response::IntoResponse,
-    Json,
+    Extension, Json,
 };
 
 use serde_json::json;
@@ -19,10 +19,12 @@ use axum::{
     routing::{post, put},
     Router,
 };
+use scouter_auth::permission::UserPermissions;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 pub async fn insert_drift_profile(
     State(data): State<Arc<AppState>>,
+    Extension(perms): Extension<UserPermissions>,
     Json(body): Json<ProfileRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     // validate profile is correct

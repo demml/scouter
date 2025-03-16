@@ -1,5 +1,20 @@
+use base64::prelude::*;
 use scouter_error::ConfigError;
 use serde::Serialize;
+use std::env;
+use tracing::warn;
+
+fn generate_default_secret() -> String {
+    // Creates a deterministic key for development purposes
+    // Should be replaced with a proper secret in production
+    let mut key = [0u8; 32];
+    for (i, item) in key.iter_mut().enumerate() {
+        // Different pattern than the JWT secret (reversed index)
+        *item = (31 - i) as u8;
+    }
+
+    BASE64_STANDARD.encode(key)
+}
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PollingSettings {
@@ -40,6 +55,12 @@ impl Default for DatabaseSettings {
             max_connections,
         }
     }
+}
+
+#[derive(Debug, Clone, Default, Serialize)]
+pub struct AuthSettings {
+    pub jwt_secret: String,
+    pub refresh_secret: String,
 }
 
 #[derive(Clone, Serialize)]
@@ -167,6 +188,7 @@ pub struct ScouterServerConfig {
     pub database_settings: DatabaseSettings,
     pub kafka_settings: Option<KafkaSettings>,
     pub rabbitmq_settings: Option<RabbitMQSettings>,
+    pub auth_settings: AuthSettings,
 }
 
 impl Default for ScouterServerConfig {
@@ -191,12 +213,31 @@ impl Default for ScouterServerConfig {
             None
         };
 
+        let auth_settings = AuthSettings {
+            jwt_secret: env::var("OPSML_ENCRYPT_SECRET").unwrap_or_else(|_| {
+                warn!(
+                    "Using default secret for encryption 
+                        This is not recommended for production use."
+                );
+                generate_default_secret()
+            }),
+            refresh_secret: env::var("OPSML_REFRESH_SECRET").unwrap_or_else(|_| {
+                warn!(
+                    "Using default secret for refreshing. 
+                        This is not recommended for production use."
+                );
+
+                generate_default_secret()
+            }),
+        };
+
         Self {
             server_port,
             polling_settings: polling,
             database_settings: database,
             kafka_settings: kafka,
             rabbitmq_settings: rabbitmq,
+            auth_settings,
         }
     }
 }

@@ -24,6 +24,7 @@ scouter-sql = { workspace = true }
 
 anyhow = {workspace = true}
 axum = {workspace = true}
+axum-extra = { workspace = true, version = "0.*", features = ["cookie"] }
 chrono = { workspace = true }
 futures = { workspace = true }
 metrics = { workspace = true }
