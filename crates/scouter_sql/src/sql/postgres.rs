@@ -1028,6 +1028,9 @@ mod tests {
 
             DELETE
             FROM scouter.observed_bin_count;
+
+             DELETE
+            FROM scouter_users;
             "#,
         )
         .fetch_all(pool)
@@ -1035,17 +1038,22 @@ mod tests {
         .unwrap();
     }
 
-    #[tokio::test]
-    async fn test_postgres() {
+    pub async fn db_client() -> PostgresClient {
         let client = PostgresClient::new(None, None).await.unwrap();
 
         cleanup(&client.pool).await;
+
+        client
+    }
+
+    #[tokio::test]
+    async fn test_postgres() {
+        let _client = db_client().await;
     }
 
     #[tokio::test]
     async fn test_postgres_drift_alert() {
-        let client = PostgresClient::new(None, None).await.unwrap();
-        cleanup(&client.pool).await;
+        let client = db_client().await;
 
         let timestamp = chrono::Utc::now().naive_utc();
 
@@ -1110,8 +1118,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres_spc_drift_record() {
-        let client = PostgresClient::new(None, None).await.unwrap();
-        cleanup(&client.pool).await;
+        let client = db_client().await;
 
         let record = SpcServerRecord {
             created_at: chrono::Utc::now().naive_utc(),
@@ -1130,8 +1137,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres_bin_count() {
-        let client = PostgresClient::new(None, None).await.unwrap();
-        cleanup(&client.pool).await;
+        let client = db_client().await;
 
         let record = PsiServerRecord {
             created_at: chrono::Utc::now().naive_utc(),
@@ -1151,8 +1157,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres_observability_record() {
-        let client = PostgresClient::new(None, None).await.unwrap();
-        cleanup(&client.pool).await;
+        let client = db_client().await;
 
         let record = ObservabilityMetrics::default();
 
@@ -1212,8 +1217,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres_get_features() {
-        let client = PostgresClient::new(None, None).await.unwrap();
-        cleanup(&client.pool).await;
+        let client = db_client().await;
 
         let timestamp = chrono::Utc::now().naive_utc();
 
@@ -1267,8 +1271,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres_bin_proportions() {
-        let client = PostgresClient::new(None, None).await.unwrap();
-        cleanup(&client.pool).await;
+        let client = db_client().await;
+
         let timestamp = chrono::Utc::now().naive_utc();
 
         for feature in 0..3 {
@@ -1330,8 +1334,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres_cru_custom_metric() {
-        let client = PostgresClient::new(None, None).await.unwrap();
-        cleanup(&client.pool).await;
+        let client = db_client().await;
+
         let timestamp = chrono::Utc::now().naive_utc();
 
         for i in 0..2 {
@@ -1393,5 +1397,39 @@ mod tests {
             .unwrap();
         //
         assert_eq!(binned_records.metrics.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_postgres_user() {
+        let client = db_client().await;
+
+        // Create
+        let user = User::new("user".to_string(), "pass".to_string(), None, None, None);
+        client.insert_user(&user).await.unwrap();
+
+        // Read
+        let mut user = client.get_user("user").await.unwrap().unwrap();
+        assert_eq!(user.username, "user");
+
+        // update user
+        user.active = false;
+        user.refresh_token = Some("token".to_string());
+
+        // Update
+        client.update_user(&user).await.unwrap();
+        let user = client.get_user("user").await.unwrap().unwrap();
+        assert!(!user.active);
+        assert_eq!(user.refresh_token.unwrap(), "token");
+
+        // get users
+        let users = client.get_users().await.unwrap();
+        assert_eq!(users.len(), 1);
+
+        // get last admin
+        let is_last_admin = client.is_last_admin().await.unwrap();
+        assert!(is_last_admin);
+
+        // delete
+        client.delete_user("user").await.unwrap();
     }
 }
