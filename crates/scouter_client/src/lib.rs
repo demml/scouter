@@ -33,7 +33,7 @@ pub use scouter_types::{
 pub use crate::http::ScouterClient;
 pub use queue::{DriftTransportConfig, ScouterQueue};
 pub use scouter_contracts::{
-    DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileStatusRequest,
+    DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
 };
 pub use scouter_drift::{
     custom::CustomMetricFeatureQueue,
