@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 
 #[pyclass]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SpcDriftFeature {
     #[pyo3(get)]
     pub created_at: Vec<chrono::NaiveDateTime>,
@@ -22,7 +22,7 @@ impl SpcDriftFeature {
 }
 
 #[pyclass(name = "BinnedSpcFeatureMetrics")]
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct SpcDriftFeatures {
     #[pyo3(get)]
     pub features: BTreeMap<String, SpcDriftFeature>,
