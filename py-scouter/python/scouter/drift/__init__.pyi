@@ -203,7 +203,6 @@ class SpcDriftConfig:
         """
 
 class SpcDriftProfile:
-
     @property
     def scouter_version(self) -> str:
         """Return scouter version used to create DriftProfile"""

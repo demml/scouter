@@ -179,23 +179,6 @@ class SpcAlert:
     def __str__(self) -> str:
         """Return the string representation of the alert."""
 
-class SpcFeatureAlert:
-    @property
-    def feature(self) -> str:
-        """Return the feature."""
-
-    @property
-    def alerts(self) -> List[SpcAlert]:
-        """Return the alerts."""
-
-class SpcFeatureAlerts:
-    @property
-    def features(self) -> Dict[str, SpcFeatureAlert]:
-        """Return the feature alerts."""
-
-    @property
-    def has_alerts(self) -> bool:
-        """Returns true if there are alerts"""
 
 class AlertThreshold:
     """

@@ -12,8 +12,6 @@ SpcAlert = alert.SpcAlert
 SpcAlertConfig = alert.SpcAlertConfig
 SpcAlertRule = alert.SpcAlertRule
 SpcAlertType = alert.SpcAlertType
-SpcFeatureAlert = alert.SpcFeatureAlert
-SpcFeatureAlerts = alert.SpcFeatureAlerts
 SlackDispatchConfig = alert.SlackDispatchConfig
 
 
@@ -24,8 +22,6 @@ __all__ = [
     "PsiAlertConfig",
     "SpcAlertConfig",
     "SpcAlert",
-    "SpcFeatureAlert",
-    "SpcFeatureAlerts",
     "AlertThreshold",
     "CustomMetricAlertCondition",
     "CustomMetricAlertConfig",

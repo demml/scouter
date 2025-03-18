@@ -229,13 +229,9 @@ impl SpcAlert {
 
 // Drift config to use when calculating drift on a new sample of data
 
-#[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SpcFeatureAlert {
-    #[pyo3(get)]
     pub feature: String,
-
-    #[pyo3(get)]
     pub alerts: Vec<SpcAlert>,
 }
 
@@ -245,27 +241,20 @@ impl SpcFeatureAlert {
     }
 }
 
-#[pymethods]
-#[allow(clippy::new_without_default)]
-impl SpcFeatureAlert {
-    pub fn __str__(&self) -> String {
-        // serialize the struct to a string
-        ProfileFuncs::__str__(self)
-    }
-}
-
-#[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SpcFeatureAlerts {
-    #[pyo3(get)]
     pub features: HashMap<String, SpcFeatureAlert>,
-
-    #[pyo3(get)]
     pub has_alerts: bool,
 }
 
 impl SpcFeatureAlerts {
-    // rust-only function to insert feature alerts
+    pub fn new(has_alerts: bool) -> Self {
+        Self {
+            features: HashMap::new(),
+            has_alerts,
+        }
+    }
+
     pub fn insert_feature_alert(&mut self, feature: &str, alerts: HashSet<SpcAlert>) {
         // convert the alerts to a vector
         let alerts: Vec<SpcAlert> = alerts.into_iter().collect();
@@ -324,28 +313,6 @@ impl DispatchAlertDescription for SpcFeatureAlerts {
             });
         }
         alert_description
-    }
-}
-
-#[pymethods]
-#[allow(clippy::new_without_default)]
-impl SpcFeatureAlerts {
-    #[new]
-    pub fn new(has_alerts: bool) -> Self {
-        Self {
-            features: HashMap::new(),
-            has_alerts,
-        }
-    }
-
-    pub fn __str__(&self) -> String {
-        // serialize the struct to a string
-        ProfileFuncs::__str__(self)
-    }
-
-    pub fn model_dump_json(&self) -> String {
-        // serialize the struct to a string
-        ProfileFuncs::__json__(self)
     }
 }
 
