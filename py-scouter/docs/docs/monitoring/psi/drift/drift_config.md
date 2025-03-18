@@ -49,7 +49,7 @@ PsiDriftConfig(
 
 ## Methods
 
-### `load_from_json_file()`
+### `load_from_json_file()` _(static method)_
 Loads a `PsiDriftConfig` instance from a JSON file.
 
 - **Parameters:**

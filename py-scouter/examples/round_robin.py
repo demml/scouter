@@ -44,41 +44,6 @@ if __name__ == "__main__":
     # Simple client to register drift profiles
     client = ScouterClient()
 
-    # create fake data
-    data = generate_data()
-
-    # create psi profile
-    psi_config = PsiDriftConfig(
-        name="test",
-        repository="test",
-        version="0.0.1",
-        alert_config=PsiAlertConfig(
-            features_to_monitor=["feature_1"],
-            dispatch_config=SlackDispatchConfig(channel="test_channel"),
-        ),
-    )
-
-    psi_profile = scouter.create_drift_profile(data, psi_config)
-
-    bins = psi_profile.features["feature_1"].bins
-
-    client.register_profile(psi_profile)
-    psi_profile.save_to_json(path=Path("psi_profile.json"))
-
-    # create spc profile
-    spc_config = SpcDriftConfig(
-        name="test",
-        repository="test",
-        version="0.0.1",
-        alert_config=SpcAlertConfig(
-            features_to_monitor=["feature_1"], dispatch_config=SlackDispatchConfig(channel="test_channel")
-        ),
-    )
-
-    spc_profile = scouter.create_drift_profile(data, spc_config)
-    client.register_profile(spc_profile)
-    spc_profile.save_to_json(path=Path("spc_profile.json"))
-
     custom_config = CustomMetricDriftConfig(
         name="test",
         repository="test",
@@ -97,4 +62,3 @@ if __name__ == "__main__":
     )
 
     client.register_profile(custom_profile)
-    custom_profile.save_to_json(path=Path("custom_profile.json"))

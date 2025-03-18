@@ -261,10 +261,7 @@ pub struct SpcDriftProfile {
     pub scouter_version: String,
 }
 
-#[pymethods]
 impl SpcDriftProfile {
-    #[new]
-    #[pyo3(signature = (features, config, scouter_version=None))]
     pub fn new(
         features: HashMap<String, SpcFeatureDriftProfile>,
         config: SpcDriftConfig,
@@ -277,6 +274,10 @@ impl SpcDriftProfile {
             scouter_version,
         }
     }
+}
+
+#[pymethods]
+impl SpcDriftProfile {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__str__(self)

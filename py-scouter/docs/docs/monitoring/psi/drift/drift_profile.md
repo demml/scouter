@@ -20,7 +20,7 @@ The `PsiDriftProfile` serves as the core component for monitoring model drift in
 ## Methods
 
 ### `model_dump_json()`
-Serializes the `PsiDriftConfig` instance to a JSON string.
+Serializes the `PsiDriftProfile` instance to a JSON string.
 
 - **Parameters:** None
 - **Returns:** A JSON string representation of the instance.
@@ -32,8 +32,8 @@ Serializes the `PsiDriftConfig` instance to a JSON string.
 Return dictionary representation of the drift profile.
 
 - **Parameters:** None
-- **Returns:** `dict[str]` representation of the instance.
-- **Return Type:** `dict[str]`
+- **Returns:** `dict[str, Any]` representation of the instance.
+- **Return Type:** `dict[str, Any]`
 
 ---
 
@@ -55,6 +55,7 @@ Inplace operation that updates config args.
     - **`name`** (`Optional[str]`): Name of the model.
     - **`version`** (`Optional[str]`): Version of the model.
     - **`targets`** (`Optional[str]`): Target(s) of the model / Dependant variable(s).
+    - **`alert_config`** (`Optional[PsiAlertConfig]`): Instance of `PsiAlertConfig`.
 - **Returns:** `None`
 - **Return Type:** `None`
 

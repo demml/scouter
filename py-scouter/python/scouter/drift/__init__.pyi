@@ -203,22 +203,6 @@ class SpcDriftConfig:
         """
 
 class SpcDriftProfile:
-    def __init__(
-        self,
-        features: Dict[str, SpcFeatureDriftProfile],
-        config: SpcDriftConfig,
-        scouter_version: Optional[str] = None,
-    ):
-        """Initialize drift profile
-
-        Args:
-            features:
-                Dictionary of features and their drift profiles
-            config:
-                Monitor config
-            scouter_version:
-                version of scouter used to generate profile
-        """
 
     @property
     def scouter_version(self) -> str:
@@ -331,14 +315,6 @@ class SpcFeatureDrift:
 class SpcDriftMap:
     """Drift map of features"""
 
-    def __init__(self, repository: str, name: str, version: str) -> None:
-        """Initialize data profile
-
-        Args:
-            service_name:
-                Optional name of service associated with drift map
-        """
-
     @property
     def repository(self) -> str:
         """Repository to associate with drift map"""
@@ -352,7 +328,7 @@ class SpcDriftMap:
         """Version to associate with drift map"""
 
     @property
-    def features(self) -> Dict[str, FeatureDrift]:
+    def features(self) -> Dict[str, SpcFeatureDrift]:
         """Returns dictionary of features and their data profiles"""
 
     def __str__(self) -> str:
@@ -360,16 +336,6 @@ class SpcDriftMap:
 
     def model_dump_json(self) -> str:
         """Return json representation of data drift"""
-
-    def add_feature(self, feature: str, drift: SpcFeatureDrift) -> None:
-        """Add feature drift profile to drift map
-
-        Args:
-            feature:
-                Name of feature
-            drift:
-                Feature drift
-        """
 
     @staticmethod
     def model_validate_json(json_string: str) -> "SpcDriftMap":
@@ -390,7 +356,7 @@ class SpcDriftMap:
         """
 
     def to_numpy(self) -> Any:
-        """Return drift map as a a tuple of sample_array, drift_array and list of features"""
+        """Return drift map as a tuple of sample_array, drift_array and list of features"""
 
 class PsiDriftConfig:
     def __init__(

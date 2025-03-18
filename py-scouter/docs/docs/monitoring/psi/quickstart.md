@@ -19,7 +19,7 @@ export SCOUTER_SERVER_URL=your_scouter_server_url
 
 ### Creating a Drift Profile
 To detect model drift, we first need to create a drift profile using your baseline dataset $Y_{b}$, this is typically done at the time of training your model.
-```python
+```python hl_lines="6 15"
 from scouter.alert import PsiAlertConfig, SlackDispatchConfig
 from scouter.client import ScouterClient
 from scouter.drift import Drifter, PsiDriftConfig
@@ -35,17 +35,13 @@ if __name__ == "__main__":
 
     # Specify the alert configuration
     alert_config = PsiAlertConfig(
-        # When scouter server runs a drift detection job, what features should be analyzed
-        features_to_monitor=["malic_acid", "total_phenols", "color_intensity"],
-        # I want scouter server to check for drift every day (use CommonCrons or a custom cron string)
-        schedule=CommonCrons.EveryDay,
-        # If scouter server detects drift, notify me viaSlack. Scouter server also supports Opsgenie notifications!
-        dispatch_config=SlackDispatchConfig(channel="test_channel"),
-        # Leave the default PSI threshold of 0.25, or adjust as needed. For details, refer to the PSI theory section in the docs.
-        # psi_threshold=0.25  # (default)
+        features_to_monitor=["malic_acid", "total_phenols", "color_intensity"], # Defaults to all features if left empty
+        schedule=CommonCrons.EveryDay, # Run drift detection job once daily
+        dispatch_config=SlackDispatchConfig(channel="test_channel"), # Notify my team Slack channel if drift is detected
+        # psi_threshold=0.25  # (default) adjust if needed
     )
 
-    # Create the drift config, used for versioning and housing the alert config
+    # Create drift config
     psi_config = PsiDriftConfig(
         name="wine_model",
         repository="wine_model",
@@ -56,10 +52,10 @@ if __name__ == "__main__":
     # Create the drift profile
     psi_profile = scouter.create_drift_profile(X, psi_config)
 
-    # Instantiate a Scouter client to interact with the Scouter server
+    # Register your profile with scouter server
     client = ScouterClient()
 
-    # Register your profile with scouter server, set_active must be set to true if you want scouter server to run the drift detection job
+    # set_active must be set to True if you want scouter server to run the drift detection job
     client.register_profile(profile=psi_profile, set_active=True)
 ```
 
@@ -79,17 +75,12 @@ from scouter.integrations.fastapi import ScouterRouter
 from scouter.queue import DriftTransportConfig, Feature, Features, KafkaConfig
 from scouter.types import DriftType
 
-# Each Scouter queue requires a unique user-defined ID. 
-# This ensures proper tracking of multiple drift profile types, 
-# allowing the FastAPI integration to associate each queue with the correct profile type. 
+# Unique ID for Scouter queue, useful if using multiple drift types (e.g., SPC and PSI)
 DRIFT_TRANSPORT_QUEUE_ID = "psi_id"
 
-
-# Simple response model for our post request.
 class Response(BaseModel):
     message: str
 
-# Simple reqeust model for our post request.
 class PredictRequest(BaseModel):
     malic_acid: float
     total_phenols: float
@@ -106,21 +97,15 @@ class PredictRequest(BaseModel):
         )
 
 
-# We use ScouterRouter, a custom extension of FastAPI's APIRouter,  
-# to integrate seamlessly with FastAPI's background task system.  
-# This enables Scouter to manage queue updates efficiently, ensuring that all queue processes  
-# are handled as FastAPI background tasks.  
+# ScouterRouter for FastAPI integration 
 scouter_router = ScouterRouter(
-    # We pass a single drift transport configuration here. If working with multiple drift profile types,  
-    # we can easily extend this list with additional configurations.
     transport=[
         DriftTransportConfig(
             id=DRIFT_TRANSPORT_QUEUE_ID,
-            # Kafka is chosen as the transport mode, but RabbitMQ is also supported.
-            # To use Kafka, ensure both KAFKA_BROKERS and KAFKA_TOPIC environment variables are set.
+            # Kafka as transport mode (RabbitMQ also supported).
+            # To use Kafka, ensure both KAFKA_BROKERS and KAFKA_TOPIC environment variables are set
             config=KafkaConfig(),
-            # Drift transport configurations are tied to drift profiles. The drift_profile_request specifies
-            # which profile the Scouter client should fetch from the server.
+            # Drift transport configurations are tied to drift profiles
             drift_profile_request=GetProfileRequest(
                 name="wine_model",
                 repository="wine_model",
@@ -134,8 +119,7 @@ scouter_router = ScouterRouter(
 # Use the Scouter router to handle prediction post requests
 @scouter_router.post("/predict", response_model=Response)
 async def psi_predict(request: Request, payload: PredictRequest) -> Response:
-    # The FastAPI Scouter integration expects queue data to be stored in the request state, under 'scouter_data'.
-    # Here, we construct a dictionary where the queue ID is the key and the payload's transformed features are the value.
+    # Store transformed features in the request state under 'scouter_data' for the specified queue ID
     request.state.scouter_data = {
         DRIFT_TRANSPORT_QUEUE_ID: payload.to_features(),
     }

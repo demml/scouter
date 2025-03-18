@@ -4,7 +4,6 @@ The basic idea of statistical process control is to compare current process outp
 
 Reference for grand mean and standard deviation calculations: [link](https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc321.htm)
 
-
 ## Formulas
 
 Sample mean and standard deviation:
@@ -59,7 +58,7 @@ Out of the box, `Scouter` will calculate the center line and control limits for 
 
 <h1 align="center">
   <br>
-  <img src="../../images/control_chart.png"  width="700"alt="scouter logo"/>
+  <img src="../../../images/control_chart.png"  width="700"alt="scouter logo"/>
   <br>
 </h1>
 
@@ -111,7 +110,7 @@ In addition to the 8 digit rule, `Scouter` will also check for a consecutive tre
 
 <h1 align="center">
   <br>
-  <img src="../../images/control_chart_alert.png"  width="700"alt="scouter logo"/>
+  <img src="../../../images/control_chart_alert.png"  width="700"alt="scouter logo"/>
   <br>
 </h1>
 
@@ -120,18 +119,18 @@ In addition to the 8 digit rule, `Scouter` will also check for a consecutive tre
 `Scouter` provides the ability to create your own custom 8 digit rules. Below is an example of how to create a custom rule:
 
 ```python hl_lines="6 15"
-from scouter import SpcDriftConfig, SpcAlertRule, SpcAlertConfig
+from scouter.alert import SlackDispatchConfig, SpcAlertConfig, SpcAlertRule
+from scouter.drift import SpcDriftConfig
 
 # Create a custom rule
-custom_rule = SpcAlertRule(
-        rule="16 32 4 8 2 4 1 1" # create your custom rule here
-)
+custom_rule = SpcAlertRule(rule="16 32 4 8 2 4 1 1")  # create your custom rule here
 
 # Create a drift config
 config = SpcDriftConfig(
     name="model",
     repository="scouter",
     version="0.1.0",
-    alert_config=SpcAlertConfig(rule=custom_rule)
+    alert_config=SpcAlertConfig(rule=custom_rule, dispatch_config=SlackDispatchConfig(channel="test_channel")),
 )
 ```
+

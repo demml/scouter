@@ -848,10 +848,7 @@ impl PostgresClient {
             .await;
 
         match query_result {
-            Ok(result) => {
-                println!("insserted");
-                Ok(result)
-            }
+            Ok(result) => Ok(result),
             Err(e) => {
                 error!(
                     "Failed to insert custom metric value into database: {:?}",

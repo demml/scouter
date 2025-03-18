@@ -39,16 +39,27 @@ nav:
   - Scouter: 'index.md'
   - Monitoring:
     - PSI:
+        - Drift:
+            - Drift Config: "monitoring/psi/drift/drift_config.md"
+            - Drift Profile: "monitoring/psi/drift/drift_profile.md"
+            - Feature Drift Profile: "monitoring/psi/drift/feature_drift_profile.md"
+            - Drift Map: "monitoring/psi/drift/drift_map.md"
+        - Alerting:
+            - Alert Config: "monitoring/psi/alerting/alert_config.md"
         - Theory: 'monitoring/psi/theory.md'
         - Quickstart: 'monitoring/psi/quickstart.md'
-        - Alert Config: "monitoring/psi/alert_config.md"
-        - Drift Config: "monitoring/psi/drift_config.md"
-        - Drift Profile: "monitoring/psi/drift_profile.md"
-        - Feature Drift Profile: "monitoring/psi/feature_drift_profile.md"
-        - Drift Map: "monitoring/psi/drift_map.md"
     - SPC:
         - Theory: 'monitoring/spc/theory.md'
         - Quickstart: 'monitoring/spc/quickstart.md'
+        - Alerting:
+            - Alert Config: "monitoring/spc/alerting/alert_config.md"
+            - Alert Rule: "monitoring/spc/alerting/alert_rule.md"
+        - Drift:
+          - Drift Config: "monitoring/spc/drift/drift_config.md"
+          - Drift Map: "monitoring/spc/drift/drift_map.md"
+          - Drift Profile: "monitoring/spc/drift/drift_profile.md"
+          - Feature Drift Profile: "monitoring/spc/drift/feature_drift_profile.md"
+          - Feature Drift: "monitoring/spc/drift/feature_drift.md"
     - Custom Metric:
         - Quickstart: 'monitoring/custom_quickstart.md'
   - Data Profiling: 'monitoring/configuratsion.md'
