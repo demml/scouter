@@ -1,8 +1,9 @@
 # pylint: disable=dangerous-default-value
 
-from typing import Dict, List, Optional
+from typing import List, Optional
 
 from ..types import CommonCrons
+
 
 class AlertZone:
     Zone1: "AlertZone"
@@ -11,6 +12,7 @@ class AlertZone:
     Zone4: "AlertZone"
     NotApplicable: "AlertZone"
 
+
 class SpcAlertType:
     OutOfBounds = "SpcAlertType"
     Consecutive = "SpcAlertType"
@@ -18,16 +20,17 @@ class SpcAlertType:
     AllGood = "SpcAlertType"
     Trend = "SpcAlertType"
 
+
 class SpcAlertRule:
     def __init__(
-        self,
-        rule: str = "8 16 4 8 2 4 1 1",
-        zones_to_monitor: List[AlertZone] = [
-            AlertZone.Zone1,
-            AlertZone.Zone2,
-            AlertZone.Zone3,
-            AlertZone.Zone4,
-        ],
+            self,
+            rule: str = "8 16 4 8 2 4 1 1",
+            zones_to_monitor: List[AlertZone] = [
+                AlertZone.Zone1,
+                AlertZone.Zone2,
+                AlertZone.Zone3,
+                AlertZone.Zone4,
+            ],
     ) -> None:
         """Initialize alert rule
 
@@ -55,13 +58,14 @@ class SpcAlertRule:
     def zones_to_monitor(self, zones_to_monitor: List[AlertZone]) -> None:
         """Set the zones to monitor"""
 
+
 class PsiAlertConfig:
     def __init__(
-        self,
-        dispatch_config: Optional[SlackDispatchConfig | OpsGenieDispatchConfig] = None,
-        schedule: Optional[str | CommonCrons] = None,
-        features_to_monitor: List[str] = [],
-        psi_threshold: float = 0.25,
+            self,
+            dispatch_config: Optional[SlackDispatchConfig | OpsGenieDispatchConfig] = None,
+            schedule: Optional[str | CommonCrons] = None,
+            features_to_monitor: List[str] = [],
+            psi_threshold: float = 0.25,
     ):
         """Initialize alert config
 
@@ -110,13 +114,14 @@ class PsiAlertConfig:
     def psi_threshold(self, threshold: float) -> None:
         """Set the schedule"""
 
+
 class SpcAlertConfig:
     def __init__(
-        self,
-        rule: SpcAlertRule = SpcAlertRule(),
-        dispatch_config: Optional[SlackDispatchConfig | OpsGenieDispatchConfig] = None,
-        schedule: Optional[str | CommonCrons] = None,
-        features_to_monitor: List[str] = [],
+            self,
+            rule: SpcAlertRule = SpcAlertRule(),
+            dispatch_config: Optional[SlackDispatchConfig | OpsGenieDispatchConfig] = None,
+            schedule: Optional[str | CommonCrons] = None,
+            features_to_monitor: List[str] = [],
     ):
         """Initialize alert config
 
@@ -164,6 +169,7 @@ class SpcAlertConfig:
     def features_to_monitor(self, features_to_monitor: List[str]) -> None:
         """Set the features to monitor"""
 
+
 class SpcAlert:
     def __init__(self, kind: SpcAlertType, zone: AlertZone):
         """Initialize alert"""
@@ -206,11 +212,12 @@ class AlertThreshold:
             AlertThreshold: The corresponding AlertThreshold enum member.
         """
 
+
 class CustomMetricAlertCondition:
     def __init__(
-        self,
-        alert_threshold: AlertThreshold,
-        alert_threshold_value: Optional[float],
+            self,
+            alert_threshold: AlertThreshold,
+            alert_threshold_value: Optional[float],
     ):
         """Initialize a CustomMetricAlertCondition instance.
         Args:
@@ -240,11 +247,12 @@ class CustomMetricAlertCondition:
     def alert_threshold_value(self, alert_threshold_value: float) -> None:
         """Set the alert_threshold_value"""
 
+
 class CustomMetricAlertConfig:
     def __init__(
-        self,
-        dispatch_config: Optional[SlackDispatchConfig | OpsGenieDispatchConfig] = None,
-        schedule: Optional[str | CommonCrons] = None,
+            self,
+            dispatch_config: Optional[SlackDispatchConfig | OpsGenieDispatchConfig] = None,
+            schedule: Optional[str | CommonCrons] = None,
     ):
         """Initialize alert config
 
@@ -273,8 +281,11 @@ class CustomMetricAlertConfig:
         """Return the alert_condition that were set during metric definition"""
 
     @alert_conditions.setter
-    def alert_conditions(self, alert_conditions: dict[str, CustomMetricAlertCondition]) -> None:
+    def alert_conditions(
+            self, alert_conditions: dict[str, CustomMetricAlertCondition]
+    ) -> None:
         """Update the alert_condition that were set during metric definition"""
+
 
 class SlackDispatchConfig:
     def __init__(self, channel: str):
@@ -292,6 +303,7 @@ class SlackDispatchConfig:
     @channel.setter
     def channel(self, channel: str) -> None:
         """Set the slack channel name for where alerts will be reported"""
+
 
 class OpsGenieDispatchConfig:
     def __init__(self, team: str):

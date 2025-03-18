@@ -61,7 +61,7 @@ nav:
           - Feature Drift Profile: "monitoring/spc/drift/feature_drift_profile.md"
           - Feature Drift: "monitoring/spc/drift/feature_drift.md"
     - Custom Metric:
-        - Quickstart: 'monitoring/custom_quickstart.md'
+        - Quickstart: 'monitoring/custom/quickstart.md'
   - Data Profiling: 'monitoring/configuratsion.md'
   - API Documentation:
       - Specs: 'api/index.html'
