@@ -21,7 +21,6 @@ use scouter_types::{
     ServerRecords, SpcServerRecord, TimeInterval, ToDriftRecords,
 };
 
-use scouter_types::psi::PsiDriftProfile;
 use serde_json::Value;
 use sqlx::{
     postgres::{PgPoolOptions, PgQueryResult},
@@ -31,6 +30,7 @@ use std::collections::{BTreeMap, HashMap};
 use std::result::Result::Ok;
 use std::str::FromStr;
 use tracing::{debug, error, info, instrument};
+
 // TODO: Explore refactoring and breaking this out into multiple client types (i.e., spc, psi, etc.)
 // Postgres client is one of the lowest-level abstractions so it may not be worth it, as it could make server logic annoying. Worth exploring though.
 
@@ -48,7 +48,7 @@ impl PostgresClient {
     /// * `pool` - An optional database pool
     ///
     /// # Returns
-    ///     
+    ///
     /// * `Result<Self, SqlError>` - Result of the database pool
     pub async fn new(
         pool: Option<Pool<Postgres>>,
@@ -754,24 +754,9 @@ impl PostgresClient {
         &self,
         service_info: &ServiceInfo,
         limit_datetime: &NaiveDateTime,
-        psi_drift_profile: &PsiDriftProfile,
+        features_to_monitor: &[String],
     ) -> Result<FeatureBinProportions, SqlError> {
         let query = Queries::GetFeatureBinProportions.get_query();
-
-        let features_to_monitor: Vec<String> = if !psi_drift_profile
-            .config
-            .alert_config
-            .features_to_monitor
-            .is_empty()
-        {
-            psi_drift_profile
-                .config
-                .alert_config
-                .features_to_monitor
-                .clone()
-        } else {
-            psi_drift_profile.features.keys().cloned().collect()
-        };
 
         let binned: Vec<FeatureBinProportionWrapper> = sqlx::query_as(&query.sql)
             .bind(&service_info.name)
@@ -834,7 +819,6 @@ impl PostgresClient {
         &self,
         record: &CustomMetricServerRecord,
     ) -> Result<PgQueryResult, SqlError> {
-        print!("in insert_custom_metric_value");
         let query = Queries::InsertCustomMetricValues.get_query();
 
         let query_result = sqlx::query(&query.sql)
@@ -928,16 +912,15 @@ mod tests {
 
     use super::*;
     use rand::Rng;
-    use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
-    use scouter_types::{spc::SpcDriftProfile, DriftType, DEFAULT_VERSION};
+    use scouter_types::{spc::SpcDriftProfile, DriftType};
 
     pub async fn cleanup(pool: &Pool<Postgres>) {
         sqlx::raw_sql(
             r#"
-            DELETE 
+            DELETE
             FROM scouter.drift;
 
-            DELETE 
+            DELETE
             FROM scouter.observability_metrics;
 
             DELETE
@@ -1192,13 +1175,13 @@ mod tests {
     async fn test_postgres_bin_proportions() {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
-        let timestamp = Utc::now().naive_utc();
+        let timestamp = chrono::Utc::now().naive_utc();
 
         for feature in 0..3 {
             for bin in 0..=5 {
                 for _ in 0..=100 {
                     let record = PsiServerRecord {
-                        created_at: Utc::now().naive_utc(),
+                        created_at: chrono::Utc::now().naive_utc(),
                         name: "test".to_string(),
                         repository: "test".to_string(),
                         version: "test".to_string(),
@@ -1213,25 +1196,6 @@ mod tests {
             }
         }
 
-        let scouter_version = "test_version".to_string();
-
-        let profile = PsiDriftProfile {
-            features: Default::default(),
-            config: PsiDriftConfig::new(
-                "name",
-                "repo",
-                DEFAULT_VERSION,
-                None,
-                PsiAlertConfig {
-                    features_to_monitor: vec!["feature0".to_string()],
-                    ..Default::default()
-                },
-                None,
-            )
-            .unwrap(),
-            scouter_version,
-        };
-
         let binned_records = client
             .get_feature_bin_proportions(
                 &ServiceInfo {
@@ -1240,11 +1204,12 @@ mod tests {
                     version: "test".to_string(),
                 },
                 &timestamp,
-                &profile,
+                &["feature0".to_string()],
             )
             .await
             .unwrap();
 
+        // assert binned_records.features["test"]["decile_1"] is around .5
         let bin_proportion = binned_records
             .features
             .get("feature0")

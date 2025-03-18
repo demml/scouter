@@ -35,23 +35,13 @@ pub mod psi_drifter {
             }
         }
 
-        // fn get_monitored_profiles(&self, features_to_monitor: &[String]) -> Vec<PsiFeatureDriftProfile> {
-        //         features_to_monitor
-        //         .iter()
-        //         .map(|key| self.profile.features[key].clone())
-        //         .collect()
-        // }
-
-        fn get_monitored_profiles<'a, I>(
-            &self,
-            features_to_monitor: I,
-        ) -> Vec<PsiFeatureDriftProfile>
-        where
-            I: IntoIterator<Item = &'a String>,
-        {
-            features_to_monitor
-                .into_iter()
-                .filter_map(|key| self.profile.features.get(key).cloned())
+        fn get_monitored_profiles(&self) -> Vec<PsiFeatureDriftProfile> {
+            self.profile
+                .config
+                .alert_config
+                .features_to_monitor
+                .iter()
+                .map(|key| self.profile.features[key].clone())
                 .collect()
         }
 
@@ -60,8 +50,14 @@ pub mod psi_drifter {
             limit_datetime: &NaiveDateTime,
             db_client: &PostgresClient,
         ) -> Result<Option<FeatureBinMapping>, DriftError> {
+            let profiles_to_monitor = self.get_monitored_profiles();
+
             let observed_bin_proportions = db_client
-                .get_feature_bin_proportions(&self.service_info, limit_datetime, &self.profile)
+                .get_feature_bin_proportions(
+                    &self.service_info,
+                    limit_datetime,
+                    &self.profile.config.alert_config.features_to_monitor,
+                )
                 .await
                 .map_err(|e| {
                     error!(
@@ -84,9 +80,6 @@ pub mod psi_drifter {
             );
                 return Ok(None);
             }
-
-            let profiles_to_monitor =
-                self.get_monitored_profiles(observed_bin_proportions.features.keys());
 
             Ok(Some(FeatureBinMapping::from_observed_bin_proportions(
                 &observed_bin_proportions,
@@ -379,21 +372,7 @@ pub mod psi_drifter {
         fn test_get_monitored_profiles() {
             let drifter = get_test_drifter();
 
-            let mut bin_map = BTreeMap::new();
-            bin_map.insert(0, 0.2);
-            bin_map.insert(1, 0.2);
-            bin_map.insert(2, 0.6);
-
-            let mut feature_bin_map = BTreeMap::new();
-            feature_bin_map.insert("feature_1".to_string(), bin_map.clone());
-            feature_bin_map.insert("feature_3".to_string(), bin_map.clone());
-
-            let feature_bin_proportions = FeatureBinProportions {
-                features: feature_bin_map,
-            };
-
-            let profiles_to_monitor =
-                drifter.get_monitored_profiles(feature_bin_proportions.features.keys());
+            let profiles_to_monitor = drifter.get_monitored_profiles();
 
             assert_eq!(profiles_to_monitor.len(), 2);
 
