@@ -50,7 +50,7 @@ class AlertDispatchType:
     Slack: "AlertDispatchType"
     OpsGenie: "AlertDispatchType"
     Console: "AlertDispatchType"
-    
+
     @staticmethod
     def to_string() -> str:
         """Return the string representation of the alert dispatch type"""
