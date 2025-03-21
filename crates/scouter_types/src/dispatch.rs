@@ -29,13 +29,16 @@ impl SlackDispatchConfig {
 pub struct OpsGenieDispatchConfig {
     #[pyo3(get, set)]
     pub team: String,
+
+    #[pyo3(get, set)]
+    pub priority: String,
 }
 
 #[pymethods]
 impl OpsGenieDispatchConfig {
     #[new]
-    pub fn new(team: String) -> PyResult<Self> {
-        Ok(OpsGenieDispatchConfig { team })
+    pub fn new(team: String, priority: String) -> PyResult<Self> {
+        Ok(OpsGenieDispatchConfig { team, priority })
     }
 }
 
