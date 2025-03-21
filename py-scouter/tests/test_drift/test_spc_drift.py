@@ -165,7 +165,7 @@ def test_drift_config_alert_kwargs():
         AlertZone.Zone3,
         AlertZone.Zone4,
     ]
-    assert config.alert_config.dispatch_type == "Slack"
+    assert config.alert_config.dispatch_type.to_string() == "Slack"
     assert config.alert_config.dispatch_config.channel == "scouter"
 
 

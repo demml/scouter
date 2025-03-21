@@ -1,6 +1,7 @@
 use crate::drift::DriftArgs;
 use pyo3::{prelude::*, IntoPyObjectExt};
 use serde::{Deserialize, Serialize};
+use std::fmt::Display;
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -46,7 +47,6 @@ impl OpsGenieDispatchConfig {
     }
 }
 
-#[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AlertDispatchConfig {
     Slack(SlackDispatchConfig),
@@ -85,6 +85,27 @@ pub enum AlertDispatchType {
     #[default]
     Console,
     OpsGenie,
+}
+
+#[pymethods]
+impl AlertDispatchType {
+    pub fn to_string(&self) -> &str {
+        match self {
+            AlertDispatchType::Slack => "Slack",
+            AlertDispatchType::Console => "Console",
+            AlertDispatchType::OpsGenie => "OpsGenie",
+        }
+    }
+}
+
+impl Display for AlertDispatchType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            AlertDispatchType::Slack => write!(f, "Slack"),
+            AlertDispatchType::Console => write!(f, "Console"),
+            AlertDispatchType::OpsGenie => write!(f, "OpsGenie"),
+        }
+    }
 }
 
 pub trait DispatchAlertDescription {
