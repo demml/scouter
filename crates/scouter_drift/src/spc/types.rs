@@ -1,4 +1,3 @@
-#![allow(clippy::useless_conversion)]
 use core::fmt::Debug;
 use ndarray::Array;
 use ndarray::Array2;

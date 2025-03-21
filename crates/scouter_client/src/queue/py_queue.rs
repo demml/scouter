@@ -104,6 +104,7 @@ impl ScouterQueue {
         Ok(ScouterQueue { queue, rt })
     }
 
+    #[allow(clippy::useless_conversion)]
     #[instrument(skip(self, entity), name = "Insert", level = "debug")]
     pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> PyResult<()> {
         self.rt
@@ -116,6 +117,7 @@ impl ScouterQueue {
         Ok(())
     }
 
+    #[allow(clippy::useless_conversion)]
     #[instrument(skip_all, name = "Flush", level = "debug")]
     pub fn flush(&mut self) -> PyResult<()> {
         self.rt
@@ -138,7 +140,9 @@ impl ScouterQueue {
             .map_err(|e| {
                 error!("Failed to flush queue: {:?}", e.to_string());
                 PyScouterError::new_err(e.to_string())
-            })
+            })?;
+
+        Ok(())
     }
 }
 
