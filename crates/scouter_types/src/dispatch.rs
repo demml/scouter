@@ -47,6 +47,17 @@ pub enum AlertDispatchConfig {
     Console(ConsoleDispatchConfig),
 }
 
+#[pymethods]
+impl AlertDispatchConfig {
+    pub fn dispatch_type(&self) -> AlertDispatchType {
+        match self {
+            AlertDispatchConfig::Slack(_) => AlertDispatchType::Slack,
+            AlertDispatchConfig::OpsGenie(_) => AlertDispatchType::OpsGenie,
+            AlertDispatchConfig::Console(_) => AlertDispatchType::Console,
+        }
+    }
+}
+
 impl Default for AlertDispatchConfig {
     fn default() -> Self {
         AlertDispatchConfig::Console(ConsoleDispatchConfig { enabled: true })
