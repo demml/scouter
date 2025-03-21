@@ -4,6 +4,13 @@ use serde::{Deserialize, Serialize};
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct ConsoleDispatchConfig {
+    #[pyo3(get, set)]
+    pub enabled: bool,
+}
+
+#[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct SlackDispatchConfig {
     #[pyo3(get, set)]
     pub channel: String,
@@ -32,12 +39,18 @@ impl OpsGenieDispatchConfig {
     }
 }
 
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+#[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub enum AlertDispatchConfig {
     Slack(SlackDispatchConfig),
     OpsGenie(OpsGenieDispatchConfig),
-    #[default]
-    Console,
+    Console(ConsoleDispatchConfig),
+}
+
+impl Default for AlertDispatchConfig {
+    fn default() -> Self {
+        AlertDispatchConfig::Console(ConsoleDispatchConfig { enabled: true })
+    }
 }
 
 #[pyclass(eq)]
