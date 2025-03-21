@@ -39,7 +39,7 @@ impl Queue {
             }
             DriftType::Psi => {
                 let drift_profile = drift_profile.extract::<PsiDriftProfile>()?;
-                Ok(Queue::Psi(PsiQueue::new(drift_profile, config)?))
+                Ok(Queue::Psi(PsiQueue::new(drift_profile, config).await?))
             }
             DriftType::Custom => {
                 let drift_profile = drift_profile.extract::<CustomDriftProfile>()?;
@@ -56,7 +56,7 @@ impl Queue {
             }
             Queue::Psi(queue) => {
                 let features = entity.extract::<Features>()?;
-                queue.insert(features)
+                queue.insert(features).await
             }
             Queue::Custom(queue) => {
                 let metrics = entity.extract::<Metrics>()?;
@@ -68,7 +68,7 @@ impl Queue {
     pub async fn flush(&mut self) -> Result<(), ScouterError> {
         match self {
             Queue::Spc(queue) => queue.flush().await,
-            Queue::Psi(queue) => queue.flush(),
+            Queue::Psi(queue) => queue.flush().await,
             Queue::Custom(queue) => queue.flush(),
         }
     }
@@ -115,22 +115,29 @@ impl ScouterQueue {
         Ok(())
     }
 
-    #[instrument(skip(self), name = "Flush", level = "debug")]
+    #[instrument(skip_all, name = "Flush", level = "debug")]
     pub fn flush(&mut self) -> PyResult<()> {
-        match &mut self.queue {
-            Queue::Spc(queue) => queue.flush().map_err(|e| {
+        self.rt
+            .block_on(async {
+                match &mut self.queue {
+                    Queue::Spc(queue) => queue.flush().await.map_err(|e| {
+                        error!("Failed to flush queue: {:?}", e.to_string());
+                        PyScouterError::new_err(e.to_string())
+                    }),
+                    Queue::Psi(queue) => queue.flush().await.map_err(|e| {
+                        error!("Failed to flush queue: {:?}", e.to_string());
+                        PyScouterError::new_err(e.to_string())
+                    }),
+                    Queue::Custom(queue) => queue.flush().map_err(|e| {
+                        error!("Failed to flush queue: {:?}", e.to_string());
+                        PyScouterError::new_err(e.to_string())
+                    }),
+                }
+            })
+            .map_err(|e| {
                 error!("Failed to flush queue: {:?}", e.to_string());
                 PyScouterError::new_err(e.to_string())
-            }),
-            Queue::Psi(queue) => queue.flush().map_err(|e| {
-                error!("Failed to flush queue: {:?}", e.to_string());
-                PyScouterError::new_err(e.to_string())
-            }),
-            Queue::Custom(queue) => queue.flush().map_err(|e| {
-                error!("Failed to flush queue: {:?}", e.to_string());
-                PyScouterError::new_err(e.to_string())
-            }),
-        }
+            })
     }
 }
 
