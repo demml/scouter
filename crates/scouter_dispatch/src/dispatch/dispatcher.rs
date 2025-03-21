@@ -31,6 +31,7 @@ pub struct OpsGenieAlerter {
     header_auth_value: String,
     api_url: String,
     team_name: String,
+    priority: String,
     name: String,
     repository: String,
     version: String,
@@ -59,6 +60,7 @@ impl OpsGenieAlerter {
             .map_err(|_| DispatchError::OpsGenieError("OPSGENIE_API_URL is not set".to_string()))?;
 
         let team_name = dispatch_config.team.clone();
+        let priority = dispatch_config.priority.clone();
 
         Ok(Self {
             header_auth_value: format!("GenieKey {}", api_key),
@@ -67,6 +69,7 @@ impl OpsGenieAlerter {
             name: name.to_string(),
             repository: repository.to_string(),
             version: version.to_string(),
+            priority,
         })
     }
 }
@@ -101,7 +104,7 @@ impl HttpAlertWrapper for OpsGenieAlerter {
         );
 
         mapping.insert("tags", json!(["Model Drift", "Scouter"]));
-        mapping.insert("priority", "P1".into());
+        mapping.insert("priority", self.priority.clone().into());
 
         json!(mapping)
     }
