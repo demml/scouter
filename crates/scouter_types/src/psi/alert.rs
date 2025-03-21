@@ -164,6 +164,7 @@ mod tests {
         //test opsgenie alert config
         let opsgenie_dispatch_config = AlertDispatchConfig::OpsGenie(OpsGenieDispatchConfig {
             team: "test-team".to_string(),
+            priority: "P5".to_string(),
         });
         let alert_config = PsiAlertConfig {
             dispatch_config: opsgenie_dispatch_config.clone(),

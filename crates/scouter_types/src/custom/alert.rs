@@ -301,6 +301,7 @@ mod tests {
         //test console alert config
         let dispatch_config = AlertDispatchConfig::OpsGenie(OpsGenieDispatchConfig {
             team: "test-team".to_string(),
+            priority: "P5".to_string(),
         });
         let schedule = "0 0 * * * *".to_string();
         let mut alert_config = CustomMetricAlertConfig {

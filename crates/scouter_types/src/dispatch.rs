@@ -37,8 +37,12 @@ pub struct OpsGenieDispatchConfig {
 #[pymethods]
 impl OpsGenieDispatchConfig {
     #[new]
-    pub fn new(team: String, priority: String) -> PyResult<Self> {
-        Ok(OpsGenieDispatchConfig { team, priority })
+    #[pyo3(signature = (team, priority="P5"))]
+    pub fn new(team: &str, priority: &str) -> PyResult<Self> {
+        Ok(OpsGenieDispatchConfig {
+            team: team.to_string(),
+            priority: priority.to_string(),
+        })
     }
 }
 

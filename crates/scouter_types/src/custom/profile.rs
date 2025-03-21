@@ -358,6 +358,7 @@ mod tests {
             schedule: "0 0 * * * *".to_string(),
             dispatch_config: AlertDispatchConfig::OpsGenie(OpsGenieDispatchConfig {
                 team: "test-team".to_string(),
+                priority: "P5".to_string(),
             }),
             ..Default::default()
         };

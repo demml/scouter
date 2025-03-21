@@ -369,6 +369,7 @@ mod tests {
         //test opsgenie alert config
         let opsgenie_dispatch_config = OpsGenieDispatchConfig {
             team: "test-team".to_string(),
+            priority: "P5".to_string(),
         };
 
         let alert_config = SpcAlertConfig {
