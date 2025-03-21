@@ -852,7 +852,7 @@ pub enum MessageHandler {
 }
 
 impl MessageHandler {
-    #[instrument(skip(self, records), name = "Insert Server Records")]
+    #[instrument(skip_all, name = "Insert Server Records")]
     pub async fn insert_server_records(&self, records: &ServerRecords) -> Result<(), ScouterError> {
         match self {
             Self::Postgres(client) => {
