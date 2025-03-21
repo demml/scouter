@@ -342,8 +342,8 @@ mod tests {
     fn test_alert_config() {
         //test console alert config
         let alert_config = SpcAlertConfig::default();
-        assert_eq!(alert_config.dispatch_config, AlertDispatchConfig::Console);
-        assert_eq!(alert_config.dispatch_type(), "Console");
+        assert_eq!(alert_config.dispatch_config, AlertDispatchConfig::default());
+        assert_eq!(alert_config.dispatch_type(), AlertDispatchType::Console);
 
         let slack_dispatch_config = SlackDispatchConfig {
             channel: "test-channel".to_string(),
@@ -357,7 +357,7 @@ mod tests {
             alert_config.dispatch_config,
             AlertDispatchConfig::Slack(slack_dispatch_config)
         );
-        assert_eq!(alert_config.dispatch_type(), "Slack");
+        assert_eq!(alert_config.dispatch_type(), AlertDispatchType::Slack);
         assert_eq!(
             match &alert_config.dispatch_config {
                 AlertDispatchConfig::Slack(config) => &config.channel,
@@ -379,7 +379,7 @@ mod tests {
             alert_config.dispatch_config,
             AlertDispatchConfig::OpsGenie(opsgenie_dispatch_config.clone())
         );
-        assert_eq!(alert_config.dispatch_type(), "OpsGenie");
+        assert_eq!(alert_config.dispatch_type(), AlertDispatchType::OpsGenie);
         assert_eq!(
             match &alert_config.dispatch_config {
                 AlertDispatchConfig::OpsGenie(config) => &config.team,
