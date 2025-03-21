@@ -1,5 +1,5 @@
 use crate::drift::DriftArgs;
-use pyo3::prelude::*;
+use pyo3::{prelude::*, IntoPyObjectExt};
 use serde::{Deserialize, Serialize};
 
 #[pyclass]
@@ -47,13 +47,20 @@ pub enum AlertDispatchConfig {
     Console(ConsoleDispatchConfig),
 }
 
-#[pymethods]
 impl AlertDispatchConfig {
     pub fn dispatch_type(&self) -> AlertDispatchType {
         match self {
             AlertDispatchConfig::Slack(_) => AlertDispatchType::Slack,
             AlertDispatchConfig::OpsGenie(_) => AlertDispatchType::OpsGenie,
             AlertDispatchConfig::Console(_) => AlertDispatchType::Console,
+        }
+    }
+
+    pub fn config<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        match self {
+            AlertDispatchConfig::Slack(config) => config.clone().into_bound_py_any(py),
+            AlertDispatchConfig::OpsGenie(config) => config.clone().into_bound_py_any(py),
+            AlertDispatchConfig::Console(config) => config.clone().into_bound_py_any(py),
         }
     }
 }

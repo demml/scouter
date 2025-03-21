@@ -137,7 +137,6 @@ impl CustomMetricAlertCondition {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct CustomMetricAlertConfig {
-    #[pyo3(get, set)]
     pub dispatch_config: AlertDispatchConfig,
 
     #[pyo3(get, set)]
@@ -207,6 +206,11 @@ impl CustomMetricAlertConfig {
     #[getter]
     pub fn dispatch_type(&self) -> AlertDispatchType {
         self.dispatch_config.dispatch_type()
+    }
+
+    #[getter]
+    pub fn dispatch_config<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.dispatch_config.config(py)
     }
 }
 
