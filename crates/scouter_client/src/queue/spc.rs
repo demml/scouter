@@ -55,7 +55,6 @@ impl SpcQueue {
 
             // silently fail if publish fails
             if publish.is_err() {
-                println!("We have an error!");
                 // log error as string
                 error!(
                     "Failed to publish drift records: {:?}",

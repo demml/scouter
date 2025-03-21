@@ -104,7 +104,6 @@ pub mod rabbitmq_consumer {
 
     async fn handle_message(id: usize, msg: Delivery, handler: &MessageHandler) {
         // Check message size
-        println!("rabbit here");
         if msg.data.len() > MAX_MESSAGE_SIZE {
             error!("Worker {}: Message too large: {:?}", id, msg.data.len());
             counter!("messages_too_large").increment(1);

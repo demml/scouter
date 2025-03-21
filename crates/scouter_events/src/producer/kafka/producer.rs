@@ -40,14 +40,12 @@ pub mod kafka_producer {
                     .map_err(|e| ScouterError::Error(e.to_string()))
                 {
                     Ok(_) => {
-                        println!("sending kafka message");
                         break;
                     }
                     Err(e) => {
                         retries -= 1;
                         if retries == 0 {
                             return {
-                                println!("kafka producer failed to produce message");
                                 error!("Failed to send message to kafka: {:?}", e.to_string());
                                 Err(ScouterError::Error(format!(
                                     "Failed to send message to kafka: {:?}",
