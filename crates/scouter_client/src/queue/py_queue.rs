@@ -35,7 +35,7 @@ impl Queue {
         match drift_type {
             DriftType::Spc => {
                 let drift_profile = drift_profile.extract::<SpcDriftProfile>()?;
-                Ok(Queue::Spc(SpcQueue::new(drift_profile, config)?))
+                Ok(Queue::Spc(SpcQueue::new(drift_profile, config).await?))
             }
             DriftType::Psi => {
                 let drift_profile = drift_profile.extract::<PsiDriftProfile>()?;
@@ -52,7 +52,7 @@ impl Queue {
         match self {
             Queue::Spc(queue) => {
                 let features = entity.extract::<Features>()?;
-                queue.insert(features)
+                queue.insert(features).await
             }
             Queue::Psi(queue) => {
                 let features = entity.extract::<Features>()?;
@@ -67,7 +67,7 @@ impl Queue {
 
     pub async fn flush(&mut self) -> Result<(), ScouterError> {
         match self {
-            Queue::Spc(queue) => queue.flush(),
+            Queue::Spc(queue) => queue.flush().await,
             Queue::Psi(queue) => queue.flush(),
             Queue::Custom(queue) => queue.flush(),
         }
