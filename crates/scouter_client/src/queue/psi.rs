@@ -18,21 +18,16 @@ pub struct PsiQueue {
     count: usize,
     last_publish: NaiveDateTime,
     stop_tx: Option<watch::Sender<()>>,
-    rt: Arc<tokio::runtime::Runtime>,
 }
 
 impl PsiQueue {
-    pub fn new(
+    pub async fn new(
         drift_profile: PsiDriftProfile,
         config: &Bound<'_, PyAny>,
     ) -> Result<Self, ScouterError> {
         let queue = Arc::new(Mutex::new(PsiFeatureQueue::new(drift_profile)));
 
-        // psi queue needs a tokio runtime to run background tasks
-        // This runtime needs to be separate from the producer runtime
-        let rt = Arc::new(tokio::runtime::Runtime::new().unwrap());
-
-        let producer = rt.block_on(async { RustScouterProducer::new(config).await })?;
+        let producer = RustScouterProducer::new(config).await?;
 
         let (stop_tx, stop_rx) = watch::channel(());
 
@@ -42,17 +37,16 @@ impl PsiQueue {
             count: 0,
             last_publish: Utc::now().naive_utc(),
             stop_tx: Some(stop_tx),
-            rt: rt.clone(),
         };
 
         debug!("Starting Background Task");
-        psi_queue.start_background_task(queue, stop_rx)?;
+        psi_queue.start_background_task(queue, stop_rx).await?;
 
         Ok(psi_queue)
     }
 
-    #[instrument(skip(self), name = "Insert")]
-    pub fn insert(&mut self, features: Features) -> Result<(), ScouterError> {
+    #[instrument(skip_all, name = "Insert")]
+    pub async fn insert(&mut self, features: Features) -> Result<(), ScouterError> {
         {
             let mut queue = self.queue.blocking_lock();
             let insert = queue.insert(features);
@@ -71,7 +65,7 @@ impl PsiQueue {
 
         if self.count >= PSI_MAX_QUEUE_SIZE {
             debug!("Queue is full, publishing drift records");
-            let publish = self._publish();
+            let publish = self._publish().await;
 
             // silently fail if publish fails
             if publish.is_err() {
@@ -89,13 +83,12 @@ impl PsiQueue {
         Ok(())
     }
 
-    fn _publish(&mut self) -> Result<(), ScouterError> {
+    async fn _publish(&mut self) -> Result<(), ScouterError> {
         let mut queue = self.queue.blocking_lock();
         let records = queue.create_drift_records()?;
 
         if !records.records.is_empty() {
-            self.rt
-                .block_on(async { self.producer.publish(records).await })?;
+            self.producer.publish(records).await?;
             queue.clear_queue();
             self.last_publish = Utc::now().naive_utc();
         }
@@ -103,17 +96,17 @@ impl PsiQueue {
         Ok(())
     }
 
-    pub fn flush(&mut self) -> Result<(), ScouterError> {
+    pub async fn flush(&mut self) -> Result<(), ScouterError> {
         // publish any remaining drift records
-        self._publish()?;
+        self._publish().await?;
 
         if let Some(stop_tx) = self.stop_tx.take() {
             let _ = stop_tx.send(());
         }
-        self.rt.block_on(async { self.producer.flush().await })
+        self.producer.flush().await
     }
 
-    fn start_background_task(
+    async fn start_background_task(
         &self,
         queue: Arc<Mutex<PsiFeatureQueue>>,
         mut stop_rx: watch::Receiver<()>,
@@ -121,7 +114,6 @@ impl PsiQueue {
         let queue = queue.clone();
         let mut producer = self.producer.clone();
         let mut last_publish = self.last_publish;
-        let handle = self.rt.clone();
 
         // spawn the background task using the already cloned handle
         let future = async move {
@@ -174,7 +166,7 @@ impl PsiQueue {
             }
         };
 
-        handle.spawn(future.instrument(info_span!("PSI Background Polling")));
+        tokio::task::spawn(future.instrument(info_span!("PSI Background Polling")));
 
         Ok(())
     }
