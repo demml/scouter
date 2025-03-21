@@ -6,7 +6,7 @@ import pandas as pd
 import polars as pl
 import pytest
 from numpy.typing import NDArray
-from scouter.alert import AlertDispatchType, AlertZone, SpcAlertConfig
+from scouter.alert import AlertZone, SlackDispatchConfig, SpcAlertConfig
 from scouter.drift import Drifter, SpcDriftConfig, SpcDriftMap, SpcDriftProfile
 
 
@@ -152,10 +152,7 @@ def test_data_pyarrow_mixed_type(
 
 
 def test_drift_config_alert_kwargs():
-    alert_config = SpcAlertConfig(
-        dispatch_kwargs={"channel": "scouter"},
-        dispatch_type=AlertDispatchType.Slack,
-    )
+    alert_config = SpcAlertConfig(dispatch_config=SlackDispatchConfig(channel="scouter"))
     config = SpcDriftConfig(
         name="test",
         repository="test",
@@ -168,20 +165,19 @@ def test_drift_config_alert_kwargs():
         AlertZone.Zone3,
         AlertZone.Zone4,
     ]
-
-    assert config.alert_config.dispatch_kwargs["channel"] == "scouter"
-    assert config.alert_config.dispatch_type == AlertDispatchType.Slack.value
+    assert config.alert_config.dispatch_type.to_string() == "Slack"
+    assert config.alert_config.dispatch_config.channel == "scouter"
 
 
 def test_load_from_file():
-    config = SpcDriftConfig(config_path="tests/assets/drift_config.json")
+    config = SpcDriftConfig(config_path=Path("tests/assets/drift_config.json"))
     assert config.name == "name"
     assert config.repository == "repo"
 
 
 def test_load_from_file_error():
     with pytest.raises(RuntimeError) as e:
-        SpcDriftConfig(config_path="tests/assets/drift_config_error.json")
+        SpcDriftConfig(config_path=Path("tests/assets/drift_config_error.json"))
 
     assert "Failed to deserialize string" in str(e)
 

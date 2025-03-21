@@ -19,14 +19,11 @@ scouter-types = { workspace = true }
 anyhow = {workspace = true}
 chrono = { workspace = true, features = ["serde"] }
 cron = { workspace = true }
-futures = { workspace = true }
-include_dir = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sqlx = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
-tracing-subscriber = { workspace = true}
 
 [dev-dependencies]
 rand = { workspace = true }

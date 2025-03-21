@@ -1,11 +1,12 @@
 use scouter_error::DispatchError;
-use scouter_types::{AlertDispatchType, DispatchAlertDescription, DispatchDriftConfig, DriftArgs};
+use scouter_types::{
+    AlertDispatchConfig, AlertDispatchType, DispatchAlertDescription, DispatchDriftConfig,
+    DriftArgs, OpsGenieDispatchConfig, SlackDispatchConfig,
+};
 use serde_json::{json, Value};
 use std::result::Result;
 use std::{collections::HashMap, env};
 use tracing::error;
-
-const OPSGENIE_API_URL: &str = "https://api.opsgenie.com/v2/alerts";
 
 trait DispatchHelpers {
     fn construct_alert_description<T: DispatchAlertDescription>(
@@ -29,7 +30,8 @@ pub trait HttpAlertWrapper {
 pub struct OpsGenieAlerter {
     header_auth_value: String,
     api_url: String,
-    team_name: Option<String>,
+    team_name: String,
+    priority: String,
     name: String,
     repository: String,
     version: String,
@@ -43,21 +45,31 @@ impl OpsGenieAlerter {
     /// * `name` - Name of the model
     /// * `repository` - Repository of the model
     /// * `version` - Version of the model
+    /// * `dispatch_config` - OpsGenieAlerter dispatch configuration
     ///
-    pub fn new(name: &str, repository: &str, version: &str) -> Result<Self, DispatchError> {
+    pub fn new(
+        name: &str,
+        repository: &str,
+        version: &str,
+        dispatch_config: &OpsGenieDispatchConfig,
+    ) -> Result<Self, DispatchError> {
         let api_key = env::var("OPSGENIE_API_KEY")
             .map_err(|_| DispatchError::OpsGenieError("OPSGENIE_API_KEY is not set".to_string()))?;
 
-        let api_url = env::var("OPSGENIE_API_URL").unwrap_or(OPSGENIE_API_URL.to_string());
-        let team = env::var("OPSGENIE_TEAM").ok();
+        let api_url = env::var("OPSGENIE_API_URL")
+            .map_err(|_| DispatchError::OpsGenieError("OPSGENIE_API_URL is not set".to_string()))?;
+
+        let team_name = dispatch_config.team.clone();
+        let priority = dispatch_config.priority.clone();
 
         Ok(Self {
             header_auth_value: format!("GenieKey {}", api_key),
             api_url,
-            team_name: team,
+            team_name,
             name: name.to_string(),
             repository: repository.to_string(),
             version: version.to_string(),
+            priority,
         })
     }
 }
@@ -82,20 +94,17 @@ impl HttpAlertWrapper for OpsGenieAlerter {
             .into(),
         );
         mapping.insert("description", alert_description.to_string().into());
-
-        if self.team_name.is_some() {
-            mapping.insert(
-                "responders",
-                json!([{"name": self.team_name.as_ref().unwrap(), "type": "team"}]),
-            );
-            mapping.insert(
-                "visibleTo",
-                json!([{"name": self.team_name.as_ref().unwrap(), "type": "team"}]),
-            );
-        }
+        mapping.insert(
+            "responders",
+            json!([{"name": self.team_name, "type": "team"}]),
+        );
+        mapping.insert(
+            "visibleTo",
+            json!([{"name": self.team_name, "type": "team"}]),
+        );
 
         mapping.insert("tags", json!(["Model Drift", "Scouter"]));
-        mapping.insert("priority", "P1".into());
+        mapping.insert("priority", self.priority.clone().into());
 
         json!(mapping)
     }
@@ -116,6 +125,7 @@ pub struct SlackAlerter {
     name: String,
     repository: String,
     version: String,
+    channel: String,
 }
 
 impl SlackAlerter {
@@ -126,13 +136,21 @@ impl SlackAlerter {
     /// * `name` - Name of the model
     /// * `repository` - Repository of the model
     /// * `version` - Version of the model
+    /// * `dispatch_config` - slack dispatch configuration
     ///
-    pub fn new(name: &str, repository: &str, version: &str) -> Result<Self, DispatchError> {
+    pub fn new(
+        name: &str,
+        repository: &str,
+        version: &str,
+        dispatch_config: &SlackDispatchConfig,
+    ) -> Result<Self, DispatchError> {
         let app_token = env::var("SLACK_APP_TOKEN")
             .map_err(|_| DispatchError::SlackError("SLACK_APP_TOKEN not set".to_string()))?;
 
         let api_url = env::var("SLACK_API_URL")
             .map_err(|_| DispatchError::SlackError("SLACK_API_URL not set".to_string()))?;
+
+        let slack_channel = dispatch_config.channel.clone();
 
         Ok(Self {
             header_auth_value: format!("Bearer {}", app_token),
@@ -140,6 +158,7 @@ impl SlackAlerter {
             name: name.to_string(),
             repository: repository.to_string(),
             version: version.to_string(),
+            channel: slack_channel,
         })
     }
 }
@@ -155,7 +174,7 @@ impl HttpAlertWrapper for SlackAlerter {
 
     fn construct_alert_body(&self, alert_description: &str) -> Value {
         json!({
-            "channel": "scouter-bot",
+            "channel": self.channel,
             "blocks": [
                 {
                     "type": "header",
@@ -190,7 +209,7 @@ impl DispatchHelpers for SlackAlerter {
         &self,
         feature_alerts: &T,
     ) -> String {
-        feature_alerts.create_alert_description(AlertDispatchType::OpsGenie)
+        feature_alerts.create_alert_description(AlertDispatchType::Slack)
     }
 }
 
@@ -331,18 +350,18 @@ impl AlertDispatcher {
     pub fn new<T: DispatchDriftConfig>(config: &T) -> Result<Self, DispatchError> {
         let args: DriftArgs = config.get_drift_args();
 
-        let result = if let AlertDispatchType::OpsGenie = args.dispatch_type {
-            OpsGenieAlerter::new(&args.name, &args.repository, &args.version)
-                .map(|alerter| AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(alerter)))
-        } else if let AlertDispatchType::Slack = args.dispatch_type {
-            SlackAlerter::new(&args.name, &args.repository, &args.version)
-                .map(|alerter| AlertDispatcher::Slack(HttpAlertDispatcher::new(alerter)))
-        } else {
-            Ok(AlertDispatcher::Console(ConsoleAlertDispatcher::new(
-                &args.name,
-                &args.repository,
-                &args.version,
-            )))
+        let result = match args.dispatch_config {
+            AlertDispatchConfig::Slack(config) => {
+                SlackAlerter::new(&args.name, &args.repository, &args.version, &config)
+                    .map(|alerter| AlertDispatcher::Slack(HttpAlertDispatcher::new(alerter)))
+            }
+            AlertDispatchConfig::OpsGenie(config) => {
+                OpsGenieAlerter::new(&args.name, &args.repository, &args.version, &config)
+                    .map(|alerter| AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(alerter)))
+            }
+            AlertDispatchConfig::Console(_) => Ok(AlertDispatcher::Console(
+                ConsoleAlertDispatcher::new(&args.name, &args.repository, &args.version),
+            )),
         };
 
         match result {
@@ -366,7 +385,6 @@ mod tests {
         AlertZone, SpcAlert, SpcAlertConfig, SpcAlertType, SpcDriftConfig, SpcFeatureAlert,
         SpcFeatureAlerts,
     };
-    use scouter_types::AlertDispatchType;
 
     use std::collections::HashMap;
     use std::env;
@@ -407,7 +425,16 @@ mod tests {
             env::set_var("OPSGENIE_API_KEY", "api_key");
         }
         let features = test_features_map();
-        let alerter = OpsGenieAlerter::new("name", "repository", "1.0.0").unwrap();
+        let alerter = OpsGenieAlerter::new(
+            "name",
+            "repository",
+            "1.0.0",
+            &OpsGenieDispatchConfig {
+                team: "test-team".to_string(),
+                priority: "P5".to_string(),
+            },
+        )
+        .unwrap();
         let alert_description = alerter.construct_alert_description(&SpcFeatureAlerts {
             features,
             has_alerts: true,
@@ -428,7 +455,16 @@ mod tests {
             env::set_var("OPSGENIE_API_KEY", "api_key");
         }
         let features: HashMap<String, SpcFeatureAlert> = HashMap::new();
-        let alerter = OpsGenieAlerter::new("name", "repository", "1.0.0").unwrap();
+        let alerter = OpsGenieAlerter::new(
+            "name",
+            "repository",
+            "1.0.0",
+            &OpsGenieDispatchConfig {
+                team: "test-team".to_string(),
+                priority: "P5".to_string(),
+            },
+        )
+        .unwrap();
         let alert_description = alerter.construct_alert_description(&SpcFeatureAlerts {
             features,
             has_alerts: true,
@@ -451,29 +487,39 @@ mod tests {
         unsafe {
             env::set_var("OPSGENIE_API_URL", url);
             env::set_var("OPSGENIE_API_KEY", "api_key");
-            env::set_var("OPSGENIE_TEAM", "ds-team");
         }
+
+        let ops_genie_team = "test-team";
+
         let expected_alert_body = json!(
                 {
                     "message": "Model drift detected for test_repo/test_ml_model/1.0.0",
                     "description": "Features have drifted",
                     "responders":[
-                        {"name":"ds-team", "type":"team"}
+                        {"name":ops_genie_team, "type":"team"}
                     ],
                     "visibleTo":[
-                        {"name":"ds-team", "type":"team"}
+                        {"name":ops_genie_team, "type":"team"}
                     ],
                     "tags": ["Model Drift", "Scouter"],
                     "priority": "P1"
                 }
         );
-        let alerter = OpsGenieAlerter::new("test_ml_model", "test_repo", "1.0.0").unwrap();
+        let alerter = OpsGenieAlerter::new(
+            "test_ml_model",
+            "test_repo",
+            "1.0.0",
+            &OpsGenieDispatchConfig {
+                team: ops_genie_team.to_string(),
+                priority: "P1".to_string(),
+            },
+        )
+        .unwrap();
         let alert_body = alerter.construct_alert_body("Features have drifted");
         assert_eq!(alert_body, expected_alert_body);
         unsafe {
             env::remove_var("OPSGENIE_API_URL");
             env::remove_var("OPSGENIE_API_KEY");
-            env::remove_var("OPSGENIE_TEAM");
         }
     }
 
@@ -496,7 +542,16 @@ mod tests {
         let features = test_features_map();
 
         let dispatcher = AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(
-            OpsGenieAlerter::new("name", "repository", "1.0.0").unwrap(),
+            OpsGenieAlerter::new(
+                "name",
+                "repository",
+                "1.0.0",
+                &OpsGenieDispatchConfig {
+                    team: "test-team".to_string(),
+                    priority: "P5".to_string(),
+                },
+            )
+            .unwrap(),
         ));
         let _ = dispatcher
             .process_alerts(&SpcFeatureAlerts {
@@ -547,7 +602,15 @@ mod tests {
         let features = test_features_map();
 
         let dispatcher = AlertDispatcher::Slack(HttpAlertDispatcher::new(
-            SlackAlerter::new("name", "repository", "1.0.0").unwrap(),
+            SlackAlerter::new(
+                "name",
+                "repository",
+                "1.0.0",
+                &SlackDispatchConfig {
+                    channel: "test-channel".to_string(),
+                },
+            )
+            .unwrap(),
         ));
         let _ = dispatcher
             .process_alerts(&SpcFeatureAlerts {
@@ -569,13 +632,14 @@ mod tests {
         // set env variables
         let download_server = mockito::Server::new_async().await;
         let url = download_server.url();
+        let slack_channel = "test_channel";
 
         unsafe {
             env::set_var("SLACK_API_URL", url);
             env::set_var("SLACK_APP_TOKEN", "bot_token");
         }
         let expected_alert_body = json!({
-            "channel": "scouter-bot",
+            "channel": slack_channel,
             "blocks": [
                 {
                     "type": "header",
@@ -601,7 +665,15 @@ mod tests {
                 }
             ]
         });
-        let alerter = SlackAlerter::new("name", "repository", "1.0.0").unwrap();
+        let alerter = SlackAlerter::new(
+            "name",
+            "repository",
+            "1.0.0",
+            &SlackDispatchConfig {
+                channel: slack_channel.to_string(),
+            },
+        )
+        .unwrap();
         let alert_body = alerter.construct_alert_body("*Features have drifted*");
         assert_eq!(alert_body, expected_alert_body);
         unsafe {
@@ -616,7 +688,10 @@ mod tests {
             env::remove_var("OPSGENIE_API_KEY");
         }
         let alert_config = SpcAlertConfig {
-            dispatch_type: AlertDispatchType::OpsGenie,
+            dispatch_config: AlertDispatchConfig::OpsGenie(OpsGenieDispatchConfig {
+                team: "test-team".to_string(),
+                priority: "P5".to_string(),
+            }),
             ..Default::default()
         };
 
@@ -624,8 +699,6 @@ mod tests {
             Some("name".to_string()),
             Some("repository".to_string()),
             Some("1.0.0".to_string()),
-            None,
-            None,
             None,
             None,
             None,
@@ -649,7 +722,9 @@ mod tests {
         }
 
         let alert_config = SpcAlertConfig {
-            dispatch_type: AlertDispatchType::Slack,
+            dispatch_config: AlertDispatchConfig::Slack(SlackDispatchConfig {
+                channel: "test-channel".to_string(),
+            }),
             ..Default::default()
         };
 
@@ -657,8 +732,6 @@ mod tests {
             Some("name".to_string()),
             Some("repository".to_string()),
             Some("1.0.0".to_string()),
-            None,
-            None,
             None,
             None,
             None,
@@ -681,7 +754,9 @@ mod tests {
             env::set_var("SLACK_APP_TOKEN", "bot_token");
         }
         let alert_config = SpcAlertConfig {
-            dispatch_type: AlertDispatchType::Slack,
+            dispatch_config: AlertDispatchConfig::Slack(SlackDispatchConfig {
+                channel: "test-channel".to_string(),
+            }),
             ..Default::default()
         };
 
@@ -689,8 +764,6 @@ mod tests {
             Some("name".to_string()),
             Some("repository".to_string()),
             Some("1.0.0".to_string()),
-            None,
-            None,
             None,
             None,
             None,

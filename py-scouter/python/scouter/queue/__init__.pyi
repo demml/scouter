@@ -4,8 +4,8 @@ import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from ..client import HTTPConfig
-from ..drift import CustomDriftProfile, PsiDriftProfile, SpcDriftProfile
+from ..client import GetProfileRequest, HTTPConfig
+from ..drift import PsiDriftProfile, SpcDriftProfile
 from ..logging import LogLevel
 from ..observe import ObservabilityMetrics
 
@@ -201,8 +201,9 @@ class DriftTransportConfig:
         self,
         id: str,
         config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig],
-        drift_profile: Optional[Union[SpcDriftProfile, PsiDriftProfile]] = None,
         drift_profile_path: Optional[Path] = None,
+        drift_profile_request: Optional[GetProfileRequest] = None,
+        scouter_server_config: Optional[HTTPConfig] = None,
     ) -> None:
         """Drift transport configuration. To be used with ScouterQueue.
 
@@ -212,12 +213,17 @@ class DriftTransportConfig:
             config:
                 Configuration object for the producer that specifies the type of producer to use.
 
-            drift_profile:
-                Drift profile to use for monitoring. Priority is given to the drift profile over the drift profile path.
-
             drift_profile_path:
                 Path to the drift profile to use for monitoring. If provided, and drift profile is not provided,
                 the drift profile will be loaded from the path.
+
+            profile_request:
+                If both the drift_profile and drift_profile_path are not provided, the profile request object will be used
+                to construct a query string that is used to call the scouter server and obtain the drift profile.
+
+            scouter_server_config:
+                An optional HTTPConfig object to pass if the necessary scouter_server environment variables are not set;
+                for example, SCOUTER_SERVER_URL.
         """
 
     @property
@@ -504,98 +510,3 @@ class Metrics:
 
     def __str__(self) -> str:
         """Return the string representation of the metrics"""
-
-class PsiFeatureQueue:
-    def __init__(self, drift_profile: PsiDriftProfile) -> None:
-        """Initialize the feature queue
-
-        Args:
-            drift_profile:
-                Drift profile to use for feature queue.
-        """
-
-    def insert(self, features: Features) -> None:
-        """Insert data into the feature queue
-        Args:
-            features:
-                List of features to insert into the monitoring queue.
-        """
-
-    def is_empty(self) -> bool:
-        """check if queue is empty
-        Returns:
-            bool
-        """
-
-    def clear_queue(self) -> None:
-        """Clears the feature queue"""
-
-    def create_drift_records(self) -> ServerRecords:
-        """Create drift server record from data
-
-
-        Returns:
-            `DriftServerRecord`
-        """
-
-class SpcFeatureQueue:
-    def __init__(self, drift_profile: SpcDriftProfile) -> None:
-        """Initialize the feature queue
-
-        Args:
-            drift_profile:
-                Drift profile to use for feature queue.
-        """
-
-    def insert(self, features: Features) -> None:
-        """Insert data into the feature queue
-
-        Args:
-            features:
-                List of features to insert into the monitoring queue.
-        """
-
-    def create_drift_records(self) -> ServerRecords:
-        """Create drift server record from data
-
-
-        Returns:
-            `DriftServerRecord`
-        """
-
-    def clear_queue(self) -> None:
-        """Clears the feature queue"""
-
-class CustomMetricFeatureQueue:
-    def __init__(self, drift_profile: CustomDriftProfile) -> None:
-        """Initialize the feature queue
-
-        Args:
-            drift_profile:
-                Drift profile to use for feature queue.
-        """
-
-    def insert(self, metrics: Metrics) -> None:
-        """Insert data into the feature queue
-
-        Args:
-            metrics:
-                List of metrics to insert into the monitoring queue.
-        """
-
-    def create_drift_records(self) -> ServerRecords:
-        """Create drift server record from data
-
-
-        Returns:
-            `DriftServerRecord`
-        """
-
-    def clear_queue(self) -> None:
-        """Clears the feature queue"""
-
-    def is_empty(self) -> bool:
-        """check if queue is empty
-        Returns:
-            bool
-        """

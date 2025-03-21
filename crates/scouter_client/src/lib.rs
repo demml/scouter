@@ -25,9 +25,10 @@ pub use scouter_types::{
         SpcDriftFeature, SpcDriftFeatures, SpcDriftProfile, SpcFeatureAlert, SpcFeatureAlerts,
         SpcFeatureDriftProfile,
     },
-    AlertDispatchType, CustomMetricServerRecord, DataType, DriftProfile, DriftType, Feature,
-    FeatureMap, Features, LatencyMetrics, Metric, Metrics, ObservabilityMetrics, PsiServerRecord,
-    RecordType, RouteMetrics, ServerRecord, ServerRecords, SpcServerRecord, TimeInterval,
+    AlertDispatchType, ConsoleDispatchConfig, CustomMetricServerRecord, DataType, DriftProfile,
+    DriftType, Feature, FeatureMap, Features, LatencyMetrics, Metric, Metrics,
+    ObservabilityMetrics, OpsGenieDispatchConfig, PsiServerRecord, RecordType, RouteMetrics,
+    ServerRecord, ServerRecords, SlackDispatchConfig, SpcServerRecord, TimeInterval,
 };
 
 pub use crate::http::ScouterClient;

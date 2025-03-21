@@ -1,4 +1,7 @@
-use crate::{AlertDispatchType, CommonCrons, DispatchAlertDescription, ValidateAlertConfig};
+use crate::{
+    AlertDispatchConfig, AlertDispatchType, CommonCrons, DispatchAlertDescription,
+    OpsGenieDispatchConfig, SlackDispatchConfig, ValidateAlertConfig,
+};
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyString;
@@ -10,8 +13,6 @@ use tracing::error;
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct PsiAlertConfig {
-    pub dispatch_type: AlertDispatchType,
-
     #[pyo3(get, set)]
     pub schedule: String,
 
@@ -19,20 +20,18 @@ pub struct PsiAlertConfig {
     pub features_to_monitor: Vec<String>,
 
     #[pyo3(get, set)]
-    pub dispatch_kwargs: HashMap<String, String>,
-
-    #[pyo3(get, set)]
     pub psi_threshold: f64,
+
+    pub dispatch_config: AlertDispatchConfig,
 }
 
 impl Default for PsiAlertConfig {
     fn default() -> PsiAlertConfig {
         Self {
-            dispatch_type: AlertDispatchType::default(),
             schedule: CommonCrons::EveryDay.cron(),
             features_to_monitor: Vec::new(),
-            dispatch_kwargs: HashMap::new(),
             psi_threshold: 0.25,
+            dispatch_config: AlertDispatchConfig::default(),
         }
     }
 }
@@ -42,14 +41,26 @@ impl ValidateAlertConfig for PsiAlertConfig {}
 #[pymethods]
 impl PsiAlertConfig {
     #[new]
-    #[pyo3(signature = (dispatch_type=AlertDispatchType::default(), schedule=None, features_to_monitor=vec![], dispatch_kwargs=HashMap::new(), psi_threshold=0.25))]
+    #[pyo3(signature = (schedule=None, features_to_monitor=vec![], psi_threshold=0.25, dispatch_config=None))]
     pub fn new(
-        dispatch_type: AlertDispatchType,
         schedule: Option<&Bound<'_, PyAny>>,
         features_to_monitor: Vec<String>,
-        dispatch_kwargs: HashMap<String, String>,
         psi_threshold: f64,
+        dispatch_config: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
+        let alert_dispatch_config = match dispatch_config {
+            None => AlertDispatchConfig::default(),
+            Some(config) => {
+                if config.is_instance_of::<SlackDispatchConfig>() {
+                    AlertDispatchConfig::Slack(config.extract::<SlackDispatchConfig>()?)
+                } else if config.is_instance_of::<OpsGenieDispatchConfig>() {
+                    AlertDispatchConfig::OpsGenie(config.extract::<OpsGenieDispatchConfig>()?)
+                } else {
+                    AlertDispatchConfig::default()
+                }
+            }
+        };
+
         let schedule = match schedule {
             Some(schedule) => {
                 if schedule.is_instance_of::<PyString>() {
@@ -67,31 +78,26 @@ impl PsiAlertConfig {
         let schedule = Self::resolve_schedule(&schedule);
 
         Ok(Self {
-            dispatch_type,
             schedule,
             features_to_monitor,
-            dispatch_kwargs,
             psi_threshold,
+            dispatch_config: alert_dispatch_config,
         })
     }
 
     #[getter]
-    pub fn dispatch_type(&self) -> String {
-        match self.dispatch_type {
-            AlertDispatchType::Slack => "Slack".to_string(),
-            AlertDispatchType::Console => "Console".to_string(),
-            AlertDispatchType::OpsGenie => "OpsGenie".to_string(),
-        }
+    pub fn dispatch_type(&self) -> AlertDispatchType {
+        self.dispatch_config.dispatch_type()
+    }
+
+    #[getter]
+    pub fn dispatch_config<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.dispatch_config.config(py)
     }
 }
 
-#[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PsiFeatureAlerts {
-    #[pyo3(get)]
     pub features: HashMap<String, f64>,
-
-    #[pyo3(get)]
     pub threshold: f64,
 }
 
@@ -138,33 +144,45 @@ mod tests {
     fn test_alert_config() {
         //test console alert config
         let alert_config = PsiAlertConfig::default();
-        assert_eq!(alert_config.dispatch_type, AlertDispatchType::Console);
-        assert_eq!(alert_config.dispatch_type(), "Console");
-        assert_eq!(AlertDispatchType::Console.value(), "Console");
+        assert_eq!(alert_config.dispatch_config, AlertDispatchConfig::default());
+        assert_eq!(alert_config.dispatch_type(), AlertDispatchType::Console);
 
         //test slack alert config
+        let slack_alert_dispatch_config = SlackDispatchConfig {
+            channel: "test".to_string(),
+        };
         let alert_config = PsiAlertConfig {
-            dispatch_type: AlertDispatchType::Slack,
+            dispatch_config: AlertDispatchConfig::Slack(slack_alert_dispatch_config.clone()),
             ..Default::default()
         };
-        assert_eq!(alert_config.dispatch_type, AlertDispatchType::Slack);
-        assert_eq!(alert_config.dispatch_type(), "Slack");
-        assert_eq!(AlertDispatchType::Slack.value(), "Slack");
+        assert_eq!(
+            alert_config.dispatch_config,
+            AlertDispatchConfig::Slack(slack_alert_dispatch_config)
+        );
+        assert_eq!(alert_config.dispatch_type(), AlertDispatchType::Slack);
 
         //test opsgenie alert config
-        let mut alert_kwargs = HashMap::new();
-        alert_kwargs.insert("channel".to_string(), "test".to_string());
-
+        let opsgenie_dispatch_config = AlertDispatchConfig::OpsGenie(OpsGenieDispatchConfig {
+            team: "test-team".to_string(),
+            priority: "P5".to_string(),
+        });
         let alert_config = PsiAlertConfig {
-            dispatch_type: AlertDispatchType::OpsGenie,
-            dispatch_kwargs: alert_kwargs,
+            dispatch_config: opsgenie_dispatch_config.clone(),
             ..Default::default()
         };
 
-        assert_eq!(alert_config.dispatch_type, AlertDispatchType::OpsGenie);
-        assert_eq!(alert_config.dispatch_type(), "OpsGenie");
-        assert_eq!(alert_config.dispatch_kwargs.get("channel").unwrap(), "test");
-        assert_eq!(AlertDispatchType::OpsGenie.value(), "OpsGenie");
+        assert_eq!(
+            alert_config.dispatch_config,
+            opsgenie_dispatch_config.clone()
+        );
+        assert_eq!(alert_config.dispatch_type(), AlertDispatchType::OpsGenie);
+        assert_eq!(
+            match &alert_config.dispatch_config {
+                AlertDispatchConfig::OpsGenie(config) => &config.team,
+                _ => panic!("Expected OpsGenie dispatch config"),
+            },
+            "test-team"
+        );
     }
 
     #[test]

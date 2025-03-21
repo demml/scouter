@@ -1,16 +1,10 @@
-# Alerting
-
-As mentioned, Scouter's monitoring and alerting methodology is based on statistical process control.
-
-
 ## Statistical Process Control ([reference](https://www.itl.nist.gov/div898/handbook/pmc/section1/pmc12.htm))
 
 The basic idea of statistical process control is to compare current process output/data to previous/expected output/data. To do this from an modeling perspective, we take a snapshot of the model's data and predictions at the time of model creation and create a `DriftProfile`. This is done by sampling the data and calculating a series of means and standard deviations in order to approximate the population distribution. From this grand mean and standard deviation, we can calculate the upper and lower control limits for the data.
 
 Reference for grand mean and standard deviation calculations: [link](https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc321.htm)
 
-
-## Formulas 
+## Formulas
 
 Sample mean and standard deviation:
 
@@ -64,7 +58,7 @@ Out of the box, `Scouter` will calculate the center line and control limits for 
 
 <h1 align="center">
   <br>
-  <img src="../../images/control_chart.png"  width="700"alt="scouter logo"/>
+  <img src="../../../images/control_chart.png"  width="700"alt="scouter logo"/>
   <br>
 </h1>
 
@@ -116,7 +110,7 @@ In addition to the 8 digit rule, `Scouter` will also check for a consecutive tre
 
 <h1 align="center">
   <br>
-  <img src="../../images/control_chart_alert.png"  width="700"alt="scouter logo"/>
+  <img src="../../../images/control_chart_alert.png"  width="700"alt="scouter logo"/>
   <br>
 </h1>
 
@@ -125,25 +119,18 @@ In addition to the 8 digit rule, `Scouter` will also check for a consecutive tre
 `Scouter` provides the ability to create your own custom 8 digit rules. Below is an example of how to create a custom rule:
 
 ```python hl_lines="6 15"
-from scouter import SpcDriftConfig, SpcAlertRule, AlertDispatchType
+from scouter.alert import SlackDispatchConfig, SpcAlertConfig, SpcAlertRule
+from scouter.drift import SpcDriftConfig
 
 # Create a custom rule
-custom_rule = SpcAlertRule(
-        rule="16 32 4 8 2 4 1 1" # create your custom rule here
-)
+custom_rule = SpcAlertRule(rule="16 32 4 8 2 4 1 1")  # create your custom rule here
 
 # Create a drift config
 config = SpcDriftConfig(
     name="model",
     repository="scouter",
     version="0.1.0",
-    rule=custom_rule,
-    dispatch_type=AlertDispatchType.Console,
+    alert_config=SpcAlertConfig(rule=custom_rule, dispatch_config=SlackDispatchConfig(channel="test_channel")),
 )
 ```
 
-
-::: scouter._scouter.SpcAlertRule
-    options:
-        show_root_heading: true
-        heading_level: 3

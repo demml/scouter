@@ -2,7 +2,6 @@ use crate::spc::monitor::SpcMonitor;
 use core::result::Result::Ok;
 use ndarray::prelude::*;
 use ndarray::Array2;
-use pyo3::prelude::*;
 use scouter_error::FeatureQueueError;
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::{Features, ServerRecords};
@@ -10,7 +9,6 @@ use std::collections::HashMap;
 use tracing::instrument;
 use tracing::{debug, error};
 
-#[pyclass]
 pub struct SpcFeatureQueue {
     pub drift_profile: SpcDriftProfile,
     pub queue: HashMap<String, Vec<f64>>,
@@ -18,9 +16,7 @@ pub struct SpcFeatureQueue {
     pub feature_names: Vec<String>,
 }
 
-#[pymethods]
 impl SpcFeatureQueue {
-    #[new]
     #[instrument(skip(drift_profile))]
     pub fn new(drift_profile: SpcDriftProfile) -> Self {
         let queue: HashMap<String, Vec<f64>> = drift_profile
@@ -78,7 +74,6 @@ impl SpcFeatureQueue {
                 )
             })
             .unzip();
-
         let n = arrays[0].dim().0;
         if arrays.iter().any(|array| array.dim().0 != n) {
             error!("Shape mismatch");
@@ -140,11 +135,13 @@ mod tests {
         ];
 
         let monitor = SpcMonitor::new();
-        let alert_config = SpcAlertConfig::default();
+        let alert_config = SpcAlertConfig {
+            features_to_monitor: features.clone(),
+            ..Default::default()
+        };
         let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repo".to_string()),
-            None,
             None,
             None,
             None,
@@ -153,7 +150,6 @@ mod tests {
                 "feature_2".to_string(),
                 "feature_3".to_string(),
             ]),
-            None,
             Some(alert_config),
             None,
         );

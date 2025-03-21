@@ -527,8 +527,6 @@ mod tests {
             None,
             None,
             None,
-            None,
-            None,
             Some(alert_config),
             None,
         );
@@ -553,7 +551,6 @@ mod tests {
                 Some("1.0.0".to_string()),
                 Some(loaded_profile.config.sample),
                 Some(loaded_profile.config.sample_size),
-                Some(loaded_profile.config.feature_map.clone()),
                 Some(loaded_profile.config.targets.clone()),
                 Some(loaded_profile.config.alert_config.clone()),
             )
@@ -580,8 +577,6 @@ mod tests {
         let config = SpcDriftConfig::new(
             Some("repo".to_string()),
             Some("name".to_string()),
-            None,
-            None,
             None,
             None,
             None,
@@ -631,8 +626,6 @@ mod tests {
             None,
             None,
             None,
-            None,
-            None,
             Some(alert_config),
             None,
         );
@@ -672,11 +665,13 @@ mod tests {
             "feature_2".to_string(),
             "feature_3".to_string(),
         ];
-        let alert_config = SpcAlertConfig::default();
+        let alert_config = SpcAlertConfig {
+            features_to_monitor: features.clone(),
+            ..Default::default()
+        };
         let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repo".to_string()),
-            None,
             None,
             None,
             None,
@@ -685,7 +680,6 @@ mod tests {
                 "feature_2".to_string(),
                 "feature_3".to_string(),
             ]),
-            None,
             Some(alert_config),
             None,
         );
@@ -720,8 +714,6 @@ mod tests {
         let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repo".to_string()),
-            None,
-            None,
             None,
             None,
             None,

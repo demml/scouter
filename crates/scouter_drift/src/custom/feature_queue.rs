@@ -1,22 +1,19 @@
 use core::result::Result::Ok;
-use pyo3::prelude::*;
 use scouter_error::FeatureQueueError;
 use scouter_types::Metrics;
 use scouter_types::{
     custom::CustomDriftProfile, CustomMetricServerRecord, RecordType, ServerRecord, ServerRecords,
 };
 use std::collections::HashMap;
+use tracing::error;
 
-#[pyclass]
 pub struct CustomMetricFeatureQueue {
     pub drift_profile: CustomDriftProfile,
     pub queue: HashMap<String, Vec<f64>>,
     pub metric_names: Vec<String>,
 }
 
-#[pymethods]
 impl CustomMetricFeatureQueue {
-    #[new]
     pub fn new(drift_profile: CustomDriftProfile) -> Self {
         let queue: HashMap<String, Vec<f64>> = drift_profile
             .metrics
@@ -43,12 +40,25 @@ impl CustomMetricFeatureQueue {
     ///
     /// * `Result<(), FeatureQueueError>` - A result indicating success or failure
     pub fn insert(&mut self, metrics: Metrics) -> Result<(), FeatureQueueError> {
-        metrics.iter().for_each(|metric| {
+        for metric in metrics.metrics {
+            if !self.drift_profile.metrics.contains_key(&metric.name) {
+                let valid_metric_names = self
+                    .drift_profile
+                    .metrics
+                    .keys()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .join(", ");
+                error!(
+                    "Custom metric {} not found in drift profile. Valid metric names include {}",
+                    metric.name, valid_metric_names
+                );
+                continue;
+            }
             if let Some(queue) = self.queue.get_mut(&metric.name) {
                 queue.push(metric.value);
             }
-        });
-
+        }
         Ok(())
     }
 

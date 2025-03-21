@@ -48,7 +48,7 @@ impl PostgresClient {
     /// * `pool` - An optional database pool
     ///
     /// # Returns
-    ///     
+    ///
     /// * `Result<Self, SqlError>` - Result of the database pool
     pub async fn new(
         pool: Option<Pool<Postgres>>,
@@ -917,10 +917,10 @@ mod tests {
     pub async fn cleanup(pool: &Pool<Postgres>) {
         sqlx::raw_sql(
             r#"
-            DELETE 
+            DELETE
             FROM scouter.drift;
 
-            DELETE 
+            DELETE
             FROM scouter.observability_metrics;
 
             DELETE

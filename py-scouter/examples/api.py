@@ -1,97 +1,72 @@
-from pathlib import Path
-
-import numpy as np
-from config import config
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
+from scouter.client import GetProfileRequest
 from scouter.integrations.fastapi import ScouterRouter
-from scouter.logging import LoggingConfig, LogLevel, RustyLogger
-from scouter.queue import DriftTransportConfig, Feature, Features, Metric, Metrics
+from scouter.queue import DriftTransportConfig, Feature, Features, KafkaConfig
+from scouter.types import DriftType
 
-# Sets up logging for tests
-RustyLogger.setup_logging(LoggingConfig(log_level=LogLevel.Debug))
+# Each Scouter queue requires a unique user-defined ID.
+# This ensures proper tracking of multiple drift profile types,
+# allowing the FastAPI integration to associate each queue with the correct profile type.
+DRIFT_TRANSPORT_QUEUE_ID = "psi_id"
 
 
+# Simple response model for our post request.
 class Response(BaseModel):
     message: str
 
 
+# Simple reqeust model for our post request.
 class PredictRequest(BaseModel):
-    feature_0: float
-    feature_1: float
-    feature_2: float
-    feature_3: float
+    malic_acid: float
+    total_phenols: float
+    color_intensity: float
 
+    # This helper function is necessary to convert Scouter Python types into the appropriate Rust types.
     def to_features(self) -> Features:
         return Features(
             features=[
-                Feature.float("feature_0", self.feature_0),
-                Feature.float("feature_1", self.feature_1),
-                Feature.float("feature_2", self.feature_2),
-                Feature.float("feature_3", self.feature_3),
-            ]
-        )
-
-    def to_metrics(self) -> Metrics:
-        return Metrics(
-            metrics=[
-                Metric("mae", self.feature_0),
+                Feature.float("malic_acid", self.malic_acid),
+                Feature.float("total_phenols", self.total_phenols),
+                Feature.float("color_intensity", self.color_intensity),
             ]
         )
 
 
-def setup_router() -> ScouterRouter:
-    # setup kafka
-    spc_transport = DriftTransportConfig(
-        id=config.spc_id,
-        config=config.kafka,
-        drift_profile=None,
-        drift_profile_path=Path("spc_profile.json"),
-    )
-
-    psi_transport = DriftTransportConfig(
-        id=config.psi_id,
-        config=config.kafka,
-        drift_profile=None,
-        drift_profile_path=Path("psi_profile.json"),
-    )
-
-    custom_transport = DriftTransportConfig(
-        id=config.custom_id,
-        config=config.kafka,
-        drift_profile=None,
-        drift_profile_path=Path("custom_profile.json"),
-    )
-
-    return ScouterRouter(
-        transport=[
-            spc_transport,
-            psi_transport,
-            custom_transport,
-        ]
-    )
+# We use ScouterRouter, a custom extension of FastAPI's APIRouter,
+# to integrate seamlessly with FastAPI's background task system.
+# This enables Scouter to manage queue updates efficiently, ensuring that all queue processes
+# are handled as FastAPI background tasks.
+scouter_router = ScouterRouter(
+    # We pass a single drift transport configuration here. If working with multiple drift profile types,
+    # we can easily extend this list with additional configurations.
+    transport=[
+        DriftTransportConfig(
+            id=DRIFT_TRANSPORT_QUEUE_ID,
+            # Kafka is chosen as the transport mode, but RabbitMQ is also supported.
+            # To use Kafka, ensure both KAFKA_BROKERS and KAFKA_TOPIC environment variables are set.
+            config=KafkaConfig(),
+            # Drift transport configurations are tied to drift profiles. The drift_profile_request specifies
+            # which profile the Scouter client should fetch from the server.
+            drift_profile_request=GetProfileRequest(
+                name="wine_model", repository="wine_model", version="0.0.1", drift_type=DriftType.Psi
+            ),
+        )
+    ]
+)
 
 
-app = FastAPI(title="Example Drift App")
-scouter_router = setup_router()
-
-
-@scouter_router.get("/predict", response_model=Response)
-async def psi_predict(request: Request) -> Response:
-    payload = PredictRequest(
-        feature_0=np.random.rand(),
-        feature_1=np.random.rand(),
-        feature_2=np.random.rand(),
-        feature_3=np.random.rand(),
-    )
-
+# Use the Scouter router to handle prediction post requests
+@scouter_router.post("/predict", response_model=Response)
+async def psi_predict(request: Request, payload: PredictRequest) -> Response:
+    # The FastAPI Scouter integration expects queue data to be stored in the request state, under 'scouter_data'.
+    # Here, we construct a dictionary where the queue ID is the key and the payload's transformed features are the value.
     request.state.scouter_data = {
-        config.psi_id: payload.to_features(),
-        config.spc_id: payload.to_features(),
-        config.custom_id: payload.to_metrics(),
+        DRIFT_TRANSPORT_QUEUE_ID: payload.to_features(),
     }
-
     return Response(message="success")
 
 
+app = FastAPI(title="Example Drift App")
+# Register the scouter router
 app.include_router(scouter_router)

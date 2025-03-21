@@ -1,6 +1,6 @@
 use crate::{
-    dispatch::AlertDispatchType, CommonCrons, DispatchAlertDescription, ProfileFuncs,
-    ValidateAlertConfig,
+    dispatch::AlertDispatchType, AlertDispatchConfig, CommonCrons, DispatchAlertDescription,
+    OpsGenieDispatchConfig, ProfileFuncs, SlackDispatchConfig, ValidateAlertConfig,
 };
 use core::fmt::Debug;
 use pyo3::prelude::*;
@@ -81,16 +81,13 @@ pub struct SpcAlertConfig {
     #[pyo3(get, set)]
     pub rule: SpcAlertRule,
 
-    pub dispatch_type: AlertDispatchType,
-
     #[pyo3(get, set)]
     pub schedule: String,
 
     #[pyo3(get, set)]
     pub features_to_monitor: Vec<String>,
 
-    #[pyo3(get, set)]
-    pub dispatch_kwargs: HashMap<String, String>,
+    pub dispatch_config: AlertDispatchConfig,
 }
 
 impl ValidateAlertConfig for SpcAlertConfig {}
@@ -98,14 +95,26 @@ impl ValidateAlertConfig for SpcAlertConfig {}
 #[pymethods]
 impl SpcAlertConfig {
     #[new]
-    #[pyo3(signature = (rule=SpcAlertRule::default(), dispatch_type=AlertDispatchType::default(), schedule=None, features_to_monitor=vec![], dispatch_kwargs=HashMap::new()))]
+    #[pyo3(signature = (rule=SpcAlertRule::default(), schedule=None, features_to_monitor=vec![], dispatch_config=None))]
     pub fn new(
         rule: SpcAlertRule,
-        dispatch_type: AlertDispatchType,
         schedule: Option<&Bound<'_, PyAny>>,
         features_to_monitor: Vec<String>,
-        dispatch_kwargs: HashMap<String, String>,
+        dispatch_config: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<Self> {
+        let alert_dispatch_config = match dispatch_config {
+            None => AlertDispatchConfig::default(),
+            Some(config) => {
+                if config.is_instance_of::<SlackDispatchConfig>() {
+                    AlertDispatchConfig::Slack(config.extract::<SlackDispatchConfig>()?)
+                } else if config.is_instance_of::<OpsGenieDispatchConfig>() {
+                    AlertDispatchConfig::OpsGenie(config.extract::<OpsGenieDispatchConfig>()?)
+                } else {
+                    AlertDispatchConfig::default()
+                }
+            }
+        };
+
         // check if schedule is None, string or CommonCrons
 
         let schedule = match schedule {
@@ -126,20 +135,20 @@ impl SpcAlertConfig {
 
         Ok(Self {
             rule,
-            dispatch_type,
             schedule,
             features_to_monitor,
-            dispatch_kwargs,
+            dispatch_config: alert_dispatch_config,
         })
     }
 
     #[getter]
-    pub fn dispatch_type(&self) -> String {
-        match self.dispatch_type {
-            AlertDispatchType::Slack => "Slack".to_string(),
-            AlertDispatchType::Console => "Console".to_string(),
-            AlertDispatchType::OpsGenie => "OpsGenie".to_string(),
-        }
+    pub fn dispatch_type(&self) -> AlertDispatchType {
+        self.dispatch_config.dispatch_type()
+    }
+
+    #[getter]
+    pub fn dispatch_config<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.dispatch_config.config(py)
     }
 }
 
@@ -147,10 +156,9 @@ impl Default for SpcAlertConfig {
     fn default() -> SpcAlertConfig {
         Self {
             rule: SpcAlertRule::default(),
-            dispatch_type: AlertDispatchType::default(),
+            dispatch_config: AlertDispatchConfig::default(),
             schedule: CommonCrons::EveryDay.cron(),
             features_to_monitor: Vec::new(),
-            dispatch_kwargs: HashMap::new(),
         }
     }
 }
@@ -203,13 +211,9 @@ impl SpcAlert {
 
 // Drift config to use when calculating drift on a new sample of data
 
-#[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SpcFeatureAlert {
-    #[pyo3(get)]
     pub feature: String,
-
-    #[pyo3(get)]
     pub alerts: Vec<SpcAlert>,
 }
 
@@ -219,27 +223,20 @@ impl SpcFeatureAlert {
     }
 }
 
-#[pymethods]
-#[allow(clippy::new_without_default)]
-impl SpcFeatureAlert {
-    pub fn __str__(&self) -> String {
-        // serialize the struct to a string
-        ProfileFuncs::__str__(self)
-    }
-}
-
-#[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SpcFeatureAlerts {
-    #[pyo3(get)]
     pub features: HashMap<String, SpcFeatureAlert>,
-
-    #[pyo3(get)]
     pub has_alerts: bool,
 }
 
 impl SpcFeatureAlerts {
-    // rust-only function to insert feature alerts
+    pub fn new(has_alerts: bool) -> Self {
+        Self {
+            features: HashMap::new(),
+            has_alerts,
+        }
+    }
+
     pub fn insert_feature_alert(&mut self, feature: &str, alerts: HashSet<SpcAlert>) {
         // convert the alerts to a vector
         let alerts: Vec<SpcAlert> = alerts.into_iter().collect();
@@ -301,28 +298,6 @@ impl DispatchAlertDescription for SpcFeatureAlerts {
     }
 }
 
-#[pymethods]
-#[allow(clippy::new_without_default)]
-impl SpcFeatureAlerts {
-    #[new]
-    pub fn new(has_alerts: bool) -> Self {
-        Self {
-            features: HashMap::new(),
-            has_alerts,
-        }
-    }
-
-    pub fn __str__(&self) -> String {
-        // serialize the struct to a string
-        ProfileFuncs::__str__(self)
-    }
-
-    pub fn model_dump_json(&self) -> String {
-        // serialize the struct to a string
-        ProfileFuncs::__json__(self)
-    }
-}
-
 pub struct TaskAlerts {
     pub alerts: SpcFeatureAlerts,
 }
@@ -367,32 +342,52 @@ mod tests {
     fn test_alert_config() {
         //test console alert config
         let alert_config = SpcAlertConfig::default();
-        assert_eq!(alert_config.dispatch_type, AlertDispatchType::Console);
-        assert_eq!(alert_config.dispatch_type(), "Console");
-        assert_eq!(AlertDispatchType::Console.value(), "Console");
+        assert_eq!(alert_config.dispatch_config, AlertDispatchConfig::default());
+        assert_eq!(alert_config.dispatch_type(), AlertDispatchType::Console);
 
+        let slack_dispatch_config = SlackDispatchConfig {
+            channel: "test-channel".to_string(),
+        };
         //test slack alert config
         let alert_config = SpcAlertConfig {
-            dispatch_type: AlertDispatchType::Slack,
+            dispatch_config: AlertDispatchConfig::Slack(slack_dispatch_config.clone()),
             ..Default::default()
         };
-        assert_eq!(alert_config.dispatch_type, AlertDispatchType::Slack);
-        assert_eq!(alert_config.dispatch_type(), "Slack");
-        assert_eq!(AlertDispatchType::Slack.value(), "Slack");
+        assert_eq!(
+            alert_config.dispatch_config,
+            AlertDispatchConfig::Slack(slack_dispatch_config)
+        );
+        assert_eq!(alert_config.dispatch_type(), AlertDispatchType::Slack);
+        assert_eq!(
+            match &alert_config.dispatch_config {
+                AlertDispatchConfig::Slack(config) => &config.channel,
+                _ => panic!("Expected Slack dispatch config"),
+            },
+            "test-channel"
+        );
 
         //test opsgenie alert config
-        let mut alert_kwargs = HashMap::new();
-        alert_kwargs.insert("channel".to_string(), "test".to_string());
+        let opsgenie_dispatch_config = OpsGenieDispatchConfig {
+            team: "test-team".to_string(),
+            priority: "P5".to_string(),
+        };
 
         let alert_config = SpcAlertConfig {
-            dispatch_type: AlertDispatchType::OpsGenie,
-            dispatch_kwargs: alert_kwargs,
+            dispatch_config: AlertDispatchConfig::OpsGenie(opsgenie_dispatch_config.clone()),
             ..Default::default()
         };
-        assert_eq!(alert_config.dispatch_type, AlertDispatchType::OpsGenie);
-        assert_eq!(alert_config.dispatch_type(), "OpsGenie");
-        assert_eq!(alert_config.dispatch_kwargs.get("channel").unwrap(), "test");
-        assert_eq!(AlertDispatchType::OpsGenie.value(), "OpsGenie");
+        assert_eq!(
+            alert_config.dispatch_config,
+            AlertDispatchConfig::OpsGenie(opsgenie_dispatch_config.clone())
+        );
+        assert_eq!(alert_config.dispatch_type(), AlertDispatchType::OpsGenie);
+        assert_eq!(
+            match &alert_config.dispatch_config {
+                AlertDispatchConfig::OpsGenie(config) => &config.team,
+                _ => panic!("Expected OpsGenie dispatch config"),
+            },
+            "test-team"
+        );
     }
 
     #[test]

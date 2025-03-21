@@ -1,3 +1,4 @@
+#![allow(clippy::useless_conversion)]
 use crate::data_utils::DataConverterEnum;
 use crate::drifter::{custom::CustomDrifter, psi::PsiDrifter, spc::SpcDrifter};
 use pyo3::prelude::*;

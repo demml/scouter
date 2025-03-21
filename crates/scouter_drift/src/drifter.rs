@@ -29,18 +29,15 @@ pub mod drift_executor {
             previous_run: NaiveDateTime,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             match self {
-                Drifter::SpcDrifter(drifter) => drifter
-                    .check_for_alerts(db_client, previous_run)
-                    .await
-                    .map_err(DriftError::from),
-                Drifter::PsiDrifter(drifter) => drifter
-                    .check_for_alerts(db_client, previous_run)
-                    .await
-                    .map_err(DriftError::from),
-                Drifter::CustomDrifter(drifter) => drifter
-                    .check_for_alerts(db_client, previous_run)
-                    .await
-                    .map_err(DriftError::from),
+                Drifter::SpcDrifter(drifter) => {
+                    drifter.check_for_alerts(db_client, previous_run).await
+                }
+                Drifter::PsiDrifter(drifter) => {
+                    drifter.check_for_alerts(db_client, previous_run).await
+                }
+                Drifter::CustomDrifter(drifter) => {
+                    drifter.check_for_alerts(db_client, previous_run).await
+                }
             }
         }
     }

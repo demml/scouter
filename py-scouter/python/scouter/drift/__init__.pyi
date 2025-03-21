@@ -1,5 +1,4 @@
 # pylint: disable=dangerous-default-value
-
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, overload
 
@@ -66,8 +65,6 @@ class SpcDriftConfig:
         sample: bool = True,
         sample_size: int = 25,
         alert_config: SpcAlertConfig = SpcAlertConfig(),
-        feature_map: FeatureMap = FeatureMap,  # type: ignore
-        features_to_monitor: List[str] = [],
         targets: List[str] = [],
         config_path: Optional[Path] = None,
     ):
@@ -84,10 +81,6 @@ class SpcDriftConfig:
                 Whether to sample or not
             sample_size:
                 Sample size
-            feature_map:
-                Feature map
-            features_to_monitor:
-                List of features to monitor. If provided, will overwrite alert_config features_to_monitor.
             targets:
                 List of features that are targets in your dataset.
                 This is typically the name of your dependent variable(s).
@@ -142,10 +135,6 @@ class SpcDriftConfig:
     def feature_map(self) -> Optional[FeatureMap]:
         """Feature map"""
 
-    @feature_map.setter
-    def feature_map(self, feature_map: FeatureMap) -> None:
-        """Set feature map"""
-
     @property
     def targets(self) -> List[str]:
         """List of target features to monitor"""
@@ -165,9 +154,6 @@ class SpcDriftConfig:
     @property
     def drift_type(self) -> DriftType:
         """Drift type"""
-
-    def update_feature_map(self, feature_map: FeatureMap) -> None:
-        """Update feature map"""
 
     @staticmethod
     def load_from_json_file(path: Path) -> "SpcDriftConfig":
@@ -191,7 +177,6 @@ class SpcDriftConfig:
         version: Optional[str] = None,
         sample: Optional[bool] = None,
         sample_size: Optional[int] = None,
-        feature_map: Optional[FeatureMap] = None,
         targets: Optional[List[str]] = None,
         alert_config: Optional[SpcAlertConfig] = None,
     ) -> None:
@@ -208,8 +193,6 @@ class SpcDriftConfig:
                 Whether to sample or not
             sample_size:
                 Sample size
-            feature_map:
-                Feature map
             targets:
                 List of features that are targets in your dataset.
                 This is typically the name of your dependent variable(s).
@@ -219,23 +202,6 @@ class SpcDriftConfig:
         """
 
 class SpcDriftProfile:
-    def __init__(
-        self,
-        features: Dict[str, SpcFeatureDriftProfile],
-        config: SpcDriftConfig,
-        scouter_version: Optional[str] = None,
-    ):
-        """Initialize drift profile
-
-        Args:
-            features:
-                Dictionary of features and their drift profiles
-            config:
-                Monitor config
-            scouter_version:
-                version of scouter used to generate profile
-        """
-
     @property
     def scouter_version(self) -> str:
         """Return scouter version used to create DriftProfile"""
@@ -244,17 +210,9 @@ class SpcDriftProfile:
     def features(self) -> Dict[str, SpcFeatureDriftProfile]:
         """Return the list of features."""
 
-    @features.setter
-    def features(self, features: Dict[str, SpcFeatureDriftProfile]) -> None:
-        """Set the list of features."""
-
     @property
     def config(self) -> SpcDriftConfig:
         """Return the monitor config."""
-
-    @config.setter
-    def config(self, config: SpcDriftConfig) -> None:
-        """Set the monitor config."""
 
     def model_dump_json(self) -> str:
         """Return json representation of drift profile"""
@@ -304,7 +262,6 @@ class SpcDriftProfile:
         version: Optional[str] = None,
         sample: Optional[bool] = None,
         sample_size: Optional[int] = None,
-        feature_map: Optional[FeatureMap] = None,
         targets: Optional[List[str]] = None,
         alert_config: Optional[SpcAlertConfig] = None,
     ) -> None:
@@ -321,8 +278,6 @@ class SpcDriftProfile:
                 Whether to sample or not
             sample_size:
                 Sample size
-            feature_map:
-                Feature map
             targets:
                 List of features that are targets in your dataset.
                 This is typically the name of your dependent variable(s).
@@ -358,14 +313,6 @@ class SpcFeatureDrift:
 class SpcDriftMap:
     """Drift map of features"""
 
-    def __init__(self, repository: str, name: str, version: str) -> None:
-        """Initialize data profile
-
-        Args:
-            service_name:
-                Optional name of service associated with drift map
-        """
-
     @property
     def repository(self) -> str:
         """Repository to associate with drift map"""
@@ -379,7 +326,7 @@ class SpcDriftMap:
         """Version to associate with drift map"""
 
     @property
-    def features(self) -> Dict[str, FeatureDrift]:
+    def features(self) -> Dict[str, SpcFeatureDrift]:
         """Returns dictionary of features and their data profiles"""
 
     def __str__(self) -> str:
@@ -387,16 +334,6 @@ class SpcDriftMap:
 
     def model_dump_json(self) -> str:
         """Return json representation of data drift"""
-
-    def add_feature(self, feature: str, drift: SpcFeatureDrift) -> None:
-        """Add feature drift profile to drift map
-
-        Args:
-            feature:
-                Name of feature
-            drift:
-                Feature drift
-        """
 
     @staticmethod
     def model_validate_json(json_string: str) -> "SpcDriftMap":
@@ -417,7 +354,7 @@ class SpcDriftMap:
         """
 
     def to_numpy(self) -> Any:
-        """Return drift map as a a tuple of sample_array, drift_array and list of features"""
+        """Return drift map as a tuple of sample_array, drift_array and list of features"""
 
 class PsiDriftConfig:
     def __init__(
@@ -426,8 +363,6 @@ class PsiDriftConfig:
         name: str = "__missing__",
         version: str = "0.1.0",
         alert_config: PsiAlertConfig = PsiAlertConfig(),
-        feature_map: FeatureMap = FeatureMap,  # type: ignore
-        features_to_monitor: List[str] = [],
         targets: List[str] = [],
         config_path: Optional[Path] = None,
     ):
@@ -440,10 +375,6 @@ class PsiDriftConfig:
                 Model name
             version:
                 Model version. Defaults to 0.1.0
-            feature_map:
-                Feature map
-            features_to_monitor:
-                List of features to monitor. If provided, will overwrite alert_config features_to_monitor.
             targets:
                 List of features that are targets in your dataset.
                 This is typically the name of your dependent variable(s).
@@ -482,10 +413,6 @@ class PsiDriftConfig:
     def feature_map(self) -> Optional[FeatureMap]:
         """Feature map"""
 
-    @feature_map.setter
-    def feature_map(self, feature_map: FeatureMap) -> None:
-        """Set feature map"""
-
     @property
     def targets(self) -> List[str]:
         """List of target features to monitor"""
@@ -505,9 +432,6 @@ class PsiDriftConfig:
     @property
     def drift_type(self) -> DriftType:
         """Drift type"""
-
-    def update_feature_map(self, feature_map: FeatureMap) -> None:
-        """Update feature map"""
 
     @staticmethod
     def load_from_json_file(path: Path) -> "PsiDriftConfig":
@@ -529,7 +453,6 @@ class PsiDriftConfig:
         repository: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
-        feature_map: Optional[FeatureMap] = None,
         targets: Optional[List[str]] = None,
         alert_config: Optional[PsiAlertConfig] = None,
     ) -> None:
@@ -542,8 +465,6 @@ class PsiDriftConfig:
                 Model name
             version:
                 Model version
-            feature_map:
-                Feature map
             targets:
                 List of features that are targets in your dataset.
                 This is typically the name of your dependent variable(s).
@@ -553,23 +474,6 @@ class PsiDriftConfig:
         """
 
 class PsiDriftProfile:
-    def __init__(
-        self,
-        features: Dict[str, PsiFeatureDriftProfile],
-        config: PsiDriftConfig,
-        scouter_version: Optional[str] = None,
-    ):
-        """Initialize drift profile
-
-        Args:
-            features:
-                Dictionary of features and their drift profiles
-            config:
-                Monitor config
-            scouter_version:
-                version of scouter used to generate profile
-        """
-
     @property
     def scouter_version(self) -> str:
         """Return scouter version used to create DriftProfile"""
@@ -578,17 +482,9 @@ class PsiDriftProfile:
     def features(self) -> Dict[str, PsiFeatureDriftProfile]:
         """Return the list of features."""
 
-    @features.setter
-    def features(self, features: Dict[str, PsiFeatureDriftProfile]) -> None:
-        """Set the list of features."""
-
     @property
     def config(self) -> PsiDriftConfig:
         """Return the monitor config."""
-
-    @config.setter
-    def config(self, config: PsiDriftConfig) -> None:
-        """Set the monitor config."""
 
     def model_dump_json(self) -> str:
         """Return json representation of drift profile"""
@@ -636,7 +532,6 @@ class PsiDriftProfile:
         repository: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
-        feature_map: Optional[FeatureMap] = None,
         targets: Optional[List[str]] = None,
         alert_config: Optional[PsiAlertConfig] = None,
     ) -> None:
@@ -649,8 +544,6 @@ class PsiDriftProfile:
                 Model repository
             version:
                 Model version
-            feature_map:
-                Feature map
             targets:
                 List of features that are targets in your dataset.
                 This is typically the name of your dependent variable(s).
@@ -679,6 +572,11 @@ class Bin:
     def proportion(self) -> float:
         """Return the proportion of data found in the bin."""
 
+class BinType:
+    Binary: "BinType"
+    Numeric: "BinType"
+    Category: "BinType"
+
 class PsiFeatureDriftProfile:
     @property
     def id(self) -> str:
@@ -692,16 +590,12 @@ class PsiFeatureDriftProfile:
     def timestamp(self) -> str:
         """Return the timestamp."""
 
+    @property
+    def bin_type(self) -> BinType:
+        """Return the timestamp."""
+
 class PsiDriftMap:
     """Drift map of features"""
-
-    def __init__(self, repository: str, name: str, version: str) -> None:
-        """Initialize data profile
-
-        Args:
-            service_name:
-                Optional name of service associated with drift map
-        """
 
     @property
     def repository(self) -> str:
@@ -717,7 +611,7 @@ class PsiDriftMap:
 
     @property
     def features(self) -> Dict[str, float]:
-        """Returns dictionary of features and their data profiles"""
+        """Returns dictionary of features and their reported drift, if any"""
 
     def __str__(self) -> str:
         """Return string representation of data drift"""
