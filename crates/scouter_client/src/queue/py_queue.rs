@@ -1,4 +1,3 @@
-#![allow(clippy::useless_conversion)]
 use super::custom::CustomQueue;
 use crate::queue::psi::PsiQueue;
 use crate::queue::spc::SpcQueue;
@@ -43,7 +42,9 @@ impl Queue {
             }
             DriftType::Custom => {
                 let drift_profile = drift_profile.extract::<CustomDriftProfile>()?;
-                Ok(Queue::Custom(CustomQueue::new(drift_profile, config)?))
+                Ok(Queue::Custom(
+                    CustomQueue::new(drift_profile, config).await?,
+                ))
             }
         }
     }
@@ -60,7 +61,7 @@ impl Queue {
             }
             Queue::Custom(queue) => {
                 let metrics = entity.extract::<Metrics>()?;
-                queue.insert(metrics)
+                queue.insert(metrics).await
             }
         }
     }
@@ -69,7 +70,7 @@ impl Queue {
         match self {
             Queue::Spc(queue) => queue.flush().await,
             Queue::Psi(queue) => queue.flush().await,
-            Queue::Custom(queue) => queue.flush(),
+            Queue::Custom(queue) => queue.flush().await,
         }
     }
 }
@@ -128,7 +129,7 @@ impl ScouterQueue {
                         error!("Failed to flush queue: {:?}", e.to_string());
                         PyScouterError::new_err(e.to_string())
                     }),
-                    Queue::Custom(queue) => queue.flush().map_err(|e| {
+                    Queue::Custom(queue) => queue.flush().await.map_err(|e| {
                         error!("Failed to flush queue: {:?}", e.to_string());
                         PyScouterError::new_err(e.to_string())
                     }),
