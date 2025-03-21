@@ -324,7 +324,7 @@ mod tests {
         assert_eq!(drift_config.version, "0.1.0");
         assert_eq!(
             drift_config.alert_config.dispatch_config,
-            AlertDispatchConfig::Console
+            AlertDispatchConfig::default()
         );
 
         let test_slack_dispatch_config = SlackDispatchConfig {
