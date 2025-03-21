@@ -13,6 +13,7 @@ use scouter_types::{DriftProfile, DriftType};
 use scouter_types::{Features, Metrics};
 use serde_json::Value;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tracing::{error, info, instrument};
 
 pub enum Queue {
@@ -22,7 +23,7 @@ pub enum Queue {
 }
 
 impl Queue {
-    pub fn new(
+    pub async fn new(
         drift_profile: &Bound<'_, PyAny>,
         config: &Bound<'_, PyAny>,
     ) -> Result<Self, ScouterError> {
@@ -47,7 +48,7 @@ impl Queue {
         }
     }
 
-    pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> Result<(), ScouterError> {
+    pub async fn insert(&mut self, entity: &Bound<'_, PyAny>) -> Result<(), ScouterError> {
         match self {
             Queue::Spc(queue) => {
                 let features = entity.extract::<Features>()?;
@@ -64,7 +65,7 @@ impl Queue {
         }
     }
 
-    pub fn flush(&mut self) -> Result<(), ScouterError> {
+    pub async fn flush(&mut self) -> Result<(), ScouterError> {
         match self {
             Queue::Spc(queue) => queue.flush(),
             Queue::Psi(queue) => queue.flush(),
@@ -76,29 +77,41 @@ impl Queue {
 #[pyclass]
 pub struct ScouterQueue {
     queue: Queue,
+    rt: Arc<tokio::runtime::Runtime>,
 }
 
 #[pymethods]
 impl ScouterQueue {
     #[new]
     #[pyo3(signature = (transport_config,))]
-    pub fn new(transport_config: &Bound<'_, DriftTransportConfig>) -> Result<Self, ScouterError> {
+    pub fn new(transport_config: &Bound<'_, DriftTransportConfig>) -> PyResult<ScouterQueue> {
         info!("Starting ScouterQueue");
 
-        let profile = &transport_config.getattr("drift_profile")?;
+        let rt = Arc::new(tokio::runtime::Runtime::new().map_err(|e| {
+            error!("Failed to create tokio runtime: {:?}", e.to_string());
+            PyScouterError::new_err(e.to_string())
+        })?);
+
+        let profile = &transport_config.getattr("drift_profile").map_err(|e| {
+            error!("Failed to get drift_profile: {:?}", e.to_string());
+            PyScouterError::new_err(e.to_string())
+        })?;
         let config = &transport_config.getattr("config")?;
 
-        Ok(ScouterQueue {
-            queue: Queue::new(profile, config)?,
-        })
+        let queue = rt.block_on(async { Queue::new(profile, config).await })?;
+
+        Ok(ScouterQueue { queue, rt })
     }
 
     #[instrument(skip(self, entity), name = "Insert", level = "debug")]
     pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> PyResult<()> {
-        self.queue.insert(entity).map_err(|e| {
-            error!("Failed to insert features into queue: {:?}", e.to_string());
-            PyScouterError::new_err(e.to_string())
-        })?;
+        self.rt
+            .block_on(async { self.queue.insert(entity).await })
+            .map_err(|e| {
+                error!("Failed to insert features into queue: {:?}", e.to_string());
+                PyScouterError::new_err(e.to_string())
+            })?;
+
         Ok(())
     }
 

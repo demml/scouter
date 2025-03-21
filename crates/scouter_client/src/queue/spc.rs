@@ -4,34 +4,30 @@ use scouter_error::ScouterError;
 use scouter_events::producer::RustScouterProducer;
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::Features;
-use std::sync::Arc;
 use tracing::{debug, error, instrument};
 
 pub struct SpcQueue {
     queue: SpcFeatureQueue,
     producer: RustScouterProducer,
     count: usize,
-    rt: Arc<tokio::runtime::Runtime>,
 }
 
 impl SpcQueue {
-    pub fn new(
+    pub async fn new(
         drift_profile: SpcDriftProfile,
         config: &Bound<'_, PyAny>,
     ) -> Result<Self, ScouterError> {
-        let rt = Arc::new(tokio::runtime::Runtime::new().unwrap());
-        let producer = rt.block_on(async { RustScouterProducer::new(config).await })?;
+        let producer = RustScouterProducer::new(config).await?;
 
         Ok(SpcQueue {
             queue: SpcFeatureQueue::new(drift_profile),
             producer,
             count: 0,
-            rt,
         })
     }
 
-    #[instrument(skip(self, features), name = "SPC Insert", level = "debug")]
-    pub fn insert(&mut self, features: Features) -> Result<(), ScouterError> {
+    #[instrument(skip_all, name = "Spc Insert", level = "debug")]
+    pub async fn insert(&mut self, features: Features) -> Result<(), ScouterError> {
         let insert = self.queue.insert(features);
 
         // silently fail if insert fails
@@ -51,7 +47,7 @@ impl SpcQueue {
         );
 
         if self.count >= self.queue.drift_profile.config.sample_size {
-            let publish = self._publish();
+            let publish = self._publish().await;
 
             // silently fail if publish fails
             if publish.is_err() {
@@ -69,16 +65,15 @@ impl SpcQueue {
         Ok(())
     }
 
-    fn _publish(&mut self) -> Result<(), ScouterError> {
+    async fn _publish(&mut self) -> Result<(), ScouterError> {
         let records = self.queue.create_drift_records()?;
-        self.rt
-            .block_on(async { self.producer.publish(records).await })?;
+        self.producer.publish(records).await?;
         self.queue.clear_queue();
 
         Ok(())
     }
 
-    pub fn flush(&mut self) -> Result<(), ScouterError> {
-        self.rt.block_on(async { self.producer.flush().await })
+    pub async fn flush(&mut self) -> Result<(), ScouterError> {
+        self.producer.flush().await
     }
 }
