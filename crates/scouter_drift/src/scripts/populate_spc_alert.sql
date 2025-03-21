@@ -59,7 +59,11 @@ VALUES
                   "Zone4"
                 ]
               },
-              "dispatch_config": "Console",
+              "dispatch_config": {
+                "Console": {
+                  "enabled": true
+                }
+              },
               "schedule": "0 0 0 * * *",
               "features_to_monitor": ["col_1", "col_3"]
             },
