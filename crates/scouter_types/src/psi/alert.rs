@@ -159,7 +159,7 @@ mod tests {
             alert_config.dispatch_config,
             AlertDispatchConfig::Slack(slack_alert_dispatch_config)
         );
-        assert_eq!(alert_config.dispatch_type(), "Slack");
+        assert_eq!(alert_config.dispatch_type(), AlertDispatchType::Slack);
 
         //test opsgenie alert config
         let opsgenie_dispatch_config = AlertDispatchConfig::OpsGenie(OpsGenieDispatchConfig {
@@ -174,7 +174,7 @@ mod tests {
             alert_config.dispatch_config,
             opsgenie_dispatch_config.clone()
         );
-        assert_eq!(alert_config.dispatch_type(), "OpsGenie");
+        assert_eq!(alert_config.dispatch_type(), AlertDispatchType::OpsGenie);
         assert_eq!(
             match &alert_config.dispatch_config {
                 AlertDispatchConfig::OpsGenie(config) => &config.team,
