@@ -356,7 +356,7 @@ impl AlertDispatcher {
                 OpsGenieAlerter::new(&args.name, &args.repository, &args.version, &config)
                     .map(|alerter| AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(alerter)))
             }
-            AlertDispatchConfig::Console => Ok(AlertDispatcher::Console(
+            AlertDispatchConfig::Console(_) => Ok(AlertDispatcher::Console(
                 ConsoleAlertDispatcher::new(&args.name, &args.repository, &args.version),
             )),
         };
@@ -428,6 +428,7 @@ mod tests {
             "1.0.0",
             &OpsGenieDispatchConfig {
                 team: "test-team".to_string(),
+                priority: "P5".to_string(),
             },
         )
         .unwrap();
@@ -457,6 +458,7 @@ mod tests {
             "1.0.0",
             &OpsGenieDispatchConfig {
                 team: "test-team".to_string(),
+                priority: "P5".to_string(),
             },
         )
         .unwrap();
@@ -506,6 +508,7 @@ mod tests {
             "1.0.0",
             &OpsGenieDispatchConfig {
                 team: ops_genie_team.to_string(),
+                priority: "P1".to_string(),
             },
         )
         .unwrap();
@@ -542,6 +545,7 @@ mod tests {
                 "1.0.0",
                 &OpsGenieDispatchConfig {
                     team: "test-team".to_string(),
+                    priority: "P5".to_string(),
                 },
             )
             .unwrap(),
@@ -683,6 +687,7 @@ mod tests {
         let alert_config = SpcAlertConfig {
             dispatch_config: AlertDispatchConfig::OpsGenie(OpsGenieDispatchConfig {
                 team: "test-team".to_string(),
+                priority: "P5".to_string(),
             }),
             ..Default::default()
         };
