@@ -22,6 +22,19 @@ use axum::{
 use scouter_auth::permission::UserPermissions;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
+fn make_error_response(
+    status: StatusCode,
+    message: impl ToString,
+) -> (StatusCode, Json<serde_json::Value>) {
+    (
+        status,
+        Json(json!({
+            "status": "error",
+            "message": message.to_string()
+        })),
+    )
+}
+
 pub async fn insert_drift_profile(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
@@ -132,43 +145,41 @@ pub async fn update_drift_profile(
 /// # Returns
 ///
 /// * `Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)>` - Result of the request
-#[instrument(skip(data, params))]
+#[instrument(skip_all)]
 pub async fn get_profile(
     State(data): State<Arc<AppState>>,
     Query(params): Query<GetProfileRequest>,
     Extension(perms): Extension<UserPermissions>,
-) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<DriftProfile>, (StatusCode, Json<serde_json::Value>)> {
     if !perms.has_read_permission() {
-        return Err((
+        return Err(make_error_response(
             StatusCode::FORBIDDEN,
-            Json(json!({ "error": "Permission denied" })),
+            "Permission denied",
         ));
     }
+
     debug!("Getting drift profile: {:?}", &params);
-    let profile = &data.db.get_drift_profile(&params).await;
 
-    match profile {
-        Ok(Some(result)) => Ok(Json(json!(result))),
-        Ok(None) => Err((
+    let result = data.db.get_drift_profile(&params).await.map_err(|e| {
+        error!("Failed to query drift profile: {:?}", e);
+        make_error_response(StatusCode::INTERNAL_SERVER_ERROR, e)
+    })?;
+
+    let Some(profile_value) = result else {
+        return Err(make_error_response(
             StatusCode::NOT_FOUND,
-            Json(json!({
-                "status": "error",
-                "message": "Profile not found"
-            })),
-        )),
-        Err(e) => {
-            error!("Failed to query drift profile: {:?}", e);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({
-                    "status": "error",
-                    "message": format!("{:?}", e)
-                })),
-            ))
-        }
-    }
-}
+            "Profile not found",
+        ));
+    };
 
+    let profile =
+        DriftProfile::from_value(profile_value, &params.drift_type.to_string()).map_err(|e| {
+            error!("Failed to parse drift profile: {:?}", e);
+            make_error_response(StatusCode::INTERNAL_SERVER_ERROR, e)
+        })?;
+
+    Ok(Json(profile))
+}
 /// Update drift profile status
 ///
 /// # Arguments
