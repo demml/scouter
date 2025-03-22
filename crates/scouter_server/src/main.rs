@@ -282,7 +282,7 @@ mod tests {
                             version: "1.0.0".to_string(),
                             feature: format!("feature_{}", feature),
                             bin_id: decile,
-                            bin_count: rand::thread_rng().gen_range(0..10),
+                            bin_count: rand::rng().random_range(0..10),
                             record_type: RecordType::Psi,
                         };
 
@@ -303,7 +303,7 @@ mod tests {
                         repository: "test".to_string(),
                         version: "1.0.0".to_string(),
                         metric: format!("metric{}", i),
-                        value: rand::thread_rng().gen_range(0..10) as f64,
+                        value: rand::rng().random_range(0..10) as f64,
                         record_type: RecordType::Custom,
                     };
 
