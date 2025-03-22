@@ -1,4 +1,3 @@
-#![allow(clippy::useless_conversion)]
 use super::custom::CustomQueue;
 use crate::queue::psi::PsiQueue;
 use crate::queue::spc::SpcQueue;
@@ -6,6 +5,7 @@ use crate::ScouterClient;
 use pyo3::prelude::*;
 use scouter_contracts::GetProfileRequest;
 use scouter_error::{PyScouterError, ScouterError};
+use scouter_events::producer::RustScouterProducer;
 use scouter_types::custom::CustomDriftProfile;
 use scouter_types::psi::PsiDriftProfile;
 use scouter_types::spc::SpcDriftProfile;
@@ -13,6 +13,7 @@ use scouter_types::{DriftProfile, DriftType};
 use scouter_types::{Features, Metrics};
 use serde_json::Value;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tracing::{error, info, instrument};
 
 pub enum Queue {
@@ -25,50 +26,57 @@ impl Queue {
     pub fn new(
         drift_profile: &Bound<'_, PyAny>,
         config: &Bound<'_, PyAny>,
+        rt: Arc<tokio::runtime::Runtime>,
     ) -> Result<Self, ScouterError> {
         let drift_type = drift_profile
             .getattr("config")?
             .getattr("drift_type")?
             .extract::<DriftType>()?;
 
+        let producer = rt.block_on(async { RustScouterProducer::new(config).await })?;
+
         match drift_type {
             DriftType::Spc => {
                 let drift_profile = drift_profile.extract::<SpcDriftProfile>()?;
-                Ok(Queue::Spc(SpcQueue::new(drift_profile, config)?))
+                Ok(Queue::Spc(SpcQueue::new(drift_profile, producer)?))
             }
             DriftType::Psi => {
                 let drift_profile = drift_profile.extract::<PsiDriftProfile>()?;
-                Ok(Queue::Psi(PsiQueue::new(drift_profile, config)?))
+                Ok(Queue::Psi(PsiQueue::new(drift_profile, producer, rt)?))
             }
             DriftType::Custom => {
                 let drift_profile = drift_profile.extract::<CustomDriftProfile>()?;
-                Ok(Queue::Custom(CustomQueue::new(drift_profile, config)?))
+                Ok(Queue::Custom(CustomQueue::new(
+                    drift_profile,
+                    producer,
+                    rt,
+                )?))
             }
         }
     }
 
-    pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> Result<(), ScouterError> {
+    pub async fn insert(&mut self, entity: &Bound<'_, PyAny>) -> Result<(), ScouterError> {
         match self {
             Queue::Spc(queue) => {
                 let features = entity.extract::<Features>()?;
-                queue.insert(features)
+                queue.insert(features).await
             }
             Queue::Psi(queue) => {
                 let features = entity.extract::<Features>()?;
-                queue.insert(features)
+                queue.insert(features).await
             }
             Queue::Custom(queue) => {
                 let metrics = entity.extract::<Metrics>()?;
-                queue.insert(metrics)
+                queue.insert(metrics).await
             }
         }
     }
 
-    pub fn flush(&mut self) -> Result<(), ScouterError> {
+    pub async fn flush(&mut self) -> Result<(), ScouterError> {
         match self {
-            Queue::Spc(queue) => queue.flush(),
-            Queue::Psi(queue) => queue.flush(),
-            Queue::Custom(queue) => queue.flush(),
+            Queue::Spc(queue) => queue.flush().await,
+            Queue::Psi(queue) => queue.flush().await,
+            Queue::Custom(queue) => queue.flush().await,
         }
     }
 }
@@ -76,48 +84,71 @@ impl Queue {
 #[pyclass]
 pub struct ScouterQueue {
     queue: Queue,
+    rt: Arc<tokio::runtime::Runtime>,
 }
 
 #[pymethods]
 impl ScouterQueue {
     #[new]
     #[pyo3(signature = (transport_config,))]
-    pub fn new(transport_config: &Bound<'_, DriftTransportConfig>) -> Result<Self, ScouterError> {
+    pub fn new(transport_config: &Bound<'_, DriftTransportConfig>) -> PyResult<ScouterQueue> {
         info!("Starting ScouterQueue");
 
-        let profile = &transport_config.getattr("drift_profile")?;
-        let config = &transport_config.getattr("config")?;
+        let rt = Arc::new(tokio::runtime::Runtime::new().map_err(|e| {
+            error!("Failed to create tokio runtime: {:?}", e.to_string());
+            PyScouterError::new_err(e.to_string())
+        })?);
 
-        Ok(ScouterQueue {
-            queue: Queue::new(profile, config)?,
-        })
-    }
-
-    #[instrument(skip(self, entity), name = "Insert", level = "debug")]
-    pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> PyResult<()> {
-        self.queue.insert(entity).map_err(|e| {
-            error!("Failed to insert features into queue: {:?}", e.to_string());
+        let profile = &transport_config.getattr("drift_profile").map_err(|e| {
+            error!("Failed to get drift_profile: {:?}", e.to_string());
             PyScouterError::new_err(e.to_string())
         })?;
+        let config = &transport_config.getattr("config")?;
+
+        let queue = Queue::new(profile, config, rt.clone())?;
+
+        Ok(ScouterQueue { queue, rt })
+    }
+
+    #[allow(clippy::useless_conversion)]
+    #[instrument(skip(self, entity), name = "Insert", level = "debug")]
+    pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> PyResult<()> {
+        self.rt
+            .block_on(async { self.queue.insert(entity).await })
+            .map_err(|e| {
+                error!("Failed to insert features into queue: {:?}", e.to_string());
+                PyScouterError::new_err(e.to_string())
+            })?;
+
         Ok(())
     }
 
-    #[instrument(skip(self), name = "Flush", level = "debug")]
+    #[allow(clippy::useless_conversion)]
+    #[instrument(skip_all, name = "Flush", level = "debug")]
     pub fn flush(&mut self) -> PyResult<()> {
-        match &mut self.queue {
-            Queue::Spc(queue) => queue.flush().map_err(|e| {
+        self.rt
+            .block_on(async {
+                match &mut self.queue {
+                    Queue::Spc(queue) => queue.flush().await.map_err(|e| {
+                        error!("Failed to flush queue: {:?}", e.to_string());
+                        PyScouterError::new_err(e.to_string())
+                    }),
+                    Queue::Psi(queue) => queue.flush().await.map_err(|e| {
+                        error!("Failed to flush queue: {:?}", e.to_string());
+                        PyScouterError::new_err(e.to_string())
+                    }),
+                    Queue::Custom(queue) => queue.flush().await.map_err(|e| {
+                        error!("Failed to flush queue: {:?}", e.to_string());
+                        PyScouterError::new_err(e.to_string())
+                    }),
+                }
+            })
+            .map_err(|e| {
                 error!("Failed to flush queue: {:?}", e.to_string());
                 PyScouterError::new_err(e.to_string())
-            }),
-            Queue::Psi(queue) => queue.flush().map_err(|e| {
-                error!("Failed to flush queue: {:?}", e.to_string());
-                PyScouterError::new_err(e.to_string())
-            }),
-            Queue::Custom(queue) => queue.flush().map_err(|e| {
-                error!("Failed to flush queue: {:?}", e.to_string());
-                PyScouterError::new_err(e.to_string())
-            }),
-        }
+            })?;
+
+        Ok(())
     }
 }
 

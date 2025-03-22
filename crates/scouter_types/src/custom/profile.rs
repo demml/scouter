@@ -1,4 +1,3 @@
-#![allow(clippy::useless_conversion)]
 use crate::custom::alert::{CustomMetric, CustomMetricAlertConfig};
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::{
@@ -194,7 +193,7 @@ impl CustomDriftProfile {
         ProfileFuncs::__json__(self)
     }
 
-    pub fn model_dump(&self, py: Python) -> PyResult<Py<PyDict>> {
+    pub fn model_dump<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
         let json_str = serde_json::to_string(&self).map_err(|_| ScouterError::SerializeError)?;
 
         let json_value: Value =
@@ -207,7 +206,7 @@ impl CustomDriftProfile {
         json_to_pyobject(py, &json_value, &dict)?;
 
         // Return the Python dictionary
-        Ok(dict.into())
+        Ok(dict)
     }
 
     // Convert python dict into a drift profile

@@ -245,9 +245,9 @@ mod tests {
     use super::*;
     use crate::utils::CategoricalFeatureHelpers;
     use ndarray::{Array, Axis};
+    use ndarray_rand::rand::distributions::Bernoulli;
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
-    use rand::distributions::Bernoulli;
     use scouter_types::psi::PsiAlertConfig;
     use scouter_types::psi::PsiDriftConfig;
     use scouter_types::{Feature, DEFAULT_VERSION};

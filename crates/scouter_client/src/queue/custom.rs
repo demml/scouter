@@ -1,5 +1,4 @@
 use chrono::{NaiveDateTime, Utc};
-use pyo3::prelude::*;
 use scouter_drift::custom::CustomMetricFeatureQueue;
 use scouter_error::ScouterError;
 use scouter_events::producer::RustScouterProducer;
@@ -16,28 +15,22 @@ pub struct CustomQueue {
     count: usize,
     last_publish: NaiveDateTime,
     stop_tx: Option<watch::Sender<()>>,
-    rt: Arc<tokio::runtime::Runtime>,
     sample_size: usize,
     sample: bool,
+    rt: Arc<tokio::runtime::Runtime>,
 }
 
 impl CustomQueue {
     pub fn new(
         drift_profile: CustomDriftProfile,
-        config: &Bound<'_, PyAny>,
+        producer: RustScouterProducer,
+        rt: Arc<tokio::runtime::Runtime>,
     ) -> Result<Self, ScouterError> {
         let sample = drift_profile.config.sample;
         let sample_size = drift_profile.config.sample_size;
 
         debug!("Creating Custom Metric Queue");
         let queue = Arc::new(Mutex::new(CustomMetricFeatureQueue::new(drift_profile)));
-
-        // psi queue needs a tokio runtime to run background tasks
-        // This runtime needs to be separate from the producer runtime
-        let rt = Arc::new(tokio::runtime::Runtime::new().unwrap());
-
-        debug!("Creating Producer");
-        let producer = rt.block_on(async { RustScouterProducer::new(config).await })?;
 
         let (stop_tx, stop_rx) = watch::channel(());
 
@@ -47,9 +40,9 @@ impl CustomQueue {
             count: 0,
             last_publish: Utc::now().naive_utc(),
             stop_tx: Some(stop_tx),
-            rt: rt.clone(),
             sample_size,
             sample,
+            rt,
         };
 
         debug!("Starting Background Task");
@@ -58,8 +51,8 @@ impl CustomQueue {
         Ok(custom_queue)
     }
 
-    #[instrument(skip(self), name = "Insert", level = "debug")]
-    pub fn insert(&mut self, metrics: Metrics) -> Result<(), ScouterError> {
+    #[instrument(skip_all, name = "Custom insert", level = "debug")]
+    pub async fn insert(&mut self, metrics: Metrics) -> Result<(), ScouterError> {
         debug!("Inserting features");
         {
             let mut queue = self.queue.blocking_lock();
@@ -79,7 +72,7 @@ impl CustomQueue {
 
         if self.count >= self.sample_size && self.sample {
             debug!("Queue is full, publishing drift records");
-            let publish = self._publish();
+            let publish = self._publish().await;
 
             // silently fail if publish fails
             if publish.is_err() {
@@ -97,13 +90,12 @@ impl CustomQueue {
         Ok(())
     }
 
-    fn _publish(&mut self) -> Result<(), ScouterError> {
+    async fn _publish(&mut self) -> Result<(), ScouterError> {
         let mut queue = self.queue.blocking_lock();
         let records = queue.create_drift_records()?;
 
         if !records.records.is_empty() {
-            self.rt
-                .block_on(async { self.producer.publish(records).await })?;
+            self.producer.publish(records).await?;
             queue.clear_queue();
             self.last_publish = Utc::now().naive_utc();
         }
@@ -111,14 +103,14 @@ impl CustomQueue {
         Ok(())
     }
 
-    pub fn flush(&mut self) -> Result<(), ScouterError> {
+    pub async fn flush(&mut self) -> Result<(), ScouterError> {
         // publish any remaining drift records
-        self._publish()?;
+        self._publish().await?;
 
         if let Some(stop_tx) = self.stop_tx.take() {
             let _ = stop_tx.send(());
         }
-        self.rt.block_on(async { self.producer.flush().await })
+        self.producer.flush().await
     }
 
     fn start_background_task(

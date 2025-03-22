@@ -55,7 +55,7 @@ def test_rabbit_producer_psi():
     producer.publish(
         ServerRecords(
             records=[ServerRecord(record)],
-            record_type=RecordType.Spc,
+            record_type=RecordType.Psi,
         )
     )
     producer.flush()
@@ -76,7 +76,7 @@ def test_rabbit_producer_custom():
     producer.publish(
         ServerRecords(
             records=[ServerRecord(record)],
-            record_type=RecordType.Spc,
+            record_type=RecordType.Custom,
         )
     )
     producer.flush()

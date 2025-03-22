@@ -1,4 +1,3 @@
-#![allow(clippy::useless_conversion)]
 use crate::psi::alert::PsiAlertConfig;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::{
@@ -8,7 +7,7 @@ use crate::{
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use scouter_error::ScouterError;
+use scouter_error::{PyScouterError, ScouterError};
 use serde::de::{self, MapAccess, Visitor};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -375,11 +374,12 @@ impl PsiDriftProfile {
     }
     // TODO dry this out
     #[allow(clippy::useless_conversion)]
-    pub fn model_dump(&self, py: Python) -> PyResult<Py<PyDict>> {
-        let json_str = serde_json::to_string(&self).map_err(|_| ScouterError::SerializeError)?;
+    pub fn model_dump<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyDict>> {
+        let json_str = serde_json::to_string(&self)
+            .map_err(|_| PyScouterError::new_err("Failed to dump drift profile"))?;
 
-        let json_value: Value =
-            serde_json::from_str(&json_str).map_err(|_| ScouterError::DeSerializeError)?;
+        let json_value: Value = serde_json::from_str(&json_str)
+            .map_err(|_| PyScouterError::new_err("Failed to load drift profile"))?;
 
         // Create a new Python dictionary
         let dict = PyDict::new(py);
@@ -388,14 +388,16 @@ impl PsiDriftProfile {
         json_to_pyobject(py, &json_value, &dict)?;
 
         // Return the Python dictionary
-        Ok(dict.into())
+        Ok(dict)
     }
 
     #[staticmethod]
-    pub fn from_file(path: PathBuf) -> Result<PsiDriftProfile, ScouterError> {
-        let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
+    pub fn from_file(path: PathBuf) -> PyResult<PsiDriftProfile> {
+        let file = std::fs::read_to_string(&path)
+            .map_err(|_| PyScouterError::new_err("Failed to read drift profile"))?;
 
-        serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)
+        serde_json::from_str(&file)
+            .map_err(|_| PyScouterError::new_err("Failed to load drift profile"))
     }
 
     #[staticmethod]

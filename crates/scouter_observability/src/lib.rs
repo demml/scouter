@@ -235,7 +235,7 @@ impl Observer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use rand::Rng;
+    use rand::prelude::*;
 
     const REPOSITORY: &str = "test";
     const NAME: &str = "test";
@@ -335,6 +335,8 @@ mod tests {
 
     #[test]
     fn test_collect_metrics() {
+        let mut rng = rand::rng();
+
         //populate 3 routes with different latencies (n = 100)
         let mut observer = Observer::new(
             REPOSITORY.to_string(),
@@ -343,9 +345,9 @@ mod tests {
         );
         for i in 0..100 {
             // generate random latencies
-            let num1 = rand::thread_rng().gen_range(0..100);
-            let num2 = rand::thread_rng().gen_range(0..100);
-            let num3 = rand::thread_rng().gen_range(0..100);
+            let num1 = rng.random_range(0..100);
+            let num2 = rng.random_range(0..100);
+            let num3 = rng.random_range(0..100);
             observer.increment("/home", num1 as f64, 200).unwrap();
             observer.increment("/home", 50.0 + i as f64, 404).unwrap();
             observer.increment("/about", num2 as f64, 200).unwrap();
