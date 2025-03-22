@@ -140,7 +140,7 @@ pub async fn setup_background_workers(
     poll_settings: &PollingSettings,
     shutdown_rx: tokio::sync::watch::Receiver<()>,
 ) -> AnyhowResult<()> {
-    BackgroundPollManager::start_workers(&db_client.pool, poll_settings, &db_settings, shutdown_rx)
+    BackgroundPollManager::start_workers(&db_client.pool, poll_settings, db_settings, shutdown_rx)
         .await?;
     info!("✅ Started background workers");
 

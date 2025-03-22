@@ -11,8 +11,6 @@ use tracing::{debug, error, instrument};
 const TIMEOUT_SECS: u64 = 60;
 
 /// Create a new HTTP client that can be shared across different clients
-
-/// Create a new HTTP client that can be shared across different clients
 pub fn build_http_client(settings: &HTTPConfig) -> Result<Client, ScouterError> {
     let mut headers = HeaderMap::new();
 

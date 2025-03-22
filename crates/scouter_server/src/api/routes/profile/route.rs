@@ -173,7 +173,7 @@ pub async fn get_profile(
     };
 
     let profile =
-        DriftProfile::from_value(profile_value, &params.drift_type.to_string()).map_err(|e| {
+        DriftProfile::from_value(profile_value, params.drift_type.to_string()).map_err(|e| {
             error!("Failed to parse drift profile: {:?}", e);
             make_error_response(StatusCode::INTERNAL_SERVER_ERROR, e)
         })?;

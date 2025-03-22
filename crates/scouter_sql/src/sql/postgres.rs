@@ -930,7 +930,7 @@ impl PostgresClient {
         }
 
         // no admins found
-        if admins.len() == 0 {
+        if admins.is_empty() {
             return Ok(false);
         }
 
