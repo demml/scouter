@@ -58,8 +58,8 @@ noisy_float = "0.*"
 numpy = "0.*"
 num-traits = "0.*"
 password-auth = "1.*"
-pyo3 = { version = ">=0.23.3, <1.0.0", features = ["chrono", "anyhow", "extension-module"] }
-rand = {version = "0.8" }
+pyo3 = { version = ">=0.*, <1.0.0", features = ["chrono", "anyhow", "extension-module"] }
+rand = {version = "0.*" }
 rayon = "1.*"
 reqwest = { version = "0.12.*", features = ["json", "multipart", "rustls-tls", "rustls-tls-native-roots", "blocking" ], default-features = false }
 rusty-logging="0.*"
