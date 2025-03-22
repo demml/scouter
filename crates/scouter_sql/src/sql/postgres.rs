@@ -1295,7 +1295,7 @@ mod tests {
                         version: "test".to_string(),
                         feature: format!("feature{}", feature),
                         bin_id: bin,
-                        bin_count: rand::thread_rng().gen_range(0..10),
+                        bin_count: rand::rng().random_range(0..10),
                         record_type: RecordType::Psi,
                     };
 
@@ -1356,7 +1356,7 @@ mod tests {
                     repository: "test".to_string(),
                     version: "test".to_string(),
                     metric: format!("metric{}", i),
-                    value: rand::thread_rng().gen_range(0..10) as f64,
+                    value: rand::rng().random_range(0..10) as f64,
                     record_type: RecordType::Custom,
                 };
 
@@ -1372,7 +1372,7 @@ mod tests {
             repository: "test".to_string(),
             version: "test".to_string(),
             metric: "metric3".to_string(),
-            value: rand::thread_rng().gen_range(0..10) as f64,
+            value: rand::rng().random_range(0..10) as f64,
             record_type: RecordType::Custom,
         };
 

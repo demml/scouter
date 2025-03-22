@@ -1,7 +1,7 @@
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use password_auth::verify_password;
-use rand::distributions::Alphanumeric;
-use rand::{thread_rng, Rng};
+use rand::distr::Alphanumeric;
+use rand::Rng;
 use scouter_error::AuthError;
 use scouter_sql::sql::schema::User;
 use serde::{Deserialize, Serialize};
@@ -29,7 +29,7 @@ impl AuthManager {
     }
 
     fn generate_salt(&self) -> String {
-        thread_rng()
+        rand::rng()
             .sample_iter(&Alphanumeric)
             .take(16)
             .map(char::from)
