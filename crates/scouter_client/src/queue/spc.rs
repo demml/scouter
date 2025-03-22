@@ -13,12 +13,10 @@ pub struct SpcQueue {
 }
 
 impl SpcQueue {
-    pub async fn new(
+    pub fn new(
         drift_profile: SpcDriftProfile,
-        config: &Bound<'_, PyAny>,
+        producer: RustScouterProducer,
     ) -> Result<Self, ScouterError> {
-        let producer = RustScouterProducer::new(config).await?;
-
         Ok(SpcQueue {
             queue: SpcFeatureQueue::new(drift_profile),
             producer,

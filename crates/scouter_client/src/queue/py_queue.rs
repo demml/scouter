@@ -5,6 +5,7 @@ use crate::ScouterClient;
 use pyo3::prelude::*;
 use scouter_contracts::GetProfileRequest;
 use scouter_error::{PyScouterError, ScouterError};
+use scouter_events::producer::RustScouterProducer;
 use scouter_types::custom::CustomDriftProfile;
 use scouter_types::psi::PsiDriftProfile;
 use scouter_types::spc::SpcDriftProfile;
@@ -22,23 +23,26 @@ pub enum Queue {
 }
 
 impl Queue {
-    pub async fn new(
+    pub fn new(
         drift_profile: &Bound<'_, PyAny>,
         config: &Bound<'_, PyAny>,
+        rt: Arc<tokio::runtime::Runtime>,
     ) -> Result<Self, ScouterError> {
         let drift_type = drift_profile
             .getattr("config")?
             .getattr("drift_type")?
             .extract::<DriftType>()?;
 
+        let producer = rt.block_on(async { RustScouterProducer::new(config).await })?;
+
         match drift_type {
             DriftType::Spc => {
                 let drift_profile = drift_profile.extract::<SpcDriftProfile>()?;
-                Ok(Queue::Spc(SpcQueue::new(drift_profile, config).await?))
+                Ok(Queue::Spc(SpcQueue::new(drift_profile, producer)?))
             }
             DriftType::Psi => {
                 let drift_profile = drift_profile.extract::<PsiDriftProfile>()?;
-                Ok(Queue::Psi(PsiQueue::new(drift_profile, config).await?))
+                Ok(Queue::Psi(PsiQueue::new(drift_profile, producer, rt)?))
             }
             DriftType::Custom => {
                 let drift_profile = drift_profile.extract::<CustomDriftProfile>()?;
@@ -99,7 +103,7 @@ impl ScouterQueue {
         })?;
         let config = &transport_config.getattr("config")?;
 
-        let queue = rt.block_on(async { Queue::new(profile, config).await })?;
+        let queue = Queue::new(profile, config, rt.clone())?;
 
         Ok(ScouterQueue { queue, rt })
     }

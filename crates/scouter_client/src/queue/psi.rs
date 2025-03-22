@@ -1,5 +1,4 @@
 use chrono::{NaiveDateTime, Utc};
-use pyo3::prelude::*;
 use scouter_drift::psi::PsiFeatureQueue;
 use scouter_error::ScouterError;
 use scouter_events::producer::RustScouterProducer;
@@ -18,16 +17,16 @@ pub struct PsiQueue {
     count: usize,
     last_publish: NaiveDateTime,
     stop_tx: Option<watch::Sender<()>>,
+    rt: Arc<tokio::runtime::Runtime>,
 }
 
 impl PsiQueue {
-    pub async fn new(
+    pub fn new(
         drift_profile: PsiDriftProfile,
-        config: &Bound<'_, PyAny>,
+        producer: RustScouterProducer,
+        rt: Arc<tokio::runtime::Runtime>,
     ) -> Result<Self, ScouterError> {
         let queue = Arc::new(Mutex::new(PsiFeatureQueue::new(drift_profile)));
-
-        let producer = RustScouterProducer::new(config).await?;
 
         let (stop_tx, stop_rx) = watch::channel(());
 
@@ -37,10 +36,11 @@ impl PsiQueue {
             count: 0,
             last_publish: Utc::now().naive_utc(),
             stop_tx: Some(stop_tx),
+            rt,
         };
 
         debug!("Starting Background Task");
-        psi_queue.start_background_task(queue, stop_rx).await?;
+        psi_queue.start_background_task(queue, stop_rx)?;
 
         Ok(psi_queue)
     }
@@ -106,7 +106,7 @@ impl PsiQueue {
         self.producer.flush().await
     }
 
-    async fn start_background_task(
+    fn start_background_task(
         &self,
         queue: Arc<Mutex<PsiFeatureQueue>>,
         mut stop_rx: watch::Receiver<()>,
@@ -114,6 +114,7 @@ impl PsiQueue {
         let queue = queue.clone();
         let mut producer = self.producer.clone();
         let mut last_publish = self.last_publish;
+        let handle = self.rt.clone();
 
         // spawn the background task using the already cloned handle
         let future = async move {
@@ -166,7 +167,7 @@ impl PsiQueue {
             }
         };
 
-        tokio::task::spawn(future.instrument(info_span!("PSI Background Polling")));
+        handle.spawn(future.instrument(info_span!("PSI Background Polling")));
 
         Ok(())
     }
