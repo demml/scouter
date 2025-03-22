@@ -46,9 +46,11 @@ impl Queue {
             }
             DriftType::Custom => {
                 let drift_profile = drift_profile.extract::<CustomDriftProfile>()?;
-                Ok(Queue::Custom(
-                    CustomQueue::new(drift_profile, config).await?,
-                ))
+                Ok(Queue::Custom(CustomQueue::new(
+                    drift_profile,
+                    producer,
+                    rt,
+                )?))
             }
         }
     }

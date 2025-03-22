@@ -1,5 +1,4 @@
 use chrono::{NaiveDateTime, Utc};
-use pyo3::prelude::*;
 use scouter_drift::custom::CustomMetricFeatureQueue;
 use scouter_error::ScouterError;
 use scouter_events::producer::RustScouterProducer;
@@ -18,21 +17,20 @@ pub struct CustomQueue {
     stop_tx: Option<watch::Sender<()>>,
     sample_size: usize,
     sample: bool,
+    rt: Arc<tokio::runtime::Runtime>,
 }
 
 impl CustomQueue {
-    pub async fn new(
+    pub fn new(
         drift_profile: CustomDriftProfile,
-        config: &Bound<'_, PyAny>,
+        producer: RustScouterProducer,
+        rt: Arc<tokio::runtime::Runtime>,
     ) -> Result<Self, ScouterError> {
         let sample = drift_profile.config.sample;
         let sample_size = drift_profile.config.sample_size;
 
         debug!("Creating Custom Metric Queue");
         let queue = Arc::new(Mutex::new(CustomMetricFeatureQueue::new(drift_profile)));
-
-        debug!("Creating Producer");
-        let producer = RustScouterProducer::new(config).await?;
 
         let (stop_tx, stop_rx) = watch::channel(());
 
@@ -44,10 +42,11 @@ impl CustomQueue {
             stop_tx: Some(stop_tx),
             sample_size,
             sample,
+            rt,
         };
 
         debug!("Starting Background Task");
-        custom_queue.start_background_task(queue, stop_rx).await?;
+        custom_queue.start_background_task(queue, stop_rx)?;
 
         Ok(custom_queue)
     }
@@ -114,7 +113,7 @@ impl CustomQueue {
         self.producer.flush().await
     }
 
-    async fn start_background_task(
+    fn start_background_task(
         &self,
         queue: Arc<Mutex<CustomMetricFeatureQueue>>,
         mut stop_rx: watch::Receiver<()>,
@@ -122,6 +121,7 @@ impl CustomQueue {
         let queue = queue.clone();
         let mut producer = self.producer.clone();
         let mut last_publish = self.last_publish;
+        let handle = self.rt.clone();
 
         // spawn the background task using the already cloned handle
         let future = async move {
@@ -175,7 +175,7 @@ impl CustomQueue {
             }
         };
 
-        tokio::spawn(future.instrument(info_span!("Custom Background Polling")));
+        handle.spawn(future.instrument(info_span!("Custom Background Polling")));
 
         Ok(())
     }

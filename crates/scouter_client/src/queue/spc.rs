@@ -1,4 +1,3 @@
-use pyo3::prelude::*;
 use scouter_drift::spc::SpcFeatureQueue;
 use scouter_error::ScouterError;
 use scouter_events::producer::RustScouterProducer;
