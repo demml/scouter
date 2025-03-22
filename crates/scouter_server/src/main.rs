@@ -134,10 +134,10 @@ mod tests {
     pub async fn cleanup(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> {
         sqlx::raw_sql(
             r#"
-            DELETE 
+            DELETE
             FROM scouter.drift;
 
-            DELETE 
+            DELETE
             FROM scouter.observability_metrics;
 
             DELETE
@@ -348,8 +348,6 @@ mod tests {
             None,
             None,
             None,
-            None,
-            None,
             Some(alert_config),
             None,
         );
@@ -512,16 +510,7 @@ mod tests {
             ..Default::default()
         };
 
-        let config = PsiDriftConfig::new(
-            "test",
-            "test",
-            "1.0.0",
-            None,
-            None,
-            None,
-            alert_config,
-            None,
-        );
+        let config = PsiDriftConfig::new("test", "test", "1.0.0", None, alert_config, None);
 
         let monitor = PsiMonitor::new();
 

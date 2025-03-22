@@ -14,12 +14,11 @@
             "rule": "8 8 8 8 8 8 4 4",
             "zones_to_monitor": []
         },
-        "dispatch_type": "Slack",
+        "dispatch_config": {"Slack": {"channel": "test_channel"}},
         "schedule": "0 0 * * *",
         "features_to_monitor": [
             "feature1",
             "feature2"
-        ],
-        "dispatch_kwargs": {}
+        ]
     }
 }

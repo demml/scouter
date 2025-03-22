@@ -15,19 +15,22 @@ VALUES
                     "sample_size": 25,
                     "sample": true,
                     "alert_config": {
-                        "dispatch_type": "Console",
+                        "dispatch_config": {
+                            "Console": {
+                                "enabled": true
+                            }
+                        },
                         "schedule": "0 0 0 * * *",
-                        "dispatch_kwargs": {},
                         "alert_conditions": {
                             "mse": {
                                 "alert_threshold": "Above",
                                 "alert_threshold_value": 3.0
-                                },
+                            },
                             "mae": {
                                 "alert_threshold": "Above",
                                 "alert_threshold_value": 2.0
-                                }
                             }
+                        }
                     },
                     "drift_type": "Custom"
                   },

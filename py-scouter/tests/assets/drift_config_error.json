@@ -11,12 +11,11 @@
                 "zones_to_monitor": []
             }
         },
-        "alert_dispatch_type": "Slack",
+        "dispatch_config": {"Slack": {"channel": "test_channel"}},
         "schedule": "0 0 * * *",
         "features_to_monitor": [
             "feature1",
             "feature2"
-        ],
-        "alert_kwargs": {}
+        ]
     }
 }

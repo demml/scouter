@@ -1,3 +1,4 @@
+#![allow(clippy::useless_conversion)]
 use core::fmt::Debug;
 use ndarray::Array;
 use ndarray::Array2;
@@ -58,20 +59,6 @@ pub struct SpcDriftMap {
 #[pymethods]
 #[allow(clippy::new_without_default)]
 impl SpcDriftMap {
-    #[new]
-    pub fn new(repository: String, name: String, version: String) -> Self {
-        Self {
-            features: HashMap::new(),
-            name,
-            repository,
-            version,
-        }
-    }
-
-    pub fn add_feature(&mut self, feature: String, drift: SpcFeatureDrift) {
-        self.features.insert(feature, drift);
-    }
-
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__str__(self)
@@ -104,7 +91,7 @@ impl SpcDriftMap {
         Bound<'py, PyArray2<f64>>,
         Vec<String>,
     )> {
-        let (drift_array, sample_array, features) = self.to_array().unwrap();
+        let (drift_array, sample_array, features) = self.to_array()?;
 
         Ok((
             drift_array.into_pyarray(py).to_owned(),
@@ -117,6 +104,15 @@ impl SpcDriftMap {
 type ArrayReturn = (Array2<f64>, Array2<f64>, Vec<String>);
 
 impl SpcDriftMap {
+    pub fn new(repository: String, name: String, version: String) -> Self {
+        Self {
+            features: HashMap::new(),
+            name,
+            repository,
+            version,
+        }
+    }
+
     pub fn to_array(&self) -> Result<ArrayReturn, ScouterError> {
         let columns = self.features.len();
         let rows = self.features.values().next().unwrap().samples.len();
@@ -138,6 +134,10 @@ impl SpcDriftMap {
         }
 
         Ok((drift_array, sample_array, features))
+    }
+
+    pub fn add_feature(&mut self, feature: String, drift: SpcFeatureDrift) {
+        self.features.insert(feature, drift);
     }
 }
 // Drift config to use when calculating drift on a new sample of data

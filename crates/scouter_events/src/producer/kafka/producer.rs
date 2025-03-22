@@ -39,7 +39,9 @@ pub mod kafka_producer {
                     .await
                     .map_err(|e| ScouterError::Error(e.to_string()))
                 {
-                    Ok(_) => break,
+                    Ok(_) => {
+                        break;
+                    }
                     Err(e) => {
                         retries -= 1;
                         if retries == 0 {

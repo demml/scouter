@@ -1,3 +1,4 @@
+#![allow(clippy::useless_conversion)]
 use crate::spc::alert::SpcAlertConfig;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::{
@@ -89,7 +90,7 @@ pub struct SpcDriftConfig {
     #[pyo3(get, set)]
     pub alert_config: SpcAlertConfig,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub feature_map: FeatureMap,
 
     #[pyo3(get, set)]
@@ -103,15 +104,13 @@ pub struct SpcDriftConfig {
 #[allow(clippy::too_many_arguments)]
 impl SpcDriftConfig {
     #[new]
-    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None,feature_map=None,  features_to_monitor=None, targets=None, alert_config=None, config_path=None))]
+    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, targets=None, alert_config=None, config_path=None))]
     pub fn new(
         repository: Option<String>,
         name: Option<String>,
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
-        feature_map: Option<FeatureMap>,
-        features_to_monitor: Option<Vec<String>>,
         targets: Option<Vec<String>>,
         alert_config: Option<SpcAlertConfig>,
         config_path: Option<PathBuf>,
@@ -132,11 +131,7 @@ impl SpcDriftConfig {
         let sample_size = sample_size.unwrap_or(25);
         let version = version.unwrap_or("0.1.0".to_string());
         let targets = targets.unwrap_or_default();
-        let mut alert_config = alert_config.unwrap_or_default();
-
-        if features_to_monitor.is_some() {
-            alert_config.features_to_monitor = features_to_monitor.unwrap();
-        }
+        let alert_config = alert_config.unwrap_or_default();
 
         Ok(Self {
             sample_size,
@@ -145,14 +140,10 @@ impl SpcDriftConfig {
             repository,
             version,
             alert_config,
-            feature_map: feature_map.unwrap_or_default(),
+            feature_map: FeatureMap::default(),
             targets,
             drift_type: DriftType::Spc,
         })
-    }
-
-    pub fn update_feature_map(&mut self, feature_map: FeatureMap) {
-        self.feature_map = feature_map;
     }
 
     #[staticmethod]
@@ -183,12 +174,11 @@ impl SpcDriftConfig {
     // * `version` - The version of the model
     // * `sample` - Whether to sample data or not, Default is true
     // * `sample_size` - The sample size
-    // * `feature_map` - The feature map to use
     // * `targets` - The targets to monitor
     // * `alert_config` - The alerting configuration to use
     //
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, feature_map=None, targets=None, alert_config=None))]
+    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, targets=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         repository: Option<String>,
@@ -196,7 +186,6 @@ impl SpcDriftConfig {
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
-        feature_map: Option<FeatureMap>,
         targets: Option<Vec<String>>,
         alert_config: Option<SpcAlertConfig>,
     ) -> Result<(), ScouterError> {
@@ -222,10 +211,6 @@ impl SpcDriftConfig {
                 sample_size.ok_or(ScouterError::TypeError("sample size".to_string()))?;
         }
 
-        if feature_map.is_some() {
-            self.feature_map = feature_map.unwrap();
-        }
-
         if targets.is_some() {
             self.targets = targets.ok_or(ScouterError::TypeError("targets".to_string()))?;
         }
@@ -240,6 +225,10 @@ impl SpcDriftConfig {
 }
 
 impl SpcDriftConfig {
+    pub fn update_feature_map(&mut self, feature_map: FeatureMap) {
+        self.feature_map = feature_map;
+    }
+
     pub fn load_map_from_json(path: PathBuf) -> Result<HashMap<String, Value>, ScouterError> {
         // deserialize the string to a struct
         let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
@@ -254,7 +243,7 @@ impl DispatchDriftConfig for SpcDriftConfig {
             name: self.name.clone(),
             repository: self.repository.clone(),
             version: self.version.clone(),
-            dispatch_type: self.alert_config.dispatch_type.clone(),
+            dispatch_config: self.alert_config.dispatch_config.clone(),
         }
     }
 }
@@ -262,20 +251,17 @@ impl DispatchDriftConfig for SpcDriftConfig {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub struct SpcDriftProfile {
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub features: HashMap<String, SpcFeatureDriftProfile>,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub config: SpcDriftConfig,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     pub scouter_version: String,
 }
 
-#[pymethods]
 impl SpcDriftProfile {
-    #[new]
-    #[pyo3(signature = (features, config, scouter_version=None))]
     pub fn new(
         features: HashMap<String, SpcFeatureDriftProfile>,
         config: SpcDriftConfig,
@@ -288,6 +274,10 @@ impl SpcDriftProfile {
             scouter_version,
         }
     }
+}
+
+#[pymethods]
+impl SpcDriftProfile {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__str__(self)
@@ -297,7 +287,7 @@ impl SpcDriftProfile {
         // serialize the struct to a string
         ProfileFuncs::__json__(self)
     }
-
+    #[allow(clippy::useless_conversion)]
     pub fn model_dump(&self, py: Python) -> PyResult<Py<PyDict>> {
         let json_str = serde_json::to_string(&self).map_err(|_| ScouterError::SerializeError)?;
 
@@ -355,7 +345,7 @@ impl SpcDriftProfile {
     // * `alert_config` - The alerting configuration to use
     //
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, feature_map=None, targets=None, alert_config=None))]
+    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, targets=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         repository: Option<String>,
@@ -363,7 +353,6 @@ impl SpcDriftProfile {
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
-        feature_map: Option<FeatureMap>,
         targets: Option<Vec<String>>,
         alert_config: Option<SpcAlertConfig>,
     ) -> Result<(), ScouterError> {
@@ -373,7 +362,6 @@ impl SpcDriftProfile {
             version,
             sample,
             sample_size,
-            feature_map,
             targets,
             alert_config,
         )
@@ -407,8 +395,7 @@ mod tests {
     #[test]
     fn test_drift_config() {
         let mut drift_config =
-            SpcDriftConfig::new(None, None, None, None, None, None, None, None, None, None)
-                .unwrap();
+            SpcDriftConfig::new(None, None, None, None, None, None, None, None).unwrap();
         assert_eq!(drift_config.sample_size, 25);
         assert!(drift_config.sample);
         assert_eq!(drift_config.name, "__missing__");
@@ -419,16 +406,7 @@ mod tests {
 
         // update
         drift_config
-            .update_config_args(
-                None,
-                Some("test".to_string()),
-                None,
-                None,
-                None,
-                None,
-                None,
-                None,
-            )
+            .update_config_args(None, Some("test".to_string()), None, None, None, None, None)
             .unwrap();
 
         assert_eq!(drift_config.name, "test");

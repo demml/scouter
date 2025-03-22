@@ -9,6 +9,7 @@ from scouter.client import (
     BinnedSpcFeatureMetrics,
     DriftAlertRequest,
     DriftRequest,
+    GetProfileRequest,
     HTTPConfig,
     ProfileStatusRequest,
     ScouterClient,
@@ -46,7 +47,16 @@ def test_psi_monitor_pandas_http(
     profile = scouter.create_drift_profile(pandas_dataframe, psi_drift_config)
     client.register_profile(profile)
 
-    config = DriftTransportConfig(id="test", config=HTTPConfig(), drift_profile=profile)
+    config = DriftTransportConfig(
+        id="test",
+        config=HTTPConfig(),
+        drift_profile_request=GetProfileRequest(
+            name=profile.config.name,
+            version=profile.config.version,
+            repository=profile.config.repository,
+            drift_type=profile.config.drift_type,
+        ),
+    )
     queue = ScouterQueue(config)
     records = pandas_dataframe.to_dict(orient="records")
 
@@ -86,7 +96,16 @@ def test_spc_monitor_pandas_kafka(
     profile = scouter.create_drift_profile(pandas_dataframe, drift_config)
     client.register_profile(profile)
 
-    config = DriftTransportConfig(id="test", config=KafkaConfig(), drift_profile=profile)
+    config = DriftTransportConfig(
+        id="test",
+        config=KafkaConfig(),
+        drift_profile_request=GetProfileRequest(
+            name=profile.config.name,
+            version=profile.config.version,
+            repository=profile.config.repository,
+            drift_type=profile.config.drift_type,
+        ),
+    )
     queue = ScouterQueue(config)
     records = pandas_dataframe.to_dict(orient="records")
 
@@ -136,9 +155,17 @@ def test_custom_monitor_pandas_rabbitmq():
 
     profile = scouter.create_drift_profile(data=metrics, config=drift_config)
     client.register_profile(profile)
-    config = DriftTransportConfig(id="test", config=RabbitMQConfig(), drift_profile=profile)
+    config = DriftTransportConfig(
+        id="test",
+        config=RabbitMQConfig(),
+        drift_profile_request=GetProfileRequest(
+            name=profile.config.name,
+            version=profile.config.version,
+            repository=profile.config.repository,
+            drift_type=profile.config.drift_type,
+        ),
+    )
     queue = ScouterQueue(config)
-
     for i in range(0, 30):
         metrics = Metrics(
             metrics=[
@@ -147,11 +174,9 @@ def test_custom_monitor_pandas_rabbitmq():
             ]
         )
         queue.insert(metrics)
-
     queue.flush()
 
     time.sleep(2)
-
     # wait for rabbitmq to process the message
     request = DriftRequest(
         name=profile.config.name,
@@ -163,7 +188,6 @@ def test_custom_monitor_pandas_rabbitmq():
     )
 
     binned_records: BinnedCustomMetrics = client.get_binned_drift(request)  # type: ignore
-
     assert len(binned_records.metrics["mae"].stats) > 0
 
     client.update_profile_status(

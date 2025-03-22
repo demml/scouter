@@ -1,3 +1,4 @@
+#![allow(clippy::useless_conversion)]
 use crate::data_utils::{convert_array_type, DataConverterEnum};
 use ndarray_stats::MaybeNan;
 use num_traits::{Float, FromPrimitive, Num};

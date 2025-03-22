@@ -7,7 +7,6 @@ use scouter_types::Features;
 use std::sync::Arc;
 use tracing::{debug, error, instrument};
 
-#[pyclass]
 pub struct SpcQueue {
     queue: SpcFeatureQueue,
     producer: RustScouterProducer,
@@ -15,10 +14,7 @@ pub struct SpcQueue {
     rt: Arc<tokio::runtime::Runtime>,
 }
 
-#[pymethods]
 impl SpcQueue {
-    #[new]
-    #[pyo3(signature = (drift_profile, config))]
     pub fn new(
         drift_profile: SpcDriftProfile,
         config: &Bound<'_, PyAny>,
