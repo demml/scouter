@@ -395,7 +395,7 @@ impl ScouterClient {
         let results: Result<serde_json::Value, ScouterError> = self.rt.block_on(async {
             let response = self
                 .client
-                .request_with_retry(
+                .request(
                     Routes::Profile,
                     RequestType::Get,
                     None,
