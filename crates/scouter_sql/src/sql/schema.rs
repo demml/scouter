@@ -268,3 +268,10 @@ impl FromRow<'_, PgRow> for User {
         })
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct UpdateAlertResult {
+    pub id: i32,
+    pub active: bool,
+    pub updated_at: NaiveDateTime,
+}

@@ -7,7 +7,7 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use scouter_contracts::DriftAlertRequest;
+use scouter_contracts::{DriftAlertRequest, UpdateAlertStatus};
 use serde_json::json;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
@@ -39,6 +39,31 @@ pub async fn get_drift_alerts(
         }
         Err(e) => {
             error!("Failed to query drift alerts: {:?}", e);
+            let json_response = json!({
+                "status": "error",
+                "message": format!("{:?}", e)
+            });
+            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+        }
+    }
+}
+
+pub async fn update_alert_status(
+    State(data): State<Arc<AppState>>,
+    params: Query<UpdateAlertStatus>,
+) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    let query_result = &data.db.update_drift_alerts(&params).await;
+
+    match query_result {
+        Ok(result) => {
+            let json_response = json!({
+                "status": "success",
+                "data": result
+            });
+            Ok(Json(json_response))
+        }
+        Err(e) => {
+            error!("Failed to update drift alerts: {:?}", e);
             let json_response = json!({
                 "status": "error",
                 "message": format!("{:?}", e)

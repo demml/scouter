@@ -7,7 +7,7 @@ use chrono::{NaiveDateTime, Utc};
 use cron::Schedule;
 use scouter_contracts::{
     DriftAlertRequest, DriftRequest, GetProfileRequest, ObservabilityMetricRequest,
-    ProfileStatusRequest, ServiceInfo,
+    ProfileStatusRequest, ServiceInfo, UpdateAlertStatus,
 };
 use scouter_error::ScouterError;
 use scouter_error::SqlError;
@@ -30,6 +30,8 @@ use std::collections::{BTreeMap, HashMap};
 use std::result::Result::Ok;
 use std::str::FromStr;
 use tracing::{debug, error, info, instrument};
+
+use super::schema::UpdateAlertResult;
 
 // TODO: Explore refactoring and breaking this out into multiple client types (i.e., spc, psi, etc.)
 // Postgres client is one of the lowest-level abstractions so it may not be worth it, as it could make server logic annoying. Worth exploring though.
@@ -196,6 +198,31 @@ impl PostgresClient {
             });
 
         result.map(|result| result.into_iter().map(|wrapper| wrapper.0).collect())
+    }
+
+    pub async fn update_drift_alert_status(
+        &self,
+        params: &UpdateAlertStatus,
+    ) -> Result<UpdateAlertResult, SqlError> {
+        let query = Queries::UpdateAlertStatus.get_query();
+
+        let result: Result<UpdateAlertResult, SqlError> = sqlx::query_as(&query.sql)
+            .bind(params.id)
+            .bind(params.active)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| {
+                error!("Failed to update drift alert status: {:?}", e);
+                SqlError::QueryError(format!("{:?}", e))
+            });
+
+        match result {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                error!("Failed to update drift alert status: {:?}", e);
+                Err(SqlError::QueryError(format!("{:?}", e)))
+            }
+        }
     }
 
     /// Inserts a drift record into the database

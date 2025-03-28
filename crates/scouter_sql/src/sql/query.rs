@@ -30,6 +30,7 @@ const UPDATE_USER: &str = include_str!("scripts/update_user.sql");
 const GET_USERS: &str = include_str!("scripts/get_users.sql");
 const LAST_ADMIN: &str = include_str!("scripts/last_admin.sql");
 const DELETE_USER: &str = include_str!("scripts/delete_user.sql");
+const UPDATE_ALERT_STATUS: &str = include_str!("scripts/update_alert_status.sql");
 
 #[allow(dead_code)]
 pub enum Queries {
@@ -59,6 +60,7 @@ pub enum Queries {
     GetUsers,
     LastAdmin,
     DeleteUser,
+    UpdateAlertStatus,
 }
 
 impl Queries {
@@ -93,6 +95,7 @@ impl Queries {
             Queries::GetUsers => SqlQuery::new(GET_USERS),
             Queries::LastAdmin => SqlQuery::new(LAST_ADMIN),
             Queries::DeleteUser => SqlQuery::new(DELETE_USER),
+            Queries::UpdateAlertStatus => SqlQuery::new(UPDATE_ALERT_STATUS),
         }
     }
 }

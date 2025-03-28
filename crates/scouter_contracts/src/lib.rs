@@ -148,3 +148,8 @@ pub struct ObservabilityMetricRequest {
     pub time_interval: String,
     pub max_data_points: i32,
 }
+
+pub struct UpdateAlertStatus {
+    pub id: i32,
+    pub active: bool,
+}
