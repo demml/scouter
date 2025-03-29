@@ -1,9 +1,9 @@
+use crate::api::routes::alerts::types::UpdateAlertResponse;
 use crate::api::state::AppState;
 use anyhow::{Context, Result};
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    response::IntoResponse,
     routing::get,
     Json, Router,
 };
@@ -12,6 +12,8 @@ use serde_json::json;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::error;
+
+use super::types::Alerts;
 
 /// Retrieve drift alerts from the database
 ///
@@ -26,50 +28,43 @@ use tracing::error;
 pub async fn get_drift_alerts(
     State(data): State<Arc<AppState>>,
     params: Query<DriftAlertRequest>,
-) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    let query_result = &data.db.get_drift_alerts(&params).await;
+) -> Result<Json<Alerts>, (StatusCode, Json<serde_json::Value>)> {
+    let alerts = &data.db.get_drift_alerts(&params).await.map_err(|e| {
+        error!("Failed to query drift alerts: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(json!({"status": "error", "message": format!("{:?}", e)})),
+        )
+    })?;
 
-    match query_result {
-        Ok(result) => {
-            let json_response = json!({
-                "status": "success",
-                "data": result
-            });
-            Ok(Json(json_response))
-        }
-        Err(e) => {
-            error!("Failed to query drift alerts: {:?}", e);
-            let json_response = json!({
-                "status": "error",
-                "message": format!("{:?}", e)
-            });
-            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
-        }
-    }
+    Ok(Json(Alerts {
+        alerts: alerts.clone(),
+    }))
 }
 
 pub async fn update_alert_status(
     State(data): State<Arc<AppState>>,
     params: Query<UpdateAlertStatus>,
-) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    let query_result = &data.db.update_drift_alerts(&params).await;
+) -> Result<Json<UpdateAlertResponse>, (StatusCode, Json<serde_json::Value>)> {
+    let query_result = &data
+        .db
+        .update_drift_alert_status(&params)
+        .await
+        .map_err(|e| {
+            error!("Failed to update drift alert status: {:?}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({"status": "error", "message": format!("{:?}", e)})),
+            )
+        })?;
 
-    match query_result {
-        Ok(result) => {
-            let json_response = json!({
-                "status": "success",
-                "data": result
-            });
-            Ok(Json(json_response))
-        }
-        Err(e) => {
-            error!("Failed to update drift alerts: {:?}", e);
-            let json_response = json!({
-                "status": "error",
-                "message": format!("{:?}", e)
-            });
-            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
-        }
+    if query_result.active == params.active {
+        return Ok(Json(UpdateAlertResponse { updated: true }));
+    } else {
+        return Err((
+            StatusCode::BAD_REQUEST,
+            Json(json!({"status": "error", "message": "Alert status update failed"})),
+        ));
     }
 }
 
