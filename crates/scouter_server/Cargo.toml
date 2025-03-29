@@ -52,7 +52,6 @@ serde_json = { workspace = true }
 serde_qs = { workspace = true }
 tower = { version = "0.*", features = ["util"] }
 
-
 [features]
 default = []
 kafka-vendored = ["scouter-events/kafka-vendored"]
@@ -64,3 +63,6 @@ lto = "fat"
 codegen-units = 1
 strip = true
 
+[[test]]
+name = "integration"
+path = "tests/lib.rs"
