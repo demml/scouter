@@ -12,6 +12,7 @@ use scouter_contracts::{
 use scouter_error::ScouterError;
 use scouter_error::SqlError;
 use scouter_settings::DatabaseSettings;
+use scouter_types::DriftType;
 use scouter_types::{
     alert::Alert,
     custom::BinnedCustomMetrics,
@@ -128,6 +129,7 @@ impl PostgresClient {
         service_info: &ServiceInfo,
         feature: &str,
         alert: &BTreeMap<String, String>,
+        drift_type: &DriftType,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftAlert.get_query();
 
@@ -137,6 +139,7 @@ impl PostgresClient {
             .bind(&service_info.version)
             .bind(feature)
             .bind(serde_json::to_value(alert).unwrap())
+            .bind(drift_type.to_string())
             .execute(&self.pool)
             .await
             .map_err(|e| {
@@ -170,7 +173,7 @@ impl PostgresClient {
 
         // check if active (status can be 'active' or  'acknowledged')
         let query = if params.active.unwrap_or(false) {
-            format!("{} AND status = 'active'", query)
+            format!("{} AND active = true", query)
         } else {
             query
         };
@@ -1058,7 +1061,7 @@ mod tests {
             FROM scouter.custom_metrics;
 
             DELETE
-            FROM scouter.drift_alerts;
+            FROM scouter.drift_alert;
 
             DELETE
             FROM scouter.drift_profile;
@@ -1106,7 +1109,7 @@ mod tests {
                 .collect::<BTreeMap<String, String>>();
 
             let result = client
-                .insert_drift_alert(&service_info, "test", &alert)
+                .insert_drift_alert(&service_info, "test", &alert, &DriftType::Spc)
                 .await
                 .unwrap();
 

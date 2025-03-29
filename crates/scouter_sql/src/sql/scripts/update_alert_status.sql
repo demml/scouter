@@ -1,4 +1,4 @@
-UPDATE scouter.drift_alerts
+UPDATE scouter.drift_alert
 SET 
     active = $2,
     updated_at = now()

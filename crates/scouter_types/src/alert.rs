@@ -29,7 +29,10 @@ pub struct Alert {
     pub id: i32,
 
     #[pyo3(get)]
-    pub status: String,
+    pub drift_type: String,
+
+    #[pyo3(get)]
+    pub active: bool,
 }
 
 #[pymethods]

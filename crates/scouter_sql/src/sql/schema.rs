@@ -86,7 +86,8 @@ impl<'r> FromRow<'r, PgRow> for AlertWrapper {
             alert,
             feature: row.try_get("feature")?,
             id: row.try_get("id")?,
-            status: row.try_get("status")?,
+            drift_type: row.try_get("drift_type")?,
+            active: row.try_get("active")?,
         }))
     }
 }

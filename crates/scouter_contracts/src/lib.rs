@@ -149,6 +149,7 @@ pub struct ObservabilityMetricRequest {
     pub max_data_points: i32,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UpdateAlertStatus {
     pub id: i32,
     pub active: bool,

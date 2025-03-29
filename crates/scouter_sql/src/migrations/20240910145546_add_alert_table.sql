@@ -14,10 +14,10 @@ CREATE TABLE IF NOT exists scouter.drift_alert (
 )
 PARTITION BY RANGE (created_at);
 
-CREATE INDEX ON scouter.drift_alerts (name, repository, version, created_at);
+CREATE INDEX ON scouter.drift_alert (name, repository, version, created_at);
 
 SELECT scouter.create_parent(
-    'scouter.drift_alerts',
+    'scouter.drift_alert',
     'created_at',
     '1 day'
 );

@@ -17,7 +17,7 @@ use ndarray_rand::rand_distr::Uniform;
 use ndarray_rand::RandomExt;
 use scouter_events::producer::http::types::JwtToken;
 use scouter_sql::PostgresClient;
-use sqlx::{Pool, Postgres};
+use sqlx::{PgPool, Pool, Postgres};
 use std::env;
 use tower::util::ServiceExt;
 
@@ -34,7 +34,7 @@ pub async fn cleanup(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> {
         FROM scouter.custom_metrics;
 
         DELETE
-        FROM scouter.drift_alerts;
+        FROM scouter.drift_alert;
 
         DELETE
         FROM scouter.drift_profile;
@@ -56,6 +56,7 @@ pub async fn cleanup(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> {
 pub struct TestHelper {
     app: Router,
     token: JwtToken,
+    pool: PgPool,
 }
 
 impl TestHelper {
@@ -82,7 +83,11 @@ impl TestHelper {
         let (app, _app_state) = create_app().await?;
         let token = TestHelper::login(&app).await;
 
-        Ok(Self { app, token })
+        Ok(Self {
+            app,
+            token,
+            pool: db_client.pool.clone(),
+        })
     }
 
     pub async fn login(app: &Router) -> JwtToken {
@@ -202,5 +207,14 @@ impl TestHelper {
         }
 
         ServerRecords::new(records, RecordType::Custom)
+    }
+
+    pub async fn insert_alerts(&self) -> Result<(), anyhow::Error> {
+        // Run the SQL script to populate the database
+        let script = std::fs::read_to_string("tests/fixtures/populate_alerts.sql").unwrap();
+
+        sqlx::query(&script).execute(&self.pool).await.unwrap();
+
+        Ok(())
     }
 }
