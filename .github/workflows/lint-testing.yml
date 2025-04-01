@@ -18,6 +18,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Install dependencies
+        run: sudo apt-get update && sudo apt-get install -y cmake
+
+      - name: Verify CMake version
+        run: cmake --version
+
       - name: Set up Rust
         run: rustup override set stable && rustup update
 
