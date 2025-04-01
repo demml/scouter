@@ -49,7 +49,7 @@ impl CustomMetricFeatureQueue {
                     .cloned()
                     .collect::<Vec<_>>()
                     .join(", ");
-                error!(
+                println!(
                     "Custom metric {} not found in drift profile. Valid metric names include {}",
                     metric.name, valid_metric_names
                 );
