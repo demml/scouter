@@ -286,7 +286,11 @@ VALUES
                       "features": {}
                     },
                     "alert_config": {
-                      "dispatch_config": "Console",
+                      "dispatch_config": {
+                        "Console": {
+                          "enabled": true
+                        }
+                      },
                       "schedule": "0 0 0 * * *",
                       "features_to_monitor": [
                         "feature_1",

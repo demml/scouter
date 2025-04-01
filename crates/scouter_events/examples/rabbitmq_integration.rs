@@ -16,8 +16,6 @@ use lapin::{
 
 trait RabbitMQSetup {
     async fn start_background_producer(&self);
-
-    //async fn start_background_consumer(&self);
 }
 
 impl RabbitMQSetup for TestHelper {

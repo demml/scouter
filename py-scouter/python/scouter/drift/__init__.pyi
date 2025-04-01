@@ -1,5 +1,4 @@
 # pylint: disable=dangerous-default-value
-from enum import Enum
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, overload
 
@@ -573,7 +572,7 @@ class Bin:
     def proportion(self) -> float:
         """Return the proportion of data found in the bin."""
 
-class BinType(Enum):
+class BinType:
     Binary: "BinType"
     Numeric: "BinType"
     Category: "BinType"

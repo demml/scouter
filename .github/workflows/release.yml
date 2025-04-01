@@ -4,7 +4,6 @@ on:
   push:
       branches:
         - main
-  pull_request:
   release:
     types: [published]
 
@@ -38,6 +37,7 @@ jobs:
         with:
           name: pypi_sdist
           path: ./py-scouter/dist
+          retention-days: 1
 
 
   build-ubuntu:
@@ -110,6 +110,7 @@ jobs:
         with:
           name: pypi_files_ubuntu_${{ matrix.platform.target }}_all_${{ matrix.platform.manylinux }}
           path: ./py-scouter/dist
+          retention-days: 1
 
   build-ubuntu-musllinux:
     name: build - ubuntu - ${{ matrix.manylinux }} - ${{ matrix.target }}
@@ -152,6 +153,7 @@ jobs:
         with:
           name: pypi_files_ubuntu_${{ matrix.target }}_all_${{ matrix.manylinux }}
           path: ./py-scouter/dist
+          retention-days: 1
 
   build-macos:
     name: build - macos - (${{ matrix.target }} - auto
@@ -192,6 +194,7 @@ jobs:
         with:
           name: pypi_files_macos_${{ matrix.target }}_all
           path: ./py-scouter/dist
+          retention-days: 1
 
   build-windows:
     name: build - windows - (${{ matrix.target }} - auto
@@ -245,6 +248,7 @@ jobs:
         with:
           name: pypi_files_windows_${{ matrix.target }}_all
           path: ./py-scouter/dist
+          retention-days: 1
 
   inspect-pypi-assets:
     needs:

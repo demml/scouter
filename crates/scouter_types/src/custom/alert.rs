@@ -204,31 +204,13 @@ impl CustomMetricAlertConfig {
     }
 
     #[getter]
-    pub fn dispatch_type(&self) -> String {
-        match self.dispatch_config {
-            AlertDispatchConfig::Slack(_) => "Slack".to_string(),
-            AlertDispatchConfig::Console => "Console".to_string(),
-            AlertDispatchConfig::OpsGenie(_) => "OpsGenie".to_string(),
-        }
+    pub fn dispatch_type(&self) -> AlertDispatchType {
+        self.dispatch_config.dispatch_type()
     }
 
     #[getter]
-    pub fn dispatch_config(&self, py: Python<'_>) -> PyResult<PyObject> {
-        match &self.dispatch_config {
-            AlertDispatchConfig::Slack(config) => {
-                // Creating a new Python instance by calling the class constructor
-                let py_type = py.get_type::<SlackDispatchConfig>();
-                let args = (config.channel.clone(),);
-                Ok(py_type.call1(args)?.into())
-            }
-            AlertDispatchConfig::OpsGenie(config) => {
-                // Creating a new Python instance by calling the class constructor
-                let py_type = py.get_type::<OpsGenieDispatchConfig>();
-                let args = (config.team.clone(),);
-                Ok(py_type.call1(args)?.into())
-            }
-            AlertDispatchConfig::Console => Ok(py.None()),
-        }
+    pub fn dispatch_config<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.dispatch_config.config(py)
     }
 }
 
@@ -319,6 +301,7 @@ mod tests {
         //test console alert config
         let dispatch_config = AlertDispatchConfig::OpsGenie(OpsGenieDispatchConfig {
             team: "test-team".to_string(),
+            priority: "P5".to_string(),
         });
         let schedule = "0 0 * * * *".to_string();
         let mut alert_config = CustomMetricAlertConfig {
@@ -326,7 +309,7 @@ mod tests {
             schedule,
             ..Default::default()
         };
-        assert_eq!(alert_config.dispatch_type(), "OpsGenie");
+        assert_eq!(alert_config.dispatch_type(), AlertDispatchType::OpsGenie);
 
         let custom_metrics = vec![
             CustomMetric::new("mae", 12.4, AlertThreshold::Above, Some(2.3)).unwrap(),

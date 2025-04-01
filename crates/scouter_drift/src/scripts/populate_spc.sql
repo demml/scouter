@@ -59,7 +59,11 @@ VALUES
                   "Zone4"
                 ]
               },
-              "dispatch_config": "Console",
+              "dispatch_config": {
+                "Console": {
+                  "enabled": true
+                }
+              },
               "schedule": "0 0 0 * * *",
               "features_to_monitor": ["col_1", "col_3"]
             },
@@ -126,7 +130,11 @@ VALUES
           "repository": "mathworld",
           "version": "0.1.0",
           "alert_config": {
-              "dispatch_config": "Console",
+              "dispatch_config": {
+                "Console": {
+                  "enabled": true
+                }
+              },
               "schedule": "0 0 0 * * *",
               "rule": {
                       "rule": "8 16 4 8 2 4 1 1",
@@ -206,7 +214,11 @@ VALUES
                   "Zone4"
                 ]
               },
-              "dispatch_config": "Console",
+              "dispatch_config": {
+                "Console": {
+                  "enabled": true
+                }
+              },
               "schedule": "0 0 0 * * *",
               "features_to_monitor": ["col_1", "col_3"]
             },

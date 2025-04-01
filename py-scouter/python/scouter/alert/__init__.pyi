@@ -4,6 +4,59 @@ from typing import List, Optional
 
 from ..types import CommonCrons
 
+class ConsoleDispatchConfig:
+    def __init__(self):
+        """Initialize alert config"""
+
+    @property
+    def enabled(self) -> bool:
+        """Return the alert dispatch type"""
+
+class SlackDispatchConfig:
+    def __init__(self, channel: str):
+        """Initialize alert config
+
+        Args:
+            channel:
+                Slack channel name for where alerts will be reported
+        """
+
+    @property
+    def channel(self) -> str:
+        """Return the slack channel name"""
+
+    @channel.setter
+    def channel(self, channel: str) -> None:
+        """Set the slack channel name for where alerts will be reported"""
+
+class OpsGenieDispatchConfig:
+    def __init__(self, team: str):
+        """Initialize alert config
+
+        Args:
+            team:
+                Opsegenie team to be notified in the event of drift
+        """
+
+    @property
+    def team(self) -> str:
+        """Return the opesgenie team name"""
+
+    @team.setter
+    def team(self, team: str) -> None:
+        """Set the opesgenie team name"""
+
+class AlertDispatchType:
+    Slack: "AlertDispatchType"
+    OpsGenie: "AlertDispatchType"
+    Console: "AlertDispatchType"
+
+    @staticmethod
+    def to_string() -> str:
+        """Return the string representation of the alert dispatch type"""
+
+DispatchConfigType = ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
+
 class AlertZone:
     Zone1: "AlertZone"
     Zone2: "AlertZone"
@@ -20,14 +73,14 @@ class SpcAlertType:
 
 class SpcAlertRule:
     def __init__(
-        self,
-        rule: str = "8 16 4 8 2 4 1 1",
-        zones_to_monitor: List[AlertZone] = [
-            AlertZone.Zone1,
-            AlertZone.Zone2,
-            AlertZone.Zone3,
-            AlertZone.Zone4,
-        ],
+            self,
+            rule: str = "8 16 4 8 2 4 1 1",
+            zones_to_monitor: List[AlertZone] = [
+                AlertZone.Zone1,
+                AlertZone.Zone2,
+                AlertZone.Zone3,
+                AlertZone.Zone4,
+            ],
     ) -> None:
         """Initialize alert rule
 
@@ -57,11 +110,11 @@ class SpcAlertRule:
 
 class PsiAlertConfig:
     def __init__(
-        self,
-        dispatch_config: Optional[SlackDispatchConfig | OpsGenieDispatchConfig] = None,
-        schedule: Optional[str | CommonCrons] = None,
-        features_to_monitor: List[str] = [],
-        psi_threshold: float = 0.25,
+            self,
+            dispatch_config: Optional[SlackDispatchConfig | OpsGenieDispatchConfig] = None,
+            schedule: Optional[str | CommonCrons] = None,
+            features_to_monitor: List[str] = [],
+            psi_threshold: float = 0.25,
     ):
         """Initialize alert config
 
@@ -79,12 +132,12 @@ class PsiAlertConfig:
         """
 
     @property
-    def dispatch_type(self) -> str:
+    def dispatch_type(self) -> AlertDispatchType:
         """Return the alert dispatch type"""
 
     @property
-    def dispatch_config(self) -> SlackDispatchConfig | OpsGenieDispatchConfig | None:
-        """Return the alert dispatch type"""
+    def dispatch_config(self) -> DispatchConfigType:
+        """Return the dispatch config"""
 
     @property
     def schedule(self) -> str:
@@ -112,11 +165,11 @@ class PsiAlertConfig:
 
 class SpcAlertConfig:
     def __init__(
-        self,
-        rule: SpcAlertRule = SpcAlertRule(),
-        dispatch_config: Optional[SlackDispatchConfig | OpsGenieDispatchConfig] = None,
-        schedule: Optional[str | CommonCrons] = None,
-        features_to_monitor: List[str] = [],
+            self,
+            rule: SpcAlertRule = SpcAlertRule(),
+            dispatch_config: Optional[SlackDispatchConfig | OpsGenieDispatchConfig] = None,
+            schedule: Optional[str | CommonCrons] = None,
+            features_to_monitor: List[str] = [],
     ):
         """Initialize alert config
 
@@ -133,11 +186,11 @@ class SpcAlertConfig:
         """
 
     @property
-    def dispatch_type(self) -> str:
+    def dispatch_type(self) -> AlertDispatchType:
         """Return the alert dispatch type"""
 
     @property
-    def dispatch_config(self) -> SlackDispatchConfig | OpsGenieDispatchConfig | None:
+    def dispatch_config(self) -> DispatchConfigType:
         """Return the dispatch config"""
 
     @property
@@ -207,9 +260,9 @@ class AlertThreshold:
 
 class CustomMetricAlertCondition:
     def __init__(
-        self,
-        alert_threshold: AlertThreshold,
-        alert_threshold_value: Optional[float],
+            self,
+            alert_threshold: AlertThreshold,
+            alert_threshold_value: Optional[float],
     ):
         """Initialize a CustomMetricAlertCondition instance.
         Args:
@@ -241,9 +294,9 @@ class CustomMetricAlertCondition:
 
 class CustomMetricAlertConfig:
     def __init__(
-        self,
-        dispatch_config: Optional[SlackDispatchConfig | OpsGenieDispatchConfig] = None,
-        schedule: Optional[str | CommonCrons] = None,
+            self,
+            dispatch_config: Optional[SlackDispatchConfig | OpsGenieDispatchConfig] = None,
+            schedule: Optional[str | CommonCrons] = None,
     ):
         """Initialize alert config
 
@@ -256,8 +309,12 @@ class CustomMetricAlertConfig:
         """
 
     @property
-    def dispatch_type(self) -> str:
+    def dispatch_type(self) -> AlertDispatchType:
         """Return the alert dispatch type"""
+
+    @property
+    def dispatch_config(self) -> DispatchConfigType:
+        """Return the dispatch config"""
 
     @property
     def schedule(self) -> str:
@@ -274,37 +331,3 @@ class CustomMetricAlertConfig:
     @alert_conditions.setter
     def alert_conditions(self, alert_conditions: dict[str, CustomMetricAlertCondition]) -> None:
         """Update the alert_condition that were set during metric definition"""
-
-class SlackDispatchConfig:
-    def __init__(self, channel: str):
-        """Initialize alert config
-
-        Args:
-            channel:
-                Slack channel name for where alerts will be reported
-        """
-
-    @property
-    def channel(self) -> str:
-        """Return the slack channel name"""
-
-    @channel.setter
-    def channel(self, channel: str) -> None:
-        """Set the slack channel name for where alerts will be reported"""
-
-class OpsGenieDispatchConfig:
-    def __init__(self, team: str):
-        """Initialize alert config
-
-        Args:
-            team:
-                Opsegenie team to be notified in the event of drift
-        """
-
-    @property
-    def team(self) -> str:
-        """Return the opesgenie team name"""
-
-    @team.setter
-    def team(self, team: str) -> None:
-        """Set the opesgenie team name"""

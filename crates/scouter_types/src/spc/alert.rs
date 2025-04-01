@@ -142,31 +142,13 @@ impl SpcAlertConfig {
     }
 
     #[getter]
-    pub fn dispatch_type(&self) -> String {
-        match self.dispatch_config {
-            AlertDispatchConfig::Slack(_) => "Slack".to_string(),
-            AlertDispatchConfig::Console => "Console".to_string(),
-            AlertDispatchConfig::OpsGenie(_) => "OpsGenie".to_string(),
-        }
+    pub fn dispatch_type(&self) -> AlertDispatchType {
+        self.dispatch_config.dispatch_type()
     }
 
     #[getter]
-    pub fn dispatch_config(&self, py: Python<'_>) -> PyResult<PyObject> {
-        match &self.dispatch_config {
-            AlertDispatchConfig::Slack(config) => {
-                // Creating a new Python instance by calling the class constructor
-                let py_type = py.get_type::<SlackDispatchConfig>();
-                let args = (config.channel.clone(),);
-                Ok(py_type.call1(args)?.into())
-            }
-            AlertDispatchConfig::OpsGenie(config) => {
-                // Creating a new Python instance by calling the class constructor
-                let py_type = py.get_type::<OpsGenieDispatchConfig>();
-                let args = (config.team.clone(),);
-                Ok(py_type.call1(args)?.into())
-            }
-            AlertDispatchConfig::Console => Ok(py.None()),
-        }
+    pub fn dispatch_config<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.dispatch_config.config(py)
     }
 }
 
@@ -360,8 +342,8 @@ mod tests {
     fn test_alert_config() {
         //test console alert config
         let alert_config = SpcAlertConfig::default();
-        assert_eq!(alert_config.dispatch_config, AlertDispatchConfig::Console);
-        assert_eq!(alert_config.dispatch_type(), "Console");
+        assert_eq!(alert_config.dispatch_config, AlertDispatchConfig::default());
+        assert_eq!(alert_config.dispatch_type(), AlertDispatchType::Console);
 
         let slack_dispatch_config = SlackDispatchConfig {
             channel: "test-channel".to_string(),
@@ -375,7 +357,7 @@ mod tests {
             alert_config.dispatch_config,
             AlertDispatchConfig::Slack(slack_dispatch_config)
         );
-        assert_eq!(alert_config.dispatch_type(), "Slack");
+        assert_eq!(alert_config.dispatch_type(), AlertDispatchType::Slack);
         assert_eq!(
             match &alert_config.dispatch_config {
                 AlertDispatchConfig::Slack(config) => &config.channel,
@@ -387,6 +369,7 @@ mod tests {
         //test opsgenie alert config
         let opsgenie_dispatch_config = OpsGenieDispatchConfig {
             team: "test-team".to_string(),
+            priority: "P5".to_string(),
         };
 
         let alert_config = SpcAlertConfig {
@@ -397,7 +380,7 @@ mod tests {
             alert_config.dispatch_config,
             AlertDispatchConfig::OpsGenie(opsgenie_dispatch_config.clone())
         );
-        assert_eq!(alert_config.dispatch_type(), "OpsGenie");
+        assert_eq!(alert_config.dispatch_type(), AlertDispatchType::OpsGenie);
         assert_eq!(
             match &alert_config.dispatch_config {
                 AlertDispatchConfig::OpsGenie(config) => &config.team,

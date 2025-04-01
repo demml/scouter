@@ -324,7 +324,7 @@ mod tests {
         assert_eq!(drift_config.version, "0.1.0");
         assert_eq!(
             drift_config.alert_config.dispatch_config,
-            AlertDispatchConfig::Console
+            AlertDispatchConfig::default()
         );
 
         let test_slack_dispatch_config = SlackDispatchConfig {
@@ -358,6 +358,7 @@ mod tests {
             schedule: "0 0 * * * *".to_string(),
             dispatch_config: AlertDispatchConfig::OpsGenie(OpsGenieDispatchConfig {
                 team: "test-team".to_string(),
+                priority: "P5".to_string(),
             }),
             ..Default::default()
         };

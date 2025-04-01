@@ -3,6 +3,8 @@
 from .. import alert
 
 OpsGenieDispatchConfig = alert.OpsGenieDispatchConfig
+ConsoleDispatchConfig = alert.ConsoleDispatchConfig
+AlertDispatchType = alert.AlertDispatchType
 AlertThreshold = alert.AlertThreshold
 AlertZone = alert.AlertZone
 CustomMetricAlertCondition = alert.CustomMetricAlertCondition
@@ -27,4 +29,6 @@ __all__ = [
     "CustomMetricAlertConfig",
     "SlackDispatchConfig",
     "OpsGenieDispatchConfig",
+    "ConsoleDispatchConfig",
+    "AlertDispatchType",
 ]
