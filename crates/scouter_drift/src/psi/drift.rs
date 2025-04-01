@@ -348,8 +348,7 @@ pub mod psi_drifter {
             };
 
             let config =
-                PsiDriftConfig::new("name", "repo", DEFAULT_VERSION, None, alert_config, None)
-                    .unwrap();
+                PsiDriftConfig::new("name", "repo", DEFAULT_VERSION, alert_config, None).unwrap();
 
             let array = Array::random((1030, 3), Uniform::new(1.0, 100.0));
 

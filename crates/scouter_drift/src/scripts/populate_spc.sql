@@ -70,7 +70,6 @@ VALUES
             "feature_map": {
               "features": {}
             },
-            "targets": [],
             "drift_type": "Spc"
           },
           "scouter_version": "0.3.3"
@@ -145,7 +144,6 @@ VALUES
           "feature_map": {
             "features": {}
           },
-          "targets": [],
           "drift_type": "SPC"
         },
         "scouter_version": "0.1.0"
@@ -225,7 +223,6 @@ VALUES
             "feature_map": {
               "features": {}
             },
-            "targets": [],
             "drift_type": "Spc"
           },
           "scouter_version": "0.3.3"

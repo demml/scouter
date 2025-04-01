@@ -43,9 +43,6 @@ pub struct PsiDriftConfig {
     #[pyo3(get, set)]
     pub alert_config: PsiAlertConfig,
 
-    #[pyo3(get, set)]
-    pub targets: Vec<String>,
-
     #[pyo3(get)]
     pub drift_type: DriftType,
 }
@@ -61,12 +58,11 @@ impl PsiDriftConfig {
 impl PsiDriftConfig {
     // TODO dry this out
     #[new]
-    #[pyo3(signature = (repository=MISSING, name=MISSING, version=DEFAULT_VERSION, targets=None, alert_config=PsiAlertConfig::default(), config_path=None))]
+    #[pyo3(signature = (repository=MISSING, name=MISSING, version=DEFAULT_VERSION, alert_config=PsiAlertConfig::default(), config_path=None))]
     pub fn new(
         repository: &str,
         name: &str,
         version: &str,
-        targets: Option<Vec<String>>,
         alert_config: PsiAlertConfig,
         config_path: Option<PathBuf>,
     ) -> Result<Self, ScouterError> {
@@ -79,15 +75,12 @@ impl PsiDriftConfig {
             debug!("Name and repository were not provided. Defaulting to __missing__");
         }
 
-        let targets = targets.unwrap_or_default();
-
         Ok(Self {
             name: name.to_string(),
             repository: repository.to_string(),
             version: version.to_string(),
             alert_config,
             feature_map: FeatureMap::default(),
-            targets,
             drift_type: DriftType::Psi,
         })
     }
@@ -112,13 +105,12 @@ impl PsiDriftConfig {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (repository=None, name=None, version=None, targets=None, alert_config=None))]
+    #[pyo3(signature = (repository=None, name=None, version=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         repository: Option<String>,
         name: Option<String>,
         version: Option<String>,
-        targets: Option<Vec<String>>,
         alert_config: Option<PsiAlertConfig>,
     ) -> Result<(), ScouterError> {
         if name.is_some() {
@@ -132,10 +124,6 @@ impl PsiDriftConfig {
 
         if version.is_some() {
             self.version = version.ok_or(ScouterError::TypeError("version".to_string()))?;
-        }
-
-        if targets.is_some() {
-            self.targets = targets.ok_or(ScouterError::TypeError("targets".to_string()))?;
         }
 
         if alert_config.is_some() {
@@ -155,7 +143,6 @@ impl Default for PsiDriftConfig {
             version: DEFAULT_VERSION.to_string(),
             feature_map: FeatureMap::default(),
             alert_config: PsiAlertConfig::default(),
-            targets: Vec::new(),
             drift_type: DriftType::Psi,
         }
     }
@@ -419,17 +406,16 @@ impl PsiDriftProfile {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (repository=None, name=None, version=None, targets=None, alert_config=None))]
+    #[pyo3(signature = (repository=None, name=None, version=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         repository: Option<String>,
         name: Option<String>,
         version: Option<String>,
-        targets: Option<Vec<String>>,
         alert_config: Option<PsiAlertConfig>,
     ) -> Result<(), ScouterError> {
         self.config
-            .update_config_args(repository, name, version, targets, alert_config)
+            .update_config_args(repository, name, version, alert_config)
     }
 }
 
@@ -560,7 +546,6 @@ mod tests {
             MISSING,
             MISSING,
             DEFAULT_VERSION,
-            None,
             PsiAlertConfig::default(),
             None,
         )
@@ -568,12 +553,11 @@ mod tests {
         assert_eq!(drift_config.name, "__missing__");
         assert_eq!(drift_config.repository, "__missing__");
         assert_eq!(drift_config.version, "0.1.0");
-        assert_eq!(drift_config.targets.len(), 0);
         assert_eq!(drift_config.alert_config, PsiAlertConfig::default());
 
         // update
         drift_config
-            .update_config_args(None, Some("test".to_string()), None, None, None)
+            .update_config_args(None, Some("test".to_string()), None, None)
             .unwrap();
 
         assert_eq!(drift_config.name, "test");

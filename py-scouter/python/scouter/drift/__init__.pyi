@@ -65,7 +65,6 @@ class SpcDriftConfig:
         sample: bool = True,
         sample_size: int = 25,
         alert_config: SpcAlertConfig = SpcAlertConfig(),
-        targets: List[str] = [],
         config_path: Optional[Path] = None,
     ):
         """Initialize monitor config
@@ -81,10 +80,6 @@ class SpcDriftConfig:
                 Whether to sample or not
             sample_size:
                 Sample size
-            targets:
-                List of features that are targets in your dataset.
-                This is typically the name of your dependent variable(s).
-                This primarily used for monitoring and UI purposes.
             alert_config:
                 Alert configuration
             config_path:
@@ -136,14 +131,6 @@ class SpcDriftConfig:
         """Feature map"""
 
     @property
-    def targets(self) -> List[str]:
-        """List of target features to monitor"""
-
-    @targets.setter
-    def targets(self, targets: List[str]) -> None:
-        """Set list of target features to monitor"""
-
-    @property
     def alert_config(self) -> SpcAlertConfig:
         """Alert configuration"""
 
@@ -177,7 +164,6 @@ class SpcDriftConfig:
         version: Optional[str] = None,
         sample: Optional[bool] = None,
         sample_size: Optional[int] = None,
-        targets: Optional[List[str]] = None,
         alert_config: Optional[SpcAlertConfig] = None,
     ) -> None:
         """Inplace operation that updates config args
@@ -193,10 +179,6 @@ class SpcDriftConfig:
                 Whether to sample or not
             sample_size:
                 Sample size
-            targets:
-                List of features that are targets in your dataset.
-                This is typically the name of your dependent variable(s).
-                This primarily used for monitoring and UI purposes.
             alert_config:
                 Alert configuration
         """
@@ -262,7 +244,6 @@ class SpcDriftProfile:
         version: Optional[str] = None,
         sample: Optional[bool] = None,
         sample_size: Optional[int] = None,
-        targets: Optional[List[str]] = None,
         alert_config: Optional[SpcAlertConfig] = None,
     ) -> None:
         """Inplace operation that updates config args
@@ -278,10 +259,6 @@ class SpcDriftProfile:
                 Whether to sample or not
             sample_size:
                 Sample size
-            targets:
-                List of features that are targets in your dataset.
-                This is typically the name of your dependent variable(s).
-                This primarily used for monitoring and UI purposes.
             alert_config:
                 Alert configuration
         """
@@ -363,7 +340,6 @@ class PsiDriftConfig:
         name: str = "__missing__",
         version: str = "0.1.0",
         alert_config: PsiAlertConfig = PsiAlertConfig(),
-        targets: List[str] = [],
         config_path: Optional[Path] = None,
     ):
         """Initialize monitor config
@@ -375,10 +351,6 @@ class PsiDriftConfig:
                 Model name
             version:
                 Model version. Defaults to 0.1.0
-            targets:
-                List of features that are targets in your dataset.
-                This is typically the name of your dependent variable(s).
-                This primarily used for monitoring and UI purposes.
             alert_config:
                 Alert configuration
             config_path:
@@ -414,14 +386,6 @@ class PsiDriftConfig:
         """Feature map"""
 
     @property
-    def targets(self) -> List[str]:
-        """List of target features to monitor"""
-
-    @targets.setter
-    def targets(self, targets: List[str]) -> None:
-        """Set list of target features to monitor"""
-
-    @property
     def alert_config(self) -> PsiAlertConfig:
         """Alert configuration"""
 
@@ -453,7 +417,6 @@ class PsiDriftConfig:
         repository: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
-        targets: Optional[List[str]] = None,
         alert_config: Optional[PsiAlertConfig] = None,
     ) -> None:
         """Inplace operation that updates config args
@@ -465,10 +428,6 @@ class PsiDriftConfig:
                 Model name
             version:
                 Model version
-            targets:
-                List of features that are targets in your dataset.
-                This is typically the name of your dependent variable(s).
-                This primarily used for monitoring and UI purposes.
             alert_config:
                 Alert configuration
         """
@@ -532,7 +491,6 @@ class PsiDriftProfile:
         repository: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
-        targets: Optional[List[str]] = None,
         alert_config: Optional[PsiAlertConfig] = None,
     ) -> None:
         """Inplace operation that updates config args
@@ -544,10 +502,6 @@ class PsiDriftProfile:
                 Model repository
             version:
                 Model version
-            targets:
-                List of features that are targets in your dataset.
-                This is typically the name of your dependent variable(s).
-                This primarily used for monitoring and UI purposes.
             alert_config:
                 Alert configuration
         """

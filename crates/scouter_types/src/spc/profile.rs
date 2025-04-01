@@ -94,9 +94,6 @@ pub struct SpcDriftConfig {
     pub feature_map: FeatureMap,
 
     #[pyo3(get, set)]
-    pub targets: Vec<String>,
-
-    #[pyo3(get, set)]
     pub drift_type: DriftType,
 }
 
@@ -104,14 +101,13 @@ pub struct SpcDriftConfig {
 #[allow(clippy::too_many_arguments)]
 impl SpcDriftConfig {
     #[new]
-    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, targets=None, alert_config=None, config_path=None))]
+    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, alert_config=None, config_path=None))]
     pub fn new(
         repository: Option<String>,
         name: Option<String>,
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
-        targets: Option<Vec<String>>,
         alert_config: Option<SpcAlertConfig>,
         config_path: Option<PathBuf>,
     ) -> Result<Self, ScouterError> {
@@ -130,7 +126,6 @@ impl SpcDriftConfig {
         let sample = sample.unwrap_or(true);
         let sample_size = sample_size.unwrap_or(25);
         let version = version.unwrap_or("0.1.0".to_string());
-        let targets = targets.unwrap_or_default();
         let alert_config = alert_config.unwrap_or_default();
 
         Ok(Self {
@@ -141,7 +136,6 @@ impl SpcDriftConfig {
             version,
             alert_config,
             feature_map: FeatureMap::default(),
-            targets,
             drift_type: DriftType::Spc,
         })
     }
@@ -174,11 +168,10 @@ impl SpcDriftConfig {
     // * `version` - The version of the model
     // * `sample` - Whether to sample data or not, Default is true
     // * `sample_size` - The sample size
-    // * `targets` - The targets to monitor
     // * `alert_config` - The alerting configuration to use
     //
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, targets=None, alert_config=None))]
+    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         repository: Option<String>,
@@ -186,7 +179,6 @@ impl SpcDriftConfig {
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
-        targets: Option<Vec<String>>,
         alert_config: Option<SpcAlertConfig>,
     ) -> Result<(), ScouterError> {
         if name.is_some() {
@@ -209,10 +201,6 @@ impl SpcDriftConfig {
         if sample_size.is_some() {
             self.sample_size =
                 sample_size.ok_or(ScouterError::TypeError("sample size".to_string()))?;
-        }
-
-        if targets.is_some() {
-            self.targets = targets.ok_or(ScouterError::TypeError("targets".to_string()))?;
         }
 
         if alert_config.is_some() {
@@ -341,11 +329,10 @@ impl SpcDriftProfile {
     // * `sample` - Whether to sample data or not, Default is true
     // * `sample_size` - The sample size
     // * `feature_map` - The feature map to use
-    // * `targets` - The targets to monitor
     // * `alert_config` - The alerting configuration to use
     //
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, targets=None, alert_config=None))]
+    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
         repository: Option<String>,
@@ -353,18 +340,10 @@ impl SpcDriftProfile {
         version: Option<String>,
         sample: Option<bool>,
         sample_size: Option<usize>,
-        targets: Option<Vec<String>>,
         alert_config: Option<SpcAlertConfig>,
     ) -> Result<(), ScouterError> {
-        self.config.update_config_args(
-            repository,
-            name,
-            version,
-            sample,
-            sample_size,
-            targets,
-            alert_config,
-        )
+        self.config
+            .update_config_args(repository, name, version, sample, sample_size, alert_config)
     }
 }
 
@@ -395,18 +374,17 @@ mod tests {
     #[test]
     fn test_drift_config() {
         let mut drift_config =
-            SpcDriftConfig::new(None, None, None, None, None, None, None, None).unwrap();
+            SpcDriftConfig::new(None, None, None, None, None, None, None).unwrap();
         assert_eq!(drift_config.sample_size, 25);
         assert!(drift_config.sample);
         assert_eq!(drift_config.name, "__missing__");
         assert_eq!(drift_config.repository, "__missing__");
         assert_eq!(drift_config.version, "0.1.0");
-        assert_eq!(drift_config.targets.len(), 0);
         assert_eq!(drift_config.alert_config, SpcAlertConfig::default());
 
         // update
         drift_config
-            .update_config_args(None, Some("test".to_string()), None, None, None, None, None)
+            .update_config_args(None, Some("test".to_string()), None, None, None, None)
             .unwrap();
 
         assert_eq!(drift_config.name, "test");

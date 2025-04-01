@@ -299,9 +299,6 @@ VALUES
                       ],
                       "psi_threshold": 0.03
                     },
-                    "targets": [
-                      "target"
-                    ],
                     "drift_type": "Psi"
                   },
                   "scouter_version": "0.3.2"

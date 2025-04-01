@@ -145,11 +145,6 @@ mod tests {
             None,
             None,
             None,
-            Some(vec![
-                "feature_1".to_string(),
-                "feature_2".to_string(),
-                "feature_3".to_string(),
-            ]),
             Some(alert_config),
             None,
         );

@@ -4,7 +4,6 @@
     "sample": true,
     "sample_size": 100,
     "version": "1.0.0",
-    "targets": [],
     "drift_type": "Spc",
     "feature_map": {
       "features": {}

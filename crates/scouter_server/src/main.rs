@@ -344,7 +344,6 @@ mod tests {
             None,
             None,
             None,
-            None,
             Some(alert_config),
             None,
         );
@@ -505,7 +504,7 @@ mod tests {
             ..Default::default()
         };
 
-        let config = PsiDriftConfig::new("test", "test", "1.0.0", None, alert_config, None);
+        let config = PsiDriftConfig::new("test", "test", "1.0.0", alert_config, None);
 
         let monitor = PsiMonitor::new();
 

@@ -70,7 +70,6 @@ VALUES
             "feature_map": {
               "features": {}
             },
-            "targets": [],
             "drift_type": "Spc"
           },
           "scouter_version": "0.3.3"
