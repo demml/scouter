@@ -1,6 +1,4 @@
-use scouter_types::{
-    psi::BinType, Features, PsiServerRecord, RecordType, ServerRecord, ServerRecords,
-};
+use scouter_types::{psi::BinType, Features, PsiServerRecord, ServerRecord, ServerRecords};
 use tracing::{debug, error, instrument};
 
 use crate::psi::monitor::PsiMonitor;
@@ -222,7 +220,7 @@ impl PsiFeatureQueue {
             })
             .collect::<Vec<ServerRecord>>();
 
-        Ok(ServerRecords::new(records, RecordType::Psi))
+        Ok(ServerRecords::new(records))
     }
 
     pub fn is_empty(&self) -> bool {

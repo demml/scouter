@@ -4,7 +4,6 @@ use pyo3::IntoPyObjectExt;
 use scouter_error::{PyScouterError, ScouterError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tracing::error;
 
 #[pyclass(eq)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
@@ -36,9 +35,6 @@ pub struct SpcServerRecord {
 
     #[pyo3(get)]
     pub value: f64,
-
-    #[pyo3(get)]
-    pub record_type: RecordType,
 }
 
 #[pymethods]
@@ -52,7 +48,6 @@ impl SpcServerRecord {
             version,
             feature,
             value,
-            record_type: RecordType::Spc,
         }
     }
 
@@ -101,9 +96,6 @@ pub struct PsiServerRecord {
 
     #[pyo3(get)]
     pub bin_count: usize,
-
-    #[pyo3(get)]
-    pub record_type: RecordType,
 }
 
 #[pymethods]
@@ -125,7 +117,6 @@ impl PsiServerRecord {
             feature,
             bin_id,
             bin_count,
-            record_type: RecordType::Psi,
         }
     }
 
@@ -160,9 +151,6 @@ pub struct CustomMetricServerRecord {
 
     #[pyo3(get)]
     pub value: f64,
-
-    #[pyo3(get)]
-    pub record_type: RecordType,
 }
 
 #[pymethods]
@@ -176,7 +164,6 @@ impl CustomMetricServerRecord {
             version,
             metric: metric.to_lowercase(),
             value,
-            record_type: RecordType::Custom,
         }
     }
 
@@ -263,9 +250,6 @@ pub struct ObservabilityMetrics {
 
     #[pyo3(get)]
     pub route_metrics: Vec<RouteMetrics>,
-
-    #[pyo3(get)]
-    pub record_type: RecordType,
 }
 
 #[pymethods]
@@ -294,26 +278,26 @@ pub enum ServerRecord {
 impl ServerRecord {
     #[new]
     pub fn new(record: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let record_type: RecordType = record.getattr("record_type").unwrap().extract().unwrap();
-
-        match record_type {
-            RecordType::Spc => {
-                let record: SpcServerRecord = record.extract().unwrap();
-                Ok(ServerRecord::Spc(record))
-            }
-            RecordType::Psi => {
-                let record: PsiServerRecord = record.extract().unwrap();
-                Ok(ServerRecord::Psi(record))
-            }
-            RecordType::Custom => {
-                let record: CustomMetricServerRecord = record.extract().unwrap();
-                Ok(ServerRecord::Custom(record))
-            }
-            RecordType::Observability => {
-                let record: ObservabilityMetrics = record.extract().unwrap();
-                Ok(ServerRecord::Observability(record))
-            }
+        if let Ok(spc_record) = record.extract::<SpcServerRecord>() {
+            return Ok(ServerRecord::Spc(spc_record));
         }
+
+        if let Ok(psi_record) = record.extract::<PsiServerRecord>() {
+            return Ok(ServerRecord::Psi(psi_record));
+        }
+
+        if let Ok(custom_record) = record.extract::<CustomMetricServerRecord>() {
+            return Ok(ServerRecord::Custom(custom_record));
+        }
+
+        if let Ok(observability_record) = record.extract::<ObservabilityMetrics>() {
+            return Ok(ServerRecord::Observability(observability_record));
+        }
+
+        // If none of the extractions succeeded, return an error
+        Err(PyScouterError::new_err(
+            "Unable to extract record into any known ServerRecord variant",
+        ))
     }
 
     #[getter]
@@ -353,20 +337,14 @@ impl ServerRecord {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct ServerRecords {
     #[pyo3(get)]
-    pub record_type: RecordType,
-
-    #[pyo3(get)]
     pub records: Vec<ServerRecord>,
 }
 
 #[pymethods]
 impl ServerRecords {
     #[new]
-    pub fn new(records: Vec<ServerRecord>, record_type: RecordType) -> Self {
-        Self {
-            record_type,
-            records,
-        }
+    pub fn new(records: Vec<ServerRecord>) -> Self {
+        Self { records }
     }
     pub fn model_dump_json(&self) -> String {
         // serialize records to a string
@@ -380,6 +358,19 @@ impl ServerRecords {
 }
 
 impl ServerRecords {
+    pub fn record_type(&self) -> Result<RecordType, ScouterError> {
+        if let Some(first) = self.records.first() {
+            match first {
+                ServerRecord::Spc(_) => Ok(RecordType::Spc),
+                ServerRecord::Psi(_) => Ok(RecordType::Psi),
+                ServerRecord::Custom(_) => Ok(RecordType::Custom),
+                ServerRecord::Observability(_) => Ok(RecordType::Observability),
+            }
+        } else {
+            Err(ScouterError::EmptyServerRecordsError)
+        }
+    }
+
     // Helper function to load records from bytes. Used by scouter-server consumers
     //
     // # Arguments
@@ -409,92 +400,52 @@ pub trait ToDriftRecords {
 }
 impl ToDriftRecords for ServerRecords {
     fn to_spc_drift_records(&self) -> Result<Vec<SpcServerRecord>, ScouterError> {
-        match self.record_type {
-            RecordType::Spc => {
-                let mut records = Vec::new();
-                for record in self.records.iter() {
-                    match record {
-                        ServerRecord::Spc(inner_record) => {
-                            records.push(inner_record.clone());
-                        }
-                        _ => {
-                            error!("Unexpected record type");
-                        }
-                    }
-                }
-                Ok(records)
-            }
-            _ => Err(ScouterError::InvalidDriftTypeError(
-                "Unexpected record type".to_string(),
-            )),
-        }
+        extract_records(self, |record| match record {
+            ServerRecord::Spc(inner) => Some(inner.clone()),
+            _ => None,
+        })
     }
 
     fn to_observability_drift_records(&self) -> Result<Vec<ObservabilityMetrics>, ScouterError> {
-        match self.record_type {
-            RecordType::Observability => {
-                let mut records = Vec::new();
-                for record in self.records.iter() {
-                    match record {
-                        ServerRecord::Observability(inner_record) => {
-                            records.push(inner_record.clone());
-                        }
-                        _ => {
-                            error!("Unexpected record type");
-                        }
-                    }
-                }
-                Ok(records)
-            }
-            _ => Err(ScouterError::InvalidDriftTypeError(
-                "Unexpected record type".to_string(),
-            )),
-        }
+        extract_records(self, |record| match record {
+            ServerRecord::Observability(inner) => Some(inner.clone()),
+            _ => None,
+        })
     }
 
     fn to_psi_drift_records(&self) -> Result<Vec<PsiServerRecord>, ScouterError> {
-        match self.record_type {
-            RecordType::Psi => {
-                let mut records = Vec::new();
-                for record in self.records.iter() {
-                    match record {
-                        ServerRecord::Psi(inner_record) => {
-                            records.push(inner_record.clone());
-                        }
-                        _ => {
-                            error!("Unexpected record type");
-                        }
-                    }
-                }
-                Ok(records)
-            }
-            _ => Err(ScouterError::InvalidDriftTypeError(
-                "Unexpected record type".to_string(),
-            )),
-        }
+        extract_records(self, |record| match record {
+            ServerRecord::Psi(inner) => Some(inner.clone()),
+            _ => None,
+        })
     }
 
     fn to_custom_metric_drift_records(
         &self,
     ) -> Result<Vec<CustomMetricServerRecord>, ScouterError> {
-        match self.record_type {
-            RecordType::Custom => {
-                let mut records = Vec::new();
-                for record in self.records.iter() {
-                    match record {
-                        ServerRecord::Custom(inner_record) => {
-                            records.push(inner_record.clone());
-                        }
-                        _ => {
-                            error!("Unexpected record type");
-                        }
-                    }
-                }
-                Ok(records)
-            }
-            _ => Err(ScouterError::InvalidDriftTypeError(
+        extract_records(self, |record| match record {
+            ServerRecord::Custom(inner) => Some(inner.clone()),
+            _ => None,
+        })
+    }
+}
+
+// Helper function to extract records of a specific type
+fn extract_records<T>(
+    server_records: &ServerRecords,
+    extractor: impl Fn(&ServerRecord) -> Option<T>,
+) -> Result<Vec<T>, ScouterError> {
+    let mut records = Vec::new();
+
+    for record in &server_records.records {
+        if let Some(extracted) = extractor(record) {
+            records.push(extracted);
+        } else {
+            return Err(ScouterError::InvalidDriftTypeError(
                 "Unexpected record type".to_string(),
-            )),
+            ));
         }
     }
+
+    Ok(records)
 }

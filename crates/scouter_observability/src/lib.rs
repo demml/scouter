@@ -7,7 +7,7 @@ use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 use scouter_error::ObserverError;
 use scouter_types::{
-    LatencyMetrics, ObservabilityMetrics, RecordType, RouteMetrics, ServerRecord, ServerRecords,
+    LatencyMetrics, ObservabilityMetrics, RouteMetrics, ServerRecord, ServerRecords,
 };
 use std::collections::HashMap;
 use tracing::{debug, error};
@@ -208,11 +208,9 @@ impl Observer {
             request_count: self.request_count,
             error_count: self.error_count,
             route_metrics,
-            record_type: RecordType::Observability,
         });
 
         Ok(Some(ServerRecords {
-            record_type: RecordType::Observability,
             records: vec![record],
         }))
     }

@@ -8,7 +8,7 @@ use rayon::prelude::*;
 use scouter_error::MonitorError;
 use scouter_types::{
     spc::{SpcDriftConfig, SpcDriftProfile, SpcFeatureDriftProfile},
-    RecordType, ServerRecord, ServerRecords, SpcServerRecord,
+    ServerRecord, ServerRecords, SpcServerRecord,
 };
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -444,7 +444,7 @@ impl SpcMonitor {
             });
         }
 
-        Ok(ServerRecords::new(records, RecordType::Spc))
+        Ok(ServerRecords::new(records))
     }
 
     pub fn calculate_drift_from_sample(

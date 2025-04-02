@@ -2,7 +2,6 @@ from scouter.queue import (
     CustomMetricServerRecord,
     KafkaConfig,
     PsiServerRecord,
-    RecordType,
     ScouterProducer,
     ServerRecord,
     ServerRecords,
@@ -74,12 +73,7 @@ def test_kafka_producer_spc():
         value=0.1,
     )
 
-    producer.publish(
-        ServerRecords(
-            records=[ServerRecord(record)],
-            record_type=RecordType.Spc,
-        )
-    )
+    producer.publish(ServerRecords(records=[ServerRecord(record)]))
     producer.flush()
 
 
@@ -102,12 +96,7 @@ def test_kafka_producer_psi():
         bin_count=1,
     )
 
-    producer.publish(
-        ServerRecords(
-            records=[ServerRecord(record)],
-            record_type=RecordType.Psi,
-        )
-    )
+    producer.publish(ServerRecords(records=[ServerRecord(record)]))
     producer.flush()
 
 
@@ -129,10 +118,5 @@ def test_kafka_producer_custom():
         value=0.1,
     )
 
-    producer.publish(
-        ServerRecords(
-            records=[ServerRecord(record)],
-            record_type=RecordType.Custom,
-        )
-    )
+    producer.publish(ServerRecords(records=[ServerRecord(record)]))
     producer.flush()

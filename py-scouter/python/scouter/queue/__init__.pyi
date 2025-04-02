@@ -145,19 +145,13 @@ class ServerRecord:
         """Return the drift server record."""
 
 class ServerRecords:
-    def __init__(self, records: List[ServerRecord], record_type: RecordType) -> None:
+    def __init__(self, records: List[ServerRecord]) -> None:
         """Initialize server records
 
         Args:
             records:
                 List of server records
-            record_type:
-                Type of server records
         """
-
-    @property
-    def record_type(self) -> RecordType:
-        """Return the drift type."""
 
     @property
     def records(self) -> List[ServerRecord]:

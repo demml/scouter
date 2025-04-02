@@ -856,7 +856,7 @@ impl MessageHandler {
     pub async fn insert_server_records(&self, records: &ServerRecords) -> Result<(), ScouterError> {
         match self {
             Self::Postgres(client) => {
-                match records.record_type {
+                match records.record_type()? {
                     RecordType::Spc => {
                         debug!("SPC record count: {:?}", records.len());
                         let records = records.to_spc_drift_records()?;
@@ -953,7 +953,7 @@ mod tests {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
 
-        let timestamp = chrono::Utc::now().naive_utc();
+        let timestamp = Utc::now().naive_utc();
 
         for _ in 0..10 {
             let service_info = ServiceInfo {
@@ -1020,13 +1020,12 @@ mod tests {
         cleanup(&client.pool).await;
 
         let record = SpcServerRecord {
-            created_at: chrono::Utc::now().naive_utc(),
+            created_at: Utc::now().naive_utc(),
             name: "test".to_string(),
             space: "test".to_string(),
             version: "test".to_string(),
             feature: "test".to_string(),
             value: 1.0,
-            record_type: RecordType::Spc,
         };
 
         let result = client.insert_spc_drift_record(&record).await.unwrap();
@@ -1040,14 +1039,13 @@ mod tests {
         cleanup(&client.pool).await;
 
         let record = PsiServerRecord {
-            created_at: chrono::Utc::now().naive_utc(),
+            created_at: Utc::now().naive_utc(),
             name: "test".to_string(),
             space: "test".to_string(),
             version: "test".to_string(),
             feature: "test".to_string(),
             bin_id: 1,
             bin_count: 1,
-            record_type: RecordType::Psi,
         };
 
         let result = client.insert_bin_counts(&record).await.unwrap();
@@ -1121,18 +1119,17 @@ mod tests {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
 
-        let timestamp = chrono::Utc::now().naive_utc();
+        let timestamp = Utc::now().naive_utc();
 
         for _ in 0..10 {
             for j in 0..10 {
                 let record = SpcServerRecord {
-                    created_at: chrono::Utc::now().naive_utc(),
+                    created_at: Utc::now().naive_utc(),
                     name: "test".to_string(),
                     space: "test".to_string(),
                     version: "test".to_string(),
                     feature: format!("test{}", j),
                     value: j as f64,
-                    record_type: RecordType::Spc,
                 };
 
                 let result = client.insert_spc_drift_record(&record).await.unwrap();
@@ -1175,20 +1172,19 @@ mod tests {
     async fn test_postgres_bin_proportions() {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
-        let timestamp = chrono::Utc::now().naive_utc();
+        let timestamp = Utc::now().naive_utc();
 
         for feature in 0..3 {
             for bin in 0..=5 {
                 for _ in 0..=100 {
                     let record = PsiServerRecord {
-                        created_at: chrono::Utc::now().naive_utc(),
+                        created_at: Utc::now().naive_utc(),
                         name: "test".to_string(),
                         space: "test".to_string(),
                         version: "test".to_string(),
                         feature: format!("feature{}", feature),
                         bin_id: bin,
                         bin_count: rand::thread_rng().gen_range(0..10),
-                        record_type: RecordType::Psi,
                     };
 
                     client.insert_bin_counts(&record).await.unwrap();
@@ -1238,18 +1234,17 @@ mod tests {
     async fn test_postgres_cru_custom_metric() {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
-        let timestamp = chrono::Utc::now().naive_utc();
+        let timestamp = Utc::now().naive_utc();
 
         for i in 0..2 {
             for _ in 0..25 {
                 let record = CustomMetricServerRecord {
-                    created_at: chrono::Utc::now().naive_utc(),
+                    created_at: Utc::now().naive_utc(),
                     name: "test".to_string(),
                     space: "test".to_string(),
                     version: "test".to_string(),
                     metric: format!("metric{}", i),
                     value: rand::thread_rng().gen_range(0..10) as f64,
-                    record_type: RecordType::Custom,
                 };
 
                 let result = client.insert_custom_metric_value(&record).await.unwrap();
@@ -1259,13 +1254,12 @@ mod tests {
 
         // insert random record to test has statistics funcs handle single record
         let record = CustomMetricServerRecord {
-            created_at: chrono::Utc::now().naive_utc(),
+            created_at: Utc::now().naive_utc(),
             name: "test".to_string(),
             space: "test".to_string(),
             version: "test".to_string(),
             metric: "metric3".to_string(),
             value: rand::thread_rng().gen_range(0..10) as f64,
-            record_type: RecordType::Custom,
         };
 
         let result = client.insert_custom_metric_value(&record).await.unwrap();

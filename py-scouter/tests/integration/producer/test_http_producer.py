@@ -2,7 +2,6 @@ from scouter.client import HTTPConfig
 from scouter.queue import (
     CustomMetricServerRecord,
     PsiServerRecord,
-    RecordType,
     ScouterProducer,
     ServerRecord,
     ServerRecords,
@@ -39,12 +38,7 @@ def test_http_producer_spc():
         value=0.1,
     )
 
-    producer.publish(
-        message=ServerRecords(
-            records=[ServerRecord(record)],
-            record_type=RecordType.Spc,
-        )
-    )
+    producer.publish(message=ServerRecords(records=[ServerRecord(record)]))
     producer.flush()
 
 
@@ -66,12 +60,7 @@ def test_http_producer_psi():
         bin_count=1,
     )
 
-    producer.publish(
-        message=ServerRecords(
-            records=[ServerRecord(record)],
-            record_type=RecordType.Spc,
-        )
-    )
+    producer.publish(message=ServerRecords(records=[ServerRecord(record)]))
     producer.flush()
 
 
@@ -92,11 +81,6 @@ def test_http_producer_custom():
         value=0.1,
     )
 
-    producer.publish(
-        message=ServerRecords(
-            records=[ServerRecord(record)],
-            record_type=RecordType.Spc,
-        )
-    )
+    producer.publish(message=ServerRecords(records=[ServerRecord(record)]))
 
     producer.flush()

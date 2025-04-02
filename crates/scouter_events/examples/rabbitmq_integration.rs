@@ -3,7 +3,7 @@ pub mod utils;
 use crate::utils::setup_logging;
 use scouter_contracts::ServiceInfo;
 
-use scouter_types::{RecordType, ServerRecord, ServerRecords, SpcServerRecord};
+use scouter_types::{ServerRecord, ServerRecords, SpcServerRecord};
 use std::time::{Duration, Instant};
 use utils::TestHelper;
 
@@ -46,15 +46,11 @@ impl RabbitMQSetup for TestHelper {
                         feature: "feature".to_string(),
                         value: i as f64,
                         version: "1.0.0".to_string(),
-                        record_type: RecordType::Spc,
                     });
                     records.push(record);
                 }
 
-                let server_records = ServerRecords {
-                    record_type: RecordType::Spc,
-                    records,
-                };
+                let server_records = ServerRecords { records };
 
                 let _confirm = channel
                     .basic_publish(

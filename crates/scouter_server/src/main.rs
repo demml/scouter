@@ -159,9 +159,7 @@ mod tests {
     use scouter_types::psi::BinnedPsiFeatureMetrics;
     use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
     use scouter_types::{CustomMetricServerRecord, PsiServerRecord};
-    use scouter_types::{
-        DriftType, RecordType, ServerRecord, ServerRecords, SpcServerRecord, TimeInterval,
-    };
+    use scouter_types::{DriftType, ServerRecord, ServerRecords, SpcServerRecord, TimeInterval};
     // for `collect`
     use crate::api::routes::health::Alive;
     use ndarray::Array;
@@ -246,7 +244,6 @@ mod tests {
 
         pub fn get_spc_drift_records(&self) -> ServerRecords {
             let mut records: Vec<ServerRecord> = Vec::new();
-            let record_type = RecordType::Spc;
             for _ in 0..10 {
                 for j in 0..10 {
                     let record = SpcServerRecord {
@@ -256,14 +253,12 @@ mod tests {
                         version: "test".to_string(),
                         feature: format!("test{}", j),
                         value: j as f64,
-                        record_type: RecordType::Spc,
                     };
-
                     records.push(ServerRecord::Spc(record));
                 }
             }
 
-            ServerRecords::new(records, record_type)
+            ServerRecords::new(records)
         }
 
         pub fn get_psi_drift_records(&self) -> ServerRecords {
@@ -280,14 +275,13 @@ mod tests {
                             feature: format!("feature_{}", feature),
                             bin_id: decile,
                             bin_count: rand::thread_rng().gen_range(0..10),
-                            record_type: RecordType::Psi,
                         };
 
                         records.push(ServerRecord::Psi(record));
                     }
                 }
             }
-            ServerRecords::new(records, RecordType::Psi)
+            ServerRecords::new(records)
         }
 
         pub fn get_custom_drift_records(&self) -> ServerRecords {
@@ -301,14 +295,13 @@ mod tests {
                         version: "1.0.0".to_string(),
                         metric: format!("metric{}", i),
                         value: rand::thread_rng().gen_range(0..10) as f64,
-                        record_type: RecordType::Custom,
                     };
 
                     records.push(ServerRecord::Custom(record));
                 }
             }
 
-            ServerRecords::new(records, RecordType::Custom)
+            ServerRecords::new(records)
         }
     }
 

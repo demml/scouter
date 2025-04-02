@@ -188,28 +188,41 @@ pub async fn insert_drift(
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     debug!("Inserting drift record: {:?}", body);
 
-    let inserted = match body.record_type {
+    let record_type = match body.record_type() {
+        Ok(rt) => rt,
+        Err(e) => {
+            error!("Invalid record type: {:?}", e);
+            return Err((
+                StatusCode::BAD_REQUEST,
+                Json(json!({
+                    "status": "error",
+                    "message": format!("{:?}", e)
+                })),
+            ));
+        }
+    };
+
+    let result = match record_type {
         RecordType::Spc => insert_spc_drift(&body, &data.db).await,
         RecordType::Psi => insert_psi_drift(&body, &data.db).await,
         RecordType::Custom => insert_custom_drift(&body, &data.db).await,
         _ => Err(ScouterError::Error("Invalid record type".to_string())),
     };
 
-    match inserted {
-        Ok(_) => {
-            let json_response = json!({
-                "status": "success",
-                "message": "Record inserted successfully"
-            });
-            Ok(Json(json_response))
-        }
+    match result {
+        Ok(_) => Ok(Json(json!({
+            "status": "success",
+            "message": "Record inserted successfully"
+        }))),
         Err(e) => {
             error!("Failed to insert drift record: {:?}", e);
-            let json_response = json!({
-                "status": "error",
-                "message": format!("{:?}", e)
-            });
-            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(json!({
+                    "status": "error",
+                    "message": format!("{:?}", e)
+                })),
+            ))
         }
     }
 }

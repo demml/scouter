@@ -2,7 +2,7 @@ use core::result::Result::Ok;
 use scouter_error::FeatureQueueError;
 use scouter_types::Metrics;
 use scouter_types::{
-    custom::CustomDriftProfile, CustomMetricServerRecord, RecordType, ServerRecord, ServerRecords,
+    custom::CustomDriftProfile, CustomMetricServerRecord, ServerRecord, ServerRecords,
 };
 use std::collections::HashMap;
 use tracing::error;
@@ -80,7 +80,7 @@ impl CustomMetricFeatureQueue {
             })
             .collect::<Vec<ServerRecord>>();
 
-        Ok(ServerRecords::new(averages, RecordType::Custom))
+        Ok(ServerRecords::new(averages))
     }
 
     pub fn is_empty(&self) -> bool {
