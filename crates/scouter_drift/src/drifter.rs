@@ -237,13 +237,13 @@ pub mod drift_executor {
                 FROM scouter.drift;
 
                 DELETE 
-                FROM scouter.observability_metrics;
+                FROM scouter.observability_metric;
 
                 DELETE
-                FROM scouter.custom_metrics;
+                FROM scouter.custom_metric;
 
                 DELETE
-                FROM scouter.drift_alerts;
+                FROM scouter.drift_alert;
 
                 DELETE
                 FROM scouter.drift_profile;

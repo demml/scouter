@@ -1,5 +1,5 @@
 -- Add migration script here
-CREATE TABLE IF NOT exists scouter.drift_alerts (
+CREATE TABLE IF NOT exists scouter.drift_alert (
   created_at timestamp not null default (timezone('utc', now())),
   name varchar(256) not null,
   space varchar(256) not null,
@@ -12,13 +12,13 @@ CREATE TABLE IF NOT exists scouter.drift_alerts (
 )
 PARTITION BY RANGE (created_at);
 
-CREATE INDEX ON scouter.drift_alerts (name, space, version, created_at);
+CREATE INDEX ON scouter.drift_alert (name, space, version, created_at);
 
 SELECT scouter.create_parent(
-    'scouter.drift_alerts',
+    'scouter.drift_alert',
     'created_at',
     '1 day'
 );
 
-UPDATE scouter.part_config SET retention = '21 days' WHERE parent_table = 'scouter.alerts';
+UPDATE scouter.part_config SET retention = '21 days' WHERE parent_table = 'scouter.alert';
 
