@@ -21,7 +21,7 @@ pub mod custom_drifter {
             Self {
                 service_info: ServiceInfo {
                     name: profile.config.name.clone(),
-                    repository: profile.config.repository.clone(),
+                    space: profile.config.space.clone(),
                     version: profile.config.version.clone(),
                 },
                 profile,
@@ -41,7 +41,7 @@ pub mod custom_drifter {
                 .map_err(|e| {
                     let msg = format!(
                         "Error: Unable to obtain custom metric data from DB for {}/{}/{}: {}",
-                        self.service_info.repository,
+                        self.service_info.space,
                         self.service_info.name,
                         self.service_info.version,
                         e
@@ -63,7 +63,7 @@ pub mod custom_drifter {
             if metric_map.is_empty() {
                 info!(
                 "No custom metric data was found for {}/{}/{}. This indicates that no real-world data values have been recorded in the database for the monitored features as of {}. Skipping alert processing.",
-                self.service_info.repository,
+                self.service_info.space,
                 self.service_info.name,
                 self.service_info.version,
                 limit_datetime
@@ -140,7 +140,7 @@ pub mod custom_drifter {
             if metric_alerts.is_empty() {
                 info!(
                     "No alerts to process for {}/{}/{}",
-                    self.service_info.repository, self.service_info.name, self.service_info.version
+                    self.service_info.space, self.service_info.name, self.service_info.version
                 );
                 return Ok(None);
             }
@@ -148,10 +148,7 @@ pub mod custom_drifter {
             let alert_dispatcher = AlertDispatcher::new(&self.profile.config).map_err(|e| {
                 let msg = format!(
                     "Error creating alert dispatcher for {}/{}/{}: {}",
-                    self.service_info.repository,
-                    self.service_info.name,
-                    self.service_info.version,
-                    e
+                    self.service_info.space, self.service_info.name, self.service_info.version, e
                 );
                 error!(msg);
                 DriftError::Error(msg)
@@ -161,7 +158,7 @@ pub mod custom_drifter {
                 alert_dispatcher.process_alerts(alert).await.map_err(|e| {
                     let msg = format!(
                         "Error processing alerts for {}/{}/{}: {}",
-                        self.service_info.repository,
+                        self.service_info.space,
                         self.service_info.name,
                         self.service_info.version,
                         e
@@ -214,7 +211,7 @@ pub mod custom_drifter {
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             info!(
                 "Processing custom metric(s) task for profile: {}/{}/{}",
-                self.service_info.repository, self.service_info.name, self.service_info.version
+                self.service_info.space, self.service_info.name, self.service_info.version
             );
 
             let metric_map = self.get_metric_map(&previous_run, db_client).await?;
@@ -224,7 +221,7 @@ pub mod custom_drifter {
                     let alerts = self.generate_alerts(&metric_map).await.map_err(|e| {
                         let msg = format!(
                             "Error generating alerts for {}/{}/{}: {}",
-                            self.service_info.repository,
+                            self.service_info.space,
                             self.service_info.name,
                             self.service_info.version,
                             e

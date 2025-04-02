@@ -211,7 +211,7 @@ impl PsiFeatureQueue {
             .flat_map(|(feature_name, bin_map)| {
                 bin_map.iter().map(move |(bin_id, count)| {
                     ServerRecord::Psi(PsiServerRecord::new(
-                        self.drift_profile.config.repository.clone(),
+                        self.drift_profile.config.space.clone(),
                         self.drift_profile.config.name.clone(),
                         self.drift_profile.config.version.clone(),
                         feature_name.to_string(),

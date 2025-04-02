@@ -1,5 +1,5 @@
 -- Insert initial data into drift_profile
-INSERT INTO scouter.drift_profile (created_at, updated_at, name, repository, version, profile, drift_type, active, schedule, next_run, previous_run)
+INSERT INTO scouter.drift_profile (created_at, updated_at, name, space, version, profile, drift_type, active, schedule, next_run, previous_run)
 VALUES
     (
         timezone('utc', now()),
@@ -47,7 +47,7 @@ VALUES
             "sample_size": 25,
             "sample": true,
             "name": "test_app",
-            "repository": "statworld",
+            "space": "statworld",
             "version": "0.1.0",
             "alert_config": {
               "rule": {
@@ -81,7 +81,7 @@ VALUES
         timezone('utc', now() - interval '3 days')
     );
 
-INSERT INTO scouter.drift (created_at, name, repository, feature, value, version)
+INSERT INTO scouter.drift (created_at, name, space, feature, value, version)
 VALUES
     (timezone('utc', now()), 'test_app', 'statworld', 'col_1', random() + 10, '0.1.0'),
     (timezone('utc', now()), 'test_app', 'statworld', 'col_1', random() + 10, '0.1.0'),

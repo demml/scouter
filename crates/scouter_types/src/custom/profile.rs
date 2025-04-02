@@ -24,7 +24,7 @@ pub struct CustomMetricDriftConfig {
     pub sample: bool,
 
     #[pyo3(get, set)]
-    pub repository: String,
+    pub space: String,
 
     #[pyo3(get, set)]
     pub name: String,
@@ -43,7 +43,7 @@ impl DispatchDriftConfig for CustomMetricDriftConfig {
     fn get_drift_args(&self) -> DriftArgs {
         DriftArgs {
             name: self.name.clone(),
-            repository: self.repository.clone(),
+            space: self.space.clone(),
             version: self.version.clone(),
             dispatch_config: self.alert_config.dispatch_config.clone(),
         }
@@ -54,9 +54,9 @@ impl DispatchDriftConfig for CustomMetricDriftConfig {
 #[allow(clippy::too_many_arguments)]
 impl CustomMetricDriftConfig {
     #[new]
-    #[pyo3(signature = (repository=MISSING, name=MISSING, version=DEFAULT_VERSION, sample=true, sample_size=25, alert_config=CustomMetricAlertConfig::default(), config_path=None))]
+    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, sample=true, sample_size=25, alert_config=CustomMetricAlertConfig::default(), config_path=None))]
     pub fn new(
-        repository: &str,
+        space: &str,
         name: &str,
         version: &str,
         sample: bool,
@@ -64,17 +64,6 @@ impl CustomMetricDriftConfig {
         alert_config: CustomMetricAlertConfig,
         config_path: Option<PathBuf>,
     ) -> Result<Self, CustomMetricError> {
-        //let name = name.unwrap_or(MISSING.to_string());
-        //let repository = repository.unwrap_or(MISSING.to_string());
-        //
-        //if name == MISSING || repository == MISSING {
-        //    debug!("Name and repository were not provided. Defaulting to __missing__");
-        //}
-
-        //let sample = sample.unwrap_or(true);
-        //let sample_size = sample_size.unwrap_or(25);
-        //let version = version.unwrap_or("0.1.0".to_string());
-
         if let Some(config_path) = config_path {
             let config = CustomMetricDriftConfig::load_from_json_file(config_path)
                 .map_err(|e| CustomMetricError::Error(e.to_string()));
@@ -82,12 +71,10 @@ impl CustomMetricDriftConfig {
             return config;
         }
 
-        //let alert_config = alert_config.unwrap_or_default();
-
         Ok(Self {
             sample_size,
             sample,
-            repository: repository.to_string(),
+            space: space.to_string(),
             name: name.to_string(),
             version: version.to_string(),
             alert_config,
@@ -115,10 +102,10 @@ impl CustomMetricDriftConfig {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (repository=None, name=None, version=None, alert_config=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
-        repository: Option<String>,
+        space: Option<String>,
         name: Option<String>,
         version: Option<String>,
         alert_config: Option<CustomMetricAlertConfig>,
@@ -127,9 +114,8 @@ impl CustomMetricDriftConfig {
             self.name = name.ok_or(ScouterError::TypeError("name".to_string()))?;
         }
 
-        if repository.is_some() {
-            self.repository =
-                repository.ok_or(ScouterError::TypeError("repository".to_string()))?;
+        if space.is_some() {
+            self.space = space.ok_or(ScouterError::TypeError("space".to_string()))?;
         }
 
         if version.is_some() {
@@ -238,16 +224,16 @@ impl CustomDriftProfile {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (repository=None, name=None, version=None, alert_config=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
-        repository: Option<String>,
+        space: Option<String>,
         name: Option<String>,
         version: Option<String>,
         alert_config: Option<CustomMetricAlertConfig>,
     ) -> Result<(), ScouterError> {
         self.config
-            .update_config_args(repository, name, version, alert_config)
+            .update_config_args(space, name, version, alert_config)
     }
 
     #[getter]
@@ -288,7 +274,7 @@ impl ProfileBaseArgs for CustomDriftProfile {
     fn get_base_args(&self) -> ProfileArgs {
         ProfileArgs {
             name: self.config.name.clone(),
-            repository: self.config.repository.clone(),
+            space: self.config.space.clone(),
             version: self.config.version.clone(),
             schedule: self.config.alert_config.schedule.clone(),
             scouter_version: self.scouter_version.clone(),
@@ -320,7 +306,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(drift_config.name, "__missing__");
-        assert_eq!(drift_config.repository, "__missing__");
+        assert_eq!(drift_config.space, "__missing__");
         assert_eq!(drift_config.version, "0.1.0");
         assert_eq!(
             drift_config.alert_config.dispatch_config,

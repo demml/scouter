@@ -18,7 +18,7 @@ def test_profile_download(
 
     profile_request = GetProfileRequest(
         name=profile.config.name,
-        repository=profile.config.repository,
+        space=profile.config.space,
         version=profile.config.version,
         drift_type=profile.config.drift_type,
     )

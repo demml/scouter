@@ -29,7 +29,7 @@ pub enum BinType {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct PsiDriftConfig {
     #[pyo3(get, set)]
-    pub repository: String,
+    pub space: String,
 
     #[pyo3(get, set)]
     pub name: String,
@@ -58,9 +58,9 @@ impl PsiDriftConfig {
 impl PsiDriftConfig {
     // TODO dry this out
     #[new]
-    #[pyo3(signature = (repository=MISSING, name=MISSING, version=DEFAULT_VERSION, alert_config=PsiAlertConfig::default(), config_path=None))]
+    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, alert_config=PsiAlertConfig::default(), config_path=None))]
     pub fn new(
-        repository: &str,
+        space: &str,
         name: &str,
         version: &str,
         alert_config: PsiAlertConfig,
@@ -71,13 +71,13 @@ impl PsiDriftConfig {
             return config;
         }
 
-        if name == MISSING || repository == MISSING {
-            debug!("Name and repository were not provided. Defaulting to __missing__");
+        if name == MISSING || space == MISSING {
+            debug!("Name and space were not provided. Defaulting to __missing__");
         }
 
         Ok(Self {
             name: name.to_string(),
-            repository: repository.to_string(),
+            space: space.to_string(),
             version: version.to_string(),
             alert_config,
             feature_map: FeatureMap::default(),
@@ -105,10 +105,10 @@ impl PsiDriftConfig {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (repository=None, name=None, version=None, alert_config=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
-        repository: Option<String>,
+        space: Option<String>,
         name: Option<String>,
         version: Option<String>,
         alert_config: Option<PsiAlertConfig>,
@@ -117,9 +117,8 @@ impl PsiDriftConfig {
             self.name = name.ok_or(ScouterError::TypeError("name".to_string()))?;
         }
 
-        if repository.is_some() {
-            self.repository =
-                repository.ok_or(ScouterError::TypeError("repository".to_string()))?;
+        if space.is_some() {
+            self.space = space.ok_or(ScouterError::TypeError("space".to_string()))?;
         }
 
         if version.is_some() {
@@ -139,7 +138,7 @@ impl Default for PsiDriftConfig {
     fn default() -> Self {
         PsiDriftConfig {
             name: "__missing__".to_string(),
-            repository: "__missing__".to_string(),
+            space: "__missing__".to_string(),
             version: DEFAULT_VERSION.to_string(),
             feature_map: FeatureMap::default(),
             alert_config: PsiAlertConfig::default(),
@@ -153,7 +152,7 @@ impl DispatchDriftConfig for PsiDriftConfig {
     fn get_drift_args(&self) -> DriftArgs {
         DriftArgs {
             name: self.name.clone(),
-            repository: self.repository.clone(),
+            space: self.space.clone(),
             version: self.version.clone(),
             dispatch_config: self.alert_config.dispatch_config.clone(),
         }
@@ -406,16 +405,16 @@ impl PsiDriftProfile {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (repository=None, name=None, version=None, alert_config=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
-        repository: Option<String>,
+        space: Option<String>,
         name: Option<String>,
         version: Option<String>,
         alert_config: Option<PsiAlertConfig>,
     ) -> Result<(), ScouterError> {
         self.config
-            .update_config_args(repository, name, version, alert_config)
+            .update_config_args(space, name, version, alert_config)
     }
 }
 
@@ -429,18 +428,18 @@ pub struct PsiDriftMap {
     pub name: String,
 
     #[pyo3(get)]
-    pub repository: String,
+    pub space: String,
 
     #[pyo3(get)]
     pub version: String,
 }
 
 impl PsiDriftMap {
-    pub fn new(repository: String, name: String, version: String) -> Self {
+    pub fn new(space: String, name: String, version: String) -> Self {
         Self {
             features: HashMap::new(),
             name,
-            repository,
+            space,
             version,
         }
     }
@@ -479,7 +478,7 @@ impl ProfileBaseArgs for PsiDriftProfile {
     fn get_base_args(&self) -> ProfileArgs {
         ProfileArgs {
             name: self.config.name.clone(),
-            repository: self.config.repository.clone(),
+            space: self.config.space.clone(),
             version: self.config.version.clone(),
             schedule: self.config.alert_config.schedule.clone(),
             scouter_version: self.scouter_version.clone(),
@@ -551,7 +550,7 @@ mod tests {
         )
         .unwrap();
         assert_eq!(drift_config.name, "__missing__");
-        assert_eq!(drift_config.repository, "__missing__");
+        assert_eq!(drift_config.space, "__missing__");
         assert_eq!(drift_config.version, "0.1.0");
         assert_eq!(drift_config.alert_config, PsiAlertConfig::default());
 

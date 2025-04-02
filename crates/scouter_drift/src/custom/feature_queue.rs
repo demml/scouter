@@ -71,7 +71,7 @@ impl CustomMetricFeatureQueue {
             .map(|(key, values)| {
                 let avg = values.iter().sum::<f64>() / values.len() as f64;
                 ServerRecord::Custom(CustomMetricServerRecord::new(
-                    self.drift_profile.config.repository.clone(),
+                    self.drift_profile.config.space.clone(),
                     self.drift_profile.config.name.clone(),
                     self.drift_profile.config.version.clone(),
                     key.clone(),

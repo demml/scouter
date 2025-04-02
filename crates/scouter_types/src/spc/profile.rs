@@ -64,7 +64,7 @@ pub struct SpcFeatureDriftProfile {
 /// * `sample_size` - The sample size
 /// * `sample` - Whether to sample data or not, Default is true
 /// * `name` - The name of the model
-/// * `repository` - The repository associated with the model
+/// * `space` - The space associated with the model
 /// * `version` - The version of the model
 /// * `schedule` - The cron schedule for monitoring
 /// * `alert_rule` - The alerting rule to use for monitoring
@@ -79,7 +79,7 @@ pub struct SpcDriftConfig {
     pub sample: bool,
 
     #[pyo3(get, set)]
-    pub repository: String,
+    pub space: String,
 
     #[pyo3(get, set)]
     pub name: String,
@@ -101,9 +101,9 @@ pub struct SpcDriftConfig {
 #[allow(clippy::too_many_arguments)]
 impl SpcDriftConfig {
     #[new]
-    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, alert_config=None, config_path=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, sample=None, sample_size=None, alert_config=None, config_path=None))]
     pub fn new(
-        repository: Option<String>,
+        space: Option<String>,
         name: Option<String>,
         version: Option<String>,
         sample: Option<bool>,
@@ -117,10 +117,10 @@ impl SpcDriftConfig {
         }
 
         let name = name.unwrap_or(MISSING.to_string());
-        let repository = repository.unwrap_or(MISSING.to_string());
+        let space = space.unwrap_or(MISSING.to_string());
 
-        if name == MISSING || repository == MISSING {
-            debug!("Name and repository were not provided. Defaulting to __missing__");
+        if name == MISSING || space == MISSING {
+            debug!("Name and space were not provided. Defaulting to __missing__");
         }
 
         let sample = sample.unwrap_or(true);
@@ -132,7 +132,7 @@ impl SpcDriftConfig {
             sample_size,
             sample,
             name,
-            repository,
+            space,
             version,
             alert_config,
             feature_map: FeatureMap::default(),
@@ -164,17 +164,17 @@ impl SpcDriftConfig {
     // # Arguments
     //
     // * `name` - The name of the model
-    // * `repository` - The repository associated with the model
+    // * `space` - The space associated with the model
     // * `version` - The version of the model
     // * `sample` - Whether to sample data or not, Default is true
     // * `sample_size` - The sample size
     // * `alert_config` - The alerting configuration to use
     //
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, alert_config=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, sample=None, sample_size=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
-        repository: Option<String>,
+        space: Option<String>,
         name: Option<String>,
         version: Option<String>,
         sample: Option<bool>,
@@ -185,9 +185,8 @@ impl SpcDriftConfig {
             self.name = name.ok_or(ScouterError::TypeError("name".to_string()))?;
         }
 
-        if repository.is_some() {
-            self.repository =
-                repository.ok_or(ScouterError::TypeError("repository".to_string()))?;
+        if space.is_some() {
+            self.space = space.ok_or(ScouterError::TypeError("space".to_string()))?;
         }
 
         if version.is_some() {
@@ -229,7 +228,7 @@ impl DispatchDriftConfig for SpcDriftConfig {
     fn get_drift_args(&self) -> DriftArgs {
         DriftArgs {
             name: self.name.clone(),
-            repository: self.repository.clone(),
+            space: self.space.clone(),
             version: self.version.clone(),
             dispatch_config: self.alert_config.dispatch_config.clone(),
         }
@@ -324,7 +323,7 @@ impl SpcDriftProfile {
     // # Arguments
     //
     // * `name` - The name of the model
-    // * `repository` - The repository associated with the model
+    // * `space` - The space associated with the model
     // * `version` - The version of the model
     // * `sample` - Whether to sample data or not, Default is true
     // * `sample_size` - The sample size
@@ -332,10 +331,10 @@ impl SpcDriftProfile {
     // * `alert_config` - The alerting configuration to use
     //
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (repository=None, name=None, version=None, sample=None, sample_size=None, alert_config=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, sample=None, sample_size=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
-        repository: Option<String>,
+        space: Option<String>,
         name: Option<String>,
         version: Option<String>,
         sample: Option<bool>,
@@ -343,7 +342,7 @@ impl SpcDriftProfile {
         alert_config: Option<SpcAlertConfig>,
     ) -> Result<(), ScouterError> {
         self.config
-            .update_config_args(repository, name, version, sample, sample_size, alert_config)
+            .update_config_args(space, name, version, sample, sample_size, alert_config)
     }
 }
 
@@ -352,7 +351,7 @@ impl ProfileBaseArgs for SpcDriftProfile {
     fn get_base_args(&self) -> ProfileArgs {
         ProfileArgs {
             name: self.config.name.clone(),
-            repository: self.config.repository.clone(),
+            space: self.config.space.clone(),
             version: self.config.version.clone(),
             schedule: self.config.alert_config.schedule.clone(),
             scouter_version: self.scouter_version.clone(),
@@ -378,7 +377,7 @@ mod tests {
         assert_eq!(drift_config.sample_size, 25);
         assert!(drift_config.sample);
         assert_eq!(drift_config.name, "__missing__");
-        assert_eq!(drift_config.repository, "__missing__");
+        assert_eq!(drift_config.space, "__missing__");
         assert_eq!(drift_config.version, "0.1.0");
         assert_eq!(drift_config.alert_config, SpcAlertConfig::default());
 

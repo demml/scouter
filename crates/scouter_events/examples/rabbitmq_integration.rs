@@ -42,7 +42,7 @@ impl RabbitMQSetup for TestHelper {
                     let record = ServerRecord::Spc(SpcServerRecord {
                         created_at: chrono::Utc::now().naive_utc(),
                         name: "test".to_string(),
-                        repository: "test".to_string(),
+                        space: "test".to_string(),
                         feature: "feature".to_string(),
                         value: i as f64,
                         version: "1.0.0".to_string(),
@@ -106,7 +106,7 @@ async fn main() {
             // Warming up
         } else {
             let service_info = ServiceInfo {
-                repository: "test".to_string(),
+                space: "test".to_string(),
                 name: "test".to_string(),
                 version: "1.0.0".to_string(),
             };

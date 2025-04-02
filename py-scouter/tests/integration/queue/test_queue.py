@@ -53,7 +53,7 @@ def test_psi_monitor_pandas_http(
         drift_profile_request=GetProfileRequest(
             name=profile.config.name,
             version=profile.config.version,
-            repository=profile.config.repository,
+            space=profile.config.space,
             drift_type=profile.config.drift_type,
         ),
     )
@@ -75,7 +75,7 @@ def test_psi_monitor_pandas_http(
     binned_records: BinnedPsiFeatureMetrics = client.get_binned_drift(
         DriftRequest(
             name=profile.config.name,
-            repository=profile.config.repository,
+            space=profile.config.space,
             version=profile.config.version,
             time_interval=TimeInterval.FifteenMinutes,
             max_data_points=1000,
@@ -102,7 +102,7 @@ def test_spc_monitor_pandas_kafka(
         drift_profile_request=GetProfileRequest(
             name=profile.config.name,
             version=profile.config.version,
-            repository=profile.config.repository,
+            space=profile.config.space,
             drift_type=profile.config.drift_type,
         ),
     )
@@ -127,7 +127,7 @@ def test_spc_monitor_pandas_kafka(
     binned_records: BinnedSpcFeatureMetrics = client.get_binned_drift(
         DriftRequest(
             name=profile.config.name,
-            repository=profile.config.repository,
+            space=profile.config.space,
             version=profile.config.version,
             time_interval=TimeInterval.FifteenMinutes,
             max_data_points=1000,
@@ -148,7 +148,7 @@ def test_custom_monitor_pandas_rabbitmq():
     ]
     drift_config = CustomMetricDriftConfig(
         name="test",
-        repository="test",
+        space="test",
         version=semver,
         alert_config=CustomMetricAlertConfig(schedule="0/15 * * * * * *"),  # every 15 seconds
     )
@@ -161,7 +161,7 @@ def test_custom_monitor_pandas_rabbitmq():
         drift_profile_request=GetProfileRequest(
             name=profile.config.name,
             version=profile.config.version,
-            repository=profile.config.repository,
+            space=profile.config.space,
             drift_type=profile.config.drift_type,
         ),
     )
@@ -180,7 +180,7 @@ def test_custom_monitor_pandas_rabbitmq():
     # wait for rabbitmq to process the message
     request = DriftRequest(
         name=profile.config.name,
-        repository=profile.config.repository,
+        space=profile.config.space,
         version=profile.config.version,
         time_interval=TimeInterval.FifteenMinutes,
         max_data_points=1000,
@@ -192,7 +192,7 @@ def test_custom_monitor_pandas_rabbitmq():
 
     client.update_profile_status(
         ProfileStatusRequest(
-            name=profile.config.name, repository=profile.config.repository, version=profile.config.version, active=True
+            name=profile.config.name, space=profile.config.space, version=profile.config.version, active=True
         )
     )
 
@@ -201,7 +201,7 @@ def test_custom_monitor_pandas_rabbitmq():
     alerts = client.get_alerts(
         DriftAlertRequest(
             name=profile.config.name,
-            repository=profile.config.repository,
+            space=profile.config.space,
             version=profile.config.version,
         )
     )

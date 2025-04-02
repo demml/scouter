@@ -170,13 +170,13 @@ pub async fn update_drift_profile_status(
             "status": "success",
             "message": format!(
                 "Monitor profile status updated to {} for {} {} {}",
-                &body.active, &body.name, &body.repository, &body.version
+                &body.active, &body.name, &body.space, &body.version
             )
         }))),
         Err(e) => {
             error!(
                 "Failed to update drift profile status for {} {} {} : {:?}",
-                &body.name, &body.repository, &body.version, e
+                &body.name, &body.space, &body.version, e
             );
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,

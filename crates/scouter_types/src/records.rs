@@ -23,7 +23,7 @@ pub struct SpcServerRecord {
     pub created_at: chrono::NaiveDateTime,
 
     #[pyo3(get)]
-    pub repository: String,
+    pub space: String,
 
     #[pyo3(get)]
     pub name: String,
@@ -44,17 +44,11 @@ pub struct SpcServerRecord {
 #[pymethods]
 impl SpcServerRecord {
     #[new]
-    pub fn new(
-        repository: String,
-        name: String,
-        version: String,
-        feature: String,
-        value: f64,
-    ) -> Self {
+    pub fn new(space: String, name: String, version: String, feature: String, value: f64) -> Self {
         Self {
             created_at: chrono::Utc::now().naive_utc(),
             name,
-            repository,
+            space,
             version,
             feature,
             value,
@@ -76,7 +70,7 @@ impl SpcServerRecord {
         let mut record = HashMap::new();
         record.insert("created_at".to_string(), self.created_at.to_string());
         record.insert("name".to_string(), self.name.clone());
-        record.insert("repository".to_string(), self.repository.clone());
+        record.insert("space".to_string(), self.space.clone());
         record.insert("version".to_string(), self.version.clone());
         record.insert("feature".to_string(), self.feature.clone());
         record.insert("value".to_string(), self.value.to_string());
@@ -91,7 +85,7 @@ pub struct PsiServerRecord {
     pub created_at: chrono::NaiveDateTime,
 
     #[pyo3(get)]
-    pub repository: String,
+    pub space: String,
 
     #[pyo3(get)]
     pub name: String,
@@ -116,7 +110,7 @@ pub struct PsiServerRecord {
 impl PsiServerRecord {
     #[new]
     pub fn new(
-        repository: String,
+        space: String,
         name: String,
         version: String,
         feature: String,
@@ -126,7 +120,7 @@ impl PsiServerRecord {
         Self {
             created_at: chrono::Utc::now().naive_utc(),
             name,
-            repository,
+            space,
             version,
             feature,
             bin_id,
@@ -153,7 +147,7 @@ pub struct CustomMetricServerRecord {
     pub created_at: chrono::NaiveDateTime,
 
     #[pyo3(get)]
-    pub repository: String,
+    pub space: String,
 
     #[pyo3(get)]
     pub name: String,
@@ -174,17 +168,11 @@ pub struct CustomMetricServerRecord {
 #[pymethods]
 impl CustomMetricServerRecord {
     #[new]
-    pub fn new(
-        repository: String,
-        name: String,
-        version: String,
-        metric: String,
-        value: f64,
-    ) -> Self {
+    pub fn new(space: String, name: String, version: String, metric: String, value: f64) -> Self {
         Self {
             created_at: chrono::Utc::now().naive_utc(),
             name,
-            repository,
+            space,
             version,
             metric: metric.to_lowercase(),
             value,
@@ -206,7 +194,7 @@ impl CustomMetricServerRecord {
         let mut record = HashMap::new();
         record.insert("created_at".to_string(), self.created_at.to_string());
         record.insert("name".to_string(), self.name.clone());
-        record.insert("repository".to_string(), self.repository.clone());
+        record.insert("space".to_string(), self.space.clone());
         record.insert("version".to_string(), self.version.clone());
         record.insert("metric".to_string(), self.metric.clone());
         record.insert("value".to_string(), self.value.to_string());
@@ -259,7 +247,7 @@ pub struct RouteMetrics {
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct ObservabilityMetrics {
     #[pyo3(get)]
-    pub repository: String,
+    pub space: String,
 
     #[pyo3(get)]
     pub name: String,

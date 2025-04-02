@@ -14,7 +14,7 @@ pub struct Alert {
     pub name: String,
 
     #[pyo3(get)]
-    pub repository: String,
+    pub space: String,
 
     #[pyo3(get)]
     pub version: String,

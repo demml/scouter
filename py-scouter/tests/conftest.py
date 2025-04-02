@@ -86,7 +86,7 @@ def multivariate_array_drift() -> YieldFixture[NDArray]:
 def drift_config() -> YieldFixture[SpcDriftConfig]:
     config = SpcDriftConfig(
         name="test",
-        repository="test",
+        space="test",
         alert_config=SpcAlertConfig(
             features_to_monitor=["column_0", "column_1", "column_2"],
         ),
@@ -98,7 +98,7 @@ def drift_config() -> YieldFixture[SpcDriftConfig]:
 def psi_drift_config() -> YieldFixture[PsiDriftConfig]:
     config = PsiDriftConfig(
         name="test",
-        repository="test",
+        space="test",
         alert_config=PsiAlertConfig(
             features_to_monitor=["column_0", "column_1", "column_2"],
         ),
@@ -224,7 +224,7 @@ def pandas_categorical_dataframe() -> YieldFixture:
 def custom_metric_drift_config() -> YieldFixture[CustomMetricDriftConfig]:
     config = CustomMetricDriftConfig(
         name="test",
-        repository="test",
+        space="test",
         alert_config=CustomMetricAlertConfig(
             schedule="0 0 * * * *", dispatch_config=SlackDispatchConfig(channel="test_channel")
         ),

@@ -49,7 +49,7 @@ pub mod spc_drifter {
             Self {
                 service_info: ServiceInfo {
                     name: profile.config.name.clone(),
-                    repository: profile.config.repository.clone(),
+                    space: profile.config.space.clone(),
                     version: profile.config.version.clone(),
                 },
                 profile,
@@ -138,10 +138,7 @@ pub mod spc_drifter {
             let alert_dispatcher = AlertDispatcher::new(&self.profile.config).map_err(|e| {
                 error!(
                     "Error creating alert dispatcher for {}/{}/{}: {}",
-                    self.service_info.repository,
-                    self.service_info.name,
-                    self.service_info.version,
-                    e
+                    self.service_info.space, self.service_info.name, self.service_info.version, e
                 );
                 DriftError::Error("Error creating alert dispatcher".to_string())
             })?;
@@ -153,7 +150,7 @@ pub mod spc_drifter {
                     .map_err(|e| {
                         error!(
                             "Error processing alerts for {}/{}/{}: {}",
-                            self.service_info.repository,
+                            self.service_info.space,
                             self.service_info.name,
                             self.service_info.version,
                             e
@@ -165,7 +162,7 @@ pub mod spc_drifter {
             } else {
                 info!(
                     "No alerts to process for {}/{}/{}",
-                    self.service_info.repository, self.service_info.name, self.service_info.version
+                    self.service_info.space, self.service_info.name, self.service_info.version
                 );
             }
 
@@ -210,7 +207,7 @@ pub mod spc_drifter {
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             info!(
                 "Processing drift task for profile: {}/{}/{}",
-                self.service_info.repository, self.service_info.name, self.service_info.version
+                self.service_info.space, self.service_info.name, self.service_info.version
             );
 
             // Compute drift
@@ -229,7 +226,7 @@ pub mod spc_drifter {
                 .map_err(|e| {
                     error!(
                         "Error generating alerts for {}/{}/{}: {}",
-                        self.service_info.repository,
+                        self.service_info.space,
                         self.service_info.name,
                         self.service_info.version,
                         e

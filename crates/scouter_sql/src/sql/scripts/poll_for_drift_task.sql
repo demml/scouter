@@ -1,4 +1,4 @@
-SELECT name, repository, version, profile, drift_type, previous_run, schedule
+SELECT name, space, version, profile, drift_type, previous_run, schedule
 FROM scouter.drift_profile
 WHERE active
   AND next_run < CURRENT_TIMESTAMP

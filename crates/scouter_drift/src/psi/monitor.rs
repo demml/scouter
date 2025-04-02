@@ -421,7 +421,7 @@ impl PsiMonitor {
         Ok(PsiDriftMap {
             features: psi_drift_features,
             name: drift_profile.config.name.clone(),
-            repository: drift_profile.config.repository.clone(),
+            space: drift_profile.config.space.clone(),
             version: drift_profile.config.version.clone(),
         })
     }

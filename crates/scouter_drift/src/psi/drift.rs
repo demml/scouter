@@ -28,7 +28,7 @@ pub mod psi_drifter {
             Self {
                 service_info: ServiceInfo {
                     name: profile.config.name.clone(),
-                    repository: profile.config.repository.clone(),
+                    space: profile.config.space.clone(),
                     version: profile.config.version.clone(),
                 },
                 profile,
@@ -62,7 +62,7 @@ pub mod psi_drifter {
                 .map_err(|e| {
                     error!(
                         "Error: Unable to fetch feature bin proportions from DB for {}/{}/{}: {}",
-                        self.service_info.repository,
+                        self.service_info.space,
                         self.service_info.name,
                         self.service_info.version,
                         e
@@ -73,7 +73,7 @@ pub mod psi_drifter {
             if observed_bin_proportions.is_empty() {
                 info!(
                 "No observed bin proportions available for {}/{}/{}. This indicates that no real-world data values have been recorded in the database for the monitored features as of {}. Skipping alert processing.",
-                self.service_info.repository,
+                self.service_info.space,
                 self.service_info.name,
                 self.service_info.version,
                 limit_datetime
@@ -125,10 +125,7 @@ pub mod psi_drifter {
             let alert_dispatcher = AlertDispatcher::new(&self.profile.config).map_err(|e| {
                 error!(
                     "Error creating alert dispatcher for {}/{}/{}: {}",
-                    self.service_info.repository,
-                    self.service_info.name,
-                    self.service_info.version,
-                    e
+                    self.service_info.space, self.service_info.name, self.service_info.version, e
                 );
                 DriftError::Error("Error creating alert dispatcher".to_string())
             })?;
@@ -138,7 +135,7 @@ pub mod psi_drifter {
             if filtered_map.is_empty() {
                 info!(
                     "No alerts to process for {}/{}/{}",
-                    self.service_info.repository, self.service_info.name, self.service_info.version
+                    self.service_info.space, self.service_info.name, self.service_info.version
                 );
                 return Ok(None);
             }
@@ -152,7 +149,7 @@ pub mod psi_drifter {
                 .map_err(|e| {
                     error!(
                         "Error processing alerts for {}/{}/{}: {}",
-                        self.service_info.repository,
+                        self.service_info.space,
                         self.service_info.name,
                         self.service_info.version,
                         e
@@ -195,7 +192,7 @@ pub mod psi_drifter {
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             info!(
                 "Processing drift task for profile: {}/{}/{}",
-                self.service_info.repository, self.service_info.name, self.service_info.version
+                self.service_info.space, self.service_info.name, self.service_info.version
             );
 
             if self
@@ -207,7 +204,7 @@ pub mod psi_drifter {
             {
                 info!(
                     "No PSI profiles to process for {}/{}/{}",
-                    self.service_info.repository, self.service_info.name, self.service_info.version
+                    self.service_info.space, self.service_info.name, self.service_info.version
                 );
                 return Ok(None);
             }
@@ -219,7 +216,7 @@ pub mod psi_drifter {
                     let alerts = self.generate_alerts(&drift_map).await.map_err(|e| {
                         error!(
                             "Error generating alerts for {}/{}/{}: {}",
-                            self.service_info.repository,
+                            self.service_info.space,
                             self.service_info.name,
                             self.service_info.version,
                             e
@@ -275,7 +272,7 @@ pub mod psi_drifter {
             if binned_records.is_empty() {
                 info!(
                     "No binned drift records available for {}/{}/{}",
-                    self.service_info.repository, self.service_info.name, self.service_info.version
+                    self.service_info.space, self.service_info.name, self.service_info.version
                 );
                 return Ok(BinnedPsiFeatureMetrics::default());
             }

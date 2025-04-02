@@ -57,7 +57,7 @@ async fn get_binned_psi_feature_metrics(
 
     let profile_request = GetProfileRequest {
         name: params.name.clone(),
-        repository: params.repository.clone(),
+        space: params.space.clone(),
         version: params.version.clone(),
         drift_type: DriftType::Psi,
     };

@@ -375,7 +375,7 @@ impl SpcMonitor {
 
         let mut drift_map = SpcDriftMap::new(
             drift_profile.config.name.clone(),
-            drift_profile.config.repository.clone(),
+            drift_profile.config.space.clone(),
             drift_profile.config.version.clone(),
         );
 
@@ -433,7 +433,7 @@ impl SpcMonitor {
 
             sample.iter().for_each(|value| {
                 let record = SpcServerRecord::new(
-                    drift_profile.config.repository.clone(),
+                    drift_profile.config.space.clone(),
                     drift_profile.config.name.clone(),
                     drift_profile.config.version.clone(),
                     feature.to_string(),
@@ -555,7 +555,7 @@ mod tests {
             .unwrap();
 
         assert_eq!(loaded_profile.config.name, "updated");
-        assert_eq!(loaded_profile.config.repository, "updated");
+        assert_eq!(loaded_profile.config.space, "updated");
         assert_eq!(loaded_profile.config.version, "1.0.0");
     }
 
@@ -589,7 +589,7 @@ mod tests {
 
         let args = profile.get_base_args();
         assert_eq!(args.name, "name");
-        assert_eq!(args.repository, "repo");
+        assert_eq!(args.space, "repo");
         assert_eq!(args.version, "0.1.0");
         assert_eq!(args.schedule, "0 0 0 * * *");
 

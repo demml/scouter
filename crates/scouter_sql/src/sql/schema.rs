@@ -13,7 +13,7 @@ use std::collections::HashMap;
 pub struct DriftRecord {
     pub created_at: NaiveDateTime,
     pub name: String,
-    pub repository: String,
+    pub space: String,
     pub version: String,
     pub feature: String,
     pub value: f64,
@@ -80,7 +80,7 @@ impl<'r> FromRow<'r, PgRow> for AlertWrapper {
         Ok(AlertWrapper(Alert {
             created_at: row.try_get("created_at")?,
             name: row.try_get("name")?,
-            repository: row.try_get("repository")?,
+            space: row.try_get("space")?,
             version: row.try_get("version")?,
             alert,
             feature: row.try_get("feature")?,
@@ -93,7 +93,7 @@ impl<'r> FromRow<'r, PgRow> for AlertWrapper {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskRequest {
     pub name: String,
-    pub repository: String,
+    pub space: String,
     pub version: String,
     pub profile: String,
     pub drift_type: String,
@@ -107,7 +107,7 @@ impl<'r> FromRow<'r, PgRow> for TaskRequest {
 
         Ok(TaskRequest {
             name: row.try_get("name")?,
-            repository: row.try_get("repository")?,
+            space: row.try_get("space")?,
             version: row.try_get("version")?,
             profile: profile.to_string(),
             drift_type: row.try_get("drift_type")?,

@@ -252,7 +252,7 @@ mod tests {
                     let record = SpcServerRecord {
                         created_at: chrono::Utc::now().naive_utc(),
                         name: "test".to_string(),
-                        repository: "test".to_string(),
+                        space: "test".to_string(),
                         version: "test".to_string(),
                         feature: format!("test{}", j),
                         value: j as f64,
@@ -275,7 +275,7 @@ mod tests {
                         let record = PsiServerRecord {
                             created_at: chrono::Utc::now().naive_utc(),
                             name: "test".to_string(),
-                            repository: "test".to_string(),
+                            space: "test".to_string(),
                             version: "1.0.0".to_string(),
                             feature: format!("feature_{}", feature),
                             bin_id: decile,
@@ -297,7 +297,7 @@ mod tests {
                     let record = CustomMetricServerRecord {
                         created_at: chrono::Utc::now().naive_utc(),
                         name: "test".to_string(),
-                        repository: "test".to_string(),
+                        space: "test".to_string(),
                         version: "1.0.0".to_string(),
                         metric: format!("metric{}", i),
                         value: rand::thread_rng().gen_range(0..10) as f64,
@@ -400,7 +400,7 @@ mod tests {
         // get profile
         let params = GetProfileRequest {
             name: profile.config.name.clone(),
-            repository: profile.config.repository.clone(),
+            space: profile.config.space.clone(),
             version: profile.config.version.clone(),
             drift_type: DriftType::Spc,
         };
@@ -421,7 +421,7 @@ mod tests {
         // update profile status
         let request = ProfileStatusRequest {
             name: profile.config.name.clone(),
-            repository: profile.config.repository.clone(),
+            space: profile.config.space.clone(),
             version: profile.config.version.clone(),
             active: true,
             drift_type: None,
@@ -463,7 +463,7 @@ mod tests {
         // get drift records
         let params = DriftRequest {
             name: "test".to_string(),
-            repository: "test".to_string(),
+            space: "test".to_string(),
             version: "test".to_string(),
             time_interval: TimeInterval::FiveMinutes,
             max_data_points: 100,
@@ -549,7 +549,7 @@ mod tests {
         // get drift records
         let params = DriftRequest {
             name: "test".to_string(),
-            repository: "test".to_string(),
+            space: "test".to_string(),
             version: "1.0.0".to_string(),
             time_interval: TimeInterval::FiveMinutes,
             max_data_points: 100,
@@ -628,7 +628,7 @@ mod tests {
         // get drift records
         let params = DriftRequest {
             name: "test".to_string(),
-            repository: "test".to_string(),
+            space: "test".to_string(),
             version: "1.0.0".to_string(),
             time_interval: TimeInterval::FiveMinutes,
             max_data_points: 100,

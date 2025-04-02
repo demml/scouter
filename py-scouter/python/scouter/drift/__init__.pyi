@@ -59,7 +59,7 @@ class SpcFeatureDriftProfile:
 class SpcDriftConfig:
     def __init__(
         self,
-        repository: str = "__missing__",
+        space: str = "__missing__",
         name: str = "__missing__",
         version: str = "0.1.0",
         sample: bool = True,
@@ -70,8 +70,8 @@ class SpcDriftConfig:
         """Initialize monitor config
 
         Args:
-            repository:
-                Model repository
+            space:
+                Model space
             name:
                 Model name
             version:
@@ -111,12 +111,12 @@ class SpcDriftConfig:
         """Set model name"""
 
     @property
-    def repository(self) -> str:
-        """Model repository"""
+    def space(self) -> str:
+        """Model space"""
 
-    @repository.setter
-    def repository(self, repository: str) -> None:
-        """Set model repository"""
+    @space.setter
+    def space(self, space: str) -> None:
+        """Set model space"""
 
     @property
     def version(self) -> str:
@@ -159,7 +159,7 @@ class SpcDriftConfig:
 
     def update_config_args(
         self,
-        repository: Optional[str] = None,
+        space: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
         sample: Optional[bool] = None,
@@ -169,8 +169,8 @@ class SpcDriftConfig:
         """Inplace operation that updates config args
 
         Args:
-            repository:
-                Model repository
+            space:
+                Model space
             name:
                 Model name
             version:
@@ -239,7 +239,7 @@ class SpcDriftProfile:
 
     def update_config_args(
         self,
-        repository: Optional[str] = None,
+        space: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
         sample: Optional[bool] = None,
@@ -251,8 +251,8 @@ class SpcDriftProfile:
         Args:
             name:
                 Model name
-            repository:
-                Model repository
+            space:
+                Model space
             version:
                 Model version
             sample:
@@ -291,8 +291,8 @@ class SpcDriftMap:
     """Drift map of features"""
 
     @property
-    def repository(self) -> str:
-        """Repository to associate with drift map"""
+    def space(self) -> str:
+        """Space to associate with drift map"""
 
     @property
     def name(self) -> str:
@@ -336,7 +336,7 @@ class SpcDriftMap:
 class PsiDriftConfig:
     def __init__(
         self,
-        repository: str = "__missing__",
+        space: str = "__missing__",
         name: str = "__missing__",
         version: str = "0.1.0",
         alert_config: PsiAlertConfig = PsiAlertConfig(),
@@ -345,8 +345,8 @@ class PsiDriftConfig:
         """Initialize monitor config
 
         Args:
-            repository:
-                Model repository
+            space:
+                Model space
             name:
                 Model name
             version:
@@ -366,12 +366,12 @@ class PsiDriftConfig:
         """Set model name"""
 
     @property
-    def repository(self) -> str:
-        """Model repository"""
+    def space(self) -> str:
+        """Model space"""
 
-    @repository.setter
-    def repository(self, repository: str) -> None:
-        """Set model repository"""
+    @space.setter
+    def space(self, space: str) -> None:
+        """Set model space"""
 
     @property
     def version(self) -> str:
@@ -414,7 +414,7 @@ class PsiDriftConfig:
 
     def update_config_args(
         self,
-        repository: Optional[str] = None,
+        space: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
         alert_config: Optional[PsiAlertConfig] = None,
@@ -422,8 +422,8 @@ class PsiDriftConfig:
         """Inplace operation that updates config args
 
         Args:
-            repository:
-                Model repository
+            space:
+                Model space
             name:
                 Model name
             version:
@@ -488,7 +488,7 @@ class PsiDriftProfile:
 
     def update_config_args(
         self,
-        repository: Optional[str] = None,
+        space: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
         alert_config: Optional[PsiAlertConfig] = None,
@@ -498,8 +498,8 @@ class PsiDriftProfile:
         Args:
             name:
                 Model name
-            repository:
-                Model repository
+            space:
+                Model space
             version:
                 Model version
             alert_config:
@@ -552,8 +552,8 @@ class PsiDriftMap:
     """Drift map of features"""
 
     @property
-    def repository(self) -> str:
-        """Repository to associate with drift map"""
+    def space(self) -> str:
+        """Space to associate with drift map"""
 
     @property
     def name(self) -> str:
@@ -594,7 +594,7 @@ class PsiDriftMap:
 class CustomMetricDriftConfig:
     def __init__(
         self,
-        repository: str = "__missing__",
+        space: str = "__missing__",
         name: str = "__missing__",
         version: str = "0.1.0",
         sample: bool = True,
@@ -603,8 +603,8 @@ class CustomMetricDriftConfig:
     ):
         """Initialize drift config
         Args:
-            repository:
-                Model repository
+            space:
+                Model space
             name:
                 Model name
             version:
@@ -614,12 +614,12 @@ class CustomMetricDriftConfig:
         """
 
     @property
-    def repository(self) -> str:
-        """Model repository"""
+    def space(self) -> str:
+        """Model space"""
 
-    @repository.setter
-    def repository(self, repository: str) -> None:
-        """Set model repository"""
+    @space.setter
+    def space(self, space: str) -> None:
+        """Set model space"""
 
     @property
     def name(self) -> str:
@@ -665,15 +665,15 @@ class CustomMetricDriftConfig:
 
     def update_config_args(
         self,
-        repository: Optional[str] = None,
+        space: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
         alert_config: Optional[CustomMetricAlertConfig] = None,
     ) -> None:
         """Inplace operation that updates config args
         Args:
-            repository:
-                Model repository
+            space:
+                Model space
             name:
                 Model name
             version:
@@ -829,7 +829,7 @@ class CustomDriftProfile:
 
     def update_config_args(
         self,
-        repository: Optional[str] = None,
+        space: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
         alert_config: Optional[CustomMetricAlertConfig] = None,
@@ -837,8 +837,8 @@ class CustomDriftProfile:
         """Inplace operation that updates config args
 
         Args:
-            repository (Optional[str]):
-                Model repository
+            space (Optional[str]):
+                Model space
             name (Optional[str]):
                 Model name
             version (Optional[str]):

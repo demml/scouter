@@ -6,15 +6,15 @@ CREATE EXTENSION if not exists pg_cron;
 CREATE TABLE IF NOT exists scouter.drift (
   created_at timestamp not null default (timezone('utc', now())),
   name varchar(256),
-  repository varchar(256),
+  space varchar(256),
   feature varchar(256),
   value double precision,
   version varchar(256),
-  UNIQUE (created_at,name,repository,feature,value,version)
+  UNIQUE (created_at,name,space,feature,value,version)
 )
 PARTITION BY RANGE (created_at);
 
-CREATE INDEX ON scouter.drift (name, repository, version, created_at);
+CREATE INDEX ON scouter.drift (name, space, version, created_at);
 
 SELECT scouter.create_parent(
     'scouter.drift',
@@ -29,7 +29,7 @@ CREATE table IF NOT exists scouter.drift_profile (
   created_at timestamp not null default (timezone('utc', now())),
   updated_at timestamp not null default (timezone('utc', now())),
   name varchar(256),
-  repository varchar(256),
+  space varchar(256),
   version varchar(256),
   drift_type varchar(64),
   profile jsonb,
@@ -38,7 +38,7 @@ CREATE table IF NOT exists scouter.drift_profile (
   next_run timestamp,
   previous_run timestamp,
   scouter_version varchar(256) not null default '0.1.0',
-  PRIMARY KEY (name, repository, version, drift_type)
+  PRIMARY KEY (name, space, version, drift_type)
 );
 
 -- Run maintenance every hour

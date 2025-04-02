@@ -52,7 +52,7 @@ pub mod drift_executor {
         /// # Arguments
         ///
         /// * `name` - Name of the drift profile
-        /// * `repository` - Repository of the drift profile
+        /// * `space` - Space of the drift profile
         /// * `version` - Version of the drift profile
         ///
         /// # Returns
@@ -190,7 +190,7 @@ pub mod drift_executor {
             };
 
             let service_info = ServiceInfo {
-                repository: task.repository.clone(),
+                space: task.space.clone(),
                 name: task.name.clone(),
                 version: task.version.clone(),
             };
@@ -283,7 +283,7 @@ pub mod drift_executor {
 
             // get alerts from db
             let request = DriftAlertRequest {
-                repository: "statworld".to_string(),
+                space: "statworld".to_string(),
                 name: "test_app".to_string(),
                 version: "0.1.0".to_string(),
                 limit_datetime: None,
@@ -316,7 +316,7 @@ pub mod drift_executor {
 
             // get alerts from db
             let request = DriftAlertRequest {
-                repository: "statworld".to_string(),
+                space: "statworld".to_string(),
                 name: "test_app".to_string(),
                 version: "0.1.0".to_string(),
                 limit_datetime: None,
@@ -346,7 +346,7 @@ pub mod drift_executor {
 
             // get alerts from db
             let request = DriftAlertRequest {
-                repository: "scouter".to_string(),
+                space: "scouter".to_string(),
                 name: "model".to_string(),
                 version: "0.1.0".to_string(),
                 limit_datetime: None,
@@ -376,7 +376,7 @@ pub mod drift_executor {
 
             // get alerts from db
             let request = DriftAlertRequest {
-                repository: "scouter".to_string(),
+                space: "scouter".to_string(),
                 name: "model".to_string(),
                 version: "0.1.0".to_string(),
                 limit_datetime: None,

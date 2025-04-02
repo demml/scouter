@@ -24,7 +24,7 @@ struct RouteLatency {
 #[pyclass]
 #[derive(Clone, Debug)]
 pub struct Observer {
-    repository: String,
+    space: String,
     name: String,
     version: String,
     request_count: i64,
@@ -35,9 +35,9 @@ pub struct Observer {
 #[pymethods]
 impl Observer {
     #[new]
-    pub fn new(repository: String, name: String, version: String) -> Self {
+    pub fn new(space: String, name: String, version: String) -> Self {
         Observer {
-            repository,
+            space,
             name,
             version,
             request_count: 0,
@@ -202,7 +202,7 @@ impl Observer {
         }
 
         let record = ServerRecord::Observability(ObservabilityMetrics {
-            repository: self.repository.clone(),
+            space: self.space.clone(),
             name: self.name.clone(),
             version: self.version.clone(),
             request_count: self.request_count,
@@ -237,28 +237,20 @@ mod tests {
     use super::*;
     use rand::Rng;
 
-    const REPOSITORY: &str = "test";
+    const SPACE: &str = "test";
     const NAME: &str = "test";
     const VERSION: &str = "test";
 
     #[test]
     fn test_increment_request_count() {
-        let mut observer = Observer::new(
-            REPOSITORY.to_string(),
-            NAME.to_string(),
-            VERSION.to_string(),
-        );
+        let mut observer = Observer::new(SPACE.to_string(), NAME.to_string(), VERSION.to_string());
         observer.increment_request_count();
         assert_eq!(observer.request_count, 1);
     }
 
     #[test]
     fn test_increment_error_count() {
-        let mut observer = Observer::new(
-            REPOSITORY.to_string(),
-            NAME.to_string(),
-            VERSION.to_string(),
-        );
+        let mut observer = Observer::new(SPACE.to_string(), NAME.to_string(), VERSION.to_string());
         observer.increment_error_count("ERROR");
         assert_eq!(observer.error_count, 1);
         observer.increment_error_count("OK");
@@ -267,11 +259,7 @@ mod tests {
 
     #[test]
     fn test_update_route_latency() {
-        let mut observer = Observer::new(
-            REPOSITORY.to_string(),
-            NAME.to_string(),
-            VERSION.to_string(),
-        );
+        let mut observer = Observer::new(SPACE.to_string(), NAME.to_string(), VERSION.to_string());
         observer
             .update_route_latency("/home", 100.0, "OK", 200)
             .unwrap();
@@ -336,11 +324,7 @@ mod tests {
     #[test]
     fn test_collect_metrics() {
         //populate 3 routes with different latencies (n = 100)
-        let mut observer = Observer::new(
-            REPOSITORY.to_string(),
-            NAME.to_string(),
-            VERSION.to_string(),
-        );
+        let mut observer = Observer::new(SPACE.to_string(), NAME.to_string(), VERSION.to_string());
         for i in 0..100 {
             // generate random latencies
             let num1 = rand::thread_rng().gen_range(0..100);
@@ -368,7 +352,7 @@ mod tests {
 
         assert_eq!(record.request_count, 400);
         assert_eq!(record.error_count, 100);
-        assert_eq!(record.repository, REPOSITORY);
+        assert_eq!(record.space, SPACE);
         assert_eq!(record.name, NAME);
         assert_eq!(record.version, VERSION);
 
@@ -386,11 +370,7 @@ mod tests {
 
     #[test]
     fn test_increment() {
-        let mut observer = Observer::new(
-            REPOSITORY.to_string(),
-            NAME.to_string(),
-            VERSION.to_string(),
-        );
+        let mut observer = Observer::new(SPACE.to_string(), NAME.to_string(), VERSION.to_string());
         observer.increment("/home", 100.0, 200).unwrap();
         assert_eq!(observer.request_count, 1);
         assert_eq!(observer.error_count, 0);
@@ -436,11 +416,7 @@ mod tests {
 
     #[test]
     fn test_reset_metrics() {
-        let mut observer = Observer::new(
-            REPOSITORY.to_string(),
-            NAME.to_string(),
-            VERSION.to_string(),
-        );
+        let mut observer = Observer::new(SPACE.to_string(), NAME.to_string(), VERSION.to_string());
         observer.increment("/home", 100.0, 200).unwrap();
         observer.increment("/home", 50.0, 500).unwrap();
 
