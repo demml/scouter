@@ -199,6 +199,9 @@ pub enum ScouterError {
 
     #[error("Missing value in map")]
     MissingValue,
+
+    #[error("Empty ServerRecordsError")]
+    EmptyServerRecordsError,
 }
 
 // impl From for PyErr

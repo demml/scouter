@@ -42,7 +42,7 @@ def test_router_mixin_kafka(
     drift: BinnedSpcFeatureMetrics = scouter_client.get_binned_drift(
         DriftRequest(
             name=drift_profile.config.name,
-            repository=drift_profile.config.repository,
+            space=drift_profile.config.space,
             version=drift_profile.config.version,
             time_interval=TimeInterval.FiveMinutes,
             max_data_points=100,

@@ -1,3 +1,4 @@
+use chrono::Utc;
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use scouter_error::ScouterError;
@@ -91,7 +92,7 @@ pub struct FeatureProfile {
     pub string_stats: Option<StringStats>,
 
     #[pyo3(get)]
-    pub timestamp: chrono::NaiveDateTime,
+    pub timestamp: chrono::DateTime<Utc>,
 
     #[pyo3(get)]
     pub correlations: Option<HashMap<String, f32>>,

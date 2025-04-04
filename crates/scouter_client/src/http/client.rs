@@ -101,9 +101,9 @@ impl ScouterClient {
                     .getattr("name")?
                     .extract::<String>()?;
 
-                let repository = profile
+                let space = profile
                     .getattr("config")?
-                    .getattr("repository")?
+                    .getattr("space")?
                     .extract::<String>()?;
 
                 let version = profile
@@ -113,7 +113,7 @@ impl ScouterClient {
 
                 let request = ProfileStatusRequest {
                     name,
-                    repository,
+                    space,
                     version,
                     active: true,
                     drift_type: Some(drift_type),
@@ -241,7 +241,7 @@ impl ScouterClient {
 
         let filename = format!(
             "{}_{}_{}_{}.json",
-            request.name, request.repository, request.version, request.drift_type
+            request.name, request.space, request.version, request.drift_type
         );
 
         let profile = self.get_drift_profile(request)?;

@@ -33,10 +33,10 @@ def test_drift_f64(array: NDArray, drift_config: SpcDriftConfig):
 
     _ = drifter.compute_drift(array, profile)
 
-    profile.update_config_args(repository="repo1", name="name1")
+    profile.update_config_args(space="repo1", name="name1")
 
     assert profile.config.name == "name1"
-    assert profile.config.repository == "repo1"
+    assert profile.config.space == "repo1"
 
 
 def test_drift_f32(array: NDArray, drift_config: SpcDriftConfig):
@@ -155,7 +155,7 @@ def test_drift_config_alert_kwargs():
     alert_config = SpcAlertConfig(dispatch_config=SlackDispatchConfig(channel="scouter"))
     config = SpcDriftConfig(
         name="test",
-        repository="test",
+        space="test",
         alert_config=alert_config,
     )
 
@@ -172,7 +172,7 @@ def test_drift_config_alert_kwargs():
 def test_load_from_file():
     config = SpcDriftConfig(config_path=Path("tests/assets/drift_config.json"))
     assert config.name == "name"
-    assert config.repository == "repo"
+    assert config.space == "repo"
 
 
 def test_load_from_file_error():
@@ -186,16 +186,16 @@ def test_empty_params():
     config = SpcDriftConfig()
 
     assert config.name == "__missing__"
-    assert config.repository == "__missing__"
+    assert config.space == "__missing__"
 
     # update
     config.name = "name"
-    config.repository = "repo"
+    config.space = "repo"
 
     assert config.name == "name"
-    assert config.repository == "repo"
+    assert config.space == "repo"
 
-    config.update_config_args(name="name1", repository="repo1")
+    config.update_config_args(name="name1", space="repo1")
 
     assert config.name == "name1"
-    assert config.repository == "repo1"
+    assert config.space == "repo1"

@@ -37,10 +37,10 @@ pub async fn cleanup(pool: &Pool<Postgres>) -> Result<(), sqlx::Error> {
         FROM scouter.drift;
 
         DELETE 
-        FROM scouter.observability_metrics;
+        FROM scouter.observability_metric;
 
         DELETE
-        FROM scouter.custom_metrics;
+        FROM scouter.custom_metric;
 
         DELETE
         FROM scouter.drift_alert;

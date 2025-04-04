@@ -1,6 +1,4 @@
-use scouter_types::{
-    psi::BinType, Features, PsiServerRecord, RecordType, ServerRecord, ServerRecords,
-};
+use scouter_types::{psi::BinType, Features, PsiServerRecord, ServerRecord, ServerRecords};
 use tracing::{debug, error, instrument};
 
 use crate::psi::monitor::PsiMonitor;
@@ -211,7 +209,7 @@ impl PsiFeatureQueue {
             .flat_map(|(feature_name, bin_map)| {
                 bin_map.iter().map(move |(bin_id, count)| {
                     ServerRecord::Psi(PsiServerRecord::new(
-                        self.drift_profile.config.repository.clone(),
+                        self.drift_profile.config.space.clone(),
                         self.drift_profile.config.name.clone(),
                         self.drift_profile.config.version.clone(),
                         feature_name.to_string(),
@@ -222,7 +220,7 @@ impl PsiFeatureQueue {
             })
             .collect::<Vec<ServerRecord>>();
 
-        Ok(ServerRecords::new(records, RecordType::Psi))
+        Ok(ServerRecords::new(records))
     }
 
     pub fn is_empty(&self) -> bool {
@@ -276,14 +274,7 @@ mod tests {
             features_to_monitor: features.clone(),
             ..Default::default()
         };
-        let config = PsiDriftConfig::new(
-            "name",
-            "repo",
-            DEFAULT_VERSION,
-            Some(features.clone()),
-            alert_config,
-            None,
-        );
+        let config = PsiDriftConfig::new("name", "repo", DEFAULT_VERSION, alert_config, None);
 
         let profile = monitor
             .create_2d_drift_profile(&features, &array.view(), &config.unwrap())

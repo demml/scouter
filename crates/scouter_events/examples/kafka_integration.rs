@@ -3,7 +3,7 @@ pub mod utils;
 use crate::utils::setup_logging;
 
 use scouter_contracts::ServiceInfo;
-use scouter_types::{RecordType, ServerRecord, ServerRecords, SpcServerRecord};
+use scouter_types::{ServerRecord, ServerRecords, SpcServerRecord};
 use std::time::{Duration, Instant};
 use utils::TestHelper;
 
@@ -39,21 +39,17 @@ impl KafkaSetup for TestHelper {
                 let mut records = Vec::new();
                 for i in 0..15 {
                     let record = ServerRecord::Spc(SpcServerRecord {
-                        created_at: chrono::Utc::now().naive_utc(),
+                        created_at: chrono::Utc::now(),
                         name: "test".to_string(),
-                        repository: "test".to_string(),
+                        space: "test".to_string(),
                         feature: "feature".to_string(),
                         value: i as f64,
                         version: "1.0.0".to_string(),
-                        record_type: RecordType::Spc,
                     });
                     records.push(record);
                 }
 
-                let server_records = ServerRecords {
-                    record_type: RecordType::Spc,
-                    records,
-                };
+                let server_records = ServerRecords { records };
 
                 let record_string = serde_json::to_string(&server_records).unwrap();
 
@@ -95,7 +91,7 @@ impl KafkaSetup for TestHelper {
 
 #[tokio::main]
 async fn main() {
-    let timestamp = chrono::Utc::now().naive_utc();
+    let timestamp = chrono::Utc::now();
     setup_logging().await.unwrap();
 
     let helper = TestHelper::new().await;
@@ -109,7 +105,7 @@ async fn main() {
             // Warming up
         } else {
             let service_info = ServiceInfo {
-                repository: "test".to_string(),
+                space: "test".to_string(),
                 name: "test".to_string(),
                 version: "1.0.0".to_string(),
             };

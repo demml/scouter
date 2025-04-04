@@ -30,7 +30,7 @@ class RouteMetrics:
 
     @property
     def metrics(self) -> LatencyMetrics:
-        """Return the repository"""
+        """Return the metrics"""
 
     @property
     def request_count(self) -> int:
@@ -50,8 +50,8 @@ class RouteMetrics:
 
 class ObservabilityMetrics:
     @property
-    def repository(self) -> str:
-        """Return the repository"""
+    def space(self) -> str:
+        """Return the space"""
 
     @property
     def name(self) -> str:
@@ -80,12 +80,12 @@ class ObservabilityMetrics:
         """Return the json representation of the observability metrics"""
 
 class Observer:
-    def __init__(self, repository: str, name: str, version: str) -> None:
+    def __init__(self, space: str, name: str, version: str) -> None:
         """Initializes an api metric observer
 
         Args:
-            repository:
-                Model repository
+            space:
+                Model space
             name:
                 Model name
             version:

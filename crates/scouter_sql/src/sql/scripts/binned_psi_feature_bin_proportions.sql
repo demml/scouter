@@ -2,7 +2,7 @@ WITH feature_bin_total AS (
      SELECT 
         date_bin('$1 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
         name,
-        repository,
+        space,
         version,
         feature,
         bin_id,
@@ -12,7 +12,7 @@ WITH feature_bin_total AS (
         1=1
         AND created_at > timezone('utc', now()) - interval '$2 minute'
         AND name = $3
-        AND repository = $4
+        AND space = $4
         AND version = $5
     GROUP BY 1, 2, 3, 4, 5, 6
 ),
@@ -21,7 +21,7 @@ feature_total AS (
     SELECT 
         date_bin('$1 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
         name,
-        repository,
+        space,
         version,
         feature,
         SUM(bin_count) AS feature_total_count
@@ -30,7 +30,7 @@ feature_total AS (
         1=1
         AND created_at > timezone('utc', now()) - interval '$2 minute'
         AND name = $3
-        AND repository = $4
+        AND space = $4
         AND version = $5
     GROUP BY 1, 2, 3, 4, 5
 ),
@@ -46,7 +46,7 @@ feature_bin_proportions AS (
     JOIN feature_total f
         ON f.feature = b.feature 
         AND f.version = b.version 
-        AND f.repository = b.repository 
+        AND f.space = b.space
         AND f.name = b.name
         AND f.created_at = b.created_at
 ),

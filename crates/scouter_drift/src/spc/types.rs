@@ -50,7 +50,7 @@ pub struct SpcDriftMap {
     pub name: String,
 
     #[pyo3(get)]
-    pub repository: String,
+    pub space: String,
 
     #[pyo3(get)]
     pub version: String,
@@ -104,11 +104,11 @@ impl SpcDriftMap {
 type ArrayReturn = (Array2<f64>, Array2<f64>, Vec<String>);
 
 impl SpcDriftMap {
-    pub fn new(repository: String, name: String, version: String) -> Self {
+    pub fn new(space: String, name: String, version: String) -> Self {
         Self {
             features: HashMap::new(),
             name,
-            repository,
+            space,
             version,
         }
     }

@@ -3,12 +3,12 @@ WITH subquery1 AS (
         date_bin('$1 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
         metric,
         value
-    FROM scouter.custom_metrics
+    FROM scouter.custom_metric
     WHERE 
         1=1
         AND created_at > timezone('utc', now()) - interval '$2 minute'
         AND name = $3
-        AND repository = $4
+        AND space = $4
         AND version = $5
     ),
 

@@ -26,7 +26,7 @@ def test_custom_profile(custom_metric_drift_config: CustomMetricDriftConfig):
         },
         "drift_type": "Custom",
         "name": "test",
-        "repository": "test",
+        "space": "test",
         "sample": True,
         "sample_size": 25,
         "version": "0.1.0",

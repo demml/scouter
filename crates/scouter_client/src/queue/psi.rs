@@ -1,4 +1,4 @@
-use chrono::{NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
 use scouter_drift::psi::PsiFeatureQueue;
 use scouter_error::ScouterError;
@@ -16,7 +16,7 @@ pub struct PsiQueue {
     queue: Arc<Mutex<PsiFeatureQueue>>,
     producer: RustScouterProducer,
     count: usize,
-    last_publish: NaiveDateTime,
+    last_publish: DateTime<Utc>,
     stop_tx: Option<watch::Sender<()>>,
     rt: Arc<tokio::runtime::Runtime>,
 }
@@ -40,7 +40,7 @@ impl PsiQueue {
             queue: queue.clone(),
             producer,
             count: 0,
-            last_publish: Utc::now().naive_utc(),
+            last_publish: Utc::now(),
             stop_tx: Some(stop_tx),
             rt: rt.clone(),
         };
@@ -92,14 +92,12 @@ impl PsiQueue {
     fn _publish(&mut self) -> Result<(), ScouterError> {
         let mut queue = self.queue.blocking_lock();
         let records = queue.create_drift_records()?;
-
         if !records.records.is_empty() {
             self.rt
                 .block_on(async { self.producer.publish(records).await })?;
             queue.clear_queue();
-            self.last_publish = Utc::now().naive_utc();
+            self.last_publish = Utc::now();
         }
-
         Ok(())
     }
 
@@ -132,7 +130,7 @@ impl PsiQueue {
 
 
                         debug!("Checking for records");
-                        let now = Utc::now().naive_utc();
+                        let now = Utc::now();
                         let elapsed = now - last_publish;
 
                         if elapsed.num_seconds() >= 30 {

@@ -1,5 +1,6 @@
 use crate::spc::types::{SpcDriftMap, SpcFeatureDrift};
 use crate::utils::CategoricalFeatureHelpers;
+use chrono::Utc;
 use indicatif::ProgressBar;
 use ndarray::prelude::*;
 use ndarray::Axis;
@@ -8,10 +9,11 @@ use rayon::prelude::*;
 use scouter_error::MonitorError;
 use scouter_types::{
     spc::{SpcDriftConfig, SpcDriftProfile, SpcFeatureDriftProfile},
-    RecordType, ServerRecord, ServerRecords, SpcServerRecord,
+    ServerRecord, ServerRecords, SpcServerRecord,
 };
 use std::collections::HashMap;
 use std::fmt::Debug;
+
 pub struct SpcMonitor {}
 
 impl CategoricalFeatureHelpers for SpcMonitor {}
@@ -151,7 +153,7 @@ impl SpcMonitor {
                     two_lcl: two_lcl[i].into(),
                     three_ucl: three_ucl[i].into(),
                     three_lcl: three_lcl[i].into(),
-                    timestamp: chrono::Utc::now().naive_utc(),
+                    timestamp: Utc::now(),
                 },
             );
         }
@@ -375,7 +377,7 @@ impl SpcMonitor {
 
         let mut drift_map = SpcDriftMap::new(
             drift_profile.config.name.clone(),
-            drift_profile.config.repository.clone(),
+            drift_profile.config.space.clone(),
             drift_profile.config.version.clone(),
         );
 
@@ -433,7 +435,7 @@ impl SpcMonitor {
 
             sample.iter().for_each(|value| {
                 let record = SpcServerRecord::new(
-                    drift_profile.config.repository.clone(),
+                    drift_profile.config.space.clone(),
                     drift_profile.config.name.clone(),
                     drift_profile.config.version.clone(),
                     feature.to_string(),
@@ -444,7 +446,7 @@ impl SpcMonitor {
             });
         }
 
-        Ok(ServerRecords::new(records, RecordType::Spc))
+        Ok(ServerRecords::new(records))
     }
 
     pub fn calculate_drift_from_sample(
@@ -526,7 +528,6 @@ mod tests {
             None,
             None,
             None,
-            None,
             Some(alert_config),
             None,
         );
@@ -551,13 +552,12 @@ mod tests {
                 Some("1.0.0".to_string()),
                 Some(loaded_profile.config.sample),
                 Some(loaded_profile.config.sample_size),
-                Some(loaded_profile.config.targets.clone()),
                 Some(loaded_profile.config.alert_config.clone()),
             )
             .unwrap();
 
         assert_eq!(loaded_profile.config.name, "updated");
-        assert_eq!(loaded_profile.config.repository, "updated");
+        assert_eq!(loaded_profile.config.space, "updated");
         assert_eq!(loaded_profile.config.version, "1.0.0");
     }
 
@@ -580,7 +580,6 @@ mod tests {
             None,
             None,
             None,
-            None,
             Some(alert_config),
             None,
         );
@@ -592,7 +591,7 @@ mod tests {
 
         let args = profile.get_base_args();
         assert_eq!(args.name, "name");
-        assert_eq!(args.repository, "repo");
+        assert_eq!(args.space, "repo");
         assert_eq!(args.version, "0.1.0");
         assert_eq!(args.schedule, "0 0 0 * * *");
 
@@ -622,7 +621,6 @@ mod tests {
         let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repo".to_string()),
-            None,
             None,
             None,
             None,
@@ -675,11 +673,6 @@ mod tests {
             None,
             None,
             None,
-            Some(vec![
-                "feature_1".to_string(),
-                "feature_2".to_string(),
-                "feature_3".to_string(),
-            ]),
             Some(alert_config),
             None,
         );
@@ -714,7 +707,6 @@ mod tests {
         let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repo".to_string()),
-            None,
             None,
             None,
             None,

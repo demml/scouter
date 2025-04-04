@@ -7,7 +7,7 @@ pub mod drift_executor {
     use sqlx::{Postgres, Transaction};
 
     use crate::{custom::CustomDrifter, psi::PsiDrifter, spc::SpcDrifter};
-    use chrono::NaiveDateTime;
+    use chrono::{DateTime, Utc};
     use scouter_types::{DriftProfile, DriftType};
     use std::collections::BTreeMap;
     use std::result::Result;
@@ -26,7 +26,7 @@ pub mod drift_executor {
         pub async fn check_for_alerts(
             &self,
             db_client: &PostgresClient,
-            previous_run: NaiveDateTime,
+            previous_run: DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             match self {
                 Drifter::SpcDrifter(drifter) => {
@@ -52,7 +52,7 @@ pub mod drift_executor {
         /// # Arguments
         ///
         /// * `name` - Name of the drift profile
-        /// * `repository` - Repository of the drift profile
+        /// * `space` - Space of the drift profile
         /// * `version` - Version of the drift profile
         ///
         /// # Returns
@@ -92,7 +92,7 @@ pub mod drift_executor {
         pub async fn _process_task(
             &mut self,
             profile: DriftProfile,
-            previous_run: NaiveDateTime,
+            previous_run: DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             // match Drifter enum
 
@@ -193,7 +193,7 @@ pub mod drift_executor {
             };
 
             let service_info = ServiceInfo {
-                repository: task.repository.clone(),
+                space: task.space.clone(),
                 name: task.name.clone(),
                 version: task.version.clone(),
             };
@@ -240,10 +240,10 @@ pub mod drift_executor {
                 FROM scouter.drift;
 
                 DELETE 
-                FROM scouter.observability_metrics;
+                FROM scouter.observability_metric;
 
                 DELETE
-                FROM scouter.custom_metrics;
+                FROM scouter.custom_metric;
 
                 DELETE
                 FROM scouter.drift_alert;
@@ -286,7 +286,7 @@ pub mod drift_executor {
 
             // get alerts from db
             let request = DriftAlertRequest {
-                repository: "statworld".to_string(),
+                space: "statworld".to_string(),
                 name: "test_app".to_string(),
                 version: "0.1.0".to_string(),
                 limit_datetime: None,
@@ -294,7 +294,6 @@ pub mod drift_executor {
                 limit: None,
             };
             let alerts = client.get_drift_alerts(&request).await.unwrap();
-
             assert!(!alerts.is_empty());
         }
 
@@ -319,7 +318,7 @@ pub mod drift_executor {
 
             // get alerts from db
             let request = DriftAlertRequest {
-                repository: "statworld".to_string(),
+                space: "statworld".to_string(),
                 name: "test_app".to_string(),
                 version: "0.1.0".to_string(),
                 limit_datetime: None,
@@ -349,7 +348,7 @@ pub mod drift_executor {
 
             // get alerts from db
             let request = DriftAlertRequest {
-                repository: "scouter".to_string(),
+                space: "scouter".to_string(),
                 name: "model".to_string(),
                 version: "0.1.0".to_string(),
                 limit_datetime: None,
@@ -379,7 +378,7 @@ pub mod drift_executor {
 
             // get alerts from db
             let request = DriftAlertRequest {
-                repository: "scouter".to_string(),
+                space: "scouter".to_string(),
                 name: "model".to_string(),
                 version: "0.1.0".to_string(),
                 limit_datetime: None,
