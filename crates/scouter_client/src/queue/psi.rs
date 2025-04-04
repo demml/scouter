@@ -92,15 +92,12 @@ impl PsiQueue {
     fn _publish(&mut self) -> Result<(), ScouterError> {
         let mut queue = self.queue.blocking_lock();
         let records = queue.create_drift_records()?;
-        println!("{:?}", records);
-        println!("publish records now");
         if !records.records.is_empty() {
             self.rt
                 .block_on(async { self.producer.publish(records).await })?;
             queue.clear_queue();
             self.last_publish = Utc::now();
         }
-        println!("I published");
         Ok(())
     }
 

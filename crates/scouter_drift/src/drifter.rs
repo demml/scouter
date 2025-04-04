@@ -291,7 +291,6 @@ pub mod drift_executor {
                 limit: None,
             };
             let alerts = client.get_drift_alerts(&request).await.unwrap();
-            println!("{:?}", alerts);
             assert!(!alerts.is_empty());
         }
 
