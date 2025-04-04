@@ -213,14 +213,13 @@ pub async fn insert_drift(
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
     debug!("Inserting drift record: {:?}", body);
 
-    if !perms.has_write_permission(&body.repository()) {
+    if !perms.has_write_permission(&body.space()) {
         return Err((
             StatusCode::FORBIDDEN,
             Json(json!({ "error": "Permission denied" })),
         ));
     }
 
-  
     let record_type = match body.record_type() {
         Ok(rt) => rt,
         Err(e) => {

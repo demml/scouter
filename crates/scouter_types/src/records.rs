@@ -400,7 +400,7 @@ impl ServerRecords {
         self.records.len()
     }
 
-    pub fn repository(&self) -> String {
+    pub fn space(&self) -> String {
         match self.records.first() {
             Some(record) => record.space(),
             None => "__missing__".to_string(),
