@@ -219,7 +219,7 @@ jobs:
           python-version: "3.12"
 
       - run: pip install -U twine 'black>=22.3.0,<23' typing_extensions
-   
+
       - name: build wheels
         uses: PyO3/maturin-action@v1
 
@@ -232,8 +232,23 @@ jobs:
           working-directory: ./py-scouter
           # See: https://github.com/sfackler/rust-openssl/issues/2036#issuecomment-1724324145
           before-script-linux: |
-            # Ensure we have the correct CMake version
-            curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-x86_64.sh -o cmake.sh
+            # Determine architecture (x86_64 or x86)
+            ARCH=$(uname -m)
+          
+            echo "Detected architecture: $ARCH"
+          
+            # Download the correct CMake version based on the architecture
+            if [[ "$ARCH" == "x86_64" ]]; then
+                echo "Downloading CMake for x86_64 architecture"
+                curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-x86_64.sh -o cmake.sh
+            elif [[ "$ARCH" == "i686" ]]; then
+                echo "Downloading CMake for i686 architecture"
+                curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-i386.sh -o cmake.sh
+            else
+                echo "Unsupported architecture: $ARCH"
+            exit 1
+            fi
+          
             chmod +x cmake.sh
             ./cmake.sh --skip-license --prefix=/usr/local
             cmake --version  # Verify it's installed
