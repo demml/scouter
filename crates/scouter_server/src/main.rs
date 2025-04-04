@@ -247,7 +247,7 @@ mod tests {
             for _ in 0..10 {
                 for j in 0..10 {
                     let record = SpcServerRecord {
-                        created_at: chrono::Utc::now().naive_utc(),
+                        created_at: chrono::Utc::now(),
                         name: "test".to_string(),
                         space: "test".to_string(),
                         version: "test".to_string(),
@@ -268,7 +268,7 @@ mod tests {
                 for decile in 0..10 {
                     for _ in 0..100 {
                         let record = PsiServerRecord {
-                            created_at: chrono::Utc::now().naive_utc(),
+                            created_at: chrono::Utc::now(),
                             name: "test".to_string(),
                             space: "test".to_string(),
                             version: "1.0.0".to_string(),
@@ -289,7 +289,7 @@ mod tests {
             for i in 0..2 {
                 for _ in 0..25 {
                     let record = CustomMetricServerRecord {
-                        created_at: chrono::Utc::now().naive_utc(),
+                        created_at: chrono::Utc::now(),
                         name: "test".to_string(),
                         space: "test".to_string(),
                         version: "1.0.0".to_string(),

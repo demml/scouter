@@ -4,12 +4,7 @@
 #
 # import numpy as np
 # import pandas as pd
-# from scouter.alert import (
-#     AlertThreshold,
-#     PsiAlertConfig,
-#     SlackDispatchConfig,
-#     SpcAlertConfig,
-# )
+# from scouter.alert import AlertThreshold, SpcAlertConfig
 # from scouter.client import ScouterClient
 # from scouter.drift import (
 #     CustomDriftProfile,
@@ -29,7 +24,7 @@
 #
 #     col_names = []
 #     for i in range(0, X_train.shape[1]):
-#         col_names.append(f"feature_{i}")
+#         col_names.append(f"col_{i}")
 #
 #     X = pd.DataFrame(X_train, columns=col_names)
 #
@@ -44,21 +39,53 @@
 #     # Simple client to register drift profiles
 #     client = ScouterClient()
 #
-#     custom_config = CustomMetricDriftConfig(
+#     # create fake data
+#     data = generate_data()
+#
+#     # create psi profile
+#     psi_config = PsiDriftConfig(
 #         name="test",
 #         repository="test",
 #         version="0.0.1",
+#         features_to_monitor=["feature_1"],
 #     )
 #
-#     custom_profile = CustomDriftProfile(
-#         config=custom_config,
-#         metrics=[
-#             CustomMetric(
-#                 name="mae",
-#                 value=10,
-#                 alert_threshold=AlertThreshold.Above,
-#             ),
-#         ],
-#     )
+#     psi_profile = scouter.create_drift_profile(data, psi_config)
 #
-#     client.register_profile(custom_profile)
+#     bins = psi_profile.features["feature_1"].bins
+#
+#     client.register_profile(psi_profile)
+#     psi_profile.save_to_json(path=Path("psi_profile.json"))
+#
+#     # create spc profile
+#     # spc_config = SpcDriftConfig(
+#     #     name="test_app",
+#     #     space="statworld",
+#     #     version="0.1.0",
+#     #     alert_config=SpcAlertConfig(features_to_monitor=["col_1", "col_3"]),
+#     # )
+#     #
+#     # spc_profile = scouter.create_drift_profile(data, spc_config)
+#     # breakpoint()
+#     # client.register_profile(spc_profile)
+#     # spc_profile.save_to_json(path=Path("spc_profile.json"))
+#
+#     # custom_config = CustomMetricDriftConfig(
+#     #     name="test",
+#     #     repository="test",
+#     #     version="0.0.1",
+#     # )
+#     #
+#     # custom_profile = CustomDriftProfile(
+#     #     config=custom_config,
+#     #     metrics=[
+#     #         CustomMetric(
+#     #             name="mae",
+#     #             value=10,
+#     #             alert_threshold=AlertThreshold.Above,
+#     #         ),
+#     #     ],
+#     # )
+#     #
+#     # client.register_profile(custom_profile)
+#     # custom_profile.save_to_json(path=Path("custom_profile.json"))

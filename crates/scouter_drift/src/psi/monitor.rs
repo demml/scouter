@@ -221,7 +221,7 @@ impl PsiMonitor {
         Ok(PsiFeatureDriftProfile {
             id: feature_name,
             bins,
-            timestamp: chrono::Utc::now().naive_utc(),
+            timestamp: chrono::Utc::now(),
             bin_type,
         })
     }

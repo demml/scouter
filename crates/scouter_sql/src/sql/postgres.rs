@@ -3,7 +3,7 @@ use crate::sql::schema::{
     AlertWrapper, BinnedCustomMetricWrapper, FeatureBinProportionResult,
     FeatureBinProportionWrapper, ObservabilityResult, SpcFeatureResult, TaskRequest,
 };
-use chrono::{NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use cron::Schedule;
 use scouter_contracts::{
     DriftAlertRequest, DriftRequest, GetProfileRequest, ObservabilityMetricRequest,
@@ -336,8 +336,8 @@ impl PostgresClient {
             .bind(base_args.drift_type.to_string())
             .bind(false)
             .bind(base_args.schedule)
-            .bind(next_run.naive_utc())
-            .bind(current_time.naive_utc())
+            .bind(next_run)
+            .bind(current_time)
             .execute(&self.pool)
             .await
             .map_err(|e| {
@@ -473,7 +473,7 @@ impl PostgresClient {
             )))?;
 
         let query_result = sqlx::query(&query.sql)
-            .bind(next_run.naive_utc())
+            .bind(next_run)
             .bind(&service_info.name)
             .bind(&service_info.space)
             .bind(&service_info.version)
@@ -531,7 +531,7 @@ impl PostgresClient {
     pub async fn get_spc_drift_records(
         &self,
         service_info: &ServiceInfo,
-        limit_datetime: &NaiveDateTime,
+        limit_datetime: &DateTime<Utc>,
         features_to_monitor: &[String],
     ) -> Result<SpcDriftFeatures, SqlError> {
         let mut features = self.get_spc_features(service_info).await?;
@@ -753,7 +753,7 @@ impl PostgresClient {
     pub async fn get_feature_bin_proportions(
         &self,
         service_info: &ServiceInfo,
-        limit_datetime: &NaiveDateTime,
+        limit_datetime: &DateTime<Utc>,
         features_to_monitor: &[String],
     ) -> Result<FeatureBinProportions, SqlError> {
         let query = Queries::GetFeatureBinProportions.get_query();
@@ -782,7 +782,7 @@ impl PostgresClient {
     pub async fn get_custom_metric_values(
         &self,
         service_info: &ServiceInfo,
-        limit_datetime: &NaiveDateTime,
+        limit_datetime: &DateTime<Utc>,
         metrics: &[String],
     ) -> Result<HashMap<String, f64>, SqlError> {
         let query = Queries::GetCustomMetricValues.get_query();
@@ -953,7 +953,7 @@ mod tests {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
 
-        let timestamp = Utc::now().naive_utc();
+        let timestamp = Utc::now();
 
         for _ in 0..10 {
             let service_info = ServiceInfo {
@@ -1020,7 +1020,7 @@ mod tests {
         cleanup(&client.pool).await;
 
         let record = SpcServerRecord {
-            created_at: Utc::now().naive_utc(),
+            created_at: Utc::now(),
             name: "test".to_string(),
             space: "test".to_string(),
             version: "test".to_string(),
@@ -1039,7 +1039,7 @@ mod tests {
         cleanup(&client.pool).await;
 
         let record = PsiServerRecord {
-            created_at: Utc::now().naive_utc(),
+            created_at: Utc::now(),
             name: "test".to_string(),
             space: "test".to_string(),
             version: "test".to_string(),
@@ -1119,12 +1119,12 @@ mod tests {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
 
-        let timestamp = Utc::now().naive_utc();
+        let timestamp = Utc::now();
 
         for _ in 0..10 {
             for j in 0..10 {
                 let record = SpcServerRecord {
-                    created_at: Utc::now().naive_utc(),
+                    created_at: Utc::now(),
                     name: "test".to_string(),
                     space: "test".to_string(),
                     version: "test".to_string(),
@@ -1172,13 +1172,13 @@ mod tests {
     async fn test_postgres_bin_proportions() {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
-        let timestamp = Utc::now().naive_utc();
+        let timestamp = Utc::now();
 
         for feature in 0..3 {
             for bin in 0..=5 {
                 for _ in 0..=100 {
                     let record = PsiServerRecord {
-                        created_at: Utc::now().naive_utc(),
+                        created_at: Utc::now(),
                         name: "test".to_string(),
                         space: "test".to_string(),
                         version: "test".to_string(),
@@ -1234,12 +1234,12 @@ mod tests {
     async fn test_postgres_cru_custom_metric() {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
-        let timestamp = Utc::now().naive_utc();
+        let timestamp = Utc::now();
 
         for i in 0..2 {
             for _ in 0..25 {
                 let record = CustomMetricServerRecord {
-                    created_at: Utc::now().naive_utc(),
+                    created_at: Utc::now(),
                     name: "test".to_string(),
                     space: "test".to_string(),
                     version: "test".to_string(),
@@ -1254,7 +1254,7 @@ mod tests {
 
         // insert random record to test has statistics funcs handle single record
         let record = CustomMetricServerRecord {
-            created_at: Utc::now().naive_utc(),
+            created_at: Utc::now(),
             name: "test".to_string(),
             space: "test".to_string(),
             version: "test".to_string(),

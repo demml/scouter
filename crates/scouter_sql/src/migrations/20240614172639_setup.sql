@@ -4,12 +4,12 @@ CREATE EXTENSION if not exists pg_partman SCHEMA scouter;
 CREATE EXTENSION if not exists pg_cron;
 
 CREATE TABLE IF NOT exists scouter.drift (
-  created_at timestamp not null default (timezone('utc', now())),
-  name varchar(256),
-  space varchar(256),
-  feature varchar(256),
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  name text,
+  space text,
+  feature text,
   value double precision,
-  version varchar(256),
+  version text,
   UNIQUE (created_at,name,space,feature,value,version)
 )
 PARTITION BY RANGE (created_at);
@@ -26,18 +26,18 @@ UPDATE scouter.part_config SET retention = '7 days' WHERE parent_table = 'scoute
 
 -- Create table for service drift configuration
 CREATE table IF NOT exists scouter.drift_profile (
-  created_at timestamp not null default (timezone('utc', now())),
-  updated_at timestamp not null default (timezone('utc', now())),
-  name varchar(256),
-  space varchar(256),
-  version varchar(256),
-  drift_type varchar(64),
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  name text,
+  space text,
+  version text,
+  drift_type text,
   profile jsonb,
   active boolean default true,
-  schedule  varchar(256),
-  next_run timestamp,
-  previous_run timestamp,
-  scouter_version varchar(256) not null default '0.1.0',
+  schedule  text,
+  next_run TIMESTAMPTZ,
+  previous_run TIMESTAMPTZ,
+  scouter_version text not null default '0.1.0',
   PRIMARY KEY (name, space, version, drift_type)
 );
 

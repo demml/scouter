@@ -40,7 +40,7 @@ impl RabbitMQSetup for TestHelper {
                 let mut records = Vec::new();
                 for i in 0..15 {
                     let record = ServerRecord::Spc(SpcServerRecord {
-                        created_at: chrono::Utc::now().naive_utc(),
+                        created_at: chrono::Utc::now(),
                         name: "test".to_string(),
                         space: "test".to_string(),
                         feature: "feature".to_string(),
@@ -87,7 +87,7 @@ impl RabbitMQSetup for TestHelper {
 
 #[tokio::main]
 async fn main() {
-    let timestamp = chrono::Utc::now().naive_utc();
+    let timestamp = chrono::Utc::now();
     setup_logging().await.unwrap();
 
     let helper = TestHelper::new().await;

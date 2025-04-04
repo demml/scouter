@@ -6,6 +6,7 @@ use crate::{
     ProfileFuncs, MISSING,
 };
 
+use chrono::{DateTime, Utc};
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -54,7 +55,7 @@ pub struct SpcFeatureDriftProfile {
     pub three_lcl: f64,
 
     #[pyo3(get)]
-    pub timestamp: chrono::NaiveDateTime,
+    pub timestamp: DateTime<Utc>,
 }
 
 /// Python class for a monitoring configuration

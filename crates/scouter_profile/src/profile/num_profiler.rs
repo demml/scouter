@@ -371,7 +371,7 @@ impl NumProfiler {
                 id: features[i].clone(),
                 numeric_stats: Some(numeric_stats),
                 string_stats: None,
-                timestamp: chrono::Utc::now().naive_utc(),
+                timestamp: chrono::Utc::now(),
                 correlations: None,
             };
 

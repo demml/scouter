@@ -1,5 +1,6 @@
 use crate::spc::types::{SpcDriftMap, SpcFeatureDrift};
 use crate::utils::CategoricalFeatureHelpers;
+use chrono::Utc;
 use indicatif::ProgressBar;
 use ndarray::prelude::*;
 use ndarray::Axis;
@@ -12,6 +13,7 @@ use scouter_types::{
 };
 use std::collections::HashMap;
 use std::fmt::Debug;
+
 pub struct SpcMonitor {}
 
 impl CategoricalFeatureHelpers for SpcMonitor {}
@@ -151,7 +153,7 @@ impl SpcMonitor {
                     two_lcl: two_lcl[i].into(),
                     three_ucl: three_ucl[i].into(),
                     three_lcl: three_lcl[i].into(),
-                    timestamp: chrono::Utc::now().naive_utc(),
+                    timestamp: Utc::now(),
                 },
             );
         }

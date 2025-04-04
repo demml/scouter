@@ -1,9 +1,9 @@
 CREATE TABLE IF NOT exists scouter.observed_bin_count (
-  created_at timestamp not null default (timezone('utc', now())),
-  name varchar(256) not null,
-  space varchar(256) not null,
-  version varchar(256) not null,
-  feature varchar(256) not null,
+  created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  name text not null,
+  space text not null,
+  version text not null,
+  feature text not null,
   bin_id integer not null,
   bin_count integer not null,
   UNIQUE (created_at,name,space,version,feature,bin_id)

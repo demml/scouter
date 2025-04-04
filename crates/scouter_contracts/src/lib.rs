@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
 use scouter_types::{DriftType, TimeInterval};
 use serde::Deserialize;
@@ -104,7 +104,7 @@ pub struct DriftAlertRequest {
     pub name: String,
     pub space: String,
     pub version: String,
-    pub limit_datetime: Option<NaiveDateTime>,
+    pub limit_datetime: Option<DateTime<Utc>>,
     pub active: Option<bool>,
     pub limit: Option<i32>,
 }
@@ -118,7 +118,7 @@ impl DriftAlertRequest {
         space: String,
         version: String,
         active: bool,
-        limit_datetime: Option<NaiveDateTime>,
+        limit_datetime: Option<DateTime<Utc>>,
         limit: Option<i32>,
     ) -> Self {
         DriftAlertRequest {

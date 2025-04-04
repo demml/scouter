@@ -1,4 +1,5 @@
 use crate::util::ProfileFuncs;
+use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -31,7 +32,7 @@ pub struct BinnedCustomMetric {
     pub metric: String,
 
     #[pyo3(get)]
-    pub created_at: Vec<chrono::NaiveDateTime>,
+    pub created_at: Vec<DateTime<Utc>>,
 
     #[pyo3(get)]
     pub stats: Vec<BinnedCustomMetricStats>,

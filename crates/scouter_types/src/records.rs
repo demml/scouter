@@ -1,4 +1,5 @@
 use crate::ProfileFuncs;
+use chrono::Utc;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use scouter_error::{PyScouterError, ScouterError};
@@ -19,7 +20,7 @@ pub enum RecordType {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct SpcServerRecord {
     #[pyo3(get)]
-    pub created_at: chrono::NaiveDateTime,
+    pub created_at: chrono::DateTime<Utc>,
 
     #[pyo3(get)]
     pub space: String,
@@ -42,7 +43,7 @@ impl SpcServerRecord {
     #[new]
     pub fn new(space: String, name: String, version: String, feature: String, value: f64) -> Self {
         Self {
-            created_at: chrono::Utc::now().naive_utc(),
+            created_at: Utc::now(),
             name,
             space,
             version,
@@ -77,7 +78,7 @@ impl SpcServerRecord {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PsiServerRecord {
     #[pyo3(get)]
-    pub created_at: chrono::NaiveDateTime,
+    pub created_at: chrono::DateTime<Utc>,
 
     #[pyo3(get)]
     pub space: String,
@@ -110,7 +111,7 @@ impl PsiServerRecord {
         bin_count: usize,
     ) -> Self {
         Self {
-            created_at: chrono::Utc::now().naive_utc(),
+            created_at: Utc::now(),
             name,
             space,
             version,
@@ -135,7 +136,7 @@ impl PsiServerRecord {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CustomMetricServerRecord {
     #[pyo3(get)]
-    pub created_at: chrono::NaiveDateTime,
+    pub created_at: chrono::DateTime<Utc>,
 
     #[pyo3(get)]
     pub space: String,
@@ -158,7 +159,7 @@ impl CustomMetricServerRecord {
     #[new]
     pub fn new(space: String, name: String, version: String, metric: String, value: f64) -> Self {
         Self {
-            created_at: chrono::Utc::now().naive_utc(),
+            created_at: chrono::Utc::now(),
             name,
             space,
             version,

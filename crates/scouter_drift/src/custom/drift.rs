@@ -1,7 +1,7 @@
 #[cfg(feature = "sql")]
 pub mod custom_drifter {
 
-    use chrono::NaiveDateTime;
+    use chrono::{DateTime, Utc};
     use scouter_contracts::ServiceInfo;
     use scouter_dispatch::AlertDispatcher;
     use scouter_error::DriftError;
@@ -30,7 +30,7 @@ pub mod custom_drifter {
 
         pub async fn get_observed_custom_metric_values(
             &self,
-            limit_datetime: &NaiveDateTime,
+            limit_datetime: &DateTime<Utc>,
             db_client: &PostgresClient,
         ) -> Result<HashMap<String, f64>, DriftError> {
             let metrics: Vec<String> = self.profile.metrics.keys().cloned().collect();
@@ -53,7 +53,7 @@ pub mod custom_drifter {
 
         pub async fn get_metric_map(
             &self,
-            limit_datetime: &NaiveDateTime,
+            limit_datetime: &DateTime<Utc>,
             db_client: &PostgresClient,
         ) -> Result<Option<HashMap<String, f64>>, DriftError> {
             let metric_map = self
@@ -207,7 +207,7 @@ pub mod custom_drifter {
         pub async fn check_for_alerts(
             &self,
             db_client: &PostgresClient,
-            previous_run: NaiveDateTime,
+            previous_run: DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             info!(
                 "Processing custom metric(s) task for profile: {}/{}/{}",

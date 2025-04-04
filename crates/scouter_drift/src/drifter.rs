@@ -7,7 +7,7 @@ pub mod drift_executor {
     use sqlx::{Postgres, Transaction};
 
     use crate::{custom::CustomDrifter, psi::PsiDrifter, spc::SpcDrifter};
-    use chrono::NaiveDateTime;
+    use chrono::{DateTime, Utc};
     use scouter_types::{DriftProfile, DriftType};
     use std::collections::BTreeMap;
     use std::result::Result;
@@ -26,7 +26,7 @@ pub mod drift_executor {
         pub async fn check_for_alerts(
             &self,
             db_client: &PostgresClient,
-            previous_run: NaiveDateTime,
+            previous_run: DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             match self {
                 Drifter::SpcDrifter(drifter) => {
@@ -92,7 +92,7 @@ pub mod drift_executor {
         pub async fn _process_task(
             &mut self,
             profile: DriftProfile,
-            previous_run: NaiveDateTime,
+            previous_run: DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             // match Drifter enum
 
@@ -291,7 +291,7 @@ pub mod drift_executor {
                 limit: None,
             };
             let alerts = client.get_drift_alerts(&request).await.unwrap();
-
+            println!("{:?}", alerts);
             assert!(!alerts.is_empty());
         }
 

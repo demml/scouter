@@ -1,9 +1,9 @@
 CREATE TABLE IF NOT exists scouter.custom_metric (
-    created_at timestamp not null default (timezone('utc', now())),
-    name varchar(256) not null,
-    space varchar(256) not null,
-    version varchar(256) not null,
-    metric varchar(256) not null,
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    name text not null,
+    space text not null,
+    version text not null,
+    metric text not null,
     value double precision,
     UNIQUE (created_at,name,space,version)
 )

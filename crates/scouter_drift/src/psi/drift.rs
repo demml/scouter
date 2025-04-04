@@ -3,7 +3,7 @@ pub mod psi_drifter {
 
     use crate::psi::monitor::PsiMonitor;
     use crate::psi::types::{FeatureBinMapping, FeatureBinProportionPairs};
-    use chrono::NaiveDateTime;
+    use chrono::{DateTime, Utc};
     use rayon::iter::{IntoParallelIterator, ParallelIterator};
     use scouter_contracts::DriftRequest;
     use scouter_contracts::ServiceInfo;
@@ -47,7 +47,7 @@ pub mod psi_drifter {
 
         async fn get_feature_bin_proportion_pairs_map(
             &self,
-            limit_datetime: &NaiveDateTime,
+            limit_datetime: &DateTime<Utc>,
             db_client: &PostgresClient,
         ) -> Result<Option<FeatureBinMapping>, DriftError> {
             let profiles_to_monitor = self.get_monitored_profiles();
@@ -89,7 +89,7 @@ pub mod psi_drifter {
 
         pub async fn get_drift_map(
             &self,
-            limit_datetime: &NaiveDateTime,
+            limit_datetime: &DateTime<Utc>,
             db_client: &PostgresClient,
         ) -> Result<Option<HashMap<String, f64>>, DriftError> {
             self.get_feature_bin_proportion_pairs_map(limit_datetime, db_client)
@@ -188,7 +188,7 @@ pub mod psi_drifter {
         pub async fn check_for_alerts(
             &self,
             db_client: &PostgresClient,
-            previous_run: NaiveDateTime,
+            previous_run: DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             info!(
                 "Processing drift task for profile: {}/{}/{}",

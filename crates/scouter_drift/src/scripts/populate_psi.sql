@@ -73,7 +73,7 @@ VALUES
                           "proportion": 0.1
                         }
                       ],
-                      "timestamp": "2024-11-12T20:29:51.195989",
+                      "timestamp": "2024-11-12T20:29:51.195989Z",
                       "bin_type": "Numeric"
                     },
                     "target": {
@@ -140,7 +140,7 @@ VALUES
                           "proportion": 0.0
                         }
                       ],
-                      "timestamp": "2024-11-12T20:29:51.195710",
+                      "timestamp": "2024-11-12T20:29:51.195710Z",
                       "bin_type": "Numeric"
                     },
                     "feature_2": {
@@ -207,7 +207,7 @@ VALUES
                           "proportion": 0.1
                         }
                       ],
-                      "timestamp": "2024-11-12T20:29:51.195986",
+                      "timestamp": "2024-11-12T20:29:51.195986Z",
                       "bin_type": "Numeric"
                     },
                     "feature_3": {
@@ -274,7 +274,7 @@ VALUES
                           "proportion": 0.1
                         }
                       ],
-                      "timestamp": "2024-11-12T20:29:51.195978",
+                      "timestamp": "2024-11-12T20:29:51.195978Z",
                       "bin_type": "Numeric"
                     }
                   },
@@ -315,10 +315,10 @@ VALUES
 DO $$
     DECLARE
         created_at_1 timestamp := timezone('utc', current_timestamp - interval '1 days') + (random() * INTERVAL '1 minutes') + (random() * INTERVAL '1 second');
-        name varchar(256) := 'model';
-        space varchar(256) := 'scouter';
-        version varchar(256) := '0.1.0';
-        feature varchar(256);
+        name text := 'model';
+        space text := 'scouter';
+        version text := '0.1.0';
+        feature text;
         bin_id integer;
         bin_count integer;
     BEGIN
@@ -353,10 +353,10 @@ DO $$
 
 DO $$
     DECLARE
-        name varchar(256) := 'model';
-        space varchar(256) := 'scouter';
-        version varchar(256) := '0.1.0';
-        feature varchar(256);
+        name text := 'model';
+        space text := 'scouter';
+        version text := '0.1.0';
+        feature text;
         bin_id integer;
         bin_count integer;
         created_at_2 timestamp := timezone('utc', current_timestamp - interval '1 days') + (random() * INTERVAL '1 minutes') + (random() * INTERVAL '5 second');
@@ -391,10 +391,10 @@ DO $$
 
 DO $$
     DECLARE
-        name varchar(256) := 'model';
-        space varchar(256) := 'scouter';
-        version varchar(256) := '0.1.0';
-        feature varchar(256);
+        name text := 'model';
+        space text := 'scouter';
+        version text := '0.1.0';
+        feature text;
         bin_id integer;
         bin_count integer;
         created_at_3 timestamp := timezone('utc', current_timestamp - interval '1 days') + (random() * INTERVAL '1 minutes') + (random() * INTERVAL '3 second');

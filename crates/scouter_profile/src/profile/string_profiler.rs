@@ -1,12 +1,14 @@
 use crate::profile::types::DataProfile;
 use crate::profile::types::{CharStats, Distinct, FeatureProfile, StringStats, WordStats};
 use crate::stats::compute_feature_correlations;
+use chrono::Utc;
 use ndarray::Array2;
 use rayon::prelude::*;
 use scouter_error::{ProfilerError, ScouterError};
 use scouter_types::create_feature_map;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+
 pub struct StringProfiler {}
 
 impl StringProfiler {
@@ -200,7 +202,7 @@ impl StringProfiler {
                     id: feature.to_string(),
                     string_stats: Some(stats),
                     numeric_stats: None,
-                    timestamp: chrono::Utc::now().naive_utc(),
+                    timestamp: Utc::now(),
                     correlations: None,
                 }
             })

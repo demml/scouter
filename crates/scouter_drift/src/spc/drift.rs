@@ -2,7 +2,7 @@
 pub mod spc_drifter {
     use crate::spc::alert::generate_alerts;
     use crate::spc::monitor::SpcMonitor;
-    use chrono::NaiveDateTime;
+    use chrono::{DateTime, Utc};
     use ndarray::Array2;
     use ndarray::ArrayView2;
     use scouter_contracts::ServiceInfo;
@@ -70,7 +70,7 @@ pub mod spc_drifter {
         async fn get_drift_features(
             &self,
             db_client: &PostgresClient,
-            limit_datetime: &NaiveDateTime,
+            limit_datetime: &DateTime<Utc>,
             features_to_monitor: &[String],
         ) -> Result<SpcDriftArray, DriftError> {
             let records = db_client
@@ -91,7 +91,7 @@ pub mod spc_drifter {
         /// * `Result<Array2<f64>>` - Drift array
         pub async fn compute_drift(
             &self,
-            limit_datetime: &NaiveDateTime,
+            limit_datetime: &DateTime<Utc>,
             db_client: &PostgresClient,
         ) -> Result<(Array2<f64>, Vec<String>), DriftError> {
             let drift_features = self
@@ -203,7 +203,7 @@ pub mod spc_drifter {
         pub async fn check_for_alerts(
             &self,
             db_client: &PostgresClient,
-            previous_run: NaiveDateTime,
+            previous_run: DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             info!(
                 "Processing drift task for profile: {}/{}/{}",

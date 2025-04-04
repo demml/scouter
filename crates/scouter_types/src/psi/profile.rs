@@ -5,6 +5,7 @@ use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, ProfileArgs, ProfileBaseArgs,
     ProfileFuncs, DEFAULT_VERSION, MISSING,
 };
+use chrono::Utc;
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -314,7 +315,7 @@ pub struct PsiFeatureDriftProfile {
     pub bins: Vec<Bin>,
 
     #[pyo3(get)]
-    pub timestamp: chrono::NaiveDateTime,
+    pub timestamp: chrono::DateTime<Utc>,
 
     #[pyo3(get)]
     pub bin_type: BinType,
