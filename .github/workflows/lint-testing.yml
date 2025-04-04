@@ -242,11 +242,17 @@ jobs:
                 echo "Downloading CMake for x86_64 architecture"
                 curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-x86_64.sh -o cmake.sh
             elif [[ "$ARCH" == "i686" ]]; then
-                echo "Downloading CMake for i686 architecture"
-                curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-i386.sh -o cmake.sh
+                echo "Downloading CMake for x86 architecture"
+                curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4.tar.gz -o cmake.tar.gz
+                tar -xzf cmake.tar.gz
+                cd cmake-3.26.4
+                ./bootstrap --prefix=/usr/local
+                make -j$(nproc)
+                make install
+                cd ..
             else
                 echo "Unsupported architecture: $ARCH"
-            exit 1
+                exit 1
             fi
           
             chmod +x cmake.sh
