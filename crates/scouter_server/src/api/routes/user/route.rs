@@ -283,12 +283,12 @@ async fn delete_user(
 pub async fn get_user_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {
         Router::new()
-            .route(&format!("{}/users", prefix), post(create_user))
-            .route(&format!("{}/users", prefix), get(list_users))
-            .route(&format!("{}/users/{{username}}", prefix), get(get_user))
-            .route(&format!("{}/users/{{username}}", prefix), put(update_user))
+            .route(&format!("{}/user", prefix), post(create_user))
+            .route(&format!("{}/user", prefix), get(list_users))
+            .route(&format!("{}/user/{{username}}", prefix), get(get_user))
+            .route(&format!("{}/user/{{username}}", prefix), put(update_user))
             .route(
-                &format!("{}/users/{{username}}", prefix),
+                &format!("{}/user/{{username}}", prefix),
                 delete(delete_user),
             )
     }));

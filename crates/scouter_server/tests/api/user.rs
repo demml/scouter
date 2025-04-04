@@ -26,7 +26,7 @@ async fn test_server_user_crud() {
     let body = serde_json::to_string(&create_req).unwrap();
 
     let request = Request::builder()
-        .uri("/scouter/users")
+        .uri("/scouter/user")
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body))
@@ -47,7 +47,7 @@ async fn test_server_user_crud() {
 
     // 2. Get the user
     let request = Request::builder()
-        .uri("/scouter/users/test_user")
+        .uri("/scouter/user/test_user")
         .method("GET")
         .body(Body::empty())
         .unwrap();
@@ -74,7 +74,7 @@ async fn test_server_user_crud() {
     let body = serde_json::to_string(&update_req).unwrap();
 
     let request = Request::builder()
-        .uri("/scouter/users/test_user")
+        .uri("/scouter/user/test_user")
         .method("PUT")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body))
@@ -100,7 +100,7 @@ async fn test_server_user_crud() {
 
     // 4. List all users
     let request = Request::builder()
-        .uri("/scouter/users")
+        .uri("/scouter/user")
         .method("GET")
         .body(Body::empty())
         .unwrap();
@@ -120,7 +120,7 @@ async fn test_server_user_crud() {
 
     // 5. Delete the user
     let request = Request::builder()
-        .uri("/scouter/users/test_user")
+        .uri("/scouter/user/test_user")
         .method("DELETE")
         .body(Body::empty())
         .unwrap();
@@ -130,7 +130,7 @@ async fn test_server_user_crud() {
 
     // Verify the user is deleted by trying to get it
     let request = Request::builder()
-        .uri("/scouter/users/test_user")
+        .uri("/scouter/user/test_user")
         .method("GET")
         .body(Body::empty())
         .unwrap();

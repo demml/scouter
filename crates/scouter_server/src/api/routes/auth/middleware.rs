@@ -31,7 +31,7 @@ pub async fn auth_api_middleware(
     if let Some(key) = headers.get("X-Bootstrap-Key") {
         let bootstrap_key = &state.config.bootstrap_key;
         if key.as_bytes() == bootstrap_key.as_bytes()
-            && req.uri().path().contains("/users")
+            && req.uri().path().contains("/user")
             && req.method() == axum::http::Method::POST
         {
             return Ok(next.run(req).await);
