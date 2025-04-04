@@ -30,8 +30,7 @@ async fn test_create_spc_profile() {
     let alert_config = SpcAlertConfig::default();
     let config = SpcDriftConfig::new(
         Some("name".to_string()),
-        Some("repo".to_string()),
-        None,
+        Some("space".to_string()),
         None,
         None,
         None,
@@ -46,7 +45,7 @@ async fn test_create_spc_profile() {
         .unwrap();
 
     let request = ProfileRequest {
-        repository: profile.config.repository.clone(),
+        space: profile.config.space.clone(),
         profile: profile.model_dump_json(),
         drift_type: DriftType::Spc,
     };
@@ -71,7 +70,7 @@ async fn test_create_spc_profile() {
     assert_eq!(profile.config.sample_size, 100);
 
     let request = ProfileRequest {
-        repository: profile.config.repository.clone(),
+        space: profile.config.space.clone(),
         profile: profile.model_dump_json(),
         drift_type: DriftType::Spc,
     };
@@ -93,7 +92,7 @@ async fn test_create_spc_profile() {
     // get profile
     let params = GetProfileRequest {
         name: profile.config.name.clone(),
-        repository: profile.config.repository.clone(),
+        space: profile.config.space.clone(),
         version: profile.config.version.clone(),
         drift_type: DriftType::Spc,
     };
@@ -114,7 +113,7 @@ async fn test_create_spc_profile() {
     // update profile status
     let request = ProfileStatusRequest {
         name: profile.config.name.clone(),
-        repository: profile.config.repository.clone(),
+        space: profile.config.space.clone(),
         version: profile.config.version.clone(),
         active: true,
         drift_type: None,
@@ -156,7 +155,7 @@ async fn test_spc_server_records() {
     // get drift records
     let params = DriftRequest {
         name: "test".to_string(),
-        repository: "test".to_string(),
+        space: "test".to_string(),
         version: "test".to_string(),
         time_interval: TimeInterval::FiveMinutes,
         max_data_points: 100,
@@ -197,7 +196,7 @@ async fn test_psi_server_records() {
         ..Default::default()
     };
 
-    let config = PsiDriftConfig::new("test", "test", "1.0.0", None, alert_config, None);
+    let config = PsiDriftConfig::new("test", "test", "1.0.0", alert_config, None);
 
     let monitor = PsiMonitor::new();
 
@@ -206,7 +205,7 @@ async fn test_psi_server_records() {
         .unwrap();
 
     let request = ProfileRequest {
-        repository: profile.config.repository.clone(),
+        space: profile.config.space.clone(),
         profile: profile.model_dump_json(),
         drift_type: DriftType::Psi,
     };
@@ -243,7 +242,7 @@ async fn test_psi_server_records() {
     // get drift records
     let params = DriftRequest {
         name: "test".to_string(),
-        repository: "test".to_string(),
+        space: "test".to_string(),
         version: "1.0.0".to_string(),
         time_interval: TimeInterval::FiveMinutes,
         max_data_points: 100,
@@ -287,7 +286,7 @@ async fn test_custom_server_records() {
     let profile = CustomDriftProfile::new(config, vec![metric1, metric2], None).unwrap();
 
     let request = ProfileRequest {
-        repository: profile.config.repository.clone(),
+        space: profile.config.space.clone(),
         profile: profile.model_dump_json(),
         drift_type: DriftType::Custom,
     };
@@ -323,7 +322,7 @@ async fn test_custom_server_records() {
     // get drift records
     let params = DriftRequest {
         name: "test".to_string(),
-        repository: "test".to_string(),
+        space: "test".to_string(),
         version: "1.0.0".to_string(),
         time_interval: TimeInterval::FiveMinutes,
         max_data_points: 100,

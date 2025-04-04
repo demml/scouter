@@ -14,7 +14,7 @@ async fn test_get_drift_alerts() {
     helper.insert_alerts().await.unwrap();
 
     let request = DriftAlertRequest {
-        repository: "repo_1".to_string(),
+        space: "repo_1".to_string(),
         name: "model_1".to_string(),
         version: "1.0.0".to_string(),
         limit_datetime: None,

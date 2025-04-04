@@ -24,7 +24,6 @@ async fn test_create_spc_profile() {
         None,
         None,
         None,
-        None,
         Some(alert_config),
         None,
     );
@@ -36,7 +35,7 @@ async fn test_create_spc_profile() {
         .unwrap();
 
     let request = ProfileRequest {
-        repository: profile.config.repository.clone(),
+        space: profile.config.space.clone(),
         profile: profile.model_dump_json(),
         drift_type: DriftType::Spc,
     };
@@ -61,7 +60,7 @@ async fn test_create_spc_profile() {
     assert_eq!(profile.config.sample_size, 100);
 
     let request = ProfileRequest {
-        repository: profile.config.repository.clone(),
+        space: profile.config.space.clone(),
         profile: profile.model_dump_json(),
         drift_type: DriftType::Spc,
     };
@@ -83,7 +82,7 @@ async fn test_create_spc_profile() {
     // get profile
     let params = GetProfileRequest {
         name: profile.config.name.clone(),
-        repository: profile.config.repository.clone(),
+        space: profile.config.space.clone(),
         version: profile.config.version.clone(),
         drift_type: DriftType::Spc,
     };
@@ -104,7 +103,7 @@ async fn test_create_spc_profile() {
     // update profile status
     let request = ProfileStatusRequest {
         name: profile.config.name.clone(),
-        repository: profile.config.repository.clone(),
+        space: profile.config.space.clone(),
         version: profile.config.version.clone(),
         active: true,
         drift_type: None,

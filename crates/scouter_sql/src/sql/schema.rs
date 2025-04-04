@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use scouter_types::{
     alert::Alert,
     custom::{BinnedCustomMetric, BinnedCustomMetricStats},
+    get_utc_datetime,
     psi::FeatureBinProportion,
 };
 use serde::{Deserialize, Serialize};
@@ -201,7 +202,7 @@ impl<'r> FromRow<'r, PgRow> for FeatureBinProportionResult {
 #[derive(Serialize, Deserialize, Clone)]
 pub struct User {
     pub id: Option<i32>,
-    pub created_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
     pub active: bool,
     pub username: String,
     pub password_hash: String,
@@ -238,7 +239,7 @@ impl User {
 impl FromRow<'_, PgRow> for User {
     fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
         let id: Option<i32> = row.try_get("id")?;
-        let created_at: NaiveDateTime = row.try_get("created_at")?;
+        let created_at: DateTime<Utc> = row.try_get("created_at")?;
         let active: bool = row.try_get("active")?;
         let username: String = row.try_get("username")?;
         let password_hash: String = row.try_get("password_hash")?;
@@ -273,5 +274,5 @@ impl FromRow<'_, PgRow> for User {
 pub struct UpdateAlertResult {
     pub id: i32,
     pub active: bool,
-    pub updated_at: NaiveDateTime,
+    pub updated_at: DateTime<Utc>,
 }

@@ -63,7 +63,7 @@ impl DriftRequest {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProfileRequest {
-    pub repository: String,
+    pub space: String,
     pub drift_type: DriftType,
     pub profile: String,
 }

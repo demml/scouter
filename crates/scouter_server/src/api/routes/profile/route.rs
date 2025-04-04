@@ -40,7 +40,7 @@ pub async fn insert_drift_profile(
     Extension(perms): Extension<UserPermissions>,
     Json(body): Json<ProfileRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    if !perms.has_write_permission(&body.repository) {
+    if !perms.has_write_permission(&body.space) {
         return Err((
             StatusCode::FORBIDDEN,
             Json(json!({ "error": "Permission denied" })),
@@ -95,7 +95,7 @@ pub async fn update_drift_profile(
     Extension(perms): Extension<UserPermissions>,
     Json(body): Json<ProfileRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    if !perms.has_write_permission(&body.repository) {
+    if !perms.has_write_permission(&body.space) {
         return Err((
             StatusCode::FORBIDDEN,
             Json(json!({ "error": "Permission denied" })),
@@ -196,7 +196,7 @@ pub async fn update_drift_profile_status(
     Extension(perms): Extension<UserPermissions>,
     Json(body): Json<ProfileStatusRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    if !perms.has_write_permission(&body.repository) {
+    if !perms.has_write_permission(&body.space) {
         return Err((
             StatusCode::FORBIDDEN,
             Json(json!({ "error": "Permission denied" })),

@@ -323,12 +323,12 @@ impl ServerRecord {
         }
     }
 
-    pub fn repository(&self) -> String {
+    pub fn space(&self) -> String {
         match self {
-            ServerRecord::Spc(record) => record.repository.clone(),
-            ServerRecord::Psi(record) => record.repository.clone(),
-            ServerRecord::Custom(record) => record.repository.clone(),
-            ServerRecord::Observability(record) => record.repository.clone(),
+            ServerRecord::Spc(record) => record.space.clone(),
+            ServerRecord::Psi(record) => record.space.clone(),
+            ServerRecord::Custom(record) => record.space.clone(),
+            ServerRecord::Observability(record) => record.space.clone(),
         }
     }
 
@@ -402,7 +402,7 @@ impl ServerRecords {
 
     pub fn repository(&self) -> String {
         match self.records.first() {
-            Some(record) => record.repository(),
+            Some(record) => record.space(),
             None => "__missing__".to_string(),
         }
     }

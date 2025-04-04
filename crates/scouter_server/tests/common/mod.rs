@@ -5,11 +5,12 @@ use axum::{
     http::{header, Request, StatusCode},
     Router,
 };
+use chrono::Utc;
 use http_body_util::BodyExt;
 use rand::Rng;
 use scouter_server::create_app;
 use scouter_types::{CustomMetricServerRecord, PsiServerRecord};
-use scouter_types::{RecordType, ServerRecord, ServerRecords, SpcServerRecord};
+use scouter_types::{ServerRecord, ServerRecords, SpcServerRecord};
 // for `collect`
 
 use ndarray::Array;
@@ -143,24 +144,23 @@ impl TestHelper {
 
     pub fn get_spc_drift_records(&self) -> ServerRecords {
         let mut records: Vec<ServerRecord> = Vec::new();
-        let record_type = RecordType::Spc;
+
         for _ in 0..10 {
             for j in 0..10 {
                 let record = SpcServerRecord {
-                    created_at: chrono::Utc::now().naive_utc(),
+                    created_at: Utc::now(),
                     name: "test".to_string(),
-                    repository: "test".to_string(),
+                    space: "test".to_string(),
                     version: "test".to_string(),
                     feature: format!("test{}", j),
                     value: j as f64,
-                    record_type: RecordType::Spc,
                 };
 
                 records.push(ServerRecord::Spc(record));
             }
         }
 
-        ServerRecords::new(records, record_type)
+        ServerRecords::new(records)
     }
 
     pub fn get_psi_drift_records(&self) -> ServerRecords {
@@ -171,21 +171,20 @@ impl TestHelper {
                 for _ in 0..100 {
                     // add one minute to each record
                     let record = PsiServerRecord {
-                        created_at: chrono::Utc::now().naive_utc(),
+                        created_at: Utc::now(),
                         name: "test".to_string(),
-                        repository: "test".to_string(),
+                        space: "test".to_string(),
                         version: "1.0.0".to_string(),
                         feature: format!("feature_{}", feature),
                         bin_id: decile,
                         bin_count: rand::rng().random_range(0..10),
-                        record_type: RecordType::Psi,
                     };
 
                     records.push(ServerRecord::Psi(record));
                 }
             }
         }
-        ServerRecords::new(records, RecordType::Psi)
+        ServerRecords::new(records)
     }
 
     pub fn get_custom_drift_records(&self) -> ServerRecords {
@@ -193,20 +192,19 @@ impl TestHelper {
         for i in 0..2 {
             for _ in 0..25 {
                 let record = CustomMetricServerRecord {
-                    created_at: chrono::Utc::now().naive_utc(),
+                    created_at: Utc::now(),
                     name: "test".to_string(),
-                    repository: "test".to_string(),
+                    space: "test".to_string(),
                     version: "1.0.0".to_string(),
                     metric: format!("metric{}", i),
                     value: rand::rng().random_range(0..10) as f64,
-                    record_type: RecordType::Custom,
                 };
 
                 records.push(ServerRecord::Custom(record));
             }
         }
 
-        ServerRecords::new(records, RecordType::Custom)
+        ServerRecords::new(records)
     }
 
     pub async fn insert_alerts(&self) -> Result<(), anyhow::Error> {

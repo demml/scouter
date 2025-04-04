@@ -2,7 +2,6 @@ use crate::api::routes::alerts::types::UpdateAlertResponse;
 use crate::api::state::AppState;
 
 use anyhow::{Context, Result};
-use axum::routing::post;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
