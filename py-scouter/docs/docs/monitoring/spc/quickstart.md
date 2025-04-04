@@ -46,7 +46,7 @@ if __name__ == "__main__":
     )
 
     # Set up SPC drift config with a custom sample size
-    spc_config = SpcDriftConfig(name="wine_model", repository="wine_model", version="0.0.1", alert_config=alert_config, sample_size=1000)
+    spc_config = SpcDriftConfig(name="wine_model", space="wine_model", version="0.0.1", alert_config=alert_config, sample_size=1000)
 
     # Create the drift profile
     spc_profile = scouter.create_drift_profile(X, spc_config)
@@ -107,7 +107,7 @@ scouter_router = ScouterRouter(
             # Drift transport configurations are tied to drift profiles
             drift_profile_request=GetProfileRequest(
                 name="wine_model",
-                repository="wine_model",
+                space="wine_model",
                 version="0.0.1",
                 drift_type=DriftType.Spc
             ),

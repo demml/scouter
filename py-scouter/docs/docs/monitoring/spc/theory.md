@@ -128,7 +128,7 @@ custom_rule = SpcAlertRule(rule="16 32 4 8 2 4 1 1")  # create your custom rule 
 # Create a drift config
 config = SpcDriftConfig(
     name="model",
-    repository="scouter",
+    space="scouter",
     version="0.1.0",
     alert_config=SpcAlertConfig(rule=custom_rule, dispatch_config=SlackDispatchConfig(channel="test_channel")),
 )

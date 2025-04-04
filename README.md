@@ -50,7 +50,7 @@ data = generate_data()
 drifter = Drifter()
 
 # Create DriftConfig
-config = DriftConfig(name="model", repository="scouter", version="0.1.0")
+config = DriftConfig(name="model", space="scouter", version="0.1.0")
 
 # Create Drift profile
 profile = drifter.create_drift_profile(data, config)
@@ -110,7 +110,7 @@ print(profile)
     "sample_size": 25,
     "sample": true,
     "name": "test_app",
-    "repository": "statworld",
+    "space": "statworld",
     "version": "0.1.0",
     "alert_config": {
         "alert_dispatch_type": "Console",

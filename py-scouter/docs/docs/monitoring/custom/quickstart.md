@@ -45,7 +45,7 @@ if __name__ == "__main__":
     # Create drift config
     psi_config = PsiDriftConfig(
         name="wine_model",
-        repository="wine_model",
+        space="wine_model",
         version="0.0.1",
         alert_config=alert_config
     )
@@ -109,7 +109,7 @@ scouter_router = ScouterRouter(
             # Drift transport configurations are tied to drift profiles
             drift_profile_request=GetProfileRequest(
                 name="wine_model",
-                repository="wine_model",
+                space="wine_model",
                 version="0.0.1",
                 drift_type=DriftType.Psi
             ),
