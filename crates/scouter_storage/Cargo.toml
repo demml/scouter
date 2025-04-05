@@ -1,0 +1,27 @@
+[package]
+name = "scouter-storage"
+version = { workspace = true }
+edition = { workspace = true }
+repository = { workspace = true }
+
+authors = [
+  "Steven Forrester <sjforrester32@gmail.com>"
+]
+
+license = "MIT"
+description = "DataFusion client for long-term storage of scouter data"
+
+[dependencies]
+datafusion = { workspace = true }
+tracing = { workspace = true }
+tempfile = { workspace = true }
+
+[dev-dependencies]
+tempfile = { workspace = true }
+
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true
+
