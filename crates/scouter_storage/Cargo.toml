@@ -14,14 +14,22 @@ description = "DataFusion client for long-term storage of scouter data"
 [dependencies]
 scouter-error = { workspace = true }
 scouter-settings = { workspace = true }
+scouter-types = { workspace = true }
 
+arrow = { workspace = true }
+arrow-array  = { workspace = true }
+async-trait = { workspace = true }
 datafusion = { workspace = true }
 object_store = { workspace = true }
+parquet = { workspace = true }
 tracing = { workspace = true }
 tempfile = { workspace = true }
+url = { workspace = true }
 
 [dev-dependencies]
+chrono = { workspace = true }
 tempfile = { workspace = true }
+tokio = { workspace = true }
 
 
 [profile.release]

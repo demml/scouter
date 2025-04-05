@@ -38,6 +38,9 @@ scouter-types = { path = "crates/scouter_types" }
 anyhow = "1.*"
 axum = "0.*"
 approx = "0.*"
+arrow = { version = "*" } 
+arrow-array = { version = "*" }
+async-trait = "0.*"
 chrono ={ version = "0.*", features = ["serde"] }
 colored_json = "*"
 cron = "0.*"
@@ -59,6 +62,7 @@ noisy_float = "0.*"
 numpy = "0.*"
 num-traits = "0.*"
 object_store = { version = "0.*", features = ["aws", "azure", "gcp" ] }
+parquet = { version = "*", features = ["arrow"] }
 pyo3 = { version = ">=0.23.3, <1.0.0", features = ["chrono", "anyhow", "extension-module"] }
 rand = "0.*"
 rayon = "1.*"
@@ -76,6 +80,7 @@ tokio = { version = "1.*", features = ["rt", "rt-multi-thread", "macros", "signa
 tower-http = { version = "0.*", features = ["cors"] }
 tracing = "0.*"
 tracing-subscriber = {version = "0.*", features = ["json", "time"]}
+url = "2.*"
 
 # RabbitMQ dependencies
 lapin = { version = "2.*" }

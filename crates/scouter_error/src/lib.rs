@@ -226,6 +226,9 @@ pub enum ScouterError {
 
     #[error("Empty ServerRecordsError")]
     EmptyServerRecordsError,
+
+    #[error(transparent)]
+    StorageError(#[from] StorageError),
 }
 
 // impl From for PyErr

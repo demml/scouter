@@ -173,6 +173,7 @@ pub enum StorageType {
 pub struct ObjectStorageSettings {
     pub storage_uri: String,
     pub storage_type: StorageType,
+    pub region: String, // this is aws specific
 }
 
 impl Default for ObjectStorageSettings {
@@ -182,10 +183,12 @@ impl Default for ObjectStorageSettings {
 
         let storage_uri = ScouterServerConfig::set_storage_uri(storage_uri);
         let storage_type = ScouterServerConfig::get_storage_type(&storage_uri);
+        let region = std::env::var("AWS_REGION").unwrap_or_else(|_| "us-east-1".to_string());
 
         Self {
             storage_uri,
             storage_type,
+            region,
         }
     }
 }
