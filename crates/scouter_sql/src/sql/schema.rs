@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 use scouter_types::{
     alert::Alert,
     custom::{BinnedCustomMetric, BinnedCustomMetricStats},
@@ -11,9 +11,9 @@ use std::collections::HashMap;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRecord {
-    pub created_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
     pub name: String,
-    pub repository: String,
+    pub space: String,
     pub version: String,
     pub feature: String,
     pub value: f64,
@@ -22,7 +22,7 @@ pub struct DriftRecord {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SpcFeatureResult {
     pub feature: String,
-    pub created_at: Vec<chrono::NaiveDateTime>,
+    pub created_at: Vec<DateTime<Utc>>,
     pub values: Vec<f64>,
 }
 
@@ -80,7 +80,7 @@ impl<'r> FromRow<'r, PgRow> for AlertWrapper {
         Ok(AlertWrapper(Alert {
             created_at: row.try_get("created_at")?,
             name: row.try_get("name")?,
-            repository: row.try_get("repository")?,
+            space: row.try_get("space")?,
             version: row.try_get("version")?,
             alert,
             feature: row.try_get("feature")?,
@@ -93,11 +93,11 @@ impl<'r> FromRow<'r, PgRow> for AlertWrapper {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskRequest {
     pub name: String,
-    pub repository: String,
+    pub space: String,
     pub version: String,
     pub profile: String,
     pub drift_type: String,
-    pub previous_run: NaiveDateTime,
+    pub previous_run: DateTime<Utc>,
     pub schedule: String,
 }
 
@@ -107,7 +107,7 @@ impl<'r> FromRow<'r, PgRow> for TaskRequest {
 
         Ok(TaskRequest {
             name: row.try_get("name")?,
-            repository: row.try_get("repository")?,
+            space: row.try_get("space")?,
             version: row.try_get("version")?,
             profile: profile.to_string(),
             drift_type: row.try_get("drift_type")?,
@@ -120,7 +120,7 @@ impl<'r> FromRow<'r, PgRow> for TaskRequest {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ObservabilityResult {
     pub route_name: String,
-    pub created_at: Vec<chrono::NaiveDateTime>,
+    pub created_at: Vec<DateTime<Utc>>,
     pub p5: Vec<f64>,
     pub p25: Vec<f64>,
     pub p50: Vec<f64>,
@@ -168,7 +168,7 @@ pub struct BinProportion {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FeatureBinProportionResult {
     pub feature: String,
-    pub created_at: Vec<NaiveDateTime>,
+    pub created_at: Vec<DateTime<Utc>>,
     pub bin_proportions: Vec<BTreeMap<usize, f64>>,
     pub overall_proportions: BTreeMap<usize, f64>,
 }

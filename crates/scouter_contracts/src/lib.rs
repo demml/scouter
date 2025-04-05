@@ -1,4 +1,4 @@
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
 use scouter_types::{DriftType, TimeInterval};
 use serde::Deserialize;
@@ -8,7 +8,7 @@ use serde::Serialize;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetProfileRequest {
     pub name: String,
-    pub repository: String,
+    pub space: String,
     pub version: String,
     pub drift_type: DriftType,
 }
@@ -16,11 +16,11 @@ pub struct GetProfileRequest {
 #[pymethods]
 impl GetProfileRequest {
     #[new]
-    #[pyo3(signature = (name, repository, version, drift_type))]
-    pub fn new(name: String, repository: String, version: String, drift_type: DriftType) -> Self {
+    #[pyo3(signature = (name, space, version, drift_type))]
+    pub fn new(name: String, space: String, version: String, drift_type: DriftType) -> Self {
         GetProfileRequest {
             name,
-            repository,
+            space,
             version,
             drift_type,
         }
@@ -31,7 +31,7 @@ impl GetProfileRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRequest {
     pub name: String,
-    pub repository: String,
+    pub space: String,
     pub version: String,
     pub time_interval: TimeInterval,
     pub max_data_points: i32,
@@ -41,10 +41,10 @@ pub struct DriftRequest {
 #[pymethods]
 impl DriftRequest {
     #[new]
-    #[pyo3(signature = (name, repository, version, time_interval, max_data_points, drift_type))]
+    #[pyo3(signature = (name, space, version, time_interval, max_data_points, drift_type))]
     pub fn new(
         name: String,
-        repository: String,
+        space: String,
         version: String,
         time_interval: TimeInterval,
         max_data_points: i32,
@@ -52,7 +52,7 @@ impl DriftRequest {
     ) -> Self {
         DriftRequest {
             name,
-            repository,
+            space,
             version,
             time_interval,
             max_data_points,
@@ -71,7 +71,7 @@ pub struct ProfileRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProfileStatusRequest {
     pub name: String,
-    pub repository: String,
+    pub space: String,
     pub version: String,
     pub active: bool,
     pub drift_type: Option<DriftType>,
@@ -80,17 +80,17 @@ pub struct ProfileStatusRequest {
 #[pymethods]
 impl ProfileStatusRequest {
     #[new]
-    #[pyo3(signature = (name, repository, version, drift_type=None, active=false))]
+    #[pyo3(signature = (name, space, version, drift_type=None, active=false))]
     pub fn new(
         name: String,
-        repository: String,
+        space: String,
         version: String,
         drift_type: Option<DriftType>,
         active: bool,
     ) -> Self {
         ProfileStatusRequest {
             name,
-            repository,
+            space,
             version,
             active,
             drift_type,
@@ -102,9 +102,9 @@ impl ProfileStatusRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftAlertRequest {
     pub name: String,
-    pub repository: String,
+    pub space: String,
     pub version: String,
-    pub limit_datetime: Option<NaiveDateTime>,
+    pub limit_datetime: Option<DateTime<Utc>>,
     pub active: Option<bool>,
     pub limit: Option<i32>,
 }
@@ -112,18 +112,18 @@ pub struct DriftAlertRequest {
 #[pymethods]
 impl DriftAlertRequest {
     #[new]
-    #[pyo3(signature = (name, repository, version, active=false, limit_datetime=None, limit=None))]
+    #[pyo3(signature = (name, space, version, active=false, limit_datetime=None, limit=None))]
     pub fn new(
         name: String,
-        repository: String,
+        space: String,
         version: String,
         active: bool,
-        limit_datetime: Option<NaiveDateTime>,
+        limit_datetime: Option<DateTime<Utc>>,
         limit: Option<i32>,
     ) -> Self {
         DriftAlertRequest {
             name,
-            repository,
+            space,
             version,
             limit_datetime,
             active: Some(active),
@@ -134,7 +134,7 @@ impl DriftAlertRequest {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ServiceInfo {
-    pub repository: String,
+    pub space: String,
     pub name: String,
     pub version: String,
 }
@@ -142,7 +142,7 @@ pub struct ServiceInfo {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ObservabilityMetricRequest {
     pub name: String,
-    pub repository: String,
+    pub space: String,
     pub version: String,
     pub time_interval: String,
     pub max_data_points: i32,

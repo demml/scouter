@@ -3,7 +3,7 @@ use crate::sql::schema::{
     AlertWrapper, BinnedCustomMetricWrapper, FeatureBinProportionResult,
     FeatureBinProportionWrapper, ObservabilityResult, SpcFeatureResult, TaskRequest,
 };
-use chrono::{NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use cron::Schedule;
 use scouter_contracts::{
     DriftAlertRequest, DriftRequest, GetProfileRequest, ObservabilityMetricRequest,
@@ -117,7 +117,7 @@ impl PostgresClient {
     /// # Arguments
     ///
     /// * `name` - The name of the service to insert the alert for
-    /// * `repository` - The name of the repository to insert the alert for
+    /// * `space` - The name of the space to insert the alert for
     /// * `version` - The version of the service to insert the alert for
     /// * `alert` - The alert to insert into the database
     ///
@@ -131,7 +131,7 @@ impl PostgresClient {
 
         let query_result: std::result::Result<PgQueryResult, SqlError> = sqlx::query(&query.sql)
             .bind(&service_info.name)
-            .bind(&service_info.repository)
+            .bind(&service_info.space)
             .bind(&service_info.version)
             .bind(feature)
             .bind(serde_json::to_value(alert).unwrap())
@@ -186,7 +186,7 @@ impl PostgresClient {
         let result: Result<Vec<AlertWrapper>, SqlError> = sqlx::query_as(&query)
             .bind(&params.version)
             .bind(&params.name)
-            .bind(&params.repository)
+            .bind(&params.space)
             .bind(params.limit_datetime)
             .fetch_all(&self.pool)
             .await
@@ -214,7 +214,7 @@ impl PostgresClient {
         sqlx::query(&query.sql)
             .bind(record.created_at)
             .bind(&record.name)
-            .bind(&record.repository)
+            .bind(&record.space)
             .bind(&record.version)
             .bind(&record.feature)
             .bind(record.value)
@@ -236,7 +236,7 @@ impl PostgresClient {
         sqlx::query(&query.sql)
             .bind(record.created_at)
             .bind(&record.name)
-            .bind(&record.repository)
+            .bind(&record.space)
             .bind(&record.version)
             .bind(&record.feature)
             .bind(record.bin_id as i64)
@@ -268,7 +268,7 @@ impl PostgresClient {
         })?;
 
         let query_result = sqlx::query(&query.sql)
-            .bind(&record.repository)
+            .bind(&record.space)
             .bind(&record.name)
             .bind(&record.version)
             .bind(record.request_count)
@@ -329,15 +329,15 @@ impl PostgresClient {
 
         let query_result = sqlx::query(&query.sql)
             .bind(base_args.name)
-            .bind(base_args.repository)
+            .bind(base_args.space)
             .bind(base_args.version)
             .bind(base_args.scouter_version)
             .bind(drift_profile.to_value())
             .bind(base_args.drift_type.to_string())
             .bind(false)
             .bind(base_args.schedule)
-            .bind(next_run.naive_utc())
-            .bind(current_time.naive_utc())
+            .bind(next_run)
+            .bind(current_time)
             .execute(&self.pool)
             .await
             .map_err(|e| {
@@ -374,7 +374,7 @@ impl PostgresClient {
             .bind(drift_profile.to_value())
             .bind(base_args.drift_type.to_string())
             .bind(base_args.name)
-            .bind(base_args.repository)
+            .bind(base_args.space)
             .bind(base_args.version)
             .execute(&self.pool)
             .await
@@ -407,7 +407,7 @@ impl PostgresClient {
 
         let result = sqlx::query(&query.sql)
             .bind(&request.name)
-            .bind(&request.repository)
+            .bind(&request.space)
             .bind(&request.version)
             .bind(request.drift_type.to_string())
             .fetch_optional(&self.pool)
@@ -473,9 +473,9 @@ impl PostgresClient {
             )))?;
 
         let query_result = sqlx::query(&query.sql)
-            .bind(next_run.naive_utc())
+            .bind(next_run)
             .bind(&service_info.name)
-            .bind(&service_info.repository)
+            .bind(&service_info.space)
             .bind(&service_info.version)
             .execute(&mut **transaction)
             .await;
@@ -505,7 +505,7 @@ impl PostgresClient {
 
         sqlx::query(&query.sql)
             .bind(&service_info.name)
-            .bind(&service_info.repository)
+            .bind(&service_info.space)
             .bind(&service_info.version)
             .fetch_all(&self.pool)
             .await
@@ -531,7 +531,7 @@ impl PostgresClient {
     pub async fn get_spc_drift_records(
         &self,
         service_info: &ServiceInfo,
-        limit_datetime: &NaiveDateTime,
+        limit_datetime: &DateTime<Utc>,
         features_to_monitor: &[String],
     ) -> Result<SpcDriftFeatures, SqlError> {
         let mut features = self.get_spc_features(service_info).await?;
@@ -545,7 +545,7 @@ impl PostgresClient {
         let records: Vec<SpcFeatureResult> = sqlx::query_as(&query.sql)
             .bind(limit_datetime)
             .bind(&service_info.name)
-            .bind(&service_info.repository)
+            .bind(&service_info.space)
             .bind(&service_info.version)
             .bind(features)
             .fetch_all(&self.pool)
@@ -586,7 +586,7 @@ impl PostgresClient {
                 .bind(bin)
                 .bind(time_interval)
                 .bind(&params.name)
-                .bind(&params.repository)
+                .bind(&params.space)
                 .bind(&params.version)
                 .fetch_all(&self.pool)
                 .await;
@@ -602,7 +602,7 @@ impl PostgresClient {
     // # Arguments
     //
     // * `name` - The name of the service to query drift records for
-    // * `repository` - The name of the repository to query drift records for
+    // * `space` - The name of the space to query drift records for
     // * `feature` - The name of the feature to query drift records for
     // * `aggregation` - The aggregation to use for the query
     // * `time_interval` - The time window to query drift records for
@@ -623,7 +623,7 @@ impl PostgresClient {
             .bind(bin)
             .bind(minutes)
             .bind(&params.name)
-            .bind(&params.repository)
+            .bind(&params.space)
             .bind(&params.version)
             .fetch_all(&self.pool)
             .await
@@ -673,7 +673,7 @@ impl PostgresClient {
                 .bind(bin)
                 .bind(minutes)
                 .bind(&params.name)
-                .bind(&params.repository)
+                .bind(&params.space)
                 .bind(&params.version)
                 .fetch_all(&self.pool)
                 .await;
@@ -708,7 +708,7 @@ impl PostgresClient {
             .bind(bin)
             .bind(minutes)
             .bind(&params.name)
-            .bind(&params.repository)
+            .bind(&params.space)
             .bind(&params.version)
             .fetch_all(&self.pool)
             .await
@@ -732,7 +732,7 @@ impl PostgresClient {
         let query_result = sqlx::query(&query.sql)
             .bind(params.active)
             .bind(&params.name)
-            .bind(&params.repository)
+            .bind(&params.space)
             .bind(&params.version)
             .bind(params.drift_type.as_ref().map(|t| t.to_string()))
             .execute(&self.pool)
@@ -753,14 +753,14 @@ impl PostgresClient {
     pub async fn get_feature_bin_proportions(
         &self,
         service_info: &ServiceInfo,
-        limit_datetime: &NaiveDateTime,
+        limit_datetime: &DateTime<Utc>,
         features_to_monitor: &[String],
     ) -> Result<FeatureBinProportions, SqlError> {
         let query = Queries::GetFeatureBinProportions.get_query();
 
         let binned: Vec<FeatureBinProportionWrapper> = sqlx::query_as(&query.sql)
             .bind(&service_info.name)
-            .bind(&service_info.repository)
+            .bind(&service_info.space)
             .bind(&service_info.version)
             .bind(limit_datetime)
             .bind(features_to_monitor)
@@ -782,14 +782,14 @@ impl PostgresClient {
     pub async fn get_custom_metric_values(
         &self,
         service_info: &ServiceInfo,
-        limit_datetime: &NaiveDateTime,
+        limit_datetime: &DateTime<Utc>,
         metrics: &[String],
     ) -> Result<HashMap<String, f64>, SqlError> {
         let query = Queries::GetCustomMetricValues.get_query();
 
         let records = sqlx::query(&query.sql)
             .bind(&service_info.name)
-            .bind(&service_info.repository)
+            .bind(&service_info.space)
             .bind(&service_info.version)
             .bind(limit_datetime)
             .bind(metrics)
@@ -824,7 +824,7 @@ impl PostgresClient {
         let query_result = sqlx::query(&query.sql)
             .bind(record.created_at)
             .bind(&record.name)
-            .bind(&record.repository)
+            .bind(&record.space)
             .bind(&record.version)
             .bind(&record.metric)
             .bind(record.value)
@@ -856,7 +856,7 @@ impl MessageHandler {
     pub async fn insert_server_records(&self, records: &ServerRecords) -> Result<(), ScouterError> {
         match self {
             Self::Postgres(client) => {
-                match records.record_type {
+                match records.record_type()? {
                     RecordType::Spc => {
                         debug!("SPC record count: {:?}", records.len());
                         let records = records.to_spc_drift_records()?;
@@ -921,13 +921,13 @@ mod tests {
             FROM scouter.drift;
 
             DELETE
-            FROM scouter.observability_metrics;
+            FROM scouter.observability_metric;
 
             DELETE
-            FROM scouter.custom_metrics;
+            FROM scouter.custom_metric;
 
             DELETE
-            FROM scouter.drift_alerts;
+            FROM scouter.drift_alert;
 
             DELETE
             FROM scouter.drift_profile;
@@ -953,12 +953,12 @@ mod tests {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
 
-        let timestamp = chrono::Utc::now().naive_utc();
+        let timestamp = Utc::now();
 
         for _ in 0..10 {
             let service_info = ServiceInfo {
                 name: "test".to_string(),
-                repository: "test".to_string(),
+                space: "test".to_string(),
                 version: "test".to_string(),
             };
 
@@ -977,7 +977,7 @@ mod tests {
         // get alerts
         let alert_request = DriftAlertRequest {
             name: "test".to_string(),
-            repository: "test".to_string(),
+            space: "test".to_string(),
             version: "test".to_string(),
             active: Some(true),
             limit: None,
@@ -990,7 +990,7 @@ mod tests {
         // get alerts limit 1
         let alert_request = DriftAlertRequest {
             name: "test".to_string(),
-            repository: "test".to_string(),
+            space: "test".to_string(),
             version: "test".to_string(),
             active: Some(true),
             limit: Some(1),
@@ -1003,7 +1003,7 @@ mod tests {
         // get alerts limit timestamp
         let alert_request = DriftAlertRequest {
             name: "test".to_string(),
-            repository: "test".to_string(),
+            space: "test".to_string(),
             version: "test".to_string(),
             active: Some(true),
             limit: None,
@@ -1020,13 +1020,12 @@ mod tests {
         cleanup(&client.pool).await;
 
         let record = SpcServerRecord {
-            created_at: chrono::Utc::now().naive_utc(),
+            created_at: Utc::now(),
             name: "test".to_string(),
-            repository: "test".to_string(),
+            space: "test".to_string(),
             version: "test".to_string(),
             feature: "test".to_string(),
             value: 1.0,
-            record_type: RecordType::Spc,
         };
 
         let result = client.insert_spc_drift_record(&record).await.unwrap();
@@ -1040,14 +1039,13 @@ mod tests {
         cleanup(&client.pool).await;
 
         let record = PsiServerRecord {
-            created_at: chrono::Utc::now().naive_utc(),
+            created_at: Utc::now(),
             name: "test".to_string(),
-            repository: "test".to_string(),
+            space: "test".to_string(),
             version: "test".to_string(),
             feature: "test".to_string(),
             bin_id: 1,
             bin_count: 1,
-            record_type: RecordType::Psi,
         };
 
         let result = client.insert_bin_counts(&record).await.unwrap();
@@ -1093,7 +1091,7 @@ mod tests {
         let profile = client
             .get_drift_profile(&GetProfileRequest {
                 name: spc_profile.config.name.clone(),
-                repository: spc_profile.config.repository.clone(),
+                space: spc_profile.config.space.clone(),
                 version: spc_profile.config.version.clone(),
                 drift_type: DriftType::Spc,
             })
@@ -1107,7 +1105,7 @@ mod tests {
         client
             .update_drift_profile_status(&ProfileStatusRequest {
                 name: spc_profile.config.name.clone(),
-                repository: spc_profile.config.repository.clone(),
+                space: spc_profile.config.space.clone(),
                 version: spc_profile.config.version.clone(),
                 active: false,
                 drift_type: Some(DriftType::Spc),
@@ -1121,18 +1119,17 @@ mod tests {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
 
-        let timestamp = chrono::Utc::now().naive_utc();
+        let timestamp = Utc::now();
 
         for _ in 0..10 {
             for j in 0..10 {
                 let record = SpcServerRecord {
-                    created_at: chrono::Utc::now().naive_utc(),
+                    created_at: Utc::now(),
                     name: "test".to_string(),
-                    repository: "test".to_string(),
+                    space: "test".to_string(),
                     version: "test".to_string(),
                     feature: format!("test{}", j),
                     value: j as f64,
-                    record_type: RecordType::Spc,
                 };
 
                 let result = client.insert_spc_drift_record(&record).await.unwrap();
@@ -1142,7 +1139,7 @@ mod tests {
 
         let service_info = ServiceInfo {
             name: "test".to_string(),
-            repository: "test".to_string(),
+            space: "test".to_string(),
             version: "test".to_string(),
         };
 
@@ -1159,7 +1156,7 @@ mod tests {
         let binned_records = client
             .get_binned_spc_drift_records(&DriftRequest {
                 name: "test".to_string(),
-                repository: "test".to_string(),
+                space: "test".to_string(),
                 version: "test".to_string(),
                 time_interval: TimeInterval::FiveMinutes,
                 max_data_points: 10,
@@ -1175,20 +1172,19 @@ mod tests {
     async fn test_postgres_bin_proportions() {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
-        let timestamp = chrono::Utc::now().naive_utc();
+        let timestamp = Utc::now();
 
         for feature in 0..3 {
             for bin in 0..=5 {
                 for _ in 0..=100 {
                     let record = PsiServerRecord {
-                        created_at: chrono::Utc::now().naive_utc(),
+                        created_at: Utc::now(),
                         name: "test".to_string(),
-                        repository: "test".to_string(),
+                        space: "test".to_string(),
                         version: "test".to_string(),
                         feature: format!("feature{}", feature),
                         bin_id: bin,
                         bin_count: rand::thread_rng().gen_range(0..10),
-                        record_type: RecordType::Psi,
                     };
 
                     client.insert_bin_counts(&record).await.unwrap();
@@ -1200,7 +1196,7 @@ mod tests {
             .get_feature_bin_proportions(
                 &ServiceInfo {
                     name: "test".to_string(),
-                    repository: "test".to_string(),
+                    space: "test".to_string(),
                     version: "test".to_string(),
                 },
                 &timestamp,
@@ -1222,7 +1218,7 @@ mod tests {
         let binned_records = client
             .get_binned_psi_drift_records(&DriftRequest {
                 name: "test".to_string(),
-                repository: "test".to_string(),
+                space: "test".to_string(),
                 version: "test".to_string(),
                 time_interval: TimeInterval::OneHour,
                 max_data_points: 1000,
@@ -1238,18 +1234,17 @@ mod tests {
     async fn test_postgres_cru_custom_metric() {
         let client = PostgresClient::new(None, None).await.unwrap();
         cleanup(&client.pool).await;
-        let timestamp = chrono::Utc::now().naive_utc();
+        let timestamp = Utc::now();
 
         for i in 0..2 {
             for _ in 0..25 {
                 let record = CustomMetricServerRecord {
-                    created_at: chrono::Utc::now().naive_utc(),
+                    created_at: Utc::now(),
                     name: "test".to_string(),
-                    repository: "test".to_string(),
+                    space: "test".to_string(),
                     version: "test".to_string(),
                     metric: format!("metric{}", i),
                     value: rand::thread_rng().gen_range(0..10) as f64,
-                    record_type: RecordType::Custom,
                 };
 
                 let result = client.insert_custom_metric_value(&record).await.unwrap();
@@ -1259,13 +1254,12 @@ mod tests {
 
         // insert random record to test has statistics funcs handle single record
         let record = CustomMetricServerRecord {
-            created_at: chrono::Utc::now().naive_utc(),
+            created_at: Utc::now(),
             name: "test".to_string(),
-            repository: "test".to_string(),
+            space: "test".to_string(),
             version: "test".to_string(),
             metric: "metric3".to_string(),
             value: rand::thread_rng().gen_range(0..10) as f64,
-            record_type: RecordType::Custom,
         };
 
         let result = client.insert_custom_metric_value(&record).await.unwrap();
@@ -1275,7 +1269,7 @@ mod tests {
             .get_custom_metric_values(
                 &ServiceInfo {
                     name: "test".to_string(),
-                    repository: "test".to_string(),
+                    space: "test".to_string(),
                     version: "test".to_string(),
                 },
                 &timestamp,
@@ -1289,7 +1283,7 @@ mod tests {
         let binned_records = client
             .get_binned_custom_drift_records(&DriftRequest {
                 name: "test".to_string(),
-                repository: "test".to_string(),
+                space: "test".to_string(),
                 version: "test".to_string(),
                 time_interval: TimeInterval::OneHour,
                 max_data_points: 1000,

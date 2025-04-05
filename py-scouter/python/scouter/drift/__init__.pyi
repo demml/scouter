@@ -59,20 +59,19 @@ class SpcFeatureDriftProfile:
 class SpcDriftConfig:
     def __init__(
         self,
-        repository: str = "__missing__",
+        space: str = "__missing__",
         name: str = "__missing__",
         version: str = "0.1.0",
         sample: bool = True,
         sample_size: int = 25,
         alert_config: SpcAlertConfig = SpcAlertConfig(),
-        targets: List[str] = [],
         config_path: Optional[Path] = None,
     ):
         """Initialize monitor config
 
         Args:
-            repository:
-                Model repository
+            space:
+                Model space
             name:
                 Model name
             version:
@@ -81,10 +80,6 @@ class SpcDriftConfig:
                 Whether to sample or not
             sample_size:
                 Sample size
-            targets:
-                List of features that are targets in your dataset.
-                This is typically the name of your dependent variable(s).
-                This primarily used for monitoring and UI purposes.
             alert_config:
                 Alert configuration
             config_path:
@@ -116,12 +111,12 @@ class SpcDriftConfig:
         """Set model name"""
 
     @property
-    def repository(self) -> str:
-        """Model repository"""
+    def space(self) -> str:
+        """Model space"""
 
-    @repository.setter
-    def repository(self, repository: str) -> None:
-        """Set model repository"""
+    @space.setter
+    def space(self, space: str) -> None:
+        """Set model space"""
 
     @property
     def version(self) -> str:
@@ -134,14 +129,6 @@ class SpcDriftConfig:
     @property
     def feature_map(self) -> Optional[FeatureMap]:
         """Feature map"""
-
-    @property
-    def targets(self) -> List[str]:
-        """List of target features to monitor"""
-
-    @targets.setter
-    def targets(self, targets: List[str]) -> None:
-        """Set list of target features to monitor"""
 
     @property
     def alert_config(self) -> SpcAlertConfig:
@@ -172,19 +159,18 @@ class SpcDriftConfig:
 
     def update_config_args(
         self,
-        repository: Optional[str] = None,
+        space: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
         sample: Optional[bool] = None,
         sample_size: Optional[int] = None,
-        targets: Optional[List[str]] = None,
         alert_config: Optional[SpcAlertConfig] = None,
     ) -> None:
         """Inplace operation that updates config args
 
         Args:
-            repository:
-                Model repository
+            space:
+                Model space
             name:
                 Model name
             version:
@@ -193,10 +179,6 @@ class SpcDriftConfig:
                 Whether to sample or not
             sample_size:
                 Sample size
-            targets:
-                List of features that are targets in your dataset.
-                This is typically the name of your dependent variable(s).
-                This primarily used for monitoring and UI purposes.
             alert_config:
                 Alert configuration
         """
@@ -257,12 +239,11 @@ class SpcDriftProfile:
 
     def update_config_args(
         self,
-        repository: Optional[str] = None,
+        space: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
         sample: Optional[bool] = None,
         sample_size: Optional[int] = None,
-        targets: Optional[List[str]] = None,
         alert_config: Optional[SpcAlertConfig] = None,
     ) -> None:
         """Inplace operation that updates config args
@@ -270,18 +251,14 @@ class SpcDriftProfile:
         Args:
             name:
                 Model name
-            repository:
-                Model repository
+            space:
+                Model space
             version:
                 Model version
             sample:
                 Whether to sample or not
             sample_size:
                 Sample size
-            targets:
-                List of features that are targets in your dataset.
-                This is typically the name of your dependent variable(s).
-                This primarily used for monitoring and UI purposes.
             alert_config:
                 Alert configuration
         """
@@ -314,8 +291,8 @@ class SpcDriftMap:
     """Drift map of features"""
 
     @property
-    def repository(self) -> str:
-        """Repository to associate with drift map"""
+    def space(self) -> str:
+        """Space to associate with drift map"""
 
     @property
     def name(self) -> str:
@@ -359,26 +336,21 @@ class SpcDriftMap:
 class PsiDriftConfig:
     def __init__(
         self,
-        repository: str = "__missing__",
+        space: str = "__missing__",
         name: str = "__missing__",
         version: str = "0.1.0",
         alert_config: PsiAlertConfig = PsiAlertConfig(),
-        targets: List[str] = [],
         config_path: Optional[Path] = None,
     ):
         """Initialize monitor config
 
         Args:
-            repository:
-                Model repository
+            space:
+                Model space
             name:
                 Model name
             version:
                 Model version. Defaults to 0.1.0
-            targets:
-                List of features that are targets in your dataset.
-                This is typically the name of your dependent variable(s).
-                This primarily used for monitoring and UI purposes.
             alert_config:
                 Alert configuration
             config_path:
@@ -394,12 +366,12 @@ class PsiDriftConfig:
         """Set model name"""
 
     @property
-    def repository(self) -> str:
-        """Model repository"""
+    def space(self) -> str:
+        """Model space"""
 
-    @repository.setter
-    def repository(self, repository: str) -> None:
-        """Set model repository"""
+    @space.setter
+    def space(self, space: str) -> None:
+        """Set model space"""
 
     @property
     def version(self) -> str:
@@ -412,14 +384,6 @@ class PsiDriftConfig:
     @property
     def feature_map(self) -> Optional[FeatureMap]:
         """Feature map"""
-
-    @property
-    def targets(self) -> List[str]:
-        """List of target features to monitor"""
-
-    @targets.setter
-    def targets(self, targets: List[str]) -> None:
-        """Set list of target features to monitor"""
 
     @property
     def alert_config(self) -> PsiAlertConfig:
@@ -450,25 +414,20 @@ class PsiDriftConfig:
 
     def update_config_args(
         self,
-        repository: Optional[str] = None,
+        space: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
-        targets: Optional[List[str]] = None,
         alert_config: Optional[PsiAlertConfig] = None,
     ) -> None:
         """Inplace operation that updates config args
 
         Args:
-            repository:
-                Model repository
+            space:
+                Model space
             name:
                 Model name
             version:
                 Model version
-            targets:
-                List of features that are targets in your dataset.
-                This is typically the name of your dependent variable(s).
-                This primarily used for monitoring and UI purposes.
             alert_config:
                 Alert configuration
         """
@@ -529,10 +488,9 @@ class PsiDriftProfile:
 
     def update_config_args(
         self,
-        repository: Optional[str] = None,
+        space: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
-        targets: Optional[List[str]] = None,
         alert_config: Optional[PsiAlertConfig] = None,
     ) -> None:
         """Inplace operation that updates config args
@@ -540,14 +498,10 @@ class PsiDriftProfile:
         Args:
             name:
                 Model name
-            repository:
-                Model repository
+            space:
+                Model space
             version:
                 Model version
-            targets:
-                List of features that are targets in your dataset.
-                This is typically the name of your dependent variable(s).
-                This primarily used for monitoring and UI purposes.
             alert_config:
                 Alert configuration
         """
@@ -598,8 +552,8 @@ class PsiDriftMap:
     """Drift map of features"""
 
     @property
-    def repository(self) -> str:
-        """Repository to associate with drift map"""
+    def space(self) -> str:
+        """Space to associate with drift map"""
 
     @property
     def name(self) -> str:
@@ -640,7 +594,7 @@ class PsiDriftMap:
 class CustomMetricDriftConfig:
     def __init__(
         self,
-        repository: str = "__missing__",
+        space: str = "__missing__",
         name: str = "__missing__",
         version: str = "0.1.0",
         sample: bool = True,
@@ -649,8 +603,8 @@ class CustomMetricDriftConfig:
     ):
         """Initialize drift config
         Args:
-            repository:
-                Model repository
+            space:
+                Model space
             name:
                 Model name
             version:
@@ -660,12 +614,12 @@ class CustomMetricDriftConfig:
         """
 
     @property
-    def repository(self) -> str:
-        """Model repository"""
+    def space(self) -> str:
+        """Model space"""
 
-    @repository.setter
-    def repository(self, repository: str) -> None:
-        """Set model repository"""
+    @space.setter
+    def space(self, space: str) -> None:
+        """Set model space"""
 
     @property
     def name(self) -> str:
@@ -711,15 +665,15 @@ class CustomMetricDriftConfig:
 
     def update_config_args(
         self,
-        repository: Optional[str] = None,
+        space: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
         alert_config: Optional[CustomMetricAlertConfig] = None,
     ) -> None:
         """Inplace operation that updates config args
         Args:
-            repository:
-                Model repository
+            space:
+                Model space
             name:
                 Model name
             version:
@@ -875,7 +829,7 @@ class CustomDriftProfile:
 
     def update_config_args(
         self,
-        repository: Optional[str] = None,
+        space: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
         alert_config: Optional[CustomMetricAlertConfig] = None,
@@ -883,8 +837,8 @@ class CustomDriftProfile:
         """Inplace operation that updates config args
 
         Args:
-            repository (Optional[str]):
-                Model repository
+            space (Optional[str]):
+                Model space
             name (Optional[str]):
                 Model name
             version (Optional[str]):

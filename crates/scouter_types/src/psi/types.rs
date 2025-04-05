@@ -1,5 +1,5 @@
 use crate::util::ProfileFuncs;
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct BinnedPsiMetric {
     #[pyo3(get)]
-    pub created_at: Vec<NaiveDateTime>,
+    pub created_at: Vec<DateTime<Utc>>,
 
     #[pyo3(get)]
     pub psi: Vec<f64>,

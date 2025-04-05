@@ -1,10 +1,9 @@
 {
     "name": "name",
-    "repository": "repo",
+    "space": "repo",
     "sample": true,
     "sample_size": 100,
     "version": "1.0.0",
-    "targets": [],
     "alert_config": {
         "alert_rule": {
             "process": {

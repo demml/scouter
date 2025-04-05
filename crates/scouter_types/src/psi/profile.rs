@@ -5,6 +5,7 @@ use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, ProfileArgs, ProfileBaseArgs,
     ProfileFuncs, DEFAULT_VERSION, MISSING,
 };
+use chrono::Utc;
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -29,7 +30,7 @@ pub enum BinType {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct PsiDriftConfig {
     #[pyo3(get, set)]
-    pub repository: String,
+    pub space: String,
 
     #[pyo3(get, set)]
     pub name: String,
@@ -42,9 +43,6 @@ pub struct PsiDriftConfig {
 
     #[pyo3(get, set)]
     pub alert_config: PsiAlertConfig,
-
-    #[pyo3(get, set)]
-    pub targets: Vec<String>,
 
     #[pyo3(get)]
     pub drift_type: DriftType,
@@ -61,12 +59,11 @@ impl PsiDriftConfig {
 impl PsiDriftConfig {
     // TODO dry this out
     #[new]
-    #[pyo3(signature = (repository=MISSING, name=MISSING, version=DEFAULT_VERSION, targets=None, alert_config=PsiAlertConfig::default(), config_path=None))]
+    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, alert_config=PsiAlertConfig::default(), config_path=None))]
     pub fn new(
-        repository: &str,
+        space: &str,
         name: &str,
         version: &str,
-        targets: Option<Vec<String>>,
         alert_config: PsiAlertConfig,
         config_path: Option<PathBuf>,
     ) -> Result<Self, ScouterError> {
@@ -75,19 +72,16 @@ impl PsiDriftConfig {
             return config;
         }
 
-        if name == MISSING || repository == MISSING {
-            debug!("Name and repository were not provided. Defaulting to __missing__");
+        if name == MISSING || space == MISSING {
+            debug!("Name and space were not provided. Defaulting to __missing__");
         }
-
-        let targets = targets.unwrap_or_default();
 
         Ok(Self {
             name: name.to_string(),
-            repository: repository.to_string(),
+            space: space.to_string(),
             version: version.to_string(),
             alert_config,
             feature_map: FeatureMap::default(),
-            targets,
             drift_type: DriftType::Psi,
         })
     }
@@ -112,30 +106,24 @@ impl PsiDriftConfig {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (repository=None, name=None, version=None, targets=None, alert_config=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
-        repository: Option<String>,
+        space: Option<String>,
         name: Option<String>,
         version: Option<String>,
-        targets: Option<Vec<String>>,
         alert_config: Option<PsiAlertConfig>,
     ) -> Result<(), ScouterError> {
         if name.is_some() {
             self.name = name.ok_or(ScouterError::TypeError("name".to_string()))?;
         }
 
-        if repository.is_some() {
-            self.repository =
-                repository.ok_or(ScouterError::TypeError("repository".to_string()))?;
+        if space.is_some() {
+            self.space = space.ok_or(ScouterError::TypeError("space".to_string()))?;
         }
 
         if version.is_some() {
             self.version = version.ok_or(ScouterError::TypeError("version".to_string()))?;
-        }
-
-        if targets.is_some() {
-            self.targets = targets.ok_or(ScouterError::TypeError("targets".to_string()))?;
         }
 
         if alert_config.is_some() {
@@ -151,11 +139,10 @@ impl Default for PsiDriftConfig {
     fn default() -> Self {
         PsiDriftConfig {
             name: "__missing__".to_string(),
-            repository: "__missing__".to_string(),
+            space: "__missing__".to_string(),
             version: DEFAULT_VERSION.to_string(),
             feature_map: FeatureMap::default(),
             alert_config: PsiAlertConfig::default(),
-            targets: Vec::new(),
             drift_type: DriftType::Psi,
         }
     }
@@ -166,7 +153,7 @@ impl DispatchDriftConfig for PsiDriftConfig {
     fn get_drift_args(&self) -> DriftArgs {
         DriftArgs {
             name: self.name.clone(),
-            repository: self.repository.clone(),
+            space: self.space.clone(),
             version: self.version.clone(),
             dispatch_config: self.alert_config.dispatch_config.clone(),
         }
@@ -328,7 +315,7 @@ pub struct PsiFeatureDriftProfile {
     pub bins: Vec<Bin>,
 
     #[pyo3(get)]
-    pub timestamp: chrono::NaiveDateTime,
+    pub timestamp: chrono::DateTime<Utc>,
 
     #[pyo3(get)]
     pub bin_type: BinType,
@@ -419,17 +406,16 @@ impl PsiDriftProfile {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (repository=None, name=None, version=None, targets=None, alert_config=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, alert_config=None))]
     pub fn update_config_args(
         &mut self,
-        repository: Option<String>,
+        space: Option<String>,
         name: Option<String>,
         version: Option<String>,
-        targets: Option<Vec<String>>,
         alert_config: Option<PsiAlertConfig>,
     ) -> Result<(), ScouterError> {
         self.config
-            .update_config_args(repository, name, version, targets, alert_config)
+            .update_config_args(space, name, version, alert_config)
     }
 }
 
@@ -443,18 +429,18 @@ pub struct PsiDriftMap {
     pub name: String,
 
     #[pyo3(get)]
-    pub repository: String,
+    pub space: String,
 
     #[pyo3(get)]
     pub version: String,
 }
 
 impl PsiDriftMap {
-    pub fn new(repository: String, name: String, version: String) -> Self {
+    pub fn new(space: String, name: String, version: String) -> Self {
         Self {
             features: HashMap::new(),
             name,
-            repository,
+            space,
             version,
         }
     }
@@ -493,7 +479,7 @@ impl ProfileBaseArgs for PsiDriftProfile {
     fn get_base_args(&self) -> ProfileArgs {
         ProfileArgs {
             name: self.config.name.clone(),
-            repository: self.config.repository.clone(),
+            space: self.config.space.clone(),
             version: self.config.version.clone(),
             schedule: self.config.alert_config.schedule.clone(),
             scouter_version: self.scouter_version.clone(),
@@ -560,20 +546,18 @@ mod tests {
             MISSING,
             MISSING,
             DEFAULT_VERSION,
-            None,
             PsiAlertConfig::default(),
             None,
         )
         .unwrap();
         assert_eq!(drift_config.name, "__missing__");
-        assert_eq!(drift_config.repository, "__missing__");
+        assert_eq!(drift_config.space, "__missing__");
         assert_eq!(drift_config.version, "0.1.0");
-        assert_eq!(drift_config.targets.len(), 0);
         assert_eq!(drift_config.alert_config, PsiAlertConfig::default());
 
         // update
         drift_config
-            .update_config_args(None, Some("test".to_string()), None, None, None)
+            .update_config_args(None, Some("test".to_string()), None, None)
             .unwrap();
 
         assert_eq!(drift_config.name, "test");

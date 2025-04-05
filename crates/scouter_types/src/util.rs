@@ -253,7 +253,7 @@ pub fn create_feature_map(
 #[derive(PartialEq, Debug)]
 pub struct ProfileArgs {
     pub name: String,
-    pub repository: String,
+    pub space: String,
     pub version: String,
     pub schedule: String,
     pub scouter_version: String,

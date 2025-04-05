@@ -2,7 +2,6 @@ from scouter.queue import (
     CustomMetricServerRecord,
     PsiServerRecord,
     RabbitMQConfig,
-    RecordType,
     ScouterProducer,
     ServerRecord,
     ServerRecords,
@@ -22,18 +21,13 @@ def test_rabbit_producer_spc():
 
     record = SpcServerRecord(
         name="test",
-        repository="test",
+        space="test",
         version="1.0.0",
         feature="test",
         value=0.1,
     )
 
-    producer.publish(
-        ServerRecords(
-            records=[ServerRecord(record)],
-            record_type=RecordType.Spc,
-        )
-    )
+    producer.publish(ServerRecords(records=[ServerRecord(record)]))
     producer.flush()
 
 
@@ -45,19 +39,14 @@ def test_rabbit_producer_psi():
 
     record = PsiServerRecord(
         name="test",
-        repository="test",
+        space="test",
         version="1.0.0",
         feature="test",
         bin_id=0,
         bin_count=1,
     )
 
-    producer.publish(
-        ServerRecords(
-            records=[ServerRecord(record)],
-            record_type=RecordType.Spc,
-        )
-    )
+    producer.publish(ServerRecords(records=[ServerRecord(record)]))
     producer.flush()
 
 
@@ -67,7 +56,7 @@ def test_rabbit_producer_custom():
 
     record = CustomMetricServerRecord(
         name="test",
-        repository="test",
+        space="test",
         version="1.0.0",
         metric="metric",
         value=0.1,
@@ -76,7 +65,6 @@ def test_rabbit_producer_custom():
     producer.publish(
         ServerRecords(
             records=[ServerRecord(record)],
-            record_type=RecordType.Spc,
         )
     )
     producer.flush()

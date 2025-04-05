@@ -30,9 +30,9 @@ def generate_data() -> pd.DataFrame:
 def drift_profile():
     data = generate_data()
 
-    # create drift config (usually associated with a model name, repository name, version)
+    # create drift config (usually associated with a model name, space name, version)
     config = SpcDriftConfig(
-        repository="scouter",
+        space="scouter",
         name="model",
         version="0.1.0",
         alert_config=SpcAlertConfig(features_to_monitor=data.columns.tolist()),
@@ -84,7 +84,7 @@ def client(
         config=config,
         drift_profile_request=GetProfileRequest(
             name=drift_profile.config.name,
-            repository=drift_profile.config.repository,
+            space=drift_profile.config.space,
             version=drift_profile.config.version,
             drift_type=drift_profile.config.drift_type,
         ),

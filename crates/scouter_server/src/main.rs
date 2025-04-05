@@ -159,9 +159,7 @@ mod tests {
     use scouter_types::psi::BinnedPsiFeatureMetrics;
     use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
     use scouter_types::{CustomMetricServerRecord, PsiServerRecord};
-    use scouter_types::{
-        DriftType, RecordType, ServerRecord, ServerRecords, SpcServerRecord, TimeInterval,
-    };
+    use scouter_types::{DriftType, ServerRecord, ServerRecords, SpcServerRecord, TimeInterval};
     // for `collect`
     use crate::api::routes::health::Alive;
     use ndarray::Array;
@@ -179,13 +177,13 @@ mod tests {
             FROM scouter.drift;
 
             DELETE
-            FROM scouter.observability_metrics;
+            FROM scouter.observability_metric;
 
             DELETE
-            FROM scouter.custom_metrics;
+            FROM scouter.custom_metric;
 
             DELETE
-            FROM scouter.drift_alerts;
+            FROM scouter.drift_alert;
 
             DELETE
             FROM scouter.drift_profile;
@@ -246,24 +244,21 @@ mod tests {
 
         pub fn get_spc_drift_records(&self) -> ServerRecords {
             let mut records: Vec<ServerRecord> = Vec::new();
-            let record_type = RecordType::Spc;
             for _ in 0..10 {
                 for j in 0..10 {
                     let record = SpcServerRecord {
-                        created_at: chrono::Utc::now().naive_utc(),
+                        created_at: chrono::Utc::now(),
                         name: "test".to_string(),
-                        repository: "test".to_string(),
+                        space: "test".to_string(),
                         version: "test".to_string(),
                         feature: format!("test{}", j),
                         value: j as f64,
-                        record_type: RecordType::Spc,
                     };
-
                     records.push(ServerRecord::Spc(record));
                 }
             }
 
-            ServerRecords::new(records, record_type)
+            ServerRecords::new(records)
         }
 
         pub fn get_psi_drift_records(&self) -> ServerRecords {
@@ -273,21 +268,20 @@ mod tests {
                 for decile in 0..10 {
                     for _ in 0..100 {
                         let record = PsiServerRecord {
-                            created_at: chrono::Utc::now().naive_utc(),
+                            created_at: chrono::Utc::now(),
                             name: "test".to_string(),
-                            repository: "test".to_string(),
+                            space: "test".to_string(),
                             version: "1.0.0".to_string(),
                             feature: format!("feature_{}", feature),
                             bin_id: decile,
                             bin_count: rand::thread_rng().gen_range(0..10),
-                            record_type: RecordType::Psi,
                         };
 
                         records.push(ServerRecord::Psi(record));
                     }
                 }
             }
-            ServerRecords::new(records, RecordType::Psi)
+            ServerRecords::new(records)
         }
 
         pub fn get_custom_drift_records(&self) -> ServerRecords {
@@ -295,20 +289,19 @@ mod tests {
             for i in 0..2 {
                 for _ in 0..25 {
                     let record = CustomMetricServerRecord {
-                        created_at: chrono::Utc::now().naive_utc(),
+                        created_at: chrono::Utc::now(),
                         name: "test".to_string(),
-                        repository: "test".to_string(),
+                        space: "test".to_string(),
                         version: "1.0.0".to_string(),
                         metric: format!("metric{}", i),
                         value: rand::thread_rng().gen_range(0..10) as f64,
-                        record_type: RecordType::Custom,
                     };
 
                     records.push(ServerRecord::Custom(record));
                 }
             }
 
-            ServerRecords::new(records, RecordType::Custom)
+            ServerRecords::new(records)
         }
     }
 
@@ -341,7 +334,6 @@ mod tests {
         let config = SpcDriftConfig::new(
             Some("name".to_string()),
             Some("repo".to_string()),
-            None,
             None,
             None,
             None,
@@ -401,7 +393,7 @@ mod tests {
         // get profile
         let params = GetProfileRequest {
             name: profile.config.name.clone(),
-            repository: profile.config.repository.clone(),
+            space: profile.config.space.clone(),
             version: profile.config.version.clone(),
             drift_type: DriftType::Spc,
         };
@@ -422,7 +414,7 @@ mod tests {
         // update profile status
         let request = ProfileStatusRequest {
             name: profile.config.name.clone(),
-            repository: profile.config.repository.clone(),
+            space: profile.config.space.clone(),
             version: profile.config.version.clone(),
             active: true,
             drift_type: None,
@@ -464,7 +456,7 @@ mod tests {
         // get drift records
         let params = DriftRequest {
             name: "test".to_string(),
-            repository: "test".to_string(),
+            space: "test".to_string(),
             version: "test".to_string(),
             time_interval: TimeInterval::FiveMinutes,
             max_data_points: 100,
@@ -505,7 +497,7 @@ mod tests {
             ..Default::default()
         };
 
-        let config = PsiDriftConfig::new("test", "test", "1.0.0", None, alert_config, None);
+        let config = PsiDriftConfig::new("test", "test", "1.0.0", alert_config, None);
 
         let monitor = PsiMonitor::new();
 
@@ -550,7 +542,7 @@ mod tests {
         // get drift records
         let params = DriftRequest {
             name: "test".to_string(),
-            repository: "test".to_string(),
+            space: "test".to_string(),
             version: "1.0.0".to_string(),
             time_interval: TimeInterval::FiveMinutes,
             max_data_points: 100,
@@ -629,7 +621,7 @@ mod tests {
         // get drift records
         let params = DriftRequest {
             name: "test".to_string(),
-            repository: "test".to_string(),
+            space: "test".to_string(),
             version: "1.0.0".to_string(),
             time_interval: TimeInterval::FiveMinutes,
             max_data_points: 100,

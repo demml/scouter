@@ -33,7 +33,7 @@ pub struct OpsGenieAlerter {
     team_name: String,
     priority: String,
     name: String,
-    repository: String,
+    space: String,
     version: String,
 }
 
@@ -43,13 +43,13 @@ impl OpsGenieAlerter {
     /// # Arguments
     ///
     /// * `name` - Name of the model
-    /// * `repository` - Repository of the model
+    /// * `space` - Space of the model
     /// * `version` - Version of the model
     /// * `dispatch_config` - OpsGenieAlerter dispatch configuration
     ///
     pub fn new(
         name: &str,
-        repository: &str,
+        space: &str,
         version: &str,
         dispatch_config: &OpsGenieDispatchConfig,
     ) -> Result<Self, DispatchError> {
@@ -67,7 +67,7 @@ impl OpsGenieAlerter {
             api_url,
             team_name,
             name: name.to_string(),
-            repository: repository.to_string(),
+            space: space.to_string(),
             version: version.to_string(),
             priority,
         })
@@ -89,7 +89,7 @@ impl HttpAlertWrapper for OpsGenieAlerter {
             "message",
             format!(
                 "Model drift detected for {}/{}/{}",
-                self.repository, self.name, self.version
+                self.space, self.name, self.version
             )
             .into(),
         );
@@ -123,7 +123,7 @@ pub struct SlackAlerter {
     header_auth_value: String,
     api_url: String,
     name: String,
-    repository: String,
+    space: String,
     version: String,
     channel: String,
 }
@@ -134,13 +134,13 @@ impl SlackAlerter {
     /// # Arguments
     ///
     /// * `name` - Name of the model
-    /// * `repository` - Repository of the model
+    /// * `space` - Space of the model
     /// * `version` - Version of the model
     /// * `dispatch_config` - slack dispatch configuration
     ///
     pub fn new(
         name: &str,
-        repository: &str,
+        space: &str,
         version: &str,
         dispatch_config: &SlackDispatchConfig,
     ) -> Result<Self, DispatchError> {
@@ -156,7 +156,7 @@ impl SlackAlerter {
             header_auth_value: format!("Bearer {}", app_token),
             api_url: format!("{}/chat.postMessage", api_url),
             name: name.to_string(),
-            repository: repository.to_string(),
+            space: space.to_string(),
             version: version.to_string(),
             channel: slack_channel,
         })
@@ -188,7 +188,7 @@ impl HttpAlertWrapper for SlackAlerter {
                     "type": "section",
                     "text": {
                       "type": "mrkdwn",
-                      "text": format!("*Name*: {} *Repository*: {} *Version*: {}", self.name, self.repository, self.version),
+                      "text": format!("*Name*: {} *Space*: {} *Version*: {}", self.name, self.space, self.version),
                     }
                 },
                 {
@@ -272,15 +272,15 @@ impl<T: HttpAlertWrapper + DispatchHelpers + std::marker::Sync> Dispatch
 #[derive(Debug)]
 pub struct ConsoleAlertDispatcher {
     name: String,
-    repository: String,
+    space: String,
     version: String,
 }
 
 impl ConsoleAlertDispatcher {
-    pub fn new(name: &str, repository: &str, version: &str) -> Self {
+    pub fn new(name: &str, space: &str, version: &str) -> Self {
         Self {
             name: name.to_string(),
-            repository: repository.to_string(),
+            space: space.to_string(),
             version: version.to_string(),
         }
     }
@@ -294,7 +294,7 @@ impl Dispatch for ConsoleAlertDispatcher {
         let alert_description = self.construct_alert_description(feature_alerts);
         if !alert_description.is_empty() {
             let msg1 = "Drift detected for";
-            let msg2 = format!("{}/{}/{}!", self.repository, self.name, self.version);
+            let msg2 = format!("{}/{}/{}!", self.space, self.name, self.version);
             let mut body = format!("\n{} {} \n", msg1, msg2);
             body.push_str(&alert_description);
 
@@ -352,15 +352,15 @@ impl AlertDispatcher {
 
         let result = match args.dispatch_config {
             AlertDispatchConfig::Slack(config) => {
-                SlackAlerter::new(&args.name, &args.repository, &args.version, &config)
+                SlackAlerter::new(&args.name, &args.space, &args.version, &config)
                     .map(|alerter| AlertDispatcher::Slack(HttpAlertDispatcher::new(alerter)))
             }
             AlertDispatchConfig::OpsGenie(config) => {
-                OpsGenieAlerter::new(&args.name, &args.repository, &args.version, &config)
+                OpsGenieAlerter::new(&args.name, &args.space, &args.version, &config)
                     .map(|alerter| AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(alerter)))
             }
             AlertDispatchConfig::Console(_) => Ok(AlertDispatcher::Console(
-                ConsoleAlertDispatcher::new(&args.name, &args.repository, &args.version),
+                ConsoleAlertDispatcher::new(&args.name, &args.space, &args.version),
             )),
         };
 
@@ -370,7 +370,7 @@ impl AlertDispatcher {
                 error!("Failed to create Alerter: {:?}", e);
                 Ok(AlertDispatcher::Console(ConsoleAlertDispatcher::new(
                     &args.name,
-                    &args.repository,
+                    &args.space,
                     &args.version,
                 )))
             }
@@ -427,7 +427,7 @@ mod tests {
         let features = test_features_map();
         let alerter = OpsGenieAlerter::new(
             "name",
-            "repository",
+            "space",
             "1.0.0",
             &OpsGenieDispatchConfig {
                 team: "test-team".to_string(),
@@ -457,7 +457,7 @@ mod tests {
         let features: HashMap<String, SpcFeatureAlert> = HashMap::new();
         let alerter = OpsGenieAlerter::new(
             "name",
-            "repository",
+            "space",
             "1.0.0",
             &OpsGenieDispatchConfig {
                 team: "test-team".to_string(),
@@ -544,7 +544,7 @@ mod tests {
         let dispatcher = AlertDispatcher::OpsGenie(HttpAlertDispatcher::new(
             OpsGenieAlerter::new(
                 "name",
-                "repository",
+                "space",
                 "1.0.0",
                 &OpsGenieDispatchConfig {
                     team: "test-team".to_string(),
@@ -572,7 +572,7 @@ mod tests {
     async fn test_send_console_alerts() {
         let features = test_features_map();
         let dispatcher =
-            AlertDispatcher::Console(ConsoleAlertDispatcher::new("name", "repository", "1.0.0"));
+            AlertDispatcher::Console(ConsoleAlertDispatcher::new("name", "space", "1.0.0"));
         let result = dispatcher
             .process_alerts(&SpcFeatureAlerts {
                 features,
@@ -604,7 +604,7 @@ mod tests {
         let dispatcher = AlertDispatcher::Slack(HttpAlertDispatcher::new(
             SlackAlerter::new(
                 "name",
-                "repository",
+                "space",
                 "1.0.0",
                 &SlackDispatchConfig {
                     channel: "test-channel".to_string(),
@@ -653,7 +653,7 @@ mod tests {
                     "type": "section",
                     "text": {
                       "type": "mrkdwn",
-                      "text": "*Name*: name *Repository*: repository *Version*: 1.0.0",
+                      "text": "*Name*: name *Space*: space *Version*: 1.0.0",
                     }
                 },
                 {
@@ -667,7 +667,7 @@ mod tests {
         });
         let alerter = SlackAlerter::new(
             "name",
-            "repository",
+            "space",
             "1.0.0",
             &SlackDispatchConfig {
                 channel: slack_channel.to_string(),
@@ -697,9 +697,8 @@ mod tests {
 
         let config = SpcDriftConfig::new(
             Some("name".to_string()),
-            Some("repository".to_string()),
+            Some("space".to_string()),
             Some("1.0.0".to_string()),
-            None,
             None,
             None,
             Some(alert_config),
@@ -730,9 +729,8 @@ mod tests {
 
         let config = SpcDriftConfig::new(
             Some("name".to_string()),
-            Some("repository".to_string()),
+            Some("space".to_string()),
             Some("1.0.0".to_string()),
-            None,
             None,
             None,
             Some(alert_config),
@@ -762,9 +760,8 @@ mod tests {
 
         let config = SpcDriftConfig::new(
             Some("name".to_string()),
-            Some("repository".to_string()),
+            Some("space".to_string()),
             Some("1.0.0".to_string()),
-            None,
             None,
             None,
             Some(alert_config),

@@ -1,5 +1,5 @@
 use crate::util::ProfileFuncs;
-use chrono::NaiveDateTime;
+use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -8,13 +8,13 @@ use std::collections::BTreeMap;
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Alert {
     #[pyo3(get)]
-    pub created_at: NaiveDateTime,
+    pub created_at: DateTime<Utc>,
 
     #[pyo3(get)]
     pub name: String,
 
     #[pyo3(get)]
-    pub repository: String,
+    pub space: String,
 
     #[pyo3(get)]
     pub version: String,

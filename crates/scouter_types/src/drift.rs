@@ -68,7 +68,7 @@ impl Display for DriftType {
 
 pub struct DriftArgs {
     pub name: String,
-    pub repository: String,
+    pub space: String,
     pub version: String,
     pub dispatch_config: AlertDispatchConfig,
 }

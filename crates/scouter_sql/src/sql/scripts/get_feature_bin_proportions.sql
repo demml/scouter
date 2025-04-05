@@ -1,14 +1,14 @@
 WITH feature_bin_total AS (
   SELECT 
     name,
-    repository,
+    space,
     version,
     feature,
     bin_id,
     SUM(bin_count) AS bin_total_count
   FROM scouter.observed_bin_count
   WHERE name = $1
-    AND repository = $2
+    AND space = $2
     AND version = $3
     AND created_at > $4::timestamp
     AND feature = ANY($5)
@@ -16,13 +16,13 @@ WITH feature_bin_total AS (
 ),
 feature_total AS (
     SELECT name,
-            repository,
+            space,
             version,
             feature,
             SUM(bin_count) AS feature_total_count
     FROM scouter.observed_bin_count
     WHERE name = $1
-      AND repository = $2
+      AND space = $2
       AND version = $3
       AND created_at > $4::timestamp
       AND feature = ANY($5)
@@ -37,7 +37,7 @@ feature_bin_proportions AS (
             JOIN
         feature_total f
   ON f.feature = b.feature AND f.version = b.version AND
-      f.repository = b.repository AND f.name = b.name
+      f.space = b.space AND f.name = b.name
 )
 
 SELECT 

@@ -2,11 +2,11 @@ WITH subquery1 AS (
     SELECT
         date_bin('$1 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
         jsonb_array_elements(route_metrics) as route_metric
-    FROM scouter.observability_metrics
+    FROM scouter.observability_metric
     WHERE 
         created_at > timezone('utc', now()) - interval '$2 minute'
         AND name = $3
-        AND repository = $4
+        AND space = $4
         AND version = $5
 ),
 

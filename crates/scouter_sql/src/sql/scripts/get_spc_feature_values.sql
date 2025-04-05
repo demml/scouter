@@ -8,7 +8,7 @@ WITH subquery AS (
         1=1
         AND created_at > $1::timestamp
         AND name = $2
-        AND repository =$3
+        AND space =$3
         AND version = $4
         AND feature = ANY($5)
 ),

@@ -31,10 +31,10 @@ def test_drift_f64(array: NDArray, psi_drift_config: PsiDriftConfig):
 
         PsiDriftProfile.from_file(path)
 
-    profile.update_config_args(repository="repo1", name="name1")
+    profile.update_config_args(space="repo1", name="name1")
 
     assert profile.config.name == "name1"
-    assert profile.config.repository == "repo1"
+    assert profile.config.space == "repo1"
 
 
 def test_psi_drift_f32(array: NDArray, psi_drift_config: PsiDriftConfig):

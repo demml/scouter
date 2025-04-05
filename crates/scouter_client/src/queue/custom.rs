@@ -1,4 +1,4 @@
-use chrono::{NaiveDateTime, Utc};
+use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
 use scouter_drift::custom::CustomMetricFeatureQueue;
 use scouter_error::ScouterError;
@@ -14,7 +14,7 @@ pub struct CustomQueue {
     queue: Arc<Mutex<CustomMetricFeatureQueue>>,
     producer: RustScouterProducer,
     count: usize,
-    last_publish: NaiveDateTime,
+    last_publish: DateTime<Utc>,
     stop_tx: Option<watch::Sender<()>>,
     rt: Arc<tokio::runtime::Runtime>,
     sample_size: usize,
@@ -45,7 +45,7 @@ impl CustomQueue {
             queue: queue.clone(),
             producer,
             count: 0,
-            last_publish: Utc::now().naive_utc(),
+            last_publish: Utc::now(),
             stop_tx: Some(stop_tx),
             rt: rt.clone(),
             sample_size,
@@ -105,7 +105,7 @@ impl CustomQueue {
             self.rt
                 .block_on(async { self.producer.publish(records).await })?;
             queue.clear_queue();
-            self.last_publish = Utc::now().naive_utc();
+            self.last_publish = Utc::now();
         }
 
         Ok(())
@@ -140,7 +140,7 @@ impl CustomQueue {
 
                         debug!("Checking for records");
 
-                        let now = Utc::now().naive_utc();
+                        let now = Utc::now();
                         let elapsed = now - last_publish;
 
                         if elapsed.num_seconds() >= 30 {

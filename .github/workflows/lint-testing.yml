@@ -18,6 +18,11 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Setup cmake
+        uses: jwlawson/actions-setup-cmake@v2
+        with:
+          cmake-version: "3.x"
+
       - name: Set up Rust
         run: rustup override set stable && rustup update
 
@@ -214,7 +219,7 @@ jobs:
           python-version: "3.12"
 
       - run: pip install -U twine 'black>=22.3.0,<23' typing_extensions
-   
+
       - name: build wheels
         uses: PyO3/maturin-action@v1
 
@@ -226,7 +231,7 @@ jobs:
           docker-options: -e CI
           working-directory: ./py-scouter
           # See: https://github.com/sfackler/rust-openssl/issues/2036#issuecomment-1724324145
-          before-script-linux: |
+          before-script-linux: |            
             # If we're running on rhel centos, install needed packages.
             if command -v yum &> /dev/null; then
                 yum update -y && yum install -y perl-core openssl openssl-devel pkgconfig libatomic
@@ -240,6 +245,35 @@ jobs:
                 # If we're running on debian-based system.
                 apt update -y && apt-get install -y libssl-dev openssl pkg-config
             fi
+            
+            
+            # Determine architecture (x86_64 or x86)
+            ARCH=$(uname -m)
+            
+            echo "Detected architecture: $ARCH"
+          
+            # Download the correct CMake version based on the architecture
+            if [[ "$ARCH" == "x86_64" ]]; then
+                echo "Downloading CMake for x86_64 architecture"
+                curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-x86_64.sh -o cmake.sh
+                chmod +x cmake.sh
+                ./cmake.sh --skip-license --prefix=/usr/local
+            elif [[ "$ARCH" == "i686" ]]; then
+                echo "Downloading CMake for x86 architecture"
+                curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4.tar.gz -o cmake.tar.gz
+                tar -xzf cmake.tar.gz
+                cd cmake-3.26.4
+                ./bootstrap --prefix=/usr/local
+                make -j$(nproc)
+                make install
+                cd ..
+            else
+                echo "Unsupported architecture: $ARCH"
+                exit 1
+            fi
+            
+            cmake --version
+            
 
       - name: Check dist
         working-directory: ./py-scouter
