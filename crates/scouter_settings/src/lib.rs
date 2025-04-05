@@ -175,6 +175,36 @@ pub struct ObjectStorageSettings {
     pub storage_type: StorageType,
 }
 
+impl Default for ObjectStorageSettings {
+    fn default() -> Self {
+        let storage_uri = std::env::var("SCOUTER_STORAGE_URI")
+            .unwrap_or_else(|_| "./scouter_storage".to_string());
+
+        let storage_uri = ScouterServerConfig::set_storage_uri(storage_uri);
+        let storage_type = ScouterServerConfig::get_storage_type(&storage_uri);
+
+        Self {
+            storage_uri,
+            storage_type,
+        }
+    }
+}
+
+impl ObjectStorageSettings {
+    pub fn storage_root(&self) -> String {
+        let storage_uri_lower = self.storage_uri.to_lowercase();
+        if let Some(stripped) = storage_uri_lower.strip_prefix("gs://") {
+            stripped.to_string()
+        } else if let Some(stripped) = storage_uri_lower.strip_prefix("s3://") {
+            stripped.to_string()
+        } else if let Some(stripped) = storage_uri_lower.strip_prefix("az://") {
+            stripped.to_string()
+        } else {
+            storage_uri_lower
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ScouterServerConfig {
     pub server_port: u16,
@@ -240,22 +270,13 @@ impl Default for ScouterServerConfig {
             None
         };
 
-        let storage_uri = std::env::var("SCOUTER_STORAGE_URI")
-            .unwrap_or_else(|_| "./scouter_storage".to_string());
-
-        let storage_uri = ScouterServerConfig::set_storage_uri(storage_uri);
-        let storage_type = ScouterServerConfig::get_storage_type(&storage_uri);
-
         Self {
             server_port,
             polling_settings: polling,
             database_settings: database,
             kafka_settings: kafka,
             rabbitmq_settings: rabbitmq,
-            object_storage_settings: ObjectStorageSettings {
-                storage_uri,
-                storage_type,
-            },
+            object_storage_settings: ObjectStorageSettings::default(),
         }
     }
 }
