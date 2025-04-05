@@ -1,5 +1,6 @@
 use scouter_error::ConfigError;
 use serde::Serialize;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PollingSettings {
@@ -160,6 +161,20 @@ impl Default for RabbitMQSettings {
     }
 }
 
+#[derive(Debug, PartialEq, Clone, Serialize)]
+pub enum StorageType {
+    Google,
+    Aws,
+    Local,
+    Azure,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ObjectStorageSettings {
+    pub storage_uri: String,
+    pub storage_type: StorageType,
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ScouterServerConfig {
     pub server_port: u16,
@@ -167,6 +182,40 @@ pub struct ScouterServerConfig {
     pub database_settings: DatabaseSettings,
     pub kafka_settings: Option<KafkaSettings>,
     pub rabbitmq_settings: Option<RabbitMQSettings>,
+    pub object_storage_settings: ObjectStorageSettings,
+}
+
+impl ScouterServerConfig {
+    pub fn set_storage_uri(storage_uri: String) -> String {
+        if storage_uri.starts_with("gs://")
+            || storage_uri.starts_with("s3://")
+            || storage_uri.starts_with("az://")
+        {
+            storage_uri
+        } else {
+            let path = PathBuf::from(storage_uri);
+
+            // check if the path exists, if not create it
+            if !path.exists() {
+                std::fs::create_dir_all(&path).unwrap();
+            }
+
+            path.canonicalize().unwrap().to_str().unwrap().to_string()
+        }
+    }
+
+    fn get_storage_type(storage_uri: &str) -> StorageType {
+        let storage_uri_lower = storage_uri.to_lowercase();
+        if storage_uri_lower.starts_with("gs://") {
+            StorageType::Google
+        } else if storage_uri_lower.starts_with("s3://") {
+            StorageType::Aws
+        } else if storage_uri_lower.starts_with("az://") {
+            StorageType::Azure
+        } else {
+            StorageType::Local
+        }
+    }
 }
 
 impl Default for ScouterServerConfig {
@@ -191,12 +240,22 @@ impl Default for ScouterServerConfig {
             None
         };
 
+        let storage_uri = std::env::var("SCOUTER_STORAGE_URI")
+            .unwrap_or_else(|_| "./scouter_storage".to_string());
+
+        let storage_uri = ScouterServerConfig::set_storage_uri(storage_uri);
+        let storage_type = ScouterServerConfig::get_storage_type(&storage_uri);
+
         Self {
             server_port,
             polling_settings: polling,
             database_settings: database,
             kafka_settings: kafka,
             rabbitmq_settings: rabbitmq,
+            object_storage_settings: ObjectStorageSettings {
+                storage_uri,
+                storage_type,
+            },
         }
     }
 }
