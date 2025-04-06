@@ -195,15 +195,40 @@ impl Default for ObjectStorageSettings {
 
 impl ObjectStorageSettings {
     pub fn storage_root(&self) -> String {
-        let storage_uri_lower = self.storage_uri.to_lowercase();
-        if let Some(stripped) = storage_uri_lower.strip_prefix("gs://") {
-            stripped.to_string()
-        } else if let Some(stripped) = storage_uri_lower.strip_prefix("s3://") {
-            stripped.to_string()
-        } else if let Some(stripped) = storage_uri_lower.strip_prefix("az://") {
-            stripped.to_string()
+        match self.storage_type {
+            StorageType::Google | StorageType::Aws | StorageType::Azure => {
+                if let Some(stripped) = self.storage_uri.strip_prefix("gs://") {
+                    stripped.to_string()
+                } else if let Some(stripped) = self.storage_uri.strip_prefix("s3://") {
+                    stripped.to_string()
+                } else if let Some(stripped) = self.storage_uri.strip_prefix("az://") {
+                    stripped.to_string()
+                } else {
+                    self.storage_uri.clone()
+                }
+            }
+            StorageType::Local => {
+                // For local storage, just return the path directly
+                self.storage_uri.clone()
+            }
+        }
+    }
+
+    pub fn canonicalized_path(&self) -> String {
+        // if registry is local canconicalize the path
+        if self.storage_type == StorageType::Local {
+            let path = PathBuf::from(&self.storage_uri);
+            if path.exists() {
+                path.canonicalize()
+                    .unwrap_or_else(|_| path.clone())
+                    .to_str()
+                    .unwrap()
+                    .to_string()
+            } else {
+                self.storage_uri.clone()
+            }
         } else {
-            storage_uri_lower
+            self.storage_uri.clone()
         }
     }
 }
@@ -226,14 +251,21 @@ impl ScouterServerConfig {
         {
             storage_uri
         } else {
-            let path = PathBuf::from(storage_uri);
+            // For local storage, use a directory relative to where the process is running
+            let path = if storage_uri.starts_with("./") || storage_uri.starts_with("../") {
+                PathBuf::from(&storage_uri)
+            } else {
+                // If it's not a relative path, make it one explicitly relative to current dir
+                PathBuf::from("./").join(&storage_uri)
+            };
 
-            // check if the path exists, if not create it
+            // Create directory if it doesn't exist
             if !path.exists() {
                 std::fs::create_dir_all(&path).unwrap();
             }
 
-            path.to_str().unwrap_or_default().to_string()
+            // Return path as string (not canonicalized)
+            path.to_str().unwrap().to_string()
         }
     }
 

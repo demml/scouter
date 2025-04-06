@@ -1,21 +1,19 @@
-use crate::dataframe::traits::ParquetFrame;
+use crate::parquet::traits::ParquetFrame;
 use crate::storage::ObjectStore;
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow_array::array::{Float64Array, StringArray, TimestampNanosecondArray};
 use arrow_array::RecordBatch;
 use async_trait::async_trait;
 use datafusion::dataframe::DataFrame;
-use datafusion::dataframe::DataFrameWriteOptions;
 use scouter_error::ScouterError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::ToDriftRecords;
 use scouter_types::{CustomMetricServerRecord, ServerRecords};
-use std::path::Path;
 use std::sync::Arc;
 
 pub struct CustomMetricDataFrame {
     schema: Arc<Schema>,
-    object_store: ObjectStore,
+    pub object_store: ObjectStore,
 }
 
 #[async_trait]
@@ -24,32 +22,21 @@ impl ParquetFrame for CustomMetricDataFrame {
         CustomMetricDataFrame::new(storage_settings)
     }
 
-    /// Write the records to a parquet file at the given path.
-    /// The path should be a valid URL for the object store.
-    ///
-    /// # Arguments
-    ///
-    /// * `rpath` - The path to write the parquet file to.
-    /// * `records` - The records to write to the parquet file.
-    ///
-    async fn write_parquet(
-        &self,
-        rpath: &Path,
-        records: ServerRecords,
-    ) -> Result<(), ScouterError> {
+    async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, ScouterError> {
         let records = records.to_custom_metric_drift_records()?;
-        let df = self.get_dataframe(records).await?;
+        let batch = self.build_batch(records)?;
 
-        let str_path = rpath
-            .as_os_str()
-            .to_str()
-            .ok_or_else(|| ScouterError::Error("Invalid path".to_string()))?;
+        let ctx = self.object_store.get_session()?;
 
-        df.write_parquet(str_path, DataFrameWriteOptions::new(), None)
-            .await
-            .map_err(|e| ScouterError::Error(format!("Failed to write parquet: {}", e)))?;
+        let df = ctx
+            .read_batches(vec![batch])
+            .map_err(|e| ScouterError::Error(format!("Failed to read batches: {}", e)))?;
 
-        Ok(())
+        Ok(df)
+    }
+
+    fn storage_root(&self) -> String {
+        self.object_store.storage_settings.storage_uri.clone()
     }
 }
 
@@ -108,20 +95,5 @@ impl CustomMetricDataFrame {
         .map_err(|e| ScouterError::Error(format!("Failed to create RecordBatch: {}", e)))?;
 
         Ok(batch)
-    }
-
-    async fn get_dataframe(
-        &self,
-        records: Vec<CustomMetricServerRecord>,
-    ) -> Result<DataFrame, ScouterError> {
-        let batch = self.build_batch(records)?;
-
-        let ctx = self.object_store.get_session()?;
-
-        let df = ctx
-            .read_batches(vec![batch])
-            .map_err(|e| ScouterError::Error(format!("Failed to read batches: {}", e)))?;
-
-        Ok(df)
     }
 }
