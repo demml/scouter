@@ -1,14 +1,18 @@
 use crate::parquet::custom::CustomMetricDataFrame;
 use crate::parquet::psi::PsiDataFrame;
 use crate::parquet::traits::ParquetFrame;
+use crate::sql::helper::get_binned_custom_metric_values_query;
 use crate::storage::ObjectStore;
+use chrono::DateTime;
+use chrono::Utc;
+use datafusion::prelude::SessionContext;
 use scouter_error::ScouterError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::DriftType;
 use scouter_types::ServerRecords;
 use std::path::Path;
 
-use super::spc::SpcDataFrame;
+use crate::parquet::spc::SpcDataFrame;
 
 pub enum ParquetDataFrame {
     CustomMetric(CustomMetricDataFrame),
@@ -57,6 +61,50 @@ impl ParquetDataFrame {
             ParquetDataFrame::Spc(df) => df.object_store.clone(),
         }
     }
+
+    async fn register_data(&self, path: &Path) -> Result<SessionContext, ScouterError> {
+        match self {
+            ParquetDataFrame::CustomMetric(df) => df.register_data(path).await,
+            _ => Err(ScouterError::Error(
+                "register_dataframe is not implemented for this type".to_string(),
+            )),
+        }
+    }
+
+    pub async fn get_binned_metrics(
+        &self,
+        path: &Path,
+        bin: &i32,
+        start_time: &DateTime<Utc>,
+        end_time: &DateTime<Utc>,
+        space: &str,
+        name: &str,
+        version: &str,
+    ) -> Result<(), ScouterError> {
+        match self {
+            ParquetDataFrame::CustomMetric(df) => {
+                let ctx = df.register_data(path).await?;
+
+                let sql = get_binned_custom_metric_values_query(
+                    bin, start_time, end_time, space, name, version,
+                );
+
+                let df = ctx
+                    .sql(&sql)
+                    .await
+                    .map_err(|e| ScouterError::Error(format!("Failed to read batches: {}", e)))?;
+
+                df.show()
+                    .await
+                    .map_err(|e| ScouterError::Error(format!("Failed to show dataframe: {}", e)))?;
+
+                Ok(())
+            }
+            _ => Err(ScouterError::Error(
+                "get_binned_metrics is not implemented for this type".to_string(),
+            )),
+        }
+    }
 }
 
 #[cfg(test)]
@@ -87,6 +135,7 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
         let df = ParquetDataFrame::new(&storage_settings, &DriftType::Custom).unwrap();
         let mut batch = Vec::new();
+        let start_utc = Utc::now();
 
         for i in 0..10 {
             let record = ServerRecord::Custom(CustomMetricServerRecord {
@@ -108,6 +157,12 @@ mod tests {
         // Check if the file exists
         let files = df.storage_client().list(None).await.unwrap();
         assert_eq!(files.len(), 1);
+
+        // attempt to read the file
+        let read_df = df
+            .get_binned_metrics(&rpath, &1, &start_utc, &Utc::now(), "test", "test", "1.0")
+            .await;
+        read_df.unwrap();
 
         // delete the file
         let file_path = files.first().unwrap().to_string();

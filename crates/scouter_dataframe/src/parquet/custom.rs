@@ -5,10 +5,12 @@ use arrow_array::array::{Float64Array, StringArray, TimestampNanosecondArray};
 use arrow_array::RecordBatch;
 use async_trait::async_trait;
 use datafusion::dataframe::DataFrame;
+use datafusion::prelude::{ParquetReadOptions, SessionContext};
 use scouter_error::ScouterError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::ToDriftRecords;
 use scouter_types::{CustomMetricServerRecord, ServerRecords};
+use std::path::Path;
 use std::sync::Arc;
 
 pub struct CustomMetricDataFrame {
@@ -51,7 +53,7 @@ impl CustomMetricDataFrame {
             Field::new("name", DataType::Utf8, false),
             Field::new("space", DataType::Utf8, false),
             Field::new("version", DataType::Utf8, false),
-            Field::new("feature", DataType::Utf8, false),
+            Field::new("metric", DataType::Utf8, false),
             Field::new("value", DataType::Float64, false),
         ]));
 
@@ -95,5 +97,22 @@ impl CustomMetricDataFrame {
         .map_err(|e| ScouterError::Error(format!("Failed to create RecordBatch: {}", e)))?;
 
         Ok(batch)
+    }
+
+    /// Load storage files into parquet table for querying
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to the parquet file (this path should exclude root path)
+    ///
+    pub async fn register_data(&self, path: &Path) -> Result<SessionContext, ScouterError> {
+        let ctx = self.object_store.get_session()?;
+
+        let full_path = format!("{}/{}", self.storage_root(), path.display());
+
+        ctx.register_parquet("custom_metric", full_path, ParquetReadOptions::default())
+            .await
+            .map_err(|e| ScouterError::Error(format!("Failed to register parquet: {}", e)))?;
+        Ok(ctx)
     }
 }
