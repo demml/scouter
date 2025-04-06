@@ -1,4 +1,5 @@
 use async_trait::async_trait;
+use datafusion::prelude::SessionContext;
 use datafusion::{dataframe::DataFrameWriteOptions, prelude::DataFrame};
 use scouter_error::ScouterError;
 use scouter_settings::ObjectStorageSettings;
@@ -37,4 +38,6 @@ pub trait ParquetFrame {
     async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, ScouterError>;
 
     fn storage_root(&self) -> String;
+
+    async fn register_data(&self, path: &Path) -> Result<SessionContext, ScouterError>;
 }

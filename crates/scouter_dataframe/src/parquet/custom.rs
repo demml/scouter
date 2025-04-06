@@ -40,6 +40,23 @@ impl ParquetFrame for CustomMetricDataFrame {
     fn storage_root(&self) -> String {
         self.object_store.storage_settings.storage_uri.clone()
     }
+
+    /// Load storage files into parquet table for querying
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to the parquet file (this path should exclude root path)
+    ///
+    async fn register_data(&self, path: &Path) -> Result<SessionContext, ScouterError> {
+        let ctx = self.object_store.get_session()?;
+
+        let full_path = format!("{}/{}", self.storage_root(), path.display());
+
+        ctx.register_parquet("custom_metric", full_path, ParquetReadOptions::default())
+            .await
+            .map_err(|e| ScouterError::Error(format!("Failed to register parquet: {}", e)))?;
+        Ok(ctx)
+    }
 }
 
 impl CustomMetricDataFrame {
@@ -97,22 +114,5 @@ impl CustomMetricDataFrame {
         .map_err(|e| ScouterError::Error(format!("Failed to create RecordBatch: {}", e)))?;
 
         Ok(batch)
-    }
-
-    /// Load storage files into parquet table for querying
-    ///
-    /// # Arguments
-    ///
-    /// * `path` - The path to the parquet file (this path should exclude root path)
-    ///
-    pub async fn register_data(&self, path: &Path) -> Result<SessionContext, ScouterError> {
-        let ctx = self.object_store.get_session()?;
-
-        let full_path = format!("{}/{}", self.storage_root(), path.display());
-
-        ctx.register_parquet("custom_metric", full_path, ParquetReadOptions::default())
-            .await
-            .map_err(|e| ScouterError::Error(format!("Failed to register parquet: {}", e)))?;
-        Ok(ctx)
     }
 }
