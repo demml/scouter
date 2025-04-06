@@ -1,4 +1,4 @@
-use crate::dataframes::traits::ParquetFrame;
+use crate::dataframe::traits::ParquetFrame;
 use crate::storage::ObjectStore;
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow_array::array::{Float64Array, StringArray, TimestampNanosecondArray};
@@ -6,11 +6,11 @@ use arrow_array::RecordBatch;
 use async_trait::async_trait;
 use datafusion::dataframe::DataFrame;
 use datafusion::dataframe::DataFrameWriteOptions;
-use datafusion::datasource::MemTable;
-use scouter_error::{ScouterError, StorageError};
+use scouter_error::ScouterError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::ToDriftRecords;
 use scouter_types::{CustomMetricServerRecord, ServerRecords};
+use std::path::Path;
 use std::sync::Arc;
 
 pub struct CustomMetricDataFrame {
@@ -24,11 +24,28 @@ impl ParquetFrame for CustomMetricDataFrame {
         CustomMetricDataFrame::new(storage_settings)
     }
 
-    async fn write_parquet(&self, rpath: &str, records: ServerRecords) -> Result<(), ScouterError> {
+    /// Write the records to a parquet file at the given path.
+    /// The path should be a valid URL for the object store.
+    ///
+    /// # Arguments
+    ///
+    /// * `rpath` - The path to write the parquet file to.
+    /// * `records` - The records to write to the parquet file.
+    ///
+    async fn write_parquet(
+        &self,
+        rpath: &Path,
+        records: ServerRecords,
+    ) -> Result<(), ScouterError> {
         let records = records.to_custom_metric_drift_records()?;
         let df = self.get_dataframe(records).await?;
 
-        df.write_parquet(rpath, DataFrameWriteOptions::new(), None)
+        let str_path = rpath
+            .as_os_str()
+            .to_str()
+            .ok_or_else(|| ScouterError::Error("Invalid path".to_string()))?;
+
+        df.write_parquet(str_path, DataFrameWriteOptions::new(), None)
             .await
             .map_err(|e| ScouterError::Error(format!("Failed to write parquet: {}", e)))?;
 
@@ -99,19 +116,11 @@ impl CustomMetricDataFrame {
     ) -> Result<DataFrame, ScouterError> {
         let batch = self.build_batch(records)?;
 
-        let table = MemTable::try_new(self.schema.clone(), vec![vec![batch]])
-            .map_err(|e| ScouterError::Error(format!("Failed to create MemTable: {}", e)))?;
-
         let ctx = self.object_store.get_session()?;
 
-        ctx.register_table("metrics", Arc::new(table))
-            .map_err(|e| ScouterError::Error(format!("Failed to register table: {}", e)))?;
-
-        // Execute a query to verify
         let df = ctx
-            .sql("SELECT * FROM metrics")
-            .await
-            .map_err(|_| StorageError::StorageError("Failed to execute query".to_string()))?;
+            .read_batches(vec![batch])
+            .map_err(|e| ScouterError::Error(format!("Failed to read batches: {}", e)))?;
 
         Ok(df)
     }

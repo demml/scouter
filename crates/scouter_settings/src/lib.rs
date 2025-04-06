@@ -233,7 +233,7 @@ impl ScouterServerConfig {
                 std::fs::create_dir_all(&path).unwrap();
             }
 
-            path.canonicalize().unwrap().to_str().unwrap().to_string()
+            path.to_str().unwrap_or_default().to_string()
         }
     }
 

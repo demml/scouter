@@ -11,7 +11,7 @@ use url::Url;
 
 enum StorageProvider {
     Google(Arc<GoogleCloudStorage>),
-    AWS(Arc<AmazonS3>),
+    Aws(Arc<AmazonS3>),
     Local(Arc<LocalFileSystem>),
     Azure(Arc<MicrosoftAzure>),
 }

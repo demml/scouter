@@ -31,7 +31,7 @@ scouter-observability = { path = "crates/scouter_observability" }
 scouter-profile = { path = "crates/scouter_profile" }
 scouter-server = { path = "crates/scouter_server" }
 scouter-settings = { path = "crates/scouter_settings" }
-scouter-storage = { path = "crates/scouter_storage" }
+scouter-dataframe = { path = "crates/scouter_dataframe" }
 scouter-sql = { path = "crates/scouter_sql" }
 scouter-types = { path = "crates/scouter_types" }
 

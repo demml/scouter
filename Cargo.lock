@@ -4428,6 +4428,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "scouter-dataframe"
+version = "0.4.5"
+dependencies = [
+ "arrow",
+ "arrow-array",
+ "async-trait",
+ "chrono",
+ "datafusion",
+ "object_store",
+ "parquet",
+ "scouter-error",
+ "scouter-settings",
+ "scouter-types",
+ "tempfile",
+ "tokio",
+ "tracing",
+ "url",
+]
+
+[[package]]
 name = "scouter-dispatch"
 version = "0.4.5"
 dependencies = [
@@ -4615,26 +4635,6 @@ dependencies = [
  "tokio",
  "tower",
  "tracing",
-]
-
-[[package]]
-name = "scouter-storage"
-version = "0.4.5"
-dependencies = [
- "arrow",
- "arrow-array",
- "async-trait",
- "chrono",
- "datafusion",
- "object_store",
- "parquet",
- "scouter-error",
- "scouter-settings",
- "scouter-types",
- "tempfile",
- "tokio",
- "tracing",
- "url",
 ]
 
 [[package]]
