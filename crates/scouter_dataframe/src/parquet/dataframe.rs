@@ -2,15 +2,18 @@ use crate::parquet::custom::CustomMetricDataFrame;
 use crate::parquet::psi::PsiDataFrame;
 use crate::parquet::traits::ParquetFrame;
 use crate::storage::ObjectStore;
-use scouter_error::{ScouterError, StorageError};
+use scouter_error::ScouterError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::DriftType;
 use scouter_types::ServerRecords;
 use std::path::Path;
 
+use super::spc::SpcDataFrame;
+
 pub enum ParquetDataFrame {
     CustomMetric(CustomMetricDataFrame),
     Psi(PsiDataFrame),
+    Spc(SpcDataFrame),
 }
 
 impl ParquetDataFrame {
@@ -23,7 +26,7 @@ impl ParquetDataFrame {
                 storage_settings,
             )?)),
             DriftType::Psi => Ok(ParquetDataFrame::Psi(PsiDataFrame::new(storage_settings)?)),
-            _ => Err(StorageError::ObjectStoreError("Unsupported drift type".to_string()).into()),
+            DriftType::Spc => Ok(ParquetDataFrame::Spc(SpcDataFrame::new(storage_settings)?)),
         }
     }
 
@@ -42,6 +45,7 @@ impl ParquetDataFrame {
         match self {
             ParquetDataFrame::CustomMetric(df) => df.write_parquet(rpath, records).await,
             ParquetDataFrame::Psi(df) => df.write_parquet(rpath, records).await,
+            ParquetDataFrame::Spc(df) => df.write_parquet(rpath, records).await,
         }
     }
 
@@ -50,6 +54,7 @@ impl ParquetDataFrame {
         match self {
             ParquetDataFrame::CustomMetric(df) => df.object_store.clone(),
             ParquetDataFrame::Psi(df) => df.object_store.clone(),
+            ParquetDataFrame::Spc(df) => df.object_store.clone(),
         }
     }
 }
@@ -63,9 +68,9 @@ mod tests {
     use chrono::Utc;
     use object_store::path::Path;
     use scouter_settings::ObjectStorageSettings;
-    use scouter_types::CustomMetricServerRecord;
-    use scouter_types::PsiServerRecord;
-    use scouter_types::ServerRecord;
+    use scouter_types::{
+        CustomMetricServerRecord, PsiServerRecord, ServerRecord, ServerRecords, SpcServerRecord,
+    };
 
     fn cleanup() {
         let storage_settings = ObjectStorageSettings::default();
@@ -136,6 +141,50 @@ mod tests {
                 feature: "feature".to_string(),
                 bin_id: i as usize,
                 bin_count: 10,
+            });
+
+            batch.push(record);
+        }
+
+        let records = ServerRecords::new(batch);
+        let rpath = PathBuf::from("test.parquet");
+        df.write_parquet(&rpath, records).await.unwrap();
+
+        // Check if the file exists
+        let files = df.storage_client().list(None).await.unwrap();
+        assert_eq!(files.len(), 1);
+
+        // delete the file
+        let file_path = files.first().unwrap().to_string();
+        let path = Path::from(file_path);
+        df.storage_client()
+            .delete(&path)
+            .await
+            .expect("Failed to delete file");
+
+        // Check if the file is deleted
+        let files = df.storage_client().list(None).await.unwrap();
+        assert_eq!(files.len(), 0);
+
+        // cleanup
+        cleanup();
+    }
+
+    #[tokio::test]
+    async fn test_write_spc_dataframe_local() {
+        cleanup();
+        let storage_settings = ObjectStorageSettings::default();
+        let df = ParquetDataFrame::new(&storage_settings, &DriftType::Spc).unwrap();
+        let mut batch = Vec::new();
+
+        for i in 0..10 {
+            let record = ServerRecord::Spc(SpcServerRecord {
+                created_at: Utc::now(),
+                name: "test".to_string(),
+                space: "test".to_string(),
+                version: "1.0".to_string(),
+                feature: "feature".to_string(),
+                value: i as f64,
             });
 
             batch.push(record);
