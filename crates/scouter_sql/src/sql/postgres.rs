@@ -645,7 +645,7 @@ impl PostgresClient {
         params: &DriftRequest,
     ) -> Result<SpcDriftFeatures, SqlError> {
         let minutes = params.time_interval.to_minutes();
-        let bin = minutes / params.max_data_points;
+        let bin = params.time_interval.to_minutes() as f64 / params.max_data_points as f64;
 
         let query = Queries::GetBinnedSpcFeatureValues.get_query();
 
@@ -694,7 +694,7 @@ impl PostgresClient {
         // get features
 
         let minutes = params.time_interval.to_minutes();
-        let bin = params.time_interval.to_minutes() / params.max_data_points;
+        let bin = params.time_interval.to_minutes() as f64 / params.max_data_points as f64;
 
         let query = Queries::GetBinnedPsiFeatureBins.get_query();
 
@@ -730,7 +730,7 @@ impl PostgresClient {
         // get features
 
         let minutes = params.time_interval.to_minutes();
-        let bin = params.time_interval.to_minutes() / params.max_data_points;
+        let bin = params.time_interval.to_minutes() as f64 / params.max_data_points as f64;
 
         let query = Queries::GetBinnedCustomMetricValues.get_query();
 
