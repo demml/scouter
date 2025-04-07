@@ -48,8 +48,6 @@ impl StorageProvider {
                 StorageProvider::Aws(Arc::new(builder))
             }
             StorageType::Local => {
-                let root = storage_settings.storage_root();
-
                 // Create LocalFileSystem with the root path as the prefix
                 let builder = LocalFileSystem::new();
 
@@ -262,7 +260,7 @@ impl ObjectStore {
             Some(p) => Path::from(format!(
                 "{}/{}",
                 self.storage_settings.canonicalized_path(),
-                p.to_string()
+                p
             )),
             None => Path::from(self.storage_settings.canonicalized_path()),
         };

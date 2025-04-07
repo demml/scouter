@@ -59,6 +59,7 @@ impl ParquetDataFrame {
         }
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub async fn get_binned_metrics(
         &self,
         path: &Path,

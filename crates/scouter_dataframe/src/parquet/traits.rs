@@ -93,6 +93,7 @@ pub trait ParquetFrame {
     /// * `name` - The name to filter
     /// * `version` - The version to filter
     ///
+    #[allow(clippy::too_many_arguments)]
     async fn get_binned_metrics(
         &self,
         path: &Path,
