@@ -49,7 +49,6 @@ impl StorageProvider {
             }
             StorageType::Local => {
                 let root = storage_settings.storage_root();
-                println!("Local storage root: {}", root);
 
                 // Create LocalFileSystem with the root path as the prefix
                 let builder = LocalFileSystem::new();

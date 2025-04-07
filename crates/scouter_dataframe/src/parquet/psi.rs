@@ -1,17 +1,20 @@
 use crate::parquet::traits::ParquetFrame;
+use crate::sql::helper::get_binned_psi_drift_records_query;
 use crate::storage::ObjectStore;
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow_array::array::{StringArray, TimestampNanosecondArray, UInt64Array};
 use arrow_array::RecordBatch;
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use datafusion::dataframe::DataFrame;
-use datafusion::prelude::{ParquetReadOptions, SessionContext};
+use datafusion::prelude::SessionContext;
 use scouter_error::ScouterError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::ToDriftRecords;
 use scouter_types::{PsiServerRecord, ServerRecords};
-use std::path::Path;
 use std::sync::Arc;
+
+use super::types::BinnedTableName;
 pub struct PsiDataFrame {
     schema: Arc<Schema>,
     pub object_store: ObjectStore,
@@ -39,21 +42,24 @@ impl ParquetFrame for PsiDataFrame {
         self.object_store.storage_settings.storage_uri.clone()
     }
 
-    /// Load storage files into parquet table for querying
-    ///
-    /// # Arguments
-    ///
-    /// * `path` - The path to the parquet file (this path should exclude root path)
-    ///
-    async fn register_data(&self, path: &Path) -> Result<SessionContext, ScouterError> {
-        let ctx = self.object_store.get_session()?;
+    fn get_session_context(&self) -> Result<SessionContext, ScouterError> {
+        Ok(self.object_store.get_session()?)
+    }
 
-        let full_path = format!("{}/{}", self.storage_root(), path.display());
+    fn get_binned_sql(
+        &self,
+        bin: &f64,
+        start_time: &DateTime<Utc>,
+        end_time: &DateTime<Utc>,
+        space: &str,
+        name: &str,
+        version: &str,
+    ) -> String {
+        get_binned_psi_drift_records_query(bin, start_time, end_time, space, name, version)
+    }
 
-        ctx.register_parquet("psi_metrics", full_path, ParquetReadOptions::default())
-            .await
-            .map_err(|e| ScouterError::Error(format!("Failed to register parquet: {}", e)))?;
-        Ok(ctx)
+    fn table_name(&self) -> String {
+        BinnedTableName::Psi.to_string()
     }
 }
 

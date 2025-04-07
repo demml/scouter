@@ -1,13 +1,8 @@
 use crate::parquet::custom::CustomMetricDataFrame;
 use crate::parquet::psi::PsiDataFrame;
 use crate::parquet::traits::ParquetFrame;
-use crate::sql::helper::{
-    get_binned_custom_metric_values_query, get_binned_psi_drift_records_query,
-};
 use crate::storage::ObjectStore;
-use chrono::DateTime;
-use chrono::Utc;
-use datafusion::prelude::SessionContext;
+use chrono::{DateTime, Utc};
 use scouter_error::ScouterError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::DriftType;
@@ -64,19 +59,10 @@ impl ParquetDataFrame {
         }
     }
 
-    async fn register_data(&self, path: &Path) -> Result<SessionContext, ScouterError> {
-        match self {
-            ParquetDataFrame::CustomMetric(df) => df.register_data(path).await,
-            _ => Err(ScouterError::Error(
-                "register_dataframe is not implemented for this type".to_string(),
-            )),
-        }
-    }
-
     pub async fn get_binned_metrics(
         &self,
         path: &Path,
-        bin: &i32,
+        bin: &f64,
         start_time: &DateTime<Utc>,
         end_time: &DateTime<Utc>,
         space: &str,
@@ -85,44 +71,20 @@ impl ParquetDataFrame {
     ) -> Result<(), ScouterError> {
         match self {
             ParquetDataFrame::CustomMetric(df) => {
-                let ctx = df.register_data(path).await?;
-
-                let sql = get_binned_custom_metric_values_query(
-                    bin, start_time, end_time, space, name, version,
-                );
-
-                let df = ctx
-                    .sql(&sql)
-                    .await
-                    .map_err(|e| ScouterError::Error(format!("Failed to read batches: {}", e)))?;
-
-                df.show()
-                    .await
-                    .map_err(|e| ScouterError::Error(format!("Failed to show dataframe: {}", e)))?;
-
+                df.get_binned_metrics(path, bin, start_time, end_time, space, name, version)
+                    .await?;
                 Ok(())
             }
             ParquetDataFrame::Psi(df) => {
-                let ctx = df.register_data(path).await?;
-
-                let sql = get_binned_psi_drift_records_query(
-                    bin, start_time, end_time, space, name, version,
-                );
-
-                let df = ctx
-                    .sql(&sql)
-                    .await
-                    .map_err(|e| ScouterError::Error(format!("Failed to read batches: {}", e)))?;
-
-                df.show()
-                    .await
-                    .map_err(|e| ScouterError::Error(format!("Failed to show dataframe: {}", e)))?;
-
+                df.get_binned_metrics(path, bin, start_time, end_time, space, name, version)
+                    .await?;
                 Ok(())
             }
-            _ => Err(ScouterError::Error(
-                "get_binned_metrics is not implemented for this type".to_string(),
-            )),
+            ParquetDataFrame::Spc(df) => {
+                df.get_binned_metrics(path, bin, start_time, end_time, space, name, version)
+                    .await?;
+                Ok(())
+            }
         }
     }
 }
@@ -157,7 +119,7 @@ mod tests {
         let mut batch = Vec::new();
         let start_utc = Utc::now();
 
-        for i in 0..10 {
+        for i in 0..3 {
             let record = ServerRecord::Custom(CustomMetricServerRecord {
                 created_at: Utc::now(),
                 name: "test".to_string(),
@@ -167,6 +129,8 @@ mod tests {
                 value: i as f64,
             });
 
+            // sleep 1 second
+            std::thread::sleep(std::time::Duration::from_secs(1));
             batch.push(record);
         }
 
@@ -180,7 +144,15 @@ mod tests {
 
         // attempt to read the file
         let read_df = df
-            .get_binned_metrics(&rpath, &1, &start_utc, &Utc::now(), "test", "test", "1.0")
+            .get_binned_metrics(
+                &rpath,
+                &0.01,
+                &start_utc,
+                &Utc::now(),
+                "test",
+                "test",
+                "1.0",
+            )
             .await;
         read_df.unwrap();
 
@@ -208,7 +180,7 @@ mod tests {
         let mut batch = Vec::new();
         let start_utc = Utc::now();
 
-        for i in 0..10 {
+        for i in 0..2 {
             let record = ServerRecord::Psi(PsiServerRecord {
                 created_at: Utc::now(),
                 name: "test".to_string(),
@@ -219,6 +191,8 @@ mod tests {
                 bin_count: 10,
             });
 
+            // sleep 1 second
+            std::thread::sleep(std::time::Duration::from_secs(1));
             batch.push(record);
         }
 
@@ -231,7 +205,15 @@ mod tests {
         assert_eq!(files.len(), 1);
 
         let read_df = df
-            .get_binned_metrics(&rpath, &1, &start_utc, &Utc::now(), "test", "test", "1.0")
+            .get_binned_metrics(
+                &rpath,
+                &0.01,
+                &start_utc,
+                &Utc::now(),
+                "test",
+                "test",
+                "1.0",
+            )
             .await;
         read_df.unwrap();
 
@@ -257,8 +239,9 @@ mod tests {
         let storage_settings = ObjectStorageSettings::default();
         let df = ParquetDataFrame::new(&storage_settings, &DriftType::Spc).unwrap();
         let mut batch = Vec::new();
+        let start_utc = Utc::now();
 
-        for i in 0..10 {
+        for i in 0..2 {
             let record = ServerRecord::Spc(SpcServerRecord {
                 created_at: Utc::now(),
                 name: "test".to_string(),
@@ -267,7 +250,8 @@ mod tests {
                 feature: "feature".to_string(),
                 value: i as f64,
             });
-
+            // sleep 1 second
+            std::thread::sleep(std::time::Duration::from_secs(1));
             batch.push(record);
         }
 
@@ -278,6 +262,19 @@ mod tests {
         // Check if the file exists
         let files = df.storage_client().list(None).await.unwrap();
         assert_eq!(files.len(), 1);
+
+        let read_df = df
+            .get_binned_metrics(
+                &rpath,
+                &0.01,
+                &start_utc,
+                &Utc::now(),
+                "test",
+                "test",
+                "1.0",
+            )
+            .await;
+        read_df.unwrap();
 
         // delete the file
         let file_path = files.first().unwrap().to_string();

@@ -2,7 +2,7 @@
 use chrono::{DateTime, Utc};
 
 pub fn get_binned_custom_metric_values_query(
-    bin: &i32,
+    bin: &f64,
     start_time: &DateTime<Utc>,
     end_time: &DateTime<Utc>,
     space: &str,
@@ -15,7 +15,7 @@ pub fn get_binned_custom_metric_values_query(
         date_bin(INTERVAL '{} minute', created_at, TIMESTAMP '1970-01-01') as created_at,
         metric,
         value
-    FROM custom_metric
+    FROM binned_custom_metric
     WHERE 
         1=1
         AND created_at between TIMESTAMP '{}' AND TIMESTAMP '{}'
@@ -64,7 +64,7 @@ GROUP BY metric;"#,
 }
 
 pub fn get_binned_psi_drift_records_query(
-    bin: &i32,
+    bin: &f64,
     start_time: &DateTime<Utc>,
     end_time: &DateTime<Utc>,
     space: &str,
@@ -81,7 +81,7 @@ pub fn get_binned_psi_drift_records_query(
             feature,
             bin_id,
             SUM(bin_count) AS bin_total_count
-        FROM psi_metrics
+        FROM binned_psi
         WHERE 
             1=1
             AND created_at between TIMESTAMP '{}' AND TIMESTAMP '{}'
@@ -99,7 +99,7 @@ pub fn get_binned_psi_drift_records_query(
             version,
             feature,
             cast(SUM(bin_count) as float) AS feature_total_count
-        FROM psi_metrics
+        FROM binned_psi
         WHERE 
             1=1
             AND created_at between TIMESTAMP '{}' AND TIMESTAMP '{}'
@@ -176,6 +176,65 @@ pub fn get_binned_psi_drift_records_query(
         space,
         name,
         version,
+        bin,
+        start_time.to_rfc3339(),
+        end_time.to_rfc3339(),
+        space,
+        name,
+        version
+    )
+}
+
+pub fn get_binned_spc_drift_records_query(
+    bin: &f64,
+    start_time: &DateTime<Utc>,
+    end_time: &DateTime<Utc>,
+    space: &str,
+    name: &str,
+    version: &str,
+) -> String {
+    format!(
+        r#"WITH subquery1 AS (
+        SELECT
+            date_bin('{} minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
+            name,
+            space,
+            feature,
+            version,
+            value
+        FROM binned_spc
+        WHERE 
+            1=1
+            AND created_at between TIMESTAMP '{}' AND TIMESTAMP '{}'
+            AND space = '{}'
+            AND name = '{}'
+            AND version = '{}'
+        ),
+
+        subquery2 AS (
+            SELECT
+                created_at,
+                name,
+                space,
+                feature,
+                version,
+                avg(value) as value
+            FROM subquery1
+            GROUP BY 
+                created_at,
+                name,
+                space,
+                feature,
+                version
+        )
+
+        SELECT
+        feature,
+        array_agg(created_at ORDER BY created_at DESC) as created_at,
+        array_agg(value ORDER BY created_at DESC) as values
+        FROM subquery2
+        GROUP BY 
+        feature;"#,
         bin,
         start_time.to_rfc3339(),
         end_time.to_rfc3339(),

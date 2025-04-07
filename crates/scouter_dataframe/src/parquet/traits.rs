@@ -1,4 +1,6 @@
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
+use datafusion::prelude::ParquetReadOptions;
 use datafusion::prelude::SessionContext;
 use datafusion::{dataframe::DataFrameWriteOptions, prelude::DataFrame};
 use scouter_error::ScouterError;
@@ -37,7 +39,83 @@ pub trait ParquetFrame {
 
     async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, ScouterError>;
 
+    /// Get the storage root path
     fn storage_root(&self) -> String;
 
-    async fn register_data(&self, path: &Path) -> Result<SessionContext, ScouterError>;
+    // Add this new required method
+    fn get_session_context(&self) -> Result<SessionContext, ScouterError>;
+
+    // Get the table name
+    fn table_name(&self) -> String;
+
+    // Get binned SQL
+    fn get_binned_sql(
+        &self,
+        bin: &f64,
+        start_time: &DateTime<Utc>,
+        end_time: &DateTime<Utc>,
+        space: &str,
+        name: &str,
+        version: &str,
+    ) -> String;
+
+    /// Load storage files into parquet table for querying
+    ///
+    /// # Arguments
+    ///
+    /// * `path` - The path to the parquet file (this path should exclude root path)
+    /// * `table_name` - The name of the table to register
+    ///
+    async fn register_data(
+        &self,
+        path: &Path,
+        table_name: &str,
+    ) -> Result<SessionContext, ScouterError> {
+        let ctx = self.get_session_context()?;
+
+        let full_path = format!("{}/{}", self.storage_root(), path.display());
+
+        ctx.register_parquet(table_name, full_path, ParquetReadOptions::default())
+            .await
+            .map_err(|e| ScouterError::Error(format!("Failed to register parquet: {}", e)))?;
+        Ok(ctx)
+    }
+
+    /// Get binned metrics from the parquet file
+    ///
+    /// # Arguments
+    ///     
+    /// * `path` - The path to the parquet file (this path should exclude root path)
+    /// * `bin` - The bin value
+    /// * `start_time` - The start time to filter
+    /// * `end_time` - The end time to filter
+    /// * `space` - The space to filter
+    /// * `name` - The name to filter
+    /// * `version` - The version to filter
+    ///
+    async fn get_binned_metrics(
+        &self,
+        path: &Path,
+        bin: &f64,
+        start_time: &DateTime<Utc>,
+        end_time: &DateTime<Utc>,
+        space: &str,
+        name: &str,
+        version: &str,
+    ) -> Result<(), ScouterError> {
+        // Register the data at path
+        let ctx = self.register_data(path, &self.table_name()).await?;
+
+        let sql = self.get_binned_sql(bin, start_time, end_time, space, name, version);
+        let df = ctx
+            .sql(&sql)
+            .await
+            .map_err(|e| ScouterError::Error(format!("Failed to read batches: {}", e)))?;
+
+        df.show()
+            .await
+            .map_err(|e| ScouterError::Error(format!("Failed to show dataframe: {}", e)))?;
+
+        Ok(())
+    }
 }
