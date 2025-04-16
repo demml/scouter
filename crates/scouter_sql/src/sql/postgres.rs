@@ -643,7 +643,7 @@ impl PostgresClient {
     pub async fn get_binned_spc_drift_records(
         &self,
         params: &DriftRequest,
-    ) -> Result<SpcDriftFeatures, SqlError> {
+    ) -> Result<SpcDriftFeatures, ScouterError> {
         let minutes = params.time_interval.to_minutes();
         let bin = params.time_interval.to_minutes() as f64 / params.max_data_points as f64;
 
@@ -726,7 +726,7 @@ impl PostgresClient {
     pub async fn get_binned_custom_drift_records(
         &self,
         params: &DriftRequest,
-    ) -> Result<BinnedCustomMetrics, SqlError> {
+    ) -> Result<BinnedCustomMetrics, ScouterError> {
         // get features
 
         let minutes = params.time_interval.to_minutes();

@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
+use scouter_error::ScouterError;
 use scouter_types::{DriftType, TimeInterval};
 use serde::Deserialize;
 use serde::Serialize;
@@ -169,6 +170,11 @@ impl ScouterServerError {
 
     pub fn new(error: String) -> Self {
         ScouterServerError { error }
+    }
+
+    pub fn query_records_error(e: ScouterError) -> Self {
+        let msg = format!("Failed to query records: {:?}", e);
+        ScouterServerError { error: msg }
     }
 }
 

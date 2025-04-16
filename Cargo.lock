@@ -4819,6 +4819,7 @@ version = "0.4.5"
 dependencies = [
  "chrono",
  "pyo3",
+ "scouter-error",
  "scouter-types",
  "serde",
  "serde_json",

@@ -13,6 +13,7 @@ description = "Client and server contract for scouter"
 
 [dependencies]
 chrono = { workspace = true }
+scouter-error = { workspace = true }
 scouter-types = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
