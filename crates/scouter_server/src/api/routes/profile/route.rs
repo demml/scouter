@@ -7,11 +7,9 @@ use scouter_types::DriftProfile;
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    response::IntoResponse,
     Extension, Json,
 };
 
-use serde_json::json;
 use std::sync::Arc;
 use tracing::{debug, error, instrument};
 
