@@ -6,8 +6,12 @@ permissions:
 
 on:
   push:
-      branches:
-        - main
+    branches:
+      - main
+
+  pull_request:
+    branches:
+      - opsmlUi
   release:
     types: [published]
 
@@ -17,35 +21,66 @@ env:
 
 jobs:
   build:
-    name: build - ${{ matrix.target }} - ${{ matrix.feature }}
+    name: Build ${{ matrix.os }}-${{ matrix.arch }} (${{ matrix.feature }})
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-22.04
+          # Linux builds
+          - os: linux
+            runner: ubuntu-22.04
+            arch: amd64
             target: x86_64-unknown-linux-gnu
-            archive: tar.gz
-            feature: "kafka"
-
-          - os: ubuntu-22.04
+            archive_ext: tar.gz
+            feature: kafka
+          - os: linux
+            runner: ubuntu-22.04
+            arch: amd64
             target: x86_64-unknown-linux-gnu
-            archive: tar.gz
-            feature: "rabbitmq"
+            archive_ext: tar.gz
+            feature: rabbitmq
+          - os: linux
+            runner: ubuntu-22.04
+            arch: arm64
+            target: aarch64-unknown-linux-gnu
+            archive_ext: tar.gz
+            feature: kafka
+          - os: linux
+            runner: ubuntu-22.04
+            arch: arm64
+            target: aarch64-unknown-linux-gnu
+            archive_ext: tar.gz
+            feature: rabbitmq
 
-          - os: macos-latest
+          # macOS builds
+          - os: darwin
+            runner: macos-latest
+            arch: arm64
             target: aarch64-apple-darwin
-            archive: zip
-            feature: "kafka"
-
-          - os: macos-latest
+            archive_ext: zip
+            feature: kafka
+          - os: darwin
+            runner: macos-latest
+            arch: arm64
             target: aarch64-apple-darwin
-            archive: zip
-            feature: "rabbitmq"
-
+            archive_ext: zip
+            feature: rabbitmq
+          - os: darwin
+            runner: macos-13
+            arch: amd64
+            target: x86_64-apple-darwin
+            archive_ext: zip
+            feature: kafka
+          - os: darwin
+            runner: macos-13
+            arch: amd64
+            target: x86_64-apple-darwin
+            archive_ext: zip
+            feature: rabbitmq
     env:
       TARGET: ${{ matrix.target }}
 
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner }}
 
     steps:
       - name: Checkout repository
@@ -60,108 +95,215 @@ jobs:
           rustup target add ${{ matrix.target }}
           rustup component add rust-src
 
-      - name: Update apt repositories
-        if: contains(matrix.os, 'ubuntu')
+      - name: Install dependencies (Linux)
+        if: contains(matrix.os, 'linux')
         run: |
           sudo apt-get update -y
-          sudo apt-get install
+          sudo apt-get install -y build-essential
 
-      - name: Build Binaries
-        run: cargo build -p scouter-server --release --target ${{ matrix.target }} --features ${{ matrix.feature }}
-
-      - name: Zip MacOS binaries
-        if: contains(matrix.archive, 'zip') && contains(matrix.os, 'macos')
-        run: zip -r scouter-server-${{ matrix.feature }}-${{ matrix.target }}.zip ./target/${{ matrix.target }}
-
-      - name: gzip binaries
-        if: contains(matrix.archive, 'tar.gz')
-        run: tar -czf scouter-server-${{ matrix.feature }}-${{ matrix.target }}.tar.gz ./target/${{ matrix.target }}
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: scouter_server_${{ matrix.feature }}_${{ matrix.target }}_${{matrix.archive}}
-          path: scouter-server-${{ matrix.feature }}-${{ matrix.target }}.${{matrix.archive}}
-          retention-days: 1
-
-  build-mac-x86_64:
-    name: build-macos-x86_64 - ${{ matrix.feature }}
-    runs-on: macos-13
-
-    strategy:
-      matrix:
-        include:
-          - target: x86_64-apple-darwin
-            archive: zip
-            feature: "kafka"
-
-          - target: x86_64-apple-darwin
-            archive: zip
-            feature: "rabbitmq"
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
-      - name: Set up Rust
+      - name: Build binaries
         run: |
-          rustup override set stable
-          rustup update
-          rustup target add ${{ matrix.target }}
-          rustup component add rust-src
+          cargo build -p scouter-server \
+            --release \
+            --target ${{ matrix.target }} \
+            --features ${{ matrix.feature }}
 
-      - name: Build Binaries
-        run: cargo build -p scouter-server --release --target ${{ matrix.target }} --features ${{ matrix.feature }}
+      - name: Prepare binary directory
+        shell: bash
+        run: |
+          mkdir -p release-bin
+          cp target/${{ matrix.target }}/release/scouter-server release-bin/scouter-server-${{ matrix.feature }}
+          chmod +x release-bin/scouter-server-${{ matrix.feature }}
 
-      - name: Zip MacOS binaries
-        run: zip -r scouter-server-${{ matrix.feature }}-${{ matrix.target }}.zip ./target/${{ matrix.target }}
+      - name: Create archive
+        shell: bash
+        run: |
+          cd release-bin
+          if [[ "${{ matrix.archive_ext }}" == "zip" ]]; then
+            zip -r ../scouter-server-${{ matrix.target }}-${{ matrix.feature }}.zip ./*
+          else
+            tar -czf ../scouter-server-${{ matrix.target }}-${{ matrix.feature }}.tar.gz ./*
+          fi
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
         with:
-          name: scouter_server_${{ matrix.feature }}_${{ matrix.target }}_${{ matrix.archive }}
-          path: scouter-server-${{ matrix.feature }}-${{ matrix.target }}.${{ matrix.archive }}
+          name: scouter-server-${{ matrix.target }}-${{ matrix.feature }}
+          path: |
+            scouter-server-${{ matrix.target }}-${{ matrix.feature }}.${{ matrix.archive_ext }}
           retention-days: 1
 
   publish-docker-images:
-    if: github.event_name == 'release'
+    #if: github.event_name == 'release'
     needs: build
     name: Publish scouter base images to Dockerhub
     runs-on: ubuntu-22.04
     strategy:
       matrix:
         include:
+          # Kafka amd64 images
           - image: "ubuntu"
+            tag_suffix: "ubuntu"
             feature: "kafka"
+            target: x86_64-unknown-linux-gnu
+            arch: "amd64"
+          - image: "alpine"
+            tag_suffix: "alpine"
+            feature: "kafka"
+            target: x86_64-unknown-linux-gnu
+            arch: "amd64"
+          - image: "scratch"
+            tag_suffix: "scratch"
+            feature: "kafka"
+            target: x86_64-unknown-linux-gnu
+            arch: "amd64"
+          - image: "debian"
+            tag_suffix: "debian"
+            feature: "kafka"
+            target: x86_64-unknown-linux-gnu
+            arch: "amd64"
+          - image: "distroless"
+            tag_suffix: "distroless"
+            feature: "kafka"
+            target: x86_64-unknown-linux-gnu
+            arch: "amd64"
+
+          # RabbitMQ amd64 images
           - image: "ubuntu"
+            tag_suffix: "ubuntu"
             feature: "rabbitmq"
+            target: x86_64-unknown-linux-gnu
+            arch: "amd64"
+          - image: "alpine"
+            tag_suffix: "alpine"
+            feature: "rabbitmq"
+            target: x86_64-unknown-linux-gnu
+            arch: "amd64"
+          - image: "scratch"
+            tag_suffix: "scratch"
+            feature: "rabbitmq"
+            target: x86_64-unknown-linux-gnu
+            arch: "amd64"
+          - image: "debian"
+            tag_suffix: "debian"
+            feature: "rabbitmq"
+            target: x86_64-unknown-linux-gnu
+            arch: "amd64"
+          - image: "distroless"
+            tag_suffix: "distroless"
+            feature: "rabbitmq"
+            target: x86_64-unknown-linux-gnu
+            arch: "amd64"
+
+          # Kafka arm64 images
+          - image: "ubuntu"
+            tag_suffix: "ubuntu"
+            feature: "kafka"
+            target: aarch64-unknown-linux-gnu
+            arch: "arm64"
+          - image: "alpine"
+            tag_suffix: "alpine"
+            feature: "kafka"
+            target: aarch64-unknown-linux-gnu
+            arch: "arm64"
+          - image: "scratch"
+            tag_suffix: "scratch"
+            feature: "kafka"
+            target: aarch64-unknown-linux-gnu
+            arch: "arm64"
+          - image: "debian"
+            tag_suffix: "debian"
+            feature: "kafka"
+            target: aarch64-unknown-linux-gnu
+            arch: "arm64"
+          - image: "distroless"
+            tag_suffix: "distroless"
+            feature: "kafka"
+            target: aarch64-unknown-linux-gnu
+            arch: "arm64"
+
+          # RabbitMQ arm64 images
+          - image: "ubuntu"
+            tag_suffix: "ubuntu"
+            feature: "rabbitmq"
+            target: aarch64-unknown-linux-gnu
+            arch: "arm64"
+          - image: "alpine"
+            tag_suffix: "alpine"
+            feature: "rabbitmq"
+            target: aarch64-unknown-linux-gnu
+            arch: "arm64"
+          - image: "scratch"
+            tag_suffix: "scratch"
+            feature: "rabbitmq"
+            target: aarch64-unknown-linux-gnu
+            arch: "arm64"
+          - image: "debian"
+            tag_suffix: "debian"
+            feature: "rabbitmq"
+            target: aarch64-unknown-linux-gnu
+            arch: "arm64"
+          - image: "distroless"
+            tag_suffix: "distroless"
+            feature: "rabbitmq"
+            target: aarch64-unknown-linux-gnu
+            arch: "arm64"
+
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
-      - name: Download binary
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Download binary artifact
         uses: actions/download-artifact@v4
         with:
-          name: scouter_server_${{ matrix.feature }}_x86_64-unknown-linux-gnu_tar.gz
-          path: .
-      - name: Extract binary
-        run: tar -xzf scouter-server-${{ matrix.feature }}-x86_64-unknown-linux-gnu.tar.gz -C .
-      - name: Move binary to root folder
-        run: mv target/x86_64-unknown-linux-gnu/release/scouter-server .
-      - name: build image
-        run: |
-          docker build \
-          --build-arg SCOUTER_SERVER_BINARY=./scouter-server \
-          -f docker/official-base-image/${{ matrix.image }}/Dockerfile \
-          -t demml/scouter:${{ matrix.image }}-${{ matrix.feature }}-${{ github.event.release.tag_name }} .
-      - name: push image to docker hub
-        run: |
-          docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
-          docker push demml/scouter:${{ matrix.image }}-${{ matrix.feature }}-${{ github.event.release.tag_name }}
+          name: scouter-server-${{ matrix.target }}-${{ matrix.feature }}
+          path: ./artifacts
 
+      - name: Extract binary
+        run: |
+          mkdir -p binary
+          tar -xzf ./artifacts/scouter-server-${{ matrix.target }}-${{ matrix.feature }}.tar.gz -C ./binary
+
+      - name: Set up binary permissions
+        run: |
+          chmod +x ./binary/scouter-server
+
+      - name: Set version tag
+        id: set-version
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "VERSION=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=latest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push ARM64 image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/official/${{ matrix.image }}/Dockerfile
+          push: false
+          platforms: linux/${{ matrix.arch }}
+          build-args: |
+            SCOUTER_SERVER_BINARY=./binary/scouter-server
+          tags: |
+            demml/scouter:${{ matrix.tag_suffix }}-${{ matrix.arch }}-${{ matrix.feature }}-${{ steps.set-version.outputs.VERSION }}
+            demml/scouter:${{ matrix.tag_suffix }}-${{ matrix.arch }}-${{ matrix.feature }}-latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
 
   release-binary-assets:
     if: github.event_name == 'release'
-    needs: [build, build-mac-x86_64]
+    needs: [build, publish-docker-images]
     runs-on: ubuntu-latest
 
     steps:
