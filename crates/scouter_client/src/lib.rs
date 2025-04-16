@@ -35,6 +35,7 @@ pub use crate::http::ScouterClient;
 pub use queue::{DriftTransportConfig, ScouterQueue};
 pub use scouter_contracts::{
     DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
+    ScouterResponse, ScouterServerError,
 };
 pub use scouter_drift::{
     custom::CustomMetricFeatureQueue,
