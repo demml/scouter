@@ -1,7 +1,7 @@
+use std::fmt::Display;
+
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
-use scouter_error::AuthError;
-use scouter_error::ScouterError;
 use scouter_types::{DriftType, TimeInterval};
 use serde::Deserialize;
 use serde::Serialize;
@@ -183,7 +183,7 @@ impl ScouterServerError {
         }
     }
 
-    pub fn create_user_error(e: ScouterError) -> Self {
+    pub fn create_user_error<T: Display>(e: T) -> Self {
         error!("Failed to create user: {}", e);
         ScouterServerError {
             error: "Failed to create user".to_string(),
@@ -196,34 +196,34 @@ impl ScouterServerError {
         }
     }
 
-    pub fn get_user_error(e: ScouterError) -> Self {
+    pub fn get_user_error<T: Display>(e: T) -> Self {
         error!("Failed to get user: {}", e);
         ScouterServerError {
             error: "Failed to get user".to_string(),
         }
     }
 
-    pub fn list_users_error(e: ScouterError) -> Self {
+    pub fn list_users_error<T: Display>(e: T) -> Self {
         error!("Failed to list users: {}", e);
         ScouterServerError {
             error: "Failed to list users".to_string(),
         }
     }
 
-    pub fn update_user_error(e: ScouterError) -> Self {
+    pub fn update_user_error<T: Display>(e: T) -> Self {
         error!("Failed to update user: {}", e);
         ScouterServerError {
             error: "Failed to update user".to_string(),
         }
     }
-    pub fn delete_user_error(e: ScouterError) -> Self {
+    pub fn delete_user_error<T: Display>(e: T) -> Self {
         error!("Failed to delete user: {}", e);
         ScouterServerError {
             error: "Failed to delete user".to_string(),
         }
     }
 
-    pub fn check_last_admin_error(e: ScouterError) -> Self {
+    pub fn check_last_admin_error<T: Display>(e: T) -> Self {
         error!("Failed to check admin status: {}", e);
         ScouterServerError {
             error: "Failed to check admin status".to_string(),
@@ -284,14 +284,14 @@ impl ScouterServerError {
         }
     }
 
-    pub fn refresh_token_error(e: ScouterError) -> Self {
+    pub fn refresh_token_error<T: Display>(e: T) -> Self {
         error!("Failed to refresh token: {}", e);
         ScouterServerError {
             error: "Failed to refresh token".to_string(),
         }
     }
 
-    pub fn unauthorized(e: AuthError) -> Self {
+    pub fn unauthorized<T: Display>(e: T) -> Self {
         error!("Unauthorized: {}", e);
         ScouterServerError {
             error: "Unauthorized".to_string(),
@@ -316,18 +316,18 @@ impl ScouterServerError {
         ScouterServerError { error }
     }
 
-    pub fn query_records_error(e: ScouterError) -> Self {
-        let msg = format!("Failed to query records: {:?}", e);
+    pub fn query_records_error<T: Display>(e: T) -> Self {
+        let msg = format!("Failed to query records: {}", e);
         ScouterServerError { error: msg }
     }
 
-    pub fn query_alerts_error(e: ScouterError) -> Self {
-        let msg = format!("Failed to query alerts: {:?}", e);
+    pub fn query_alerts_error<T: Display>(e: T) -> Self {
+        let msg = format!("Failed to query alerts: {}", e);
         ScouterServerError { error: msg }
     }
 
-    pub fn query_profile_error(e: ScouterError) -> Self {
-        let msg = format!("Failed to query profile: {:?}", e);
+    pub fn query_profile_error<T: Display>(e: T) -> Self {
+        let msg = format!("Failed to query profile: {}", e);
         ScouterServerError { error: msg }
     }
 }

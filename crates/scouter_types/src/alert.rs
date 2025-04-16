@@ -42,3 +42,8 @@ impl Alert {
         ProfileFuncs::__str__(self)
     }
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct Alerts {
+    pub alerts: Vec<Alert>,
+}

@@ -9,12 +9,10 @@ use axum::{
     Json, Router,
 };
 use scouter_contracts::{DriftAlertRequest, ScouterServerError, UpdateAlertStatus};
+use scouter_types::alert::Alerts;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::error;
-
-use super::types::Alerts;
-
 /// Retrieve drift alerts from the database
 ///
 /// # Arguments
