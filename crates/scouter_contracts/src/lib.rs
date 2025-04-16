@@ -1,5 +1,6 @@
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
+use scouter_error::AuthError;
 use scouter_error::ScouterError;
 use scouter_types::{DriftType, TimeInterval};
 use serde::Deserialize;
@@ -233,6 +234,81 @@ impl ScouterServerError {
         error!("Cannot delete the last admin user");
         ScouterServerError {
             error: "Cannot delete the last admin user".to_string(),
+        }
+    }
+    pub fn username_header_not_found() -> Self {
+        error!("Username header not found");
+        ScouterServerError {
+            error: "Username header not found".to_string(),
+        }
+    }
+
+    pub fn invalid_username_format() -> Self {
+        error!("Invalid username format");
+        ScouterServerError {
+            error: "Invalid username format".to_string(),
+        }
+    }
+
+    pub fn password_header_not_found() -> Self {
+        error!("Password header not found");
+        ScouterServerError {
+            error: "Password header not found".to_string(),
+        }
+    }
+    pub fn invalid_password_format() -> Self {
+        error!("Invalid password format");
+        ScouterServerError {
+            error: "Invalid password format".to_string(),
+        }
+    }
+
+    pub fn user_validation_error() -> Self {
+        error!("User validation failed");
+        ScouterServerError {
+            error: "User validation failed".to_string(),
+        }
+    }
+
+    pub fn failed_token_validation() -> Self {
+        error!("Failed to validate token");
+        ScouterServerError {
+            error: "Failed to validate token".to_string(),
+        }
+    }
+
+    pub fn bearer_token_not_found() -> Self {
+        error!("Bearer token not found");
+        ScouterServerError {
+            error: "Bearer token not found".to_string(),
+        }
+    }
+
+    pub fn refresh_token_error(e: ScouterError) -> Self {
+        error!("Failed to refresh token: {}", e);
+        ScouterServerError {
+            error: "Failed to refresh token".to_string(),
+        }
+    }
+
+    pub fn unauthorized(e: AuthError) -> Self {
+        error!("Unauthorized: {}", e);
+        ScouterServerError {
+            error: "Unauthorized".to_string(),
+        }
+    }
+
+    pub fn jwt_decode_error(e: String) -> Self {
+        error!("Failed to decode JWT token: {}", e);
+        ScouterServerError {
+            error: "Failed to decode JWT token".to_string(),
+        }
+    }
+
+    pub fn no_refresh_token() -> Self {
+        error!("No refresh token provided");
+        ScouterServerError {
+            error: "No refresh token provided".to_string(),
         }
     }
 

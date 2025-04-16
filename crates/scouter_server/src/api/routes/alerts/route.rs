@@ -62,15 +62,15 @@ pub async fn update_alert_status(
         })?;
 
     if query_result.active == body.active {
-        return Ok(Json(UpdateAlertResponse { updated: true }));
+        Ok(Json(UpdateAlertResponse { updated: true }))
     } else {
-        return Err((
+        Err((
             StatusCode::BAD_REQUEST,
             Json(ScouterServerError::new(format!(
                 "Failed to update drift alert status: {:?}",
                 query_result
             ))),
-        ));
+        ))
     }
 }
 

@@ -6,10 +6,11 @@ use anyhow::{Context, Result};
 use axum::extract::State;
 use axum::{http::header, http::header::HeaderMap, http::StatusCode, routing::get, Json, Router};
 
+use scouter_contracts::ScouterServerError;
 use scouter_events::producer::http::types::JwtToken;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
-use tracing::{debug, error, instrument};
+use tracing::{error, instrument};
 
 /// Route for the login endpoint when using the API
 ///
@@ -25,23 +26,21 @@ use tracing::{debug, error, instrument};
 pub async fn api_login_handler(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-) -> Result<Json<JwtToken>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<JwtToken>, (StatusCode, Json<ScouterServerError>)> {
     // get Username and Password from headers
     let username = headers
         .get("Username")
         .ok_or_else(|| {
-            error!("Username not found in headers");
             (
                 StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({ "error": "Username not found in headers" })),
+                Json(ScouterServerError::username_header_not_found()),
             )
         })?
         .to_str()
         .map_err(|_| {
-            error!("Invalid UTF-8 in Username header");
             (
                 StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({ "error": "Invalid username format" })),
+                Json(ScouterServerError::invalid_username_format()),
             )
         })?
         .to_string();
@@ -49,18 +48,16 @@ pub async fn api_login_handler(
     let password = headers
         .get("Password")
         .ok_or_else(|| {
-            error!("Password not found in headers");
             (
                 StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({ "error": "Password not found in headers" })),
+                Json(ScouterServerError::password_header_not_found()),
             )
         })?
         .to_str()
         .map_err(|_| {
-            error!("Invalid UTF-8 in Password header");
             (
                 StatusCode::BAD_REQUEST,
-                Json(serde_json::json!({ "error": "Invalid password format" })),
+                Json(ScouterServerError::invalid_password_format()),
             )
         })?
         .to_string();
@@ -72,8 +69,10 @@ pub async fn api_login_handler(
         .auth_manager
         .validate_user(&user, &password)
         .map_err(|e| {
-            error!("Failed to validate user: {}", e);
-            (StatusCode::UNAUTHORIZED, Json(serde_json::json!({})))
+            (
+                StatusCode::UNAUTHORIZED,
+                Json(ScouterServerError::unauthorized(e)),
+            )
         })?;
 
     // we may get multiple requests for the same user (setting up storage and registries), so we
@@ -100,10 +99,9 @@ pub async fn api_login_handler(
 
     // set refresh token in db
     state.db.update_user(&user).await.map_err(|e| {
-        error!("Failed to set refresh token in database: {}", e);
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({})),
+            Json(ScouterServerError::refresh_token_error(e)),
         )
     })?;
 
@@ -123,7 +121,7 @@ pub async fn api_login_handler(
 pub async fn api_refresh_token_handler(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-) -> Result<Json<JwtToken>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<JwtToken>, (StatusCode, Json<ScouterServerError>)> {
     let bearer_token = headers
         .get(header::AUTHORIZATION)
         .and_then(|auth_header| auth_header.to_str().ok())
@@ -139,8 +137,10 @@ pub async fn api_refresh_token_handler(
             .auth_manager
             .decode_jwt_without_validation(&bearer_token)
             .map_err(|e| {
-                error!("Failed to decode JWT token: {}", e);
-                (StatusCode::UNAUTHORIZED, Json(serde_json::json!({})))
+                (
+                    StatusCode::UNAUTHORIZED,
+                    Json(ScouterServerError::jwt_decode_error(e.to_string())),
+                )
             })?;
 
         // get user from database
@@ -156,10 +156,9 @@ pub async fn api_refresh_token_handler(
 
         // set refresh token in db
         state.db.update_user(&user).await.map_err(|e| {
-            error!("Failed to set refresh token in database: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({})),
+                Json(ScouterServerError::refresh_token_error(e)),
             )
         })?;
 
@@ -167,7 +166,7 @@ pub async fn api_refresh_token_handler(
     } else {
         Err((
             StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({ "error": "No refresh token found" })),
+            Json(ScouterServerError::no_refresh_token()),
         ))
     }
 }
@@ -175,7 +174,7 @@ pub async fn api_refresh_token_handler(
 async fn validate_jwt_token(
     State(state): State<Arc<AppState>>,
     headers: HeaderMap,
-) -> Result<Json<Authenticated>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<Authenticated>, (StatusCode, Json<ScouterServerError>)> {
     let bearer_token = headers
         .get(header::AUTHORIZATION)
         .and_then(|auth_header| auth_header.to_str().ok())
@@ -186,24 +185,19 @@ async fn validate_jwt_token(
         });
 
     if let Some(bearer_token) = bearer_token {
-        debug!("Validating JWT token");
         match state.auth_manager.validate_jwt(&bearer_token) {
             Ok(_) => Ok(Json(Authenticated {
                 is_authenticated: true,
             })),
-            Err(e) => {
-                error!("Failed to validate JWT token: {}", e);
-                Err((
-                    StatusCode::UNAUTHORIZED,
-                    Json(serde_json::json!({ "error": "Invalid token" })),
-                ))
-            }
+            Err(_) => Err((
+                StatusCode::UNAUTHORIZED,
+                Json(ScouterServerError::failed_token_validation()),
+            )),
         }
     } else {
-        debug!("No bearer token found");
         Err((
             StatusCode::UNAUTHORIZED,
-            Json(serde_json::json!({ "error": "No bearer token found" })),
+            Json(ScouterServerError::bearer_token_not_found()),
         ))
     }
 }
