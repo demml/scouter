@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - main
+      - opsmlUi
 
   pull_request:
     branches:
