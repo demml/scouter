@@ -24,6 +24,9 @@ const UPDATE_DRIFT_PROFILE: &str = include_str!("scripts/update_drift_profile.sq
 const GET_FEATURE_BIN_PROPORTIONS: &str = include_str!("scripts/get_feature_bin_proportions.sql");
 const GET_CUSTOM_METRIC_VALUES: &str = include_str!("scripts/get_custom_metric_values.sql");
 const INSERT_CUSTOM_METRIC_VALUES: &str = include_str!("scripts/insert_custom_metric_values.sql");
+const GET_BIN_COUNT_ARCHIVE: &str = include_str!("scripts/get_bin_count_for_archive.sql");
+const GET_CUSTOM_ARCHIVE: &str = include_str!("scripts/get_custom_metric_for_archive.sql");
+const GET_SPC_ARCHIVE: &str = include_str!("scripts/get_spc_for_archive.sql");
 
 #[allow(dead_code)]
 pub enum Queries {
@@ -47,6 +50,9 @@ pub enum Queries {
     GetFeatureBinProportions,
     GetCustomMetricValues,
     InsertCustomMetricValues,
+    GetBinCountDataForArchive,
+    GetCustomDataForArchive,
+    GetSpcDataForArchive,
 }
 
 impl Queries {
@@ -75,6 +81,9 @@ impl Queries {
             Queries::InsertBinCounts => SqlQuery::new(INSERT_BIN_COUNTS),
             Queries::GetCustomMetricValues => SqlQuery::new(GET_CUSTOM_METRIC_VALUES),
             Queries::InsertCustomMetricValues => SqlQuery::new(INSERT_CUSTOM_METRIC_VALUES),
+            Queries::GetBinCountDataForArchive => SqlQuery::new(GET_BIN_COUNT_ARCHIVE),
+            Queries::GetCustomDataForArchive => SqlQuery::new(GET_CUSTOM_ARCHIVE),
+            Queries::GetSpcDataForArchive => SqlQuery::new(GET_SPC_ARCHIVE),
         }
     }
 }
