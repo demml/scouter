@@ -434,7 +434,7 @@ impl PostgresClient {
     pub async fn get_drift_profile(
         &self,
         request: &GetProfileRequest,
-    ) -> Result<Option<Value>, SqlError> {
+    ) -> Result<Option<Value>, ScouterError> {
         let query = Queries::GetDriftProfile.get_query();
 
         let result = sqlx::query(&query.sql)

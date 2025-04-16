@@ -181,6 +181,11 @@ impl ScouterServerError {
         let msg = format!("Failed to query alerts: {:?}", e);
         ScouterServerError { error: msg }
     }
+
+    pub fn query_profile_error(e: ScouterError) -> Self {
+        let msg = format!("Failed to query profile: {:?}", e);
+        ScouterServerError { error: msg }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
