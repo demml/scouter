@@ -13,6 +13,7 @@ use axum::{
 };
 use password_auth::generate_hash;
 use scouter_auth::permission::UserPermissions;
+use scouter_contracts::{ScouterResponse, ScouterServerError};
 use scouter_sql::sql::schema::User;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
@@ -53,12 +54,12 @@ async fn create_user(
     State(state): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
     Json(create_req): Json<CreateUserRequest>,
-) -> Result<Json<UserResponse>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<UserResponse>, (StatusCode, Json<ScouterServerError>)> {
     // Check if requester has admin permissions
     if !perms.group_permissions.contains(&"admin".to_string()) {
         return Err((
             StatusCode::FORBIDDEN,
-            Json(serde_json::json!({"error": "Admin permissions required"})),
+            Json(ScouterServerError::need_admin_permission()),
         ));
     }
 
@@ -66,7 +67,7 @@ async fn create_user(
     if let Ok(Some(_)) = state.db.get_user(&create_req.username).await {
         return Err((
             StatusCode::CONFLICT,
-            Json(serde_json::json!({"error": "User already exists"})),
+            Json(ScouterServerError::user_already_exists()),
         ));
     }
 
@@ -89,10 +90,9 @@ async fn create_user(
 
     // Save to database
     if let Err(e) = state.db.insert_user(&user).await {
-        error!("Failed to create user: {}", e);
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Failed to create user"})),
+            Json(ScouterServerError::create_user_error(e)),
         ));
     }
 
@@ -106,7 +106,7 @@ async fn get_user(
     State(state): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
     Path(username): Path<String>,
-) -> Result<Json<UserResponse>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<UserResponse>, (StatusCode, Json<ScouterServerError>)> {
     // Check permissions - user can only get their own data or admin can get any user
     let is_admin = perms.group_permissions.contains(&"admin".to_string());
     let is_self = perms.username == username;
@@ -114,7 +114,7 @@ async fn get_user(
     if !is_admin && !is_self {
         return Err((
             StatusCode::FORBIDDEN,
-            Json(serde_json::json!({"error": "Permission denied"})),
+            Json(ScouterServerError::permission_denied()),
         ));
     }
 
@@ -124,14 +124,13 @@ async fn get_user(
         Ok(None) => {
             return Err((
                 StatusCode::NOT_FOUND,
-                Json(serde_json::json!({"error": "User not found"})),
+                Json(ScouterServerError::user_not_found()),
             ));
         }
         Err(e) => {
-            error!("Failed to get user: {}", e);
             return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Failed to get user"})),
+                Json(ScouterServerError::get_user_error(e)),
             ));
         }
     };
@@ -146,12 +145,12 @@ async fn get_user(
 async fn list_users(
     State(state): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
-) -> Result<Json<UserListResponse>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<UserListResponse>, (StatusCode, Json<ScouterServerError>)> {
     // Check if requester has admin permissions
     if !perms.group_permissions.contains(&"admin".to_string()) {
         return Err((
             StatusCode::FORBIDDEN,
-            Json(serde_json::json!({"error": "Admin permissions required"})),
+            Json(ScouterServerError::need_admin_permission()),
         ));
     }
 
@@ -159,10 +158,9 @@ async fn list_users(
     let users = match state.db.get_users().await {
         Ok(users) => users,
         Err(e) => {
-            error!("Failed to list users: {}", e);
             return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Failed to list users"})),
+                Json(ScouterServerError::list_users_error(e)),
             ));
         }
     };
@@ -181,7 +179,7 @@ async fn update_user(
     Extension(perms): Extension<UserPermissions>,
     Path(username): Path<String>,
     Json(update_req): Json<UpdateUserRequest>,
-) -> Result<Json<UserResponse>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<UserResponse>, (StatusCode, Json<ScouterServerError>)> {
     // Check permissions - user can only update their own data or admin can update any user
     let is_admin = perms.group_permissions.contains(&"admin".to_string());
     let is_self = perms.username == username;
@@ -189,12 +187,17 @@ async fn update_user(
     if !is_admin && !is_self {
         return Err((
             StatusCode::FORBIDDEN,
-            Json(serde_json::json!({"error": "Permission denied"})),
+            Json(ScouterServerError::permission_denied()),
         ));
     }
 
     // Get the current user state
-    let mut user = get_user_from_db(&state, &username).await?;
+    let mut user = match get_user_from_db(&state, &username).await {
+        Ok(user) => user,
+        Err((status, error)) => {
+            return Err((status, error));
+        }
+    };
 
     // Update fields based on request
     if let Some(password) = update_req.password {
@@ -221,7 +224,7 @@ async fn update_user(
         error!("Failed to update user: {}", e);
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Failed to update user"})),
+            Json(ScouterServerError::update_user_error(e)),
         ));
     }
 
@@ -237,13 +240,12 @@ async fn delete_user(
     State(state): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
     Path(username): Path<String>,
-) -> Result<Json<serde_json::Value>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<ScouterResponse>, (StatusCode, Json<ScouterServerError>)> {
     // Check if requester has admin permissions
     if !perms.group_permissions.contains(&"admin".to_string()) {
-        error!("User does not have admin permissions");
         return Err((
             StatusCode::FORBIDDEN,
-            Json(serde_json::json!({"error": "Admin permissions required"})),
+            Json(ScouterServerError::need_admin_permission()),
         ));
     }
 
@@ -251,33 +253,33 @@ async fn delete_user(
     let is_last_admin = match state.db.is_last_admin(&username).await {
         Ok(is_last) => is_last,
         Err(e) => {
-            error!("Failed to check if user is last admin: {}", e);
             return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({"error": "Failed to check admin status"})),
+                Json(ScouterServerError::check_last_admin_error(e)),
             ));
         }
     };
 
     if is_last_admin {
-        error!("Cannot delete the last admin user");
         return Err((
             StatusCode::FORBIDDEN,
-            Json(serde_json::json!({"error": "Cannot delete the last admin user"})),
+            Json(ScouterServerError::cannot_delete_last_admin()),
         ));
     }
 
     // Delete the user
     if let Err(e) = state.db.delete_user(&username).await {
-        error!("Failed to delete user: {}", e);
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(serde_json::json!({"error": "Failed to delete user"})),
+            Json(ScouterServerError::delete_user_error(e)),
         ));
     }
 
     info!("User {} deleted successfully", username);
-    Ok(Json(serde_json::json!({"success": true})))
+    Ok(Json(ScouterResponse {
+        status: "success".to_string(),
+        message: format!("User {} deleted successfully", username),
+    }))
 }
 
 pub async fn get_user_router(prefix: &str) -> Result<Router<Arc<AppState>>> {

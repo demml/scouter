@@ -2,6 +2,7 @@ use crate::api::state::AppState;
 use anyhow::Result;
 /// Route for debugging information
 use axum::{http::StatusCode, Json};
+use scouter_contracts::ScouterServerError;
 use scouter_sql::sql::schema::User;
 use std::sync::Arc;
 use tracing::error;
@@ -27,23 +28,22 @@ use tracing::error;
 pub async fn get_user(
     state: &Arc<AppState>,
     username: &str,
-) -> Result<User, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<User, (StatusCode, Json<ScouterServerError>)> {
     state
         .db
         .get_user(username)
         .await
         .map_err(|e| {
-            error!("Failed to get user from database: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(serde_json::json!({})),
+                Json(ScouterServerError::get_user_error(e)),
             )
         })?
         .ok_or_else(|| {
             error!("User not found in database");
             (
                 StatusCode::NOT_FOUND,
-                Json(serde_json::json!({ "error": "User not found" })),
+                Json(ScouterServerError::user_not_found()),
             )
         })
 }

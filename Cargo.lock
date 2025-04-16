@@ -4823,6 +4823,7 @@ dependencies = [
  "scouter-types",
  "serde",
  "serde_json",
+ "tracing",
 ]
 
 [[package]]

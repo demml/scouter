@@ -4,6 +4,7 @@ use scouter_error::ScouterError;
 use scouter_types::{DriftType, TimeInterval};
 use serde::Deserialize;
 use serde::Serialize;
+use tracing::error;
 
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -165,6 +166,73 @@ impl ScouterServerError {
     pub fn permission_denied() -> Self {
         ScouterServerError {
             error: "Permission denied".to_string(),
+        }
+    }
+
+    pub fn need_admin_permission() -> Self {
+        error!("User does not have admin permissions");
+        ScouterServerError {
+            error: "Need admin permission".to_string(),
+        }
+    }
+
+    pub fn user_already_exists() -> Self {
+        ScouterServerError {
+            error: "User already exists".to_string(),
+        }
+    }
+
+    pub fn create_user_error(e: ScouterError) -> Self {
+        error!("Failed to create user: {}", e);
+        ScouterServerError {
+            error: "Failed to create user".to_string(),
+        }
+    }
+
+    pub fn user_not_found() -> Self {
+        ScouterServerError {
+            error: "User not found".to_string(),
+        }
+    }
+
+    pub fn get_user_error(e: ScouterError) -> Self {
+        error!("Failed to get user: {}", e);
+        ScouterServerError {
+            error: "Failed to get user".to_string(),
+        }
+    }
+
+    pub fn list_users_error(e: ScouterError) -> Self {
+        error!("Failed to list users: {}", e);
+        ScouterServerError {
+            error: "Failed to list users".to_string(),
+        }
+    }
+
+    pub fn update_user_error(e: ScouterError) -> Self {
+        error!("Failed to update user: {}", e);
+        ScouterServerError {
+            error: "Failed to update user".to_string(),
+        }
+    }
+    pub fn delete_user_error(e: ScouterError) -> Self {
+        error!("Failed to delete user: {}", e);
+        ScouterServerError {
+            error: "Failed to delete user".to_string(),
+        }
+    }
+
+    pub fn check_last_admin_error(e: ScouterError) -> Self {
+        error!("Failed to check admin status: {}", e);
+        ScouterServerError {
+            error: "Failed to check admin status".to_string(),
+        }
+    }
+
+    pub fn cannot_delete_last_admin() -> Self {
+        error!("Cannot delete the last admin user");
+        ScouterServerError {
+            error: "Cannot delete the last admin user".to_string(),
         }
     }
 

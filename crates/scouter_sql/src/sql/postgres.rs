@@ -878,7 +878,7 @@ impl PostgresClient {
         }
     }
 
-    pub async fn insert_user(&self, user: &User) -> Result<(), SqlError> {
+    pub async fn insert_user(&self, user: &User) -> Result<(), ScouterError> {
         let query = Queries::InsertUser.get_query();
 
         let group_permissions = serde_json::to_value(&user.group_permissions)
@@ -901,7 +901,7 @@ impl PostgresClient {
         Ok(())
     }
 
-    pub async fn get_user(&self, username: &str) -> Result<Option<User>, SqlError> {
+    pub async fn get_user(&self, username: &str) -> Result<Option<User>, ScouterError> {
         let query = Queries::GetUser.get_query();
 
         let user: Option<User> = sqlx::query_as(&query.sql)
@@ -913,7 +913,7 @@ impl PostgresClient {
         Ok(user)
     }
 
-    pub async fn update_user(&self, user: &User) -> Result<(), SqlError> {
+    pub async fn update_user(&self, user: &User) -> Result<(), ScouterError> {
         let query = Queries::UpdateUser.get_query();
 
         let group_permissions = serde_json::to_value(&user.group_permissions)
@@ -936,7 +936,7 @@ impl PostgresClient {
         Ok(())
     }
 
-    pub async fn get_users(&self) -> Result<Vec<User>, SqlError> {
+    pub async fn get_users(&self) -> Result<Vec<User>, ScouterError> {
         let query = Queries::GetUsers.get_query();
 
         let users = sqlx::query_as::<_, User>(&query.sql)
@@ -947,7 +947,7 @@ impl PostgresClient {
         Ok(users)
     }
 
-    pub async fn is_last_admin(&self, username: &str) -> Result<bool, SqlError> {
+    pub async fn is_last_admin(&self, username: &str) -> Result<bool, ScouterError> {
         // Count admins in the system
         let query = Queries::LastAdmin.get_query();
 
@@ -970,7 +970,7 @@ impl PostgresClient {
         Ok(admins.len() == 1 && admins[0] == username)
     }
 
-    pub async fn delete_user(&self, username: &str) -> Result<(), SqlError> {
+    pub async fn delete_user(&self, username: &str) -> Result<(), ScouterError> {
         let query = Queries::DeleteUser.get_query();
 
         sqlx::query(&query.sql)
