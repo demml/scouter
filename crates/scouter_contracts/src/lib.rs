@@ -154,3 +154,32 @@ pub struct UpdateAlertStatus {
     pub id: i32,
     pub active: bool,
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ScouterServerError {
+    pub error: String,
+}
+
+impl ScouterServerError {
+    pub fn permission_denied() -> Self {
+        ScouterServerError {
+            error: "Permission denied".to_string(),
+        }
+    }
+
+    pub fn new(error: String) -> Self {
+        ScouterServerError { error }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ScouterResponse {
+    pub status: String,
+    pub message: String,
+}
+
+impl ScouterResponse {
+    pub fn new(status: String, message: String) -> Self {
+        ScouterResponse { status, message }
+    }
+}

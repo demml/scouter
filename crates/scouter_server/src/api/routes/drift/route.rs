@@ -8,7 +8,9 @@ use axum::{
     Extension, Json, Router,
 };
 use scouter_auth::permission::UserPermissions;
-use scouter_contracts::{DriftRequest, GetProfileRequest};
+use scouter_contracts::{
+    DriftRequest, GetProfileRequest, PermissionDeniedError, ScouterResponse, ScouterServerError,
+};
 use scouter_drift::psi::PsiDrifter;
 use scouter_error::ScouterError;
 use scouter_sql::PostgresClient;
@@ -20,6 +22,12 @@ use serde_json::json;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::{debug, error, instrument};
+
+impl IntoResponse for PermissionDeniedError {
+    fn into_response(self) -> axum::response::Response {
+        (StatusCode::FORBIDDEN, Json(self)).into_response()
+    }
+}
 
 #[instrument(skip(data, params))]
 pub async fn get_spc_drift(
@@ -210,13 +218,13 @@ pub async fn insert_drift(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
     Json(body): Json<ServerRecords>,
-) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<ScouterResponse>, (StatusCode, Json<ScouterServerError>)> {
     debug!("Inserting drift record: {:?}", body);
 
     if !perms.has_write_permission(&body.space()) {
         return Err((
             StatusCode::FORBIDDEN,
-            Json(json!({ "error": "Permission denied" })),
+            Json(ScouterServerError::permission_denied()),
         ));
     }
 
@@ -226,10 +234,10 @@ pub async fn insert_drift(
             error!("Invalid record type: {:?}", e);
             return Err((
                 StatusCode::BAD_REQUEST,
-                Json(json!({
-                    "status": "error",
-                    "message": format!("{:?}", e)
-                })),
+                Json(ScouterServerError::new(format!(
+                    "Invalid record type: {:?}",
+                    e
+                ))),
             ));
         }
     };
@@ -242,18 +250,18 @@ pub async fn insert_drift(
     };
 
     match result {
-        Ok(_) => Ok(Json(json!({
-            "status": "success",
-            "message": "Record inserted successfully"
-        }))),
+        Ok(_) => Ok(Json(ScouterResponse::new(
+            "success".to_string(),
+            "Drift record inserted successfully".to_string(),
+        ))),
         Err(e) => {
             error!("Failed to insert drift record: {:?}", e);
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({
-                    "status": "error",
-                    "message": format!("{:?}", e)
-                })),
+                Json(ScouterServerError::new(format!(
+                    "Failed to insert drift record: {:?}",
+                    e
+                ))),
             ))
         }
     }
