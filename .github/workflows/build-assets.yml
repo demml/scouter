@@ -287,7 +287,7 @@ jobs:
           push: false
           platforms: linux/${{ matrix.arch }}
           build-args: |
-            SCOUTER_SERVER_BINARY=./binary/scouter-server
+            SCOUTER_SERVER_BINARY=./binary/scouter-server-${{ matrix.feature }}
           tags: |
             demml/scouter:${{ matrix.tag_suffix }}-${{ matrix.arch }}-${{ matrix.feature }}-${{ steps.set-version.outputs.VERSION }}
             demml/scouter:${{ matrix.tag_suffix }}-${{ matrix.arch }}-${{ matrix.feature }}-latest
