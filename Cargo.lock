@@ -4589,6 +4589,7 @@ dependencies = [
  "rand",
  "rusty-logging",
  "scouter-contracts",
+ "scouter-dataframe",
  "scouter-dispatch",
  "scouter-drift",
  "scouter-error",

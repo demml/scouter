@@ -1,3 +1,4 @@
+pub mod data_manager;
 pub mod middleware;
 pub mod poller;
 pub mod router;

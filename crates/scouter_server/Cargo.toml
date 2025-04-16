@@ -12,6 +12,7 @@ license = "MIT"
 description = "Rust Scouter server logic"
 
 [dependencies]
+scouter-dataframe = { workspace = true }
 scouter-error = { workspace = true }
 scouter-events = { workspace = true, features = ["kafka", "rabbitmq", "sql"], default-features = false } 
 scouter-types = { workspace = true }

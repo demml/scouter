@@ -12,6 +12,7 @@ use scouter_error::StorageError;
 use scouter_settings::{ObjectStorageSettings, StorageType};
 use url::Url;
 
+/// Storage provider enum for common object stores
 #[derive(Debug, Clone)]
 enum StorageProvider {
     Google(Arc<GoogleCloudStorage>),
@@ -242,6 +243,13 @@ pub struct ObjectStore {
 }
 
 impl ObjectStore {
+    /// Creates a new ObjectStore instance.
+    ///
+    /// # Arguments
+    /// * `storage_settings` - The settings for the object storage.
+    ///
+    /// # Returns
+    /// * `Result<ObjectStore, StorageError>` - A result containing the ObjectStore instance or an error.
     pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, StorageError> {
         let store = StorageProvider::new(storage_settings)?;
         Ok(ObjectStore {
