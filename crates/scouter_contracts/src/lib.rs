@@ -176,6 +176,11 @@ impl ScouterServerError {
         let msg = format!("Failed to query records: {:?}", e);
         ScouterServerError { error: msg }
     }
+
+    pub fn query_alerts_error(e: ScouterError) -> Self {
+        let msg = format!("Failed to query alerts: {:?}", e);
+        ScouterServerError { error: msg }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

@@ -168,7 +168,7 @@ impl PostgresClient {
     pub async fn get_drift_alerts(
         &self,
         params: &DriftAlertRequest,
-    ) -> Result<Vec<Alert>, SqlError> {
+    ) -> Result<Vec<Alert>, ScouterError> {
         let query = Queries::GetDriftAlerts.get_query().sql;
 
         // check if active (status can be 'active' or  'acknowledged')
@@ -200,7 +200,9 @@ impl PostgresClient {
                 SqlError::QueryError(format!("{:?}", e))
             });
 
-        result.map(|result| result.into_iter().map(|wrapper| wrapper.0).collect())
+        result
+            .map(|result| result.into_iter().map(|wrapper| wrapper.0).collect())
+            .map_err(ScouterError::from)
     }
 
     pub async fn update_drift_alert_status(

@@ -8,8 +8,7 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use scouter_contracts::{DriftAlertRequest, UpdateAlertStatus};
-use serde_json::json;
+use scouter_contracts::{DriftAlertRequest, ScouterServerError, UpdateAlertStatus};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::error;
@@ -29,12 +28,12 @@ use super::types::Alerts;
 pub async fn get_drift_alerts(
     State(data): State<Arc<AppState>>,
     Query(params): Query<DriftAlertRequest>,
-) -> Result<Json<Alerts>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<Alerts>, (StatusCode, Json<ScouterServerError>)> {
     let alerts = &data.db.get_drift_alerts(&params).await.map_err(|e| {
         error!("Failed to query drift alerts: {:?}", e);
         (
             StatusCode::INTERNAL_SERVER_ERROR,
-            Json(json!({"status": "error", "message": format!("{:?}", e)})),
+            Json(ScouterServerError::query_alerts_error(e)),
         )
     })?;
 
@@ -46,7 +45,7 @@ pub async fn get_drift_alerts(
 pub async fn update_alert_status(
     State(data): State<Arc<AppState>>,
     Json(body): Json<UpdateAlertStatus>,
-) -> Result<Json<UpdateAlertResponse>, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<UpdateAlertResponse>, (StatusCode, Json<ScouterServerError>)> {
     let query_result = &data
         .db
         .update_drift_alert_status(&body)
@@ -55,7 +54,10 @@ pub async fn update_alert_status(
             error!("Failed to update drift alert status: {:?}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({"status": "error", "message": format!("{:?}", e)})),
+                Json(ScouterServerError::new(format!(
+                    "Failed to update drift alert status: {:?}",
+                    e
+                ))),
             )
         })?;
 
@@ -64,7 +66,10 @@ pub async fn update_alert_status(
     } else {
         return Err((
             StatusCode::BAD_REQUEST,
-            Json(json!({"status": "error", "message": "Alert status update failed"})),
+            Json(ScouterServerError::new(format!(
+                "Failed to update drift alert status: {:?}",
+                query_result
+            ))),
         ));
     }
 }
