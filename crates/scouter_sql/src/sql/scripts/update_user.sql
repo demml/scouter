@@ -1,4 +1,4 @@
-UPDATE scouter.scouter_users SET 
+UPDATE scouter.user SET 
 active = $1, 
 password_hash = $2, 
 permissions = $3, 

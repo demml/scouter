@@ -262,7 +262,7 @@ jobs:
 
       - name: Set up binary permissions
         run: |
-          chmod +x ./binary/scouter-server
+          chmod +x ./binary/scouter-server-${{ matrix.feature }}
 
       - name: Set version tag
         id: set-version

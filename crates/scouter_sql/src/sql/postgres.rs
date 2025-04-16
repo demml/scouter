@@ -1072,7 +1072,7 @@ mod tests {
             FROM scouter.observed_bin_count;
 
              DELETE
-            FROM scouter.scouter_users;
+            FROM scouter.user;
             "#,
         )
         .fetch_all(pool)
@@ -1440,7 +1440,13 @@ mod tests {
         let client = db_client().await;
 
         // Create
-        let user = User::new("user".to_string(), "pass".to_string(), None, None, None);
+        let user = User::new(
+            "user".to_string(),
+            "pass".to_string(),
+            None,
+            None,
+            Some("admin".to_string()),
+        );
         client.insert_user(&user).await.unwrap();
 
         // Read

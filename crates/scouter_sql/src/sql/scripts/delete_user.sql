@@ -1,1 +1,1 @@
-DELETE FROM scouter.scouter_users WHERE username = $1
+DELETE FROM scouter.user WHERE username = $1

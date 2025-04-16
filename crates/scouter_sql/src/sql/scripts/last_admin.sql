@@ -1,1 +1,1 @@
-SELECT username FROM scouter.scouter_users WHERE role = 'admin'
+SELECT username FROM scouter.user WHERE role = 'admin'

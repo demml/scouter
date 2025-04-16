@@ -1,4 +1,4 @@
-INSERT INTO scouter.drift_alert (created_at, name, repository, version, feature, alert, active, drift_type, updated_at) VALUES 
+INSERT INTO scouter.drift_alert (created_at, name, space, version, feature, alert, active, drift_type, updated_at) VALUES 
 ('2025-01-01 12:00:00'::timestamptz, 'model_1', 'repo_1', '1.0.0', 'feature_1', '{"type": "PSI_ALERT"}', true, 'PSI', now()),
 ('2025-01-01 11:00:00'::timestamptz, 'model_1', 'repo_1', '1.0.0', 'feature_2', '{"type": "SPC_ALERT"}', true, 'SPC', now()),
 ('2025-01-01 10:00:00'::timestamptz, 'model_1', 'repo_1', '1.0.0', 'feature_1', '{"type": "CUSTOM_ALERT"}', false, 'CUSTOM', now()),
