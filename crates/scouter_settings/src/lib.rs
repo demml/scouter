@@ -1,5 +1,6 @@
 use scouter_error::ConfigError;
 use serde::Serialize;
+use std::path::PathBuf;
 
 #[derive(Debug, Clone, Serialize)]
 pub struct PollingSettings {
@@ -160,6 +161,78 @@ impl Default for RabbitMQSettings {
     }
 }
 
+#[derive(Debug, PartialEq, Clone, Serialize)]
+pub enum StorageType {
+    Google,
+    Aws,
+    Local,
+    Azure,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ObjectStorageSettings {
+    pub storage_uri: String,
+    pub storage_type: StorageType,
+    pub region: String, // this is aws specific
+}
+
+impl Default for ObjectStorageSettings {
+    fn default() -> Self {
+        let storage_uri = std::env::var("SCOUTER_STORAGE_URI")
+            .unwrap_or_else(|_| "./scouter_storage".to_string());
+
+        let storage_uri = ScouterServerConfig::set_storage_uri(storage_uri);
+        let storage_type = ScouterServerConfig::get_storage_type(&storage_uri);
+        let region = std::env::var("AWS_REGION").unwrap_or_else(|_| "us-east-1".to_string());
+
+        Self {
+            storage_uri,
+            storage_type,
+            region,
+        }
+    }
+}
+
+impl ObjectStorageSettings {
+    pub fn storage_root(&self) -> String {
+        match self.storage_type {
+            StorageType::Google | StorageType::Aws | StorageType::Azure => {
+                if let Some(stripped) = self.storage_uri.strip_prefix("gs://") {
+                    stripped.to_string()
+                } else if let Some(stripped) = self.storage_uri.strip_prefix("s3://") {
+                    stripped.to_string()
+                } else if let Some(stripped) = self.storage_uri.strip_prefix("az://") {
+                    stripped.to_string()
+                } else {
+                    self.storage_uri.clone()
+                }
+            }
+            StorageType::Local => {
+                // For local storage, just return the path directly
+                self.storage_uri.clone()
+            }
+        }
+    }
+
+    pub fn canonicalized_path(&self) -> String {
+        // if registry is local canconicalize the path
+        if self.storage_type == StorageType::Local {
+            let path = PathBuf::from(&self.storage_uri);
+            if path.exists() {
+                path.canonicalize()
+                    .unwrap_or_else(|_| path.clone())
+                    .to_str()
+                    .unwrap()
+                    .to_string()
+            } else {
+                self.storage_uri.clone()
+            }
+        } else {
+            self.storage_uri.clone()
+        }
+    }
+}
+
 #[derive(Debug, Clone, Serialize)]
 pub struct ScouterServerConfig {
     pub server_port: u16,
@@ -167,6 +240,47 @@ pub struct ScouterServerConfig {
     pub database_settings: DatabaseSettings,
     pub kafka_settings: Option<KafkaSettings>,
     pub rabbitmq_settings: Option<RabbitMQSettings>,
+    pub object_storage_settings: ObjectStorageSettings,
+}
+
+impl ScouterServerConfig {
+    pub fn set_storage_uri(storage_uri: String) -> String {
+        if storage_uri.starts_with("gs://")
+            || storage_uri.starts_with("s3://")
+            || storage_uri.starts_with("az://")
+        {
+            storage_uri
+        } else {
+            // For local storage, use a directory relative to where the process is running
+            let path = if storage_uri.starts_with("./") || storage_uri.starts_with("../") {
+                PathBuf::from(&storage_uri)
+            } else {
+                // If it's not a relative path, make it one explicitly relative to current dir
+                PathBuf::from("./").join(&storage_uri)
+            };
+
+            // Create directory if it doesn't exist
+            if !path.exists() {
+                std::fs::create_dir_all(&path).unwrap();
+            }
+
+            // Return path as string (not canonicalized)
+            path.to_str().unwrap().to_string()
+        }
+    }
+
+    fn get_storage_type(storage_uri: &str) -> StorageType {
+        let storage_uri_lower = storage_uri.to_lowercase();
+        if storage_uri_lower.starts_with("gs://") {
+            StorageType::Google
+        } else if storage_uri_lower.starts_with("s3://") {
+            StorageType::Aws
+        } else if storage_uri_lower.starts_with("az://") {
+            StorageType::Azure
+        } else {
+            StorageType::Local
+        }
+    }
 }
 
 impl Default for ScouterServerConfig {
@@ -197,6 +311,7 @@ impl Default for ScouterServerConfig {
             database_settings: database,
             kafka_settings: kafka,
             rabbitmq_settings: rabbitmq,
+            object_storage_settings: ObjectStorageSettings::default(),
         }
     }
 }

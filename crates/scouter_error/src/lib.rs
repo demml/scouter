@@ -4,6 +4,30 @@ use pyo3::PyErr;
 use serde::Deserialize;
 use thiserror::Error;
 
+#[derive(Error, Debug, Deserialize)]
+pub enum StorageError {
+    #[error("Failed to create object store: {0}")]
+    ObjectStoreError(String),
+
+    #[error("Failed to create storage: {0}")]
+    StorageError(String),
+
+    #[error("Failed to create file system: {0}")]
+    FileSystemError(String),
+
+    #[error("Failed to create file: {0}")]
+    FileError(String),
+
+    #[error("Failed to create directory: {0}")]
+    DirectoryError(String),
+
+    #[error("Failed to write to file: {0}")]
+    WriteError(String),
+
+    #[error("Failed to read from file: {0}")]
+    ReadError(String),
+}
+
 #[derive(Error, Debug, PartialEq, Deserialize)]
 pub enum MonitorError {
     #[error("{0}")]
@@ -202,6 +226,9 @@ pub enum ScouterError {
 
     #[error("Empty ServerRecordsError")]
     EmptyServerRecordsError,
+
+    #[error(transparent)]
+    StorageError(#[from] StorageError),
 }
 
 // impl From for PyErr
