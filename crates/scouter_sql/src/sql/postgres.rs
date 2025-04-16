@@ -3,6 +3,7 @@ use crate::sql::schema::{
     AlertWrapper, BinnedCustomMetricWrapper, FeatureBinProportionResult,
     FeatureBinProportionWrapper, ObservabilityResult, SpcFeatureResult, TaskRequest,
 };
+use crate::sql::utils::pg_rows_to_server_records;
 use chrono::{DateTime, Utc};
 use cron::Schedule;
 use scouter_contracts::{
@@ -30,8 +31,6 @@ use std::collections::{BTreeMap, HashMap};
 use std::result::Result::Ok;
 use std::str::FromStr;
 use tracing::{debug, error, info, instrument};
-
-use super::traits::pg_rows_to_server_records;
 
 // TODO: Explore refactoring and breaking this out into multiple client types (i.e., spc, psi, etc.)
 // Postgres client is one of the lowest-level abstractions so it may not be worth it, as it could make server logic annoying. Worth exploring though.
@@ -862,7 +861,7 @@ impl PostgresClient {
     pub async fn get_data_for_archival(
         &self,
         record_type: &RecordType,
-        days: i64,
+        retention_period: &i64,
     ) -> Result<ServerRecords, SqlError> {
         let query = match record_type {
             RecordType::Spc => Queries::GetSpcDataForArchive.get_query(),
@@ -877,7 +876,7 @@ impl PostgresClient {
             }
         };
         let rows = sqlx::query(&query.sql)
-            .bind(days)
+            .bind(retention_period)
             .fetch_all(&self.pool)
             .await
             .map_err(|e| {

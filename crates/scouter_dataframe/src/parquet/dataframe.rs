@@ -5,8 +5,7 @@ use crate::storage::ObjectStore;
 use chrono::{DateTime, Utc};
 use scouter_error::ScouterError;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::DriftType;
-use scouter_types::ServerRecords;
+use scouter_types::{RecordType, ServerRecords};
 use std::path::Path;
 
 use crate::parquet::spc::SpcDataFrame;
@@ -20,14 +19,18 @@ pub enum ParquetDataFrame {
 impl ParquetDataFrame {
     pub fn new(
         storage_settings: &ObjectStorageSettings,
-        drift_type: &DriftType,
+        record_type: &RecordType,
     ) -> Result<Self, ScouterError> {
-        match drift_type {
-            DriftType::Custom => Ok(ParquetDataFrame::CustomMetric(CustomMetricDataFrame::new(
+        match record_type {
+            RecordType::Custom => Ok(ParquetDataFrame::CustomMetric(CustomMetricDataFrame::new(
                 storage_settings,
             )?)),
-            DriftType::Psi => Ok(ParquetDataFrame::Psi(PsiDataFrame::new(storage_settings)?)),
-            DriftType::Spc => Ok(ParquetDataFrame::Spc(SpcDataFrame::new(storage_settings)?)),
+            RecordType::Psi => Ok(ParquetDataFrame::Psi(PsiDataFrame::new(storage_settings)?)),
+            RecordType::Spc => Ok(ParquetDataFrame::Spc(SpcDataFrame::new(storage_settings)?)),
+
+            _ => Err(ScouterError::InvalidDriftTypeError(
+                "Invalid record type".to_string(),
+            )),
         }
     }
 
@@ -116,7 +119,7 @@ mod tests {
     async fn test_write_custom_dataframe_local() {
         cleanup();
         let storage_settings = ObjectStorageSettings::default();
-        let df = ParquetDataFrame::new(&storage_settings, &DriftType::Custom).unwrap();
+        let df = ParquetDataFrame::new(&storage_settings, &RecordType::Custom).unwrap();
         let mut batch = Vec::new();
         let start_utc = Utc::now();
 
@@ -177,7 +180,7 @@ mod tests {
     async fn test_write_psi_dataframe_local() {
         cleanup();
         let storage_settings = ObjectStorageSettings::default();
-        let df = ParquetDataFrame::new(&storage_settings, &DriftType::Psi).unwrap();
+        let df = ParquetDataFrame::new(&storage_settings, &RecordType::Psi).unwrap();
         let mut batch = Vec::new();
         let start_utc = Utc::now();
 
@@ -238,7 +241,7 @@ mod tests {
     async fn test_write_spc_dataframe_local() {
         cleanup();
         let storage_settings = ObjectStorageSettings::default();
-        let df = ParquetDataFrame::new(&storage_settings, &DriftType::Spc).unwrap();
+        let df = ParquetDataFrame::new(&storage_settings, &RecordType::Spc).unwrap();
         let mut batch = Vec::new();
         let start_utc = Utc::now();
 

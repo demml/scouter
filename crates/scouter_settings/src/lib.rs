@@ -173,7 +173,8 @@ pub enum StorageType {
 pub struct ObjectStorageSettings {
     pub storage_uri: String,
     pub storage_type: StorageType,
-    pub region: String, // this is aws specific
+    pub region: String,        // this is aws specific
+    pub retention_period: i64, // in days
 }
 
 impl Default for ObjectStorageSettings {
@@ -185,10 +186,18 @@ impl Default for ObjectStorageSettings {
         let storage_type = ScouterServerConfig::get_storage_type(&storage_uri);
         let region = std::env::var("AWS_REGION").unwrap_or_else(|_| "us-east-1".to_string());
 
+        // Default retention period is 30 days
+        let retention_period = std::env::var("SCOUTER_RETENTION_PERIOD")
+            .unwrap_or_else(|_| "30".to_string())
+            .parse::<i64>()
+            .map_err(|e| ConfigError::Error(format!("{:?}", e)))
+            .unwrap();
+
         Self {
             storage_uri,
             storage_type,
             region,
+            retention_period,
         }
     }
 }
