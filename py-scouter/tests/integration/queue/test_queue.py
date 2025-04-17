@@ -126,8 +126,6 @@ def test_spc_monitor_pandas_kafka(
 
         queue.flush()
 
-        # wait for kafka to process the message
-
         binned_records: BinnedSpcFeatureMetrics = client.get_binned_drift(
             DriftRequest(
                 name=profile.config.name,
@@ -192,8 +190,9 @@ def test_custom_monitor_pandas_rabbitmq():
             queue.insert(metrics)
         queue.flush()
 
-        time.sleep(10)
         # wait for rabbitmq to process the message
+        time.sleep(10)
+
         request = DriftRequest(
             name=profile.config.name,
             space=profile.config.space,
@@ -216,7 +215,8 @@ def test_custom_monitor_pandas_rabbitmq():
         )
 
         # wait for alerts to process
-        time.sleep(10)  # wait for 11 because background drift task runs every 10 seconds
+        # wait for 11 because background drift task runs every 10 seconds
+        time.sleep(11)
         alerts = client.get_alerts(
             DriftAlertRequest(
                 name=profile.config.name,
