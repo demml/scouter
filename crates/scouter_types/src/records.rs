@@ -7,6 +7,7 @@ use scouter_error::{PyScouterError, ScouterError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::fmt::Display;
 
 #[pyclass(eq)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
@@ -16,6 +17,17 @@ pub enum RecordType {
     Psi,
     Observability,
     Custom,
+}
+
+impl Display for RecordType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RecordType::Spc => write!(f, "spc"),
+            RecordType::Psi => write!(f, "psi"),
+            RecordType::Observability => write!(f, "observability"),
+            RecordType::Custom => write!(f, "custom"),
+        }
+    }
 }
 
 #[pyclass]
