@@ -32,6 +32,8 @@ use std::result::Result::Ok;
 use std::str::FromStr;
 use tracing::{debug, error, info, instrument};
 
+use super::schema::Entity;
+
 // TODO: Explore refactoring and breaking this out into multiple client types (i.e., spc, psi, etc.)
 // Postgres client is one of the lowest-level abstractions so it may not be worth it, as it could make server logic annoying. Worth exploring though.
 
@@ -847,6 +849,42 @@ impl PostgresClient {
         }
     }
 
+    /// Function to get entities for archival
+    ///
+    /// # Arguments
+    /// * `record_type` - The type of record to get entities for
+    /// * `retention_period` - The retention period to get entities for
+    ///
+    pub async fn get_entities_for_archive(
+        &self,
+        record_type: &RecordType,
+        retention_period: &i64,
+    ) -> Result<Vec<Entity>, SqlError> {
+        let query = match record_type {
+            RecordType::Spc => Queries::GetSpcEntities.get_query(),
+            RecordType::Psi => Queries::GeBinCountEntities.get_query(),
+            RecordType::Custom => Queries::GetCustomEntities.get_query(),
+            _ => {
+                error!("Invalid record type for archival: {:?}", record_type);
+                return Err(SqlError::GeneralError(format!(
+                    "Invalid record type for archival: {:?}",
+                    record_type
+                )));
+            }
+        };
+
+        let entities: Vec<Entity> = sqlx::query_as(&query.sql)
+            .bind(retention_period)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| {
+                error!("Failed to get entities for archival: {:?}", e);
+                SqlError::GeneralError(format!("Failed to get entities for archival: {:?}", e))
+            })?;
+
+        Ok(entities)
+    }
+
     /// Function to get data for archival
     ///
     /// # Arguments
@@ -858,10 +896,13 @@ impl PostgresClient {
     ///
     /// # Errors
     /// * `SqlError` - If the query fails
-    pub async fn get_data_for_archival(
+    pub async fn get_data_for_archive(
         &self,
-        record_type: &RecordType,
         retention_period: &i64,
+        space: &str,
+        name: &str,
+        version: &str,
+        record_type: &RecordType,
     ) -> Result<ServerRecords, SqlError> {
         let query = match record_type {
             RecordType::Spc => Queries::GetSpcDataForArchive.get_query(),
@@ -877,6 +918,9 @@ impl PostgresClient {
         };
         let rows = sqlx::query(&query.sql)
             .bind(retention_period)
+            .bind(space)
+            .bind(name)
+            .bind(version)
             .fetch_all(&self.pool)
             .await
             .map_err(|e| {

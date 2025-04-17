@@ -196,3 +196,11 @@ impl<'r> FromRow<'r, PgRow> for FeatureBinProportionResult {
         })
     }
 }
+
+#[derive(Debug, Clone, FromRow)]
+pub struct Entity {
+    pub space: String,
+    pub name: String,
+    pub version: String,
+    pub created_at: DateTime<Utc>,
+}
