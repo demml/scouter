@@ -164,7 +164,9 @@ def test_custom_monitor_pandas_rabbitmq():
             name="test",
             space="test",
             version=semver,
-            alert_config=CustomMetricAlertConfig(schedule="0/15 * * * * * *"),  # every 15 seconds
+            alert_config=CustomMetricAlertConfig(
+                schedule="0/15 * * * * * *",  # every 15 seconds
+            ),
         )
 
         profile = scouter.create_drift_profile(data=metrics, config=drift_config)
