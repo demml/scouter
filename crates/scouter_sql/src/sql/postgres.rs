@@ -1,18 +1,19 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::{
     AlertWrapper, BinnedCustomMetricWrapper, FeatureBinProportionResult,
-    FeatureBinProportionWrapper, ObservabilityResult, SpcFeatureResult, TaskRequest,
+    FeatureBinProportionWrapper, ObservabilityResult, SpcFeatureResult, TaskRequest, User,
 };
 use crate::sql::utils::pg_rows_to_server_records;
 use chrono::{DateTime, Utc};
 use cron::Schedule;
 use scouter_contracts::{
     DriftAlertRequest, DriftRequest, GetProfileRequest, ObservabilityMetricRequest,
-    ProfileStatusRequest, ServiceInfo,
+    ProfileStatusRequest, ServiceInfo, UpdateAlertStatus,
 };
 use scouter_error::ScouterError;
 use scouter_error::SqlError;
 use scouter_settings::DatabaseSettings;
+use scouter_types::DriftType;
 use scouter_types::{
     alert::Alert,
     custom::BinnedCustomMetrics,
@@ -33,6 +34,7 @@ use std::str::FromStr;
 use tracing::{debug, error, info, instrument};
 
 use super::schema::Entity;
+use super::schema::UpdateAlertResult;
 
 // TODO: Explore refactoring and breaking this out into multiple client types (i.e., spc, psi, etc.)
 // Postgres client is one of the lowest-level abstractions so it may not be worth it, as it could make server logic annoying. Worth exploring though.
@@ -129,6 +131,7 @@ impl PostgresClient {
         service_info: &ServiceInfo,
         feature: &str,
         alert: &BTreeMap<String, String>,
+        drift_type: &DriftType,
     ) -> Result<PgQueryResult, anyhow::Error> {
         let query = Queries::InsertDriftAlert.get_query();
 
@@ -138,6 +141,7 @@ impl PostgresClient {
             .bind(&service_info.version)
             .bind(feature)
             .bind(serde_json::to_value(alert).unwrap())
+            .bind(drift_type.to_string())
             .execute(&self.pool)
             .await
             .map_err(|e| {
@@ -166,12 +170,12 @@ impl PostgresClient {
     pub async fn get_drift_alerts(
         &self,
         params: &DriftAlertRequest,
-    ) -> Result<Vec<Alert>, SqlError> {
+    ) -> Result<Vec<Alert>, ScouterError> {
         let query = Queries::GetDriftAlerts.get_query().sql;
 
         // check if active (status can be 'active' or  'acknowledged')
         let query = if params.active.unwrap_or(false) {
-            format!("{} AND status = 'active'", query)
+            format!("{} AND active = true", query)
         } else {
             query
         };
@@ -198,7 +202,34 @@ impl PostgresClient {
                 SqlError::QueryError(format!("{:?}", e))
             });
 
-        result.map(|result| result.into_iter().map(|wrapper| wrapper.0).collect())
+        result
+            .map(|result| result.into_iter().map(|wrapper| wrapper.0).collect())
+            .map_err(ScouterError::from)
+    }
+
+    pub async fn update_drift_alert_status(
+        &self,
+        params: &UpdateAlertStatus,
+    ) -> Result<UpdateAlertResult, SqlError> {
+        let query = Queries::UpdateAlertStatus.get_query();
+
+        let result: Result<UpdateAlertResult, SqlError> = sqlx::query_as(&query.sql)
+            .bind(params.id)
+            .bind(params.active)
+            .fetch_one(&self.pool)
+            .await
+            .map_err(|e| {
+                error!("Failed to update drift alert status: {:?}", e);
+                SqlError::QueryError(format!("{:?}", e))
+            });
+
+        match result {
+            Ok(result) => Ok(result),
+            Err(e) => {
+                error!("Failed to update drift alert status: {:?}", e);
+                Err(SqlError::QueryError(format!("{:?}", e)))
+            }
+        }
     }
 
     /// Inserts a drift record into the database
@@ -405,7 +436,7 @@ impl PostgresClient {
     pub async fn get_drift_profile(
         &self,
         request: &GetProfileRequest,
-    ) -> Result<Option<Value>, SqlError> {
+    ) -> Result<Option<Value>, ScouterError> {
         let query = Queries::GetDriftProfile.get_query();
 
         let result = sqlx::query(&query.sql)
@@ -616,7 +647,7 @@ impl PostgresClient {
     pub async fn get_binned_spc_drift_records(
         &self,
         params: &DriftRequest,
-    ) -> Result<SpcDriftFeatures, SqlError> {
+    ) -> Result<SpcDriftFeatures, ScouterError> {
         let minutes = params.time_interval.to_minutes();
         let bin = params.time_interval.to_minutes() as f64 / params.max_data_points as f64;
 
@@ -699,7 +730,7 @@ impl PostgresClient {
     pub async fn get_binned_custom_drift_records(
         &self,
         params: &DriftRequest,
-    ) -> Result<BinnedCustomMetrics, SqlError> {
+    ) -> Result<BinnedCustomMetrics, ScouterError> {
         // get features
 
         let minutes = params.time_interval.to_minutes();
@@ -930,6 +961,108 @@ impl PostgresClient {
 
         // need to convert the rows to server records (storage dataframe expects this)
         pg_rows_to_server_records(&rows, record_type)
+    pub async fn insert_user(&self, user: &User) -> Result<(), ScouterError> {
+        let query = Queries::InsertUser.get_query();
+
+        let group_permissions = serde_json::to_value(&user.group_permissions)
+            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+
+        let permissions = serde_json::to_value(&user.permissions)
+            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+
+        sqlx::query(&query.sql)
+            .bind(&user.username)
+            .bind(&user.password_hash)
+            .bind(&permissions)
+            .bind(&group_permissions)
+            .bind(&user.role)
+            .bind(user.active)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+
+        Ok(())
+    }
+
+    pub async fn get_user(&self, username: &str) -> Result<Option<User>, ScouterError> {
+        let query = Queries::GetUser.get_query();
+
+        let user: Option<User> = sqlx::query_as(&query.sql)
+            .bind(username)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+
+        Ok(user)
+    }
+
+    pub async fn update_user(&self, user: &User) -> Result<(), ScouterError> {
+        let query = Queries::UpdateUser.get_query();
+
+        let group_permissions = serde_json::to_value(&user.group_permissions)
+            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+
+        let permissions = serde_json::to_value(&user.permissions)
+            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+
+        sqlx::query(&query.sql)
+            .bind(user.active)
+            .bind(&user.password_hash)
+            .bind(&permissions)
+            .bind(&group_permissions)
+            .bind(&user.refresh_token)
+            .bind(&user.username)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+
+        Ok(())
+    }
+
+    pub async fn get_users(&self) -> Result<Vec<User>, ScouterError> {
+        let query = Queries::GetUsers.get_query();
+
+        let users = sqlx::query_as::<_, User>(&query.sql)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+
+        Ok(users)
+    }
+
+    pub async fn is_last_admin(&self, username: &str) -> Result<bool, ScouterError> {
+        // Count admins in the system
+        let query = Queries::LastAdmin.get_query();
+
+        let admins: Vec<String> = sqlx::query_scalar(&query.sql)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+
+        // check if length is 1 and the username is the same
+        if admins.len() > 1 {
+            return Ok(false);
+        }
+
+        // no admins found
+        if admins.is_empty() {
+            return Ok(false);
+        }
+
+        // check if the username is the last admin
+        Ok(admins.len() == 1 && admins[0] == username)
+    }
+
+    pub async fn delete_user(&self, username: &str) -> Result<(), ScouterError> {
+        let query = Queries::DeleteUser.get_query();
+
+        sqlx::query(&query.sql)
+            .bind(username)
+            .execute(&self.pool)
+            .await
+            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+
+        Ok(())
     }
 }
 
@@ -1020,6 +1153,9 @@ mod tests {
 
             DELETE
             FROM scouter.observed_bin_count;
+
+             DELETE
+            FROM scouter.user;
             "#,
         )
         .fetch_all(pool)
@@ -1027,17 +1163,22 @@ mod tests {
         .unwrap();
     }
 
-    #[tokio::test]
-    async fn test_postgres() {
+    pub async fn db_client() -> PostgresClient {
         let client = PostgresClient::new(None, None).await.unwrap();
 
         cleanup(&client.pool).await;
+
+        client
+    }
+
+    #[tokio::test]
+    async fn test_postgres() {
+        let _client = db_client().await;
     }
 
     #[tokio::test]
     async fn test_postgres_drift_alert() {
-        let client = PostgresClient::new(None, None).await.unwrap();
-        cleanup(&client.pool).await;
+        let client = db_client().await;
 
         let timestamp = Utc::now();
 
@@ -1053,7 +1194,7 @@ mod tests {
                 .collect::<BTreeMap<String, String>>();
 
             let result = client
-                .insert_drift_alert(&service_info, "test", &alert)
+                .insert_drift_alert(&service_info, "test", &alert, &DriftType::Spc)
                 .await
                 .unwrap();
 
@@ -1102,8 +1243,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres_spc_drift_record() {
-        let client = PostgresClient::new(None, None).await.unwrap();
-        cleanup(&client.pool).await;
+        let client = db_client().await;
 
         let record = SpcServerRecord {
             created_at: Utc::now(),
@@ -1121,8 +1261,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres_bin_count() {
-        let client = PostgresClient::new(None, None).await.unwrap();
-        cleanup(&client.pool).await;
+        let client = db_client().await;
 
         let record = PsiServerRecord {
             created_at: Utc::now(),
@@ -1141,8 +1280,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres_observability_record() {
-        let client = PostgresClient::new(None, None).await.unwrap();
-        cleanup(&client.pool).await;
+        let client = db_client().await;
 
         let record = ObservabilityMetrics::default();
 
@@ -1202,8 +1340,7 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres_get_features() {
-        let client = PostgresClient::new(None, None).await.unwrap();
-        cleanup(&client.pool).await;
+        let client = db_client().await;
 
         let timestamp = Utc::now();
 
@@ -1256,8 +1393,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres_bin_proportions() {
-        let client = PostgresClient::new(None, None).await.unwrap();
-        cleanup(&client.pool).await;
+        let client = db_client().await;
+
         let timestamp = Utc::now();
 
         for feature in 0..3 {
@@ -1270,7 +1407,7 @@ mod tests {
                         version: "test".to_string(),
                         feature: format!("feature{}", feature),
                         bin_id: bin,
-                        bin_count: rand::thread_rng().gen_range(0..10),
+                        bin_count: rand::rng().random_range(0..10),
                     };
 
                     client.insert_bin_counts(&record).await.unwrap();
@@ -1318,8 +1455,8 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres_cru_custom_metric() {
-        let client = PostgresClient::new(None, None).await.unwrap();
-        cleanup(&client.pool).await;
+        let client = db_client().await;
+
         let timestamp = Utc::now();
 
         for i in 0..2 {
@@ -1330,7 +1467,7 @@ mod tests {
                     space: "test".to_string(),
                     version: "test".to_string(),
                     metric: format!("metric{}", i),
-                    value: rand::thread_rng().gen_range(0..10) as f64,
+                    value: rand::rng().random_range(0..10) as f64,
                 };
 
                 let result = client.insert_custom_metric_value(&record).await.unwrap();
@@ -1345,7 +1482,7 @@ mod tests {
             space: "test".to_string(),
             version: "test".to_string(),
             metric: "metric3".to_string(),
-            value: rand::thread_rng().gen_range(0..10) as f64,
+            value: rand::rng().random_range(0..10) as f64,
         };
 
         let result = client.insert_custom_metric_value(&record).await.unwrap();
@@ -1379,5 +1516,45 @@ mod tests {
             .unwrap();
         //
         assert_eq!(binned_records.metrics.len(), 3);
+    }
+
+    #[tokio::test]
+    async fn test_postgres_user() {
+        let client = db_client().await;
+
+        // Create
+        let user = User::new(
+            "user".to_string(),
+            "pass".to_string(),
+            None,
+            None,
+            Some("admin".to_string()),
+        );
+        client.insert_user(&user).await.unwrap();
+
+        // Read
+        let mut user = client.get_user("user").await.unwrap().unwrap();
+        assert_eq!(user.username, "user");
+
+        // update user
+        user.active = false;
+        user.refresh_token = Some("token".to_string());
+
+        // Update
+        client.update_user(&user).await.unwrap();
+        let user = client.get_user("user").await.unwrap().unwrap();
+        assert!(!user.active);
+        assert_eq!(user.refresh_token.unwrap(), "token");
+
+        // get users
+        let users = client.get_users().await.unwrap();
+        assert_eq!(users.len(), 1);
+
+        // get last admin
+        let is_last_admin = client.is_last_admin("user").await.unwrap();
+        assert!(is_last_admin);
+
+        // delete
+        client.delete_user("user").await.unwrap();
     }
 }

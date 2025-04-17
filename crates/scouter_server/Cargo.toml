@@ -13,6 +13,7 @@ description = "Rust Scouter server logic"
 
 [dependencies]
 scouter-dataframe = { workspace = true }
+scouter-auth = { workspace = true }
 scouter-error = { workspace = true }
 scouter-events = { workspace = true, features = ["kafka", "rabbitmq", "sql"], default-features = false } 
 scouter-types = { workspace = true }
@@ -24,10 +25,12 @@ scouter-sql = { workspace = true }
 
 anyhow = {workspace = true}
 axum = {workspace = true}
+axum-extra = { workspace = true, version = "0.*", features = ["cookie"] }
 chrono = { workspace = true }
 futures = { workspace = true }
 metrics = { workspace = true }
 metrics-exporter-prometheus = { workspace = true }
+password-auth = { workspace = true }
 rusty-logging= { workspace = true }
 scouter-settings = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
@@ -51,7 +54,6 @@ serde_json = { workspace = true }
 serde_qs = { workspace = true }
 tower = { version = "0.*", features = ["util"] }
 
-
 [features]
 default = []
 kafka-vendored = ["scouter-events/kafka-vendored"]
@@ -63,3 +65,6 @@ lto = "fat"
 codegen-units = 1
 strip = true
 
+[[test]]
+name = "integration"
+path = "tests/lib.rs"

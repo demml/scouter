@@ -4,12 +4,13 @@ pub use crate::producer::kafka::KafkaProducer;
 #[cfg(feature = "rabbitmq")]
 pub use crate::producer::rabbitmq::RabbitMQProducer;
 
-pub use crate::producer::http::{HTTPConfig, HTTPProducer};
+pub use crate::producer::http::HTTPProducer;
 pub use crate::producer::kafka::KafkaConfig;
 pub use crate::producer::rabbitmq::RabbitMQConfig;
 
 use pyo3::prelude::*;
 use scouter_error::{PyScouterError, ScouterError};
+use scouter_settings::HTTPConfig;
 use scouter_types::ServerRecords;
 use std::sync::Arc;
 use tracing::debug;

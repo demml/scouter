@@ -1,0 +1,18 @@
+[package]
+name = "scouter-auth"
+version = { workspace = true }
+edition = { workspace = true }
+repository = { workspace = true }
+
+[lib]
+doctest = false
+
+[dependencies]
+password-auth = { workspace = true }
+jsonwebtoken = { workspace = true }
+rand = { workspace = true }
+serde = { workspace = true }
+
+scouter-error = { workspace = true }
+scouter-sql = { workspace = true }
+ 

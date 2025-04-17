@@ -6,7 +6,8 @@ version,
 feature,
 alert,
 id,
-status
+drift_type,
+active
 FROM scouter.drift_alert
 WHERE
     1=1

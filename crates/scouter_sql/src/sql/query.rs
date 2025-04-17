@@ -49,9 +49,18 @@ const UPDATE_DRIFT_PROFILE: &str = include_str!("scripts/profile/update_drift_pr
 // alert
 const INSERT_DRIFT_ALERT: &str = include_str!("scripts/alert/insert_drift_alert.sql");
 const GET_DRIFT_ALERTS: &str = include_str!("scripts/alert/get_drift_alerts.sql");
+const UPDATE_ALERT_STATUS: &str = include_str!("scripts/alert/update_alert_status.sql");
 
 // poll
 const GET_DRIFT_TASK: &str = include_str!("scripts/poll/poll_for_drift_task.sql");
+
+// auth
+const INSERT_USER: &str = include_str!("scripts/insert_user.sql");
+const GET_USER: &str = include_str!("scripts/get_user.sql");
+const UPDATE_USER: &str = include_str!("scripts/update_user.sql");
+const GET_USERS: &str = include_str!("scripts/get_users.sql");
+const LAST_ADMIN: &str = include_str!("scripts/last_admin.sql");
+const DELETE_USER: &str = include_str!("scripts/delete_user.sql");
 
 #[allow(dead_code)]
 pub enum Queries {
@@ -81,6 +90,13 @@ pub enum Queries {
     GetBinCountDataForArchive,
     GetCustomDataForArchive,
     GetSpcDataForArchive,
+    InsertUser,
+    GetUser,
+    UpdateUser,
+    GetUsers,
+    LastAdmin,
+    DeleteUser,
+    UpdateAlertStatus,
 }
 
 impl Queries {
@@ -115,6 +131,13 @@ impl Queries {
             Queries::GetBinCountDataForArchive => SqlQuery::new(GET_BIN_COUNT_DATA_FOR_ARCHIVE),
             Queries::GetCustomDataForArchive => SqlQuery::new(GET_CUSTOM_DATA_FOR_ARCHIVE),
             Queries::GetSpcDataForArchive => SqlQuery::new(GET_SPC_DATA_FOR_ARCHIVE),
+            Queries::InsertUser => SqlQuery::new(INSERT_USER),
+            Queries::GetUser => SqlQuery::new(GET_USER),
+            Queries::UpdateUser => SqlQuery::new(UPDATE_USER),
+            Queries::GetUsers => SqlQuery::new(GET_USERS),
+            Queries::LastAdmin => SqlQuery::new(LAST_ADMIN),
+            Queries::DeleteUser => SqlQuery::new(DELETE_USER),
+            Queries::UpdateAlertStatus => SqlQuery::new(UPDATE_ALERT_STATUS),
         }
     }
 }

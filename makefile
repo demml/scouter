@@ -69,7 +69,7 @@ test.dataframe:
 	cargo test -p scouter-dataframe -- --nocapture --test-threads=1
 
 .PHONY: test
-test: build.all_backends test.needs_sql test.unit build.shutdown_backends
+test: build.all_backends test.needs_sql test.unit build.shutdown
 
 ###### Server tests
 .PHONY: build.all_backends
@@ -85,9 +85,9 @@ start.server: stop.server build.all_backends
 	./target/debug/scouter-server &
 
 .PHONY: build.shutdown_backends
-build.shutdown_backends:
+build.shutdown:
 	docker compose down
 
 .PHONE: stop.server
-stop.server: build.shutdown_backends
+stop.server:
 	-lsof -ti:8000 | xargs kill -9 2>/dev/null || true

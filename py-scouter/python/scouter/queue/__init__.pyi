@@ -141,7 +141,9 @@ class ServerRecord:
         """
 
     @property
-    def record(self) -> Union[SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics]:
+    def record(
+        self,
+    ) -> Union[SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics]:
         """Return the drift server record."""
 
 class ServerRecords:
@@ -217,7 +219,7 @@ class DriftTransportConfig:
 
             scouter_server_config:
                 An optional HTTPConfig object to pass if the necessary scouter_server environment variables are not set;
-                for example, SCOUTER_SERVER_URL.
+                for example, SCOUTER_SERVER_URI.
         """
 
     @property

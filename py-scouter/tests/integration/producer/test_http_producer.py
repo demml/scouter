@@ -11,19 +11,19 @@ from scouter.queue import (
 
 def test_http_config():
     config = HTTPConfig(
-        server_url="http://localhost:8000",
+        server_uri="http://localhost:8000",
         username="test-username",
         password="test-password",
     )
 
-    assert config.server_url == "http://localhost:8000"
+    assert config.server_uri == "http://localhost:8000"
     assert config.username == "test-username"
     assert config.password == "test-password"
 
 
 def test_http_producer_spc():
     config = HTTPConfig(
-        server_url="http://localhost:8000",
+        server_uri="http://localhost:8000",
         username="test-username",
         password="test-password",
     )
@@ -44,7 +44,7 @@ def test_http_producer_spc():
 
 def test_http_producer_psi():
     config = HTTPConfig(
-        server_url="http://localhost:8000",
+        server_uri="http://localhost:8000",
         username="test-username",
         password="test-password",
     )
@@ -66,7 +66,7 @@ def test_http_producer_psi():
 
 def test_http_producer_custom():
     config = HTTPConfig(
-        server_url="http://localhost:8000",
+        server_uri="http://localhost:8000",
         username="test-username",
         password="test-password",
     )

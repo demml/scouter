@@ -32,7 +32,11 @@ impl PsiQueue {
         // This runtime needs to be separate from the producer runtime
         let rt = Arc::new(tokio::runtime::Runtime::new().unwrap());
 
+        debug!("Creating Producer");
+
         let producer = rt.block_on(async { RustScouterProducer::new(config).await })?;
+
+        debug!("Creating PSI Queue");
 
         let (stop_tx, stop_rx) = watch::channel(());
 

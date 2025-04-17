@@ -151,7 +151,6 @@ jobs:
         working-directory: ./py-scouter
         run: make test.unit
 
-
   test-os-integration:
     needs: [test-os]
     name: test integration
@@ -174,8 +173,8 @@ jobs:
         with:
           key: ${{ matrix.os }}-${{ matrix.python-version }}-v1
 
-      - name: Setup Kafka
-        run: make start.server
+      - name: Setup Server
+        run: make build.all_backends
         env:
           RUST_BACKTRACE: 1
 
@@ -198,7 +197,7 @@ jobs:
 
       - name: Stop Containers
         if: always()
-        run: make stop.server
+        run: make build.shutdown
 
   test-py-build:
     needs: [test-os]
@@ -231,7 +230,7 @@ jobs:
           docker-options: -e CI
           working-directory: ./py-scouter
           # See: https://github.com/sfackler/rust-openssl/issues/2036#issuecomment-1724324145
-          before-script-linux: |            
+          before-script-linux: |
             # If we're running on rhel centos, install needed packages.
             if command -v yum &> /dev/null; then
                 yum update -y && yum install -y perl-core openssl openssl-devel pkgconfig libatomic
@@ -245,13 +244,13 @@ jobs:
                 # If we're running on debian-based system.
                 apt update -y && apt-get install -y libssl-dev openssl pkg-config
             fi
-            
-            
+
+
             # Determine architecture (x86_64 or x86)
             ARCH=$(uname -m)
-            
+
             echo "Detected architecture: $ARCH"
-          
+
             # Download the correct CMake version based on the architecture
             if [[ "$ARCH" == "x86_64" ]]; then
                 echo "Downloading CMake for x86_64 architecture"
@@ -271,9 +270,8 @@ jobs:
                 echo "Unsupported architecture: $ARCH"
                 exit 1
             fi
-            
+
             cmake --version
-            
 
       - name: Check dist
         working-directory: ./py-scouter

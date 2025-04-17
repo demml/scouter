@@ -2,6 +2,7 @@ use chrono::{DateTime, Utc};
 use scouter_types::{
     alert::Alert,
     custom::{BinnedCustomMetric, BinnedCustomMetricStats},
+    get_utc_datetime,
     psi::FeatureBinProportion,
 };
 use serde::{Deserialize, Serialize};
@@ -85,7 +86,8 @@ impl<'r> FromRow<'r, PgRow> for AlertWrapper {
             alert,
             feature: row.try_get("feature")?,
             id: row.try_get("id")?,
-            status: row.try_get("status")?,
+            drift_type: row.try_get("drift_type")?,
+            active: row.try_get("active")?,
         }))
     }
 }
@@ -196,11 +198,87 @@ impl<'r> FromRow<'r, PgRow> for FeatureBinProportionResult {
         })
     }
 }
-
 #[derive(Debug, Clone, FromRow)]
 pub struct Entity {
     pub space: String,
     pub name: String,
     pub version: String,
     pub created_at: DateTime<Utc>,
+}
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct User {
+    pub id: Option<i32>,
+    pub created_at: DateTime<Utc>,
+    pub active: bool,
+    pub username: String,
+    pub password_hash: String,
+    pub permissions: Vec<String>,
+    pub group_permissions: Vec<String>,
+    pub role: String,
+    pub refresh_token: Option<String>,
+}
+
+impl User {
+    pub fn new(
+        username: String,
+        password_hash: String,
+        permissions: Option<Vec<String>>,
+        group_permissions: Option<Vec<String>>,
+        role: Option<String>,
+    ) -> Self {
+        let created_at = get_utc_datetime();
+
+        User {
+            id: None,
+            created_at,
+            active: true,
+            username,
+            password_hash,
+            permissions: permissions.unwrap_or(vec!["read".to_string(), "write".to_string()]),
+            group_permissions: group_permissions.unwrap_or(vec!["user".to_string()]),
+            role: role.unwrap_or("user".to_string()),
+            refresh_token: None,
+        }
+    }
+}
+
+impl FromRow<'_, PgRow> for User {
+    fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
+        let id: Option<i32> = row.try_get("id")?;
+        let created_at: DateTime<Utc> = row.try_get("created_at")?;
+        let active: bool = row.try_get("active")?;
+        let username: String = row.try_get("username")?;
+        let password_hash: String = row.try_get("password_hash")?;
+
+        // Deserialize JSON strings into Vec<String>
+        let permissions: serde_json::Value = row.try_get("permissions")?;
+        let permissions: Vec<String> = serde_json::from_value(permissions).unwrap_or_default();
+
+        let group_permissions: serde_json::Value = row.try_get("group_permissions")?;
+        let group_permissions: Vec<String> =
+            serde_json::from_value(group_permissions).unwrap_or_default();
+
+        let role: String = row.try_get("role")?;
+
+        let refresh_token: Option<String> = row.try_get("refresh_token")?;
+
+        Ok(User {
+            id,
+            created_at,
+            active,
+            username,
+            password_hash,
+            permissions,
+            group_permissions,
+            role,
+            refresh_token,
+        })
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct UpdateAlertResult {
+    pub id: i32,
+    pub active: bool,
+    pub updated_at: DateTime<Utc>,
 }

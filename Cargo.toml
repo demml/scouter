@@ -20,6 +20,7 @@ repository = "https://github.com/demml/scouter"
 
 
 [workspace.dependencies]
+scouter-auth = { path = "crates/scouter_auth" }
 scouter-client = { path = "crates/scouter_client" }
 scouter-contracts = { path = "crates/scouter_contracts" }
 scouter-dispatch = { path = "crates/scouter_dispatch" }
@@ -37,21 +38,22 @@ scouter-types = { path = "crates/scouter_types" }
 
 anyhow = "1.*"
 axum = "0.*"
+axum-extra = { version =  "0.*", features = ["cookie"] }
 approx = "0.*"
 arrow = { version = "*" } 
 arrow-array = { version = "*" }
 async-trait = "0.*"
+base64 = "0.22.*"
 chrono ={ version = "0.*", features = ["serde"] }
 colored_json = "*"
 cron = "0.*"
 datafusion = { version = "*", features = ["parquet"] }
 
 futures = "0.*"
-
 include_dir = "0.*"
 indicatif = "0.*"
 itertools = "0.*"
-
+jsonwebtoken = "9.*"
 metrics = { version = "0.*", default-features = false }
 metrics-exporter-prometheus = { version = "0.*", default-features = false }
 mockito = "1.*"
@@ -61,9 +63,10 @@ ndarray-stats = "0.*"
 noisy_float = "0.*"
 numpy = "0.*"
 num-traits = "0.*"
-object_store = { version = "0.*", features = ["aws", "azure", "gcp" ] }
+object_store = { version = "0.11.*", features = ["aws", "azure", "gcp" ] }
 parquet = { version = "*", features = ["arrow"] }
-pyo3 = { version = ">=0.23.3, <1.0.0", features = ["chrono", "anyhow", "extension-module"] }
+password-auth = "1.*"
+pyo3 = { version = ">=0.*, <1.0.0", features = ["chrono", "anyhow", "extension-module"] }
 rand = "0.*"
 rayon = "1.*"
 reqwest = { version = "0.12.*", features = ["json", "multipart", "rustls-tls", "rustls-tls-native-roots", "blocking" ], default-features = false }

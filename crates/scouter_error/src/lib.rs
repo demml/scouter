@@ -2,7 +2,9 @@ use pyo3::create_exception;
 use pyo3::exceptions::PyException;
 use pyo3::PyErr;
 use serde::Deserialize;
+use std::fmt::Display;
 use thiserror::Error;
+use tracing::error;
 
 #[derive(Error, Debug, Deserialize)]
 pub enum StorageError {
@@ -229,6 +231,95 @@ pub enum ScouterError {
 
     #[error(transparent)]
     StorageError(#[from] StorageError),
+
+    #[error("Failed to get JWT token: {0}")]
+    FailedToGetJwtToken(String),
+
+    #[error("Failed to parse JWT token: {0}")]
+    FailedToParseJwtToken(String),
+
+    #[error("Failed to send request: {0}")]
+    FailedToSendRequest(String),
+
+    #[error("Unauthorized")]
+    Unauthorized,
+
+    #[error("Failed to serialize: {0}")]
+    FailedToSerialize(String),
+
+    #[error("Failed to deserialize: {0}")]
+    FailedToDeserialize(String),
+
+    #[error("Failed to create header: {0}")]
+    FailedToCreateHeader(String),
+
+    #[error("Failed to create client: {0}")]
+    FailedToCreateClient(String),
+}
+
+// add tracing trait to ScouterError
+pub trait TracedError: Display {
+    fn trace(&self) {
+        error!("{}", self);
+    }
+}
+
+impl TracedError for ScouterError {}
+
+// add a raise method so that each error is traced before being returned
+impl ScouterError {
+    pub fn raise<T>(self) -> Result<T, Self> {
+        self.trace();
+        Err(self)
+    }
+
+    pub fn traced_jwt_error(err: impl Display) -> Self {
+        let error = Self::FailedToGetJwtToken(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_parse_jwt_error(err: impl Display) -> Self {
+        let error = Self::FailedToParseJwtToken(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_request_error(err: impl Display) -> Self {
+        let error = Self::FailedToSendRequest(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_unauthorized_error() -> Self {
+        let error = Self::Unauthorized;
+        error.trace();
+        error
+    }
+
+    pub fn traced_serialize_error(err: impl Display) -> Self {
+        let error = Self::FailedToSerialize(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_deserialize_error(err: impl Display) -> Self {
+        let error = Self::FailedToDeserialize(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_create_header_error(err: impl Display) -> Self {
+        let error = Self::FailedToCreateHeader(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_create_client_error(err: impl Display) -> Self {
+        let error = Self::FailedToCreateClient(err.to_string());
+        error.trace();
+        error
+    }
 }
 
 // impl From for PyErr
@@ -325,6 +416,24 @@ pub enum EventError {
     // inherit SqlError
     #[error(transparent)]
     SqlError(#[from] SqlError),
+}
+
+#[derive(Error, Debug)]
+pub enum AuthError {
+    #[error("Invalid username provided")]
+    InvalidUser,
+
+    #[error("Invalid password provided")]
+    InvalidPassword,
+
+    #[error("Session timeout for user occured")]
+    SessionTimeout,
+
+    #[error("JWT token provided is invalid")]
+    InvalidJwtToken,
+
+    #[error("Refresh token is invalid")]
+    InvalidRefreshToken,
 }
 
 create_exception!(scouter, PyScouterError, PyException);

@@ -131,38 +131,41 @@ pub mod drift_executor {
         ) -> Result<(), DriftError> {
             match DriftType::from_str(&task.drift_type) {
                 // match drift_profile
-                Ok(drift_type) => match DriftProfile::from_str(drift_type, task.profile.clone()) {
-                    // process drift profile task
-                    Ok(profile) => match self._process_task(profile, task.previous_run).await {
-                        // check for alerts
-                        Ok(alerts) => {
-                            info!("Drift task processed successfully");
+                Ok(drift_type) => {
+                    match DriftProfile::from_str(drift_type.clone(), task.profile.clone()) {
+                        // process drift profile task
+                        Ok(profile) => match self._process_task(profile, task.previous_run).await {
+                            // check for alerts
+                            Ok(alerts) => {
+                                info!("Drift task processed successfully");
 
-                            if let Some(alerts) = alerts {
-                                // insert each task into db
-                                for alert in alerts {
-                                    if let Err(e) = self
-                                        .db_client
-                                        .insert_drift_alert(
-                                            service_info,
-                                            alert.get("feature").unwrap_or(&"NA".to_string()),
-                                            &alert,
-                                        )
-                                        .await
-                                    {
-                                        error!("Error inserting drift alerts: {:?}", e);
+                                if let Some(alerts) = alerts {
+                                    // insert each task into db
+                                    for alert in alerts {
+                                        if let Err(e) = self
+                                            .db_client
+                                            .insert_drift_alert(
+                                                service_info,
+                                                alert.get("feature").unwrap_or(&"NA".to_string()),
+                                                &alert,
+                                                &drift_type,
+                                            )
+                                            .await
+                                        {
+                                            error!("Error inserting drift alerts: {:?}", e);
+                                        }
                                     }
                                 }
                             }
-                        }
+                            Err(e) => {
+                                error!("Error processing drift task: {:?}", e);
+                            }
+                        },
                         Err(e) => {
-                            error!("Error processing drift task: {:?}", e);
+                            error!("Error converting drift profile: {:?}", e);
                         }
-                    },
-                    Err(e) => {
-                        error!("Error converting drift profile: {:?}", e);
                     }
-                },
+                }
                 Err(e) => {
                     error!("Error converting drift type: {:?}", e);
                 }

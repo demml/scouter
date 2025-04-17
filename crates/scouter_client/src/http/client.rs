@@ -4,14 +4,15 @@ use scouter_contracts::{
     DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
 };
 use scouter_error::{PyScouterError, ScouterError};
-use scouter_events::producer::http::{HTTPClient, HTTPConfig, RequestType, Routes};
+use scouter_settings::http::HTTPConfig;
+use scouter_types::http::{RequestType, Routes};
+
+use crate::http::HTTPClient;
 use scouter_types::{
     alert::Alert, custom::BinnedCustomMetrics, psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures,
     DriftProfile, DriftType, ProfileFuncs,
 };
 use std::path::PathBuf;
-use std::sync::Arc;
-use tokio::runtime::Runtime;
 use tracing::{debug, error};
 
 pub const DOWNLOAD_CHUNK_SIZE: usize = 1024 * 1024 * 5;
@@ -19,15 +20,12 @@ pub const DOWNLOAD_CHUNK_SIZE: usize = 1024 * 1024 * 5;
 #[pyclass]
 pub struct ScouterClient {
     client: HTTPClient,
-    rt: Arc<Runtime>,
 }
 #[pymethods]
 impl ScouterClient {
     #[new]
     #[pyo3(signature = (config=None))]
     pub fn new(config: Option<&Bound<'_, PyAny>>) -> PyResult<Self> {
-        let rt = Arc::new(Runtime::new()?);
-
         let config = config.map_or(Ok(HTTPConfig::default()), |unwrapped| {
             if unwrapped.is_instance_of::<HTTPConfig>() {
                 unwrapped
@@ -38,11 +36,10 @@ impl ScouterClient {
             }
         })?;
 
-        let client = rt
-            .block_on(async { HTTPClient::new(config).await })
-            .map_err(|e| PyScouterError::new_err(e.to_string()))?;
+        let client = HTTPClient::new(config)
+            .map_err(|e| PyScouterError::new_err(format!("Failed to create HTTP client: {}", e)))?;
 
-        Ok(ScouterClient { client, rt })
+        Ok(ScouterClient { client })
     }
 
     /// Insert a profile into the scouter server
@@ -70,23 +67,23 @@ impl ScouterClient {
             .extract::<String>()?;
 
         let request = ProfileRequest {
+            space: profile
+                .getattr("config")?
+                .getattr("space")?
+                .extract::<String>()?,
             drift_type: drift_type.clone(),
             profile: profile_str,
         };
 
         let response = self
-            .rt
-            .block_on(async {
-                self.client
-                    .request_with_retry(
-                        Routes::Profile,
-                        RequestType::Post,
-                        Some(serde_json::to_value(&request).unwrap()),
-                        None,
-                        None,
-                    )
-                    .await
-            })
+            .client
+            .request(
+                Routes::Profile,
+                RequestType::Post,
+                Some(serde_json::to_value(&request).unwrap()),
+                None,
+                None,
+            )
             .map_err(|e: scouter_error::ScouterError| PyScouterError::new_err(e.to_string()))?;
 
         if response.status().is_success() {
@@ -142,33 +139,29 @@ impl ScouterClient {
         drift_request: DriftRequest,
     ) -> PyResult<Bound<'py, PyAny>> {
         match drift_request.drift_type {
-            DriftType::Spc => self.rt.block_on(async {
-                ScouterClient::get_spc_binned_drift(py, &mut self.client, drift_request).await
-            }),
-            DriftType::Psi => self.rt.block_on(async {
-                ScouterClient::get_psi_binned_drift(py, &mut self.client, drift_request).await
-            }),
-            DriftType::Custom => self.rt.block_on(async {
-                ScouterClient::get_custom_binned_drift(py, &mut self.client, drift_request).await
-            }),
+            DriftType::Spc => {
+                ScouterClient::get_spc_binned_drift(py, &mut self.client, drift_request)
+            }
+            DriftType::Psi => {
+                ScouterClient::get_psi_binned_drift(py, &mut self.client, drift_request)
+            }
+            DriftType::Custom => {
+                ScouterClient::get_custom_binned_drift(py, &mut self.client, drift_request)
+            }
         }
     }
 
     pub fn update_profile_status(&mut self, request: ProfileStatusRequest) -> PyResult<bool> {
         debug!("Updating profile status: {:?}", request);
         let response = self
-            .rt
-            .block_on(async {
-                self.client
-                    .request_with_retry(
-                        Routes::ProfileStatus,
-                        RequestType::Put,
-                        Some(serde_json::to_value(request).unwrap()),
-                        None,
-                        None,
-                    )
-                    .await
-            })
+            .client
+            .request(
+                Routes::ProfileStatus,
+                RequestType::Put,
+                Some(serde_json::to_value(request).unwrap()),
+                None,
+                None,
+            )
             .map_err(|e: scouter_error::ScouterError| PyScouterError::new_err(e.to_string()))?;
 
         Ok(response.status().is_success())
@@ -180,51 +173,49 @@ impl ScouterClient {
         let query_string =
             serde_qs::to_string(&request).map_err(|e| PyScouterError::new_err(e.to_string()))?;
 
-        let results = self
-            .rt
-            .block_on(async {
-                let response = self
-                    .client
-                    .request_with_retry(
-                        Routes::Alerts,
-                        RequestType::Get,
-                        None,
-                        Some(query_string),
-                        None,
-                    )
-                    .await?;
+        let response = self.client.request(
+            Routes::Alerts,
+            RequestType::Get,
+            None,
+            Some(query_string),
+            None,
+        )?;
 
-                if response.status().is_client_error() || response.status().is_server_error() {
-                    Err(PyScouterError::new_err(format!(
-                        "Failed to get drift alerts. Status: {:?}",
-                        response.status()
-                    )))?
-                } else {
-                    let body: serde_json::Value = response.json().await.map_err(|e| {
-                        error!(
-                            "Failed to parse drift alerts {:?}. Error: {:?}",
-                            &request, e
-                        );
-                        PyScouterError::new_err(e.to_string())
-                    })?;
+        // Check response status
+        if !response.status().is_success() {
+            return Err(PyScouterError::new_err(format!(
+                "Failed to get drift alerts. Status: {:?}",
+                response.status()
+            )));
+        }
 
-                    let data = body.get("data").unwrap().to_owned();
+        // Parse response body
+        let body: serde_json::Value = response.json().map_err(|e| {
+            error!(
+                "Failed to parse drift alerts {:?}. Error: {:?}",
+                &request, e
+            );
+            PyScouterError::new_err(format!("Failed to parse response: {}", e))
+        })?;
 
-                    let results: Result<Vec<Alert>, ScouterError> = serde_json::from_value(data)
-                        .map_err(|e| {
-                            error!(
-                                "Failed to parse drift alert response for {:?}. Error: {:?}",
-                                &request, e
-                            );
-                            ScouterError::Error(e.to_string())
-                        });
-
-                    results
-                }
+        // Extract alerts from response
+        let alerts = body
+            .get("alerts")
+            .map(|alerts| {
+                serde_json::from_value::<Vec<Alert>>(alerts.clone()).map_err(|e| {
+                    error!(
+                        "Failed to parse drift alerts {:?}. Error: {:?}",
+                        &request, e
+                    );
+                    PyScouterError::new_err(format!("Failed to parse alerts: {}", e))
+                })
             })
-            .map_err(|e| PyScouterError::new_err(e.to_string()))?;
+            .unwrap_or_else(|| {
+                error!("No alerts found in response");
+                Ok(Vec::new())
+            })?;
 
-        Ok(results)
+        Ok(alerts)
     }
 
     #[pyo3(signature = (request, path))]
@@ -249,7 +240,7 @@ impl ScouterClient {
 }
 
 impl ScouterClient {
-    async fn get_spc_binned_drift<'py>(
+    fn get_spc_binned_drift<'py>(
         py: Python<'py>,
         client: &mut HTTPClient,
         drift_request: DriftRequest,
@@ -257,15 +248,13 @@ impl ScouterClient {
         let query_string = serde_qs::to_string(&drift_request)
             .map_err(|e| PyScouterError::new_err(e.to_string()))?;
 
-        let response = client
-            .request_with_retry(
-                Routes::SpcDrift,
-                RequestType::Get,
-                None,
-                Some(query_string),
-                None,
-            )
-            .await?;
+        let response = client.request(
+            Routes::SpcDrift,
+            RequestType::Get,
+            None,
+            Some(query_string),
+            None,
+        )?;
 
         if response.status().is_client_error() || response.status().is_server_error() {
             return Err(PyScouterError::new_err(format!(
@@ -274,7 +263,7 @@ impl ScouterClient {
             )));
         }
 
-        let body = response.bytes().await.map_err(|e| {
+        let body = response.bytes().map_err(|e| {
             error!(
                 "Failed to get drift data for {:?}. Error: {:?}",
                 &drift_request, e
@@ -292,7 +281,7 @@ impl ScouterClient {
 
         Ok(results.into_bound_py_any(py).unwrap())
     }
-    async fn get_psi_binned_drift<'py>(
+    fn get_psi_binned_drift<'py>(
         py: Python<'py>,
         client: &mut HTTPClient,
         drift_request: DriftRequest,
@@ -300,15 +289,13 @@ impl ScouterClient {
         let query_string = serde_qs::to_string(&drift_request)
             .map_err(|e| PyScouterError::new_err(e.to_string()))?;
 
-        let response = client
-            .request_with_retry(
-                Routes::PsiDrift,
-                RequestType::Get,
-                None,
-                Some(query_string),
-                None,
-            )
-            .await?;
+        let response = client.request(
+            Routes::PsiDrift,
+            RequestType::Get,
+            None,
+            Some(query_string),
+            None,
+        )?;
 
         if response.status().is_client_error() || response.status().is_server_error() {
             return Err(PyScouterError::new_err(format!(
@@ -317,7 +304,7 @@ impl ScouterClient {
             )));
         }
 
-        let body = response.bytes().await.map_err(|e| {
+        let body = response.bytes().map_err(|e| {
             error!(
                 "Failed to get drift data for {:?}. Error: {:?}",
                 &drift_request, e
@@ -336,7 +323,7 @@ impl ScouterClient {
         Ok(results.into_bound_py_any(py).unwrap())
     }
 
-    async fn get_custom_binned_drift<'py>(
+    fn get_custom_binned_drift<'py>(
         py: Python<'py>,
         client: &mut HTTPClient,
         drift_request: DriftRequest,
@@ -344,15 +331,13 @@ impl ScouterClient {
         let query_string = serde_qs::to_string(&drift_request)
             .map_err(|e| PyScouterError::new_err(e.to_string()))?;
 
-        let response = client
-            .request_with_retry(
-                Routes::CustomDrift,
-                RequestType::Get,
-                None,
-                Some(query_string),
-                None,
-            )
-            .await?;
+        let response = client.request(
+            Routes::CustomDrift,
+            RequestType::Get,
+            None,
+            Some(query_string),
+            None,
+        )?;
 
         if response.status().is_client_error() || response.status().is_server_error() {
             return Err(PyScouterError::new_err(format!(
@@ -361,7 +346,7 @@ impl ScouterClient {
             )));
         }
 
-        let body = response.bytes().await.map_err(|e| {
+        let body = response.bytes().map_err(|e| {
             error!(
                 "Failed to get drift data for {:?}. Error: {:?}",
                 &drift_request, e
@@ -380,64 +365,45 @@ impl ScouterClient {
         Ok(results.into_bound_py_any(py).unwrap())
     }
 
-    // TODO look into building an internal client responsible for making http calls to scouter-server, we can share this between the pyclient and internal rust calls
     pub fn get_drift_profile(
         &mut self,
         request: GetProfileRequest,
     ) -> Result<DriftProfile, ScouterError> {
-        let query_string =
-            serde_qs::to_string(&request).map_err(|e| PyScouterError::new_err(e.to_string()))?;
+        let query_string = serde_qs::to_string(&request)
+            .map_err(|e| ScouterError::Error(format!("Failed to serialize request: {}", e)))?;
 
-        let results: Result<serde_json::Value, ScouterError> = self.rt.block_on(async {
-            let response = self
-                .client
-                .request_with_retry(
-                    Routes::Profile,
-                    RequestType::Get,
-                    None,
-                    Some(query_string),
-                    None,
-                )
-                .await?;
+        let response = self.client.request(
+            Routes::Profile,
+            RequestType::Get,
+            None,
+            Some(query_string),
+            None,
+        )?;
 
-            if response.status().is_client_error() || response.status().is_server_error() {
-                Err(PyScouterError::new_err(format!(
-                    "Failed to get profile. Status: {:?}",
-                    response.status()
-                )))?
-            } else {
-                let body = response.bytes().await.map_err(|e| {
-                    error!("Failed to get profile for {:?}. Error: {:?}", &request, e);
-                    ScouterError::Error(e.to_string())
-                })?;
+        // Early return for error status codes
+        if !response.status().is_success() {
+            error!("Failed to get profile. Status: {:?}", response.status());
+            return Err(ScouterError::Error(format!(
+                "Server returned error status: {}",
+                response.status()
+            )));
+        }
 
-                let data: serde_json::Value = serde_json::from_slice(&body).map_err(|e| {
-                    error!(
-                        "Failed to parse profile response for {:?}. Error: {:?}",
-                        &request, e
-                    );
-                    ScouterError::Error(e.to_string())
-                })?;
+        // Get response body
+        let body = response.bytes().map_err(|e| {
+            error!("Failed to get profile for {:?}. Error: {:?}", &request, e);
+            ScouterError::Error(format!("Failed to read response body: {}", e))
+        })?;
 
-                Ok(data)
-            }
-        });
+        // Parse JSON response
+        let profile: DriftProfile = serde_json::from_slice(&body).map_err(|e| {
+            error!(
+                "Failed to parse profile response for {:?}. Error: {:?}",
+                &request, e
+            );
+            ScouterError::Error(format!("Failed to parse JSON response: {}", e))
+        })?;
 
-        let profile = results
-            .map_err(|e| ScouterError::Error(format!("Failed to download profile: {}", e)))?;
-
-        let drift_profile = match request.drift_type {
-            DriftType::Spc => DriftProfile::Spc(
-                serde_json::from_value(profile).map_err(|_| ScouterError::DeSerializeError)?,
-            ),
-            DriftType::Psi => DriftProfile::Psi(
-                serde_json::from_value(profile).map_err(|_| ScouterError::DeSerializeError)?,
-            ),
-            DriftType::Custom => DriftProfile::Custom(
-                serde_json::from_value(profile).map_err(|_| ScouterError::DeSerializeError)?,
-            ),
-        };
-
-        Ok(drift_profile)
+        Ok(profile)
     }
 }

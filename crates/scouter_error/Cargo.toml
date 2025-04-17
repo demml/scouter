@@ -15,6 +15,7 @@ description = "Error logic for Scouter"
 pyo3 = { workspace = true }
 serde = { workspace = true }
 thiserror = { workspace = true }
+tracing = { workspace = true }
 
 
 [profile.release]

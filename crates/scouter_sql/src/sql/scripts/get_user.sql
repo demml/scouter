@@ -1,0 +1,1 @@
+SELECT id, created_at, active, username, password_hash, permissions, group_permissions, role, refresh_token FROM scouter.user WHERE username = $1;

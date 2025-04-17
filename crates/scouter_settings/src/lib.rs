@@ -1,254 +1,44 @@
-use scouter_error::ConfigError;
+use base64::prelude::*;
+use scouter_types::StorageType;
 use serde::Serialize;
+use std::env;
 use std::path::PathBuf;
+use tracing::warn;
 
-#[derive(Debug, Clone, Serialize)]
-pub struct PollingSettings {
-    pub num_workers: usize,
-}
+pub mod auth;
+pub mod database;
+pub mod events;
+pub mod http;
+pub mod polling;
+pub mod storage;
 
-impl Default for PollingSettings {
-    fn default() -> Self {
-        let num_workers = std::env::var("SCHEDULE_WORKER_COUNT")
-            .unwrap_or_else(|_| "4".to_string())
-            .parse::<usize>()
-            .map_err(|e| ConfigError::Error(format!("{:?}", e)))
-            .unwrap();
+pub use auth::AuthSettings;
+pub use database::DatabaseSettings;
+pub use events::{KafkaSettings, RabbitMQSettings};
+pub use http::HTTPConfig;
+pub use polling::PollingSettings;
+pub use storage::ObjectStorageSettings;
 
-        Self { num_workers }
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct DatabaseSettings {
-    pub connection_uri: String,
-    pub max_connections: u32,
-}
-
-impl Default for DatabaseSettings {
-    fn default() -> Self {
-        let connection_uri = std::env::var("DATABASE_URI")
-            .unwrap_or("postgresql://postgres:postgres@localhost:5432/postgres".to_string());
-
-        let max_connections = std::env::var("MAX_SQL_CONNECTIONS")
-            .unwrap_or_else(|_| "10".to_string())
-            .parse::<u32>()
-            .map_err(|e| ConfigError::Error(format!("{:?}", e)))
-            .unwrap();
-
-        Self {
-            connection_uri,
-            max_connections,
-        }
-    }
-}
-
-#[derive(Clone, Serialize)]
-pub struct KafkaSettings {
-    pub brokers: String,
-    pub num_workers: usize,
-    pub topics: Vec<String>,
-    pub group_id: String,
-    pub username: Option<String>,
-    pub password: Option<String>,
-    pub security_protocol: String,
-    pub sasl_mechanism: String,
-    pub offset_reset: String,
-    pub cert_location: Option<String>,
-}
-
-impl std::fmt::Debug for KafkaSettings {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("KafkaSettings")
-            .field("brokers", &self.brokers)
-            .field("num_workers", &self.num_workers)
-            .field("topics", &self.topics)
-            .field("group_id", &self.group_id)
-            .field("username", &self.username)
-            .field("password", &self.password.as_ref().map(|_| "***"))
-            .field("security_protocol", &self.security_protocol)
-            .field("offset_reset", &self.offset_reset)
-            .field("sasl_mechanism", &self.sasl_mechanism)
-            .finish()
-    }
-}
-
-impl Default for KafkaSettings {
-    fn default() -> Self {
-        let brokers =
-            std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_string());
-
-        let num_workers = std::env::var("KAFKA_WORKER_COUNT")
-            .unwrap_or_else(|_| "3".to_string())
-            .parse::<usize>()
-            .map_err(|e| ConfigError::Error(format!("{:?}", e)))
-            .unwrap();
-
-        let topics = std::env::var("KAFKA_TOPIC")
-            .unwrap_or_else(|_| "scouter_monitoring".to_string())
-            .split(',')
-            .map(|s| s.to_string())
-            .collect();
-
-        let group_id = std::env::var("KAFKA_GROUP").unwrap_or("scouter".to_string());
-        let offset_reset = std::env::var("KAFKA_OFFSET_RESET")
-            .unwrap_or_else(|_| "earliest".to_string())
-            .to_string();
-        let username: Option<String> = std::env::var("KAFKA_USERNAME").ok();
-        let password: Option<String> = std::env::var("KAFKA_PASSWORD").ok();
-
-        let security_protocol = std::env::var("KAFKA_SECURITY_PROTOCOL")
-            .ok()
-            .unwrap_or_else(|| "SASL_SSL".to_string());
-        let sasl_mechanism = std::env::var("KAFKA_SASL_MECHANISM")
-            .ok()
-            .unwrap_or_else(|| "PLAIN".to_string());
-        let cert_location = std::env::var("KAFKA_CERT_LOCATION").ok();
-
-        Self {
-            brokers,
-            num_workers,
-            topics,
-            group_id,
-            username,
-            password,
-            security_protocol,
-            sasl_mechanism,
-            offset_reset,
-            cert_location,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct RabbitMQSettings {
-    pub num_consumers: usize,
-    pub prefetch_count: u16,
-    pub queue: String,
-    pub consumer_tag: String,
-    pub address: String,
-}
-impl Default for RabbitMQSettings {
-    fn default() -> Self {
-        let num_consumers = std::env::var("RABBITMQ_CONSUMER_COUNT")
-            .unwrap_or_else(|_| "3".to_string())
-            .parse::<usize>()
-            .map_err(|e| ConfigError::Error(format!("{:?}", e)))
-            .unwrap();
-
-        let prefetch_count = std::env::var("RABBITMQ_PREFETCH_COUNT")
-            .unwrap_or_else(|_| "10".to_string())
-            .parse::<u16>()
-            .map_err(|e| ConfigError::Error(format!("{:?}", e)))
-            .unwrap();
-
-        let address = std::env::var("RABBITMQ_ADDR")
-            .unwrap_or_else(|_| "amqp://guest:guest@127.0.0.1:5672/%2f".to_string());
-
-        let queue =
-            std::env::var("RABBITMQ_QUEUE").unwrap_or_else(|_| "scouter_monitoring".to_string());
-
-        let consumer_tag =
-            std::env::var("RABBITMQ_CONSUMER_TAG").unwrap_or_else(|_| "scouter".to_string());
-
-        Self {
-            num_consumers,
-            prefetch_count,
-            queue,
-            consumer_tag,
-            address,
-        }
-    }
-}
-
-#[derive(Debug, PartialEq, Clone, Serialize)]
-pub enum StorageType {
-    Google,
-    Aws,
-    Local,
-    Azure,
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ObjectStorageSettings {
-    pub storage_uri: String,
-    pub storage_type: StorageType,
-    pub region: String,        // this is aws specific
-    pub retention_period: i64, // in days
-}
-
-impl Default for ObjectStorageSettings {
-    fn default() -> Self {
-        let storage_uri = std::env::var("SCOUTER_STORAGE_URI")
-            .unwrap_or_else(|_| "./scouter_storage".to_string());
-
-        let storage_uri = ScouterServerConfig::set_storage_uri(storage_uri);
-        let storage_type = ScouterServerConfig::get_storage_type(&storage_uri);
-        let region = std::env::var("AWS_REGION").unwrap_or_else(|_| "us-east-1".to_string());
-
-        // Default retention period is 30 days
-        let retention_period = std::env::var("SCOUTER_RETENTION_PERIOD")
-            .unwrap_or_else(|_| "30".to_string())
-            .parse::<i64>()
-            .map_err(|e| ConfigError::Error(format!("{:?}", e)))
-            .unwrap();
-
-        Self {
-            storage_uri,
-            storage_type,
-            region,
-            retention_period,
-        }
-    }
-}
-
-impl ObjectStorageSettings {
-    pub fn storage_root(&self) -> String {
-        match self.storage_type {
-            StorageType::Google | StorageType::Aws | StorageType::Azure => {
-                if let Some(stripped) = self.storage_uri.strip_prefix("gs://") {
-                    stripped.to_string()
-                } else if let Some(stripped) = self.storage_uri.strip_prefix("s3://") {
-                    stripped.to_string()
-                } else if let Some(stripped) = self.storage_uri.strip_prefix("az://") {
-                    stripped.to_string()
-                } else {
-                    self.storage_uri.clone()
-                }
-            }
-            StorageType::Local => {
-                // For local storage, just return the path directly
-                self.storage_uri.clone()
-            }
-        }
+fn generate_default_secret() -> String {
+    // Creates a deterministic key for development purposes
+    // Should be replaced with a proper secret in production
+    let mut key = [0u8; 32];
+    for (i, item) in key.iter_mut().enumerate() {
+        // Different pattern than the JWT secret (reversed index)
+        *item = (31 - i) as u8;
     }
 
-    pub fn canonicalized_path(&self) -> String {
-        // if registry is local canconicalize the path
-        if self.storage_type == StorageType::Local {
-            let path = PathBuf::from(&self.storage_uri);
-            if path.exists() {
-                path.canonicalize()
-                    .unwrap_or_else(|_| path.clone())
-                    .to_str()
-                    .unwrap()
-                    .to_string()
-            } else {
-                self.storage_uri.clone()
-            }
-        } else {
-            self.storage_uri.clone()
-        }
-    }
+    BASE64_STANDARD.encode(key)
 }
 
 #[derive(Debug, Clone, Serialize)]
 pub struct ScouterServerConfig {
-    pub server_port: u16,
     pub polling_settings: PollingSettings,
     pub database_settings: DatabaseSettings,
     pub kafka_settings: Option<KafkaSettings>,
     pub rabbitmq_settings: Option<RabbitMQSettings>,
+    pub auth_settings: AuthSettings,
+    pub bootstrap_key: String,
     pub object_storage_settings: ObjectStorageSettings,
 }
 
@@ -294,12 +84,6 @@ impl ScouterServerConfig {
 
 impl Default for ScouterServerConfig {
     fn default() -> Self {
-        let server_port = std::env::var("SERVER_PORT")
-            .unwrap_or_else(|_| "8000".to_string())
-            .parse::<u16>()
-            .map_err(|e| ConfigError::Error(format!("{:?}", e)))
-            .unwrap();
-
         let polling = PollingSettings::default();
         let database = DatabaseSettings::default();
         let kafka = if std::env::var("KAFKA_BROKERS").is_ok() {
@@ -314,12 +98,34 @@ impl Default for ScouterServerConfig {
             None
         };
 
+        let auth_settings = AuthSettings {
+            jwt_secret: env::var("SCOUTER_ENCRYPT_SECRET").unwrap_or_else(|_| {
+                warn!(
+                    "Using default secret for encryption 
+                        This is not recommended for production use."
+                );
+                generate_default_secret()
+            }),
+            refresh_secret: env::var("SCOUTER_REFRESH_SECRET").unwrap_or_else(|_| {
+                warn!(
+                    "Using default secret for refreshing. 
+                        This is not recommended for production use."
+                );
+
+                generate_default_secret()
+            }),
+        };
+
+        let bootstrap_key =
+            env::var("SCOUTER_BOOTSTRAP_KEY").unwrap_or_else(|_| generate_default_secret());
+
         Self {
-            server_port,
             polling_settings: polling,
             database_settings: database,
             kafka_settings: kafka,
             rabbitmq_settings: rabbitmq,
+            auth_settings,
+            bootstrap_key,
             object_storage_settings: ObjectStorageSettings::default(),
         }
     }
