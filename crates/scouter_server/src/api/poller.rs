@@ -1,5 +1,5 @@
 use scouter_drift::DriftExecutor;
-use scouter_error::EventError;
+use scouter_error::ScouterError;
 use scouter_settings::{DatabaseSettings, PollingSettings};
 use scouter_sql::PostgresClient;
 use sqlx::Pool;
@@ -18,7 +18,7 @@ impl BackgroundPollManager {
         poll_settings: &PollingSettings,
         db_settings: &DatabaseSettings,
         shutdown_rx: watch::Receiver<()>,
-    ) -> Result<(), EventError> {
+    ) -> Result<(), ScouterError> {
         let num_workers = poll_settings.num_workers;
         let mut workers = Vec::with_capacity(num_workers);
 

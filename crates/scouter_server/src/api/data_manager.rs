@@ -103,7 +103,7 @@ async fn process_record_type(
     retention_period: &i64,
     storage_settings: &ObjectStorageSettings,
 ) -> Result<(), ScouterError> {
-    ParquetDataFrame::new(storage_settings, &record_type)?;
+    let df = ParquetDataFrame::new(storage_settings, &record_type)?;
 
     // get the entities for archival
     let entities = get_entities_for_archive(db_client, record_type, retention_period).await?;
@@ -112,8 +112,14 @@ async fn process_record_type(
     for entity in entities {
         let data = get_data_for_archive(db_client, record_type, retention_period, &entity).await?;
 
+        // get created at as YYYY-MM-DD string
+        let created_at = entity.created_at.format("%Y-%m-%d").to_string();
+
         // archive the data to the object storage
-        db_client.archive_data(data).await?;
+        let path = format!(
+            "{}/{}/{}/{}",
+            entity.space, entity.name, entity.version, record_type
+        );
     }
 
     Ok(())
