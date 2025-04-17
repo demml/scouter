@@ -18,7 +18,7 @@ reqwest = { workspace = true, optional = true }
 rusty-logging = { workspace = true }
 scouter-error = { workspace = true }
 scouter-client = { workspace = true }
-scouter-server = { workspace = true , optional = true }
+scouter-server = { workspace = true , optional = true, features = ["kafka", "rabbitmq"] }
 tokio = { workspace = true,  optional = true }
 tracing-subscriber = { workspace = true }
 time = "0.*"

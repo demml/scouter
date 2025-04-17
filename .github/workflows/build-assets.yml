@@ -10,9 +10,6 @@ on:
       - main
       - opsmlUi
 
-  pull_request:
-    branches:
-      - opsmlUi
   release:
     types: [published]
 

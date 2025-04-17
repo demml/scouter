@@ -173,8 +173,8 @@ jobs:
         with:
           key: ${{ matrix.os }}-${{ matrix.python-version }}-v1
 
-      - name: Setup Kafka
-        run: make start.server
+      - name: Setup Server
+        run: make build.all_backends
         env:
           RUST_BACKTRACE: 1
 
@@ -197,7 +197,7 @@ jobs:
 
       - name: Stop Containers
         if: always()
-        run: make stop.server
+        run: make build.shutdown
 
   test-py-build:
     needs: [test-os]

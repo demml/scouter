@@ -14,6 +14,7 @@ use scouter_types::{
 };
 use std::path::PathBuf;
 use tracing::{debug, error};
+
 pub const DOWNLOAD_CHUNK_SIZE: usize = 1024 * 1024 * 5;
 
 #[pyclass]
@@ -180,36 +181,41 @@ impl ScouterClient {
             None,
         )?;
 
-        let results = if response.status().is_client_error() || response.status().is_server_error()
-        {
-            Err(PyScouterError::new_err(format!(
+        // Check response status
+        if !response.status().is_success() {
+            return Err(PyScouterError::new_err(format!(
                 "Failed to get drift alerts. Status: {:?}",
                 response.status()
-            )))?
-        } else {
-            let body: serde_json::Value = response.json().map_err(|e| {
-                error!(
-                    "Failed to parse drift alerts {:?}. Error: {:?}",
-                    &request, e
-                );
-                PyScouterError::new_err(e.to_string())
-            })?;
+            )));
+        }
 
-            let data = body.get("data").unwrap().to_owned();
+        // Parse response body
+        let body: serde_json::Value = response.json().map_err(|e| {
+            error!(
+                "Failed to parse drift alerts {:?}. Error: {:?}",
+                &request, e
+            );
+            PyScouterError::new_err(format!("Failed to parse response: {}", e))
+        })?;
 
-            let results: Result<Vec<Alert>, ScouterError> =
-                serde_json::from_value(data).map_err(|e| {
+        // Extract alerts from response
+        let alerts = body
+            .get("alerts")
+            .map(|alerts| {
+                serde_json::from_value::<Vec<Alert>>(alerts.clone()).map_err(|e| {
                     error!(
-                        "Failed to parse drift alert response for {:?}. Error: {:?}",
+                        "Failed to parse drift alerts {:?}. Error: {:?}",
                         &request, e
                     );
-                    ScouterError::Error(e.to_string())
-                });
+                    PyScouterError::new_err(format!("Failed to parse alerts: {}", e))
+                })
+            })
+            .unwrap_or_else(|| {
+                error!("No alerts found in response");
+                Ok(Vec::new())
+            })?;
 
-            results
-        }?;
-
-        Ok(results)
+        Ok(alerts)
     }
 
     #[pyo3(signature = (request, path))]

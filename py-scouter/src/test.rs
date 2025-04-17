@@ -64,6 +64,8 @@ impl ScouterTestServer {
 
             // set server env vars
             std::env::set_var("APP_ENV", "dev_server");
+            std::env::set_var("KAFKA_BROKERS", "localhost:9092");
+            std::env::set_var("RABBITMQ_ADDR", "amqp://guest:guest@127.0.0.1:5672/%2f");
 
             let handle = self.handle.clone();
             let runtime = self.runtime.clone();
@@ -148,6 +150,8 @@ impl ScouterTestServer {
         std::env::remove_var("APP_ENV");
         std::env::remove_var("SCOUTER_SERVER_URI");
         std::env::remove_var("SCOUTER_SERVER_PORT");
+        std::env::remove_var("KAFKA_BROKERS");
+        std::env::remove_var("RABBITMQ_ADDR");
         Ok(())
     }
 

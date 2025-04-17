@@ -53,7 +53,7 @@ pub async fn start_server() -> Result<(), anyhow::Error> {
     let addr = format!("0.0.0.0:{}", port);
     let listener = tokio::net::TcpListener::bind(addr.clone())
         .await
-        .with_context(|| "Failed to bind to port {port}")?;
+        .with_context(|| format!("Failed to bind to port {}", port))?;
 
     info!(
         "🚀 Scouter Server started successfully on {:?}",
