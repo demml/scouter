@@ -1,6 +1,7 @@
 // add test logic
 use pyo3::prelude::*;
 use std::path::PathBuf;
+use tracing_subscriber::field::debug;
 
 #[cfg(feature = "server")]
 use scouter_server::{start_server_in_background, stop_server};
@@ -24,13 +25,15 @@ pub struct ScouterTestServer {
     runtime: Arc<Runtime>,
     cleanup: bool,
     base_path: Option<PathBuf>,
+    rabbit_mq: bool,
+    kafka: bool,
 }
 
 #[pymethods]
 impl ScouterTestServer {
     #[new]
-    #[pyo3(signature = (cleanup = true, base_path = None))]
-    fn new(cleanup: bool, base_path: Option<PathBuf>) -> Self {
+    #[pyo3(signature = (cleanup = true, rabbit_mq = false, kafka = false, base_path = None))]
+    fn new(cleanup: bool, rabbit_mq: bool, kafka: bool, base_path: Option<PathBuf>) -> Self {
         ScouterTestServer {
             #[cfg(feature = "server")]
             handle: Arc::new(Mutex::new(None)),
@@ -38,6 +41,8 @@ impl ScouterTestServer {
             runtime: Arc::new(Runtime::new().unwrap()),
             cleanup,
             base_path,
+            rabbit_mq,
+            kafka,
         }
     }
 
@@ -64,8 +69,14 @@ impl ScouterTestServer {
 
             // set server env vars
             std::env::set_var("APP_ENV", "dev_server");
-            std::env::set_var("KAFKA_BROKERS", "localhost:9092");
-            std::env::set_var("RABBITMQ_ADDR", "amqp://guest:guest@127.0.0.1:5672/%2f");
+
+            if self.rabbit_mq {
+                std::env::set_var("RABBITMQ_ADDR", "amqp://guest:guest@127.0.0.1:5672/%2f");
+            }
+
+            if self.kafka {
+                std::env::set_var("KAFKA_BROKERS", "localhost:9092");
+            }
 
             let handle = self.handle.clone();
             let runtime = self.runtime.clone();
@@ -80,6 +91,8 @@ impl ScouterTestServer {
                     ))
                 }
             };
+
+            debug!("Found available port: {}", port);
 
             std::env::set_var("SCOUTER_SERVER_PORT", port.to_string());
 
@@ -96,6 +109,8 @@ impl ScouterTestServer {
                 let res = client
                     .get("http://localhost:8000/scouter/healthcheck")
                     .send();
+
+                debug!("Attempt {}: {:?}", attempts, res);
 
                 if let Ok(response) = res {
                     if response.status() == 200 {

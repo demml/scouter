@@ -2,7 +2,13 @@ from pathlib import Path
 from typing import Optional
 
 class ScouterTestServer:
-    def __init__(self, cleanup: bool = True, base_path: Optional[Path] = None) -> None:
+    def __init__(
+        self,
+        cleanup: bool = True,
+        rabbit_mq: bool = False,
+        kafka: bool = False,
+        base_path: Optional[Path] = None,
+    ) -> None:
         """Instantiates the test server.
 
         When the test server is used as a context manager, it will start the server
@@ -13,6 +19,10 @@ class ScouterTestServer:
         Args:
             cleanup (bool, optional):
                 Whether to cleanup the server after the test. Defaults to True.
+            rabbit_mq (bool, optional):
+                Whether to use RabbitMQ as the transport. Defaults to False.
+            kafka (bool, optional):
+                Whether to use Kafka as the transport. Defaults to False.
             base_path (Optional[Path], optional):
                 The base path for the server. Defaults to None. This is primarily
                 used for testing loading attributes from a pyproject.toml file.
