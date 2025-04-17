@@ -271,6 +271,9 @@ pub enum ScouterError {
 
     #[error("Failed to consume queue: {0}")]
     FailedToConsumeQueue(String),
+
+    #[error("Failed to subscribe to topic: {0}")]
+    FailedToSubscribeTopic(String),
 }
 
 // add tracing trait to ScouterError
@@ -363,6 +366,12 @@ impl ScouterError {
 
     pub fn traced_consume_queue_error(err: impl Display) -> Self {
         let error = Self::FailedToConsumeQueue(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_subscribe_topic_error(err: impl Display) -> Self {
+        let error = Self::FailedToSubscribeTopic(err.to_string());
         error.trace();
         error
     }
