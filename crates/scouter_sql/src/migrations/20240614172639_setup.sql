@@ -10,6 +10,7 @@ CREATE TABLE IF NOT exists scouter.spc_drift (
   feature text,
   value double precision,
   version text,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   UNIQUE (created_at,name,space,feature,value,version)
 )
 PARTITION BY RANGE (created_at);
