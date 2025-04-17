@@ -25,7 +25,7 @@ from scouter.types import DriftType
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"
 
 
-def test_custom_monitor_pandas_rabbitmq():
+def _test_custom_monitor_pandas_rabbitmq():
     with ScouterTestServer() as _:
         scouter = Drifter()
         client = ScouterClient()

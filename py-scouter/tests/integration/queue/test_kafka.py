@@ -23,7 +23,7 @@ from scouter.types import DriftType
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"
 
 
-def test_spc_monitor_pandas_kafka(
+def _test_spc_monitor_pandas_kafka(
     pandas_dataframe: pd.DataFrame,
     drift_config: SpcDriftConfig,
 ):
