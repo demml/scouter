@@ -4,8 +4,8 @@ use scouter_contracts::{
     DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
 };
 use scouter_error::{PyScouterError, ScouterError};
-use scouter_events::producer::http::{RequestType, Routes};
 use scouter_settings::http::HTTPConfig;
+use scouter_types::http::{RequestType, Routes};
 
 use crate::http::HTTPClient;
 use scouter_types::{

@@ -15,6 +15,7 @@ pub mod storage;
 pub use auth::AuthSettings;
 pub use database::DatabaseSettings;
 pub use events::{KafkaSettings, RabbitMQSettings};
+pub use http::HTTPConfig;
 pub use polling::PollingSettings;
 pub use storage::ObjectStorageSettings;
 

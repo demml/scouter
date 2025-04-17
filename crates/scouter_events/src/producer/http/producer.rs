@@ -1,12 +1,11 @@
 // ScouterProducer expects an async client
 
-use crate::producer::http::types::{HTTPConfig, JwtToken, RequestType, Routes};
-
 use reqwest::header;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, Response};
 use scouter_error::ScouterError;
-use scouter_types::ServerRecords;
+use scouter_settings::HTTPConfig;
+use scouter_types::{JwtToken, RequestType, Routes, ServerRecords};
 use serde_json::Value;
 use tracing::{debug, instrument};
 

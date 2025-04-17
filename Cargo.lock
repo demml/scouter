@@ -4802,6 +4802,7 @@ dependencies = [
  "num-traits",
  "numpy",
  "pyo3",
+ "reqwest",
  "scouter-contracts",
  "scouter-dispatch",
  "scouter-drift",

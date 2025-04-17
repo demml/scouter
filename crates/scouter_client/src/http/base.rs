@@ -1,11 +1,11 @@
 // we redifine HTTPClient here because the scouterClient needs a blocking httpclient, unlike the producer enum
-use crate::producer::http::types::{HTTPConfig, JwtToken, RequestType, Routes};
 
 use reqwest::blocking::{Client, Response};
 use reqwest::header;
 use reqwest::header::{HeaderMap, HeaderValue};
 use scouter_error::ScouterError;
-use scouter_types::ServerRecords;
+use scouter_settings::http::HTTPConfig;
+use scouter_types::http::{JwtToken, RequestType, Routes};
 use serde_json::Value;
 use tracing::{debug, error, instrument};
 
@@ -67,19 +67,20 @@ impl HTTPClient {
         let url = format!("{}/{}", self.base_path, Routes::AuthLogin.as_str());
         debug!("Getting JWT token from {}", url);
 
-        let response = self.client.get(url).send().map_err(|e| {
-            ScouterError::Error(format!("Failed to send request with error: {}", e))
-        })?;
+        let response = self
+            .client
+            .get(url)
+            .send()
+            .map_err(ScouterError::traced_request_error)?;
 
         // check if unauthorized
         if response.status().is_client_error() {
-            error!("Failed to get JWT token: Unauthorized");
-            return Err(ScouterError::Error("Unauthorized".to_string()));
+            return Err(ScouterError::traced_unauthorized_error());
         }
 
-        let response = response.json::<JwtToken>().map_err(|e| {
-            ScouterError::Error(format!("Failed to parse jwt token with error: {}", e))
-        })?;
+        let response = response
+            .json::<JwtToken>()
+            .map_err(ScouterError::traced_parse_jwt_error)?;
 
         self.config.auth_token = response.token;
 
@@ -121,9 +122,7 @@ impl HTTPClient {
                     .headers(headers)
                     .bearer_auth(&self.config.auth_token)
                     .send()
-                    .map_err(|e| {
-                        ScouterError::Error(format!("Failed to send request with error: {}", e))
-                    })?
+                    .map_err(ScouterError::traced_request_error)?
             }
             RequestType::Post => self
                 .client
@@ -132,9 +131,7 @@ impl HTTPClient {
                 .json(&body_params)
                 .bearer_auth(&self.config.auth_token)
                 .send()
-                .map_err(|e| {
-                    ScouterError::Error(format!("Failed to send request with error: {}", e))
-                })?,
+                .map_err(ScouterError::traced_request_error)?,
             RequestType::Put => self
                 .client
                 .put(url)
@@ -142,9 +139,7 @@ impl HTTPClient {
                 .json(&body_params)
                 .bearer_auth(&self.config.auth_token)
                 .send()
-                .map_err(|e| {
-                    ScouterError::Error(format!("Failed to send request with error: {}", e))
-                })?,
+                .map_err(ScouterError::traced_request_error)?,
             RequestType::Delete => {
                 let url = if let Some(query_string) = query_string {
                     format!("{}?{}", url, query_string)
@@ -156,9 +151,7 @@ impl HTTPClient {
                     .headers(headers)
                     .bearer_auth(&self.config.auth_token)
                     .send()
-                    .map_err(|e| {
-                        ScouterError::Error(format!("Failed to send request with error: {}", e))
-                    })?
+                    .map_err(ScouterError::traced_request_error)?
             }
         };
 
