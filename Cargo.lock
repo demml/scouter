@@ -5020,7 +5020,9 @@ name = "scouter-settings"
 version = "0.4.5"
 dependencies = [
  "base64",
+ "pyo3",
  "scouter-error",
+ "scouter-types",
  "serde",
  "tracing",
 ]

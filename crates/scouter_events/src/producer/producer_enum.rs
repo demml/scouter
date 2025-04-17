@@ -16,7 +16,7 @@ use tracing::debug;
 
 #[derive(Clone)]
 pub enum ProducerEnum {
-    HTTP(HTTPProducer),
+    HTTP(HTTPProducer), # note - need an async version of this
 
     #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
     Kafka(KafkaProducer),
