@@ -1,6 +1,6 @@
 use chrono::{Duration, Utc};
 use scouter_dataframe::parquet::dataframe::ParquetDataFrame;
-use scouter_error::EventError;
+use scouter_error::ScouterError;
 /// Functionality for persisting data from postgres to long-term storage
 use scouter_settings::{DatabaseSettings, ObjectStorageSettings};
 use scouter_sql::{sql::schema::Entity, PostgresClient};
@@ -68,7 +68,7 @@ async fn get_entities_for_archive(
     db_client: &PostgresClient,
     record_type: &RecordType,
     retention_period: &i64,
-) -> Result<Vec<Entity>, EventError> {
+) -> Result<Vec<Entity>, ScouterError> {
     // get the data from the database
     let data = db_client
         .get_entities_for_archive(record_type, retention_period)
@@ -82,7 +82,7 @@ async fn get_data_for_archive(
     record_type: &RecordType,
     retention_period: &i64,
     entity: &Entity,
-) -> Result<ServerRecords, EventError> {
+) -> Result<ServerRecords, ScouterError> {
     // get the data from the database
     let data = db_client
         .get_data_for_archive(
@@ -97,6 +97,28 @@ async fn get_data_for_archive(
     Ok(data)
 }
 
+async fn process_record_type(
+    db_client: &PostgresClient,
+    record_type: &RecordType,
+    retention_period: &i64,
+    storage_settings: &ObjectStorageSettings,
+) -> Result<(), ScouterError> {
+    ParquetDataFrame::new(storage_settings, &record_type)?;
+
+    // get the entities for archival
+    let entities = get_entities_for_archive(db_client, record_type, retention_period).await?;
+
+    // iterate over the entities and archive the data
+    for entity in entities {
+        let data = get_data_for_archive(db_client, record_type, retention_period, &entity).await?;
+
+        // archive the data to the object storage
+        db_client.archive_data(data).await?;
+    }
+
+    Ok(())
+}
+
 async fn archive_old_data(
     db_client: &PostgresClient,
     storage_settings: &ObjectStorageSettings,
@@ -109,10 +131,6 @@ async fn archive_old_data(
         // get the data from the database
         let data = db_client
             .get_data_for_archival(&record_type, &storage_settings.retention_period)
-            .await?;
-
-        ParquetDataFrame::new(storage_settings, &record_type)?
-            .write_parquet(&data)
             .await?;
 
         // archive the data to the object storage
