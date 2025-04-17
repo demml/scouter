@@ -9,8 +9,8 @@ from .scouter import (  # noqa
     observe,
     profile,
     queue,
-    types,
     test,
+    types,
 )
 from .version import __version__
 
