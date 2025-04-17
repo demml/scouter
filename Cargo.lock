@@ -4809,6 +4809,7 @@ dependencies = [
  "scouter-events",
  "scouter-observability",
  "scouter-profile",
+ "scouter-settings",
  "scouter-types",
  "serde",
  "serde_json",
@@ -4905,6 +4906,7 @@ dependencies = [
  "pyo3",
  "serde",
  "thiserror 2.0.12",
+ "tracing",
 ]
 
 [[package]]

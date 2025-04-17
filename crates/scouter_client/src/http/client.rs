@@ -4,14 +4,16 @@ use scouter_contracts::{
     DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
 };
 use scouter_error::{PyScouterError, ScouterError};
-use scouter_events::producer::http::{HTTPClient, HTTPConfig, RequestType, Routes};
+use scouter_events::producer::http::{RequestType, Routes};
+use scouter_settings::http::HTTPConfig;
+
+use crate::http::HTTPClient;
 use scouter_types::{
     alert::Alert, custom::BinnedCustomMetrics, psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures,
     DriftProfile, DriftType, ProfileFuncs,
 };
 use std::path::PathBuf;
 use tracing::{debug, error};
-
 pub const DOWNLOAD_CHUNK_SIZE: usize = 1024 * 1024 * 5;
 
 #[pyclass]

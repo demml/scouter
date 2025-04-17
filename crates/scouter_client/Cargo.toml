@@ -20,6 +20,7 @@ scouter-error = { workspace = true }
 scouter-events = { workspace = true, features = ["kafka-vendored", "rabbitmq"], default-features = false }
 scouter-observability = { workspace = true }
 scouter-profile = { workspace = true }
+scouter-settings = { workspace = true }
 scouter-types = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
