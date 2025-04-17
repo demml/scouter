@@ -165,7 +165,6 @@ impl DriftTransportConfig {
         };
 
         let mut client = ScouterClient::new(scouter_server_config)?;
-
         let drift_profile = client.get_drift_profile(drift_profile_request.unwrap())?;
 
         Ok(DriftTransportConfig {

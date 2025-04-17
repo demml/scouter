@@ -49,10 +49,7 @@ impl Routes {
 #[derive(Debug, Clone)]
 pub struct HTTPConfig {
     #[pyo3(get, set)]
-    pub server_url: String,
-
-    #[pyo3(get, set)]
-    pub use_auth: bool,
+    pub server_uri: String,
 
     #[pyo3(get, set)]
     pub username: String,
@@ -67,19 +64,17 @@ pub struct HTTPConfig {
 #[pymethods]
 impl HTTPConfig {
     #[new]
-    #[pyo3(signature = (server_url=None, use_auth=false, username=None, password=None, auth_token=None))]
+    #[pyo3(signature = (server_uri=None, username=None, password=None, auth_token=None))]
     pub fn new(
-        server_url: Option<String>,
-        use_auth: Option<bool>,
+        server_uri: Option<String>,
         username: Option<String>,
         password: Option<String>,
         auth_token: Option<String>,
     ) -> Self {
-        let server_url = server_url.unwrap_or_else(|| {
-            std::env::var("SCOUTER_SERVER_URL")
-                .unwrap_or_else(|_| "http://localhost:8000/scouter".to_string())
+        let server_uri = server_uri.unwrap_or_else(|| {
+            std::env::var("SCOUTER_SERVER_URI")
+                .unwrap_or_else(|_| "http://localhost:8000".to_string())
         });
-        let use_auth = use_auth.unwrap_or(false);
         let username = username.unwrap_or_else(|| {
             std::env::var("SCOUTER_USERNAME").unwrap_or_else(|_| "admin".to_string())
         });
@@ -91,8 +86,7 @@ impl HTTPConfig {
         });
 
         HTTPConfig {
-            server_url,
-            use_auth,
+            server_uri,
             username,
             password,
             auth_token,
@@ -103,11 +97,10 @@ impl HTTPConfig {
 impl Default for HTTPConfig {
     fn default() -> Self {
         HTTPConfig {
-            server_url: std::env::var("SCOUTER_SERVER_URL")
-                .unwrap_or_else(|_| "http://localhost:8000/scouter".to_string()),
-            use_auth: false,
-            username: std::env::var("SCOUTER_USERNAME").unwrap_or_else(|_| "admin".to_string()),
-            password: std::env::var("SCOUTER_PASSWORD").unwrap_or_else(|_| "admin".to_string()),
+            server_uri: std::env::var("SCOUTER_SERVER_URI")
+                .unwrap_or_else(|_| "http://localhost:8000".to_string()),
+            username: std::env::var("SCOUTER_USERNAME").unwrap_or_else(|_| "guest".to_string()),
+            password: std::env::var("SCOUTER_PASSWORD").unwrap_or_else(|_| "guest".to_string()),
             auth_token: std::env::var("SCOUTER_AUTH_TOKEN").unwrap_or_else(|_| "".to_string()),
         }
     }

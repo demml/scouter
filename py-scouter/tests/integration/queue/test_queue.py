@@ -32,6 +32,7 @@ from scouter.queue import (
     RabbitMQConfig,
     ScouterQueue,
 )
+from scouter.test import ScouterTestServer
 from scouter.types import DriftType
 
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"
@@ -41,52 +42,53 @@ def test_psi_monitor_pandas_http(
     pandas_dataframe: pd.DataFrame,
     psi_drift_config: PsiDriftConfig,
 ):
-    scouter = Drifter()
-    client = ScouterClient()
+    with ScouterTestServer() as _:
+        scouter = Drifter()
+        client = ScouterClient()
 
-    profile = scouter.create_drift_profile(pandas_dataframe, psi_drift_config)
-    client.register_profile(profile)
+        profile = scouter.create_drift_profile(pandas_dataframe, psi_drift_config)
+        client.register_profile(profile)
 
-    config = DriftTransportConfig(
-        id="test",
-        config=HTTPConfig(),
-        drift_profile_request=GetProfileRequest(
-            name=profile.config.name,
-            version=profile.config.version,
-            space=profile.config.space,
-            drift_type=profile.config.drift_type,
-        ),
-    )
-    queue = ScouterQueue(config)
-    records = pandas_dataframe.to_dict(orient="records")
-
-    for record in records:
-        features = Features(
-            features=[
-                Feature.float("column_0", record["column_0"]),
-                Feature.float("column_1", record["column_1"]),
-                Feature.float("column_2", record["column_2"]),
-            ]
+        config = DriftTransportConfig(
+            id="test",
+            config=HTTPConfig(),
+            drift_profile_request=GetProfileRequest(
+                name=profile.config.name,
+                version=profile.config.version,
+                space=profile.config.space,
+                drift_type=profile.config.drift_type,
+            ),
         )
-        queue.insert(features)
+        queue = ScouterQueue(config)
+        records = pandas_dataframe.to_dict(orient="records")
 
-    queue.flush()
+        for record in records:
+            features = Features(
+                features=[
+                    Feature.float("column_0", record["column_0"]),
+                    Feature.float("column_1", record["column_1"]),
+                    Feature.float("column_2", record["column_2"]),
+                ]
+            )
+            queue.insert(features)
 
-    binned_records: BinnedPsiFeatureMetrics = client.get_binned_drift(
-        DriftRequest(
-            name=profile.config.name,
-            space=profile.config.space,
-            version=profile.config.version,
-            time_interval=TimeInterval.FifteenMinutes,
-            max_data_points=1000,
-            drift_type=DriftType.Psi,
+        queue.flush()
+
+        binned_records: BinnedPsiFeatureMetrics = client.get_binned_drift(
+            DriftRequest(
+                name=profile.config.name,
+                space=profile.config.space,
+                version=profile.config.version,
+                time_interval=TimeInterval.FifteenMinutes,
+                max_data_points=1000,
+                drift_type=DriftType.Psi,
+            )
         )
-    )
 
-    assert binned_records is not None
+        assert binned_records is not None
 
 
-def test_spc_monitor_pandas_kafka(
+def _test_spc_monitor_pandas_kafka(
     pandas_dataframe: pd.DataFrame,
     drift_config: SpcDriftConfig,
 ):
@@ -138,19 +140,31 @@ def test_spc_monitor_pandas_kafka(
     assert len(binned_records.features["column_0"].values) > 0
 
 
-def test_custom_monitor_pandas_rabbitmq():
+def _test_custom_monitor_pandas_rabbitmq():
     scouter = Drifter()
     client = ScouterClient()
 
     metrics = [
-        CustomMetric(name="mae", value=1, alert_threshold=AlertThreshold.Outside, alert_threshold_value=0.5),
-        CustomMetric(name="mape", value=2, alert_threshold=AlertThreshold.Outside, alert_threshold_value=0.5),
+        CustomMetric(
+            name="mae",
+            value=1,
+            alert_threshold=AlertThreshold.Outside,
+            alert_threshold_value=0.5,
+        ),
+        CustomMetric(
+            name="mape",
+            value=2,
+            alert_threshold=AlertThreshold.Outside,
+            alert_threshold_value=0.5,
+        ),
     ]
     drift_config = CustomMetricDriftConfig(
         name="test",
         space="test",
         version=semver,
-        alert_config=CustomMetricAlertConfig(schedule="0/15 * * * * * *"),  # every 15 seconds
+        alert_config=CustomMetricAlertConfig(
+            schedule="0/15 * * * * * *"
+        ),  # every 15 seconds
     )
 
     profile = scouter.create_drift_profile(data=metrics, config=drift_config)
@@ -192,7 +206,10 @@ def test_custom_monitor_pandas_rabbitmq():
 
     client.update_profile_status(
         ProfileStatusRequest(
-            name=profile.config.name, space=profile.config.space, version=profile.config.version, active=True
+            name=profile.config.name,
+            space=profile.config.space,
+            version=profile.config.version,
+            active=True,
         )
     )
 

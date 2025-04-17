@@ -1,8 +1,8 @@
 use crate::producer::http::types::{HTTPConfig, JwtToken, RequestType, Routes};
 
+use reqwest::blocking::{Client, Response};
 use reqwest::header;
 use reqwest::header::{HeaderMap, HeaderValue};
-use reqwest::{Client, Response};
 use scouter_error::ScouterError;
 use scouter_types::ServerRecords;
 use serde_json::Value;
@@ -44,16 +44,16 @@ pub struct HTTPClient {
 }
 
 impl HTTPClient {
-    pub async fn new(config: HTTPConfig) -> Result<Self, ScouterError> {
+    pub fn new(config: HTTPConfig) -> Result<Self, ScouterError> {
         let client = build_http_client(&config)?;
 
         let mut api_client = HTTPClient {
             client,
             config: config.clone(),
-            base_path: format!("{}/{}", config.server_url, "scouter"),
+            base_path: format!("{}/{}", config.server_uri, "scouter"),
         };
 
-        api_client.get_jwt_token().await.map_err(|e| {
+        api_client.get_jwt_token().map_err(|e| {
             error!("Failed to get JWT token: {}", e);
             ScouterError::Error(format!("Failed to get JWT token with error: {}", e))
         })?;
@@ -62,11 +62,11 @@ impl HTTPClient {
     }
 
     #[instrument(skip_all)]
-    async fn get_jwt_token(&mut self) -> Result<(), ScouterError> {
+    fn get_jwt_token(&mut self) -> Result<(), ScouterError> {
         let url = format!("{}/{}", self.base_path, Routes::AuthLogin.as_str());
         debug!("Getting JWT token from {}", url);
 
-        let response = self.client.get(url).send().await.map_err(|e| {
+        let response = self.client.get(url).send().map_err(|e| {
             ScouterError::Error(format!("Failed to send request with error: {}", e))
         })?;
 
@@ -76,7 +76,7 @@ impl HTTPClient {
             return Err(ScouterError::Error("Unauthorized".to_string()));
         }
 
-        let response = response.json::<JwtToken>().await.map_err(|e| {
+        let response = response.json::<JwtToken>().map_err(|e| {
             ScouterError::Error(format!("Failed to parse jwt token with error: {}", e))
         })?;
 
@@ -85,7 +85,7 @@ impl HTTPClient {
         Ok(())
     }
 
-    async fn update_token_from_response(&mut self, response: &Response) {
+    fn update_token_from_response(&mut self, response: &Response) {
         if let Some(new_token) = response
             .headers()
             .get(header::AUTHORIZATION)
@@ -96,7 +96,7 @@ impl HTTPClient {
         }
     }
 
-    async fn _request(
+    fn _request(
         &self,
         route: Routes,
         request_type: RequestType,
@@ -120,7 +120,6 @@ impl HTTPClient {
                     .headers(headers)
                     .bearer_auth(&self.config.auth_token)
                     .send()
-                    .await
                     .map_err(|e| {
                         ScouterError::Error(format!("Failed to send request with error: {}", e))
                     })?
@@ -132,7 +131,6 @@ impl HTTPClient {
                 .json(&body_params)
                 .bearer_auth(&self.config.auth_token)
                 .send()
-                .await
                 .map_err(|e| {
                     ScouterError::Error(format!("Failed to send request with error: {}", e))
                 })?,
@@ -143,7 +141,6 @@ impl HTTPClient {
                 .json(&body_params)
                 .bearer_auth(&self.config.auth_token)
                 .send()
-                .await
                 .map_err(|e| {
                     ScouterError::Error(format!("Failed to send request with error: {}", e))
                 })?,
@@ -158,7 +155,6 @@ impl HTTPClient {
                     .headers(headers)
                     .bearer_auth(&self.config.auth_token)
                     .send()
-                    .await
                     .map_err(|e| {
                         ScouterError::Error(format!("Failed to send request with error: {}", e))
                     })?
@@ -168,7 +164,7 @@ impl HTTPClient {
         Ok(response)
     }
 
-    pub async fn request(
+    pub fn request(
         &mut self,
         route: Routes,
         request_type: RequestType,
@@ -176,18 +172,16 @@ impl HTTPClient {
         query_params: Option<String>,
         headers: Option<HeaderMap>,
     ) -> Result<Response, ScouterError> {
-        let response = self
-            ._request(
-                route.clone(),
-                request_type,
-                body_params,
-                query_params,
-                headers,
-            )
-            .await?;
+        let response = self._request(
+            route.clone(),
+            request_type,
+            body_params,
+            query_params,
+            headers,
+        )?;
 
         // Check and update token if a new one was provided
-        self.update_token_from_response(&response).await;
+        self.update_token_from_response(&response);
 
         Ok(response)
     }
@@ -199,33 +193,30 @@ pub struct HTTPProducer {
 }
 
 impl HTTPProducer {
-    pub async fn new(config: HTTPConfig) -> Result<Self, ScouterError> {
-        let client = HTTPClient::new(config).await?;
+    pub fn new(config: HTTPConfig) -> Result<Self, ScouterError> {
+        let client = HTTPClient::new(config)?;
         Ok(HTTPProducer { client })
     }
 
-    pub async fn publish(&mut self, message: ServerRecords) -> Result<(), ScouterError> {
+    pub fn publish(&mut self, message: ServerRecords) -> Result<(), ScouterError> {
         let serialized_msg: Value = serde_json::to_value(&message).map_err(|e| {
             ScouterError::Error(format!("Failed to serialize message with error: {}", e))
         })?;
 
-        let response = self
-            .client
-            .request(
-                Routes::Drift,
-                RequestType::Post,
-                Some(serialized_msg),
-                None,
-                None,
-            )
-            .await?;
+        let response = self.client.request(
+            Routes::Drift,
+            RequestType::Post,
+            Some(serialized_msg),
+            None,
+            None,
+        )?;
 
         debug!("Published message to drift with response: {:?}", response);
 
         Ok(())
     }
 
-    pub async fn flush(&self) -> Result<(), ScouterError> {
+    pub fn flush(&self) -> Result<(), ScouterError> {
         Ok(())
     }
 }

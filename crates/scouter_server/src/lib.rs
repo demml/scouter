@@ -8,6 +8,8 @@ use api::setup::setup_components;
 use axum::Router;
 use scouter_auth::auth::AuthManager;
 use std::sync::Arc;
+use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
 use tracing::info;
 
 /// Create the main server
@@ -44,14 +46,14 @@ pub async fn create_app() -> Result<(Router, Arc<AppState>), anyhow::Error> {
 }
 
 /// Start the main server
-pub async fn start_main_server() -> Result<(), anyhow::Error> {
+pub async fn start_server() -> Result<(), anyhow::Error> {
     let (router, app_state) = create_app().await?;
 
-    let port = std::env::var("OPSML_SERVER_PORT").unwrap_or_else(|_| "3000".to_string());
+    let port = std::env::var("SCOUTER_SERVER_PORT").unwrap_or_else(|_| "8000".to_string());
     let addr = format!("0.0.0.0:{}", port);
     let listener = tokio::net::TcpListener::bind(addr.clone())
         .await
-        .with_context(|| "Failed to bind to port 8000")?;
+        .with_context(|| "Failed to bind to port {port}")?;
 
     info!(
         "🚀 Scouter Server started successfully on {:?}",
@@ -63,4 +65,28 @@ pub async fn start_main_server() -> Result<(), anyhow::Error> {
         .with_context(|| "Failed to start main server")?;
 
     Ok(())
+}
+
+pub fn start_server_in_background() -> Arc<Mutex<Option<JoinHandle<()>>>> {
+    let handle = Arc::new(Mutex::new(None));
+    let handle_clone = handle.clone();
+
+    tokio::spawn(async move {
+        let server_handle = tokio::spawn(async {
+            if let Err(e) = start_server().await {
+                eprintln!("Server error: {}", e);
+            }
+        });
+
+        *handle_clone.lock().await = Some(server_handle);
+    });
+
+    handle
+}
+
+pub async fn stop_server(handle: Arc<Mutex<Option<JoinHandle<()>>>>) {
+    if let Some(handle) = handle.lock().await.take() {
+        handle.abort();
+        info!("Server stopped");
+    }
 }

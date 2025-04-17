@@ -28,7 +28,7 @@ pub enum ProducerEnum {
 impl ProducerEnum {
     pub async fn publish(&mut self, message: ServerRecords) -> Result<(), ScouterError> {
         match self {
-            ProducerEnum::HTTP(producer) => producer.publish(message).await,
+            ProducerEnum::HTTP(producer) => producer.publish(message),
             #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
             ProducerEnum::Kafka(producer) => producer.publish(message).await,
             #[cfg(feature = "rabbitmq")]
@@ -38,7 +38,7 @@ impl ProducerEnum {
 
     pub async fn flush(&self) -> Result<(), ScouterError> {
         match self {
-            ProducerEnum::HTTP(producer) => producer.flush().await,
+            ProducerEnum::HTTP(producer) => producer.flush(),
             #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
             ProducerEnum::Kafka(producer) => producer.flush(),
             #[cfg(feature = "rabbitmq")]
@@ -65,7 +65,7 @@ impl ScouterProducer {
         // check for http config
         let producer = if config.is_instance_of::<HTTPConfig>() {
             let config = config.extract::<HTTPConfig>()?;
-            let producer = rt.block_on(async { HTTPProducer::new(config).await })?;
+            let producer = HTTPProducer::new(config)?;
             debug!("Creating HTTP producer");
             ProducerEnum::HTTP(producer)
 
@@ -131,7 +131,7 @@ impl RustScouterProducer {
         // check for http config
         let producer = if config.is_instance_of::<HTTPConfig>() {
             let config = config.extract::<HTTPConfig>()?;
-            let producer = HTTPProducer::new(config).await?;
+            let producer = HTTPProducer::new(config)?;
             debug!("Creating HTTP producer");
             ProducerEnum::HTTP(producer)
 

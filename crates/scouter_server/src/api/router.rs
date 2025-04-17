@@ -43,7 +43,6 @@ pub async fn create_router(app_state: Arc<AppState>) -> Result<Router> {
     let observability_routes = get_observability_router(ROUTE_PREFIX).await?;
 
     let merged_routes = Router::new()
-        .merge(health_routes)
         .merge(drift_routes)
         .merge(profile_routes)
         .merge(alert_routes)
@@ -57,6 +56,7 @@ pub async fn create_router(app_state: Arc<AppState>) -> Result<Router> {
 
     Ok(Router::new()
         .merge(merged_routes)
+        .merge(health_routes)
         .merge(auth_routes)
         .layer(cors)
         .with_state(app_state))

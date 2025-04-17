@@ -47,7 +47,7 @@ pip install scouter
 To register profiles and use Scouter queues, set your company's Scouter server URL as an environment variable:
 
 ```bash
-export SCOUTER_SERVER_URL=your_scouter_server_url
+export SCOUTER_SERVER_URI=your_SCOUTER_SERVER_URI
 ```
 
 If your company does not support Scouter server, refer your engineering team to the [Scouter Server Setup Guide](#) for installation instructions.  

@@ -108,7 +108,6 @@ def psi_drift_config() -> YieldFixture[PsiDriftConfig]:
 
 @pytest.fixture(scope="function")
 def pandas_dataframe(array: NDArray) -> YieldFixture:
-
     df = pd.DataFrame(array)
 
     # change column names
@@ -121,7 +120,6 @@ def pandas_dataframe(array: NDArray) -> YieldFixture:
 
 @pytest.fixture(scope="function")
 def pandas_dataframe_multi_type(array: NDArray) -> YieldFixture:
-
     df = pd.DataFrame(array)
 
     # change column names
@@ -206,7 +204,6 @@ def polars_dataframe_multi_dtype_drift(array: NDArray) -> YieldFixture:
 
 @pytest.fixture(scope="function")
 def pandas_categorical_dataframe() -> YieldFixture:
-
     df = pd.DataFrame(
         {
             "cat1": pd.Categorical(["a", "b", "c", "e", "f", "g"] * 333),
@@ -226,7 +223,8 @@ def custom_metric_drift_config() -> YieldFixture[CustomMetricDriftConfig]:
         name="test",
         space="test",
         alert_config=CustomMetricAlertConfig(
-            schedule="0 0 * * * *", dispatch_config=SlackDispatchConfig(channel="test_channel")
+            schedule="0 0 * * * *",
+            dispatch_config=SlackDispatchConfig(channel="test_channel"),
         ),
     )
     yield config

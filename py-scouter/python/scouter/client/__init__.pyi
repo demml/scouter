@@ -5,16 +5,14 @@ from typing import Any, Dict, List, Optional
 from ..types import DriftType
 
 class HTTPConfig:
-    server_url: str
-    use_auth: bool
+    server_uri: str
     username: str
     password: str
     auth_token: str
 
     def __init__(
         self,
-        server_url: Optional[str] = None,
-        use_auth: bool = False,
+        server_uri: Optional[str] = None,
         username: Optional[str] = None,
         password: Optional[str] = None,
         auth_token: Optional[str] = None,
@@ -22,13 +20,9 @@ class HTTPConfig:
         """HTTP configuration to use with the HTTPProducer.
 
         Args:
-            server_url:
+            server_uri:
                 URL of the HTTP server to publish messages to.
-                If not provided, the value of the HTTP_SERVER_URL environment variable is used.
-
-            use_auth:
-                Whether to use basic authentication.
-                Default is False.
+                If not provided, the value of the HTTP_server_uri environment variable is used.
 
             username:
                 Username for basic authentication.
@@ -81,7 +75,9 @@ class DriftRequest:
         """
 
 class ProfileStatusRequest:
-    def __init__(self, name: str, space: str, version: str, drift_type: DriftType, active: bool) -> None:
+    def __init__(
+        self, name: str, space: str, version: str, drift_type: DriftType, active: bool
+    ) -> None:
         """Initialize profile status request
 
         Args:
@@ -98,7 +94,9 @@ class ProfileStatusRequest:
         """
 
 class GetProfileRequest:
-    def __init__(self, name: str, space: str, version: str, drift_type: DriftType) -> None:
+    def __init__(
+        self, name: str, space: str, version: str, drift_type: DriftType
+    ) -> None:
         """Initialize get profile request
 
         Args:

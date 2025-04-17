@@ -64,6 +64,7 @@ pub async fn api_login_handler(
 
     // get user from database
     let mut user = get_user(&state, &username).await?;
+
     // check if password is correct
     state
         .auth_manager

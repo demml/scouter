@@ -199,7 +199,7 @@ impl<'r> FromRow<'r, PgRow> for FeatureBinProportionResult {
     }
 }
 
-#[derive(Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct User {
     pub id: Option<i32>,
     pub created_at: DateTime<Utc>,

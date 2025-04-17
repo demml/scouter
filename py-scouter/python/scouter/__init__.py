@@ -10,6 +10,7 @@ from .scouter import (  # noqa
     profile,
     queue,
     types,
+    test,
 )
 from .version import __version__
 

@@ -3,7 +3,7 @@ pub mod api;
 use crate::api::middleware::metrics::metrics_app;
 use crate::api::shutdown::shutdown_metric_signal;
 use anyhow::Context;
-use scouter_server::start_main_server;
+use scouter_server::start_server;
 
 /// Start the metrics server for prometheus
 async fn start_metrics_server() -> Result<(), anyhow::Error> {
@@ -23,6 +23,6 @@ async fn start_metrics_server() -> Result<(), anyhow::Error> {
 
 #[tokio::main]
 async fn main() -> Result<(), anyhow::Error> {
-    let (_main_server, _metrics_server) = tokio::join!(start_main_server(), start_metrics_server());
+    let (_main_server, _metrics_server) = tokio::join!(start_server(), start_metrics_server());
     Ok(())
 }

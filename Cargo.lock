@@ -4042,9 +4042,13 @@ dependencies = [
  "num-traits",
  "numpy",
  "pyo3",
+ "reqwest",
  "rusty-logging",
  "scouter-client",
+ "scouter-error",
+ "scouter-server",
  "time",
+ "tokio",
  "tracing",
  "tracing-subscriber",
 ]
