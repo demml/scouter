@@ -961,6 +961,8 @@ impl PostgresClient {
 
         // need to convert the rows to server records (storage dataframe expects this)
         pg_rows_to_server_records(&rows, record_type)
+    }
+
     pub async fn insert_user(&self, user: &User) -> Result<(), ScouterError> {
         let query = Queries::InsertUser.get_query();
 
