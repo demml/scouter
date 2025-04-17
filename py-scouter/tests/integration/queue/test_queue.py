@@ -87,6 +87,8 @@ def test_psi_monitor_pandas_http(
 
         assert binned_records is not None
 
+    time.sleep(2)
+
 
 def test_spc_monitor_pandas_kafka(
     pandas_dataframe: pd.DataFrame,
@@ -125,7 +127,6 @@ def test_spc_monitor_pandas_kafka(
         queue.flush()
 
         # wait for kafka to process the message
-        time.sleep(10)
 
         binned_records: BinnedSpcFeatureMetrics = client.get_binned_drift(
             DriftRequest(
@@ -139,6 +140,7 @@ def test_spc_monitor_pandas_kafka(
         )
 
         assert len(binned_records.features["column_0"].values) > 0
+    time.sleep(2)
 
 
 def test_custom_monitor_pandas_rabbitmq():
@@ -164,7 +166,9 @@ def test_custom_monitor_pandas_rabbitmq():
             name="test",
             space="test",
             version=semver,
-            alert_config=CustomMetricAlertConfig(schedule="0/15 * * * * * *"),  # every 15 seconds
+            alert_config=CustomMetricAlertConfig(
+                schedule="0/15 * * * * * *"
+            ),  # every 15 seconds
         )
 
         profile = scouter.create_drift_profile(data=metrics, config=drift_config)
@@ -214,7 +218,9 @@ def test_custom_monitor_pandas_rabbitmq():
         )
 
         # wait for alerts to process
-        time.sleep(10)  # wait for 11 because background drift task runs every 10 seconds
+        time.sleep(
+            10
+        )  # wait for 11 because background drift task runs every 10 seconds
         alerts = client.get_alerts(
             DriftAlertRequest(
                 name=profile.config.name,
@@ -224,3 +230,4 @@ def test_custom_monitor_pandas_rabbitmq():
         )
 
         assert len(alerts) > 0
+    time.sleep(2)
