@@ -8,7 +8,6 @@ on:
   push:
     branches:
       - main
-      - opsmlUi
 
   release:
     types: [published]
@@ -281,7 +280,7 @@ jobs:
         with:
           context: .
           file: docker/official/${{ matrix.image }}/Dockerfile
-          push: false
+          push: true
           platforms: linux/${{ matrix.arch }}
           build-args: |
             SCOUTER_SERVER_BINARY=./binary/scouter-server-${{ matrix.feature }}
