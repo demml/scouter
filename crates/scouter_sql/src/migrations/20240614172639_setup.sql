@@ -28,7 +28,7 @@ UPDATE scouter.part_config SET retention = '7 days' WHERE parent_table = 'scoute
 -- Create table for service drift configuration
 CREATE table IF NOT exists scouter.drift_profile (
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-  updated_at TIMESTAMPTZ DEFAULT NOW(),
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   name text,
   space text,
   version text,
