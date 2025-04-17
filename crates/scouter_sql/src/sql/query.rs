@@ -55,12 +55,12 @@ const UPDATE_ALERT_STATUS: &str = include_str!("scripts/alert/update_alert_statu
 const GET_DRIFT_TASK: &str = include_str!("scripts/poll/poll_for_drift_task.sql");
 
 // auth
-const INSERT_USER: &str = include_str!("scripts/insert_user.sql");
-const GET_USER: &str = include_str!("scripts/get_user.sql");
-const UPDATE_USER: &str = include_str!("scripts/update_user.sql");
-const GET_USERS: &str = include_str!("scripts/get_users.sql");
-const LAST_ADMIN: &str = include_str!("scripts/last_admin.sql");
-const DELETE_USER: &str = include_str!("scripts/delete_user.sql");
+const INSERT_USER: &str = include_str!("scripts/user/insert_user.sql");
+const GET_USER: &str = include_str!("scripts/user/get_user.sql");
+const UPDATE_USER: &str = include_str!("scripts/user/update_user.sql");
+const GET_USERS: &str = include_str!("scripts/user/get_users.sql");
+const LAST_ADMIN: &str = include_str!("scripts/user/last_admin.sql");
+const DELETE_USER: &str = include_str!("scripts/user/delete_user.sql");
 
 #[allow(dead_code)]
 pub enum Queries {

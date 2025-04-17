@@ -3,8 +3,10 @@ use scouter_dataframe::parquet::dataframe::ParquetDataFrame;
 use scouter_error::EventError;
 /// Functionality for persisting data from postgres to long-term storage
 use scouter_settings::{DatabaseSettings, ObjectStorageSettings};
-use scouter_sql::PostgresClient;
+use scouter_sql::{sql::schema::Entity, PostgresClient};
+use scouter_types::DriftType;
 use scouter_types::RecordType;
+use scouter_types::ServerRecords;
 use sqlx::{Pool, Postgres};
 use strum::IntoEnumIterator;
 use tokio::sync::watch;
@@ -62,6 +64,39 @@ impl DataManager {
     }
 }
 
+async fn get_entities_for_archive(
+    db_client: &PostgresClient,
+    record_type: &RecordType,
+    retention_period: &i64,
+) -> Result<Vec<Entity>, EventError> {
+    // get the data from the database
+    let data = db_client
+        .get_entities_for_archive(record_type, retention_period)
+        .await?;
+
+    Ok(data)
+}
+
+async fn get_data_for_archive(
+    db_client: &PostgresClient,
+    record_type: &RecordType,
+    retention_period: &i64,
+    entity: &Entity,
+) -> Result<ServerRecords, EventError> {
+    // get the data from the database
+    let data = db_client
+        .get_data_for_archive(
+            retention_period,
+            &entity.space,
+            &entity.name,
+            &entity.version,
+            record_type,
+        )
+        .await?;
+
+    Ok(data)
+}
+
 async fn archive_old_data(
     db_client: &PostgresClient,
     storage_settings: &ObjectStorageSettings,
@@ -70,12 +105,6 @@ async fn archive_old_data(
     // iterate of RecordType.Psi, RecordType.Spc, RecordType.Custom
     for record_type in DriftType::iter() {
         // filter out the record types that are not supported
-        if !matches!(
-            record_type,
-            RecordType::Psi | RecordType::Spc | RecordType::Custom
-        ) {
-            continue;
-        }
 
         // get the data from the database
         let data = db_client

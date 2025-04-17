@@ -14,7 +14,7 @@ use std::str::FromStr;
 use strum_macros::EnumIter;
 
 #[pyclass(eq)]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default, Eq, Hash)]
+#[derive(Debug, EnumIter, PartialEq, Serialize, Deserialize, Clone, Default, Eq, Hash)]
 pub enum DriftType {
     #[default]
     Spc,

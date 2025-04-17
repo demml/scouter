@@ -1,7 +1,8 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::{
-    AlertWrapper, BinnedCustomMetricWrapper, FeatureBinProportionResult,
-    FeatureBinProportionWrapper, ObservabilityResult, SpcFeatureResult, TaskRequest, User,
+    AlertWrapper, BinnedCustomMetricWrapper, Entity, FeatureBinProportionResult,
+    FeatureBinProportionWrapper, ObservabilityResult, SpcFeatureResult, TaskRequest,
+    UpdateAlertResult, User,
 };
 use crate::sql::utils::pg_rows_to_server_records;
 use chrono::{DateTime, Utc};
@@ -32,9 +33,6 @@ use std::collections::{BTreeMap, HashMap};
 use std::result::Result::Ok;
 use std::str::FromStr;
 use tracing::{debug, error, info, instrument};
-
-use super::schema::Entity;
-use super::schema::UpdateAlertResult;
 
 // TODO: Explore refactoring and breaking this out into multiple client types (i.e., spc, psi, etc.)
 // Postgres client is one of the lowest-level abstractions so it may not be worth it, as it could make server logic annoying. Worth exploring though.
