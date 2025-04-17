@@ -55,7 +55,7 @@ def test_kafka_config_credentials(monkeypatch):
     }
 
 
-def test_kafka_producer_spc():
+def test_kafka_producer_spc(kafka_scouter_server):
     config = KafkaConfig(
         topic="test-topic",
         brokers="localhost:9092",
@@ -77,7 +77,7 @@ def test_kafka_producer_spc():
     producer.flush()
 
 
-def test_kafka_producer_psi():
+def test_kafka_producer_psi(kafka_scouter_server):
     config = KafkaConfig(
         topic="test-topic",
         brokers="localhost:9092",
@@ -100,7 +100,7 @@ def test_kafka_producer_psi():
     producer.flush()
 
 
-def test_kafka_producer_custom():
+def test_kafka_producer_custom(kafka_scouter_server):
     config = KafkaConfig(
         topic="test-topic",
         brokers="localhost:9092",

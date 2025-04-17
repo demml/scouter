@@ -6,6 +6,7 @@ from scouter.drift import Drifter, SpcDriftConfig
 
 
 def test_profile_download(
+    http_scouter_server,
     tmp_path: Path,
     pandas_dataframe: pd.DataFrame,
     drift_config: SpcDriftConfig,

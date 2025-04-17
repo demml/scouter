@@ -102,15 +102,15 @@ impl ScouterTestServer {
             });
 
             let client = reqwest::blocking::Client::new();
-            let mut attempts = 0;
-            let max_attempts = 20;
+            // get current time
+            let start_time = std::time::Instant::now();
+            let mut last_check = start_time.elapsed();
 
-            while attempts < max_attempts {
+            // wait for a max of 60 seconds for the server to start
+            while last_check.as_secs() < 60 {
                 let res = client
                     .get("http://localhost:8000/scouter/healthcheck")
                     .send();
-
-                debug!("Attempt {}: {:?}", attempts, res);
 
                 if let Ok(response) = res {
                     if response.status() == 200 {
@@ -122,8 +122,8 @@ impl ScouterTestServer {
 
                 //print response
 
-                attempts += 1;
                 sleep(Duration::from_millis(100));
+                last_check = start_time.elapsed();
             }
 
             Err(scouter_error::PyScouterError::new_err(

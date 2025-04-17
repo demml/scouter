@@ -1,8 +1,6 @@
 import numpy as np
 import pandas as pd
-import pytest
 from fastapi import FastAPI, Request
-from fastapi.testclient import TestClient
 from pydantic import BaseModel
 from scouter.alert import SpcAlertConfig
 from scouter.client import GetProfileRequest, ScouterClient
@@ -26,8 +24,7 @@ def generate_data() -> pd.DataFrame:
     return X
 
 
-@pytest.fixture
-def drift_profile():
+def create_and_register_drift_profile(client: ScouterClient) -> SpcDriftProfile:
     data = generate_data()
 
     # create drift config (usually associated with a model name, space name, version)
@@ -45,7 +42,7 @@ def drift_profile():
     profile = drifter.create_drift_profile(data, config)
 
     # register the profile so we can obtain it during our drift transport configuration
-    ScouterClient().register_profile(profile)
+    client.register_profile(profile)
 
     return profile
 
@@ -71,11 +68,7 @@ class PredictRequest(BaseModel):
         )
 
 
-@pytest.fixture
-def client(
-    drift_profile: SpcDriftProfile,
-) -> TestClient:
-
+def create_app(drift_profile) -> FastAPI:
     config = KafkaConfig()
     app = FastAPI()
 
@@ -105,4 +98,4 @@ def client(
 
     app.include_router(scouter_router)
 
-    return TestClient(app)
+    return app

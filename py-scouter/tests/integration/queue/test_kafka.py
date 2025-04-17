@@ -17,58 +17,57 @@ from scouter.queue import (
     KafkaConfig,
     ScouterQueue,
 )
-from scouter.test import ScouterTestServer
 from scouter.types import DriftType
 
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"
 
 
-def _test_spc_monitor_pandas_kafka(
+def test_spc_monitor_pandas_kafka(
+    kafka_scouter_server,
     pandas_dataframe: pd.DataFrame,
     drift_config: SpcDriftConfig,
 ):
-    with ScouterTestServer() as _:
-        scouter = Drifter()
-        client = ScouterClient()
+    scouter = Drifter()
+    client = ScouterClient()
 
-        profile = scouter.create_drift_profile(pandas_dataframe, drift_config)
-        client.register_profile(profile)
+    profile = scouter.create_drift_profile(pandas_dataframe, drift_config)
+    client.register_profile(profile)
 
-        config = DriftTransportConfig(
-            id="test",
-            config=KafkaConfig(),
-            drift_profile_request=GetProfileRequest(
-                name=profile.config.name,
-                version=profile.config.version,
-                space=profile.config.space,
-                drift_type=profile.config.drift_type,
-            ),
+    config = DriftTransportConfig(
+        id="test",
+        config=KafkaConfig(),
+        drift_profile_request=GetProfileRequest(
+            name=profile.config.name,
+            version=profile.config.version,
+            space=profile.config.space,
+            drift_type=profile.config.drift_type,
+        ),
+    )
+    queue = ScouterQueue(config)
+    records = pandas_dataframe.to_dict(orient="records")
+
+    for record in records:
+        features = Features(
+            features=[
+                Feature.float("column_0", record["column_0"]),
+                Feature.float("column_1", record["column_1"]),
+                Feature.float("column_2", record["column_2"]),
+            ]
         )
-        queue = ScouterQueue(config)
-        records = pandas_dataframe.to_dict(orient="records")
+        queue.insert(features)
 
-        for record in records:
-            features = Features(
-                features=[
-                    Feature.float("column_0", record["column_0"]),
-                    Feature.float("column_1", record["column_1"]),
-                    Feature.float("column_2", record["column_2"]),
-                ]
-            )
-            queue.insert(features)
+    queue.flush()
+    time.sleep(10)
 
-        queue.flush()
-        time.sleep(10)
-
-        binned_records: BinnedSpcFeatureMetrics = client.get_binned_drift(
-            DriftRequest(
-                name=profile.config.name,
-                space=profile.config.space,
-                version=profile.config.version,
-                time_interval=TimeInterval.FifteenMinutes,
-                max_data_points=1000,
-                drift_type=DriftType.Spc,
-            )
+    binned_records: BinnedSpcFeatureMetrics = client.get_binned_drift(
+        DriftRequest(
+            name=profile.config.name,
+            space=profile.config.space,
+            version=profile.config.version,
+            time_interval=TimeInterval.FifteenMinutes,
+            max_data_points=1000,
+            drift_type=DriftType.Spc,
         )
+    )
 
-        assert len(binned_records.features["column_0"].values) > 0
+    assert len(binned_records.features["column_0"].values) > 0
