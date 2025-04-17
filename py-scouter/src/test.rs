@@ -1,7 +1,7 @@
 // add test logic
 use pyo3::prelude::*;
 use std::path::PathBuf;
-use tracing_subscriber::field::debug;
+use tracing::debug;
 
 #[cfg(feature = "server")]
 use scouter_server::{start_server_in_background, stop_server};
