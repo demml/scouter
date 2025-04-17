@@ -54,105 +54,7 @@ jobs:
         if: always()
         run: make stop.server
 
-  test-os:
-    name: test ${{ matrix.os }}-${{ matrix.python-version }}
-
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [ubuntu, macos]
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
-
-    runs-on: ${{ matrix.os }}-latest
-    needs: [rust-lints-test]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: install rust stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: cache rust
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.os }}-${{ matrix.python-version }}-v1
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-
-      - name: set up python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Create virtual environment
-        working-directory: ./py-scouter
-        run: make setup.project
-
-      - name: Install dependencies
-        working-directory: ./py-scouter
-        run: make setup.project
-
-      - name: Lints
-        working-directory: ./py-scouter
-        run: make lints.ci
-
-      - name: Run tests and report coverage
-        working-directory: ./py-scouter
-        run: make test.unit
-
-      - name: Upload coverage reports to Codecov
-        uses: codecov/codecov-action@v4
-        env:
-          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
-
-  test-windows:
-    name: test ${{ matrix.os }}-${{ matrix.python-version }}
-
-    strategy:
-      fail-fast: false
-      matrix:
-        os: [windows]
-        python-version: ["3.10", "3.11", "3.12.6"]
-
-    runs-on: ${{ matrix.os }}-latest
-    needs: [rust-lints-test]
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: install rust stable
-        uses: dtolnay/rust-toolchain@stable
-
-      - name: cache rust
-        uses: Swatinem/rust-cache@v2
-        with:
-          key: ${{ matrix.os }}-${{ matrix.python-version }}-v1
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v4
-        with:
-          enable-cache: true
-
-      - name: set up python
-        uses: actions/setup-python@v5
-        with:
-          python-version: ${{ matrix.python-version }}
-
-      - name: Create virtual environment
-        working-directory: ./py-scouter
-        run: make setup.project
-
-      - name: Lints
-        working-directory: ./py-scouter
-        run: make lints.ci
-
-      - name: Run tests and report coverage
-        working-directory: ./py-scouter
-        run: make test.unit
-
   test-os-integration:
-    needs: [test-os]
     name: test integration
 
     strategy:
@@ -200,7 +102,7 @@ jobs:
         run: make build.shutdown
 
   test-py-build:
-    needs: [test-os]
+    needs: [test-os-integration]
     name: build - ubuntu - ${{ matrix.manylinux }} - ${{ matrix.target }}
     strategy:
       fail-fast: false
