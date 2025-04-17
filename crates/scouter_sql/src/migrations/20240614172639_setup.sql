@@ -3,7 +3,7 @@
 CREATE EXTENSION if not exists pg_partman SCHEMA scouter;
 CREATE EXTENSION if not exists pg_cron;
 
-CREATE TABLE IF NOT exists scouter.drift (
+CREATE TABLE IF NOT exists scouter.spc_drift (
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   name text,
   space text,
@@ -14,15 +14,15 @@ CREATE TABLE IF NOT exists scouter.drift (
 )
 PARTITION BY RANGE (created_at);
 
-CREATE INDEX ON scouter.drift (name, space, version, created_at);
+CREATE INDEX ON scouter.spc_drift (name, space, version, created_at);
 
 SELECT scouter.create_parent(
-    'scouter.drift',
+    'scouter.spc_drift',
     'created_at',
     '1 day'
 );
 
-UPDATE scouter.part_config SET retention = '7 days' WHERE parent_table = 'scouter.drift';
+UPDATE scouter.part_config SET retention = '7 days' WHERE parent_table = 'scouter.spc_drift';
 
 -- Create table for service drift configuration
 CREATE table IF NOT exists scouter.drift_profile (

@@ -1,6 +1,6 @@
 SELECT
 DISTINCT feature
-FROM scouter.drift
+FROM scouter.spc_drift
 WHERE
    1=1
    AND name = $1

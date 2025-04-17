@@ -1137,7 +1137,7 @@ mod tests {
         sqlx::raw_sql(
             r#"
             DELETE
-            FROM scouter.drift;
+            FROM scouter.spc_drift;
 
             DELETE
             FROM scouter.observability_metric;

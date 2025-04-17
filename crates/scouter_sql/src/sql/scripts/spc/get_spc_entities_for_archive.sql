@@ -1,5 +1,5 @@
 SELECT created_at, space, name, version
-FROM scouter.drift
+FROM scouter.spc_drift
 WHERE AND 1=1
  AND created_at < CURRENT_TIMESTAMP - ($1 || ' days')::interval
  AND archived = false

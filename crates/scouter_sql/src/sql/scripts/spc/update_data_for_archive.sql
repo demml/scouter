@@ -1,4 +1,4 @@
-UPDATE scouter.drift
+UPDATE scouter.spc_drift
 SET 
     archived = true,
     updated_at = timezone('utc', now())

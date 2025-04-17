@@ -1,5 +1,5 @@
 SELECT *
-FROM scouter.drift
+FROM scouter.spc_drift
 WHERE 1 =1 
     AND created_at < CURRENT_TIMESTAMP - ($1 || ' days')::interval
     AND name = $2
