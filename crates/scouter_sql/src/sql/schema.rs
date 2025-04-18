@@ -203,7 +203,8 @@ pub struct Entity {
     pub space: String,
     pub name: String,
     pub version: String,
-    pub created_at: DateTime<Utc>,
+    pub begin_timestamp: DateTime<Utc>,
+    pub end_timestamp: DateTime<Utc>,
 }
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct User {

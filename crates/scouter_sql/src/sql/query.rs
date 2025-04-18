@@ -8,6 +8,7 @@ const GET_BINNED_SPC_FEATURE_VALUES: &str =
 const GET_SPC_FEATURE_VALUES: &str = include_str!("scripts/spc/get_spc_feature_values.sql");
 const GET_SPC_ENTITIES: &str = include_str!("scripts/spc/get_spc_entities_for_archive.sql");
 const GET_SPC_DATA_FOR_ARCHIVE: &str = include_str!("scripts/spc/get_spc_data_for_archive.sql");
+const UPDATE_SPC_ENTITIES: &str = include_str!("scripts/spc/update_data_to_archived.sql");
 
 // psi
 const INSERT_BIN_COUNTS: &str = include_str!("scripts/psi/insert_bin_counts.sql");
@@ -19,6 +20,7 @@ const GET_BIN_COUNT_ENTITIES: &str =
     include_str!("scripts/psi/get_bin_count_entities_for_archive.sql");
 const GET_BIN_COUNT_DATA_FOR_ARCHIVE: &str =
     include_str!("scripts/psi/get_bin_count_data_for_archive.sql");
+const UPDATE_BIN_COUNT_ENTITIES: &str = include_str!("scripts/psi/update_data_to_archived.sql");
 
 // custom
 const GET_BINNED_CUSTOM_METRIC_VALUES: &str =
@@ -30,6 +32,7 @@ const GET_CUSTOM_ENTITIES: &str =
     include_str!("scripts/custom/get_custom_metric_entities_for_archive.sql");
 const GET_CUSTOM_DATA_FOR_ARCHIVE: &str =
     include_str!("scripts/custom/get_custom_metric_data_for_archive.sql");
+const UPDATE_CUSTOM_ENTITIES: &str = include_str!("scripts/custom/update_data_to_archived.sql");
 
 // observability (experimental)
 const GET_BINNED_OBSERVABILITY_METRICS: &str =
@@ -84,12 +87,24 @@ pub enum Queries {
     GetFeatureBinProportions,
     GetCustomMetricValues,
     InsertCustomMetricValues,
-    GeBinCountEntities,
+
+    // archive
+    // entities
+    GetBinCountEntities,
     GetCustomEntities,
     GetSpcEntities,
+
+    // data
     GetBinCountDataForArchive,
     GetCustomDataForArchive,
     GetSpcDataForArchive,
+
+    // update
+    UpdateBinCountEntities,
+    UpdateCustomEntities,
+    UpdateSpcEntities,
+
+    // user
     InsertUser,
     GetUser,
     UpdateUser,
@@ -125,12 +140,16 @@ impl Queries {
             Queries::InsertBinCounts => SqlQuery::new(INSERT_BIN_COUNTS),
             Queries::GetCustomMetricValues => SqlQuery::new(GET_CUSTOM_METRIC_VALUES),
             Queries::InsertCustomMetricValues => SqlQuery::new(INSERT_CUSTOM_METRIC_VALUES),
-            Queries::GeBinCountEntities => SqlQuery::new(GET_BIN_COUNT_ENTITIES),
+            Queries::GetBinCountEntities => SqlQuery::new(GET_BIN_COUNT_ENTITIES),
             Queries::GetCustomEntities => SqlQuery::new(GET_CUSTOM_ENTITIES),
             Queries::GetSpcEntities => SqlQuery::new(GET_SPC_ENTITIES),
             Queries::GetBinCountDataForArchive => SqlQuery::new(GET_BIN_COUNT_DATA_FOR_ARCHIVE),
             Queries::GetCustomDataForArchive => SqlQuery::new(GET_CUSTOM_DATA_FOR_ARCHIVE),
             Queries::GetSpcDataForArchive => SqlQuery::new(GET_SPC_DATA_FOR_ARCHIVE),
+            Queries::UpdateBinCountEntities => SqlQuery::new(UPDATE_BIN_COUNT_ENTITIES),
+            Queries::UpdateCustomEntities => SqlQuery::new(UPDATE_CUSTOM_ENTITIES),
+            Queries::UpdateSpcEntities => SqlQuery::new(UPDATE_SPC_ENTITIES),
+
             Queries::InsertUser => SqlQuery::new(INSERT_USER),
             Queries::GetUser => SqlQuery::new(GET_USER),
             Queries::UpdateUser => SqlQuery::new(UPDATE_USER),

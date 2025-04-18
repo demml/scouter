@@ -1,9 +1,8 @@
 SELECT *
 FROM scouter.custom_metric
 WHERE 1=1 
-    AND created_at < CURRENT_TIMESTAMP - ($1 || ' days')::interval
-    AND name = $2
+    AND created_at BETWEEN $1 AND $2
     AND space = $3
-    AND version = $4
-    AND archived = false
-ORDER BY created_at;
+    AND name = $4
+    AND version = $5
+    AND archived = false;

@@ -1,4 +1,5 @@
 use chrono::{Duration, Utc};
+use rand::Rng;
 use scouter_dataframe::parquet::dataframe::ParquetDataFrame;
 use scouter_error::ScouterError;
 /// Functionality for persisting data from postgres to long-term storage
@@ -7,6 +8,7 @@ use scouter_sql::{sql::schema::Entity, PostgresClient};
 use scouter_types::DriftType;
 use scouter_types::RecordType;
 use scouter_types::ServerRecords;
+use sqlx::Transaction;
 use sqlx::{Pool, Postgres};
 use std::path::PathBuf;
 use strum::IntoEnumIterator;
@@ -85,50 +87,57 @@ impl DataManager {
     }
 }
 
-async fn get_entities_for_archive(
+async fn get_entities_to_archive(
     db_client: &PostgresClient,
     record_type: &RecordType,
     retention_period: &i64,
 ) -> Result<Vec<Entity>, ScouterError> {
     // get the data from the database
     let data = db_client
-        .get_entities_for_archive(record_type, retention_period)
+        .get_entities_to_archive(record_type, retention_period)
         .await?;
 
     Ok(data)
 }
 
-async fn get_data_for_archive(
-    db_client: &PostgresClient,
+async fn get_data_to_archive(
+    tx: &mut Transaction<'_, Postgres>,
     record_type: &RecordType,
-    retention_period: &i64,
     entity: &Entity,
 ) -> Result<ServerRecords, ScouterError> {
     // get the data from the database
-    let data = db_client
-        .get_data_for_archive(
-            retention_period,
-            &entity.space,
-            &entity.name,
-            &entity.version,
-            record_type,
-        )
-        .await?;
+    let data = PostgresClient::get_data_to_archive(
+        &entity.space,
+        &entity.name,
+        &entity.version,
+        &entity.begin_timestamp,
+        &entity.end_timestamp,
+        record_type,
+        tx,
+    )
+    .await?;
 
     Ok(data)
 }
 
 async fn update_entities_to_archived(
-    db_client: &PostgresClient,
+    tx: &mut Transaction<'_, Postgres>,
     record_type: &RecordType,
     entity: &Entity,
-) -> Result<Vec<Entity>, ScouterError> {
+) -> Result<(), ScouterError> {
     // get the data from the database
-    let data = db_client
-        .get_entities_for_archive(record_type, retention_period)
-        .await?;
+    PostgresClient::update_data_to_archived(
+        &entity.space,
+        &entity.name,
+        &entity.version,
+        &entity.begin_timestamp,
+        &entity.end_timestamp,
+        record_type,
+        tx,
+    )
+    .await?;
 
-    Ok(data)
+    Ok(())
 }
 
 #[instrument(skip_all)]
@@ -139,10 +148,10 @@ async fn process_record_type(
     storage_settings: &ObjectStorageSettings,
 ) -> Result<(), ScouterError> {
     info!("Archiving data for record type: {:?}", record_type);
-    let df = ParquetDataFrame::new(storage_settings, &record_type)?;
+    let df = ParquetDataFrame::new(storage_settings, record_type)?;
 
     // get the entities for archival
-    let entities = get_entities_for_archive(db_client, record_type, retention_period).await?;
+    let entities = get_entities_to_archive(db_client, record_type, retention_period).await?;
 
     // exit if no entities
     if entities.is_empty() {
@@ -152,20 +161,42 @@ async fn process_record_type(
 
     // iterate over the entities and archive the data
     for entity in entities {
-        let records =
-            get_data_for_archive(db_client, record_type, retention_period, &entity).await?;
+        // hold transaction here
+        let mut tx = db_client
+            .pool
+            .begin()
+            .await
+            .map_err(|e| ScouterError::Error(e.to_string()))?;
+
+        // get data for space/name/version
+        let records = get_data_to_archive(&mut tx, record_type, &entity).await?;
 
         // get created at as YYYY-MM-DD string
-        let created_at = entity.created_at.format("%Y-%m-%d").to_string();
+        let begin_time = entity.begin_timestamp.format("%Y-%m-%d").to_string();
+        // add random number to the created at string
+        let random_hex: String = rand::rng()
+            .sample_iter(&rand::distr::Alphanumeric)
+            .take(3)
+            .map(char::from)
+            .collect();
 
-        // archive the data to the object storage
-        let rpath = format!(
-            "{}/{}/{}/{}/{}",
-            created_at, entity.space, entity.name, entity.version, record_type
-        );
-        df.write_parquet(&PathBuf::from(rpath), records).await?;
+        let filename = format!("parquet-{}", random_hex);
+
+        let rpath = PathBuf::from(format!(
+            "{}/{}/{}/{}/{}/{}",
+            begin_time, entity.space, entity.name, entity.version, record_type, filename
+        ))
+        .with_extension("parquet");
+
+        df.write_parquet(&rpath, records).await?;
 
         // update the entity in the database
+        update_entities_to_archived(&mut tx, record_type, &entity).await?;
+
+        tx.commit().await.map_err(|e| {
+            error!("Error committing transaction: {}", e);
+            ScouterError::Error(e.to_string())
+        })?;
     }
 
     info!("Archiving data for record type: {:?} complete", record_type);

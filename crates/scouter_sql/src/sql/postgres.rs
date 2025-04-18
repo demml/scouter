@@ -884,14 +884,14 @@ impl PostgresClient {
     /// * `record_type` - The type of record to get entities for
     /// * `retention_period` - The retention period to get entities for
     ///
-    pub async fn get_entities_for_archive(
+    pub async fn get_entities_to_archive(
         &self,
         record_type: &RecordType,
         retention_period: &i64,
     ) -> Result<Vec<Entity>, SqlError> {
         let query = match record_type {
             RecordType::Spc => Queries::GetSpcEntities.get_query(),
-            RecordType::Psi => Queries::GeBinCountEntities.get_query(),
+            RecordType::Psi => Queries::GetBinCountEntities.get_query(),
             RecordType::Custom => Queries::GetCustomEntities.get_query(),
             _ => {
                 error!("Invalid record type for archival: {:?}", record_type);
@@ -925,13 +925,14 @@ impl PostgresClient {
     ///
     /// # Errors
     /// * `SqlError` - If the query fails
-    pub async fn get_data_for_archive(
-        &self,
-        retention_period: &i64,
+    pub async fn get_data_to_archive(
         space: &str,
         name: &str,
         version: &str,
+        begin_timestamp: &DateTime<Utc>,
+        end_timestamp: &DateTime<Utc>,
         record_type: &RecordType,
+        tx: &mut Transaction<'_, Postgres>,
     ) -> Result<ServerRecords, SqlError> {
         let query = match record_type {
             RecordType::Spc => Queries::GetSpcDataForArchive.get_query(),
@@ -946,11 +947,12 @@ impl PostgresClient {
             }
         };
         let rows = sqlx::query(&query.sql)
-            .bind(retention_period)
+            .bind(begin_timestamp)
+            .bind(end_timestamp)
             .bind(space)
             .bind(name)
             .bind(version)
-            .fetch_all(&self.pool)
+            .fetch_all(&mut **tx)
             .await
             .map_err(|e| {
                 error!("Failed to get data for archival: {:?}", e);
@@ -959,6 +961,43 @@ impl PostgresClient {
 
         // need to convert the rows to server records (storage dataframe expects this)
         pg_rows_to_server_records(&rows, record_type)
+    }
+
+    pub async fn update_data_to_archived(
+        space: &str,
+        name: &str,
+        version: &str,
+        begin_timestamp: &DateTime<Utc>,
+        end_timestamp: &DateTime<Utc>,
+        record_type: &RecordType,
+        tx: &mut Transaction<'_, Postgres>,
+    ) -> Result<(), SqlError> {
+        let query = match record_type {
+            RecordType::Spc => Queries::UpdateSpcEntities.get_query(),
+            RecordType::Psi => Queries::UpdateBinCountEntities.get_query(),
+            RecordType::Custom => Queries::UpdateCustomEntities.get_query(),
+            _ => {
+                error!("Invalid record type for archival: {:?}", record_type);
+                return Err(SqlError::GeneralError(format!(
+                    "Invalid record type for archival: {:?}",
+                    record_type
+                )));
+            }
+        };
+        sqlx::query(&query.sql)
+            .bind(begin_timestamp)
+            .bind(end_timestamp)
+            .bind(space)
+            .bind(name)
+            .bind(version)
+            .execute(&mut **tx)
+            .await
+            .map_err(|e| {
+                error!("Failed to get data for archival: {:?}", e);
+                SqlError::GeneralError(format!("Failed to get data for archival: {:?}", e))
+            })?;
+
+        Ok(())
     }
 
     pub async fn insert_user(&self, user: &User) -> Result<(), ScouterError> {
