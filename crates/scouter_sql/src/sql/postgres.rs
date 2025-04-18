@@ -1,6 +1,6 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::{
-    AlertWrapper, BinnedCustomMetricWrapper, Entity, FeatureBinProportionResult,
+    AlertWrapper, BinnedCustomMetricWrapper, Entity, FeatureBinProportionResultWrapper,
     FeatureBinProportionWrapper, ObservabilityResult, SpcFeatureResult, TaskRequest,
     UpdateAlertResult, User,
 };
@@ -14,6 +14,7 @@ use scouter_contracts::{
 use scouter_error::ScouterError;
 use scouter_error::SqlError;
 use scouter_settings::DatabaseSettings;
+use scouter_types::psi::FeatureBinProportionResult;
 use scouter_types::DriftType;
 use scouter_types::{
     alert::Alert,
@@ -700,20 +701,23 @@ impl PostgresClient {
 
         let query = Queries::GetBinnedPsiFeatureBins.get_query();
 
-        let binned: Result<Vec<FeatureBinProportionResult>, sqlx::Error> =
-            sqlx::query_as(&query.sql)
-                .bind(bin)
-                .bind(minutes)
-                .bind(&params.name)
-                .bind(&params.space)
-                .bind(&params.version)
-                .fetch_all(&self.pool)
-                .await;
+        let binned: Vec<FeatureBinProportionResult> = sqlx::query_as(&query.sql)
+            .bind(bin)
+            .bind(minutes)
+            .bind(&params.name)
+            .bind(&params.space)
+            .bind(&params.version)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| {
+                error!("Failed to run query: {:?}", e);
+                SqlError::QueryError(format!("Failed to run query: {:?}", e))
+            })?
+            .into_iter()
+            .map(|wrapper: FeatureBinProportionResultWrapper| wrapper.0)
+            .collect();
 
-        binned.map_err(|e| {
-            error!("Failed to run query: {:?}", e);
-            SqlError::QueryError(format!("Failed to run query: {:?}", e))
-        })
+        Ok(binned)
     }
 
     // Queries the database for drift records based on a time window and aggregation

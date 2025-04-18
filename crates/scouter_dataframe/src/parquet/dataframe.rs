@@ -7,9 +7,8 @@ use datafusion::prelude::DataFrame;
 use scouter_error::ScouterError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{RecordType, ServerRecords, StorageType};
-use std::path::{Path, PathBuf};
 
-use crate::parquet::spc::SpcDataFrame;
+use crate::parquet::spc::{dataframe_to_spc_drift_features, SpcDataFrame};
 
 pub enum ParquetDataFrame {
     CustomMetric(CustomMetricDataFrame),
@@ -124,6 +123,8 @@ mod tests {
 
     use std::path::PathBuf;
 
+    use crate::parquet::psi::dataframe_to_psi_drift_features;
+
     use super::*;
     use chrono::Utc;
     use object_store::path::Path;
@@ -141,7 +142,6 @@ mod tests {
         }
     }
 
-    #[tokio::test]
     async fn test_write_custom_dataframe_local() {
         cleanup();
         let storage_settings = ObjectStorageSettings::default();
@@ -158,6 +158,21 @@ mod tests {
                 space: "test".to_string(),
                 version: "1.0".to_string(),
                 metric: "metric".to_string(),
+                value: i as f64,
+            });
+
+            // sleep 1 second
+            std::thread::sleep(std::time::Duration::from_secs(1));
+            batch.push(record);
+        }
+
+        for i in 0..5 {
+            let record = ServerRecord::Custom(CustomMetricServerRecord {
+                created_at: Utc::now() + chrono::Duration::hours(i),
+                name: "test".to_string(),
+                space: "test".to_string(),
+                version: "1.0".to_string(),
+                metric: "metric1".to_string(),
                 value: i as f64,
             });
 
@@ -192,7 +207,9 @@ mod tests {
             .await
             .unwrap();
 
-        let _batches = read_df.collect().await.unwrap();
+        read_df.show().await.unwrap();
+
+        //let _batches = read_df.collect().await.unwrap();
 
         //// delete the file
         for file in files.iter() {
@@ -214,6 +231,9 @@ mod tests {
     #[tokio::test]
     async fn test_write_psi_dataframe_local() {
         cleanup();
+        // print start time
+        let start = std::time::Instant::now();
+
         let storage_settings = ObjectStorageSettings::default();
         let df = ParquetDataFrame::new(&storage_settings, &RecordType::Psi).unwrap();
         let mut batch = Vec::new();
@@ -226,13 +246,25 @@ mod tests {
                 name: "test".to_string(),
                 space: "test".to_string(),
                 version: "1.0".to_string(),
-                feature: "feature".to_string(),
+                feature: "feature1".to_string(),
                 bin_id: i as usize,
                 bin_count: 10,
             });
 
-            // sleep 1 second
-            std::thread::sleep(std::time::Duration::from_secs(1));
+            batch.push(record);
+        }
+
+        for i in 0..5 {
+            let record = ServerRecord::Psi(PsiServerRecord {
+                created_at: Utc::now() + chrono::Duration::hours(i),
+                name: "test".to_string(),
+                space: "test".to_string(),
+                version: "1.0".to_string(),
+                feature: "feature2".to_string(),
+                bin_id: i as usize,
+                bin_count: 10,
+            });
+
             batch.push(record);
         }
 
@@ -262,7 +294,8 @@ mod tests {
             .await
             .unwrap();
 
-        let _batches = read_df.collect().await.unwrap();
+        let psi_drift = dataframe_to_psi_drift_features(read_df).await.unwrap();
+        assert_eq!(psi_drift.len(), 2);
 
         //// delete the file
         for file in files.iter() {
@@ -296,11 +329,23 @@ mod tests {
                 name: "test".to_string(),
                 space: "test".to_string(),
                 version: "1.0".to_string(),
-                feature: "feature".to_string(),
+                feature: "feature1".to_string(),
                 value: i as f64,
             });
-            // sleep 1 second
-            std::thread::sleep(std::time::Duration::from_secs(1));
+
+            batch.push(record);
+        }
+
+        for i in 0..5 {
+            let record = ServerRecord::Spc(SpcServerRecord {
+                created_at: Utc::now() + chrono::Duration::hours(i),
+                name: "test".to_string(),
+                space: "test".to_string(),
+                version: "1.0".to_string(),
+                feature: "feature2".to_string(),
+                value: i as f64,
+            });
+
             batch.push(record);
         }
 
@@ -330,9 +375,7 @@ mod tests {
             .await
             .unwrap();
 
-        let batches = read_df.collect().await.unwrap();
-
-        println!("batches: {:?}", batches);
+        let _spc_drift = dataframe_to_spc_drift_features(read_df).await.unwrap();
 
         //// delete the file
         for file in files.iter() {
