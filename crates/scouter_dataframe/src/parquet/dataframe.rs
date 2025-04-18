@@ -127,7 +127,9 @@ mod tests {
 
     use super::*;
     use chrono::Utc;
+    use datafusion::functions::math::random;
     use object_store::path::Path;
+    use rand::Rng;
     use scouter_settings::ObjectStorageSettings;
     use scouter_types::{
         CustomMetricServerRecord, PsiServerRecord, ServerRecord, ServerRecords, SpcServerRecord,
@@ -231,8 +233,6 @@ mod tests {
     #[tokio::test]
     async fn test_write_psi_dataframe_local() {
         cleanup();
-        // print start time
-        let start = std::time::Instant::now();
 
         let storage_settings = ObjectStorageSettings::default();
         let df = ParquetDataFrame::new(&storage_settings, &RecordType::Psi).unwrap();
@@ -240,32 +240,36 @@ mod tests {
         let start_utc = Utc::now();
         let end_utc_for_test = start_utc + chrono::Duration::hours(3);
 
-        for i in 0..5 {
-            let record = ServerRecord::Psi(PsiServerRecord {
-                created_at: Utc::now() + chrono::Duration::hours(i),
-                name: "test".to_string(),
-                space: "test".to_string(),
-                version: "1.0".to_string(),
-                feature: "feature1".to_string(),
-                bin_id: i as usize,
-                bin_count: 10,
-            });
+        for i in 0..3 {
+            for j in 0..5 {
+                let record = ServerRecord::Psi(PsiServerRecord {
+                    created_at: Utc::now() + chrono::Duration::hours(i),
+                    name: "test".to_string(),
+                    space: "test".to_string(),
+                    version: "1.0".to_string(),
+                    feature: "feature1".to_string(),
+                    bin_id: j as usize,
+                    bin_count: rand::thread_rng().gen_range(0..100),
+                });
 
-            batch.push(record);
+                batch.push(record);
+            }
         }
 
-        for i in 0..5 {
-            let record = ServerRecord::Psi(PsiServerRecord {
-                created_at: Utc::now() + chrono::Duration::hours(i),
-                name: "test".to_string(),
-                space: "test".to_string(),
-                version: "1.0".to_string(),
-                feature: "feature2".to_string(),
-                bin_id: i as usize,
-                bin_count: 10,
-            });
+        for i in 0..3 {
+            for j in 0..5 {
+                let record = ServerRecord::Psi(PsiServerRecord {
+                    created_at: Utc::now() + chrono::Duration::hours(i),
+                    name: "test".to_string(),
+                    space: "test".to_string(),
+                    version: "1.0".to_string(),
+                    feature: "feature2".to_string(),
+                    bin_id: j as usize,
+                    bin_count: rand::thread_rng().gen_range(0..100),
+                });
 
-            batch.push(record);
+                batch.push(record);
+            }
         }
 
         let records = ServerRecords::new(batch);
@@ -278,7 +282,7 @@ mod tests {
 
         // Check if the file exists
         let files = df.storage_client().list(Some(&data_path)).await.unwrap();
-        assert_eq!(files.len(), 5);
+        assert_eq!(files.len(), 3);
 
         // attempt to read the file
         let read_df = df

@@ -4844,6 +4844,7 @@ dependencies = [
  "futures",
  "object_store",
  "parquet",
+ "rand 0.8.5",
  "scouter-error",
  "scouter-settings",
  "scouter-types",

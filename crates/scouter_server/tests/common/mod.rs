@@ -215,4 +215,10 @@ impl TestHelper {
 
         Ok(())
     }
+
+    pub async fn get_db_client(&self) -> PostgresClient {
+        PostgresClient::new(Some(self.pool.clone()), None)
+            .await
+            .unwrap()
+    }
 }
