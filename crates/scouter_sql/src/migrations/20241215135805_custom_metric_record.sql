@@ -6,6 +6,7 @@ CREATE TABLE IF NOT exists scouter.custom_metric (
     metric text not null,
     value double precision,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    archived boolean default false,
     UNIQUE (created_at,name,space,version)
 )
 PARTITION BY RANGE (created_at);

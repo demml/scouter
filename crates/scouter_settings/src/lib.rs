@@ -43,31 +43,6 @@ pub struct ScouterServerConfig {
 }
 
 impl ScouterServerConfig {
-    pub fn set_storage_uri(storage_uri: String) -> String {
-        if storage_uri.starts_with("gs://")
-            || storage_uri.starts_with("s3://")
-            || storage_uri.starts_with("az://")
-        {
-            storage_uri
-        } else {
-            // For local storage, use a directory relative to where the process is running
-            let path = if storage_uri.starts_with("./") || storage_uri.starts_with("../") {
-                PathBuf::from(&storage_uri)
-            } else {
-                // If it's not a relative path, make it one explicitly relative to current dir
-                PathBuf::from("./").join(&storage_uri)
-            };
-
-            // Create directory if it doesn't exist
-            if !path.exists() {
-                std::fs::create_dir_all(&path).unwrap();
-            }
-
-            // Return path as string (not canonicalized)
-            path.to_str().unwrap().to_string()
-        }
-    }
-
     fn get_storage_type(storage_uri: &str) -> StorageType {
         let storage_uri_lower = storage_uri.to_lowercase();
         if storage_uri_lower.starts_with("gs://") {

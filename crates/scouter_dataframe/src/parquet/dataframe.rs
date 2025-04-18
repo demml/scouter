@@ -3,10 +3,11 @@ use crate::parquet::psi::PsiDataFrame;
 use crate::parquet::traits::ParquetFrame;
 use crate::storage::ObjectStore;
 use chrono::{DateTime, Utc};
+use datafusion::prelude::DataFrame;
 use scouter_error::ScouterError;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::{RecordType, ServerRecords};
-use std::path::Path;
+use scouter_types::{RecordType, ServerRecords, StorageType};
+use std::path::{Path, PathBuf};
 
 use crate::parquet::spc::SpcDataFrame;
 
@@ -43,13 +44,21 @@ impl ParquetDataFrame {
     ///
     pub async fn write_parquet(
         &self,
-        rpath: &Path,
+        rpath: &str,
         records: ServerRecords,
     ) -> Result<(), ScouterError> {
         match self {
             ParquetDataFrame::CustomMetric(df) => df.write_parquet(rpath, records).await,
             ParquetDataFrame::Psi(df) => df.write_parquet(rpath, records).await,
             ParquetDataFrame::Spc(df) => df.write_parquet(rpath, records).await,
+        }
+    }
+
+    pub fn storage_root(&self) -> String {
+        match self {
+            ParquetDataFrame::CustomMetric(df) => df.storage_root(),
+            ParquetDataFrame::Psi(df) => df.storage_root(),
+            ParquetDataFrame::Spc(df) => df.storage_root(),
         }
     }
 
@@ -62,33 +71,50 @@ impl ParquetDataFrame {
         }
     }
 
+    /// Get binned metrics from archived parquet files
+    ///
+    /// # Arguments
+    /// * path - The path to the parquet files (directory). This will be read as a table listing
+    /// * bin - The bin size
+    /// * start_time - The start time of the query
+    /// * end_time - The end time of the query
+    /// * space - The space to query
+    /// * name - The name to query
+    /// * version - The version to query
     #[allow(clippy::too_many_arguments)]
     pub async fn get_binned_metrics(
         &self,
-        path: &Path,
+        path: &str,
         bin: &f64,
         start_time: &DateTime<Utc>,
         end_time: &DateTime<Utc>,
         space: &str,
         name: &str,
         version: &str,
-    ) -> Result<(), ScouterError> {
+    ) -> Result<DataFrame, ScouterError> {
         match self {
             ParquetDataFrame::CustomMetric(df) => {
                 df.get_binned_metrics(path, bin, start_time, end_time, space, name, version)
-                    .await?;
-                Ok(())
+                    .await
             }
             ParquetDataFrame::Psi(df) => {
                 df.get_binned_metrics(path, bin, start_time, end_time, space, name, version)
-                    .await?;
-                Ok(())
+                    .await
             }
             ParquetDataFrame::Spc(df) => {
                 df.get_binned_metrics(path, bin, start_time, end_time, space, name, version)
-                    .await?;
-                Ok(())
+                    .await
             }
+        }
+    }
+
+    pub fn storage_type(&self) -> StorageType {
+        match self {
+            ParquetDataFrame::CustomMetric(df) => {
+                df.object_store.storage_settings.storage_type.clone()
+            }
+            ParquetDataFrame::Psi(df) => df.object_store.storage_settings.storage_type.clone(),
+            ParquetDataFrame::Spc(df) => df.object_store.storage_settings.storage_type.clone(),
         }
     }
 }
@@ -122,10 +148,12 @@ mod tests {
         let df = ParquetDataFrame::new(&storage_settings, &RecordType::Custom).unwrap();
         let mut batch = Vec::new();
         let start_utc = Utc::now();
+        let end_utc_for_test = start_utc + chrono::Duration::hours(3);
 
-        for i in 0..3 {
+        // create records
+        for i in 0..5 {
             let record = ServerRecord::Custom(CustomMetricServerRecord {
-                created_at: Utc::now(),
+                created_at: Utc::now() + chrono::Duration::hours(i),
                 name: "test".to_string(),
                 space: "test".to_string(),
                 version: "1.0".to_string(),
@@ -139,12 +167,16 @@ mod tests {
         }
 
         let records = ServerRecords::new(batch);
-        let rpath = PathBuf::from("test.parquet");
-        df.write_parquet(&rpath, records).await.unwrap();
+        let rpath = "scouter_storage/custom";
+        df.write_parquet(rpath, records.clone()).await.unwrap();
+
+        // get canonical path
+        let canonical_path = df.storage_root();
+        let data_path = object_store::path::Path::from(canonical_path);
 
         // Check if the file exists
-        let files = df.storage_client().list(None).await.unwrap();
-        assert_eq!(files.len(), 1);
+        let files = df.storage_client().list(Some(&data_path)).await.unwrap();
+        assert_eq!(files.len(), 5);
 
         // attempt to read the file
         let read_df = df
@@ -152,24 +184,27 @@ mod tests {
                 &rpath,
                 &0.01,
                 &start_utc,
-                &Utc::now(),
+                &end_utc_for_test,
                 "test",
                 "test",
                 "1.0",
             )
-            .await;
-        read_df.unwrap();
-
-        // delete the file
-        let file_path = files.first().unwrap().to_string();
-        let path = Path::from(file_path);
-        df.storage_client()
-            .delete(&path)
             .await
-            .expect("Failed to delete file");
+            .unwrap();
 
-        // Check if the file is deleted
-        let files = df.storage_client().list(None).await.unwrap();
+        let _batches = read_df.collect().await.unwrap();
+
+        //// delete the file
+        for file in files.iter() {
+            let path = Path::from(file.to_string());
+            df.storage_client()
+                .delete(&path)
+                .await
+                .expect("Failed to delete file");
+        }
+        //
+        //// Check if the file is deleted
+        let files = df.storage_client().list(Some(&data_path)).await.unwrap();
         assert_eq!(files.len(), 0);
 
         // cleanup
@@ -183,10 +218,11 @@ mod tests {
         let df = ParquetDataFrame::new(&storage_settings, &RecordType::Psi).unwrap();
         let mut batch = Vec::new();
         let start_utc = Utc::now();
+        let end_utc_for_test = start_utc + chrono::Duration::hours(3);
 
-        for i in 0..2 {
+        for i in 0..5 {
             let record = ServerRecord::Psi(PsiServerRecord {
-                created_at: Utc::now(),
+                created_at: Utc::now() + chrono::Duration::hours(i),
                 name: "test".to_string(),
                 space: "test".to_string(),
                 version: "1.0".to_string(),
@@ -201,36 +237,44 @@ mod tests {
         }
 
         let records = ServerRecords::new(batch);
-        let rpath = PathBuf::from("test.parquet");
-        df.write_parquet(&rpath, records).await.unwrap();
+        let rpath = "scouter_storage/psi";
+        df.write_parquet(rpath, records.clone()).await.unwrap();
+
+        // get canonical path
+        let canonical_path = df.storage_root();
+        let data_path = object_store::path::Path::from(canonical_path);
 
         // Check if the file exists
-        let files = df.storage_client().list(None).await.unwrap();
-        assert_eq!(files.len(), 1);
+        let files = df.storage_client().list(Some(&data_path)).await.unwrap();
+        assert_eq!(files.len(), 5);
 
+        // attempt to read the file
         let read_df = df
             .get_binned_metrics(
                 &rpath,
                 &0.01,
                 &start_utc,
-                &Utc::now(),
+                &end_utc_for_test,
                 "test",
                 "test",
                 "1.0",
             )
-            .await;
-        read_df.unwrap();
-
-        // delete the file
-        let file_path = files.first().unwrap().to_string();
-        let path = Path::from(file_path);
-        df.storage_client()
-            .delete(&path)
             .await
-            .expect("Failed to delete file");
+            .unwrap();
 
-        // Check if the file is deleted
-        let files = df.storage_client().list(None).await.unwrap();
+        let _batches = read_df.collect().await.unwrap();
+
+        //// delete the file
+        for file in files.iter() {
+            let path = Path::from(file.to_string());
+            df.storage_client()
+                .delete(&path)
+                .await
+                .expect("Failed to delete file");
+        }
+        //
+        //// Check if the file is deleted
+        let files = df.storage_client().list(Some(&data_path)).await.unwrap();
         assert_eq!(files.len(), 0);
 
         // cleanup
@@ -244,10 +288,11 @@ mod tests {
         let df = ParquetDataFrame::new(&storage_settings, &RecordType::Spc).unwrap();
         let mut batch = Vec::new();
         let start_utc = Utc::now();
+        let end_utc_for_test = start_utc + chrono::Duration::hours(3);
 
-        for i in 0..2 {
+        for i in 0..5 {
             let record = ServerRecord::Spc(SpcServerRecord {
-                created_at: Utc::now(),
+                created_at: Utc::now() + chrono::Duration::hours(i),
                 name: "test".to_string(),
                 space: "test".to_string(),
                 version: "1.0".to_string(),
@@ -260,36 +305,46 @@ mod tests {
         }
 
         let records = ServerRecords::new(batch);
-        let rpath = PathBuf::from("test.parquet");
-        df.write_parquet(&rpath, records).await.unwrap();
+        let rpath = "scouter_storage/spc";
+        df.write_parquet(rpath, records.clone()).await.unwrap();
+
+        // get canonical path
+        let canonical_path = df.storage_root();
+        let data_path = object_store::path::Path::from(canonical_path);
 
         // Check if the file exists
-        let files = df.storage_client().list(None).await.unwrap();
-        assert_eq!(files.len(), 1);
+        let files = df.storage_client().list(Some(&data_path)).await.unwrap();
+        assert_eq!(files.len(), 5);
 
+        // attempt to read the file
         let read_df = df
             .get_binned_metrics(
                 &rpath,
                 &0.01,
                 &start_utc,
-                &Utc::now(),
+                &end_utc_for_test,
                 "test",
                 "test",
                 "1.0",
             )
-            .await;
-        read_df.unwrap();
-
-        // delete the file
-        let file_path = files.first().unwrap().to_string();
-        let path = Path::from(file_path);
-        df.storage_client()
-            .delete(&path)
             .await
-            .expect("Failed to delete file");
+            .unwrap();
 
-        // Check if the file is deleted
-        let files = df.storage_client().list(None).await.unwrap();
+        let batches = read_df.collect().await.unwrap();
+
+        println!("batches: {:?}", batches);
+
+        //// delete the file
+        for file in files.iter() {
+            let path = Path::from(file.to_string());
+            df.storage_client()
+                .delete(&path)
+                .await
+                .expect("Failed to delete file");
+        }
+        //
+        //// Check if the file is deleted
+        let files = df.storage_client().list(Some(&data_path)).await.unwrap();
         assert_eq!(files.len(), 0);
 
         // cleanup

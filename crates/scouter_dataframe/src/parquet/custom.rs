@@ -11,9 +11,11 @@ use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_error::ScouterError;
 use scouter_settings::ObjectStorageSettings;
+use scouter_types::StorageType;
 use scouter_types::ToDriftRecords;
 use scouter_types::{CustomMetricServerRecord, ServerRecords};
 use std::sync::Arc;
+
 pub struct CustomMetricDataFrame {
     schema: Arc<Schema>,
     pub object_store: ObjectStore,
@@ -39,7 +41,11 @@ impl ParquetFrame for CustomMetricDataFrame {
     }
 
     fn storage_root(&self) -> String {
-        self.object_store.storage_settings.storage_uri.clone()
+        self.object_store.storage_settings.canonicalized_path()
+    }
+
+    fn storage_type(&self) -> StorageType {
+        self.object_store.storage_settings.storage_type.clone()
     }
 
     fn get_session_context(&self) -> Result<SessionContext, ScouterError> {

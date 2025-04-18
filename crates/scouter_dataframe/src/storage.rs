@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use datafusion::prelude::SessionContext;
+use futures::stream::BoxStream;
 use futures::StreamExt;
 use object_store::aws::{AmazonS3, AmazonS3Builder};
 use object_store::azure::{MicrosoftAzure, MicrosoftAzureBuilder};
@@ -11,6 +12,7 @@ use object_store::ObjectStore as ObjStore;
 use scouter_error::StorageError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::StorageType;
+use std::path::Path as StdPath;
 use url::Url;
 
 /// Storage provider enum for common object stores
@@ -52,7 +54,6 @@ impl StorageProvider {
             StorageType::Local => {
                 // Create LocalFileSystem with the root path as the prefix
                 let builder = LocalFileSystem::new();
-
                 StorageProvider::Local(Arc::new(builder))
             }
             StorageType::Azure => {
@@ -72,139 +73,92 @@ impl StorageProvider {
         Ok(store)
     }
 
+    pub fn get_base_url(
+        &self,
+        storage_settings: &ObjectStorageSettings,
+    ) -> Result<Url, StorageError> {
+        match self {
+            StorageProvider::Google(_) => Url::parse(&storage_settings.storage_uri).map_err(|_| {
+                StorageError::ObjectStoreError(
+                    "Failed to parse Google Cloud Storage URI".to_string(),
+                )
+            }),
+            StorageProvider::Aws(_) => Url::parse(&storage_settings.storage_uri).map_err(|_| {
+                StorageError::ObjectStoreError("Failed to parse AWS S3 URI".to_string())
+            }),
+            StorageProvider::Local(_) => {
+                // For local storage, use a file:// URL scheme
+                Url::parse("file:///").map_err(|_| {
+                    StorageError::ObjectStoreError(
+                        "Failed to parse local file system URI".to_string(),
+                    )
+                })
+            }
+            StorageProvider::Azure(_) => Url::parse(&storage_settings.storage_uri).map_err(|_| {
+                StorageError::ObjectStoreError("Failed to parse Azure file system URI".to_string())
+            }),
+        }
+    }
+
     pub fn get_session(
         &self,
         storage_settings: &ObjectStorageSettings,
     ) -> Result<SessionContext, StorageError> {
         let ctx = SessionContext::new();
+        let base_url = self.get_base_url(storage_settings)?;
 
         match self {
             StorageProvider::Google(store) => {
-                let url = Url::parse(&storage_settings.storage_uri).map_err(|_| {
-                    StorageError::ObjectStoreError(
-                        "Failed to parse Google Cloud Storage URI".to_string(),
-                    )
-                })?;
-
-                ctx.register_object_store(&url, store.clone());
+                ctx.register_object_store(&base_url, store.clone());
             }
             StorageProvider::Aws(store) => {
-                let url = Url::parse(&storage_settings.storage_uri).map_err(|_| {
-                    StorageError::ObjectStoreError("Failed to parse AWS S3 URI".to_string())
-                })?;
-
-                ctx.register_object_store(&url, store.clone());
+                ctx.register_object_store(&base_url, store.clone());
             }
             StorageProvider::Local(store) => {
-                // For local storage, use a simple file:// URL scheme
-                let url = Url::parse("file:///").map_err(|_| {
-                    StorageError::ObjectStoreError(
-                        "Failed to parse local file system URI".to_string(),
-                    )
-                })?;
-
-                ctx.register_object_store(&url, store.clone());
+                ctx.register_object_store(&base_url, store.clone());
             }
             StorageProvider::Azure(store) => {
-                let url = Url::parse(&storage_settings.storage_uri).map_err(|_| {
-                    StorageError::ObjectStoreError(
-                        "Failed to parse Azure file system URI".to_string(),
-                    )
-                })?;
-
-                ctx.register_object_store(&url, store.clone());
+                ctx.register_object_store(&base_url, store.clone());
             }
         }
 
         Ok(ctx)
     }
 
-    pub async fn list(&self, path: &Path) -> Result<Vec<String>, StorageError> {
-        let result = match &self {
-            StorageProvider::Local(store) => {
-                // canonicalize the path to ensure it is absolute
+    /// List files in the object store
+    ///
+    /// # Arguments
+    /// * `path` - The path to list files from. If None, lists all files in the root.
+    ///
+    /// # Returns
+    /// * `Result<Vec<String>, StorageError>` - A result containing a vector of file paths or an error.
+    pub async fn list(&self, path: Option<&Path>) -> Result<Vec<String>, StorageError> {
+        let mut files = Vec::new();
 
-                let mut files = Vec::new();
-                // Get the stream of metadata objects
-                let mut list_stream = store.list(Some(path));
-
-                // Process each item in the stream
-                while let Some(result) = list_stream.next().await {
-                    match result {
-                        Ok(meta) => {
-                            files.push(meta.location.to_string());
-                        }
-                        Err(e) => {
-                            return Err(StorageError::ObjectStoreError(format!(
-                                "Error listing files: {}",
-                                e
-                            )));
-                        }
-                    }
-                }
-                Ok(files)
-            }
-            StorageProvider::Google(store) => {
-                let mut files = Vec::new();
-                let mut list_stream = store.list(Some(path));
-
-                while let Some(result) = list_stream.next().await {
-                    match result {
-                        Ok(meta) => {
-                            files.push(meta.location.to_string());
-                        }
-                        Err(e) => {
-                            return Err(StorageError::ObjectStoreError(format!(
-                                "Error listing files: {}",
-                                e
-                            )));
-                        }
-                    }
-                }
-                Ok(files)
-            }
-            // Similar implementations for other providers
-            StorageProvider::Aws(store) => {
-                let mut files = Vec::new();
-                let mut list_stream = store.list(Some(path));
-
-                while let Some(result) = list_stream.next().await {
-                    match result {
-                        Ok(meta) => {
-                            files.push(meta.location.to_string());
-                        }
-                        Err(e) => {
-                            return Err(StorageError::ObjectStoreError(format!(
-                                "Error listing files: {}",
-                                e
-                            )));
-                        }
-                    }
-                }
-                Ok(files)
-            }
-            StorageProvider::Azure(store) => {
-                let mut files = Vec::new();
-                let mut list_stream = store.list(Some(path));
-
-                while let Some(result) = list_stream.next().await {
-                    match result {
-                        Ok(meta) => {
-                            files.push(meta.location.to_string());
-                        }
-                        Err(e) => {
-                            return Err(StorageError::ObjectStoreError(format!(
-                                "Error listing files: {}",
-                                e
-                            )));
-                        }
-                    }
-                }
-                Ok(files)
-            }
+        // Get the stream based on the provided path
+        let mut stream = match self {
+            StorageProvider::Local(store) => store.list(path),
+            StorageProvider::Google(store) => store.list(path),
+            StorageProvider::Aws(store) => store.list(path),
+            StorageProvider::Azure(store) => store.list(path),
         };
 
-        result
+        // Process each item in the stream
+        while let Some(result) = stream.next().await {
+            match result {
+                Ok(meta) => {
+                    files.push(meta.location.to_string());
+                }
+                Err(e) => {
+                    return Err(StorageError::ObjectStoreError(format!(
+                        "Error listing files: {}",
+                        e
+                    )));
+                }
+            }
+        }
+
+        Ok(files)
     }
 
     pub async fn delete(&self, path: &Path) -> Result<(), StorageError> {
@@ -264,17 +218,20 @@ impl ObjectStore {
         Ok(ctx)
     }
 
-    pub async fn list(&self, path: Option<&Path>) -> Result<Vec<String>, StorageError> {
-        let path_to_use = match path {
-            Some(p) => Path::from(format!(
-                "{}/{}",
-                self.storage_settings.canonicalized_path(),
-                p
-            )),
-            None => Path::from(self.storage_settings.canonicalized_path()),
-        };
+    /// Get the base URL for datafusion to use
+    pub fn get_base_url(&self) -> Result<Url, StorageError> {
+        self.provider.get_base_url(&self.storage_settings)
+    }
 
-        self.provider.list(&path_to_use).await
+    /// List files in the object store
+    ///
+    /// When path is None, lists from the root.
+    /// When path is provided, lists from that path.
+    ///
+    /// Note: The path parameter should NOT include the storage root - it's a relative path
+    /// that will be automatically combined with the storage root.
+    pub async fn list(&self, path: Option<&Path>) -> Result<Vec<String>, StorageError> {
+        self.provider.list(path).await
     }
 
     pub async fn delete(&self, path: &Path) -> Result<(), StorageError> {

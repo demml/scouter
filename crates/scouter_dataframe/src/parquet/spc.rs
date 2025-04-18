@@ -11,10 +11,10 @@ use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_error::ScouterError;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::ToDriftRecords;
-use scouter_types::{ServerRecords, SpcServerRecord};
-use std::sync::Arc;
 
+use scouter_types::{ServerRecords, SpcServerRecord};
+use scouter_types::{StorageType, ToDriftRecords};
+use std::sync::Arc;
 pub struct SpcDataFrame {
     schema: Arc<Schema>,
     pub object_store: ObjectStore,
@@ -40,7 +40,11 @@ impl ParquetFrame for SpcDataFrame {
     }
 
     fn storage_root(&self) -> String {
-        self.object_store.storage_settings.storage_uri.clone()
+        self.object_store.storage_settings.canonicalized_path()
+    }
+
+    fn storage_type(&self) -> StorageType {
+        self.object_store.storage_settings.storage_type.clone()
     }
 
     fn get_session_context(&self) -> Result<SessionContext, ScouterError> {

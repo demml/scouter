@@ -182,11 +182,10 @@ async fn process_record_type(
 
         let filename = format!("parquet-{}", random_hex);
 
-        let rpath = PathBuf::from(format!(
-            "{}/{}/{}/{}/{}/{}",
-            begin_time, entity.space, entity.name, entity.version, record_type, filename
-        ))
-        .with_extension("parquet");
+        let rpath = format!(
+            "{}/{}/{}/{}/{}/{}.parquet",
+            entity.space, entity.name, entity.version, record_type, begin_time, filename
+        );
 
         df.write_parquet(&rpath, records).await?;
 
@@ -214,7 +213,7 @@ async fn process_record_type(
 /// # Returns
 /// * `Result<(), ScouterError>` - The result of the archival
 #[instrument(skip_all)]
-async fn archive_old_data(
+pub async fn archive_old_data(
     db_client: &PostgresClient,
     storage_settings: &ObjectStorageSettings,
     retention_period: &i64,

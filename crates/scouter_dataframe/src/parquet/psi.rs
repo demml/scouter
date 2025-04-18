@@ -10,6 +10,7 @@ use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_error::ScouterError;
 use scouter_settings::ObjectStorageSettings;
+use scouter_types::StorageType;
 use scouter_types::ToDriftRecords;
 use scouter_types::{PsiServerRecord, ServerRecords};
 use std::sync::Arc;
@@ -39,7 +40,11 @@ impl ParquetFrame for PsiDataFrame {
     }
 
     fn storage_root(&self) -> String {
-        self.object_store.storage_settings.storage_uri.clone()
+        self.object_store.storage_settings.canonicalized_path()
+    }
+
+    fn storage_type(&self) -> StorageType {
+        self.object_store.storage_settings.storage_type.clone()
     }
 
     fn get_session_context(&self) -> Result<SessionContext, ScouterError> {
