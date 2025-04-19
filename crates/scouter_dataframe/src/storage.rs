@@ -1,7 +1,4 @@
-use std::sync::Arc;
-
 use datafusion::prelude::SessionContext;
-use futures::stream::BoxStream;
 use futures::StreamExt;
 use object_store::aws::{AmazonS3, AmazonS3Builder};
 use object_store::azure::{MicrosoftAzure, MicrosoftAzureBuilder};
@@ -12,7 +9,7 @@ use object_store::ObjectStore as ObjStore;
 use scouter_error::StorageError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::StorageType;
-use std::path::Path as StdPath;
+use std::sync::Arc;
 use url::Url;
 
 /// Storage provider enum for common object stores
