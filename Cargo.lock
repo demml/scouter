@@ -4994,6 +4994,7 @@ dependencies = [
  "mockito",
  "ndarray",
  "ndarray-rand",
+ "object_store",
  "password-auth",
  "rand 0.9.0",
  "rusty-logging",

@@ -154,9 +154,9 @@ async fn test_spc_server_records() {
 
     // get drift records
     let params = DriftRequest {
-        name: "test".to_string(),
-        space: "test".to_string(),
-        version: "test".to_string(),
+        name: "name".to_string(),
+        space: "space".to_string(),
+        version: "1.0.0".to_string(),
         time_interval: TimeInterval::FiveMinutes,
         max_data_points: 100,
         drift_type: DriftType::Spc,

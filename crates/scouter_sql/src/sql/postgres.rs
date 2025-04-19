@@ -1421,9 +1421,9 @@ mod tests {
 
         let binned_records = client
             .get_binned_spc_drift_records(&DriftRequest {
-                name: "test".to_string(),
-                space: "test".to_string(),
-                version: "test".to_string(),
+                name: "name".to_string(),
+                space: "space".to_string(),
+                version: "1.0.0".to_string(),
                 time_interval: TimeInterval::FiveMinutes,
                 max_data_points: 10,
                 drift_type: DriftType::Spc,

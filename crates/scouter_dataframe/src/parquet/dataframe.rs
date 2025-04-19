@@ -46,6 +46,13 @@ impl ParquetDataFrame {
         rpath: &str,
         records: ServerRecords,
     ) -> Result<(), ScouterError> {
+        let rpath = if self.storage_type() == StorageType::Local {
+            let storage_path = self.storage_root();
+            &format!("{}/{}", storage_path, rpath)
+        } else {
+            rpath
+        };
+
         match self {
             ParquetDataFrame::CustomMetric(df) => df.write_parquet(rpath, records).await,
             ParquetDataFrame::Psi(df) => df.write_parquet(rpath, records).await,
@@ -91,6 +98,15 @@ impl ParquetDataFrame {
         name: &str,
         version: &str,
     ) -> Result<DataFrame, ScouterError> {
+        // set path
+        // if the storage type is local, add the storage root to the path
+        let path = if self.storage_type() == StorageType::Local {
+            let storage_path = self.storage_root();
+            &format!("{}/{}", storage_path, path)
+        } else {
+            &path.to_string()
+        };
+
         match self {
             ParquetDataFrame::CustomMetric(df) => {
                 df.get_binned_metrics(path, bin, start_time, end_time, space, name, version)
@@ -168,7 +184,7 @@ mod tests {
         }
 
         let records = ServerRecords::new(batch);
-        let rpath = "scouter_storage/custom";
+        let rpath = "custom";
         df.write_parquet(rpath, records.clone()).await.unwrap();
 
         // get canonical path
@@ -180,7 +196,9 @@ mod tests {
         assert_eq!(files.len(), 3);
 
         // attempt to read the file
-        let read_df = df
+        let new_df = ParquetDataFrame::new(&storage_settings, &RecordType::Custom).unwrap();
+
+        let read_df = new_df
             .get_binned_metrics(
                 &rpath,
                 &0.01,
@@ -259,7 +277,7 @@ mod tests {
         }
 
         let records = ServerRecords::new(batch);
-        let rpath = "scouter_storage/psi";
+        let rpath = "psi";
         df.write_parquet(rpath, records.clone()).await.unwrap();
 
         // get canonical path
@@ -340,7 +358,7 @@ mod tests {
         }
 
         let records = ServerRecords::new(batch);
-        let rpath = "scouter_storage/spc";
+        let rpath = "spc";
         df.write_parquet(rpath, records.clone()).await.unwrap();
 
         // get canonical path

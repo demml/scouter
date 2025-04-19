@@ -153,7 +153,6 @@ pub trait ParquetFrame {
     ) -> Result<DataFrame, ScouterError> {
         // Register the data at path
         let ctx = self.register_table(path, &self.table_name()).await?;
-
         let sql = self.get_binned_sql(bin, start_time, end_time, space, name, version);
         let df = ctx
             .sql(&sql)

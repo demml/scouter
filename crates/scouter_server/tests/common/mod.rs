@@ -149,9 +149,9 @@ impl TestHelper {
             for j in 0..10 {
                 let record = SpcServerRecord {
                     created_at: Utc::now(),
-                    name: "test".to_string(),
-                    space: "test".to_string(),
-                    version: "test".to_string(),
+                    name: "name".to_string(),
+                    space: "space".to_string(),
+                    version: "1.0.0".to_string(),
                     feature: format!("test{}", j),
                     value: j as f64,
                 };

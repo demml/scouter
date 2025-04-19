@@ -6,6 +6,7 @@ use axum::{
     body::Body,
     http::{header, Request, StatusCode},
 };
+use object_store::path::Path;
 use scouter_dataframe::parquet::dataframe::ParquetDataFrame;
 use scouter_server::api::data_manager::archive_old_data;
 use scouter_settings::ObjectStorageSettings;
@@ -38,19 +39,26 @@ async fn test_data_archive_spc() {
         .unwrap();
 
     let df = ParquetDataFrame::new(&storage_settings, &RecordType::Spc).unwrap();
-    let files = df.storage_client().list(None).await.unwrap();
+    let path = "space/name/1.0.0/spc";
+
+    let canonical_path = format!("{}/{}", df.storage_root(), path);
+    let data_path = object_store::path::Path::from(canonical_path);
+    let files = df.storage_client().list(Some(&data_path)).await.unwrap();
+
+    assert!(!files.is_empty());
 
     let read_df = df
         .get_binned_metrics(
-            &["test/test/test/spc/2025-04-18/parquet-8cD.parquet".to_string()],
+            path,
             &0.01,
             &start_utc,
             &Utc::now(),
-            "test",
-            "test",
-            "test",
+            "space",
+            "name",
+            "1.0.0",
         )
-        .await;
+        .await
+        .unwrap();
 
-    read_df.unwrap();
+    println!("read_df: {:?}", read_df);
 }

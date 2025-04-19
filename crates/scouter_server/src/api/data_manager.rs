@@ -1,16 +1,13 @@
 use chrono::{Duration, Utc};
-use rand::Rng;
 use scouter_dataframe::parquet::dataframe::ParquetDataFrame;
 use scouter_error::ScouterError;
 /// Functionality for persisting data from postgres to long-term storage
 use scouter_settings::{DatabaseSettings, ObjectStorageSettings};
 use scouter_sql::{sql::schema::Entity, PostgresClient};
-use scouter_types::DriftType;
-use scouter_types::RecordType;
-use scouter_types::ServerRecords;
+
+use scouter_types::{DriftType, RecordType, ServerRecords, StorageType};
 use sqlx::Transaction;
 use sqlx::{Pool, Postgres};
-use std::path::PathBuf;
 use strum::IntoEnumIterator;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
@@ -140,6 +137,24 @@ async fn update_entities_to_archived(
     Ok(())
 }
 
+fn set_write_path(
+    dataframe: &ParquetDataFrame,
+    record_type: &RecordType,
+    entity: &Entity,
+) -> String {
+    let rpath = format!(
+        "{}/{}/{}/{}",
+        entity.space, entity.name, entity.version, record_type
+    );
+
+    // if the storage type is local, add the storage root to the path
+    if dataframe.storage_type() == StorageType::Local {
+        format!("{}/{}", dataframe.storage_root(), rpath)
+    } else {
+        rpath.to_string()
+    }
+}
+
 #[instrument(skip_all)]
 async fn process_record_type(
     db_client: &PostgresClient,
@@ -147,7 +162,6 @@ async fn process_record_type(
     retention_period: &i64,
     storage_settings: &ObjectStorageSettings,
 ) -> Result<(), ScouterError> {
-    info!("Archiving data for record type: {:?}", record_type);
     let df = ParquetDataFrame::new(storage_settings, record_type)?;
 
     // get the entities for archival
@@ -170,22 +184,7 @@ async fn process_record_type(
 
         // get data for space/name/version
         let records = get_data_to_archive(&mut tx, record_type, &entity).await?;
-
-        // get created at as YYYY-MM-DD string
-        let begin_time = entity.begin_timestamp.format("%Y-%m-%d").to_string();
-        // add random number to the created at string
-        let random_hex: String = rand::rng()
-            .sample_iter(&rand::distr::Alphanumeric)
-            .take(3)
-            .map(char::from)
-            .collect();
-
-        let filename = format!("parquet-{}", random_hex);
-
-        let rpath = format!(
-            "{}/{}/{}/{}/{}/{}.parquet",
-            entity.space, entity.name, entity.version, record_type, begin_time, filename
-        );
+        let rpath = set_write_path(&df, record_type, &entity);
 
         df.write_parquet(&rpath, records).await?;
 
