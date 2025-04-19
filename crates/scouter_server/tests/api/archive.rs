@@ -39,9 +39,9 @@ async fn test_data_archive_spc() {
         .await
         .unwrap();
 
-    assert_eq!(record.spc, true);
-    assert_eq!(record.psi, false);
-    assert_eq!(record.custom, false);
+    assert!(record.spc);
+    assert!(!record.psi);
+    assert!(!record.custom);
 
     let df = ParquetDataFrame::new(&storage_settings, &RecordType::Spc).unwrap();
     let path = format!("{SPACE}/{NAME}/{VERSION}/spc");
@@ -65,9 +65,9 @@ async fn test_data_archive_spc() {
     let record = archive_old_data(&db_client, &storage_settings, &retention_period)
         .await
         .unwrap();
-    assert_eq!(record.spc, false);
-    assert_eq!(record.psi, false);
-    assert_eq!(record.custom, false);
+    assert!(!record.spc);
+    assert!(!record.psi);
+    assert!(!record.custom);
     TestHelper::cleanup_storage()
 
     // query the data
@@ -98,9 +98,9 @@ async fn test_data_archive_psi() {
         .await
         .unwrap();
 
-    assert_eq!(record.spc, false);
-    assert_eq!(record.psi, true);
-    assert_eq!(record.custom, false);
+    assert!(!record.spc);
+    assert!(record.psi);
+    assert!(!record.custom);
 
     let df = ParquetDataFrame::new(&storage_settings, &RecordType::Psi).unwrap();
     let path = format!("{SPACE}/{NAME}/{VERSION}/psi");
@@ -124,9 +124,9 @@ async fn test_data_archive_psi() {
     let record = archive_old_data(&db_client, &storage_settings, &retention_period)
         .await
         .unwrap();
-    assert_eq!(record.spc, false);
-    assert_eq!(record.psi, false);
-    assert_eq!(record.custom, false);
+    assert!(!record.spc);
+    assert!(!record.psi);
+    assert!(!record.custom);
     TestHelper::cleanup_storage()
 }
 
@@ -155,9 +155,9 @@ async fn test_data_archive_custom() {
         .await
         .unwrap();
 
-    assert_eq!(record.spc, false);
-    assert_eq!(record.psi, false);
-    assert_eq!(record.custom, true);
+    assert!(!record.spc);
+    assert!(!record.psi);
+    assert!(record.custom);
 
     let df = ParquetDataFrame::new(&storage_settings, &RecordType::Custom).unwrap();
     let path = format!("{SPACE}/{NAME}/{VERSION}/custom");
@@ -181,9 +181,9 @@ async fn test_data_archive_custom() {
     let record = archive_old_data(&db_client, &storage_settings, &retention_period)
         .await
         .unwrap();
-    assert_eq!(record.spc, false);
-    assert_eq!(record.psi, false);
-    assert_eq!(record.custom, false);
+    assert!(!record.spc);
+    assert!(!record.psi);
+    assert!(!record.custom);
 
     TestHelper::cleanup_storage()
 }
