@@ -42,3 +42,11 @@ impl BinnedPsiFeatureMetrics {
         ProfileFuncs::__str__(self)
     }
 }
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct FeatureBinProportionResult {
+    pub feature: String,
+    pub created_at: Vec<DateTime<Utc>>,
+    pub bin_proportions: Vec<BTreeMap<usize, f64>>,
+    pub overall_proportions: BTreeMap<usize, f64>,
+}

@@ -2,7 +2,7 @@
 pub mod rabbitmq_consumer {
     use futures::StreamExt;
     use metrics::counter;
-    use scouter_error::EventError;
+    use scouter_error::ScouterError;
     use scouter_settings::{DatabaseSettings, RabbitMQSettings};
     use scouter_sql::MessageHandler;
     use scouter_sql::PostgresClient;
@@ -50,7 +50,7 @@ pub mod rabbitmq_consumer {
             db_settings: &DatabaseSettings,
             pool: &Pool<Postgres>,
             shutdown_rx: watch::Receiver<()>,
-        ) -> Result<Self, EventError> {
+        ) -> Result<Self, ScouterError> {
             let num_consumers = rabbit_settings.num_consumers;
             let mut workers = Vec::with_capacity(num_consumers);
 
@@ -139,21 +139,16 @@ pub mod rabbitmq_consumer {
 
     pub async fn create_rabbitmq_consumer(
         settings: &RabbitMQSettings,
-    ) -> Result<Consumer, EventError> {
+    ) -> Result<Consumer, ScouterError> {
         let conn = Connection::connect(&settings.address, ConnectionProperties::default())
             .await
-            .map_err(|e| {
-                error!("Failed to connect to RabbitMQ: {:?}", e);
-                EventError::Error(format!("Failed to connect to RabbitMQ: {:?}", e))
-            })?;
+            .map_err(ScouterError::traced_connect_rabbitmq_error)?;
+
         let channel = conn.create_channel().await.unwrap();
         channel
             .basic_qos(settings.prefetch_count, BasicQosOptions::default())
             .await
-            .map_err(|e| {
-                error!("Failed to set QoS: {:?}", e);
-                EventError::Error(format!("Failed to set QoS: {:?}", e))
-            })?;
+            .map_err(ScouterError::traced_setup_qos_error)?;
 
         channel
             .queue_declare(
@@ -162,10 +157,7 @@ pub mod rabbitmq_consumer {
                 FieldTable::default(),
             )
             .await
-            .map_err(|e| {
-                error!("Failed to declare queue: {:?}", e);
-                EventError::Error(format!("Failed to declare queue: {:?}", e))
-            })?;
+            .map_err(ScouterError::traced_declare_queue_error)?;
 
         let consumer = channel
             .basic_consume(
@@ -175,17 +167,14 @@ pub mod rabbitmq_consumer {
                 FieldTable::default(),
             )
             .await
-            .map_err(|e| {
-                error!("Failed to consume queue: {:?}", e);
-                EventError::Error(format!("Failed to consume queue: {:?}", e))
-            })?;
+            .map_err(ScouterError::traced_consume_queue_error)?;
 
         info!("✅ Started consumer for RabbitMQ");
 
         Ok(consumer)
     }
 
-    pub async fn process_message(message: &[u8]) -> Result<Option<ServerRecords>, EventError> {
+    pub async fn process_message(message: &[u8]) -> Result<Option<ServerRecords>, ScouterError> {
         let records: ServerRecords = match serde_json::from_slice::<ServerRecords>(message) {
             Ok(records) => records,
             Err(e) => {

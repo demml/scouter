@@ -6,6 +6,8 @@ CREATE TABLE IF NOT exists scouter.observed_bin_count (
   feature text not null,
   bin_id integer not null,
   bin_count integer not null,
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+  archived boolean default false,
   UNIQUE (created_at,name,space,version,feature,bin_id)
 )
 PARTITION BY RANGE (created_at);

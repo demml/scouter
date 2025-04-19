@@ -7,6 +7,7 @@ CREATE TABLE IF NOT exists scouter.observability_metric (
   request_count integer not null default 0,
   error_count integer not null default 0,
   route_metrics jsonb not null default '[]',
+  updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   UNIQUE (created_at,name,space,version)
 )
 PARTITION BY RANGE (created_at);

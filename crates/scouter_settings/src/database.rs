@@ -5,6 +5,7 @@ use serde::Serialize;
 pub struct DatabaseSettings {
     pub connection_uri: String,
     pub max_connections: u32,
+    pub retention_period: i64,
 }
 
 impl Default for DatabaseSettings {
@@ -18,9 +19,16 @@ impl Default for DatabaseSettings {
             .map_err(|e| ConfigError::Error(format!("{:?}", e)))
             .unwrap();
 
+        let retention_period = std::env::var("DATA_RETENTION_PERIOD")
+            .unwrap_or_else(|_| "30".to_string())
+            .parse::<i64>()
+            .map_err(|e| ConfigError::Error(format!("{:?}", e)))
+            .unwrap();
+
         Self {
             connection_uri,
             max_connections,
+            retention_period,
         }
     }
 }

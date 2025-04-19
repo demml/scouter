@@ -3,7 +3,8 @@ use scouter_types::{
     alert::Alert,
     custom::{BinnedCustomMetric, BinnedCustomMetricStats},
     get_utc_datetime,
-    psi::FeatureBinProportion,
+    psi::{FeatureBinProportion, FeatureBinProportionResult},
+    RecordType,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, Error, FromRow, Row};
@@ -167,15 +168,10 @@ pub struct BinProportion {
     pub proportion: f64,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FeatureBinProportionResult {
-    pub feature: String,
-    pub created_at: Vec<DateTime<Utc>>,
-    pub bin_proportions: Vec<BTreeMap<usize, f64>>,
-    pub overall_proportions: BTreeMap<usize, f64>,
-}
+#[derive(Debug)]
+pub struct FeatureBinProportionResultWrapper(pub FeatureBinProportionResult);
 
-impl<'r> FromRow<'r, PgRow> for FeatureBinProportionResult {
+impl<'r> FromRow<'r, PgRow> for FeatureBinProportionResultWrapper {
     fn from_row(row: &'r PgRow) -> Result<Self, Error> {
         // Extract the bin_proportions as a Vec of tuples
         let bin_proportions_json: Vec<serde_json::Value> = row.try_get("bin_proportions")?;
@@ -190,12 +186,31 @@ impl<'r> FromRow<'r, PgRow> for FeatureBinProportionResult {
         let overall_proportions: BTreeMap<usize, f64> =
             serde_json::from_value(overall_proportions_json).unwrap_or_default();
 
-        Ok(FeatureBinProportionResult {
-            feature: row.try_get("feature")?,
-            created_at: row.try_get("created_at")?,
-            bin_proportions,
-            overall_proportions,
-        })
+        Ok(FeatureBinProportionResultWrapper(
+            FeatureBinProportionResult {
+                feature: row.try_get("feature")?,
+                created_at: row.try_get("created_at")?,
+                bin_proportions,
+                overall_proportions,
+            },
+        ))
+    }
+}
+#[derive(Debug, Clone, FromRow)]
+pub struct Entity {
+    pub space: String,
+    pub name: String,
+    pub version: String,
+    pub begin_timestamp: DateTime<Utc>,
+    pub end_timestamp: DateTime<Utc>,
+}
+
+impl Entity {
+    pub fn get_write_path(&self, record_type: &RecordType) -> String {
+        format!(
+            "{}/{}/{}/{}",
+            self.space, self.name, self.version, record_type
+        )
     }
 }
 

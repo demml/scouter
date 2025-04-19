@@ -1,7 +1,7 @@
 UPDATE scouter.drift_alert
 SET 
     active = $2,
-    updated_at = now()
+    updated_at = timezone('utc', now())
 WHERE 
     id = $1
 RETURNING 

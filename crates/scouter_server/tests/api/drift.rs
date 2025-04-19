@@ -1,4 +1,4 @@
-use crate::common::TestHelper;
+use crate::common::{TestHelper, NAME, SPACE, VERSION};
 
 use axum::{
     body::Body,
@@ -29,8 +29,8 @@ async fn test_create_spc_profile() {
     let (array, features) = helper.get_data();
     let alert_config = SpcAlertConfig::default();
     let config = SpcDriftConfig::new(
-        Some("name".to_string()),
-        Some("space".to_string()),
+        Some(SPACE.to_string()),
+        Some(NAME.to_string()),
         None,
         None,
         None,
@@ -154,9 +154,9 @@ async fn test_spc_server_records() {
 
     // get drift records
     let params = DriftRequest {
-        name: "test".to_string(),
-        space: "test".to_string(),
-        version: "test".to_string(),
+        space: SPACE.to_string(),
+        name: NAME.to_string(),
+        version: VERSION.to_string(),
         time_interval: TimeInterval::FiveMinutes,
         max_data_points: 100,
         drift_type: DriftType::Spc,
@@ -196,7 +196,7 @@ async fn test_psi_server_records() {
         ..Default::default()
     };
 
-    let config = PsiDriftConfig::new("test", "test", "1.0.0", alert_config, None);
+    let config = PsiDriftConfig::new(SPACE, NAME, VERSION, alert_config, None);
 
     let monitor = PsiMonitor::new();
 
@@ -241,9 +241,9 @@ async fn test_psi_server_records() {
 
     // get drift records
     let params = DriftRequest {
-        name: "test".to_string(),
-        space: "test".to_string(),
-        version: "1.0.0".to_string(),
+        space: SPACE.to_string(),
+        name: NAME.to_string(),
+        version: VERSION.to_string(),
         time_interval: TimeInterval::FiveMinutes,
         max_data_points: 100,
         drift_type: DriftType::Psi,
@@ -277,8 +277,7 @@ async fn test_custom_server_records() {
 
     let alert_config = CustomMetricAlertConfig::default();
     let config =
-        CustomMetricDriftConfig::new("test", "test", "1.0.0", true, 25, alert_config, None)
-            .unwrap();
+        CustomMetricDriftConfig::new(SPACE, NAME, VERSION, true, 25, alert_config, None).unwrap();
 
     let alert_threshold = AlertThreshold::Above;
     let metric1 = CustomMetric::new("metric1", 1.0, alert_threshold.clone(), None).unwrap();
@@ -321,9 +320,9 @@ async fn test_custom_server_records() {
 
     // get drift records
     let params = DriftRequest {
-        name: "test".to_string(),
-        space: "test".to_string(),
-        version: "1.0.0".to_string(),
+        space: SPACE.to_string(),
+        name: NAME.to_string(),
+        version: VERSION.to_string(),
         time_interval: TimeInterval::FiveMinutes,
         max_data_points: 100,
         drift_type: DriftType::Custom,

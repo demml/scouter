@@ -1,6 +1,7 @@
 // this is a helper file for generating sql queries to retrieve binned data from datafusion.
+use chrono::Datelike;
+use chrono::Timelike;
 use chrono::{DateTime, Utc};
-
 pub fn get_binned_custom_metric_values_query(
     bin: &f64,
     start_time: &DateTime<Utc>,
@@ -193,6 +194,16 @@ pub fn get_binned_spc_drift_records_query(
     name: &str,
     version: &str,
 ) -> String {
+    let start_year = start_time.year();
+    let start_month = start_time.month();
+    let start_day = start_time.day();
+    let start_hour = start_time.hour();
+
+    let end_year = end_time.year();
+    let end_month = end_time.month();
+    let end_day = end_time.day();
+    let end_hour = end_time.hour();
+
     format!(
         r#"WITH subquery1 AS (
         SELECT
@@ -203,8 +214,18 @@ pub fn get_binned_spc_drift_records_query(
             version,
             value
         FROM binned_spc
-        WHERE 
-            1=1
+        WHERE
+            -- Partition pruning predicates (inclusive)
+            (year >= {start_year}) AND
+            (year > {start_year} OR month >= {start_month}) AND
+            (year > {start_year} OR month > {start_month} OR day >= {start_day}) AND
+            (year > {start_year} OR month > {start_month} OR day > {start_day} OR hour >= {start_hour})
+            AND
+            (year <= {end_year}) AND
+            (year < {end_year} OR month <= {end_month}) AND
+            (year < {end_year} OR month < {end_month} OR day <= {end_day}) AND
+            (year < {end_year} OR month < {end_month} OR day < {end_day} OR hour <= {end_hour})
+            -- Regular filters (inclusive)
             AND created_at between TIMESTAMP '{}' AND TIMESTAMP '{}'
             AND space = '{}'
             AND name = '{}'

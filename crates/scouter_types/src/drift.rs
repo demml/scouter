@@ -11,9 +11,10 @@ use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::path::PathBuf;
 use std::str::FromStr;
+use strum_macros::EnumIter;
 
 #[pyclass(eq)]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default, Eq, Hash)]
+#[derive(Debug, EnumIter, PartialEq, Serialize, Deserialize, Clone, Default, Eq, Hash)]
 pub enum DriftType {
     #[default]
     Spc,

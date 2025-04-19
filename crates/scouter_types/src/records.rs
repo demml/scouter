@@ -1,10 +1,13 @@
 use crate::ProfileFuncs;
+use chrono::DateTime;
 use chrono::Utc;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use scouter_error::{PyScouterError, ScouterError};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
+use std::collections::HashSet;
+use std::fmt::Display;
 
 #[pyclass(eq)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
@@ -14,6 +17,17 @@ pub enum RecordType {
     Psi,
     Observability,
     Custom,
+}
+
+impl Display for RecordType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            RecordType::Spc => write!(f, "spc"),
+            RecordType::Psi => write!(f, "psi"),
+            RecordType::Observability => write!(f, "observability"),
+            RecordType::Custom => write!(f, "custom"),
+        }
+    }
 }
 
 #[pyclass]
@@ -400,6 +414,37 @@ impl ServerRecords {
         self.records.len()
     }
 
+    pub fn unique_dates(&self) -> Result<Vec<DateTime<Utc>>, ScouterError> {
+        let mut dates = HashSet::new();
+        let record_type = self.record_type().unwrap_or(RecordType::Spc);
+        for record in &self.records {
+            match record {
+                ServerRecord::Spc(inner) => {
+                    if record_type == RecordType::Spc {
+                        dates.insert(inner.created_at);
+                    }
+                }
+                ServerRecord::Psi(inner) => {
+                    if record_type == RecordType::Psi {
+                        dates.insert(inner.created_at);
+                    }
+                }
+                ServerRecord::Custom(inner) => {
+                    if record_type == RecordType::Custom {
+                        dates.insert(inner.created_at);
+                    }
+                }
+                _ => {
+                    return Err(ScouterError::InvalidDriftTypeError(
+                        "Unexpected record type".to_string(),
+                    ));
+                }
+            }
+        }
+        let dates: Vec<DateTime<Utc>> = dates.into_iter().collect();
+
+        Ok(dates)
+    }
     pub fn space(&self) -> String {
         match self.records.first() {
             Some(record) => record.space(),

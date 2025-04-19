@@ -255,6 +255,25 @@ pub enum ScouterError {
 
     #[error("Failed to create client: {0}")]
     FailedToCreateClient(String),
+
+    // rabbitmq
+    #[error("Failed to connect to RabbitMQ: {0}")]
+    FailedToConnectRabbitMQ(String),
+
+    #[error("Failed to declare queue: {0}")]
+    FailedToDeclareQueue(String),
+
+    #[error("Failed to setup QoS: {0}")]
+    FailedToSetupQos(String),
+
+    #[error("Failed to connect to Kafka: {0}")]
+    FailedToConnectKafka(String),
+
+    #[error("Failed to consume queue: {0}")]
+    FailedToConsumeQueue(String),
+
+    #[error("Failed to subscribe to topic: {0}")]
+    FailedToSubscribeTopic(String),
 }
 
 // add tracing trait to ScouterError
@@ -317,6 +336,42 @@ impl ScouterError {
 
     pub fn traced_create_client_error(err: impl Display) -> Self {
         let error = Self::FailedToCreateClient(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_connect_rabbitmq_error(err: impl Display) -> Self {
+        let error = Self::FailedToConnectRabbitMQ(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_setup_qos_error(err: impl Display) -> Self {
+        let error = Self::FailedToSetupQos(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_connect_kafka_error(err: impl Display) -> Self {
+        let error = Self::FailedToConnectKafka(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_declare_queue_error(err: impl Display) -> Self {
+        let error = Self::FailedToDeclareQueue(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_consume_queue_error(err: impl Display) -> Self {
+        let error = Self::FailedToConsumeQueue(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_subscribe_topic_error(err: impl Display) -> Self {
+        let error = Self::FailedToSubscribeTopic(err.to_string());
         error.trace();
         error
     }
@@ -406,16 +461,6 @@ pub enum ConfigError {
 pub enum LoggingError {
     #[error("{0}")]
     Error(String),
-}
-
-#[derive(Error, Debug, Deserialize)]
-pub enum EventError {
-    #[error("Event error: {0}")]
-    Error(String),
-
-    // inherit SqlError
-    #[error(transparent)]
-    SqlError(#[from] SqlError),
 }
 
 #[derive(Error, Debug)]

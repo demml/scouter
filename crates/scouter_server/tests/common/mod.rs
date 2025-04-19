@@ -12,21 +12,25 @@ use scouter_server::create_app;
 use scouter_types::{CustomMetricServerRecord, PsiServerRecord};
 use scouter_types::{ServerRecord, ServerRecords, SpcServerRecord};
 // for `collect`
-
 use ndarray::Array;
 use ndarray_rand::rand_distr::Uniform;
 use ndarray_rand::RandomExt;
+use scouter_settings::ObjectStorageSettings;
 use scouter_sql::PostgresClient;
 use scouter_types::JwtToken;
 use sqlx::{PgPool, Pool, Postgres};
 use std::env;
 use tower::util::ServiceExt;
 
+pub const SPACE: &str = "space";
+pub const NAME: &str = "name";
+pub const VERSION: &str = "1.0.0";
+
 pub async fn cleanup(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> {
     sqlx::raw_sql(
         r#"
         DELETE
-        FROM scouter.drift;
+        FROM scouter.spc_drift;
 
         DELETE
         FROM scouter.observability_metric;
@@ -61,7 +65,17 @@ pub struct TestHelper {
 }
 
 impl TestHelper {
+    pub fn cleanup_storage() {
+        let storage_settings = ObjectStorageSettings::default();
+        let current_dir = std::env::current_dir().unwrap();
+        let storage_path = current_dir.join(storage_settings.storage_root());
+        if storage_path.exists() {
+            std::fs::remove_dir_all(storage_path).unwrap();
+        }
+    }
     pub async fn new(enable_kafka: bool, enable_rabbitmq: bool) -> Result<Self, anyhow::Error> {
+        TestHelper::cleanup_storage();
+
         env::set_var("RUST_LOG", "debug");
         env::set_var("LOG_LEVEL", "debug");
         env::set_var("LOG_JSON", "false");
@@ -149,9 +163,9 @@ impl TestHelper {
             for j in 0..10 {
                 let record = SpcServerRecord {
                     created_at: Utc::now(),
-                    name: "test".to_string(),
-                    space: "test".to_string(),
-                    version: "test".to_string(),
+                    space: SPACE.to_string(),
+                    name: NAME.to_string(),
+                    version: VERSION.to_string(),
                     feature: format!("test{}", j),
                     value: j as f64,
                 };
@@ -172,9 +186,9 @@ impl TestHelper {
                     // add one minute to each record
                     let record = PsiServerRecord {
                         created_at: Utc::now(),
-                        name: "test".to_string(),
-                        space: "test".to_string(),
-                        version: "1.0.0".to_string(),
+                        space: SPACE.to_string(),
+                        name: NAME.to_string(),
+                        version: VERSION.to_string(),
                         feature: format!("feature_{}", feature),
                         bin_id: decile,
                         bin_count: rand::rng().random_range(0..10),
@@ -193,9 +207,9 @@ impl TestHelper {
             for _ in 0..25 {
                 let record = CustomMetricServerRecord {
                     created_at: Utc::now(),
-                    name: "test".to_string(),
-                    space: "test".to_string(),
-                    version: "1.0.0".to_string(),
+                    space: SPACE.to_string(),
+                    name: NAME.to_string(),
+                    version: VERSION.to_string(),
                     metric: format!("metric{}", i),
                     value: rand::rng().random_range(0..10) as f64,
                 };
@@ -214,5 +228,11 @@ impl TestHelper {
         sqlx::query(&script).execute(&self.pool).await.unwrap();
 
         Ok(())
+    }
+
+    pub async fn get_db_client(&self) -> PostgresClient {
+        PostgresClient::new(Some(self.pool.clone()), None)
+            .await
+            .unwrap()
     }
 }
