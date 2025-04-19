@@ -8,11 +8,11 @@ use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, span, Instrument, Level};
 
-pub struct BackgroundPollManager {
+pub struct BackgroundDriftManager {
     pub workers: Vec<JoinHandle<()>>,
 }
 
-impl BackgroundPollManager {
+impl BackgroundDriftManager {
     pub async fn start_workers(
         pool: &Pool<Postgres>,
         poll_settings: &PollingSettings,

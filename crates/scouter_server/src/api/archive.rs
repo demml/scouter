@@ -13,12 +13,13 @@ use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tracing::{error, info, instrument};
 
-pub struct DataManager {
+pub struct DataArchiver {
     /// handler for background tasks
     pub workers: Vec<JoinHandle<()>>,
 }
 
-impl DataManager {
+impl DataArchiver {
+    /// Start a new data manager
     pub async fn start_workers(
         pool: &Pool<Postgres>,
         db_settings: &DatabaseSettings,

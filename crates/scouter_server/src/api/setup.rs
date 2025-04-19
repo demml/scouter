@@ -1,8 +1,10 @@
-use crate::api::poller::BackgroundPollManager;
+use crate::api::archive::DataArchiver;
+use crate::api::drift_manager::BackgroundDriftManager;
 use anyhow::{Context, Result as AnyhowResult};
 use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
 use scouter_settings::{
-    DatabaseSettings, KafkaSettings, PollingSettings, RabbitMQSettings, ScouterServerConfig,
+    DatabaseSettings, KafkaSettings, ObjectStorageSettings, PollingSettings, RabbitMQSettings,
+    ScouterServerConfig,
 };
 use scouter_sql::sql::schema::User;
 use scouter_sql::PostgresClient;
@@ -16,6 +18,13 @@ use scouter_events::consumer::kafka::KafkaConsumerManager;
 use scouter_events::consumer::rabbitmq::RabbitMQConsumerManager;
 
 // setup default users
+/// This function is intended to be called the first time the server is started.
+/// If there are no users in the database, it will create defaults.
+/// It is recommended to change the password on first login for these default users.
+/// The default users are:
+/// * admin: admin/admin
+/// * guest: guest/guest
+/// The admin user has full permissions and the guest user has read/write permissions.
 pub async fn initialize_default_user(sql_client: &PostgresClient) -> AnyhowResult<()> {
     // Check if any users exist
     let users = sql_client
@@ -70,8 +79,6 @@ pub async fn initialize_default_user(sql_client: &PostgresClient) -> AnyhowResul
 }
 
 /// Setup logging for the application
-///
-/// This function initializes the logging system for the application
 pub async fn setup_logging() -> AnyhowResult<()> {
     let log_level = LogLevel::from_str(
         std::env::var("LOG_LEVEL")
@@ -91,6 +98,7 @@ pub async fn setup_logging() -> AnyhowResult<()> {
     Ok(())
 }
 
+/// Get that database going!
 pub async fn setup_database(db_settings: &DatabaseSettings) -> AnyhowResult<PostgresClient> {
     let db_client = PostgresClient::new(None, Some(db_settings))
         .await
@@ -101,6 +109,16 @@ pub async fn setup_database(db_settings: &DatabaseSettings) -> AnyhowResult<Post
     Ok(db_client)
 }
 
+/// Helper to setup the kafka consumer
+///
+/// Arguments:
+/// * `settings` - The kafka settings to use for the consumer
+/// * `db_settings` - The database settings to use for the consumer
+/// * `db_client` - The database client to use for the consumer
+/// * `shutdown_rx` - The shutdown receiver to use for the consumer
+///
+/// Returns:
+/// * `AnyhowResult<()>` - The result of the setup
 pub async fn setup_kafka(
     settings: &KafkaSettings,
     db_settings: &DatabaseSettings,
@@ -115,6 +133,16 @@ pub async fn setup_kafka(
     Ok(())
 }
 
+/// Helper to setup the rabbitmq consumer
+///
+/// Arguments:
+/// * `settings` - The rabbitmq settings to use for the consumer
+/// * `db_settings` - The database settings to use for the consumer
+/// * `db_client` - The database client to use for the consumer
+/// * `shutdown_rx` - The shutdown receiver to use for the consumer
+///
+/// Returns:
+/// * `AnyhowResult<()>` - The result of the setup
 pub async fn setup_rabbitmq(
     settings: &RabbitMQSettings,
     db_settings: &DatabaseSettings,
@@ -134,16 +162,51 @@ pub async fn setup_rabbitmq(
     Ok(())
 }
 
-pub async fn setup_background_workers(
+/// Helper to setup the background drift worker
+/// This worker will continually run and check for drift jobs
+/// to run based on their schedules
+///
+/// Arguments:
+/// * `db_client` - The database client to use for the worker
+/// * `db_settings` - The database settings to use for the worker
+/// * `poll_settings` - The polling settings to use for the worker
+/// * `shutdown_rx` - The shutdown receiver to use for the worker
+///
+/// Returns:
+/// * `AnyhowResult<()>` - The result of the setup
+pub async fn setup_background_drift_workers(
     db_client: &PostgresClient,
     db_settings: &DatabaseSettings,
     poll_settings: &PollingSettings,
     shutdown_rx: tokio::sync::watch::Receiver<()>,
 ) -> AnyhowResult<()> {
-    BackgroundPollManager::start_workers(&db_client.pool, poll_settings, db_settings, shutdown_rx)
+    BackgroundDriftManager::start_workers(&db_client.pool, poll_settings, db_settings, shutdown_rx)
         .await?;
     info!("✅ Started background workers");
 
+    Ok(())
+}
+
+/// Helper to setup the data archiver
+/// This worker will continually run and check for expired data based on the retention period
+///
+/// Arguments:
+/// * `db_client` - The database client to use for the worker
+/// * `db_settings` - The database settings to use for the worker
+/// * `storage_settings` - The storage settings to use for the worker
+/// * `shutdown_rx` - The shutdown receiver to use for the worker
+///
+/// Returns:
+/// * `AnyhowResult<()>` - The result of the setup
+pub async fn setup_background_data_archive_workers(
+    db_client: &PostgresClient,
+    db_settings: &DatabaseSettings,
+    storage_settings: &ObjectStorageSettings,
+    shutdown_rx: tokio::sync::watch::Receiver<()>,
+) -> AnyhowResult<()> {
+    DataArchiver::start_workers(&db_client.pool, db_settings, storage_settings, shutdown_rx)
+        .await?;
+    info!("✅ Started data archiver workers");
     Ok(())
 }
 
@@ -186,10 +249,18 @@ pub async fn setup_components() -> AnyhowResult<(
         .await?;
     }
 
-    setup_background_workers(
+    setup_background_drift_workers(
         &db_client,
         &config.database_settings,
         &config.polling_settings,
+        shutdown_rx.clone(),
+    )
+    .await?;
+
+    setup_background_data_archive_workers(
+        &db_client,
+        &config.database_settings,
+        &config.object_storage_settings,
         shutdown_rx,
     )
     .await?;
