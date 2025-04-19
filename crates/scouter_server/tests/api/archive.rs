@@ -9,7 +9,7 @@ use scouter_dataframe::parquet::spc::dataframe_to_spc_drift_features;
 use scouter_dataframe::parquet::{
     custom::dataframe_to_custom_drift_metrics, dataframe::ParquetDataFrame,
 };
-use scouter_server::api::data_manager::archive_old_data;
+use scouter_server::api::archive::archive_old_data;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::RecordType;
 use sqlx::types::chrono::Utc;
