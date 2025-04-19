@@ -8,7 +8,7 @@ use scouter_error::ScouterError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{RecordType, ServerRecords, StorageType};
 
-use crate::parquet::spc::{dataframe_to_spc_drift_features, SpcDataFrame};
+use crate::parquet::spc::SpcDataFrame;
 
 pub enum ParquetDataFrame {
     CustomMetric(CustomMetricDataFrame),
@@ -121,11 +121,10 @@ impl ParquetDataFrame {
 #[cfg(test)]
 mod tests {
 
-    use std::path::PathBuf;
-
     use super::*;
     use crate::parquet::custom::dataframe_to_custom_drift_metrics;
     use crate::parquet::psi::dataframe_to_psi_drift_features;
+    use crate::parquet::spc::dataframe_to_spc_drift_features;
     use chrono::Utc;
     use object_store::path::Path;
     use rand::Rng;
@@ -217,7 +216,7 @@ mod tests {
         cleanup();
     }
 
-    //#[tokio::test]
+    #[tokio::test]
     async fn test_write_psi_dataframe_local() {
         cleanup();
 
@@ -305,7 +304,7 @@ mod tests {
         cleanup();
     }
 
-    //#[tokio::test]
+    #[tokio::test]
     async fn test_write_spc_dataframe_local() {
         cleanup();
         let storage_settings = ObjectStorageSettings::default();

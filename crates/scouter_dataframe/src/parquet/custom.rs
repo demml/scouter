@@ -15,7 +15,6 @@ use datafusion::prelude::SessionContext;
 use scouter_error::ScouterError;
 use scouter_settings::ObjectStorageSettings;
 
-use scouter_types::psi::Bin;
 use scouter_types::{
     custom::{BinnedCustomMetric, BinnedCustomMetricStats, BinnedCustomMetrics},
     CustomMetricServerRecord, ServerRecords, StorageType, ToDriftRecords,
