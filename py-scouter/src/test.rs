@@ -1,6 +1,7 @@
 // add test logic
 use pyo3::prelude::*;
 use std::path::PathBuf;
+use tracing::debug;
 
 #[cfg(feature = "server")]
 use scouter_server::{start_server_in_background, stop_server};
@@ -24,13 +25,15 @@ pub struct ScouterTestServer {
     runtime: Arc<Runtime>,
     cleanup: bool,
     base_path: Option<PathBuf>,
+    rabbit_mq: bool,
+    kafka: bool,
 }
 
 #[pymethods]
 impl ScouterTestServer {
     #[new]
-    #[pyo3(signature = (cleanup = true, base_path = None))]
-    fn new(cleanup: bool, base_path: Option<PathBuf>) -> Self {
+    #[pyo3(signature = (cleanup = true, rabbit_mq = false, kafka = false, base_path = None))]
+    fn new(cleanup: bool, rabbit_mq: bool, kafka: bool, base_path: Option<PathBuf>) -> Self {
         ScouterTestServer {
             #[cfg(feature = "server")]
             handle: Arc::new(Mutex::new(None)),
@@ -38,6 +41,8 @@ impl ScouterTestServer {
             runtime: Arc::new(Runtime::new().unwrap()),
             cleanup,
             base_path,
+            rabbit_mq,
+            kafka,
         }
     }
 
@@ -64,8 +69,14 @@ impl ScouterTestServer {
 
             // set server env vars
             std::env::set_var("APP_ENV", "dev_server");
-            std::env::set_var("KAFKA_BROKERS", "localhost:9092");
-            std::env::set_var("RABBITMQ_ADDR", "amqp://guest:guest@127.0.0.1:5672/%2f");
+
+            if self.rabbit_mq {
+                std::env::set_var("RABBITMQ_ADDR", "amqp://guest:guest@127.0.0.1:5672/%2f");
+            }
+
+            if self.kafka {
+                std::env::set_var("KAFKA_BROKERS", "localhost:9092");
+            }
 
             let handle = self.handle.clone();
             let runtime = self.runtime.clone();
@@ -81,6 +92,8 @@ impl ScouterTestServer {
                 }
             };
 
+            debug!("Found available port: {}", port);
+
             std::env::set_var("SCOUTER_SERVER_PORT", port.to_string());
 
             runtime.spawn(async move {
@@ -89,10 +102,12 @@ impl ScouterTestServer {
             });
 
             let client = reqwest::blocking::Client::new();
-            let mut attempts = 0;
-            let max_attempts = 20;
+            // get current time
+            let start_time = std::time::Instant::now();
+            let mut last_check = start_time.elapsed();
 
-            while attempts < max_attempts {
+            // wait for a max of 60 seconds for the server to start
+            while last_check.as_secs() < 60 {
                 let res = client
                     .get("http://localhost:8000/scouter/healthcheck")
                     .send();
@@ -107,8 +122,8 @@ impl ScouterTestServer {
 
                 //print response
 
-                attempts += 1;
                 sleep(Duration::from_millis(100));
+                last_check = start_time.elapsed();
             }
 
             Err(scouter_error::PyScouterError::new_err(

@@ -173,7 +173,7 @@ jobs:
         with:
           key: ${{ matrix.os }}-${{ matrix.python-version }}-v1
 
-      - name: Setup Server
+      - name: Setup Backends
         run: make build.all_backends
         env:
           RUST_BACKTRACE: 1
