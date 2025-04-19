@@ -1,4 +1,4 @@
-use crate::common::TestHelper;
+use crate::common::{TestHelper, NAME, SPACE};
 
 use axum::{
     body::Body,
@@ -19,8 +19,8 @@ async fn test_create_spc_profile() {
     let (array, features) = helper.get_data();
     let alert_config = SpcAlertConfig::default();
     let config = SpcDriftConfig::new(
-        Some("name".to_string()),
-        Some("repo".to_string()),
+        Some(SPACE.to_string()),
+        Some(NAME.to_string()),
         None,
         None,
         None,

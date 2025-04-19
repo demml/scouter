@@ -5,7 +5,7 @@ use scouter_error::ScouterError;
 use scouter_settings::{DatabaseSettings, ObjectStorageSettings};
 use scouter_sql::{sql::schema::Entity, PostgresClient};
 
-use scouter_types::{DriftType, RecordType, ServerRecords, StorageType};
+use scouter_types::{ArchiveRecord, DriftType, RecordType, ServerRecords};
 use sqlx::Transaction;
 use sqlx::{Pool, Postgres};
 use strum::IntoEnumIterator;
@@ -84,6 +84,8 @@ impl DataManager {
     }
 }
 
+/// Query database to get entities ready for archival
+/// Returns a vector of entities uniquely identified by space/name/version
 async fn get_entities_to_archive(
     db_client: &PostgresClient,
     record_type: &RecordType,
@@ -97,6 +99,7 @@ async fn get_entities_to_archive(
     Ok(data)
 }
 
+/// Get data records for a given entity
 async fn get_data_to_archive(
     tx: &mut Transaction<'_, Postgres>,
     record_type: &RecordType,
@@ -117,6 +120,9 @@ async fn get_data_to_archive(
     Ok(data)
 }
 
+/// Update the entity to archived in the database
+/// Note - this doesn't delete the data from the database. It just marks it as archived
+/// Deletion occurs via pg-cron
 async fn update_entities_to_archived(
     tx: &mut Transaction<'_, Postgres>,
     record_type: &RecordType,
@@ -137,31 +143,13 @@ async fn update_entities_to_archived(
     Ok(())
 }
 
-fn set_write_path(
-    dataframe: &ParquetDataFrame,
-    record_type: &RecordType,
-    entity: &Entity,
-) -> String {
-    let rpath = format!(
-        "{}/{}/{}/{}",
-        entity.space, entity.name, entity.version, record_type
-    );
-
-    // if the storage type is local, add the storage root to the path
-    if dataframe.storage_type() == StorageType::Local {
-        format!("{}/{}", dataframe.storage_root(), rpath)
-    } else {
-        rpath.to_string()
-    }
-}
-
 #[instrument(skip_all)]
 async fn process_record_type(
     db_client: &PostgresClient,
     record_type: &RecordType,
     retention_period: &i64,
     storage_settings: &ObjectStorageSettings,
-) -> Result<(), ScouterError> {
+) -> Result<bool, ScouterError> {
     let df = ParquetDataFrame::new(storage_settings, record_type)?;
 
     // get the entities for archival
@@ -170,7 +158,7 @@ async fn process_record_type(
     // exit if no entities
     if entities.is_empty() {
         info!("No entities found for record type: {:?}", record_type);
-        return Ok(());
+        return Ok(false);
     }
 
     // iterate over the entities and archive the data
@@ -184,7 +172,7 @@ async fn process_record_type(
 
         // get data for space/name/version
         let records = get_data_to_archive(&mut tx, record_type, &entity).await?;
-        let rpath = set_write_path(&df, record_type, &entity);
+        let rpath = entity.get_write_path(record_type);
 
         df.write_parquet(&rpath, records).await?;
 
@@ -199,7 +187,7 @@ async fn process_record_type(
 
     info!("Archiving data for record type: {:?} complete", record_type);
 
-    Ok(())
+    Ok(true)
 }
 
 /// Parent function used to archive old data
@@ -216,15 +204,19 @@ pub async fn archive_old_data(
     db_client: &PostgresClient,
     storage_settings: &ObjectStorageSettings,
     retention_period: &i64,
-) -> Result<(), ScouterError> {
+) -> Result<ArchiveRecord, ScouterError> {
     // get old records
-    // iterate of RecordType.Psi, RecordType.Spc, RecordType.Custom
     info!("Archiving old data");
+
+    // record whether there was any data archived
+    // TODO(Steven): Make this an audit event in the future
+    let mut record = ArchiveRecord::default();
+
     for drift_type in DriftType::iter() {
         match drift_type {
             DriftType::Psi => {
                 // get the data from the database
-                process_record_type(
+                record.psi = process_record_type(
                     db_client,
                     &RecordType::Psi,
                     retention_period,
@@ -234,7 +226,7 @@ pub async fn archive_old_data(
             }
             DriftType::Spc => {
                 // get the data from the database
-                process_record_type(
+                record.spc = process_record_type(
                     db_client,
                     &RecordType::Spc,
                     retention_period,
@@ -244,7 +236,7 @@ pub async fn archive_old_data(
             }
             DriftType::Custom => {
                 // get the data from the database
-                process_record_type(
+                record.custom = process_record_type(
                     db_client,
                     &RecordType::Custom,
                     retention_period,
@@ -255,5 +247,5 @@ pub async fn archive_old_data(
         }
     }
 
-    Ok(())
+    Ok(record)
 }

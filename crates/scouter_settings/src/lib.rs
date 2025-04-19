@@ -2,7 +2,6 @@ use base64::prelude::*;
 use scouter_types::StorageType;
 use serde::Serialize;
 use std::env;
-use std::path::PathBuf;
 use tracing::warn;
 
 pub mod auth;

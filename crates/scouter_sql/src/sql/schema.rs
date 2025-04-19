@@ -4,6 +4,7 @@ use scouter_types::{
     custom::{BinnedCustomMetric, BinnedCustomMetricStats},
     get_utc_datetime,
     psi::{FeatureBinProportion, FeatureBinProportionResult},
+    RecordType,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, Error, FromRow, Row};
@@ -203,6 +204,16 @@ pub struct Entity {
     pub begin_timestamp: DateTime<Utc>,
     pub end_timestamp: DateTime<Utc>,
 }
+
+impl Entity {
+    pub fn get_write_path(&self, record_type: &RecordType) -> String {
+        format!(
+            "{}/{}/{}/{}",
+            self.space, self.name, self.version, record_type
+        )
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct User {
     pub id: Option<i32>,

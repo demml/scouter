@@ -12,10 +12,10 @@ use scouter_server::create_app;
 use scouter_types::{CustomMetricServerRecord, PsiServerRecord};
 use scouter_types::{ServerRecord, ServerRecords, SpcServerRecord};
 // for `collect`
-
 use ndarray::Array;
 use ndarray_rand::rand_distr::Uniform;
 use ndarray_rand::RandomExt;
+use scouter_settings::ObjectStorageSettings;
 use scouter_sql::PostgresClient;
 use scouter_types::JwtToken;
 use sqlx::{PgPool, Pool, Postgres};
@@ -65,7 +65,17 @@ pub struct TestHelper {
 }
 
 impl TestHelper {
+    pub fn cleanup_storage() {
+        let storage_settings = ObjectStorageSettings::default();
+        let current_dir = std::env::current_dir().unwrap();
+        let storage_path = current_dir.join(storage_settings.storage_root());
+        if storage_path.exists() {
+            std::fs::remove_dir_all(storage_path).unwrap();
+        }
+    }
     pub async fn new(enable_kafka: bool, enable_rabbitmq: bool) -> Result<Self, anyhow::Error> {
+        TestHelper::cleanup_storage();
+
         env::set_var("RUST_LOG", "debug");
         env::set_var("LOG_LEVEL", "debug");
         env::set_var("LOG_JSON", "false");

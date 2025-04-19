@@ -31,10 +31,10 @@ fn spc_record_from_row(row: &PgRow) -> Result<SpcServerRecord, SqlError> {
 
 /// Helper for converting a row to a `PsiServerRecord`.
 fn psi_record_from_row(row: &PgRow) -> Result<PsiServerRecord, SqlError> {
-    let bin_id: i64 = row
+    let bin_id: i32 = row
         .try_get("bin_id")
         .map_err(|e| SqlError::GeneralError(format!("Failed to extract bin_id: {}", e)))?;
-    let bin_count: i64 = row
+    let bin_count: i32 = row
         .try_get("bin_count")
         .map_err(|e| SqlError::GeneralError(format!("Failed to extract bin_count: {}", e)))?;
 
