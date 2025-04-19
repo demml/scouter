@@ -8,6 +8,7 @@ pub mod spc_drifter {
     use scouter_contracts::ServiceInfo;
     use scouter_dispatch::AlertDispatcher;
     use scouter_error::DriftError;
+    use scouter_error::ScouterError;
     use scouter_sql::PostgresClient;
     use scouter_types::spc::{SpcDriftFeatures, SpcDriftProfile, TaskAlerts};
     use std::collections::BTreeMap;
@@ -72,7 +73,7 @@ pub mod spc_drifter {
             db_client: &PostgresClient,
             limit_datetime: &DateTime<Utc>,
             features_to_monitor: &[String],
-        ) -> Result<SpcDriftArray, DriftError> {
+        ) -> Result<SpcDriftArray, ScouterError> {
             let records = db_client
                 .get_spc_drift_records(&self.service_info, limit_datetime, features_to_monitor)
                 .await?;
@@ -93,7 +94,7 @@ pub mod spc_drifter {
             &self,
             limit_datetime: &DateTime<Utc>,
             db_client: &PostgresClient,
-        ) -> Result<(Array2<f64>, Vec<String>), DriftError> {
+        ) -> Result<(Array2<f64>, Vec<String>), ScouterError> {
             let drift_features = self
                 .get_drift_features(
                     db_client,
@@ -204,7 +205,7 @@ pub mod spc_drifter {
             &self,
             db_client: &PostgresClient,
             previous_run: DateTime<Utc>,
-        ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
+        ) -> Result<Option<Vec<BTreeMap<String, String>>>, ScouterError> {
             info!(
                 "Processing drift task for profile: {}/{}/{}",
                 self.service_info.space, self.service_info.name, self.service_info.version

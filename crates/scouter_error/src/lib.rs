@@ -5,6 +5,37 @@ use serde::Deserialize;
 use std::fmt::Display;
 use thiserror::Error;
 use tracing::error;
+// add tracing trait to ScouterError
+pub trait TracedError: Display {
+    fn trace(&self) {
+        error!("{}", self);
+    }
+}
+
+#[derive(Error, Debug, Deserialize)]
+pub enum UtilError {
+    #[error("Failed to parse cron expression: {0}")]
+    ParseCronError(String),
+
+    #[error("Failed to serialize: {0}")]
+    SerializeError(String),
+}
+
+impl TracedError for UtilError {}
+
+impl UtilError {
+    pub fn traced_parse_cron_error(err: impl Display) -> Self {
+        let error = Self::ParseCronError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_serialize_error(err: impl Display) -> Self {
+        let error = Self::SerializeError(err.to_string());
+        error.trace();
+        error
+    }
+}
 
 #[derive(Error, Debug, Deserialize)]
 pub enum StorageError {
@@ -127,11 +158,111 @@ pub enum SqlError {
     #[error("File error: {0}")]
     FileError(String),
 
-    #[error("Error - {0}")]
-    GeneralError(String),
-
     #[error("Failed to connect to the database - {0}")]
     ConnectionError(String),
+
+    #[error("Failed to update drift profile: {0}")]
+    UpdateDriftProfileError(String),
+
+    #[error("Failed to get bin proportions: {0}")]
+    GetBinProportionsError(String),
+
+    #[error("Failed to get custom metrics: {0}")]
+    GetCustomMetricsError(String),
+
+    #[error("Failed to get insert metrics: {0}")]
+    InsertCustomMetricsError(String),
+
+    #[error("Invalid record type: {0}")]
+    InvalidRecordTypeError(String),
+
+    #[error("Failed to get entities: {0}")]
+    GetEntitiesError(String),
+
+    #[error("Failed to get entity data: {0}")]
+    GetEntityDataError(String),
+
+    #[error("Failed to get features: {0}")]
+    GetFeaturesError(String),
+
+    #[error("Failed to get next run: {0}")]
+    GetNextRunError(String),
+
+    #[error("Failed to get drift task: {0}")]
+    GetDriftTaskError(String),
+
+    #[error(transparent)]
+    UtilError(#[from] UtilError),
+}
+
+impl TracedError for SqlError {}
+
+impl SqlError {
+    pub fn traced_query_error(err: impl Display) -> Self {
+        let error = Self::QueryError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_update_drift_profile_error(err: impl Display) -> Self {
+        let error = Self::UpdateDriftProfileError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_get_bin_proportions_error(err: impl Display) -> Self {
+        let error = Self::GetBinProportionsError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_get_custom_metrics_error(err: impl Display) -> Self {
+        let error = Self::GetCustomMetricsError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_insert_custom_metrics_error(err: impl Display) -> Self {
+        let error = Self::InsertCustomMetricsError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_invalid_record_type_error(err: impl Display) -> Self {
+        let error = Self::InvalidRecordTypeError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_get_entities_error(err: impl Display) -> Self {
+        let error = Self::GetEntitiesError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_get_entity_data_error(err: impl Display) -> Self {
+        let error = Self::GetEntityDataError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_get_features_error(err: impl Display) -> Self {
+        let error = Self::GetFeaturesError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_get_next_run_error(err: impl Display) -> Self {
+        let error = Self::GetNextRunError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_get_drift_task_error(err: impl Display) -> Self {
+        let error = Self::GetDriftTaskError(err.to_string());
+        error.trace();
+        error
+    }
 }
 
 #[derive(Error, Debug, Deserialize)]
@@ -150,17 +281,32 @@ pub enum AlertError {
 pub enum DriftError {
     #[error("Error: {0}")]
     Error(String),
-
-    #[error(transparent)]
-    AlertError(#[from] AlertError),
-
-    #[error(transparent)]
-    SqlError(#[from] SqlError),
-
-    #[error(transparent)]
-    MonitorError(#[from] MonitorError),
 }
 
+impl TracedError for DriftError {}
+
+#[derive(Error, Debug, Deserialize)]
+pub enum ClientError {
+    #[error("Failed to get JWT token: {0}")]
+    FailedToGetJwtToken(String),
+
+    #[error("Failed to parse JWT token: {0}")]
+    FailedToParseJwtToken(String),
+
+    #[error("Failed to send request: {0}")]
+    FailedToSendRequest(String),
+
+    #[error("Failed to get response: {0}")]
+    FailedToGetResponse(String),
+
+    #[error("Unauthorized")]
+    Unauthorized,
+}
+
+impl TracedError for ClientError {}
+
+/// THis should be the top-level error that all other errors are converted to
+/// This should be the error that is returned to the user
 #[derive(Error, Debug, Deserialize)]
 pub enum ScouterError {
     #[error("Failed to serialize string")]
@@ -223,26 +369,17 @@ pub enum ScouterError {
     #[error(transparent)]
     DriftError(#[from] DriftError),
 
+    #[error(transparent)]
+    StorageError(#[from] StorageError),
+
+    #[error(transparent)]
+    ClientError(#[from] ClientError),
+
     #[error("Missing value in map")]
     MissingValue,
 
     #[error("Empty ServerRecordsError")]
     EmptyServerRecordsError,
-
-    #[error(transparent)]
-    StorageError(#[from] StorageError),
-
-    #[error("Failed to get JWT token: {0}")]
-    FailedToGetJwtToken(String),
-
-    #[error("Failed to parse JWT token: {0}")]
-    FailedToParseJwtToken(String),
-
-    #[error("Failed to send request: {0}")]
-    FailedToSendRequest(String),
-
-    #[error("Unauthorized")]
-    Unauthorized,
 
     #[error("Failed to serialize: {0}")]
     FailedToSerialize(String),
@@ -276,13 +413,6 @@ pub enum ScouterError {
     FailedToSubscribeTopic(String),
 }
 
-// add tracing trait to ScouterError
-pub trait TracedError: Display {
-    fn trace(&self) {
-        error!("{}", self);
-    }
-}
-
 impl TracedError for ScouterError {}
 
 // add a raise method so that each error is traced before being returned
@@ -293,27 +423,27 @@ impl ScouterError {
     }
 
     pub fn traced_jwt_error(err: impl Display) -> Self {
-        let error = Self::FailedToGetJwtToken(err.to_string());
+        let error = ClientError::FailedToGetJwtToken(err.to_string());
         error.trace();
-        error
+        error.into()
     }
 
     pub fn traced_parse_jwt_error(err: impl Display) -> Self {
-        let error = Self::FailedToParseJwtToken(err.to_string());
+        let error = ClientError::FailedToParseJwtToken(err.to_string());
         error.trace();
-        error
+        error.into()
     }
 
     pub fn traced_request_error(err: impl Display) -> Self {
-        let error = Self::FailedToSendRequest(err.to_string());
+        let error = ClientError::FailedToSendRequest(err.to_string());
         error.trace();
-        error
+        error.into()
     }
 
     pub fn traced_unauthorized_error() -> Self {
-        let error = Self::Unauthorized;
+        let error = ClientError::Unauthorized;
         error.trace();
-        error
+        error.into()
     }
 
     pub fn traced_serialize_error(err: impl Display) -> Self {

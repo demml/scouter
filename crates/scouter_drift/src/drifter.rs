@@ -2,7 +2,7 @@
 pub mod drift_executor {
 
     use scouter_contracts::ServiceInfo;
-    use scouter_error::DriftError;
+    use scouter_error::{DriftError, ScouterError};
     use scouter_sql::{sql::schema::TaskRequest, PostgresClient};
     use sqlx::{Postgres, Transaction};
 
@@ -27,7 +27,7 @@ pub mod drift_executor {
             &self,
             db_client: &PostgresClient,
             previous_run: DateTime<Utc>,
-        ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
+        ) -> Result<Option<Vec<BTreeMap<String, String>>>, ScouterError> {
             match self {
                 Drifter::SpcDrifter(drifter) => {
                     drifter.check_for_alerts(db_client, previous_run).await
