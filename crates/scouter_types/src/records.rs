@@ -323,6 +323,15 @@ impl ServerRecord {
         }
     }
 
+    pub fn space(&self) -> String {
+        match self {
+            ServerRecord::Spc(record) => record.space.clone(),
+            ServerRecord::Psi(record) => record.space.clone(),
+            ServerRecord::Custom(record) => record.space.clone(),
+            ServerRecord::Observability(record) => record.space.clone(),
+        }
+    }
+
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         match self {
@@ -389,6 +398,13 @@ impl ServerRecords {
 
     pub fn len(&self) -> usize {
         self.records.len()
+    }
+
+    pub fn space(&self) -> String {
+        match self.records.first() {
+            Some(record) => record.space(),
+            None => "__missing__".to_string(),
+        }
     }
 }
 

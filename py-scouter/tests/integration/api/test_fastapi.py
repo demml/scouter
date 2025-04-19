@@ -1,31 +1,28 @@
 import time
 
 from fastapi.testclient import TestClient
-from scouter.client import (
-    BinnedSpcFeatureMetrics,
-    DriftRequest,
-    ScouterClient,
-    TimeInterval,
-)
-from scouter.drift import SpcDriftProfile
+from scouter.client import DriftRequest, ScouterClient, TimeInterval
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.types import DriftType
 
 from tests.integration.api.conftest import PredictRequest
+
+from .conftest import create_and_register_drift_profile, create_app
 
 RustyLogger.setup_logging(
     LoggingConfig(log_level=LogLevel.Debug),
 )
 
 
-def test_router_mixin_kafka(
-    drift_profile: SpcDriftProfile,
-    client: TestClient,
-):
-
+def test_router_mixin_kafka(kafka_scouter_server):
     scouter_client = ScouterClient()
 
-    for i in range(30):
+    drift_profile = create_and_register_drift_profile(client=scouter_client)
+
+    # Get the test client
+    client = TestClient(create_app(drift_profile))
+
+    for i in range(60):
         response = client.post(
             "/predict",
             json=PredictRequest(
@@ -37,18 +34,23 @@ def test_router_mixin_kafka(
         )
     assert response.status_code == 200
 
-    time.sleep(2)
+    time.sleep(10)
 
-    drift: BinnedSpcFeatureMetrics = scouter_client.get_binned_drift(
-        DriftRequest(
-            name=drift_profile.config.name,
-            space=drift_profile.config.space,
-            version=drift_profile.config.version,
-            time_interval=TimeInterval.FiveMinutes,
-            max_data_points=100,
-            drift_type=DriftType.Spc,
-        )
+    request = DriftRequest(
+        name=drift_profile.config.name,
+        space=drift_profile.config.space,
+        version=drift_profile.config.version,
+        time_interval=TimeInterval.FiveMinutes,
+        max_data_points=100,
+        drift_type=DriftType.Spc,
     )
 
-    assert drift.features.keys() == {"feature_0", "feature_1", "feature_2", "feature_3"}
+    drift = scouter_client.get_binned_drift(request)
+
+    assert drift.features.keys() == {
+        "feature_0",
+        "feature_1",
+        "feature_2",
+        "feature_3",
+    }
     assert len(drift.features["feature_0"].values) == 1

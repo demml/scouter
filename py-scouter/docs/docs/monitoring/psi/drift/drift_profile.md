@@ -51,7 +51,7 @@ Save drift profile to json file.
 Inplace operation that updates config args.
 
 - **Parameters:**
-    - **`repository`** (`Optional[str]`): Name of the model repository.
+    - **`space`** (`Optional[str]`): Name of the model space.
     - **`name`** (`Optional[str]`): Name of the model.
     - **`version`** (`Optional[str]`): Version of the model.
     - **`targets`** (`Optional[str]`): Target(s) of the model / Dependant variable(s).

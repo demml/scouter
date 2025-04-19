@@ -45,7 +45,7 @@
 #     # create psi profile
 #     psi_config = PsiDriftConfig(
 #         name="test",
-#         repository="test",
+#         space="test",
 #         version="0.0.1",
 #         features_to_monitor=["feature_1"],
 #     )
@@ -72,7 +72,7 @@
 #
 #     # custom_config = CustomMetricDriftConfig(
 #     #     name="test",
-#     #     repository="test",
+#     #     space="test",
 #     #     version="0.0.1",
 #     # )
 #     #

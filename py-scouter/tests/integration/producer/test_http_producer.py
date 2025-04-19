@@ -9,23 +9,23 @@ from scouter.queue import (
 )
 
 
-def test_http_config():
+def test_http_config(http_scouter_server):
     config = HTTPConfig(
-        server_url="http://localhost:8000",
-        username="test-username",
-        password="test-password",
+        server_uri="http://localhost:8000",
+        username="guest",
+        password="guest",
     )
 
-    assert config.server_url == "http://localhost:8000"
-    assert config.username == "test-username"
-    assert config.password == "test-password"
+    assert config.server_uri == "http://localhost:8000"
+    assert config.username == "guest"
+    assert config.password == "guest"
 
 
-def test_http_producer_spc():
+def test_http_producer_spc(http_scouter_server):
     config = HTTPConfig(
-        server_url="http://localhost:8000",
-        username="test-username",
-        password="test-password",
+        server_uri="http://localhost:8000",
+        username="guest",
+        password="guest",
     )
 
     producer = ScouterProducer(config)
@@ -42,11 +42,11 @@ def test_http_producer_spc():
     producer.flush()
 
 
-def test_http_producer_psi():
+def test_http_producer_psi(http_scouter_server):
     config = HTTPConfig(
-        server_url="http://localhost:8000",
-        username="test-username",
-        password="test-password",
+        server_uri="http://localhost:8000",
+        username="guest",
+        password="guest",
     )
 
     producer = ScouterProducer(config)
@@ -64,11 +64,11 @@ def test_http_producer_psi():
     producer.flush()
 
 
-def test_http_producer_custom():
+def test_http_producer_custom(http_scouter_server):
     config = HTTPConfig(
-        server_url="http://localhost:8000",
-        username="test-username",
-        password="test-password",
+        server_uri="http://localhost:8000",
+        username="guest",
+        password="guest",
     )
 
     producer = ScouterProducer(config)

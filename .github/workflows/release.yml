@@ -2,8 +2,9 @@ name: Build and Release PyPi and Rust Packages
 
 on:
   push:
-      branches:
-        - main
+    branches:
+      - main
+
   release:
     types: [published]
 
@@ -39,7 +40,6 @@ jobs:
           path: ./py-scouter/dist
           retention-days: 1
 
-
   build-ubuntu:
     name: build - ubuntu - ${{ matrix.platform.manylinux }} - ${{ matrix.platform.target }}
     strategy:
@@ -48,15 +48,8 @@ jobs:
         platform:
           - target: x86_64
             manylinux: auto
-          - target: x86
-            manylinux: auto
           - target: aarch64
-            manylinux: "2_28" # ring will not compile here 
-          - target: armv7
-            manylinux: auto
-          - target: ppc64le
-            manylinux: auto
-
+            manylinux: "2_28"
 
     runs-on: ubuntu-latest
     steps:
@@ -67,7 +60,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - run: pip install -U twine 'black>=22.3.0,<23' typing_extensions
+      - run: pip install -U twine
 
       - name: Set OPENSSL_DIR environment variable
         run: echo "OPENSSL_DIR=/usr" >> $GITHUB_ENV
@@ -98,6 +91,36 @@ jobs:
                 apt update -y && apt-get install -y libssl-dev openssl pkg-config
             fi
 
+            # Install bindgen CLI
+            cargo install --force --locked bindgen-cli
+
+            # Determine architecture (x86_64 or x86)
+            ARCH=$(uname -m)
+
+            echo "Detected architecture: $ARCH"
+
+            # Download the correct CMake version based on the architecture
+            if [[ "$ARCH" == "x86_64" ]]; then
+                echo "Downloading CMake for x86_64 architecture"
+                curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-x86_64.sh -o cmake.sh
+                chmod +x cmake.sh
+                ./cmake.sh --skip-license --prefix=/usr/local
+            elif [[ "$ARCH" == "i686" ]]; then
+                echo "Downloading CMake for x86 architecture"
+                curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4.tar.gz -o cmake.tar.gz
+                tar -xzf cmake.tar.gz
+                cd cmake-3.26.4
+                ./bootstrap --prefix=/usr/local
+                make -j$(nproc)
+                make install
+                cd ..
+            else
+                echo "Unsupported architecture: $ARCH"
+                exit 1
+            fi
+
+            cmake --version
+
       - name: Check dist
         working-directory: ./py-scouter
         run: ls -lh dist/
@@ -109,49 +132,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: pypi_files_ubuntu_${{ matrix.platform.target }}_all_${{ matrix.platform.manylinux }}
-          path: ./py-scouter/dist
-          retention-days: 1
-
-  build-ubuntu-musllinux:
-    name: build - ubuntu - ${{ matrix.manylinux }} - ${{ matrix.target }}
-    strategy:
-      fail-fast: false
-      matrix:
-        target: [x86_64, aarch64]
-        manylinux: ["musllinux_1_1"]
-
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: set up python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - run: pip install -U twine 'black>=22.3.0,<23' typing_extensions
-
-      - name: build wheels
-        uses: PyO3/maturin-action@v1
-        with:
-          target: ${{ matrix.target }}
-          manylinux: ${{ matrix.manylinux }}
-          args: --release --out dist --interpreter ${{ env.INTERPRETER }}
-          rust-toolchain: stable
-          docker-options: -e CI
-          working-directory: ./py-scouter
-
-      - name: Check dist
-        working-directory: ./py-scouter
-        run: ls -lh dist/
-
-      - name: Check wheel
-        working-directory: ./py-scouter
-        run: twine check --strict dist/*
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: pypi_files_ubuntu_${{ matrix.target }}_all_${{ matrix.manylinux }}
           path: ./py-scouter/dist
           retention-days: 1
 
@@ -171,7 +151,7 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
-      - run: pip install -U twine 'black>=22.3.0,<23' typing_extensions
+      - run: pip install -U twine
 
       - name: build wheels
         uses: PyO3/maturin-action@v1
@@ -197,24 +177,15 @@ jobs:
           retention-days: 1
 
   build-windows:
-    name: build - windows - (${{ matrix.target }} - auto
+    name: build - windows - ${{ matrix.target }}
     strategy:
       fail-fast: false
       matrix:
-        target: [x64, x86]
+        target: [x64]
         include:
-          - target: i686
-            python-architecture: x86
-            interpreter: 3.9 3.10 3.11 3.12
           - target: x64
             python-architecture: x64
             interpreter: 3.9 3.10 3.11 3.12
-          - target: x86
-            python-architecture: x86
-            interpreter: 3.9 3.10 3.11 3.12
-        exclude:
-          - target: x86
-          - target: x64
 
     runs-on: windows-latest
     steps:
@@ -226,7 +197,7 @@ jobs:
           python-version: ${{ env.PYTHON_VERSION }}
           architecture: ${{ matrix.python-architecture }}
 
-      - run: pip install -U twine 'black>=22.3.0,<23' typing_extensions
+      - run: pip install -U twine
 
       - name: build wheels
         uses: PyO3/maturin-action@v1
@@ -251,14 +222,7 @@ jobs:
           retention-days: 1
 
   inspect-pypi-assets:
-    needs:
-      [
-        build-ubuntu,
-        build-ubuntu-musllinux,
-        build-macos,
-        build-windows,
-        build-sdist,
-      ]
+    needs: [build-ubuntu, build-macos, build-windows, build-sdist]
     runs-on: ubuntu-latest
 
     steps:
@@ -279,14 +243,7 @@ jobs:
 
   test-builds-os:
     name: test build on ${{ matrix.os }}
-    needs:
-      [
-        build-ubuntu,
-        build-ubuntu-musllinux,
-        build-macos,
-        build-windows,
-        build-sdist,
-      ]
+    needs: [build-ubuntu, build-macos, build-windows, build-sdist]
 
     strategy:
       fail-fast: false
@@ -355,7 +312,7 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-          
+
   rust-release:
     if: github.event_name == 'release'
     environment: crates.io

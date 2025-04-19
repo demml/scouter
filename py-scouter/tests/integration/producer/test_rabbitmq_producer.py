@@ -14,7 +14,7 @@ def test_rabbit_config():
     assert config.raise_on_error
 
 
-def test_rabbit_producer_spc():
+def test_rabbit_producer_spc(rabbitmq_scouter_server):
     config = RabbitMQConfig()
 
     producer = ScouterProducer(config)
@@ -31,7 +31,7 @@ def test_rabbit_producer_spc():
     producer.flush()
 
 
-def test_rabbit_producer_psi():
+def test_rabbit_producer_psi(rabbitmq_scouter_server):
     config = RabbitMQConfig()
     assert config.max_retries == 3
 
@@ -50,7 +50,7 @@ def test_rabbit_producer_psi():
     producer.flush()
 
 
-def test_rabbit_producer_custom():
+def test_rabbit_producer_custom(rabbitmq_scouter_server):
     config = RabbitMQConfig()
     producer = ScouterProducer(config)
 

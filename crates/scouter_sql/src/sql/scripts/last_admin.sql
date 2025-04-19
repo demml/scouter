@@ -1,0 +1,1 @@
+SELECT username FROM scouter.user WHERE role = 'admin'

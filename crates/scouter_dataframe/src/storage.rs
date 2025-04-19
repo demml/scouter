@@ -9,7 +9,8 @@ use object_store::local::LocalFileSystem;
 use object_store::path::Path;
 use object_store::ObjectStore as ObjStore;
 use scouter_error::StorageError;
-use scouter_settings::{ObjectStorageSettings, StorageType};
+use scouter_settings::ObjectStorageSettings;
+use scouter_types::StorageType;
 use url::Url;
 
 #[derive(Debug, Clone)]

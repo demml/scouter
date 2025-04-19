@@ -13,7 +13,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 #[pyclass(eq)]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default, Eq, Hash)]
 pub enum DriftType {
     #[default]
     Spc,

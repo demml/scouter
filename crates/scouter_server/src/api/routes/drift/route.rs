@@ -3,19 +3,20 @@ use anyhow::{Context, Result};
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    response::IntoResponse,
     routing::{get, post},
-    Json, Router,
+    Extension, Json, Router,
 };
-use scouter_contracts::{DriftRequest, GetProfileRequest};
+use scouter_auth::permission::UserPermissions;
+use scouter_contracts::{DriftRequest, GetProfileRequest, ScouterResponse, ScouterServerError};
 use scouter_drift::psi::PsiDrifter;
 use scouter_error::ScouterError;
 use scouter_sql::PostgresClient;
 use scouter_types::{
+    custom::BinnedCustomMetrics,
     psi::{BinnedPsiFeatureMetrics, PsiDriftProfile},
+    spc::SpcDriftFeatures,
     DriftType, RecordType, ServerRecords, ToDriftRecords,
 };
-use serde_json::json;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::{debug, error, instrument};
@@ -23,26 +24,30 @@ use tracing::{debug, error, instrument};
 #[instrument(skip(data, params))]
 pub async fn get_spc_drift(
     State(data): State<Arc<AppState>>,
+    Extension(perms): Extension<UserPermissions>,
     Query(params): Query<DriftRequest>,
-) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<SpcDriftFeatures>, (StatusCode, Json<ScouterServerError>)> {
     // validate time window
 
     debug!("Querying drift records: {:?}", params);
 
-    let query_result = &data.db.get_binned_spc_drift_records(&params).await;
+    if !perms.has_read_permission() {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(ScouterServerError::permission_denied()),
+        ));
+    }
+
+    let query_result = data.db.get_binned_spc_drift_records(&params).await;
 
     match query_result {
-        Ok(result) => {
-            let json_response = serde_json::json!(result);
-            Ok(Json(json_response))
-        }
+        Ok(result) => Ok(Json(result)),
         Err(e) => {
             error!("Failed to query drift records: {:?}", e);
-            let json_response = json!({
-                "status": "error",
-                "message": format!("{:?}", e)
-            });
-            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::query_records_error(e)),
+            ))
         }
     }
 }
@@ -82,23 +87,28 @@ async fn get_binned_psi_feature_metrics(
 pub async fn get_psi_drift(
     State(data): State<Arc<AppState>>,
     Query(params): Query<DriftRequest>,
-) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    Extension(perms): Extension<UserPermissions>,
+) -> Result<Json<BinnedPsiFeatureMetrics>, (StatusCode, Json<ScouterServerError>)> {
+    //1. check for permissions
+    if !perms.has_read_permission() {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(ScouterServerError::permission_denied()),
+        ));
+    }
     // validate time window
     debug!("Querying drift records: {:?}", params);
     let feature_metrics = get_binned_psi_feature_metrics(&params, &data.db).await;
 
     match feature_metrics {
-        Ok(feature_metrics) => {
-            let json_response = json!(feature_metrics);
-            Ok(Json(json_response))
-        }
+        Ok(feature_metrics) => Ok(Json(feature_metrics)),
         Err(e) => {
             error!("Failed to query drift records: {:?}", e);
-            let json_response = json!({
-                "status": "error",
-                "message": format!("{:?}", e)
-            });
-            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::query_records_error(e)),
+            ))
         }
     }
 }
@@ -107,25 +117,30 @@ pub async fn get_psi_drift(
 pub async fn get_custom_drift(
     State(data): State<Arc<AppState>>,
     Query(params): Query<DriftRequest>,
-) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+    Extension(perms): Extension<UserPermissions>,
+) -> Result<Json<BinnedCustomMetrics>, (StatusCode, Json<ScouterServerError>)> {
     // validate time window
+
+    if !perms.has_read_permission() {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(ScouterServerError::permission_denied()),
+        ));
+    }
 
     debug!("Querying drift records: {:?}", params);
 
     let metrics = data.db.get_binned_custom_drift_records(&params).await;
 
     match metrics {
-        Ok(metrics) => {
-            let json_response = serde_json::json!(metrics);
-            Ok(Json(json_response))
-        }
+        Ok(metrics) => Ok(Json(metrics)),
         Err(e) => {
             error!("Failed to query drift records: {:?}", e);
-            let json_response = json!({
-                "status": "error",
-                "message": format!("{:?}", e)
-            });
-            Err((StatusCode::INTERNAL_SERVER_ERROR, Json(json_response)))
+
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::query_records_error(e)),
+            ))
         }
     }
 }
@@ -181,12 +196,20 @@ async fn insert_custom_drift(
     Ok(())
 }
 
-#[instrument(skip(body, data))]
+#[instrument(skip_all)]
 pub async fn insert_drift(
     State(data): State<Arc<AppState>>,
+    Extension(perms): Extension<UserPermissions>,
     Json(body): Json<ServerRecords>,
-) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
+) -> Result<Json<ScouterResponse>, (StatusCode, Json<ScouterServerError>)> {
     debug!("Inserting drift record: {:?}", body);
+
+    if !perms.has_write_permission(&body.space()) {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(ScouterServerError::permission_denied()),
+        ));
+    }
 
     let record_type = match body.record_type() {
         Ok(rt) => rt,
@@ -194,10 +217,10 @@ pub async fn insert_drift(
             error!("Invalid record type: {:?}", e);
             return Err((
                 StatusCode::BAD_REQUEST,
-                Json(json!({
-                    "status": "error",
-                    "message": format!("{:?}", e)
-                })),
+                Json(ScouterServerError::new(format!(
+                    "Invalid record type: {:?}",
+                    e
+                ))),
             ));
         }
     };
@@ -210,18 +233,18 @@ pub async fn insert_drift(
     };
 
     match result {
-        Ok(_) => Ok(Json(json!({
-            "status": "success",
-            "message": "Record inserted successfully"
-        }))),
+        Ok(_) => Ok(Json(ScouterResponse::new(
+            "success".to_string(),
+            "Drift record inserted successfully".to_string(),
+        ))),
         Err(e) => {
             error!("Failed to insert drift record: {:?}", e);
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(json!({
-                    "status": "error",
-                    "message": format!("{:?}", e)
-                })),
+                Json(ScouterServerError::new(format!(
+                    "Failed to insert drift record: {:?}",
+                    e
+                ))),
             ))
         }
     }
