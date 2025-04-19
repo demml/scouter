@@ -24,7 +24,6 @@ use scouter_events::consumer::rabbitmq::RabbitMQConsumerManager;
 /// The default users are:
 /// * admin: admin/admin
 /// * guest: guest/guest
-/// The admin user has full permissions and the guest user has read/write permissions.
 pub async fn initialize_default_user(sql_client: &PostgresClient) -> AnyhowResult<()> {
     // Check if any users exist
     let users = sql_client
