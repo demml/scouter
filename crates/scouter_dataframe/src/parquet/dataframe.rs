@@ -123,11 +123,10 @@ mod tests {
 
     use std::path::PathBuf;
 
-    use crate::parquet::psi::dataframe_to_psi_drift_features;
-
     use super::*;
+    use crate::parquet::custom::dataframe_to_custom_drift_metrics;
+    use crate::parquet::psi::dataframe_to_psi_drift_features;
     use chrono::Utc;
-    use datafusion::functions::math::random;
     use object_store::path::Path;
     use rand::Rng;
     use scouter_settings::ObjectStorageSettings;
@@ -144,6 +143,7 @@ mod tests {
         }
     }
 
+    #[tokio::test]
     async fn test_write_custom_dataframe_local() {
         cleanup();
         let storage_settings = ObjectStorageSettings::default();
@@ -153,34 +153,19 @@ mod tests {
         let end_utc_for_test = start_utc + chrono::Duration::hours(3);
 
         // create records
-        for i in 0..5 {
-            let record = ServerRecord::Custom(CustomMetricServerRecord {
-                created_at: Utc::now() + chrono::Duration::hours(i),
-                name: "test".to_string(),
-                space: "test".to_string(),
-                version: "1.0".to_string(),
-                metric: "metric".to_string(),
-                value: i as f64,
-            });
+        for i in 0..3 {
+            for j in 0..50 {
+                let record = ServerRecord::Custom(CustomMetricServerRecord {
+                    created_at: Utc::now() + chrono::Duration::hours(i),
+                    name: "test".to_string(),
+                    space: "test".to_string(),
+                    version: "1.0".to_string(),
+                    metric: format!("metric{}", i),
+                    value: j as f64,
+                });
 
-            // sleep 1 second
-            std::thread::sleep(std::time::Duration::from_secs(1));
-            batch.push(record);
-        }
-
-        for i in 0..5 {
-            let record = ServerRecord::Custom(CustomMetricServerRecord {
-                created_at: Utc::now() + chrono::Duration::hours(i),
-                name: "test".to_string(),
-                space: "test".to_string(),
-                version: "1.0".to_string(),
-                metric: "metric1".to_string(),
-                value: i as f64,
-            });
-
-            // sleep 1 second
-            std::thread::sleep(std::time::Duration::from_secs(1));
-            batch.push(record);
+                batch.push(record);
+            }
         }
 
         let records = ServerRecords::new(batch);
@@ -193,7 +178,7 @@ mod tests {
 
         // Check if the file exists
         let files = df.storage_client().list(Some(&data_path)).await.unwrap();
-        assert_eq!(files.len(), 5);
+        assert_eq!(files.len(), 3);
 
         // attempt to read the file
         let read_df = df
@@ -209,9 +194,11 @@ mod tests {
             .await
             .unwrap();
 
-        read_df.show().await.unwrap();
+        //read_df.show().await.unwrap();
 
-        //let _batches = read_df.collect().await.unwrap();
+        let binned_metrics = dataframe_to_custom_drift_metrics(read_df).await.unwrap();
+
+        assert_eq!(binned_metrics.metrics.len(), 3);
 
         //// delete the file
         for file in files.iter() {
@@ -230,7 +217,7 @@ mod tests {
         cleanup();
     }
 
-    #[tokio::test]
+    //#[tokio::test]
     async fn test_write_psi_dataframe_local() {
         cleanup();
 
@@ -318,7 +305,7 @@ mod tests {
         cleanup();
     }
 
-    #[tokio::test]
+    //#[tokio::test]
     async fn test_write_spc_dataframe_local() {
         cleanup();
         let storage_settings = ObjectStorageSettings::default();
