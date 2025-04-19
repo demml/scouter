@@ -22,6 +22,10 @@ use sqlx::{PgPool, Pool, Postgres};
 use std::env;
 use tower::util::ServiceExt;
 
+pub const SPACE: &str = "space";
+pub const NAME: &str = "name";
+pub const VERSION: &str = "1.0.0";
+
 pub async fn cleanup(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> {
     sqlx::raw_sql(
         r#"
@@ -149,9 +153,9 @@ impl TestHelper {
             for j in 0..10 {
                 let record = SpcServerRecord {
                     created_at: Utc::now(),
-                    name: "name".to_string(),
-                    space: "space".to_string(),
-                    version: "1.0.0".to_string(),
+                    space: SPACE.to_string(),
+                    name: NAME.to_string(),
+                    version: VERSION.to_string(),
                     feature: format!("test{}", j),
                     value: j as f64,
                 };
@@ -172,9 +176,9 @@ impl TestHelper {
                     // add one minute to each record
                     let record = PsiServerRecord {
                         created_at: Utc::now(),
-                        name: "test".to_string(),
-                        space: "test".to_string(),
-                        version: "1.0.0".to_string(),
+                        space: SPACE.to_string(),
+                        name: NAME.to_string(),
+                        version: VERSION.to_string(),
                         feature: format!("feature_{}", feature),
                         bin_id: decile,
                         bin_count: rand::rng().random_range(0..10),
@@ -193,9 +197,9 @@ impl TestHelper {
             for _ in 0..25 {
                 let record = CustomMetricServerRecord {
                     created_at: Utc::now(),
-                    name: "test".to_string(),
-                    space: "test".to_string(),
-                    version: "1.0.0".to_string(),
+                    space: SPACE.to_string(),
+                    name: NAME.to_string(),
+                    version: VERSION.to_string(),
                     metric: format!("metric{}", i),
                     value: rand::rng().random_range(0..10) as f64,
                 };
