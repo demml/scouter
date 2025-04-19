@@ -11,7 +11,7 @@ use sqlx::{Pool, Postgres};
 use strum::IntoEnumIterator;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
-use tracing::{error, info, instrument};
+use tracing::{debug, error, info, instrument};
 
 pub struct DataArchiver {
     /// handler for background tasks
@@ -73,7 +73,7 @@ impl DataArchiver {
                     if should_run {
                         match archive_old_data(&db_client, &storage_settings, &retention_period).await {
                             Ok(_) => {
-                                info!("Archive completed successfully for worker {}", id);
+                                debug!("Archive completed successfully for worker {}", id);
                                 last_cleanup = Some(now);
                             }
                             Err(e) => error!("Archive failed for worker {}: {}", id, e),
@@ -158,7 +158,7 @@ async fn process_record_type(
 
     // exit if no entities
     if entities.is_empty() {
-        info!("No entities found for record type: {:?}", record_type);
+        debug!("No entities found for record type: {:?}", record_type);
         return Ok(false);
     }
 
@@ -186,7 +186,7 @@ async fn process_record_type(
         })?;
     }
 
-    info!("Archiving data for record type: {:?} complete", record_type);
+    debug!("Archiving data for record type: {:?} complete", record_type);
 
     Ok(true)
 }
@@ -207,7 +207,7 @@ pub async fn archive_old_data(
     retention_period: &i64,
 ) -> Result<ArchiveRecord, ScouterError> {
     // get old records
-    info!("Archiving old data");
+    debug!("Archiving old data");
 
     // record whether there was any data archived
     // TODO(Steven): Make this an audit event in the future
