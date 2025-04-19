@@ -205,7 +205,7 @@ pub async fn setup_background_data_archive_workers(
 ) -> AnyhowResult<()> {
     DataArchiver::start_workers(&db_client.pool, db_settings, storage_settings, shutdown_rx)
         .await?;
-    info!("✅ Started data archiver workers");
+    info!("✅ Started data archive workers");
     Ok(())
 }
 

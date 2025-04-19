@@ -1176,6 +1176,10 @@ mod tests {
     use rand::Rng;
     use scouter_types::{spc::SpcDriftProfile, DriftType};
 
+    const SPACE: &str = "space";
+    const NAME: &str = "name";
+    const VERSION: &str = "1.0.0";
+
     pub async fn cleanup(pool: &Pool<Postgres>) {
         sqlx::raw_sql(
             r#"
@@ -1227,9 +1231,9 @@ mod tests {
 
         for _ in 0..10 {
             let service_info = ServiceInfo {
-                name: "test".to_string(),
-                space: "test".to_string(),
-                version: "test".to_string(),
+                space: SPACE.to_string(),
+                name: NAME.to_string(),
+                version: VERSION.to_string(),
             };
 
             let alert = (0..10)
@@ -1246,9 +1250,9 @@ mod tests {
 
         // get alerts
         let alert_request = DriftAlertRequest {
-            name: "test".to_string(),
-            space: "test".to_string(),
-            version: "test".to_string(),
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
             active: Some(true),
             limit: None,
             limit_datetime: None,
@@ -1259,9 +1263,9 @@ mod tests {
 
         // get alerts limit 1
         let alert_request = DriftAlertRequest {
-            name: "test".to_string(),
-            space: "test".to_string(),
-            version: "test".to_string(),
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
             active: Some(true),
             limit: Some(1),
             limit_datetime: None,
@@ -1272,9 +1276,9 @@ mod tests {
 
         // get alerts limit timestamp
         let alert_request = DriftAlertRequest {
-            name: "test".to_string(),
-            space: "test".to_string(),
-            version: "test".to_string(),
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
             active: Some(true),
             limit: None,
             limit_datetime: Some(timestamp),
@@ -1290,9 +1294,9 @@ mod tests {
 
         let record = SpcServerRecord {
             created_at: Utc::now(),
-            name: "test".to_string(),
-            space: "test".to_string(),
-            version: "test".to_string(),
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
             feature: "test".to_string(),
             value: 1.0,
         };
@@ -1308,9 +1312,9 @@ mod tests {
 
         let record = PsiServerRecord {
             created_at: Utc::now(),
-            name: "test".to_string(),
-            space: "test".to_string(),
-            version: "test".to_string(),
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
             feature: "test".to_string(),
             bin_id: 1,
             bin_count: 1,
@@ -1391,9 +1395,9 @@ mod tests {
             for j in 0..10 {
                 let record = SpcServerRecord {
                     created_at: Utc::now(),
-                    name: "test".to_string(),
-                    space: "test".to_string(),
-                    version: "test".to_string(),
+                    space: SPACE.to_string(),
+                    name: NAME.to_string(),
+                    version: VERSION.to_string(),
                     feature: format!("test{}", j),
                     value: j as f64,
                 };
@@ -1404,9 +1408,9 @@ mod tests {
         }
 
         let service_info = ServiceInfo {
-            name: "test".to_string(),
-            space: "test".to_string(),
-            version: "test".to_string(),
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
         };
 
         let features = client.get_spc_features(&service_info).await.unwrap();
@@ -1421,9 +1425,9 @@ mod tests {
 
         let binned_records = client
             .get_binned_spc_drift_records(&DriftRequest {
-                name: "name".to_string(),
-                space: "space".to_string(),
-                version: "1.0.0".to_string(),
+                space: SPACE.to_string(),
+                name: NAME.to_string(),
+                version: VERSION.to_string(),
                 time_interval: TimeInterval::FiveMinutes,
                 max_data_points: 10,
                 drift_type: DriftType::Spc,
@@ -1445,9 +1449,9 @@ mod tests {
                 for _ in 0..=100 {
                     let record = PsiServerRecord {
                         created_at: Utc::now(),
-                        name: "test".to_string(),
-                        space: "test".to_string(),
-                        version: "test".to_string(),
+                        space: SPACE.to_string(),
+                        name: NAME.to_string(),
+                        version: VERSION.to_string(),
                         feature: format!("feature{}", feature),
                         bin_id: bin,
                         bin_count: rand::rng().random_range(0..10),
@@ -1461,9 +1465,9 @@ mod tests {
         let binned_records = client
             .get_feature_bin_proportions(
                 &ServiceInfo {
-                    name: "test".to_string(),
-                    space: "test".to_string(),
-                    version: "test".to_string(),
+                    space: SPACE.to_string(),
+                    name: NAME.to_string(),
+                    version: VERSION.to_string(),
                 },
                 &timestamp,
                 &["feature0".to_string()],
@@ -1483,9 +1487,9 @@ mod tests {
 
         let binned_records = client
             .get_binned_psi_drift_records(&DriftRequest {
-                name: "test".to_string(),
-                space: "test".to_string(),
-                version: "test".to_string(),
+                space: SPACE.to_string(),
+                name: NAME.to_string(),
+                version: VERSION.to_string(),
                 time_interval: TimeInterval::OneHour,
                 max_data_points: 1000,
                 drift_type: DriftType::Psi,
@@ -1506,9 +1510,9 @@ mod tests {
             for _ in 0..25 {
                 let record = CustomMetricServerRecord {
                     created_at: Utc::now(),
-                    name: "test".to_string(),
-                    space: "test".to_string(),
-                    version: "test".to_string(),
+                    space: SPACE.to_string(),
+                    name: NAME.to_string(),
+                    version: VERSION.to_string(),
                     metric: format!("metric{}", i),
                     value: rand::rng().random_range(0..10) as f64,
                 };
@@ -1521,9 +1525,9 @@ mod tests {
         // insert random record to test has statistics funcs handle single record
         let record = CustomMetricServerRecord {
             created_at: Utc::now(),
-            name: "test".to_string(),
-            space: "test".to_string(),
-            version: "test".to_string(),
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
             metric: "metric3".to_string(),
             value: rand::rng().random_range(0..10) as f64,
         };
@@ -1534,9 +1538,9 @@ mod tests {
         let metrics = client
             .get_custom_metric_values(
                 &ServiceInfo {
-                    name: "test".to_string(),
-                    space: "test".to_string(),
-                    version: "test".to_string(),
+                    space: SPACE.to_string(),
+                    name: NAME.to_string(),
+                    version: VERSION.to_string(),
                 },
                 &timestamp,
                 &["metric1".to_string()],
@@ -1548,9 +1552,9 @@ mod tests {
 
         let binned_records = client
             .get_binned_custom_drift_records(&DriftRequest {
-                name: "test".to_string(),
-                space: "test".to_string(),
-                version: "test".to_string(),
+                space: SPACE.to_string(),
+                name: NAME.to_string(),
+                version: VERSION.to_string(),
                 time_interval: TimeInterval::OneHour,
                 max_data_points: 1000,
                 drift_type: DriftType::Custom,
