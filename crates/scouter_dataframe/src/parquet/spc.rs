@@ -172,7 +172,7 @@ fn process_spc_record_batch(
         let values = values_array
             .as_primitive::<arrow::datatypes::Float64Type>()
             .iter()
-            .filter_map(|v| v)
+            .flatten()
             .collect::<Vec<_>>();
 
         features.insert(feature_name, SpcDriftFeature { created_at, values });

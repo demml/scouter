@@ -123,6 +123,7 @@ impl ParquetDataFrame {
         }
     }
 
+    /// Get the underyling object store storage type
     pub fn storage_type(&self) -> StorageType {
         match self {
             ParquetDataFrame::CustomMetric(df) => {
@@ -200,7 +201,7 @@ mod tests {
 
         let read_df = new_df
             .get_binned_metrics(
-                &rpath,
+                rpath,
                 &0.01,
                 &start_utc,
                 &end_utc_for_test,
@@ -291,7 +292,7 @@ mod tests {
         // attempt to read the file
         let read_df = df
             .get_binned_metrics(
-                &rpath,
+                rpath,
                 &0.01,
                 &start_utc,
                 &end_utc_for_test,
@@ -372,7 +373,7 @@ mod tests {
         // attempt to read the file
         let read_df = df
             .get_binned_metrics(
-                &rpath,
+                rpath,
                 &0.01,
                 &start_utc,
                 &end_utc_for_test,

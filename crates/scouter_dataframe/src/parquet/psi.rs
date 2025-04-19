@@ -217,7 +217,7 @@ fn create_bin_map(
     let bin_ids = get_bin_ids(&bin_ids.value(index))?;
     let proportions = get_proportions(&proportions.value(index))?;
 
-    Ok(bin_ids.into_iter().zip(proportions.into_iter()).collect())
+    Ok(bin_ids.into_iter().zip(proportions).collect())
 }
 
 /// Extract bin proportions from a return record batch
@@ -289,7 +289,7 @@ fn extract_overall_proportions(batch: &RecordBatch) -> Result<BTreeMap<usize, f6
     let bin_ids = get_bin_ids(&bin_ids.value(0))?;
     let proportions = get_proportions(&proportions.value(0))?;
 
-    Ok(bin_ids.into_iter().zip(proportions.into_iter()).collect())
+    Ok(bin_ids.into_iter().zip(proportions).collect())
 }
 
 /// Helper function to process a record batch to feature and SpcDriftFeature

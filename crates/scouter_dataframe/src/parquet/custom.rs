@@ -222,7 +222,7 @@ pub async fn dataframe_to_custom_drift_metrics(
 
     let metrics: Vec<BinnedCustomMetric> = batches
         .iter()
-        .map(|batch| process_custom_record_batch(batch))
+        .map(process_custom_record_batch)
         .collect::<Result<Vec<_>, _>>()?;
 
     Ok(BinnedCustomMetrics::from_vec(metrics))
