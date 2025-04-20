@@ -296,6 +296,9 @@ pub enum DriftError {
 
     #[error(transparent)]
     ParseIntError(#[from] std::num::ParseIntError),
+
+    #[error(transparent)]
+    SqlError(#[from] SqlError),
 }
 
 impl TracedError for DriftError {}
