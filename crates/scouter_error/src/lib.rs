@@ -193,6 +193,9 @@ pub enum SqlError {
 
     #[error(transparent)]
     UtilError(#[from] UtilError),
+
+    #[error("Failed to extract value {0} {1}")]
+    FailedToExtractError(String, String),
 }
 
 impl TracedError for SqlError {}
@@ -260,6 +263,12 @@ impl SqlError {
 
     pub fn traced_get_drift_task_error(err: impl Display) -> Self {
         let error = Self::GetDriftTaskError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_failed_to_extract_error(err: impl Display, field: impl Display) -> Self {
+        let error = Self::FailedToExtractError(field.to_string(), err.to_string());
         error.trace();
         error
     }
