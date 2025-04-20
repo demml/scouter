@@ -2,9 +2,10 @@ use ndarray::s;
 use ndarray::{ArrayView1, ArrayView2, Axis};
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
-use scouter_error::AlertError;
+use scouter_error::DriftError;
 use scouter_types::spc::{AlertZone, SpcAlert, SpcAlertRule, SpcAlertType, SpcFeatureAlerts};
 use std::collections::HashSet;
+use std::num::ParseIntError;
 
 // Struct for holding stateful Alert information
 #[derive(Clone)]
@@ -43,7 +44,7 @@ impl Alerter {
         drift_array: &ArrayView1<f64>,
         zone_consecutive_rule: usize,
         threshold: f64,
-    ) -> Result<bool, AlertError> {
+    ) -> Result<bool, DriftError> {
         let pos_count = drift_array.iter().filter(|&x| *x >= threshold).count();
 
         let neg_count = drift_array.iter().filter(|&x| *x <= -threshold).count();
@@ -60,7 +61,7 @@ impl Alerter {
         drift_array: &ArrayView1<f64>,
         zone_alt_rule: usize,
         threshold: f64,
-    ) -> Result<bool, AlertError> {
+    ) -> Result<bool, DriftError> {
         // check for consecutive alternating values
 
         let mut last_val = 0.0;
@@ -90,7 +91,7 @@ impl Alerter {
         Ok(false)
     }
 
-    pub fn has_overlap(last_entry: &[usize], start: usize, end: usize) -> Result<bool, AlertError> {
+    pub fn has_overlap(last_entry: &[usize], start: usize, end: usize) -> Result<bool, DriftError> {
         let last_start = last_entry[0];
         let last_end = last_entry[1];
 
@@ -107,7 +108,7 @@ impl Alerter {
         consecutive_rule: usize,
         alternating_rule: usize,
         threshold: f64,
-    ) -> Result<(), AlertError> {
+    ) -> Result<(), DriftError> {
         // test consecutive first
         if (value == threshold || value == -threshold)
             && idx + 1 >= consecutive_rule
@@ -147,25 +148,19 @@ impl Alerter {
         Ok(())
     }
 
-    pub fn convert_rules_to_vec(&self, rule: &str) -> Result<Vec<i32>, AlertError> {
+    pub fn convert_rules_to_vec(&self, rule: &str) -> Result<Vec<i32>, DriftError> {
         let rule_chars = rule.split(' ');
 
         let rule_vec = rule_chars
             .collect::<Vec<&str>>()
             .into_iter()
-            .map(|ele| {
-                ele.parse::<i32>()
-                    .map_err(|e| AlertError::CreateError(e.to_string()))
-            })
-            .collect::<Result<Vec<i32>, AlertError>>()?;
+            .map(|ele| ele.parse::<i32>())
+            .collect::<Result<Vec<i32>, ParseIntError>>()?;
 
         // assert rule_vec.len() == 7
         let rule_vec_len = rule_vec.len();
         if rule_vec_len != 8 {
-            return Err(AlertError::CreateError(format!(
-                "Rule vector length is not 8, found {}",
-                rule_vec_len
-            )));
+            return Err(DriftError::traced_rule_length_error());
         }
 
         Ok(rule_vec)
@@ -174,7 +169,7 @@ impl Alerter {
     pub fn check_process_rule_for_alert(
         &mut self,
         drift_array: &ArrayView1<f64>,
-    ) -> Result<(), AlertError> {
+    ) -> Result<(), DriftError> {
         let rule_vec = self.convert_rules_to_vec(&self.alert_rule.rule)?;
 
         // iterate over each value in drift array
@@ -207,7 +202,7 @@ impl Alerter {
         &mut self,
         threshold: usize,
         alert: SpcAlertType,
-    ) -> Result<(), AlertError> {
+    ) -> Result<(), DriftError> {
         let alert_zone = match threshold {
             1 => AlertZone::Zone1,
             2 => AlertZone::Zone2,
@@ -236,7 +231,7 @@ impl Alerter {
         Ok(())
     }
 
-    pub fn check_trend(&mut self, drift_array: &ArrayView1<f64>) -> Result<(), AlertError> {
+    pub fn check_trend(&mut self, drift_array: &ArrayView1<f64>) -> Result<(), DriftError> {
         drift_array.windows(7).into_iter().for_each(|window| {
             // iterate over array and check if each value is increasing or decreasing
             let mut increasing = 0;
@@ -276,14 +271,10 @@ impl Default for Alerter {
 pub fn generate_alert(
     drift_array: &ArrayView1<f64>,
     rule: &SpcAlertRule,
-) -> Result<HashSet<SpcAlert>, AlertError> {
+) -> Result<HashSet<SpcAlert>, DriftError> {
     let mut alerter = Alerter::new(rule.clone());
 
-    alerter
-        .check_process_rule_for_alert(&drift_array.view())
-        .map_err(|e| {
-            AlertError::CreateError(format!("Failed to check process rule for alert: {}", e))
-        })?;
+    alerter.check_process_rule_for_alert(&drift_array.view())?;
 
     alerter.check_trend(&drift_array.view())?;
 
@@ -303,7 +294,7 @@ pub fn generate_alerts(
     drift_array: &ArrayView2<f64>,
     features: &[String],
     rule: &SpcAlertRule,
-) -> Result<SpcFeatureAlerts, AlertError> {
+) -> Result<SpcFeatureAlerts, DriftError> {
     let mut has_alerts: bool = false;
 
     // check for alerts
@@ -314,7 +305,7 @@ pub fn generate_alerts(
             // check for alerts and errors
             generate_alert(&col, rule)
         })
-        .collect::<Vec<Result<HashSet<SpcAlert>, AlertError>>>();
+        .collect::<Vec<Result<HashSet<SpcAlert>, DriftError>>>();
 
     // Calculate correlation matrix when there are alerts
     if alerts

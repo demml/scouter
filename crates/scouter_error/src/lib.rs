@@ -286,15 +286,34 @@ pub enum AlertError {
     DriftError(String),
 }
 
-#[derive(Error, Debug, Deserialize)]
+#[derive(Error, Debug)]
 pub enum DriftError {
     #[error("Error: {0}")]
     Error(String),
+
+    #[error("Failed to create rule. Rule must be of length 8")]
+    RuleLengthError,
+
+    #[error(transparent)]
+    ParseIntError(#[from] std::num::ParseIntError),
 }
 
 impl TracedError for DriftError {}
 
-#[derive(Error, Debug, Deserialize)]
+impl DriftError {
+    pub fn raise<T>(self) -> Result<T, Self> {
+        self.trace();
+        Err(self)
+    }
+
+    pub fn traced_rule_length_error() -> Self {
+        let error = Self::RuleLengthError;
+        error.trace();
+        error
+    }
+}
+
+#[derive(Error, Debug)]
 pub enum ClientError {
     #[error("Failed to get JWT token: {0}")]
     FailedToGetJwtToken(String),
@@ -310,13 +329,16 @@ pub enum ClientError {
 
     #[error("Unauthorized")]
     Unauthorized,
+
+    #[error(transparent)]
+    SqlError(#[from] SqlError),
 }
 
 impl TracedError for ClientError {}
 
 /// THis should be the top-level error that all other errors are converted to
 /// This should be the error that is returned to the user
-#[derive(Error, Debug, Deserialize)]
+#[derive(Error, Debug)]
 pub enum ScouterError {
     #[error("Failed to serialize string")]
     SerializeError,
