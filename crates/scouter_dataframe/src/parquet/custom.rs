@@ -12,7 +12,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
 use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
-use scouter_error::ScouterError;
+use scouter_error::{DataFrameError, ScouterError};
 use scouter_settings::ObjectStorageSettings;
 
 use scouter_types::{
@@ -28,11 +28,11 @@ pub struct CustomMetricDataFrame {
 
 #[async_trait]
 impl ParquetFrame for CustomMetricDataFrame {
-    fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, ScouterError> {
+    fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
         CustomMetricDataFrame::new(storage_settings)
     }
 
-    async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, ScouterError> {
+    async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError> {
         let records = records.to_custom_metric_drift_records()?;
         let batch = self.build_batch(records)?;
 
@@ -40,7 +40,7 @@ impl ParquetFrame for CustomMetricDataFrame {
 
         let df = ctx
             .read_batches(vec![batch])
-            .map_err(|e| ScouterError::Error(format!("Failed to read batches: {}", e)))?;
+            .map_err(DataFrameError::traced_read_batch_error)?;
 
         Ok(df)
     }

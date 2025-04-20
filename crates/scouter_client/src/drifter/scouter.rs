@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyList;
 use pyo3::IntoPyObjectExt;
 use scouter_drift::spc::SpcDriftMap;
-use scouter_error::{PyScouterError, ScouterError};
+use scouter_error::{DriftError, PyScouterError, ScouterError};
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::{
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
@@ -26,30 +26,24 @@ pub enum DriftConfig {
 }
 
 impl DriftConfig {
-    pub fn spc_config(&self) -> Result<&SpcDriftConfig, ScouterError> {
+    pub fn spc_config(&self) -> Result<&SpcDriftConfig, DriftError> {
         match self {
             DriftConfig::Spc(cfg) => Ok(cfg),
-            _ => Err(ScouterError::Error(
-                "Invalid config type for SpcDrifter".to_string(),
-            )),
+            _ => Err(DriftError::InvalidConfigError("SpcDrifter".to_string())),
         }
     }
 
-    pub fn psi_config(&self) -> Result<&PsiDriftConfig, ScouterError> {
+    pub fn psi_config(&self) -> Result<&PsiDriftConfig, DriftError> {
         match self {
             DriftConfig::Psi(cfg) => Ok(cfg),
-            _ => Err(ScouterError::Error(
-                "Invalid config type for PsiDrifter".to_string(),
-            )),
+            _ => Err(DriftError::InvalidConfigError("PsiDrifter".to_string())),
         }
     }
 
-    pub fn custom_config(&self) -> Result<&CustomMetricDriftConfig, ScouterError> {
+    pub fn custom_config(&self) -> Result<&CustomMetricDriftConfig, DriftError> {
         match self {
             DriftConfig::Custom(cfg) => Ok(cfg),
-            _ => Err(ScouterError::Error(
-                "Invalid config type for CustomDrifter".to_string(),
-            )),
+            _ => Err(DriftError::InvalidConfigError("CustomDrifter".to_string())),
         }
     }
 }

@@ -37,7 +37,7 @@ impl UtilError {
     }
 }
 
-#[derive(Error, Debug, Deserialize)]
+#[derive(Error, Debug, Deserialize, PartialEq)]
 pub enum StorageError {
     #[error("Failed to create object store: {0}")]
     ObjectStoreError(String),
@@ -72,20 +72,37 @@ pub enum ProfilerError {
     #[error("Compute error: {0}")]
     ComputeError(String),
 
-    #[error("Failed to compute string statistics")]
-    StringStatsError,
+    #[error("Failed to compute string statistics: {0}")]
+    StringStatsError(String),
 
     #[error("Failed to create feature map: {0}")]
     FeatureMapError(String),
-
-    #[error("Array Error: {0}")]
-    ArrayError(String),
 
     #[error("Failed to convert: {0}")]
     ConversionError(String),
 
     #[error("Failed to create string profile: {0}")]
     StringProfileError(String),
+
+    // array concatenation error
+    #[error("Failed to concatenate arrays: {0}")]
+    ConcatenateError(String),
+}
+
+impl TracedError for ProfilerError {}
+
+impl ProfilerError {
+    pub fn traced_string_stats_error(err: impl Display) -> Self {
+        let error = Self::StringStatsError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_concatenate_error(err: impl Display) -> Self {
+        let error = Self::ConcatenateError(err.to_string());
+        error.trace();
+        error
+    }
 }
 
 #[derive(Error, Debug, Deserialize)]
@@ -265,6 +282,25 @@ pub enum AlertError {
     DriftError(String),
 }
 
+#[derive(Error, Debug, Deserialize, PartialEq)]
+pub enum DataFrameError {
+    #[error("Failed to read batch: {0}")]
+    ReadBatchError(String),
+
+    #[error(transparent)]
+    StorageError(#[from] StorageError),
+}
+
+impl TracedError for DataFrameError {}
+
+impl DataFrameError {
+    pub fn traced_read_batch_error(err: impl Display) -> Self {
+        let error = Self::ReadBatchError(err.to_string());
+        error.trace();
+        error
+    }
+}
+
 #[derive(Error, Debug, PartialEq)]
 pub enum DriftError {
     #[error("Error: {0}")]
@@ -307,6 +343,18 @@ pub enum DriftError {
         "Feature mismatch, feature '{0}' not found. Available features in the drift profile: {1}"
     )]
     FeatureMismatchError(String, String),
+
+    // array concantenation error
+    #[error("Failed to concatenate arrays: {0}")]
+    ConcatenateError(String),
+
+    // invalid config
+    #[error("Invalid config: {0}")]
+    InvalidConfigError(String),
+
+    // invalid drift type
+    #[error("Invalid drift type")]
+    InvalidDriftTypeError,
 }
 
 impl TracedError for DriftError {}
@@ -468,6 +516,9 @@ pub enum ScouterError {
     #[error(transparent)]
     ClientError(#[from] ClientError),
 
+    #[error(transparent)]
+    ProfileError(#[from] ProfilerError),
+
     #[error("Missing value in map")]
     MissingValue,
 
@@ -504,6 +555,22 @@ pub enum ScouterError {
 
     #[error("Failed to subscribe to topic: {0}")]
     FailedToSubscribeTopic(String),
+
+    // downcast error
+    #[error("Failed to downcast: {0}")]
+    FailedToDowncast(String),
+
+    // unsupported data type
+    #[error("Unsupported data type: {0}")]
+    UnsupportedDataType(String),
+
+    // data is not numpy
+    #[error("Data is not a numpy array")]
+    DataNotNumpy,
+
+    // column names must be strings
+    #[error("Column names must be strings")]
+    ColumnNamesMustBeStrings,
 }
 
 impl TracedError for ScouterError {}
@@ -595,6 +662,24 @@ impl ScouterError {
 
     pub fn traced_subscribe_topic_error(err: impl Display) -> Self {
         let error = Self::FailedToSubscribeTopic(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_downcast_error(err: impl Display) -> Self {
+        let error = Self::FailedToDowncast(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_unsupported_data_type_error(err: impl Display) -> Self {
+        let error = Self::UnsupportedDataType(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_data_not_numpy_error() -> Self {
+        let error = Self::DataNotNumpy;
         error.trace();
         error
     }

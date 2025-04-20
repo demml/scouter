@@ -6,7 +6,7 @@ use numpy::ndarray::ArrayView2;
 use numpy::ndarray::{concatenate, Axis};
 use numpy::PyReadonlyArray2;
 use pyo3::prelude::*;
-use scouter_error::{ProfilerError, PyScouterError, ScouterError};
+use scouter_error::{DriftError, ProfilerError, PyScouterError, ScouterError};
 use scouter_profile::{
     compute_feature_correlations, DataProfile, FeatureProfile, NumProfiler, StringProfiler,
 };
@@ -223,7 +223,7 @@ impl DataProfiler {
         numeric_features: Vec<String>,
         string_features: Vec<String>,
         bin_size: usize,
-    ) -> Result<DataProfile, ProfilerError>
+    ) -> Result<DataProfile, ScouterError>
     where
         F: Float
             + MaybeNan
@@ -242,10 +242,7 @@ impl DataProfiler {
     {
         let string_profiles = self
             .string_profiler
-            .create_string_profile(&string_array, &string_features)
-            .map_err(|e| {
-                ProfilerError::StringProfileError(format!("Failed to create string profile: {}", e))
-            })?;
+            .create_string_profile(&string_array, &string_features)?;
 
         let num_profiles = self
             .num_profiler
@@ -272,12 +269,8 @@ impl DataProfiler {
             let concatenated_array = {
                 let numeric_array_view = numeric_array.view();
                 let converted_array_view = converted_array.view();
-                concatenate(Axis(1), &[numeric_array_view, converted_array_view]).map_err(|e| {
-                    ProfilerError::ArrayError(format!(
-                        "Failed to concatenate numeric and converted arrays: {}",
-                        e
-                    ))
-                })?
+                concatenate(Axis(1), &[numeric_array_view, converted_array_view])
+                    .map_err(DriftError::traced_shape_error)?
             };
 
             // merge numeric and string features

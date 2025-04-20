@@ -7,7 +7,7 @@ use scouter_drift::{
     spc::{generate_alerts, SpcDriftMap, SpcMonitor},
     CategoricalFeatureHelpers,
 };
-use scouter_error::ScouterError;
+use scouter_error::{DriftError, ScouterError};
 use scouter_types::{
     create_feature_map,
     spc::{SpcAlertRule, SpcDriftConfig, SpcDriftProfile, SpcFeatureAlerts},
@@ -162,7 +162,7 @@ impl SpcDrifter {
                     let array = convert_array_type::<f64>(num_array.unwrap(), &dtype)?;
                     let concatenated =
                         concatenate(Axis(1), &[array.as_array(), string_array.view()])
-                            .map_err(|e| ScouterError::Error(e.to_string()))?;
+                            .map_err(DriftError::traced_shape_error)?;
                     Ok(self.monitor.compute_drift(
                         &features,
                         &concatenated.view(),
@@ -186,7 +186,7 @@ impl SpcDrifter {
                     let array = convert_array_type::<f32>(num_array.unwrap(), &dtype)?;
                     let concatenated =
                         concatenate(Axis(1), &[array.as_array(), string_array.view()])
-                            .map_err(|e| ScouterError::Error(e.to_string()))?;
+                            .map_err(DriftError::traced_shape_error)?;
                     Ok(self.monitor.compute_drift(
                         &features,
                         &concatenated.view(),

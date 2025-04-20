@@ -12,7 +12,7 @@ impl DataConverter for NumpyDataConverter {
         let numpy = py.import("numpy")?.getattr("ndarray")?;
 
         if !data.is_instance(&numpy)? {
-            return Err(ScouterError::Error("Data is not a numpy array".to_string()));
+            return Err(ScouterError::traced_data_not_numpy_error());
         }
 
         let mut string_features = Vec::new();

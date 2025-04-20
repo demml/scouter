@@ -10,8 +10,8 @@ use rayon::prelude::*;
 use scouter_error::ScouterError;
 use serde::Serialize;
 use serde_json::{json, Value};
-use std::collections::BTreeSet;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
+use std::fmt::{Display, Formatter};
 use std::path::PathBuf;
 use std::str::FromStr;
 
@@ -289,6 +289,18 @@ pub enum DataType {
     Numpy,
     Arrow,
     Unknown,
+}
+
+impl Display for DataType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            DataType::Pandas => write!(f, "pandas"),
+            DataType::Polars => write!(f, "polars"),
+            DataType::Numpy => write!(f, "numpy"),
+            DataType::Arrow => write!(f, "arrow"),
+            DataType::Unknown => write!(f, "unknown"),
+        }
+    }
 }
 
 impl DataType {

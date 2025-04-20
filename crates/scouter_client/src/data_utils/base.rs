@@ -21,7 +21,7 @@ where
 
     let array = array
         .downcast_into::<PyArray2<F>>()
-        .map_err(|e| ScouterError::Error(e.to_string()))?;
+        .map_err(ScouterError::traced_downcast_error)?;
 
     Ok(array.readonly())
 }

@@ -4,7 +4,7 @@ use crate::stats::compute_feature_correlations;
 use chrono::Utc;
 use ndarray::Array2;
 use rayon::prelude::*;
-use scouter_error::{ProfilerError, ScouterError};
+use scouter_error::ProfilerError;
 use scouter_types::create_feature_map;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -96,7 +96,7 @@ impl StringProfiler {
             ndarray::Axis(1),
             &arrays.iter().map(|a| a.view()).collect::<Vec<_>>(),
         )
-        .map_err(|e| ProfilerError::ArrayError(e.to_string()))?;
+        .map_err(ProfilerError::traced_concatenate_error)?;
 
         Ok(num_array)
     }
@@ -114,11 +114,11 @@ impl StringProfiler {
         &self,
         string_array: &[Vec<String>],
         string_features: &[String],
-    ) -> Result<Vec<FeatureProfile>, ScouterError> {
+    ) -> Result<Vec<FeatureProfile>, ProfilerError> {
         let string_profiler = StringProfiler::new();
         let string_profile = string_profiler
             .compute_2d_stats(string_array, string_features)
-            .map_err(|_e| ScouterError::StringProfileError(_e.to_string()))?;
+            .map_err(ProfilerError::traced_string_stats_error)?;
 
         Ok(string_profile)
     }
@@ -195,18 +195,17 @@ impl StringProfiler {
                 let feature = &string_features[i];
                 let stats = self
                     .compute_stats(col)
-                    .map_err(|_| ProfilerError::StringStatsError)
-                    .unwrap();
+                    .map_err(ProfilerError::traced_string_stats_error)?;
 
-                FeatureProfile {
+                Ok(FeatureProfile {
                     id: feature.to_string(),
                     string_stats: Some(stats),
                     numeric_stats: None,
                     timestamp: Utc::now(),
                     correlations: None,
-                }
+                })
             })
-            .collect::<Vec<FeatureProfile>>();
+            .collect::<Result<Vec<FeatureProfile>, ProfilerError>>()?;
 
         Ok(map_vec)
     }

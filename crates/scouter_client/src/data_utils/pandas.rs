@@ -16,9 +16,7 @@ impl DataConverter for PandasDataConverter {
             .to_string();
 
         if !column_name_dtype.contains("object") {
-            return Err(ScouterError::Error(
-                "Column names must be string type".to_string(),
-            ));
+            return Err(ScouterError::ColumnNamesMustBeStrings);
         }
 
         let all_columns = data.getattr("columns")?.extract::<Vec<String>>()?;
