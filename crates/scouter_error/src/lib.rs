@@ -1,4 +1,3 @@
-use core::error;
 use pyo3::create_exception;
 use pyo3::exceptions::PyException;
 use pyo3::PyErr;
@@ -13,7 +12,7 @@ pub trait TracedError: Display {
     }
 }
 
-#[derive(Error, Debug, Deserialize)]
+#[derive(Error, Debug, Deserialize, PartialEq)]
 pub enum UtilError {
     #[error("Failed to parse cron expression: {0}")]
     ParseCronError(String),
@@ -124,7 +123,7 @@ impl From<FeatureQueueError> for PyErr {
     }
 }
 
-#[derive(Error, Debug, Deserialize)]
+#[derive(Error, Debug, Deserialize, PartialEq)]
 pub enum SqlError {
     #[error("Failed to run sql migrations: {0}")]
     MigrationError(String),
@@ -266,7 +265,7 @@ pub enum AlertError {
     DriftError(String),
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum DriftError {
     #[error("Error: {0}")]
     Error(String),
@@ -280,7 +279,7 @@ pub enum DriftError {
     #[error(transparent)]
     SqlError(#[from] SqlError),
 
-    #[error("Failed to compute {0}")]
+    #[error("Failed to compute - {0}")]
     ComputeError(String),
 
     #[error("Failed to shape array: {0}")]
@@ -300,6 +299,14 @@ pub enum DriftError {
 
     #[error("Features and array are not the same length")]
     FeatureArrayLengthError,
+
+    #[error("Failed to create bins - {0}")]
+    CreateBinsError(String),
+
+    #[error(
+        "Feature mismatch, feature '{0}' not found. Available features in the drift profile: {1}"
+    )]
+    FeatureMismatchError(String, String),
 }
 
 impl TracedError for DriftError {}
@@ -354,6 +361,18 @@ impl DriftError {
 
     pub fn traced_missing_features_error() -> Self {
         let error = Self::MissingFeaturesError;
+        error.trace();
+        error
+    }
+
+    pub fn traced_create_bins_error(err: impl Display) -> Self {
+        let error = Self::CreateBinsError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_feature_mismatch_error(feature: impl Display, available: impl Display) -> Self {
+        let error = Self::FeatureMismatchError(feature.to_string(), available.to_string());
         error.trace();
         error
     }

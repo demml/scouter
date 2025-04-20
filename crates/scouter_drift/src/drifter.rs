@@ -2,7 +2,7 @@
 pub mod drift_executor {
 
     use scouter_contracts::ServiceInfo;
-    use scouter_error::{DriftError, ScouterError};
+    use scouter_error::DriftError;
     use scouter_sql::{sql::schema::TaskRequest, PostgresClient};
     use sqlx::{Postgres, Transaction};
 

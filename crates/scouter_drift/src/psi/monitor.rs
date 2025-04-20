@@ -4,7 +4,7 @@ use ndarray::prelude::*;
 use ndarray::Axis;
 use num_traits::{Float, FromPrimitive};
 use rayon::prelude::*;
-use scouter_error::MonitorError;
+use scouter_error::DriftError;
 use scouter_types::psi::{
     Bin, BinType, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
 };
@@ -19,16 +19,14 @@ impl PsiMonitor {
     pub fn new() -> Self {
         PsiMonitor {}
     }
-    fn compute_1d_array_mean<F>(&self, array: &ArrayView<F, Ix1>) -> Result<f64, MonitorError>
+    fn compute_1d_array_mean<F>(&self, array: &ArrayView<F, Ix1>) -> Result<f64, DriftError>
     where
         F: Float + FromPrimitive,
         F: Into<f64>,
     {
         Ok(array
             .mean()
-            .ok_or(MonitorError::ComputeError(
-                "Failed to compute mean".to_string(),
-            ))?
+            .ok_or(DriftError::traced_compute_error("mean"))?
             .into())
     }
 
@@ -58,15 +56,15 @@ impl PsiMonitor {
             .all(|&value| value.into() == 0.0 || value.into() == 1.0)
     }
 
-    fn compute_deciles<F>(&self, column_vector: &ArrayView1<F>) -> Result<[F; 9], MonitorError>
+    fn compute_deciles<F>(&self, column_vector: &ArrayView1<F>) -> Result<[F; 9], DriftError>
     where
         F: Float + Default,
         F: Into<f64>,
     {
         // TODO: Explore using ndarray_stats quantiles instead of manual computation
         if column_vector.len() < 10 {
-            return Err(MonitorError::ComputeError(
-                "At least 10 values needed to compute deciles".to_string(),
+            return Err(DriftError::traced_compute_error(
+                "At least 10 values needed to compute deciles",
             ));
         }
 
@@ -83,9 +81,10 @@ impl PsiMonitor {
             let index = ((i as f32 * (n as f32 - 1.0)) / 10.0).floor() as usize;
             deciles[i - 1] = sorted_column_vector[index];
         }
-        let decile_vec: [F; 9] = deciles.to_vec().try_into().map_err(|_| {
-            MonitorError::ComputeError("Failed to convert deciles to array".to_string())
-        })?;
+        let decile_vec: [F; 9] = deciles
+            .to_vec()
+            .try_into()
+            .map_err(|_| DriftError::traced_compute_error("Failed to convert deciles to array"))?;
 
         Ok(decile_vec)
     }
@@ -120,7 +119,7 @@ impl PsiMonitor {
     fn create_binary_bins<F>(
         &self,
         column_vector: &ArrayView<F, Ix1>,
-    ) -> Result<Vec<Bin>, MonitorError>
+    ) -> Result<Vec<Bin>, DriftError>
     where
         F: Float + FromPrimitive + Default + Sync,
         F: Into<f64>,
@@ -143,16 +142,13 @@ impl PsiMonitor {
         ])
     }
 
-    fn create_numeric_bins<F>(
-        &self,
-        column_vector: &ArrayView1<F>,
-    ) -> Result<Vec<Bin>, MonitorError>
+    fn create_numeric_bins<F>(&self, column_vector: &ArrayView1<F>) -> Result<Vec<Bin>, DriftError>
     where
         F: Float + FromPrimitive + Default + Sync,
         F: Into<f64>,
     {
         let deciles = self.compute_deciles(column_vector).map_err(|err| {
-            MonitorError::ComputeError(format!("Failed to compute deciles: {}", err))
+            DriftError::traced_compute_error(format!("Failed to compute deciles: {}", err))
         })?;
 
         let bins: Vec<Bin> = (0..=deciles.len())
@@ -185,7 +181,7 @@ impl PsiMonitor {
         feature_name: &String,
         column_vector: &ArrayView<F, Ix1>,
         drift_config: &PsiDriftConfig,
-    ) -> Result<(Vec<Bin>, BinType), MonitorError>
+    ) -> Result<(Vec<Bin>, BinType), DriftError>
     where
         F: Float + FromPrimitive + Default + Sync,
         F: Into<f64>,
@@ -209,14 +205,14 @@ impl PsiMonitor {
         feature_name: String,
         column_vector: &ArrayView<F, Ix1>,
         drift_config: &PsiDriftConfig,
-    ) -> Result<PsiFeatureDriftProfile, MonitorError>
+    ) -> Result<PsiFeatureDriftProfile, DriftError>
     where
         F: Float + Sync + FromPrimitive + Default,
         F: Into<f64>,
     {
         let (bins, bin_type) = self
             .create_bins(&feature_name, column_vector, drift_config)
-            .map_err(|err| MonitorError::CreateError(format!("Failed to create bins: {}", err)))?;
+            .map_err(DriftError::traced_create_bins_error)?;
 
         Ok(PsiFeatureDriftProfile {
             id: feature_name,
@@ -231,7 +227,7 @@ impl PsiMonitor {
         features: &[String],
         array: &ArrayView2<F>,
         drift_config: &PsiDriftConfig,
-    ) -> Result<PsiDriftProfile, MonitorError>
+    ) -> Result<PsiDriftProfile, DriftError>
     where
         F: Float + Sync + FromPrimitive + Default,
         F: Into<f64>,
@@ -278,7 +274,7 @@ impl PsiMonitor {
         column_vector: &ArrayView<F, Ix1>,
         bin: &Bin,
         categorical_feature_map: Option<&HashMap<String, usize>>,
-    ) -> Result<(f64, f64), MonitorError>
+    ) -> Result<(f64, f64), DriftError>
     where
         F: Float + FromPrimitive,
         F: Into<f64>,
@@ -330,7 +326,7 @@ impl PsiMonitor {
         column_vector: &ArrayView<F, Ix1>,
         features: &PsiFeatureDriftProfile,
         category_map: Option<&HashMap<String, usize>>,
-    ) -> Result<f64, MonitorError>
+    ) -> Result<f64, DriftError>
     where
         F: Float + Sync + FromPrimitive,
         F: Into<f64>,
@@ -339,7 +335,7 @@ impl PsiMonitor {
         let feature_proportions: Vec<(f64, f64)> = bins
             .into_par_iter()
             .map(|bin| self.compute_psi_proportion_pairs(column_vector, bin, category_map))
-            .collect::<Result<Vec<(f64, f64)>, MonitorError>>()?;
+            .collect::<Result<Vec<(f64, f64)>, DriftError>>()?;
 
         Ok(PsiMonitor::compute_psi(&feature_proportions))
     }
@@ -349,7 +345,7 @@ impl PsiMonitor {
         features: &[String],
         array: &ArrayView2<F>,
         drift_profile: &PsiDriftProfile,
-    ) -> Result<(), MonitorError>
+    ) -> Result<(), DriftError>
     where
         F: Float + Sync + FromPrimitive,
         F: Into<f64>,
@@ -372,7 +368,7 @@ impl PsiMonitor {
                         .collect::<Vec<_>>()
                         .join(", ");
 
-                    return Err(MonitorError::ComputeError(
+                    return Err(DriftError::ComputeError(
                         format!(
                             "Feature mismatch, feature '{}' not found. Available features in the drift profile: {}",
                             feature_name, available_keys
@@ -388,7 +384,7 @@ impl PsiMonitor {
         features: &[String],
         array: &ArrayView2<F>,
         drift_profile: &PsiDriftProfile,
-    ) -> Result<PsiDriftMap, MonitorError>
+    ) -> Result<PsiDriftMap, DriftError>
     where
         F: Float + Sync + FromPrimitive,
         F: Into<f64>,
@@ -407,7 +403,7 @@ impl PsiMonitor {
                     drift_profile.config.feature_map.features.get(feature_name),
                 )
             })
-            .collect::<Result<Vec<f64>, MonitorError>>()?;
+            .collect::<Result<Vec<f64>, DriftError>>()?;
 
         let mut psi_drift_features = HashMap::new();
 
