@@ -27,7 +27,7 @@ pub mod drift_executor {
             &self,
             db_client: &PostgresClient,
             previous_run: DateTime<Utc>,
-        ) -> Result<Option<Vec<BTreeMap<String, String>>>, ScouterError> {
+        ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             match self {
                 Drifter::SpcDrifter(drifter) => {
                     drifter.check_for_alerts(db_client, previous_run).await

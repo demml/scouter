@@ -1,3 +1,4 @@
+use core::error;
 use pyo3::create_exception;
 use pyo3::exceptions::PyException;
 use pyo3::PyErr;
@@ -299,6 +300,21 @@ pub enum DriftError {
 
     #[error(transparent)]
     SqlError(#[from] SqlError),
+
+    #[error("Failed to compute {0}")]
+    ComputeError(String),
+
+    #[error("Failed to shape array: {0}")]
+    ShapeError(String),
+
+    #[error("Missing feature {0}")]
+    MissingFeatureError(String),
+
+    #[error("Failed to sample data {0}")]
+    SampleDataError(String),
+
+    #[error("Failed to set control value: {0}")]
+    SetControlValueError(String),
 }
 
 impl TracedError for DriftError {}
@@ -311,6 +327,36 @@ impl DriftError {
 
     pub fn traced_rule_length_error() -> Self {
         let error = Self::RuleLengthError;
+        error.trace();
+        error
+    }
+
+    pub fn traced_compute_error(err: impl Display) -> Self {
+        let error = Self::ComputeError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_shape_error(err: impl Display) -> Self {
+        let error = Self::ShapeError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_missing_feature_error(err: impl Display) -> Self {
+        let error = Self::MissingFeatureError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_sample_data_error(err: impl Display) -> Self {
+        let error = Self::SampleDataError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_set_control_value_error(err: impl Display) -> Self {
+        let error = Self::SetControlValueError(err.to_string());
         error.trace();
         error
     }

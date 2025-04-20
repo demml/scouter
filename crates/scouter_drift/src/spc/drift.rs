@@ -73,7 +73,7 @@ pub mod spc_drifter {
             db_client: &PostgresClient,
             limit_datetime: &DateTime<Utc>,
             features_to_monitor: &[String],
-        ) -> Result<SpcDriftArray, ScouterError> {
+        ) -> Result<SpcDriftArray, DriftError> {
             let records = db_client
                 .get_spc_drift_records(&self.service_info, limit_datetime, features_to_monitor)
                 .await?;
@@ -94,7 +94,7 @@ pub mod spc_drifter {
             &self,
             limit_datetime: &DateTime<Utc>,
             db_client: &PostgresClient,
-        ) -> Result<(Array2<f64>, Vec<String>), ScouterError> {
+        ) -> Result<(Array2<f64>, Vec<String>), DriftError> {
             let drift_features = self
                 .get_drift_features(
                     db_client,
@@ -205,7 +205,7 @@ pub mod spc_drifter {
             &self,
             db_client: &PostgresClient,
             previous_run: DateTime<Utc>,
-        ) -> Result<Option<Vec<BTreeMap<String, String>>>, ScouterError> {
+        ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             info!(
                 "Processing drift task for profile: {}/{}/{}",
                 self.service_info.space, self.service_info.name, self.service_info.version
