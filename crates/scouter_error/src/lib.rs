@@ -62,27 +62,6 @@ pub enum StorageError {
     ReadError(String),
 }
 
-#[derive(Error, Debug, PartialEq, Deserialize)]
-pub enum MonitorError {
-    #[error("{0}")]
-    CreateError(String),
-
-    #[error("Sample error: {0}")]
-    SampleDataError(String),
-
-    #[error("Compute error: {0}")]
-    ComputeError(String),
-
-    #[error("Shape mismatch: {0}")]
-    ShapeMismatchError(String),
-
-    #[error("Missing feature: {0}")]
-    MissingFeatureError(String),
-
-    #[error("Array Error: {0}")]
-    ArrayError(String),
-}
-
 #[derive(Error, Debug)]
 pub enum ProfilerError {
     #[error("Quantile error: {0}")]
@@ -310,11 +289,17 @@ pub enum DriftError {
     #[error("Missing feature {0}")]
     MissingFeatureError(String),
 
+    #[error("Features missing from feature map")]
+    MissingFeaturesError,
+
     #[error("Failed to sample data {0}")]
     SampleDataError(String),
 
     #[error("Failed to set control value: {0}")]
     SetControlValueError(String),
+
+    #[error("Features and array are not the same length")]
+    FeatureArrayLengthError,
 }
 
 impl TracedError for DriftError {}
@@ -357,6 +342,18 @@ impl DriftError {
 
     pub fn traced_set_control_value_error(err: impl Display) -> Self {
         let error = Self::SetControlValueError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_feature_length_error() -> Self {
+        let error = Self::FeatureArrayLengthError;
+        error.trace();
+        error
+    }
+
+    pub fn traced_missing_features_error() -> Self {
+        let error = Self::MissingFeaturesError;
         error.trace();
         error
     }
@@ -430,9 +427,6 @@ pub enum ScouterError {
 
     #[error("{0}")]
     Error(String),
-
-    #[error(transparent)]
-    MonitorError(#[from] MonitorError),
 
     #[error(transparent)]
     AlertError(#[from] AlertError),

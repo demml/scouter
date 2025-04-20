@@ -2,7 +2,7 @@ use ndarray::{Array, Array2};
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
-use scouter_error::MonitorError;
+use scouter_error::DriftError;
 use scouter_types::FeatureMap;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
@@ -22,12 +22,10 @@ pub trait CategoricalFeatureHelpers {
         &self,
         features: &[String],
         array: &[Vec<String>],
-    ) -> Result<FeatureMap, MonitorError> {
+    ) -> Result<FeatureMap, DriftError> {
         // check if features and array are the same length
         if features.len() != array.len() {
-            return Err(MonitorError::ShapeMismatchError(
-                "Features and array are not the same length".to_string(),
-            ));
+            return Err(DriftError::traced_feature_length_error());
         };
 
         let feature_map = array
@@ -64,7 +62,7 @@ pub trait CategoricalFeatureHelpers {
         features: &Vec<String>,
         array: &[Vec<String>],
         feature_map: &FeatureMap,
-    ) -> Result<Array2<f32>, MonitorError>
+    ) -> Result<Array2<f32>, DriftError>
 where {
         // check if features in feature_map.features.keys(). If any feature is not found, return error
         let features_not_exist = features
@@ -73,9 +71,7 @@ where {
             .position(|x| !x);
 
         if features_not_exist.is_some() {
-            return Err(MonitorError::MissingFeatureError(
-                "Features provided do not exist in feature map".to_string(),
-            ));
+            return Err(DriftError::traced_missing_features_error());
         }
 
         let data = features
@@ -95,7 +91,7 @@ where {
             .collect::<Vec<_>>();
 
         let data = Array::from_shape_vec((features.len(), array[0].len()), data.concat())
-            .map_err(|e| MonitorError::ArrayError(e.to_string()))?;
+            .map_err(DriftError::traced_shape_error)?;
 
         Ok(data.t().to_owned())
     }
@@ -105,7 +101,7 @@ where {
         features: &Vec<String>,
         array: &[Vec<String>],
         feature_map: &FeatureMap,
-    ) -> Result<Array2<f64>, MonitorError>
+    ) -> Result<Array2<f64>, DriftError>
 where {
         // check if features in feature_map.features.keys(). If any feature is not found, return error
         let features_not_exist = features
@@ -114,9 +110,7 @@ where {
             .position(|x| !x);
 
         if features_not_exist.is_some() {
-            return Err(MonitorError::MissingFeatureError(
-                "Features provided do not exist in feature map".to_string(),
-            ));
+            return Err(DriftError::traced_missing_features_error());
         }
         let data = features
             .par_iter()
@@ -134,7 +128,7 @@ where {
             .collect::<Vec<_>>();
 
         let data = Array::from_shape_vec((features.len(), array[0].len()), data.concat())
-            .map_err(|e| MonitorError::ArrayError(e.to_string()))?;
+            .map_err(DriftError::traced_shape_error)?;
 
         Ok(data.t().to_owned())
     }

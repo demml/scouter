@@ -8,7 +8,6 @@ pub mod spc_drifter {
     use scouter_contracts::ServiceInfo;
     use scouter_dispatch::AlertDispatcher;
     use scouter_error::DriftError;
-    use scouter_error::ScouterError;
     use scouter_sql::PostgresClient;
     use scouter_types::spc::{SpcDriftFeatures, SpcDriftProfile, TaskAlerts};
     use std::collections::BTreeMap;
