@@ -5,12 +5,14 @@ use serde::Deserialize;
 use std::fmt::Display;
 use thiserror::Error;
 use tracing::error;
-// add tracing trait to ScouterError
+
 pub trait TracedError: Display {
     fn trace(&self) {
         error!("{}", self);
     }
 }
+
+// add tracing trait to ScouterError
 
 #[derive(Error, Debug, Deserialize, PartialEq)]
 pub enum UtilError {
@@ -19,6 +21,9 @@ pub enum UtilError {
 
     #[error("Failed to serialize: {0}")]
     SerializeError(String),
+
+    #[error("Failed to deserialize: {0}")]
+    DeSerializeError(String),
 }
 
 impl TracedError for UtilError {}
@@ -32,6 +37,12 @@ impl UtilError {
 
     pub fn traced_serialize_error(err: impl Display) -> Self {
         let error = Self::SerializeError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_deserialize_error(err: impl Display) -> Self {
+        let error = Self::DeSerializeError(err.to_string());
         error.trace();
         error
     }
