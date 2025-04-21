@@ -4,7 +4,7 @@ use crate::parquet::traits::ParquetFrame;
 use crate::storage::ObjectStore;
 use chrono::{DateTime, Utc};
 use datafusion::prelude::DataFrame;
-use scouter_error::{DataFrameError, ScouterError};
+use scouter_error::DataFrameError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{RecordType, ServerRecords, StorageType};
 

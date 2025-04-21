@@ -12,7 +12,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
 use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
-use scouter_error::ScouterError;
+use scouter_error::DataFrameError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::spc::{SpcDriftFeature, SpcDriftFeatures};
 use scouter_types::{ServerRecords, SpcServerRecord};
@@ -27,11 +27,11 @@ pub struct SpcDataFrame {
 
 #[async_trait]
 impl ParquetFrame for SpcDataFrame {
-    fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, ScouterError> {
+    fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
         SpcDataFrame::new(storage_settings)
     }
 
-    async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, ScouterError> {
+    async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError> {
         let records = records.to_spc_drift_records()?;
         let batch = self.build_batch(records)?;
 
@@ -39,7 +39,7 @@ impl ParquetFrame for SpcDataFrame {
 
         let df = ctx
             .read_batches(vec![batch])
-            .map_err(|e| ScouterError::Error(format!("Failed to read batches: {}", e)))?;
+            .map_err(DataFrameError::traced_read_batch_error)?;
 
         Ok(df)
     }
@@ -52,7 +52,7 @@ impl ParquetFrame for SpcDataFrame {
         self.object_store.storage_settings.storage_type.clone()
     }
 
-    fn get_session_context(&self) -> Result<SessionContext, ScouterError> {
+    fn get_session_context(&self) -> Result<SessionContext, DataFrameError> {
         Ok(self.object_store.get_session()?)
     }
 
@@ -73,7 +73,7 @@ impl ParquetFrame for SpcDataFrame {
     }
 }
 impl SpcDataFrame {
-    pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, ScouterError> {
+    pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
         let schema = Arc::new(Schema::new(vec![
             Field::new(
                 "created_at",
@@ -95,7 +95,10 @@ impl SpcDataFrame {
         })
     }
 
-    pub fn build_batch(&self, records: Vec<SpcServerRecord>) -> Result<RecordBatch, ScouterError> {
+    pub fn build_batch(
+        &self,
+        records: Vec<SpcServerRecord>,
+    ) -> Result<RecordBatch, DataFrameError> {
         let created_at = TimestampNanosecondArray::from_iter_values(
             records
                 .iter()
@@ -118,7 +121,7 @@ impl SpcDataFrame {
                 Arc::new(value),
             ],
         )
-        .map_err(|e| ScouterError::Error(format!("Failed to create record batch: {}", e)))
+        .map_err(DataFrameError::traced_create_batch_error)
     }
 }
 
@@ -133,7 +136,7 @@ impl SpcDataFrame {
 fn process_spc_record_batch(
     batch: &RecordBatch,
     features: &mut BTreeMap<String, SpcDriftFeature>,
-) -> Result<(), ScouterError> {
+) -> Result<(), DataFrameError> {
     // Feature is the first column and is stringarray
     let feature_array = batch
         .column(0)
@@ -146,13 +149,13 @@ fn process_spc_record_batch(
         .column(1)
         .as_any()
         .downcast_ref::<ListArray>()
-        .ok_or_else(|| ScouterError::Error("Failed to get created_at column".to_string()))?;
+        .ok_or_else(|| DataFrameError::traced_get_column_error("created_at"))?;
 
     let values_list = batch
         .column(2)
         .as_any()
         .downcast_ref::<ListArray>()
-        .ok_or_else(|| ScouterError::Error("Failed to get values column".to_string()))?;
+        .ok_or_else(|| DataFrameError::traced_get_column_error("values"))?;
 
     for row in 0..batch.num_rows() {
         let feature_name = feature_array.value(row).to_string();
@@ -190,11 +193,11 @@ fn process_spc_record_batch(
 /// * `SpcDriftFeatures` - The converted SpcDriftFeatures
 pub async fn dataframe_to_spc_drift_features(
     df: DataFrame,
-) -> Result<SpcDriftFeatures, ScouterError> {
+) -> Result<SpcDriftFeatures, DataFrameError> {
     let batches = df
         .collect()
         .await
-        .map_err(|e| ScouterError::Error(format!("Failed to collect batches: {}", e)))?;
+        .map_err(DataFrameError::traced_read_batch_error)?;
 
     let mut features = BTreeMap::new();
 

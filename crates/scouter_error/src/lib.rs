@@ -648,6 +648,9 @@ pub enum ScouterError {
     #[error(transparent)]
     ProfileError(#[from] ProfilerError),
 
+    #[error(transparent)]
+    DataFrameError(#[from] DataFrameError),
+
     #[error("Missing value in map")]
     MissingValue,
 
