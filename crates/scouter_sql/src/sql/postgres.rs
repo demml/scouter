@@ -11,8 +11,9 @@ use scouter_contracts::{
     DriftAlertRequest, DriftRequest, GetProfileRequest, ObservabilityMetricRequest,
     ProfileStatusRequest, ServiceInfo, UpdateAlertStatus,
 };
+use scouter_dataframe::parquet::dataframe::ParquetDataFrame;
 use scouter_error::{ScouterError, SqlError, UtilError};
-use scouter_settings::DatabaseSettings;
+use scouter_settings::{DatabaseSettings, ObjectStorageSettings};
 use scouter_types::psi::FeatureBinProportionResult;
 use scouter_types::DriftType;
 use scouter_types::{
@@ -23,7 +24,6 @@ use scouter_types::{
     CustomMetricServerRecord, DriftProfile, ObservabilityMetrics, PsiServerRecord, RecordType,
     ServerRecords, SpcServerRecord, TimeInterval, ToDriftRecords,
 };
-
 use serde_json::Value;
 use sqlx::{
     postgres::{PgPoolOptions, PgQueryResult},
@@ -32,7 +32,10 @@ use sqlx::{
 use std::collections::{BTreeMap, HashMap};
 use std::result::Result::Ok;
 use std::str::FromStr;
+use std::sync::Arc;
 use tracing::{debug, error, info, instrument};
+
+use super::utils::split_custom_interval;
 
 // TODO: Explore refactoring and breaking this out into multiple client types (i.e., spc, psi, etc.)
 // Postgres client is one of the lowest-level abstractions so it may not be worth it, as it could make server logic annoying. Worth exploring though.
@@ -41,6 +44,8 @@ use tracing::{debug, error, info, instrument};
 #[allow(dead_code)]
 pub struct PostgresClient {
     pub pool: Pool<Postgres>,
+    pub retention_period: i64,
+    pub storage_settings: ObjectStorageSettings,
 }
 
 impl PostgresClient {
@@ -55,19 +60,26 @@ impl PostgresClient {
     /// * `Result<Self, SqlError>` - Result of the database pool
     pub async fn new(
         pool: Option<Pool<Postgres>>,
-        database_settings: Option<&DatabaseSettings>,
-    ) -> Result<Self, SqlError> {
-        let pool = pool.unwrap_or(Self::create_db_pool(database_settings).await.map_err(|e| {
-            error!("Failed to create database pool: {:?}", e);
-            SqlError::ConnectionError(format!("{:?}", e))
-        })?);
+        database_settings: &DatabaseSettings,
+        storage_settings: &ObjectStorageSettings,
+    ) -> Result<Arc<Self>, SqlError> {
+        let pool = pool.unwrap_or(
+            Self::create_db_pool(database_settings)
+                .await
+                .map_err(SqlError::traced_connection_error)?,
+        );
+        let retention_period = database_settings.retention_period;
 
-        let client = Self { pool };
+        let client = Self {
+            pool,
+            retention_period,
+            storage_settings: storage_settings.clone(),
+        };
 
         // run migrations
         client.run_migrations().await?;
 
-        Ok(client)
+        Ok(Arc::new(client))
     }
 
     /// Setup the application with the given database pool.
@@ -77,14 +89,8 @@ impl PostgresClient {
     /// * `Result<Pool<Postgres>, anyhow::Error>` - Result of the database pool
     #[instrument(skip(database_settings))]
     pub async fn create_db_pool(
-        database_settings: Option<&DatabaseSettings>,
+        database_settings: &DatabaseSettings,
     ) -> Result<Pool<Postgres>, SqlError> {
-        let database_settings = if let Some(settings) = database_settings {
-            settings
-        } else {
-            &DatabaseSettings::default()
-        };
-
         let pool = match PgPoolOptions::new()
             .max_connections(database_settings.max_connections)
             .connect(&database_settings.connection_uri)
@@ -590,13 +596,19 @@ impl PostgresClient {
         &self,
         params: &DriftRequest,
     ) -> Result<Vec<FeatureBinProportionResult>, SqlError> {
+        if params.has_custom_interval() {
+            let interval = params.clone().custom_interval.unwrap();
+            let timestamps =
+                split_custom_interval(interval.start, interval.end, &self.retention_period);
+
+            //ParquetDataFrame::new(&self.storage_settings, &RecordType::Psi)?
+            // .get_binned_metrics(path, bin, start_time, end_time, space, name, version)
+        }
         // get features
 
         let minutes = params.time_interval.to_minutes();
         let bin = params.time_interval.to_minutes() as f64 / params.max_data_points as f64;
-
         let query = Queries::GetBinnedPsiFeatureBins.get_query();
-
         let binned: Vec<FeatureBinProportionResult> = sqlx::query_as(&query.sql)
             .bind(bin)
             .bind(minutes)
@@ -757,7 +769,6 @@ impl PostgresClient {
     pub async fn get_entities_to_archive(
         &self,
         record_type: &RecordType,
-        retention_period: &i64,
     ) -> Result<Vec<Entity>, SqlError> {
         let query = match record_type {
             RecordType::Spc => Queries::GetSpcEntities.get_query(),
@@ -769,7 +780,7 @@ impl PostgresClient {
         };
 
         let entities: Vec<Entity> = sqlx::query_as(&query.sql)
-            .bind(retention_period)
+            .bind(&self.retention_period)
             .fetch_all(&self.pool)
             .await
             .map_err(SqlError::traced_get_entities_error)?;
@@ -955,7 +966,7 @@ impl PostgresClient {
 }
 
 pub enum MessageHandler {
-    Postgres(PostgresClient),
+    Postgres(Arc<PostgresClient>),
 }
 
 impl MessageHandler {
@@ -1055,8 +1066,14 @@ mod tests {
         .unwrap();
     }
 
-    pub async fn db_client() -> PostgresClient {
-        let client = PostgresClient::new(None, None).await.unwrap();
+    pub async fn db_client() -> Arc<PostgresClient> {
+        let client = PostgresClient::new(
+            None,
+            &DatabaseSettings::default(),
+            &ObjectStorageSettings::default(),
+        )
+        .await
+        .unwrap();
 
         cleanup(&client.pool).await;
 
@@ -1183,7 +1200,13 @@ mod tests {
 
     #[tokio::test]
     async fn test_postgres_crud_drift_profile() {
-        let client = PostgresClient::new(None, None).await.unwrap();
+        let client = PostgresClient::new(
+            None,
+            &DatabaseSettings::default(),
+            &ObjectStorageSettings::default(),
+        )
+        .await
+        .unwrap();
         cleanup(&client.pool).await;
 
         let mut spc_profile = SpcDriftProfile::default();
@@ -1276,8 +1299,7 @@ mod tests {
                 time_interval: TimeInterval::FiveMinutes,
                 max_data_points: 10,
                 drift_type: DriftType::Spc,
-                begin_datetime: None,
-                end_datetime: None,
+                custom_interval: None,
             })
             .await
             .unwrap();
@@ -1340,8 +1362,7 @@ mod tests {
                 time_interval: TimeInterval::OneHour,
                 max_data_points: 1000,
                 drift_type: DriftType::Psi,
-                begin_datetime: None,
-                end_datetime: None,
+                custom_interval: None,
             })
             .await
             .unwrap();
@@ -1407,6 +1428,7 @@ mod tests {
                 time_interval: TimeInterval::OneHour,
                 max_data_points: 1000,
                 drift_type: DriftType::Custom,
+                custom_interval: None,
             })
             .await
             .unwrap();

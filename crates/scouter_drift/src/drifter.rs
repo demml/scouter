@@ -1,18 +1,18 @@
 #[cfg(feature = "sql")]
 pub mod drift_executor {
 
+    use crate::{custom::CustomDrifter, psi::PsiDrifter, spc::SpcDrifter};
+    use chrono::{DateTime, Utc};
     use scouter_contracts::ServiceInfo;
     use scouter_error::DriftError;
     use scouter_sql::{sql::schema::TaskRequest, PostgresClient};
-    use sqlx::{Postgres, Transaction};
-
-    use crate::{custom::CustomDrifter, psi::PsiDrifter, spc::SpcDrifter};
-    use chrono::{DateTime, Utc};
     use scouter_types::{DriftProfile, DriftType};
+    use sqlx::{Postgres, Transaction};
     use std::collections::BTreeMap;
     use std::result::Result;
     use std::result::Result::Ok;
     use std::str::FromStr;
+    use std::sync::Arc;
     use tracing::{debug, error, info, span, Instrument, Level};
 
     #[allow(clippy::enum_variant_names)]
@@ -70,11 +70,11 @@ pub mod drift_executor {
     }
 
     pub struct DriftExecutor {
-        db_client: PostgresClient,
+        db_client: Arc<PostgresClient>,
     }
 
     impl DriftExecutor {
-        pub fn new(db_client: PostgresClient) -> Self {
+        pub fn new(db_client: Arc<PostgresClient>) -> Self {
             Self { db_client }
         }
 
@@ -229,8 +229,8 @@ pub mod drift_executor {
         use super::*;
         use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
         use scouter_contracts::DriftAlertRequest;
+        use scouter_settings::{DatabaseSettings, ObjectStorageSettings};
         use scouter_sql::PostgresClient;
-
         use sqlx::{postgres::Postgres, Pool};
 
         pub async fn cleanup(pool: &Pool<Postgres>) {
@@ -270,7 +270,13 @@ pub mod drift_executor {
 
         #[tokio::test]
         async fn test_drift_executor_spc() {
-            let client = PostgresClient::new(None, None).await.unwrap();
+            let client = PostgresClient::new(
+                None,
+                &DatabaseSettings::default(),
+                &ObjectStorageSettings::default(),
+            )
+            .await
+            .unwrap();
             cleanup(&client.pool).await;
 
             let mut populate_path =
@@ -302,7 +308,13 @@ pub mod drift_executor {
             // this tests the scenario where only 1 of 2 features has data in the db when polling
             // for tasks. Need to ensure this does not fail and the present feature and data are
             // still processed
-            let client = PostgresClient::new(None, None).await.unwrap();
+            let client = PostgresClient::new(
+                None,
+                &DatabaseSettings::default(),
+                &ObjectStorageSettings::default(),
+            )
+            .await
+            .unwrap();
             cleanup(&client.pool).await;
 
             let mut populate_path =
@@ -332,7 +344,13 @@ pub mod drift_executor {
 
         #[tokio::test]
         async fn test_drift_executor_psi() {
-            let client = PostgresClient::new(None, None).await.unwrap();
+            let client = PostgresClient::new(
+                None,
+                &DatabaseSettings::default(),
+                &ObjectStorageSettings::default(),
+            )
+            .await
+            .unwrap();
             cleanup(&client.pool).await;
 
             let mut populate_path =
@@ -362,7 +380,13 @@ pub mod drift_executor {
 
         #[tokio::test]
         async fn test_drift_executor_custom() {
-            let client = PostgresClient::new(None, None).await.unwrap();
+            let client = PostgresClient::new(
+                None,
+                &DatabaseSettings::default(),
+                &ObjectStorageSettings::default(),
+            )
+            .await
+            .unwrap();
             cleanup(&client.pool).await;
 
             let mut populate_path =

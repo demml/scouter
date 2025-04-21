@@ -38,7 +38,7 @@ pub struct ScouterServerConfig {
     pub rabbitmq_settings: Option<RabbitMQSettings>,
     pub auth_settings: AuthSettings,
     pub bootstrap_key: String,
-    pub object_storage_settings: ObjectStorageSettings,
+    pub storage_settings: ObjectStorageSettings,
 }
 
 impl ScouterServerConfig {
@@ -100,7 +100,7 @@ impl Default for ScouterServerConfig {
             rabbitmq_settings: rabbitmq,
             auth_settings,
             bootstrap_key,
-            object_storage_settings: ObjectStorageSettings::default(),
+            storage_settings: ObjectStorageSettings::default(),
         }
     }
 }

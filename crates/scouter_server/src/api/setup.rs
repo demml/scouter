@@ -9,6 +9,7 @@ use scouter_settings::{
 use scouter_sql::sql::schema::User;
 use scouter_sql::PostgresClient;
 use std::str::FromStr;
+use std::sync::Arc;
 use tracing::{debug, info, instrument};
 
 #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
@@ -24,7 +25,7 @@ use scouter_events::consumer::rabbitmq::RabbitMQConsumerManager;
 /// The default users are:
 /// * admin: admin/admin
 /// * guest: guest/guest
-pub async fn initialize_default_user(sql_client: &PostgresClient) -> AnyhowResult<()> {
+pub async fn initialize_default_user(sql_client: &Arc<PostgresClient>) -> AnyhowResult<()> {
     // Check if any users exist
     let users = sql_client
         .get_users()
@@ -98,8 +99,11 @@ pub async fn setup_logging() -> AnyhowResult<()> {
 }
 
 /// Get that database going!
-pub async fn setup_database(db_settings: &DatabaseSettings) -> AnyhowResult<PostgresClient> {
-    let db_client = PostgresClient::new(None, Some(db_settings))
+pub async fn setup_database(
+    db_settings: &DatabaseSettings,
+    storage_settings: &ObjectStorageSettings,
+) -> AnyhowResult<Arc<PostgresClient>> {
+    let db_client = PostgresClient::new(None, db_settings, storage_settings)
         .await
         .with_context(|| "Failed to create Postgres client")?;
 
@@ -120,13 +124,11 @@ pub async fn setup_database(db_settings: &DatabaseSettings) -> AnyhowResult<Post
 /// * `AnyhowResult<()>` - The result of the setup
 pub async fn setup_kafka(
     settings: &KafkaSettings,
-    db_settings: &DatabaseSettings,
-    db_client: &PostgresClient,
+    db_client: &Arc<PostgresClient>,
     shutdown_rx: tokio::sync::watch::Receiver<()>,
 ) -> AnyhowResult<()> {
     #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
-    KafkaConsumerManager::start_workers(settings, db_settings, &db_client.pool, shutdown_rx)
-        .await?;
+    KafkaConsumerManager::start_workers(settings, &db_client, shutdown_rx).await?;
     info!("✅ Started Kafka workers");
 
     Ok(())
@@ -144,18 +146,11 @@ pub async fn setup_kafka(
 /// * `AnyhowResult<()>` - The result of the setup
 pub async fn setup_rabbitmq(
     settings: &RabbitMQSettings,
-    db_settings: &DatabaseSettings,
-    db_client: &PostgresClient,
+    db_client: &Arc<PostgresClient>,
     shutdown_rx: tokio::sync::watch::Receiver<()>,
 ) -> AnyhowResult<()> {
     #[cfg(feature = "rabbitmq")]
-    RabbitMQConsumerManager::start_workers(
-        settings,
-        db_settings,
-        &db_client.pool,
-        shutdown_rx.clone(),
-    )
-    .await?;
+    RabbitMQConsumerManager::start_workers(settings, db_client, shutdown_rx.clone()).await?;
     info!("✅ Started RabbitMQ workers");
 
     Ok(())
@@ -174,13 +169,11 @@ pub async fn setup_rabbitmq(
 /// Returns:
 /// * `AnyhowResult<()>` - The result of the setup
 pub async fn setup_background_drift_workers(
-    db_client: &PostgresClient,
-    db_settings: &DatabaseSettings,
+    db_client: &Arc<PostgresClient>,
     poll_settings: &PollingSettings,
     shutdown_rx: tokio::sync::watch::Receiver<()>,
 ) -> AnyhowResult<()> {
-    BackgroundDriftManager::start_workers(&db_client.pool, poll_settings, db_settings, shutdown_rx)
-        .await?;
+    BackgroundDriftManager::start_workers(db_client, poll_settings, shutdown_rx).await?;
     info!("✅ Started background workers");
 
     Ok(())
@@ -198,13 +191,10 @@ pub async fn setup_background_drift_workers(
 /// Returns:
 /// * `AnyhowResult<()>` - The result of the setup
 pub async fn setup_background_data_archive_workers(
-    db_client: &PostgresClient,
-    db_settings: &DatabaseSettings,
-    storage_settings: &ObjectStorageSettings,
+    db_client: &Arc<PostgresClient>,
     shutdown_rx: tokio::sync::watch::Receiver<()>,
 ) -> AnyhowResult<()> {
-    DataArchiver::start_workers(&db_client.pool, db_settings, storage_settings, shutdown_rx)
-        .await?;
+    DataArchiver::start_workers(&db_client, shutdown_rx).await?;
     info!("✅ Started data archive workers");
     Ok(())
 }
@@ -212,7 +202,7 @@ pub async fn setup_background_data_archive_workers(
 #[instrument(skip_all)]
 pub async fn setup_components() -> AnyhowResult<(
     ScouterServerConfig,
-    PostgresClient,
+    Arc<PostgresClient>,
     tokio::sync::watch::Sender<()>,
 )> {
     let config = ScouterServerConfig::default();
@@ -223,7 +213,7 @@ pub async fn setup_components() -> AnyhowResult<(
         debug!("Failed to setup logging. {:?}", logging.err());
     }
 
-    let db_client = setup_database(&config.database_settings).await?;
+    let db_client = setup_database(&config.database_settings, &config.storage_settings).await?;
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(());
 
@@ -231,7 +221,6 @@ pub async fn setup_components() -> AnyhowResult<(
     if config.kafka_enabled() {
         setup_kafka(
             config.kafka_settings.as_ref().unwrap(),
-            &config.database_settings,
             &db_client,
             shutdown_rx.clone(),
         )
@@ -241,28 +230,16 @@ pub async fn setup_components() -> AnyhowResult<(
     if config.rabbitmq_enabled() {
         setup_rabbitmq(
             config.rabbitmq_settings.as_ref().unwrap(),
-            &config.database_settings,
             &db_client,
             shutdown_rx.clone(),
         )
         .await?;
     }
 
-    setup_background_drift_workers(
-        &db_client,
-        &config.database_settings,
-        &config.polling_settings,
-        shutdown_rx.clone(),
-    )
-    .await?;
+    setup_background_drift_workers(&db_client, &config.polling_settings, shutdown_rx.clone())
+        .await?;
 
-    setup_background_data_archive_workers(
-        &db_client,
-        &config.database_settings,
-        &config.object_storage_settings,
-        shutdown_rx,
-    )
-    .await?;
+    setup_background_data_archive_workers(&db_client, shutdown_rx).await?;
 
     Ok((config, db_client, shutdown_tx))
 }

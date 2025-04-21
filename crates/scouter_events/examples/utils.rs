@@ -1,4 +1,7 @@
+use pyo3::PyObject;
 use scouter_error::LoggingError;
+use scouter_settings::DatabaseSettings;
+use scouter_settings::ObjectStorageSettings;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::PostgresClient;
 use sqlx::{Pool, Postgres};
@@ -71,7 +74,13 @@ impl TestHelper {
 
         let config = ScouterServerConfig::default();
 
-        let db_client = PostgresClient::new(None, None).await.unwrap();
+        let db_client = PostgresClient::new(
+            None,
+            &DatabaseSettings::default(),
+            &ObjectStorageSettings::default(),
+        )
+        .await
+        .unwrap();
 
         cleanup(&db_client.pool).await.unwrap();
 

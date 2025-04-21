@@ -7,14 +7,14 @@ pub mod kafka_consumer {
     use rdkafka::message::BorrowedMessage;
     use rdkafka::message::Message;
     use scouter_error::EventError;
-    use scouter_settings::{DatabaseSettings, KafkaSettings};
+    use scouter_settings::KafkaSettings;
     use scouter_sql::MessageHandler;
     use scouter_sql::PostgresClient;
     use scouter_types::ServerRecords;
-    use sqlx::Pool;
-    use sqlx::Postgres;
+
     use std::collections::HashMap;
     use std::result::Result::Ok;
+    use std::sync::Arc;
     use tokio::sync::watch;
     use tokio::task::JoinHandle;
     use tracing::debug;
@@ -28,14 +28,10 @@ pub mod kafka_consumer {
     }
 
     impl KafkaConsumerManager {
-        #[instrument(
-            skip(kafka_settings, db_settings, pool, shutdown_rx),
-            name = "start_kafka_workers"
-        )]
+        #[instrument(skip_all, name = "start_kafka_workers")]
         pub async fn start_workers(
             kafka_settings: &KafkaSettings,
-            db_settings: &DatabaseSettings,
-            pool: &Pool<Postgres>,
+            db_client: &Arc<PostgresClient>,
             shutdown_rx: watch::Receiver<()>,
         ) -> Result<Self, EventError> {
             let num_consumers = kafka_settings.num_workers;
@@ -43,8 +39,7 @@ pub mod kafka_consumer {
 
             for id in 0..num_consumers {
                 let consumer = create_kafka_consumer(kafka_settings, None).await?;
-                let kafka_db_client =
-                    PostgresClient::new(Some(pool.clone()), Some(db_settings)).await?;
+                let kafka_db_client = db_client.clone();
                 let message_handler = MessageHandler::Postgres(kafka_db_client);
 
                 let worker_shutdown_rx = shutdown_rx.clone();

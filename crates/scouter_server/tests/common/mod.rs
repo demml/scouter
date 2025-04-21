@@ -9,8 +9,10 @@ use chrono::Utc;
 use http_body_util::BodyExt;
 use rand::Rng;
 use scouter_server::create_app;
+use scouter_settings::DatabaseSettings;
 use scouter_types::{CustomMetricServerRecord, PsiServerRecord};
 use scouter_types::{ServerRecord, ServerRecords, SpcServerRecord};
+use std::sync::Arc;
 // for `collect`
 use ndarray::Array;
 use ndarray_rand::rand_distr::Uniform;
@@ -80,6 +82,7 @@ impl TestHelper {
         env::set_var("LOG_LEVEL", "debug");
         env::set_var("LOG_JSON", "false");
         env::set_var("POLLING_WORKER_COUNT", "1");
+        env::set_var("DATA_RETENTION_PERIOD", "1");
 
         if enable_kafka {
             std::env::set_var("KAFKA_BROKERS", "localhost:9092");
@@ -89,9 +92,13 @@ impl TestHelper {
             std::env::set_var("RABBITMQ_ADDR", "amqp://guest:guest@127.0.0.1:5672/%2f");
         }
 
-        let db_client = PostgresClient::new(None, None)
-            .await
-            .with_context(|| "Failed to create Postgres client")?;
+        let db_client = PostgresClient::new(
+            None,
+            &DatabaseSettings::default(),
+            &ObjectStorageSettings::default(),
+        )
+        .await
+        .with_context(|| "Failed to create Postgres client")?;
 
         cleanup(&db_client.pool).await?;
 
@@ -230,9 +237,13 @@ impl TestHelper {
         Ok(())
     }
 
-    pub async fn get_db_client(&self) -> PostgresClient {
-        PostgresClient::new(Some(self.pool.clone()), None)
-            .await
-            .unwrap()
+    pub async fn get_db_client(&self) -> Arc<PostgresClient> {
+        PostgresClient::new(
+            Some(self.pool.clone()),
+            &DatabaseSettings::default(),
+            &ObjectStorageSettings::default(),
+        )
+        .await
+        .unwrap()
     }
 }

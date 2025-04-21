@@ -76,6 +76,12 @@ impl DriftRequest {
     }
 }
 
+impl DriftRequest {
+    pub fn has_custom_interval(&self) -> bool {
+        self.custom_interval.is_some()
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProfileRequest {
     pub space: String,

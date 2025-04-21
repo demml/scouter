@@ -160,6 +160,7 @@ async fn test_spc_server_records() {
         time_interval: TimeInterval::FiveMinutes,
         max_data_points: 100,
         drift_type: DriftType::Spc,
+        custom_interval: None,
     };
 
     let query_string = serde_qs::to_string(&params).unwrap();
@@ -247,6 +248,7 @@ async fn test_psi_server_records() {
         time_interval: TimeInterval::FiveMinutes,
         max_data_points: 100,
         drift_type: DriftType::Psi,
+        custom_interval: None,
     };
 
     let query_string = serde_qs::to_string(&params).unwrap();
@@ -326,6 +328,7 @@ async fn test_custom_server_records() {
         time_interval: TimeInterval::FiveMinutes,
         max_data_points: 100,
         drift_type: DriftType::Custom,
+        custom_interval: None,
     };
 
     let query_string = serde_qs::to_string(&params).unwrap();

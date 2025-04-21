@@ -230,6 +230,9 @@ pub enum SqlError {
 
     #[error("Failed to extract value {0} {1}")]
     FailedToExtractError(String, String),
+
+    #[error("Invalid date range: {0}")]
+    InvalidDateRangeError(String),
 }
 
 impl TracedError for SqlError {}
@@ -303,6 +306,12 @@ impl SqlError {
 
     pub fn traced_failed_to_extract_error(err: impl Display, field: impl Display) -> Self {
         let error = Self::FailedToExtractError(field.to_string(), err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_connection_error(err: impl Display) -> Self {
+        let error = Self::ConnectionError(err.to_string());
         error.trace();
         error
     }

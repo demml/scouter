@@ -4,6 +4,7 @@ use scouter_error::ScouterError;
 /// Functionality for persisting data from postgres to long-term storage
 use scouter_settings::{DatabaseSettings, ObjectStorageSettings};
 use scouter_sql::{sql::schema::Entity, PostgresClient};
+use std::sync::Arc;
 
 use scouter_types::{ArchiveRecord, DriftType, RecordType, ServerRecords};
 use sqlx::Transaction;
@@ -21,24 +22,18 @@ pub struct DataArchiver {
 impl DataArchiver {
     /// Start a new data manager
     pub async fn start_workers(
-        pool: &Pool<Postgres>,
-        db_settings: &DatabaseSettings,
-        storage_settings: &ObjectStorageSettings,
+        db_client: &Arc<PostgresClient>,
         shutdown_rx: watch::Receiver<()>,
     ) -> Result<(), ScouterError> {
         let mut workers = Vec::with_capacity(1);
 
-        let db_client = PostgresClient::new(Some(pool.clone()), Some(db_settings)).await?;
+        let db_client = db_client.clone();
 
         let shutdown_rx = shutdown_rx.clone();
         let worker_shutdown_rx = shutdown_rx.clone();
-        let retention_period = db_settings.retention_period;
-        let storage_settings = storage_settings.clone();
 
         workers.push(tokio::spawn(Self::start_worker(
             0,
-            retention_period,
-            storage_settings,
             db_client,
             worker_shutdown_rx,
         )));
@@ -48,9 +43,7 @@ impl DataArchiver {
 
     async fn start_worker(
         id: usize,
-        retention_period: i64,
-        storage_settings: ObjectStorageSettings,
-        db_client: PostgresClient,
+        db_client: Arc<PostgresClient>,
         mut shutdown: watch::Receiver<()>,
     ) {
         // pause the worker for 1 hour after it completes
@@ -71,7 +64,7 @@ impl DataArchiver {
                     };
 
                     if should_run {
-                        match archive_old_data(&db_client, &storage_settings, &retention_period).await {
+                        match archive_old_data(&db_client).await {
                             Ok(_) => {
                                 debug!("Archive completed successfully for worker {}", id);
                                 last_cleanup = Some(now);
@@ -90,12 +83,9 @@ impl DataArchiver {
 async fn get_entities_to_archive(
     db_client: &PostgresClient,
     record_type: &RecordType,
-    retention_period: &i64,
 ) -> Result<Vec<Entity>, ScouterError> {
     // get the data from the database
-    let data = db_client
-        .get_entities_to_archive(record_type, retention_period)
-        .await?;
+    let data = db_client.get_entities_to_archive(record_type).await?;
 
     Ok(data)
 }
@@ -148,13 +138,11 @@ async fn update_entities_to_archived(
 async fn process_record_type(
     db_client: &PostgresClient,
     record_type: &RecordType,
-    retention_period: &i64,
-    storage_settings: &ObjectStorageSettings,
 ) -> Result<bool, ScouterError> {
-    let df = ParquetDataFrame::new(storage_settings, record_type)?;
+    let df = ParquetDataFrame::new(&db_client.storage_settings, record_type)?;
 
     // get the entities for archival
-    let entities = get_entities_to_archive(db_client, record_type, retention_period).await?;
+    let entities = get_entities_to_archive(db_client, record_type).await?;
 
     // exit if no entities
     if entities.is_empty() {
@@ -201,11 +189,7 @@ async fn process_record_type(
 /// # Returns
 /// * `Result<(), ScouterError>` - The result of the archival
 #[instrument(skip_all)]
-pub async fn archive_old_data(
-    db_client: &PostgresClient,
-    storage_settings: &ObjectStorageSettings,
-    retention_period: &i64,
-) -> Result<ArchiveRecord, ScouterError> {
+pub async fn archive_old_data(db_client: &PostgresClient) -> Result<ArchiveRecord, ScouterError> {
     // get old records
     debug!("Archiving old data");
 
@@ -217,33 +201,15 @@ pub async fn archive_old_data(
         match drift_type {
             DriftType::Psi => {
                 // get the data from the database
-                record.psi = process_record_type(
-                    db_client,
-                    &RecordType::Psi,
-                    retention_period,
-                    storage_settings,
-                )
-                .await?;
+                record.psi = process_record_type(db_client, &RecordType::Psi).await?;
             }
             DriftType::Spc => {
                 // get the data from the database
-                record.spc = process_record_type(
-                    db_client,
-                    &RecordType::Spc,
-                    retention_period,
-                    storage_settings,
-                )
-                .await?;
+                record.spc = process_record_type(db_client, &RecordType::Spc).await?;
             }
             DriftType::Custom => {
                 // get the data from the database
-                record.custom = process_record_type(
-                    db_client,
-                    &RecordType::Custom,
-                    retention_period,
-                    storage_settings,
-                )
-                .await?;
+                record.custom = process_record_type(db_client, &RecordType::Custom).await?;
             }
         }
     }

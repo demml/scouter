@@ -41,6 +41,7 @@ approx = { workspace = true }
 ndarray-rand = { workspace = true }
 rand = { workspace = true }
 rusty-logging = { workspace = true }
+scouter-settings = { workspace = true }
 
 
 [features]

@@ -10,7 +10,6 @@ use scouter_dataframe::parquet::{
     custom::dataframe_to_custom_drift_metrics, dataframe::ParquetDataFrame,
 };
 use scouter_server::api::archive::archive_old_data;
-use scouter_settings::ObjectStorageSettings;
 use scouter_types::RecordType;
 use sqlx::types::chrono::Utc;
 
@@ -33,17 +32,13 @@ async fn test_data_archive_spc() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let db_client = helper.get_db_client().await;
-    let storage_settings = ObjectStorageSettings::default();
-    let retention_period = 0; // days
-    let record = archive_old_data(&db_client, &storage_settings, &retention_period)
-        .await
-        .unwrap();
+    let record = archive_old_data(&db_client).await.unwrap();
 
     assert!(record.spc);
     assert!(!record.psi);
     assert!(!record.custom);
 
-    let df = ParquetDataFrame::new(&storage_settings, &RecordType::Spc).unwrap();
+    let df = ParquetDataFrame::new(&db_client.storage_settings, &RecordType::Spc).unwrap();
     let path = format!("{SPACE}/{NAME}/{VERSION}/spc");
 
     let canonical_path = format!("{}/{}", df.storage_root(), path);
@@ -62,9 +57,7 @@ async fn test_data_archive_spc() {
 
     // archive again - this return all false
     // this verifies that the data archived tag is set
-    let record = archive_old_data(&db_client, &storage_settings, &retention_period)
-        .await
-        .unwrap();
+    let record = archive_old_data(&db_client).await.unwrap();
     assert!(!record.spc);
     assert!(!record.psi);
     assert!(!record.custom);
@@ -92,17 +85,13 @@ async fn test_data_archive_psi() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let db_client = helper.get_db_client().await;
-    let storage_settings = ObjectStorageSettings::default();
-    let retention_period = 0; // days
-    let record = archive_old_data(&db_client, &storage_settings, &retention_period)
-        .await
-        .unwrap();
+    let record = archive_old_data(&db_client).await.unwrap();
 
     assert!(!record.spc);
     assert!(record.psi);
     assert!(!record.custom);
 
-    let df = ParquetDataFrame::new(&storage_settings, &RecordType::Psi).unwrap();
+    let df = ParquetDataFrame::new(&db_client.storage_settings, &RecordType::Psi).unwrap();
     let path = format!("{SPACE}/{NAME}/{VERSION}/psi");
 
     let canonical_path = format!("{}/{}", df.storage_root(), path);
@@ -121,9 +110,7 @@ async fn test_data_archive_psi() {
 
     // archive again - this return all false
     // this verifies that the data archived tag is set
-    let record = archive_old_data(&db_client, &storage_settings, &retention_period)
-        .await
-        .unwrap();
+    let record = archive_old_data(&db_client).await.unwrap();
     assert!(!record.spc);
     assert!(!record.psi);
     assert!(!record.custom);
@@ -149,17 +136,13 @@ async fn test_data_archive_custom() {
     assert_eq!(response.status(), StatusCode::OK);
 
     let db_client = helper.get_db_client().await;
-    let storage_settings = ObjectStorageSettings::default();
-    let retention_period = 0; // days
-    let record = archive_old_data(&db_client, &storage_settings, &retention_period)
-        .await
-        .unwrap();
+    let record = archive_old_data(&db_client).await.unwrap();
 
     assert!(!record.spc);
     assert!(!record.psi);
     assert!(record.custom);
 
-    let df = ParquetDataFrame::new(&storage_settings, &RecordType::Custom).unwrap();
+    let df = ParquetDataFrame::new(&db_client.storage_settings, &RecordType::Custom).unwrap();
     let path = format!("{SPACE}/{NAME}/{VERSION}/custom");
 
     let canonical_path = format!("{}/{}", df.storage_root(), path);
@@ -178,9 +161,7 @@ async fn test_data_archive_custom() {
 
     // archive again - this return all false
     // this verifies that the data archived tag is set
-    let record = archive_old_data(&db_client, &storage_settings, &retention_period)
-        .await
-        .unwrap();
+    let record = archive_old_data(&db_client).await.unwrap();
     assert!(!record.spc);
     assert!(!record.psi);
     assert!(!record.custom);

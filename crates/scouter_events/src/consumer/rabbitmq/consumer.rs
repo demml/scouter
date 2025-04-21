@@ -3,12 +3,11 @@ pub mod rabbitmq_consumer {
     use futures::StreamExt;
     use metrics::counter;
     use scouter_error::EventError;
-    use scouter_settings::{DatabaseSettings, RabbitMQSettings};
+    use scouter_settings::RabbitMQSettings;
     use scouter_sql::MessageHandler;
     use scouter_sql::PostgresClient;
     use scouter_types::ServerRecords;
-    use sqlx::Pool;
-    use sqlx::Postgres;
+    use std::sync::Arc;
     use tokio::sync::watch;
     use tokio::task::JoinHandle;
     use tracing::{debug, error, info, instrument};
@@ -29,26 +28,20 @@ pub mod rabbitmq_consumer {
 
     impl RabbitMQConsumerManager {
         /// Start a number of workers to consume messages from RabbitMQ
-        ///
         /// This function creates a number of workers to consume messages from RabbitMQ. Each worker will consume messages from RabbitMQ and insert them into the database
         ///
         /// # Arguments
-        ///
         /// * `rabbit_settings` - The RabbitMQ settings
-        /// * `db_settings` - The database settings
-        /// * `pool` - The database connection pool
+        /// * `db_client` - The database client
+        /// * `shutdown_rx` - The shutdown receiver
         ///
         /// # Returns
         ///
         /// * `Result<RabbitMQConsumerManager, EventError>` - The result of the operation
-        #[instrument(
-            skip(rabbit_settings, db_settings, pool, shutdown_rx),
-            name = "start_rabbitmq_workers"
-        )]
+        #[instrument(skip_all, name = "start_rabbitmq_workers")]
         pub async fn start_workers(
             rabbit_settings: &RabbitMQSettings,
-            db_settings: &DatabaseSettings,
-            pool: &Pool<Postgres>,
+            db_client: &Arc<PostgresClient>,
             shutdown_rx: watch::Receiver<()>,
         ) -> Result<Self, EventError> {
             let num_consumers = rabbit_settings.num_consumers;
@@ -56,9 +49,8 @@ pub mod rabbitmq_consumer {
 
             for id in 0..num_consumers {
                 let consumer = create_rabbitmq_consumer(rabbit_settings).await?;
-                let kafka_db_client =
-                    PostgresClient::new(Some(pool.clone()), Some(db_settings)).await?;
-                let message_handler = MessageHandler::Postgres(kafka_db_client);
+                let rabbit_db_client = db_client.clone();
+                let message_handler = MessageHandler::Postgres(rabbit_db_client);
 
                 let worker_shutdown_rx = shutdown_rx.clone();
                 workers.push(tokio::spawn(async move {
