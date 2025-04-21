@@ -75,7 +75,7 @@ impl ParquetFrame for CustomMetricDataFrame {
 }
 
 impl CustomMetricDataFrame {
-    pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, ScouterError> {
+    pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
         let schema = Arc::new(Schema::new(vec![
             Field::new(
                 "created_at",

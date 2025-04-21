@@ -300,6 +300,33 @@ pub enum DataFrameError {
 
     #[error(transparent)]
     StorageError(#[from] StorageError),
+
+    #[error("Failed to add year column: {0}")]
+    AddYearColumnError(String),
+
+    #[error("Failed to add month column: {0}")]
+    AddMonthColumnError(String),
+
+    #[error("Failed to add day column: {0}")]
+    AddDayColumnError(String),
+
+    #[error("Failed to add hour column: {0}")]
+    AddHourColumnError(String),
+
+    #[error("Failed to write to parquet: {0}")]
+    WriteParquetError(String),
+
+    #[error("Failed to parse table path: {0}")]
+    ParseTablePathError(String),
+
+    #[error("Failed to infer schema: {0}")]
+    InferSchemaError(String),
+
+    #[error("Failed to create listing table: {0}")]
+    CreateListingTableError(String),
+
+    #[error("Failed to register table: {0}")]
+    RegisterTableError(String),
 }
 
 impl TracedError for DataFrameError {}
@@ -307,6 +334,55 @@ impl TracedError for DataFrameError {}
 impl DataFrameError {
     pub fn traced_read_batch_error(err: impl Display) -> Self {
         let error = Self::ReadBatchError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_add_year_column_error(err: impl Display) -> Self {
+        let error = Self::AddYearColumnError(err.to_string());
+        error.trace();
+        error
+    }
+    pub fn traced_add_month_column_error(err: impl Display) -> Self {
+        let error = Self::AddMonthColumnError(err.to_string());
+        error.trace();
+        error
+    }
+    pub fn traced_add_day_column_error(err: impl Display) -> Self {
+        let error = Self::AddDayColumnError(err.to_string());
+        error.trace();
+        error
+    }
+    pub fn traced_add_hour_column_error(err: impl Display) -> Self {
+        let error = Self::AddHourColumnError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_write_parquet_error(err: impl Display) -> Self {
+        let error = Self::WriteParquetError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_parse_table_path_error(err: impl Display) -> Self {
+        let error = Self::ParseTablePathError(err.to_string());
+        error.trace();
+        error
+    }
+    pub fn traced_infer_schema_error(err: impl Display) -> Self {
+        let error = Self::InferSchemaError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_create_listing_table_error(err: impl Display) -> Self {
+        let error = Self::CreateListingTableError(err.to_string());
+        error.trace();
+        error
+    }
+    pub fn traced_register_table_error(err: impl Display) -> Self {
+        let error = Self::RegisterTableError(err.to_string());
         error.trace();
         error
     }
