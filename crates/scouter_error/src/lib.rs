@@ -24,6 +24,9 @@ pub enum UtilError {
 
     #[error("Failed to deserialize: {0}")]
     DeSerializeError(String),
+
+    #[error("Failed to set log level: {0}")]
+    SetLogLevelError(String),
 }
 
 impl TracedError for UtilError {}
@@ -43,6 +46,12 @@ impl UtilError {
 
     pub fn traced_deserialize_error(err: impl Display) -> Self {
         let error = Self::DeSerializeError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_set_log_level_error(err: impl Display) -> Self {
+        let error = Self::SetLogLevelError(err.to_string());
         error.trace();
         error
     }
@@ -555,7 +564,7 @@ impl DriftError {
     }
 }
 
-#[derive(Error, Debug)]
+#[derive(Error, Debug, PartialEq)]
 pub enum ClientError {
     #[error("Failed to get JWT token: {0}")]
     FailedToGetJwtToken(String),
@@ -569,6 +578,18 @@ pub enum ClientError {
     #[error("Failed to get response: {0}")]
     FailedToGetResponse(String),
 
+    #[error("Failed to serialize: {0}")]
+    FailedToSerialize(String),
+
+    #[error("Failed to deserialize: {0}")]
+    FailedToDeserialize(String),
+
+    #[error("Failed to create header: {0}")]
+    FailedToCreateHeader(String),
+
+    #[error("Failed to create client: {0}")]
+    FailedToCreateClient(String),
+
     #[error("Unauthorized")]
     Unauthorized,
 
@@ -578,8 +599,134 @@ pub enum ClientError {
 
 impl TracedError for ClientError {}
 
+impl ClientError {
+    pub fn traced_jwt_error(err: impl Display) -> Self {
+        let error = ClientError::FailedToGetJwtToken(err.to_string());
+        error.trace();
+        error.into()
+    }
+
+    pub fn traced_parse_jwt_error(err: impl Display) -> Self {
+        let error = ClientError::FailedToParseJwtToken(err.to_string());
+        error.trace();
+        error.into()
+    }
+
+    pub fn traced_request_error(err: impl Display) -> Self {
+        let error = ClientError::FailedToSendRequest(err.to_string());
+        error.trace();
+        error.into()
+    }
+
+    pub fn traced_unauthorized_error() -> Self {
+        let error = ClientError::Unauthorized;
+        error.trace();
+        error.into()
+    }
+
+    pub fn traced_serialize_error(err: impl Display) -> Self {
+        let error = Self::FailedToSerialize(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_deserialize_error(err: impl Display) -> Self {
+        let error = Self::FailedToDeserialize(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_create_header_error(err: impl Display) -> Self {
+        let error = Self::FailedToCreateHeader(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_create_client_error(err: impl Display) -> Self {
+        let error = Self::FailedToCreateClient(err.to_string());
+        error.trace();
+        error
+    }
+}
+
+#[derive(Error, Debug, PartialEq)]
+pub enum EventError {
+    #[error("Failed to connect: {0}")]
+    ConnectionError(String),
+
+    #[error("Failed to create channel: {0}")]
+    ChannelError(String),
+
+    #[error("Failed to setup queue: {0}")]
+    DeclareQueueError(String),
+
+    #[error("Failed to publish message: {0}")]
+    PublishError(String),
+
+    #[error("Failed to consume message: {0}")]
+    ConsumeError(String),
+
+    #[error("Failed to flush message: {0}")]
+    FlushError(String),
+
+    #[error("Failed to send message: {0}")]
+    SendError(String),
+
+    #[error(transparent)]
+    UtilError(#[from] UtilError),
+
+    #[error(transparent)]
+    ClientError(#[from] ClientError),
+
+    #[error("Invalid compression type")]
+    InvalidCompressionTypeError,
+}
+
+impl TracedError for EventError {}
+
+impl EventError {
+    pub fn traced_connection_error(err: impl Display) -> Self {
+        let error = Self::ConnectionError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_channel_error(err: impl Display) -> Self {
+        let error = Self::ChannelError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_declare_queue_error(err: impl Display) -> Self {
+        let error = Self::DeclareQueueError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_publish_error(err: impl Display) -> Self {
+        let error = Self::PublishError(err.to_string());
+        error.trace();
+        error
+    }
+    pub fn traced_consume_error(err: impl Display) -> Self {
+        let error = Self::ConsumeError(err.to_string());
+        error.trace();
+        error
+    }
+    pub fn traced_flush_error(err: impl Display) -> Self {
+        let error = Self::FlushError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_send_error(err: impl Display) -> Self {
+        let error = Self::SendError(err.to_string());
+        error.trace();
+        error
+    }
+}
+
 /// THis should be the top-level error that all other errors are converted to
-/// This should be the error that is returned to the user
 #[derive(Error, Debug)]
 pub enum ScouterError {
     #[error("Failed to serialize string")]
@@ -651,42 +798,16 @@ pub enum ScouterError {
     #[error(transparent)]
     DataFrameError(#[from] DataFrameError),
 
+    #[error(transparent)]
+    EventError(#[from] EventError),
+
     #[error("Missing value in map")]
     MissingValue,
 
     #[error("Empty ServerRecordsError")]
     EmptyServerRecordsError,
 
-    #[error("Failed to serialize: {0}")]
-    FailedToSerialize(String),
-
-    #[error("Failed to deserialize: {0}")]
-    FailedToDeserialize(String),
-
-    #[error("Failed to create header: {0}")]
-    FailedToCreateHeader(String),
-
-    #[error("Failed to create client: {0}")]
-    FailedToCreateClient(String),
-
     // rabbitmq
-    #[error("Failed to connect to RabbitMQ: {0}")]
-    FailedToConnectRabbitMQ(String),
-
-    #[error("Failed to declare queue: {0}")]
-    FailedToDeclareQueue(String),
-
-    #[error("Failed to setup QoS: {0}")]
-    FailedToSetupQos(String),
-
-    #[error("Failed to connect to Kafka: {0}")]
-    FailedToConnectKafka(String),
-
-    #[error("Failed to consume queue: {0}")]
-    FailedToConsumeQueue(String),
-
-    #[error("Failed to subscribe to topic: {0}")]
-    FailedToSubscribeTopic(String),
 
     // downcast error
     #[error("Failed to downcast: {0}")]
@@ -712,90 +833,6 @@ impl ScouterError {
     pub fn raise<T>(self) -> Result<T, Self> {
         self.trace();
         Err(self)
-    }
-
-    pub fn traced_jwt_error(err: impl Display) -> Self {
-        let error = ClientError::FailedToGetJwtToken(err.to_string());
-        error.trace();
-        error.into()
-    }
-
-    pub fn traced_parse_jwt_error(err: impl Display) -> Self {
-        let error = ClientError::FailedToParseJwtToken(err.to_string());
-        error.trace();
-        error.into()
-    }
-
-    pub fn traced_request_error(err: impl Display) -> Self {
-        let error = ClientError::FailedToSendRequest(err.to_string());
-        error.trace();
-        error.into()
-    }
-
-    pub fn traced_unauthorized_error() -> Self {
-        let error = ClientError::Unauthorized;
-        error.trace();
-        error.into()
-    }
-
-    pub fn traced_serialize_error(err: impl Display) -> Self {
-        let error = Self::FailedToSerialize(err.to_string());
-        error.trace();
-        error
-    }
-
-    pub fn traced_deserialize_error(err: impl Display) -> Self {
-        let error = Self::FailedToDeserialize(err.to_string());
-        error.trace();
-        error
-    }
-
-    pub fn traced_create_header_error(err: impl Display) -> Self {
-        let error = Self::FailedToCreateHeader(err.to_string());
-        error.trace();
-        error
-    }
-
-    pub fn traced_create_client_error(err: impl Display) -> Self {
-        let error = Self::FailedToCreateClient(err.to_string());
-        error.trace();
-        error
-    }
-
-    pub fn traced_connect_rabbitmq_error(err: impl Display) -> Self {
-        let error = Self::FailedToConnectRabbitMQ(err.to_string());
-        error.trace();
-        error
-    }
-
-    pub fn traced_setup_qos_error(err: impl Display) -> Self {
-        let error = Self::FailedToSetupQos(err.to_string());
-        error.trace();
-        error
-    }
-
-    pub fn traced_connect_kafka_error(err: impl Display) -> Self {
-        let error = Self::FailedToConnectKafka(err.to_string());
-        error.trace();
-        error
-    }
-
-    pub fn traced_declare_queue_error(err: impl Display) -> Self {
-        let error = Self::FailedToDeclareQueue(err.to_string());
-        error.trace();
-        error
-    }
-
-    pub fn traced_consume_queue_error(err: impl Display) -> Self {
-        let error = Self::FailedToConsumeQueue(err.to_string());
-        error.trace();
-        error
-    }
-
-    pub fn traced_subscribe_topic_error(err: impl Display) -> Self {
-        let error = Self::FailedToSubscribeTopic(err.to_string());
-        error.trace();
-        error
     }
 
     pub fn traced_downcast_error(err: impl Display) -> Self {

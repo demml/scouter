@@ -6,7 +6,7 @@ pub mod rabbitmq_producer {
         types::FieldTable,
         BasicProperties, Channel, ChannelState, Connection, ConnectionProperties,
     };
-    use scouter_error::ScouterError;
+    use scouter_error::EventError;
     use scouter_types::ServerRecords;
     use tracing::{debug, error, info};
 
@@ -17,18 +17,21 @@ pub mod rabbitmq_producer {
     }
 
     impl RabbitMQProducer {
-        pub async fn new(config: RabbitMQConfig) -> Result<Self, ScouterError> {
+        pub async fn new(config: RabbitMQConfig) -> Result<Self, EventError> {
             let producer = RabbitMQProducer::setup_producer(&config).await?;
 
             Ok(RabbitMQProducer { config, producer })
         }
 
-        async fn setup_producer(config: &RabbitMQConfig) -> Result<Channel, ScouterError> {
+        async fn setup_producer(config: &RabbitMQConfig) -> Result<Channel, EventError> {
             info!("Setting up RabbitMQ producer");
             let conn = Connection::connect(&config.address, ConnectionProperties::default())
                 .await
-                .map_err(|e| ScouterError::Error(e.to_string()))?;
-            let channel = conn.create_channel().await.unwrap();
+                .map_err(EventError::traced_connection_error)?;
+            let channel = conn
+                .create_channel()
+                .await
+                .map_err(EventError::traced_channel_error)?;
 
             channel
                 .queue_declare(
@@ -37,32 +40,26 @@ pub mod rabbitmq_producer {
                     FieldTable::default(),
                 )
                 .await
-                .map_err(|e| ScouterError::Error(e.to_string()))?;
+                .map_err(EventError::traced_declare_queue_error)?;
 
             info!("RabbitMQ producer setup complete");
             Ok(channel)
         }
 
-        pub async fn publish(&self, message: ServerRecords) -> Result<(), ScouterError> {
+        pub async fn publish(&self, message: ServerRecords) -> Result<(), EventError> {
             let mut retries = self.config.max_retries;
 
             loop {
                 match self
                     ._publish(message.clone())
                     .await
-                    .map_err(|e| ScouterError::Error(e.to_string()))
+                    .map_err(EventError::traced_publish_error)
                 {
                     Ok(_) => break,
                     Err(e) => {
                         retries -= 1;
                         if retries == 0 {
-                            return {
-                                error!("Failed to send message to kafka: {:?}", e.to_string());
-                                Err(ScouterError::Error(format!(
-                                    "Failed to send message to kafka: {:?}",
-                                    e.to_string()
-                                )))
-                            };
+                            return Err(e);
                         }
                     }
                 }
@@ -71,7 +68,7 @@ pub mod rabbitmq_producer {
             Ok(())
         }
 
-        pub async fn _publish(&self, message: ServerRecords) -> Result<(), ScouterError> {
+        pub async fn _publish(&self, message: ServerRecords) -> Result<(), EventError> {
             let serialized_msg = serde_json::to_string(&message).unwrap().into_bytes();
 
             debug!("Publishing message to RabbitMQ");
@@ -85,12 +82,12 @@ pub mod rabbitmq_producer {
                     BasicProperties::default(),
                 )
                 .await
-                .map_err(|e| ScouterError::Error(e.to_string()))?;
+                .map_err(EventError::traced_publish_error)?;
 
             Ok(())
         }
 
-        pub async fn flush(&self) -> Result<(), ScouterError> {
+        pub async fn flush(&self) -> Result<(), EventError> {
             let status = self.producer.status().state();
 
             match status {
@@ -106,10 +103,7 @@ pub mod rabbitmq_producer {
                     self.producer
                         .close(0, "Normal shutdown")
                         .await
-                        .map_err(|e| {
-                            error!("Failed to flush RabbitMQ producer: {:?}", e.to_string());
-                            ScouterError::Error(e.to_string())
-                        })?;
+                        .map_err(EventError::traced_flush_error)?;
                     Ok(())
                 }
             }

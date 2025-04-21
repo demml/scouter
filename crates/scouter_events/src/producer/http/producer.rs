@@ -3,7 +3,7 @@
 use reqwest::header;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, Response};
-use scouter_error::ScouterError;
+use scouter_error::{ClientError, EventError};
 use scouter_settings::HTTPConfig;
 use scouter_types::{JwtToken, RequestType, Routes, ServerRecords};
 use serde_json::Value;
@@ -12,26 +12,26 @@ use tracing::{debug, instrument};
 const TIMEOUT_SECS: u64 = 60;
 
 /// Create a new HTTP client that can be shared across different clients
-pub fn build_http_client(settings: &HTTPConfig) -> Result<Client, ScouterError> {
+pub fn build_http_client(settings: &HTTPConfig) -> Result<Client, EventError> {
     let mut headers = HeaderMap::new();
 
     headers.insert(
         "Username",
         HeaderValue::from_str(&settings.username)
-            .map_err(ScouterError::traced_create_header_error)?,
+            .map_err(ClientError::traced_create_header_error)?,
     );
 
     headers.insert(
         "Password",
         HeaderValue::from_str(&settings.password)
-            .map_err(ScouterError::traced_create_header_error)?,
+            .map_err(ClientError::traced_create_header_error)?,
     );
 
     let client_builder = Client::builder().timeout(std::time::Duration::from_secs(TIMEOUT_SECS));
     let client = client_builder
         .default_headers(headers)
         .build()
-        .map_err(ScouterError::traced_create_client_error)?;
+        .map_err(ClientError::traced_create_client_error)?;
     Ok(client)
 }
 
@@ -43,7 +43,7 @@ pub struct HTTPClient {
 }
 
 impl HTTPClient {
-    pub async fn new(config: HTTPConfig) -> Result<Self, ScouterError> {
+    pub async fn new(config: HTTPConfig) -> Result<Self, EventError> {
         let client = build_http_client(&config)?;
 
         let mut api_client = HTTPClient {
@@ -55,13 +55,13 @@ impl HTTPClient {
         api_client
             .get_jwt_token()
             .await
-            .map_err(ScouterError::traced_jwt_error)?;
+            .map_err(ClientError::traced_jwt_error)?;
 
         Ok(api_client)
     }
 
     #[instrument(skip_all)]
-    async fn get_jwt_token(&mut self) -> Result<(), ScouterError> {
+    async fn get_jwt_token(&mut self) -> Result<(), EventError> {
         let url = format!("{}/{}", self.base_path, Routes::AuthLogin.as_str());
         debug!("Getting JWT token from {}", url);
 
@@ -70,17 +70,17 @@ impl HTTPClient {
             .get(url)
             .send()
             .await
-            .map_err(ScouterError::traced_request_error)?;
+            .map_err(ClientError::traced_request_error)?;
 
         // check if unauthorized
         if response.status().is_client_error() {
-            return Err(ScouterError::traced_unauthorized_error());
+            return Err(EventError::ClientError(ClientError::Unauthorized));
         }
 
         let response = response
             .json::<JwtToken>()
             .await
-            .map_err(ScouterError::traced_parse_jwt_error)?;
+            .map_err(ClientError::traced_parse_jwt_error)?;
 
         self.config.auth_token = response.token;
 
@@ -105,7 +105,7 @@ impl HTTPClient {
         body_params: Option<Value>,
         query_string: Option<String>,
         headers: Option<HeaderMap>,
-    ) -> Result<Response, ScouterError> {
+    ) -> Result<Response, EventError> {
         let headers = headers.unwrap_or_default();
 
         let url = format!("{}/{}", self.base_path, route.as_str());
@@ -123,7 +123,7 @@ impl HTTPClient {
                     .bearer_auth(&self.config.auth_token)
                     .send()
                     .await
-                    .map_err(ScouterError::traced_request_error)?
+                    .map_err(ClientError::traced_request_error)?
             }
             RequestType::Post => self
                 .client
@@ -133,7 +133,7 @@ impl HTTPClient {
                 .bearer_auth(&self.config.auth_token)
                 .send()
                 .await
-                .map_err(ScouterError::traced_request_error)?,
+                .map_err(ClientError::traced_request_error)?,
             RequestType::Put => self
                 .client
                 .put(url)
@@ -142,7 +142,7 @@ impl HTTPClient {
                 .bearer_auth(&self.config.auth_token)
                 .send()
                 .await
-                .map_err(ScouterError::traced_request_error)?,
+                .map_err(ClientError::traced_request_error)?,
             RequestType::Delete => {
                 let url = if let Some(query_string) = query_string {
                     format!("{}?{}", url, query_string)
@@ -155,7 +155,7 @@ impl HTTPClient {
                     .bearer_auth(&self.config.auth_token)
                     .send()
                     .await
-                    .map_err(ScouterError::traced_request_error)?
+                    .map_err(ClientError::traced_request_error)?
             }
         };
 
@@ -169,7 +169,7 @@ impl HTTPClient {
         body_params: Option<Value>,
         query_params: Option<String>,
         headers: Option<HeaderMap>,
-    ) -> Result<Response, ScouterError> {
+    ) -> Result<Response, EventError> {
         let response = self
             ._request(
                 route.clone(),
@@ -193,14 +193,14 @@ pub struct HTTPProducer {
 }
 
 impl HTTPProducer {
-    pub async fn new(config: HTTPConfig) -> Result<Self, ScouterError> {
+    pub async fn new(config: HTTPConfig) -> Result<Self, EventError> {
         let client = HTTPClient::new(config).await?;
         Ok(HTTPProducer { client })
     }
 
-    pub async fn publish(&mut self, message: ServerRecords) -> Result<(), ScouterError> {
+    pub async fn publish(&mut self, message: ServerRecords) -> Result<(), EventError> {
         let serialized_msg: Value =
-            serde_json::to_value(&message).map_err(ScouterError::traced_serialize_error)?;
+            serde_json::to_value(&message).map_err(ClientError::traced_serialize_error)?;
 
         let response = self
             .client
@@ -218,7 +218,7 @@ impl HTTPProducer {
         Ok(())
     }
 
-    pub async fn flush(&self) -> Result<(), ScouterError> {
+    pub async fn flush(&self) -> Result<(), EventError> {
         Ok(())
     }
 }
