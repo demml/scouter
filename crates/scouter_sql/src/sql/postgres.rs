@@ -1,33 +1,29 @@
 use crate::sql::query::Queries;
-use crate::sql::schema::{
-    AlertWrapper, Entity, ObservabilityResult, TaskRequest, UpdateAlertResult, User,
-};
+use crate::sql::schema::{AlertWrapper, Entity, ObservabilityResult, UpdateAlertResult};
 use crate::sql::traits::{CustomMetricSqlLogic, PsiSqlLogic, SpcSqlLogic};
 use crate::sql::utils::pg_rows_to_server_records;
 use chrono::{DateTime, Utc};
-use cron::Schedule;
 use scouter_contracts::{
-    DriftAlertRequest, GetProfileRequest, ObservabilityMetricRequest, ProfileStatusRequest,
-    ServiceInfo, UpdateAlertStatus,
+    DriftAlertRequest, ObservabilityMetricRequest, ServiceInfo, UpdateAlertStatus,
 };
 
 use scouter_error::{ScouterError, SqlError, UtilError};
 use scouter_settings::{DatabaseSettings, ObjectStorageSettings};
 use scouter_types::DriftType;
 use scouter_types::{
-    alert::Alert, DriftProfile, ObservabilityMetrics, RecordType, ServerRecords, TimeInterval,
-    ToDriftRecords,
+    alert::Alert, ObservabilityMetrics, RecordType, ServerRecords, TimeInterval, ToDriftRecords,
 };
-use serde_json::Value;
+
 use sqlx::{
     postgres::{PgPoolOptions, PgQueryResult},
-    Pool, Postgres, Row, Transaction,
+    Pool, Postgres, Transaction,
 };
 use std::collections::BTreeMap;
 use std::result::Result::Ok;
-use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{debug, error, info, instrument};
+
+use super::traits::{ProfileSqlLogic, UserSqlLogic};
 
 // TODO: Explore refactoring and breaking this out into multiple client types (i.e., spc, psi, etc.)
 // Postgres client is one of the lowest-level abstractions so it may not be worth it, as it could make server logic annoying. Worth exploring though.
@@ -43,6 +39,8 @@ pub struct PostgresClient {
 impl SpcSqlLogic for PostgresClient {}
 impl CustomMetricSqlLogic for PostgresClient {}
 impl PsiSqlLogic for PostgresClient {}
+impl UserSqlLogic for PostgresClient {}
+impl ProfileSqlLogic for PostgresClient {}
 
 impl PostgresClient {
     /// Create a new PostgresClient
@@ -242,158 +240,6 @@ impl PostgresClient {
             .map_err(SqlError::traced_query_error)
     }
 
-    /// Insert a drift profile into the database
-    ///
-    /// # Arguments
-    ///
-    /// * `drift_profile` - The drift profile to insert
-    ///
-    /// # Returns
-    ///
-    /// * `Result<PgQueryResult, SqlError>` - Result of the query
-    pub async fn insert_drift_profile(
-        &self,
-        drift_profile: &DriftProfile,
-    ) -> Result<PgQueryResult, SqlError> {
-        let query = Queries::InsertDriftProfile.get_query();
-        let base_args = drift_profile.get_base_args();
-
-        let current_time = Utc::now();
-
-        let schedule =
-            Schedule::from_str(&base_args.schedule).map_err(UtilError::traced_parse_cron_error)?;
-
-        let next_run = schedule
-            .upcoming(Utc)
-            .take(1)
-            .next()
-            .ok_or(SqlError::traced_get_next_run_error(&base_args.schedule))?;
-
-        sqlx::query(&query.sql)
-            .bind(base_args.name)
-            .bind(base_args.space)
-            .bind(base_args.version)
-            .bind(base_args.scouter_version)
-            .bind(drift_profile.to_value())
-            .bind(base_args.drift_type.to_string())
-            .bind(false)
-            .bind(base_args.schedule)
-            .bind(next_run)
-            .bind(current_time)
-            .execute(&self.pool)
-            .await
-            .map_err(SqlError::traced_query_error)
-    }
-
-    /// Update a drift profile in the database
-    ///
-    /// # Arguments
-    ///
-    /// * `drift_profile` - The drift profile to update
-    ///
-    /// # Returns
-    ///
-    /// * `Result<PgQueryResult, SqlError>` - Result of the query
-    pub async fn update_drift_profile(
-        &self,
-        drift_profile: &DriftProfile,
-    ) -> Result<PgQueryResult, SqlError> {
-        let query = Queries::UpdateDriftProfile.get_query();
-        let base_args = drift_profile.get_base_args();
-
-        sqlx::query(&query.sql)
-            .bind(drift_profile.to_value())
-            .bind(base_args.drift_type.to_string())
-            .bind(base_args.name)
-            .bind(base_args.space)
-            .bind(base_args.version)
-            .execute(&self.pool)
-            .await
-            .map_err(SqlError::traced_query_error)
-    }
-
-    /// Get a drift profile from the database
-    ///
-    /// # Arguments
-    ///
-    /// * `request` - The request to get the profile for
-    ///
-    /// # Returns
-    pub async fn get_drift_profile(
-        &self,
-        request: &GetProfileRequest,
-    ) -> Result<Option<Value>, SqlError> {
-        let query = Queries::GetDriftProfile.get_query();
-
-        let result = sqlx::query(&query.sql)
-            .bind(&request.name)
-            .bind(&request.space)
-            .bind(&request.version)
-            .bind(request.drift_type.to_string())
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(SqlError::traced_query_error)?;
-
-        match result {
-            Some(result) => {
-                let profile: Value = result.get("profile");
-                Ok(Some(profile))
-            }
-            None => Ok(None),
-        }
-    }
-
-    pub async fn get_drift_profile_task(
-        transaction: &mut Transaction<'_, Postgres>,
-    ) -> Result<Option<TaskRequest>, SqlError> {
-        let query = Queries::GetDriftTask.get_query();
-        let result: Result<Option<TaskRequest>, sqlx::Error> = sqlx::query_as(&query.sql)
-            .fetch_optional(&mut **transaction)
-            .await;
-
-        result.map_err(SqlError::traced_get_drift_task_error)
-    }
-
-    /// Update the drift profile run dates in the database
-    ///
-    /// # Arguments
-    ///
-    /// * `transaction` - The database transaction
-    /// * `service_info` - The service info to update the run dates for
-    /// * `schedule` - The schedule to update the run dates with
-    ///
-    /// # Returns
-    ///
-    /// * `Result<(), SqlError>` - Result of the query
-    pub async fn update_drift_profile_run_dates(
-        transaction: &mut Transaction<'_, Postgres>,
-        service_info: &ServiceInfo,
-        schedule: &str,
-    ) -> Result<(), SqlError> {
-        let query = Queries::UpdateDriftProfileRunDates.get_query();
-
-        let schedule = Schedule::from_str(schedule).map_err(UtilError::traced_parse_cron_error)?;
-
-        let next_run = schedule
-            .upcoming(Utc)
-            .take(1)
-            .next()
-            .ok_or(SqlError::traced_get_next_run_error(schedule))?;
-
-        let query_result = sqlx::query(&query.sql)
-            .bind(next_run)
-            .bind(&service_info.name)
-            .bind(&service_info.space)
-            .bind(&service_info.version)
-            .execute(&mut **transaction)
-            .await;
-
-        match query_result {
-            Ok(_) => Ok(()),
-            Err(e) => Err(SqlError::traced_update_drift_profile_error(e)),
-        }
-    }
-
     pub async fn get_binned_observability_metrics(
         &self,
         params: &ObservabilityMetricRequest,
@@ -415,31 +261,6 @@ impl PostgresClient {
                 .await;
 
         observability_metrics.map_err(SqlError::traced_query_error)
-    }
-
-    pub async fn update_drift_profile_status(
-        &self,
-        params: &ProfileStatusRequest,
-    ) -> Result<(), SqlError> {
-        let query = Queries::UpdateDriftProfileStatus.get_query();
-
-        // convert drift_type to string or None
-        let query_result = sqlx::query(&query.sql)
-            .bind(params.active)
-            .bind(&params.name)
-            .bind(&params.space)
-            .bind(&params.version)
-            .bind(params.drift_type.as_ref().map(|t| t.to_string()))
-            .execute(&self.pool)
-            .await;
-
-        match query_result {
-            Ok(_) => Ok(()),
-            Err(e) => {
-                error!("Failed to update drift profile status: {:?}", e);
-                Err(SqlError::traced_update_drift_profile_error(e))
-            }
-        }
     }
 
     /// Function to get entities for archival
@@ -541,110 +362,6 @@ impl PostgresClient {
 
         Ok(())
     }
-
-    pub async fn insert_user(&self, user: &User) -> Result<(), SqlError> {
-        let query = Queries::InsertUser.get_query();
-
-        let group_permissions = serde_json::to_value(&user.group_permissions)
-            .map_err(UtilError::traced_serialize_error)?;
-
-        let permissions =
-            serde_json::to_value(&user.permissions).map_err(UtilError::traced_serialize_error)?;
-
-        sqlx::query(&query.sql)
-            .bind(&user.username)
-            .bind(&user.password_hash)
-            .bind(&permissions)
-            .bind(&group_permissions)
-            .bind(&user.role)
-            .bind(user.active)
-            .execute(&self.pool)
-            .await
-            .map_err(SqlError::traced_query_error)?;
-
-        Ok(())
-    }
-
-    pub async fn get_user(&self, username: &str) -> Result<Option<User>, SqlError> {
-        let query = Queries::GetUser.get_query();
-
-        let user: Option<User> = sqlx::query_as(&query.sql)
-            .bind(username)
-            .fetch_optional(&self.pool)
-            .await
-            .map_err(SqlError::traced_query_error)?;
-
-        Ok(user)
-    }
-
-    pub async fn update_user(&self, user: &User) -> Result<(), SqlError> {
-        let query = Queries::UpdateUser.get_query();
-
-        let group_permissions = serde_json::to_value(&user.group_permissions)
-            .map_err(UtilError::traced_serialize_error)?;
-
-        let permissions =
-            serde_json::to_value(&user.permissions).map_err(UtilError::traced_serialize_error)?;
-
-        sqlx::query(&query.sql)
-            .bind(user.active)
-            .bind(&user.password_hash)
-            .bind(&permissions)
-            .bind(&group_permissions)
-            .bind(&user.refresh_token)
-            .bind(&user.username)
-            .execute(&self.pool)
-            .await
-            .map_err(SqlError::traced_query_error)?;
-
-        Ok(())
-    }
-
-    pub async fn get_users(&self) -> Result<Vec<User>, SqlError> {
-        let query = Queries::GetUsers.get_query();
-
-        let users = sqlx::query_as::<_, User>(&query.sql)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(SqlError::traced_query_error)?;
-
-        Ok(users)
-    }
-
-    pub async fn is_last_admin(&self, username: &str) -> Result<bool, SqlError> {
-        // Count admins in the system
-        let query = Queries::LastAdmin.get_query();
-
-        let admins: Vec<String> = sqlx::query_scalar(&query.sql)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(SqlError::traced_query_error)?;
-
-        // check if length is 1 and the username is the same
-        if admins.len() > 1 {
-            return Ok(false);
-        }
-
-        // no admins found
-        if admins.is_empty() {
-            return Ok(false);
-        }
-
-        // check if the username is the last admin
-        Ok(admins.len() == 1 && admins[0] == username)
-    }
-
-    pub async fn delete_user(&self, username: &str) -> Result<(), SqlError> {
-        let query = Queries::DeleteUser.get_query();
-
-        sqlx::query(&query.sql)
-            .bind(username)
-            .execute(&self.pool)
-            .await
-            .map_err(SqlError::traced_query_error)?;
-
-        Ok(())
-    }
 }
 
 pub enum MessageHandler {
@@ -717,8 +434,9 @@ impl MessageHandler {
 mod tests {
 
     use super::*;
+    use crate::sql::schema::User;
     use rand::Rng;
-    use scouter_contracts::DriftRequest;
+    use scouter_contracts::{DriftRequest, GetProfileRequest, ProfileStatusRequest};
     use scouter_types::spc::SpcDriftProfile;
     use scouter_types::*;
     const SPACE: &str = "space";
@@ -907,7 +625,7 @@ mod tests {
         let mut spc_profile = SpcDriftProfile::default();
 
         let result = client
-            .insert_drift_profile(&DriftProfile::Spc(spc_profile.clone()))
+            .insert_drift_profile(&client.pool, &DriftProfile::Spc(spc_profile.clone()))
             .await
             .unwrap();
 
@@ -916,19 +634,22 @@ mod tests {
         spc_profile.scouter_version = "test".to_string();
 
         let result = client
-            .update_drift_profile(&DriftProfile::Spc(spc_profile.clone()))
+            .update_drift_profile(&client.pool, &DriftProfile::Spc(spc_profile.clone()))
             .await
             .unwrap();
 
         assert_eq!(result.rows_affected(), 1);
 
         let profile = client
-            .get_drift_profile(&GetProfileRequest {
-                name: spc_profile.config.name.clone(),
-                space: spc_profile.config.space.clone(),
-                version: spc_profile.config.version.clone(),
-                drift_type: DriftType::Spc,
-            })
+            .get_drift_profile(
+                &client.pool,
+                &GetProfileRequest {
+                    name: spc_profile.config.name.clone(),
+                    space: spc_profile.config.space.clone(),
+                    version: spc_profile.config.version.clone(),
+                    drift_type: DriftType::Spc,
+                },
+            )
             .await
             .unwrap();
 
@@ -937,13 +658,16 @@ mod tests {
         assert_eq!(deserialized, spc_profile);
 
         client
-            .update_drift_profile_status(&ProfileStatusRequest {
-                name: spc_profile.config.name.clone(),
-                space: spc_profile.config.space.clone(),
-                version: spc_profile.config.version.clone(),
-                active: false,
-                drift_type: Some(DriftType::Spc),
-            })
+            .update_drift_profile_status(
+                &client.pool,
+                &ProfileStatusRequest {
+                    name: spc_profile.config.name.clone(),
+                    space: spc_profile.config.space.clone(),
+                    version: spc_profile.config.version.clone(),
+                    active: false,
+                    drift_type: Some(DriftType::Spc),
+                },
+            )
             .await
             .unwrap();
     }
@@ -1171,10 +895,14 @@ mod tests {
             None,
             Some("admin".to_string()),
         );
-        client.insert_user(&user).await.unwrap();
+        client.insert_user(&client.pool, &user).await.unwrap();
 
         // Read
-        let mut user = client.get_user("user").await.unwrap().unwrap();
+        let mut user = client
+            .get_user(&client.pool, "user")
+            .await
+            .unwrap()
+            .unwrap();
         assert_eq!(user.username, "user");
 
         // update user
@@ -1182,20 +910,24 @@ mod tests {
         user.refresh_token = Some("token".to_string());
 
         // Update
-        client.update_user(&user).await.unwrap();
-        let user = client.get_user("user").await.unwrap().unwrap();
+        client.update_user(&client.pool, &user).await.unwrap();
+        let user = client
+            .get_user(&client.pool, "user")
+            .await
+            .unwrap()
+            .unwrap();
         assert!(!user.active);
         assert_eq!(user.refresh_token.unwrap(), "token");
 
         // get users
-        let users = client.get_users().await.unwrap();
+        let users = client.get_users(&client.pool).await.unwrap();
         assert_eq!(users.len(), 1);
 
         // get last admin
-        let is_last_admin = client.is_last_admin("user").await.unwrap();
+        let is_last_admin = client.is_last_admin(&client.pool, "user").await.unwrap();
         assert!(is_last_admin);
 
         // delete
-        client.delete_user("user").await.unwrap();
+        client.delete_user(&client.pool, "user").await.unwrap();
     }
 }
