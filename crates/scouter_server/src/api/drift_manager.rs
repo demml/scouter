@@ -1,5 +1,5 @@
 use scouter_drift::DriftExecutor;
-use scouter_error::EventError;
+use scouter_error::ScouterError;
 use scouter_settings::{DatabaseSettings, PollingSettings};
 use scouter_sql::PostgresClient;
 use sqlx::Pool;
@@ -8,17 +8,17 @@ use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, span, Instrument, Level};
 
-pub struct BackgroundPollManager {
+pub struct BackgroundDriftManager {
     pub workers: Vec<JoinHandle<()>>,
 }
 
-impl BackgroundPollManager {
+impl BackgroundDriftManager {
     pub async fn start_workers(
         pool: &Pool<Postgres>,
         poll_settings: &PollingSettings,
         db_settings: &DatabaseSettings,
         shutdown_rx: watch::Receiver<()>,
-    ) -> Result<(), EventError> {
+    ) -> Result<(), ScouterError> {
         let num_workers = poll_settings.num_workers;
         let mut workers = Vec::with_capacity(num_workers);
 

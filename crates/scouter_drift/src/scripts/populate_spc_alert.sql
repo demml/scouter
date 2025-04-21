@@ -97,7 +97,7 @@ VALUES
         timezone('utc', now() - interval '3 days')
     );
 
-INSERT INTO scouter.drift (created_at, name, space, feature, value, version)
+INSERT INTO scouter.spc_drift (created_at, name, space, feature, value, version)
 VALUES
     (timezone('utc', now()), 'test_app', 'statworld', 'col_1', random() + 10, '0.1.0'),
     (timezone('utc', now()), 'test_app', 'statworld', 'col_1', random() + 10, '0.1.0'),

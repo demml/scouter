@@ -9,5 +9,6 @@ CREATE TABLE IF NOT EXISTS scouter.user (
     permissions JSONB NOT NULL,
     group_permissions JSONB NOT NULL,
     role VARCHAR(32) DEFAULT 'user',
-    refresh_token VARCHAR(255)
+    refresh_token VARCHAR(255),
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL
 );

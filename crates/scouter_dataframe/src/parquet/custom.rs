@@ -2,18 +2,25 @@ use crate::parquet::traits::ParquetFrame;
 use crate::parquet::types::BinnedTableName;
 use crate::sql::helper::get_binned_custom_metric_values_query;
 use crate::storage::ObjectStore;
+use arrow::array::AsArray;
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow_array::array::{Float64Array, StringArray, TimestampNanosecondArray};
-use arrow_array::RecordBatch;
+use arrow_array::types::Float64Type;
+use arrow_array::{ListArray, StringViewArray};
+use arrow_array::{RecordBatch, StructArray};
 use async_trait::async_trait;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, TimeZone, Utc};
 use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_error::ScouterError;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::ToDriftRecords;
-use scouter_types::{CustomMetricServerRecord, ServerRecords};
+
+use scouter_types::{
+    custom::{BinnedCustomMetric, BinnedCustomMetricStats, BinnedCustomMetrics},
+    CustomMetricServerRecord, ServerRecords, StorageType, ToDriftRecords,
+};
 use std::sync::Arc;
+
 pub struct CustomMetricDataFrame {
     schema: Arc<Schema>,
     pub object_store: ObjectStore,
@@ -39,7 +46,11 @@ impl ParquetFrame for CustomMetricDataFrame {
     }
 
     fn storage_root(&self) -> String {
-        self.object_store.storage_settings.storage_uri.clone()
+        self.object_store.storage_settings.canonicalized_path()
+    }
+
+    fn storage_type(&self) -> StorageType {
+        self.object_store.storage_settings.storage_type.clone()
     }
 
     fn get_session_context(&self) -> Result<SessionContext, ScouterError> {
@@ -119,4 +130,100 @@ impl CustomMetricDataFrame {
 
         Ok(batch)
     }
+}
+
+fn extract_created_at(batch: &RecordBatch) -> Result<Vec<DateTime<Utc>>, ScouterError> {
+    let created_at_list = batch
+        .column(1)
+        .as_any()
+        .downcast_ref::<ListArray>()
+        .ok_or_else(|| ScouterError::Error("Failed to get created_at column".to_string()))?;
+
+    let created_at_array = created_at_list.value(0);
+    Ok(created_at_array
+        .as_primitive::<arrow::datatypes::TimestampNanosecondType>()
+        .iter()
+        .filter_map(|ts| ts.map(|t| Utc.timestamp_nanos(t)))
+        .collect())
+}
+
+fn extract_stats(batch: &RecordBatch) -> Result<BinnedCustomMetricStats, ScouterError> {
+    let stats_list = batch
+        .column(2)
+        .as_any()
+        .downcast_ref::<ListArray>()
+        .ok_or_else(|| ScouterError::Error("Failed to get stats column".to_string()))?
+        .value(0);
+
+    let stats_structs = stats_list
+        .as_any()
+        .downcast_ref::<StructArray>()
+        .ok_or_else(|| ScouterError::Error("Failed to downcast to StructArray".to_string()))?;
+
+    // extract avg, lower_bound, and upper_bound from the struct
+
+    // Extract avg, lower_bound, and upper_bound from the struct
+    let avg = stats_structs
+        .column_by_name("avg")
+        .ok_or_else(|| ScouterError::Error("Missing avg field".to_string()))?
+        .as_primitive::<Float64Type>()
+        .value(0);
+
+    let lower_bound = stats_structs
+        .column_by_name("lower_bound")
+        .ok_or_else(|| ScouterError::Error("Missing lower_bound field".to_string()))?
+        .as_primitive::<Float64Type>()
+        .value(0);
+
+    let upper_bound = stats_structs
+        .column_by_name("upper_bound")
+        .ok_or_else(|| ScouterError::Error("Missing upper_bound field".to_string()))?
+        .as_primitive::<Float64Type>()
+        .value(0);
+
+    Ok(BinnedCustomMetricStats {
+        avg,
+        lower_bound,
+        upper_bound,
+    })
+}
+
+fn process_custom_record_batch(batch: &RecordBatch) -> Result<BinnedCustomMetric, ScouterError> {
+    let metric_array = batch
+        .column(0)
+        .as_any()
+        .downcast_ref::<StringViewArray>()
+        .expect("Failed to downcast to StringViewArray");
+    let metric_name = metric_array.value(0).to_string();
+    let created_at_list = extract_created_at(batch)?;
+    let stats = extract_stats(batch)?;
+
+    Ok(BinnedCustomMetric {
+        metric: metric_name,
+        created_at: created_at_list,
+        stats: vec![stats],
+    })
+}
+
+/// Convert a DataFrame to SpcDriftFeatures
+///
+/// # Arguments
+/// * `df` - The DataFrame to convert
+///
+/// # Returns
+/// * `SpcDriftFeatures` - The converted SpcDriftFeatures
+pub async fn dataframe_to_custom_drift_metrics(
+    df: DataFrame,
+) -> Result<BinnedCustomMetrics, ScouterError> {
+    let batches = df
+        .collect()
+        .await
+        .map_err(|e| ScouterError::Error(format!("Failed to collect batches: {}", e)))?;
+
+    let metrics: Vec<BinnedCustomMetric> = batches
+        .iter()
+        .map(process_custom_record_batch)
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(BinnedCustomMetrics::from_vec(metrics))
 }

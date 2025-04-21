@@ -1,8 +1,10 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::{
-    AlertWrapper, BinnedCustomMetricWrapper, FeatureBinProportionResult,
-    FeatureBinProportionWrapper, ObservabilityResult, SpcFeatureResult, TaskRequest, User,
+    AlertWrapper, BinnedCustomMetricWrapper, Entity, FeatureBinProportionResultWrapper,
+    FeatureBinProportionWrapper, ObservabilityResult, SpcFeatureResult, TaskRequest,
+    UpdateAlertResult, User,
 };
+use crate::sql::utils::pg_rows_to_server_records;
 use chrono::{DateTime, Utc};
 use cron::Schedule;
 use scouter_contracts::{
@@ -12,6 +14,7 @@ use scouter_contracts::{
 use scouter_error::ScouterError;
 use scouter_error::SqlError;
 use scouter_settings::DatabaseSettings;
+use scouter_types::psi::FeatureBinProportionResult;
 use scouter_types::DriftType;
 use scouter_types::{
     alert::Alert,
@@ -31,8 +34,6 @@ use std::collections::{BTreeMap, HashMap};
 use std::result::Result::Ok;
 use std::str::FromStr;
 use tracing::{debug, error, info, instrument};
-
-use super::schema::UpdateAlertResult;
 
 // TODO: Explore refactoring and breaking this out into multiple client types (i.e., spc, psi, etc.)
 // Postgres client is one of the lowest-level abstractions so it may not be worth it, as it could make server logic annoying. Worth exploring though.
@@ -700,20 +701,23 @@ impl PostgresClient {
 
         let query = Queries::GetBinnedPsiFeatureBins.get_query();
 
-        let binned: Result<Vec<FeatureBinProportionResult>, sqlx::Error> =
-            sqlx::query_as(&query.sql)
-                .bind(bin)
-                .bind(minutes)
-                .bind(&params.name)
-                .bind(&params.space)
-                .bind(&params.version)
-                .fetch_all(&self.pool)
-                .await;
+        let binned: Vec<FeatureBinProportionResult> = sqlx::query_as(&query.sql)
+            .bind(bin)
+            .bind(minutes)
+            .bind(&params.name)
+            .bind(&params.space)
+            .bind(&params.version)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| {
+                error!("Failed to run query: {:?}", e);
+                SqlError::QueryError(format!("Failed to run query: {:?}", e))
+            })?
+            .into_iter()
+            .map(|wrapper: FeatureBinProportionResultWrapper| wrapper.0)
+            .collect();
 
-        binned.map_err(|e| {
-            error!("Failed to run query: {:?}", e);
-            SqlError::QueryError(format!("Failed to run query: {:?}", e))
-        })
+        Ok(binned)
     }
 
     // Queries the database for drift records based on a time window and aggregation
@@ -876,6 +880,128 @@ impl PostgresClient {
                 )))
             }
         }
+    }
+
+    /// Function to get entities for archival
+    ///
+    /// # Arguments
+    /// * `record_type` - The type of record to get entities for
+    /// * `retention_period` - The retention period to get entities for
+    ///
+    pub async fn get_entities_to_archive(
+        &self,
+        record_type: &RecordType,
+        retention_period: &i64,
+    ) -> Result<Vec<Entity>, SqlError> {
+        let query = match record_type {
+            RecordType::Spc => Queries::GetSpcEntities.get_query(),
+            RecordType::Psi => Queries::GetBinCountEntities.get_query(),
+            RecordType::Custom => Queries::GetCustomEntities.get_query(),
+            _ => {
+                error!("Invalid record type for archival: {:?}", record_type);
+                return Err(SqlError::GeneralError(format!(
+                    "Invalid record type for archival: {:?}",
+                    record_type
+                )));
+            }
+        };
+
+        let entities: Vec<Entity> = sqlx::query_as(&query.sql)
+            .bind(retention_period)
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| {
+                error!("Failed to get entities for archival: {:?}", e);
+                SqlError::GeneralError(format!("Failed to get entities for archival: {:?}", e))
+            })?;
+
+        Ok(entities)
+    }
+
+    /// Function to get data for archival
+    ///
+    /// # Arguments
+    /// * `record_type` - The type of record to get data for
+    /// * `days` - The number of days to get data for
+    ///
+    /// # Returns
+    /// * `Result<ServerRecords, SqlError>` - Result of the query
+    ///
+    /// # Errors
+    /// * `SqlError` - If the query fails
+    pub async fn get_data_to_archive(
+        space: &str,
+        name: &str,
+        version: &str,
+        begin_timestamp: &DateTime<Utc>,
+        end_timestamp: &DateTime<Utc>,
+        record_type: &RecordType,
+        tx: &mut Transaction<'_, Postgres>,
+    ) -> Result<ServerRecords, SqlError> {
+        let query = match record_type {
+            RecordType::Spc => Queries::GetSpcDataForArchive.get_query(),
+            RecordType::Psi => Queries::GetBinCountDataForArchive.get_query(),
+            RecordType::Custom => Queries::GetCustomDataForArchive.get_query(),
+            _ => {
+                error!("Invalid record type for archival: {:?}", record_type);
+                return Err(SqlError::GeneralError(format!(
+                    "Invalid record type for archival: {:?}",
+                    record_type
+                )));
+            }
+        };
+        let rows = sqlx::query(&query.sql)
+            .bind(begin_timestamp)
+            .bind(end_timestamp)
+            .bind(space)
+            .bind(name)
+            .bind(version)
+            .fetch_all(&mut **tx)
+            .await
+            .map_err(|e| {
+                error!("Failed to get data for archival: {:?}", e);
+                SqlError::GeneralError(format!("Failed to get data for archival: {:?}", e))
+            })?;
+
+        // need to convert the rows to server records (storage dataframe expects this)
+        pg_rows_to_server_records(&rows, record_type)
+    }
+
+    pub async fn update_data_to_archived(
+        space: &str,
+        name: &str,
+        version: &str,
+        begin_timestamp: &DateTime<Utc>,
+        end_timestamp: &DateTime<Utc>,
+        record_type: &RecordType,
+        tx: &mut Transaction<'_, Postgres>,
+    ) -> Result<(), SqlError> {
+        let query = match record_type {
+            RecordType::Spc => Queries::UpdateSpcEntities.get_query(),
+            RecordType::Psi => Queries::UpdateBinCountEntities.get_query(),
+            RecordType::Custom => Queries::UpdateCustomEntities.get_query(),
+            _ => {
+                error!("Invalid record type for archival: {:?}", record_type);
+                return Err(SqlError::GeneralError(format!(
+                    "Invalid record type for archival: {:?}",
+                    record_type
+                )));
+            }
+        };
+        sqlx::query(&query.sql)
+            .bind(begin_timestamp)
+            .bind(end_timestamp)
+            .bind(space)
+            .bind(name)
+            .bind(version)
+            .execute(&mut **tx)
+            .await
+            .map_err(|e| {
+                error!("Failed to get data for archival: {:?}", e);
+                SqlError::GeneralError(format!("Failed to get data for archival: {:?}", e))
+            })?;
+
+        Ok(())
     }
 
     pub async fn insert_user(&self, user: &User) -> Result<(), ScouterError> {
@@ -1050,11 +1176,15 @@ mod tests {
     use rand::Rng;
     use scouter_types::{spc::SpcDriftProfile, DriftType};
 
+    const SPACE: &str = "space";
+    const NAME: &str = "name";
+    const VERSION: &str = "1.0.0";
+
     pub async fn cleanup(pool: &Pool<Postgres>) {
         sqlx::raw_sql(
             r#"
             DELETE
-            FROM scouter.drift;
+            FROM scouter.spc_drift;
 
             DELETE
             FROM scouter.observability_metric;
@@ -1101,9 +1231,9 @@ mod tests {
 
         for _ in 0..10 {
             let service_info = ServiceInfo {
-                name: "test".to_string(),
-                space: "test".to_string(),
-                version: "test".to_string(),
+                space: SPACE.to_string(),
+                name: NAME.to_string(),
+                version: VERSION.to_string(),
             };
 
             let alert = (0..10)
@@ -1120,9 +1250,9 @@ mod tests {
 
         // get alerts
         let alert_request = DriftAlertRequest {
-            name: "test".to_string(),
-            space: "test".to_string(),
-            version: "test".to_string(),
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
             active: Some(true),
             limit: None,
             limit_datetime: None,
@@ -1133,9 +1263,9 @@ mod tests {
 
         // get alerts limit 1
         let alert_request = DriftAlertRequest {
-            name: "test".to_string(),
-            space: "test".to_string(),
-            version: "test".to_string(),
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
             active: Some(true),
             limit: Some(1),
             limit_datetime: None,
@@ -1146,9 +1276,9 @@ mod tests {
 
         // get alerts limit timestamp
         let alert_request = DriftAlertRequest {
-            name: "test".to_string(),
-            space: "test".to_string(),
-            version: "test".to_string(),
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
             active: Some(true),
             limit: None,
             limit_datetime: Some(timestamp),
@@ -1164,9 +1294,9 @@ mod tests {
 
         let record = SpcServerRecord {
             created_at: Utc::now(),
-            name: "test".to_string(),
-            space: "test".to_string(),
-            version: "test".to_string(),
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
             feature: "test".to_string(),
             value: 1.0,
         };
@@ -1182,9 +1312,9 @@ mod tests {
 
         let record = PsiServerRecord {
             created_at: Utc::now(),
-            name: "test".to_string(),
-            space: "test".to_string(),
-            version: "test".to_string(),
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
             feature: "test".to_string(),
             bin_id: 1,
             bin_count: 1,
@@ -1265,9 +1395,9 @@ mod tests {
             for j in 0..10 {
                 let record = SpcServerRecord {
                     created_at: Utc::now(),
-                    name: "test".to_string(),
-                    space: "test".to_string(),
-                    version: "test".to_string(),
+                    space: SPACE.to_string(),
+                    name: NAME.to_string(),
+                    version: VERSION.to_string(),
                     feature: format!("test{}", j),
                     value: j as f64,
                 };
@@ -1278,9 +1408,9 @@ mod tests {
         }
 
         let service_info = ServiceInfo {
-            name: "test".to_string(),
-            space: "test".to_string(),
-            version: "test".to_string(),
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
         };
 
         let features = client.get_spc_features(&service_info).await.unwrap();
@@ -1295,9 +1425,9 @@ mod tests {
 
         let binned_records = client
             .get_binned_spc_drift_records(&DriftRequest {
-                name: "test".to_string(),
-                space: "test".to_string(),
-                version: "test".to_string(),
+                space: SPACE.to_string(),
+                name: NAME.to_string(),
+                version: VERSION.to_string(),
                 time_interval: TimeInterval::FiveMinutes,
                 max_data_points: 10,
                 drift_type: DriftType::Spc,
@@ -1319,9 +1449,9 @@ mod tests {
                 for _ in 0..=100 {
                     let record = PsiServerRecord {
                         created_at: Utc::now(),
-                        name: "test".to_string(),
-                        space: "test".to_string(),
-                        version: "test".to_string(),
+                        space: SPACE.to_string(),
+                        name: NAME.to_string(),
+                        version: VERSION.to_string(),
                         feature: format!("feature{}", feature),
                         bin_id: bin,
                         bin_count: rand::rng().random_range(0..10),
@@ -1335,9 +1465,9 @@ mod tests {
         let binned_records = client
             .get_feature_bin_proportions(
                 &ServiceInfo {
-                    name: "test".to_string(),
-                    space: "test".to_string(),
-                    version: "test".to_string(),
+                    space: SPACE.to_string(),
+                    name: NAME.to_string(),
+                    version: VERSION.to_string(),
                 },
                 &timestamp,
                 &["feature0".to_string()],
@@ -1357,9 +1487,9 @@ mod tests {
 
         let binned_records = client
             .get_binned_psi_drift_records(&DriftRequest {
-                name: "test".to_string(),
-                space: "test".to_string(),
-                version: "test".to_string(),
+                space: SPACE.to_string(),
+                name: NAME.to_string(),
+                version: VERSION.to_string(),
                 time_interval: TimeInterval::OneHour,
                 max_data_points: 1000,
                 drift_type: DriftType::Psi,
@@ -1380,9 +1510,9 @@ mod tests {
             for _ in 0..25 {
                 let record = CustomMetricServerRecord {
                     created_at: Utc::now(),
-                    name: "test".to_string(),
-                    space: "test".to_string(),
-                    version: "test".to_string(),
+                    space: SPACE.to_string(),
+                    name: NAME.to_string(),
+                    version: VERSION.to_string(),
                     metric: format!("metric{}", i),
                     value: rand::rng().random_range(0..10) as f64,
                 };
@@ -1395,9 +1525,9 @@ mod tests {
         // insert random record to test has statistics funcs handle single record
         let record = CustomMetricServerRecord {
             created_at: Utc::now(),
-            name: "test".to_string(),
-            space: "test".to_string(),
-            version: "test".to_string(),
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
             metric: "metric3".to_string(),
             value: rand::rng().random_range(0..10) as f64,
         };
@@ -1408,9 +1538,9 @@ mod tests {
         let metrics = client
             .get_custom_metric_values(
                 &ServiceInfo {
-                    name: "test".to_string(),
-                    space: "test".to_string(),
-                    version: "test".to_string(),
+                    space: SPACE.to_string(),
+                    name: NAME.to_string(),
+                    version: VERSION.to_string(),
                 },
                 &timestamp,
                 &["metric1".to_string()],
@@ -1422,9 +1552,9 @@ mod tests {
 
         let binned_records = client
             .get_binned_custom_drift_records(&DriftRequest {
-                name: "test".to_string(),
-                space: "test".to_string(),
-                version: "test".to_string(),
+                space: SPACE.to_string(),
+                name: NAME.to_string(),
+                version: VERSION.to_string(),
                 time_interval: TimeInterval::OneHour,
                 max_data_points: 1000,
                 drift_type: DriftType::Custom,

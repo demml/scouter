@@ -237,7 +237,7 @@ pub mod drift_executor {
             sqlx::raw_sql(
                 r#"
                 DELETE 
-                FROM scouter.drift;
+                FROM scouter.spc_drift;
 
                 DELETE 
                 FROM scouter.observability_metric;

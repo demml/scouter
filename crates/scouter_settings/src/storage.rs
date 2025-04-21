@@ -15,8 +15,9 @@ impl Default for ObjectStorageSettings {
         let storage_uri = std::env::var("SCOUTER_STORAGE_URI")
             .unwrap_or_else(|_| "./scouter_storage".to_string());
 
-        let storage_uri = ScouterServerConfig::set_storage_uri(storage_uri);
         let storage_type = ScouterServerConfig::get_storage_type(&storage_uri);
+
+        // need to set this for aws objectstore
         let region = std::env::var("AWS_REGION").unwrap_or_else(|_| "us-east-1".to_string());
 
         Self {
@@ -49,7 +50,7 @@ impl ObjectStorageSettings {
     }
 
     pub fn canonicalized_path(&self) -> String {
-        // if registry is local canconicalize the path
+        // if registry is local canonicalize the path
         if self.storage_type == StorageType::Local {
             let path = PathBuf::from(&self.storage_uri);
             if path.exists() {
