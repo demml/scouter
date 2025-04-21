@@ -12,6 +12,12 @@ pub trait TracedError: Display {
     }
 }
 
+#[derive(Error, Debug)]
+pub enum ScouterTypeError {
+    #[error("Failed to construct TimeInterval {0}")]
+    TimeIntervalError(String),
+}
+
 // add tracing trait to ScouterError
 
 #[derive(Error, Debug, Deserialize, PartialEq)]
@@ -827,6 +833,9 @@ pub enum ScouterError {
 
     #[error(transparent)]
     UtilError(#[from] UtilError),
+
+    #[error(transparent)]
+    ScouterTypeError(#[from] ScouterTypeError),
 
     #[error("Missing value in map")]
     MissingValue,

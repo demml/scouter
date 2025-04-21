@@ -1276,6 +1276,8 @@ mod tests {
                 time_interval: TimeInterval::FiveMinutes,
                 max_data_points: 10,
                 drift_type: DriftType::Spc,
+                begin_datetime: None,
+                end_datetime: None,
             })
             .await
             .unwrap();
@@ -1338,6 +1340,8 @@ mod tests {
                 time_interval: TimeInterval::OneHour,
                 max_data_points: 1000,
                 drift_type: DriftType::Psi,
+                begin_datetime: None,
+                end_datetime: None,
             })
             .await
             .unwrap();

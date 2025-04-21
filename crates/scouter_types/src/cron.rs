@@ -1,6 +1,7 @@
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use cron::Schedule;
 use pyo3::prelude::*;
+use scouter_error::ScouterTypeError;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -78,6 +79,23 @@ impl CommonCrons {
                 schedule.upcoming(Utc).next().unwrap().to_string()
             }
         }
+    }
+}
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct CustomInterval {
+    pub start: DateTime<Utc>,
+    pub end: DateTime<Utc>,
+}
+
+impl CustomInterval {
+    pub fn new(start: DateTime<Utc>, end: DateTime<Utc>) -> Result<Self, ScouterTypeError> {
+        if start >= end {
+            return Err(ScouterTypeError::TimeIntervalError(
+                "Start time must be before end time".to_string(),
+            ));
+        }
+        Ok(CustomInterval { start, end })
     }
 }
 

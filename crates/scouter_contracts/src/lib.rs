@@ -2,6 +2,8 @@ use std::fmt::Display;
 
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
+use scouter_error::ScouterError;
+use scouter_types::CustomInterval;
 use scouter_types::{DriftType, TimeInterval};
 use serde::Deserialize;
 use serde::Serialize;
@@ -33,18 +35,20 @@ impl GetProfileRequest {
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRequest {
-    pub name: String,
     pub space: String,
+    pub name: String,
     pub version: String,
     pub time_interval: TimeInterval,
     pub max_data_points: i32,
     pub drift_type: DriftType,
+    pub custom_interval: Option<CustomInterval>,
 }
 
 #[pymethods]
 impl DriftRequest {
     #[new]
-    #[pyo3(signature = (name, space, version, time_interval, max_data_points, drift_type))]
+    #[pyo3(signature = (name, space, version, time_interval, max_data_points, drift_type, begin_datetime=None, end_datetime=None))]
+
     pub fn new(
         name: String,
         space: String,
@@ -52,15 +56,23 @@ impl DriftRequest {
         time_interval: TimeInterval,
         max_data_points: i32,
         drift_type: DriftType,
-    ) -> Self {
-        DriftRequest {
+        begin_datetime: Option<DateTime<Utc>>,
+        end_datetime: Option<DateTime<Utc>>,
+    ) -> Result<Self, ScouterError> {
+        let custom_interval = match (begin_datetime, end_datetime) {
+            (Some(begin), Some(end)) => Some(CustomInterval::new(begin, end)?),
+            _ => None,
+        };
+
+        Ok(DriftRequest {
             name,
             space,
             version,
             time_interval,
             max_data_points,
             drift_type,
-        }
+            custom_interval,
+        })
     }
 }
 
