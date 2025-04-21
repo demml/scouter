@@ -849,7 +849,7 @@ pub enum ScouterError {
     DataNotNumpy,
 
     // column names must be strings
-    #[error("Column names must be strings")]
+    #[error("Column names must be string type")]
     ColumnNamesMustBeStrings,
 }
 
