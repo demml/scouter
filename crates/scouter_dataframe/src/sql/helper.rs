@@ -115,6 +115,7 @@ pub fn get_binned_psi_drift_records_query(
             b.created_at,
             b.feature,
             f.feature_total_count,
+            b.bin_total_count,
             b.bin_id,
             cast(b.bin_total_count as float) / f.feature_total_count AS proportion
         FROM feature_bin_total b
@@ -132,6 +133,8 @@ pub fn get_binned_psi_drift_records_query(
             struct(
                 array_agg(bin_id) as bin_id, 
                 array_agg(proportion) as proportion
+                array_agg(bin_total_count) as bin_total_count,
+                array_agg(feature_total_count) as feature_total_count,
             ) as bins
         FROM feature_bin_proportions
         WHERE feature_total_count > 1

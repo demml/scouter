@@ -120,6 +120,8 @@ pub struct QueryTimestamps {
     /// Begin and end datetimes for querying archived data
     pub archived_range: Option<(DateTime<Utc>, DateTime<Utc>)>,
 
+    pub archived_minutes: Option<i32>,
+
     /// Minutes from retention date to end_datetime for querying current data
     pub current_minutes: Option<i32>,
 }
@@ -162,6 +164,7 @@ pub fn split_custom_interval(
     let mut timestamps = QueryTimestamps {
         archived_range: None,
         current_minutes: None,
+        archived_minutes: None,
     };
 
     // Handle data in archived range (before retention date)
@@ -185,6 +188,11 @@ pub fn split_custom_interval(
             .signed_duration_since(current_begin)
             .num_minutes() as i32;
         timestamps.current_minutes = Some(minutes);
+    }
+
+    // calculate archived minutes
+    if let Some((begin, end)) = timestamps.archived_range {
+        timestamps.archived_minutes = Some(end.signed_duration_since(begin).num_minutes() as i32);
     }
 
     Ok(timestamps)

@@ -11,7 +11,10 @@ use scouter_contracts::{
     DriftAlertRequest, DriftRequest, GetProfileRequest, ObservabilityMetricRequest,
     ProfileStatusRequest, ServiceInfo, UpdateAlertStatus,
 };
-use scouter_dataframe::parquet::dataframe::ParquetDataFrame;
+use scouter_dataframe::parquet::{
+    dataframe_to_custom_drift_metrics, dataframe_to_psi_drift_features,
+    dataframe_to_spc_drift_features, ParquetDataFrame,
+};
 use scouter_error::{ScouterError, SqlError, UtilError};
 use scouter_settings::{DatabaseSettings, ObjectStorageSettings};
 use scouter_types::psi::FeatureBinProportionResult;
@@ -596,33 +599,92 @@ impl PostgresClient {
         &self,
         params: &DriftRequest,
     ) -> Result<Vec<FeatureBinProportionResult>, SqlError> {
+        let mut results = Vec::new();
         if params.has_custom_interval() {
+            let mut feature_map: BTreeMap<String, FeatureBinProportionResult> = BTreeMap::new();
             let interval = params.clone().custom_interval.unwrap();
             let timestamps =
-                split_custom_interval(interval.start, interval.end, &self.retention_period);
+                split_custom_interval(interval.start, interval.end, &self.retention_period)?;
 
-            //ParquetDataFrame::new(&self.storage_settings, &RecordType::Psi)?
-            // .get_binned_metrics(path, bin, start_time, end_time, space, name, version)
+            if let Some((archive_begin, archive_end)) = timestamps.archived_range {
+                let path = format!("{}/{}/{}/psi", params.space, params.name, params.version);
+                let archived_minutes = timestamps.archived_minutes.unwrap() as f64;
+                let bin = archived_minutes / params.max_data_points as f64;
+
+                let archived_df = ParquetDataFrame::new(&self.storage_settings, &RecordType::Psi)?
+                    .get_binned_metrics(
+                        &path,
+                        &bin,
+                        &archive_begin,
+                        &archive_end,
+                        &params.space,
+                        &params.name,
+                        &params.version,
+                    )
+                    .await?;
+
+                let archived_results = dataframe_to_psi_drift_features(archived_df)
+                    .await
+                    .map_err(SqlError::traced_failed_to_convert_dataframe_error)?;
+
+                for result in archived_results {
+                    feature_map
+                        .entry(result.feature.clone())
+                        .and_modify(|existing| {
+                            existing.created_at.extend(result.created_at);
+                            existing.bin_proportions.extend(result.bin_proportions);
+                            // Merge overall proportions
+                            for (k, v) in result.overall_proportions {
+                                existing.overall_proportions.insert(k, v);
+                            }
+                        })
+                        .or_insert(result);
+                }
+            }
+
+            if let Some(minutes) = timestamps.current_minutes {
+                let query = Queries::GetBinnedPsiFeatureBins.get_query();
+                let bin = minutes as f64 / params.max_data_points as f64;
+                let current_results: Vec<FeatureBinProportionResult> = sqlx::query_as(&query.sql)
+                    .bind(bin)
+                    .bind(minutes)
+                    .bind(&params.name)
+                    .bind(&params.space)
+                    .bind(&params.version)
+                    .fetch_all(&self.pool)
+                    .await
+                    .map_err(SqlError::traced_query_error)?
+                    .into_iter()
+                    .map(|wrapper: FeatureBinProportionResultWrapper| wrapper.0)
+                    .collect();
+
+                results.extend(current_results);
+            }
+        } else {
+            // get features
+
+            let minutes = params.time_interval.to_minutes();
+            let bin = params.time_interval.to_minutes() as f64 / params.max_data_points as f64;
+            let query = Queries::GetBinnedPsiFeatureBins.get_query();
+            let binned: Vec<FeatureBinProportionResult> = sqlx::query_as(&query.sql)
+                .bind(bin)
+                .bind(minutes)
+                .bind(&params.name)
+                .bind(&params.space)
+                .bind(&params.version)
+                .fetch_all(&self.pool)
+                .await
+                .map_err(SqlError::traced_query_error)?
+                .into_iter()
+                .map(|wrapper: FeatureBinProportionResultWrapper| wrapper.0)
+                .collect();
+
+            results.extend(binned);
         }
-        // get features
 
-        let minutes = params.time_interval.to_minutes();
-        let bin = params.time_interval.to_minutes() as f64 / params.max_data_points as f64;
-        let query = Queries::GetBinnedPsiFeatureBins.get_query();
-        let binned: Vec<FeatureBinProportionResult> = sqlx::query_as(&query.sql)
-            .bind(bin)
-            .bind(minutes)
-            .bind(&params.name)
-            .bind(&params.space)
-            .bind(&params.version)
-            .fetch_all(&self.pool)
-            .await
-            .map_err(SqlError::traced_query_error)?
-            .into_iter()
-            .map(|wrapper: FeatureBinProportionResultWrapper| wrapper.0)
-            .collect();
+        results.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
 
-        Ok(binned)
+        Ok(results)
     }
 
     // Queries the database for drift records based on a time window and aggregation

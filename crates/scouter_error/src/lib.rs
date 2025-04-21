@@ -178,7 +178,7 @@ impl From<FeatureQueueError> for PyErr {
     }
 }
 
-#[derive(Error, Debug, Deserialize, PartialEq)]
+#[derive(Error, Debug, PartialEq)]
 pub enum SqlError {
     #[error("Failed to run sql migrations: {0}")]
     MigrationError(String),
@@ -228,11 +228,17 @@ pub enum SqlError {
     #[error(transparent)]
     UtilError(#[from] UtilError),
 
+    #[error(transparent)]
+    DataFrameError(#[from] DataFrameError),
+
     #[error("Failed to extract value {0} {1}")]
     FailedToExtractError(String, String),
 
     #[error("Invalid date range: {0}")]
     InvalidDateRangeError(String),
+
+    #[error("Failed to convert dataframe: {0}")]
+    FailedToConvertDataFrameError(String),
 }
 
 impl TracedError for SqlError {}
@@ -312,6 +318,12 @@ impl SqlError {
 
     pub fn traced_connection_error(err: impl Display) -> Self {
         let error = Self::ConnectionError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_failed_to_convert_dataframe_error(err: impl Display) -> Self {
+        let error = Self::FailedToConvertDataFrameError(err.to_string());
         error.trace();
         error
     }
@@ -476,9 +488,6 @@ pub enum DriftError {
 
     #[error(transparent)]
     ParseIntError(#[from] std::num::ParseIntError),
-
-    #[error(transparent)]
-    SqlError(#[from] SqlError),
 
     #[error("Failed to compute - {0}")]
     ComputeError(String),
