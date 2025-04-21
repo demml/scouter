@@ -53,7 +53,7 @@ impl ParquetFrame for CustomMetricDataFrame {
         self.object_store.storage_settings.storage_type.clone()
     }
 
-    fn get_session_context(&self) -> Result<SessionContext, ScouterError> {
+    fn get_session_context(&self) -> Result<SessionContext, DataFrameError> {
         Ok(self.object_store.get_session()?)
     }
 
@@ -100,7 +100,7 @@ impl CustomMetricDataFrame {
     fn build_batch(
         &self,
         records: Vec<CustomMetricServerRecord>,
-    ) -> Result<RecordBatch, ScouterError> {
+    ) -> Result<RecordBatch, DataFrameError> {
         let created_at_array = TimestampNanosecondArray::from_iter_values(
             records
                 .iter()
@@ -126,7 +126,7 @@ impl CustomMetricDataFrame {
                 Arc::new(value_array),
             ],
         )
-        .map_err(|e| ScouterError::Error(format!("Failed to create RecordBatch: {}", e)))?;
+        .map_err(DataFrameError::traced_create_batch_error)?;
 
         Ok(batch)
     }

@@ -293,13 +293,19 @@ pub enum AlertError {
     DriftError(String),
 }
 
-#[derive(Error, Debug, Deserialize, PartialEq)]
+#[derive(Error, Debug, PartialEq)]
 pub enum DataFrameError {
     #[error("Failed to read batch: {0}")]
     ReadBatchError(String),
 
+    #[error("Failed to create batch: {0}")]
+    CreateBatchError(String),
+
     #[error(transparent)]
     StorageError(#[from] StorageError),
+
+    #[error(transparent)]
+    DriftError(#[from] DriftError),
 
     #[error("Failed to add year column: {0}")]
     AddYearColumnError(String),
@@ -327,6 +333,18 @@ pub enum DataFrameError {
 
     #[error("Failed to register table: {0}")]
     RegisterTableError(String),
+
+    #[error("Invalid record type: {0}")]
+    InvalidRecordTypeError(String),
+
+    #[error("Downcast error: {0}")]
+    DowncastError(String),
+
+    #[error("Failed to get column: {0}")]
+    GetColumnError(String),
+
+    #[error("Missing field: {0}")]
+    MissingFieldError(String),
 }
 
 impl TracedError for DataFrameError {}
@@ -334,6 +352,12 @@ impl TracedError for DataFrameError {}
 impl DataFrameError {
     pub fn traced_read_batch_error(err: impl Display) -> Self {
         let error = Self::ReadBatchError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_create_batch_error(err: impl Display) -> Self {
+        let error = Self::CreateBatchError(err.to_string());
         error.trace();
         error
     }
@@ -383,6 +407,24 @@ impl DataFrameError {
     }
     pub fn traced_register_table_error(err: impl Display) -> Self {
         let error = Self::RegisterTableError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_invalid_record_type_error(err: impl Display) -> Self {
+        let error = Self::InvalidRecordTypeError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_downcast_error(err: impl Display) -> Self {
+        let error = Self::DowncastError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_get_column_error(err: impl Display) -> Self {
+        let error = Self::GetColumnError(err.to_string());
         error.trace();
         error
     }

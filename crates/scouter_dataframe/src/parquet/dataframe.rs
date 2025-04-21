@@ -4,7 +4,7 @@ use crate::parquet::traits::ParquetFrame;
 use crate::storage::ObjectStore;
 use chrono::{DateTime, Utc};
 use datafusion::prelude::DataFrame;
-use scouter_error::ScouterError;
+use scouter_error::{DataFrameError, ScouterError};
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{RecordType, ServerRecords, StorageType};
 
@@ -20,7 +20,7 @@ impl ParquetDataFrame {
     pub fn new(
         storage_settings: &ObjectStorageSettings,
         record_type: &RecordType,
-    ) -> Result<Self, ScouterError> {
+    ) -> Result<Self, DataFrameError> {
         match record_type {
             RecordType::Custom => Ok(ParquetDataFrame::CustomMetric(CustomMetricDataFrame::new(
                 storage_settings,
@@ -28,8 +28,8 @@ impl ParquetDataFrame {
             RecordType::Psi => Ok(ParquetDataFrame::Psi(PsiDataFrame::new(storage_settings)?)),
             RecordType::Spc => Ok(ParquetDataFrame::Spc(SpcDataFrame::new(storage_settings)?)),
 
-            _ => Err(ScouterError::InvalidDriftTypeError(
-                "Invalid record type".to_string(),
+            _ => Err(DataFrameError::traced_invalid_record_type_error(
+                record_type,
             )),
         }
     }
@@ -45,7 +45,7 @@ impl ParquetDataFrame {
         &self,
         rpath: &str,
         records: ServerRecords,
-    ) -> Result<(), ScouterError> {
+    ) -> Result<(), DataFrameError> {
         let rpath = if self.storage_type() == StorageType::Local {
             let storage_path = self.storage_root();
             &format!("{}/{}", storage_path, rpath)
@@ -97,7 +97,7 @@ impl ParquetDataFrame {
         space: &str,
         name: &str,
         version: &str,
-    ) -> Result<DataFrame, ScouterError> {
+    ) -> Result<DataFrame, DataFrameError> {
         // set path
         // if the storage type is local, add the storage root to the path
         let path = if self.storage_type() == StorageType::Local {
