@@ -20,7 +20,6 @@ pub trait SpcSqlLogic {
     /// * `table_name` - The name of the table to insert the record into
     ///
     async fn insert_spc_drift_record(
-        &self,
         pool: &Pool<Postgres>,
         record: &SpcServerRecord,
     ) -> Result<PgQueryResult, SqlError> {
@@ -41,7 +40,6 @@ pub trait SpcSqlLogic {
     // Queries the database for all features under a service
     // Private method that'll be used to run drift retrieval in parallel
     async fn get_spc_features(
-        &self,
         pool: &Pool<Postgres>,
         service_info: &ServiceInfo,
     ) -> Result<Vec<String>, SqlError> {
@@ -70,13 +68,12 @@ pub trait SpcSqlLogic {
     /// * `limit_datetime` - The limit datetime to get drift records for
     /// * `features_to_monitor` - The features to monitor
     async fn get_spc_drift_records(
-        &self,
         pool: &Pool<Postgres>,
         service_info: &ServiceInfo,
         limit_datetime: &DateTime<Utc>,
         features_to_monitor: &[String],
     ) -> Result<SpcDriftFeatures, SqlError> {
-        let mut features = self.get_spc_features(pool, service_info).await?;
+        let mut features = Self::get_spc_features(pool, service_info).await?;
 
         if !features_to_monitor.is_empty() {
             features.retain(|feature| features_to_monitor.contains(feature));
@@ -124,7 +121,6 @@ pub trait SpcSqlLogic {
     //
     // * A vector of drift records
     async fn get_binned_spc_drift_records(
-        &self,
         pool: &Pool<Postgres>,
         params: &DriftRequest,
     ) -> Result<SpcDriftFeatures, SqlError> {

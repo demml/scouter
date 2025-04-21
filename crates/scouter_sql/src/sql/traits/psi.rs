@@ -27,7 +27,6 @@ pub trait PsiSqlLogic {
     /// # Returns
     /// * A result containing the query result or an error
     async fn insert_bin_counts(
-        &self,
         pool: &Pool<Postgres>,
         record: &PsiServerRecord,
     ) -> Result<PgQueryResult, SqlError> {
@@ -56,7 +55,6 @@ pub trait PsiSqlLogic {
     /// # Returns
     /// * A vector of drift records
     async fn get_records(
-        &self,
         pool: &Pool<Postgres>,
         params: &DriftRequest,
         minutes: i32,
@@ -92,7 +90,6 @@ pub trait PsiSqlLogic {
     /// # Returns
     /// * A vector of drift records
     async fn get_archived_records(
-        &self,
         params: &DriftRequest,
         begin: DateTime<Utc>,
         end: DateTime<Utc>,
@@ -161,7 +158,6 @@ pub trait PsiSqlLogic {
     //
     // * A vector of drift records
     async fn get_binned_psi_drift_records(
-        &self,
         pool: &Pool<Postgres>,
         params: &DriftRequest,
         retention_period: &i64,
@@ -169,7 +165,7 @@ pub trait PsiSqlLogic {
     ) -> Result<Vec<FeatureBinProportionResult>, SqlError> {
         if !params.has_custom_interval() {
             let minutes = params.time_interval.to_minutes();
-            return self.get_records(pool, params, minutes).await;
+            return Self::get_records(pool, params, minutes).await;
         }
 
         let interval = params.clone().custom_interval.unwrap();
@@ -178,22 +174,21 @@ pub trait PsiSqlLogic {
 
         // Get current records if available
         if let Some(minutes) = timestamps.current_minutes {
-            let current_results = self.get_records(pool, params, minutes).await?;
+            let current_results = Self::get_records(pool, params, minutes).await?;
             Self::merge_feature_results(current_results, &mut feature_map)?;
         }
 
         // Get archived records if available
         if let Some((archive_begin, archive_end)) = timestamps.archived_range {
             if let Some(archived_minutes) = timestamps.archived_minutes {
-                let archived_results = self
-                    .get_archived_records(
-                        params,
-                        archive_begin,
-                        archive_end,
-                        archived_minutes,
-                        storage_settings,
-                    )
-                    .await?;
+                let archived_results = Self::get_archived_records(
+                    params,
+                    archive_begin,
+                    archive_end,
+                    archived_minutes,
+                    storage_settings,
+                )
+                .await?;
                 Self::merge_feature_results(archived_results, &mut feature_map)?;
             }
         }
@@ -201,7 +196,6 @@ pub trait PsiSqlLogic {
     }
 
     async fn get_feature_bin_proportions(
-        &self,
         pool: &Pool<Postgres>,
         service_info: &ServiceInfo,
         limit_datetime: &DateTime<Utc>,

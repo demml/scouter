@@ -11,7 +11,6 @@ use std::collections::HashMap;
 pub trait CustomMetricSqlLogic {
     /// Inserts a custom metric value into the database.
     async fn insert_custom_metric_value(
-        &self,
         pool: &Pool<Postgres>,
         record: &CustomMetricServerRecord,
     ) -> Result<PgQueryResult, SqlError> {
@@ -34,7 +33,6 @@ pub trait CustomMetricSqlLogic {
     }
 
     async fn get_custom_metric_values(
-        &self,
         pool: &Pool<Postgres>,
         service_info: &ServiceInfo,
         limit_datetime: &DateTime<Utc>,
@@ -74,7 +72,6 @@ pub trait CustomMetricSqlLogic {
     //
     // * A vector of drift records
     async fn get_binned_custom_drift_records(
-        &self,
         pool: &Pool<Postgres>,
         params: &DriftRequest,
     ) -> Result<BinnedCustomMetrics, SqlError> {

@@ -17,7 +17,7 @@ pub trait UserSqlLogic {
     ///
     /// # Returns
     /// * A result indicating success or failure
-    async fn insert_user(&self, pool: &Pool<Postgres>, user: &User) -> Result<(), SqlError> {
+    async fn insert_user(pool: &Pool<Postgres>, user: &User) -> Result<(), SqlError> {
         let query = Queries::InsertUser.get_query();
 
         let group_permissions = serde_json::to_value(&user.group_permissions)
@@ -48,11 +48,7 @@ pub trait UserSqlLogic {
     ///
     /// # Returns
     /// * A result containing the user if found, or None if not found
-    async fn get_user(
-        &self,
-        pool: &Pool<Postgres>,
-        username: &str,
-    ) -> Result<Option<User>, SqlError> {
+    async fn get_user(pool: &Pool<Postgres>, username: &str) -> Result<Option<User>, SqlError> {
         let query = Queries::GetUser.get_query();
 
         let user: Option<User> = sqlx::query_as(&query.sql)
@@ -73,7 +69,7 @@ pub trait UserSqlLogic {
     ///
     /// # Returns
     /// * A result indicating success or failure
-    async fn update_user(&self, pool: &Pool<Postgres>, user: &User) -> Result<(), SqlError> {
+    async fn update_user(pool: &Pool<Postgres>, user: &User) -> Result<(), SqlError> {
         let query = Queries::UpdateUser.get_query();
 
         let group_permissions = serde_json::to_value(&user.group_permissions)
@@ -103,7 +99,7 @@ pub trait UserSqlLogic {
     ///
     /// # Returns
     /// * A result containing a vector of users
-    async fn get_users(&self, pool: &Pool<Postgres>) -> Result<Vec<User>, SqlError> {
+    async fn get_users(pool: &Pool<Postgres>) -> Result<Vec<User>, SqlError> {
         let query = Queries::GetUsers.get_query();
 
         let users = sqlx::query_as::<_, User>(&query.sql)
@@ -122,7 +118,7 @@ pub trait UserSqlLogic {
     ///
     /// # Returns
     /// * Boolean indicating if the user is the last admin
-    async fn is_last_admin(&self, pool: &Pool<Postgres>, username: &str) -> Result<bool, SqlError> {
+    async fn is_last_admin(pool: &Pool<Postgres>, username: &str) -> Result<bool, SqlError> {
         // Count admins in the system
         let query = Queries::LastAdmin.get_query();
 
@@ -150,7 +146,7 @@ pub trait UserSqlLogic {
     /// # Arguments
     /// * `pool` - The database connection pool
     /// * `username` - The username of the user to delete
-    async fn delete_user(&self, pool: &Pool<Postgres>, username: &str) -> Result<(), SqlError> {
+    async fn delete_user(pool: &Pool<Postgres>, username: &str) -> Result<(), SqlError> {
         let query = Queries::DeleteUser.get_query();
 
         sqlx::query(&query.sql)

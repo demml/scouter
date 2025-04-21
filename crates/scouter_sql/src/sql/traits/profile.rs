@@ -26,7 +26,6 @@ pub trait ProfileSqlLogic {
     ///
     /// * `Result<PgQueryResult, SqlError>` - Result of the query
     async fn insert_drift_profile(
-        &self,
         pool: &Pool<Postgres>,
         drift_profile: &DriftProfile,
     ) -> Result<PgQueryResult, SqlError> {
@@ -70,7 +69,6 @@ pub trait ProfileSqlLogic {
     ///
     /// * `Result<PgQueryResult, SqlError>` - Result of the query
     async fn update_drift_profile(
-        &self,
         pool: &Pool<Postgres>,
         drift_profile: &DriftProfile,
     ) -> Result<PgQueryResult, SqlError> {
@@ -96,7 +94,6 @@ pub trait ProfileSqlLogic {
     ///
     /// # Returns
     async fn get_drift_profile(
-        &self,
         pool: &Pool<Postgres>,
         request: &GetProfileRequest,
     ) -> Result<Option<Value>, SqlError> {
@@ -172,7 +169,6 @@ pub trait ProfileSqlLogic {
     }
 
     async fn update_drift_profile_status(
-        &self,
         pool: &Pool<Postgres>,
         params: &ProfileStatusRequest,
     ) -> Result<(), SqlError> {
