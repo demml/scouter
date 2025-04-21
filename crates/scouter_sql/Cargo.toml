@@ -18,6 +18,7 @@ scouter-error = { workspace = true }
 scouter-settings = { workspace = true }
 scouter-types = { workspace = true }
 anyhow = {workspace = true}
+async-trait = { workspace = true }
 chrono = { workspace = true, features = ["serde", "clock"] }
 cron = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
