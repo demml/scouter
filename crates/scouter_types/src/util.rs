@@ -7,7 +7,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
 use pyo3::IntoPyObjectExt;
 use rayon::prelude::*;
-use scouter_error::ScouterError;
+use scouter_error::{ScouterError, UtilError};
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::collections::{BTreeSet, HashMap};
@@ -86,10 +86,10 @@ impl ProfileFuncs {
 
             if !new_path.exists() {
                 // ensure path exists, create if not
-                let parent_path = new_path.parent().ok_or(ScouterError::GetParentPathError)?;
+                let parent_path = new_path.parent().ok_or(UtilError::GetParentPathError)?;
 
                 std::fs::create_dir_all(parent_path)
-                    .map_err(|_| ScouterError::CreateDirectoryError)?;
+                    .map_err(|_| UtilError::CreateDirectoryError)?;
             }
 
             new_path
@@ -97,7 +97,7 @@ impl ProfileFuncs {
             PathBuf::from(filename)
         };
 
-        std::fs::write(write_path, json).map_err(|_| ScouterError::WriteError)?;
+        std::fs::write(write_path, json).map_err(|_| UtilError::WriteError)?;
 
         Ok(())
     }

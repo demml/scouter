@@ -79,6 +79,6 @@ impl SpcQueue {
     }
 
     pub fn flush(&mut self) -> Result<(), ScouterError> {
-        self.rt.block_on(async { self.producer.flush().await })
+        Ok(self.rt.block_on(async { self.producer.flush().await })?)
     }
 }

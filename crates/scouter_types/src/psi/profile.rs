@@ -9,7 +9,7 @@ use chrono::Utc;
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use scouter_error::ScouterError;
+use scouter_error::{ScouterError, UtilError};
 use serde::de::{self, MapAccess, Visitor};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -90,9 +90,9 @@ impl PsiDriftConfig {
     pub fn load_from_json_file(path: PathBuf) -> Result<PsiDriftConfig, ScouterError> {
         // deserialize the string to a struct
 
-        let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
+        let file = std::fs::read_to_string(&path).map_err(|_| UtilError::ReadError)?;
 
-        serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)
+        serde_json::from_str(&file).map_err(|e| UtilError::DeSerializeError(e.to_string()).into())
     }
 
     pub fn __str__(&self) -> String {
@@ -362,11 +362,12 @@ impl PsiDriftProfile {
     }
     // TODO dry this out
     #[allow(clippy::useless_conversion)]
-    pub fn model_dump(&self, py: Python) -> PyResult<Py<PyDict>> {
-        let json_str = serde_json::to_string(&self).map_err(|_| ScouterError::SerializeError)?;
+    pub fn model_dump(&self, py: Python) -> Result<Py<PyDict>, ScouterError> {
+        let json_str =
+            serde_json::to_string(&self).map_err(|e| UtilError::SerializeError(e.to_string()))?;
 
-        let json_value: Value =
-            serde_json::from_str(&json_str).map_err(|_| ScouterError::DeSerializeError)?;
+        let json_value: Value = serde_json::from_str(&json_str)
+            .map_err(|e| UtilError::DeSerializeError(e.to_string()))?;
 
         // Create a new Python dictionary
         let dict = PyDict::new(py);
@@ -380,9 +381,9 @@ impl PsiDriftProfile {
 
     #[staticmethod]
     pub fn from_file(path: PathBuf) -> Result<PsiDriftProfile, ScouterError> {
-        let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
+        let file = std::fs::read_to_string(&path).map_err(|_| UtilError::ReadError)?;
 
-        serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)
+        serde_json::from_str(&file).map_err(|e| UtilError::DeSerializeError(e.to_string()).into())
     }
 
     #[staticmethod]

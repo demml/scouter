@@ -112,7 +112,7 @@ impl PsiQueue {
         if let Some(stop_tx) = self.stop_tx.take() {
             let _ = stop_tx.send(());
         }
-        self.rt.block_on(async { self.producer.flush().await })
+        Ok(self.rt.block_on(async { self.producer.flush().await })?)
     }
 
     fn start_background_task(

@@ -8,7 +8,7 @@ use crate::{
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use scouter_error::{CustomMetricError, ScouterError};
+use scouter_error::{CustomMetricError, ScouterError, UtilError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -86,9 +86,9 @@ impl CustomMetricDriftConfig {
     pub fn load_from_json_file(path: PathBuf) -> Result<CustomMetricDriftConfig, ScouterError> {
         // deserialize the string to a struct
 
-        let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
+        let file = std::fs::read_to_string(&path).map_err(|_| UtilError::ReadError)?;
 
-        serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)
+        serde_json::from_str(&file).map_err(|e| UtilError::DeSerializeError(e.to_string()).into())
     }
 
     pub fn __str__(&self) -> String {
@@ -218,9 +218,9 @@ impl CustomDriftProfile {
 
     #[staticmethod]
     pub fn from_file(path: PathBuf) -> Result<CustomDriftProfile, ScouterError> {
-        let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
+        let file = std::fs::read_to_string(&path).map_err(|_| UtilError::ReadError)?;
 
-        serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)
+        serde_json::from_str(&file).map_err(|e| UtilError::DeSerializeError(e.to_string()).into())
     }
 
     #[allow(clippy::too_many_arguments)]

@@ -6,7 +6,7 @@ use crate::{AlertDispatchConfig, ProfileArgs};
 use crate::{FileName, ProfileFuncs};
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
-use scouter_error::{PyScouterError, ScouterError};
+use scouter_error::{PyScouterError, ScouterError, UtilError};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 use std::path::PathBuf;
@@ -234,8 +234,8 @@ impl DriftProfile {
     }
 
     pub fn load_from_json(path: PathBuf) -> Result<Self, ScouterError> {
-        let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
-        serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)
+        let file = std::fs::read_to_string(&path).map_err(|_| UtilError::ReadError)?;
+        serde_json::from_str(&file).map_err(|e| UtilError::DeSerializeError(e.to_string()).into())
     }
 }
 

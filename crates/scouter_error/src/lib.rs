@@ -27,6 +27,18 @@ pub enum UtilError {
 
     #[error("Failed to set log level: {0}")]
     SetLogLevelError(String),
+
+    #[error("Failed to get parent path")]
+    GetParentPathError,
+
+    #[error("Failed to create directory")]
+    CreateDirectoryError,
+
+    #[error("Failed to write to file")]
+    WriteError,
+
+    #[error("Failed to read to file")]
+    ReadError,
 }
 
 impl TracedError for UtilError {}
@@ -678,8 +690,20 @@ pub enum EventError {
     #[error(transparent)]
     ClientError(#[from] ClientError),
 
+    #[error(transparent)]
+    SqlError(#[from] SqlError),
+
     #[error("Invalid compression type")]
     InvalidCompressionTypeError,
+
+    #[error("Subscribe error: {0}")]
+    SubscribeError(String),
+
+    #[error("Failed to setup qos: {0}")]
+    SetupQosError(String),
+
+    #[error("Failed to setup consumer: {0}")]
+    SetupConsumerError(String),
 }
 
 impl TracedError for EventError {}
@@ -724,6 +748,18 @@ impl EventError {
         error.trace();
         error
     }
+
+    pub fn traced_subscribe_error(err: impl Display) -> Self {
+        let error = Self::SubscribeError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_setup_qos_error(err: impl Display) -> Self {
+        let error = Self::SetupQosError(err.to_string());
+        error.trace();
+        error
+    }
 }
 
 /// THis should be the top-level error that all other errors are converted to
@@ -737,18 +773,6 @@ pub enum ScouterError {
 
     #[error("Failed to create path")]
     CreatePathError,
-
-    #[error("Failed to get parent path")]
-    GetParentPathError,
-
-    #[error("Failed to create directory")]
-    CreateDirectoryError,
-
-    #[error("Failed to write to file")]
-    WriteError,
-
-    #[error("Failed to read to file")]
-    ReadError,
 
     #[error("Type error for {0}")]
     TypeError(String),
@@ -800,6 +824,9 @@ pub enum ScouterError {
 
     #[error(transparent)]
     EventError(#[from] EventError),
+
+    #[error(transparent)]
+    UtilError(#[from] UtilError),
 
     #[error("Missing value in map")]
     MissingValue,

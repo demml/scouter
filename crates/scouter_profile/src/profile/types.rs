@@ -2,6 +2,7 @@ use chrono::Utc;
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use scouter_error::ScouterError;
+use scouter_error::UtilError;
 use scouter_types::{FileName, ProfileFuncs};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -135,7 +136,7 @@ impl DataProfile {
     pub fn model_validate_json(json_string: String) -> DataProfile {
         // deserialize the string to a struct
         serde_json::from_str(&json_string)
-            .map_err(|_| ScouterError::DeSerializeError)
+            .map_err(UtilError::traced_deserialize_error)
             .unwrap()
     }
 

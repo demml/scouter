@@ -2,7 +2,7 @@
 pub mod rabbitmq_consumer {
     use futures::StreamExt;
     use metrics::counter;
-    use scouter_error::ScouterError;
+    use scouter_error::EventError;
     use scouter_settings::{DatabaseSettings, RabbitMQSettings};
     use scouter_sql::MessageHandler;
     use scouter_sql::PostgresClient;
@@ -50,7 +50,7 @@ pub mod rabbitmq_consumer {
             db_settings: &DatabaseSettings,
             pool: &Pool<Postgres>,
             shutdown_rx: watch::Receiver<()>,
-        ) -> Result<Self, ScouterError> {
+        ) -> Result<Self, EventError> {
             let num_consumers = rabbit_settings.num_consumers;
             let mut workers = Vec::with_capacity(num_consumers);
 
@@ -139,16 +139,16 @@ pub mod rabbitmq_consumer {
 
     pub async fn create_rabbitmq_consumer(
         settings: &RabbitMQSettings,
-    ) -> Result<Consumer, ScouterError> {
+    ) -> Result<Consumer, EventError> {
         let conn = Connection::connect(&settings.address, ConnectionProperties::default())
             .await
-            .map_err(ScouterError::traced_connect_rabbitmq_error)?;
+            .map_err(EventError::traced_connection_error)?;
 
         let channel = conn.create_channel().await.unwrap();
         channel
             .basic_qos(settings.prefetch_count, BasicQosOptions::default())
             .await
-            .map_err(ScouterError::traced_setup_qos_error)?;
+            .map_err(EventError::traced_setup_qos_error)?;
 
         channel
             .queue_declare(
@@ -157,7 +157,7 @@ pub mod rabbitmq_consumer {
                 FieldTable::default(),
             )
             .await
-            .map_err(ScouterError::traced_declare_queue_error)?;
+            .map_err(EventError::traced_declare_queue_error)?;
 
         let consumer = channel
             .basic_consume(
@@ -167,14 +167,14 @@ pub mod rabbitmq_consumer {
                 FieldTable::default(),
             )
             .await
-            .map_err(ScouterError::traced_consume_queue_error)?;
+            .map_err(EventError::traced_consume_error)?;
 
         info!("✅ Started consumer for RabbitMQ");
 
         Ok(consumer)
     }
 
-    pub async fn process_message(message: &[u8]) -> Result<Option<ServerRecords>, ScouterError> {
+    pub async fn process_message(message: &[u8]) -> Result<Option<ServerRecords>, EventError> {
         let records: ServerRecords = match serde_json::from_slice::<ServerRecords>(message) {
             Ok(records) => records,
             Err(e) => {
