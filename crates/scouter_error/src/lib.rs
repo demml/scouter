@@ -615,25 +615,25 @@ impl ClientError {
     pub fn traced_jwt_error(err: impl Display) -> Self {
         let error = ClientError::FailedToGetJwtToken(err.to_string());
         error.trace();
-        error.into()
+        error
     }
 
     pub fn traced_parse_jwt_error(err: impl Display) -> Self {
         let error = ClientError::FailedToParseJwtToken(err.to_string());
         error.trace();
-        error.into()
+        error
     }
 
     pub fn traced_request_error(err: impl Display) -> Self {
         let error = ClientError::FailedToSendRequest(err.to_string());
         error.trace();
-        error.into()
+        error
     }
 
     pub fn traced_unauthorized_error() -> Self {
         let error = ClientError::Unauthorized;
         error.trace();
-        error.into()
+        error
     }
 
     pub fn traced_serialize_error(err: impl Display) -> Self {

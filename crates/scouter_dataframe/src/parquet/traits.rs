@@ -124,7 +124,7 @@ pub trait ParquetFrame {
 
         let provider = Arc::new(
             ListingTable::try_new(config)
-                .map_err(|e| DataFrameError::traced_create_listing_table_error(e))?,
+                .map_err(DataFrameError::traced_create_listing_table_error)?,
         );
 
         ctx.register_table(table_name, provider)

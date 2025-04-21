@@ -191,9 +191,7 @@ impl PostgresClient {
             .await
             .map_err(SqlError::traced_query_error);
 
-        result
-            .map(|result| result.into_iter().map(|wrapper| wrapper.0).collect())
-            .map_err(SqlError::from)
+        result.map(|result| result.into_iter().map(|wrapper| wrapper.0).collect())
     }
 
     pub async fn update_drift_alert_status(
