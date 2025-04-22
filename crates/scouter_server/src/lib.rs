@@ -26,10 +26,10 @@ use tracing::info;
 pub async fn create_app() -> Result<(Router, Arc<AppState>), anyhow::Error> {
     // setup logging, soft fail if it fails
 
-    let (config, db_client, shutdown_tx) = setup_components().await?;
+    let (config, db_pool, shutdown_tx) = setup_components().await?;
 
     let app_state = Arc::new(AppState {
-        db: db_client,
+        db_pool,
         shutdown_tx,
         auth_manager: AuthManager::new(
             &config.auth_settings.jwt_secret,

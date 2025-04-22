@@ -4,14 +4,12 @@ use crate::sql::traits::{
 };
 
 use scouter_error::{ScouterError, SqlError};
-use scouter_settings::{DatabaseSettings, ObjectStorageSettings};
+use scouter_settings::DatabaseSettings;
 
 use scouter_types::{RecordType, ServerRecords, ToDriftRecords};
 
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
-use std::collections::BTreeMap;
 use std::result::Result::Ok;
-use std::sync::Arc;
 use tracing::{debug, error, info, instrument};
 
 // TODO: Explore refactoring and breaking this out into multiple client types (i.e., spc, psi, etc.)
@@ -19,11 +17,7 @@ use tracing::{debug, error, info, instrument};
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
-pub struct PostgresClient {
-    pub pool: Pool<Postgres>,
-    pub retention_period: i64,
-    pub storage_settings: ObjectStorageSettings,
-}
+pub struct PostgresClient {}
 
 impl SpcSqlLogic for PostgresClient {}
 impl CustomMetricSqlLogic for PostgresClient {}
@@ -62,7 +56,7 @@ impl PostgresClient {
         Ok(pool)
     }
 
-    async fn run_migrations(pool: &Pool<Postgres>) -> Result<(), SqlError> {
+    pub async fn run_migrations(pool: &Pool<Postgres>) -> Result<(), SqlError> {
         info!("Running migrations");
         sqlx::migrate!("src/migrations")
             .run(pool)
@@ -75,68 +69,60 @@ impl PostgresClient {
     }
 }
 
-pub enum MessageHandler {
-    Postgres,
-}
+pub struct MessageHandler {}
 
 impl MessageHandler {
-    #[instrument(skip(self, records), name = "Insert Server Records")]
+    #[instrument(skip(records), name = "Insert Server Records")]
     pub async fn insert_server_records(
-        &self,
         pool: &Pool<Postgres>,
         records: &ServerRecords,
     ) -> Result<(), ScouterError> {
-        match self {
-            Self::Postgres => {
-                match records.record_type()? {
-                    RecordType::Spc => {
-                        debug!("SPC record count: {:?}", records.len());
-                        let records = records.to_spc_drift_records()?;
-                        for record in records.iter() {
-                            let _ = PostgresClient::insert_spc_drift_record(pool, record)
-                                .await
-                                .map_err(|e| {
-                                    error!("Failed to insert drift record: {:?}", e);
-                                });
-                        }
-                    }
-                    RecordType::Observability => {
-                        debug!("Observability record count: {:?}", records.len());
-                        let records = records.to_observability_drift_records()?;
-                        for record in records.iter() {
-                            let _ = PostgresClient::insert_observability_record(pool, record)
-                                .await
-                                .map_err(|e| {
-                                    error!("Failed to insert observability record: {:?}", e);
-                                });
-                        }
-                    }
-                    RecordType::Psi => {
-                        debug!("PSI record count: {:?}", records.len());
-                        let records = records.to_psi_drift_records()?;
-                        for record in records.iter() {
-                            let _ = PostgresClient::insert_bin_counts(pool, record)
-                                .await
-                                .map_err(|e| {
-                                    error!("Failed to insert bin count record: {:?}", e);
-                                });
-                        }
-                    }
-                    RecordType::Custom => {
-                        debug!("Custom record count: {:?}", records.len());
-                        let records = records.to_custom_metric_drift_records()?;
-                        for record in records.iter() {
-                            let _ = PostgresClient::insert_custom_metric_value(pool, record)
-                                .await
-                                .map_err(|e| {
-                                    error!("Failed to insert bin count record: {:?}", e);
-                                });
-                        }
-                    }
-                };
+        match records.record_type()? {
+            RecordType::Spc => {
+                debug!("SPC record count: {:?}", records.len());
+                let records = records.to_spc_drift_records()?;
+                for record in records.iter() {
+                    let _ = PostgresClient::insert_spc_drift_record(pool, record)
+                        .await
+                        .map_err(|e| {
+                            error!("Failed to insert drift record: {:?}", e);
+                        });
+                }
             }
-        }
-
+            RecordType::Observability => {
+                debug!("Observability record count: {:?}", records.len());
+                let records = records.to_observability_drift_records()?;
+                for record in records.iter() {
+                    let _ = PostgresClient::insert_observability_record(pool, record)
+                        .await
+                        .map_err(|e| {
+                            error!("Failed to insert observability record: {:?}", e);
+                        });
+                }
+            }
+            RecordType::Psi => {
+                debug!("PSI record count: {:?}", records.len());
+                let records = records.to_psi_drift_records()?;
+                for record in records.iter() {
+                    let _ = PostgresClient::insert_bin_counts(pool, record)
+                        .await
+                        .map_err(|e| {
+                            error!("Failed to insert bin count record: {:?}", e);
+                        });
+                }
+            }
+            RecordType::Custom => {
+                debug!("Custom record count: {:?}", records.len());
+                let records = records.to_custom_metric_drift_records()?;
+                for record in records.iter() {
+                    let _ = PostgresClient::insert_custom_metric_value(pool, record)
+                        .await
+                        .map_err(|e| {
+                            error!("Failed to insert bin count record: {:?}", e);
+                        });
+                }
+            }
+        };
         Ok(())
     }
 }
@@ -144,18 +130,17 @@ impl MessageHandler {
 #[cfg(test)]
 mod tests {
 
-    use std::sync::Arc;
-
     use super::*;
     use crate::sql::schema::User;
-    use chrono::{DateTime, Utc};
+    use chrono::Utc;
     use rand::Rng;
-
     use scouter_contracts::{
         DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileStatusRequest, ServiceInfo,
     };
+    use scouter_settings::ObjectStorageSettings;
     use scouter_types::spc::SpcDriftProfile;
     use scouter_types::*;
+    use std::collections::BTreeMap;
     const SPACE: &str = "space";
     const NAME: &str = "name";
     const VERSION: &str = "1.0.0";

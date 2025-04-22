@@ -1,7 +1,4 @@
-use pyo3::PyObject;
 use scouter_error::LoggingError;
-use scouter_settings::DatabaseSettings;
-use scouter_settings::ObjectStorageSettings;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::PostgresClient;
 use sqlx::{Pool, Postgres};
@@ -64,7 +61,7 @@ pub async fn cleanup(pool: &Pool<Postgres>) -> Result<(), sqlx::Error> {
 
 pub struct TestHelper {
     pub config: ScouterServerConfig,
-    pub db_client: PostgresClient,
+    pub db_pool: Pool<Postgres>,
 }
 
 impl TestHelper {
@@ -74,17 +71,13 @@ impl TestHelper {
 
         let config = ScouterServerConfig::default();
 
-        let db_client = PostgresClient::new(
-            None,
-            &DatabaseSettings::default(),
-            &ObjectStorageSettings::default(),
-        )
-        .await
-        .unwrap();
+        let db_pool = PostgresClient::create_db_pool(&config.database_settings)
+            .await
+            .unwrap();
 
-        cleanup(&db_client.pool).await.unwrap();
+        cleanup(&db_pool).await.unwrap();
 
-        Self { config, db_client }
+        Self { config, db_pool }
     }
 }
 

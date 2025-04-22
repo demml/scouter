@@ -1,11 +1,11 @@
 use scouter_auth::auth::AuthManager;
 use scouter_settings::ScouterServerConfig;
-use scouter_sql::PostgresClient;
+use sqlx::{Pool, Postgres};
 use std::sync::Arc;
 use tokio::sync::watch;
 
 pub struct AppState {
-    pub db: Arc<PostgresClient>,
+    pub db_pool: Pool<Postgres>,
     pub auth_manager: AuthManager,
     pub shutdown_tx: watch::Sender<()>,
     pub config: ScouterServerConfig,

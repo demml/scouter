@@ -5,9 +5,8 @@ pub mod rabbitmq_consumer {
     use scouter_error::EventError;
     use scouter_settings::RabbitMQSettings;
     use scouter_sql::MessageHandler;
-    use scouter_sql::PostgresClient;
     use scouter_types::ServerRecords;
-    use std::sync::Arc;
+    use sqlx::{Pool, Postgres};
     use tokio::sync::watch;
     use tokio::task::JoinHandle;
     use tracing::{debug, error, info, instrument};
@@ -41,7 +40,7 @@ pub mod rabbitmq_consumer {
         #[instrument(skip_all, name = "start_rabbitmq_workers")]
         pub async fn start_workers(
             rabbit_settings: &RabbitMQSettings,
-            db_client: &Arc<PostgresClient>,
+            db_pool: &Pool<Postgres>,
             shutdown_rx: watch::Receiver<()>,
         ) -> Result<Self, EventError> {
             let num_consumers = rabbit_settings.num_consumers;
@@ -49,12 +48,11 @@ pub mod rabbitmq_consumer {
 
             for id in 0..num_consumers {
                 let consumer = create_rabbitmq_consumer(rabbit_settings).await?;
-                let rabbit_db_client = db_client.clone();
-                let message_handler = MessageHandler::Postgres(rabbit_db_client);
+                let rabbit_db_pool = db_pool.clone();
 
                 let worker_shutdown_rx = shutdown_rx.clone();
                 workers.push(tokio::spawn(async move {
-                    Self::start_worker(id, consumer, message_handler, worker_shutdown_rx).await;
+                    Self::start_worker(id, consumer, rabbit_db_pool, worker_shutdown_rx).await;
                 }));
             }
 
@@ -66,7 +64,7 @@ pub mod rabbitmq_consumer {
         async fn start_worker(
             id: usize,
             mut consumer: Consumer,
-            handler: MessageHandler,
+            db_pool: Pool<Postgres>,
             mut shutdown: watch::Receiver<()>, // Accept receiver
         ) {
             loop {
@@ -78,7 +76,7 @@ pub mod rabbitmq_consumer {
                     delivery = consumer.next() => {
                         match delivery {
                             Some(Ok(msg)) => {
-                                handle_message(id, msg, &handler).await;
+                                handle_message(id, msg, &db_pool).await;
                             }
                             Some(Err(e)) => {
                                 error!("Worker {}: RabbitMQ error: {}", id, e);
@@ -94,7 +92,7 @@ pub mod rabbitmq_consumer {
         }
     }
 
-    async fn handle_message(id: usize, msg: Delivery, handler: &MessageHandler) {
+    async fn handle_message(id: usize, msg: Delivery, db_pool: &Pool<Postgres>) {
         // Check message size
         if msg.data.len() > MAX_MESSAGE_SIZE {
             error!("Worker {}: Message too large: {:?}", id, msg.data.len());
@@ -105,7 +103,7 @@ pub mod rabbitmq_consumer {
         // Process messages. If processing fails, log the error, record metrics, and continue
         match process_message(&msg.data).await {
             Ok(Some(records)) => {
-                if let Err(e) = handler.insert_server_records(&records).await {
+                if let Err(e) = MessageHandler::insert_server_records(db_pool, &records).await {
                     error!("Worker {}: Failed to insert drift record: {:?}", id, e);
                     counter!("db_insert_errors").increment(1);
                 } else {

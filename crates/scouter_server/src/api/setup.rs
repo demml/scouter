@@ -7,7 +7,9 @@ use scouter_settings::{
     ScouterServerConfig,
 };
 use scouter_sql::sql::schema::User;
+use scouter_sql::sql::traits::UserSqlLogic;
 use scouter_sql::PostgresClient;
+use sqlx::Postgres;
 use std::str::FromStr;
 use std::sync::Arc;
 use tracing::{debug, info, instrument};
@@ -25,10 +27,9 @@ use scouter_events::consumer::rabbitmq::RabbitMQConsumerManager;
 /// The default users are:
 /// * admin: admin/admin
 /// * guest: guest/guest
-pub async fn initialize_default_user(sql_client: &Arc<PostgresClient>) -> AnyhowResult<()> {
+pub async fn initialize_default_user(db_pool: &Pool<Postgres>) -> AnyhowResult<()> {
     // Check if any users exist
-    let users = sql_client
-        .get_users()
+    let users = PostgresClient::get_users(db_pool)
         .await
         .context("❌ Failed to check existing users")?;
 
@@ -99,11 +100,8 @@ pub async fn setup_logging() -> AnyhowResult<()> {
 }
 
 /// Get that database going!
-pub async fn setup_database(
-    db_settings: &DatabaseSettings,
-    storage_settings: &ObjectStorageSettings,
-) -> AnyhowResult<Arc<PostgresClient>> {
-    let db_client = PostgresClient::new(None, db_settings, storage_settings)
+pub async fn setup_database(db_settings: &DatabaseSettings) -> AnyhowResult<Arc<PostgresClient>> {
+    let db_pool = PostgresClient::create_db_pool(db_settings)
         .await
         .with_context(|| "Failed to create Postgres client")?;
 
@@ -202,7 +200,7 @@ pub async fn setup_background_data_archive_workers(
 #[instrument(skip_all)]
 pub async fn setup_components() -> AnyhowResult<(
     ScouterServerConfig,
-    Arc<PostgresClient>,
+    Pool<Postgres>,
     tokio::sync::watch::Sender<()>,
 )> {
     let config = ScouterServerConfig::default();
@@ -213,7 +211,7 @@ pub async fn setup_components() -> AnyhowResult<(
         debug!("Failed to setup logging. {:?}", logging.err());
     }
 
-    let db_client = setup_database(&config.database_settings, &config.storage_settings).await?;
+    let db_client = setup_database(&config.database_settings).await?;
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(());
 

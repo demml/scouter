@@ -3,6 +3,8 @@ pub mod utils;
 use crate::utils::setup_logging;
 
 use scouter_contracts::ServiceInfo;
+use scouter_sql::sql::traits::SpcSqlLogic;
+use scouter_sql::PostgresClient;
 use scouter_types::{ServerRecord, ServerRecords, SpcServerRecord};
 use std::time::{Duration, Instant};
 use utils::TestHelper;
@@ -109,11 +111,14 @@ async fn main() {
                 name: "test".to_string(),
                 version: "1.0.0".to_string(),
             };
-            let records = helper
-                .db_client
-                .get_spc_drift_records(&service_info, &timestamp, &["feature".to_string()])
-                .await
-                .unwrap();
+            let records = PostgresClient::get_spc_drift_records(
+                &helper.db_pool,
+                &service_info,
+                &timestamp,
+                &["feature".to_string()],
+            )
+            .await
+            .unwrap();
 
             assert!(records.features["feature"].values.len() > 5000);
             break;
