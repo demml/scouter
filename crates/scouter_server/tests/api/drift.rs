@@ -305,7 +305,7 @@ async fn test_custom_server_records() {
     //assert response
     assert_eq!(response.status(), StatusCode::OK);
 
-    let records = helper.get_custom_drift_records();
+    let records = helper.get_custom_drift_records(None);
     let body = serde_json::to_string(&records).unwrap();
 
     let request = Request::builder()

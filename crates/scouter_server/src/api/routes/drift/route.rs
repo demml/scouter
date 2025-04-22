@@ -131,7 +131,7 @@ pub async fn get_psi_drift(
     }
 }
 
-#[instrument(skip(data, params))]
+#[instrument(skip_all)]
 pub async fn get_custom_drift(
     State(data): State<Arc<AppState>>,
     Query(params): Query<DriftRequest>,
@@ -146,9 +146,13 @@ pub async fn get_custom_drift(
         ));
     }
 
-    debug!("Querying drift records: {:?}", params);
-
-    let metrics = PostgresClient::get_binned_custom_drift_records(&data.db_pool, &params).await;
+    let metrics = PostgresClient::get_binned_custom_drift_records(
+        &data.db_pool,
+        &params,
+        &data.config.database_settings.retention_period,
+        &data.config.storage_settings,
+    )
+    .await;
 
     match metrics {
         Ok(metrics) => Ok(Json(metrics)),

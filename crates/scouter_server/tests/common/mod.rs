@@ -78,8 +78,8 @@ impl TestHelper {
     pub async fn new(enable_kafka: bool, enable_rabbitmq: bool) -> Result<Self, anyhow::Error> {
         TestHelper::cleanup_storage();
 
-        env::set_var("RUST_LOG", "debug");
-        env::set_var("LOG_LEVEL", "debug");
+        env::set_var("RUST_LOG", "info");
+        env::set_var("LOG_LEVEL", "info");
         env::set_var("LOG_JSON", "false");
         env::set_var("POLLING_WORKER_COUNT", "1");
         env::set_var("DATA_RETENTION_PERIOD", "5");
@@ -207,16 +207,17 @@ impl TestHelper {
         ServerRecords::new(records)
     }
 
-    pub fn get_custom_drift_records(&self) -> ServerRecords {
+    pub fn get_custom_drift_records(&self, time_offset: Option<i64>) -> ServerRecords {
         let mut records: Vec<ServerRecord> = Vec::new();
+        let offset = time_offset.unwrap_or(0);
         for i in 0..2 {
-            for _ in 0..25 {
+            for _ in 0..50 {
                 let record = CustomMetricServerRecord {
-                    created_at: Utc::now(),
+                    created_at: Utc::now() - chrono::Duration::days(offset),
                     space: SPACE.to_string(),
                     name: NAME.to_string(),
                     version: VERSION.to_string(),
-                    metric: format!("metric{}", i),
+                    metric: format!("metric_{}", i),
                     value: rand::rng().random_range(0..10) as f64,
                 };
 

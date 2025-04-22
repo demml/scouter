@@ -33,7 +33,7 @@ impl GetProfileRequest {
 }
 
 #[pyclass]
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct DriftRequest {
     pub space: String,
     pub name: String,
@@ -95,21 +95,6 @@ impl DriftRequest {
             )
         } else {
             None
-        }
-    }
-}
-
-impl Default for DriftRequest {
-    fn default() -> Self {
-        DriftRequest {
-            name: String::new(),
-            space: String::new(),
-            version: String::new(),
-            time_interval: TimeInterval::default(),
-            max_data_points: 0,
-            drift_type: DriftType::default(),
-            begin_custom_datetime: None,
-            end_custom_datetime: None,
         }
     }
 }

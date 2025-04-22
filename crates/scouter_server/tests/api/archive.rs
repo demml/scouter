@@ -7,15 +7,14 @@ use axum::{
 use http_body_util::BodyExt;
 use scouter_contracts::DriftRequest;
 use scouter_contracts::ProfileRequest;
-use scouter_dataframe::parquet::spc::dataframe_to_spc_drift_features;
-use scouter_dataframe::parquet::{
-    custom::dataframe_to_custom_drift_metrics, dataframe::ParquetDataFrame,
-};
+use scouter_dataframe::parquet::dataframe::ParquetDataFrame;
 use scouter_drift::psi::PsiMonitor;
 use scouter_drift::spc::SpcMonitor;
 use scouter_server::api::archive::archive_old_data;
+use scouter_types::custom::CustomMetricAlertConfig;
 use scouter_types::{
     custom::BinnedCustomMetrics,
+    custom::{AlertThreshold, CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
     psi::{BinnedPsiFeatureMetrics, PsiAlertConfig, PsiDriftConfig},
     spc::{SpcAlertConfig, SpcDriftConfig, SpcDriftFeatures},
     DriftType, RecordType,
@@ -251,11 +250,25 @@ async fn test_data_archive_psi() {
 #[tokio::test]
 async fn test_data_archive_custom() {
     let helper = TestHelper::new(false, false).await.unwrap();
-    let records = helper.get_custom_drift_records();
-    let body = serde_json::to_string(&records).unwrap();
-    let start_utc = Utc::now();
+
+    let alert_config = CustomMetricAlertConfig::default();
+    let config =
+        CustomMetricDriftConfig::new(SPACE, NAME, VERSION, true, 25, alert_config, None).unwrap();
+
+    let alert_threshold = AlertThreshold::Above;
+    let metric1 = CustomMetric::new("metric_1", 1.0, alert_threshold.clone(), None).unwrap();
+    let metric2 = CustomMetric::new("metric_2", 1.0, alert_threshold, None).unwrap();
+    let profile = CustomDriftProfile::new(config, vec![metric1, metric2], None).unwrap();
+
+    let request = ProfileRequest {
+        space: profile.config.space.clone(),
+        profile: profile.model_dump_json(),
+        drift_type: DriftType::Custom,
+    };
+
+    let body = serde_json::to_string(&request).unwrap();
     let request = Request::builder()
-        .uri("/scouter/drift")
+        .uri("/scouter/profile")
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body))
@@ -265,6 +278,27 @@ async fn test_data_archive_custom() {
 
     //assert response
     assert_eq!(response.status(), StatusCode::OK);
+
+    // 10 day old records
+    let long_term_records = helper.get_custom_drift_records(Some(10));
+
+    // 0 day old records
+    let short_term_records = helper.get_custom_drift_records(None);
+
+    for records in [short_term_records, long_term_records].iter() {
+        let body = serde_json::to_string(records).unwrap();
+        let request = Request::builder()
+            .uri("/scouter/drift")
+            .method("POST")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body))
+            .unwrap();
+
+        let response = helper.send_oneshot(request).await;
+
+        //assert response
+        assert_eq!(response.status(), StatusCode::OK);
+    }
 
     let record = archive_old_data(&helper.pool, &helper.config)
         .await
@@ -283,22 +317,34 @@ async fn test_data_archive_custom() {
 
     assert!(!files.is_empty());
 
-    let read_df = df
-        .get_binned_metrics(&path, &0.01, &start_utc, &Utc::now(), SPACE, NAME, VERSION)
-        .await
+    let params = DriftRequest {
+        space: SPACE.to_string(),
+        name: NAME.to_string(),
+        version: VERSION.to_string(),
+        max_data_points: 100,
+        drift_type: DriftType::Custom,
+        begin_custom_datetime: Some(Utc::now() - chrono::Duration::days(15)),
+        end_custom_datetime: Some(Utc::now()),
+        ..Default::default()
+    };
+
+    let query_string = serde_qs::to_string(&params).unwrap();
+
+    let request = Request::builder()
+        .uri(format!("/scouter/drift/custom?{}", query_string))
+        .method("GET")
+        .body(Body::empty())
         .unwrap();
 
-    // dataframe to custom
-    dataframe_to_custom_drift_metrics(read_df).await.unwrap();
+    let response = helper.send_oneshot(request).await;
 
-    // archive again - this return all false
-    // this verifies that the data archived tag is set
-    let record = archive_old_data(&helper.pool, &helper.config)
-        .await
-        .unwrap();
-    assert!(!record.spc);
-    assert!(!record.psi);
-    assert!(!record.custom);
+    //assert response
+    assert_eq!(response.status(), StatusCode::OK);
+    let val = response.into_body().collect().await.unwrap().to_bytes();
 
+    let results: BinnedCustomMetrics = serde_json::from_slice(&val).unwrap();
+
+    assert!(!results.metrics.is_empty());
+    assert!(results.metrics["metric_1"].created_at.len() == 2);
     TestHelper::cleanup_storage()
 }

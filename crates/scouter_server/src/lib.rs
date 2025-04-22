@@ -10,6 +10,7 @@ use scouter_auth::auth::AuthManager;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
+use tracing::error;
 use tracing::info;
 
 /// Create the main server
@@ -74,7 +75,7 @@ pub fn start_server_in_background() -> Arc<Mutex<Option<JoinHandle<()>>>> {
     tokio::spawn(async move {
         let server_handle = tokio::spawn(async {
             if let Err(e) = start_server().await {
-                eprintln!("Server error: {}", e);
+                error!("Server error: {}", e);
             }
         });
 

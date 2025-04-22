@@ -11,7 +11,6 @@ use datafusion::prelude::*;
 use datafusion::{dataframe::DataFrameWriteOptions, prelude::DataFrame};
 use scouter_error::DataFrameError;
 use scouter_settings::ObjectStorageSettings;
-
 use scouter_types::ServerRecords;
 use scouter_types::StorageType;
 
@@ -158,6 +157,7 @@ pub trait ParquetFrame {
         // Register the data at path
         let ctx = self.register_table(path, &self.table_name()).await?;
         let sql = self.get_binned_sql(bin, start_time, end_time, space, name, version);
+
         let df = ctx
             .sql(&sql)
             .await

@@ -39,9 +39,8 @@ pub trait ProfileSqlLogic {
 
         let next_run = schedule
             .upcoming(Utc)
-            .take(1)
             .next()
-            .ok_or(SqlError::traced_get_next_run_error(&base_args.schedule))?;
+            .ok_or(SqlError::traced_get_next_run_error(schedule))?;
 
         sqlx::query(&query.sql)
             .bind(base_args.name)
