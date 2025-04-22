@@ -5,8 +5,10 @@ pub mod custom_drifter {
     use scouter_contracts::ServiceInfo;
     use scouter_dispatch::AlertDispatcher;
     use scouter_error::DriftError;
+    use scouter_sql::sql::traits::CustomMetricSqlLogic;
     use scouter_sql::PostgresClient;
     use scouter_types::custom::{AlertThreshold, ComparisonMetricAlert, CustomDriftProfile};
+    use sqlx::{Pool, Postgres};
     use std::collections::{BTreeMap, HashMap};
     use tracing::error;
     use tracing::info;
@@ -31,12 +33,11 @@ pub mod custom_drifter {
         pub async fn get_observed_custom_metric_values(
             &self,
             limit_datetime: &DateTime<Utc>,
-            db_client: &PostgresClient,
+            db_pool: &Pool<Postgres>,
         ) -> Result<HashMap<String, f64>, DriftError> {
             let metrics: Vec<String> = self.profile.metrics.keys().cloned().collect();
 
-            db_client
-                .get_custom_metric_values(&self.service_info, limit_datetime, &metrics)
+            PostgresClient::get_custom_metric_values(&self.service_info, limit_datetime, &metrics)
                 .await
                 .map_err(|e| {
                     let msg = format!(
@@ -206,7 +207,7 @@ pub mod custom_drifter {
 
         pub async fn check_for_alerts(
             &self,
-            db_client: &PostgresClient,
+            db_pool: &Pool<Postgres>,
             previous_run: DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             info!(
