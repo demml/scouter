@@ -13,7 +13,6 @@ pub mod drift_executor {
     use std::result::Result;
     use std::result::Result::Ok;
     use std::str::FromStr;
-    use std::sync::Arc;
     use tracing::{debug, error, info, span, Instrument, Level};
 
     #[allow(clippy::enum_variant_names)]
@@ -231,7 +230,7 @@ pub mod drift_executor {
         use super::*;
         use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
         use scouter_contracts::DriftAlertRequest;
-        use scouter_settings::{DatabaseSettings, ObjectStorageSettings};
+        use scouter_settings::DatabaseSettings;
         use scouter_sql::PostgresClient;
         use sqlx::{postgres::Postgres, Pool};
 

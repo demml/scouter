@@ -1,8 +1,7 @@
 use scouter_drift::DriftExecutor;
 use scouter_error::ScouterError;
 use scouter_settings::PollingSettings;
-use scouter_sql::PostgresClient;
-use std::sync::Arc;
+use sqlx::{Pool, Postgres};
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, info, span, Instrument, Level};
@@ -13,7 +12,7 @@ pub struct BackgroundDriftManager {
 
 impl BackgroundDriftManager {
     pub async fn start_workers(
-        db_client: &Arc<PostgresClient>,
+        db_pool: &Pool<Postgres>,
         poll_settings: &PollingSettings,
         shutdown_rx: watch::Receiver<()>,
     ) -> Result<(), ScouterError> {
@@ -21,9 +20,8 @@ impl BackgroundDriftManager {
         let mut workers = Vec::with_capacity(num_workers);
 
         for id in 0..num_workers {
-            let db_client = db_client.clone();
             let shutdown_rx = shutdown_rx.clone();
-            let drift_executor = DriftExecutor::new(db_client);
+            let drift_executor = DriftExecutor::new(db_pool);
             let worker_shutdown_rx = shutdown_rx.clone();
 
             workers.push(tokio::spawn(Self::start_worker(
