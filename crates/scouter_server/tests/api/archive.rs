@@ -31,14 +31,15 @@ async fn test_data_archive_spc() {
     //assert response
     assert_eq!(response.status(), StatusCode::OK);
 
-    let db_client = helper.get_db_client().await;
-    let record = archive_old_data(&db_client).await.unwrap();
+    let record = archive_old_data(&helper.pool, &helper.config)
+        .await
+        .unwrap();
 
     assert!(record.spc);
     assert!(!record.psi);
     assert!(!record.custom);
 
-    let df = ParquetDataFrame::new(&db_client.storage_settings, &RecordType::Spc).unwrap();
+    let df = ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::Spc).unwrap();
     let path = format!("{SPACE}/{NAME}/{VERSION}/spc");
 
     let canonical_path = format!("{}/{}", df.storage_root(), path);
@@ -57,7 +58,9 @@ async fn test_data_archive_spc() {
 
     // archive again - this return all false
     // this verifies that the data archived tag is set
-    let record = archive_old_data(&db_client).await.unwrap();
+    let record = archive_old_data(&helper.pool, &helper.config)
+        .await
+        .unwrap();
     assert!(!record.spc);
     assert!(!record.psi);
     assert!(!record.custom);
@@ -83,15 +86,15 @@ async fn test_data_archive_psi() {
 
     //assert response
     assert_eq!(response.status(), StatusCode::OK);
-
-    let db_client = helper.get_db_client().await;
-    let record = archive_old_data(&db_client).await.unwrap();
+    let record = archive_old_data(&helper.pool, &helper.config)
+        .await
+        .unwrap();
 
     assert!(!record.spc);
     assert!(record.psi);
     assert!(!record.custom);
 
-    let df = ParquetDataFrame::new(&db_client.storage_settings, &RecordType::Psi).unwrap();
+    let df = ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::Psi).unwrap();
     let path = format!("{SPACE}/{NAME}/{VERSION}/psi");
 
     let canonical_path = format!("{}/{}", df.storage_root(), path);
@@ -110,7 +113,9 @@ async fn test_data_archive_psi() {
 
     // archive again - this return all false
     // this verifies that the data archived tag is set
-    let record = archive_old_data(&db_client).await.unwrap();
+    let record = archive_old_data(&helper.pool, &helper.config)
+        .await
+        .unwrap();
     assert!(!record.spc);
     assert!(!record.psi);
     assert!(!record.custom);
@@ -135,14 +140,15 @@ async fn test_data_archive_custom() {
     //assert response
     assert_eq!(response.status(), StatusCode::OK);
 
-    let db_client = helper.get_db_client().await;
-    let record = archive_old_data(&db_client).await.unwrap();
+    let record = archive_old_data(&helper.pool, &helper.config)
+        .await
+        .unwrap();
 
     assert!(!record.spc);
     assert!(!record.psi);
     assert!(record.custom);
 
-    let df = ParquetDataFrame::new(&db_client.storage_settings, &RecordType::Custom).unwrap();
+    let df = ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::Custom).unwrap();
     let path = format!("{SPACE}/{NAME}/{VERSION}/custom");
 
     let canonical_path = format!("{}/{}", df.storage_root(), path);
@@ -161,7 +167,9 @@ async fn test_data_archive_custom() {
 
     // archive again - this return all false
     // this verifies that the data archived tag is set
-    let record = archive_old_data(&db_client).await.unwrap();
+    let record = archive_old_data(&helper.pool, &helper.config)
+        .await
+        .unwrap();
     assert!(!record.spc);
     assert!(!record.psi);
     assert!(!record.custom);

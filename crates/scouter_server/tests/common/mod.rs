@@ -7,21 +7,20 @@ use axum::{
 };
 use chrono::Utc;
 use http_body_util::BodyExt;
-use rand::Rng;
-use scouter_server::create_app;
-use scouter_settings::DatabaseSettings;
-use scouter_types::{CustomMetricServerRecord, PsiServerRecord};
-use scouter_types::{ServerRecord, ServerRecords, SpcServerRecord};
-use std::sync::Arc;
-// for `collect`
 use ndarray::Array;
 use ndarray_rand::rand_distr::Uniform;
 use ndarray_rand::RandomExt;
+use rand::Rng;
+use scouter_server::create_app;
 use scouter_settings::ObjectStorageSettings;
+use scouter_settings::{DatabaseSettings, ScouterServerConfig};
 use scouter_sql::PostgresClient;
 use scouter_types::JwtToken;
+use scouter_types::{CustomMetricServerRecord, PsiServerRecord};
+use scouter_types::{ServerRecord, ServerRecords, SpcServerRecord};
 use sqlx::{PgPool, Pool, Postgres};
 use std::env;
+use std::sync::Arc;
 use tower::util::ServiceExt;
 
 pub const SPACE: &str = "space";
@@ -63,7 +62,8 @@ pub async fn cleanup(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> {
 pub struct TestHelper {
     app: Router,
     token: JwtToken,
-    pool: PgPool,
+    pub pool: PgPool,
+    pub config: Arc<ScouterServerConfig>,
 }
 
 impl TestHelper {
@@ -92,23 +92,20 @@ impl TestHelper {
             std::env::set_var("RABBITMQ_ADDR", "amqp://guest:guest@127.0.0.1:5672/%2f");
         }
 
-        let db_client = PostgresClient::new(
-            None,
-            &DatabaseSettings::default(),
-            &ObjectStorageSettings::default(),
-        )
-        .await
-        .with_context(|| "Failed to create Postgres client")?;
+        let db_pool = PostgresClient::create_db_pool(&DatabaseSettings::default())
+            .await
+            .context("Failed to create Postgres client")?;
 
-        cleanup(&db_client.pool).await?;
+        cleanup(&db_pool).await?;
 
-        let (app, _app_state) = create_app().await?;
+        let (app, app_state) = create_app().await?;
         let token = TestHelper::login(&app).await;
 
         Ok(Self {
             app,
             token,
-            pool: db_client.pool.clone(),
+            pool: db_pool,
+            config: app_state.config.clone(),
         })
     }
 
@@ -237,13 +234,10 @@ impl TestHelper {
         Ok(())
     }
 
-    pub async fn get_db_client(&self) -> Arc<PostgresClient> {
-        PostgresClient::new(
-            Some(self.pool.clone()),
-            &DatabaseSettings::default(),
-            &ObjectStorageSettings::default(),
-        )
-        .await
-        .unwrap()
+    pub async fn get_db_pool(&self) -> Pool<Postgres> {
+        PostgresClient::create_db_pool(&DatabaseSettings::default())
+            .await
+            .context("Failed to create Postgres client")
+            .unwrap()
     }
 }

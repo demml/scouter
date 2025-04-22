@@ -53,6 +53,12 @@ impl PostgresClient {
             }
         };
 
+        // Run migrations
+        if let Err(err) = Self::run_migrations(&pool).await {
+            error!("🚨 Failed to run migrations {:?}", err);
+            std::process::exit(1);
+        }
+
         Ok(pool)
     }
 
