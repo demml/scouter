@@ -9,11 +9,14 @@ pub mod psi_drifter {
     use scouter_contracts::ServiceInfo;
     use scouter_dispatch::AlertDispatcher;
     use scouter_error::DriftError;
+    use scouter_settings::ObjectStorageSettings;
+    use scouter_sql::sql::traits::PsiSqlLogic;
     use scouter_sql::PostgresClient;
     use scouter_types::psi::{
         BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiDriftProfile, PsiFeatureAlerts,
         PsiFeatureDriftProfile,
     };
+    use sqlx::{Pool, Postgres};
     use std::collections::{BTreeMap, HashMap};
     use tracing::error;
     use tracing::info;
@@ -48,27 +51,24 @@ pub mod psi_drifter {
         async fn get_feature_bin_proportion_pairs_map(
             &self,
             limit_datetime: &DateTime<Utc>,
-            db_client: &PostgresClient,
+            db_pool: &Pool<Postgres>,
         ) -> Result<Option<FeatureBinMapping>, DriftError> {
             let profiles_to_monitor = self.get_monitored_profiles();
 
-            let observed_bin_proportions = db_client
-                .get_feature_bin_proportions(
-                    &self.service_info,
-                    limit_datetime,
-                    &self.profile.config.alert_config.features_to_monitor,
-                )
-                .await
-                .map_err(|e| {
-                    error!(
-                        "Error: Unable to fetch feature bin proportions from DB for {}/{}/{}: {}",
-                        self.service_info.space,
-                        self.service_info.name,
-                        self.service_info.version,
-                        e
-                    );
-                    DriftError::Error("Error processing alerts".to_string())
-                })?;
+            let observed_bin_proportions = PostgresClient::get_feature_bin_proportions(
+                db_pool,
+                &self.service_info,
+                limit_datetime,
+                &self.profile.config.alert_config.features_to_monitor,
+            )
+            .await
+            .map_err(|e| {
+                error!(
+                    "Error: Unable to fetch feature bin proportions from DB for {}/{}/{}: {}",
+                    self.service_info.space, self.service_info.name, self.service_info.version, e
+                );
+                DriftError::Error("Error processing alerts".to_string())
+            })?;
 
             if observed_bin_proportions.is_empty() {
                 info!(
@@ -90,9 +90,9 @@ pub mod psi_drifter {
         pub async fn get_drift_map(
             &self,
             limit_datetime: &DateTime<Utc>,
-            db_client: &PostgresClient,
+            db_pool: &Pool<Postgres>,
         ) -> Result<Option<HashMap<String, f64>>, DriftError> {
-            self.get_feature_bin_proportion_pairs_map(limit_datetime, db_client)
+            self.get_feature_bin_proportion_pairs_map(limit_datetime, db_pool)
                 .await?
                 .map(|feature_bin_map| {
                     Ok(feature_bin_map
@@ -187,7 +187,7 @@ pub mod psi_drifter {
 
         pub async fn check_for_alerts(
             &self,
-            db_client: &PostgresClient,
+            db_pool: &Pool<Postgres>,
             previous_run: DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             info!(
@@ -209,7 +209,7 @@ pub mod psi_drifter {
                 return Ok(None);
             }
 
-            let drift_map = self.get_drift_map(&previous_run, db_client).await?;
+            let drift_map = self.get_drift_map(&previous_run, db_pool).await?;
 
             match drift_map {
                 Some(drift_map) => {
@@ -263,11 +263,18 @@ pub mod psi_drifter {
         pub async fn get_binned_drift_map(
             &self,
             drift_request: &DriftRequest,
-            db_client: &PostgresClient,
+            db_pool: &Pool<Postgres>,
+            retention_period: &i64,
+            storage_settings: &ObjectStorageSettings,
         ) -> Result<BinnedPsiFeatureMetrics, DriftError> {
-            let binned_records = db_client
-                .get_binned_psi_drift_records(drift_request)
-                .await?;
+            let binned_records = PostgresClient::get_binned_psi_drift_records(
+                db_pool,
+                drift_request,
+                retention_period,
+                storage_settings,
+            )
+            .await
+            .map_err(|e| DriftError::Error(e.to_string()))?;
 
             if binned_records.is_empty() {
                 info!(

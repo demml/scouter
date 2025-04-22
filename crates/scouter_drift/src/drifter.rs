@@ -5,9 +5,10 @@ pub mod drift_executor {
     use chrono::{DateTime, Utc};
     use scouter_contracts::ServiceInfo;
     use scouter_error::DriftError;
+    use scouter_sql::sql::traits::{AlertSqlLogic, ProfileSqlLogic};
     use scouter_sql::{sql::schema::TaskRequest, PostgresClient};
     use scouter_types::{DriftProfile, DriftType};
-    use sqlx::{Postgres, Transaction};
+    use sqlx::{Pool, Postgres, Transaction};
     use std::collections::BTreeMap;
     use std::result::Result;
     use std::result::Result::Ok;
@@ -25,18 +26,18 @@ pub mod drift_executor {
     impl Drifter {
         pub async fn check_for_alerts(
             &self,
-            db_client: &PostgresClient,
+            db_pool: &Pool<Postgres>,
             previous_run: DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             match self {
                 Drifter::SpcDrifter(drifter) => {
-                    drifter.check_for_alerts(db_client, previous_run).await
+                    drifter.check_for_alerts(db_pool, previous_run).await
                 }
                 Drifter::PsiDrifter(drifter) => {
-                    drifter.check_for_alerts(db_client, previous_run).await
+                    drifter.check_for_alerts(db_pool, previous_run).await
                 }
                 Drifter::CustomDrifter(drifter) => {
-                    drifter.check_for_alerts(db_client, previous_run).await
+                    drifter.check_for_alerts(db_pool, previous_run).await
                 }
             }
         }
@@ -70,12 +71,14 @@ pub mod drift_executor {
     }
 
     pub struct DriftExecutor {
-        db_client: Arc<PostgresClient>,
+        db_pool: Pool<Postgres>,
     }
 
     impl DriftExecutor {
-        pub fn new(db_client: Arc<PostgresClient>) -> Self {
-            Self { db_client }
+        pub fn new(db_pool: &Pool<Postgres>) -> Self {
+            Self {
+                db_pool: db_pool.clone(),
+            }
         }
 
         /// Process a single drift computation task
@@ -98,7 +101,7 @@ pub mod drift_executor {
 
             profile
                 .get_drifter()
-                .check_for_alerts(&self.db_client, previous_run)
+                .check_for_alerts(&self.db_pool, previous_run)
                 .await
         }
 
@@ -106,7 +109,7 @@ pub mod drift_executor {
             &mut self,
         ) -> Result<(Option<TaskRequest>, Transaction<'static, Postgres>), DriftError> {
             debug!("Polling for drift tasks");
-            let mut transaction = self.db_client.pool.begin().await.map_err(|e| {
+            let mut transaction = self.db_pool.begin().await.map_err(|e| {
                 error!("Error starting transaction: {:?}", e);
                 DriftError::Error(e.to_string())
             })?;
@@ -142,15 +145,14 @@ pub mod drift_executor {
                                 if let Some(alerts) = alerts {
                                     // insert each task into db
                                     for alert in alerts {
-                                        if let Err(e) = self
-                                            .db_client
-                                            .insert_drift_alert(
-                                                service_info,
-                                                alert.get("feature").unwrap_or(&"NA".to_string()),
-                                                &alert,
-                                                &drift_type,
-                                            )
-                                            .await
+                                        if let Err(e) = PostgresClient::insert_drift_alert(
+                                            &self.db_pool,
+                                            service_info,
+                                            alert.get("feature").unwrap_or(&"NA".to_string()),
+                                            &alert,
+                                            &drift_type,
+                                        )
+                                        .await
                                         {
                                             error!("Error inserting drift alerts: {:?}", e);
                                         }
@@ -270,23 +272,20 @@ pub mod drift_executor {
 
         #[tokio::test]
         async fn test_drift_executor_spc() {
-            let client = PostgresClient::new(
-                None,
-                &DatabaseSettings::default(),
-                &ObjectStorageSettings::default(),
-            )
-            .await
-            .unwrap();
-            cleanup(&client.pool).await;
+            let db_pool = PostgresClient::create_db_pool(&DatabaseSettings::default())
+                .await
+                .unwrap();
+
+            cleanup(&db_pool).await;
 
             let mut populate_path =
                 std::env::current_dir().expect("Failed to get current directory");
             populate_path.push("src/scripts/populate_spc.sql");
 
             let script = std::fs::read_to_string(populate_path).unwrap();
-            sqlx::raw_sql(&script).execute(&client.pool).await.unwrap();
+            sqlx::raw_sql(&script).execute(&db_pool).await.unwrap();
 
-            let mut drift_executor = DriftExecutor::new(client.clone());
+            let mut drift_executor = DriftExecutor::new(&db_pool);
 
             drift_executor.poll_for_tasks().await.unwrap();
 
@@ -299,7 +298,9 @@ pub mod drift_executor {
                 active: None,
                 limit: None,
             };
-            let alerts = client.get_drift_alerts(&request).await.unwrap();
+            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request)
+                .await
+                .unwrap();
             assert!(!alerts.is_empty());
         }
 
@@ -308,23 +309,19 @@ pub mod drift_executor {
             // this tests the scenario where only 1 of 2 features has data in the db when polling
             // for tasks. Need to ensure this does not fail and the present feature and data are
             // still processed
-            let client = PostgresClient::new(
-                None,
-                &DatabaseSettings::default(),
-                &ObjectStorageSettings::default(),
-            )
-            .await
-            .unwrap();
-            cleanup(&client.pool).await;
+            let db_pool = PostgresClient::create_db_pool(&DatabaseSettings::default())
+                .await
+                .unwrap();
+            cleanup(&db_pool).await;
 
             let mut populate_path =
                 std::env::current_dir().expect("Failed to get current directory");
             populate_path.push("src/scripts/populate_spc_alert.sql");
 
             let script = std::fs::read_to_string(populate_path).unwrap();
-            sqlx::raw_sql(&script).execute(&client.pool).await.unwrap();
+            sqlx::raw_sql(&script).execute(&db_pool).await.unwrap();
 
-            let mut drift_executor = DriftExecutor::new(client.clone());
+            let mut drift_executor = DriftExecutor::new(&db_pool);
 
             drift_executor.poll_for_tasks().await.unwrap();
 
@@ -337,30 +334,29 @@ pub mod drift_executor {
                 active: None,
                 limit: None,
             };
-            let alerts = client.get_drift_alerts(&request).await.unwrap();
+            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request)
+                .await
+                .unwrap();
 
             assert!(!alerts.is_empty());
         }
 
         #[tokio::test]
         async fn test_drift_executor_psi() {
-            let client = PostgresClient::new(
-                None,
-                &DatabaseSettings::default(),
-                &ObjectStorageSettings::default(),
-            )
-            .await
-            .unwrap();
-            cleanup(&client.pool).await;
+            let db_pool = PostgresClient::create_db_pool(&DatabaseSettings::default())
+                .await
+                .unwrap();
+
+            cleanup(&db_pool).await;
 
             let mut populate_path =
                 std::env::current_dir().expect("Failed to get current directory");
             populate_path.push("src/scripts/populate_psi.sql");
 
             let script = std::fs::read_to_string(populate_path).unwrap();
-            sqlx::raw_sql(&script).execute(&client.pool).await.unwrap();
+            sqlx::raw_sql(&script).execute(&db_pool).await.unwrap();
 
-            let mut drift_executor = DriftExecutor::new(client.clone());
+            let mut drift_executor = DriftExecutor::new(&db_pool);
 
             drift_executor.poll_for_tasks().await.unwrap();
 
@@ -373,30 +369,29 @@ pub mod drift_executor {
                 active: None,
                 limit: None,
             };
-            let alerts = client.get_drift_alerts(&request).await.unwrap();
+            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request)
+                .await
+                .unwrap();
 
             assert!(alerts.len() >= 2);
         }
 
         #[tokio::test]
         async fn test_drift_executor_custom() {
-            let client = PostgresClient::new(
-                None,
-                &DatabaseSettings::default(),
-                &ObjectStorageSettings::default(),
-            )
-            .await
-            .unwrap();
-            cleanup(&client.pool).await;
+            let db_pool = PostgresClient::create_db_pool(&DatabaseSettings::default())
+                .await
+                .unwrap();
+
+            cleanup(&db_pool).await;
 
             let mut populate_path =
                 std::env::current_dir().expect("Failed to get current directory");
             populate_path.push("src/scripts/populate_custom.sql");
 
             let script = std::fs::read_to_string(populate_path).unwrap();
-            sqlx::raw_sql(&script).execute(&client.pool).await.unwrap();
+            sqlx::raw_sql(&script).execute(&db_pool).await.unwrap();
 
-            let mut drift_executor = DriftExecutor::new(client.clone());
+            let mut drift_executor = DriftExecutor::new(&db_pool);
 
             drift_executor.poll_for_tasks().await.unwrap();
 
@@ -409,7 +404,9 @@ pub mod drift_executor {
                 active: None,
                 limit: None,
             };
-            let alerts = client.get_drift_alerts(&request).await.unwrap();
+            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request)
+                .await
+                .unwrap();
 
             assert_eq!(alerts.len(), 1);
         }
