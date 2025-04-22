@@ -20,6 +20,8 @@ use axum::{
     Router,
 };
 use scouter_auth::permission::UserPermissions;
+use scouter_sql::sql::traits::ProfileSqlLogic;
+use scouter_sql::PostgresClient;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 /// Insert a drift profile into the database
@@ -51,7 +53,7 @@ pub async fn insert_drift_profile(
         }
     };
 
-    match data.db.insert_drift_profile(&body).await {
+    match PostgresClient::insert_drift_profile(&data.db_pool, &body).await {
         Ok(_) => Ok(Json(ScouterResponse {
             status: "success".to_string(),
             message: "Drift profile inserted successfully".to_string(),
@@ -105,7 +107,7 @@ pub async fn update_drift_profile(
         }
     };
 
-    match data.db.update_drift_profile(&body).await {
+    match PostgresClient::update_drift_profile(&data.db_pool, &body).await {
         Ok(_) => Ok(Json(ScouterResponse {
             status: "success".to_string(),
             message: "Drift profile updated successfully".to_string(),
@@ -149,7 +151,7 @@ pub async fn get_profile(
 
     debug!("Getting drift profile: {:?}", &params);
 
-    let profile_value = match data.db.get_drift_profile(&params).await {
+    let profile_value = match PostgresClient::get_drift_profile(&data.db_pool, &params).await {
         Ok(Some(value)) => value,
         Ok(None) => {
             return Err((
@@ -206,7 +208,7 @@ pub async fn update_drift_profile_status(
     }
     debug!("Updating drift profile status: {:?}", &body);
 
-    let query_result = &data.db.update_drift_profile_status(&body).await;
+    let query_result = PostgresClient::update_drift_profile_status(&data.db_pool, &body).await;
 
     match query_result {
         Ok(_) => Ok(Json(ScouterResponse {
