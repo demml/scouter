@@ -157,7 +157,7 @@ pub trait SpcSqlLogic {
         })
     }
 
-    /// Helper for merging current and archived binned PSI drift records.
+    /// Helper for merging current and archived binned spc drift records.
     fn merge_feature_results(
         results: SpcDriftFeatures,
         map: &mut SpcDriftFeatures,
@@ -176,7 +176,7 @@ pub trait SpcSqlLogic {
         Ok(())
     }
 
-    /// DataFusion implementation for getting PSI drift records from archived data.
+    /// DataFusion implementation for getting spc drift records from archived data.
     ///
     /// # Arguments
     /// * `params` - The drift request parameters
@@ -194,7 +194,7 @@ pub trait SpcSqlLogic {
         minutes: i32,
         storage_settings: &ObjectStorageSettings,
     ) -> Result<SpcDriftFeatures, SqlError> {
-        let path = format!("{}/{}/{}/psi", params.space, params.name, params.version);
+        let path = format!("{}/{}/{}/spc", params.space, params.name, params.version);
         let bin = minutes as f64 / params.max_data_points as f64;
 
         let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::Spc)?
@@ -247,13 +247,13 @@ pub trait SpcSqlLogic {
         let timestamps = split_custom_interval(interval.start, interval.end, retention_period)?;
         let mut spc_feature_map = SpcDriftFeatures::default();
 
+        // get data from postgres
         if let Some(minutes) = timestamps.current_minutes {
             let current_results = Self::get_records(pool, params, minutes).await?;
-
-            debug!("Current results: {:?}", current_results);
             Self::merge_feature_results(current_results, &mut spc_feature_map)?;
         }
 
+        // get archived data
         if let Some((archive_begin, archive_end)) = timestamps.archived_range {
             if let Some(archived_minutes) = timestamps.archived_minutes {
                 let archived_results = Self::get_archived_records(

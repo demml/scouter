@@ -24,7 +24,7 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::{debug, error, instrument};
 
-#[instrument(skip(data, params))]
+#[instrument(skip_all)]
 pub async fn get_spc_drift(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
@@ -41,7 +41,13 @@ pub async fn get_spc_drift(
         ));
     }
 
-    let query_result = PostgresClient::get_binned_spc_drift_records(&data.db_pool, &params).await;
+    let query_result = PostgresClient::get_binned_spc_drift_records(
+        &data.db_pool,
+        &params,
+        &data.config.database_settings.retention_period,
+        &data.config.storage_settings,
+    )
+    .await;
 
     match query_result {
         Ok(result) => Ok(Json(result)),

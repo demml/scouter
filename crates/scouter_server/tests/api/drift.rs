@@ -137,7 +137,7 @@ async fn test_create_spc_profile() {
 #[tokio::test]
 async fn test_spc_server_records() {
     let helper = TestHelper::new(false, false).await.unwrap();
-    let records = helper.get_spc_drift_records();
+    let records = helper.get_spc_drift_records(None);
     let body = serde_json::to_string(&records).unwrap();
 
     let request = Request::builder()

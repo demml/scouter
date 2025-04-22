@@ -180,8 +180,6 @@ pub trait PsiSqlLogic {
         // Get current records if available
         if let Some(minutes) = timestamps.current_minutes {
             let current_results = Self::get_records(pool, params, minutes).await?;
-
-            debug!("Current results: {:?}", current_results);
             Self::merge_feature_results(current_results, &mut feature_map)?;
         }
 

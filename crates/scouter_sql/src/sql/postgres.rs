@@ -434,6 +434,8 @@ mod tests {
                 drift_type: DriftType::Spc,
                 ..Default::default()
             },
+            &DatabaseSettings::default().retention_period,
+            &ObjectStorageSettings::default(),
         )
         .await
         .unwrap();

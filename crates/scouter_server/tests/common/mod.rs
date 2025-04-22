@@ -160,17 +160,18 @@ impl TestHelper {
         (array, features)
     }
 
-    pub fn get_spc_drift_records(&self) -> ServerRecords {
+    pub fn get_spc_drift_records(&self, time_offset: Option<i64>) -> ServerRecords {
         let mut records: Vec<ServerRecord> = Vec::new();
+        let offset = time_offset.unwrap_or(0);
 
         for _ in 0..10 {
             for j in 0..10 {
                 let record = SpcServerRecord {
-                    created_at: Utc::now(),
+                    created_at: Utc::now() - chrono::Duration::days(offset),
                     space: SPACE.to_string(),
                     name: NAME.to_string(),
                     version: VERSION.to_string(),
-                    feature: format!("test{}", j),
+                    feature: format!("feature_{}", j),
                     value: j as f64,
                 };
 
