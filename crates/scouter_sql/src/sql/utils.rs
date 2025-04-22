@@ -152,7 +152,7 @@ pub struct QueryTimestamps {
 pub fn split_custom_interval(
     begin_datetime: DateTime<Utc>,
     end_datetime: DateTime<Utc>,
-    retention_period: &i64,
+    retention_period: &i32,
 ) -> Result<QueryTimestamps, SqlError> {
     if begin_datetime >= end_datetime {
         return Err(SqlError::InvalidDateRangeError(
@@ -160,7 +160,7 @@ pub fn split_custom_interval(
         ));
     }
 
-    let retention_date = Utc::now() - chrono::Duration::days(*retention_period);
+    let retention_date = Utc::now() - chrono::Duration::days(*retention_period as i64);
     let mut timestamps = QueryTimestamps {
         archived_range: None,
         current_minutes: None,

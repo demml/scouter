@@ -264,7 +264,7 @@ pub mod psi_drifter {
             &self,
             drift_request: &DriftRequest,
             db_pool: &Pool<Postgres>,
-            retention_period: &i64,
+            retention_period: &i32,
             storage_settings: &ObjectStorageSettings,
         ) -> Result<BinnedPsiFeatureMetrics, DriftError> {
             let binned_records = PostgresClient::get_binned_psi_drift_records(

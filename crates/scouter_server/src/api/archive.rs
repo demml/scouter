@@ -2,7 +2,7 @@ use chrono::{Duration, Utc};
 use scouter_dataframe::parquet::dataframe::ParquetDataFrame;
 use scouter_error::ScouterError;
 /// Functionality for persisting data from postgres to long-term storage
-use scouter_settings::{database, DatabaseSettings, ObjectStorageSettings};
+use scouter_settings::ScouterServerConfig;
 use scouter_sql::sql::traits::ArchiveSqlLogic;
 use scouter_sql::{sql::schema::Entity, PostgresClient};
 use scouter_types::{ArchiveRecord, DriftType, RecordType, ServerRecords};
@@ -24,24 +24,31 @@ impl DataArchiver {
     pub async fn start_workers(
         db_pool: &Pool<Postgres>,
         shutdown_rx: watch::Receiver<()>,
+        config: &Arc<ScouterServerConfig>,
     ) -> Result<(), ScouterError> {
         let mut workers = Vec::with_capacity(1);
 
         let pool = db_pool.clone();
-
+        let cloned_config = config.clone();
         let shutdown_rx = shutdown_rx.clone();
         let worker_shutdown_rx = shutdown_rx.clone();
 
         workers.push(tokio::spawn(Self::start_worker(
             0,
             pool,
+            cloned_config,
             worker_shutdown_rx,
         )));
 
         Ok(())
     }
 
-    async fn start_worker(id: usize, db_pool: Pool<Postgres>, mut shutdown: watch::Receiver<()>) {
+    async fn start_worker(
+        id: usize,
+        db_pool: Pool<Postgres>,
+        config: Arc<ScouterServerConfig>,
+        mut shutdown: watch::Receiver<()>,
+    ) {
         // pause the worker for 1 hour after it completes
         let mut interval = tokio::time::interval(Duration::hours(1).to_std().unwrap());
         let mut last_cleanup = None;
@@ -60,7 +67,7 @@ impl DataArchiver {
                     };
 
                     if should_run {
-                        match archive_old_data(&db_pool).await {
+                        match archive_old_data(&db_pool, &config).await {
                             Ok(_) => {
                                 debug!("Archive completed successfully for worker {}", id);
                                 last_cleanup = Some(now);
@@ -79,7 +86,7 @@ impl DataArchiver {
 async fn get_entities_to_archive(
     db_pool: &Pool<Postgres>,
     record_type: &RecordType,
-    retention_period: &i64,
+    retention_period: &i32,
 ) -> Result<Vec<Entity>, ScouterError> {
     // get the data from the database
     let data =
@@ -136,14 +143,17 @@ async fn update_entities_to_archived(
 async fn process_record_type(
     db_pool: &Pool<Postgres>,
     record_type: &RecordType,
-    storage_settings: &Arc<ObjectStorageSettings>,
-    database_settings: &Arc<DatabaseSettings>,
+    config: &Arc<ScouterServerConfig>,
 ) -> Result<bool, ScouterError> {
-    let df = ParquetDataFrame::new(&storage_settings, record_type)?;
+    let df = ParquetDataFrame::new(&config.storage_settings, record_type)?;
 
     // get the entities for archival
-    let entities =
-        get_entities_to_archive(db_pool, record_type, database_settings.retention_period).await?;
+    let entities = get_entities_to_archive(
+        db_pool,
+        record_type,
+        &config.database_settings.retention_period,
+    )
+    .await?;
 
     // exit if no entities
     if entities.is_empty() {
@@ -154,8 +164,7 @@ async fn process_record_type(
     // iterate over the entities and archive the data
     for entity in entities {
         // hold transaction here
-        let mut tx = db_client
-            .pool
+        let mut tx = db_pool
             .begin()
             .await
             .map_err(|e| ScouterError::Error(e.to_string()))?;
@@ -190,7 +199,10 @@ async fn process_record_type(
 /// # Returns
 /// * `Result<(), ScouterError>` - The result of the archival
 #[instrument(skip_all)]
-pub async fn archive_old_data(db_pool: &Pool<Postgres>) -> Result<ArchiveRecord, ScouterError> {
+pub async fn archive_old_data(
+    db_pool: &Pool<Postgres>,
+    config: &Arc<ScouterServerConfig>,
+) -> Result<ArchiveRecord, ScouterError> {
     // get old records
     debug!("Archiving old data");
 
@@ -202,15 +214,15 @@ pub async fn archive_old_data(db_pool: &Pool<Postgres>) -> Result<ArchiveRecord,
         match drift_type {
             DriftType::Psi => {
                 // get the data from the database
-                record.psi = process_record_type(db_pool, &RecordType::Psi).await?;
+                record.psi = process_record_type(db_pool, &RecordType::Psi, config).await?;
             }
             DriftType::Spc => {
                 // get the data from the database
-                record.spc = process_record_type(db_pool, &RecordType::Spc).await?;
+                record.spc = process_record_type(db_pool, &RecordType::Spc, config).await?;
             }
             DriftType::Custom => {
                 // get the data from the database
-                record.custom = process_record_type(db_pool, &RecordType::Custom).await?;
+                record.custom = process_record_type(db_pool, &RecordType::Custom, config).await?;
             }
         }
     }

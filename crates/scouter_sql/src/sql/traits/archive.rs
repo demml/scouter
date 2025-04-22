@@ -24,7 +24,7 @@ pub trait ArchiveSqlLogic {
     async fn get_entities_to_archive(
         pool: &Pool<Postgres>,
         record_type: &RecordType,
-        retention_period: &i64,
+        retention_period: &i32,
     ) -> Result<Vec<Entity>, SqlError> {
         let query = match record_type {
             RecordType::Spc => Queries::GetSpcEntities.get_query(),

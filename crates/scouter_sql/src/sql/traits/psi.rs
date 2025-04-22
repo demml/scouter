@@ -160,7 +160,7 @@ pub trait PsiSqlLogic {
     async fn get_binned_psi_drift_records(
         pool: &Pool<Postgres>,
         params: &DriftRequest,
-        retention_period: &i64,
+        retention_period: &i32,
         storage_settings: &ObjectStorageSettings,
     ) -> Result<Vec<FeatureBinProportionResult>, SqlError> {
         if !params.has_custom_interval() {

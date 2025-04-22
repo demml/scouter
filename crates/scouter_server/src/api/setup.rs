@@ -3,8 +3,7 @@ use crate::api::drift_manager::BackgroundDriftManager;
 use anyhow::{Context, Result as AnyhowResult};
 use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
 use scouter_settings::{
-    DatabaseSettings, KafkaSettings, ObjectStorageSettings, PollingSettings, RabbitMQSettings,
-    ScouterServerConfig,
+    DatabaseSettings, KafkaSettings, PollingSettings, RabbitMQSettings, ScouterServerConfig,
 };
 use scouter_sql::sql::schema::User;
 use scouter_sql::sql::traits::UserSqlLogic;
@@ -188,20 +187,21 @@ pub async fn setup_background_drift_workers(
 /// * `AnyhowResult<()>` - The result of the setup
 pub async fn setup_background_data_archive_workers(
     db_pool: &Pool<Postgres>,
+    config: &Arc<ScouterServerConfig>,
     shutdown_rx: tokio::sync::watch::Receiver<()>,
 ) -> AnyhowResult<()> {
-    DataArchiver::start_workers(&db_pool, shutdown_rx).await?;
+    DataArchiver::start_workers(&db_pool, shutdown_rx, config).await?;
     info!("✅ Started data archive workers");
     Ok(())
 }
 
 #[instrument(skip_all)]
 pub async fn setup_components() -> AnyhowResult<(
-    ScouterServerConfig,
+    Arc<ScouterServerConfig>,
     Pool<Postgres>,
     tokio::sync::watch::Sender<()>,
 )> {
-    let config = ScouterServerConfig::default();
+    let config = Arc::new(ScouterServerConfig::default());
 
     // start logging
     let logging = setup_logging().await;
@@ -234,7 +234,7 @@ pub async fn setup_components() -> AnyhowResult<(
 
     setup_background_drift_workers(&db_pool, &config.polling_settings, shutdown_rx.clone()).await?;
 
-    setup_background_data_archive_workers(&db_pool, shutdown_rx).await?;
+    setup_background_data_archive_workers(&db_pool, &config, shutdown_rx).await?;
 
     Ok((config, db_pool, shutdown_tx))
 }

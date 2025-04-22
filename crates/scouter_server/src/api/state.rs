@@ -8,5 +8,5 @@ pub struct AppState {
     pub db_pool: Pool<Postgres>,
     pub auth_manager: AuthManager,
     pub shutdown_tx: watch::Sender<()>,
-    pub config: ScouterServerConfig,
+    pub config: Arc<ScouterServerConfig>,
 }
