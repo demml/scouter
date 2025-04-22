@@ -7,6 +7,8 @@ use axum::extract::State;
 use axum::{http::header, http::header::HeaderMap, http::StatusCode, routing::get, Json, Router};
 
 use scouter_contracts::ScouterServerError;
+use scouter_sql::sql::traits::UserSqlLogic;
+use scouter_sql::PostgresClient;
 use scouter_types::JwtToken;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
@@ -99,12 +101,14 @@ pub async fn api_login_handler(
     user.refresh_token = Some(refresh_token);
 
     // set refresh token in db
-    state.db.update_user(&user).await.map_err(|e| {
-        (
-            StatusCode::INTERNAL_SERVER_ERROR,
-            Json(ScouterServerError::refresh_token_error(e)),
-        )
-    })?;
+    PostgresClient::update_user(&state.db_pool, &user)
+        .await
+        .map_err(|e| {
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::refresh_token_error(e)),
+            )
+        })?;
 
     Ok(Json(JwtToken { token: jwt_token }))
 }
@@ -156,12 +160,14 @@ pub async fn api_refresh_token_handler(
         user.refresh_token = Some(refresh_token);
 
         // set refresh token in db
-        state.db.update_user(&user).await.map_err(|e| {
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::refresh_token_error(e)),
-            )
-        })?;
+        PostgresClient::update_user(&state.db_pool, &user)
+            .await
+            .map_err(|e| {
+                (
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ScouterServerError::refresh_token_error(e)),
+                )
+            })?;
 
         Ok(Json(JwtToken { token: jwt_token }))
     } else {

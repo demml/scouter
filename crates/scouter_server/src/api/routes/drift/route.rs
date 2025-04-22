@@ -109,7 +109,8 @@ pub async fn get_psi_drift(
     }
     // validate time window
     debug!("Querying drift records: {:?}", params);
-    let feature_metrics = get_binned_psi_feature_metrics(&params, &data.db).await;
+    let feature_metrics =
+        get_binned_psi_feature_metrics(&params, &data.db_pool, &data.config).await;
 
     match feature_metrics {
         Ok(feature_metrics) => Ok(Json(feature_metrics)),
@@ -141,7 +142,7 @@ pub async fn get_custom_drift(
 
     debug!("Querying drift records: {:?}", params);
 
-    let metrics = data.db.get_binned_custom_drift_records(&params).await;
+    let metrics = PostgresClient::get_binned_custom_drift_records(&data.db_pool, &params).await;
 
     match metrics {
         Ok(metrics) => Ok(Json(metrics)),
@@ -156,52 +157,43 @@ pub async fn get_custom_drift(
     }
 }
 
-#[instrument(skip(records, db))]
+#[instrument(skip_all)]
 async fn insert_spc_drift(
     records: &ServerRecords,
-    db: &PostgresClient,
+    db_pool: &Pool<Postgres>,
 ) -> Result<(), ScouterError> {
     let records = records.to_spc_drift_records()?;
 
     for record in records {
-        let _ = db.insert_spc_drift_record(&record).await.map_err(|e| {
-            error!("Failed to insert drift record: {:?}", e);
-            ScouterError::Error(format!("Failed to insert drift record: {:?}", e))
-        })?;
+        PostgresClient::insert_spc_drift_record(&db_pool, &record).await?;
     }
 
     Ok(())
 }
 
-#[instrument(skip(records, db))]
+#[instrument(skip_all)]
 async fn insert_psi_drift(
     records: &ServerRecords,
-    db: &PostgresClient,
+    db_pool: &Pool<Postgres>,
 ) -> Result<(), ScouterError> {
     let records = records.to_psi_drift_records()?;
 
     for record in records {
-        let _ = db.insert_bin_counts(&record).await.map_err(|e| {
-            error!("Failed to insert drift record: {:?}", e);
-            ScouterError::Error(format!("Failed to insert drift record: {:?}", e))
-        })?;
+        PostgresClient::insert_bin_counts(&db_pool, &record).await?;
     }
 
     Ok(())
 }
 
-#[instrument(skip(records, db))]
+#[instrument(skip_all)]
 async fn insert_custom_drift(
     records: &ServerRecords,
-    db: &PostgresClient,
+    db_pool: &Pool<Postgres>,
 ) -> Result<(), ScouterError> {
     let records = records.to_custom_metric_drift_records()?;
 
     for record in records {
-        let _ = db.insert_custom_metric_value(&record).await.map_err(|e| {
-            error!("Failed to insert drift record: {:?}", e);
-            ScouterError::Error(format!("Failed to insert drift record: {:?}", e))
-        })?;
+        PostgresClient::insert_custom_metric_value(&db_pool, &record).await?;
     }
 
     Ok(())
@@ -237,9 +229,9 @@ pub async fn insert_drift(
     };
 
     let result = match record_type {
-        RecordType::Spc => insert_spc_drift(&body, &data.db).await,
-        RecordType::Psi => insert_psi_drift(&body, &data.db).await,
-        RecordType::Custom => insert_custom_drift(&body, &data.db).await,
+        RecordType::Spc => insert_spc_drift(&body, &data.db_pool).await,
+        RecordType::Psi => insert_psi_drift(&body, &data.db_pool).await,
+        RecordType::Custom => insert_custom_drift(&body, &data.db_pool).await,
         _ => Err(ScouterError::Error("Invalid record type".to_string())),
     };
 

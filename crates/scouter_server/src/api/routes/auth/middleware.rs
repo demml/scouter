@@ -11,6 +11,8 @@ use axum::{
 };
 use axum_extra::extract::cookie::CookieJar;
 use scouter_auth::permission::UserPermissions;
+use scouter_sql::sql::traits::UserSqlLogic;
+use scouter_sql::PostgresClient;
 use serde::Serialize;
 use std::sync::Arc;
 use tracing::info;
@@ -114,7 +116,7 @@ pub async fn auth_api_middleware(
                     // Update refresh token in database
                     user.refresh_token = Some(new_refresh_token.clone());
 
-                    if (state.db.update_user(&user).await).is_err() {
+                    if (PostgresClient::update_user(&state.db_pool, &user).await).is_err() {
                         return Err((
                             StatusCode::INTERNAL_SERVER_ERROR,
                             Json(AuthError {
