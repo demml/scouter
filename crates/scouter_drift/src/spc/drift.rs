@@ -8,8 +8,10 @@ pub mod spc_drifter {
     use scouter_contracts::ServiceInfo;
     use scouter_dispatch::AlertDispatcher;
     use scouter_error::DriftError;
+    use scouter_sql::sql::traits::SpcSqlLogic;
     use scouter_sql::PostgresClient;
     use scouter_types::spc::{SpcDriftFeatures, SpcDriftProfile, TaskAlerts};
+    use sqlx::{Pool, Postgres};
     use std::collections::BTreeMap;
     use tracing::error;
     use tracing::info;
@@ -69,13 +71,18 @@ pub mod spc_drifter {
         /// * `Result<QueryResult>` - Query result
         async fn get_drift_features(
             &self,
-            db_client: &PostgresClient,
+            db_pool: &Pool<Postgres>,
             limit_datetime: &DateTime<Utc>,
             features_to_monitor: &[String],
         ) -> Result<SpcDriftArray, DriftError> {
-            let records = db_client
-                .get_spc_drift_records(&self.service_info, limit_datetime, features_to_monitor)
-                .await?;
+            let records = PostgresClient::get_spc_drift_records(
+                db_pool,
+                &self.service_info,
+                limit_datetime,
+                features_to_monitor,
+            )
+            .await
+            .map_err(|e| DriftError::Error(e.to_string()))?;
             Ok(SpcDriftArray::new(records))
         }
 
@@ -92,11 +99,11 @@ pub mod spc_drifter {
         pub async fn compute_drift(
             &self,
             limit_datetime: &DateTime<Utc>,
-            db_client: &PostgresClient,
+            db_pool: &Pool<Postgres>,
         ) -> Result<(Array2<f64>, Vec<String>), DriftError> {
             let drift_features = self
                 .get_drift_features(
-                    db_client,
+                    db_pool,
                     limit_datetime,
                     &self.profile.config.alert_config.features_to_monitor,
                 )
@@ -202,7 +209,7 @@ pub mod spc_drifter {
         /// * `previous_run` - Previous run timestamp
         pub async fn check_for_alerts(
             &self,
-            db_client: &PostgresClient,
+            db_client: &Pool<Postgres>,
             previous_run: DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             info!(
