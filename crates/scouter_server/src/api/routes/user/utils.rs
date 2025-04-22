@@ -4,6 +4,8 @@ use anyhow::Result;
 use axum::{http::StatusCode, Json};
 use scouter_contracts::ScouterServerError;
 use scouter_sql::sql::schema::User;
+use scouter_sql::sql::traits::UserSqlLogic;
+use scouter_sql::PostgresClient;
 use std::sync::Arc;
 use tracing::error;
 
@@ -29,9 +31,7 @@ pub async fn get_user(
     state: &Arc<AppState>,
     username: &str,
 ) -> Result<User, (StatusCode, Json<ScouterServerError>)> {
-    state
-        .db
-        .get_user(username)
+    PostgresClient::get_user(&state.db_pool, username)
         .await
         .map_err(|e| {
             (
