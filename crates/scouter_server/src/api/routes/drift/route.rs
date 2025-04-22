@@ -80,7 +80,7 @@ async fn get_binned_psi_feature_metrics(
         }
     };
 
-    let drifter = PsiDrifter::new(profile.clone());
+    let drifter = PsiDrifter::new(profile);
     Ok(drifter
         .get_binned_drift_map(
             params,
@@ -94,7 +94,7 @@ async fn get_binned_psi_feature_metrics(
 /// This route is used to get the drift data for the PSI visualization
 ///
 /// The route will both psi calculations for each feature and time interval as well as overall bin proportions
-#[instrument(skip(data, params))]
+#[instrument(skip_all)]
 pub async fn get_psi_drift(
     State(data): State<Arc<AppState>>,
     Query(params): Query<DriftRequest>,

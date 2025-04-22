@@ -15,6 +15,7 @@ use scouter_types::{
 };
 use sqlx::{postgres::PgQueryResult, Pool, Postgres};
 use std::collections::BTreeMap;
+use tracing::{debug, instrument};
 
 #[async_trait]
 pub trait PsiSqlLogic {
@@ -157,24 +158,30 @@ pub trait PsiSqlLogic {
     // # Returns
     //
     // * A vector of drift records
+    #[instrument(skip_all)]
     async fn get_binned_psi_drift_records(
         pool: &Pool<Postgres>,
         params: &DriftRequest,
         retention_period: &i32,
         storage_settings: &ObjectStorageSettings,
     ) -> Result<Vec<FeatureBinProportionResult>, SqlError> {
+        debug!("Getting binned PSI drift records for {:?}", params);
         if !params.has_custom_interval() {
+            debug!("No custom interval provided, using default");
             let minutes = params.time_interval.to_minutes();
             return Self::get_records(pool, params, minutes).await;
         }
 
-        let interval = params.clone().custom_interval.unwrap();
+        debug!("Custom interval provided, using custom interval");
+        let interval = params.clone().to_custom_interval().unwrap();
         let timestamps = split_custom_interval(interval.start, interval.end, retention_period)?;
         let mut feature_map = BTreeMap::new();
 
         // Get current records if available
         if let Some(minutes) = timestamps.current_minutes {
             let current_results = Self::get_records(pool, params, minutes).await?;
+
+            debug!("Current results: {:?}", current_results);
             Self::merge_feature_results(current_results, &mut feature_map)?;
         }
 
@@ -189,6 +196,7 @@ pub trait PsiSqlLogic {
                     storage_settings,
                 )
                 .await?;
+
                 Self::merge_feature_results(archived_results, &mut feature_map)?;
             }
         }

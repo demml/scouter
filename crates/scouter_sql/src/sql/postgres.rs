@@ -133,6 +133,9 @@ impl MessageHandler {
     }
 }
 
+/// Runs database integratino tests
+/// Note - binned queries targeting custom intervals with long-term and short-term data are
+/// done in the scouter-server integration tests
 #[cfg(test)]
 mod tests {
 
@@ -429,7 +432,7 @@ mod tests {
                 time_interval: TimeInterval::FiveMinutes,
                 max_data_points: 10,
                 drift_type: DriftType::Spc,
-                custom_interval: None,
+                ..Default::default()
             },
         )
         .await
@@ -496,7 +499,7 @@ mod tests {
                 time_interval: TimeInterval::OneHour,
                 max_data_points: 1000,
                 drift_type: DriftType::Psi,
-                custom_interval: None,
+                ..Default::default()
             },
             &DatabaseSettings::default().retention_period,
             &ObjectStorageSettings::default(),
@@ -570,7 +573,7 @@ mod tests {
                 time_interval: TimeInterval::OneHour,
                 max_data_points: 1000,
                 drift_type: DriftType::Custom,
-                custom_interval: None,
+                ..Default::default()
             },
         )
         .await

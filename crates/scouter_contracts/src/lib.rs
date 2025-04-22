@@ -41,7 +41,8 @@ pub struct DriftRequest {
     pub time_interval: TimeInterval,
     pub max_data_points: i32,
     pub drift_type: DriftType,
-    pub custom_interval: Option<CustomInterval>,
+    pub begin_custom_datetime: Option<DateTime<Utc>>,
+    pub end_custom_datetime: Option<DateTime<Utc>>,
 }
 
 #[pymethods]
@@ -59,6 +60,7 @@ impl DriftRequest {
         begin_datetime: Option<DateTime<Utc>>,
         end_datetime: Option<DateTime<Utc>>,
     ) -> Result<Self, ScouterError> {
+        // validate time interval
         let custom_interval = match (begin_datetime, end_datetime) {
             (Some(begin), Some(end)) => Some(CustomInterval::new(begin, end)?),
             _ => None,
@@ -71,14 +73,44 @@ impl DriftRequest {
             time_interval,
             max_data_points,
             drift_type,
-            custom_interval,
+            begin_custom_datetime: custom_interval.as_ref().map(|interval| interval.start),
+            end_custom_datetime: custom_interval.as_ref().map(|interval| interval.end),
         })
     }
 }
 
 impl DriftRequest {
     pub fn has_custom_interval(&self) -> bool {
-        self.custom_interval.is_some()
+        self.begin_custom_datetime.is_some() && self.end_custom_datetime.is_some()
+    }
+
+    pub fn to_custom_interval(&self) -> Option<CustomInterval> {
+        if self.has_custom_interval() {
+            Some(
+                CustomInterval::new(
+                    self.begin_custom_datetime.unwrap(),
+                    self.end_custom_datetime.unwrap(),
+                )
+                .unwrap(),
+            )
+        } else {
+            None
+        }
+    }
+}
+
+impl Default for DriftRequest {
+    fn default() -> Self {
+        DriftRequest {
+            name: String::new(),
+            space: String::new(),
+            version: String::new(),
+            time_interval: TimeInterval::default(),
+            max_data_points: 0,
+            drift_type: DriftType::default(),
+            begin_custom_datetime: None,
+            end_custom_datetime: None,
+        }
     }
 }
 

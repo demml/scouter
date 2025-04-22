@@ -100,12 +100,13 @@ impl CustomInterval {
 }
 
 #[pyclass(eq)]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub enum TimeInterval {
     FiveMinutes,
     FifteenMinutes,
     ThirtyMinutes,
     OneHour,
+    #[default]
     ThreeHours,
     SixHours,
     TwelveHours,

@@ -82,7 +82,7 @@ impl TestHelper {
         env::set_var("LOG_LEVEL", "debug");
         env::set_var("LOG_JSON", "false");
         env::set_var("POLLING_WORKER_COUNT", "1");
-        env::set_var("DATA_RETENTION_PERIOD", "1");
+        env::set_var("DATA_RETENTION_PERIOD", "5");
 
         if enable_kafka {
             std::env::set_var("KAFKA_BROKERS", "localhost:9092");
@@ -181,15 +181,16 @@ impl TestHelper {
         ServerRecords::new(records)
     }
 
-    pub fn get_psi_drift_records(&self) -> ServerRecords {
+    pub fn get_psi_drift_records(&self, time_offset: Option<i64>) -> ServerRecords {
         let mut records: Vec<ServerRecord> = Vec::new();
+        let offset = time_offset.unwrap_or(0);
 
         for feature in 1..3 {
             for decile in 0..10 {
                 for _ in 0..100 {
                     // add one minute to each record
                     let record = PsiServerRecord {
-                        created_at: Utc::now(),
+                        created_at: Utc::now() - chrono::Duration::days(offset),
                         space: SPACE.to_string(),
                         name: NAME.to_string(),
                         version: VERSION.to_string(),

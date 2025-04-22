@@ -18,8 +18,8 @@ pub mod psi_drifter {
     };
     use sqlx::{Pool, Postgres};
     use std::collections::{BTreeMap, HashMap};
-    use tracing::error;
     use tracing::info;
+    use tracing::{debug, error, instrument};
 
     pub struct PsiDrifter {
         service_info: ServiceInfo,
@@ -260,6 +260,7 @@ pub mod psi_drifter {
         /// * `drift_request` - DriftRequest containing the profile to monitor
         /// * `db_client` - PostgresClient to use for fetching data
         ///
+        #[instrument(skip_all)]
         pub async fn get_binned_drift_map(
             &self,
             drift_request: &DriftRequest,
@@ -267,6 +268,10 @@ pub mod psi_drifter {
             retention_period: &i32,
             storage_settings: &ObjectStorageSettings,
         ) -> Result<BinnedPsiFeatureMetrics, DriftError> {
+            debug!(
+                "Getting binned drift map for {}/{}/{}",
+                self.service_info.space, self.service_info.name, self.service_info.version
+            );
             let binned_records = PostgresClient::get_binned_psi_drift_records(
                 db_pool,
                 drift_request,
