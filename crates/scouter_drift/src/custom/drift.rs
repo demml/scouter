@@ -37,28 +37,30 @@ pub mod custom_drifter {
         ) -> Result<HashMap<String, f64>, DriftError> {
             let metrics: Vec<String> = self.profile.metrics.keys().cloned().collect();
 
-            PostgresClient::get_custom_metric_values(&self.service_info, limit_datetime, &metrics)
-                .await
-                .map_err(|e| {
-                    let msg = format!(
-                        "Error: Unable to obtain custom metric data from DB for {}/{}/{}: {}",
-                        self.service_info.space,
-                        self.service_info.name,
-                        self.service_info.version,
-                        e
-                    );
-                    error!(msg);
-                    DriftError::Error(msg)
-                })
+            PostgresClient::get_custom_metric_values(
+                db_pool,
+                &self.service_info,
+                limit_datetime,
+                &metrics,
+            )
+            .await
+            .map_err(|e| {
+                let msg = format!(
+                    "Error: Unable to obtain custom metric data from DB for {}/{}/{}: {}",
+                    self.service_info.space, self.service_info.name, self.service_info.version, e
+                );
+                error!(msg);
+                DriftError::Error(msg)
+            })
         }
 
         pub async fn get_metric_map(
             &self,
             limit_datetime: &DateTime<Utc>,
-            db_client: &PostgresClient,
+            db_pool: &Pool<Postgres>,
         ) -> Result<Option<HashMap<String, f64>>, DriftError> {
             let metric_map = self
-                .get_observed_custom_metric_values(limit_datetime, db_client)
+                .get_observed_custom_metric_values(limit_datetime, db_pool)
                 .await?;
 
             if metric_map.is_empty() {
@@ -215,7 +217,7 @@ pub mod custom_drifter {
                 self.service_info.space, self.service_info.name, self.service_info.version
             );
 
-            let metric_map = self.get_metric_map(&previous_run, db_client).await?;
+            let metric_map = self.get_metric_map(&previous_run, db_pool).await?;
 
             match metric_map {
                 Some(metric_map) => {
