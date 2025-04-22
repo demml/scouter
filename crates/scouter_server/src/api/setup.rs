@@ -190,7 +190,7 @@ pub async fn setup_background_data_archive_workers(
     config: &Arc<ScouterServerConfig>,
     shutdown_rx: tokio::sync::watch::Receiver<()>,
 ) -> AnyhowResult<()> {
-    DataArchiver::start_workers(&db_pool, shutdown_rx, config).await?;
+    DataArchiver::start_workers(db_pool, shutdown_rx, config).await?;
     info!("✅ Started data archive workers");
     Ok(())
 }

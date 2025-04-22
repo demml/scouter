@@ -48,7 +48,7 @@ pub struct DriftRequest {
 impl DriftRequest {
     #[new]
     #[pyo3(signature = (name, space, version, time_interval, max_data_points, drift_type, begin_datetime=None, end_datetime=None))]
-
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         name: String,
         space: String,

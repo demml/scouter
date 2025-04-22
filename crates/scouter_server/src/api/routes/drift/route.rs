@@ -165,7 +165,7 @@ async fn insert_spc_drift(
     let records = records.to_spc_drift_records()?;
 
     for record in records {
-        PostgresClient::insert_spc_drift_record(&db_pool, &record).await?;
+        PostgresClient::insert_spc_drift_record(db_pool, &record).await?;
     }
 
     Ok(())
@@ -179,7 +179,7 @@ async fn insert_psi_drift(
     let records = records.to_psi_drift_records()?;
 
     for record in records {
-        PostgresClient::insert_bin_counts(&db_pool, &record).await?;
+        PostgresClient::insert_bin_counts(db_pool, &record).await?;
     }
 
     Ok(())
@@ -193,7 +193,7 @@ async fn insert_custom_drift(
     let records = records.to_custom_metric_drift_records()?;
 
     for record in records {
-        PostgresClient::insert_custom_metric_value(&db_pool, &record).await?;
+        PostgresClient::insert_custom_metric_value(db_pool, &record).await?;
     }
 
     Ok(())

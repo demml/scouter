@@ -44,10 +44,7 @@ pub trait AlertSqlLogic {
             .await
             .map_err(SqlError::traced_query_error);
 
-        match query_result {
-            Ok(result) => Ok(result),
-            Err(e) => Err(e),
-        }
+        query_result
     }
 
     /// Get drift alerts from the database
