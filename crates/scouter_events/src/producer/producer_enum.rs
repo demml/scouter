@@ -9,7 +9,7 @@ pub use crate::producer::kafka::KafkaConfig;
 pub use crate::producer::rabbitmq::RabbitMQConfig;
 
 use pyo3::prelude::*;
-use scouter_error::{PyScouterError, ScouterError};
+use scouter_error::{EventError, PyScouterError, ScouterError};
 use scouter_settings::HTTPConfig;
 use scouter_types::ServerRecords;
 use std::sync::Arc;
@@ -27,7 +27,7 @@ pub enum ProducerEnum {
 }
 
 impl ProducerEnum {
-    pub async fn publish(&mut self, message: ServerRecords) -> Result<(), ScouterError> {
+    pub async fn publish(&mut self, message: ServerRecords) -> Result<(), EventError> {
         match self {
             ProducerEnum::HTTP(producer) => producer.publish(message).await,
             #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
@@ -37,7 +37,7 @@ impl ProducerEnum {
         }
     }
 
-    pub async fn flush(&self) -> Result<(), ScouterError> {
+    pub async fn flush(&self) -> Result<(), EventError> {
         match self {
             ProducerEnum::HTTP(producer) => producer.flush().await,
             #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
@@ -175,12 +175,12 @@ impl RustScouterProducer {
         Ok(RustScouterProducer { producer })
     }
 
-    pub async fn publish(&mut self, message: ServerRecords) -> Result<(), ScouterError> {
+    pub async fn publish(&mut self, message: ServerRecords) -> Result<(), EventError> {
         debug!("message length: {}", message.len());
         self.producer.publish(message).await
     }
 
-    pub async fn flush(&self) -> Result<(), ScouterError> {
+    pub async fn flush(&self) -> Result<(), EventError> {
         self.producer.flush().await
     }
 }

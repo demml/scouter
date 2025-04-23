@@ -10,22 +10,22 @@ fn spc_record_from_row(row: &PgRow) -> Result<SpcServerRecord, SqlError> {
     Ok(SpcServerRecord {
         created_at: row
             .try_get("created_at")
-            .map_err(|e| SqlError::GeneralError(format!("Failed to extract created_at: {}", e)))?,
+            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "created_at"))?,
         name: row
             .try_get("name")
-            .map_err(|e| SqlError::GeneralError(format!("Failed to extract name: {}", e)))?,
+            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "name"))?,
         space: row
             .try_get("space")
-            .map_err(|e| SqlError::GeneralError(format!("Failed to extract space: {}", e)))?,
+            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "space"))?,
         version: row
             .try_get("version")
-            .map_err(|e| SqlError::GeneralError(format!("Failed to extract version: {}", e)))?,
+            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "version"))?,
         feature: row
             .try_get("feature")
-            .map_err(|e| SqlError::GeneralError(format!("Failed to extract feature: {}", e)))?,
+            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "feature"))?,
         value: row
             .try_get("value")
-            .map_err(|e| SqlError::GeneralError(format!("Failed to extract value: {}", e)))?,
+            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "value"))?,
     })
 }
 
@@ -33,27 +33,27 @@ fn spc_record_from_row(row: &PgRow) -> Result<SpcServerRecord, SqlError> {
 fn psi_record_from_row(row: &PgRow) -> Result<PsiServerRecord, SqlError> {
     let bin_id: i32 = row
         .try_get("bin_id")
-        .map_err(|e| SqlError::GeneralError(format!("Failed to extract bin_id: {}", e)))?;
+        .map_err(|e| SqlError::traced_failed_to_extract_error(e, "bin_id"))?;
     let bin_count: i32 = row
         .try_get("bin_count")
-        .map_err(|e| SqlError::GeneralError(format!("Failed to extract bin_count: {}", e)))?;
+        .map_err(|e| SqlError::traced_failed_to_extract_error(e, "bin_count"))?;
 
     Ok(PsiServerRecord {
         created_at: row
             .try_get("created_at")
-            .map_err(|e| SqlError::GeneralError(format!("Failed to extract created_at: {}", e)))?,
+            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "created_at"))?,
         name: row
             .try_get("name")
-            .map_err(|e| SqlError::GeneralError(format!("Failed to extract name: {}", e)))?,
+            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "name"))?,
         space: row
             .try_get("space")
-            .map_err(|e| SqlError::GeneralError(format!("Failed to extract space: {}", e)))?,
+            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "space"))?,
         version: row
             .try_get("version")
-            .map_err(|e| SqlError::GeneralError(format!("Failed to extract version: {}", e)))?,
+            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "version"))?,
         feature: row
             .try_get("feature")
-            .map_err(|e| SqlError::GeneralError(format!("Failed to extract feature: {}", e)))?,
+            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "feature"))?,
         bin_id: bin_id as usize,
         bin_count: bin_count as usize,
     })
@@ -64,22 +64,22 @@ fn custom_record_from_row(row: &PgRow) -> Result<CustomMetricServerRecord, SqlEr
     Ok(CustomMetricServerRecord {
         created_at: row
             .try_get("created_at")
-            .map_err(|e| SqlError::GeneralError(format!("Failed to extract created_at: {}", e)))?,
+            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "created_at"))?,
         name: row
             .try_get("name")
-            .map_err(|e| SqlError::GeneralError(format!("Failed to extract name: {}", e)))?,
+            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "name"))?,
         space: row
             .try_get("space")
-            .map_err(|e| SqlError::GeneralError(format!("Failed to extract space: {}", e)))?,
+            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "space"))?,
         version: row
             .try_get("version")
-            .map_err(|e| SqlError::GeneralError(format!("Failed to extract version: {}", e)))?,
+            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "version"))?,
         metric: row
             .try_get("metric")
-            .map_err(|e| SqlError::GeneralError(format!("Failed to extract metric: {}", e)))?,
+            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "metric"))?,
         value: row
             .try_get("value")
-            .map_err(|e| SqlError::GeneralError(format!("Failed to extract value: {}", e)))?,
+            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "value"))?,
     })
 }
 
@@ -104,12 +104,7 @@ pub fn pg_rows_to_server_records(
         RecordType::Spc => |row| Ok(ServerRecord::Spc(spc_record_from_row(row)?)),
         RecordType::Psi => |row| Ok(ServerRecord::Psi(psi_record_from_row(row)?)),
         RecordType::Custom => |row| Ok(ServerRecord::Custom(custom_record_from_row(row)?)),
-        _ => {
-            return Err(SqlError::GeneralError(format!(
-                "Unsupported record type: {:?}",
-                record_type
-            )))
-        }
+        _ => return Err(SqlError::traced_invalid_record_type_error(record_type)),
     };
 
     // Pre-allocate vector with exact capacity needed

@@ -6,7 +6,7 @@ pub mod kafka_consumer {
     use rdkafka::consumer::StreamConsumer;
     use rdkafka::message::BorrowedMessage;
     use rdkafka::message::Message;
-    use scouter_error::ScouterError;
+    use scouter_error::EventError;
     use scouter_settings::{DatabaseSettings, KafkaSettings};
     use scouter_sql::MessageHandler;
     use scouter_sql::PostgresClient;
@@ -37,7 +37,7 @@ pub mod kafka_consumer {
             db_settings: &DatabaseSettings,
             pool: &Pool<Postgres>,
             shutdown_rx: watch::Receiver<()>,
-        ) -> Result<Self, ScouterError> {
+        ) -> Result<Self, EventError> {
             let num_consumers = kafka_settings.num_workers;
             let mut workers = Vec::with_capacity(num_consumers);
 
@@ -118,7 +118,7 @@ pub mod kafka_consumer {
     pub async fn create_kafka_consumer(
         settings: &KafkaSettings,
         config_overrides: Option<HashMap<&str, &str>>,
-    ) -> Result<StreamConsumer, ScouterError> {
+    ) -> Result<StreamConsumer, EventError> {
         let mut config = ClientConfig::new();
 
         config
@@ -149,7 +149,7 @@ pub mod kafka_consumer {
 
         let consumer: StreamConsumer = config
             .create()
-            .map_err(ScouterError::traced_connect_kafka_error)?;
+            .map_err(EventError::traced_connection_error)?;
 
         let topics = settings
             .topics
@@ -159,7 +159,7 @@ pub mod kafka_consumer {
 
         consumer
             .subscribe(&topics)
-            .map_err(ScouterError::traced_subscribe_topic_error)?;
+            .map_err(EventError::traced_subscribe_error)?;
 
         info!("✅ Started consumer for topics: {:?}", topics);
         Ok(consumer)
@@ -167,7 +167,7 @@ pub mod kafka_consumer {
 
     pub async fn process_message(
         message: &BorrowedMessage<'_>,
-    ) -> Result<Option<ServerRecords>, ScouterError> {
+    ) -> Result<Option<ServerRecords>, EventError> {
         let payload = match message.payload_view::<str>() {
             None => {
                 error!("No payload received");

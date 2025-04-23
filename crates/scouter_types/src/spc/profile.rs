@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use scouter_error::ScouterError;
+use scouter_error::{ScouterError, UtilError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -145,7 +145,7 @@ impl SpcDriftConfig {
     pub fn load_from_json_file(path: PathBuf) -> Result<SpcDriftConfig, ScouterError> {
         // deserialize the string to a struct
 
-        let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
+        let file = std::fs::read_to_string(&path).map_err(|_| UtilError::ReadError)?;
 
         serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)
     }
@@ -219,8 +219,9 @@ impl SpcDriftConfig {
 
     pub fn load_map_from_json(path: PathBuf) -> Result<HashMap<String, Value>, ScouterError> {
         // deserialize the string to a struct
-        let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
-        let config = serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)?;
+        let file = std::fs::read_to_string(&path).map_err(|_| UtilError::ReadError)?;
+        let config =
+            serde_json::from_str(&file).map_err(|e| UtilError::DeSerializeError(e.to_string()))?;
         Ok(config)
     }
 }
@@ -314,7 +315,7 @@ impl SpcDriftProfile {
 
     #[staticmethod]
     pub fn from_file(path: PathBuf) -> Result<SpcDriftProfile, ScouterError> {
-        let file = std::fs::read_to_string(&path).map_err(|_| ScouterError::ReadError)?;
+        let file = std::fs::read_to_string(&path).map_err(|_| UtilError::ReadError)?;
 
         serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)
     }

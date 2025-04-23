@@ -9,13 +9,13 @@ pub mod kafka_producer {
         ClientConfig,
     };
     use rusty_logging::logger::LogLevel;
-    use scouter_error::ScouterError;
+    use scouter_error::{EventError, UtilError};
     use scouter_types::ServerRecords;
     use std::result::Result::Ok;
 
     use std::collections::HashMap;
     use std::time::Duration;
-    use tracing::{error, info};
+    use tracing::info;
 
     #[derive(Clone)]
     pub struct KafkaProducer {
@@ -24,20 +24,20 @@ pub mod kafka_producer {
     }
 
     impl KafkaProducer {
-        pub fn new(config: KafkaConfig) -> Result<Self, ScouterError> {
+        pub fn new(config: KafkaConfig) -> Result<Self, EventError> {
             let producer = KafkaProducer::setup_producer(&config.config, &config.log_level)?;
 
             Ok(KafkaProducer { config, producer })
         }
 
-        pub async fn publish(&self, message: ServerRecords) -> Result<(), ScouterError> {
+        pub async fn publish(&self, message: ServerRecords) -> Result<(), EventError> {
             let mut retries = self.config.max_retries;
 
             loop {
                 match self
                     ._publish(message.clone())
                     .await
-                    .map_err(|e| ScouterError::Error(e.to_string()))
+                    .map_err(EventError::traced_publish_error)
                 {
                     Ok(_) => {
                         break;
@@ -45,14 +45,8 @@ pub mod kafka_producer {
                     Err(e) => {
                         retries -= 1;
                         if retries == 0 {
-                            return {
-                                error!("Failed to send message to kafka: {:?}", e.to_string());
-                                Err(ScouterError::Error(format!(
-                                    "Failed to send message to kafka: {:?}",
-                                    e.to_string()
-                                )))
-                            };
-                        }
+                            return Err(e);
+                        };
                     }
                 }
             }
@@ -60,16 +54,16 @@ pub mod kafka_producer {
             Ok(())
         }
 
-        pub fn flush(&self) -> Result<(), ScouterError> {
+        pub fn flush(&self) -> Result<(), EventError> {
             self.producer
                 .flush(Duration::from_millis(self.config.message_timeout_ms))
-                .map_err(|e| ScouterError::Error(e.to_string()))
+                .map_err(EventError::traced_flush_error)
         }
 
         fn setup_producer(
             config: &HashMap<String, String>,
             log_level: &LogLevel,
-        ) -> Result<rdkafka::producer::FutureProducer, ScouterError> {
+        ) -> Result<rdkafka::producer::FutureProducer, EventError> {
             info!("Setting up Kafka producer");
             let mut kafka_config = ClientConfig::new();
 
@@ -88,13 +82,13 @@ pub mod kafka_producer {
             let producer = kafka_config
                 .set_log_level(kafka_log_level)
                 .create()
-                .map_err(|e| ScouterError::Error(e.to_string()))?;
+                .map_err(UtilError::traced_set_log_level_error)?;
 
             info!("Kafka producer setup complete");
             Ok(producer)
         }
 
-        pub async fn _publish(&self, message: ServerRecords) -> Result<(), ScouterError> {
+        pub async fn _publish(&self, message: ServerRecords) -> Result<(), EventError> {
             let serialized_msg = serde_json::to_string(&message).unwrap();
 
             let record: FutureRecord<'_, (), String> =
@@ -105,9 +99,8 @@ pub mod kafka_producer {
                     record,
                     Duration::from_millis(self.config.message_timeout_ms),
                 )
-                .map_err(|(e, _)| ScouterError::Error(e.to_string()))
-                .await
-                .map_err(|e| ScouterError::Error(e.to_string()))?;
+                .map_err(|(e, _)| EventError::traced_send_error(e.to_string()))
+                .await?;
             Ok(())
         }
     }

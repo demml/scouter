@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use rusty_logging::logger::LogLevel;
-use scouter_error::ScouterError;
+use scouter_error::{EventError, ScouterError};
 use std::collections::HashMap;
 use std::env;
 use std::str::FromStr;
@@ -17,7 +17,7 @@ pub enum CompressionType {
 }
 
 impl FromStr for CompressionType {
-    type Err = ScouterError;
+    type Err = EventError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
@@ -26,7 +26,7 @@ impl FromStr for CompressionType {
             "snappy" => Ok(CompressionType::Snappy),
             "lz4" => Ok(CompressionType::Lz4),
             "zstd" => Ok(CompressionType::Zstd),
-            _ => Err(ScouterError::Error("Invalid compression type".to_string())),
+            _ => Err(EventError::InvalidCompressionTypeError),
         }
     }
 }
@@ -44,7 +44,7 @@ impl std::fmt::Display for CompressionType {
     }
 }
 
-fn add_kafka_security(config: &mut HashMap<String, String>) -> Result<(), ScouterError> {
+fn add_kafka_security(config: &mut HashMap<String, String>) -> Result<(), EventError> {
     if !config.contains_key("sasl.username") || !config.contains_key("sasl.password") {
         if let (Ok(sasl_username), Ok(sasl_password)) = (
             env::var("KAFKA_SASL_USERNAME"),
@@ -65,7 +65,7 @@ fn add_kafka_args(
     message_timeout: u64,
     message_max_bytes: i32,
     config: &mut HashMap<String, String>,
-) -> Result<(), ScouterError> {
+) -> Result<(), EventError> {
     config.insert("bootstrap.servers".to_string(), brokers);
     config.insert("compression.type".to_string(), compression.to_string());
     config.insert(

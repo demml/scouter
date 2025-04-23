@@ -44,7 +44,7 @@ impl DataConverterEnum {
             DataType::Numpy => NumpyDataConverter::prepare_data(py, data),
             DataType::Pandas => PandasDataConverter::prepare_data(py, data),
             DataType::Polars => PolarsDataConverter::prepare_data(py, data),
-            _ => Err(ScouterError::Error("Unsupported data type".to_string())),
+            _ => Err(ScouterError::traced_unsupported_data_type_error(data_type)),
         }
     }
 }

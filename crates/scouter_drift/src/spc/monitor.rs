@@ -6,7 +6,7 @@ use ndarray::prelude::*;
 use ndarray::Axis;
 use num_traits::{Float, FromPrimitive, Num};
 use rayon::prelude::*;
-use scouter_error::MonitorError;
+use scouter_error::DriftError;
 use scouter_types::{
     spc::{SpcDriftConfig, SpcDriftProfile, SpcFeatureDriftProfile},
     ServerRecord, ServerRecords, SpcServerRecord,
@@ -74,7 +74,7 @@ impl SpcMonitor {
     /// # Returns
     ///
     /// A 1D array of f64 values
-    pub fn compute_array_mean<F>(&self, x: &ArrayView2<F>) -> Result<Array1<F>, MonitorError>
+    pub fn compute_array_mean<F>(&self, x: &ArrayView2<F>) -> Result<Array1<F>, DriftError>
     where
         F: Float
             + Sync
@@ -86,9 +86,8 @@ impl SpcMonitor {
             + ndarray::ScalarOperand,
         F: Into<f64>,
     {
-        x.mean_axis(Axis(0)).ok_or(MonitorError::ComputeError(
-            "Failed to compute mean".to_string(),
-        ))
+        x.mean_axis(Axis(0))
+            .ok_or(DriftError::traced_compute_error("mean"))
     }
 
     // Computes control limits for a 2D array of data
@@ -109,7 +108,7 @@ impl SpcMonitor {
         num_features: usize,
         features: &[String],
         drift_config: &SpcDriftConfig,
-    ) -> Result<SpcDriftProfile, MonitorError>
+    ) -> Result<SpcDriftProfile, DriftError>
     where
         F: FromPrimitive + Num + Clone + Float + Debug + Sync + Send + ndarray::ScalarOperand,
 
@@ -180,7 +179,7 @@ impl SpcMonitor {
         features: &[String],
         array: &ArrayView2<F>,
         drift_config: &SpcDriftConfig,
-    ) -> Result<SpcDriftProfile, MonitorError>
+    ) -> Result<SpcDriftProfile, DriftError>
     where
         F: Float
             + Sync
@@ -219,7 +218,7 @@ impl SpcMonitor {
         // reshape vec to 2D array
         let sample_data =
             Array::from_shape_vec((sample_vec.len(), features.len() * 2), sample_vec.concat())
-                .map_err(|e| MonitorError::ArrayError(e.to_string()))?;
+                .map_err(DriftError::traced_shape_error)?;
 
         let drift_profile = self.compute_control_limits(
             sample_size,
@@ -247,7 +246,7 @@ impl SpcMonitor {
         array: &ArrayView2<F>,
         sample_size: usize,
         columns: usize,
-    ) -> Result<Array2<f64>, MonitorError>
+    ) -> Result<Array2<f64>, DriftError>
     where
         F: Float
             + Sync
@@ -272,7 +271,7 @@ impl SpcMonitor {
 
         // reshape vec to 2D array
         let sample_data = Array::from_shape_vec((sample_vec.len(), columns), sample_vec.concat())
-            .map_err(|e| MonitorError::ArrayError(e.to_string()))?;
+            .map_err(DriftError::traced_shape_error)?;
         Ok(sample_data)
     }
 
@@ -282,7 +281,7 @@ impl SpcMonitor {
         num_features: usize,
         drift_profile: &SpcDriftProfile,
         features: &[String],
-    ) -> Result<Vec<f64>, MonitorError> {
+    ) -> Result<Vec<f64>, DriftError> {
         let mut drift: Vec<f64> = vec![0.0; num_features];
         for (i, feature) in features.iter().enumerate() {
             // check if feature exists
@@ -290,10 +289,9 @@ impl SpcMonitor {
                 continue;
             }
 
-            let feature_profile = drift_profile
-                .features
-                .get(feature)
-                .ok_or(MonitorError::MissingFeatureError(feature.to_string()))?;
+            let feature_profile = drift_profile.features.get(feature).ok_or(
+                DriftError::traced_missing_feature_error(feature.to_string()),
+            )?;
 
             let value = array[i];
 
@@ -334,7 +332,7 @@ impl SpcMonitor {
         features: &[String],
         array: &ArrayView2<F>, // n x m data array (features and predictions)
         drift_profile: &SpcDriftProfile,
-    ) -> Result<SpcDriftMap, MonitorError>
+    ) -> Result<SpcDriftMap, DriftError>
     where
         F: Float
             + Sync
@@ -351,7 +349,7 @@ impl SpcMonitor {
         // iterate through each feature
         let sample_data = self
             ._sample_data(array, drift_profile.config.sample_size, num_features)
-            .map_err(|e| MonitorError::SampleDataError(e.to_string()))?;
+            .map_err(DriftError::traced_sample_data_error)?;
 
         // iterate through each row of samples
         let drift_array = sample_data
@@ -362,18 +360,18 @@ impl SpcMonitor {
 
                 let drift = self
                     .set_control_drift_value(x, num_features, drift_profile, features)
-                    .map_err(|e| MonitorError::CreateError(e.to_string()))?;
+                    .map_err(DriftError::traced_set_control_value_error)?;
 
                 Ok(drift)
             })
-            .collect::<Result<Vec<_>, MonitorError>>()?;
+            .collect::<Result<Vec<_>, DriftError>>()?;
 
         // check for errors
 
         // convert drift array to 2D array
         let drift_array =
             Array::from_shape_vec((drift_array.len(), num_features), drift_array.concat())
-                .map_err(|e| MonitorError::ArrayError(e.to_string()))?;
+                .map_err(DriftError::traced_shape_error)?;
 
         let mut drift_map = SpcDriftMap::new(
             drift_profile.config.name.clone(),
@@ -409,7 +407,7 @@ impl SpcMonitor {
         features: &[String],
         array: &ArrayView2<F>, // n x m data array (features and predictions)
         drift_profile: &SpcDriftProfile,
-    ) -> Result<ServerRecords, MonitorError>
+    ) -> Result<ServerRecords, DriftError>
     where
         F: Float
             + Sync
@@ -426,7 +424,7 @@ impl SpcMonitor {
         // iterate through each feature
         let sample_data = self
             ._sample_data(array, drift_profile.config.sample_size, num_features)
-            .map_err(|e| MonitorError::SampleDataError(e.to_string()))?; // n x m data array (features and predictions)
+            .map_err(DriftError::traced_sample_data_error)?; // n x m data array (features and predictions)
 
         let mut records = Vec::new();
 
@@ -454,7 +452,7 @@ impl SpcMonitor {
         features: &[String],
         sample_array: &ArrayView2<f64>, // n x m data array (features and predictions)
         drift_profile: &SpcDriftProfile,
-    ) -> Result<Array2<f64>, MonitorError> {
+    ) -> Result<Array2<f64>, DriftError> {
         // iterate through each row of samples
         let num_features = features.len();
         let drift_array = sample_array
@@ -465,20 +463,15 @@ impl SpcMonitor {
 
                 let drift = self
                     .set_control_drift_value(x, num_features, drift_profile, features)
-                    .map_err(|e| {
-                        MonitorError::CreateError(format!(
-                            "Failed to set control drift value: {:?}",
-                            e
-                        ))
-                    })?;
+                    .map_err(DriftError::traced_set_control_value_error)?;
                 Ok(drift)
             })
-            .collect::<Result<Vec<_>, MonitorError>>()?;
+            .collect::<Result<Vec<_>, DriftError>>()?;
 
         // convert drift array to 2D array
         let drift_array =
             Array::from_shape_vec((drift_array.len(), num_features), drift_array.concat())
-                .map_err(|e| MonitorError::ArrayError(e.to_string()))?;
+                .map_err(DriftError::traced_shape_error)?;
 
         Ok(drift_array)
     }

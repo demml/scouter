@@ -11,8 +11,7 @@ use scouter_contracts::{
     DriftAlertRequest, DriftRequest, GetProfileRequest, ObservabilityMetricRequest,
     ProfileStatusRequest, ServiceInfo, UpdateAlertStatus,
 };
-use scouter_error::ScouterError;
-use scouter_error::SqlError;
+use scouter_error::{ScouterError, SqlError, UtilError};
 use scouter_settings::DatabaseSettings;
 use scouter_types::psi::FeatureBinProportionResult;
 use scouter_types::DriftType;
@@ -131,7 +130,7 @@ impl PostgresClient {
         feature: &str,
         alert: &BTreeMap<String, String>,
         drift_type: &DriftType,
-    ) -> Result<PgQueryResult, anyhow::Error> {
+    ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertDriftAlert.get_query();
 
         let query_result: std::result::Result<PgQueryResult, SqlError> = sqlx::query(&query.sql)
@@ -143,17 +142,11 @@ impl PostgresClient {
             .bind(drift_type.to_string())
             .execute(&self.pool)
             .await
-            .map_err(|e| {
-                error!("Failed to insert alert into database: {:?}", e);
-                SqlError::QueryError(format!("{:?}", e))
-            });
+            .map_err(SqlError::traced_query_error);
 
         match query_result {
             Ok(result) => Ok(result),
-            Err(e) => {
-                error!("Failed to insert alert into database: {:?}", e);
-                Err(SqlError::QueryError(format!("{:?}", e)).into())
-            }
+            Err(e) => Err(e),
         }
     }
 
@@ -169,7 +162,7 @@ impl PostgresClient {
     pub async fn get_drift_alerts(
         &self,
         params: &DriftAlertRequest,
-    ) -> Result<Vec<Alert>, ScouterError> {
+    ) -> Result<Vec<Alert>, SqlError> {
         let query = Queries::GetDriftAlerts.get_query().sql;
 
         // check if active (status can be 'active' or  'acknowledged')
@@ -196,14 +189,9 @@ impl PostgresClient {
             .bind(params.limit_datetime)
             .fetch_all(&self.pool)
             .await
-            .map_err(|e| {
-                error!("Failed to get drift alerts from database: {:?}", e);
-                SqlError::QueryError(format!("{:?}", e))
-            });
+            .map_err(SqlError::traced_query_error);
 
-        result
-            .map(|result| result.into_iter().map(|wrapper| wrapper.0).collect())
-            .map_err(ScouterError::from)
+        result.map(|result| result.into_iter().map(|wrapper| wrapper.0).collect())
     }
 
     pub async fn update_drift_alert_status(
@@ -217,17 +205,11 @@ impl PostgresClient {
             .bind(params.active)
             .fetch_one(&self.pool)
             .await
-            .map_err(|e| {
-                error!("Failed to update drift alert status: {:?}", e);
-                SqlError::QueryError(format!("{:?}", e))
-            });
+            .map_err(SqlError::traced_query_error);
 
         match result {
             Ok(result) => Ok(result),
-            Err(e) => {
-                error!("Failed to update drift alert status: {:?}", e);
-                Err(SqlError::QueryError(format!("{:?}", e)))
-            }
+            Err(e) => Err(SqlError::traced_query_error(e.to_string())),
         }
     }
 
@@ -253,11 +235,7 @@ impl PostgresClient {
             .bind(record.value)
             .execute(&self.pool)
             .await
-            .map_err(|e| {
-                let msg = format!("Failed to insert drift record into database: {:?}", e);
-                error!(msg);
-                SqlError::QueryError(msg)
-            })
+            .map_err(SqlError::traced_query_error)
     }
 
     pub async fn insert_bin_counts(
@@ -276,11 +254,7 @@ impl PostgresClient {
             .bind(record.bin_count as i64)
             .execute(&self.pool)
             .await
-            .map_err(|e| {
-                let msg = format!("Failed to insert PSI bin count data into database: {:?}", e);
-                error!(msg);
-                SqlError::QueryError(msg)
-            })
+            .map_err(SqlError::traced_query_error)
     }
 
     // Inserts a drift record into the database
@@ -295,12 +269,10 @@ impl PostgresClient {
         record: &ObservabilityMetrics,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertObservabilityRecord.get_query();
-        let route_metrics = serde_json::to_value(&record.route_metrics).map_err(|e| {
-            error!("Failed to serialize route metrics: {:?}", e);
-            SqlError::GeneralError(format!("{:?}", e))
-        })?;
+        let route_metrics = serde_json::to_value(&record.route_metrics)
+            .map_err(UtilError::traced_serialize_error)?;
 
-        let query_result = sqlx::query(&query.sql)
+        sqlx::query(&query.sql)
             .bind(&record.space)
             .bind(&record.name)
             .bind(&record.version)
@@ -309,25 +281,7 @@ impl PostgresClient {
             .bind(route_metrics)
             .execute(&self.pool)
             .await
-            .map_err(|e| {
-                error!(
-                    "Failed to insert observability record into database: {:?}",
-                    e
-                );
-                SqlError::QueryError(format!("{:?}", e))
-            });
-
-        //drop params
-        match query_result {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                error!(
-                    "Failed to insert observability record into database: {:?}",
-                    e
-                );
-                Err(SqlError::QueryError(format!("{:?}", e)))
-            }
-        }
+            .map_err(SqlError::traced_query_error)
     }
 
     /// Insert a drift profile into the database
@@ -348,19 +302,16 @@ impl PostgresClient {
 
         let current_time = Utc::now();
 
-        let schedule = Schedule::from_str(&base_args.schedule)
-            .map_err(|e| SqlError::GeneralError(e.to_string()))?;
+        let schedule =
+            Schedule::from_str(&base_args.schedule).map_err(UtilError::traced_parse_cron_error)?;
 
         let next_run = schedule
             .upcoming(Utc)
             .take(1)
             .next()
-            .ok_or(SqlError::GeneralError(format!(
-                "Failed to get next run time for cron expression: {}",
-                base_args.schedule
-            )))?;
+            .ok_or(SqlError::traced_get_next_run_error(&base_args.schedule))?;
 
-        let query_result = sqlx::query(&query.sql)
+        sqlx::query(&query.sql)
             .bind(base_args.name)
             .bind(base_args.space)
             .bind(base_args.version)
@@ -373,18 +324,7 @@ impl PostgresClient {
             .bind(current_time)
             .execute(&self.pool)
             .await
-            .map_err(|e| {
-                error!("Failed to insert profile into database: {:?}", e);
-                SqlError::QueryError(format!("{:?}", e))
-            });
-
-        match query_result {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                error!("Failed to insert record into database: {:?}", e);
-                Err(SqlError::QueryError(format!("{:?}", e)))
-            }
-        }
+            .map_err(SqlError::traced_query_error)
     }
 
     /// Update a drift profile in the database
@@ -403,7 +343,7 @@ impl PostgresClient {
         let query = Queries::UpdateDriftProfile.get_query();
         let base_args = drift_profile.get_base_args();
 
-        let query_result = sqlx::query(&query.sql)
+        sqlx::query(&query.sql)
             .bind(drift_profile.to_value())
             .bind(base_args.drift_type.to_string())
             .bind(base_args.name)
@@ -411,18 +351,7 @@ impl PostgresClient {
             .bind(base_args.version)
             .execute(&self.pool)
             .await
-            .map_err(|e| {
-                error!("Failed to update profile in database: {:?}", e);
-                SqlError::QueryError(format!("{:?}", e))
-            });
-
-        match query_result {
-            Ok(result) => Ok(result),
-            Err(e) => {
-                error!("Failed to update data profile: {:?}", e);
-                Err(SqlError::QueryError(format!("{:?}", e)))
-            }
-        }
+            .map_err(SqlError::traced_query_error)
     }
 
     /// Get a drift profile from the database
@@ -435,7 +364,7 @@ impl PostgresClient {
     pub async fn get_drift_profile(
         &self,
         request: &GetProfileRequest,
-    ) -> Result<Option<Value>, ScouterError> {
+    ) -> Result<Option<Value>, SqlError> {
         let query = Queries::GetDriftProfile.get_query();
 
         let result = sqlx::query(&query.sql)
@@ -445,10 +374,7 @@ impl PostgresClient {
             .bind(request.drift_type.to_string())
             .fetch_optional(&self.pool)
             .await
-            .map_err(|e| {
-                error!("Failed to get drift profile from database: {:?}", e);
-                SqlError::QueryError(format!("{:?}", e))
-            })?;
+            .map_err(SqlError::traced_query_error)?;
 
         match result {
             Some(result) => {
@@ -467,10 +393,7 @@ impl PostgresClient {
             .fetch_optional(&mut **transaction)
             .await;
 
-        result.map_err(|e| {
-            error!("Failed to get drift task from database: {:?}", e);
-            SqlError::GeneralError(format!("Failed to get drift task from database: {:?}", e))
-        })
+        result.map_err(SqlError::traced_get_drift_task_error)
     }
 
     /// Update the drift profile run dates in the database
@@ -491,19 +414,13 @@ impl PostgresClient {
     ) -> Result<(), SqlError> {
         let query = Queries::UpdateDriftProfileRunDates.get_query();
 
-        let schedule = Schedule::from_str(schedule).map_err(|_| {
-            error!("Failed to parse cron expression: {}", schedule);
-            SqlError::GeneralError(format!("Failed to parse cron expression: {}", schedule))
-        })?;
+        let schedule = Schedule::from_str(schedule).map_err(UtilError::traced_parse_cron_error)?;
 
         let next_run = schedule
             .upcoming(Utc)
             .take(1)
             .next()
-            .ok_or(SqlError::GeneralError(format!(
-                "Failed to get next run time for cron expression: {}",
-                schedule
-            )))?;
+            .ok_or(SqlError::traced_get_next_run_error(schedule))?;
 
         let query_result = sqlx::query(&query.sql)
             .bind(next_run)
@@ -515,16 +432,7 @@ impl PostgresClient {
 
         match query_result {
             Ok(_) => Ok(()),
-            Err(e) => {
-                error!(
-                    "Failed to update drift profile run dates in database: {:?}",
-                    e
-                );
-                Err(SqlError::GeneralError(format!(
-                    "Failed to update drift profile run dates in database: {:?}",
-                    e
-                )))
-            }
+            Err(e) => Err(SqlError::traced_update_drift_profile_error(e)),
         }
     }
 
@@ -542,10 +450,7 @@ impl PostgresClient {
             .bind(&service_info.version)
             .fetch_all(&self.pool)
             .await
-            .map_err(|e| {
-                error!("Failed to get features from database: {:?}", e);
-                SqlError::GeneralError(format!("Failed to get features from database: {:?}", e))
-            })
+            .map_err(SqlError::traced_get_features_error)
             .map(|result| {
                 result
                     .iter()
@@ -583,10 +488,7 @@ impl PostgresClient {
             .bind(features)
             .fetch_all(&self.pool)
             .await
-            .map_err(|e| {
-                error!("Failed to run query: {:?}", e);
-                SqlError::QueryError(format!("Failed to run query: {:?}", e))
-            })?;
+            .map_err(SqlError::traced_query_error)?;
 
         let feature_drift = records
             .into_iter()
@@ -624,10 +526,7 @@ impl PostgresClient {
                 .fetch_all(&self.pool)
                 .await;
 
-        observability_metrics.map_err(|e| {
-            error!("Failed to run query: {:?}", e);
-            SqlError::QueryError(format!("Failed to run query: {:?}", e))
-        })
+        observability_metrics.map_err(SqlError::traced_query_error)
     }
 
     // Queries the database for drift records based on a time window and aggregation
@@ -646,7 +545,7 @@ impl PostgresClient {
     pub async fn get_binned_spc_drift_records(
         &self,
         params: &DriftRequest,
-    ) -> Result<SpcDriftFeatures, ScouterError> {
+    ) -> Result<SpcDriftFeatures, SqlError> {
         let minutes = params.time_interval.to_minutes();
         let bin = params.time_interval.to_minutes() as f64 / params.max_data_points as f64;
 
@@ -660,10 +559,7 @@ impl PostgresClient {
             .bind(&params.version)
             .fetch_all(&self.pool)
             .await
-            .map_err(|e| {
-                error!("Failed to run query: {:?}", e);
-                SqlError::QueryError(format!("Failed to run query: {:?}", e))
-            })?;
+            .map_err(SqlError::traced_query_error)?;
 
         let feature_drift = records
             .into_iter()
@@ -709,10 +605,7 @@ impl PostgresClient {
             .bind(&params.version)
             .fetch_all(&self.pool)
             .await
-            .map_err(|e| {
-                error!("Failed to run query: {:?}", e);
-                SqlError::QueryError(format!("Failed to run query: {:?}", e))
-            })?
+            .map_err(SqlError::traced_query_error)?
             .into_iter()
             .map(|wrapper: FeatureBinProportionResultWrapper| wrapper.0)
             .collect();
@@ -732,7 +625,7 @@ impl PostgresClient {
     pub async fn get_binned_custom_drift_records(
         &self,
         params: &DriftRequest,
-    ) -> Result<BinnedCustomMetrics, ScouterError> {
+    ) -> Result<BinnedCustomMetrics, SqlError> {
         // get features
 
         let minutes = params.time_interval.to_minutes();
@@ -748,10 +641,7 @@ impl PostgresClient {
             .bind(&params.version)
             .fetch_all(&self.pool)
             .await
-            .map_err(|e| {
-                error!("Failed to run query: {:?}", e);
-                SqlError::QueryError(format!("Failed to run query: {:?}", e))
-            })?;
+            .map_err(SqlError::traced_query_error)?;
 
         Ok(BinnedCustomMetrics::from_vec(
             records.into_iter().map(|wrapper| wrapper.0).collect(),
@@ -778,10 +668,7 @@ impl PostgresClient {
             Ok(_) => Ok(()),
             Err(e) => {
                 error!("Failed to update drift profile status: {:?}", e);
-                Err(SqlError::GeneralError(format!(
-                    "Failed to update drift profile status: {:?}",
-                    e
-                )))
+                Err(SqlError::traced_update_drift_profile_error(e))
             }
         }
     }
@@ -802,13 +689,7 @@ impl PostgresClient {
             .bind(features_to_monitor)
             .fetch_all(&self.pool)
             .await
-            .map_err(|e| {
-                error!("Failed to get bin proportions from database: {:?}", e);
-                SqlError::GeneralError(format!(
-                    "Failed to get bin proportions from database: {:?}",
-                    e
-                ))
-            })?;
+            .map_err(SqlError::traced_get_bin_proportions_error)?;
 
         let binned: FeatureBinProportions = binned.into_iter().map(|wrapper| wrapper.0).collect();
 
@@ -831,13 +712,7 @@ impl PostgresClient {
             .bind(metrics)
             .fetch_all(&self.pool)
             .await
-            .map_err(|e| {
-                error!("Failed to get bin proportions from database: {:?}", e);
-                SqlError::GeneralError(format!(
-                    "Failed to get bin proportions from database: {:?}",
-                    e
-                ))
-            })?;
+            .map_err(SqlError::traced_get_custom_metrics_error)?;
 
         let metric_map = records
             .into_iter()
@@ -869,16 +744,7 @@ impl PostgresClient {
 
         match query_result {
             Ok(result) => Ok(result),
-            Err(e) => {
-                error!(
-                    "Failed to insert custom metric value into database: {:?}",
-                    e
-                );
-                Err(SqlError::GeneralError(format!(
-                    "Failed to insert custom metric value into database: {:?}",
-                    e
-                )))
-            }
+            Err(e) => Err(SqlError::traced_insert_custom_metrics_error(e)),
         }
     }
 
@@ -898,11 +764,7 @@ impl PostgresClient {
             RecordType::Psi => Queries::GetBinCountEntities.get_query(),
             RecordType::Custom => Queries::GetCustomEntities.get_query(),
             _ => {
-                error!("Invalid record type for archival: {:?}", record_type);
-                return Err(SqlError::GeneralError(format!(
-                    "Invalid record type for archival: {:?}",
-                    record_type
-                )));
+                return Err(SqlError::traced_invalid_record_type_error(record_type));
             }
         };
 
@@ -910,10 +772,7 @@ impl PostgresClient {
             .bind(retention_period)
             .fetch_all(&self.pool)
             .await
-            .map_err(|e| {
-                error!("Failed to get entities for archival: {:?}", e);
-                SqlError::GeneralError(format!("Failed to get entities for archival: {:?}", e))
-            })?;
+            .map_err(SqlError::traced_get_entities_error)?;
 
         Ok(entities)
     }
@@ -943,11 +802,7 @@ impl PostgresClient {
             RecordType::Psi => Queries::GetBinCountDataForArchive.get_query(),
             RecordType::Custom => Queries::GetCustomDataForArchive.get_query(),
             _ => {
-                error!("Invalid record type for archival: {:?}", record_type);
-                return Err(SqlError::GeneralError(format!(
-                    "Invalid record type for archival: {:?}",
-                    record_type
-                )));
+                return Err(SqlError::traced_invalid_record_type_error(record_type));
             }
         };
         let rows = sqlx::query(&query.sql)
@@ -958,10 +813,7 @@ impl PostgresClient {
             .bind(version)
             .fetch_all(&mut **tx)
             .await
-            .map_err(|e| {
-                error!("Failed to get data for archival: {:?}", e);
-                SqlError::GeneralError(format!("Failed to get data for archival: {:?}", e))
-            })?;
+            .map_err(SqlError::traced_get_entity_data_error)?;
 
         // need to convert the rows to server records (storage dataframe expects this)
         pg_rows_to_server_records(&rows, record_type)
@@ -981,11 +833,7 @@ impl PostgresClient {
             RecordType::Psi => Queries::UpdateBinCountEntities.get_query(),
             RecordType::Custom => Queries::UpdateCustomEntities.get_query(),
             _ => {
-                error!("Invalid record type for archival: {:?}", record_type);
-                return Err(SqlError::GeneralError(format!(
-                    "Invalid record type for archival: {:?}",
-                    record_type
-                )));
+                return Err(SqlError::traced_invalid_record_type_error(record_type));
             }
         };
         sqlx::query(&query.sql)
@@ -996,22 +844,19 @@ impl PostgresClient {
             .bind(version)
             .execute(&mut **tx)
             .await
-            .map_err(|e| {
-                error!("Failed to get data for archival: {:?}", e);
-                SqlError::GeneralError(format!("Failed to get data for archival: {:?}", e))
-            })?;
+            .map_err(SqlError::traced_get_entity_data_error)?;
 
         Ok(())
     }
 
-    pub async fn insert_user(&self, user: &User) -> Result<(), ScouterError> {
+    pub async fn insert_user(&self, user: &User) -> Result<(), SqlError> {
         let query = Queries::InsertUser.get_query();
 
         let group_permissions = serde_json::to_value(&user.group_permissions)
-            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+            .map_err(UtilError::traced_serialize_error)?;
 
-        let permissions = serde_json::to_value(&user.permissions)
-            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+        let permissions =
+            serde_json::to_value(&user.permissions).map_err(UtilError::traced_serialize_error)?;
 
         sqlx::query(&query.sql)
             .bind(&user.username)
@@ -1022,31 +867,31 @@ impl PostgresClient {
             .bind(user.active)
             .execute(&self.pool)
             .await
-            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+            .map_err(SqlError::traced_query_error)?;
 
         Ok(())
     }
 
-    pub async fn get_user(&self, username: &str) -> Result<Option<User>, ScouterError> {
+    pub async fn get_user(&self, username: &str) -> Result<Option<User>, SqlError> {
         let query = Queries::GetUser.get_query();
 
         let user: Option<User> = sqlx::query_as(&query.sql)
             .bind(username)
             .fetch_optional(&self.pool)
             .await
-            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+            .map_err(SqlError::traced_query_error)?;
 
         Ok(user)
     }
 
-    pub async fn update_user(&self, user: &User) -> Result<(), ScouterError> {
+    pub async fn update_user(&self, user: &User) -> Result<(), SqlError> {
         let query = Queries::UpdateUser.get_query();
 
         let group_permissions = serde_json::to_value(&user.group_permissions)
-            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+            .map_err(UtilError::traced_serialize_error)?;
 
-        let permissions = serde_json::to_value(&user.permissions)
-            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+        let permissions =
+            serde_json::to_value(&user.permissions).map_err(UtilError::traced_serialize_error)?;
 
         sqlx::query(&query.sql)
             .bind(user.active)
@@ -1057,30 +902,30 @@ impl PostgresClient {
             .bind(&user.username)
             .execute(&self.pool)
             .await
-            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+            .map_err(SqlError::traced_query_error)?;
 
         Ok(())
     }
 
-    pub async fn get_users(&self) -> Result<Vec<User>, ScouterError> {
+    pub async fn get_users(&self) -> Result<Vec<User>, SqlError> {
         let query = Queries::GetUsers.get_query();
 
         let users = sqlx::query_as::<_, User>(&query.sql)
             .fetch_all(&self.pool)
             .await
-            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+            .map_err(SqlError::traced_query_error)?;
 
         Ok(users)
     }
 
-    pub async fn is_last_admin(&self, username: &str) -> Result<bool, ScouterError> {
+    pub async fn is_last_admin(&self, username: &str) -> Result<bool, SqlError> {
         // Count admins in the system
         let query = Queries::LastAdmin.get_query();
 
         let admins: Vec<String> = sqlx::query_scalar(&query.sql)
             .fetch_all(&self.pool)
             .await
-            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+            .map_err(SqlError::traced_query_error)?;
 
         // check if length is 1 and the username is the same
         if admins.len() > 1 {
@@ -1096,14 +941,14 @@ impl PostgresClient {
         Ok(admins.len() == 1 && admins[0] == username)
     }
 
-    pub async fn delete_user(&self, username: &str) -> Result<(), ScouterError> {
+    pub async fn delete_user(&self, username: &str) -> Result<(), SqlError> {
         let query = Queries::DeleteUser.get_query();
 
         sqlx::query(&query.sql)
             .bind(username)
             .execute(&self.pool)
             .await
-            .map_err(|e| SqlError::QueryError(format!("{}", e)))?;
+            .map_err(SqlError::traced_query_error)?;
 
         Ok(())
     }

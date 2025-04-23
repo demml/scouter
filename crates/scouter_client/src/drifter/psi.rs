@@ -3,9 +3,10 @@ use ndarray::{concatenate, Array2, Axis};
 use num_traits::{Float, FromPrimitive};
 use numpy::PyReadonlyArray2;
 use scouter_drift::{psi::PsiMonitor, CategoricalFeatureHelpers};
-use scouter_error::ScouterError;
+use scouter_error::{DriftError, ScouterError};
 use scouter_types::psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile};
 use std::collections::HashMap;
+use tracing::instrument;
 
 #[derive(Default)]
 pub struct PsiDrifter {
@@ -48,47 +49,24 @@ impl PsiDrifter {
         Ok(array)
     }
 
+    #[instrument(skip_all)]
     pub fn create_string_drift_profile(
         &mut self,
         array: Vec<Vec<String>>,
         features: Vec<String>,
         mut drift_config: PsiDriftConfig,
     ) -> Result<PsiDriftProfile, ScouterError> {
-        let feature_map = match self.monitor.create_feature_map(&features, &array) {
-            Ok(feature_map) => feature_map,
-            Err(_e) => {
-                let msg = format!("Failed to create feature map: {}", _e);
-                return Err(ScouterError::Error(msg));
-            }
-        };
+        let feature_map = self.monitor.create_feature_map(&features, &array)?;
 
         drift_config.update_feature_map(feature_map.clone());
 
-        let array =
-            match self
-                .monitor
-                .convert_strings_to_ndarray_f32(&features, &array, &feature_map)
-            {
-                Ok(array) => array,
-                Err(_e) => {
-                    return Err(ScouterError::Error(
-                        "Failed to create 2D monitor profile".to_string(),
-                    ));
-                }
-            };
+        let array = self
+            .monitor
+            .convert_strings_to_ndarray_f32(&features, &array, &feature_map)?;
 
         let profile =
-            match self
-                .monitor
-                .create_2d_drift_profile(&features, &array.view(), &drift_config)
-            {
-                Ok(profile) => profile,
-                Err(_e) => {
-                    return Err(ScouterError::Error(
-                        "Failed to create 2D monitor profile".to_string(),
-                    ));
-                }
-            };
+            self.monitor
+                .create_2d_drift_profile(&features, &array.view(), &drift_config)?;
 
         Ok(profile)
     }
@@ -172,7 +150,7 @@ impl PsiDrifter {
                     let array = convert_array_type::<f64>(num_array.unwrap(), &dtype)?;
                     let concatenated =
                         concatenate(Axis(1), &[array.as_array(), string_array.view()])
-                            .map_err(|e| ScouterError::Error(e.to_string()))?;
+                            .map_err(DriftError::traced_shape_error)?;
                     Ok(self.monitor.compute_drift(
                         &features,
                         &concatenated.view(),
@@ -196,7 +174,7 @@ impl PsiDrifter {
                     let array = convert_array_type::<f32>(num_array.unwrap(), &dtype)?;
                     let concatenated =
                         concatenate(Axis(1), &[array.as_array(), string_array.view()])
-                            .map_err(|e| ScouterError::Error(e.to_string()))?;
+                            .map_err(DriftError::traced_shape_error)?;
                     Ok(self.monitor.compute_drift(
                         &features,
                         &concatenated.view(),

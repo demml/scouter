@@ -12,7 +12,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
 use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
-use scouter_error::ScouterError;
+use scouter_error::DataFrameError;
 use scouter_settings::ObjectStorageSettings;
 
 use scouter_types::{
@@ -28,11 +28,11 @@ pub struct CustomMetricDataFrame {
 
 #[async_trait]
 impl ParquetFrame for CustomMetricDataFrame {
-    fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, ScouterError> {
+    fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
         CustomMetricDataFrame::new(storage_settings)
     }
 
-    async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, ScouterError> {
+    async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError> {
         let records = records.to_custom_metric_drift_records()?;
         let batch = self.build_batch(records)?;
 
@@ -40,7 +40,7 @@ impl ParquetFrame for CustomMetricDataFrame {
 
         let df = ctx
             .read_batches(vec![batch])
-            .map_err(|e| ScouterError::Error(format!("Failed to read batches: {}", e)))?;
+            .map_err(DataFrameError::traced_read_batch_error)?;
 
         Ok(df)
     }
@@ -53,7 +53,7 @@ impl ParquetFrame for CustomMetricDataFrame {
         self.object_store.storage_settings.storage_type.clone()
     }
 
-    fn get_session_context(&self) -> Result<SessionContext, ScouterError> {
+    fn get_session_context(&self) -> Result<SessionContext, DataFrameError> {
         Ok(self.object_store.get_session()?)
     }
 
@@ -75,7 +75,7 @@ impl ParquetFrame for CustomMetricDataFrame {
 }
 
 impl CustomMetricDataFrame {
-    pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, ScouterError> {
+    pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
         let schema = Arc::new(Schema::new(vec![
             Field::new(
                 "created_at",
@@ -100,7 +100,7 @@ impl CustomMetricDataFrame {
     fn build_batch(
         &self,
         records: Vec<CustomMetricServerRecord>,
-    ) -> Result<RecordBatch, ScouterError> {
+    ) -> Result<RecordBatch, DataFrameError> {
         let created_at_array = TimestampNanosecondArray::from_iter_values(
             records
                 .iter()
@@ -126,18 +126,18 @@ impl CustomMetricDataFrame {
                 Arc::new(value_array),
             ],
         )
-        .map_err(|e| ScouterError::Error(format!("Failed to create RecordBatch: {}", e)))?;
+        .map_err(DataFrameError::traced_create_batch_error)?;
 
         Ok(batch)
     }
 }
 
-fn extract_created_at(batch: &RecordBatch) -> Result<Vec<DateTime<Utc>>, ScouterError> {
+fn extract_created_at(batch: &RecordBatch) -> Result<Vec<DateTime<Utc>>, DataFrameError> {
     let created_at_list = batch
         .column(1)
         .as_any()
         .downcast_ref::<ListArray>()
-        .ok_or_else(|| ScouterError::Error("Failed to get created_at column".to_string()))?;
+        .ok_or_else(|| DataFrameError::DowncastError("ListArray".to_string()))?;
 
     let created_at_array = created_at_list.value(0);
     Ok(created_at_array
@@ -147,37 +147,37 @@ fn extract_created_at(batch: &RecordBatch) -> Result<Vec<DateTime<Utc>>, Scouter
         .collect())
 }
 
-fn extract_stats(batch: &RecordBatch) -> Result<BinnedCustomMetricStats, ScouterError> {
+fn extract_stats(batch: &RecordBatch) -> Result<BinnedCustomMetricStats, DataFrameError> {
     let stats_list = batch
         .column(2)
         .as_any()
         .downcast_ref::<ListArray>()
-        .ok_or_else(|| ScouterError::Error("Failed to get stats column".to_string()))?
+        .ok_or_else(|| DataFrameError::DowncastError("ListArray".to_string()))?
         .value(0);
 
     let stats_structs = stats_list
         .as_any()
         .downcast_ref::<StructArray>()
-        .ok_or_else(|| ScouterError::Error("Failed to downcast to StructArray".to_string()))?;
+        .ok_or_else(|| DataFrameError::DowncastError("StructArray".to_string()))?;
 
     // extract avg, lower_bound, and upper_bound from the struct
 
     // Extract avg, lower_bound, and upper_bound from the struct
     let avg = stats_structs
         .column_by_name("avg")
-        .ok_or_else(|| ScouterError::Error("Missing avg field".to_string()))?
+        .ok_or_else(|| DataFrameError::MissingFieldError("avg".to_string()))?
         .as_primitive::<Float64Type>()
         .value(0);
 
     let lower_bound = stats_structs
         .column_by_name("lower_bound")
-        .ok_or_else(|| ScouterError::Error("Missing lower_bound field".to_string()))?
+        .ok_or_else(|| DataFrameError::MissingFieldError("lower_bound".to_string()))?
         .as_primitive::<Float64Type>()
         .value(0);
 
     let upper_bound = stats_structs
         .column_by_name("upper_bound")
-        .ok_or_else(|| ScouterError::Error("Missing upper_bound field".to_string()))?
+        .ok_or_else(|| DataFrameError::MissingFieldError("upper_bound".to_string()))?
         .as_primitive::<Float64Type>()
         .value(0);
 
@@ -188,7 +188,7 @@ fn extract_stats(batch: &RecordBatch) -> Result<BinnedCustomMetricStats, Scouter
     })
 }
 
-fn process_custom_record_batch(batch: &RecordBatch) -> Result<BinnedCustomMetric, ScouterError> {
+fn process_custom_record_batch(batch: &RecordBatch) -> Result<BinnedCustomMetric, DataFrameError> {
     let metric_array = batch
         .column(0)
         .as_any()
@@ -214,11 +214,11 @@ fn process_custom_record_batch(batch: &RecordBatch) -> Result<BinnedCustomMetric
 /// * `SpcDriftFeatures` - The converted SpcDriftFeatures
 pub async fn dataframe_to_custom_drift_metrics(
     df: DataFrame,
-) -> Result<BinnedCustomMetrics, ScouterError> {
+) -> Result<BinnedCustomMetrics, DataFrameError> {
     let batches = df
         .collect()
         .await
-        .map_err(|e| ScouterError::Error(format!("Failed to collect batches: {}", e)))?;
+        .map_err(DataFrameError::traced_read_batch_error)?;
 
     let metrics: Vec<BinnedCustomMetric> = batches
         .iter()
