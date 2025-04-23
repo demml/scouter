@@ -78,10 +78,11 @@ impl StorageProvider {
                 let builder = MicrosoftAzureBuilder::from_env()
                     .with_container_name(storage_settings.storage_root())
                     .build()
-                    .map_err(|_| {
-                        StorageError::ObjectStoreError(
-                            "Failed to create Azure file system builder".to_string(),
-                        )
+                    .map_err(|e| {
+                        StorageError::ObjectStoreError(format!(
+                            "Failed to create Azure Storage builder: {}",
+                            e
+                        ))
                     })?;
 
                 StorageProvider::Azure(Arc::new(builder))

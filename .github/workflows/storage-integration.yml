@@ -84,7 +84,7 @@ jobs:
       contents: read
     env:
       SCOUTER_STORAGE_URI: az://${{ secrets.AZURE_CLOUD_BUCKET_NAME }}
-      AZURE_STORAGE_ACCOUNT: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
+      AZURE_STORAGE_ACCOUNT_NAME: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
