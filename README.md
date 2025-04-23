@@ -4,203 +4,146 @@
   <br>
 </h1>
 
-<h2 align="center"><b>Coming Soon: Observability for Machine Learning</b></h2>
+<h2 align="center"><b>Quality Control for Machine Learning Observability and Monitoring</b></h2>
 
 
 <h2 align="center"><a href="https://demml.github.io/scouter/">Doc Site</h2>
 
-# Scouter
+## **What is it?**
 
-Scouter aims to make model monitoring and data profiling simple. No gotchas or extra work needed to get started.
+`Scouter` is a developer-first monitoring and observability toolkit focused on helping you monitoring your machine learning workflows (data, models, genai workflows and more). It is designed to be easy to use, flexible, performant, and extensible, allowing you to customize it to fit your specific needs. It's built on top of the `Rust` programming language and uses `Postgres` as its primary data store.
 
-Highlights:
- - **Fast**: The core logic is written in Rust and exposed as a Python package via Maturin and PyO3. This means super fast array processing and asynchronous execution for small and large datasets.
- - **Simple**: Scouter's python interface is designed to be simple and easy to use. You can get started with just a few lines of code.
- - **Server-Integration**: Scouter can be integrated with the [scouter-server](https://github.com/demml/scouter-server) to provide a centralized monitoring and alerting system for your models. **Note** that the server is still in development and not yet ready for production use.
- - **Data Profiling**: Scouter can be used to profile your data and provide insights into the distributions and quality of your data.
- - **Model Monitoring**: Scouter can be used to monitor your model's performance over time with simple statistics based on process control methodology that is widely used in manufacturing and other industries ([link](https://www.itl.nist.gov/div898/handbook/pmc/section3/pmc31.htm)).
+## Our Current Tasks
+
+[open tasks](https://docs.google.com/spreadsheets/d/1xU0RqYpFwnaj1cuNhTnd-2W8iQm7lBXw99O0Nh9oh0A/edit?usp=sharing)
 
 
-## Current Limitations
+### Developer-First Experience
+- **Zero-friction Integration** - Drop into existing ML workflows in minutes
+- **Type-safe by Design** - Rust in the back, python in the front<sup>*</sup>. Catch errors before they hit production
+- **Dependency Overhead** - One dependency for monitoring and observability. No need to install multiple libraries
+- **Standardized Patterns** - Out of the box and easy to use patterns for common monitoring tasks
+- **Integrations** - Built-in integrations for `FastAPI`, and event-driven workflows with `Kafka` and `RabbitMQ`
 
-- Scouter currently supports 2D arrays that are typically found with tabular data. Support for higher dimensional arrays as seen in computer vision and NLP workloads is planned for future releases.
+### Production Ready
+- **High-Performance Server** - Built with Rust and Axum for speed, reliability and concurrency
+- **Cloud-Ready** - Native support for AWS, GCP, Azure
+- **Modular Design** - Use what you need, leave what you don't
+- **Alerting and Monitoring** - Built-in alerting integrations with `Slack` and `OpsGenie` to notify you and your team when an alert is triggered
+- **Data Retention** - Built-in data retention policies to keep your database clean and performant
+  
+<sup>
+Scouter is written in Rust and is exposed via a Python API built with PyO3.
+</sup>
 
-## Integration with Opsml
+## Quick Start
 
-While Scouter is a standalone model monitoring and data profiling service, it was originally designed to integrate with `opsml`. This integration is currently ongoing and will be released in the future.
+Scouter follows a client and server architecture whereby the client is a lightweight library that can be dropped into any Python application and the server is a Rust-based service that handles the heavy lifting of data collection, storage, and querying (setup separately).
 
-## Getting Started
 
-### Installation
-
+### Install Scouter
 ```bash
 pip install scouter-ml
 ```
 
-### Usage for Model Monitoring
-
-
-```python
-from scouter import Drifter, DriftConfig, DriftMap
-
-# Get data
-data = generate_data()
-
-# Initialize Drifter
-drifter = Drifter()
-
-# Create DriftConfig
-config = DriftConfig(name="model", space="scouter", version="0.1.0")
-
-# Create Drift profile
-profile = drifter.create_drift_profile(data, config)
-print(profile)
-
-```
-
-```json
-{
-  "features": {
-    "feature_1": {
-      "id": "feature_1",
-      "center": -3.9505726402457264,
-      "one_ucl": -1.9357578944262643,
-      "one_lcl": -5.9653873860651885,
-      "two_ucl": 0.07905685139319774,
-      "two_lcl": -7.980202131884651,
-      "three_ucl": 2.0938715972126594,
-      "three_lcl": -9.995016877704112,
-      "timestamp": "2024-06-26T20:43:27.957232"
-    },
-    "feature_2": {
-      "id": "feature_2",
-      "center": -3.8967421987245485,
-      "one_ucl": -1.8347509279483476,
-      "one_lcl": -5.95873346950075,
-      "two_ucl": 0.22724034282785333,
-      "two_lcl": -8.02072474027695,
-      "three_ucl": 2.2892316136040547,
-      "three_lcl": -10.08271601105315,
-      "timestamp": "2024-06-26T20:43:27.957233"
-    },
-    "feature_3": {
-      "id": "feature_3",
-      "center": -4.139930289046504,
-      "one_ucl": -2.0997890884791675,
-      "one_lcl": -6.18007148961384,
-      "two_ucl": -0.05964788791183118,
-      "two_lcl": -8.220212690181176,
-      "three_ucl": 1.980493312655505,
-      "three_lcl": -10.260353890748512,
-      "timestamp": "2024-06-26T20:43:27.957150"
-    },
-    "target": {
-      "id": "target",
-      "center": 4.987,
-      "one_ucl": 7.562620467955954,
-      "one_lcl": 2.4113795320440463,
-      "two_ucl": 10.138240935911908,
-      "two_lcl": -0.16424093591190747,
-      "three_ucl": 12.713861403867861,
-      "three_lcl": -2.7398614038678613,
-      "timestamp": "2024-06-26T20:43:27.957235"
-    }
-  },
-  "config": {
-    "sample_size": 25,
-    "sample": true,
-    "name": "test_app",
-    "space": "statworld",
-    "version": "0.1.0",
-    "alert_config": {
-        "alert_dispatch_type": "Console",
-        "schedule": "0 0 0 * * *",
-        "alert_rule": {
-              "process": {
-                "rule": "4 4 4 8 2 4 1 1",
-                "zones_to_monitor": [
-                  "Zone 1", 
-                  "Zone 2", 
-                  "Zone 3", 
-                  "Zone 4"
-                ]
-              },
-  
-        },
-        "features_to_monitor": [],
-        "alert_kwargs": {}
-    },
-    "feature_map": null,
-    "targets": []
-  },
-  "scouter_version": "0.1.0"
-}
-```
-
-
-The drift profile can then be sent to the `scouter-server` for monitoring and alerting. However, monitoring and alerting can also be done locally.
+### Population Stability Index (PSI) Example - Client
 
 ```python
-new_data = generate_new_data()
+import numpy as np
+import pandas as pd
 
-# Check for drift (use the same profile)
-drift_map: DriftMap = drifter.compute_drift(data, profile)
+from scouter.client import ScouterClient # Get the scouter client in order to interact with the server
+from scouter.drift import Drifter, PsiDriftConfig
 
-# alert generation requires numpy arrays
-drift_array, sample_array, features = drift_map.to_numpy()
+def generate_data() -> pd.DataFrame:
+    """Create a fake data frame for testing"""
+    n = 10_000
+    X_train = np.random.normal(-4, 2.0, size=(n, 4))
+    col_names = []
+    for i in range(0, X_train.shape[1]):
+        col_names.append(f"col_{i}")
+    X = pd.DataFrame(X_train, columns=col_names)
+    return X
 
-alerts = drifter.generate_alerts(drift_array, features, profile.config.alert_rule)
+if __name__ == "__main__":
+  # Drfter class for creating drift profiles
+  drifter = Drifter()
 
-print(alerts)
+  client = ScouterClient()
+
+  # get fake data
+  data = generate_data()
+
+``# Create a psi config
+  psi_config = PsiDriftConfig(
+      name="test",
+      space="test",
+      version="0.0.1",
+      features_to_monitor=["feature_1"],
+  )
+
+  # Create drift profile
+  psi_profile = drifter.create_drift_profile(data, psi_config)
+
+  # register drift profile
+  client.register_profile(psi_profile)
 ```
 
-```json
-{
-  "features": {
-    "feature_1": {
-      "feature": "feature_1",
-      "alerts": [],
-      "indices": {}
-    },
-    "feature_2": {
-      "feature": "feature_2",
-      "alerts": [
-        {
-          "kind": "Consecutive",
-          "zone": "Zone 1"
-        }
-      ],
-      "indices": {
-        "1": [
-          [
-            28,
-            36
-          ]
-        ]
-      }
-    },
-    "feature_3": {
-      "feature": "feature_3",
-      "alerts": [
-        {
-          "kind": "Consecutive",
-          "zone": "Zone 1"
-        }
-      ],
-      "indices": {
-        "1": [
-          [
-            9,
-            17
-          ]
-        ]
-      }
-    },
-    "target": {
-      "feature": "target",
-      "alerts": [],
-      "indices": {}
-    }
-  }
-}
+
+### Custom Metric Example - Client
+
+```python
+import numpy as np
+import pandas as pd
+
+from scouter.client import ScouterClient # Get the scouter client in order to interact with the server
+from scouter.drift import (
+    CustomDriftProfile,
+    CustomMetric,
+    CustomMetricDriftConfig,
+    Drifter,
+    PsiDriftConfig,
+    SpcDriftConfig,
+)
+
+def generate_data() -> pd.DataFrame:
+    """Create a fake data frame for testing"""
+    n = 10_000
+    X_train = np.random.normal(-4, 2.0, size=(n, 4))
+    col_names = []
+    for i in range(0, X_train.shape[1]):
+        col_names.append(f"col_{i}")
+    X = pd.DataFrame(X_train, columns=col_names)
+    return X
+
+if __name__ == "__main__":
+  # Drfter class for creating drift profiles
+  drifter = Drifter()
+
+  client = ScouterClient()
+
+  # get fake data
+  data = generate_data()
+
+``# Create a custom config
+  custom_config = CustomMetricDriftConfig(
+      name="test",
+      space="test",
+      version="0.0.1",
+  )
+
+  # Create drift profile
+  custom_profile = CustomDriftProfile(
+    config=custom_config,
+    metrics=[
+        CustomMetric(
+            name="mae",
+            value=10,
+            alert_threshold=AlertThreshold.Above, # any value above 10 will trigger an alert
+        ),
+    ],
+  )
+
+  # register drift profile
+  client.register_profile(custom_profile)
 ```
