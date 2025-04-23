@@ -4839,6 +4839,7 @@ dependencies = [
  "arrow",
  "arrow-array",
  "async-trait",
+ "base64",
  "chrono",
  "datafusion",
  "futures",

@@ -1,3 +1,4 @@
+use base64::prelude::*;
 use datafusion::prelude::SessionContext;
 use futures::StreamExt;
 use object_store::aws::{AmazonS3, AmazonS3Builder};
@@ -6,11 +7,21 @@ use object_store::gcp::{GoogleCloudStorage, GoogleCloudStorageBuilder};
 use object_store::local::LocalFileSystem;
 use object_store::path::Path;
 use object_store::ObjectStore as ObjStore;
-use scouter_error::StorageError;
+use scouter_error::{StorageError, UtilError};
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::StorageType;
 use std::sync::Arc;
+use tracing::debug;
 use url::Url;
+
+/// Helper function to decode base64 encoded string
+fn decode_base64_str(service_base64_creds: &str) -> Result<String, StorageError> {
+    let decoded = BASE64_STANDARD
+        .decode(service_base64_creds)
+        .map_err(UtilError::traced_decode_base64_error)?;
+
+    Ok(String::from_utf8(decoded).map_err(UtilError::traced_convert_utf8_error)?)
+}
 
 /// Storage provider enum for common object stores
 #[derive(Debug, Clone)]
@@ -25,7 +36,17 @@ impl StorageProvider {
     pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, StorageError> {
         let store = match storage_settings.storage_type {
             StorageType::Google => {
-                let builder = GoogleCloudStorageBuilder::from_env()
+                let mut builder = GoogleCloudStorageBuilder::from_env();
+
+                // Try to use base64 credentials if available
+                if let Ok(base64_creds) = std::env::var("GOOGLE_ACCOUNT_JSON_BASE64") {
+                    let key = decode_base64_str(&base64_creds)?;
+                    builder = builder.with_service_account_key(&key);
+                    debug!("Using base64 encoded service account key for Google Cloud Storage");
+                }
+
+                // Add bucket name and build
+                let storage = builder
                     .with_bucket_name(storage_settings.storage_root())
                     .build()
                     .map_err(|_| {
@@ -34,7 +55,7 @@ impl StorageProvider {
                         )
                     })?;
 
-                StorageProvider::Google(Arc::new(builder))
+                StorageProvider::Google(Arc::new(storage))
             }
             StorageType::Aws => {
                 let builder = AmazonS3Builder::from_env()

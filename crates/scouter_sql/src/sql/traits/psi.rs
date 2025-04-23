@@ -90,6 +90,7 @@ pub trait PsiSqlLogic {
     ///
     /// # Returns
     /// * A vector of drift records
+    #[instrument(skip_all)]
     async fn get_archived_records(
         params: &DriftRequest,
         begin: DateTime<Utc>,

@@ -24,7 +24,13 @@ test.sql:
 
 .PHONY: test.server
 test.server:
-	cargo test -p scouter-server --all-features -- --nocapture --test-threads=1
+	cargo test -p scouter-server --all-features -- --nocapture --test-threads=1 --skip test_server_integration
+
+
+.PHONY: test.drift
+test.server.cloud:
+	cargo test -p scouter-server test_storage_integration_cloud --all-features -- --nocapture --test-threads=1
+
 
 .PHONY: test.drift.executor
 test.drift.executor:

@@ -1,5 +1,6 @@
 use crate::parquet::custom::CustomMetricDataFrame;
 use crate::parquet::psi::PsiDataFrame;
+use crate::parquet::spc::SpcDataFrame;
 use crate::parquet::traits::ParquetFrame;
 use crate::storage::ObjectStore;
 use chrono::{DateTime, Utc};
@@ -7,8 +8,7 @@ use datafusion::prelude::DataFrame;
 use scouter_error::DataFrameError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{RecordType, ServerRecords, StorageType};
-
-use crate::parquet::spc::SpcDataFrame;
+use tracing::instrument;
 
 pub enum ParquetDataFrame {
     CustomMetric(CustomMetricDataFrame),
@@ -41,17 +41,13 @@ impl ParquetDataFrame {
     /// * `rpath` - The path to write the parquet file to. (This path should exclude root path)
     /// * `records` - The records to write to the parquet file.
     ///
+    #[instrument(skip_all, err)]
     pub async fn write_parquet(
         &self,
         rpath: &str,
         records: ServerRecords,
     ) -> Result<(), DataFrameError> {
-        let rpath = if self.storage_type() == StorageType::Local {
-            let storage_path = self.storage_root();
-            &format!("{}/{}", storage_path, rpath)
-        } else {
-            rpath
-        };
+        let rpath = &self.resolve_path(rpath);
 
         match self {
             ParquetDataFrame::CustomMetric(df) => df.write_parquet(rpath, records).await,
@@ -98,26 +94,19 @@ impl ParquetDataFrame {
         name: &str,
         version: &str,
     ) -> Result<DataFrame, DataFrameError> {
-        // set path
-        // if the storage type is local, add the storage root to the path
-        let path = if self.storage_type() == StorageType::Local {
-            let storage_path = self.storage_root();
-            &format!("{}/{}", storage_path, path)
-        } else {
-            &path.to_string()
-        };
+        let read_path = &self.resolve_path(path);
 
         match self {
             ParquetDataFrame::CustomMetric(df) => {
-                df.get_binned_metrics(path, bin, start_time, end_time, space, name, version)
+                df.get_binned_metrics(read_path, bin, start_time, end_time, space, name, version)
                     .await
             }
             ParquetDataFrame::Psi(df) => {
-                df.get_binned_metrics(path, bin, start_time, end_time, space, name, version)
+                df.get_binned_metrics(read_path, bin, start_time, end_time, space, name, version)
                     .await
             }
             ParquetDataFrame::Spc(df) => {
-                df.get_binned_metrics(path, bin, start_time, end_time, space, name, version)
+                df.get_binned_metrics(read_path, bin, start_time, end_time, space, name, version)
                     .await
             }
         }
@@ -132,6 +121,10 @@ impl ParquetDataFrame {
             ParquetDataFrame::Psi(df) => df.object_store.storage_settings.storage_type.clone(),
             ParquetDataFrame::Spc(df) => df.object_store.storage_settings.storage_type.clone(),
         }
+    }
+
+    pub fn resolve_path(&self, path: &str) -> String {
+        format!("{}/{}/", self.storage_root(), path)
     }
 }
 
