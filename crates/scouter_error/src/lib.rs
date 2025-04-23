@@ -31,6 +31,12 @@ pub enum UtilError {
     #[error("Failed to deserialize: {0}")]
     DeSerializeError(String),
 
+    #[error("Failed to decode base64-encoded string: {0}")]
+    DecodeBase64Error(String),
+
+    #[error("Failed to convert string to Utf-8: {0}")]
+    ConvertUtf8Error(String),
+
     #[error("Failed to set log level: {0}")]
     SetLogLevelError(String),
 
@@ -73,6 +79,18 @@ impl UtilError {
         error.trace();
         error
     }
+
+    pub fn traced_decode_base64_error(err: impl Display) -> Self {
+        let error = Self::DecodeBase64Error(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_convert_utf8_error(err: impl Display) -> Self {
+        let error = Self::ConvertUtf8Error(err.to_string());
+        error.trace();
+        error
+    }
 }
 
 #[derive(Error, Debug, Deserialize, PartialEq)]
@@ -97,6 +115,9 @@ pub enum StorageError {
 
     #[error("Failed to read from file: {0}")]
     ReadError(String),
+
+    #[error(transparent)]
+    UtilError(#[from] UtilError),
 }
 
 #[derive(Error, Debug)]

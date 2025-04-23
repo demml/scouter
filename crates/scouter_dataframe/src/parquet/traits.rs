@@ -13,6 +13,7 @@ use scouter_error::DataFrameError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::ServerRecords;
 use scouter_types::StorageType;
+use tracing::instrument;
 
 use std::sync::Arc;
 #[async_trait]
@@ -28,6 +29,7 @@ pub trait ParquetFrame {
     /// * `rpath` - The path to write the parquet file to. (This path should exclude root path)
     /// * `records` - The records to write to the parquet file.
     ///
+    #[instrument(skip_all, err)]
     async fn write_parquet(
         &self,
         rpath: &str,
@@ -105,6 +107,7 @@ pub trait ParquetFrame {
         let file_format = ParquetFormat::new();
         let listing_options = ListingOptions::new(Arc::new(file_format))
             .with_file_extension(".parquet")
+            .with_target_partitions(8)
             .with_table_partition_cols(vec![
                 ("year".to_string(), DataType::Int32),
                 ("month".to_string(), DataType::Int32),

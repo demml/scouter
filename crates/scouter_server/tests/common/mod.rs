@@ -78,8 +78,8 @@ impl TestHelper {
     pub async fn new(enable_kafka: bool, enable_rabbitmq: bool) -> Result<Self, anyhow::Error> {
         TestHelper::cleanup_storage();
 
-        env::set_var("RUST_LOG", "info");
-        env::set_var("LOG_LEVEL", "info");
+        env::set_var("RUST_LOG", "debug");
+        env::set_var("LOG_LEVEL", "debug");
         env::set_var("LOG_JSON", "false");
         env::set_var("POLLING_WORKER_COUNT", "1");
         env::set_var("DATA_RETENTION_PERIOD", "5");

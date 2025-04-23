@@ -22,4 +22,4 @@ SELECT scouter.create_parent(
     '1 day'
 );
 
-UPDATE scouter.part_config SET retention = '21 days' WHERE parent_table = 'scouter.drift_alert';
+UPDATE scouter.part_config SET retention = '365 days' WHERE parent_table = 'scouter.drift_alert';
