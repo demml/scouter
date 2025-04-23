@@ -15,6 +15,8 @@ use password_auth::generate_hash;
 use scouter_auth::permission::UserPermissions;
 use scouter_contracts::{ScouterResponse, ScouterServerError};
 use scouter_sql::sql::schema::User;
+use scouter_sql::sql::traits::UserSqlLogic;
+use scouter_sql::PostgresClient;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::{error, info, instrument};
@@ -24,9 +26,7 @@ pub async fn initialize_users(
     Json(users): Json<Vec<User>>,
 ) -> Result<(), StatusCode> {
     // Only allow initialization if no users exist
-    if !state
-        .db
-        .get_users()
+    if !PostgresClient::get_users(&state.db_pool)
         .await
         .map_err(|e| {
             error!("Failed to check existing users: {}", e);
@@ -38,10 +38,12 @@ pub async fn initialize_users(
     }
 
     for user in users {
-        state.db.insert_user(&user).await.map_err(|e| {
-            error!("Failed to insert user: {}", e);
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+        PostgresClient::insert_user(&state.db_pool, &user)
+            .await
+            .map_err(|e| {
+                error!("Failed to insert user: {}", e);
+                StatusCode::INTERNAL_SERVER_ERROR
+            })?;
     }
 
     Ok(())
@@ -64,7 +66,7 @@ async fn create_user(
     }
 
     // Check if user already exists
-    if let Ok(Some(_)) = state.db.get_user(&create_req.username).await {
+    if let Ok(Some(_)) = PostgresClient::get_user(&state.db_pool, &create_req.username).await {
         return Err((
             StatusCode::CONFLICT,
             Json(ScouterServerError::user_already_exists()),
@@ -89,7 +91,7 @@ async fn create_user(
     }
 
     // Save to database
-    if let Err(e) = state.db.insert_user(&user).await {
+    if let Err(e) = PostgresClient::insert_user(&state.db_pool, &user).await {
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ScouterServerError::create_user_error(e)),
@@ -119,7 +121,7 @@ async fn get_user(
     }
 
     // Get user from database
-    let user = match state.db.get_user(&username).await {
+    let user = match PostgresClient::get_user(&state.db_pool, &username).await {
         Ok(Some(user)) => user,
         Ok(None) => {
             return Err((
@@ -155,7 +157,7 @@ async fn list_users(
     }
 
     // Get users from database
-    let users = match state.db.get_users().await {
+    let users = match PostgresClient::get_users(&state.db_pool).await {
         Ok(users) => users,
         Err(e) => {
             return Err((
@@ -220,7 +222,7 @@ async fn update_user(
     }
 
     // Save updated user to database
-    if let Err(e) = state.db.update_user(&user).await {
+    if let Err(e) = PostgresClient::update_user(&state.db_pool, &user).await {
         error!("Failed to update user: {}", e);
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
@@ -250,7 +252,7 @@ async fn delete_user(
     }
 
     // Prevent deleting the last admin user
-    let is_last_admin = match state.db.is_last_admin(&username).await {
+    let is_last_admin = match PostgresClient::is_last_admin(&state.db_pool, &username).await {
         Ok(is_last) => is_last,
         Err(e) => {
             return Err((
@@ -268,7 +270,7 @@ async fn delete_user(
     }
 
     // Delete the user
-    if let Err(e) = state.db.delete_user(&username).await {
+    if let Err(e) = PostgresClient::delete_user(&state.db_pool, &username).await {
         return Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ScouterServerError::delete_user_error(e)),

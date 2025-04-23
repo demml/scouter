@@ -137,7 +137,7 @@ async fn test_create_spc_profile() {
 #[tokio::test]
 async fn test_spc_server_records() {
     let helper = TestHelper::new(false, false).await.unwrap();
-    let records = helper.get_spc_drift_records();
+    let records = helper.get_spc_drift_records(None);
     let body = serde_json::to_string(&records).unwrap();
 
     let request = Request::builder()
@@ -160,6 +160,7 @@ async fn test_spc_server_records() {
         time_interval: TimeInterval::FiveMinutes,
         max_data_points: 100,
         drift_type: DriftType::Spc,
+        ..Default::default()
     };
 
     let query_string = serde_qs::to_string(&params).unwrap();
@@ -224,7 +225,7 @@ async fn test_psi_server_records() {
     //assert response
     assert_eq!(response.status(), StatusCode::OK);
 
-    let records = helper.get_psi_drift_records();
+    let records = helper.get_psi_drift_records(None);
     let body = serde_json::to_string(&records).unwrap();
 
     let request = Request::builder()
@@ -247,6 +248,7 @@ async fn test_psi_server_records() {
         time_interval: TimeInterval::FiveMinutes,
         max_data_points: 100,
         drift_type: DriftType::Psi,
+        ..Default::default()
     };
 
     let query_string = serde_qs::to_string(&params).unwrap();
@@ -303,7 +305,7 @@ async fn test_custom_server_records() {
     //assert response
     assert_eq!(response.status(), StatusCode::OK);
 
-    let records = helper.get_custom_drift_records();
+    let records = helper.get_custom_drift_records(None);
     let body = serde_json::to_string(&records).unwrap();
 
     let request = Request::builder()
@@ -326,6 +328,7 @@ async fn test_custom_server_records() {
         time_interval: TimeInterval::FiveMinutes,
         max_data_points: 100,
         drift_type: DriftType::Custom,
+        ..Default::default()
     };
 
     let query_string = serde_qs::to_string(&params).unwrap();

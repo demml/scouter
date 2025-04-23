@@ -12,6 +12,12 @@ pub trait TracedError: Display {
     }
 }
 
+#[derive(Error, Debug)]
+pub enum ScouterTypeError {
+    #[error("Failed to construct TimeInterval {0}")]
+    TimeIntervalError(String),
+}
+
 // add tracing trait to ScouterError
 
 #[derive(Error, Debug, Deserialize, PartialEq)]
@@ -24,6 +30,12 @@ pub enum UtilError {
 
     #[error("Failed to deserialize: {0}")]
     DeSerializeError(String),
+
+    #[error("Failed to decode base64-encoded string: {0}")]
+    DecodeBase64Error(String),
+
+    #[error("Failed to convert string to Utf-8: {0}")]
+    ConvertUtf8Error(String),
 
     #[error("Failed to set log level: {0}")]
     SetLogLevelError(String),
@@ -67,6 +79,18 @@ impl UtilError {
         error.trace();
         error
     }
+
+    pub fn traced_decode_base64_error(err: impl Display) -> Self {
+        let error = Self::DecodeBase64Error(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_convert_utf8_error(err: impl Display) -> Self {
+        let error = Self::ConvertUtf8Error(err.to_string());
+        error.trace();
+        error
+    }
 }
 
 #[derive(Error, Debug, Deserialize, PartialEq)]
@@ -91,6 +115,9 @@ pub enum StorageError {
 
     #[error("Failed to read from file: {0}")]
     ReadError(String),
+
+    #[error(transparent)]
+    UtilError(#[from] UtilError),
 }
 
 #[derive(Error, Debug)]
@@ -172,7 +199,7 @@ impl From<FeatureQueueError> for PyErr {
     }
 }
 
-#[derive(Error, Debug, Deserialize, PartialEq)]
+#[derive(Error, Debug, PartialEq)]
 pub enum SqlError {
     #[error("Failed to run sql migrations: {0}")]
     MigrationError(String),
@@ -222,8 +249,17 @@ pub enum SqlError {
     #[error(transparent)]
     UtilError(#[from] UtilError),
 
+    #[error(transparent)]
+    DataFrameError(#[from] DataFrameError),
+
     #[error("Failed to extract value {0} {1}")]
     FailedToExtractError(String, String),
+
+    #[error("Invalid date range: {0}")]
+    InvalidDateRangeError(String),
+
+    #[error("Failed to convert dataframe: {0}")]
+    FailedToConvertDataFrameError(String),
 }
 
 impl TracedError for SqlError {}
@@ -297,6 +333,18 @@ impl SqlError {
 
     pub fn traced_failed_to_extract_error(err: impl Display, field: impl Display) -> Self {
         let error = Self::FailedToExtractError(field.to_string(), err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_connection_error(err: impl Display) -> Self {
+        let error = Self::ConnectionError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_failed_to_convert_dataframe_error(err: impl Display) -> Self {
+        let error = Self::FailedToConvertDataFrameError(err.to_string());
         error.trace();
         error
     }
@@ -461,9 +509,6 @@ pub enum DriftError {
 
     #[error(transparent)]
     ParseIntError(#[from] std::num::ParseIntError),
-
-    #[error(transparent)]
-    SqlError(#[from] SqlError),
 
     #[error("Failed to compute - {0}")]
     ComputeError(String),
@@ -827,6 +872,9 @@ pub enum ScouterError {
 
     #[error(transparent)]
     UtilError(#[from] UtilError),
+
+    #[error(transparent)]
+    ScouterTypeError(#[from] ScouterTypeError),
 
     #[error("Missing value in map")]
     MissingValue,

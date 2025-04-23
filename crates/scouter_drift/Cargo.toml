@@ -15,6 +15,7 @@ description = "Drift logic for Scouter"
 scouter-contracts = { workspace = true }
 scouter-dispatch = { workspace = true }
 scouter-error = { workspace = true }
+scouter-settings = { workspace = true }
 scouter-sql = { workspace = true, optional = true }
 scouter-types = { workspace = true }
 
@@ -41,6 +42,7 @@ approx = { workspace = true }
 ndarray-rand = { workspace = true }
 rand = { workspace = true }
 rusty-logging = { workspace = true }
+scouter-settings = { workspace = true }
 
 
 [features]

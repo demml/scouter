@@ -10,6 +10,8 @@ use scouter_auth::permission::UserPermissions;
 use scouter_contracts::{DriftRequest, GetProfileRequest, ScouterResponse, ScouterServerError};
 use scouter_drift::psi::PsiDrifter;
 use scouter_error::ScouterError;
+use scouter_settings::ScouterServerConfig;
+use scouter_sql::sql::traits::{CustomMetricSqlLogic, ProfileSqlLogic, PsiSqlLogic, SpcSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::{
     custom::BinnedCustomMetrics,
@@ -17,11 +19,12 @@ use scouter_types::{
     spc::SpcDriftFeatures,
     DriftType, RecordType, ServerRecords, ToDriftRecords,
 };
+use sqlx::{Pool, Postgres};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::{debug, error, instrument};
 
-#[instrument(skip(data, params))]
+#[instrument(skip_all)]
 pub async fn get_spc_drift(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
@@ -38,7 +41,13 @@ pub async fn get_spc_drift(
         ));
     }
 
-    let query_result = data.db.get_binned_spc_drift_records(&params).await;
+    let query_result = PostgresClient::get_binned_spc_drift_records(
+        &data.db_pool,
+        &params,
+        &data.config.database_settings.retention_period,
+        &data.config.storage_settings,
+    )
+    .await;
 
     match query_result {
         Ok(result) => Ok(Json(result)),
@@ -53,10 +62,11 @@ pub async fn get_spc_drift(
 }
 
 /// Common method used in both the get_psi_drift and get_psi_viz_drift routes
-#[instrument(skip(params, db))]
+#[instrument(skip_all)]
 async fn get_binned_psi_feature_metrics(
     params: &DriftRequest,
-    db: &PostgresClient,
+    db_pool: &Pool<Postgres>,
+    config: &Arc<ScouterServerConfig>,
 ) -> Result<BinnedPsiFeatureMetrics, ScouterError> {
     debug!("Querying drift records: {:?}", params);
 
@@ -67,7 +77,7 @@ async fn get_binned_psi_feature_metrics(
         drift_type: DriftType::Psi,
     };
 
-    let value = db.get_drift_profile(&profile_request).await?;
+    let value = PostgresClient::get_drift_profile(db_pool, &profile_request).await?;
 
     let profile: PsiDriftProfile = match value {
         Some(profile) => serde_json::from_value(profile).unwrap(),
@@ -76,14 +86,21 @@ async fn get_binned_psi_feature_metrics(
         }
     };
 
-    let drifter = PsiDrifter::new(profile.clone());
-    Ok(drifter.get_binned_drift_map(params, db).await?)
+    let drifter = PsiDrifter::new(profile);
+    Ok(drifter
+        .get_binned_drift_map(
+            params,
+            db_pool,
+            &config.database_settings.retention_period,
+            &config.storage_settings,
+        )
+        .await?)
 }
 
 /// This route is used to get the drift data for the PSI visualization
 ///
 /// The route will both psi calculations for each feature and time interval as well as overall bin proportions
-#[instrument(skip(data, params))]
+#[instrument(skip_all)]
 pub async fn get_psi_drift(
     State(data): State<Arc<AppState>>,
     Query(params): Query<DriftRequest>,
@@ -98,7 +115,8 @@ pub async fn get_psi_drift(
     }
     // validate time window
     debug!("Querying drift records: {:?}", params);
-    let feature_metrics = get_binned_psi_feature_metrics(&params, &data.db).await;
+    let feature_metrics =
+        get_binned_psi_feature_metrics(&params, &data.db_pool, &data.config).await;
 
     match feature_metrics {
         Ok(feature_metrics) => Ok(Json(feature_metrics)),
@@ -113,7 +131,7 @@ pub async fn get_psi_drift(
     }
 }
 
-#[instrument(skip(data, params))]
+#[instrument(skip_all)]
 pub async fn get_custom_drift(
     State(data): State<Arc<AppState>>,
     Query(params): Query<DriftRequest>,
@@ -128,9 +146,13 @@ pub async fn get_custom_drift(
         ));
     }
 
-    debug!("Querying drift records: {:?}", params);
-
-    let metrics = data.db.get_binned_custom_drift_records(&params).await;
+    let metrics = PostgresClient::get_binned_custom_drift_records(
+        &data.db_pool,
+        &params,
+        &data.config.database_settings.retention_period,
+        &data.config.storage_settings,
+    )
+    .await;
 
     match metrics {
         Ok(metrics) => Ok(Json(metrics)),
@@ -145,52 +167,43 @@ pub async fn get_custom_drift(
     }
 }
 
-#[instrument(skip(records, db))]
+#[instrument(skip_all)]
 async fn insert_spc_drift(
     records: &ServerRecords,
-    db: &PostgresClient,
+    db_pool: &Pool<Postgres>,
 ) -> Result<(), ScouterError> {
     let records = records.to_spc_drift_records()?;
 
     for record in records {
-        let _ = db.insert_spc_drift_record(&record).await.map_err(|e| {
-            error!("Failed to insert drift record: {:?}", e);
-            ScouterError::Error(format!("Failed to insert drift record: {:?}", e))
-        })?;
+        PostgresClient::insert_spc_drift_record(db_pool, &record).await?;
     }
 
     Ok(())
 }
 
-#[instrument(skip(records, db))]
+#[instrument(skip_all)]
 async fn insert_psi_drift(
     records: &ServerRecords,
-    db: &PostgresClient,
+    db_pool: &Pool<Postgres>,
 ) -> Result<(), ScouterError> {
     let records = records.to_psi_drift_records()?;
 
     for record in records {
-        let _ = db.insert_bin_counts(&record).await.map_err(|e| {
-            error!("Failed to insert drift record: {:?}", e);
-            ScouterError::Error(format!("Failed to insert drift record: {:?}", e))
-        })?;
+        PostgresClient::insert_bin_counts(db_pool, &record).await?;
     }
 
     Ok(())
 }
 
-#[instrument(skip(records, db))]
+#[instrument(skip_all)]
 async fn insert_custom_drift(
     records: &ServerRecords,
-    db: &PostgresClient,
+    db_pool: &Pool<Postgres>,
 ) -> Result<(), ScouterError> {
     let records = records.to_custom_metric_drift_records()?;
 
     for record in records {
-        let _ = db.insert_custom_metric_value(&record).await.map_err(|e| {
-            error!("Failed to insert drift record: {:?}", e);
-            ScouterError::Error(format!("Failed to insert drift record: {:?}", e))
-        })?;
+        PostgresClient::insert_custom_metric_value(db_pool, &record).await?;
     }
 
     Ok(())
@@ -226,9 +239,9 @@ pub async fn insert_drift(
     };
 
     let result = match record_type {
-        RecordType::Spc => insert_spc_drift(&body, &data.db).await,
-        RecordType::Psi => insert_psi_drift(&body, &data.db).await,
-        RecordType::Custom => insert_custom_drift(&body, &data.db).await,
+        RecordType::Spc => insert_spc_drift(&body, &data.db_pool).await,
+        RecordType::Psi => insert_psi_drift(&body, &data.db_pool).await,
+        RecordType::Custom => insert_custom_drift(&body, &data.db_pool).await,
         _ => Err(ScouterError::Error("Invalid record type".to_string())),
     };
 

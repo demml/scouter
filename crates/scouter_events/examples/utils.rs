@@ -61,7 +61,7 @@ pub async fn cleanup(pool: &Pool<Postgres>) -> Result<(), sqlx::Error> {
 
 pub struct TestHelper {
     pub config: ScouterServerConfig,
-    pub db_client: PostgresClient,
+    pub db_pool: Pool<Postgres>,
 }
 
 impl TestHelper {
@@ -71,11 +71,13 @@ impl TestHelper {
 
         let config = ScouterServerConfig::default();
 
-        let db_client = PostgresClient::new(None, None).await.unwrap();
+        let db_pool = PostgresClient::create_db_pool(&config.database_settings)
+            .await
+            .unwrap();
 
-        cleanup(&db_client.pool).await.unwrap();
+        cleanup(&db_pool).await.unwrap();
 
-        Self { config, db_client }
+        Self { config, db_pool }
     }
 }
 

@@ -10,6 +10,7 @@ use scouter_auth::auth::AuthManager;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
+use tracing::error;
 use tracing::info;
 
 /// Create the main server
@@ -26,10 +27,10 @@ use tracing::info;
 pub async fn create_app() -> Result<(Router, Arc<AppState>), anyhow::Error> {
     // setup logging, soft fail if it fails
 
-    let (config, db_client, shutdown_tx) = setup_components().await?;
+    let (config, db_pool, shutdown_tx) = setup_components().await?;
 
     let app_state = Arc::new(AppState {
-        db: db_client,
+        db_pool,
         shutdown_tx,
         auth_manager: AuthManager::new(
             &config.auth_settings.jwt_secret,
@@ -74,7 +75,7 @@ pub fn start_server_in_background() -> Arc<Mutex<Option<JoinHandle<()>>>> {
     tokio::spawn(async move {
         let server_handle = tokio::spawn(async {
             if let Err(e) = start_server().await {
-                eprintln!("Server error: {}", e);
+                error!("Server error: {}", e);
             }
         });
 

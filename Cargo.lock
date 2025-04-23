@@ -4839,6 +4839,7 @@ dependencies = [
  "arrow",
  "arrow-array",
  "async-trait",
+ "base64",
  "chrono",
  "datafusion",
  "futures",
@@ -4892,6 +4893,7 @@ dependencies = [
  "scouter-contracts",
  "scouter-dispatch",
  "scouter-error",
+ "scouter-settings",
  "scouter-sql",
  "scouter-types",
  "serde",
@@ -5040,10 +5042,12 @@ name = "scouter-sql"
 version = "0.4.5"
 dependencies = [
  "anyhow",
+ "async-trait",
  "chrono",
  "cron",
  "rand 0.9.0",
  "scouter-contracts",
+ "scouter-dataframe",
  "scouter-error",
  "scouter-settings",
  "scouter-types",

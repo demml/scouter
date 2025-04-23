@@ -14,13 +14,16 @@ use tracing::error;
 use crate::api::state::AppState;
 use anyhow::{Context, Result};
 use axum::{routing::get, Router};
+use scouter_sql::sql::traits::ObservabilitySqlLogic;
+use scouter_sql::PostgresClient;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 pub async fn get_observability_metrics(
     State(data): State<Arc<AppState>>,
     params: Query<ObservabilityMetricRequest>,
 ) -> Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)> {
-    let query_result = &data.db.get_binned_observability_metrics(&params).await;
+    let query_result =
+        PostgresClient::get_binned_observability_metrics(&data.db_pool, &params).await;
 
     match query_result {
         Ok(result) => {

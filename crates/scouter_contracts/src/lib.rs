@@ -2,6 +2,8 @@ use std::fmt::Display;
 
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
+use scouter_error::ScouterError;
+use scouter_types::CustomInterval;
 use scouter_types::{DriftType, TimeInterval};
 use serde::Deserialize;
 use serde::Serialize;
@@ -31,20 +33,23 @@ impl GetProfileRequest {
 }
 
 #[pyclass]
-#[derive(Serialize, Deserialize, Debug, Clone)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct DriftRequest {
-    pub name: String,
     pub space: String,
+    pub name: String,
     pub version: String,
     pub time_interval: TimeInterval,
     pub max_data_points: i32,
     pub drift_type: DriftType,
+    pub begin_custom_datetime: Option<DateTime<Utc>>,
+    pub end_custom_datetime: Option<DateTime<Utc>>,
 }
 
 #[pymethods]
 impl DriftRequest {
     #[new]
-    #[pyo3(signature = (name, space, version, time_interval, max_data_points, drift_type))]
+    #[pyo3(signature = (name, space, version, time_interval, max_data_points, drift_type, begin_datetime=None, end_datetime=None))]
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         name: String,
         space: String,
@@ -52,14 +57,44 @@ impl DriftRequest {
         time_interval: TimeInterval,
         max_data_points: i32,
         drift_type: DriftType,
-    ) -> Self {
-        DriftRequest {
+        begin_datetime: Option<DateTime<Utc>>,
+        end_datetime: Option<DateTime<Utc>>,
+    ) -> Result<Self, ScouterError> {
+        // validate time interval
+        let custom_interval = match (begin_datetime, end_datetime) {
+            (Some(begin), Some(end)) => Some(CustomInterval::new(begin, end)?),
+            _ => None,
+        };
+
+        Ok(DriftRequest {
             name,
             space,
             version,
             time_interval,
             max_data_points,
             drift_type,
+            begin_custom_datetime: custom_interval.as_ref().map(|interval| interval.start),
+            end_custom_datetime: custom_interval.as_ref().map(|interval| interval.end),
+        })
+    }
+}
+
+impl DriftRequest {
+    pub fn has_custom_interval(&self) -> bool {
+        self.begin_custom_datetime.is_some() && self.end_custom_datetime.is_some()
+    }
+
+    pub fn to_custom_interval(&self) -> Option<CustomInterval> {
+        if self.has_custom_interval() {
+            Some(
+                CustomInterval::new(
+                    self.begin_custom_datetime.unwrap(),
+                    self.end_custom_datetime.unwrap(),
+                )
+                .unwrap(),
+            )
+        } else {
+            None
         }
     }
 }

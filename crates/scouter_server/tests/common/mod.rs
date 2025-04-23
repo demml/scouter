@@ -7,19 +7,20 @@ use axum::{
 };
 use chrono::Utc;
 use http_body_util::BodyExt;
-use rand::Rng;
-use scouter_server::create_app;
-use scouter_types::{CustomMetricServerRecord, PsiServerRecord};
-use scouter_types::{ServerRecord, ServerRecords, SpcServerRecord};
-// for `collect`
 use ndarray::Array;
 use ndarray_rand::rand_distr::Uniform;
 use ndarray_rand::RandomExt;
+use rand::Rng;
+use scouter_server::create_app;
 use scouter_settings::ObjectStorageSettings;
+use scouter_settings::{DatabaseSettings, ScouterServerConfig};
 use scouter_sql::PostgresClient;
 use scouter_types::JwtToken;
+use scouter_types::{CustomMetricServerRecord, PsiServerRecord};
+use scouter_types::{ServerRecord, ServerRecords, SpcServerRecord};
 use sqlx::{PgPool, Pool, Postgres};
 use std::env;
+use std::sync::Arc;
 use tower::util::ServiceExt;
 
 pub const SPACE: &str = "space";
@@ -61,7 +62,8 @@ pub async fn cleanup(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> {
 pub struct TestHelper {
     app: Router,
     token: JwtToken,
-    pool: PgPool,
+    pub pool: PgPool,
+    pub config: Arc<ScouterServerConfig>,
 }
 
 impl TestHelper {
@@ -80,6 +82,7 @@ impl TestHelper {
         env::set_var("LOG_LEVEL", "debug");
         env::set_var("LOG_JSON", "false");
         env::set_var("POLLING_WORKER_COUNT", "1");
+        env::set_var("DATA_RETENTION_PERIOD", "5");
 
         if enable_kafka {
             std::env::set_var("KAFKA_BROKERS", "localhost:9092");
@@ -89,19 +92,20 @@ impl TestHelper {
             std::env::set_var("RABBITMQ_ADDR", "amqp://guest:guest@127.0.0.1:5672/%2f");
         }
 
-        let db_client = PostgresClient::new(None, None)
+        let db_pool = PostgresClient::create_db_pool(&DatabaseSettings::default())
             .await
-            .with_context(|| "Failed to create Postgres client")?;
+            .context("Failed to create Postgres client")?;
 
-        cleanup(&db_client.pool).await?;
+        cleanup(&db_pool).await?;
 
-        let (app, _app_state) = create_app().await?;
+        let (app, app_state) = create_app().await?;
         let token = TestHelper::login(&app).await;
 
         Ok(Self {
             app,
             token,
-            pool: db_client.pool.clone(),
+            pool: db_pool,
+            config: app_state.config.clone(),
         })
     }
 
@@ -156,17 +160,18 @@ impl TestHelper {
         (array, features)
     }
 
-    pub fn get_spc_drift_records(&self) -> ServerRecords {
+    pub fn get_spc_drift_records(&self, time_offset: Option<i64>) -> ServerRecords {
         let mut records: Vec<ServerRecord> = Vec::new();
+        let offset = time_offset.unwrap_or(0);
 
         for _ in 0..10 {
             for j in 0..10 {
                 let record = SpcServerRecord {
-                    created_at: Utc::now(),
+                    created_at: Utc::now() - chrono::Duration::days(offset),
                     space: SPACE.to_string(),
                     name: NAME.to_string(),
                     version: VERSION.to_string(),
-                    feature: format!("test{}", j),
+                    feature: format!("feature_{}", j),
                     value: j as f64,
                 };
 
@@ -177,15 +182,16 @@ impl TestHelper {
         ServerRecords::new(records)
     }
 
-    pub fn get_psi_drift_records(&self) -> ServerRecords {
+    pub fn get_psi_drift_records(&self, time_offset: Option<i64>) -> ServerRecords {
         let mut records: Vec<ServerRecord> = Vec::new();
+        let offset = time_offset.unwrap_or(0);
 
         for feature in 1..3 {
             for decile in 0..10 {
                 for _ in 0..100 {
                     // add one minute to each record
                     let record = PsiServerRecord {
-                        created_at: Utc::now(),
+                        created_at: Utc::now() - chrono::Duration::days(offset),
                         space: SPACE.to_string(),
                         name: NAME.to_string(),
                         version: VERSION.to_string(),
@@ -201,16 +207,17 @@ impl TestHelper {
         ServerRecords::new(records)
     }
 
-    pub fn get_custom_drift_records(&self) -> ServerRecords {
+    pub fn get_custom_drift_records(&self, time_offset: Option<i64>) -> ServerRecords {
         let mut records: Vec<ServerRecord> = Vec::new();
+        let offset = time_offset.unwrap_or(0);
         for i in 0..2 {
-            for _ in 0..25 {
+            for _ in 0..50 {
                 let record = CustomMetricServerRecord {
-                    created_at: Utc::now(),
+                    created_at: Utc::now() - chrono::Duration::days(offset),
                     space: SPACE.to_string(),
                     name: NAME.to_string(),
                     version: VERSION.to_string(),
-                    metric: format!("metric{}", i),
+                    metric: format!("metric_{}", i),
                     value: rand::rng().random_range(0..10) as f64,
                 };
 
@@ -230,9 +237,10 @@ impl TestHelper {
         Ok(())
     }
 
-    pub async fn get_db_client(&self) -> PostgresClient {
-        PostgresClient::new(Some(self.pool.clone()), None)
+    pub async fn get_db_pool(&self) -> Pool<Postgres> {
+        PostgresClient::create_db_pool(&DatabaseSettings::default())
             .await
+            .context("Failed to create Postgres client")
             .unwrap()
     }
 }
