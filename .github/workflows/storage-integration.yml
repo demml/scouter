@@ -78,13 +78,14 @@ jobs:
           RUST_BACKTRACE: 1
 
   azure-test:
-    needs: gcs-test
+    #needs: gcs-test
     permissions:
       id-token: write
       contents: read
     env:
       SCOUTER_STORAGE_URI: az://${{ secrets.AZURE_CLOUD_BUCKET_NAME }}
       AZURE_STORAGE_ACCOUNT_NAME: ${{ secrets.AZURE_STORAGE_ACCOUNT }}
+      USE_AZURE_CLI: true
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
