@@ -20,4 +20,4 @@ SELECT scouter.create_parent(
                '1 day'
 );
 
-UPDATE scouter.part_config SET retention = '7 days' WHERE parent_table = 'scouter.observed_bin_count';
+UPDATE scouter.part_config SET retention = '60 days' WHERE parent_table = 'scouter.observed_bin_count';
