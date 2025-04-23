@@ -78,7 +78,7 @@ jobs:
           RUST_BACKTRACE: 1
 
   azure-test:
-    #needs: gcs-test
+    needs: gcs-test
     permissions:
       id-token: write
       contents: read
