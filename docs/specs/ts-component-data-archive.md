@@ -29,8 +29,6 @@ Accepted environment variables are:
 
 In addition to `ObjectStorageSettings`, `DatabaseSettings` now takes on an additional environment variable `DATA_RETENTION_PERIOD` which indicates how long data should be retained in the database before moving it to long-term storage. Note this is only for **copying** data to long-term storage. The actual deletion of data is still handled by `pgCron`. The default value is 60 days.
 
-```rust
-
 ## Component Architecture
 
 <img src="./assets/scouter-data-retention.png" alt="Data Archive Architecture" style="display: block; margin: 0 auto;" width="1000"/>
