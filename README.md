@@ -43,7 +43,7 @@ Scouter follows a client and server architecture whereby the client is a lightwe
 
 ### Install Scouter
 ```bash
-pip install scouter
+pip install scouter-ml
 ```
 
 ### Population Stability Index (PSI) Example - Client
