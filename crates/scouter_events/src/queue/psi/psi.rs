@@ -7,7 +7,6 @@ use crossbeam_queue::ArrayQueue;
 use scouter_error::EventError;
 use scouter_types::psi::PsiDriftProfile;
 use scouter_types::Features;
-use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::sync::watch;
@@ -19,7 +18,6 @@ pub struct PsiQueue {
     queue: Arc<ArrayQueue<Features>>,
     feature_queue: Arc<PsiFeatureQueue>,
     producer: RustScouterProducer,
-    count: Arc<AtomicUsize>,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
     stop_tx: Option<watch::Sender<()>>,
     rt: Arc<tokio::runtime::Runtime>,
@@ -33,8 +31,7 @@ impl PsiQueue {
         // ArrayQueue size is based on the max PSI queue size
         let queue = Arc::new(ArrayQueue::new(PSI_MAX_QUEUE_SIZE));
         let feature_queue = Arc::new(PsiFeatureQueue::new(drift_profile));
-        let count = Arc::new(AtomicUsize::new(0));
-        let last_publish = Arc::new(RwLock::new(Utc::now()));
+        let last_publish: Arc<RwLock<DateTime<Utc>>> = Arc::new(RwLock::new(Utc::now()));
 
         // psi queue needs a tokio runtime to run background tasks
         // This runtime needs to be separate from the producer runtime
@@ -52,7 +49,6 @@ impl PsiQueue {
             queue: queue.clone(),
             feature_queue: feature_queue.clone(),
             producer,
-            count,
             last_publish,
             stop_tx: Some(stop_tx),
             rt: rt.clone(),
@@ -89,7 +85,7 @@ impl QueueMethods for PsiQueue {
     type FeatureQueue = PsiFeatureQueue;
 
     fn capacity(&self) -> usize {
-        PSI_MAX_QUEUE_SIZE
+        self.queue.capacity()
     }
 
     fn get_runtime(&self) -> Arc<tokio::runtime::Runtime> {

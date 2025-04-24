@@ -18,6 +18,21 @@ pub enum ScouterTypeError {
     TimeIntervalError(String),
 }
 
+#[derive(Error, Debug, Deserialize, PartialEq)]
+pub enum TypeError {
+    #[error("Missing attribute: {0}")]
+    MissingAttribute(String),
+
+    #[error("Failed to extract data: {0}")]
+    ExtractionError(String),
+}
+
+impl From<TypeError> for PyErr {
+    fn from(err: TypeError) -> PyErr {
+        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
+    }
+}
+
 // add tracing trait to ScouterError
 
 #[derive(Error, Debug, Deserialize, PartialEq)]
@@ -741,6 +756,9 @@ pub enum EventError {
     #[error(transparent)]
     FeatureQueueError(#[from] FeatureQueueError),
 
+    #[error(transparent)]
+    TypeError(#[from] TypeError),
+
     #[error("Invalid compression type")]
     InvalidCompressionTypeError,
 
@@ -755,6 +773,9 @@ pub enum EventError {
 
     #[error("Failed to setup runtime: {0}")]
     SetupRuntimeError(String),
+
+    #[error("Failed to insert record: {0}")]
+    InsertRecordError(String),
 }
 
 impl TracedError for EventError {}
@@ -817,6 +838,12 @@ impl EventError {
         error.trace();
         error
     }
+
+    pub fn traced_insert_record_error(err: impl Display) -> Self {
+        let error = Self::InsertRecordError(err.to_string());
+        error.trace();
+        error
+    }
 }
 
 /// THis should be the top-level error that all other errors are converted to
@@ -830,9 +857,6 @@ pub enum ScouterError {
 
     #[error("Failed to create path")]
     CreatePathError,
-
-    #[error("Type error for {0}")]
-    TypeError(String),
 
     #[error("Missing feature map")]
     MissingFeatureMapError,

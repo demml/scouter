@@ -1,11 +1,19 @@
 use crate::ProfileFuncs;
 use pyo3::prelude::*;
 use scouter_error::ScouterError;
+use scouter_error::TypeError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
+
+#[pyclass]
+#[derive(Clone, Debug, Serialize)]
+pub enum EntityType {
+    Feature,
+    Metric,
+}
 
 #[pyclass]
 #[derive(Clone, Serialize, Deserialize, Debug)]
@@ -129,16 +137,20 @@ impl Display for Feature {
 }
 
 #[pyclass]
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct Features {
     pub features: Vec<Feature>,
+    pub entity_type: EntityType,
 }
 
 #[pymethods]
 impl Features {
     #[new]
     pub fn new(features: Vec<Feature>) -> Self {
-        Features { features }
+        Features {
+            features,
+            entity_type: EntityType::Feature,
+        }
     }
 
     pub fn __str__(&self) -> String {
@@ -168,7 +180,7 @@ impl FeatureMap {
 }
 
 #[pyclass]
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Debug)]
 pub struct Metric {
     pub name: String,
     pub value: f64,
@@ -186,16 +198,20 @@ impl Metric {
 }
 
 #[pyclass]
-#[derive(Clone, Serialize, Deserialize, Debug)]
+#[derive(Clone, Serialize, Debug)]
 pub struct Metrics {
     pub metrics: Vec<Metric>,
+    pub entity_type: EntityType,
 }
 
 #[pymethods]
 impl Metrics {
     #[new]
     pub fn new(metrics: Vec<Metric>) -> Self {
-        Metrics { metrics }
+        Metrics {
+            metrics,
+            entity_type: EntityType::Metric,
+        }
     }
     pub fn __str__(&self) -> String {
         ProfileFuncs::__str__(self)
@@ -205,6 +221,37 @@ impl Metrics {
 impl Metrics {
     pub fn iter(&self) -> std::slice::Iter<'_, Metric> {
         self.metrics.iter()
+    }
+}
+
+pub enum QueueEntity {
+    Features(Features),
+    Metrics(Metrics),
+}
+
+impl QueueEntity {
+    /// Helper for extracting an Entity from a Python object
+    pub fn from_py_entity(entity: &Bound<'_, PyAny>) -> Result<Self, TypeError> {
+        let entity_type = entity
+            .getattr("entity_type")
+            .map_err(|e| TypeError::MissingAttribute(e.to_string()))?
+            .extract::<EntityType>()
+            .map_err(|e| TypeError::MissingAttribute(e.to_string()))?;
+
+        match entity_type {
+            EntityType::Feature => {
+                let features = entity
+                    .extract::<Features>()
+                    .map_err(|e| TypeError::ExtractionError(e.to_string()))?;
+                Ok(QueueEntity::Features(features))
+            }
+            EntityType::Metric => {
+                let metrics = entity
+                    .extract::<Metrics>()
+                    .map_err(|e| TypeError::ExtractionError(e.to_string()))?;
+                Ok(QueueEntity::Metrics(metrics))
+            }
+        }
     }
 }
 

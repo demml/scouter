@@ -1,17 +1,20 @@
 use crate::producer::RustScouterProducer;
 use crate::queue::spc::feature_queue::SpcFeatureQueue;
+use crate::queue::traits::QueueMethods;
 use crate::queue::types::TransportConfig;
-use pyo3::prelude::*;
-use scouter_error::{EventError, ScouterError};
+use chrono::{DateTime, Utc};
+use crossbeam_queue::ArrayQueue;
+use scouter_error::EventError;
+use scouter_types::spc::SpcDriftProfile;
 use scouter_types::Features;
-use scouter_types::{spc::SpcDriftProfile, DriftProfile};
 use std::sync::Arc;
-use tracing::{debug, error, instrument};
+use std::sync::RwLock;
 
 pub struct SpcQueue {
-    queue: SpcFeatureQueue,
+    queue: Arc<ArrayQueue<Features>>,
+    feature_queue: Arc<SpcFeatureQueue>,
     producer: RustScouterProducer,
-    count: usize,
+    last_publish: Arc<RwLock<DateTime<Utc>>>,
     rt: Arc<tokio::runtime::Runtime>,
 }
 
@@ -20,66 +23,57 @@ impl SpcQueue {
         drift_profile: SpcDriftProfile,
         config: TransportConfig,
     ) -> Result<Self, EventError> {
+        let sample_size = drift_profile.config.sample_size;
+        let queue = Arc::new(ArrayQueue::new(sample_size));
+        let feature_queue = Arc::new(SpcFeatureQueue::new(drift_profile));
+        let last_publish: Arc<RwLock<DateTime<Utc>>> = Arc::new(RwLock::new(Utc::now()));
+
         let rt = Arc::new(tokio::runtime::Runtime::new().unwrap());
         let producer = rt.block_on(async { RustScouterProducer::new(config).await })?;
 
         Ok(SpcQueue {
-            queue: SpcFeatureQueue::new(drift_profile),
+            queue,
+            feature_queue,
             producer,
-            count: 0,
+            last_publish,
             rt,
         })
     }
+}
 
-    #[instrument(skip(self, features), name = "SPC Insert", level = "debug")]
-    pub fn insert(&mut self, features: Features) -> Result<(), ScouterError> {
-        let insert = self.queue.insert(features);
+impl QueueMethods for SpcQueue {
+    type ItemType = Features;
+    type FeatureQueue = SpcFeatureQueue;
 
-        // silently fail if insert fails
-        if insert.is_err() {
-            error!(
-                "Failed to insert features into queue: {:?}",
-                insert.unwrap_err().to_string()
-            );
-            return Ok(());
-        }
-
-        self.count += 1;
-
-        debug!(
-            "count: {}, sample_size: {}",
-            self.count, self.queue.drift_profile.config.sample_size
-        );
-
-        if self.count >= self.queue.drift_profile.config.sample_size {
-            let publish = self._publish();
-
-            // silently fail if publish fails
-            if publish.is_err() {
-                // log error as string
-                error!(
-                    "Failed to publish drift records: {:?}",
-                    publish.unwrap_err().to_string()
-                );
-                return Ok(());
-            }
-
-            self.count = 0;
-        }
-
-        Ok(())
+    fn capacity(&self) -> usize {
+        self.queue.capacity()
     }
 
-    fn _publish(&mut self) -> Result<(), ScouterError> {
-        let records = self.queue.create_drift_records()?;
-        self.rt
-            .block_on(async { self.producer.publish(records).await })?;
-        self.queue.clear_queue();
-
-        Ok(())
+    fn get_runtime(&self) -> Arc<tokio::runtime::Runtime> {
+        self.rt.clone()
     }
 
-    pub fn flush(&mut self) -> Result<(), ScouterError> {
+    fn get_producer(&mut self) -> &mut RustScouterProducer {
+        &mut self.producer
+    }
+
+    fn queue(&self) -> Arc<ArrayQueue<Self::ItemType>> {
+        self.queue.clone()
+    }
+
+    fn feature_queue(&self) -> Arc<Self::FeatureQueue> {
+        self.feature_queue.clone()
+    }
+
+    fn last_publish(&self) -> Arc<RwLock<DateTime<Utc>>> {
+        self.last_publish.clone()
+    }
+
+    fn should_process(&self, current_count: usize) -> bool {
+        current_count >= self.capacity()
+    }
+
+    fn flush(&mut self) -> Result<(), EventError> {
         Ok(self.rt.block_on(async { self.producer.flush().await })?)
     }
 }

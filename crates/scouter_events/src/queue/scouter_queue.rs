@@ -1,19 +1,15 @@
 #![allow(clippy::useless_conversion)]
+use super::types::TransportConfig;
 use crate::queue::custom::CustomQueue;
 use crate::queue::psi::PsiQueue;
 use crate::queue::spc::SpcQueue;
+use crate::queue::traits::queue::QueueMethods;
 use pyo3::prelude::*;
 use scouter_error::{EventError, PyScouterError, ScouterError};
-use scouter_types::custom::CustomDriftProfile;
-use scouter_types::psi::PsiDriftProfile;
-use scouter_types::spc::SpcDriftProfile;
-use scouter_types::{DriftProfile, DriftType};
+use scouter_types::{DriftProfile, QueueEntity};
 use scouter_types::{Features, Metrics};
-use serde_json::Value;
 use std::path::PathBuf;
 use tracing::{error, info, instrument};
-
-use super::types::TransportConfig;
 
 pub enum Queue {
     Spc(SpcQueue),
@@ -39,24 +35,29 @@ impl Queue {
         }
     }
 
-    pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> Result<(), ScouterError> {
-        match self {
-            Queue::Spc(queue) => {
-                let features = entity.extract::<Features>()?;
-                queue.insert(features)
-            }
-            Queue::Psi(queue) => {
-                let features = entity.extract::<Features>()?;
-                queue.insert(features)
-            }
-            Queue::Custom(queue) => {
-                let metrics = entity.extract::<Metrics>()?;
-                queue.insert(metrics)
-            }
+    pub fn insert(&mut self, entity: QueueEntity) -> Result<(), EventError> {
+        match entity {
+            QueueEntity::Features(features) => self.insert_features(features),
+            QueueEntity::Metrics(metrics) => self.insert_metrics(metrics),
         }
     }
 
-    pub fn flush(&mut self) -> Result<(), ScouterError> {
+    pub fn insert_features(&mut self, features: Features) -> Result<(), EventError> {
+        match self {
+            Queue::Psi(queue) => queue.insert(features),
+            Queue::Spc(queue) => queue.insert(features),
+            _ => Err(EventError::traced_insert_record_error("not supported")),
+        }
+    }
+
+    pub fn insert_metrics(&mut self, metrics: Metrics) -> Result<(), EventError> {
+        match self {
+            Queue::Custom(queue) => queue.insert(metrics),
+            _ => Err(EventError::traced_insert_record_error("not supported")),
+        }
+    }
+
+    pub fn flush(&mut self) -> Result<(), EventError> {
         match self {
             Queue::Spc(queue) => queue.flush(),
             Queue::Psi(queue) => queue.flush(),
@@ -70,19 +71,28 @@ pub struct ScouterQueue {
 }
 
 impl ScouterQueue {
-    pub fn new(transport_config: &DriftTransportConfig) -> Result<Self, EventError> {
+    /// Start the ScouterQueue (this is consuming method, meaning it will take ownership of the transport config)
+    ///
+    /// # Arguments
+    /// * `transport_config` - The transport config to use
+    pub fn new(transport_config: DriftTransportConfig) -> Result<Self, EventError> {
         info!("Starting ScouterQueue");
 
-        let profile = transport_config.drift_profile;
-        let config = transport_config.config;
-
         Ok(ScouterQueue {
-            queue: Queue::new(profile, config)?,
+            queue: Queue::new(transport_config.drift_profile, transport_config.config)?,
         })
     }
 
-    #[instrument(skip_all, name = "Insert", level = "debug", err)]
+    #[instrument(skip_all)]
     pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> Result<(), EventError> {
+        let entity = QueueEntity::from_py_entity(entity).map_err(|e| {
+            error!(
+                "Failed to extract entity from Python object: {:?}",
+                e.to_string()
+            );
+            PyScouterError::new_err(e.to_string())
+        })?;
+
         self.queue.insert(entity).map_err(|e| {
             error!("Failed to insert features into queue: {:?}", e.to_string());
             PyScouterError::new_err(e.to_string())
