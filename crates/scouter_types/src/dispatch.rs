@@ -1,6 +1,6 @@
 use crate::drift::DriftArgs;
 use pyo3::{prelude::*, IntoPyObjectExt};
-use serde::{de, Deserialize, Serialize};
+use serde::{Deserialize, Serialize};
 use std::fmt::Display;
 
 #[pyclass]
@@ -116,6 +116,7 @@ pub trait DispatchDriftConfig {
     fn get_drift_args(&self) -> DriftArgs;
 }
 
+#[pyclass]
 #[derive(Debug, PartialEq, Clone)]
 pub enum TransportTypes {
     Kafka,

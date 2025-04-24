@@ -16,6 +16,7 @@ pub struct HTTPConfig {
     #[pyo3(get, set)]
     pub auth_token: String,
 
+    #[pyo3(get)]
     pub config_type: TransportTypes,
 }
 
