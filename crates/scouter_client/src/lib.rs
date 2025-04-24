@@ -2,7 +2,6 @@ pub mod data_utils;
 pub mod drifter;
 pub mod http;
 pub mod profiler;
-pub mod queue;
 
 pub use drifter::scouter::PyDrifter;
 pub use profiler::scouter::DataProfiler;
@@ -32,19 +31,22 @@ pub use scouter_types::{
 };
 
 pub use crate::http::ScouterClient;
-pub use queue::{DriftTransportConfig, ScouterQueue};
+
 pub use scouter_contracts::{
     DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
     ScouterResponse, ScouterServerError,
 };
+
 pub use scouter_drift::{
-    custom::CustomMetricFeatureQueue,
-    psi::{PsiFeatureQueue, PsiMonitor},
-    spc::{generate_alerts, SpcDriftMap, SpcFeatureDrift, SpcFeatureQueue, SpcMonitor},
+    psi::PsiMonitor,
+    spc::{generate_alerts, SpcDriftMap, SpcFeatureDrift, SpcMonitor},
     utils::CategoricalFeatureHelpers,
 };
 pub use scouter_error::{ProfilerError, PyScouterError, ScouterError};
 pub use scouter_events::producer::{kafka::KafkaConfig, rabbitmq::RabbitMQConfig, ScouterProducer};
+pub use scouter_events::queue::{
+    custom::CustomMetricFeatureQueue, psi::PsiFeatureQueue, spc::SpcFeatureQueue,
+};
 pub use scouter_observability::Observer;
 pub use scouter_profile::{
     compute_feature_correlations, CharStats, DataProfile, Distinct, FeatureProfile, Histogram,

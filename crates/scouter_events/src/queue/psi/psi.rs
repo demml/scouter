@@ -1,8 +1,9 @@
+use crate::producer::RustScouterProducer;
+use crate::queue::psi::feature_queue::PsiFeatureQueue;
+use crate::queue::types::TransportConfig;
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
-use scouter_drift::psi::PsiFeatureQueue;
-use scouter_error::ScouterError;
-use scouter_events::producer::RustScouterProducer;
+use scouter_error::{EventError, ScouterError};
 use scouter_types::psi::PsiDriftProfile;
 use scouter_types::Features;
 use std::sync::Arc;
@@ -24,15 +25,15 @@ pub struct PsiQueue {
 impl PsiQueue {
     pub fn new(
         drift_profile: PsiDriftProfile,
-        config: &Bound<'_, PyAny>,
-    ) -> Result<Self, ScouterError> {
+        config: TransportConfig,
+    ) -> Result<Self, EventError> {
         let queue = Arc::new(Mutex::new(PsiFeatureQueue::new(drift_profile)));
 
         // psi queue needs a tokio runtime to run background tasks
         // This runtime needs to be separate from the producer runtime
-        let rt = Arc::new(tokio::runtime::Runtime::new().unwrap());
-
-        debug!("Creating Producer");
+        let rt = Arc::new(
+            tokio::runtime::Runtime::new().map_err(EventError::traced_setup_runtime_error)?,
+        );
 
         let producer = rt.block_on(async { RustScouterProducer::new(config).await })?;
 
@@ -56,7 +57,7 @@ impl PsiQueue {
     }
 
     #[instrument(skip(self), name = "Insert")]
-    pub fn insert(&mut self, features: Features) -> Result<(), ScouterError> {
+    pub fn insert(&mut self, features: Features) -> Result<(), EventError> {
         {
             let mut queue = self.queue.blocking_lock();
             let insert = queue.insert(features);
@@ -93,7 +94,7 @@ impl PsiQueue {
         Ok(())
     }
 
-    fn _publish(&mut self) -> Result<(), ScouterError> {
+    fn _publish(&mut self) -> Result<(), EventError> {
         let mut queue = self.queue.blocking_lock();
         let records = queue.create_drift_records()?;
         if !records.records.is_empty() {

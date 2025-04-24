@@ -164,7 +164,7 @@ impl ProfilerError {
     }
 }
 
-#[derive(Error, Debug, Deserialize)]
+#[derive(Error, Debug, Deserialize, PartialEq)]
 pub enum FeatureQueueError {
     #[error("{0}")]
     InvalidFormatError(String),
@@ -738,6 +738,9 @@ pub enum EventError {
     #[error(transparent)]
     SqlError(#[from] SqlError),
 
+    #[error(transparent)]
+    FeatureQueueError(#[from] FeatureQueueError),
+
     #[error("Invalid compression type")]
     InvalidCompressionTypeError,
 
@@ -749,6 +752,9 @@ pub enum EventError {
 
     #[error("Failed to setup consumer: {0}")]
     SetupConsumerError(String),
+
+    #[error("Failed to setup runtime: {0}")]
+    SetupRuntimeError(String),
 }
 
 impl TracedError for EventError {}
@@ -802,6 +808,12 @@ impl EventError {
 
     pub fn traced_setup_qos_error(err: impl Display) -> Self {
         let error = Self::SetupQosError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_setup_runtime_error(err: impl Display) -> Self {
+        let error = Self::SetupConsumerError(err.to_string());
         error.trace();
         error
     }

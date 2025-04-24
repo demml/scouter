@@ -1,11 +1,9 @@
 #![allow(clippy::useless_conversion)]
-use super::custom::CustomQueue;
+use crate::queue::custom::CustomQueue;
 use crate::queue::psi::PsiQueue;
 use crate::queue::spc::SpcQueue;
-use crate::ScouterClient;
 use pyo3::prelude::*;
-use scouter_contracts::GetProfileRequest;
-use scouter_error::{PyScouterError, ScouterError};
+use scouter_error::{EventError, PyScouterError, ScouterError};
 use scouter_types::custom::CustomDriftProfile;
 use scouter_types::psi::PsiDriftProfile;
 use scouter_types::spc::SpcDriftProfile;
@@ -15,6 +13,8 @@ use serde_json::Value;
 use std::path::PathBuf;
 use tracing::{error, info, instrument};
 
+use super::types::TransportConfig;
+
 pub enum Queue {
     Spc(SpcQueue),
     Psi(PsiQueue),
@@ -22,24 +22,19 @@ pub enum Queue {
 }
 
 impl Queue {
-    pub fn new(drift_profile: &DriftProfile, config: &C) -> Result<Self, ScouterError> {
-        let drift_type = drift_profile
-            .getattr("config")?
-            .getattr("drift_type")?
-            .extract::<DriftType>()?;
-
-        match drift_type {
-            DriftType::Spc => {
-                let drift_profile = drift_profile.extract::<SpcDriftProfile>()?;
-                Ok(Queue::Spc(SpcQueue::new(drift_profile, config)?))
+    pub fn new(drift_profile: DriftProfile, config: TransportConfig) -> Result<Self, EventError> {
+        match drift_profile {
+            DriftProfile::Spc(spc_profile) => {
+                let queue = SpcQueue::new(spc_profile, config)?;
+                Ok(Queue::Spc(queue))
             }
-            DriftType::Psi => {
-                let drift_profile = drift_profile.extract::<PsiDriftProfile>()?;
-                Ok(Queue::Psi(PsiQueue::new(drift_profile, config)?))
+            DriftProfile::Psi(psi_profile) => {
+                let queue = PsiQueue::new(psi_profile, config)?;
+                Ok(Queue::Psi(queue))
             }
-            DriftType::Custom => {
-                let drift_profile = drift_profile.extract::<CustomDriftProfile>()?;
-                Ok(Queue::Custom(CustomQueue::new(drift_profile, config)?))
+            DriftProfile::Custom(custom_profile) => {
+                let queue = CustomQueue::new(custom_profile, config)?;
+                Ok(Queue::Custom(queue))
             }
         }
     }
@@ -75,19 +70,19 @@ pub struct ScouterQueue {
 }
 
 impl ScouterQueue {
-    pub fn new(transport_config: &DriftTransportConfig) -> Result<Self, ScouterError> {
+    pub fn new(transport_config: &DriftTransportConfig) -> Result<Self, EventError> {
         info!("Starting ScouterQueue");
 
-        let profile = &transport_config.drift_profile;
-        let config = &transport_config.config;
+        let profile = transport_config.drift_profile;
+        let config = transport_config.config;
 
         Ok(ScouterQueue {
             queue: Queue::new(profile, config)?,
         })
     }
 
-    #[instrument(skip(self, entity), name = "Insert", level = "debug")]
-    pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> PyResult<()> {
+    #[instrument(skip_all, name = "Insert", level = "debug", err)]
+    pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> Result<(), EventError> {
         self.queue.insert(entity).map_err(|e| {
             error!("Failed to insert features into queue: {:?}", e.to_string());
             PyScouterError::new_err(e.to_string())
@@ -95,8 +90,8 @@ impl ScouterQueue {
         Ok(())
     }
 
-    #[instrument(skip(self), name = "Flush", level = "debug")]
-    pub fn flush(&mut self) -> PyResult<()> {
+    #[instrument(skip_all, name = "Flush", level = "debug")]
+    pub fn flush(&mut self) -> Result<(), EventError> {
         match &mut self.queue {
             Queue::Spc(queue) => queue.flush().map_err(|e| {
                 error!("Failed to flush queue: {:?}", e.to_string());
@@ -117,7 +112,8 @@ impl ScouterQueue {
 #[pyclass]
 pub struct DriftTransportConfig {
     pub drift_profile: DriftProfile,
-    pub config: PyObject,
+    pub config: TransportConfig,
+
     #[pyo3(get)]
     pub id: String,
 }
@@ -131,14 +127,13 @@ impl DriftTransportConfig {
         transport_config: &Bound<'_, PyAny>,
         path: PathBuf,
     ) -> PyResult<Self> {
-        let profile = std::fs::read_to_string(path)?;
-        let profile_value: Value = serde_json::from_str(&profile).unwrap();
-        let drift_profile = DriftProfile::from_value(profile_value)?;
+        let drift_profile = DriftProfile::from_profile_path(path)?;
+        let config = TransportConfig::from_py_config(transport_config)?;
 
         Ok(DriftTransportConfig {
             id,
             drift_profile,
-            config: config.clone().unbind(),
+            config,
         })
     }
 
@@ -148,7 +143,7 @@ impl DriftTransportConfig {
     }
 
     #[getter]
-    pub fn config<'py>(&self, py: Python<'py>) -> PyResult<&Bound<'py, PyAny>> {
-        Ok(self.config.bind(py))
+    pub fn config<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        Ok(self.config.to_py(py)?)
     }
 }

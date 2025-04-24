@@ -47,6 +47,7 @@ base64 = "0.22.*"
 chrono ={ version = "0.*", features = ["serde"] }
 colored_json = "*"
 cron = "0.*"
+crossbeam-queue = "0.*"
 datafusion = { version = "*", features = ["parquet"] }
 
 futures = "0.*"

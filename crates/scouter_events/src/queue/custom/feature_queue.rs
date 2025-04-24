@@ -8,24 +8,24 @@ use std::collections::HashMap;
 use tracing::error;
 
 pub struct CustomMetricFeatureQueue {
-    pub drift_profile: CustomDriftProfile,
-    pub queue: HashMap<String, Vec<f64>>,
-    pub metric_names: Vec<String>,
+    drift_profile: CustomDriftProfile,
+    empty_queue: HashMap<String, Vec<f64>>,
+    metric_names: Vec<String>,
 }
 
 impl CustomMetricFeatureQueue {
     pub fn new(drift_profile: CustomDriftProfile) -> Self {
-        let queue: HashMap<String, Vec<f64>> = drift_profile
+        let empty_queue: HashMap<String, Vec<f64>> = drift_profile
             .metrics
             .keys()
             .map(|metric| (metric.clone(), Vec::new()))
             .collect();
 
-        let metric_names = queue.keys().cloned().collect();
+        let metric_names = empty_queue.keys().cloned().collect();
 
         CustomMetricFeatureQueue {
             drift_profile,
-            queue,
+            empty_queue,
             metric_names,
         }
     }
@@ -39,32 +39,28 @@ impl CustomMetricFeatureQueue {
     /// # Returns
     ///
     /// * `Result<(), FeatureQueueError>` - A result indicating success or failure
-    pub fn insert(&mut self, metrics: Metrics) -> Result<(), FeatureQueueError> {
+    fn insert(
+        &self,
+        metrics: Metrics,
+        queue: &mut HashMap<String, Vec<f64>>,
+    ) -> Result<(), FeatureQueueError> {
         for metric in metrics.metrics {
-            if !self.drift_profile.metrics.contains_key(&metric.name) {
-                let valid_metric_names = self
-                    .drift_profile
-                    .metrics
-                    .keys()
-                    .cloned()
-                    .collect::<Vec<_>>()
-                    .join(", ");
-                error!(
-                    "Custom metric {} not found in drift profile. Valid metric names include {}",
-                    metric.name, valid_metric_names
-                );
+            if !self.metric_names.contains(&metric.name) {
+                error!("Custom metric {} not found in drift profile", metric.name);
                 continue;
             }
-            if let Some(queue) = self.queue.get_mut(&metric.name) {
+            if let Some(queue) = queue.get_mut(&metric.name) {
                 queue.push(metric.value);
             }
         }
         Ok(())
     }
 
-    pub fn create_drift_records(&mut self) -> Result<ServerRecords, FeatureQueueError> {
-        let averages = self
-            .queue
+    fn create_drift_records(
+        &self,
+        queue: HashMap<String, Vec<f64>>,
+    ) -> Result<ServerRecords, FeatureQueueError> {
+        let averages = queue
             .iter()
             // filter out empty values
             .filter(|(_, values)| !values.is_empty())
@@ -83,14 +79,18 @@ impl CustomMetricFeatureQueue {
         Ok(ServerRecords::new(averages))
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.queue.values().all(|vals| vals.is_empty())
-    }
+    pub fn create_drift_records_from_batch(
+        &self,
+        metrics: Vec<Metrics>,
+    ) -> Result<ServerRecords, FeatureQueueError> {
+        // clones the empty map (so we don't need to recreate it on each call)
+        let mut queue = self.empty_queue.clone();
 
-    pub fn clear_queue(&mut self) {
-        self.queue.values_mut().for_each(|vals| {
-            vals.clear();
-        });
+        for batch in metrics {
+            self.insert(batch, &mut queue)?;
+        }
+
+        self.create_drift_records(queue)
     }
 }
 
@@ -125,8 +125,9 @@ mod tests {
             CustomDriftProfile::new(custom_config, vec![metric1, metric2, metric3], None).unwrap();
         let mut feature_queue = CustomMetricFeatureQueue::new(profile);
 
-        assert_eq!(feature_queue.queue.len(), 3);
+        assert_eq!(feature_queue.empty_queue.len(), 3);
 
+        let mut metric_batch = Vec::new();
         for i in 0..25 {
             let one = Metric::new("mae".to_string(), i as f64);
             let two = Metric::new("mape".to_string(), i as f64);
@@ -135,14 +136,12 @@ mod tests {
                 metrics: vec![one, two],
             };
 
-            feature_queue.insert(metrics).unwrap();
+            metric_batch.push(metrics);
         }
 
-        assert_eq!(feature_queue.queue.get("mae").unwrap().len(), 25);
-        assert_eq!(feature_queue.queue.get("mape").unwrap().len(), 25);
-        assert_eq!(feature_queue.queue.get("empty").unwrap().len(), 0);
-
-        let records = feature_queue.create_drift_records().unwrap();
+        let records = feature_queue
+            .create_drift_records_from_batch(metric_batch)
+            .unwrap();
 
         // empty should be excluded
         assert_eq!(records.records.len(), 2);
@@ -154,7 +153,5 @@ mod tests {
                 assert_eq!(custom_record.value, 12.0);
             }
         }
-
-        feature_queue.clear_queue();
     }
 }

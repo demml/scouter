@@ -1,9 +1,9 @@
 use scouter_types::{psi::BinType, Features, PsiServerRecord, ServerRecord, ServerRecords};
 use tracing::{debug, error, instrument};
 
-use crate::psi::monitor::PsiMonitor;
 use core::result::Result::Ok;
-use scouter_error::FeatureQueueError;
+use scouter_drift::psi::monitor::PsiMonitor;
+use scouter_error::{EventError, FeatureQueueError};
 use scouter_types::psi::{Bin, PsiDriftProfile};
 use std::collections::HashMap;
 
@@ -192,7 +192,7 @@ impl PsiFeatureQueue {
     }
 
     #[instrument(skip(self), name = "Create records", level = "debug")]
-    pub fn create_drift_records(&self) -> Result<ServerRecords, FeatureQueueError> {
+    pub fn create_drift_records(&self) -> Result<ServerRecords, EventError> {
         // filter out any feature thats not in features_to_monitor
         // Keep feature if any value in the bin map is greater than 0
 
@@ -241,11 +241,11 @@ impl PsiFeatureQueue {
 mod tests {
 
     use super::*;
-    use crate::utils::CategoricalFeatureHelpers;
     use ndarray::{Array, Axis};
     use ndarray_rand::rand::distributions::Bernoulli;
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
+    use scouter_drift::utils::CategoricalFeatureHelpers;
     use scouter_types::psi::PsiAlertConfig;
     use scouter_types::psi::PsiDriftConfig;
     use scouter_types::{Feature, DEFAULT_VERSION};

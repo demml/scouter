@@ -1,7 +1,7 @@
-use crate::spc::monitor::SpcMonitor;
 use core::result::Result::Ok;
 use ndarray::prelude::*;
 use ndarray::Array2;
+use scouter_drift::spc::monitor::SpcMonitor;
 use scouter_error::FeatureQueueError;
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::{Features, ServerRecords};

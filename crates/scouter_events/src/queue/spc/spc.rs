@@ -1,9 +1,10 @@
+use crate::producer::RustScouterProducer;
+use crate::queue::spc::feature_queue::SpcFeatureQueue;
+use crate::queue::types::TransportConfig;
 use pyo3::prelude::*;
-use scouter_drift::spc::SpcFeatureQueue;
-use scouter_error::ScouterError;
-use scouter_events::producer::RustScouterProducer;
-use scouter_types::spc::SpcDriftProfile;
+use scouter_error::{EventError, ScouterError};
 use scouter_types::Features;
+use scouter_types::{spc::SpcDriftProfile, DriftProfile};
 use std::sync::Arc;
 use tracing::{debug, error, instrument};
 
@@ -17,8 +18,8 @@ pub struct SpcQueue {
 impl SpcQueue {
     pub fn new(
         drift_profile: SpcDriftProfile,
-        config: &Bound<'_, PyAny>,
-    ) -> Result<Self, ScouterError> {
+        config: TransportConfig,
+    ) -> Result<Self, EventError> {
         let rt = Arc::new(tokio::runtime::Runtime::new().unwrap());
         let producer = rt.block_on(async { RustScouterProducer::new(config).await })?;
 

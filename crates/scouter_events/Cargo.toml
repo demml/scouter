@@ -13,14 +13,17 @@ description = "Logic for setting up and running Scouter event-driven consumers a
 
 [dependencies]
 chrono = { workspace = true }
+crossbeam-queue = { workspace = true }
 futures = { workspace = true }
 metrics = { workspace = true }
+ndarray = { workspace = true }
 pyo3 = { workspace = true }
 reqwest = { workspace = true }
 rusty-logging = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 scouter-contracts = { workspace = true }
+scouter-drift = { workspace = true }
 scouter-error = { workspace = true }
 scouter-settings = { workspace = true }
 scouter-sql = { workspace = true, optional = true }
@@ -40,6 +43,8 @@ rdkafka = { version = "0.*", features = ["cmake-build", "ssl"] , optional = true
 [target.'cfg(target_os = "windows")'.dependencies]
 rdkafka = { version = "0.*", features = ["cmake-build", "ssl-vendored"] , optional = true}
 
+[dev-dependencies]
+ndarray-rand = { workspace = true }
 
 [features]
 default = ["sql"]

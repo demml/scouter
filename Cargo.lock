@@ -4918,14 +4918,18 @@ name = "scouter-events"
 version = "0.4.5"
 dependencies = [
  "chrono",
+ "crossbeam-queue",
  "futures",
  "lapin",
  "metrics",
+ "ndarray",
+ "ndarray-rand",
  "pyo3",
  "rdkafka",
  "reqwest",
  "rusty-logging",
  "scouter-contracts",
+ "scouter-drift",
  "scouter-error",
  "scouter-settings",
  "scouter-sql",

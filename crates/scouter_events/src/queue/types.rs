@@ -1,7 +1,9 @@
 use crate::producer::kafka::KafkaConfig;
 use crate::producer::rabbitmq::RabbitMQConfig;
 use pyo3::prelude::*;
+use pyo3::IntoPyObjectExt;
 use scouter_settings::HTTPConfig;
+use scouter_types::TransportTypes;
 
 pub enum TransportConfig {
     RabbitMQ(RabbitMQConfig),
@@ -10,17 +12,42 @@ pub enum TransportConfig {
 }
 
 impl TransportConfig {
+    /// Create a TransportConfig from a python config object.
+    /// Function will extract the transport type and then extract the corresponding config
+    /// before returning the TransportConfig.
+    ///
+    /// # Arguments
+    /// * `config` - Python config object
+    ///
+    /// # Returns
+    /// * `TransportConfig` - TransportConfig object
     pub fn from_py_config(config: &Bound<'_, PyAny>) -> PyResult<Self> {
-        if let Ok(rabbitmq_config) = config.extract::<RabbitMQConfig>() {
-            Ok(TransportConfig::RabbitMQ(rabbitmq_config))
-        } else if let Ok(kafka_config) = config.extract::<KafkaConfig>() {
-            Ok(TransportConfig::Kafka(kafka_config))
-        } else if let Ok(http_config) = config.extract::<HTTPConfig>() {
-            Ok(TransportConfig::Http(http_config))
-        } else {
-            Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
-                "Invalid transport config type",
-            ))
+        let transport_type = config
+            .getattr("transport_type")?
+            .extract::<TransportTypes>()?;
+
+        match transport_type {
+            TransportTypes::RabbitMQ => {
+                let rabbitmq_config = config.extract::<RabbitMQConfig>()?;
+                Ok(TransportConfig::RabbitMQ(rabbitmq_config))
+            }
+            TransportTypes::Kafka => {
+                let kafka_config = config.extract::<KafkaConfig>()?;
+                Ok(TransportConfig::Kafka(kafka_config))
+            }
+            TransportTypes::Http => {
+                let http_config = config.extract::<HTTPConfig>()?;
+                Ok(TransportConfig::Http(http_config))
+            }
+        }
+    }
+
+    /// helper method to convert the TransportConfig to a python object
+    pub fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        match self {
+            TransportConfig::RabbitMQ(config) => config.clone().into_bound_py_any(py),
+            TransportConfig::Kafka(config) => config.clone().into_bound_py_any(py),
+            TransportConfig::Http(config) => config.clone().into_bound_py_any(py),
         }
     }
 }
