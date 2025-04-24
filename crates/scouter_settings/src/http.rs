@@ -61,6 +61,7 @@ impl Default for HTTPConfig {
             username: std::env::var("SCOUTER_USERNAME").unwrap_or_else(|_| "guest".to_string()),
             password: std::env::var("SCOUTER_PASSWORD").unwrap_or_else(|_| "guest".to_string()),
             auth_token: std::env::var("SCOUTER_AUTH_TOKEN").unwrap_or_else(|_| "".to_string()),
+            config_type: TransportTypes::Http,
         }
     }
 }
