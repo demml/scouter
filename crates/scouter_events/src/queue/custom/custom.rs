@@ -1,17 +1,19 @@
 use crate::producer::RustScouterProducer;
 use crate::queue::custom::feature_queue::CustomMetricFeatureQueue;
-use crate::queue::traits::{BackgroundTask, FeatureQueue};
+use crate::queue::traits::BackgroundTask;
+use crate::queue::traits::QueueMethods;
 use crate::queue::types::TransportConfig;
 use chrono::{DateTime, Utc};
-use crossbeam_queue::SegQueue;
+use crossbeam_queue::ArrayQueue;
 use scouter_error::EventError;
 use scouter_types::custom::CustomDriftProfile;
 use scouter_types::Metrics;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::cmp::min;
+use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::sync::watch;
-use tracing::{debug, error, instrument};
+use tracing::debug;
 
 /// The following code is a custom queue implementation for handling custom metrics.
 /// It consists of a `CustomQueue` struct that manages a queue of metrics and a background task
@@ -27,7 +29,7 @@ use tracing::{debug, error, instrument};
 /// - `sample_size`: The size of the sample.
 /// - `sample`: A boolean indicating whether to sample metrics.
 pub struct CustomQueue {
-    metrics_queue: Arc<SegQueue<Metrics>>,
+    queue: Arc<ArrayQueue<Metrics>>,
     feature_queue: Arc<CustomMetricFeatureQueue>,
     producer: RustScouterProducer,
     count: Arc<AtomicUsize>,
@@ -35,12 +37,6 @@ pub struct CustomQueue {
     stop_tx: Option<watch::Sender<()>>,
     rt: Arc<tokio::runtime::Runtime>,
     sample_size: usize,
-    sample: bool,
-}
-
-impl BackgroundTask for CustomQueue {
-    type DataItem = Metrics;
-    type Processor = CustomMetricFeatureQueue;
 }
 
 impl CustomQueue {
@@ -48,11 +44,11 @@ impl CustomQueue {
         drift_profile: CustomDriftProfile,
         config: TransportConfig,
     ) -> Result<Self, EventError> {
-        let sample = drift_profile.config.sample;
         let sample_size = drift_profile.config.sample_size;
 
         debug!("Creating Custom Metric Queue");
-        let metrics_queue = Arc::new(SegQueue::new());
+        // ArrayQueue size is based on sample size
+        let metrics_queue = Arc::new(ArrayQueue::new(sample_size));
         let feature_queue = Arc::new(CustomMetricFeatureQueue::new(drift_profile));
         let count = Arc::new(AtomicUsize::new(0));
         let last_publish = Arc::new(RwLock::new(Utc::now()));
@@ -69,7 +65,7 @@ impl CustomQueue {
         let (stop_tx, stop_rx) = watch::channel(());
 
         let custom_queue = CustomQueue {
-            metrics_queue: metrics_queue.clone(),
+            queue: metrics_queue.clone(),
             feature_queue: feature_queue.clone(),
             producer,
             count,
@@ -77,7 +73,6 @@ impl CustomQueue {
             stop_tx: Some(stop_tx),
             rt: rt.clone(),
             sample_size,
-            sample,
         };
 
         debug!("Starting Background Task");
@@ -88,7 +83,7 @@ impl CustomQueue {
 
     fn start_background_worker(
         &self,
-        metrics_queue: Arc<SegQueue<Metrics>>,
+        metrics_queue: Arc<ArrayQueue<Metrics>>,
         feature_queue: Arc<CustomMetricFeatureQueue>,
         stop_rx: watch::Receiver<()>,
     ) -> Result<(), EventError> {
@@ -99,55 +94,53 @@ impl CustomQueue {
             self.last_publish.clone(),
             self.rt.clone(),
             stop_rx,
-            1000,
+            min(self.sample_size, 1000),
             "Custom Background Polling",
         )
     }
+}
 
-    #[instrument(skip_all)]
-    pub fn insert(&mut self, metrics: Metrics) -> Result<(), EventError> {
-        debug!("Inserting features");
-        // Non-blocking push to queue
-        self.metrics_queue.push(metrics);
+impl BackgroundTask for CustomQueue {
+    type DataItem = Metrics;
+    type Processor = CustomMetricFeatureQueue;
+}
 
-        let current_count = self.count.fetch_add(1, Ordering::SeqCst);
-        if current_count >= self.sample_size && self.sample {
-            self.try_publish()?;
-        }
+/// Implementing primary methods
+impl QueueMethods for CustomQueue {
+    type ItemType = Metrics;
+    type FeatureQueue = CustomMetricFeatureQueue;
 
-        Ok(())
+    fn capacity(&self) -> usize {
+        self.sample_size
     }
 
-    fn try_publish(&mut self) -> Result<(), EventError> {
-        let mut batch = Vec::with_capacity(self.sample_size);
-
-        // Drain the queue non-blockingly
-        while let Some(metrics) = self.metrics_queue.pop() {
-            batch.push(metrics);
-        }
-
-        if !batch.is_empty() {
-            match self.feature_queue.create_drift_records_from_batch(batch) {
-                Ok(records) => {
-                    self.rt
-                        .block_on(async { self.producer.publish(records).await })?;
-
-                    if let Ok(mut last_publish) = self.last_publish.write() {
-                        *last_publish = Utc::now();
-                    }
-                    self.count.store(0, Ordering::SeqCst);
-                }
-                Err(e) => error!("Failed to create drift records: {}", e),
-            }
-        }
-
-        Ok(())
+    fn get_runtime(&self) -> Arc<tokio::runtime::Runtime> {
+        self.rt.clone()
     }
 
-    pub fn flush(&mut self) -> Result<(), EventError> {
+    fn get_producer(&mut self) -> &mut RustScouterProducer {
+        &mut self.producer
+    }
+
+    fn queue(&self) -> Arc<ArrayQueue<Self::ItemType>> {
+        self.queue.clone()
+    }
+
+    fn feature_queue(&self) -> Arc<Self::FeatureQueue> {
+        self.feature_queue.clone()
+    }
+
+    fn last_publish(&self) -> Arc<RwLock<DateTime<Utc>>> {
+        self.last_publish.clone()
+    }
+
+    fn should_process(&self, current_count: usize) -> bool {
+        current_count >= self.capacity()
+    }
+
+    fn flush(&mut self) -> Result<(), EventError> {
         // publish any remaining drift records
-        self.try_publish()?;
-
+        self.try_publish(self.queue())?;
         if let Some(stop_tx) = self.stop_tx.take() {
             let _ = stop_tx.send(());
         }

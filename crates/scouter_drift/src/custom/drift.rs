@@ -259,7 +259,6 @@ pub mod custom_drifter {
                 "scouter",
                 "model",
                 "0.1.0",
-                true,
                 25,
                 CustomMetricAlertConfig::default(),
                 None,

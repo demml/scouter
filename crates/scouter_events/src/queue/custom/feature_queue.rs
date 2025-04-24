@@ -118,7 +118,6 @@ mod tests {
             "test",
             "test",
             "0.1.0",
-            true,
             25,
             CustomMetricAlertConfig::default(),
             None,

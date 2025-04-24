@@ -21,9 +21,6 @@ pub struct CustomMetricDriftConfig {
     pub sample_size: usize,
 
     #[pyo3(get, set)]
-    pub sample: bool,
-
-    #[pyo3(get, set)]
     pub space: String,
 
     #[pyo3(get, set)]
@@ -54,12 +51,11 @@ impl DispatchDriftConfig for CustomMetricDriftConfig {
 #[allow(clippy::too_many_arguments)]
 impl CustomMetricDriftConfig {
     #[new]
-    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, sample=true, sample_size=25, alert_config=CustomMetricAlertConfig::default(), config_path=None))]
+    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, sample_size=25, alert_config=CustomMetricAlertConfig::default(), config_path=None))]
     pub fn new(
         space: &str,
         name: &str,
         version: &str,
-        sample: bool,
         sample_size: usize,
         alert_config: CustomMetricAlertConfig,
         config_path: Option<PathBuf>,
@@ -73,7 +69,6 @@ impl CustomMetricDriftConfig {
 
         Ok(Self {
             sample_size,
-            sample,
             space: space.to_string(),
             name: name.to_string(),
             version: version.to_string(),
@@ -299,7 +294,6 @@ mod tests {
             MISSING,
             MISSING,
             "0.1.0",
-            false,
             25,
             CustomMetricAlertConfig::default(),
             None,
@@ -350,8 +344,7 @@ mod tests {
         };
 
         let drift_config =
-            CustomMetricDriftConfig::new("scouter", "ML", "0.1.0", false, 25, alert_config, None)
-                .unwrap();
+            CustomMetricDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
         let custom_metrics = vec![
             CustomMetric::new("mae", 12.4, AlertThreshold::Above, Some(2.3)).unwrap(),

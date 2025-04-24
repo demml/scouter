@@ -1,14 +1,12 @@
 // implements a BackgroundQueue trait
 
 use crate::producer::RustScouterProducer;
-use crate::queue::custom::feature_queue;
 use chrono::{DateTime, Utc};
-use crossbeam_queue::{ArrayQueue, SegQueue};
+use crossbeam_queue::ArrayQueue;
 use scouter_error::EventError;
 use scouter_error::FeatureQueueError;
 use scouter_types::QueueExt;
 use scouter_types::ServerRecords;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime::Runtime;
@@ -97,7 +95,7 @@ pub trait BackgroundTask {
     }
 }
 
-/// This is a primiary trait implemented on all queues
+/// This is a primary trait implemented on all queues
 /// It provides the basic functionality for inserting, publishing, and flushing
 pub trait QueueMethods {
     type ItemType: QueueExt + 'static;

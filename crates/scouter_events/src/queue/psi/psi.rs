@@ -30,6 +30,7 @@ impl PsiQueue {
         drift_profile: PsiDriftProfile,
         config: TransportConfig,
     ) -> Result<Self, EventError> {
+        // ArrayQueue size is based on the max PSI queue size
         let queue = Arc::new(ArrayQueue::new(PSI_MAX_QUEUE_SIZE));
         let feature_queue = Arc::new(PsiFeatureQueue::new(drift_profile));
         let count = Arc::new(AtomicUsize::new(0));
