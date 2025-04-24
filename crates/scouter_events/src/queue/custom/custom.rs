@@ -1,5 +1,6 @@
 use crate::producer::RustScouterProducer;
 use crate::queue::custom::feature_queue::CustomMetricFeatureQueue;
+use crate::queue::traits::{BackgroundTask, FeatureQueue};
 use crate::queue::types::TransportConfig;
 use chrono::{DateTime, Utc};
 use crossbeam_queue::SegQueue;
@@ -10,8 +11,7 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::sync::watch;
-use tokio::time::{self, Duration};
-use tracing::{debug, error, info, info_span, instrument, Instrument};
+use tracing::{debug, error, instrument};
 
 /// The following code is a custom queue implementation for handling custom metrics.
 /// It consists of a `CustomQueue` struct that manages a queue of metrics and a background task
@@ -36,6 +36,11 @@ pub struct CustomQueue {
     rt: Arc<tokio::runtime::Runtime>,
     sample_size: usize,
     sample: bool,
+}
+
+impl BackgroundTask for CustomQueue {
+    type DataItem = Metrics;
+    type Processor = CustomMetricFeatureQueue;
 }
 
 impl CustomQueue {
@@ -76,9 +81,27 @@ impl CustomQueue {
         };
 
         debug!("Starting Background Task");
-        custom_queue.start_background_task(metrics_queue, feature_queue, stop_rx)?;
+        custom_queue.start_background_worker(metrics_queue, feature_queue, stop_rx)?;
 
         Ok(custom_queue)
+    }
+
+    fn start_background_worker(
+        &self,
+        metrics_queue: Arc<SegQueue<Metrics>>,
+        feature_queue: Arc<CustomMetricFeatureQueue>,
+        stop_rx: watch::Receiver<()>,
+    ) -> Result<(), EventError> {
+        self.start_background_task(
+            metrics_queue,
+            feature_queue,
+            self.producer.clone(),
+            self.last_publish.clone(),
+            self.rt.clone(),
+            stop_rx,
+            1000,
+            "Custom Background Polling",
+        )
     }
 
     #[instrument(skip_all)]
@@ -129,73 +152,5 @@ impl CustomQueue {
             let _ = stop_tx.send(());
         }
         Ok(self.rt.block_on(async { self.producer.flush().await })?)
-    }
-
-    fn start_background_task(
-        &self,
-        metrics_queue: Arc<SegQueue<Metrics>>,
-        feature_queue: Arc<CustomMetricFeatureQueue>,
-        mut stop_rx: watch::Receiver<()>,
-    ) -> Result<(), EventError> {
-        let mut producer = self.producer.clone();
-        let last_publish = self.last_publish.clone();
-        let handle = self.rt.clone();
-
-        let future = async move {
-            loop {
-                tokio::select! {
-                    _ = time::sleep(Duration::from_secs(2)) => {
-                        let now = Utc::now();
-
-                        // Scope the read guard to drop it before the future is sent
-                        let should_process = {
-                            if let Ok(last) = last_publish.read() {
-                                (now - *last).num_seconds() >= 30
-                            } else {
-                                false
-                            }
-                        };
-
-                        if should_process {
-                            debug!("Processing queued metrics");
-
-                            let mut batch = Vec::with_capacity(1000);
-                            while let Some(metrics) = metrics_queue.pop() {
-                                batch.push(metrics);
-                            }
-
-                            if !batch.is_empty() {
-                                match feature_queue.create_drift_records_from_batch(batch) {
-                                    Ok(records) => {
-                                        if let Err(e) = producer.publish(records).await {
-                                            error!("Failed to publish records: {}", e);
-                                        } else {
-                                            // Scope the write guard to drop it
-                                            {
-                                                if let Ok(mut guard) = last_publish.write() {
-                                                    *guard = now;
-                                                }
-                                            }
-                                            debug!("Successfully published records");
-                                        }
-                                    }
-                                    Err(e) => error!("Failed to create drift records: {}", e),
-                                }
-                            }
-                        }
-                    },
-                    _ = stop_rx.changed() => {
-                        info!("Stopping background task");
-                        if let Err(e) = producer.flush().await {
-                            error!("Failed to flush producer: {}", e);
-                        }
-                        break;
-                    }
-                }
-            }
-        };
-
-        handle.spawn(future.instrument(info_span!("Custom Background Polling")));
-        Ok(())
     }
 }

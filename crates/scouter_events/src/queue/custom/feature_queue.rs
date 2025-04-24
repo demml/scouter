@@ -1,12 +1,13 @@
+use crate::queue::traits::FeatureQueue;
 use core::result::Result::Ok;
 use scouter_error::FeatureQueueError;
-use scouter_types::Metrics;
+use scouter_types::Metric;
+use scouter_types::QueueExt;
 use scouter_types::{
     custom::CustomDriftProfile, CustomMetricServerRecord, ServerRecord, ServerRecords,
 };
 use std::collections::HashMap;
 use tracing::error;
-
 pub struct CustomMetricFeatureQueue {
     drift_profile: CustomDriftProfile,
     empty_queue: HashMap<String, Vec<f64>>,
@@ -41,10 +42,10 @@ impl CustomMetricFeatureQueue {
     /// * `Result<(), FeatureQueueError>` - A result indicating success or failure
     fn insert(
         &self,
-        metrics: Metrics,
+        metrics: &Vec<Metric>,
         queue: &mut HashMap<String, Vec<f64>>,
     ) -> Result<(), FeatureQueueError> {
-        for metric in metrics.metrics {
+        for metric in metrics {
             if !self.metric_names.contains(&metric.name) {
                 error!("Custom metric {} not found in drift profile", metric.name);
                 continue;
@@ -78,16 +79,18 @@ impl CustomMetricFeatureQueue {
 
         Ok(ServerRecords::new(averages))
     }
+}
 
-    pub fn create_drift_records_from_batch(
+impl FeatureQueue for CustomMetricFeatureQueue {
+    fn create_drift_records_from_batch<T: QueueExt>(
         &self,
-        metrics: Vec<Metrics>,
+        batch: Vec<T>,
     ) -> Result<ServerRecords, FeatureQueueError> {
         // clones the empty map (so we don't need to recreate it on each call)
         let mut queue = self.empty_queue.clone();
 
-        for batch in metrics {
-            self.insert(batch, &mut queue)?;
+        for elem in batch {
+            self.insert(elem.metrics(), &mut queue)?;
         }
 
         self.create_drift_records(queue)
@@ -123,7 +126,7 @@ mod tests {
         .unwrap();
         let profile =
             CustomDriftProfile::new(custom_config, vec![metric1, metric2, metric3], None).unwrap();
-        let mut feature_queue = CustomMetricFeatureQueue::new(profile);
+        let feature_queue = CustomMetricFeatureQueue::new(profile);
 
         assert_eq!(feature_queue.empty_queue.len(), 3);
 

@@ -207,3 +207,34 @@ impl Metrics {
         self.metrics.iter()
     }
 }
+
+pub trait QueueExt: Send + Sync {
+    fn metrics(&self) -> &Vec<Metric>;
+    fn features(&self) -> &Vec<Feature>;
+}
+
+impl QueueExt for Features {
+    fn metrics(&self) -> &Vec<Metric> {
+        // this is not a real implementation, just a placeholder
+        // to satisfy the trait bound
+        static EMPTY: Vec<Metric> = Vec::new();
+        &EMPTY
+    }
+
+    fn features(&self) -> &Vec<Feature> {
+        &self.features
+    }
+}
+
+impl QueueExt for Metrics {
+    fn metrics(&self) -> &Vec<Metric> {
+        &self.metrics
+    }
+
+    fn features(&self) -> &Vec<Feature> {
+        // this is not a real implementation, just a placeholder
+        // to satisfy the trait bound
+        static EMPTY: Vec<Feature> = Vec::new();
+        &EMPTY
+    }
+}

@@ -1,23 +1,22 @@
 use crate::producer::RustScouterProducer;
 use crate::queue::psi::feature_queue::PsiFeatureQueue;
+use crate::queue::traits::{BackgroundTask, QueueMethods};
 use crate::queue::types::TransportConfig;
 use chrono::{DateTime, Utc};
-use crossbeam_queue::SegQueue;
-use pyo3::prelude::*;
-use scouter_error::{EventError, ScouterError};
+use crossbeam_queue::ArrayQueue;
+use scouter_error::EventError;
 use scouter_types::psi::PsiDriftProfile;
 use scouter_types::Features;
-use std::sync::atomic::{AtomicUsize, Ordering};
+use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::sync::watch;
-use tokio::time::{self, Duration};
-use tracing::{debug, error, info, info_span, instrument, Instrument};
+use tracing::debug;
 
 const PSI_MAX_QUEUE_SIZE: usize = 1000;
 
 pub struct PsiQueue {
-    queue: Arc<SegQueue<Features>>,
+    queue: Arc<ArrayQueue<Features>>,
     feature_queue: Arc<PsiFeatureQueue>,
     producer: RustScouterProducer,
     count: Arc<AtomicUsize>,
@@ -31,7 +30,7 @@ impl PsiQueue {
         drift_profile: PsiDriftProfile,
         config: TransportConfig,
     ) -> Result<Self, EventError> {
-        let queue = Arc::new(SegQueue::new());
+        let queue = Arc::new(ArrayQueue::new(PSI_MAX_QUEUE_SIZE));
         let feature_queue = Arc::new(PsiFeatureQueue::new(drift_profile));
         let count = Arc::new(AtomicUsize::new(0));
         let last_publish = Arc::new(RwLock::new(Utc::now()));
@@ -59,134 +58,77 @@ impl PsiQueue {
         };
 
         debug!("Starting Background Task");
-        psi_queue.start_background_task(queue, feature_queue, stop_rx)?;
+        psi_queue.start_background_worker(queue, feature_queue, stop_rx)?;
 
         Ok(psi_queue)
     }
 
-    #[instrument(skip(self), name = "Insert")]
-    pub fn insert(&mut self, features: Features) -> Result<(), EventError> {
-        {
-            let mut queue = self.queue.blocking_lock();
-            let insert = queue.insert(features);
+    fn start_background_worker(
+        &self,
+        metrics_queue: Arc<ArrayQueue<Features>>,
+        feature_queue: Arc<PsiFeatureQueue>,
+        stop_rx: watch::Receiver<()>,
+    ) -> Result<(), EventError> {
+        self.start_background_task(
+            metrics_queue,
+            feature_queue,
+            self.producer.clone(),
+            self.last_publish.clone(),
+            self.rt.clone(),
+            stop_rx,
+            PSI_MAX_QUEUE_SIZE,
+            "Psi Background Polling",
+        )
+    }
+}
 
-            // silently fail if insert fails
-            if insert.is_err() {
-                error!(
-                    "Failed to insert features into queue: {:?}",
-                    insert.unwrap_err().to_string()
-                );
-                return Ok(());
-            }
+/// Implementing primary methods
+impl QueueMethods for PsiQueue {
+    type ItemType = Features;
+    type FeatureQueue = PsiFeatureQueue;
 
-            self.count += 1;
-        }
-
-        if self.count >= PSI_MAX_QUEUE_SIZE {
-            debug!("Queue is full, publishing drift records");
-            let publish = self._publish();
-
-            // silently fail if publish fails
-            if publish.is_err() {
-                // log error as string
-                error!(
-                    "Failed to publish drift records: {:?}",
-                    publish.unwrap_err().to_string()
-                );
-                return Ok(());
-            }
-
-            self.count = 0;
-        }
-
-        Ok(())
+    fn capacity(&self) -> usize {
+        PSI_MAX_QUEUE_SIZE
     }
 
-    fn _publish(&mut self) -> Result<(), EventError> {
-        let mut queue = self.queue.blocking_lock();
-        let records = queue.create_drift_records()?;
-        if !records.records.is_empty() {
-            self.rt
-                .block_on(async { self.producer.publish(records).await })?;
-            queue.clear_queue();
-            self.last_publish = Utc::now();
-        }
-        Ok(())
+    fn get_runtime(&self) -> Arc<tokio::runtime::Runtime> {
+        self.rt.clone()
     }
 
-    pub fn flush(&mut self) -> Result<(), ScouterError> {
+    fn get_producer(&mut self) -> &mut RustScouterProducer {
+        &mut self.producer
+    }
+
+    fn queue(&self) -> Arc<ArrayQueue<Self::ItemType>> {
+        self.queue.clone()
+    }
+
+    fn feature_queue(&self) -> Arc<Self::FeatureQueue> {
+        self.feature_queue.clone()
+    }
+
+    fn last_publish(&self) -> Arc<RwLock<DateTime<Utc>>> {
+        self.last_publish.clone()
+    }
+
+    fn should_process(&self, current_count: usize) -> bool {
+        current_count >= self.capacity()
+    }
+
+    fn flush(&mut self) -> Result<(), EventError> {
         // publish any remaining drift records
-        self._publish()?;
-
+        self.try_publish(self.queue())?;
         if let Some(stop_tx) = self.stop_tx.take() {
             let _ = stop_tx.send(());
         }
         Ok(self.rt.block_on(async { self.producer.flush().await })?)
     }
+}
 
-    fn start_background_task(
-        &self,
-        queue: Arc<Mutex<PsiFeatureQueue>>,
-        mut stop_rx: watch::Receiver<()>,
-    ) -> Result<(), ScouterError> {
-        let queue = queue.clone();
-        let mut producer = self.producer.clone();
-        let mut last_publish = self.last_publish;
-        let handle = self.rt.clone();
-
-        // spawn the background task using the already cloned handle
-        let future = async move {
-            loop {
-                tokio::select! {
-
-                    _ = time::sleep(Duration::from_secs(2)) => {
-
-
-                        debug!("Checking for records");
-                        let now = Utc::now();
-                        let elapsed = now - last_publish;
-
-                        if elapsed.num_seconds() >= 30 {
-                            debug!("Locking queue");
-                            let mut queue = queue.lock().await;
-
-                            let records = match queue.create_drift_records() {
-                                Ok(records) => records,
-                                Err(e) => {
-                                    error!("Failed to create drift records: {:?}", e.to_string());
-                                    continue;
-                                }
-                            };
-
-                            match !records.is_empty() {
-                                true => {
-                                    debug!("Publishing drift records");
-                                    if let Err(e) = producer.publish(records).await {
-                                        error!("Failed to publish drift records: {:?}", e.to_string());
-                                    }
-                                }
-                                false => {
-                                    debug!("No drift records to publish");
-                                }
-                            }
-
-                            queue.clear_queue();
-                            last_publish = now;
-                        }
-                    },
-                    _ = stop_rx.changed() => {
-                        info!("Stopping background task");
-                        if let Err(e) = producer.flush().await {
-                            error!("Failed to flush producer: {:?}", e.to_string());
-                        }
-                        break;
-                    }
-                }
-            }
-        };
-
-        handle.spawn(future.instrument(info_span!("PSI Background Polling")));
-
-        Ok(())
-    }
+/// Psi requires a background timed-task as a secondary processing mechanism
+/// i.e. Its possible that queue insertion is slow, and so we need a background
+/// task to process the queue at a regular interval
+impl BackgroundTask for PsiQueue {
+    type DataItem = Features;
+    type Processor = PsiFeatureQueue;
 }

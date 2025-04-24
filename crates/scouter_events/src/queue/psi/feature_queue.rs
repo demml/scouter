@@ -1,11 +1,13 @@
-use scouter_types::{psi::BinType, Features, PsiServerRecord, ServerRecord, ServerRecords};
-use tracing::{debug, error, instrument};
-
+use crate::queue::traits::FeatureQueue;
 use core::result::Result::Ok;
 use scouter_drift::psi::monitor::PsiMonitor;
-use scouter_error::{EventError, FeatureQueueError};
-use scouter_types::psi::{Bin, PsiDriftProfile};
+use scouter_error::FeatureQueueError;
+use scouter_types::{
+    psi::{Bin, BinType, PsiDriftProfile},
+    Feature, PsiServerRecord, QueueExt, ServerRecord, ServerRecords,
+};
 use std::collections::HashMap;
+use tracing::{debug, error, instrument};
 
 pub struct PsiFeatureQueue {
     pub drift_profile: PsiDriftProfile,
@@ -139,7 +141,7 @@ impl PsiFeatureQueue {
     #[instrument(skip_all)]
     pub fn insert(
         &self,
-        features: Features,
+        features: &Vec<Feature>,
         queue: &mut HashMap<String, HashMap<usize, usize>>,
     ) -> Result<(), FeatureQueueError> {
         let feat_map = &self.drift_profile.config.feature_map;
@@ -198,7 +200,7 @@ impl PsiFeatureQueue {
     pub fn create_drift_records(
         &self,
         queue: HashMap<String, HashMap<usize, usize>>,
-    ) -> Result<ServerRecords, EventError> {
+    ) -> Result<ServerRecords, FeatureQueueError> {
         // filter out any feature thats not in features_to_monitor
         // Keep feature if any value in the bin map is greater than 0
 
@@ -227,17 +229,21 @@ impl PsiFeatureQueue {
 
         Ok(ServerRecords::new(records))
     }
+}
 
-    pub fn create_drift_records_from_batch(
+impl FeatureQueue for PsiFeatureQueue {
+    fn create_drift_records_from_batch<T: QueueExt>(
         &self,
-        features: Vec<Features>,
-    ) -> Result<ServerRecords, EventError> {
+        batch: Vec<T>,
+    ) -> Result<ServerRecords, FeatureQueueError> {
+        // clones the empty map (so we don't need to recreate it on each call)
         let mut queue = self.empty_queue.clone();
-        for feature in features {
-            self.insert(feature, &mut queue)?;
+
+        for elem in batch {
+            self.insert(elem.features(), &mut queue)?;
         }
-        let records = self.create_drift_records(queue)?;
-        Ok(records)
+
+        self.create_drift_records(queue)
     }
 }
 
@@ -252,7 +258,7 @@ mod tests {
     use scouter_drift::utils::CategoricalFeatureHelpers;
     use scouter_types::psi::PsiAlertConfig;
     use scouter_types::psi::PsiDriftConfig;
-    use scouter_types::{Feature, DEFAULT_VERSION};
+    use scouter_types::{Features, DEFAULT_VERSION};
 
     #[test]
     fn test_feature_queue_insert_numeric() {
@@ -304,7 +310,7 @@ mod tests {
 
         let mut queue = feature_queue.empty_queue.clone();
         for feature in batch_features {
-            feature_queue.insert(feature, &mut queue).unwrap();
+            feature_queue.insert(&feature.features, &mut queue).unwrap();
         }
 
         assert_eq!(*queue.get("feature_1").unwrap().get(&1).unwrap(), 9);
@@ -349,7 +355,7 @@ mod tests {
 
         let mut queue = feature_queue.empty_queue.clone();
         for feature in batch_features {
-            feature_queue.insert(feature, &mut queue).unwrap();
+            feature_queue.insert(&feature.features, &mut queue).unwrap();
         }
 
         assert_eq!(*queue.get("feature_1").unwrap().get(&0).unwrap(), 9);
@@ -420,7 +426,7 @@ mod tests {
 
         let mut queue = feature_queue.empty_queue.clone();
         for feature in batch_features {
-            feature_queue.insert(feature, &mut queue).unwrap();
+            feature_queue.insert(&feature.features, &mut queue).unwrap();
         }
 
         assert_eq!(*queue.get("feature_1").unwrap().get(&2).unwrap(), 9);
@@ -492,7 +498,7 @@ mod tests {
 
         let mut queue = feature_queue.empty_queue.clone();
         for feature in batch_features {
-            feature_queue.insert(feature, &mut queue).unwrap();
+            feature_queue.insert(&feature.features, &mut queue).unwrap();
         }
 
         let is_empty = !queue
