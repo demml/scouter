@@ -2,6 +2,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use rusty_logging::logger::LogLevel;
 use scouter_error::{EventError, ScouterError};
+use scouter_types::TransportTypes;
 use std::collections::HashMap;
 use std::env;
 use std::str::FromStr;
@@ -108,6 +109,8 @@ pub struct KafkaConfig {
 
     #[pyo3(get, set)]
     pub max_retries: i32,
+
+    pub config_type: TransportTypes,
 }
 
 #[pymethods]
@@ -181,6 +184,7 @@ impl KafkaConfig {
             log_level,
             config,
             max_retries: max_retries.unwrap_or(3),
+            config_type: TransportTypes::Kafka,
         })
     }
 }

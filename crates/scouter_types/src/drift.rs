@@ -161,9 +161,12 @@ impl DriftProfile {
     /// * `body` - Request body
     /// * `drift_type` - Drift type string
     ///
-    pub fn from_value(body: serde_json::Value, drift_type: &str) -> Result<Self, ScouterError> {
+    pub fn from_value(body: serde_json::Value) -> Result<Self, ScouterError> {
+        let drift_type = body["config"]["drift_type"].as_str().unwrap();
+
         let drift_type = DriftType::from_str(drift_type)
             .map_err(|_| ScouterError::InvalidDriftTypeError(drift_type.to_string()))?;
+
         match drift_type {
             DriftType::Spc => {
                 let profile =

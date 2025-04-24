@@ -1,4 +1,5 @@
 use pyo3::prelude::*;
+use scouter_types::TransportTypes;
 
 #[pyclass]
 #[derive(Debug, Clone)]
@@ -14,6 +15,8 @@ pub struct HTTPConfig {
 
     #[pyo3(get, set)]
     pub auth_token: String,
+
+    pub config_type: TransportTypes,
 }
 
 #[pymethods]
@@ -45,6 +48,7 @@ impl HTTPConfig {
             username,
             password,
             auth_token,
+            config_type: TransportTypes::Http,
         }
     }
 }

@@ -22,10 +22,7 @@ pub enum Queue {
 }
 
 impl Queue {
-    pub fn new(
-        drift_profile: &Bound<'_, PyAny>,
-        config: &Bound<'_, PyAny>,
-    ) -> Result<Self, ScouterError> {
+    pub fn new(drift_profile: &DriftProfile, config: &C) -> Result<Self, ScouterError> {
         let drift_type = drift_profile
             .getattr("config")?
             .getattr("drift_type")?
@@ -73,20 +70,16 @@ impl Queue {
     }
 }
 
-#[pyclass]
 pub struct ScouterQueue {
     queue: Queue,
 }
 
-#[pymethods]
 impl ScouterQueue {
-    #[new]
-    #[pyo3(signature = (transport_config,))]
-    pub fn new(transport_config: &Bound<'_, DriftTransportConfig>) -> Result<Self, ScouterError> {
+    pub fn new(transport_config: &DriftTransportConfig) -> Result<Self, ScouterError> {
         info!("Starting ScouterQueue");
 
-        let profile = &transport_config.getattr("drift_profile")?;
-        let config = &transport_config.getattr("config")?;
+        let profile = &transport_config.drift_profile;
+        let config = &transport_config.config;
 
         Ok(ScouterQueue {
             queue: Queue::new(profile, config)?,
@@ -132,40 +125,15 @@ pub struct DriftTransportConfig {
 #[pymethods]
 impl DriftTransportConfig {
     #[new]
-    #[pyo3(signature = (id, config, drift_profile_path=None, drift_profile_request=None, scouter_server_config=None))]
-    pub fn new(
+    #[pyo3(signature = (id, transport_config, path))]
+    pub fn from_path(
         id: String,
-        config: &Bound<'_, PyAny>,
-        drift_profile_path: Option<PathBuf>,
-        drift_profile_request: Option<GetProfileRequest>,
-        scouter_server_config: Option<&Bound<'_, PyAny>>,
+        transport_config: &Bound<'_, PyAny>,
+        path: PathBuf,
     ) -> PyResult<Self> {
-        // if drift_profile_path and drift_profile_request are both missing, raise an error
-        if drift_profile_path.is_none() && drift_profile_request.is_none() {
-            return Err(PyScouterError::new_err(
-                "Either drift_profile_path or drift_profile_request must be provided",
-            ));
-        }
-
-        if drift_profile_path.is_some() {
-            // load drift_profile from path to serde_json::Value
-            let profile = std::fs::read_to_string(drift_profile_path.unwrap())?;
-            let profile_value: Value = serde_json::from_str(&profile).unwrap();
-
-            // get the drift_type from the drift_profile
-            let drift_type = profile_value["config"]["drift_type"].as_str().unwrap();
-
-            let drift_profile = DriftProfile::from_value(profile_value.clone(), drift_type)?;
-
-            return Ok(DriftTransportConfig {
-                id,
-                drift_profile,
-                config: config.clone().unbind(),
-            });
-        };
-
-        let mut client = ScouterClient::new(scouter_server_config)?;
-        let drift_profile = client.get_drift_profile(drift_profile_request.unwrap())?;
+        let profile = std::fs::read_to_string(path)?;
+        let profile_value: Value = serde_json::from_str(&profile).unwrap();
+        let drift_profile = DriftProfile::from_value(profile_value)?;
 
         Ok(DriftTransportConfig {
             id,
