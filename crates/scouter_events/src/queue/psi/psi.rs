@@ -2,22 +2,26 @@ use crate::producer::RustScouterProducer;
 use crate::queue::psi::feature_queue::PsiFeatureQueue;
 use crate::queue::types::TransportConfig;
 use chrono::{DateTime, Utc};
+use crossbeam_queue::SegQueue;
 use pyo3::prelude::*;
 use scouter_error::{EventError, ScouterError};
 use scouter_types::psi::PsiDriftProfile;
 use scouter_types::Features;
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
-use tokio::sync::{watch, Mutex};
+use std::sync::RwLock;
+use tokio::sync::watch;
 use tokio::time::{self, Duration};
 use tracing::{debug, error, info, info_span, instrument, Instrument};
 
 const PSI_MAX_QUEUE_SIZE: usize = 1000;
 
 pub struct PsiQueue {
-    queue: Arc<Mutex<PsiFeatureQueue>>,
+    queue: Arc<SegQueue<Features>>,
+    feature_queue: Arc<PsiFeatureQueue>,
     producer: RustScouterProducer,
-    count: usize,
-    last_publish: DateTime<Utc>,
+    count: Arc<AtomicUsize>,
+    last_publish: Arc<RwLock<DateTime<Utc>>>,
     stop_tx: Option<watch::Sender<()>>,
     rt: Arc<tokio::runtime::Runtime>,
 }
@@ -27,7 +31,10 @@ impl PsiQueue {
         drift_profile: PsiDriftProfile,
         config: TransportConfig,
     ) -> Result<Self, EventError> {
-        let queue = Arc::new(Mutex::new(PsiFeatureQueue::new(drift_profile)));
+        let queue = Arc::new(SegQueue::new());
+        let feature_queue = Arc::new(PsiFeatureQueue::new(drift_profile));
+        let count = Arc::new(AtomicUsize::new(0));
+        let last_publish = Arc::new(RwLock::new(Utc::now()));
 
         // psi queue needs a tokio runtime to run background tasks
         // This runtime needs to be separate from the producer runtime
@@ -43,15 +50,16 @@ impl PsiQueue {
 
         let psi_queue = PsiQueue {
             queue: queue.clone(),
+            feature_queue: feature_queue.clone(),
             producer,
-            count: 0,
-            last_publish: Utc::now(),
+            count,
+            last_publish,
             stop_tx: Some(stop_tx),
             rt: rt.clone(),
         };
 
         debug!("Starting Background Task");
-        psi_queue.start_background_task(queue, stop_rx)?;
+        psi_queue.start_background_task(queue, feature_queue, stop_rx)?;
 
         Ok(psi_queue)
     }

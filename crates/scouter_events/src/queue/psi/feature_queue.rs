@@ -9,13 +9,13 @@ use std::collections::HashMap;
 
 pub struct PsiFeatureQueue {
     pub drift_profile: PsiDriftProfile,
-    pub queue: HashMap<String, HashMap<usize, usize>>,
+    pub empty_queue: HashMap<String, HashMap<usize, usize>>,
     pub monitor: PsiMonitor,
     pub feature_names: Vec<String>,
 }
 
 impl PsiFeatureQueue {
-    #[instrument(skip(value, bins), name = "Numeric Scalar", level = "debug")]
+    #[instrument(skip_all)]
     fn find_numeric_bin_given_scaler(
         value: f64,
         bins: &[Bin],
@@ -34,7 +34,7 @@ impl PsiFeatureQueue {
         }
     }
 
-    #[instrument(skip(queue, value, bins), name = "Numeric Queue", level = "debug")]
+    #[instrument(skip_all)]
     fn process_numeric_queue(
         queue: &mut HashMap<usize, usize>,
         value: f64,
@@ -53,7 +53,7 @@ impl PsiFeatureQueue {
         Ok(())
     }
 
-    #[instrument(skip(feature, queue, value), name = "Binary Queue", level = "debug")]
+    #[instrument(skip_all)]
     fn process_binary_queue(
         feature: &str,
         queue: &mut HashMap<usize, usize>,
@@ -89,7 +89,7 @@ impl PsiFeatureQueue {
         Ok(())
     }
 
-    #[instrument(skip(queue, value), name = "Process Categorical", level = "debug")]
+    #[instrument(skip_all)]
     fn process_categorical_queue(
         queue: &mut HashMap<usize, usize>,
         value: &usize,
@@ -112,7 +112,7 @@ impl PsiFeatureQueue {
             .features_to_monitor
             .clone();
 
-        let queue: HashMap<String, HashMap<usize, usize>> = drift_profile
+        let empty_queue: HashMap<String, HashMap<usize, usize>> = drift_profile
             .features
             .iter()
             .filter(|(feature_name, _)| features_to_monitor.contains(feature_name))
@@ -126,18 +126,22 @@ impl PsiFeatureQueue {
             })
             .collect();
 
-        let feature_names = queue.keys().cloned().collect();
+        let feature_names = empty_queue.keys().cloned().collect();
 
         PsiFeatureQueue {
             drift_profile,
-            queue,
+            empty_queue,
             monitor: PsiMonitor::new(),
             feature_names,
         }
     }
 
-    #[instrument(skip(self, features), name = "Insert", level = "debug")]
-    pub fn insert(&mut self, features: Features) -> Result<(), FeatureQueueError> {
+    #[instrument(skip_all)]
+    pub fn insert(
+        &self,
+        features: Features,
+        queue: &mut HashMap<String, HashMap<usize, usize>>,
+    ) -> Result<(), FeatureQueueError> {
         let feat_map = &self.drift_profile.config.feature_map;
         for feature in features.iter() {
             if let Some(feature_drift_profile) = self.drift_profile.features.get(feature.name()) {
@@ -150,8 +154,7 @@ impl PsiFeatureQueue {
 
                 let bins = &feature_drift_profile.bins;
 
-                let queue = self
-                    .queue
+                let queue = queue
                     .get_mut(&name)
                     .ok_or(FeatureQueueError::GetFeatureError)?;
 
@@ -191,13 +194,15 @@ impl PsiFeatureQueue {
         Ok(())
     }
 
-    #[instrument(skip(self), name = "Create records", level = "debug")]
-    pub fn create_drift_records(&self) -> Result<ServerRecords, EventError> {
+    #[instrument(skip_all)]
+    pub fn create_drift_records(
+        &self,
+        queue: HashMap<String, HashMap<usize, usize>>,
+    ) -> Result<ServerRecords, EventError> {
         // filter out any feature thats not in features_to_monitor
         // Keep feature if any value in the bin map is greater than 0
 
-        let filtered_queue = self
-            .queue
+        let filtered_queue = queue
             .iter()
             .filter(|(_, bin_map)| bin_map.iter().any(|(_, count)| *count > 0))
             .collect::<HashMap<_, _>>();
@@ -223,17 +228,16 @@ impl PsiFeatureQueue {
         Ok(ServerRecords::new(records))
     }
 
-    pub fn is_empty(&self) -> bool {
-        !self
-            .queue
-            .values()
-            .any(|bin_map| bin_map.values().any(|count| *count > 0))
-    }
-
-    pub fn clear_queue(&mut self) {
-        self.queue.values_mut().for_each(|bin_map| {
-            bin_map.values_mut().for_each(|count| *count = 0);
-        });
+    pub fn create_drift_records_from_batch(
+        &self,
+        features: Vec<Features>,
+    ) -> Result<ServerRecords, EventError> {
+        let mut queue = self.empty_queue.clone();
+        for feature in features {
+            self.insert(feature, &mut queue)?;
+        }
+        let records = self.create_drift_records(queue)?;
+        Ok(records)
     }
 }
 
@@ -281,10 +285,11 @@ mod tests {
             .unwrap();
         assert_eq!(profile.features.len(), 3);
 
-        let mut feature_queue = PsiFeatureQueue::new(profile);
+        let feature_queue = PsiFeatureQueue::new(profile);
 
-        assert_eq!(feature_queue.queue.len(), 3);
+        assert_eq!(feature_queue.empty_queue.len(), 3);
 
+        let mut batch_features = Vec::new();
         for _ in 0..9 {
             let one = Feature::float("feature_1".to_string(), min);
             let two = Feature::float("feature_2".to_string(), min);
@@ -294,36 +299,17 @@ mod tests {
                 features: vec![one, two, three],
             };
 
-            feature_queue.insert(features).unwrap();
+            batch_features.push(features);
         }
 
-        assert_eq!(
-            *feature_queue
-                .queue
-                .get("feature_1")
-                .unwrap()
-                .get(&1)
-                .unwrap(),
-            9
-        );
-        assert_eq!(
-            *feature_queue
-                .queue
-                .get("feature_2")
-                .unwrap()
-                .get(&1)
-                .unwrap(),
-            9
-        );
-        assert_eq!(
-            *feature_queue
-                .queue
-                .get("feature_3")
-                .unwrap()
-                .get(&10)
-                .unwrap(),
-            9
-        );
+        let mut queue = feature_queue.empty_queue.clone();
+        for feature in batch_features {
+            feature_queue.insert(feature, &mut queue).unwrap();
+        }
+
+        assert_eq!(*queue.get("feature_1").unwrap().get(&1).unwrap(), 9);
+        assert_eq!(*queue.get("feature_2").unwrap().get(&1).unwrap(), 9);
+        assert_eq!(*queue.get("feature_3").unwrap().get(&10).unwrap(), 9);
     }
 
     #[test]
@@ -345,10 +331,11 @@ mod tests {
 
         assert_eq!(profile.features.len(), 2);
 
-        let mut feature_queue = PsiFeatureQueue::new(profile);
+        let feature_queue = PsiFeatureQueue::new(profile);
 
-        assert_eq!(feature_queue.queue.len(), 2);
+        assert_eq!(feature_queue.empty_queue.len(), 2);
 
+        let mut batch_features = Vec::new();
         for _ in 0..9 {
             let one = Feature::float("feature_1".to_string(), 0.0);
             let two = Feature::float("feature_2".to_string(), 1.0);
@@ -357,27 +344,16 @@ mod tests {
                 features: vec![one, two],
             };
 
-            feature_queue.insert(features).unwrap();
+            batch_features.push(features);
         }
 
-        assert_eq!(
-            *feature_queue
-                .queue
-                .get("feature_1")
-                .unwrap()
-                .get(&0)
-                .unwrap(),
-            9
-        );
-        assert_eq!(
-            *feature_queue
-                .queue
-                .get("feature_2")
-                .unwrap()
-                .get(&1)
-                .unwrap(),
-            9
-        );
+        let mut queue = feature_queue.empty_queue.clone();
+        for feature in batch_features {
+            feature_queue.insert(feature, &mut queue).unwrap();
+        }
+
+        assert_eq!(*queue.get("feature_1").unwrap().get(&0).unwrap(), 9);
+        assert_eq!(*queue.get("feature_2").unwrap().get(&1).unwrap(), 9);
     }
 
     #[test]
@@ -427,10 +403,11 @@ mod tests {
             .unwrap();
         assert_eq!(profile.features.len(), 2);
 
-        let mut feature_queue = PsiFeatureQueue::new(profile);
+        let feature_queue = PsiFeatureQueue::new(profile);
 
-        assert_eq!(feature_queue.queue.len(), 2);
+        assert_eq!(feature_queue.empty_queue.len(), 2);
 
+        let mut batch_features = Vec::new();
         for _ in 0..9 {
             let one = Feature::string("feature_1".to_string(), "c".to_string());
             let two = Feature::string("feature_2".to_string(), "a".to_string());
@@ -438,28 +415,16 @@ mod tests {
             let features = Features {
                 features: vec![one, two],
             };
-
-            feature_queue.insert(features).unwrap();
+            batch_features.push(features);
         }
 
-        assert_eq!(
-            *feature_queue
-                .queue
-                .get("feature_1")
-                .unwrap()
-                .get(&2)
-                .unwrap(),
-            9
-        );
-        assert_eq!(
-            *feature_queue
-                .queue
-                .get("feature_2")
-                .unwrap()
-                .get(&0)
-                .unwrap(),
-            9
-        );
+        let mut queue = feature_queue.empty_queue.clone();
+        for feature in batch_features {
+            feature_queue.insert(feature, &mut queue).unwrap();
+        }
+
+        assert_eq!(*queue.get("feature_1").unwrap().get(&2).unwrap(), 9);
+        assert_eq!(*queue.get("feature_2").unwrap().get(&0).unwrap(), 9);
     }
 
     #[test]
@@ -509,13 +474,11 @@ mod tests {
             .unwrap();
         assert_eq!(profile.features.len(), 2);
 
-        let mut feature_queue = PsiFeatureQueue::new(profile);
+        let feature_queue = PsiFeatureQueue::new(profile);
 
-        assert_eq!(feature_queue.queue.len(), 2);
+        assert_eq!(feature_queue.empty_queue.len(), 2);
 
-        let is_empty = feature_queue.is_empty();
-        assert_eq!(is_empty as u8, 1);
-
+        let mut batch_features = Vec::new();
         for _ in 0..9 {
             let one = Feature::string("feature_1".to_string(), "c".to_string());
             let two = Feature::string("feature_2".to_string(), "a".to_string());
@@ -524,10 +487,18 @@ mod tests {
                 features: vec![one, two],
             };
 
-            feature_queue.insert(features).unwrap();
+            batch_features.push(features);
         }
 
-        let is_empty = feature_queue.queue.is_empty();
+        let mut queue = feature_queue.empty_queue.clone();
+        for feature in batch_features {
+            feature_queue.insert(feature, &mut queue).unwrap();
+        }
+
+        let is_empty = !queue
+            .values()
+            .any(|bin_map| bin_map.values().any(|count| *count > 0));
+
         assert_eq!(is_empty as u8, 0);
     }
 
@@ -550,10 +521,11 @@ mod tests {
 
         assert_eq!(profile.features.len(), 3);
 
-        let mut feature_queue = PsiFeatureQueue::new(profile);
+        let feature_queue = PsiFeatureQueue::new(profile);
 
-        assert_eq!(feature_queue.queue.len(), 3);
+        assert_eq!(feature_queue.empty_queue.len(), 3);
 
+        let mut batch_features = Vec::new();
         for _ in 0..9 {
             let one = Feature::float("feature_1".to_string(), 1.0);
             let two = Feature::float("feature_2".to_string(), 10.0);
@@ -563,10 +535,12 @@ mod tests {
                 features: vec![one, two, three],
             };
 
-            feature_queue.insert(features).unwrap();
+            batch_features.push(features);
         }
 
-        let drift_records = feature_queue.create_drift_records().unwrap();
+        let drift_records = feature_queue
+            .create_drift_records_from_batch(batch_features)
+            .unwrap();
 
         // We have 3 features, the 3 features are numeric in nature and thus should have 10 bins assigned per due to our current decile approach.
         // Each record contains information for a given feature bin pair and this we should see a vec of len 30
