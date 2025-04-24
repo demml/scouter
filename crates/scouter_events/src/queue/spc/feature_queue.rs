@@ -183,6 +183,7 @@ mod tests {
 
             let features = Features {
                 features: vec![one, two, three],
+                entity_type: scouter_types::EntityType::Feature,
             };
 
             batch_features.push(features);

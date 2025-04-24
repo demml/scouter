@@ -104,6 +104,7 @@ mod tests {
     use scouter_types::custom::{
         AlertThreshold, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig,
     };
+    use scouter_types::EntityType;
     use scouter_types::{Metric, Metrics};
 
     #[test]
@@ -136,6 +137,7 @@ mod tests {
 
             let metrics = Metrics {
                 metrics: vec![one, two],
+                entity_type: EntityType::Metric,
             };
 
             metric_batch.push(metrics);

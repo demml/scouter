@@ -776,11 +776,20 @@ pub enum EventError {
 
     #[error("Failed to insert record: {0}")]
     InsertRecordError(String),
+
+    #[error("Queue is full, failed to push item")]
+    QueueFullError,
 }
 
 impl TracedError for EventError {}
 
 impl EventError {
+    pub fn queue_push_error<T>(_item: T) -> Self {
+        // If you need the item, store it in the error variant
+        // Otherwise just return the error type
+        EventError::QueueFullError
+    }
+
     pub fn traced_connection_error(err: impl Display) -> Self {
         let error = Self::ConnectionError(err.to_string());
         error.trace();

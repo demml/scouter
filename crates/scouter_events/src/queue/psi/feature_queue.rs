@@ -258,6 +258,7 @@ mod tests {
     use scouter_drift::utils::CategoricalFeatureHelpers;
     use scouter_types::psi::PsiAlertConfig;
     use scouter_types::psi::PsiDriftConfig;
+    use scouter_types::EntityType;
     use scouter_types::{Features, DEFAULT_VERSION};
 
     #[test]
@@ -303,6 +304,7 @@ mod tests {
 
             let features = Features {
                 features: vec![one, two, three],
+                entity_type: EntityType::Feature,
             };
 
             batch_features.push(features);
@@ -348,6 +350,7 @@ mod tests {
 
             let features = Features {
                 features: vec![one, two],
+                entity_type: EntityType::Feature,
             };
 
             batch_features.push(features);
@@ -420,6 +423,7 @@ mod tests {
 
             let features = Features {
                 features: vec![one, two],
+                entity_type: EntityType::Feature,
             };
             batch_features.push(features);
         }
@@ -491,6 +495,7 @@ mod tests {
 
             let features = Features {
                 features: vec![one, two],
+                entity_type: EntityType::Feature,
             };
 
             batch_features.push(features);
@@ -539,6 +544,7 @@ mod tests {
 
             let features = Features {
                 features: vec![one, two, three],
+                entity_type: EntityType::Feature,
             };
 
             batch_features.push(features);

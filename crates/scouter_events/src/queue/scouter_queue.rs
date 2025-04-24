@@ -5,11 +5,11 @@ use crate::queue::psi::PsiQueue;
 use crate::queue::spc::SpcQueue;
 use crate::queue::traits::queue::QueueMethods;
 use pyo3::prelude::*;
-use scouter_error::{EventError, PyScouterError, ScouterError};
+use scouter_error::EventError;
 use scouter_types::{DriftProfile, QueueEntity};
 use scouter_types::{Features, Metrics};
 use std::path::PathBuf;
-use tracing::{error, info, instrument};
+use tracing::{info, instrument};
 
 pub enum Queue {
     Spc(SpcQueue),
@@ -46,14 +46,18 @@ impl Queue {
         match self {
             Queue::Psi(queue) => queue.insert(features),
             Queue::Spc(queue) => queue.insert(features),
-            _ => Err(EventError::traced_insert_record_error("not supported")),
+            _ => Err(EventError::traced_insert_record_error(
+                "Queue not supported for feature entity",
+            )),
         }
     }
 
     pub fn insert_metrics(&mut self, metrics: Metrics) -> Result<(), EventError> {
         match self {
             Queue::Custom(queue) => queue.insert(metrics),
-            _ => Err(EventError::traced_insert_record_error("not supported")),
+            _ => Err(EventError::traced_insert_record_error(
+                "Queue not supported for metrics entity",
+            )),
         }
     }
 
@@ -85,36 +89,18 @@ impl ScouterQueue {
 
     #[instrument(skip_all)]
     pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> Result<(), EventError> {
-        let entity = QueueEntity::from_py_entity(entity).map_err(|e| {
-            error!(
-                "Failed to extract entity from Python object: {:?}",
-                e.to_string()
-            );
-            PyScouterError::new_err(e.to_string())
-        })?;
+        let entity = QueueEntity::from_py_entity(entity)?;
 
-        self.queue.insert(entity).map_err(|e| {
-            error!("Failed to insert features into queue: {:?}", e.to_string());
-            PyScouterError::new_err(e.to_string())
-        })?;
+        self.queue.insert(entity)?;
         Ok(())
     }
 
     #[instrument(skip_all, name = "Flush", level = "debug")]
     pub fn flush(&mut self) -> Result<(), EventError> {
         match &mut self.queue {
-            Queue::Spc(queue) => queue.flush().map_err(|e| {
-                error!("Failed to flush queue: {:?}", e.to_string());
-                PyScouterError::new_err(e.to_string())
-            }),
-            Queue::Psi(queue) => queue.flush().map_err(|e| {
-                error!("Failed to flush queue: {:?}", e.to_string());
-                PyScouterError::new_err(e.to_string())
-            }),
-            Queue::Custom(queue) => queue.flush().map_err(|e| {
-                error!("Failed to flush queue: {:?}", e.to_string());
-                PyScouterError::new_err(e.to_string())
-            }),
+            Queue::Spc(queue) => queue.flush(),
+            Queue::Psi(queue) => queue.flush(),
+            Queue::Custom(queue) => queue.flush(),
         }
     }
 }

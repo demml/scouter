@@ -9,7 +9,6 @@ use scouter_error::EventError;
 use scouter_types::custom::CustomDriftProfile;
 use scouter_types::Metrics;
 use std::cmp::min;
-use std::sync::atomic::AtomicUsize;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::sync::watch;
@@ -32,7 +31,6 @@ pub struct CustomQueue {
     queue: Arc<ArrayQueue<Metrics>>,
     feature_queue: Arc<CustomMetricFeatureQueue>,
     producer: RustScouterProducer,
-    count: Arc<AtomicUsize>,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
     stop_tx: Option<watch::Sender<()>>,
     rt: Arc<tokio::runtime::Runtime>,
@@ -50,7 +48,6 @@ impl CustomQueue {
         // ArrayQueue size is based on sample size
         let metrics_queue = Arc::new(ArrayQueue::new(sample_size));
         let feature_queue = Arc::new(CustomMetricFeatureQueue::new(drift_profile));
-        let count = Arc::new(AtomicUsize::new(0));
         let last_publish = Arc::new(RwLock::new(Utc::now()));
 
         // psi queue needs a tokio runtime to run background tasks
@@ -68,7 +65,6 @@ impl CustomQueue {
             queue: metrics_queue.clone(),
             feature_queue: feature_queue.clone(),
             producer,
-            count,
             last_publish,
             stop_tx: Some(stop_tx),
             rt: rt.clone(),

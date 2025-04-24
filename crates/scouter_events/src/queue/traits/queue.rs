@@ -131,7 +131,7 @@ pub trait QueueMethods {
     /// Insert an item into the queue
     fn insert(&mut self, item: Self::ItemType) -> Result<(), EventError> {
         let queue = self.queue();
-        queue.push(item);
+        queue.push(item).map_err(EventError::queue_push_error)?;
 
         // Check if we need to process the queue
         if queue.is_full() {

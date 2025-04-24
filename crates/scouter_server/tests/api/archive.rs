@@ -253,7 +253,7 @@ async fn test_data_archive_custom() {
 
     let alert_config = CustomMetricAlertConfig::default();
     let config =
-        CustomMetricDriftConfig::new(SPACE, NAME, VERSION, true, 25, alert_config, None).unwrap();
+        CustomMetricDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
 
     let alert_threshold = AlertThreshold::Above;
     let metric1 = CustomMetric::new("metric_1", 1.0, alert_threshold.clone(), None).unwrap();
