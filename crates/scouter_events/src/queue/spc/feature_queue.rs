@@ -1,17 +1,19 @@
+use crate::queue::traits::FeatureQueue;
 use core::result::Result::Ok;
 use ndarray::prelude::*;
 use ndarray::Array2;
 use scouter_drift::spc::monitor::SpcMonitor;
 use scouter_error::FeatureQueueError;
 use scouter_types::spc::SpcDriftProfile;
-use scouter_types::{Features, ServerRecords};
+use scouter_types::QueueExt;
+use scouter_types::{Feature, ServerRecords};
 use std::collections::HashMap;
 use tracing::instrument;
 use tracing::{debug, error};
 
 pub struct SpcFeatureQueue {
     pub drift_profile: SpcDriftProfile,
-    pub queue: HashMap<String, Vec<f64>>,
+    pub empty_queue: HashMap<String, Vec<f64>>,
     pub monitor: SpcMonitor,
     pub feature_names: Vec<String>,
 }
@@ -19,7 +21,7 @@ pub struct SpcFeatureQueue {
 impl SpcFeatureQueue {
     #[instrument(skip(drift_profile))]
     pub fn new(drift_profile: SpcDriftProfile) -> Self {
-        let queue: HashMap<String, Vec<f64>> = drift_profile
+        let empty_queue: HashMap<String, Vec<f64>> = drift_profile
             .config
             .alert_config
             .features_to_monitor
@@ -27,18 +29,22 @@ impl SpcFeatureQueue {
             .map(|feature| (feature.clone(), Vec::new()))
             .collect();
 
-        let feature_names = queue.keys().cloned().collect();
+        let feature_names = empty_queue.keys().cloned().collect();
 
         SpcFeatureQueue {
             drift_profile,
-            queue,
+            empty_queue,
             monitor: SpcMonitor::new(),
             feature_names,
         }
     }
 
     #[instrument(skip(self, features), name = "Insert")]
-    pub fn insert(&mut self, features: Features) -> Result<(), FeatureQueueError> {
+    pub fn insert(
+        &self,
+        features: &Vec<Feature>,
+        queue: &mut HashMap<String, Vec<f64>>,
+    ) -> Result<(), FeatureQueueError> {
         let feat_map = &self.drift_profile.config.feature_map;
 
         debug!("Inserting features into queue");
@@ -46,7 +52,7 @@ impl SpcFeatureQueue {
             let name = feature.name().to_string();
 
             if self.feature_names.contains(&name) {
-                if let Some(queue) = self.queue.get_mut(&name) {
+                if let Some(queue) = queue.get_mut(&name) {
                     if let Ok(value) = feature.to_float(feat_map) {
                         queue.push(value);
                     }
@@ -61,10 +67,12 @@ impl SpcFeatureQueue {
     //
     // returns: DriftServerRecords
     #[instrument(skip(self), name = "Create Server Records")]
-    pub fn create_drift_records(&self) -> Result<ServerRecords, FeatureQueueError> {
+    pub fn create_drift_records(
+        &self,
+        queue: HashMap<String, Vec<f64>>,
+    ) -> Result<ServerRecords, FeatureQueueError> {
         // filter out empty queues
-        let (arrays, feature_names): (Vec<_>, Vec<_>) = self
-            .queue
+        let (arrays, feature_names): (Vec<_>, Vec<_>) = queue
             .iter()
             .filter(|(_, values)| !values.is_empty())
             .map(|(feature, values)| {
@@ -104,12 +112,21 @@ impl SpcFeatureQueue {
 
         Ok(records)
     }
+}
 
-    // Clear all queues
-    pub fn clear_queue(&mut self) {
-        self.queue.iter_mut().for_each(|(_, queue)| {
-            queue.clear();
-        });
+impl FeatureQueue for SpcFeatureQueue {
+    fn create_drift_records_from_batch<T: QueueExt>(
+        &self,
+        batch: Vec<T>,
+    ) -> Result<ServerRecords, FeatureQueueError> {
+        // clones the empty map (so we don't need to recreate it on each call)
+        let mut queue = self.empty_queue.clone();
+
+        for elem in batch {
+            self.insert(elem.features(), &mut queue)?;
+        }
+
+        self.create_drift_records(queue)
     }
 }
 
@@ -117,7 +134,7 @@ impl SpcFeatureQueue {
 mod tests {
 
     use scouter_types::spc::{SpcAlertConfig, SpcDriftConfig};
-    use scouter_types::Feature;
+    use scouter_types::Features;
 
     use super::*;
     use ndarray::Array;
@@ -154,9 +171,10 @@ mod tests {
             .unwrap();
         assert_eq!(profile.features.len(), 3);
 
-        let mut feature_queue = SpcFeatureQueue::new(profile);
+        let feature_queue = SpcFeatureQueue::new(profile);
 
-        assert_eq!(feature_queue.queue.len(), 3);
+        assert_eq!(feature_queue.empty_queue.len(), 3);
+        let mut batch_features = Vec::new();
 
         for _ in 0..9 {
             let one = Feature::int("feature_1".to_string(), 1);
@@ -167,20 +185,23 @@ mod tests {
                 features: vec![one, two, three],
             };
 
-            feature_queue.insert(features).unwrap();
+            batch_features.push(features);
         }
 
-        assert_eq!(feature_queue.queue.get("feature_1").unwrap().len(), 9);
-        assert_eq!(feature_queue.queue.get("feature_2").unwrap().len(), 9);
-        assert_eq!(feature_queue.queue.get("feature_3").unwrap().len(), 9);
+        let mut queue = feature_queue.empty_queue.clone();
+        for feature in batch_features.clone() {
+            feature_queue.insert(&feature.features, &mut queue).unwrap();
+        }
 
-        let records = feature_queue.create_drift_records().unwrap();
+        assert_eq!(queue.get("feature_1").unwrap().len(), 9);
+        assert_eq!(queue.get("feature_2").unwrap().len(), 9);
+        assert_eq!(queue.get("feature_3").unwrap().len(), 9);
+
+        let records = feature_queue
+            .create_drift_records_from_batch(batch_features)
+            .unwrap();
 
         assert_eq!(records.records.len(), 3);
-
-        feature_queue.clear_queue();
-
-        assert_eq!(feature_queue.queue.get("feature_1").unwrap().len(), 0);
 
         // serialize records
         let json_records = records.model_dump_json();
