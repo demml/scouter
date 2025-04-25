@@ -1,3 +1,4 @@
+pub mod bus;
 pub mod custom;
 pub mod psi;
 pub mod py_queue;

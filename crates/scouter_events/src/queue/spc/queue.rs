@@ -2,6 +2,7 @@ use crate::producer::RustScouterProducer;
 use crate::queue::spc::feature_queue::SpcFeatureQueue;
 use crate::queue::traits::QueueMethods;
 use crate::queue::types::TransportConfig;
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
 use scouter_error::EventError;
@@ -9,17 +10,15 @@ use scouter_types::spc::SpcDriftProfile;
 use scouter_types::Features;
 use std::sync::Arc;
 use std::sync::RwLock;
-
 pub struct SpcQueue {
     queue: Arc<ArrayQueue<Features>>,
     feature_queue: Arc<SpcFeatureQueue>,
     producer: RustScouterProducer,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
-    rt: Arc<tokio::runtime::Runtime>,
 }
 
 impl SpcQueue {
-    pub fn new(
+    pub async fn new(
         drift_profile: SpcDriftProfile,
         config: TransportConfig,
     ) -> Result<Self, EventError> {
@@ -28,29 +27,24 @@ impl SpcQueue {
         let feature_queue = Arc::new(SpcFeatureQueue::new(drift_profile));
         let last_publish: Arc<RwLock<DateTime<Utc>>> = Arc::new(RwLock::new(Utc::now()));
 
-        let rt = Arc::new(tokio::runtime::Runtime::new().unwrap());
-        let producer = rt.block_on(async { RustScouterProducer::new(config).await })?;
+        let producer = RustScouterProducer::new(config).await?;
 
         Ok(SpcQueue {
             queue,
             feature_queue,
             producer,
             last_publish,
-            rt,
         })
     }
 }
 
+#[async_trait]
 impl QueueMethods for SpcQueue {
     type ItemType = Features;
     type FeatureQueue = SpcFeatureQueue;
 
     fn capacity(&self) -> usize {
         self.queue.capacity()
-    }
-
-    fn get_runtime(&self) -> Arc<tokio::runtime::Runtime> {
-        self.rt.clone()
     }
 
     fn get_producer(&mut self) -> &mut RustScouterProducer {
@@ -73,7 +67,7 @@ impl QueueMethods for SpcQueue {
         current_count >= self.capacity()
     }
 
-    fn flush(&mut self) -> Result<(), EventError> {
-        self.rt.block_on(async { self.producer.flush().await })
+    async fn flush(&mut self) -> Result<(), EventError> {
+        self.producer.flush().await
     }
 }

@@ -776,6 +776,9 @@ pub enum EventError {
 
     #[error("Queue is full, failed to push item")]
     QueueFullError,
+
+    #[error("Failed to create send entity to consumer: {0}")]
+    SendEntityError(String),
 }
 
 impl TracedError for EventError {}

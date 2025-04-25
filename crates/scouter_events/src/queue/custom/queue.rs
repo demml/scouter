@@ -3,6 +3,7 @@ use crate::queue::custom::feature_queue::CustomMetricFeatureQueue;
 use crate::queue::traits::BackgroundTask;
 use crate::queue::traits::QueueMethods;
 use crate::queue::types::TransportConfig;
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
 use scouter_error::EventError;
@@ -11,6 +12,7 @@ use scouter_types::Metrics;
 use std::cmp::min;
 use std::sync::Arc;
 use std::sync::RwLock;
+use tokio::runtime;
 use tokio::sync::watch;
 use tracing::debug;
 
@@ -33,14 +35,14 @@ pub struct CustomQueue {
     producer: RustScouterProducer,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
     stop_tx: Option<watch::Sender<()>>,
-    rt: Arc<tokio::runtime::Runtime>,
     sample_size: usize,
 }
 
 impl CustomQueue {
-    pub fn new(
+    pub async fn new(
         drift_profile: CustomDriftProfile,
         config: TransportConfig,
+        runtime: Arc<runtime::Runtime>,
     ) -> Result<Self, EventError> {
         let sample_size = drift_profile.config.sample_size;
 
@@ -50,14 +52,8 @@ impl CustomQueue {
         let feature_queue = Arc::new(CustomMetricFeatureQueue::new(drift_profile));
         let last_publish = Arc::new(RwLock::new(Utc::now()));
 
-        // psi queue needs a tokio runtime to run background tasks
-        // This runtime needs to be separate from the producer runtime
-        let rt = Arc::new(
-            tokio::runtime::Runtime::new().map_err(EventError::traced_setup_runtime_error)?,
-        );
-
         debug!("Creating Producer");
-        let producer = rt.block_on(async { RustScouterProducer::new(config).await })?;
+        let producer = RustScouterProducer::new(config).await?;
 
         let (stop_tx, stop_rx) = watch::channel(());
 
@@ -67,12 +63,11 @@ impl CustomQueue {
             producer,
             last_publish,
             stop_tx: Some(stop_tx),
-            rt: rt.clone(),
             sample_size,
         };
 
         debug!("Starting Background Task");
-        custom_queue.start_background_worker(metrics_queue, feature_queue, stop_rx)?;
+        custom_queue.start_background_worker(metrics_queue, feature_queue, stop_rx, runtime)?;
 
         Ok(custom_queue)
     }
@@ -82,13 +77,14 @@ impl CustomQueue {
         metrics_queue: Arc<ArrayQueue<Metrics>>,
         feature_queue: Arc<CustomMetricFeatureQueue>,
         stop_rx: watch::Receiver<()>,
+        rt: Arc<tokio::runtime::Runtime>,
     ) -> Result<(), EventError> {
         self.start_background_task(
             metrics_queue,
             feature_queue,
             self.producer.clone(),
             self.last_publish.clone(),
-            self.rt.clone(),
+            rt.clone(),
             stop_rx,
             min(self.sample_size, 1000),
             "Custom Background Polling",
@@ -101,6 +97,7 @@ impl BackgroundTask for CustomQueue {
     type Processor = CustomMetricFeatureQueue;
 }
 
+#[async_trait]
 /// Implementing primary methods
 impl QueueMethods for CustomQueue {
     type ItemType = Metrics;
@@ -108,10 +105,6 @@ impl QueueMethods for CustomQueue {
 
     fn capacity(&self) -> usize {
         self.sample_size
-    }
-
-    fn get_runtime(&self) -> Arc<tokio::runtime::Runtime> {
-        self.rt.clone()
     }
 
     fn get_producer(&mut self) -> &mut RustScouterProducer {
@@ -134,12 +127,12 @@ impl QueueMethods for CustomQueue {
         current_count >= self.capacity()
     }
 
-    fn flush(&mut self) -> Result<(), EventError> {
+    async fn flush(&mut self) -> Result<(), EventError> {
         // publish any remaining drift records
-        self.try_publish(self.queue())?;
+        self.try_publish(self.queue()).await?;
         if let Some(stop_tx) = self.stop_tx.take() {
             let _ = stop_tx.send(());
         }
-        self.rt.block_on(async { self.producer.flush().await })
+        self.producer.flush().await
     }
 }

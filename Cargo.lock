@@ -4917,6 +4917,7 @@ dependencies = [
 name = "scouter-events"
 version = "0.4.5"
 dependencies = [
+ "async-trait",
  "chrono",
  "crossbeam-queue",
  "futures",
@@ -4939,6 +4940,7 @@ dependencies = [
  "sqlx",
  "time",
  "tokio",
+ "tokio-stream",
  "tracing",
  "tracing-subscriber",
 ]
@@ -5931,6 +5933,7 @@ dependencies = [
  "futures-core",
  "pin-project-lite",
  "tokio",
+ "tokio-util",
 ]
 
 [[package]]

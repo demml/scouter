@@ -12,6 +12,7 @@ license = "MIT"
 description = "Logic for setting up and running Scouter event-driven consumers and producers"
 
 [dependencies]
+async-trait = { workspace = true }
 chrono = { workspace = true }
 crossbeam-queue = { workspace = true }
 futures = { workspace = true }
@@ -31,6 +32,7 @@ scouter-types = { workspace = true }
 sqlx = { workspace = true, optional = true }
 time = { workspace = true }
 tokio = { workspace = true }
+tokio-stream = { workspace = true }
 tracing = { workspace = true }
 tracing-subscriber = { workspace = true }
 

@@ -224,6 +224,7 @@ impl Metrics {
     }
 }
 
+#[derive(Debug)]
 pub enum QueueEntity {
     Features(Features),
     Metrics(Metrics),

@@ -1,16 +1,20 @@
 #![allow(clippy::useless_conversion)]
-use super::types::TransportConfig;
+use crate::queue::bus::{Event, QueueBus};
 use crate::queue::custom::CustomQueue;
 use crate::queue::psi::PsiQueue;
 use crate::queue::spc::SpcQueue;
 use crate::queue::traits::queue::QueueMethods;
+use crate::queue::types::TransportConfig;
 use pyo3::prelude::*;
 use scouter_error::{EventError, ScouterError};
 use scouter_types::{DriftProfile, QueueEntity};
 use scouter_types::{Features, Metrics};
 use std::collections::HashMap;
 use std::path::PathBuf;
-use tracing::{info, instrument};
+use std::sync::Arc;
+use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::oneshot;
+use tracing::{debug, error, info, instrument};
 
 pub enum QueueNum {
     Spc(SpcQueue),
@@ -91,6 +95,41 @@ impl QueueNum {
     }
 }
 
+async fn handle_queue_events(
+    mut rx: UnboundedReceiver<Event>,
+    mut shutdown_rx: oneshot::Receiver<()>,
+    drift_profile: DriftProfile,
+    config: TransportConfig,
+    id: String,
+) -> Result<(), EventError> {
+    let mut queue = QueueNum::new(drift_profile, config)?;
+
+    loop {
+        tokio::select! {
+            Some(event) = rx.recv() => {
+                match event {
+                    Event::Task(entity) => {
+                        match queue.insert(entity) {
+                            Ok(_) => {
+                                debug!("Inserted entity into queue {}", id);
+                            }
+                            Err(e) => {
+                                error!("Error inserting entity into queue {}: {}", id, e);
+                            }
+                        }
+                    }
+                }
+            }
+            _ = &mut shutdown_rx => {
+                debug!("Shutdown signal received for queue {}", id);
+                break;
+            }
+        }
+    }
+
+    Ok(())
+}
+
 #[pyclass]
 pub struct Queue {
     queue: QueueNum,
@@ -131,7 +170,8 @@ impl Queue {
 
 #[pyclass]
 pub struct ScouterQueue {
-    queues: HashMap<String, Py<Queue>>,
+    queues: HashMap<String, Py<QueueBus>>,
+    runtime: Arc<tokio::runtime::Runtime>,
 }
 
 #[pymethods]
@@ -153,22 +193,37 @@ impl ScouterQueue {
         transport_config: &Bound<'_, PyAny>,
     ) -> Result<Self, ScouterError> {
         let mut queues = HashMap::new();
+
+        // Extract transport config from python object
         let config = TransportConfig::from_py_config(transport_config)?;
+
+        // create a tokio runtime to run the background tasks
+        let runtime = Arc::new(
+            tokio::runtime::Runtime::new()
+                .map_err(|e| EventError::SetupRuntimeError(e.to_string()))?,
+        );
 
         for (id, profile_path) in path {
             let cloned_config = config.clone();
             let drift_profile = DriftProfile::from_profile_path(profile_path)?;
+            let (bus, rx, shutdown_rx) = QueueBus::new();
 
-            // create a python-bound queue for each path
-            let queue = Py::new(
-                py,
-                Queue::new(drift_profile, cloned_config)
-                    .map_err(|e| ScouterError::QueueCreateError(e.to_string()))?,
-            )?;
+            // spawn a new thread for each queue
+            let id_clone = id.clone();
+            runtime.spawn(handle_queue_events(
+                rx,
+                shutdown_rx,
+                drift_profile,
+                cloned_config,
+                id_clone,
+            ));
+
+            let queue = Py::new(py, bus)?;
+
             queues.insert(id, queue);
         }
 
-        Ok(ScouterQueue { queues })
+        Ok(ScouterQueue { queues, runtime })
     }
 
     /// Get a queue by its alias
@@ -185,7 +240,7 @@ impl ScouterQueue {
         &self,
         py: Python<'py>,
         key: &str,
-    ) -> Result<&Bound<'py, Queue>, ScouterError> {
+    ) -> Result<&Bound<'py, QueueBus>, ScouterError> {
         match self.queues.get(key) {
             Some(queue) => Ok(queue.bind(py)),
             None => Err(ScouterError::MissingQueueError(key.to_string())),

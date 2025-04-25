@@ -1,6 +1,7 @@
 // implements a BackgroundQueue trait
 
 use crate::producer::RustScouterProducer;
+use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
 use scouter_error::EventError;
@@ -12,6 +13,7 @@ use std::sync::RwLock;
 use tokio::runtime::Runtime;
 use tokio::sync::watch;
 use tokio::time::{self, Duration};
+
 use tracing::{debug, error, info, info_span, Instrument};
 pub trait FeatureQueue: Send + Sync {
     fn create_drift_records_from_batch<T: QueueExt>(
@@ -98,13 +100,13 @@ pub trait BackgroundTask {
 
 /// This is a primary trait implemented on all queues
 /// It provides the basic functionality for inserting, publishing, and flushing
+#[async_trait]
 pub trait QueueMethods {
     type ItemType: QueueExt + 'static;
     type FeatureQueue: FeatureQueue + 'static;
 
     /// These all need to be implemented in the concrete queue type
     fn capacity(&self) -> usize;
-    fn get_runtime(&self) -> Arc<Runtime>;
     fn get_producer(&mut self) -> &mut RustScouterProducer;
     fn queue(&self) -> Arc<ArrayQueue<Self::ItemType>>;
     fn feature_queue(&self) -> Arc<Self::FeatureQueue>;
@@ -122,28 +124,29 @@ pub trait QueueMethods {
     /// Publish the records to the producer
     /// Remember - everything flows down from python, so the async producers need
     /// to be called in a blocking manner
-    fn publish(&mut self, records: ServerRecords) -> Result<(), EventError> {
-        let runtime = self.get_runtime();
+    async fn publish(&mut self, records: ServerRecords) -> Result<(), EventError> {
         let producer = self.get_producer();
-
-        runtime.block_on(async { producer.publish(records).await })
+        producer.publish(records).await
     }
 
     /// Insert an item into the queue
-    fn insert(&mut self, item: Self::ItemType) -> Result<(), EventError> {
+    async fn insert(&mut self, item: Self::ItemType) -> Result<(), EventError> {
         let queue = self.queue();
         queue.push(item).map_err(EventError::queue_push_error)?;
 
         // Check if we need to process the queue
         if queue.is_full() {
-            self.try_publish(queue)?;
+            self.try_publish(queue).await?;
         }
 
         Ok(())
     }
 
     /// Process the queue and publish records
-    fn try_publish(&mut self, queue: Arc<ArrayQueue<Self::ItemType>>) -> Result<(), EventError> {
+    async fn try_publish(
+        &mut self,
+        queue: Arc<ArrayQueue<Self::ItemType>>,
+    ) -> Result<(), EventError> {
         let mut batch = Vec::with_capacity(queue.capacity());
 
         while let Some(metrics) = queue.pop() {
@@ -154,7 +157,7 @@ pub trait QueueMethods {
             let feature_queue = self.feature_queue();
             match feature_queue.create_drift_records_from_batch(batch) {
                 Ok(records) => {
-                    self.publish(records)?;
+                    self.publish(records).await?;
                     self.update_last_publish()?;
                 }
                 Err(e) => error!("Failed to create drift records: {}", e),
@@ -165,5 +168,5 @@ pub trait QueueMethods {
     }
 
     /// Flush the queue and shut down background tasks
-    fn flush(&mut self) -> Result<(), EventError>;
+    async fn flush(&mut self) -> Result<(), EventError>;
 }
