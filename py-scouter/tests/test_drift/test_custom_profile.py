@@ -20,18 +20,21 @@ def test_custom_profile(custom_metric_drift_config: CustomMetricDriftConfig):
     drifter = Drifter()
 
     # create custom drift profile
-    profile: CustomDriftProfile = drifter.create_drift_profile(data=accuracy, config=custom_metric_drift_config)
+    profile: CustomDriftProfile = drifter.create_drift_profile(
+        data=accuracy, config=custom_metric_drift_config
+    )
     # assert profile is what we expect
     assert profile.model_dump()["config"] == {
         "alert_config": {
-            "alert_conditions": {"accuracy": {"alert_threshold": "Below", "alert_threshold_value": 0.05}},
+            "alert_conditions": {
+                "accuracy": {"alert_threshold": "Below", "alert_threshold_value": 0.05}
+            },
             "dispatch_config": {"Slack": {"channel": "test_channel"}},
             "schedule": "0 0 * * * *",
         },
         "drift_type": "Custom",
         "name": "test",
         "space": "test",
-        "sample": True,
         "sample_size": 25,
         "version": "0.1.0",
     }
