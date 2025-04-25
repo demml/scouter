@@ -232,8 +232,8 @@ impl DriftProfile {
         }
     }
 
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
-        ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ScouterError> {
+        ProfileFuncs::save_to_json(self, path, FileName::DriftProfile.to_str())
     }
 
     pub fn load_from_json(path: PathBuf) -> Result<Self, ScouterError> {

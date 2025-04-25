@@ -19,17 +19,25 @@ pub const MISSING: &str = "__missing__";
 pub const DEFAULT_VERSION: &str = "0.1.0";
 
 pub enum FileName {
-    SpcDrift,
-    PsiDrift,
-    Profile,
+    SpcDriftMap,
+    SpcDriftProfile,
+    PsiDriftMap,
+    PsiDriftProfile,
+    CustomDriftProfile,
+    DriftProfile,
+    DataProfile,
 }
 
 impl FileName {
     pub fn to_str(&self) -> &'static str {
         match self {
-            FileName::SpcDrift => "spc_drift_map.json",
-            FileName::PsiDrift => "psi_drift_map.json",
-            FileName::Profile => "data_profile.json",
+            FileName::SpcDriftMap => "spc_drift_map.json",
+            FileName::SpcDriftProfile => "spc_drift_profile.json",
+            FileName::PsiDriftMap => "psi_drift_map.json",
+            FileName::PsiDriftProfile => "psi_drift_profile.json",
+            FileName::CustomDriftProfile => "custom_drift_profile.json",
+            FileName::DataProfile => "data_profile.json",
+            FileName::DriftProfile => "drift_profile.json",
         }
     }
 }
@@ -69,7 +77,7 @@ impl ProfileFuncs {
         model: T,
         path: Option<PathBuf>,
         filename: &str,
-    ) -> Result<(), ScouterError>
+    ) -> Result<PathBuf, ScouterError>
     where
         T: Serialize,
     {
@@ -97,9 +105,9 @@ impl ProfileFuncs {
             PathBuf::from(filename)
         };
 
-        std::fs::write(write_path, json).map_err(|_| UtilError::WriteError)?;
+        std::fs::write(&write_path, json).map_err(|_| UtilError::WriteError)?;
 
-        Ok(())
+        Ok(write_path)
     }
 }
 

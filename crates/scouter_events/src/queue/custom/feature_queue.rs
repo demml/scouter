@@ -7,7 +7,7 @@ use scouter_types::{
     custom::CustomDriftProfile, CustomMetricServerRecord, ServerRecord, ServerRecords,
 };
 use std::collections::HashMap;
-use tracing::error;
+use tracing::{error, instrument};
 pub struct CustomMetricFeatureQueue {
     drift_profile: CustomDriftProfile,
     empty_queue: HashMap<String, Vec<f64>>,
@@ -40,6 +40,7 @@ impl CustomMetricFeatureQueue {
     /// # Returns
     ///
     /// * `Result<(), FeatureQueueError>` - A result indicating success or failure
+    #[instrument(skip_all, name = "insert_custom")]
     fn insert(
         &self,
         metrics: &Vec<Metric>,

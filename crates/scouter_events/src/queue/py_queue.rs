@@ -106,8 +106,15 @@ async fn handle_queue_events(
     config: TransportConfig,
     id: String,
     queue_runtime: Arc<tokio::runtime::Runtime>,
+    startup_tx: oneshot::Sender<()>,
+    completion_tx: oneshot::Sender<()>,
 ) -> Result<(), EventError> {
     let mut queue = QueueNum::new(drift_profile, config, queue_runtime).await?;
+
+    // Signal that initialization is complete
+    startup_tx
+        .send(())
+        .map_err(|_| EventError::SetupRuntimeError("Failed to signal startup".to_string()))?;
 
     loop {
         tokio::select! {
@@ -128,15 +135,19 @@ async fn handle_queue_events(
             _ = &mut shutdown_rx => {
                 debug!("Shutdown signal received for queue {}", id);
                 queue.flush().await?;
+                completion_tx.send(()).map_err(|_| EventError::SetupRuntimeError("Failed to signal completion".to_string()))?;
+                break;
             }
         }
     }
+    Ok(())
 }
 
 #[pyclass]
 pub struct ScouterQueue {
     queues: HashMap<String, Py<QueueBus>>,
     _shared_runtime: Arc<tokio::runtime::Runtime>,
+    completion_rxs: HashMap<String, oneshot::Receiver<()>>,
 }
 
 #[pymethods]
@@ -166,6 +177,8 @@ impl ScouterQueue {
         transport_config: &Bound<'_, PyAny>,
     ) -> Result<Self, ScouterError> {
         let mut queues = HashMap::new();
+        let mut startup_rxs = Vec::new();
+        let mut completion_rxs = HashMap::new();
 
         // Extract transport config from python object
         let config = TransportConfig::from_py_config(transport_config)?;
@@ -179,6 +192,9 @@ impl ScouterQueue {
         for (id, profile_path) in path {
             let cloned_config = config.clone();
             let drift_profile = DriftProfile::from_profile_path(profile_path)?;
+
+            let (startup_tx, startup_rx) = oneshot::channel();
+            let (completion_tx, completion_rx) = oneshot::channel();
             let (bus, rx, shutdown_rx) = QueueBus::new();
 
             let queue_runtime = shared_runtime.clone();
@@ -192,18 +208,33 @@ impl ScouterQueue {
                 cloned_config,
                 id_clone,
                 queue_runtime,
+                startup_tx,
+                completion_tx,
             ));
 
             let queue = Py::new(py, bus)?;
 
-            queues.insert(id, queue);
+            queues.insert(id.clone(), queue);
+            startup_rxs.push((id.clone(), startup_rx));
+            completion_rxs.insert(id, completion_rx);
         }
+
+        // wait for all queues to start up
+        shared_runtime.block_on(async {
+            for (id, startup_rx) in startup_rxs {
+                startup_rx
+                    .await
+                    .map_err(|e| EventError::SetupRuntimeError(e.to_string()))?;
+                debug!("Queue {} initialized successfully", id);
+            }
+            Ok::<_, ScouterError>(())
+        })?;
 
         Ok(ScouterQueue {
             queues,
-
             // need to keep the runtime alive for the life of ScouterQueue
             _shared_runtime: shared_runtime,
+            completion_rxs,
         })
     }
 
@@ -246,6 +277,17 @@ impl ScouterQueue {
                 .call_method0("shutdown")
                 .map_err(|e| ScouterError::QueueShutdownError(e.to_string()))?;
         }
+
+        self._shared_runtime.block_on(async {
+            for (id, completion_rx) in self.completion_rxs.drain() {
+                completion_rx
+                    .await
+                    .map_err(|e| ScouterError::QueueShutdownError(e.to_string()))?;
+                debug!("Queue {} initialized successfully", id);
+            }
+            Ok::<_, ScouterError>(())
+        })?;
+
         self.queues.clear();
 
         Ok(())

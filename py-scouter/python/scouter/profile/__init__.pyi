@@ -6,7 +6,7 @@ from ..types import DataType
 class Distinct:
     @property
     def count(self) -> int:
-        """total unqiue value counts"""
+        """total unique value counts"""
 
     @property
     def percent(self) -> float:
@@ -148,12 +148,15 @@ class DataProfile:
                 JSON string representation of the data profile
         """
 
-    def save_to_json(self, path: Optional[Path] = None) -> None:
+    def save_to_json(self, path: Optional[Path] = None) -> Path:
         """Save data profile to json file
 
         Args:
             path:
-                Optional path to save the data profile. If None, outputs to "data_profile.json.
+                Optional path to save the data profile. If None, outputs to `data_profile.json`
+
+        Returns:
+            Path to the saved data profile
 
         """
 

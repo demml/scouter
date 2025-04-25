@@ -2,6 +2,7 @@
 
 from .. import queue  # noqa: F401
 
+
 ScouterQueue = queue.ScouterQueue
 Queue = queue.Queue
 KafkaConfig = queue.KafkaConfig
@@ -17,6 +18,7 @@ RecordType = queue.RecordType
 Metric = queue.Metric
 Metrics = queue.Metrics
 EntityType = queue.EntityType
+
 
 __all__ = [
     "ScouterQueue",

@@ -1,4 +1,6 @@
 import random
+import tempfile
+from pathlib import Path
 
 import pandas as pd
 from scouter.client import (
@@ -8,13 +10,9 @@ from scouter.client import (
     ScouterClient,
     TimeInterval,
 )
-from pathlib import Path
-from scouter.drift import Drifter, PsiDriftConfig, PsiDriftProfile
+from scouter.drift import Drifter, PsiDriftConfig
 from scouter.queue import Feature, Features, ScouterQueue
 from scouter.types import DriftType
-import tempfile
-import pytest
-from typing import Tuple
 
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"
 
@@ -34,9 +32,9 @@ def test_psi_monitor_pandas_http(
         path = Path(temp_dir) / "profile.json"
         profile.save_to_json(path)
 
-    ### Workflow
-    # 1. Create a ScouterQueue from path
-    queue = ScouterQueue.from_path({"a": path}, HTTPConfig())
+        ### Workflow
+        # 1. Create a ScouterQueue from path
+        queue = ScouterQueue.from_path({"a": path}, HTTPConfig())
 
     # 2. Simulate records
     records = pandas_dataframe.to_dict(orient="records")

@@ -22,6 +22,12 @@ pub enum TypeError {
 
     #[error("Failed to construct TimeInterval {0}")]
     TimeIntervalError(String),
+
+    #[error("{0}")]
+    DowncastError(String),
+
+    #[error("Failed to convert: {0}")]
+    ConversionError(String),
 }
 
 impl From<TypeError> for PyErr {

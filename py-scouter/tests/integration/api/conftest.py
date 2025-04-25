@@ -1,15 +1,19 @@
-import tempfile
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Generator
 
 import numpy as np
 import pandas as pd
-from fastapi import BackgroundTasks, FastAPI, Request
+from fastapi import FastAPI, Request
 from pydantic import BaseModel
-from scouter import Feature, Features, KafkaConfig, Queue, ScouterQueue
+from scouter import Feature, Features, KafkaConfig, ScouterQueue
 from scouter.alert import SpcAlertConfig
-from scouter.drift import Drifter, SpcDriftConfig
+from scouter.client import ScouterClient
+from scouter.drift import Drifter, SpcDriftConfig, SpcDriftProfile
+from scouter.logging import LoggingConfig, LogLevel, RustyLogger
+
+logger = RustyLogger.get_logger(
+    LoggingConfig(log_level=LogLevel.Debug),
+)
 
 
 def generate_data() -> pd.DataFrame:
@@ -27,7 +31,9 @@ def generate_data() -> pd.DataFrame:
     return X
 
 
-def create_and_register_drift_profile() -> Generator[Path, None, None]:
+def create_and_register_drift_profile(
+    client: ScouterClient,
+) -> SpcDriftProfile:
     data = generate_data()
 
     # create drift config (usually associated with a model name, space name, version)
@@ -43,15 +49,9 @@ def create_and_register_drift_profile() -> Generator[Path, None, None]:
 
     # create drift profile
     profile = drifter.create_drift_profile(data, config)
+    client.register_profile(profile, True)
 
-    # register the profile so we can obtain it during our drift transport configuration
-    # save profile to json in a temporary directory
-    with tempfile.TemporaryDirectory() as temp_dir:
-        path = Path(temp_dir) / "profile.json"
-        profile.save_to_json(path)
-        assert (Path(temp_dir) / "profile.json").exists()
-
-        yield path
+    return profile
 
 
 class TestResponse(BaseModel):
@@ -78,35 +78,27 @@ class PredictRequest(BaseModel):
 def create_app(profile_path: Path) -> FastAPI:
     config = KafkaConfig()
 
-    def publish_records(queue: Queue, features: Features):
-        queue.insert(features)
-
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        # Load the ML model
-        app.state.scouter_queue = ScouterQueue(
-            path={"profile": profile_path},
+        logger.info("Starting up FastAPI app")
+
+        app.state.queue = ScouterQueue.from_path(
+            path={"spc": profile_path},
             transport_config=config,
         )
         yield
 
+        logger.info("Shutting down FastAPI app")
+        # Shutdown the queue
+        app.state.queue.shutdown()
+        app.state.queue = None
+
     app = FastAPI(lifespan=lifespan)
 
     @app.post("/predict", response_model=TestResponse)
-    async def predict(
-        request: Request,
-        payload: PredictRequest,
-        background_tasks: BackgroundTasks,
-    ) -> TestResponse:
-        request.state.scouter_data = payload.to_features()
-        request.state.scouter_queue["profile"].insert(payload.to_features())
-
-        background_tasks.add_task(
-            publish_records,
-            request.state.scouter_queue["profile"],
-            payload.to_features(),
-        )
-
+    async def predict(request: Request, payload: PredictRequest) -> TestResponse:
+        print(f"Received payload: {request.app.state}")
+        request.app.state.queue["spc"].insert(payload.to_features())
         return TestResponse(message="success")
 
     return app

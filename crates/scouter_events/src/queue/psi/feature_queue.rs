@@ -138,7 +138,7 @@ impl PsiFeatureQueue {
         }
     }
 
-    #[instrument(skip_all)]
+    #[instrument(skip_all, name = "insert_psi")]
     pub fn insert(
         &self,
         features: &[Feature],

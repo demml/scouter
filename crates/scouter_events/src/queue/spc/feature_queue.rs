@@ -39,7 +39,7 @@ impl SpcFeatureQueue {
         }
     }
 
-    #[instrument(skip(self, features), name = "Insert")]
+    #[instrument(skip(self, features), name = "insert_spc")]
     pub fn insert(
         &self,
         features: &[Feature],

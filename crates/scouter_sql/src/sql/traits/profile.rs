@@ -12,7 +12,7 @@ use serde_json::Value;
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row, Transaction};
 use std::result::Result::Ok;
 use std::str::FromStr;
-use tracing::error;
+use tracing::{error, instrument};
 
 #[async_trait]
 pub trait ProfileSqlLogic {
@@ -25,6 +25,7 @@ pub trait ProfileSqlLogic {
     /// # Returns
     ///
     /// * `Result<PgQueryResult, SqlError>` - Result of the query
+    #[instrument(skip_all)]
     async fn insert_drift_profile(
         pool: &Pool<Postgres>,
         drift_profile: &DriftProfile,
@@ -37,10 +38,12 @@ pub trait ProfileSqlLogic {
         let schedule =
             Schedule::from_str(&base_args.schedule).map_err(UtilError::traced_parse_cron_error)?;
 
-        let next_run = schedule
-            .upcoming(Utc)
-            .next()
-            .ok_or(SqlError::traced_get_next_run_error(schedule))?;
+        let next_run = match schedule.upcoming(Utc).take(1).next() {
+            Some(next_run) => next_run,
+            None => {
+                return Err(SqlError::GetNextRunError(schedule.to_string()));
+            }
+        };
 
         sqlx::query(&query.sql)
             .bind(base_args.name)
@@ -138,6 +141,7 @@ pub trait ProfileSqlLogic {
     /// # Returns
     ///
     /// * `Result<(), SqlError>` - Result of the query
+    #[instrument(skip_all)]
     async fn update_drift_profile_run_dates(
         transaction: &mut Transaction<'_, Postgres>,
         service_info: &ServiceInfo,
@@ -147,11 +151,12 @@ pub trait ProfileSqlLogic {
 
         let schedule = Schedule::from_str(schedule).map_err(UtilError::traced_parse_cron_error)?;
 
-        let next_run = schedule
-            .upcoming(Utc)
-            .take(1)
-            .next()
-            .ok_or(SqlError::traced_get_next_run_error(schedule))?;
+        let next_run = match schedule.upcoming(Utc).take(1).next() {
+            Some(next_run) => next_run,
+            None => {
+                return Err(SqlError::GetNextRunError(schedule.to_string()));
+            }
+        };
 
         let query_result = sqlx::query(&query.sql)
             .bind(next_run)

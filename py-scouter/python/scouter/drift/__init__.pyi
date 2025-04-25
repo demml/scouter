@@ -62,7 +62,6 @@ class SpcDriftConfig:
         space: str = "__missing__",
         name: str = "__missing__",
         version: str = "0.1.0",
-        sample: bool = True,
         sample_size: int = 25,
         alert_config: SpcAlertConfig = SpcAlertConfig(),
         config_path: Optional[Path] = None,
@@ -76,8 +75,6 @@ class SpcDriftConfig:
                 Model name
             version:
                 Model version. Defaults to 0.1.0
-            sample:
-                Whether to sample or not
             sample_size:
                 Sample size
             alert_config:
@@ -93,14 +90,6 @@ class SpcDriftConfig:
     @sample_size.setter
     def sample_size(self, sample_size: int) -> None:
         """Set the sample size."""
-
-    @property
-    def sample(self) -> bool:
-        """Whether to sample or not"""
-
-    @sample.setter
-    def sample(self, sample: bool) -> None:
-        """Set whether to sample or not"""
 
     @property
     def name(self) -> str:
@@ -162,7 +151,6 @@ class SpcDriftConfig:
         space: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
-        sample: Optional[bool] = None,
         sample_size: Optional[int] = None,
         alert_config: Optional[SpcAlertConfig] = None,
     ) -> None:
@@ -175,8 +163,6 @@ class SpcDriftConfig:
                 Model name
             version:
                 Model version
-            sample:
-                Whether to sample or not
             sample_size:
                 Sample size
             alert_config:
@@ -202,12 +188,16 @@ class SpcDriftProfile:
     def model_dump(self) -> Dict[str, Any]:
         """Return dictionary representation of drift profile"""
 
-    def save_to_json(self, path: Optional[Path] = None) -> None:
+    def save_to_json(self, path: Optional[Path] = None) -> Path:
         """Save drift profile to json file
 
         Args:
             path:
-                Optional path to save the drift profile. If None, outputs to "drift_profile.json.
+                Optional path to save the drift profile. If None, outputs to `spc_drift_profile.json`
+
+
+        Returns:
+            Path to the saved json file
         """
 
     @staticmethod
@@ -242,7 +232,6 @@ class SpcDriftProfile:
         space: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
-        sample: Optional[bool] = None,
         sample_size: Optional[int] = None,
         alert_config: Optional[SpcAlertConfig] = None,
     ) -> None:
@@ -255,8 +244,6 @@ class SpcDriftProfile:
                 Model space
             version:
                 Model version
-            sample:
-                Whether to sample or not
             sample_size:
                 Sample size
             alert_config:
@@ -321,12 +308,15 @@ class SpcDriftMap:
                 JSON string representation of the drift map
         """
 
-    def save_to_json(self, path: Optional[Path] = None) -> None:
+    def save_to_json(self, path: Optional[Path] = None) -> Path:
         """Save drift map to json file
 
         Args:
             path:
-                Optional path to save the drift map. If None, outputs to "drift_map.json.
+                Optional path to save the drift map. If None, outputs to `spc_drift_map.json`
+
+        Returns:
+            Path to the saved json file
 
         """
 
@@ -451,12 +441,15 @@ class PsiDriftProfile:
     def model_dump(self) -> Dict[str, Any]:
         """Return dictionary representation of drift profile"""
 
-    def save_to_json(self, path: Optional[Path] = None) -> None:
+    def save_to_json(self, path: Optional[Path] = None) -> Path:
         """Save drift profile to json file
 
         Args:
             path:
-                Optional path to save the drift profile. If None, outputs to "drift_profile.json.
+                Optional path to save the drift profile. If None, outputs to `psi_drift_profile.json`
+
+        Returns:
+            Path to the saved json file
         """
 
     @staticmethod
@@ -582,12 +575,15 @@ class PsiDriftMap:
                 JSON string representation of the drift map
         """
 
-    def save_to_json(self, path: Optional[Path] = None) -> None:
+    def save_to_json(self, path: Optional[Path] = None) -> Path:
         """Save drift map to json file
 
         Args:
             path:
-                Optional path to save the drift map. If None, outputs to "drift_map.json.
+                Optional path to save the drift map. If None, outputs to `psi_drift_map.json`
+
+        Returns:
+            Path to the saved json file
 
         """
 
@@ -597,7 +593,6 @@ class CustomMetricDriftConfig:
         space: str = "__missing__",
         name: str = "__missing__",
         version: str = "0.1.0",
-        sample: bool = True,
         sample_size: int = 25,
         alert_config: CustomMetricAlertConfig = CustomMetricAlertConfig(),
     ):
@@ -792,12 +787,15 @@ class CustomDriftProfile:
     def model_dump(self) -> Dict[str, Any]:
         """Return dictionary representation of drift profile"""
 
-    def save_to_json(self, path: Optional[Path] = None) -> None:
+    def save_to_json(self, path: Optional[Path] = None) -> Path:
         """Save drift profile to json file
 
         Args:
             path:
-                Optional path to save the drift profile. If None, outputs to "drift_profile.json.
+                Optional path to save the drift profile. If None, outputs to `custom_drift_profile.json`
+
+        Returns:
+            Path to the saved json file
         """
 
     @staticmethod

@@ -1,22 +1,17 @@
 import random
+import tempfile
 import time
+from pathlib import Path
 
 import pandas as pd
 from scouter.client import (
     BinnedSpcFeatureMetrics,
     DriftRequest,
-    GetProfileRequest,
     ScouterClient,
     TimeInterval,
 )
 from scouter.drift import Drifter, SpcDriftConfig
-from scouter.queue import (
-    DriftTransportConfig,
-    Feature,
-    Features,
-    KafkaConfig,
-    ScouterQueue,
-)
+from scouter.queue import Feature, Features, KafkaConfig, ScouterQueue
 from scouter.types import DriftType
 
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"
@@ -33,17 +28,11 @@ def test_spc_monitor_pandas_kafka(
     profile = scouter.create_drift_profile(pandas_dataframe, drift_config)
     client.register_profile(profile)
 
-    config = DriftTransportConfig(
-        id="test",
-        config=KafkaConfig(),
-        drift_profile_request=GetProfileRequest(
-            name=profile.config.name,
-            version=profile.config.version,
-            space=profile.config.space,
-            drift_type=profile.config.drift_type,
-        ),
-    )
-    queue = ScouterQueue(config)
+    with tempfile.TemporaryDirectory() as temp_dir:
+        path = Path(temp_dir) / "profile.json"
+        profile.save_to_json(path)
+        queue = ScouterQueue.from_path({"a": path}, KafkaConfig())
+
     records = pandas_dataframe.to_dict(orient="records")
 
     for record in records:
@@ -54,9 +43,9 @@ def test_spc_monitor_pandas_kafka(
                 Feature.float("column_2", record["column_2"]),
             ]
         )
-        queue.insert(features)
+        queue["a"].insert(features)
 
-    queue.flush()
+    queue.shutdown()
     time.sleep(10)
 
     binned_records: BinnedSpcFeatureMetrics = client.get_binned_drift(
