@@ -8,6 +8,10 @@ from ..client import HTTPConfig
 from ..logging import LogLevel
 from ..observe import ObservabilityMetrics
 
+class EntityType:
+    Feature = "EntityType"
+    Metric = "EntityType"
+
 class RecordType:
     Spc = "RecordType"
     Psi = "RecordType"
@@ -142,7 +146,9 @@ class ServerRecord:
     @property
     def record(
         self,
-    ) -> Union[SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics]:
+    ) -> Union[
+        SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics
+    ]:
         """Return the drift server record."""
 
 class ServerRecords:
@@ -388,6 +394,14 @@ class Features:
     def __str__(self) -> str:
         """Return the string representation of the features"""
 
+    @property
+    def features(self) -> List[Feature]:
+        """Return the list of features"""
+
+    @property
+    def entity_type(self) -> EntityType:
+        """Return the entity type"""
+
 class Metric:
     def __init__(self, name: str, value: float) -> None:
         """Initialize metric
@@ -401,6 +415,14 @@ class Metric:
 
     def __str__(self) -> str:
         """Return the string representation of the metric"""
+
+    @property
+    def metrics(self) -> List[Metric]:
+        """Return the list of metrics"""
+
+    @property
+    def entity_type(self) -> EntityType:
+        """Return the entity type"""
 
 class Metrics:
     def __init__(self, metrics: List[Metric]) -> None:
@@ -441,11 +463,11 @@ class Queue:
 class ScouterQueue:
     """Main queue class for Scouter. Publishes drift records to the configured transport"""
 
-    def __init__(
-        self,
+    @staticmethod
+    def from_path(
         path: Dict[str, Path],
         transport_config: Union[KafkaConfig, RabbitMQConfig, HTTPConfig],
-    ) -> None:
+    ) -> ScouterQueue:
         """Initializes Scouter queue from one or more drift profile paths
 
         Args:
@@ -489,3 +511,6 @@ class ScouterQueue:
                 Key to get the queue for
 
         """
+
+    def shutdown(self) -> None:
+        """Shutdown the queue. This will close and flush all queues and transports"""

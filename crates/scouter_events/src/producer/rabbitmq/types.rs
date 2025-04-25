@@ -17,7 +17,7 @@ pub struct RabbitMQConfig {
     pub max_retries: i32,
 
     #[pyo3(get)]
-    pub config_type: TransportTypes,
+    pub transport_type: TransportTypes,
 }
 
 #[pymethods]
@@ -73,7 +73,7 @@ impl RabbitMQConfig {
             queue,
             raise_on_error,
             max_retries: max_retries.unwrap_or(3),
-            config_type: TransportTypes::RabbitMQ,
+            transport_type: TransportTypes::RabbitMQ,
         }
     }
 }

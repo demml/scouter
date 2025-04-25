@@ -243,7 +243,7 @@ impl ScouterQueue {
         for queue in self.queues.values() {
             let bound = queue.bind(py);
             bound
-                .call_method0("shutdown_channel")
+                .call_method0("shutdown")
                 .map_err(|e| ScouterError::QueueShutdownError(e.to_string()))?;
         }
         self.queues.clear();

@@ -111,7 +111,7 @@ pub struct KafkaConfig {
     pub max_retries: i32,
 
     #[pyo3(get)]
-    pub config_type: TransportTypes,
+    pub transport_type: TransportTypes,
 }
 
 #[pymethods]
@@ -185,7 +185,7 @@ impl KafkaConfig {
             log_level,
             config,
             max_retries: max_retries.unwrap_or(3),
-            config_type: TransportTypes::Kafka,
+            transport_type: TransportTypes::Kafka,
         })
     }
 }

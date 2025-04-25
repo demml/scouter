@@ -139,7 +139,10 @@ impl Display for Feature {
 #[pyclass]
 #[derive(Clone, Debug, Serialize)]
 pub struct Features {
+    #[pyo3(get)]
     pub features: Vec<Feature>,
+
+    #[pyo3(get)]
     pub entity_type: EntityType,
 }
 
@@ -200,7 +203,10 @@ impl Metric {
 #[pyclass]
 #[derive(Clone, Serialize, Debug)]
 pub struct Metrics {
+    #[pyo3(get)]
     pub metrics: Vec<Metric>,
+
+    #[pyo3(get)]
     pub entity_type: EntityType,
 }
 

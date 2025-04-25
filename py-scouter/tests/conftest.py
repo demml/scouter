@@ -11,8 +11,15 @@ from scouter.alert import (
     SlackDispatchConfig,
     SpcAlertConfig,
 )
-from scouter.drift import CustomMetricDriftConfig, PsiDriftConfig, SpcDriftConfig
+from scouter.drift import (
+    CustomMetricDriftConfig,
+    PsiDriftConfig,
+    SpcDriftConfig,
+    Drifter,
+)
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
+import tempfile
+from pathlib import Path
 
 # Sets up logging for tests
 RustyLogger.setup_logging(LoggingConfig(log_level=LogLevel.Debug))

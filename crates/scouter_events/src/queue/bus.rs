@@ -43,18 +43,6 @@ impl QueueBus {
             .send(event)
             .map_err(|e| EventError::SendEntityError(e.to_string()))
     }
-
-    #[instrument(skip_all)]
-    pub fn shutdown_channel(&mut self) {
-        debug!("Shutting down QueueBus");
-        // Drop the sender which will close the channel
-        self.tx = mpsc::unbounded_channel().0;
-
-        // Signal shutdown
-        if let Some(shutdown_tx) = self.shutdown_tx.take() {
-            let _ = shutdown_tx.send(());
-        }
-    }
 }
 
 #[pymethods]
@@ -72,7 +60,11 @@ impl QueueBus {
 
     /// Shutdown the bus
     /// This will send a messages to the background queue, which will trigger a flush on the queue
+    #[instrument(skip_all)]
     pub fn shutdown(&mut self) {
-        self.shutdown_channel();
+        // Signal shutdown
+        if let Some(shutdown_tx) = self.shutdown_tx.take() {
+            let _ = shutdown_tx.send(());
+        }
     }
 }

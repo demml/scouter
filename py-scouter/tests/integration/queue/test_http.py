@@ -4,14 +4,17 @@ import pandas as pd
 from scouter.client import (
     BinnedPsiFeatureMetrics,
     DriftRequest,
-    GetProfileRequest,
     HTTPConfig,
     ScouterClient,
     TimeInterval,
 )
-from scouter.drift import Drifter, PsiDriftConfig
-from scouter.queue import DriftTransportConfig, Feature, Features, ScouterQueue
+from pathlib import Path
+from scouter.drift import Drifter, PsiDriftConfig, PsiDriftProfile
+from scouter.queue import Feature, Features, ScouterQueue
 from scouter.types import DriftType
+import tempfile
+import pytest
+from typing import Tuple
 
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"
 
@@ -27,19 +30,16 @@ def test_psi_monitor_pandas_http(
     profile = scouter.create_drift_profile(pandas_dataframe, psi_drift_config)
     client.register_profile(profile)
 
-    config = DriftTransportConfig(
-        id="test",
-        config=HTTPConfig(),
-        drift_profile_request=GetProfileRequest(
-            name=profile.config.name,
-            version=profile.config.version,
-            space=profile.config.space,
-            drift_type=profile.config.drift_type,
-        ),
-    )
-    queue = ScouterQueue(config)
-    records = pandas_dataframe.to_dict(orient="records")
+    with tempfile.TemporaryDirectory() as temp_dir:
+        path = Path(temp_dir) / "profile.json"
+        profile.save_to_json(path)
 
+    ### Workflow
+    # 1. Create a ScouterQueue from path
+    queue = ScouterQueue.from_path({"a": path}, HTTPConfig())
+
+    # 2. Simulate records
+    records = pandas_dataframe.to_dict(orient="records")
     for record in records:
         features = Features(
             features=[
@@ -48,9 +48,11 @@ def test_psi_monitor_pandas_http(
                 Feature.float("column_2", record["column_2"]),
             ]
         )
-        queue.insert(features)
+        # 3. Send records to Scouter
+        queue["a"].insert(features)
 
-    queue.flush()
+    # 4. Shutdown the queue
+    queue.shutdown()
 
     binned_records: BinnedPsiFeatureMetrics = client.get_binned_drift(
         DriftRequest(

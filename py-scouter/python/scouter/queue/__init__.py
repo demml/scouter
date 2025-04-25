@@ -16,6 +16,7 @@ Features = queue.Features
 RecordType = queue.RecordType
 Metric = queue.Metric
 Metrics = queue.Metrics
+EntityType = queue.EntityType
 
 __all__ = [
     "ScouterQueue",
@@ -32,4 +33,5 @@ __all__ = [
     "RecordType",
     "Metric",
     "Metrics",
+    "EntityType",
 ]

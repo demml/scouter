@@ -17,6 +17,7 @@ pub fn queue(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Features>()?;
     m.add_class::<Metric>()?;
     m.add_class::<Metrics>()?;
+    m.add_class::<EntityType>()?;
 
     // queue
     m.add_class::<QueueBus>()?;
