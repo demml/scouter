@@ -1,5 +1,5 @@
-# pylint: disable=no-name-in-module
 # type: ignore
+# pylint: disable=no-name-in-module
 
 from .scouter import (  # noqa
     alert,

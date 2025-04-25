@@ -1,15 +1,15 @@
+import tempfile
+from contextlib import asynccontextmanager
+from pathlib import Path
+from typing import Generator
+
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, Request, BackgroundTasks
+from fastapi import BackgroundTasks, FastAPI, Request
 from pydantic import BaseModel
+from scouter import Feature, Features, KafkaConfig, Queue, ScouterQueue
 from scouter.alert import SpcAlertConfig
-
 from scouter.drift import Drifter, SpcDriftConfig
-from scouter import Feature, Features, KafkaConfig, ScouterQueue, Queue
-from pathlib import Path
-import tempfile
-from typing import Generator
-from contextlib import asynccontextmanager
 
 
 def generate_data() -> pd.DataFrame:

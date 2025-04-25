@@ -49,14 +49,10 @@ def test_psi_drift_f32(array: NDArray, psi_drift_config: PsiDriftConfig):
     _ = scouter.compute_drift(array, profile)
 
 
-def test_only_string_drift_psi(
-    pandas_categorical_dataframe: pd.DataFrame, psi_drift_config: PsiDriftConfig
-):
+def test_only_string_drift_psi(pandas_categorical_dataframe: pd.DataFrame, psi_drift_config: PsiDriftConfig):
     drifter = Drifter()
 
-    profile: PsiDriftProfile = drifter.create_drift_profile(
-        pandas_categorical_dataframe, psi_drift_config
-    )
+    profile: PsiDriftProfile = drifter.create_drift_profile(pandas_categorical_dataframe, psi_drift_config)
 
     drift_map = drifter.compute_drift(pandas_categorical_dataframe, profile)
 
@@ -71,9 +67,7 @@ def test_data_pyarrow_mixed_type(
 
     drifter = Drifter()
 
-    profile: PsiDriftProfile = drifter.create_drift_profile(
-        arrow_table, psi_drift_config
-    )
+    profile: PsiDriftProfile = drifter.create_drift_profile(arrow_table, psi_drift_config)
     drift_map = drifter.compute_drift(arrow_table, profile)
 
     assert len(drift_map.features) == 5

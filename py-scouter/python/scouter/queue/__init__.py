@@ -20,7 +20,6 @@ Metrics = queue.Metrics
 __all__ = [
     "ScouterQueue",
     "Queue",
-    "ScouterProducer",
     "KafkaConfig",
     "RabbitMQConfig",
     "SpcServerRecord",
@@ -31,7 +30,6 @@ __all__ = [
     "Feature",
     "Features",
     "RecordType",
-    "DriftTransportConfig",
     "Metric",
     "Metrics",
 ]

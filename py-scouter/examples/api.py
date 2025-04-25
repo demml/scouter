@@ -1,7 +1,6 @@
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from scouter.client import GetProfileRequest
-from scouter.integrations.fastapi import ScouterRouter
 from scouter.queue import DriftTransportConfig, Feature, Features, KafkaConfig
 from scouter.types import DriftType
 
@@ -49,7 +48,10 @@ scouter_router = ScouterRouter(
             # Drift transport configurations are tied to drift profiles. The drift_profile_request specifies
             # which profile the Scouter client should fetch from the server.
             drift_profile_request=GetProfileRequest(
-                name="wine_model", space="wine_model", version="0.0.1", drift_type=DriftType.Psi
+                name="wine_model",
+                space="wine_model",
+                version="0.0.1",
+                drift_type=DriftType.Psi,
             ),
         )
     ]
