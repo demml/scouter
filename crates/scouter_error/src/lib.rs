@@ -953,6 +953,9 @@ pub enum ScouterError {
 
     #[error("Failed to create queue: {0}")]
     QueueCreateError(String),
+
+    #[error("Failed to shutdown queue: {0}")]
+    QueueShutdownError(String),
 }
 
 impl TracedError for ScouterError {}

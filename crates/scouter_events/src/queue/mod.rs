@@ -6,4 +6,5 @@ pub mod spc;
 pub mod traits;
 pub mod types;
 
-pub use py_queue::{Queue, ScouterQueue};
+pub use bus::QueueBus;
+pub use py_queue::ScouterQueue;

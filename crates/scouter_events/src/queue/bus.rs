@@ -45,7 +45,7 @@ impl QueueBus {
     }
 
     #[instrument(skip_all)]
-    pub fn shutdown(&mut self) {
+    pub fn shutdown_channel(&mut self) {
         debug!("Shutting down QueueBus");
         // Drop the sender which will close the channel
         self.tx = mpsc::unbounded_channel().0;
@@ -68,5 +68,11 @@ impl QueueBus {
         let event = Event::Task(entity);
         self.publish(event)?;
         Ok(())
+    }
+
+    /// Shutdown the bus
+    /// This will send a messages to the background queue, which will trigger a flush on the queue
+    pub fn shutdown(&mut self) {
+        self.shutdown_channel();
     }
 }

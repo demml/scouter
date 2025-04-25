@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::oneshot;
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error};
 
 pub enum QueueNum {
     Spc(SpcQueue),
@@ -23,18 +23,22 @@ pub enum QueueNum {
 }
 
 impl QueueNum {
-    pub fn new(drift_profile: DriftProfile, config: TransportConfig) -> Result<Self, EventError> {
+    pub async fn new(
+        drift_profile: DriftProfile,
+        config: TransportConfig,
+        queue_runtime: Arc<tokio::runtime::Runtime>,
+    ) -> Result<Self, EventError> {
         match drift_profile {
             DriftProfile::Spc(spc_profile) => {
-                let queue = SpcQueue::new(spc_profile, config)?;
+                let queue = SpcQueue::new(spc_profile, config).await?;
                 Ok(QueueNum::Spc(queue))
             }
             DriftProfile::Psi(psi_profile) => {
-                let queue = PsiQueue::new(psi_profile, config)?;
+                let queue = PsiQueue::new(psi_profile, config, queue_runtime).await?;
                 Ok(QueueNum::Psi(queue))
             }
             DriftProfile::Custom(custom_profile) => {
-                let queue = CustomQueue::new(custom_profile, config)?;
+                let queue = CustomQueue::new(custom_profile, config, queue_runtime).await?;
                 Ok(QueueNum::Custom(queue))
             }
         }
@@ -47,10 +51,10 @@ impl QueueNum {
     ///
     /// # Arguments
     /// * `entity` - The entity to insert into the queue
-    pub fn insert(&mut self, entity: QueueEntity) -> Result<(), EventError> {
+    pub async fn insert(&mut self, entity: QueueEntity) -> Result<(), EventError> {
         match entity {
-            QueueEntity::Features(features) => self.insert_features(features),
-            QueueEntity::Metrics(metrics) => self.insert_metrics(metrics),
+            QueueEntity::Features(features) => self.insert_features(features).await,
+            QueueEntity::Metrics(metrics) => self.insert_metrics(metrics).await,
         }
     }
 
@@ -60,10 +64,10 @@ impl QueueNum {
     /// * `features` - The features to insert into the queue
     ///
     ///
-    pub fn insert_features(&mut self, features: Features) -> Result<(), EventError> {
+    pub async fn insert_features(&mut self, features: Features) -> Result<(), EventError> {
         match self {
-            QueueNum::Psi(queue) => queue.insert(features),
-            QueueNum::Spc(queue) => queue.insert(features),
+            QueueNum::Psi(queue) => queue.insert(features).await,
+            QueueNum::Spc(queue) => queue.insert(features).await,
             _ => Err(EventError::traced_insert_record_error(
                 "Queue not supported for feature entity",
             )),
@@ -75,9 +79,9 @@ impl QueueNum {
     /// # Arguments
     /// * `metrics` - The metrics to insert into the queue
     ///
-    pub fn insert_metrics(&mut self, metrics: Metrics) -> Result<(), EventError> {
+    pub async fn insert_metrics(&mut self, metrics: Metrics) -> Result<(), EventError> {
         match self {
-            QueueNum::Custom(queue) => queue.insert(metrics),
+            QueueNum::Custom(queue) => queue.insert(metrics).await,
             _ => Err(EventError::traced_insert_record_error(
                 "Queue not supported for metrics entity",
             )),
@@ -86,11 +90,11 @@ impl QueueNum {
 
     /// Flush the queue. This will publish the records to the producer
     /// and shut down the background tasks
-    pub fn flush(&mut self) -> Result<(), EventError> {
+    pub async fn flush(&mut self) -> Result<(), EventError> {
         match self {
-            QueueNum::Spc(queue) => queue.flush(),
-            QueueNum::Psi(queue) => queue.flush(),
-            QueueNum::Custom(queue) => queue.flush(),
+            QueueNum::Spc(queue) => queue.flush().await,
+            QueueNum::Psi(queue) => queue.flush().await,
+            QueueNum::Custom(queue) => queue.flush().await,
         }
     }
 }
@@ -101,15 +105,16 @@ async fn handle_queue_events(
     drift_profile: DriftProfile,
     config: TransportConfig,
     id: String,
+    queue_runtime: Arc<tokio::runtime::Runtime>,
 ) -> Result<(), EventError> {
-    let mut queue = QueueNum::new(drift_profile, config)?;
+    let mut queue = QueueNum::new(drift_profile, config, queue_runtime).await?;
 
     loop {
         tokio::select! {
             Some(event) = rx.recv() => {
                 match event {
                     Event::Task(entity) => {
-                        match queue.insert(entity) {
+                        match queue.insert(entity).await {
                             Ok(_) => {
                                 debug!("Inserted entity into queue {}", id);
                             }
@@ -122,62 +127,30 @@ async fn handle_queue_events(
             }
             _ = &mut shutdown_rx => {
                 debug!("Shutdown signal received for queue {}", id);
-                break;
+                queue.flush().await?;
             }
         }
-    }
-
-    Ok(())
-}
-
-#[pyclass]
-pub struct Queue {
-    queue: QueueNum,
-}
-
-impl Queue {
-    /// Start the ScouterQueue (this is consuming method, meaning it will take ownership of the transport config)
-    ///
-    /// # Arguments
-    /// * `transport_config` - The transport config to use
-    pub fn new(
-        drift_profile: DriftProfile,
-        transport_config: TransportConfig,
-    ) -> Result<Self, EventError> {
-        info!("Starting ScouterQueue");
-
-        Ok(Queue {
-            queue: QueueNum::new(drift_profile, transport_config)?,
-        })
-    }
-
-    #[instrument(skip_all)]
-    pub fn flush(&mut self) -> Result<(), ScouterError> {
-        self.queue.flush()?;
-        Ok(())
-    }
-}
-
-#[pymethods]
-impl Queue {
-    #[instrument(skip_all)]
-    pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> Result<(), ScouterError> {
-        let entity = QueueEntity::from_py_entity(entity)?;
-        self.queue.insert(entity)?;
-        Ok(())
     }
 }
 
 #[pyclass]
 pub struct ScouterQueue {
     queues: HashMap<String, Py<QueueBus>>,
-    runtime: Arc<tokio::runtime::Runtime>,
+    _shared_runtime: Arc<tokio::runtime::Runtime>,
 }
 
 #[pymethods]
 impl ScouterQueue {
     /// Create a new ScouterQueue from a map of aliases and paths
     /// This will create a new ScouterQueue for each path in the map
+    ///
+    /// # Process
+    /// 1. Create empty queues
+    /// 2. Extract transport config from python object
+    /// 3. Create a shared tokio runtime that is used to create background queues
+    /// 4. For each path in the map, create a new queue
+    /// 5. Spawn a new thread for each queue (some queues require background tasks)
+    /// 6. Return the ScouterQueue
     ///
     /// # Arguments
     /// * `paths` - A map of aliases to paths
@@ -198,7 +171,7 @@ impl ScouterQueue {
         let config = TransportConfig::from_py_config(transport_config)?;
 
         // create a tokio runtime to run the background tasks
-        let runtime = Arc::new(
+        let shared_runtime = Arc::new(
             tokio::runtime::Runtime::new()
                 .map_err(|e| EventError::SetupRuntimeError(e.to_string()))?,
         );
@@ -208,14 +181,17 @@ impl ScouterQueue {
             let drift_profile = DriftProfile::from_profile_path(profile_path)?;
             let (bus, rx, shutdown_rx) = QueueBus::new();
 
+            let queue_runtime = shared_runtime.clone();
+
             // spawn a new thread for each queue
             let id_clone = id.clone();
-            runtime.spawn(handle_queue_events(
+            shared_runtime.spawn(handle_queue_events(
                 rx,
                 shutdown_rx,
                 drift_profile,
                 cloned_config,
                 id_clone,
+                queue_runtime,
             ));
 
             let queue = Py::new(py, bus)?;
@@ -223,7 +199,12 @@ impl ScouterQueue {
             queues.insert(id, queue);
         }
 
-        Ok(ScouterQueue { queues, runtime })
+        Ok(ScouterQueue {
+            queues,
+
+            // need to keep the runtime alive for the life of ScouterQueue
+            _shared_runtime: shared_runtime,
+        })
     }
 
     /// Get a queue by its alias
@@ -235,7 +216,6 @@ impl ScouterQueue {
     /// scouter_queues = ScouterQueue.from_path(...)
     /// scouter_queues["queue_alias"].insert(features)
     /// ```
-    ///
     pub fn __getitem__<'py>(
         &self,
         py: Python<'py>,
@@ -245,5 +225,29 @@ impl ScouterQueue {
             Some(queue) => Ok(queue.bind(py)),
             None => Err(ScouterError::MissingQueueError(key.to_string())),
         }
+    }
+
+    /// Triggers a global shutdown for all queues
+    ///
+    /// # Example
+    ///
+    /// ```python
+    /// from scouter import ScouterQueue
+    ///
+    /// scouter_queues = ScouterQueue.from_path(...)
+    /// scouter_queues.shutdown()
+    ///
+    /// ```
+    pub fn shutdown(&mut self, py: Python) -> Result<(), ScouterError> {
+        // trigger shutdown for all queues
+        for queue in self.queues.values() {
+            let bound = queue.bind(py);
+            bound
+                .call_method0("shutdown_channel")
+                .map_err(|e| ScouterError::QueueShutdownError(e.to_string()))?;
+        }
+        self.queues.clear();
+
+        Ok(())
     }
 }
