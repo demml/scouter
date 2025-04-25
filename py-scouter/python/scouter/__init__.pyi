@@ -14,6 +14,7 @@ from .profile import DataProfiler as DataProfiler
 from .profile import DataProfile as DataProfile
 
 from .queue import ScouterQueue as ScouterQueue
+from .queue import Queue as Queue
 from .queue import KafkaConfig as KafkaConfig
 from .queue import RabbitMQConfig as RabbitMQConfig
 from .queue import Feature as Feature

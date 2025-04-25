@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, BackgroundTasks
 from pydantic import BaseModel
 from scouter.alert import SpcAlertConfig
-from scouter.client import GetProfileRequest, ScouterClient
-from scouter.drift import Drifter, SpcDriftConfig, SpcDriftProfile
-from scouter import Feature, Features, KafkaConfig, ScouterQueue
+
+from scouter.drift import Drifter, SpcDriftConfig
+from scouter import Feature, Features, KafkaConfig, ScouterQueue, Queue
 from pathlib import Path
 import tempfile
 from typing import Generator
@@ -77,7 +77,9 @@ class PredictRequest(BaseModel):
 
 def create_app(profile_path: Path) -> FastAPI:
     config = KafkaConfig()
-    app = FastAPI()
+
+    def publish_records(queue: Queue, features: Features):
+        queue.insert(features)
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -88,12 +90,23 @@ def create_app(profile_path: Path) -> FastAPI:
         )
         yield
 
-    async def predict(request: Request, payload: PredictRequest) -> TestResponse:
+    app = FastAPI(lifespan=lifespan)
+
+    @app.post("/predict", response_model=TestResponse)
+    async def predict(
+        request: Request,
+        payload: PredictRequest,
+        background_tasks: BackgroundTasks,
+    ) -> TestResponse:
         request.state.scouter_data = payload.to_features()
         request.state.scouter_queue["profile"].insert(payload.to_features())
 
-        return TestResponse(message="success")
+        background_tasks.add_task(
+            publish_records,
+            request.state.scouter_queue["profile"],
+            payload.to_features(),
+        )
 
-    app.include_router(scouter_router)
+        return TestResponse(message="success")
 
     return app

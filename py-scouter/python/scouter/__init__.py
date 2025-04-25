@@ -30,6 +30,7 @@ DataProfile = profile.DataProfile
 
 # Queue imports
 ScouterQueue = queue.ScouterQueue
+Queue = queue.Queue
 KafkaConfig = queue.KafkaConfig
 RabbitMQConfig = queue.RabbitMQConfig
 Feature = queue.Feature
@@ -56,6 +57,7 @@ __all__ = [
     "DataProfile",
     # Queue
     "ScouterQueue",
+    "Queue",
     "KafkaConfig",
     "RabbitMQConfig",
     "Feature",
