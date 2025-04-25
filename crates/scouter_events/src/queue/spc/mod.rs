@@ -1,5 +1,5 @@
 pub mod feature_queue;
-pub mod spc;
+pub mod queue;
 
 pub use feature_queue::SpcFeatureQueue;
-pub use spc::SpcQueue;
+pub use queue::SpcQueue;

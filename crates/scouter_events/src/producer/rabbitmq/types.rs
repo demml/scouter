@@ -2,7 +2,7 @@ use pyo3::prelude::*;
 use scouter_types::TransportTypes;
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RabbitMQConfig {
     #[pyo3(get, set)]
     pub address: String,

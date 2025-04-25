@@ -8,7 +8,7 @@ use std::env;
 use std::str::FromStr;
 
 #[pyclass(eq)]
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum CompressionType {
     None,
     Gzip,
@@ -81,7 +81,7 @@ fn add_kafka_args(
 }
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct KafkaConfig {
     #[pyo3(get, set)]
     pub brokers: String,

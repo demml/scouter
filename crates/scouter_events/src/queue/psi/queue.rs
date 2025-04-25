@@ -118,7 +118,7 @@ impl QueueMethods for PsiQueue {
         if let Some(stop_tx) = self.stop_tx.take() {
             let _ = stop_tx.send(());
         }
-        Ok(self.rt.block_on(async { self.producer.flush().await })?)
+        self.rt.block_on(async { self.producer.flush().await })
     }
 }
 

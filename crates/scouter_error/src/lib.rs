@@ -12,12 +12,6 @@ pub trait TracedError: Display {
     }
 }
 
-#[derive(Error, Debug)]
-pub enum ScouterTypeError {
-    #[error("Failed to construct TimeInterval {0}")]
-    TimeIntervalError(String),
-}
-
 #[derive(Error, Debug, Deserialize, PartialEq)]
 pub enum TypeError {
     #[error("Missing attribute: {0}")]
@@ -25,6 +19,9 @@ pub enum TypeError {
 
     #[error("Failed to extract data: {0}")]
     ExtractionError(String),
+
+    #[error("Failed to construct TimeInterval {0}")]
+    TimeIntervalError(String),
 }
 
 impl From<TypeError> for PyErr {
@@ -919,7 +916,7 @@ pub enum ScouterError {
     UtilError(#[from] UtilError),
 
     #[error(transparent)]
-    ScouterTypeError(#[from] ScouterTypeError),
+    TypeError(#[from] TypeError),
 
     #[error("Missing value in map")]
     MissingValue,
@@ -944,6 +941,15 @@ pub enum ScouterError {
     // column names must be strings
     #[error("Column names must be string type")]
     ColumnNamesMustBeStrings,
+
+    #[error("Failed to get queue for alias. Check that it exists: {0}")]
+    MissingQueueError(String),
+
+    #[error("Failed to bind queue to python: {0}")]
+    BindError(String),
+
+    #[error("Failed to create queue: {0}")]
+    QueueCreateError(String),
 }
 
 impl TracedError for ScouterError {}

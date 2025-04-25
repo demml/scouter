@@ -24,6 +24,7 @@ pub trait BackgroundTask {
     type DataItem: QueueExt + Send + Sync + 'static;
     type Processor: FeatureQueue + Send + Sync + 'static;
 
+    #[allow(clippy::too_many_arguments)]
     fn start_background_task(
         &self,
         data_queue: Arc<ArrayQueue<Self::DataItem>>,

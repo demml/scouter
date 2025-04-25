@@ -5,6 +5,7 @@ use pyo3::IntoPyObjectExt;
 use scouter_settings::HTTPConfig;
 use scouter_types::TransportTypes;
 
+#[derive(Clone, Debug)]
 pub enum TransportConfig {
     RabbitMQ(RabbitMQConfig),
     Kafka(KafkaConfig),

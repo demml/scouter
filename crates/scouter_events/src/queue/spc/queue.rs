@@ -74,6 +74,6 @@ impl QueueMethods for SpcQueue {
     }
 
     fn flush(&mut self) -> Result<(), EventError> {
-        Ok(self.rt.block_on(async { self.producer.flush().await })?)
+        self.rt.block_on(async { self.producer.flush().await })
     }
 }

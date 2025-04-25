@@ -42,7 +42,7 @@ impl SpcFeatureQueue {
     #[instrument(skip(self, features), name = "Insert")]
     pub fn insert(
         &self,
-        features: &Vec<Feature>,
+        features: &[Feature],
         queue: &mut HashMap<String, Vec<f64>>,
     ) -> Result<(), FeatureQueueError> {
         let feat_map = &self.drift_profile.config.feature_map;

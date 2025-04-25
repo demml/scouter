@@ -1,7 +1,7 @@
 use chrono::{DateTime, Utc};
 use cron::Schedule;
 use pyo3::prelude::*;
-use scouter_error::ScouterTypeError;
+use scouter_error::TypeError;
 use serde::{Deserialize, Serialize};
 use std::fmt;
 use std::str::FromStr;
@@ -89,9 +89,9 @@ pub struct CustomInterval {
 }
 
 impl CustomInterval {
-    pub fn new(start: DateTime<Utc>, end: DateTime<Utc>) -> Result<Self, ScouterTypeError> {
+    pub fn new(start: DateTime<Utc>, end: DateTime<Utc>) -> Result<Self, TypeError> {
         if start >= end {
-            return Err(ScouterTypeError::TimeIntervalError(
+            return Err(TypeError::TimeIntervalError(
                 "Start time must be before end time".to_string(),
             ));
         }

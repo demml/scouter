@@ -43,10 +43,12 @@ pub use scouter_drift::{
     utils::CategoricalFeatureHelpers,
 };
 pub use scouter_error::{ProfilerError, PyScouterError, ScouterError};
-pub use scouter_events::producer::{kafka::KafkaConfig, rabbitmq::RabbitMQConfig, ScouterProducer};
+pub use scouter_events::producer::{kafka::KafkaConfig, rabbitmq::RabbitMQConfig};
 pub use scouter_events::queue::{
-    custom::CustomMetricFeatureQueue, psi::PsiFeatureQueue, spc::SpcFeatureQueue,
+    custom::CustomMetricFeatureQueue, psi::PsiFeatureQueue, spc::SpcFeatureQueue, Queue,
+    ScouterQueue,
 };
+
 pub use scouter_observability::Observer;
 pub use scouter_profile::{
     compute_feature_correlations, CharStats, DataProfile, Distinct, FeatureProfile, Histogram,

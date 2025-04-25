@@ -1,5 +1,5 @@
 pub mod feature_queue;
-pub mod psi;
+pub mod queue;
 
 pub use feature_queue::PsiFeatureQueue;
-pub use psi::PsiQueue;
+pub use queue::PsiQueue;

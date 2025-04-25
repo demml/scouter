@@ -141,7 +141,7 @@ impl PsiFeatureQueue {
     #[instrument(skip_all)]
     pub fn insert(
         &self,
-        features: &Vec<Feature>,
+        features: &[Feature],
         queue: &mut HashMap<String, HashMap<usize, usize>>,
     ) -> Result<(), FeatureQueueError> {
         let feat_map = &self.drift_profile.config.feature_map;
