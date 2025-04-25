@@ -2,7 +2,7 @@ import pandas as pd
 import polars as pl
 import pytest
 from numpy.typing import NDArray
-from scouter.drift import Drifter, SpcDriftConfig, SpcDriftProfile
+from scouter import Drifter, SpcDriftConfig, SpcDriftProfile
 from scouter.types import ScouterError
 
 

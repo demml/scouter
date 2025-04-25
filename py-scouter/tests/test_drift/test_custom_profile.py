@@ -1,6 +1,5 @@
-from scouter import Drifter  # type: ignore
+from scouter import Drifter, CustomDriftProfile, CustomMetric, CustomMetricDriftConfig  # type: ignore
 from scouter.alert import AlertThreshold
-from scouter.drift import CustomDriftProfile, CustomMetric, CustomMetricDriftConfig
 
 
 def test_custom_profile(custom_metric_drift_config: CustomMetricDriftConfig):
@@ -16,11 +15,15 @@ def test_custom_profile(custom_metric_drift_config: CustomMetricDriftConfig):
     drifter = Drifter()
 
     # create custom drift profile
-    profile: CustomDriftProfile = drifter.create_drift_profile(data=accuracy, config=custom_metric_drift_config)
+    profile: CustomDriftProfile = drifter.create_drift_profile(
+        data=accuracy, config=custom_metric_drift_config
+    )
     # assert profile is what we expect
     assert profile.model_dump()["config"] == {
         "alert_config": {
-            "alert_conditions": {"accuracy": {"alert_threshold": "Below", "alert_threshold_value": 0.05}},
+            "alert_conditions": {
+                "accuracy": {"alert_threshold": "Below", "alert_threshold_value": 0.05}
+            },
             "dispatch_config": {"Slack": {"channel": "test_channel"}},
             "schedule": "0 0 * * * *",
         },
