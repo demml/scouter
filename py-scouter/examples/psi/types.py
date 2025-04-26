@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from scouter import Feature, Features
 from scouter.decorator import scouter_features
 
 
@@ -14,18 +15,13 @@ class PredictRequest(BaseModel):
     feature_2: float
 
     # This helper function is necessary to convert Scouter Python types into the appropriate Rust types.
-    # def to_features(self) -> Features:
-    #    return Features(
-    #        features=[
-    #            Feature.float("feature_1", self.feature_1),
-    #            Feature.float("feature_2", self.feature_2),
-    #            Feature.float("feature_3", self.feature_3),
-    #        ]
-    #    )
-
-
-#
-
-if __name__ == "__main__":
-    # Example usage
-    request = PredictRequest(feature_1=1.0, feature_2=2.0, feature_3=3.0)
+    # This is what the decorator does for us.
+    # In practice you can just use the decorator
+    def to_features_example(self) -> Features:
+        return Features(
+            features=[
+                Feature.float("feature_1", self.feature_1),
+                Feature.float("feature_2", self.feature_2),
+                Feature.float("feature_3", self.feature_3),
+            ]
+        )

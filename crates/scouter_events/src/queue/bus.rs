@@ -38,7 +38,6 @@ impl QueueBus {
 
     #[instrument(skip_all)]
     pub fn publish(&self, event: Event) -> Result<(), EventError> {
-        debug!("Publishing event: {:?}", event);
         self.tx
             .send(event)
             .map_err(|e| EventError::SendEntityError(e.to_string()))

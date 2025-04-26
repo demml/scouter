@@ -22,6 +22,7 @@ pub struct PsiQueue {
     producer: RustScouterProducer,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
     stop_tx: Option<watch::Sender<()>>,
+    capacity: usize,
 }
 
 impl PsiQueue {
@@ -31,7 +32,8 @@ impl PsiQueue {
         runtime: Arc<runtime::Runtime>,
     ) -> Result<Self, EventError> {
         // ArrayQueue size is based on the max PSI queue size
-        let queue = Arc::new(ArrayQueue::new(PSI_MAX_QUEUE_SIZE));
+
+        let queue = Arc::new(ArrayQueue::new(PSI_MAX_QUEUE_SIZE * 2));
         let feature_queue = Arc::new(PsiFeatureQueue::new(drift_profile));
         let last_publish: Arc<RwLock<DateTime<Utc>>> = Arc::new(RwLock::new(Utc::now()));
         let producer = RustScouterProducer::new(config).await?;
@@ -46,6 +48,7 @@ impl PsiQueue {
             producer,
             last_publish,
             stop_tx: Some(stop_tx),
+            capacity: PSI_MAX_QUEUE_SIZE,
         };
 
         debug!("Starting Background Task");
@@ -81,7 +84,7 @@ impl QueueMethods for PsiQueue {
     type FeatureQueue = PsiFeatureQueue;
 
     fn capacity(&self) -> usize {
-        self.queue.capacity()
+        self.capacity
     }
 
     fn get_producer(&mut self) -> &mut RustScouterProducer {

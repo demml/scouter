@@ -2,9 +2,18 @@
 from pathlib import Path
 import numpy as np
 import pandas as pd
-from scouter import CommonCrons, Drifter, PsiDriftConfig
-from scouter.alert import AlertThreshold, PsiAlertConfig
-from scouter.client import ScouterClient
+from examples.psi.types import PredictRequest, Response
+from contextlib import asynccontextmanager
+from scouter import CommonCrons, Drifter, PsiDriftConfig, ScouterQueue
+from scouter.alert import PsiAlertConfig
+from scouter.client import ScouterClient, HTTPConfig
+from fastapi import FastAPI, Request
+from scouter.logging import LoggingConfig, LogLevel, RustyLogger
+import uvicorn
+
+logger = RustyLogger.get_logger(
+    LoggingConfig(log_level=LogLevel.Debug),
+)
 
 
 def generate_data() -> pd.DataFrame:
@@ -44,9 +53,9 @@ def create_psi_profile() -> Path:
         space="scouter",
         name="psi_test",
         version="0.0.1",
-        features_to_monitor=["feature_1", "feature_2"],
         alert_config=PsiAlertConfig(
             schedule=CommonCrons.Every6Hours,  # You can also use a custom cron expression
+            features_to_monitor=["feature_1", "feature_2"],
         ),
     )
 
@@ -64,4 +73,30 @@ if __name__ == "__main__":
     # Create a PSI profile and get its path
     profile_path = create_psi_profile()
 
-    print(f"Profile saved to {profile_path}")
+    # Setup the FastAPI app
+    config = HTTPConfig()
+
+    # Setup api lifespan
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        logger.info("Starting up FastAPI app")
+
+        app.state.queue = ScouterQueue.from_path(
+            path={"psi": profile_path},
+            transport_config=config,
+        )
+        yield
+
+        logger.info("Shutting down FastAPI app")
+        # Shutdown the queue
+        app.state.queue.shutdown()
+        app.state.queue = None
+
+    app = FastAPI(lifespan=lifespan)
+
+    @app.post("/predict", response_model=Response)
+    async def predict(request: Request, payload: PredictRequest) -> Response:
+        request.app.state.queue["psi"].insert(payload.to_features())
+        return Response(message="success")
+
+    uvicorn.run(app, host="0.0.0.0", port=8888)

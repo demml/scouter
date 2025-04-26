@@ -28,6 +28,9 @@ pub enum TypeError {
 
     #[error("Failed to convert: {0}")]
     ConversionError(String),
+
+    #[error("Type not supported: {0}")]
+    TypeNotSupported(String),
 }
 
 impl From<TypeError> for PyErr {

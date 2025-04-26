@@ -12,9 +12,10 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime::Runtime;
 use tokio::sync::watch;
-use tokio::time::{self, Duration};
+use tokio::time::{sleep, Duration};
 
 use tracing::{debug, error, info, info_span, Instrument};
+
 pub trait FeatureQueue: Send + Sync {
     fn create_drift_records_from_batch<T: QueueExt>(
         &self,
@@ -41,7 +42,7 @@ pub trait BackgroundTask {
         let future = async move {
             loop {
                 tokio::select! {
-                    _ = time::sleep(Duration::from_secs(2)) => {
+                    _ = sleep(Duration::from_secs(2)) => {
                         let now = Utc::now();
 
                         // Scope the read guard to drop it before the future is sent
@@ -61,24 +62,25 @@ pub trait BackgroundTask {
                                 batch.push(item);
                             }
 
+                             // Always update last_publish time, regardless of batch processing result
+                             if let Ok(mut guard) = last_publish.write() {
+                                *guard = now;
+                            }
+
                             if !batch.is_empty() {
                                 match processor.create_drift_records_from_batch(batch) {
                                     Ok(records) => {
                                         if let Err(e) = producer.publish(records).await {
                                             error!("Failed to publish records: {}", e);
                                         } else {
-                                            // Scope the write guard to drop it
-                                            {
-                                                if let Ok(mut guard) = last_publish.write() {
-                                                    *guard = now;
-                                                }
-                                            }
+
                                             debug!("Successfully published records");
                                         }
                                     }
                                     Err(e) => error!("Failed to create drift records: {}", e),
                                 }
                             }
+
                         }
                     },
                     _ = stop_rx.changed() => {
@@ -102,7 +104,7 @@ pub trait BackgroundTask {
 /// It provides the basic functionality for inserting, publishing, and flushing
 #[async_trait]
 pub trait QueueMethods {
-    type ItemType: QueueExt + 'static;
+    type ItemType: QueueExt + 'static + Clone;
     type FeatureQueue: FeatureQueue + 'static;
 
     /// These all need to be implemented in the concrete queue type
@@ -131,11 +133,13 @@ pub trait QueueMethods {
 
     /// Insert an item into the queue
     async fn insert(&mut self, item: Self::ItemType) -> Result<(), EventError> {
+        self.insert_with_backpressure(item).await?;
+
         let queue = self.queue();
-        queue.push(item).map_err(EventError::queue_push_error)?;
 
         // Check if we need to process the queue
-        if queue.is_full() {
+        // queues have a buffer in case of overflow, so we need to check if we are over the capacity, which is smaller
+        if queue.len() >= self.capacity() {
             self.try_publish(queue).await?;
         }
 
@@ -169,4 +173,30 @@ pub trait QueueMethods {
 
     /// Flush the queue and shut down background tasks
     async fn flush(&mut self) -> Result<(), EventError>;
+
+    /// Backpressure handling for inserting items into the queue
+    /// This will retry inserting the item a few times with exponential backoff
+    async fn insert_with_backpressure(&mut self, item: Self::ItemType) -> Result<(), EventError> {
+        let queue = self.queue();
+        let max_retries = 3;
+        let mut current_retry = 0;
+
+        while current_retry < max_retries {
+            match queue.push(item.clone()) {
+                Ok(_) => return Ok(()),
+                Err(_) => {
+                    current_retry += 1;
+                    if current_retry == max_retries {
+                        return Err(EventError::queue_push_error("Queue full after retries"));
+                    }
+                    // Exponential backoff: 100ms, 200ms, 400ms
+                    sleep(Duration::from_millis(100 * 2_u64.pow(current_retry))).await;
+                }
+            }
+        }
+
+        Err(EventError::queue_push_error(
+            "Failed to insert after max retries",
+        ))
+    }
 }

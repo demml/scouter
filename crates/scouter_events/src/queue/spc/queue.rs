@@ -15,6 +15,7 @@ pub struct SpcQueue {
     feature_queue: Arc<SpcFeatureQueue>,
     producer: RustScouterProducer,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
+    capacity: usize,
 }
 
 impl SpcQueue {
@@ -23,10 +24,9 @@ impl SpcQueue {
         config: TransportConfig,
     ) -> Result<Self, EventError> {
         let sample_size = drift_profile.config.sample_size;
-        let queue = Arc::new(ArrayQueue::new(sample_size));
+        let queue = Arc::new(ArrayQueue::new(sample_size * 2)); // Add extra space for buffer
         let feature_queue = Arc::new(SpcFeatureQueue::new(drift_profile));
         let last_publish: Arc<RwLock<DateTime<Utc>>> = Arc::new(RwLock::new(Utc::now()));
-
         let producer = RustScouterProducer::new(config).await?;
 
         Ok(SpcQueue {
@@ -34,6 +34,7 @@ impl SpcQueue {
             feature_queue,
             producer,
             last_publish,
+            capacity: sample_size,
         })
     }
 }
@@ -44,7 +45,7 @@ impl QueueMethods for SpcQueue {
     type FeatureQueue = SpcFeatureQueue;
 
     fn capacity(&self) -> usize {
-        self.queue.capacity()
+        self.capacity
     }
 
     fn get_producer(&mut self) -> &mut RustScouterProducer {

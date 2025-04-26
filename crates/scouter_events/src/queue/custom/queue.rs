@@ -9,7 +9,6 @@ use crossbeam_queue::ArrayQueue;
 use scouter_error::EventError;
 use scouter_types::custom::CustomDriftProfile;
 use scouter_types::Metrics;
-use std::cmp::min;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
@@ -35,7 +34,7 @@ pub struct CustomQueue {
     producer: RustScouterProducer,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
     stop_tx: Option<watch::Sender<()>>,
-    sample_size: usize,
+    capacity: usize,
 }
 
 impl CustomQueue {
@@ -48,7 +47,7 @@ impl CustomQueue {
 
         debug!("Creating Custom Metric Queue");
         // ArrayQueue size is based on sample size
-        let metrics_queue = Arc::new(ArrayQueue::new(sample_size));
+        let metrics_queue = Arc::new(ArrayQueue::new(sample_size * 2));
         let feature_queue = Arc::new(CustomMetricFeatureQueue::new(drift_profile));
         let last_publish = Arc::new(RwLock::new(Utc::now()));
 
@@ -63,7 +62,8 @@ impl CustomQueue {
             producer,
             last_publish,
             stop_tx: Some(stop_tx),
-            sample_size,
+
+            capacity: sample_size,
         };
 
         debug!("Starting Background Task");
@@ -86,7 +86,7 @@ impl CustomQueue {
             self.last_publish.clone(),
             rt.clone(),
             stop_rx,
-            min(self.sample_size, 1000),
+            self.capacity,
             "Custom Background Polling",
         )
     }
@@ -104,7 +104,7 @@ impl QueueMethods for CustomQueue {
     type FeatureQueue = CustomMetricFeatureQueue;
 
     fn capacity(&self) -> usize {
-        self.sample_size
+        self.capacity
     }
 
     fn get_producer(&mut self) -> &mut RustScouterProducer {
