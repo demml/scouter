@@ -55,7 +55,9 @@ class AlertDispatchType:
     def to_string() -> str:
         """Return the string representation of the alert dispatch type"""
 
-DispatchConfigType = ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
+DispatchConfigType = (
+    ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
+)
 
 class AlertZone:
     Zone1: "AlertZone"
@@ -237,9 +239,9 @@ class AlertThreshold:
     Enum representing different alert conditions for monitoring metrics.
 
     Attributes:
-        BELOW: Indicates that an alert should be triggered when the metric is below a threshold.
-        ABOVE: Indicates that an alert should be triggered when the metric is above a threshold.
-        OUTSIDE: Indicates that an alert should be triggered when the metric is outside a specified range.
+        Below: Indicates that an alert should be triggered when the metric is below a threshold.
+        Above: Indicates that an alert should be triggered when the metric is above a threshold.
+        Outside: Indicates that an alert should be triggered when the metric is outside a specified range.
     """
 
     Below: "AlertThreshold"
@@ -329,5 +331,7 @@ class CustomMetricAlertConfig:
         """Return the alert_condition that were set during metric definition"""
 
     @alert_conditions.setter
-    def alert_conditions(self, alert_conditions: dict[str, CustomMetricAlertCondition]) -> None:
+    def alert_conditions(
+        self, alert_conditions: dict[str, CustomMetricAlertCondition]
+    ) -> None:
         """Update the alert_condition that were set during metric definition"""

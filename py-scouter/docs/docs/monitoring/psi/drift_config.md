@@ -1,11 +1,6 @@
-# PSI Drift Configuration
+## PSI Drift Configuration
 
----
-
-!!! info "scouter.drift.PsiDriftConfig"
 All models that create a `PsiDriftProfile` will require a `PsiDriftConfig` object.
-
----
 
 ```py
 from scouter.alert import PsiAlertConfig
@@ -19,7 +14,7 @@ PsiDriftConfig(
 )
 ```
 
-## Parameters
+### Parameters
 
 | Parameter       | Type             | Description                                                                                                          | Example |
 |---------------|------------------|----------------------------------------------------------------------------------------------------------------------|---------|
@@ -32,7 +27,7 @@ PsiDriftConfig(
 
 
 
-## Properties
+### Properties
 
 
 | Property       | Type             | Description                                                                                                                                        | Example                                            |
@@ -47,9 +42,9 @@ PsiDriftConfig(
 
 
 
-## Methods
+### Methods
 
-### `load_from_json_file()` _(static method)_
+#### `load_from_json_file()` _(static method)_
 Loads a `PsiDriftConfig` instance from a JSON file.
 
 - **Parameters:**
@@ -59,7 +54,7 @@ Loads a `PsiDriftConfig` instance from a JSON file.
 
 ---
 
-### `model_dump_json()`
+#### `model_dump_json()`
 Serializes the `PsiDriftConfig` instance to a JSON string.
 
 - **Parameters:** None
@@ -68,7 +63,7 @@ Serializes the `PsiDriftConfig` instance to a JSON string.
 
 ---
 
-### `update_config_args()`
+#### `update_config_args()`
 Updates the configuration of the instance with new values.
 
 - **Parameters:**
@@ -79,3 +74,42 @@ Updates the configuration of the instance with new values.
     - **`alert_config`** (`Optional[PsiAlertConfig]`): The alert configuration, if provided.
 - **Returns:** `None`
 - **Return Type:** `None`
+
+## Alert Configuration
+
+An `AlertConfig` can also be provided to the `PsiDriftConfig` to specify how you and your team want to be alerted in the event of model drift. The `PsiAlertConfig` class allows you to configure the alerting mechanism, including the dispatch method (e.g., Slack, OpsGenie) and the schedule for drift detection jobs.
+
+
+```py
+from scouter.alert import PsiAlertConfig, SlackDispatchConfig
+from scouter.types import CommonCrons
+
+PsiAlertConfig(
+    dispatch_config=SlackDispatchConfig(channel='my-team-channel'),
+    schedule=CommonCrons.Every6Hours, # (1)
+    features_to_monitor=['feature_1', 'feature_2', ...],
+)
+```
+
+1.  Scouter comes with a set of built-in cron schedules that you can use to configure the schedule for your drift detection job. You can also specify your own custom cron schedule if needed.
+
+
+### Parameters
+
+| Parameter           | Type                 | Description                                                                   | Example                                                      |
+|---------------------|----------------------|-------------------------------------------------------------------------------|--------------------------------------------------------------|
+| dispatch_config     | `SlackDispatchConfig | OpsGenieDispatchConfig                                                        | None`                                                        | An optional dispatch configuration used to configure how alerts are routed, if None is provided a default internal dispatch type of Console will be used to log alerts to the conosole of the scouter server.  | `config.dispatch_config -> SlackDispatchConfig()` |
+| schedule            | `str                 | CommonCrons                                                                   | None`                                                        | Schedule to run drift detection job. Defaults to daily at midnigh. You can use the builtin CommonCron options or specify your own custom cron.                  | `config.schedule → CommonCrons.Every6Hours` |
+| features_to_monitor | `list[str]`                                        | List of features to monitor. Defaults to empty list, which means all features | `config.features_to_monitor → ['feature_1, feature_2, ...']` |
+| psi_threshold        | `float`              | Defaults to the industry standard of 0.25. If one of your monitored features surpass the psi_threshold, an alert will be sent.                                   | `config.psi_threshold → 0.25`                                |
+
+### Properties
+
+| Property              | Type        | Description                                                                         | Example                              |
+|-----------------------|-------------|-------------------------------------------------------------------------------------|--------------------------------------|
+| `dispatch_type`       | `str`       | String representation of what type of dispatch are you using to send alerts.        | `config.dispatch_type` → `"Slack"`   |
+| `dispatch_Config`     | `SlackDispatchConfig | OpsGenieDispatchConfig                                                        | None`      | Dispatch configuration used to configure how alerts are routed.                                 | `config.dispatch_config -> SlackDispatchConfig()`   |
+| `schedule`            | `str`       | The schedule that is used to determine when your drift detecion job should run.     | `config.schedule` → `"0 0 0 * * SUN"` |
+| `features_to_monitor` | `list[str]` | List of features to monitor.                                                        | `config.features_to_monitor → ['feature_1, feature_2, ...']`        |
+| `psi_threshold`       | `float`     | If one of your monitored features surpass the psi_threshold, an alert will be sent. | `config.psi_threshold → 0.25`         |
+

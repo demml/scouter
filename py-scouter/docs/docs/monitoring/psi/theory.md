@@ -34,7 +34,6 @@ $$
 
 
 where:
-
 - $y_1, . . . , y_B$ are the proportions of the $i_{th}$ bin collected during the time of inference
 
 - $y_{b_1}, . . . , y_{b_B}$ are the proportions of the $i_{th}$ bin collected during the time of training
