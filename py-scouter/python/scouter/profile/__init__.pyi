@@ -162,7 +162,7 @@ class DataProfile:
 
 class DataProfiler:
     def __init__(self):
-        """Instantiate Rust TestProfiler class that is
+        """Instantiate DataProfiler class that is
         used to profile data"""
 
     def create_data_profile(

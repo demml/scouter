@@ -5,19 +5,6 @@ While Scouter comes packed with powerful drift detection tools, we understand th
 - Configuring real-time notifications for model drift detection
 - Using scouter queues and fastapi integrations allowing you to send data to scouter server at the time of model inference
 
-### Installation
-
-```bash
-pip install scouter
-```
-
-### **Configuration**
-To register profiles and use Scouter queues, set your company's Scouter server URL as an environment variable:
-
-```bash
-export SCOUTER_SERVER_URI=your_SCOUTER_SERVER_URI
-```
-
 ### Creating a Drift Profile
 To detect model drift, we first need to create a drift profile using your baseline dataset, this is typically done at the time of training your model.
 ```python

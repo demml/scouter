@@ -15,8 +15,8 @@ Based on the drift profile you configure, a scheduled job periodically checks fo
 
 ## Supported Data Types
 Scouter supports a variety of data types, including:
-- **Pandas DataFrames**: Scouter can handle data in the form of Pandas DataFrames, making it easy to integrate with existing data processing pipelines.
-- **Numpy Arrays**: Scouter can also work with Numpy arrays, providing flexibility in how you structure your data.
+- **Pandas DataFrames**: Scouter can handle Pandas DataFrames, making it easy to integrate with existing data processing pipelines.
+- **Numpy Arrays**: Out of the box support for 2D arrays.
 - **Polars DataFrames**: For users who prefer Polars, Scouter supports this data format as well, allowing for efficient data processing and analysis.
 - **Custom Metrics**: Scouter allows you to define your own custom metrics for drift detection, giving you the flexibility to tailor the monitoring process to your specific needs.
 

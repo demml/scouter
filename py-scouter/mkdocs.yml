@@ -3,6 +3,7 @@ site_url: https://demml.github.io/scouter/
 
 theme:
   name: material
+  logo: docs/images/scouter-icon.svg
   icon:
     repo: fontawesome/brands/github
   palette:
@@ -51,6 +52,8 @@ repo_name: scouter
 repo_url: https://github.com/demml/scouter
 nav:
   - Overview: "docs/index.md"
+  - Installation: "docs/installation.md"
+  - Server: "docs/server.md"
   - Monitoring:
       - Overview: "docs/monitoring/index.md"
       - PSI:
@@ -73,6 +76,9 @@ nav:
               - Feature Drift: "docs/monitoring/spc/drift/feature_drift.md"
       - Custom Metric:
           - Overview: "docs/monitoring/custom/quickstart.md"
+      - Inference: "docs/monitoring/queue.md"
+  - Profiling:
+      - Data Profile: "docs/profiling/overview.md"
 
 markdown_extensions:
   - tables
@@ -113,7 +119,7 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
-          options:
+          options.extras:
             source_suffix: ".pyi"
 
 extra_css:

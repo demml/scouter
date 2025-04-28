@@ -1,21 +1,7 @@
-This guide will help you quickly set up PSI in Scouter with a complete end-to-end example. We'll walk through:
+Population Stability Index (PSI) is one of the most common ways to monitor ML models in production. The following sections will walk you throug:
 
 - Setting up a PSI drift profile
 - Configuring real-time notifications for model drift detection
-- Using scouter queues and fastapi integrations allowing you to send data to scouter server at the time of model inference
-
-### Installation
-
-```bash
-pip install scouter-ml
-```
-
-### **Configuration**
-To register profiles and use Scouter queues, set the Scouter server URI as an environment variable:
-
-```bash
-export SCOUTER_SERVER_URI=your_SCOUTER_SERVER_URI
-```
 
 ### Creating a Drift Profile
 To detect model drift, we first need to create a drift profile using your baseline dataset, this is typically done at the time of training your model.
