@@ -42,13 +42,10 @@ test.integration.api:
 test.integration.queue:
 	uv run pytest -s tests/integration/queue
 
-test.integration.producer:
-	uv run pytest -s tests/integration/producer
-
 test.integration.client:
 	uv run pytest -s tests/integration/client
 
-test.integration: test.integration.queue test.integration.api test.integration.producer test.integration.client
+test.integration: test.integration.queue test.integration.api test.integration.client
 
 uv.pre.patch:
 

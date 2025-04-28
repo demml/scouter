@@ -5,16 +5,12 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
-from scouter import (  # type: ignore[attr-defined]
-    Feature,
-    Features,
-    KafkaConfig,
-    ScouterQueue,
-)
+from scouter import KafkaConfig, ScouterQueue  # type: ignore[attr-defined]
 from scouter.alert import SpcAlertConfig
 from scouter.client import ScouterClient
 from scouter.drift import Drifter, SpcDriftConfig, SpcDriftProfile
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
+from scouter.util import FeatureMixin
 
 logger = RustyLogger.get_logger(
     LoggingConfig(log_level=LogLevel.Debug),
@@ -63,21 +59,11 @@ class TestResponse(BaseModel):
     message: str
 
 
-class PredictRequest(BaseModel):
+class PredictRequest(BaseModel, FeatureMixin):
     feature_0: float
     feature_1: float
     feature_2: float
     feature_3: float
-
-    def to_features(self) -> Features:
-        return Features(
-            features=[
-                Feature.float("feature_0", self.feature_0),
-                Feature.float("feature_1", self.feature_1),
-                Feature.float("feature_2", self.feature_2),
-                Feature.float("feature_3", self.feature_3),
-            ]
-        )
 
 
 def create_app(profile_path: Path) -> FastAPI:

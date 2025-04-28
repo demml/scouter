@@ -37,8 +37,8 @@ class PredictRequest(BaseModel, FeatureMixin):
     feature_3: float
 
     # This helper function is necessary to convert Scouter Python types into the appropriate Rust types.
-    # This is what the decorator does for us.
-    # In practice you can just use the decorator
+    # This is what the mixin does under the hood.
+    # In practice you can use the mixin directly unless you want more control over the conversion.
     def to_features_example(self) -> Features:
         return Features(
             features=[
@@ -66,7 +66,7 @@ def create_psi_profile() -> Path:
     The following example shows how to:
 
     1. Instantiate the Drifter class and connect to the Scouter client
-    2. Create a fake data frame
+    2. Create a fake dataframe
     3. Create a PSI profile using the Drifter class
     4. Register the profile with the Scouter client and set it as active
     (this will tell the server to schedule the profile for alerting)
@@ -88,7 +88,10 @@ def create_psi_profile() -> Path:
         version="0.0.1",
         alert_config=PsiAlertConfig(
             schedule=CommonCrons.Every6Hours,  # You can also use a custom cron expression
-            features_to_monitor=["feature_1", "feature_2"],
+            features_to_monitor=[  # we only want to monitor these features
+                "feature_1",
+                "feature_2",
+            ],
         ),
     )
 

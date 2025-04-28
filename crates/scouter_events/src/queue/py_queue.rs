@@ -99,6 +99,7 @@ impl QueueNum {
     }
 }
 
+#[allow(clippy::too_many_arguments)]
 async fn handle_queue_events(
     mut rx: UnboundedReceiver<Event>,
     mut shutdown_rx: oneshot::Receiver<()>,
@@ -189,11 +190,16 @@ impl ScouterQueue {
                 .map_err(|e| EventError::SetupRuntimeError(e.to_string()))?,
         );
 
+        // load each profile from path
+        // In practice you can load as many profiles as you want
         for (id, profile_path) in path {
             let cloned_config = config.clone();
             let drift_profile = DriftProfile::from_profile_path(profile_path)?;
 
+            // create startup channels to ensure queues are initialized before use
             let (startup_tx, startup_rx) = oneshot::channel();
+
+            // create completion channels to ensure queues are flushed before shutdown
             let (completion_tx, completion_rx) = oneshot::channel();
             let (bus, rx, shutdown_rx) = QueueBus::new();
 
