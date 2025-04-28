@@ -231,12 +231,12 @@ impl Metrics {
 }
 
 #[derive(Debug)]
-pub enum QueueEntity {
+pub enum QueueItem {
     Features(Features),
     Metrics(Metrics),
 }
 
-impl QueueEntity {
+impl QueueItem {
     /// Helper for extracting an Entity from a Python object
     pub fn from_py_entity(entity: &Bound<'_, PyAny>) -> Result<Self, TypeError> {
         let entity_type = entity
@@ -250,13 +250,13 @@ impl QueueEntity {
                 let features = entity
                     .extract::<Features>()
                     .map_err(|e| TypeError::ExtractionError(e.to_string()))?;
-                Ok(QueueEntity::Features(features))
+                Ok(QueueItem::Features(features))
             }
             EntityType::Metric => {
                 let metrics = entity
                     .extract::<Metrics>()
                     .map_err(|e| TypeError::ExtractionError(e.to_string()))?;
-                Ok(QueueEntity::Metrics(metrics))
+                Ok(QueueItem::Metrics(metrics))
             }
         }
     }

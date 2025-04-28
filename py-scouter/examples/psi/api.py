@@ -1,19 +1,52 @@
 # pylint: disable=invalid-name
+from contextlib import asynccontextmanager
 from pathlib import Path
+
 import numpy as np
 import pandas as pd
-from examples.psi.types import PredictRequest, Response
-from contextlib import asynccontextmanager
-from scouter import CommonCrons, Drifter, PsiDriftConfig, ScouterQueue
-from scouter.alert import PsiAlertConfig
-from scouter.client import ScouterClient, HTTPConfig
-from fastapi import FastAPI, Request
-from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 import uvicorn
+from fastapi import FastAPI, Request
+from pydantic import BaseModel
+from scouter import (  # type: ignore
+    CommonCrons,
+    Drifter,
+    Feature,
+    Features,
+    HTTPConfig,
+    PsiAlertConfig,
+    PsiDriftConfig,
+    ScouterClient,
+    ScouterQueue,
+)
+from scouter.logging import LoggingConfig, LogLevel, RustyLogger
+from scouter.util import FeatureMixin
 
 logger = RustyLogger.get_logger(
     LoggingConfig(log_level=LogLevel.Debug),
 )
+
+
+# Simple response model for our post request.
+class Response(BaseModel):
+    message: str
+
+
+class PredictRequest(BaseModel, FeatureMixin):
+    feature_1: float
+    feature_2: float
+    feature_3: float
+
+    # This helper function is necessary to convert Scouter Python types into the appropriate Rust types.
+    # This is what the decorator does for us.
+    # In practice you can just use the decorator
+    def to_features_example(self) -> Features:
+        return Features(
+            features=[
+                Feature.float("feature_1", self.feature_1),
+                Feature.float("feature_2", self.feature_2),
+                Feature.float("feature_3", self.feature_3),
+            ]
+        )
 
 
 def generate_data() -> pd.DataFrame:
@@ -22,7 +55,7 @@ def generate_data() -> pd.DataFrame:
     X_train = np.random.normal(-4, 2.0, size=(n, 4))
     col_names = []
     for i in range(0, X_train.shape[1]):
-        col_names.append(f"col_{i}")
+        col_names.append(f"feature_{i}")
     X = pd.DataFrame(X_train, columns=col_names)
     return X
 
@@ -78,10 +111,10 @@ if __name__ == "__main__":
 
     # Setup api lifespan
     @asynccontextmanager
-    async def lifespan(app: FastAPI):
+    async def lifespan(fast_app: FastAPI):
         logger.info("Starting up FastAPI app")
 
-        app.state.queue = ScouterQueue.from_path(
+        fast_app.state.queue = ScouterQueue.from_path(
             path={"psi": profile_path},
             transport_config=config,
         )
@@ -89,14 +122,14 @@ if __name__ == "__main__":
 
         logger.info("Shutting down FastAPI app")
         # Shutdown the queue
-        app.state.queue.shutdown()
-        app.state.queue = None
+        fast_app.state.queue.shutdown()
+        fast_app.state.queue = None
 
     app = FastAPI(lifespan=lifespan)
 
     @app.post("/predict", response_model=Response)
     async def predict(request: Request, payload: PredictRequest) -> Response:
-        request.app.state.queue["psi"].insert(payload.to_features())
+        request.app.state.queue["psi"].insert(payload.to_features())  # type: ignore
         return Response(message="success")
 
     uvicorn.run(app, host="0.0.0.0", port=8888)

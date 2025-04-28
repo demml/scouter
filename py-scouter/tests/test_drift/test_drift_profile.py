@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from scouter import Drifter, SpcDriftProfile
+from scouter import Drifter, SpcDriftProfile  # type: ignore[attr-defined]
 
 
 def test_drift_profile_methods(array: np.ndarray):

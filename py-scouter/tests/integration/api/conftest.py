@@ -5,7 +5,12 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
-from scouter import Feature, Features, KafkaConfig, ScouterQueue
+from scouter import (  # type: ignore[attr-defined]
+    Feature,
+    Features,
+    KafkaConfig,
+    ScouterQueue,
+)
 from scouter.alert import SpcAlertConfig
 from scouter.client import ScouterClient
 from scouter.drift import Drifter, SpcDriftConfig, SpcDriftProfile

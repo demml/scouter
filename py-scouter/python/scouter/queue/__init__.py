@@ -2,7 +2,6 @@
 
 from .. import queue  # noqa: F401
 
-
 ScouterQueue = queue.ScouterQueue
 Queue = queue.Queue
 KafkaConfig = queue.KafkaConfig

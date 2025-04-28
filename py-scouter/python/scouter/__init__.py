@@ -41,6 +41,15 @@ Metrics = queue.Metrics
 # Type imports
 CommonCrons = types.CommonCrons
 
+# Alert imports
+PsiAlertConfig = alert.PsiAlertConfig
+SpcAlertConfig = alert.SpcAlertConfig
+CustomMetricAlertConfig = alert.CustomMetricAlertConfig
+
+# Client
+HTTPConfig = client.HTTPConfig
+ScouterClient = client.ScouterClient
+
 
 __all__ = [
     "__version__",
@@ -67,5 +76,11 @@ __all__ = [
     "Metrics",
     # Type
     "CommonCrons",
-    # Other
+    # Alert
+    "PsiAlertConfig",
+    "SpcAlertConfig",
+    "CustomMetricAlertConfig",
+    # Client
+    "HTTPConfig",
+    "ScouterClient",
 ]

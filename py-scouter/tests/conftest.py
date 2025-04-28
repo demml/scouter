@@ -11,11 +11,7 @@ from scouter.alert import (
     SlackDispatchConfig,
     SpcAlertConfig,
 )
-from scouter.drift import (
-    CustomMetricDriftConfig,
-    PsiDriftConfig,
-    SpcDriftConfig,
-)
+from scouter.drift import CustomMetricDriftConfig, PsiDriftConfig, SpcDriftConfig
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 
 # Sets up logging for tests

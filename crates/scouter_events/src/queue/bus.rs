@@ -1,13 +1,13 @@
 use pyo3::prelude::*;
 use scouter_error::{EventError, ScouterError};
-use scouter_types::QueueEntity;
+use scouter_types::QueueItem;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot;
 use tracing::{debug, instrument};
 
 #[derive(Debug)]
 pub enum Event {
-    Task(QueueEntity),
+    Task(QueueItem),
 }
 
 /// QueueBus is an mpsc bus that allows for publishing events to subscribers.
@@ -51,7 +51,7 @@ impl QueueBus {
     /// # Arguments
     /// * `event` - The event to publish
     pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> Result<(), ScouterError> {
-        let entity = QueueEntity::from_py_entity(entity)?;
+        let entity = QueueItem::from_py_entity(entity)?;
         let event = Event::Task(entity);
         self.publish(event)?;
         Ok(())

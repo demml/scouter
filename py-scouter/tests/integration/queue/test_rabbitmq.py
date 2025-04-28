@@ -3,7 +3,7 @@ import tempfile
 import time
 from pathlib import Path
 
-from scouter import (
+from scouter import (  # type: ignore
     CustomMetric,
     CustomMetricDriftConfig,
     Drifter,

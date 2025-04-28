@@ -1,6 +1,11 @@
 # type: ignore
 # pylint: disable=useless-import-alias
 
+from .alert import CustomMetricAlertConfig as CustomMetricAlertConfig
+from .alert import PsiAlertConfig as PsiAlertConfig
+from .alert import SpcAlertConfig as SpcAlertConfig
+from .client import HTTPConfig as HTTPConfig
+from .client import ScouterClient as ScouterClient
 from .drift import CustomDriftProfile as CustomDriftProfile
 from .drift import CustomMetric as CustomMetric
 from .drift import CustomMetricDriftConfig as CustomMetricDriftConfig

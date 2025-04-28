@@ -7,7 +7,7 @@ use crate::queue::traits::queue::QueueMethods;
 use crate::queue::types::TransportConfig;
 use pyo3::prelude::*;
 use scouter_error::{EventError, ScouterError};
-use scouter_types::{DriftProfile, QueueEntity};
+use scouter_types::{DriftProfile, QueueItem};
 use scouter_types::{Features, Metrics};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -45,16 +45,16 @@ impl QueueNum {
     }
 
     /// Top-level insert method for the queue
-    /// This method will take a QueueEntity and insert it into the appropriate queue
+    /// This method will take a QueueItem and insert it into the appropriate queue
     /// If features, inserts using insert_features (spc, psi)
     /// If metrics, inserts using insert_metrics (custom)
     ///
     /// # Arguments
     /// * `entity` - The entity to insert into the queue
-    pub async fn insert(&mut self, entity: QueueEntity) -> Result<(), EventError> {
+    pub async fn insert(&mut self, entity: QueueItem) -> Result<(), EventError> {
         match entity {
-            QueueEntity::Features(features) => self.insert_features(features).await,
-            QueueEntity::Metrics(metrics) => self.insert_metrics(metrics).await,
+            QueueItem::Features(features) => self.insert_features(features).await,
+            QueueItem::Metrics(metrics) => self.insert_metrics(metrics).await,
         }
     }
 
