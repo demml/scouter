@@ -50,11 +50,7 @@ pub mod rabbitmq_producer {
             let mut retries = self.config.max_retries;
 
             loop {
-                match self
-                    ._publish(message.clone())
-                    .await
-                    .map_err(EventError::traced_publish_error)
-                {
+                match self._publish(message.clone()).await {
                     Ok(_) => break,
                     Err(e) => {
                         retries -= 1;
