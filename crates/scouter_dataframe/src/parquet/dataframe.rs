@@ -247,7 +247,7 @@ mod tests {
                     version: "1.0".to_string(),
                     feature: "feature1".to_string(),
                     bin_id: j as usize,
-                    bin_count: rand::thread_rng().gen_range(0..100),
+                    bin_count: rand::rng().random_range(0..100),
                 });
 
                 batch.push(record);
@@ -263,7 +263,7 @@ mod tests {
                     version: "1.0".to_string(),
                     feature: "feature2".to_string(),
                     bin_id: j as usize,
-                    bin_count: rand::thread_rng().gen_range(0..100),
+                    bin_count: rand::rng().random_range(0..100),
                 });
 
                 batch.push(record);
