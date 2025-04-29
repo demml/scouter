@@ -34,13 +34,10 @@ theme:
     - content.code.annotate
     - content.code.copy
     - announce.dismiss
-    - navigation.instant
-    - navigation.instant.prefetch
-    - navigation.instant.preview
-    - navigation.instant.progress
     - navigation.path
     - navigation.sections
     - navigation.top
+    - navigation.tabs
     - navigation.tracking
     - search.suggest
     - toc.follow
@@ -51,9 +48,9 @@ theme:
 repo_name: scouter
 repo_url: https://github.com/demml/scouter
 nav:
-  - Overview: "docs/index.md"
-  - Installation: "docs/installation.md"
-  - Server: "docs/server.md"
+  - Overview: "index.md"
+  - Installation: "installation.md"
+  - Server: "server.md"
   - Monitoring:
       - Overview: "docs/monitoring/index.md"
       - PSI:
@@ -64,19 +61,12 @@ nav:
 
       - SPC:
           - Quickstart: "docs/monitoring/spc/quickstart.md"
+          - Drift Config: "docs/monitoring/spc/drift_config.md"
+          - Drift Profile: "docs/monitoring/spc/drift_profile.md"
           - Theory: "docs/monitoring/spc/theory.md"
-          - Alerting:
-              - Config: "docs/monitoring/spc/alerting/alert_config.md"
-              - Rules: "docs/monitoring/spc/alerting/alert_rule.md"
-          - Drift:
-              - Config: "docs/monitoring/spc/drift/drift_config.md"
-              - Drift Map: "docs/monitoring/spc/drift/drift_map.md"
-              - Profile: "docs/monitoring/spc/drift/drift_profile.md"
-              - Feature Profile: "docs/monitoring/spc/drift/feature_drift_profile.md"
-              - Feature Drift: "docs/monitoring/spc/drift/feature_drift.md"
       - Custom Metric:
           - Overview: "docs/monitoring/custom/quickstart.md"
-      - Inference: "docs/monitoring/queue.md"
+      - Inference: "docs/monitoring/api.md"
   - Profiling:
       - Data Profile: "docs/profiling/overview.md"
   - Tech Specs:
@@ -133,7 +123,7 @@ extra_css:
 
 extra_javascript:
   - javascripts/mathjax.js
-  - https://unpkg.com/mathjax@3/es5/tex-mml-chtml.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
 
 extra:
   version:

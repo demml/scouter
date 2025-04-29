@@ -6,7 +6,7 @@ The data archive component and architecture is meant to provide a way to maintai
 TLDR: Scouter deletes all records > 60 days old in order to maintain database performance, so we need a retention strategy for expired data in the event a user needs access to it.
 
 
-## How it works:
+## How it works
 
 `ScouterServerConfig` will now load a default `ObjectStorageSettings` struct on startup. This struct serves as a configuration for the object storage provider.
 

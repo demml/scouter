@@ -8,7 +8,7 @@ The Scouter Queue is the primary interface for sending real-time data to the Sco
 
 <img src="../assets/scouter-queue.png" alt="Scouter Queue Architecture" style="display: block; margin: 0 auto;" width="500"/>
 
-## How it works:
+## How it works
 
 (1) **Scouter Queue**: The user creates a Scouter Queue by using the `from_path` operation which accepts a hashmap of paths to the queue files. The Scouter Queue will create a new queue for each path and start a background worker that will read from the queue and send the data to the Scouter server. The `from_path` operation also accepts a transport configuration that is used to setup the specific transport producer for the queue (kafka, rabbitmq, etc.).
 
