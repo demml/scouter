@@ -1,37 +1,20 @@
 #[cfg(all(feature = "redis_events", feature = "sql"))]
 pub mod redis_consumer {
+    use crate::producer::redis::producer::redis_producer::RedisMessageBroker;
     use futures_util::StreamExt;
     use metrics::counter;
     use redis::aio::PubSub;
-    use redis::{Client, Commands, Connection, Msg, RedisResult};
+    use redis::{Msg, RedisResult};
     use scouter_error::EventError;
+    use scouter_settings::RedisSettings;
     use scouter_sql::MessageHandler;
     use scouter_types::ServerRecords;
     use sqlx::{Pool, Postgres};
     use tokio::sync::watch;
     use tokio::task::JoinHandle;
-    use tracing::{error, info};
+    use tracing::{debug, error, info, instrument};
 
     const MAX_MESSAGE_SIZE: usize = 10 * 1024 * 1024; // 10MB
-
-    pub struct RedisMessageBroker {
-        client: Client,
-    }
-
-    impl RedisMessageBroker {
-        pub fn new(redis_url: &str) -> Result<Self, EventError> {
-            let client =
-                Client::open(redis_url).map_err(|e| EventError::RedisOpenError(e.to_string()))?;
-            Ok(Self { client })
-        }
-
-        pub async fn get_pub_sub(&self) -> Result<PubSub, EventError> {
-            self.client
-                .get_async_pubsub()
-                .await
-                .map_err(|e| EventError::RedisPubSubError(e.to_string()))
-        }
-    }
 
     pub struct RedisConsumer {
         pub sub: PubSub,
@@ -59,44 +42,45 @@ pub mod redis_consumer {
     }
 
     impl RedisConsumerManager {
-        /// Start a number of workers to consume messages from RabbitMQ
-        /// This function creates a number of workers to consume messages from RabbitMQ. Each worker will consume messages from RabbitMQ and insert them into the database
+        /// Start a number of workers to consume messages from Redis
+        /// This function creates a number of workers to consume messages from Redis.
+        /// Each worker will consume messages from Redis and insert them into the database
         ///
         /// # Arguments
-        /// * `rabbit_settings` - The RabbitMQ settings
-        /// * `db_client` - The database client
+        /// * `redis_settings` - The Redis settings
+        /// * `db_pool` - The database client
         /// * `shutdown_rx` - The shutdown receiver
         ///
         /// # Returns
         ///
-        /// * `Result<RabbitMQConsumerManager, EventError>` - The result of the operation
-        #[instrument(skip_all, name = "start_rabbitmq_workers")]
+        /// * `Result<RedisConsumerManager, EventError>` - The result of the operation
+        #[instrument(skip_all, name = "start_redis_workers")]
         pub async fn start_workers(
-            rabbit_settings: &RabbitMQSettings,
+            redis_settings: &RedisSettings,
             db_pool: &Pool<Postgres>,
             shutdown_rx: watch::Receiver<()>,
         ) -> Result<Self, EventError> {
-            let num_consumers = rabbit_settings.num_consumers;
+            let num_consumers = redis_settings.num_consumers;
             let mut workers = Vec::with_capacity(num_consumers);
 
             for id in 0..num_consumers {
-                let consumer = create_rabbitmq_consumer(rabbit_settings).await?;
-                let rabbit_db_pool = db_pool.clone();
-
+                let consumer = create_redis_consumer(redis_settings).await?;
+                let redis_db_pool = db_pool.clone();
                 let worker_shutdown_rx = shutdown_rx.clone();
+
                 workers.push(tokio::spawn(async move {
-                    Self::start_worker(id, consumer, rabbit_db_pool, worker_shutdown_rx).await;
+                    Self::start_worker(id, consumer, redis_db_pool, worker_shutdown_rx).await;
                 }));
             }
 
-            debug!("✅ Started {} RabbitMQ workers", num_consumers);
+            debug!("✅ Started {} Redis workers", num_consumers);
 
             Ok(Self { workers })
         }
 
         async fn start_worker(
             id: usize,
-            mut consumer: RedisConsumer,
+            consumer: RedisConsumer,
             db_pool: Pool<Postgres>,
             mut shutdown: watch::Receiver<()>, // Accept receiver
         ) {
@@ -178,5 +162,15 @@ pub mod redis_consumer {
         };
 
         Ok(Some(records))
+    }
+
+    /// Create a new Redis consumer
+    pub async fn create_redis_consumer(
+        settings: &RedisSettings,
+    ) -> Result<RedisConsumer, EventError> {
+        let broker = RedisMessageBroker::new(&settings.address)?;
+        let mut consumer = RedisConsumer::new(&broker).await?;
+        consumer.subscribe(&settings.channel).await?;
+        Ok(consumer)
     }
 }

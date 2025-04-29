@@ -13,7 +13,7 @@ pub mod storage;
 
 pub use auth::AuthSettings;
 pub use database::DatabaseSettings;
-pub use events::{KafkaSettings, RabbitMQSettings};
+pub use events::{KafkaSettings, RabbitMQSettings, RedisSettings};
 pub use http::HTTPConfig;
 pub use polling::PollingSettings;
 pub use storage::ObjectStorageSettings;
@@ -36,6 +36,7 @@ pub struct ScouterServerConfig {
     pub database_settings: DatabaseSettings,
     pub kafka_settings: Option<KafkaSettings>,
     pub rabbitmq_settings: Option<RabbitMQSettings>,
+    pub redis_settings: Option<RedisSettings>,
     pub auth_settings: AuthSettings,
     pub bootstrap_key: String,
     pub storage_settings: ObjectStorageSettings,
@@ -72,6 +73,12 @@ impl Default for ScouterServerConfig {
             None
         };
 
+        let redis = if std::env::var("REDIS_ADDR").is_ok() {
+            Some(RedisSettings::default())
+        } else {
+            None
+        };
+
         let auth_settings = AuthSettings {
             jwt_secret: env::var("SCOUTER_ENCRYPT_SECRET").unwrap_or_else(|_| {
                 warn!(
@@ -98,6 +105,7 @@ impl Default for ScouterServerConfig {
             database_settings: database,
             kafka_settings: kafka,
             rabbitmq_settings: rabbitmq,
+            redis_settings: redis,
             auth_settings,
             bootstrap_key,
             storage_settings: ObjectStorageSettings::default(),
