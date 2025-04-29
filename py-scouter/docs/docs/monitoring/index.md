@@ -8,7 +8,7 @@ Drift profiles are created using the `Drifter` class, which provides a simple in
 - **Custom Metrics** – Define your own drift detection method to match your specific needs.
 
 ## Scouter Queues
-Scouter Queues allow you to capture the data being sent to your model during inference. This captured data is then sent to the configures Scouter server, where it will be stored and used in the future to detect any potential drift and notify you an your team based on your configuration.
+Scouter Queues allow you to capture the data being sent to your model during inference. This captured data is then sent to the Scouter server, where it will be stored and used in the future to detect any potential drift and notify you and your team based on your configuration.
 
 ## Alerting
 Based on the drift profile you configure, a scheduled job periodically checks for data drift using the captured inference data. If drift is detected, an alert is triggered and sent via your preferred method to notify the relevant team.
@@ -128,8 +128,6 @@ if __name__ == "__main__":
     # Create a PSI profile and get its path
     profile_path = create_psi_profile()
 
-    # Setup the FastAPI app
-    config = HTTPConfig()
 
     # Setup api lifespan
     @asynccontextmanager
@@ -137,7 +135,7 @@ if __name__ == "__main__":
 
         fast_app.state.queue = ScouterQueue.from_path( #(6)
             path={"psi": profile_path},
-            transport_config=config,
+            transport_config=HTTPConfig(), #(7)
         )
         yield
 
@@ -149,7 +147,7 @@ if __name__ == "__main__":
 
     @app.post("/predict", response_model=Response)
     async def predict(request: Request, payload: PredictRequest) -> Response:
-        request.app.state.queue["psi"].insert(payload.to_features()) #(7)
+        request.app.state.queue["psi"].insert(payload.to_features()) #(8)
         return Response(message="success")
 
     uvicorn.run(app, host="0.0.0.0", port=8888)
@@ -161,7 +159,8 @@ if __name__ == "__main__":
 4. `DriftConfig` is a required argument to all drift types. It helps define how the drift profile is created and how the drift detection job is scheduled. Refer to the [DriftConfig](#) section for more information
 5. The `register_profile` method is used to register the drift profile with the Scouter server. The `set_active` argument tells the server to schedule the drift detection job based on the configuration in the `DriftConfig` object. If set to `False`, the profile will not be scheduled for drift detection. You can always set this to true later
 6. Here we setup the ScouterQueue within our FastApi lifespan and attach it to the application's state. You can load and set as many queues as you like. Each profile is given an alias that you can use to access later on
-7. Insert data into the ScouterQueue using a specific alias
+7. The `HTTPConfig` class sets the transport configuration to send direct HTTP requests to the Scouter server from items in the queue. In production, you may want to use a different transport configuration, such as `KafkaConfig` or `RabbitMQ`, depending on your needs.
+8. Insert data into the ScouterQueue using a specific alias
 
 !!!success
     That's it! While there's a few details to iron out, you now know how to configure real-time monitoring and alerting using Scouter. Please see refer to the rest of the documentation for more details on how to use Scouter and the Scouter server. If you have any questions, please feel free to reach out to us on Slack or create an issue on GitHub.
