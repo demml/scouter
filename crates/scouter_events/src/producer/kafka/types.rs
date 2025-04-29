@@ -2,12 +2,13 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use rusty_logging::logger::LogLevel;
 use scouter_error::{EventError, ScouterError};
+use scouter_types::TransportTypes;
 use std::collections::HashMap;
 use std::env;
 use std::str::FromStr;
 
 #[pyclass(eq)]
-#[derive(PartialEq, Clone)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum CompressionType {
     None,
     Gzip,
@@ -80,7 +81,7 @@ fn add_kafka_args(
 }
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct KafkaConfig {
     #[pyo3(get, set)]
     pub brokers: String,
@@ -108,6 +109,9 @@ pub struct KafkaConfig {
 
     #[pyo3(get, set)]
     pub max_retries: i32,
+
+    #[pyo3(get)]
+    pub transport_type: TransportTypes,
 }
 
 #[pymethods]
@@ -181,6 +185,7 @@ impl KafkaConfig {
             log_level,
             config,
             max_retries: max_retries.unwrap_or(3),
+            transport_type: TransportTypes::Kafka,
         })
     }
 }

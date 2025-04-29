@@ -8,7 +8,7 @@ use crate::{
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use scouter_error::{CustomMetricError, ScouterError, UtilError};
+use scouter_error::{CustomMetricError, ScouterError, TypeError, UtilError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -19,9 +19,6 @@ use std::path::PathBuf;
 pub struct CustomMetricDriftConfig {
     #[pyo3(get, set)]
     pub sample_size: usize,
-
-    #[pyo3(get, set)]
-    pub sample: bool,
 
     #[pyo3(get, set)]
     pub space: String,
@@ -54,12 +51,11 @@ impl DispatchDriftConfig for CustomMetricDriftConfig {
 #[allow(clippy::too_many_arguments)]
 impl CustomMetricDriftConfig {
     #[new]
-    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, sample=true, sample_size=25, alert_config=CustomMetricAlertConfig::default(), config_path=None))]
+    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, sample_size=25, alert_config=CustomMetricAlertConfig::default(), config_path=None))]
     pub fn new(
         space: &str,
         name: &str,
         version: &str,
-        sample: bool,
         sample_size: usize,
         alert_config: CustomMetricAlertConfig,
         config_path: Option<PathBuf>,
@@ -73,7 +69,6 @@ impl CustomMetricDriftConfig {
 
         Ok(Self {
             sample_size,
-            sample,
             space: space.to_string(),
             name: name.to_string(),
             version: version.to_string(),
@@ -109,22 +104,22 @@ impl CustomMetricDriftConfig {
         name: Option<String>,
         version: Option<String>,
         alert_config: Option<CustomMetricAlertConfig>,
-    ) -> Result<(), ScouterError> {
+    ) -> Result<(), TypeError> {
         if name.is_some() {
-            self.name = name.ok_or(ScouterError::TypeError("name".to_string()))?;
+            self.name = name.ok_or(TypeError::MissingAttribute("name".to_string()))?;
         }
 
         if space.is_some() {
-            self.space = space.ok_or(ScouterError::TypeError("space".to_string()))?;
+            self.space = space.ok_or(TypeError::MissingAttribute("space".to_string()))?;
         }
 
         if version.is_some() {
-            self.version = version.ok_or(ScouterError::TypeError("version".to_string()))?;
+            self.version = version.ok_or(TypeError::MissingAttribute("version".to_string()))?;
         }
 
         if alert_config.is_some() {
             self.alert_config =
-                alert_config.ok_or(ScouterError::TypeError("alert_config".to_string()))?;
+                alert_config.ok_or(TypeError::MissingAttribute("alert_config".to_string()))?;
         }
 
         Ok(())
@@ -198,8 +193,8 @@ impl CustomDriftProfile {
 
     // Convert python dict into a drift profile
     #[pyo3(signature = (path=None))]
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
-        ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ScouterError> {
+        ProfileFuncs::save_to_json(self, path, FileName::CustomDriftProfile.to_str())
     }
 
     #[staticmethod]
@@ -231,7 +226,7 @@ impl CustomDriftProfile {
         name: Option<String>,
         version: Option<String>,
         alert_config: Option<CustomMetricAlertConfig>,
-    ) -> Result<(), ScouterError> {
+    ) -> Result<(), TypeError> {
         self.config
             .update_config_args(space, name, version, alert_config)
     }
@@ -299,7 +294,6 @@ mod tests {
             MISSING,
             MISSING,
             "0.1.0",
-            false,
             25,
             CustomMetricAlertConfig::default(),
             None,
@@ -350,8 +344,7 @@ mod tests {
         };
 
         let drift_config =
-            CustomMetricDriftConfig::new("scouter", "ML", "0.1.0", false, 25, alert_config, None)
-                .unwrap();
+            CustomMetricDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
         let custom_metrics = vec![
             CustomMetric::new("mae", 12.4, AlertThreshold::Above, Some(2.3)).unwrap(),

@@ -1,0 +1,130 @@
+site_name: Scouter
+site_url: https://demml.github.io/scouter/
+
+theme:
+  name: material
+  logo: docs/images/scouter-icon.svg
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    - media: "(prefers-color-scheme)"
+      primary: stylesheets/extra.css
+      accent: stylesheets/extra.css
+      toggle:
+        icon: material/weather-night
+        name: "Switch to light mode"
+
+    - media: "(prefers-color-scheme: light)"
+      scheme: scouter-light
+      primary: stylesheets/extra.css
+      accent: stylesheets/extra.css
+      toggle:
+        icon: material/weather-night
+        name: "Switch to dark mode"
+
+    - media: "(prefers-color-scheme: dark)"
+      scheme: scouter-dark
+      primary: stylesheets/extra.css
+      accent: stylesheets/extra.css
+      toggle:
+        icon: material/weather-sunny
+        name: "Switch to system preference"
+
+  features:
+    - content.code.annotate
+    - content.code.copy
+    - announce.dismiss
+    - navigation.path
+    - navigation.sections
+    - navigation.top
+    - navigation.tabs
+    - navigation.tracking
+    - search.suggest
+    - toc.follow
+  font:
+    text: Roboto
+    code: Roboto Mono
+
+repo_name: scouter
+repo_url: https://github.com/demml/scouter
+nav:
+  - Overview: "index.md"
+  - Installation: "installation.md"
+  - Server: "server.md"
+  - Monitoring:
+      - Overview: "docs/monitoring/index.md"
+      - PSI:
+          - Quickstart: "docs/monitoring/psi/quickstart.md"
+          - Drift Config: "docs/monitoring/psi/drift_config.md"
+          - Drift Profile: "docs/monitoring/psi/drift_profile.md"
+          - Theory: "docs/monitoring/psi/theory.md"
+
+      - SPC:
+          - Quickstart: "docs/monitoring/spc/quickstart.md"
+          - Drift Config: "docs/monitoring/spc/drift_config.md"
+          - Drift Profile: "docs/monitoring/spc/drift_profile.md"
+          - Theory: "docs/monitoring/spc/theory.md"
+      - Custom Metric:
+          - Overview: "docs/monitoring/custom/quickstart.md"
+      - Inference: "docs/monitoring/api.md"
+  - Profiling:
+      - Data Profile: "docs/profiling/overview.md"
+  - Tech Specs:
+      - Overview: "docs/specs/Readme.md"
+      - Archive: "docs/specs/ts-component-data-archive.md"
+      - Queue: "docs/specs/ts-component-scouter-queue.md"
+
+markdown_extensions:
+  - tables
+  - toc:
+      permalink: true
+      title: Page contents
+  - pymdownx.highlight:
+      use_pygments: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.details
+  - pymdownx.arithmatex:
+      generic: true
+  - admonition
+  - def_list
+  - attr_list
+  - md_in_html:
+  - pymdownx.keys:
+  - pymdownx.tasklist:
+      custom_checkbox: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.emoji:
+      emoji_index: !!python/name:material.extensions.emoji.twemoji
+      emoji_generator: !!python/name:material.extensions.emoji.to_svg
+
+plugins:
+  - search
+  - mkdocstrings:
+      handlers:
+        python:
+          options.extras:
+            source_suffix: ".pyi"
+
+extra_css:
+  - docs/css/custom.css
+  - docs/stylesheets/extra.css
+  - docs/css/termynal.css
+
+extra_javascript:
+  - javascripts/mathjax.js
+  - https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js
+
+extra:
+  version:
+    provider: mike

@@ -1,12 +1,20 @@
+from contextlib import asynccontextmanager
+from pathlib import Path
+
 import numpy as np
 import pandas as pd
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
+from scouter import KafkaConfig, ScouterQueue  # type: ignore[attr-defined]
 from scouter.alert import SpcAlertConfig
-from scouter.client import GetProfileRequest, ScouterClient
+from scouter.client import ScouterClient
 from scouter.drift import Drifter, SpcDriftConfig, SpcDriftProfile
-from scouter.integrations.fastapi import ScouterRouter
-from scouter.queue import DriftTransportConfig, Feature, Features, KafkaConfig
+from scouter.logging import LoggingConfig, LogLevel, RustyLogger
+from scouter.util import FeatureMixin
+
+logger = RustyLogger.get_logger(
+    LoggingConfig(log_level=LogLevel.Debug),
+)
 
 
 def generate_data() -> pd.DataFrame:
@@ -24,7 +32,9 @@ def generate_data() -> pd.DataFrame:
     return X
 
 
-def create_and_register_drift_profile(client: ScouterClient) -> SpcDriftProfile:
+def create_and_register_drift_profile(
+    client: ScouterClient,
+) -> SpcDriftProfile:
     data = generate_data()
 
     # create drift config (usually associated with a model name, space name, version)
@@ -40,9 +50,7 @@ def create_and_register_drift_profile(client: ScouterClient) -> SpcDriftProfile:
 
     # create drift profile
     profile = drifter.create_drift_profile(data, config)
-
-    # register the profile so we can obtain it during our drift transport configuration
-    client.register_profile(profile)
+    client.register_profile(profile, True)
 
     return profile
 
@@ -51,51 +59,37 @@ class TestResponse(BaseModel):
     message: str
 
 
-class PredictRequest(BaseModel):
+class PredictRequest(BaseModel, FeatureMixin):
     feature_0: float
     feature_1: float
     feature_2: float
     feature_3: float
 
-    def to_features(self) -> Features:
-        return Features(
-            features=[
-                Feature.float("feature_0", self.feature_0),
-                Feature.float("feature_1", self.feature_1),
-                Feature.float("feature_2", self.feature_2),
-                Feature.float("feature_3", self.feature_3),
-            ]
-        )
 
-
-def create_app(drift_profile) -> FastAPI:
+def create_app(profile_path: Path) -> FastAPI:
     config = KafkaConfig()
-    app = FastAPI()
 
-    transport = DriftTransportConfig(
-        id="test",
-        config=config,
-        drift_profile_request=GetProfileRequest(
-            name=drift_profile.config.name,
-            space=drift_profile.config.space,
-            version=drift_profile.config.version,
-            drift_type=drift_profile.config.drift_type,
-        ),
-    )
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        logger.info("Starting up FastAPI app")
 
-    # define scouter router
-    scouter_router = ScouterRouter([transport])
+        app.state.queue = ScouterQueue.from_path(
+            path={"spc": profile_path},
+            transport_config=config,
+        )
+        yield
 
-    @scouter_router.post("/predict", response_model=TestResponse)
+        logger.info("Shutting down FastAPI app")
+        # Shutdown the queue
+        app.state.queue.shutdown()
+        app.state.queue = None
+
+    app = FastAPI(lifespan=lifespan)
+
+    @app.post("/predict", response_model=TestResponse)
     async def predict(request: Request, payload: PredictRequest) -> TestResponse:
-        request.state.scouter_data = payload.to_features()
-
-        request.state.scouter_data = {
-            transport.id: payload.to_features(),
-        }
-
+        print(f"Received payload: {request.app.state}")
+        request.app.state.queue["spc"].insert(payload.to_features())
         return TestResponse(message="success")
-
-    app.include_router(scouter_router)
 
     return app

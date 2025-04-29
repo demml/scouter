@@ -2,7 +2,7 @@
 import pandas as pd
 import polars as pl
 from numpy.typing import NDArray
-from scouter.profile import DataProfile, DataProfiler
+from scouter import DataProfile, DataProfiler
 
 
 def test_multi_data_profile_with_correlation(

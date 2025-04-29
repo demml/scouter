@@ -12,10 +12,31 @@ pub trait TracedError: Display {
     }
 }
 
-#[derive(Error, Debug)]
-pub enum ScouterTypeError {
+#[derive(Error, Debug, Deserialize, PartialEq)]
+pub enum TypeError {
+    #[error("Missing attribute: {0}")]
+    MissingAttribute(String),
+
+    #[error("Failed to extract data: {0}")]
+    ExtractionError(String),
+
     #[error("Failed to construct TimeInterval {0}")]
     TimeIntervalError(String),
+
+    #[error("{0}")]
+    DowncastError(String),
+
+    #[error("Failed to convert: {0}")]
+    ConversionError(String),
+
+    #[error("Type not supported: {0}")]
+    TypeNotSupported(String),
+}
+
+impl From<TypeError> for PyErr {
+    fn from(err: TypeError) -> PyErr {
+        PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(err.to_string())
+    }
 }
 
 // add tracing trait to ScouterError
@@ -164,7 +185,7 @@ impl ProfilerError {
     }
 }
 
-#[derive(Error, Debug, Deserialize)]
+#[derive(Error, Debug, Deserialize, PartialEq)]
 pub enum FeatureQueueError {
     #[error("{0}")]
     InvalidFormatError(String),
@@ -738,6 +759,12 @@ pub enum EventError {
     #[error(transparent)]
     SqlError(#[from] SqlError),
 
+    #[error(transparent)]
+    FeatureQueueError(#[from] FeatureQueueError),
+
+    #[error(transparent)]
+    TypeError(#[from] TypeError),
+
     #[error("Invalid compression type")]
     InvalidCompressionTypeError,
 
@@ -749,11 +776,29 @@ pub enum EventError {
 
     #[error("Failed to setup consumer: {0}")]
     SetupConsumerError(String),
+
+    #[error("Failed to setup runtime: {0}")]
+    SetupRuntimeError(String),
+
+    #[error("Failed to insert record: {0}")]
+    InsertRecordError(String),
+
+    #[error("Queue is full, failed to push item")]
+    QueueFullError,
+
+    #[error("Failed to create send entity to consumer: {0}")]
+    SendEntityError(String),
 }
 
 impl TracedError for EventError {}
 
 impl EventError {
+    pub fn queue_push_error<T>(_item: T) -> Self {
+        // If you need the item, store it in the error variant
+        // Otherwise just return the error type
+        EventError::QueueFullError
+    }
+
     pub fn traced_connection_error(err: impl Display) -> Self {
         let error = Self::ConnectionError(err.to_string());
         error.trace();
@@ -805,6 +850,18 @@ impl EventError {
         error.trace();
         error
     }
+
+    pub fn traced_setup_runtime_error(err: impl Display) -> Self {
+        let error = Self::SetupConsumerError(err.to_string());
+        error.trace();
+        error
+    }
+
+    pub fn traced_insert_record_error(err: impl Display) -> Self {
+        let error = Self::InsertRecordError(err.to_string());
+        error.trace();
+        error
+    }
 }
 
 /// THis should be the top-level error that all other errors are converted to
@@ -818,9 +875,6 @@ pub enum ScouterError {
 
     #[error("Failed to create path")]
     CreatePathError,
-
-    #[error("Type error for {0}")]
-    TypeError(String),
 
     #[error("Missing feature map")]
     MissingFeatureMapError,
@@ -874,7 +928,7 @@ pub enum ScouterError {
     UtilError(#[from] UtilError),
 
     #[error(transparent)]
-    ScouterTypeError(#[from] ScouterTypeError),
+    TypeError(#[from] TypeError),
 
     #[error("Missing value in map")]
     MissingValue,
@@ -899,6 +953,18 @@ pub enum ScouterError {
     // column names must be strings
     #[error("Column names must be string type")]
     ColumnNamesMustBeStrings,
+
+    #[error("Failed to get queue for alias. Check that it exists: {0}")]
+    MissingQueueError(String),
+
+    #[error("Failed to bind queue to python: {0}")]
+    BindError(String),
+
+    #[error("Failed to create queue: {0}")]
+    QueueCreateError(String),
+
+    #[error("Failed to shutdown queue: {0}")]
+    QueueShutdownError(String),
 }
 
 impl TracedError for ScouterError {}

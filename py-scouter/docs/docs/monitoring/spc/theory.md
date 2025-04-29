@@ -8,9 +8,11 @@ Reference for grand mean and standard deviation calculations: [link](https://www
 
 Sample mean and standard deviation:
 
+
 $$
 \overline{x}_i = \frac{1}{n}\sum_{i=1}^n x_i
 $$
+
 
 $$
 \sigma = \sqrt{\frac{1}{n}\sum_{i=1}^n(x_i-\overline{x})^2}
@@ -28,11 +30,14 @@ $$
 \overline{s}=\frac{1}{n}\sum_{i=1}^n{\sigma}_i
 $$
 
+
 $$
 \hat\sigma{}=\frac{\overline{s}}{c_4}
 $$
 
+
 Where $c_4$ is the bias correction factor for the sample standard deviation. The bias correction factor is given by:
+
 
 $$
 c_4 = \sqrt{\frac{2-1}{n}} {\frac{(\frac{n}{2} - 1)!}{(\frac{n-1}{2} - 1)!}}
@@ -118,7 +123,7 @@ In addition to the 8 digit rule, `Scouter` will also check for a consecutive tre
 
 `Scouter` provides the ability to create your own custom 8 digit rules. Below is an example of how to create a custom rule:
 
-```python hl_lines="6 15"
+```python
 from scouter.alert import SlackDispatchConfig, SpcAlertConfig, SpcAlertRule
 from scouter.drift import SpcDriftConfig
 

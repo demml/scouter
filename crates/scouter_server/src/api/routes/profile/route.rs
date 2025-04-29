@@ -170,7 +170,7 @@ pub async fn get_profile(
         }
     };
 
-    match DriftProfile::from_value(profile_value, params.drift_type.to_string()) {
+    match DriftProfile::from_value(profile_value) {
         Ok(profile) => Ok(Json(profile)),
         Err(e) => {
             error!("Failed to parse drift profile: {:?}", e);

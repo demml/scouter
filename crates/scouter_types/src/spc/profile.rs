@@ -10,7 +10,7 @@ use chrono::{DateTime, Utc};
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use scouter_error::{ScouterError, UtilError};
+use scouter_error::{ScouterError, TypeError, UtilError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -181,31 +181,31 @@ impl SpcDriftConfig {
         sample: Option<bool>,
         sample_size: Option<usize>,
         alert_config: Option<SpcAlertConfig>,
-    ) -> Result<(), ScouterError> {
+    ) -> Result<(), TypeError> {
         if name.is_some() {
-            self.name = name.ok_or(ScouterError::TypeError("name".to_string()))?;
+            self.name = name.ok_or(TypeError::MissingAttribute("name".to_string()))?;
         }
 
         if space.is_some() {
-            self.space = space.ok_or(ScouterError::TypeError("space".to_string()))?;
+            self.space = space.ok_or(TypeError::MissingAttribute("space".to_string()))?;
         }
 
         if version.is_some() {
-            self.version = version.ok_or(ScouterError::TypeError("version".to_string()))?;
+            self.version = version.ok_or(TypeError::MissingAttribute("version".to_string()))?;
         }
 
         if sample.is_some() {
-            self.sample = sample.ok_or(ScouterError::TypeError("sample".to_string()))?;
+            self.sample = sample.ok_or(TypeError::MissingAttribute("sample".to_string()))?;
         }
 
         if sample_size.is_some() {
             self.sample_size =
-                sample_size.ok_or(ScouterError::TypeError("sample size".to_string()))?;
+                sample_size.ok_or(TypeError::MissingAttribute("sample size".to_string()))?;
         }
 
         if alert_config.is_some() {
             self.alert_config =
-                alert_config.ok_or(ScouterError::TypeError("alert_config".to_string()))?;
+                alert_config.ok_or(TypeError::MissingAttribute("alert_config".to_string()))?;
         }
 
         Ok(())
@@ -309,8 +309,8 @@ impl SpcDriftProfile {
 
     // Convert python dict into a drift profile
     #[pyo3(signature = (path=None))]
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
-        ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ScouterError> {
+        ProfileFuncs::save_to_json(self, path, FileName::SpcDriftProfile.to_str())
     }
 
     #[staticmethod]
@@ -342,7 +342,7 @@ impl SpcDriftProfile {
         sample: Option<bool>,
         sample_size: Option<usize>,
         alert_config: Option<SpcAlertConfig>,
-    ) -> Result<(), ScouterError> {
+    ) -> Result<(), TypeError> {
         self.config
             .update_config_args(space, name, version, sample, sample_size, alert_config)
     }

@@ -8,11 +8,11 @@ use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use scouter_error::{PyScouterError, ScouterError, UtilError};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::fmt::Display;
 use std::path::PathBuf;
 use std::str::FromStr;
 use strum_macros::EnumIter;
-
 #[pyclass(eq)]
 #[derive(Debug, EnumIter, PartialEq, Serialize, Deserialize, Clone, Default, Eq, Hash)]
 pub enum DriftType {
@@ -161,9 +161,12 @@ impl DriftProfile {
     /// * `body` - Request body
     /// * `drift_type` - Drift type string
     ///
-    pub fn from_value(body: serde_json::Value, drift_type: &str) -> Result<Self, ScouterError> {
+    pub fn from_value(body: serde_json::Value) -> Result<Self, ScouterError> {
+        let drift_type = body["config"]["drift_type"].as_str().unwrap();
+
         let drift_type = DriftType::from_str(drift_type)
             .map_err(|_| ScouterError::InvalidDriftTypeError(drift_type.to_string()))?;
+
         match drift_type {
             DriftType::Spc => {
                 let profile =
@@ -229,13 +232,26 @@ impl DriftProfile {
         }
     }
 
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
-        ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ScouterError> {
+        ProfileFuncs::save_to_json(self, path, FileName::DriftProfile.to_str())
     }
 
     pub fn load_from_json(path: PathBuf) -> Result<Self, ScouterError> {
         let file = std::fs::read_to_string(&path).map_err(|_| UtilError::ReadError)?;
         serde_json::from_str(&file).map_err(|e| UtilError::DeSerializeError(e.to_string()).into())
+    }
+
+    /// load a profile into the DriftProfile enum from path
+    ///
+    /// # Arguments
+    /// * `path` - Path to the profile
+    ///
+    /// # Returns
+    /// * `Result<Self>` - Result of DriftProfile
+    pub fn from_profile_path(path: PathBuf) -> Result<Self, ScouterError> {
+        let profile = std::fs::read_to_string(&path).map_err(|_| UtilError::ReadError)?;
+        let profile_value: Value = serde_json::from_str(&profile).unwrap();
+        DriftProfile::from_value(profile_value)
     }
 }
 

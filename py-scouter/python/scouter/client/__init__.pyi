@@ -167,7 +167,7 @@ class ScouterClient:
         """
 
     def register_profile(self, profile: Any, set_active: bool = False) -> bool:
-        """Insert drift profile into server
+        """Registers a drift profile with the server
 
         Args:
             profile:

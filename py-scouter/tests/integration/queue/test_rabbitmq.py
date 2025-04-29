@@ -1,23 +1,25 @@
 import random
+import tempfile
 import time
+from pathlib import Path
 
+from scouter import (  # type: ignore
+    CustomMetric,
+    CustomMetricDriftConfig,
+    Drifter,
+    Metric,
+    Metrics,
+    RabbitMQConfig,
+    ScouterQueue,
+)
 from scouter.alert import AlertThreshold, CustomMetricAlertConfig
 from scouter.client import (
     BinnedCustomMetrics,
     DriftAlertRequest,
     DriftRequest,
-    GetProfileRequest,
     ProfileStatusRequest,
     ScouterClient,
     TimeInterval,
-)
-from scouter.drift import CustomMetric, CustomMetricDriftConfig, Drifter
-from scouter.queue import (
-    DriftTransportConfig,
-    Metric,
-    Metrics,
-    RabbitMQConfig,
-    ScouterQueue,
 )
 from scouter.types import DriftType
 
@@ -46,36 +48,32 @@ def test_custom_monitor_pandas_rabbitmq(rabbitmq_scouter_server):
         name="test",
         space="test",
         version=semver,
+        sample_size=5,
         alert_config=CustomMetricAlertConfig(
-            schedule="0/15 * * * * * *",  # every 15 seconds
+            schedule="*/5 * * * * *",  # every 5
         ),
     )
 
     profile = scouter.create_drift_profile(data=metrics, config=drift_config)
     client.register_profile(profile)
-    config = DriftTransportConfig(
-        id="test",
-        config=RabbitMQConfig(),
-        drift_profile_request=GetProfileRequest(
-            name=profile.config.name,
-            version=profile.config.version,
-            space=profile.config.space,
-            drift_type=profile.config.drift_type,
-        ),
-    )
-    queue = ScouterQueue(config)
-    for i in range(0, 30):
+
+    with tempfile.TemporaryDirectory() as temp_dir:
+        path = Path(temp_dir) / "profile.json"
+        profile.save_to_json(path)
+        queue = ScouterQueue.from_path({"a": path}, RabbitMQConfig())
+
+    for i in range(0, 100):
         metrics = Metrics(
             metrics=[
                 Metric("mae", i),
                 Metric("mape", i + 1),
             ]
         )
-        queue.insert(metrics)
-    queue.flush()
+        queue["a"].insert(metrics)
+    queue.shutdown()
 
     # wait for rabbitmq to process the message
-    time.sleep(10)
+    time.sleep(5)
 
     request = DriftRequest(
         name=profile.config.name,
@@ -100,7 +98,7 @@ def test_custom_monitor_pandas_rabbitmq(rabbitmq_scouter_server):
 
     # wait for alerts to process
     # wait for 11 because background drift task runs every 10 seconds
-    time.sleep(11)
+    time.sleep(5)
     alerts = client.get_alerts(
         DriftAlertRequest(
             name=profile.config.name,

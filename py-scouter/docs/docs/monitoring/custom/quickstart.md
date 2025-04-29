@@ -5,138 +5,92 @@ While Scouter comes packed with powerful drift detection tools, we understand th
 - Configuring real-time notifications for model drift detection
 - Using scouter queues and fastapi integrations allowing you to send data to scouter server at the time of model inference
 
-### Installation
-
-```bash
-pip install scouter
-```
-
-### **Configuration**
-To register profiles and use Scouter queues, set your company's Scouter server URL as an environment variable:
-
-```bash
-export SCOUTER_SERVER_URI=your_SCOUTER_SERVER_URI
-```
-
 ### Creating a Drift Profile
-To detect model drift, we first need to create a drift profile using your baseline dataset $Y_{b}$, this is typically done at the time of training your model.
-```python hl_lines="6 15"
-from scouter.alert import PsiAlertConfig, SlackDispatchConfig
+To detect model drift, we first need to create a drift profile using your baseline dataset, this is typically done at the time of training your model.
+```python
+from scouter.alert import SlackDispatchConfig
 from scouter.client import ScouterClient
-from scouter.drift import Drifter, PsiDriftConfig
-from scouter.types import CommonCrons
+from scouter.drift import Drifter, CustomMetric, CustomMetricDriftConfig, CommonCrons
 from sklearn import datasets
 
 if __name__ == "__main__":
-    # Prepare data
-    X, y = datasets.load_wine(return_X_y=True, as_frame=True)
+
+    # Define custom metrics
+    metrics = [  #(1)
+        CustomMetric(
+            name="mae",
+            value=1,
+            alert_threshold=AlertThreshold.Outside,
+            alert_threshold_value=0.5,
+        ),
+        CustomMetric(
+            name="mape",
+            value=2,
+            alert_threshold=AlertThreshold.Outside,
+            alert_threshold_value=0.5,
+        ),
+    ]
+
+    # Define the drift config
+    drift_config = CustomMetricDriftConfig(
+        space="scouter",
+        name="custom_metric",
+        version=semver,
+        sample_size=25,  #(2)
+        alert_config=CustomMetricAlertConfig(
+            schedule="*/5 * * * * *",  # every 5 minutes
+        ),
+    )
 
     # Drifter class for creating drift profiles
-    scouter = Drifter()
+    drifter = Drifter()
 
-    # Specify the alert configuration
-    alert_config = PsiAlertConfig(
-        features_to_monitor=["malic_acid", "total_phenols", "color_intensity"], # Defaults to all features if left empty
-        schedule=CommonCrons.EveryDay, # Run drift detection job once daily
-        dispatch_config=SlackDispatchConfig(channel="test_channel"), # Notify my team Slack channel if drift is detected
-        # psi_threshold=0.25  # (default) adjust if needed
-    )
-
-    # Create drift config
-    psi_config = PsiDriftConfig(
-        name="wine_model",
-        space="wine_model",
-        version="0.0.1",
-        alert_config=alert_config
-    )
-
-    # Create the drift profile
-    psi_profile = scouter.create_drift_profile(X, psi_config)
-
-    # Register your profile with scouter server
-    client = ScouterClient()
-
-    # set_active must be set to True if you want scouter server to run the drift detection job
-    client.register_profile(profile=psi_profile, set_active=True)
+    profile = drifter.create_drift_profile(data=metrics, config=drift_config)
+    client.register_profile(profile)
 ```
 
+1. Instead of data, you provide the Drifter with a list of `CustomMetric` objects. Each metric has a name, value, and alert threshold.
+2. The sample size is the number of samples to use for drift detection. This is the number of samples that will be used to calculate the drift score. The default value is 25, but you can adjust this based on your needs. It is generally recommended to not use a sample size of less than 25, as drift alerting is computed from the sampled value. If sample size is 1, an alert will be triggered every time the value surpasses the defined threshold.
 
-### Scouter Queues and FastAPI Integration
+## CustomMetric
 
-At ths point we have registered a PSI drift profile with scouter server. Our profile configuration included a schedule, this will instruct scouter to run a drift detection once a day.
-At this point, we have yet to collect any target data, i.e. $Y,$ and without the target data, we have nothing to compare. In the example below, we will obtain our target data
-by simulating a production scenario where a client sends requests to your API service to perform inference on your model. For this demonstration, we’ll use FastAPI, as
-Scouter provides a custom router that simplifies and optimizes the use of Scouter queues. If you’re not using FastAPI, refer to the Scouter queues documentation for a more general implementation.
+The `CustomMetric` class is used to define a custom metric for drift detection. It contains the following properties:
 
-```python
-from fastapi import FastAPI, Request
-from pydantic import BaseModel
-from scouter.client import GetProfileRequest
-from scouter.integrations.fastapi import ScouterRouter
-from scouter.queue import DriftTransportConfig, Feature, Features, KafkaConfig
-from scouter.types import DriftType
-
-# Unique ID for Scouter queue, useful if using multiple drift types (e.g., SPC and PSI)
-DRIFT_TRANSPORT_QUEUE_ID = "psi_id"
-
-class Response(BaseModel):
-    message: str
-
-class PredictRequest(BaseModel):
-    malic_acid: float
-    total_phenols: float
-    color_intensity: float
-
-    # This helper function is necessary to convert Scouter Python types into the appropriate Rust types.
-    def to_features(self) -> Features:
-        return Features(
-            features=[
-                Feature.float("malic_acid", self.malic_acid),
-                Feature.float("total_phenols", self.total_phenols),
-                Feature.float("color_intensity", self.color_intensity),
-            ]
-        )
+| Argument      | Type    | Description |
+| ----------- | --------- | ----------- |
+| `name`       | string | The name to assign to the metric |
+| `value`       | float | The value of the metric |
+| `alert_threshold` | `AlertThreshold` | The condition used to determine when an alert should be triggered. |
+| `alert_threshold_value` | float (optional) | The threshold value for the alert. This is the value that will be used to determine if an alert should be triggered. |
 
 
-# ScouterRouter for FastAPI integration 
-scouter_router = ScouterRouter(
-    transport=[
-        DriftTransportConfig(
-            id=DRIFT_TRANSPORT_QUEUE_ID,
-            # Kafka as transport mode (RabbitMQ also supported).
-            # To use Kafka, ensure both KAFKA_BROKERS and KAFKA_TOPIC environment variables are set
-            config=KafkaConfig(),
-            # Drift transport configurations are tied to drift profiles
-            drift_profile_request=GetProfileRequest(
-                name="wine_model",
-                space="wine_model",
-                version="0.0.1",
-                drift_type=DriftType.Psi
-            ),
-        )
-    ]
-)
+### AlertThreshold
 
-# Use the Scouter router to handle prediction post requests
-@scouter_router.post("/predict", response_model=Response)
-async def psi_predict(request: Request, payload: PredictRequest) -> Response:
-    # Store transformed features in the request state under 'scouter_data' for the specified queue ID
-    request.state.scouter_data = {
-        DRIFT_TRANSPORT_QUEUE_ID: payload.to_features(),
-    }
-    return Response(message="success")
+Enum representing different alert conditions for monitoring metrics.
+
+| Enum Value | Description |
+| ----------- | ----------- |
+| `Below`    | Indicates that an alert should be triggered when the metric is below a threshold
+| `Above`   | Indicates that an alert should be triggered when the metric is above a threshold. |
+| `Outside`     | Indicates that an alert should be triggered when the metric is outside a specified range. |
 
 
+### CustomMetricDriftConfig
+The `CustomMetricDriftConfig` class is used to define the configuration for a custom metric drift profile. It contains the following properties:
 
-app = FastAPI(title="Example Drift App")
-# Register the scouter router
-app.include_router(scouter_router)
-```
-PSI queues are configured to send data to the server either when they reach a count of 1000 or after 30 seconds have passed, whichever comes first.
+| Argument      | Type    | Description |
+| ----------- | --------- | ----------- |
+| `space`       | string | The name of the model space |
+| `name`       | string | The name of the model |
+| `version`       | string | The version of the model |
+| `sample_size` | int | The number of samples to use for drift detection. This is the number of samples that will be used to calculate the drift score. The default value is 25, but you can adjust this based on your needs. It is generally recommended to not use a sample size of less than 25, as drift alerting is computed from the sampled value. If sample size is 1, an alert will be triggered every time the value surpasses the defined threshold |
+| `alert_config` | `CustomMetricAlertConfig` | The alert configuration for the drift profile. This is an instance of the `CustomMetricAlertConfig` class. |
 
-### Detecting drift and being alerted
-Now that we have both our base $Y_{b}$ and target $Y$ data, scouter server will run the drift detection job and alert us via Slack if needed.
 
-## Next Steps
+### CustomMetricAlertConfig
+The `CustomMetricAlertConfig` class is used to define the alert configuration for a custom metric drift profile. It contains the following properties:
 
-- Check out the additional PSI configuration guides for more details.
+| Argument      | Type    | Description |
+| ----------- | --------- | ----------- |
+| `schedule`       | string | The schedule for the drift detection job. This is a cron expression that defines when the job should run. |
+| `dispatch_config` | `DispatchConfig` | The dispatch configuration for the drift profile. This is an instance of the `DispatchConfig` class. |

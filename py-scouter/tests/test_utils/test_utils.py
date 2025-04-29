@@ -49,7 +49,6 @@ def test_alert_rules():
 
 
 def test_drift_type():
-
     assert DriftType.from_value("Spc") == DriftType.Spc
     assert DriftType.from_value("Psi") == DriftType.Psi
     assert DriftType.from_value("custom") == DriftType.Custom

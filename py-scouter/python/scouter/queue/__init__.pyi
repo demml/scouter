@@ -4,10 +4,13 @@ import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from ..client import GetProfileRequest, HTTPConfig
-from ..drift import PsiDriftProfile, SpcDriftProfile
+from ..client import HTTPConfig
 from ..logging import LogLevel
 from ..observe import ObservabilityMetrics
+
+class EntityType:
+    Feature = "EntityType"
+    Metric = "EntityType"
 
 class RecordType:
     Spc = "RecordType"
@@ -164,98 +167,6 @@ class ServerRecords:
 
     def __str__(self) -> str:
         """Return the string representation of the record."""
-
-class ScouterProducer:
-    def __init__(
-        self,
-        config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig],
-    ) -> None:
-        """Top-level Producer class.
-
-        Args:
-            config:
-                Configuration object for the producer that specifies the type of producer to use.
-
-            max_retries:
-                Maximum number of retries to attempt when publishing messages.
-                Default is 3.
-        """
-
-    def publish(self, message: ServerRecords) -> None:
-        """Publish a message to the queue.
-
-        Args:
-            message:
-                Message to publish.
-        """
-
-    def flush(self) -> None:
-        """Flush the producer queue."""
-
-class DriftTransportConfig:
-    def __init__(
-        self,
-        id: str,
-        config: Union[KafkaConfig, HTTPConfig, RabbitMQConfig],
-        drift_profile_path: Optional[Path] = None,
-        drift_profile_request: Optional[GetProfileRequest] = None,
-        scouter_server_config: Optional[HTTPConfig] = None,
-    ) -> None:
-        """Drift transport configuration. To be used with ScouterQueue.
-
-        Args:
-            id:
-                Unique identifier for the drift transport configuration.
-            config:
-                Configuration object for the producer that specifies the type of producer to use.
-
-            drift_profile_path:
-                Path to the drift profile to use for monitoring. If provided, and drift profile is not provided,
-                the drift profile will be loaded from the path.
-
-            profile_request:
-                If both the drift_profile and drift_profile_path are not provided, the profile request object will be used
-                to construct a query string that is used to call the scouter server and obtain the drift profile.
-
-            scouter_server_config:
-                An optional HTTPConfig object to pass if the necessary scouter_server environment variables are not set;
-                for example, SCOUTER_SERVER_URI.
-        """
-
-    @property
-    def id(self) -> str:
-        """Return the id."""
-
-    @property
-    def drift_profile(self) -> Union[SpcDriftProfile, PsiDriftProfile]:
-        """Return the drift profile."""
-
-    @property
-    def config(self) -> Union[KafkaConfig, HTTPConfig, RabbitMQConfig]:
-        """Return the configuration object."""
-
-class ScouterQueue:
-    def __init__(
-        self,
-        transport_config: DriftTransportConfig,
-    ) -> None:
-        """Scouter monitoring queue.
-
-        Args:
-            transport_config:
-                Configuration object containing profile and producer configuration.
-        """
-
-    def insert(self, entity: Features | Metrics) -> None:
-        """Insert features into the queue.
-
-        Args:
-            entity:
-                Features or metrics to insert into the monitoring queue.
-        """
-
-    def flush(self) -> None:
-        """Flush the queue."""
 
 class SpcServerRecord:
     def __init__(
@@ -481,6 +392,14 @@ class Features:
     def __str__(self) -> str:
         """Return the string representation of the features"""
 
+    @property
+    def features(self) -> List[Feature]:
+        """Return the list of features"""
+
+    @property
+    def entity_type(self) -> EntityType:
+        """Return the entity type"""
+
 class Metric:
     def __init__(self, name: str, value: float) -> None:
         """Initialize metric
@@ -495,6 +414,14 @@ class Metric:
     def __str__(self) -> str:
         """Return the string representation of the metric"""
 
+    @property
+    def metrics(self) -> List[Metric]:
+        """Return the list of metrics"""
+
+    @property
+    def entity_type(self) -> EntityType:
+        """Return the entity type"""
+
 class Metrics:
     def __init__(self, metrics: List[Metric]) -> None:
         """Initialize metrics
@@ -506,3 +433,82 @@ class Metrics:
 
     def __str__(self) -> str:
         """Return the string representation of the metrics"""
+
+class Queue:
+    """Individual queue associated with a drift profile"""
+
+    def insert(self, entity: Union[Features, Metrics]) -> None:
+        """Insert a record into the queue
+
+        Args:
+            entity:
+                Entity to insert into the queue.
+                Can be an instance for Features or Metrics
+
+        Example:
+            ```python
+            features = Features(
+                features=[
+                    Feature.int("feature_1", 1),
+                    Feature.float("feature_2", 2.0),
+                    Feature.string("feature_3", "value"),
+                ]
+            )
+            queue.insert(Features(features))
+            ```
+        """
+
+class ScouterQueue:
+    """Main queue class for Scouter. Publishes drift records to the configured transport"""
+
+    @staticmethod
+    def from_path(
+        path: Dict[str, Path],
+        transport_config: Union[KafkaConfig, RabbitMQConfig, HTTPConfig],
+    ) -> ScouterQueue:
+        """Initializes Scouter queue from one or more drift profile paths
+
+        Args:
+            path (Dict[str, Path]):
+                Dictionary of drift profile paths.
+                Each key is a user-defined alias for accessing a queue
+            transport_config (Union[KafkaConfig, RabbitMQConfig, HTTPConfig]):
+                Transport configuration for the queue publisher
+                Can be KafkaConfig, RabbitMQConfig or HTTPConfig
+
+        Example:
+            ```python
+            queue = ScouterQueue(
+                path={
+                    "spc": Path("spc_profile.json"),
+                    "psi": Path("psi_profile.json"),
+                },
+                transport_config=KafkaConfig(
+                    brokers="localhost:9092",
+                    topic="scouter_topic",
+                ),
+            )
+
+            queue["psi"].insert(
+                Features(
+                    features=[
+                        Feature.int("feature_1", 1),
+                        Feature.float("feature_2", 2.0),
+                        Feature.string("feature_3", "value"),
+                    ]
+                )
+            )
+            ```
+        """
+
+    def __getitem__(self, key: str) -> Queue:
+        """Get the queue for the specified key
+
+        Args:
+            key (str):
+                Key to get the queue for
+
+        """
+
+    def shutdown(self) -> None:
+        """Shutdown the queue. This will close and flush all queues and transports"""

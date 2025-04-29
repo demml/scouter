@@ -1,4 +1,5 @@
 use pyo3::prelude::*;
+use scouter_types::TransportTypes;
 
 #[pyclass]
 #[derive(Debug, Clone)]
@@ -14,6 +15,9 @@ pub struct HTTPConfig {
 
     #[pyo3(get, set)]
     pub auth_token: String,
+
+    #[pyo3(get)]
+    pub transport_type: TransportTypes,
 }
 
 #[pymethods]
@@ -45,6 +49,7 @@ impl HTTPConfig {
             username,
             password,
             auth_token,
+            transport_type: TransportTypes::Http,
         }
     }
 }
@@ -57,6 +62,7 @@ impl Default for HTTPConfig {
             username: std::env::var("SCOUTER_USERNAME").unwrap_or_else(|_| "guest".to_string()),
             password: std::env::var("SCOUTER_PASSWORD").unwrap_or_else(|_| "guest".to_string()),
             auth_token: std::env::var("SCOUTER_AUTH_TOKEN").unwrap_or_else(|_| "".to_string()),
+            transport_type: TransportTypes::Http,
         }
     }
 }

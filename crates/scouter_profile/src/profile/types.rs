@@ -141,8 +141,8 @@ impl DataProfile {
     }
 
     #[pyo3(signature = (path=None))]
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<(), ScouterError> {
-        ProfileFuncs::save_to_json(self, path, FileName::Profile.to_str())
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ScouterError> {
+        ProfileFuncs::save_to_json(self, path, FileName::DataProfile.to_str())
     }
 }
 

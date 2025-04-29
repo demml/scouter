@@ -47,6 +47,7 @@ base64 = "0.22.*"
 chrono ={ version = "0.*", features = ["serde"] }
 colored_json = "*"
 cron = "0.*"
+crossbeam-queue = "0.*"
 datafusion = { version = "*", features = ["parquet"] }
 
 futures = "0.*"
@@ -82,6 +83,7 @@ tempfile = "3.*"
 thiserror = "2.*"
 time = "0.*"
 tokio = { version = "1.*", features = ["rt", "rt-multi-thread", "macros", "signal"] }
+tokio-stream = { version = "0.*", features = ["sync"] }
 tower-http = { version = "0.*", features = ["cors"] }
 tracing = "0.*"
 tracing-subscriber = {version = "0.*", features = ["json", "time"]}

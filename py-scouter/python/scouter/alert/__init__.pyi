@@ -237,9 +237,9 @@ class AlertThreshold:
     Enum representing different alert conditions for monitoring metrics.
 
     Attributes:
-        BELOW: Indicates that an alert should be triggered when the metric is below a threshold.
-        ABOVE: Indicates that an alert should be triggered when the metric is above a threshold.
-        OUTSIDE: Indicates that an alert should be triggered when the metric is outside a specified range.
+        Below: Indicates that an alert should be triggered when the metric is below a threshold.
+        Above: Indicates that an alert should be triggered when the metric is above a threshold.
+        Outside: Indicates that an alert should be triggered when the metric is outside a specified range.
     """
 
     Below: "AlertThreshold"

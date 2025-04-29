@@ -13,7 +13,7 @@ impl Default for DatabaseSettings {
         let connection_uri = std::env::var("DATABASE_URI")
             .unwrap_or("postgresql://postgres:postgres@localhost:5432/postgres".to_string());
 
-        let max_connections = std::env::var("MAX_SQL_CONNECTIONS")
+        let max_connections = std::env::var("MAX_POOL_SIZE")
             .unwrap_or_else(|_| "30".to_string())
             .parse::<u32>()
             .map_err(|e| ConfigError::Error(format!("{:?}", e)))

@@ -5,8 +5,7 @@ import pandas as pd
 import polars as pl
 import pytest
 from numpy.typing import NDArray
-from scouter import Drifter  # type: ignore
-from scouter.drift import PsiDriftConfig, PsiDriftProfile
+from scouter import Drifter, PsiDriftConfig, PsiDriftProfile  # type: ignore
 
 
 def test_drift_f64(array: NDArray, psi_drift_config: PsiDriftConfig):

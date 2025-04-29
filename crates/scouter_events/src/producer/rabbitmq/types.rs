@@ -1,7 +1,8 @@
 use pyo3::prelude::*;
+use scouter_types::TransportTypes;
 
 #[pyclass]
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct RabbitMQConfig {
     #[pyo3(get, set)]
     pub address: String,
@@ -14,6 +15,9 @@ pub struct RabbitMQConfig {
 
     #[pyo3(get, set)]
     pub max_retries: i32,
+
+    #[pyo3(get)]
+    pub transport_type: TransportTypes,
 }
 
 #[pymethods]
@@ -69,6 +73,7 @@ impl RabbitMQConfig {
             queue,
             raise_on_error,
             max_retries: max_retries.unwrap_or(3),
+            transport_type: TransportTypes::RabbitMQ,
         }
     }
 }
