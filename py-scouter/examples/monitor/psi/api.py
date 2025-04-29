@@ -132,7 +132,7 @@ if __name__ == "__main__":
 
     @app.post("/predict", response_model=Response)
     async def predict(request: Request, payload: PredictRequest) -> Response:
-        request.app.state.queue["psi"].insert(payload.to_features())  # type: ignore
+        request.app.state.queue["psi"].insert(payload.to_features())
         return Response(message="success")
 
     uvicorn.run(app, host="0.0.0.0", port=8888)

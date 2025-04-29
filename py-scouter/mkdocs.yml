@@ -79,6 +79,10 @@ nav:
       - Inference: "docs/monitoring/queue.md"
   - Profiling:
       - Data Profile: "docs/profiling/overview.md"
+  - Tech Specs:
+      - Overview: "docs/specs/Readme.md"
+      - Archive: "docs/specs/ts-component-data-archive.md"
+      - Queue: "docs/specs/ts-component-scouter-queue.md"
 
 markdown_extensions:
   - tables
