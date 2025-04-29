@@ -13,9 +13,7 @@ def generate_data() -> pd.DataFrame:
     x = pd.DataFrame(x_train, columns=col_names)
 
     # create string column (with 10 unique values)
-    x["categorical_feature"] = np.random.choice(
-        ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"], size=n
-    )
+    x["categorical_feature"] = np.random.choice(["a", "b", "c", "d", "e", "f", "g", "h", "i", "j"], size=n)
 
     return x
 
