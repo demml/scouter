@@ -46,4 +46,4 @@ client.register_profile(profile=psi_profile, set_active=True)
 ```
 
 !!!note
-    Your drift profile is not registered with the `Scouter` server and is ready to be used. To run real-time monitoring, refer to the [Scouter Queues](#) section for more information on how to set up your queues and send data to the Scouter server.
+    Your drift profile is now registered with the `Scouter` server and is ready to be used. To run real-time monitoring, refer to the [Scouter Queues](#) section for more information on how to set up your queues and send data to the Scouter server.
