@@ -60,6 +60,4 @@ uv.sub.pre.tag:
 prep.pre.patch: uv.pre.patch uv.sub.pre.tag
 
 publish.docs:
-	uv run pdoc -t docs/docs/api ./python/scouter -o docs/docs/api --docformat google
-	rm -f ./python/scouter/_scouter.cpython-*.so
-	cd docs && uv run mkdocs gh-deploy --force
+	uv run mkdocs gh-deploy --force
