@@ -3,7 +3,9 @@ name: Publish-Github-Pages
 on:
   push:
     branches:
-      - pages
+      - main
+  release:
+    types: [published]
 
 permissions:
   contents: write
@@ -22,7 +24,11 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      - name: Create CNAME record
+        working-directory: ./py-scouter
+        run: echo ${{ secrets.DEMML_DOCS_DOMAIN }} > docs/CNAME
+
+      - name: Publish Docs
         working-directory: ./py-scouter
         run: |
           make setup.project

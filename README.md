@@ -11,19 +11,19 @@
 
 ## **What is it?**
 
-`Scouter` is a developer-first monitoring and observability toolkit focused on helping you monitoring your machine learning workflows (data, models, genai workflows and more). It is designed to be easy to use, flexible, performant, and extensible, allowing you to customize it to fit your specific needs. It's built on top of the `Rust` programming language and uses `Postgres` as its primary data store.
+`Scouter` is a developer-first monitoring toolkit for machine learning workflows (data, models, genai workflows and more). It is designed to be easy to use, flexible, performant, and extensible, allowing you to customize it to fit your specific needs. It's built on top of the `Rust` programming language and uses `Postgres` as its primary data store.
 
-## Our Current Tasks
+## Check our current roadmap and tasks
 
 [open tasks](https://docs.google.com/spreadsheets/d/1xU0RqYpFwnaj1cuNhTnd-2W8iQm7lBXw99O0Nh9oh0A/edit?usp=sharing)
 
 
 ### Developer-First Experience
 - **Zero-friction Integration** - Drop into existing ML workflows in minutes
-- **Type-safe by Design** - Rust in the back, python in the front<sup>*</sup>. Catch errors before they hit production
-- **Dependency Overhead** - One dependency for monitoring and observability. No need to install multiple libraries
+- **Type-safe by Design** - Rust in the back, Python in the front<sup>*</sup>. Catch errors before they hit production
+- **Dependency Overhead** - One dependency for monitoring. No need to install multiple libraries
 - **Standardized Patterns** - Out of the box and easy to use patterns for common monitoring tasks
-- **Integrations** - Built-in integrations for `FastAPI`, and event-driven workflows with `Kafka` and `RabbitMQ`
+- **Integrations** - Works out of the box with any python api framework. Integrations for event-driven workflows (`Kafka` and `RabbitMQ`)
 
 ### Production Ready
 - **High-Performance Server** - Built with Rust and Axum for speed, reliability and concurrency
