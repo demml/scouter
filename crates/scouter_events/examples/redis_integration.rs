@@ -4,7 +4,7 @@ use crate::utils::setup_logging;
 
 use scouter_contracts::ServiceInfo;
 
-use scouter_events::producer::redis::producer::redis_producer::RedisProducer;
+use scouter_events::producer::redis::{producer::redis_producer::RedisProducer, RedisConfig};
 use scouter_sql::sql::traits::SpcSqlLogic;
 use scouter_sql::PostgresClient;
 use scouter_types::{ServerRecord, ServerRecords, SpcServerRecord};
@@ -17,8 +17,12 @@ trait RedisMQSetup {
 
 impl RedisMQSetup for TestHelper {
     async fn start_background_producer(&self) {
-        let config = self.config.redis_settings.clone().unwrap();
-        let mut producer = RedisProducer::new(config.clone()).await.unwrap();
+        let config = RedisConfig {
+            address: self.config.redis_settings.as_ref().unwrap().address.clone(),
+            channel: self.config.redis_settings.as_ref().unwrap().channel.clone(),
+        };
+
+        let mut producer = RedisProducer::new(config).await.unwrap();
 
         tokio::spawn(async move {
             loop {

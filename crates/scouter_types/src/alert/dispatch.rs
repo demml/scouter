@@ -122,4 +122,5 @@ pub enum TransportTypes {
     Kafka,
     RabbitMQ,
     Http,
+    Redis,
 }

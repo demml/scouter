@@ -4,6 +4,9 @@ pub use crate::producer::kafka::KafkaProducer;
 #[cfg(feature = "rabbitmq")]
 pub use crate::producer::rabbitmq::RabbitMQProducer;
 
+#[cfg(feature = "redis_events")]
+use crate::producer::redis::RedisProducer;
+
 pub use crate::producer::http::HTTPProducer;
 pub use crate::producer::kafka::KafkaConfig;
 pub use crate::producer::rabbitmq::RabbitMQConfig;
@@ -22,6 +25,9 @@ pub enum ProducerEnum {
 
     #[cfg(feature = "rabbitmq")]
     RabbitMQ(RabbitMQProducer),
+
+    #[cfg(feature = "redis_events")]
+    Redis(RedisProducer),
 }
 
 impl ProducerEnum {
@@ -32,6 +38,8 @@ impl ProducerEnum {
             ProducerEnum::Kafka(producer) => producer.publish(message).await,
             #[cfg(feature = "rabbitmq")]
             ProducerEnum::RabbitMQ(producer) => producer.publish(message).await,
+            #[cfg(feature = "redis_events")]
+            ProducerEnum::Redis(producer) => producer.publish(message).await,
         }
     }
 
@@ -42,6 +50,8 @@ impl ProducerEnum {
             ProducerEnum::Kafka(producer) => producer.flush(),
             #[cfg(feature = "rabbitmq")]
             ProducerEnum::RabbitMQ(producer) => producer.flush().await,
+            #[cfg(feature = "redis_events")]
+            ProducerEnum::Redis(producer) => producer.flush().await,
         }
     }
 }
@@ -79,6 +89,21 @@ impl RustScouterProducer {
                 {
                     return Err(PyScouterError::new_err(
                         "Kafka feature is not enabled".to_string(),
+                    )
+                    .into());
+                }
+            }
+            TransportConfig::Redis(config) => {
+                #[cfg(feature = "redis_events")]
+                {
+                    let producer = RedisProducer::new(config).await?;
+                    debug!("Creating Redis producer");
+                    ProducerEnum::Redis(producer)
+                }
+                #[cfg(not(feature = "redis_events"))]
+                {
+                    return Err(PyScouterError::new_err(
+                        "Redis feature is not enabled".to_string(),
                     )
                     .into());
                 }

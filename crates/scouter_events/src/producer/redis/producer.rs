@@ -1,12 +1,13 @@
 #[cfg(feature = "redis_events")]
 pub mod redis_producer {
+    use crate::producer::redis::RedisConfig;
     use redis::aio::{MultiplexedConnection, PubSub};
+    use redis::AsyncCommands;
     use redis::Client;
-    use redis::{AsyncCommands, Connection};
     use scouter_error::EventError;
-    use scouter_settings::RedisSettings;
     use scouter_types::ServerRecords;
     use tracing::debug;
+
     pub struct RedisMessageBroker {
         client: Client,
     }
@@ -16,12 +17,6 @@ pub mod redis_producer {
             let client =
                 Client::open(redis_url).map_err(|e| EventError::RedisOpenError(e.to_string()))?;
             Ok(Self { client })
-        }
-
-        pub fn get_connection(&self) -> Result<Connection, EventError> {
-            self.client
-                .get_connection()
-                .map_err(|e| EventError::RedisConnectionError(e.to_string()))
         }
 
         pub async fn get_async_connection(&self) -> Result<MultiplexedConnection, EventError> {
@@ -39,6 +34,7 @@ pub mod redis_producer {
         }
     }
 
+    #[derive(Clone)]
     pub struct RedisProducer {
         pub connection: MultiplexedConnection,
         pub channel: String,
@@ -54,7 +50,7 @@ pub mod redis_producer {
         ///
         /// # Returns
         /// * `Result<RedisProducer, EventError>` - The result of the operation
-        pub async fn new(config: RedisSettings) -> Result<Self, EventError> {
+        pub async fn new(config: RedisConfig) -> Result<Self, EventError> {
             let broker = RedisMessageBroker::new(&config.address)?;
             Ok(Self {
                 connection: broker.get_async_connection().await?,

@@ -1,5 +1,6 @@
 use crate::producer::kafka::KafkaConfig;
 use crate::producer::rabbitmq::RabbitMQConfig;
+use crate::producer::redis::RedisConfig;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use scouter_settings::HTTPConfig;
@@ -10,6 +11,7 @@ pub enum TransportConfig {
     RabbitMQ(RabbitMQConfig),
     Kafka(KafkaConfig),
     Http(HTTPConfig),
+    Redis(RedisConfig),
 }
 
 impl TransportConfig {
@@ -40,6 +42,10 @@ impl TransportConfig {
                 let http_config = config.extract::<HTTPConfig>()?;
                 Ok(TransportConfig::Http(http_config))
             }
+            TransportTypes::Redis => {
+                let redis_config = config.extract::<RedisConfig>()?;
+                Ok(TransportConfig::Redis(redis_config))
+            }
         }
     }
 
@@ -49,6 +55,7 @@ impl TransportConfig {
             TransportConfig::RabbitMQ(config) => config.clone().into_bound_py_any(py),
             TransportConfig::Kafka(config) => config.clone().into_bound_py_any(py),
             TransportConfig::Http(config) => config.clone().into_bound_py_any(py),
+            TransportConfig::Redis(config) => config.clone().into_bound_py_any(py),
         }
     }
 }
