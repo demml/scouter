@@ -20,6 +20,7 @@ impl RedisMQSetup for TestHelper {
         let config = RedisConfig {
             address: self.config.redis_settings.as_ref().unwrap().address.clone(),
             channel: self.config.redis_settings.as_ref().unwrap().channel.clone(),
+            ..Default::default()
         };
 
         let mut producer = RedisProducer::new(config).await.unwrap();

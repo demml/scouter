@@ -4,7 +4,7 @@ use crate::producer::redis::RedisConfig;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use scouter_settings::HTTPConfig;
-use scouter_types::TransportTypes;
+use scouter_types::TransportType;
 
 #[derive(Clone, Debug)]
 pub enum TransportConfig {
@@ -27,22 +27,22 @@ impl TransportConfig {
     pub fn from_py_config(config: &Bound<'_, PyAny>) -> PyResult<Self> {
         let transport_type = config
             .getattr("transport_type")?
-            .extract::<TransportTypes>()?;
+            .extract::<TransportType>()?;
 
         match transport_type {
-            TransportTypes::RabbitMQ => {
+            TransportType::RabbitMQ => {
                 let rabbitmq_config = config.extract::<RabbitMQConfig>()?;
                 Ok(TransportConfig::RabbitMQ(rabbitmq_config))
             }
-            TransportTypes::Kafka => {
+            TransportType::Kafka => {
                 let kafka_config = config.extract::<KafkaConfig>()?;
                 Ok(TransportConfig::Kafka(kafka_config))
             }
-            TransportTypes::Http => {
+            TransportType::Http => {
                 let http_config = config.extract::<HTTPConfig>()?;
                 Ok(TransportConfig::Http(http_config))
             }
-            TransportTypes::Redis => {
+            TransportType::Redis => {
                 let redis_config = config.extract::<RedisConfig>()?;
                 Ok(TransportConfig::Redis(redis_config))
             }

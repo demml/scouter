@@ -1,11 +1,17 @@
 use pyo3::prelude::*;
-use serde::Serialize;
+use scouter_types::TransportType;
 
 #[pyclass]
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone)]
 pub struct RedisConfig {
+    #[pyo3(get)]
     pub channel: String,
+
+    #[pyo3(get)]
     pub address: String,
+
+    #[pyo3(get)]
+    pub transport_type: TransportType,
 }
 
 #[pymethods]
@@ -21,6 +27,16 @@ impl RedisConfig {
             std::env::var("REDIS_CHANNEL").unwrap_or_else(|_| "scouter_monitoring".to_string())
         });
 
-        Self { address, channel }
+        Self {
+            address,
+            channel,
+            transport_type: TransportType::Redis,
+        }
+    }
+}
+
+impl Default for RedisConfig {
+    fn default() -> Self {
+        Self::new(None, None)
     }
 }

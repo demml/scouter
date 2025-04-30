@@ -2,7 +2,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use rusty_logging::logger::LogLevel;
 use scouter_error::{EventError, ScouterError};
-use scouter_types::TransportTypes;
+use scouter_types::TransportType;
 use std::collections::HashMap;
 use std::env;
 use std::str::FromStr;
@@ -93,9 +93,6 @@ pub struct KafkaConfig {
     pub compression_type: CompressionType,
 
     #[pyo3(get, set)]
-    pub raise_on_error: bool,
-
-    #[pyo3(get, set)]
     pub message_timeout_ms: u64,
 
     #[pyo3(get, set)]
@@ -111,19 +108,18 @@ pub struct KafkaConfig {
     pub max_retries: i32,
 
     #[pyo3(get)]
-    pub transport_type: TransportTypes,
+    pub transport_type: TransportType,
 }
 
 #[pymethods]
 #[allow(clippy::too_many_arguments)]
 impl KafkaConfig {
     #[new]
-    #[pyo3(signature = (brokers=None, topic=None, compression_type=CompressionType::Gzip.to_string(), raise_on_error=false, message_timeout_ms=600000, message_max_bytes=2097164, log_level=LogLevel::Info, config=None, max_retries=3))]
+    #[pyo3(signature = (brokers=None, topic=None, compression_type=CompressionType::Gzip.to_string(), message_timeout_ms=600000, message_max_bytes=2097164, log_level=LogLevel::Info, config=None, max_retries=3))]
     pub fn new(
         brokers: Option<String>,
         topic: Option<String>,
         compression_type: Option<String>,
-        raise_on_error: Option<bool>,
         message_timeout_ms: Option<u64>,
         message_max_bytes: Option<i32>,
         log_level: Option<LogLevel>,
@@ -138,7 +134,6 @@ impl KafkaConfig {
         });
         let compression_type =
             CompressionType::from_str(&compression_type.unwrap_or("gzip".to_string()))?;
-        let raise_on_error = raise_on_error.unwrap_or(false);
         let message_timeout_ms = message_timeout_ms.unwrap_or(600_000);
         let message_max_bytes = message_max_bytes.unwrap_or(2097164);
 
@@ -179,13 +174,12 @@ impl KafkaConfig {
             brokers,
             topic,
             compression_type,
-            raise_on_error,
             message_timeout_ms,
             message_max_bytes,
             log_level,
             config,
             max_retries: max_retries.unwrap_or(3),
-            transport_type: TransportTypes::Kafka,
+            transport_type: TransportType::Kafka,
         })
     }
 }

@@ -797,6 +797,9 @@ pub enum EventError {
 
     #[error("Failed to get Redis PubSub: {0}")]
     RedisPubSubError(String),
+
+    #[error("{0}")]
+    FeatureNotEnabledError(String),
 }
 
 impl TracedError for EventError {}

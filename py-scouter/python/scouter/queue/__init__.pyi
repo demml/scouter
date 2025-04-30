@@ -8,6 +8,12 @@ from ..client import HTTPConfig
 from ..logging import LogLevel
 from ..observe import ObservabilityMetrics
 
+class TransportType:
+    Kafka = "TransportType"
+    RabbitMQ = "TransportType"
+    Redis = "TransportType"
+    HTTP = "TransportType"
+
 class EntityType:
     Feature = "EntityType"
     Metric = "EntityType"
@@ -27,13 +33,13 @@ class KafkaConfig:
     log_level: LogLevel
     config: Dict[str, str]
     max_retries: int
+    transport_type: TransportType
 
     def __init__(
         self,
         brokers: Optional[str] = None,
         topic: Optional[str] = None,
         compression_type: Optional[str] = None,
-        raise_on_error: bool = False,
         message_timeout_ms: int = 600_000,
         message_max_bytes: int = 2097164,
         log_level: LogLevel = LogLevel.Info,
@@ -54,10 +60,6 @@ class KafkaConfig:
             compression_type:
                 Compression type to use for messages.
                 Default is "gzip".
-
-            raise_on_error:
-                Whether to raise an error if message delivery fails.
-                Default is True.
 
             message_timeout_ms:
                 Message timeout in milliseconds.
@@ -84,8 +86,8 @@ class KafkaConfig:
 class RabbitMQConfig:
     address: str
     queue: str
-    raise_on_error: bool
     max_retries: int
+    transport_type: TransportType
 
     def __init__(
         self,
@@ -94,7 +96,6 @@ class RabbitMQConfig:
         username: Optional[str] = None,
         password: Optional[str] = None,
         queue: Optional[str] = None,
-        raise_on_error: bool = False,
         max_retries: int = 3,
     ) -> None:
         """RabbitMQ configuration to use with the RabbitMQProducer.
@@ -120,10 +121,6 @@ class RabbitMQConfig:
                 RabbitMQ queue to publish messages to.
                 If not provided, the value of the RABBITMQ_QUEUE environment variable is used.
 
-            raise_on_error:
-                Whether to raise an error if message delivery fails.
-                Default is False.
-
             max_retries:
                 Maximum number of retries to attempt when publishing messages.
                 Default is 3.
@@ -132,6 +129,7 @@ class RabbitMQConfig:
 class RedisConfig:
     address: str
     channel: str
+    transport_type: TransportType
 
     def __init__(
         self,

@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use scouter_types::TransportTypes;
+use scouter_types::TransportType;
 
 #[pyclass]
 #[derive(Clone, Debug)]
@@ -11,26 +11,22 @@ pub struct RabbitMQConfig {
     pub queue: String,
 
     #[pyo3(get, set)]
-    pub raise_on_error: bool,
-
-    #[pyo3(get, set)]
     pub max_retries: i32,
 
     #[pyo3(get)]
-    pub transport_type: TransportTypes,
+    pub transport_type: TransportType,
 }
 
 #[pymethods]
 impl RabbitMQConfig {
     #[new]
-    #[pyo3(signature = (host=None, port=None, username=None, password=None, queue="scouter_monitoring".to_string(), raise_on_error=false, max_retries=3))]
+    #[pyo3(signature = (host=None, port=None, username=None, password=None, queue="scouter_monitoring".to_string(), max_retries=3))]
     pub fn new(
         host: Option<String>,
         port: Option<u16>,
         username: Option<String>,
         password: Option<String>,
         queue: Option<String>,
-        raise_on_error: Option<bool>,
         max_retries: Option<i32>,
     ) -> Self {
         // build address
@@ -66,14 +62,12 @@ impl RabbitMQConfig {
         let queue = queue.unwrap_or_else(|| {
             std::env::var("RABBITMQ_QUEUE").unwrap_or_else(|_| "scouter_monitoring".to_string())
         });
-        let raise_on_error = raise_on_error.unwrap_or(false);
 
         RabbitMQConfig {
             address,
             queue,
-            raise_on_error,
             max_retries: max_retries.unwrap_or(3),
-            transport_type: TransportTypes::RabbitMQ,
+            transport_type: TransportType::RabbitMQ,
         }
     }
 }

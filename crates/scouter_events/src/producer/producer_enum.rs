@@ -74,9 +74,10 @@ impl RustScouterProducer {
                 }
                 #[cfg(not(feature = "rabbitmq"))]
                 {
-                    return Err(
-                        ScouterError::Error("RabbitMQ feature is not enabled".to_string()).into(),
-                    );
+                    return Err(EventError::FeatureNotEnabledError(
+                        "rabbitmq feature is not enabled".to_string(),
+                    )
+                    .into());
                 }
             }
             TransportConfig::Kafka(config) => {
@@ -87,8 +88,8 @@ impl RustScouterProducer {
                 }
                 #[cfg(not(any(feature = "kafka", feature = "kafka-vendored")))]
                 {
-                    return Err(PyScouterError::new_err(
-                        "Kafka feature is not enabled".to_string(),
+                    return Err(EventError::FeatureNotEnabledError(
+                        "kafka feature is not enabled".to_string(),
                     )
                     .into());
                 }
@@ -102,8 +103,8 @@ impl RustScouterProducer {
                 }
                 #[cfg(not(feature = "redis_events"))]
                 {
-                    return Err(PyScouterError::new_err(
-                        "Redis feature is not enabled".to_string(),
+                    return Err(EventError::FeatureNotEnabledError(
+                        "redis_events feature is not enabled".to_string(),
                     )
                     .into());
                 }
