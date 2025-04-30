@@ -165,7 +165,9 @@ class ServerRecord:
     @property
     def record(
         self,
-    ) -> Union[SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics]:
+    ) -> Union[
+        SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics
+    ]:
         """Return the drift server record."""
 
 class ServerRecords:
@@ -483,7 +485,12 @@ class ScouterQueue:
     @staticmethod
     def from_path(
         path: Dict[str, Path],
-        transport_config: Union[KafkaConfig, RabbitMQConfig, HTTPConfig],
+        transport_config: Union[
+            KafkaConfig,
+            RabbitMQConfig,
+            RedisConfig,
+            HTTPConfig,
+        ],
     ) -> ScouterQueue:
         """Initializes Scouter queue from one or more drift profile paths
 
@@ -491,9 +498,9 @@ class ScouterQueue:
             path (Dict[str, Path]):
                 Dictionary of drift profile paths.
                 Each key is a user-defined alias for accessing a queue
-            transport_config (Union[KafkaConfig, RabbitMQConfig, HTTPConfig]):
+            transport_config (Union[KafkaConfig, RabbitMQConfig, RedisConfig, HTTPConfig]):
                 Transport configuration for the queue publisher
-                Can be KafkaConfig, RabbitMQConfig or HTTPConfig
+                Can be KafkaConfig, RabbitMQConfig RedisConfig, or HTTPConfig
 
         Example:
             ```python

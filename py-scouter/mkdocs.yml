@@ -67,7 +67,7 @@ nav:
           - Theory: "docs/monitoring/spc/theory.md"
       - Custom Metric:
           - Overview: "docs/monitoring/custom/quickstart.md"
-      - Inference: "docs/monitoring/api.md"
+      - Inference: "docs/monitoring/inference.md"
   - Profiling:
       - Data Profile: "docs/profiling/overview.md"
   - Tech Specs:
