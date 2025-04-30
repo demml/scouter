@@ -1,8 +1,8 @@
 #[cfg(feature = "redis_events")]
 pub mod redis_producer {
     use redis::aio::{MultiplexedConnection, PubSub};
-    use redis::AsyncCommands;
     use redis::Client;
+    use redis::{AsyncCommands, Connection};
     use scouter_error::EventError;
     use scouter_settings::RedisSettings;
     use scouter_types::ServerRecords;
@@ -18,7 +18,13 @@ pub mod redis_producer {
             Ok(Self { client })
         }
 
-        pub async fn get_connection(&self) -> Result<MultiplexedConnection, EventError> {
+        pub fn get_connection(&self) -> Result<Connection, EventError> {
+            self.client
+                .get_connection()
+                .map_err(|e| EventError::RedisConnectionError(e.to_string()))
+        }
+
+        pub async fn get_async_connection(&self) -> Result<MultiplexedConnection, EventError> {
             self.client
                 .get_multiplexed_async_connection()
                 .await
@@ -51,7 +57,7 @@ pub mod redis_producer {
         pub async fn new(config: RedisSettings) -> Result<Self, EventError> {
             let broker = RedisMessageBroker::new(&config.address)?;
             Ok(Self {
-                connection: broker.get_connection().await?,
+                connection: broker.get_async_connection().await?,
                 channel: config.channel.clone(),
                 max_retries: 3,
             })

@@ -65,6 +65,8 @@ pub mod redis_consumer {
 
             for id in 0..num_consumers {
                 let consumer = create_redis_consumer(redis_settings).await?;
+
+                info!("Redis worker {}: Created consumer", id);
                 let redis_db_pool = db_pool.clone();
                 let worker_shutdown_rx = shutdown_rx.clone();
 

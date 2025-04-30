@@ -19,6 +19,9 @@ use scouter_events::consumer::kafka::KafkaConsumerManager;
 #[cfg(feature = "rabbitmq")]
 use scouter_events::consumer::rabbitmq::RabbitMQConsumerManager;
 
+#[cfg(feature = "redis_events")]
+use scouter_events::consumer::redis::RedisConsumerManager;
+
 // setup default users
 /// This function is intended to be called the first time the server is started.
 /// If there are no users in the database, it will create defaults.
@@ -151,6 +154,19 @@ pub async fn setup_rabbitmq(
     Ok(())
 }
 
+/// Setup the redis consumer
+pub async fn setup_redis(
+    settings: &scouter_settings::RedisSettings,
+    db_pool: &Pool<Postgres>,
+    shutdown_rx: tokio::sync::watch::Receiver<()>,
+) -> AnyhowResult<()> {
+    #[cfg(feature = "redis_events")]
+    RedisConsumerManager::start_workers(settings, db_pool, shutdown_rx).await?;
+    info!("✅ Started Redis workers");
+
+    Ok(())
+}
+
 /// Helper to setup the background drift worker
 /// This worker will continually run and check for drift jobs
 /// to run based on their schedules
@@ -213,7 +229,6 @@ pub async fn setup_components() -> AnyhowResult<(
 
     let (shutdown_tx, shutdown_rx) = tokio::sync::watch::channel(());
 
-    // if config.kafka_enabled
     if config.kafka_enabled() {
         setup_kafka(
             config.kafka_settings.as_ref().unwrap(),
@@ -226,6 +241,15 @@ pub async fn setup_components() -> AnyhowResult<(
     if config.rabbitmq_enabled() {
         setup_rabbitmq(
             config.rabbitmq_settings.as_ref().unwrap(),
+            &db_pool,
+            shutdown_rx.clone(),
+        )
+        .await?;
+    }
+
+    if config.redis_enabled() {
+        setup_redis(
+            config.redis_settings.as_ref().unwrap(),
             &db_pool,
             shutdown_rx.clone(),
         )

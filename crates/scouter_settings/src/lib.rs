@@ -121,4 +121,8 @@ impl ScouterServerConfig {
     pub fn rabbitmq_enabled(&self) -> bool {
         self.rabbitmq_settings.is_some()
     }
+
+    pub fn redis_enabled(&self) -> bool {
+        self.redis_settings.is_some()
+    }
 }

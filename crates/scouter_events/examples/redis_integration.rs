@@ -50,6 +50,7 @@ async fn main() {
     let helper = TestHelper::new().await;
 
     helper.start_background_producer().await;
+    //helper.start_background_consumer().await;
 
     let start = Instant::now();
 
