@@ -129,6 +129,27 @@ class RabbitMQConfig:
                 Default is 3.
         """
 
+class RedisConfig:
+    address: str
+    channel: str
+
+    def __init__(
+        self,
+        address: Optional[str] = None,
+        chanel: Optional[str] = None,
+    ) -> None:
+        """Redis configuration to use with a Redis producer
+
+        Args:
+            address (str):
+                Redis address.
+                If not provided, the value of the REDIS_ADDR environment variable is used and defaults to "redis://localhost:6379".
+
+            channel (str):
+                Redis channel to publish messages to.
+                If not provided, the value of the REDIS_CHANNEL environment variable is used and defaults to "scouter_monitoring".
+        """
+
 class ServerRecord:
     Spc: "ServerRecord"
     Psi: "ServerRecord"

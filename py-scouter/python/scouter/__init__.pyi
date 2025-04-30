@@ -23,5 +23,6 @@ from .queue import Metric as Metric
 from .queue import Metrics as Metrics
 from .queue import Queue as Queue
 from .queue import RabbitMQConfig as RabbitMQConfig
+from .queue import RedisConfig as RedisConfig
 from .queue import ScouterQueue as ScouterQueue
 from .types import CommonCrons as CommonCrons
