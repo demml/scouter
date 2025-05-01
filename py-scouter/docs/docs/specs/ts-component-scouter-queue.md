@@ -1,7 +1,7 @@
 # Technical Component Specification: Scouter Queue
 
 ## Overview
-The Scouter Queue is the primary interface for sending real-time data to the Scouter server from a python application. The Scouter Queue is built to be a lightweight, high-performance and transient interface for publishing data so that it doesn't get in the way of the application. To achieve this the Scouter Queue leverages a channel system to send and receive messages, which are then passed to the background producer independent on the running python application.
+The Scouter Queue is the primary interface for sending real-time data to the Scouter server from a python application. The Scouter Queue is built to be a lightweight, high-performance and transient interface for publishing data so that it doesn't get in the way of the application. To achieve this the Scouter Queue leverages a channel system to send and receive messages, which are then passed to the background producer independent of the running python application.
 
 
 ## Component Architecture

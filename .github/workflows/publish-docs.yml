@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+
   release:
     types: [published]
 
@@ -23,10 +24,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-
-      - name: Create CNAME record
-        working-directory: ./py-scouter
-        run: echo ${{ secrets.DEMML_DOCS_DOMAIN }} > docs/CNAME
 
       - name: Publish Docs
         working-directory: ./py-scouter

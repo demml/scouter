@@ -33,6 +33,7 @@ ScouterQueue = queue.ScouterQueue
 Queue = queue.Queue
 KafkaConfig = queue.KafkaConfig
 RabbitMQConfig = queue.RabbitMQConfig
+RedisConfig = queue.RedisConfig
 Feature = queue.Feature
 Features = queue.Features
 Metric = queue.Metric
@@ -70,6 +71,7 @@ __all__ = [
     "Queue",
     "KafkaConfig",
     "RabbitMQConfig",
+    "RedisConfig",
     "Feature",
     "Features",
     "Metric",

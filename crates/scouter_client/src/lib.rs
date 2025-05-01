@@ -43,7 +43,9 @@ pub use scouter_drift::{
     utils::CategoricalFeatureHelpers,
 };
 pub use scouter_error::{ProfilerError, PyScouterError, ScouterError};
-pub use scouter_events::producer::{kafka::KafkaConfig, rabbitmq::RabbitMQConfig};
+pub use scouter_events::producer::{
+    kafka::KafkaConfig, rabbitmq::RabbitMQConfig, redis::RedisConfig,
+};
 pub use scouter_events::queue::{
     custom::CustomMetricFeatureQueue, psi::PsiFeatureQueue, spc::SpcFeatureQueue, QueueBus,
     ScouterQueue,

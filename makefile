@@ -85,6 +85,7 @@ build.all_backends:
 start.server: stop.server build.all_backends
 	export KAFKA_BROKERS=localhost:9092 && \
 	export RABBITMQ_ADDR=amqp://guest:guest@127.0.0.1:5672/%2f && \
+	export REDIS_ADDR=redis://127.0.0.1:6379 && \
 	cargo build -p scouter-server --all-features && \
 	./target/debug/scouter-server &
 

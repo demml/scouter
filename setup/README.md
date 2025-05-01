@@ -35,42 +35,4 @@ GRANT USAGE ON SCHEMA cron TO my_user;
 GRANT ALL ON ALL TABLES IN SCHEMA cron TO my_user;
 ```
 
-## Env Variables
-
-### Database
-
-`DATABASE_URL` - The connection string for the database. Default is `postgresql://postgres:admin@localhost:5432/scouter?`
-
-`MAX_CONNECTIONS` - The maximum number of connections to the database. Default is 10. These connections are pooled and reused.
-
-`SCOUTER_SERVER_PORT` - The port to run the server on. Default is 8000.
-
-### Polling and Scheduling
-
-`SCOUTER_SCHEDULE_WORKER_COUNT` - Number of workers to run scheduled tasks. Default is 4.
-
-### Kafka (Optional Feature)
-
-`KAFKA_BROKERS` - The kafka brokers to connect to. Default is `localhost:9092`.
-
-`KAFKA_WORKER_COUNT` - Number of workers to run kafka tasks. Default is 3.
-
-`KAFKA_TOPIC` - The kafka topic to listen to. Default is `scouter_monitoring`.
-
-`KAFKA_GROUP` - The kafka group to listen to. Default is `scouter`.
-
-`KAFKA_USERNAME` - The username for the kafka connection (Optional).
-
-`KAFKA_PASSWORD` - The password for the kafka connection (Optional).
-
-`KAFKA_SECURITY_PROTOCOL` - The security protocol for the kafka connection. Default is `SASL_SSL`.
-
-`KAFKA_SASL_MECHANISM` - The SASL mechanism for the kafka connection. Default is `PLAIN`.
-
-### RabbitMQ (Optional Feature)
-
-`RABBITMQ_ADDR` - The rabbitmq address to connect to. Default is `amqp://guest:guest@127.0.0.1:5672/%2f`.
-
-`RABBITMQ_CONSUMERS_COUNT` - Number of consumers to run rabbitmq tasks. Default is 3.
-
-`RABBITMQ_PREFETCH_COUNT` - The number of messages to prefetch. Default is 1.
+For more information on the server setup, Please see the documentation.
