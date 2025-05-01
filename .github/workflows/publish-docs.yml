@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - main
-      - feature/redis
+
   release:
     types: [published]
 
