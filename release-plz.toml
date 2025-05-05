@@ -1,6 +1,6 @@
 [workspace]
 dependencies_update = true
-changelog_update = true
+changelog_update = false
 pr_labels = ["release"]
 semver_check = true
 publish_timeout = "10m" # set a timeout for `cargo publish`
