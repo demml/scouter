@@ -318,7 +318,7 @@ jobs:
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
 
   rust-release:
-    if: github.event_name == 'release'
+  #  if: github.event_name == 'release'
     environment: crates.io
     name: Release-Rust
     runs-on: ubuntu-latest
