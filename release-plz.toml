@@ -8,6 +8,7 @@ git_tag_enable = false
 git_release_enable = false
 publish = true
 repo_url = "https://github.com/demml/scouter"
+dry-run = true
 
 [[package]]
 name = "py-scouter"
