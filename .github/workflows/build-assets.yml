@@ -9,10 +9,6 @@ on:
     branches:
       - main
 
-  pull_request:
-    branches:
-      - main
-
   release:
     types: [published]
 
@@ -295,7 +291,7 @@ jobs:
           cache-to: type=gha,mode=max
 
   release-binary-assets:
-#    if: github.event_name == 'release'
+    if: github.event_name == 'release'
     needs: [build, publish-docker-images]
     runs-on: ubuntu-latest
 
@@ -313,11 +309,11 @@ jobs:
           ls -lhR dist
           echo "`ls dist | wc -l` files"
 
-#      - name: Upload files to release tag
-#        env:
-#          GH_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
-#        run: |
-#          for i in $(find dist -type f -print)
-#          do
-#            gh release upload ${{ github.event.release.name }} $i
-#          done
+      - name: Upload files to release tag
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
+        run: |
+          for i in $(find dist -type f -print)
+          do
+            gh release upload ${{ github.event.release.name }} $i
+          done
