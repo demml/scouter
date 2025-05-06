@@ -301,7 +301,7 @@ jobs:
       - name: get dist artifacts
         uses: actions/download-artifact@v4
         with:
-          pattern: scouter_server_*
+          pattern: scouter-server-*
           path: dist
 
       - name: list dist files
