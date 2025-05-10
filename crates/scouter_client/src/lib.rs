@@ -30,7 +30,7 @@ pub use scouter_types::{
     ServerRecord, ServerRecords, SlackDispatchConfig, SpcServerRecord, TimeInterval,
 };
 
-pub use crate::http::ScouterClient;
+pub use crate::http::{PyScouterClient, ScouterClient};
 
 pub use scouter_contracts::{
     DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
