@@ -31,13 +31,13 @@ impl ScouterClient {
     }
 
     /// Insert a profile into the scouter server
-    pub fn insert_profile(&mut self, request: ProfileRequest) -> Result<bool, ScouterError> {
+    pub fn insert_profile(&mut self, request: &ProfileRequest) -> Result<bool, ScouterError> {
         let response = self
             .client
             .request(
                 Routes::Profile,
                 RequestType::Post,
-                Some(serde_json::to_value(&request).unwrap()),
+                Some(serde_json::to_value(request).unwrap()),
                 None,
                 None,
             )
@@ -55,7 +55,7 @@ impl ScouterClient {
 
     pub fn update_profile_status(
         &mut self,
-        request: ProfileStatusRequest,
+        request: &ProfileStatusRequest,
     ) -> Result<bool, ScouterError> {
         let response = self
             .client
@@ -78,10 +78,10 @@ impl ScouterClient {
         }
     }
 
-    pub fn get_alerts(&mut self, request: DriftAlertRequest) -> Result<Vec<Alert>, ScouterError> {
+    pub fn get_alerts(&mut self, request: &DriftAlertRequest) -> Result<Vec<Alert>, ScouterError> {
         debug!("Getting alerts for: {:?}", request);
 
-        let query_string = serde_qs::to_string(&request)
+        let query_string = serde_qs::to_string(request)
             .map_err(|e| ScouterError::Error(format!("Failed to serialize request: {}", e)))?;
 
         let response = self.client.request(
@@ -232,7 +232,7 @@ impl PyScouterClient {
         };
 
         self.client
-            .insert_profile(request)
+            .insert_profile(&request)
             .map_err(|e| PyScouterError::new_err(format!("Failed to insert profile: {}", e)))?;
 
         debug!("Profile inserted successfully");
@@ -260,7 +260,7 @@ impl PyScouterClient {
                 drift_type: Some(drift_type),
             };
 
-            self.client.update_profile_status(request).map_err(|e| {
+            self.client.update_profile_status(&request).map_err(|e| {
                 PyScouterError::new_err(format!("Failed to update profile status: {}", e))
             })?;
         }
@@ -300,7 +300,7 @@ impl PyScouterClient {
 
         let alerts = self
             .client
-            .get_alerts(request)
+            .get_alerts(&request)
             .map_err(|e| PyScouterError::new_err(format!("Failed to get alerts: {}", e)))?;
 
         Ok(alerts)
