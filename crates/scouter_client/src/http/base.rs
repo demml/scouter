@@ -180,7 +180,7 @@ impl HTTPClient {
     }
 
     pub fn request(
-        &mut self,
+        &self,
         route: Routes,
         request_type: RequestType,
         body_params: Option<Value>,

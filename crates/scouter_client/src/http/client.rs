@@ -31,7 +31,7 @@ impl ScouterClient {
     }
 
     /// Insert a profile into the scouter server
-    pub fn insert_profile(&mut self, request: &ProfileRequest) -> Result<bool, ScouterError> {
+    pub fn insert_profile(&self, request: &ProfileRequest) -> Result<bool, ScouterError> {
         let response = self
             .client
             .request(
@@ -54,7 +54,7 @@ impl ScouterClient {
     }
 
     pub fn update_profile_status(
-        &mut self,
+        &self,
         request: &ProfileStatusRequest,
     ) -> Result<bool, ScouterError> {
         let response = self
@@ -78,7 +78,7 @@ impl ScouterClient {
         }
     }
 
-    pub fn get_alerts(&mut self, request: &DriftAlertRequest) -> Result<Vec<Alert>, ScouterError> {
+    pub fn get_alerts(&self, request: &DriftAlertRequest) -> Result<Vec<Alert>, ScouterError> {
         debug!("Getting alerts for: {:?}", request);
 
         let query_string = serde_qs::to_string(request)
@@ -130,7 +130,7 @@ impl ScouterClient {
     }
 
     pub fn get_drift_profile(
-        &mut self,
+        &self,
         request: GetProfileRequest,
     ) -> Result<DriftProfile, ScouterError> {
         let query_string = serde_qs::to_string(&request)
@@ -172,7 +172,7 @@ impl ScouterClient {
     }
 
     /// Check if the scouter server is healthy
-    pub fn check_service_health(&mut self) -> Result<bool, ScouterError> {
+    pub fn check_service_health(&self) -> Result<bool, ScouterError> {
         let response = self
             .client
             .request(Routes::Healthcheck, RequestType::Get, None, None, None)
@@ -225,7 +225,7 @@ impl PyScouterClient {
     /// * `Ok(())` if the profile was inserted successfully
     #[pyo3(signature = (profile, set_active=false, deactivate_others=false))]
     pub fn register_profile(
-        &mut self,
+        &self,
         profile: &Bound<'_, PyAny>,
         set_active: bool,
         deactivate_others: bool,
@@ -287,24 +287,24 @@ impl PyScouterClient {
     ///
     /// * A binned drift object
     pub fn get_binned_drift<'py>(
-        &mut self,
+        &self,
         py: Python<'py>,
         drift_request: DriftRequest,
     ) -> PyResult<Bound<'py, PyAny>> {
         match drift_request.drift_type {
             DriftType::Spc => {
-                PyScouterClient::get_spc_binned_drift(py, &mut self.client.client, drift_request)
+                PyScouterClient::get_spc_binned_drift(py, &self.client.client, drift_request)
             }
             DriftType::Psi => {
-                PyScouterClient::get_psi_binned_drift(py, &mut self.client.client, drift_request)
+                PyScouterClient::get_psi_binned_drift(py, &self.client.client, drift_request)
             }
             DriftType::Custom => {
-                PyScouterClient::get_custom_binned_drift(py, &mut self.client.client, drift_request)
+                PyScouterClient::get_custom_binned_drift(py, &self.client.client, drift_request)
             }
         }
     }
 
-    pub fn get_alerts(&mut self, request: DriftAlertRequest) -> PyResult<Vec<Alert>> {
+    pub fn get_alerts(&self, request: DriftAlertRequest) -> PyResult<Vec<Alert>> {
         debug!("Getting alerts for: {:?}", request);
 
         let alerts = self
@@ -317,7 +317,7 @@ impl PyScouterClient {
 
     #[pyo3(signature = (request, path))]
     pub fn download_profile(
-        &mut self,
+        &self,
         request: GetProfileRequest,
         path: Option<PathBuf>,
     ) -> PyResult<String> {
@@ -339,7 +339,7 @@ impl PyScouterClient {
 impl PyScouterClient {
     fn get_spc_binned_drift<'py>(
         py: Python<'py>,
-        client: &mut HTTPClient,
+        client: &HTTPClient,
         drift_request: DriftRequest,
     ) -> PyResult<Bound<'py, PyAny>> {
         let query_string = serde_qs::to_string(&drift_request)
@@ -380,7 +380,7 @@ impl PyScouterClient {
     }
     fn get_psi_binned_drift<'py>(
         py: Python<'py>,
-        client: &mut HTTPClient,
+        client: &HTTPClient,
         drift_request: DriftRequest,
     ) -> PyResult<Bound<'py, PyAny>> {
         let query_string = serde_qs::to_string(&drift_request)
@@ -422,7 +422,7 @@ impl PyScouterClient {
 
     fn get_custom_binned_drift<'py>(
         py: Python<'py>,
-        client: &mut HTTPClient,
+        client: &HTTPClient,
         drift_request: DriftRequest,
     ) -> PyResult<Bound<'py, PyAny>> {
         let query_string = serde_qs::to_string(&drift_request)
