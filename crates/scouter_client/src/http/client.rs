@@ -170,6 +170,22 @@ impl ScouterClient {
 
         Ok(profile)
     }
+
+    /// Check if the scouter server is healthy
+    pub fn check_scouter_health(&mut self) -> Result<bool, ScouterError> {
+        let response = self
+            .client
+            .request(Routes::Healthcheck, RequestType::Get, None, None, None)
+            .inspect_err(|e| {
+                error!("Failed to check scouter health {}", e);
+            })?;
+
+        if response.status() == 200 {
+            Ok(true)
+        } else {
+            Ok(false)
+        }
+    }
 }
 
 #[pyclass(name = "ScouterClient")]
