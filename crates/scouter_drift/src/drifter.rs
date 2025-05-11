@@ -1,9 +1,9 @@
 #[cfg(feature = "sql")]
 pub mod drift_executor {
 
+    use crate::error::DriftError;
     use crate::{custom::CustomDrifter, psi::PsiDrifter, spc::SpcDrifter};
     use chrono::{DateTime, Utc};
-    use scouter_error::DriftError;
     use scouter_sql::sql::traits::{AlertSqlLogic, ProfileSqlLogic};
     use scouter_sql::{sql::schema::TaskRequest, PostgresClient};
     use scouter_types::{DriftProfile, DriftType, ServiceInfo};
@@ -109,7 +109,7 @@ pub mod drift_executor {
             debug!("Polling for drift tasks");
             let mut transaction = self.db_pool.begin().await.map_err(|e| {
                 error!("Error starting transaction: {:?}", e);
-                DriftError::Error(e.to_string())
+                DriftError::SqlxError(e)
             })?;
 
             // this will pull a drift profile from the db
@@ -184,9 +184,7 @@ pub mod drift_executor {
             let (task, mut trx) = self.do_poll().await?;
 
             let Some(task) = task else {
-                trx.commit()
-                    .await
-                    .map_err(|e| DriftError::Error(e.to_string()))?;
+                trx.commit().await.map_err(DriftError::SqlxError)?;
                 info!("No triggered schedules found in db. Sleeping for 10 seconds");
                 tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
                 return Ok(());
@@ -217,7 +215,7 @@ pub mod drift_executor {
 
             trx.commit().await.map_err(|e| {
                 error!("Error committing transaction: {:?}", e);
-                DriftError::Error(e.to_string())
+                DriftError::SqlxError(e)
             })?;
 
             Ok(())

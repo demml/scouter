@@ -1,6 +1,9 @@
 use thiserror::Error;
 
-#[derive(Error, Debug, PartialEq)]
+#[cfg(feature = "sql")]
+use sqlx::Error as SqlxError;
+
+#[derive(Error, Debug)]
 pub enum DriftError {
     #[error("Failed to compute mean")]
     ComputeMeanError,
@@ -25,4 +28,8 @@ pub enum DriftError {
 
     #[error(transparent)]
     ShapeError(#[from] ndarray::ShapeError),
+
+    #[cfg(feature = "sql")]
+    #[error(transparent)]
+    SqlxError(#[from] SqlxError),
 }
