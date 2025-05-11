@@ -13,7 +13,6 @@ description = "Sql library to use with scouter-server"
 
 [dependencies]
 scouter-dataframe = { workspace = true }
-scouter-error = { workspace = true }
 scouter-settings = { workspace = true }
 scouter-types = { workspace = true }
 anyhow = {workspace = true}
@@ -23,6 +22,7 @@ cron = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 sqlx = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 

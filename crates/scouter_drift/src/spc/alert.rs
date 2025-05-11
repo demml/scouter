@@ -1,8 +1,8 @@
+use crate::error::DriftError;
 use ndarray::s;
 use ndarray::{ArrayView1, ArrayView2, Axis};
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
-use scouter_error::DriftError;
 use scouter_types::spc::{AlertZone, SpcAlert, SpcAlertRule, SpcAlertType, SpcFeatureAlerts};
 use std::collections::HashSet;
 use std::num::ParseIntError;
@@ -160,7 +160,7 @@ impl Alerter {
         // assert rule_vec.len() == 7
         let rule_vec_len = rule_vec.len();
         if rule_vec_len != 8 {
-            return Err(DriftError::traced_rule_length_error());
+            return Err(DriftError::SpcRuleLengthError);
         }
 
         Ok(rule_vec)

@@ -32,4 +32,10 @@ pub enum DriftError {
     #[cfg(feature = "sql")]
     #[error(transparent)]
     SqlxError(#[from] SqlxError),
+
+    #[error("SPC rule length is not 8")]
+    SpcRuleLengthError,
+
+    #[error(transparent)]
+    ParseIntError(#[from] std::num::ParseIntError),
 }

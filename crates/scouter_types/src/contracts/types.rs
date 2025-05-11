@@ -1,10 +1,10 @@
 use std::fmt::Display;
 
+use crate::error::ContractError;
 use crate::CustomInterval;
 use crate::{DriftType, TimeInterval};
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
-use scouter_error::ScouterError;
 use serde::Deserialize;
 use serde::Serialize;
 use tracing::error;
@@ -59,7 +59,7 @@ impl DriftRequest {
         drift_type: DriftType,
         begin_datetime: Option<DateTime<Utc>>,
         end_datetime: Option<DateTime<Utc>>,
-    ) -> Result<Self, ScouterError> {
+    ) -> Result<Self, ContractError> {
         // validate time interval
         let custom_interval = match (begin_datetime, end_datetime) {
             (Some(begin), Some(end)) => Some(CustomInterval::new(begin, end)?),

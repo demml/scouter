@@ -1,12 +1,12 @@
 #[cfg(feature = "sql")]
 pub mod spc_drifter {
+    use crate::error::DriftError;
     use crate::spc::alert::generate_alerts;
     use crate::spc::monitor::SpcMonitor;
     use chrono::{DateTime, Utc};
     use ndarray::Array2;
     use ndarray::ArrayView2;
     use scouter_dispatch::AlertDispatcher;
-    use scouter_error::DriftError;
     use scouter_sql::sql::traits::SpcSqlLogic;
     use scouter_sql::PostgresClient;
     use scouter_types::contracts::ServiceInfo;
@@ -82,7 +82,7 @@ pub mod spc_drifter {
                 features_to_monitor,
             )
             .await
-            .map_err(|e| DriftError::Error(e.to_string()))?;
+            .map_err(DriftError::SqlxError)?;
             Ok(SpcDriftArray::new(records))
         }
 

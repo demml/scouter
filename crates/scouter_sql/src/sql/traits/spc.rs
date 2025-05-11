@@ -1,10 +1,10 @@
+use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
 use crate::sql::schema::SpcFeatureResult;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use scouter_dataframe::parquet::{dataframe_to_spc_drift_features, ParquetDataFrame};
-use scouter_error::SqlError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{
     spc::{SpcDriftFeature, SpcDriftFeatures},
@@ -30,7 +30,7 @@ pub trait SpcSqlLogic {
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertDriftRecord.get_query();
 
-        sqlx::query(&query.sql)
+        Ok(sqlx::query(&query.sql)
             .bind(record.created_at)
             .bind(&record.name)
             .bind(&record.space)
@@ -38,8 +38,7 @@ pub trait SpcSqlLogic {
             .bind(&record.feature)
             .bind(record.value)
             .execute(pool)
-            .await
-            .map_err(SqlError::traced_query_error)
+            .await?)
     }
 
     // Queries the database for all features under a service
@@ -56,7 +55,6 @@ pub trait SpcSqlLogic {
             .bind(&service_info.version)
             .fetch_all(pool)
             .await
-            .map_err(SqlError::traced_get_features_error)
             .map(|result| {
                 result
                     .iter()
@@ -93,8 +91,7 @@ pub trait SpcSqlLogic {
             .bind(&service_info.version)
             .bind(features)
             .fetch_all(pool)
-            .await
-            .map_err(SqlError::traced_query_error)?;
+            .await?;
 
         let feature_drift = records
             .into_iter()
@@ -137,8 +134,7 @@ pub trait SpcSqlLogic {
             .bind(&params.space)
             .bind(&params.version)
             .fetch_all(pool)
-            .await
-            .map_err(SqlError::traced_query_error)?;
+            .await?;
 
         let feature_drift = records
             .into_iter()
