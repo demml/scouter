@@ -84,6 +84,9 @@ pub enum TypeError {
 
     #[error("Invalid data type")]
     InvalidDataType,
+
+    #[error("Missing value for string feature")]
+    MissingStringValueError,
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for TypeError {
@@ -136,6 +139,9 @@ impl From<RecordError> for PyErr {
         PyRuntimeError::new_err(msg)
     }
 }
+
+#[derive(Error, Debug)]
+pub enum QueueError {}
 
 #[derive(Error, Debug)]
 pub enum ProfileError {
