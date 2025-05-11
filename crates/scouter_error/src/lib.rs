@@ -647,6 +647,9 @@ pub enum ClientError {
     #[error("Failed to get JWT token: {0}")]
     FailedToGetJwtToken(String),
 
+    #[error("Failed to update auth token")]
+    UpdateAuthError,
+
     #[error("Failed to parse JWT token: {0}")]
     FailedToParseJwtToken(String),
 

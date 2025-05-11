@@ -1,13 +1,15 @@
 // we redifine HTTPClient here because the scouterClient needs a blocking httpclient, unlike the producer enum
 
 use reqwest::blocking::{Client, Response};
-use reqwest::header;
+use reqwest::header::AUTHORIZATION;
 use reqwest::header::{HeaderMap, HeaderValue};
 use scouter_error::{ClientError, ScouterError};
 use scouter_settings::http::HTTPConfig;
 use scouter_types::http::{JwtToken, RequestType, Routes};
 use serde_json::Value;
-use tracing::{debug, instrument};
+use std::sync::Arc;
+use std::sync::RwLock;
+use tracing::{debug, error, instrument};
 
 const TIMEOUT_SECS: u64 = 60;
 
@@ -38,29 +40,29 @@ pub fn build_http_client(settings: &HTTPConfig) -> Result<Client, ClientError> {
 #[derive(Debug, Clone)]
 pub struct HTTPClient {
     client: Client,
-    config: HTTPConfig,
     base_path: String,
+    auth_token: Arc<RwLock<String>>,
 }
 
 impl HTTPClient {
     pub fn new(config: HTTPConfig) -> Result<Self, ClientError> {
         let client = build_http_client(&config)?;
 
-        let mut api_client = HTTPClient {
+        let api_client = HTTPClient {
             client,
-            config: config.clone(),
+            auth_token: Arc::new(RwLock::new(String::new())),
             base_path: format!("{}/{}", config.server_uri, "scouter"),
         };
 
         api_client
-            .get_jwt_token()
+            .refresh_token()
             .map_err(ClientError::traced_jwt_error)?;
 
         Ok(api_client)
     }
 
     #[instrument(skip_all)]
-    fn get_jwt_token(&mut self) -> Result<(), ScouterError> {
+    fn refresh_token(&self) -> Result<(), ScouterError> {
         let url = format!("{}/{}", self.base_path, Routes::AuthLogin.as_str());
         debug!("Getting JWT token from {}", url);
 
@@ -75,23 +77,45 @@ impl HTTPClient {
             return Err(ScouterError::ClientError(ClientError::Unauthorized));
         }
 
-        let response = response
+        let token = response
             .json::<JwtToken>()
             .map_err(ClientError::traced_parse_jwt_error)?;
 
-        self.config.auth_token = response.token;
+        if let Ok(mut token_guard) = self.auth_token.write() {
+            *token_guard = token.token;
+        } else {
+            error!("Failed to acquire write lock for token update");
+            return Err(ScouterError::ClientError(ClientError::UpdateAuthError));
+        }
 
         Ok(())
     }
 
-    fn update_token_from_response(&mut self, response: &Response) {
+    fn update_token_from_response(&self, response: &Response) {
         if let Some(new_token) = response
             .headers()
-            .get(header::AUTHORIZATION)
+            .get(AUTHORIZATION)
             .and_then(|h| h.to_str().ok())
             .and_then(|h| h.strip_prefix("Bearer "))
         {
-            self.config.auth_token = new_token.to_string();
+            match self.auth_token.write() {
+                Ok(mut token_guard) => {
+                    *token_guard = new_token.to_string();
+                }
+                Err(e) => {
+                    error!("Failed to acquire write lock for jwt token update: {}", e);
+                }
+            }
+        }
+    }
+
+    fn get_current_token(&self) -> String {
+        match self.auth_token.read() {
+            Ok(token_guard) => token_guard.clone(),
+            Err(e) => {
+                error!("Failed to acquire read lock for token: {}", e);
+                "".to_string()
+            }
         }
     }
 
@@ -117,7 +141,7 @@ impl HTTPClient {
                 self.client
                     .get(url)
                     .headers(headers)
-                    .bearer_auth(&self.config.auth_token)
+                    .bearer_auth(self.get_current_token())
                     .send()
                     .map_err(ClientError::traced_request_error)?
             }
@@ -126,7 +150,7 @@ impl HTTPClient {
                 .post(url)
                 .headers(headers)
                 .json(&body_params)
-                .bearer_auth(&self.config.auth_token)
+                .bearer_auth(self.get_current_token())
                 .send()
                 .map_err(ClientError::traced_request_error)?,
             RequestType::Put => self
@@ -134,7 +158,7 @@ impl HTTPClient {
                 .put(url)
                 .headers(headers)
                 .json(&body_params)
-                .bearer_auth(&self.config.auth_token)
+                .bearer_auth(self.get_current_token())
                 .send()
                 .map_err(ClientError::traced_request_error)?,
             RequestType::Delete => {
@@ -146,7 +170,7 @@ impl HTTPClient {
                 self.client
                     .delete(url)
                     .headers(headers)
-                    .bearer_auth(&self.config.auth_token)
+                    .bearer_auth(self.get_current_token())
                     .send()
                     .map_err(ClientError::traced_request_error)?
             }
