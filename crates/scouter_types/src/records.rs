@@ -1,10 +1,10 @@
+use crate::error::RecordError;
 use crate::ProfileFuncs;
 use chrono::DateTime;
 use chrono::Utc;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
-use scouter_error::DriftError;
-use scouter_error::{PyScouterError, ScouterError};
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -293,7 +293,7 @@ pub enum ServerRecord {
 #[pymethods]
 impl ServerRecord {
     #[new]
-    pub fn new(record: &Bound<'_, PyAny>) -> PyResult<Self> {
+    pub fn new(record: &Bound<'_, PyAny>) -> Result<Self, RecordError> {
         if let Ok(spc_record) = record.extract::<SpcServerRecord>() {
             return Ok(ServerRecord::Spc(spc_record));
         }
@@ -311,30 +311,16 @@ impl ServerRecord {
         }
 
         // If none of the extractions succeeded, return an error
-        Err(PyScouterError::new_err(
-            "Unable to extract record into any known ServerRecord variant",
-        ))
+        Err(RecordError::ExtractionError)
     }
 
     #[getter]
-    pub fn record(&self, py: Python) -> PyResult<PyObject> {
+    pub fn record(&self, py: Python) -> Result<PyObject, RecordError> {
         match self {
-            ServerRecord::Spc(record) => Ok(record
-                .clone()
-                .into_py_any(py)
-                .map_err(PyScouterError::new_err)?),
-            ServerRecord::Psi(record) => Ok(record
-                .clone()
-                .into_py_any(py)
-                .map_err(PyScouterError::new_err)?),
-            ServerRecord::Custom(record) => Ok(record
-                .clone()
-                .into_py_any(py)
-                .map_err(PyScouterError::new_err)?),
-            ServerRecord::Observability(record) => Ok(record
-                .clone()
-                .into_py_any(py)
-                .map_err(PyScouterError::new_err)?),
+            ServerRecord::Spc(record) => Ok(record.clone().into_py_any(py)?),
+            ServerRecord::Psi(record) => Ok(record.clone().into_py_any(py)?),
+            ServerRecord::Custom(record) => Ok(record.clone().into_py_any(py)?),
+            ServerRecord::Observability(record) => Ok(record.clone().into_py_any(py)?),
         }
     }
 
@@ -383,7 +369,7 @@ impl ServerRecords {
 }
 
 impl ServerRecords {
-    pub fn record_type(&self) -> Result<RecordType, ScouterError> {
+    pub fn record_type(&self) -> Result<RecordType, RecordError> {
         if let Some(first) = self.records.first() {
             match first {
                 ServerRecord::Spc(_) => Ok(RecordType::Spc),
@@ -392,7 +378,7 @@ impl ServerRecords {
                 ServerRecord::Observability(_) => Ok(RecordType::Observability),
             }
         } else {
-            Err(ScouterError::EmptyServerRecordsError)
+            Err(RecordError::EmptyServerRecordsError)
         }
     }
 
@@ -401,9 +387,8 @@ impl ServerRecords {
     // # Arguments
     //
     // * `bytes` - A slice of bytes
-    pub fn load_from_bytes(bytes: &[u8]) -> Result<Self, ScouterError> {
-        let records: ServerRecords =
-            serde_json::from_slice(bytes).map_err(|_| ScouterError::DeSerializeError)?;
+    pub fn load_from_bytes(bytes: &[u8]) -> Result<Self, RecordError> {
+        let records: ServerRecords = serde_json::from_slice(bytes)?;
         Ok(records)
     }
 
@@ -415,7 +400,7 @@ impl ServerRecords {
         self.records.len()
     }
 
-    pub fn unique_dates(&self) -> Result<Vec<DateTime<Utc>>, ScouterError> {
+    pub fn unique_dates(&self) -> Result<Vec<DateTime<Utc>>, RecordError> {
         let mut dates = HashSet::new();
         let record_type = self.record_type().unwrap_or(RecordType::Spc);
         for record in &self.records {
@@ -436,9 +421,7 @@ impl ServerRecords {
                     }
                 }
                 _ => {
-                    return Err(ScouterError::InvalidDriftTypeError(
-                        "Unexpected record type".to_string(),
-                    ));
+                    return Err(RecordError::InvalidDriftTypeError);
                 }
             }
         }
@@ -455,34 +438,34 @@ impl ServerRecords {
 }
 
 pub trait ToDriftRecords {
-    fn to_spc_drift_records(&self) -> Result<Vec<SpcServerRecord>, DriftError>;
-    fn to_observability_drift_records(&self) -> Result<Vec<ObservabilityMetrics>, DriftError>;
-    fn to_psi_drift_records(&self) -> Result<Vec<PsiServerRecord>, DriftError>;
-    fn to_custom_metric_drift_records(&self) -> Result<Vec<CustomMetricServerRecord>, DriftError>;
+    fn to_spc_drift_records(&self) -> Result<Vec<SpcServerRecord>, RecordError>;
+    fn to_observability_drift_records(&self) -> Result<Vec<ObservabilityMetrics>, RecordError>;
+    fn to_psi_drift_records(&self) -> Result<Vec<PsiServerRecord>, RecordError>;
+    fn to_custom_metric_drift_records(&self) -> Result<Vec<CustomMetricServerRecord>, RecordError>;
 }
 impl ToDriftRecords for ServerRecords {
-    fn to_spc_drift_records(&self) -> Result<Vec<SpcServerRecord>, DriftError> {
+    fn to_spc_drift_records(&self) -> Result<Vec<SpcServerRecord>, RecordError> {
         extract_records(self, |record| match record {
             ServerRecord::Spc(inner) => Some(inner.clone()),
             _ => None,
         })
     }
 
-    fn to_observability_drift_records(&self) -> Result<Vec<ObservabilityMetrics>, DriftError> {
+    fn to_observability_drift_records(&self) -> Result<Vec<ObservabilityMetrics>, RecordError> {
         extract_records(self, |record| match record {
             ServerRecord::Observability(inner) => Some(inner.clone()),
             _ => None,
         })
     }
 
-    fn to_psi_drift_records(&self) -> Result<Vec<PsiServerRecord>, DriftError> {
+    fn to_psi_drift_records(&self) -> Result<Vec<PsiServerRecord>, RecordError> {
         extract_records(self, |record| match record {
             ServerRecord::Psi(inner) => Some(inner.clone()),
             _ => None,
         })
     }
 
-    fn to_custom_metric_drift_records(&self) -> Result<Vec<CustomMetricServerRecord>, DriftError> {
+    fn to_custom_metric_drift_records(&self) -> Result<Vec<CustomMetricServerRecord>, RecordError> {
         extract_records(self, |record| match record {
             ServerRecord::Custom(inner) => Some(inner.clone()),
             _ => None,
@@ -494,14 +477,14 @@ impl ToDriftRecords for ServerRecords {
 fn extract_records<T>(
     server_records: &ServerRecords,
     extractor: impl Fn(&ServerRecord) -> Option<T>,
-) -> Result<Vec<T>, DriftError> {
+) -> Result<Vec<T>, RecordError> {
     let mut records = Vec::new();
 
     for record in &server_records.records {
         if let Some(extracted) = extractor(record) {
             records.push(extracted);
         } else {
-            return Err(DriftError::InvalidDriftTypeError);
+            return Err(RecordError::InvalidDriftTypeError);
         }
     }
 

@@ -1,5 +1,7 @@
 #![allow(clippy::useless_conversion)]
 use crate::custom::alert::{CustomMetric, CustomMetricAlertConfig};
+use crate::error::TypeError;
+use crate::error::UtilError;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::ProfileRequest;
 use crate::{
@@ -9,7 +11,6 @@ use crate::{
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use scouter_error::{CustomMetricError, ScouterError, TypeError, UtilError};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -79,10 +80,10 @@ impl CustomMetricDriftConfig {
     }
 
     #[staticmethod]
-    pub fn load_from_json_file(path: PathBuf) -> Result<CustomMetricDriftConfig, ScouterError> {
+    pub fn load_from_json_file(path: PathBuf) -> Result<CustomMetricDriftConfig, UtilError> {
         // deserialize the string to a struct
 
-        let file = std::fs::read_to_string(&path).map_err(|_| UtilError::ReadError)?;
+        let file = std::fs::read_to_string(&path)?;
 
         serde_json::from_str(&file).map_err(|e| UtilError::DeSerializeError(e.to_string()).into())
     }
@@ -107,20 +108,19 @@ impl CustomMetricDriftConfig {
         alert_config: Option<CustomMetricAlertConfig>,
     ) -> Result<(), TypeError> {
         if name.is_some() {
-            self.name = name.ok_or(TypeError::MissingAttribute("name".to_string()))?;
+            self.name = name.ok_or(TypeError::MissingNameError)?;
         }
 
         if space.is_some() {
-            self.space = space.ok_or(TypeError::MissingAttribute("space".to_string()))?;
+            self.space = space.ok_or(TypeError::MissingSpaceError)?;
         }
 
         if version.is_some() {
-            self.version = version.ok_or(TypeError::MissingAttribute("version".to_string()))?;
+            self.version = version.ok_or(TypeError::MissingVersionError)?;
         }
 
         if alert_config.is_some() {
-            self.alert_config =
-                alert_config.ok_or(TypeError::MissingAttribute("alert_config".to_string()))?;
+            self.alert_config = alert_config.ok_or(TypeError::MissingAlertConfigError)?;
         }
 
         Ok(())
@@ -148,9 +148,9 @@ impl CustomDriftProfile {
         mut config: CustomMetricDriftConfig,
         metrics: Vec<CustomMetric>,
         scouter_version: Option<String>,
-    ) -> Result<Self, CustomMetricError> {
+    ) -> Result<Self, TypeError> {
         if metrics.is_empty() {
-            return Err(CustomMetricError::NoMetricsError);
+            return Err(TypeError::NoMetricsError);
         }
 
         config.alert_config.set_alert_conditions(&metrics);
@@ -176,11 +176,10 @@ impl CustomDriftProfile {
         ProfileFuncs::__json__(self)
     }
 
-    pub fn model_dump(&self, py: Python) -> PyResult<Py<PyDict>> {
-        let json_str = serde_json::to_string(&self).map_err(|_| ScouterError::SerializeError)?;
+    pub fn model_dump(&self, py: Python) -> Result<Py<PyDict>, UtilError> {
+        let json_str = serde_json::to_string(&self)?;
 
-        let json_value: Value =
-            serde_json::from_str(&json_str).map_err(|_| ScouterError::DeSerializeError)?;
+        let json_value: Value = serde_json::from_str(&json_str)?;
 
         // Create a new Python dictionary
         let dict = PyDict::new(py);
