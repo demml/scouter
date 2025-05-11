@@ -1,6 +1,7 @@
 #![allow(clippy::useless_conversion)]
 use crate::custom::alert::{CustomMetric, CustomMetricAlertConfig};
 use crate::util::{json_to_pyobject, pyobject_to_json};
+use crate::ProfileRequest;
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
     ProfileFuncs, DEFAULT_VERSION, MISSING,
@@ -262,6 +263,15 @@ impl CustomDriftProfile {
                 .unwrap()
             })
             .collect())
+    }
+
+    /// Create a profile request from the profile
+    pub fn create_profile_request(&self) -> Result<ProfileRequest, TypeError> {
+        Ok(ProfileRequest {
+            space: self.config.space.clone(),
+            profile: self.model_dump_json(),
+            drift_type: self.config.drift_type.clone(),
+        })
     }
 }
 

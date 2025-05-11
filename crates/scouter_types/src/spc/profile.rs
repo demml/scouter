@@ -3,7 +3,7 @@ use crate::spc::alert::SpcAlertConfig;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, ProfileArgs, ProfileBaseArgs,
-    ProfileFuncs, MISSING,
+    ProfileFuncs, ProfileRequest, MISSING,
 };
 
 use chrono::{DateTime, Utc};
@@ -345,6 +345,15 @@ impl SpcDriftProfile {
     ) -> Result<(), TypeError> {
         self.config
             .update_config_args(space, name, version, sample, sample_size, alert_config)
+    }
+
+    /// Create a profile request from the profile
+    pub fn create_profile_request(&self) -> Result<ProfileRequest, TypeError> {
+        Ok(ProfileRequest {
+            space: self.config.space.clone(),
+            profile: self.model_dump_json(),
+            drift_type: self.config.drift_type.clone(),
+        })
     }
 }
 
