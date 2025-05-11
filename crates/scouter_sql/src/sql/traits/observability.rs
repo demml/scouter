@@ -1,7 +1,7 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::ObservabilityResult;
 
-use scouter_contracts::ObservabilityMetricRequest;
+use scouter_types::contracts::ObservabilityMetricRequest;
 
 use scouter_error::{SqlError, UtilError};
 use scouter_types::ObservabilityMetrics;

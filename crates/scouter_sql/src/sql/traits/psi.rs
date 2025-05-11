@@ -4,8 +4,8 @@ use crate::sql::schema::FeatureBinProportionWrapper;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use scouter_contracts::{DriftRequest, ServiceInfo};
 use scouter_dataframe::parquet::{dataframe_to_psi_drift_features, ParquetDataFrame};
+use scouter_types::contracts::{DriftRequest, ServiceInfo};
 
 use scouter_error::SqlError;
 use scouter_settings::ObjectStorageSettings;

@@ -2,11 +2,11 @@
 pub mod custom_drifter {
 
     use chrono::{DateTime, Utc};
-    use scouter_contracts::ServiceInfo;
     use scouter_dispatch::AlertDispatcher;
     use scouter_error::DriftError;
     use scouter_sql::sql::traits::CustomMetricSqlLogic;
     use scouter_sql::PostgresClient;
+    use scouter_types::contracts::ServiceInfo;
     use scouter_types::custom::{AlertThreshold, ComparisonMetricAlert, CustomDriftProfile};
     use sqlx::{Pool, Postgres};
     use std::collections::{BTreeMap, HashMap};

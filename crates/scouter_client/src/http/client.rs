@@ -1,10 +1,10 @@
 #![allow(clippy::useless_conversion)]
 use pyo3::{prelude::*, IntoPyObjectExt};
-use scouter_contracts::{
-    DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
-};
 use scouter_error::{PyScouterError, ScouterError};
 use scouter_settings::http::HTTPConfig;
+use scouter_types::contracts::{
+    DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
+};
 use scouter_types::http::{RequestType, Routes};
 
 use crate::http::HTTPClient;
@@ -207,29 +207,16 @@ impl PyScouterClient {
     /// # Returns
     ///
     /// * `Ok(())` if the profile was inserted successfully
-    #[pyo3(signature = (profile, set_active=false))]
+    #[pyo3(signature = (profile, set_active=false, deactivate_others=false))]
     pub fn register_profile(
         &mut self,
         profile: &Bound<'_, PyAny>,
         set_active: bool,
+        deactivate_others: bool,
     ) -> PyResult<bool> {
-        let drift_type = profile
-            .getattr("config")?
-            .getattr("drift_type")?
-            .extract::<DriftType>()?;
-
-        let profile_str = profile
-            .call_method0("model_dump_json")?
-            .extract::<String>()?;
-
-        let request = ProfileRequest {
-            space: profile
-                .getattr("config")?
-                .getattr("space")?
-                .extract::<String>()?,
-            drift_type: drift_type.clone(),
-            profile: profile_str,
-        };
+        let request = profile
+            .call_method0("create_profile_request")?
+            .extract::<ProfileRequest>()?;
 
         self.client
             .insert_profile(&request)
@@ -258,6 +245,7 @@ impl PyScouterClient {
                 version,
                 active: true,
                 drift_type: Some(drift_type),
+                deactivate_others,
             };
 
             self.client.update_profile_status(&request).map_err(|e| {

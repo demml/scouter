@@ -17,7 +17,6 @@ scouter-auth = { workspace = true }
 scouter-error = { workspace = true }
 scouter-events = { workspace = true, features = ["kafka", "rabbitmq", "sql"], default-features = false } 
 scouter-types = { workspace = true }
-scouter-contracts = { workspace = true }
 scouter-dispatch = { workspace = true }
 scouter-drift = { workspace = true, features = ["sql"] }
 scouter-observability = { workspace = true }

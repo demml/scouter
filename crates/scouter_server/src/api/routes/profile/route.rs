@@ -1,4 +1,4 @@
-use scouter_contracts::{
+use scouter_types::contracts::{
     GetProfileRequest, ProfileRequest, ProfileStatusRequest, ScouterResponse, ScouterServerError,
 };
 

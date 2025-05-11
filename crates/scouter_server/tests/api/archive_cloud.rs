@@ -6,11 +6,10 @@ use axum::{
     http::{header, Request, StatusCode},
 };
 use http_body_util::BodyExt;
-use scouter_contracts::DriftRequest;
-use scouter_contracts::ProfileRequest;
 use scouter_dataframe::parquet::dataframe::ParquetDataFrame;
 use scouter_drift::psi::PsiMonitor;
 use scouter_server::api::archive::archive_old_data;
+use scouter_types::contracts::{DriftRequest, ProfileRequest};
 use scouter_types::{
     psi::{BinnedPsiFeatureMetrics, PsiAlertConfig, PsiDriftConfig},
     DriftType, RecordType,

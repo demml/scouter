@@ -3,10 +3,10 @@ use crate::sql::schema::SpcFeatureResult;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use scouter_contracts::{DriftRequest, ServiceInfo};
 use scouter_dataframe::parquet::{dataframe_to_spc_drift_features, ParquetDataFrame};
 use scouter_error::SqlError;
 use scouter_settings::ObjectStorageSettings;
+use scouter_types::contracts::{DriftRequest, ServiceInfo};
 use scouter_types::{
     spc::{SpcDriftFeature, SpcDriftFeatures},
     RecordType, SpcServerRecord,

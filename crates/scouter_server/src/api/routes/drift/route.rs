@@ -7,12 +7,14 @@ use axum::{
     Extension, Json, Router,
 };
 use scouter_auth::permission::UserPermissions;
-use scouter_contracts::{DriftRequest, GetProfileRequest, ScouterResponse, ScouterServerError};
 use scouter_drift::psi::PsiDrifter;
 use scouter_error::ScouterError;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::sql::traits::{CustomMetricSqlLogic, ProfileSqlLogic, PsiSqlLogic, SpcSqlLogic};
 use scouter_sql::PostgresClient;
+use scouter_types::contracts::{
+    DriftRequest, GetProfileRequest, ScouterResponse, ScouterServerError,
+};
 use scouter_types::{
     custom::BinnedCustomMetrics,
     psi::{BinnedPsiFeatureMetrics, PsiDriftProfile},

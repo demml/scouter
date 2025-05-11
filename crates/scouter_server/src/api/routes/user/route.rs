@@ -13,10 +13,10 @@ use axum::{
 };
 use password_auth::generate_hash;
 use scouter_auth::permission::UserPermissions;
-use scouter_contracts::{ScouterResponse, ScouterServerError};
 use scouter_sql::sql::schema::User;
 use scouter_sql::sql::traits::UserSqlLogic;
 use scouter_sql::PostgresClient;
+use scouter_types::contracts::{ScouterResponse, ScouterServerError};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::{error, info, instrument};

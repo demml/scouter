@@ -5,11 +5,11 @@ pub mod spc_drifter {
     use chrono::{DateTime, Utc};
     use ndarray::Array2;
     use ndarray::ArrayView2;
-    use scouter_contracts::ServiceInfo;
     use scouter_dispatch::AlertDispatcher;
     use scouter_error::DriftError;
     use scouter_sql::sql::traits::SpcSqlLogic;
     use scouter_sql::PostgresClient;
+    use scouter_types::contracts::ServiceInfo;
     use scouter_types::spc::{SpcDriftFeatures, SpcDriftProfile, TaskAlerts};
     use sqlx::{Pool, Postgres};
     use std::collections::BTreeMap;

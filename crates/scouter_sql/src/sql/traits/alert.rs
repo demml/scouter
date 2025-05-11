@@ -1,7 +1,7 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::{AlertWrapper, UpdateAlertResult};
 
-use scouter_contracts::{DriftAlertRequest, ServiceInfo, UpdateAlertStatus};
+use scouter_types::contracts::{DriftAlertRequest, ServiceInfo, UpdateAlertStatus};
 
 use scouter_error::SqlError;
 use scouter_types::alert::Alert;

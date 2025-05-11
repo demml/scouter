@@ -143,10 +143,10 @@ mod tests {
     use crate::sql::schema::User;
     use chrono::Utc;
     use rand::Rng;
-    use scouter_contracts::{
+    use scouter_settings::ObjectStorageSettings;
+    use scouter_types::contracts::{
         DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileStatusRequest, ServiceInfo,
     };
-    use scouter_settings::ObjectStorageSettings;
     use scouter_types::spc::SpcDriftProfile;
     use scouter_types::*;
     use std::collections::BTreeMap;
@@ -375,6 +375,7 @@ mod tests {
                 version: spc_profile.config.version.clone(),
                 active: false,
                 drift_type: Some(DriftType::Spc),
+                deactivate_others: false,
             },
         )
         .await

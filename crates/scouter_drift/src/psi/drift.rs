@@ -5,13 +5,12 @@ pub mod psi_drifter {
     use crate::psi::types::{FeatureBinMapping, FeatureBinProportionPairs};
     use chrono::{DateTime, Utc};
     use rayon::iter::{IntoParallelIterator, ParallelIterator};
-    use scouter_contracts::DriftRequest;
-    use scouter_contracts::ServiceInfo;
     use scouter_dispatch::AlertDispatcher;
     use scouter_error::DriftError;
     use scouter_settings::ObjectStorageSettings;
     use scouter_sql::sql::traits::PsiSqlLogic;
     use scouter_sql::PostgresClient;
+    use scouter_types::contracts::{DriftRequest, ServiceInfo};
     use scouter_types::psi::{
         BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiDriftProfile, PsiFeatureAlerts,
         PsiFeatureDriftProfile,

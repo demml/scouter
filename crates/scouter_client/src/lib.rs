@@ -24,18 +24,15 @@ pub use scouter_types::{
         SpcDriftFeature, SpcDriftFeatures, SpcDriftProfile, SpcFeatureAlert, SpcFeatureAlerts,
         SpcFeatureDriftProfile,
     },
-    AlertDispatchType, ConsoleDispatchConfig, CustomMetricServerRecord, DataType, DriftProfile,
-    DriftType, EntityType, Feature, FeatureMap, Features, LatencyMetrics, Metric, Metrics,
-    ObservabilityMetrics, OpsGenieDispatchConfig, PsiServerRecord, RecordType, RouteMetrics,
-    ServerRecord, ServerRecords, SlackDispatchConfig, SpcServerRecord, TimeInterval,
+    AlertDispatchType, ConsoleDispatchConfig, CustomMetricServerRecord, DataType,
+    DriftAlertRequest, DriftProfile, DriftRequest, DriftType, EntityType, Feature, FeatureMap,
+    Features, GetProfileRequest, LatencyMetrics, Metric, Metrics, ObservabilityMetrics,
+    OpsGenieDispatchConfig, ProfileRequest, ProfileStatusRequest, PsiServerRecord, RecordType,
+    RouteMetrics, ScouterResponse, ScouterServerError, ServerRecord, ServerRecords,
+    SlackDispatchConfig, SpcServerRecord, TimeInterval,
 };
 
 pub use crate::http::{PyScouterClient, ScouterClient};
-
-pub use scouter_contracts::{
-    DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
-    ScouterResponse, ScouterServerError,
-};
 
 pub use scouter_drift::{
     psi::PsiMonitor,

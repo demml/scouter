@@ -3,11 +3,10 @@ pub mod drift_executor {
 
     use crate::{custom::CustomDrifter, psi::PsiDrifter, spc::SpcDrifter};
     use chrono::{DateTime, Utc};
-    use scouter_contracts::ServiceInfo;
     use scouter_error::DriftError;
     use scouter_sql::sql::traits::{AlertSqlLogic, ProfileSqlLogic};
     use scouter_sql::{sql::schema::TaskRequest, PostgresClient};
-    use scouter_types::{DriftProfile, DriftType};
+    use scouter_types::{DriftProfile, DriftType, ServiceInfo};
     use sqlx::{Pool, Postgres, Transaction};
     use std::collections::BTreeMap;
     use std::result::Result;
@@ -229,9 +228,9 @@ pub mod drift_executor {
     mod tests {
         use super::*;
         use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
-        use scouter_contracts::DriftAlertRequest;
         use scouter_settings::DatabaseSettings;
         use scouter_sql::PostgresClient;
+        use scouter_types::DriftAlertRequest;
         use sqlx::{postgres::Postgres, Pool};
 
         pub async fn cleanup(pool: &Pool<Postgres>) {

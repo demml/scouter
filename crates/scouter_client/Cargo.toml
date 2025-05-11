@@ -14,7 +14,6 @@ description = "Client and server contract for scouter"
 [dependencies]
 chrono = { workspace = true }
 reqwest = { workspace = true}
-scouter-contracts = { workspace = true }
 scouter-dispatch = { workspace = true }
 scouter-drift = { workspace = true, default-features = false }
 scouter-error = { workspace = true }
