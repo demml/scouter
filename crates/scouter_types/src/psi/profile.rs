@@ -1,4 +1,5 @@
 #![allow(clippy::useless_conversion)]
+use crate::error::{ProfileError, TypeError};
 use crate::psi::alert::PsiAlertConfig;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::ProfileRequest;
@@ -10,7 +11,6 @@ use chrono::Utc;
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use scouter_error::{ScouterError, TypeError, UtilError};
 use serde::de::{self, MapAccess, Visitor};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -67,7 +67,7 @@ impl PsiDriftConfig {
         version: &str,
         alert_config: PsiAlertConfig,
         config_path: Option<PathBuf>,
-    ) -> Result<Self, ScouterError> {
+    ) -> Result<Self, ProfileError> {
         if let Some(config_path) = config_path {
             let config = PsiDriftConfig::load_from_json_file(config_path);
             return config;
@@ -88,12 +88,12 @@ impl PsiDriftConfig {
     }
 
     #[staticmethod]
-    pub fn load_from_json_file(path: PathBuf) -> Result<PsiDriftConfig, ScouterError> {
+    pub fn load_from_json_file(path: PathBuf) -> Result<PsiDriftConfig, ProfileError> {
         // deserialize the string to a struct
 
-        let file = std::fs::read_to_string(&path).map_err(|_| UtilError::ReadError)?;
+        let file = std::fs::read_to_string(&path)?;
 
-        serde_json::from_str(&file).map_err(|e| UtilError::DeSerializeError(e.to_string()).into())
+        Ok(serde_json::from_str(&file)?)
     }
 
     pub fn __str__(&self) -> String {
@@ -116,20 +116,19 @@ impl PsiDriftConfig {
         alert_config: Option<PsiAlertConfig>,
     ) -> Result<(), TypeError> {
         if name.is_some() {
-            self.name = name.ok_or(TypeError::MissingAttribute("name".to_string()))?;
+            self.name = name.ok_or(TypeError::MissingNameError)?;
         }
 
         if space.is_some() {
-            self.space = space.ok_or(TypeError::MissingAttribute("space".to_string()))?;
+            self.space = space.ok_or(TypeError::MissingSpaceError)?;
         }
 
         if version.is_some() {
-            self.version = version.ok_or(TypeError::MissingAttribute("version".to_string()))?;
+            self.version = version.ok_or(TypeError::MissingVersionError)?;
         }
 
         if alert_config.is_some() {
-            self.alert_config =
-                alert_config.ok_or(TypeError::MissingAttribute("alert_config".to_string()))?;
+            self.alert_config = alert_config.ok_or(TypeError::MissingAlertConfigError)?;
         }
 
         Ok(())
@@ -363,12 +362,10 @@ impl PsiDriftProfile {
     }
     // TODO dry this out
     #[allow(clippy::useless_conversion)]
-    pub fn model_dump(&self, py: Python) -> Result<Py<PyDict>, ScouterError> {
-        let json_str =
-            serde_json::to_string(&self).map_err(|e| UtilError::SerializeError(e.to_string()))?;
+    pub fn model_dump(&self, py: Python) -> Result<Py<PyDict>, ProfileError> {
+        let json_str = serde_json::to_string(&self)?;
 
-        let json_value: Value = serde_json::from_str(&json_str)
-            .map_err(|e| UtilError::DeSerializeError(e.to_string()))?;
+        let json_value: Value = serde_json::from_str(&json_str)?;
 
         // Create a new Python dictionary
         let dict = PyDict::new(py);
@@ -381,10 +378,10 @@ impl PsiDriftProfile {
     }
 
     #[staticmethod]
-    pub fn from_file(path: PathBuf) -> Result<PsiDriftProfile, ScouterError> {
-        let file = std::fs::read_to_string(&path).map_err(|_| UtilError::ReadError)?;
+    pub fn from_file(path: PathBuf) -> Result<PsiDriftProfile, ProfileError> {
+        let file = std::fs::read_to_string(&path)?;
 
-        serde_json::from_str(&file).map_err(|e| UtilError::DeSerializeError(e.to_string()).into())
+        Ok(serde_json::from_str(&file)?)
     }
 
     #[staticmethod]
@@ -403,8 +400,12 @@ impl PsiDriftProfile {
 
     // Convert python dict into a drift profile
     #[pyo3(signature = (path=None))]
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ScouterError> {
-        ProfileFuncs::save_to_json(self, path, FileName::PsiDriftProfile.to_str())
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ProfileError> {
+        Ok(ProfileFuncs::save_to_json(
+            self,
+            path,
+            FileName::PsiDriftProfile.to_str(),
+        )?)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -471,16 +472,18 @@ impl PsiDriftMap {
     }
 
     #[staticmethod]
-    pub fn model_validate_json(json_string: String) -> PsiDriftMap {
+    pub fn model_validate_json(json_string: String) -> Result<PsiDriftMap, ProfileError> {
         // deserialize the string to a struct
-        serde_json::from_str(&json_string)
-            .map_err(|_| ScouterError::DeSerializeError)
-            .unwrap()
+        Ok(serde_json::from_str(&json_string)?)
     }
 
     #[pyo3(signature = (path=None))]
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ScouterError> {
-        ProfileFuncs::save_to_json(self, path, FileName::PsiDriftMap.to_str())
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ProfileError> {
+        Ok(ProfileFuncs::save_to_json(
+            self,
+            path,
+            FileName::PsiDriftMap.to_str(),
+        )?)
     }
 }
 

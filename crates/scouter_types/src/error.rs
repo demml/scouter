@@ -141,9 +141,6 @@ impl From<RecordError> for PyErr {
 }
 
 #[derive(Error, Debug)]
-pub enum QueueError {}
-
-#[derive(Error, Debug)]
 pub enum ProfileError {
     #[error(transparent)]
     SerdeJsonError(#[from] serde_json::Error),
