@@ -3,11 +3,10 @@ use crate::sql::schema::TaskRequest;
 
 use chrono::Utc;
 use cron::Schedule;
-use scouter_types::contracts::{GetProfileRequest, ProfileStatusRequest, ServiceInfo};
 
 use async_trait::async_trait;
 use scouter_error::{SqlError, UtilError};
-use scouter_types::DriftProfile;
+use scouter_types::{DriftProfile, GetProfileRequest, ProfileStatusRequest, ServiceInfo};
 use serde_json::Value;
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row, Transaction};
 use std::result::Result::Ok;
@@ -188,33 +187,33 @@ pub trait ProfileSqlLogic {
             .execute(pool)
             .await;
 
-         match query_result {
-        Ok(_) => {
-            if params.deactivate_others {
-                let query = Queries::DeactivateDriftProfiles.get_query();
+        match query_result {
+            Ok(_) => {
+                if params.deactivate_others {
+                    let query = Queries::DeactivateDriftProfiles.get_query();
 
-                let query_result = sqlx::query(&query.sql)
-                    .bind(&params.name)
-                    .bind(&params.space)
-                    .bind(&params.version)
-                    .executPe(pool)
-                    .await;
+                    let query_result = sqlx::query(&query.sql)
+                        .bind(&params.name)
+                        .bind(&params.space)
+                        .bind(&params.version)
+                        .execute(pool)
+                        .await;
 
-                match query_result {
-                    Ok(_) => Ok(()),
-                    Err(e) => {
-                        error!("Failed to deactivate other drift profiles: {:?}", e);
-                        Err(SqlError::traced_update_drift_profile_error(e))
+                    match query_result {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            error!("Failed to deactivate other drift profiles: {:?}", e);
+                            Err(SqlError::traced_update_drift_profile_error(e))
+                        }
                     }
+                } else {
+                    Ok(())
                 }
-            } else {
-                Ok(())
+            }
+            Err(e) => {
+                error!("Failed to update drift profile status: {:?}", e);
+                Err(SqlError::traced_update_drift_profile_error(e))
             }
         }
-        Err(e) => {
-            error!("Failed to update drift profile status: {:?}", e);
-            Err(SqlError::traced_update_drift_profile_error(e))
-        }
-    }
     }
 }

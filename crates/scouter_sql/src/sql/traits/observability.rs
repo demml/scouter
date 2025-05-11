@@ -1,11 +1,9 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::ObservabilityResult;
 
-use scouter_types::contracts::ObservabilityMetricRequest;
-
 use scouter_error::{SqlError, UtilError};
-use scouter_types::ObservabilityMetrics;
 use scouter_types::TimeInterval;
+use scouter_types::{ObservabilityMetricRequest, ObservabilityMetrics};
 
 use sqlx::{postgres::PgQueryResult, Pool, Postgres};
 

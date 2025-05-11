@@ -239,6 +239,11 @@ impl PyScouterClient {
                 .getattr("version")?
                 .extract::<String>()?;
 
+            let drift_type = profile
+                .getattr("config")?
+                .getattr("drift_type")?
+                .extract::<DriftType>()?;
+
             let request = ProfileStatusRequest {
                 name,
                 space,

@@ -6,10 +6,9 @@ use chrono::{DateTime, Utc};
 use scouter_dataframe::parquet::{dataframe_to_spc_drift_features, ParquetDataFrame};
 use scouter_error::SqlError;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::contracts::{DriftRequest, ServiceInfo};
 use scouter_types::{
     spc::{SpcDriftFeature, SpcDriftFeatures},
-    RecordType, SpcServerRecord,
+    DriftRequest, RecordType, ServiceInfo, SpcServerRecord,
 };
 
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};

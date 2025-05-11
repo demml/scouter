@@ -144,9 +144,6 @@ mod tests {
     use chrono::Utc;
     use rand::Rng;
     use scouter_settings::ObjectStorageSettings;
-    use scouter_types::contracts::{
-        DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileStatusRequest, ServiceInfo,
-    };
     use scouter_types::spc::SpcDriftProfile;
     use scouter_types::*;
     use std::collections::BTreeMap;
