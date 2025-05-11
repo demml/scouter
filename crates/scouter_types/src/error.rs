@@ -155,7 +155,16 @@ pub enum ProfileError {
     UtilError(#[from] UtilError),
 
     #[error(transparent)]
+    TypeError(#[from] TypeError),
+
+    #[error(transparent)]
     IoError(#[from] std::io::Error),
+
+    #[error("Missing sample argument")]
+    MissingSampleError,
+
+    #[error("Missing sample size argument")]
+    MissingSampleSizeError,
 }
 
 impl From<ProfileError> for PyErr {
