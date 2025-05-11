@@ -13,7 +13,6 @@ description = "Drift logic for Scouter"
 
 [dependencies]
 scouter-dispatch = { workspace = true }
-scouter-error = { workspace = true }
 scouter-settings = { workspace = true }
 scouter-sql = { workspace = true, optional = true }
 scouter-types = { workspace = true }
@@ -32,6 +31,7 @@ ndarray = { workspace = true }
 numpy = { workspace = true }
 ndarray-stats = { workspace = true }
 sqlx = { workspace = true, optional = true }
+thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 

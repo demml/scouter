@@ -1,8 +1,8 @@
+use crate::error::DriftError;
 use ndarray::{Array, Array2};
 use rayon::iter::IndexedParallelIterator;
 use rayon::iter::IntoParallelRefIterator;
 use rayon::iter::ParallelIterator;
-use scouter_error::DriftError;
 use scouter_types::FeatureMap;
 use std::collections::BTreeSet;
 use std::collections::HashMap;
@@ -25,7 +25,7 @@ pub trait CategoricalFeatureHelpers {
     ) -> Result<FeatureMap, DriftError> {
         // check if features and array are the same length
         if features.len() != array.len() {
-            return Err(DriftError::traced_feature_length_error());
+            return Err(DriftError::FeatureLengthError);
         };
 
         let feature_map = array
@@ -71,7 +71,7 @@ where {
             .position(|x| !x);
 
         if features_not_exist.is_some() {
-            return Err(DriftError::traced_missing_features_error());
+            return Err(DriftError::FeatureNotExistError);
         }
 
         let data = features
@@ -91,7 +91,7 @@ where {
             .collect::<Vec<_>>();
 
         let data = Array::from_shape_vec((features.len(), array[0].len()), data.concat())
-            .map_err(DriftError::traced_shape_error)?;
+            .map_err(DriftError::ShapeError)?;
 
         Ok(data.t().to_owned())
     }
@@ -110,7 +110,7 @@ where {
             .position(|x| !x);
 
         if features_not_exist.is_some() {
-            return Err(DriftError::traced_missing_features_error());
+            return Err(DriftError::FeatureNotExistError);
         }
         let data = features
             .par_iter()
@@ -128,7 +128,7 @@ where {
             .collect::<Vec<_>>();
 
         let data = Array::from_shape_vec((features.len(), array[0].len()), data.concat())
-            .map_err(DriftError::traced_shape_error)?;
+            .map_err(DriftError::ShapeError)?;
 
         Ok(data.t().to_owned())
     }

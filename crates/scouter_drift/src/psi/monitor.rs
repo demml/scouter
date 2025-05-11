@@ -1,10 +1,10 @@
+use crate::error::DriftError;
 use crate::utils::CategoricalFeatureHelpers;
 use itertools::Itertools;
 use ndarray::prelude::*;
 use ndarray::Axis;
 use num_traits::{Float, FromPrimitive};
 use rayon::prelude::*;
-use scouter_error::DriftError;
 use scouter_types::psi::{
     Bin, BinType, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
 };
@@ -24,10 +24,10 @@ impl PsiMonitor {
         F: Float + FromPrimitive,
         F: Into<f64>,
     {
-        Ok(array
+        array
             .mean()
-            .ok_or(DriftError::traced_compute_error("mean"))?
-            .into())
+            .ok_or(DriftError::ComputeMeanError)
+            .map(|v| v.into())
     }
 
     fn compute_bin_count<F>(
@@ -63,9 +63,7 @@ impl PsiMonitor {
     {
         // TODO: Explore using ndarray_stats quantiles instead of manual computation
         if column_vector.len() < 10 {
-            return Err(DriftError::traced_compute_error(
-                "At least 10 values needed to compute deciles",
-            ));
+            return Err(DriftError::NotEnoughDecileValuesError);
         }
 
         let sorted_column_vector = column_vector
@@ -84,7 +82,7 @@ impl PsiMonitor {
         let decile_vec: [F; 9] = deciles
             .to_vec()
             .try_into()
-            .map_err(|_| DriftError::traced_compute_error("Failed to convert deciles to array"))?;
+            .map_err(|_| DriftError::ConvertDecileToArray)?;
 
         Ok(decile_vec)
     }
@@ -147,9 +145,7 @@ impl PsiMonitor {
         F: Float + FromPrimitive + Default + Sync,
         F: Into<f64>,
     {
-        let deciles = self.compute_deciles(column_vector).map_err(|err| {
-            DriftError::traced_compute_error(format!("Failed to compute deciles: {}", err))
-        })?;
+        let deciles = self.compute_deciles(column_vector)?;
 
         let bins: Vec<Bin> = (0..=deciles.len())
             .into_par_iter()
@@ -210,9 +206,7 @@ impl PsiMonitor {
         F: Float + Sync + FromPrimitive + Default,
         F: Into<f64>,
     {
-        let (bins, bin_type) = self
-            .create_bins(&feature_name, column_vector, drift_config)
-            .map_err(DriftError::traced_create_bins_error)?;
+        let (bins, bin_type) = self.create_bins(&feature_name, column_vector, drift_config)?;
 
         Ok(PsiFeatureDriftProfile {
             id: feature_name,
@@ -368,7 +362,7 @@ impl PsiMonitor {
                         .collect::<Vec<_>>()
                         .join(", ");
 
-                    return Err(DriftError::ComputeError(
+                    return Err(DriftError::RunTimeError(
                         format!(
                             "Feature mismatch, feature '{}' not found. Available features in the drift profile: {}",
                             feature_name, available_keys
