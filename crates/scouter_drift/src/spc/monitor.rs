@@ -1,3 +1,4 @@
+use crate::error::DriftError;
 use crate::spc::types::{SpcDriftMap, SpcFeatureDrift};
 use crate::utils::CategoricalFeatureHelpers;
 use chrono::Utc;
@@ -6,7 +7,6 @@ use ndarray::prelude::*;
 use ndarray::Axis;
 use num_traits::{Float, FromPrimitive, Num};
 use rayon::prelude::*;
-use scouter_error::DriftError;
 use scouter_types::{
     spc::{SpcDriftConfig, SpcDriftProfile, SpcFeatureDriftProfile},
     ServerRecord, ServerRecords, SpcServerRecord,
@@ -86,8 +86,7 @@ impl SpcMonitor {
             + ndarray::ScalarOperand,
         F: Into<f64>,
     {
-        x.mean_axis(Axis(0))
-            .ok_or(DriftError::traced_compute_error("mean"))
+        x.mean_axis(Axis(0)).ok_or(DriftError::ComputeMeanError)
     }
 
     // Computes control limits for a 2D array of data
@@ -217,8 +216,7 @@ impl SpcMonitor {
 
         // reshape vec to 2D array
         let sample_data =
-            Array::from_shape_vec((sample_vec.len(), features.len() * 2), sample_vec.concat())
-                .map_err(DriftError::traced_shape_error)?;
+            Array::from_shape_vec((sample_vec.len(), features.len() * 2), sample_vec.concat())?;
 
         let drift_profile = self.compute_control_limits(
             sample_size,
@@ -270,8 +268,7 @@ impl SpcMonitor {
             .collect::<Vec<_>>();
 
         // reshape vec to 2D array
-        let sample_data = Array::from_shape_vec((sample_vec.len(), columns), sample_vec.concat())
-            .map_err(DriftError::traced_shape_error)?;
+        let sample_data = Array::from_shape_vec((sample_vec.len(), columns), sample_vec.concat())?;
         Ok(sample_data)
     }
 
@@ -289,9 +286,10 @@ impl SpcMonitor {
                 continue;
             }
 
-            let feature_profile = drift_profile.features.get(feature).ok_or(
-                DriftError::traced_missing_feature_error(feature.to_string()),
-            )?;
+            let feature_profile = drift_profile
+                .features
+                .get(feature)
+                .ok_or(DriftError::FeatureNotExistError)?;
 
             let value = array[i];
 
@@ -347,9 +345,8 @@ impl SpcMonitor {
         let num_features = drift_profile.features.len();
 
         // iterate through each feature
-        let sample_data = self
-            ._sample_data(array, drift_profile.config.sample_size, num_features)
-            .map_err(DriftError::traced_sample_data_error)?;
+        let sample_data =
+            self._sample_data(array, drift_profile.config.sample_size, num_features)?;
 
         // iterate through each row of samples
         let drift_array = sample_data
@@ -358,9 +355,8 @@ impl SpcMonitor {
             .map(|x| {
                 // match AlertRules enum
 
-                let drift = self
-                    .set_control_drift_value(x, num_features, drift_profile, features)
-                    .map_err(DriftError::traced_set_control_value_error)?;
+                let drift =
+                    self.set_control_drift_value(x, num_features, drift_profile, features)?;
 
                 Ok(drift)
             })
@@ -370,8 +366,7 @@ impl SpcMonitor {
 
         // convert drift array to 2D array
         let drift_array =
-            Array::from_shape_vec((drift_array.len(), num_features), drift_array.concat())
-                .map_err(DriftError::traced_shape_error)?;
+            Array::from_shape_vec((drift_array.len(), num_features), drift_array.concat())?;
 
         let mut drift_map = SpcDriftMap::new(
             drift_profile.config.name.clone(),
@@ -422,9 +417,8 @@ impl SpcMonitor {
         let num_features = drift_profile.config.alert_config.features_to_monitor.len();
 
         // iterate through each feature
-        let sample_data = self
-            ._sample_data(array, drift_profile.config.sample_size, num_features)
-            .map_err(DriftError::traced_sample_data_error)?; // n x m data array (features and predictions)
+        let sample_data =
+            self._sample_data(array, drift_profile.config.sample_size, num_features)?; // n x m data array (features and predictions)
 
         let mut records = Vec::new();
 
@@ -461,17 +455,15 @@ impl SpcMonitor {
             .map(|x| {
                 // match AlertRules enum
 
-                let drift = self
-                    .set_control_drift_value(x, num_features, drift_profile, features)
-                    .map_err(DriftError::traced_set_control_value_error)?;
+                let drift =
+                    self.set_control_drift_value(x, num_features, drift_profile, features)?;
                 Ok(drift)
             })
             .collect::<Result<Vec<_>, DriftError>>()?;
 
         // convert drift array to 2D array
         let drift_array =
-            Array::from_shape_vec((drift_array.len(), num_features), drift_array.concat())
-                .map_err(DriftError::traced_shape_error)?;
+            Array::from_shape_vec((drift_array.len(), num_features), drift_array.concat())?;
 
         Ok(drift_array)
     }

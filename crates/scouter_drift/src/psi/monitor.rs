@@ -443,7 +443,7 @@ mod tests {
         let result = psi_monitor.check_features(&features, &array.view(), &profile);
 
         // Assert that the result is Ok
-        assert_eq!(result, Ok(()));
+        assert!(result.is_ok());
     }
 
     #[test]

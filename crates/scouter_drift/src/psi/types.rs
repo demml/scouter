@@ -1,4 +1,4 @@
-use scouter_error::DriftError;
+use crate::error::DriftError;
 use scouter_types::psi::{FeatureBinProportions, PsiFeatureDriftProfile};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};

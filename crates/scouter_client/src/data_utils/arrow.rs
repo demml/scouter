@@ -1,6 +1,6 @@
 use crate::data_utils::{ConvertedData, DataConverter};
 use pyo3::prelude::*;
-use scouter_error::ScouterError;
+use scouter_drift::error::DriftError;
 
 pub struct ArrowDataConverter;
 
@@ -9,7 +9,7 @@ impl DataConverter for ArrowDataConverter {
     fn categorize_features<'py>(
         py: Python<'py>,
         data: &Bound<'py, PyAny>,
-    ) -> Result<(Vec<String>, Vec<String>), ScouterError> {
+    ) -> Result<(Vec<String>, Vec<String>), DriftError> {
         let mut string_features = Vec::new();
         let mut numeric_features = Vec::new();
         let features = data.getattr("column_names")?.extract::<Vec<String>>()?;

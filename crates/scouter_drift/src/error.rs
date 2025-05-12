@@ -1,7 +1,10 @@
+use pyo3::exceptions::PyRuntimeError;
+use pyo3::PyErr;
+use scouter_dispatch::error::DispatchError;
 use thiserror::Error;
 
 #[cfg(feature = "sql")]
-use sqlx::Error as SqlxError;
+use scouter_sql::sql::error::SqlError;
 
 #[derive(Error, Debug)]
 pub enum DriftError {
@@ -31,11 +34,33 @@ pub enum DriftError {
 
     #[cfg(feature = "sql")]
     #[error(transparent)]
-    SqlxError(#[from] SqlxError),
+    SqlError(#[from] SqlError),
 
     #[error("SPC rule length is not 8")]
     SpcRuleLengthError,
 
     #[error(transparent)]
     ParseIntError(#[from] std::num::ParseIntError),
+
+    #[error(transparent)]
+    DispatchError(#[from] DispatchError),
+
+    #[error("Failed to process alerts")]
+    ProcessAlertError,
+}
+
+#[derive(Error, Debug)]
+pub enum PyDriftError {
+    #[error(transparent)]
+    DriftError(#[from] DriftError),
+
+    #[error(transparent)]
+    PyErr(#[from] pyo3::PyErr),
+}
+
+impl From<PyDriftError> for PyErr {
+    fn from(err: PyDriftError) -> PyErr {
+        let msg = err.to_string();
+        PyRuntimeError::new_err(msg)
+    }
 }
