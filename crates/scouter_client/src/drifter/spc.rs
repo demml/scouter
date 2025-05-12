@@ -64,7 +64,7 @@ impl SpcDrifter {
     ) -> Result<SpcFeatureAlerts, DriftError> {
         let drift_array = drift_array.as_array();
 
-        Ok(generate_alerts(&drift_array, &features, &alert_rule)?)
+        generate_alerts(&drift_array, &features, &alert_rule)
     }
 
     pub fn create_string_drift_profile(
@@ -82,29 +82,12 @@ impl SpcDrifter {
 
         drift_config.update_feature_map(feature_map.clone());
 
-        let array =
-            match self
-                .monitor
-                .convert_strings_to_ndarray_f32(&features, &array, &feature_map)
-            {
-                Ok(array) => array,
-                Err(e) => {
-                    return Err(e.into());
-                }
-            };
+        let array = self
+            .monitor
+            .convert_strings_to_ndarray_f32(&features, &array, &feature_map)?;
 
-        let profile =
-            match self
-                .monitor
-                .create_2d_drift_profile(&features, &array.view(), &drift_config)
-            {
-                Ok(profile) => profile,
-                Err(e) => {
-                    return Err(e.into());
-                }
-            };
-
-        Ok(profile)
+        self.monitor
+            .create_2d_drift_profile(&features, &array.view(), &drift_config)
     }
 
     pub fn create_numeric_drift_profile<F>(

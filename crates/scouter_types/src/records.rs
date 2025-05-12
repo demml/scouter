@@ -311,7 +311,7 @@ impl ServerRecord {
         }
 
         // If none of the extractions succeeded, return an error
-        Err(RecordError::ExtractionError.into())
+        Err(RecordError::ExtractionError)
     }
 
     #[getter]

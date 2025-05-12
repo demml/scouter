@@ -140,11 +140,7 @@ impl DataProfile {
 
     #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, UtilError> {
-        Ok(ProfileFuncs::save_to_json(
-            self,
-            path,
-            FileName::DataProfile.to_str(),
-        )?)
+        ProfileFuncs::save_to_json(self, path, FileName::DataProfile.to_str())
     }
 }
 

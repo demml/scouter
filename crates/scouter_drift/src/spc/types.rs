@@ -79,11 +79,7 @@ impl SpcDriftMap {
 
     #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, UtilError> {
-        Ok(ProfileFuncs::save_to_json(
-            self,
-            path,
-            FileName::SpcDriftMap.to_str(),
-        )?)
+        ProfileFuncs::save_to_json(self, path, FileName::SpcDriftMap.to_str())
     }
 
     #[allow(clippy::type_complexity)]
