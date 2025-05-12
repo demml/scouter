@@ -1,3 +1,4 @@
+use futures::io;
 use pyo3::PyErr;
 use thiserror::Error;
 
@@ -113,6 +114,27 @@ pub enum EventError {
 
     #[error("Failed to push to queue. Max retries exceeded")]
     QueuePushRetryError,
+
+    #[error("Queue not supported for feature entity")]
+    QueueNotSupportedFeatureError,
+
+    #[error("Queue not supported for metrics entity")]
+    QueueNotSupportedMetricsError,
+
+    #[error("Failed to signal startup")]
+    SignalStartupError,
+
+    #[error("Failed to signal startup")]
+    SignalCompletionError,
+
+    #[error("Failed to setup tokio runtime")]
+    SetupTokioRuntimeError(#[source] io::Error),
+
+    #[error("Failed to setup tokio runtime")]
+    StartupReceiverError(#[source] tokio::sync::oneshot::error::RecvError),
+
+    #[error("Failed to setup tokio runtime")]
+    ShutdownReceiverError(#[source] tokio::sync::oneshot::error::RecvError),
 }
 
 #[derive(Error, Debug)]
@@ -128,6 +150,15 @@ pub enum PyEventError {
 
     #[error(transparent)]
     TypeError(#[from] scouter_types::error::TypeError),
+
+    #[error(transparent)]
+    ProfileError(#[from] scouter_types::error::ProfileError),
+
+    #[error("Failed to get queue: {0}")]
+    MissingQueueError(String),
+
+    #[error("Failed to shutdown queue")]
+    ShutdownQueueError(#[source] pyo3::PyErr),
 }
 impl From<PyEventError> for PyErr {
     fn from(err: PyEventError) -> PyErr {
