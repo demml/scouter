@@ -1,4 +1,6 @@
+use scouter_types::RecordType;
 use thiserror::Error;
+use tracing::span::Record;
 
 #[derive(Error, Debug)]
 pub enum StorageError {
@@ -56,9 +58,6 @@ pub enum DataFrameError {
     #[error("Failed to register table: {0}")]
     RegisterTableError(String),
 
-    #[error("Invalid record type: {0}")]
-    InvalidRecordTypeError(String),
-
     #[error("Downcast error: {0}")]
     DowncastError(String),
 
@@ -76,4 +75,7 @@ pub enum DataFrameError {
 
     #[error(transparent)]
     ArrowError(#[from] arrow::error::ArrowError),
+
+    #[error("Invalid recor type: {0}")]
+    InvalidRecordTypeError(&'static RecordType),
 }

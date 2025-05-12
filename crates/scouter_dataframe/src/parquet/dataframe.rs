@@ -1,3 +1,4 @@
+use crate::error::DataFrameError;
 use crate::parquet::custom::CustomMetricDataFrame;
 use crate::parquet::psi::PsiDataFrame;
 use crate::parquet::spc::SpcDataFrame;
@@ -5,7 +6,6 @@ use crate::parquet::traits::ParquetFrame;
 use crate::storage::ObjectStore;
 use chrono::{DateTime, Utc};
 use datafusion::prelude::DataFrame;
-use scouter_error::DataFrameError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{RecordType, ServerRecords, StorageType};
 use tracing::instrument;
@@ -28,9 +28,7 @@ impl ParquetDataFrame {
             RecordType::Psi => Ok(ParquetDataFrame::Psi(PsiDataFrame::new(storage_settings)?)),
             RecordType::Spc => Ok(ParquetDataFrame::Spc(SpcDataFrame::new(storage_settings)?)),
 
-            _ => Err(DataFrameError::traced_invalid_record_type_error(
-                record_type,
-            )),
+            _ => Err(DataFrameError::InvalidRecordTypeError(record_type)),
         }
     }
 
