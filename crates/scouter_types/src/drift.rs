@@ -1,5 +1,5 @@
 use crate::custom::CustomDriftProfile;
-use crate::error::ProfileError;
+use crate::error::{ProfileError, PyProfileError};
 use crate::psi::PsiDriftProfile;
 use crate::spc::SpcDriftProfile;
 use crate::util::ProfileBaseArgs;
@@ -86,7 +86,7 @@ pub enum DriftProfile {
 #[pymethods]
 impl DriftProfile {
     #[getter]
-    pub fn profile<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, ProfileError> {
+    pub fn profile<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, PyProfileError> {
         match self {
             DriftProfile::Spc(profile) => Ok(profile.clone().into_bound_py_any(py)?),
             DriftProfile::Psi(profile) => Ok(profile.clone().into_bound_py_any(py)?),
@@ -173,7 +173,7 @@ impl DriftProfile {
     pub fn from_python(
         drift_type: DriftType,
         profile: &Bound<'_, PyAny>,
-    ) -> Result<Self, ProfileError> {
+    ) -> Result<Self, PyProfileError> {
         match drift_type {
             DriftType::Spc => {
                 let profile = profile.extract::<SpcDriftProfile>()?;

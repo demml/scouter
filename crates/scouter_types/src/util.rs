@@ -3,6 +3,7 @@ use crate::FeatureMap;
 use crate::{CommonCrons, DriftType};
 use chrono::{DateTime, Utc};
 use colored_json::{Color, ColorMode, ColoredFormatter, PrettyFormatter, Styler};
+use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
 use pyo3::IntoPyObjectExt;
@@ -109,11 +110,7 @@ impl ProfileFuncs {
     }
 }
 
-pub fn json_to_pyobject(
-    py: Python,
-    value: &Value,
-    dict: &Bound<'_, PyDict>,
-) -> Result<(), TypeError> {
+pub fn json_to_pyobject(py: Python, value: &Value, dict: &Bound<'_, PyDict>) -> PyResult<()> {
     match value {
         Value::Object(map) => {
             for (k, v) in map {
@@ -126,7 +123,9 @@ pub fn json_to_pyobject(
                         } else if let Some(f) = n.as_f64() {
                             f.into_py_any(py).unwrap()
                         } else {
-                            return Err(TypeError::InvalidNumberError);
+                            return Err(PyRuntimeError::new_err(
+                                "Invalid number type, expected i64 or f64",
+                            ));
                         }
                     }
                     Value::String(s) => s.into_py_any(py).unwrap(),
@@ -147,12 +146,12 @@ pub fn json_to_pyobject(
                 dict.set_item(k, py_value)?;
             }
         }
-        _ => return Err(TypeError::RootMustBeObject),
+        _ => return Err(PyRuntimeError::new_err("Root must be object")),
     }
     Ok(())
 }
 
-pub fn json_to_pyobject_value(py: Python, value: &Value) -> Result<PyObject, TypeError> {
+pub fn json_to_pyobject_value(py: Python, value: &Value) -> PyResult<PyObject> {
     Ok(match value {
         Value::Null => py.None(),
         Value::Bool(b) => b.into_py_any(py).unwrap(),
@@ -162,7 +161,9 @@ pub fn json_to_pyobject_value(py: Python, value: &Value) -> Result<PyObject, Typ
             } else if let Some(f) = n.as_f64() {
                 f.into_py_any(py).unwrap()
             } else {
-                return Err(TypeError::InvalidNumberError);
+                return Err(PyRuntimeError::new_err(
+                    "Invalid number type, expected i64 or f64",
+                ));
             }
         }
         Value::String(s) => s.into_py_any(py).unwrap(),
@@ -182,7 +183,7 @@ pub fn json_to_pyobject_value(py: Python, value: &Value) -> Result<PyObject, Typ
     })
 }
 
-pub fn pyobject_to_json(obj: &Bound<'_, PyAny>) -> Result<Value, TypeError> {
+pub fn pyobject_to_json(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
     if obj.is_instance_of::<PyDict>() {
         let dict = obj.downcast::<PyDict>()?;
         let mut map = serde_json::Map::new();
@@ -214,9 +215,7 @@ pub fn pyobject_to_json(obj: &Bound<'_, PyAny>) -> Result<Value, TypeError> {
     } else if obj.is_none() {
         Ok(Value::Null)
     } else {
-        Err(TypeError::UnsupportedTypeError(
-            obj.get_type().name().unwrap().to_string(),
-        ))
+        Err(PyRuntimeError::new_err("Unsupported type"))
     }
 }
 

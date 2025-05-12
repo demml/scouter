@@ -47,9 +47,6 @@ pub enum TypeError {
     #[error("Invalid schedule")]
     InvalidScheduleError,
 
-    #[error(transparent)]
-    PyErr(#[from] pyo3::PyErr),
-
     #[error("Missing space argument")]
     MissingSpaceError,
 
@@ -87,14 +84,26 @@ pub enum TypeError {
     MissingStringValueError,
 }
 
-impl<'a> From<pyo3::DowncastError<'a, 'a>> for TypeError {
+#[derive(Error, Debug)]
+pub enum PyTypeError {
+    #[error(transparent)]
+    PyErr(#[from] pyo3::PyErr),
+
+    #[error("Failed to downcast Python object: {0}")]
+    DowncastError(String),
+
+    #[error(transparent)]
+    TypeError(#[from] TypeError),
+}
+
+impl<'a> From<pyo3::DowncastError<'a, 'a>> for PyTypeError {
     fn from(err: pyo3::DowncastError) -> Self {
-        TypeError::DowncastError(err.to_string())
+        PyTypeError::DowncastError(err.to_string())
     }
 }
 
-impl From<TypeError> for PyErr {
-    fn from(err: TypeError) -> PyErr {
+impl From<PyTypeError> for PyErr {
+    fn from(err: PyTypeError) -> PyErr {
         let msg = err.to_string();
         PyRuntimeError::new_err(msg)
     }
@@ -102,6 +111,9 @@ impl From<TypeError> for PyErr {
 
 #[derive(Error, Debug)]
 pub enum ContractError {
+    #[error(transparent)]
+    PyErr(#[from] pyo3::PyErr),
+
     #[error(transparent)]
     TypeError(#[from] TypeError),
 }
@@ -152,9 +164,6 @@ pub enum ProfileError {
     #[error("Features and array are not the same length")]
     FeatureArrayLengthError,
 
-    #[error(transparent)]
-    PyErr(#[from] pyo3::PyErr),
-
     #[error("Unexpected record type")]
     InvalidDriftTypeError,
 
@@ -180,8 +189,31 @@ pub enum ProfileError {
     CustomAlertThresholdNotFound,
 }
 
-impl From<ProfileError> for PyErr {
-    fn from(err: ProfileError) -> PyErr {
+#[derive(Error, Debug)]
+pub enum PyProfileError {
+    #[error(transparent)]
+    PyErr(#[from] pyo3::PyErr),
+
+    #[error(transparent)]
+    ProfileError(#[from] ProfileError),
+
+    #[error(transparent)]
+    TypeError(#[from] TypeError),
+
+    #[error(transparent)]
+    PyTypeError(#[from] PyTypeError),
+
+    #[error(transparent)]
+    SerdeJsonError(#[from] serde_json::Error),
+
+    #[error(transparent)]
+    IoError(#[from] std::io::Error),
+
+    #[error(transparent)]
+    UtilError(#[from] UtilError),
+}
+impl From<PyProfileError> for PyErr {
+    fn from(err: PyProfileError) -> PyErr {
         let msg = err.to_string();
         PyRuntimeError::new_err(msg)
     }

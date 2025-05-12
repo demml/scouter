@@ -60,6 +60,9 @@ pub enum PyDriftError {
     #[error(transparent)]
     PyErr(#[from] pyo3::PyErr),
 
+    #[error(transparent)]
+    PyProfileError(#[from] scouter_types::error::PyProfileError),
+
     #[error("Failed to downcast Python object: {0}")]
     DowncastError(String),
 

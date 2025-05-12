@@ -158,6 +158,9 @@ pub enum PyEventError {
     TypeError(#[from] scouter_types::error::TypeError),
 
     #[error(transparent)]
+    PyTypeError(#[from] scouter_types::error::PyTypeError),
+
+    #[error(transparent)]
     ProfileError(#[from] scouter_types::error::ProfileError),
 
     #[error("Failed to get queue: {0}")]

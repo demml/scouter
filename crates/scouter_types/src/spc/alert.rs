@@ -1,4 +1,4 @@
-use crate::error::TypeError;
+use crate::error::{PyTypeError, TypeError};
 use crate::{
     dispatch::AlertDispatchType, AlertDispatchConfig, CommonCrons, DispatchAlertDescription,
     OpsGenieDispatchConfig, ProfileFuncs, SlackDispatchConfig, ValidateAlertConfig,
@@ -102,7 +102,7 @@ impl SpcAlertConfig {
         schedule: Option<&Bound<'_, PyAny>>,
         features_to_monitor: Vec<String>,
         dispatch_config: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<Self> {
+    ) -> Result<Self, PyTypeError> {
         let alert_dispatch_config = match dispatch_config {
             None => AlertDispatchConfig::default(),
             Some(config) => {

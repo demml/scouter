@@ -1,6 +1,6 @@
 #![allow(clippy::useless_conversion)]
 use crate::custom::alert::{CustomMetric, CustomMetricAlertConfig};
-use crate::error::{ProfileError, TypeError};
+use crate::error::{ProfileError, PyProfileError, PyTypeError, TypeError};
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::ProfileRequest;
 use crate::{
@@ -60,10 +60,10 @@ impl CustomMetricDriftConfig {
         sample_size: usize,
         alert_config: CustomMetricAlertConfig,
         config_path: Option<PathBuf>,
-    ) -> Result<Self, ProfileError> {
+    ) -> Result<Self, PyProfileError> {
         if let Some(config_path) = config_path {
-            let config = CustomMetricDriftConfig::load_from_json_file(config_path);
-            return config;
+            let config = CustomMetricDriftConfig::load_from_json_file(config_path)?;
+            return Ok(config);
         }
 
         Ok(Self {
@@ -77,7 +77,7 @@ impl CustomMetricDriftConfig {
     }
 
     #[staticmethod]
-    pub fn load_from_json_file(path: PathBuf) -> Result<CustomMetricDriftConfig, ProfileError> {
+    pub fn load_from_json_file(path: PathBuf) -> Result<CustomMetricDriftConfig, PyProfileError> {
         // deserialize the string to a struct
 
         let file = std::fs::read_to_string(&path)?;
@@ -103,7 +103,7 @@ impl CustomMetricDriftConfig {
         name: Option<String>,
         version: Option<String>,
         alert_config: Option<CustomMetricAlertConfig>,
-    ) -> Result<(), TypeError> {
+    ) -> Result<(), PyTypeError> {
         if name.is_some() {
             self.name = name.ok_or(TypeError::MissingNameError)?;
         }
@@ -145,9 +145,9 @@ impl CustomDriftProfile {
         mut config: CustomMetricDriftConfig,
         metrics: Vec<CustomMetric>,
         scouter_version: Option<String>,
-    ) -> Result<Self, TypeError> {
+    ) -> Result<Self, PyProfileError> {
         if metrics.is_empty() {
-            return Err(TypeError::NoMetricsError);
+            return Err(TypeError::NoMetricsError.into());
         }
 
         config.alert_config.set_alert_conditions(&metrics);
@@ -173,7 +173,7 @@ impl CustomDriftProfile {
         ProfileFuncs::__json__(self)
     }
 
-    pub fn model_dump(&self, py: Python) -> Result<Py<PyDict>, ProfileError> {
+    pub fn model_dump(&self, py: Python) -> Result<Py<PyDict>, PyProfileError> {
         let json_str = serde_json::to_string(&self)?;
 
         let json_value: Value = serde_json::from_str(&json_str)?;
@@ -190,7 +190,7 @@ impl CustomDriftProfile {
 
     // Convert python dict into a drift profile
     #[pyo3(signature = (path=None))]
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ProfileError> {
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, PyProfileError> {
         Ok(ProfileFuncs::save_to_json(
             self,
             path,
@@ -213,7 +213,7 @@ impl CustomDriftProfile {
     }
 
     #[staticmethod]
-    pub fn from_file(path: PathBuf) -> Result<CustomDriftProfile, ProfileError> {
+    pub fn from_file(path: PathBuf) -> Result<CustomDriftProfile, PyProfileError> {
         let file = std::fs::read_to_string(&path)?;
 
         Ok(serde_json::from_str(&file)?)
@@ -227,13 +227,13 @@ impl CustomDriftProfile {
         name: Option<String>,
         version: Option<String>,
         alert_config: Option<CustomMetricAlertConfig>,
-    ) -> Result<(), TypeError> {
+    ) -> Result<(), PyTypeError> {
         self.config
             .update_config_args(space, name, version, alert_config)
     }
 
     #[getter]
-    pub fn custom_metrics(&self) -> Result<Vec<CustomMetric>, ProfileError> {
+    pub fn custom_metrics(&self) -> Result<Vec<CustomMetric>, PyProfileError> {
         let alert_conditions = &self
             .config
             .alert_config
@@ -262,7 +262,7 @@ impl CustomDriftProfile {
     }
 
     /// Create a profile request from the profile
-    pub fn create_profile_request(&self) -> Result<ProfileRequest, TypeError> {
+    pub fn create_profile_request(&self) -> Result<ProfileRequest, PyTypeError> {
         Ok(ProfileRequest {
             space: self.config.space.clone(),
             profile: self.model_dump_json(),
