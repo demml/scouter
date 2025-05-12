@@ -1,5 +1,5 @@
 #![allow(clippy::useless_conversion)]
-use crate::error::{ProfileError, PyProfileError, PyTypeError, TypeError};
+use crate::error::{ProfileError, TypeError};
 use crate::spc::alert::SpcAlertConfig;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::{
@@ -112,7 +112,7 @@ impl SpcDriftConfig {
         sample_size: Option<usize>,
         alert_config: Option<SpcAlertConfig>,
         config_path: Option<PathBuf>,
-    ) -> Result<Self, PyProfileError> {
+    ) -> Result<Self, ProfileError> {
         if let Some(config_path) = config_path {
             let config = SpcDriftConfig::load_from_json_file(config_path);
             return config;
@@ -143,7 +143,7 @@ impl SpcDriftConfig {
     }
 
     #[staticmethod]
-    pub fn load_from_json_file(path: PathBuf) -> Result<SpcDriftConfig, PyProfileError> {
+    pub fn load_from_json_file(path: PathBuf) -> Result<SpcDriftConfig, ProfileError> {
         // deserialize the string to a struct
 
         let file = std::fs::read_to_string(&path)?;
@@ -182,7 +182,7 @@ impl SpcDriftConfig {
         sample: Option<bool>,
         sample_size: Option<usize>,
         alert_config: Option<SpcAlertConfig>,
-    ) -> Result<(), PyProfileError> {
+    ) -> Result<(), ProfileError> {
         if name.is_some() {
             self.name = name.ok_or(TypeError::MissingNameError)?;
         }
@@ -275,7 +275,7 @@ impl SpcDriftProfile {
         ProfileFuncs::__json__(self)
     }
     #[allow(clippy::useless_conversion)]
-    pub fn model_dump(&self, py: Python) -> Result<Py<PyDict>, PyProfileError> {
+    pub fn model_dump(&self, py: Python) -> Result<Py<PyDict>, ProfileError> {
         let json_str = serde_json::to_string(&self)?;
 
         let json_value: Value = serde_json::from_str(&json_str)?;
@@ -306,7 +306,7 @@ impl SpcDriftProfile {
 
     // Convert python dict into a drift profile
     #[pyo3(signature = (path=None))]
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, PyProfileError> {
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ProfileError> {
         Ok(ProfileFuncs::save_to_json(
             self,
             path,
@@ -315,7 +315,7 @@ impl SpcDriftProfile {
     }
 
     #[staticmethod]
-    pub fn from_file(path: PathBuf) -> Result<SpcDriftProfile, PyProfileError> {
+    pub fn from_file(path: PathBuf) -> Result<SpcDriftProfile, ProfileError> {
         let file = std::fs::read_to_string(&path)?;
 
         Ok(serde_json::from_str(&file)?)
@@ -343,13 +343,13 @@ impl SpcDriftProfile {
         sample: Option<bool>,
         sample_size: Option<usize>,
         alert_config: Option<SpcAlertConfig>,
-    ) -> Result<(), PyProfileError> {
+    ) -> Result<(), ProfileError> {
         self.config
             .update_config_args(space, name, version, sample, sample_size, alert_config)
     }
 
     /// Create a profile request from the profile
-    pub fn create_profile_request(&self) -> Result<ProfileRequest, PyTypeError> {
+    pub fn create_profile_request(&self) -> Result<ProfileRequest, TypeError> {
         Ok(ProfileRequest {
             space: self.config.space.clone(),
             profile: self.model_dump_json(),

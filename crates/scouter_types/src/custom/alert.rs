@@ -1,4 +1,4 @@
-use crate::error::{PyTypeError, TypeError};
+use crate::error::TypeError;
 use crate::{
     dispatch::AlertDispatchType, AlertDispatchConfig, CommonCrons, DispatchAlertDescription,
     OpsGenieDispatchConfig, ProfileFuncs, SlackDispatchConfig, ValidateAlertConfig,
@@ -34,7 +34,7 @@ impl CustomMetric {
         value: f64,
         alert_threshold: AlertThreshold,
         alert_threshold_value: Option<f64>,
-    ) -> Result<Self, PyTypeError> {
+    ) -> Result<Self, TypeError> {
         let custom_condition =
             CustomMetricAlertCondition::new(alert_threshold, alert_threshold_value);
 
@@ -161,7 +161,7 @@ impl CustomMetricAlertConfig {
     pub fn new(
         schedule: Option<&Bound<'_, PyAny>>,
         dispatch_config: Option<&Bound<'_, PyAny>>,
-    ) -> Result<Self, PyTypeError> {
+    ) -> Result<Self, TypeError> {
         let alert_dispatch_config = match dispatch_config {
             None => AlertDispatchConfig::default(),
             Some(config) => {

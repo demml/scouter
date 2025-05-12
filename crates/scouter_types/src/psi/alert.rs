@@ -1,4 +1,4 @@
-use crate::error::{PyTypeError, TypeError};
+use crate::error::TypeError;
 use crate::{
     AlertDispatchConfig, AlertDispatchType, CommonCrons, DispatchAlertDescription,
     OpsGenieDispatchConfig, SlackDispatchConfig, ValidateAlertConfig,
@@ -47,7 +47,7 @@ impl PsiAlertConfig {
         features_to_monitor: Vec<String>,
         psi_threshold: f64,
         dispatch_config: Option<&Bound<'_, PyAny>>,
-    ) -> Result<Self, PyTypeError> {
+    ) -> Result<Self, TypeError> {
         let alert_dispatch_config = match dispatch_config {
             None => AlertDispatchConfig::default(),
             Some(config) => {

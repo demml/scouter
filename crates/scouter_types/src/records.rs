@@ -1,4 +1,4 @@
-use crate::error::{PyRecordError, RecordError};
+use crate::error::RecordError;
 use crate::ProfileFuncs;
 use chrono::DateTime;
 use chrono::Utc;
@@ -293,7 +293,7 @@ pub enum ServerRecord {
 #[pymethods]
 impl ServerRecord {
     #[new]
-    pub fn new(record: &Bound<'_, PyAny>) -> Result<Self, PyRecordError> {
+    pub fn new(record: &Bound<'_, PyAny>) -> Result<Self, RecordError> {
         if let Ok(spc_record) = record.extract::<SpcServerRecord>() {
             return Ok(ServerRecord::Spc(spc_record));
         }
@@ -315,7 +315,7 @@ impl ServerRecord {
     }
 
     #[getter]
-    pub fn record(&self, py: Python) -> Result<PyObject, PyRecordError> {
+    pub fn record(&self, py: Python) -> Result<PyObject, RecordError> {
         match self {
             ServerRecord::Spc(record) => Ok(record.clone().into_py_any(py)?),
             ServerRecord::Psi(record) => Ok(record.clone().into_py_any(py)?),

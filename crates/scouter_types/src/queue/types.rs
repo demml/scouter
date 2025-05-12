@@ -1,7 +1,7 @@
 use crate::ProfileFuncs;
 use pyo3::prelude::*;
 
-use crate::error::{PyTypeError, TypeError};
+use crate::error::TypeError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
@@ -238,7 +238,7 @@ pub enum QueueItem {
 
 impl QueueItem {
     /// Helper for extracting an Entity from a Python object
-    pub fn from_py_entity(entity: &Bound<'_, PyAny>) -> Result<Self, PyTypeError> {
+    pub fn from_py_entity(entity: &Bound<'_, PyAny>) -> Result<Self, TypeError> {
         let entity_type = entity.getattr("entity_type")?.extract::<EntityType>()?;
 
         match entity_type {

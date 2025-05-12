@@ -20,20 +20,8 @@ pub enum UtilError {
     SerdeJsonError(#[from] serde_json::Error),
 }
 
-#[derive(Error, Debug)]
-pub enum PyUtilError {
-    #[error(transparent)]
-    SerdeJsonError(#[from] serde_json::Error),
-
-    #[error(transparent)]
-    UtilError(#[from] UtilError),
-
-    #[error(transparent)]
-    PyErr(#[from] pyo3::PyErr),
-}
-
-impl From<PyUtilError> for PyErr {
-    fn from(err: PyUtilError) -> PyErr {
+impl From<UtilError> for PyErr {
+    fn from(err: UtilError) -> PyErr {
         let msg = err.to_string();
         PyRuntimeError::new_err(msg)
     }
@@ -82,46 +70,49 @@ pub enum TypeError {
 
     #[error("Missing value for string feature")]
     MissingStringValueError,
+
+    #[error("{0}")]
+    PyError(String),
 }
 
-#[derive(Error, Debug)]
-pub enum PyTypeError {
-    #[error(transparent)]
-    PyErr(#[from] pyo3::PyErr),
-
-    #[error("Failed to downcast Python object: {0}")]
-    DowncastError(String),
-
-    #[error(transparent)]
-    TypeError(#[from] TypeError),
-}
-
-impl<'a> From<pyo3::DowncastError<'a, 'a>> for PyTypeError {
+impl<'a> From<pyo3::DowncastError<'a, 'a>> for TypeError {
     fn from(err: pyo3::DowncastError) -> Self {
-        PyTypeError::DowncastError(err.to_string())
+        TypeError::DowncastError(err.to_string())
     }
 }
 
-impl From<PyTypeError> for PyErr {
-    fn from(err: PyTypeError) -> PyErr {
+impl From<TypeError> for PyErr {
+    fn from(err: TypeError) -> PyErr {
         let msg = err.to_string();
         PyRuntimeError::new_err(msg)
+    }
+}
+
+impl From<PyErr> for TypeError {
+    fn from(err: PyErr) -> TypeError {
+        TypeError::PyError(err.to_string())
     }
 }
 
 #[derive(Error, Debug)]
 pub enum ContractError {
     #[error(transparent)]
-    PyErr(#[from] pyo3::PyErr),
-
-    #[error(transparent)]
     TypeError(#[from] TypeError),
+
+    #[error("{0}")]
+    PyError(String),
 }
 
 impl From<ContractError> for PyErr {
     fn from(err: ContractError) -> PyErr {
         let msg = err.to_string();
         PyRuntimeError::new_err(msg)
+    }
+}
+
+impl From<PyErr> for ContractError {
+    fn from(err: PyErr) -> ContractError {
+        ContractError::PyError(err.to_string())
     }
 }
 
@@ -138,21 +129,21 @@ pub enum RecordError {
 
     #[error("Unexpected record type")]
     InvalidDriftTypeError,
+
+    #[error("{0}")]
+    PyError(String),
 }
 
-#[derive(Error, Debug)]
-pub enum PyRecordError {
-    #[error(transparent)]
-    RecordError(#[from] RecordError),
-
-    #[error(transparent)]
-    PyErr(#[from] pyo3::PyErr),
-}
-
-impl From<PyRecordError> for PyErr {
-    fn from(err: PyRecordError) -> PyErr {
+impl From<RecordError> for PyErr {
+    fn from(err: RecordError) -> PyErr {
         let msg = err.to_string();
         PyRuntimeError::new_err(msg)
+    }
+}
+
+impl From<PyErr> for RecordError {
+    fn from(err: PyErr) -> RecordError {
+        RecordError::PyError(err.to_string())
     }
 }
 
@@ -187,34 +178,20 @@ pub enum ProfileError {
 
     #[error("Custom alert threshold not found")]
     CustomAlertThresholdNotFound,
+
+    #[error("{0}")]
+    PyError(String),
 }
 
-#[derive(Error, Debug)]
-pub enum PyProfileError {
-    #[error(transparent)]
-    PyErr(#[from] pyo3::PyErr),
-
-    #[error(transparent)]
-    ProfileError(#[from] ProfileError),
-
-    #[error(transparent)]
-    TypeError(#[from] TypeError),
-
-    #[error(transparent)]
-    PyTypeError(#[from] PyTypeError),
-
-    #[error(transparent)]
-    SerdeJsonError(#[from] serde_json::Error),
-
-    #[error(transparent)]
-    IoError(#[from] std::io::Error),
-
-    #[error(transparent)]
-    UtilError(#[from] UtilError),
-}
-impl From<PyProfileError> for PyErr {
-    fn from(err: PyProfileError) -> PyErr {
+impl From<ProfileError> for PyErr {
+    fn from(err: ProfileError) -> PyErr {
         let msg = err.to_string();
         PyRuntimeError::new_err(msg)
+    }
+}
+
+impl From<PyErr> for ProfileError {
+    fn from(err: PyErr) -> ProfileError {
+        ProfileError::PyError(err.to_string())
     }
 }
