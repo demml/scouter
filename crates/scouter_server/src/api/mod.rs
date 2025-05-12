@@ -1,5 +1,6 @@
 pub mod archive;
 pub mod drift_manager;
+pub mod error;
 pub mod middleware;
 pub mod router;
 pub mod routes;

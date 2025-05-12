@@ -1,9 +1,16 @@
-use scouter_error::LoggingError;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::PostgresClient;
+use serde::Deserialize;
 use sqlx::{Pool, Postgres};
 use std::io;
+use thiserror::Error;
 use tracing_subscriber::fmt::time::UtcTime;
+
+#[derive(Error, Debug, Deserialize)]
+pub enum LoggingError {
+    #[error("{0}")]
+    Error(String),
+}
 
 const DEFAULT_TIME_PATTERN: &str =
     "[year]-[month]-[day]T[hour repr:24]:[minute]:[second]::[subsecond digits:4]";
