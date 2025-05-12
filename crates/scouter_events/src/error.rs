@@ -2,7 +2,7 @@ use futures::io;
 use pyo3::PyErr;
 use thiserror::Error;
 
-#[cfg(feature = "kafka")]
+#[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
 use rdkafka::error::KafkaError;
 
 use crate::queue::bus::Event;
