@@ -59,13 +59,13 @@ pub enum DataFrameError {
     RegisterTableError(String),
 
     #[error("Downcast error: {0}")]
-    DowncastError(String),
+    DowncastError(&'static str),
 
     #[error("Failed to get column: {0}")]
-    GetColumnError(String),
+    GetColumnError(&'static str),
 
     #[error("Missing field: {0}")]
-    MissingFieldError(String),
+    MissingFieldError(&'static str),
 
     #[error(transparent)]
     DatafusionError(#[from] datafusion::error::DataFusionError),

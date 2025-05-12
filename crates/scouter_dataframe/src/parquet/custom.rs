@@ -134,7 +134,7 @@ fn extract_created_at(batch: &RecordBatch) -> Result<Vec<DateTime<Utc>>, DataFra
         .column(1)
         .as_any()
         .downcast_ref::<ListArray>()
-        .ok_or_else(|| DataFrameError::DowncastError("ListArray".to_string()))?;
+        .ok_or_else(|| DataFrameError::DowncastError("ListArray"))?;
 
     let created_at_array = created_at_list.value(0);
     Ok(created_at_array
@@ -149,32 +149,32 @@ fn extract_stats(batch: &RecordBatch) -> Result<BinnedCustomMetricStats, DataFra
         .column(2)
         .as_any()
         .downcast_ref::<ListArray>()
-        .ok_or_else(|| DataFrameError::DowncastError("ListArray".to_string()))?
+        .ok_or_else(|| DataFrameError::DowncastError("ListArray"))?
         .value(0);
 
     let stats_structs = stats_list
         .as_any()
         .downcast_ref::<StructArray>()
-        .ok_or_else(|| DataFrameError::DowncastError("StructArray".to_string()))?;
+        .ok_or_else(|| DataFrameError::DowncastError("StructArray"))?;
 
     // extract avg, lower_bound, and upper_bound from the struct
 
     // Extract avg, lower_bound, and upper_bound from the struct
     let avg = stats_structs
         .column_by_name("avg")
-        .ok_or_else(|| DataFrameError::MissingFieldError("avg".to_string()))?
+        .ok_or_else(|| DataFrameError::MissingFieldError("avg"))?
         .as_primitive::<Float64Type>()
         .value(0);
 
     let lower_bound = stats_structs
         .column_by_name("lower_bound")
-        .ok_or_else(|| DataFrameError::MissingFieldError("lower_bound".to_string()))?
+        .ok_or_else(|| DataFrameError::MissingFieldError("lower_bound"))?
         .as_primitive::<Float64Type>()
         .value(0);
 
     let upper_bound = stats_structs
         .column_by_name("upper_bound")
-        .ok_or_else(|| DataFrameError::MissingFieldError("upper_bound".to_string()))?
+        .ok_or_else(|| DataFrameError::MissingFieldError("upper_bound"))?
         .as_primitive::<Float64Type>()
         .value(0);
 
