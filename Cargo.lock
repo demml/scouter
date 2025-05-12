@@ -4930,6 +4930,7 @@ dependencies = [
  "rayon",
  "scouter-types",
  "serde",
+ "thiserror 2.0.12",
  "tracing",
 ]
 

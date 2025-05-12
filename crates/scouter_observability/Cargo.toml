@@ -22,6 +22,7 @@ rayon = { workspace = true }
 noisy_float = { workspace = true }
 ndarray = { workspace = true }
 ndarray-stats = { workspace = true }
+thiserror = { workspace = true }
 tracing = { workspace = true }
 
 
