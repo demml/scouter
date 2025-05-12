@@ -1,8 +1,8 @@
-use crate::data_utils::error::PyDataError;
+use crate::error::PyDataError;
 use pyo3::prelude::*;
 pub mod arrow;
 pub mod base;
-pub mod error;
+
 pub mod numpy;
 pub mod pandas;
 pub mod polars;

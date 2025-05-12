@@ -1,9 +1,9 @@
 // we redifine HTTPClient here because the scouterClient needs a blocking httpclient, unlike the producer enum
 
+use crate::error::ClientError;
 use reqwest::blocking::{Client, Response};
 use reqwest::header::AUTHORIZATION;
 use reqwest::header::{HeaderMap, HeaderValue};
-use scouter_error::{ClientError, ScouterError};
 use scouter_settings::http::HTTPConfig;
 use scouter_types::http::{JwtToken, RequestType, Routes};
 use serde_json::Value;
@@ -17,23 +17,12 @@ const TIMEOUT_SECS: u64 = 60;
 pub fn build_http_client(settings: &HTTPConfig) -> Result<Client, ClientError> {
     let mut headers = HeaderMap::new();
 
-    headers.insert(
-        "Username",
-        HeaderValue::from_str(&settings.username)
-            .map_err(ClientError::traced_create_header_error)?,
-    );
+    headers.insert("Username", HeaderValue::from_str(&settings.username)?);
 
-    headers.insert(
-        "Password",
-        HeaderValue::from_str(&settings.password)
-            .map_err(ClientError::traced_create_header_error)?,
-    );
+    headers.insert("Password", HeaderValue::from_str(&settings.password)?);
 
     let client_builder = Client::builder().timeout(std::time::Duration::from_secs(TIMEOUT_SECS));
-    let client = client_builder
-        .default_headers(headers)
-        .build()
-        .map_err(ClientError::traced_create_client_error)?;
+    let client = client_builder.default_headers(headers).build()?;
     Ok(client)
 }
 
@@ -54,38 +43,30 @@ impl HTTPClient {
             base_path: format!("{}/{}", config.server_uri, "scouter"),
         };
 
-        api_client
-            .refresh_token()
-            .map_err(ClientError::traced_jwt_error)?;
+        api_client.refresh_token()?;
 
         Ok(api_client)
     }
 
     #[instrument(skip_all)]
-    fn refresh_token(&self) -> Result<(), ScouterError> {
+    fn refresh_token(&self) -> Result<(), ClientError> {
         let url = format!("{}/{}", self.base_path, Routes::AuthLogin.as_str());
         debug!("Getting JWT token from {}", url);
 
-        let response = self
-            .client
-            .get(url)
-            .send()
-            .map_err(ClientError::traced_request_error)?;
+        let response = self.client.get(url).send()?;
 
         // check if unauthorized
         if response.status().is_client_error() {
-            return Err(ScouterError::ClientError(ClientError::Unauthorized));
+            return Err(ClientError::Unauthorized);
         }
 
-        let token = response
-            .json::<JwtToken>()
-            .map_err(ClientError::traced_parse_jwt_error)?;
+        let token = response.json::<JwtToken>()?;
 
         if let Ok(mut token_guard) = self.auth_token.write() {
             *token_guard = token.token;
         } else {
             error!("Failed to acquire write lock for token update");
-            return Err(ScouterError::ClientError(ClientError::UpdateAuthError));
+            return Err(ClientError::UpdateAuthTokenError);
         }
 
         Ok(())
@@ -142,8 +123,7 @@ impl HTTPClient {
                     .get(url)
                     .headers(headers)
                     .bearer_auth(self.get_current_token())
-                    .send()
-                    .map_err(ClientError::traced_request_error)?
+                    .send()?
             }
             RequestType::Post => self
                 .client
@@ -151,16 +131,14 @@ impl HTTPClient {
                 .headers(headers)
                 .json(&body_params)
                 .bearer_auth(self.get_current_token())
-                .send()
-                .map_err(ClientError::traced_request_error)?,
+                .send()?,
             RequestType::Put => self
                 .client
                 .put(url)
                 .headers(headers)
                 .json(&body_params)
                 .bearer_auth(self.get_current_token())
-                .send()
-                .map_err(ClientError::traced_request_error)?,
+                .send()?,
             RequestType::Delete => {
                 let url = if let Some(query_string) = query_string {
                     format!("{}?{}", url, query_string)
@@ -171,8 +149,7 @@ impl HTTPClient {
                     .delete(url)
                     .headers(headers)
                     .bearer_auth(self.get_current_token())
-                    .send()
-                    .map_err(ClientError::traced_request_error)?
+                    .send()?
             }
         };
 
@@ -186,7 +163,7 @@ impl HTTPClient {
         body_params: Option<Value>,
         query_params: Option<String>,
         headers: Option<HeaderMap>,
-    ) -> Result<Response, ScouterError> {
+    ) -> Result<Response, ClientError> {
         let response = self._request(
             route.clone(),
             request_type,

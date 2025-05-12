@@ -1,5 +1,5 @@
-use crate::data_utils::error::PyDataError;
 use crate::data_utils::ConvertedData;
+use crate::error::PyDataError;
 use num_traits::Float;
 use numpy::PyArray2;
 use numpy::PyArrayMethods;

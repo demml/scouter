@@ -25,6 +25,9 @@ pub enum DataProfileError {
 
     #[error(transparent)]
     ShapeError(#[from] ndarray::ShapeError),
+
+    #[error(transparent)]
+    TypeError(#[from] scouter_types::error::TypeError),
 }
 
 impl From<DataProfileError> for PyErr {

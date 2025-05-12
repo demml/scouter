@@ -2,8 +2,8 @@ use crate::data_utils::{convert_array_type, ConvertedData};
 use ndarray::{concatenate, Array2, Axis};
 use num_traits::{Float, FromPrimitive};
 use numpy::PyReadonlyArray2;
+use scouter_drift::error::PyDriftError;
 use scouter_drift::{psi::PsiMonitor, CategoricalFeatureHelpers};
-use scouter_error::{DriftError, ScouterError};
 use scouter_types::psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile};
 use std::collections::HashMap;
 use tracing::instrument;
@@ -24,7 +24,7 @@ impl PsiDrifter {
         features: Vec<String>,
         array: Vec<Vec<String>>,
         drift_profile: PsiDriftProfile,
-    ) -> Result<Array2<f32>, ScouterError> {
+    ) -> Result<Array2<f32>, PyDriftError> {
         let array = self.monitor.convert_strings_to_ndarray_f32(
             &features,
             &array,
@@ -39,7 +39,7 @@ impl PsiDrifter {
         features: Vec<String>,
         array: Vec<Vec<String>>,
         drift_profile: PsiDriftProfile,
-    ) -> Result<Array2<f64>, ScouterError> {
+    ) -> Result<Array2<f64>, PyDriftError> {
         let array = self.monitor.convert_strings_to_ndarray_f64(
             &features,
             &array,
@@ -55,7 +55,7 @@ impl PsiDrifter {
         array: Vec<Vec<String>>,
         features: Vec<String>,
         mut drift_config: PsiDriftConfig,
-    ) -> Result<PsiDriftProfile, ScouterError> {
+    ) -> Result<PsiDriftProfile, PyDriftError> {
         let feature_map = self.monitor.create_feature_map(&features, &array)?;
 
         drift_config.update_feature_map(feature_map.clone());
@@ -76,7 +76,7 @@ impl PsiDrifter {
         array: PyReadonlyArray2<F>,
         features: Vec<String>,
         drift_config: PsiDriftConfig,
-    ) -> Result<PsiDriftProfile, ScouterError>
+    ) -> Result<PsiDriftProfile, PyDriftError>
     where
         F: Float + Sync + FromPrimitive + Default,
         F: Into<f64>,
@@ -95,7 +95,7 @@ impl PsiDrifter {
         &mut self,
         data: ConvertedData<'_>,
         config: PsiDriftConfig,
-    ) -> Result<PsiDriftProfile, ScouterError> {
+    ) -> Result<PsiDriftProfile, PyDriftError> {
         let (num_features, num_array, dtype, string_features, string_array) = data;
 
         let mut features = HashMap::new();
@@ -131,7 +131,7 @@ impl PsiDrifter {
         &mut self,
         data: ConvertedData<'_>,
         drift_profile: PsiDriftProfile,
-    ) -> Result<PsiDriftMap, ScouterError> {
+    ) -> Result<PsiDriftMap, PyDriftError> {
         let (num_features, num_array, dtype, string_features, string_array) = data;
         let dtype = dtype.unwrap_or("float32".to_string());
 
@@ -149,8 +149,7 @@ impl PsiDrifter {
                 if num_array.is_some() {
                     let array = convert_array_type::<f64>(num_array.unwrap(), &dtype)?;
                     let concatenated =
-                        concatenate(Axis(1), &[array.as_array(), string_array.view()])
-                            .map_err(DriftError::traced_shape_error)?;
+                        concatenate(Axis(1), &[array.as_array(), string_array.view()])?;
                     Ok(self.monitor.compute_drift(
                         &features,
                         &concatenated.view(),
@@ -173,8 +172,7 @@ impl PsiDrifter {
                 if num_array.is_some() {
                     let array = convert_array_type::<f32>(num_array.unwrap(), &dtype)?;
                     let concatenated =
-                        concatenate(Axis(1), &[array.as_array(), string_array.view()])
-                            .map_err(DriftError::traced_shape_error)?;
+                        concatenate(Axis(1), &[array.as_array(), string_array.view()])?;
                     Ok(self.monitor.compute_drift(
                         &features,
                         &concatenated.view(),

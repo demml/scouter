@@ -1,5 +1,5 @@
-use crate::data_utils::error::PyDataError;
 use crate::data_utils::{ConvertedData, DataConverter};
+use crate::error::PyDataError;
 use pyo3::prelude::*;
 
 pub struct NumpyDataConverter;

@@ -47,6 +47,9 @@ pub enum DriftError {
 
     #[error("Failed to process alerts")]
     ProcessAlertError,
+
+    #[error("Invalid configuration provided for drifter. Please check that the configuration type matches the drifter type")]
+    InvalidConfigError,
 }
 
 #[derive(Error, Debug)]
@@ -62,6 +65,18 @@ pub enum PyDriftError {
 
     #[error("Data type not supported: {0}")]
     UnsupportedDataTypeError(String),
+
+    #[error(transparent)]
+    TypeError(#[from] scouter_types::error::TypeError),
+
+    #[error(transparent)]
+    ShapeError(#[from] ndarray::ShapeError),
+
+    #[error(transparent)]
+    ProfileError(#[from] scouter_types::error::ProfileError),
+
+    #[error("Not implemented")]
+    NotImplemented,
 }
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for PyDriftError {
     fn from(err: pyo3::DowncastError) -> Self {
