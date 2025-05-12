@@ -35,13 +35,11 @@ pub use scouter_types::{
 
 pub use crate::http::{PyScouterClient, ScouterClient};
 
-pub use scouter_drift::error::DriftError;
 pub use scouter_drift::{
     psi::PsiMonitor,
     spc::{generate_alerts, SpcDriftMap, SpcFeatureDrift, SpcMonitor},
     utils::CategoricalFeatureHelpers,
 };
-pub use scouter_types::error::ProfileError;
 
 pub use scouter_events::producer::{kafka::KafkaConfig, rabbitmq::RabbitMQConfig};
 pub use scouter_events::queue::{
@@ -54,3 +52,9 @@ pub use scouter_profile::{
     compute_feature_correlations, CharStats, DataProfile, Distinct, FeatureProfile, Histogram,
     NumProfiler, NumericStats, Quantiles, StringProfiler, StringStats, WordStats,
 };
+
+// exposing errors
+pub use scouter_drift::error::DriftError;
+pub use scouter_events::error::EventError;
+pub use scouter_profile::error::DataProfileError;
+pub use scouter_types::error::{ContractError, ProfileError, RecordError, TypeError, UtilError};
