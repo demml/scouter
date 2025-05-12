@@ -1,5 +1,5 @@
 #![allow(clippy::useless_conversion)]
-use crate::error::{ClientError, PyClientError};
+use crate::error::ClientError;
 use pyo3::{prelude::*, IntoPyObjectExt};
 use scouter_settings::http::HTTPConfig;
 use scouter_types::contracts::{
@@ -159,12 +159,12 @@ pub struct PyScouterClient {
 impl PyScouterClient {
     #[new]
     #[pyo3(signature = (config=None))]
-    pub fn new(config: Option<&Bound<'_, PyAny>>) -> Result<Self, PyClientError> {
+    pub fn new(config: Option<&Bound<'_, PyAny>>) -> Result<Self, ClientError> {
         let config = config.map_or(Ok(HTTPConfig::default()), |unwrapped| {
             if unwrapped.is_instance_of::<HTTPConfig>() {
                 unwrapped.extract::<HTTPConfig>()
             } else {
-                Err(PyClientError::InvalidConfigTypeError.into())
+                Err(ClientError::InvalidConfigTypeError.into())
             }
         })?;
 
@@ -188,7 +188,7 @@ impl PyScouterClient {
         profile: &Bound<'_, PyAny>,
         set_active: bool,
         deactivate_others: bool,
-    ) -> Result<bool, PyClientError> {
+    ) -> Result<bool, ClientError> {
         let request = profile
             .call_method0("create_profile_request")?
             .extract::<ProfileRequest>()?;
@@ -245,7 +245,7 @@ impl PyScouterClient {
         &self,
         py: Python<'py>,
         drift_request: DriftRequest,
-    ) -> Result<Bound<'py, PyAny>, PyClientError> {
+    ) -> Result<Bound<'py, PyAny>, ClientError> {
         match drift_request.drift_type {
             DriftType::Spc => {
                 PyScouterClient::get_spc_binned_drift(py, &self.client.client, drift_request)
@@ -259,7 +259,7 @@ impl PyScouterClient {
         }
     }
 
-    pub fn get_alerts(&self, request: DriftAlertRequest) -> Result<Vec<Alert>, PyClientError> {
+    pub fn get_alerts(&self, request: DriftAlertRequest) -> Result<Vec<Alert>, ClientError> {
         debug!("Getting alerts for: {:?}", request);
 
         let alerts = self.client.get_alerts(&request)?;
@@ -272,7 +272,7 @@ impl PyScouterClient {
         &self,
         request: GetProfileRequest,
         path: Option<PathBuf>,
-    ) -> Result<String, PyClientError> {
+    ) -> Result<String, ClientError> {
         debug!("Downloading profile: {:?}", request);
 
         let filename = format!(
@@ -293,7 +293,7 @@ impl PyScouterClient {
         py: Python<'py>,
         client: &HTTPClient,
         drift_request: DriftRequest,
-    ) -> Result<Bound<'py, PyAny>, PyClientError> {
+    ) -> Result<Bound<'py, PyAny>, ClientError> {
         let query_string = serde_qs::to_string(&drift_request)?;
 
         let response = client.request(
@@ -305,7 +305,7 @@ impl PyScouterClient {
         )?;
 
         if response.status().is_client_error() || response.status().is_server_error() {
-            return Err(PyClientError::GetDriftDataError);
+            return Err(ClientError::GetDriftDataError);
         }
 
         let body = response.bytes()?;
@@ -318,7 +318,7 @@ impl PyScouterClient {
         py: Python<'py>,
         client: &HTTPClient,
         drift_request: DriftRequest,
-    ) -> Result<Bound<'py, PyAny>, PyClientError> {
+    ) -> Result<Bound<'py, PyAny>, ClientError> {
         let query_string = serde_qs::to_string(&drift_request)?;
 
         let response = client.request(
@@ -330,7 +330,7 @@ impl PyScouterClient {
         )?;
 
         if response.status().is_client_error() || response.status().is_server_error() {
-            return Err(PyClientError::GetDriftDataError);
+            return Err(ClientError::GetDriftDataError);
         }
 
         let body = response.bytes()?;
@@ -344,7 +344,7 @@ impl PyScouterClient {
         py: Python<'py>,
         client: &HTTPClient,
         drift_request: DriftRequest,
-    ) -> Result<Bound<'py, PyAny>, PyClientError> {
+    ) -> Result<Bound<'py, PyAny>, ClientError> {
         let query_string = serde_qs::to_string(&drift_request)?;
 
         let response = client.request(
@@ -356,7 +356,7 @@ impl PyScouterClient {
         )?;
 
         if response.status().is_client_error() || response.status().is_server_error() {
-            return Err(PyClientError::GetDriftDataError);
+            return Err(ClientError::GetDriftDataError);
         }
 
         let body = response.bytes()?;

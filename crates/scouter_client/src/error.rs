@@ -77,15 +77,6 @@ pub enum ClientError {
 
     #[error(transparent)]
     SerdeJsonError(#[from] serde_json::Error),
-}
-
-#[derive(Error, Debug)]
-pub enum PyClientError {
-    #[error(transparent)]
-    ClientError(#[from] ClientError),
-
-    #[error(transparent)]
-    PyErr(#[from] pyo3::PyErr),
 
     #[error("Invalid config type. Expected HTTPConfig")]
     InvalidConfigTypeError,
@@ -93,22 +84,22 @@ pub enum PyClientError {
     #[error("Failed to get drift data")]
     GetDriftDataError,
 
-    #[error(transparent)]
-    ReqwestError(#[from] reqwest::Error),
-
-    #[error(transparent)]
-    SerdeQsError(#[from] serde_qs::Error),
-
-    #[error(transparent)]
-    SerdeJsonError(#[from] serde_json::Error),
+    #[error("{0}")]
+    PyError(String),
 
     #[error(transparent)]
     UtilError(#[from] scouter_types::error::UtilError),
 }
 
-impl From<PyClientError> for PyErr {
-    fn from(err: PyClientError) -> PyErr {
+impl From<ClientError> for PyErr {
+    fn from(err: ClientError) -> PyErr {
         let msg = err.to_string();
         PyRuntimeError::new_err(msg)
+    }
+}
+
+impl From<PyErr> for ClientError {
+    fn from(err: PyErr) -> ClientError {
+        ClientError::PyError(err.to_string())
     }
 }
