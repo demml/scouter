@@ -4,7 +4,7 @@ use crate::drifter::{custom::CustomDrifter, psi::PsiDrifter, spc::SpcDrifter};
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use pyo3::IntoPyObjectExt;
-use scouter_drift::error::{DriftError, PyDriftError};
+use scouter_drift::error::DriftError;
 use scouter_drift::spc::SpcDriftMap;
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::{
@@ -69,7 +69,7 @@ impl Drifter {
         data: &Bound<'py, PyAny>,
         data_type: &DataType,
         config: DriftConfig,
-    ) -> Result<DriftProfile, PyDriftError> {
+    ) -> Result<DriftProfile, DriftError> {
         match self {
             Drifter::Spc(drifter) => {
                 let data = DataConverterEnum::convert_data(py, data_type, data)?;
@@ -104,7 +104,7 @@ impl Drifter {
         data: &Bound<'py, PyAny>,
         data_type: &DataType,
         profile: &DriftProfile,
-    ) -> Result<DriftMap, PyDriftError> {
+    ) -> Result<DriftMap, DriftError> {
         match self {
             Drifter::Spc(drifter) => {
                 let data = DataConverterEnum::convert_data(py, data_type, data)?;
@@ -120,7 +120,7 @@ impl Drifter {
             }
             Drifter::Custom(_) => {
                 // check if data is pylist. If it is, convert to Vec<CustomMetric>
-                Err(PyDriftError::NotImplemented)
+                Err(DriftError::NotImplemented)
             }
         }
     }
@@ -144,7 +144,7 @@ impl PyDrifter {
         data: &Bound<'py, PyAny>,
         config: Option<&Bound<'py, PyAny>>,
         data_type: Option<&DataType>,
-    ) -> Result<Bound<'py, PyAny>, PyDriftError> {
+    ) -> Result<Bound<'py, PyAny>, DriftError> {
         // if config is None, then we need to create a default config
 
         let (config_helper, drift_type) = if config.is_some() {
@@ -202,7 +202,7 @@ impl PyDrifter {
         data: &Bound<'py, PyAny>,
         drift_profile: &Bound<'py, PyAny>,
         data_type: Option<&DataType>,
-    ) -> Result<Bound<'py, PyAny>, PyDriftError> {
+    ) -> Result<Bound<'py, PyAny>, DriftError> {
         let drift_type = drift_profile
             .getattr("config")?
             .getattr("drift_type")?
@@ -257,7 +257,7 @@ impl PyDrifter {
         data: &Bound<'py, PyAny>,
         config: Option<&Bound<'py, PyAny>>,
         data_type: Option<&DataType>,
-    ) -> Result<DriftProfile, PyDriftError> {
+    ) -> Result<DriftProfile, DriftError> {
         // if config is None, then we need to create a default config
 
         let (config_helper, drift_type) = if config.is_some() {

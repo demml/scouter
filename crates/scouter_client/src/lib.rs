@@ -35,7 +35,7 @@ pub use scouter_types::{
 
 pub use crate::http::{PyScouterClient, ScouterClient};
 
-pub use scouter_drift::error::{DriftError, PyDriftError};
+pub use scouter_drift::error::DriftError;
 pub use scouter_drift::{
     psi::PsiMonitor,
     spc::{generate_alerts, SpcDriftMap, SpcFeatureDrift, SpcMonitor},

@@ -1,5 +1,5 @@
 use crate::data_utils::ConvertedData;
-use crate::error::PyDataError;
+use crate::error::DataError;
 use num_traits::Float;
 use numpy::PyArray2;
 use numpy::PyArrayMethods;
@@ -9,7 +9,7 @@ use pyo3::prelude::*;
 pub fn convert_array_type<'py, F>(
     data: Bound<'py, PyAny>,
     dtype: &str,
-) -> Result<PyReadonlyArray2<'py, F>, PyDataError>
+) -> Result<PyReadonlyArray2<'py, F>, DataError>
 where
     F: Float + numpy::Element,
 {
@@ -21,7 +21,7 @@ where
 
     let array = array
         .downcast_into::<PyArray2<F>>()
-        .map_err(|e| PyDataError::DowncastError(e.to_string()))?;
+        .map_err(|e| DataError::DowncastError(e.to_string()))?;
 
     Ok(array.readonly())
 }
@@ -30,22 +30,22 @@ pub trait DataConverter {
     fn categorize_features<'py>(
         py: Python<'py>,
         data: &Bound<'py, PyAny>,
-    ) -> Result<(Vec<String>, Vec<String>), PyDataError>;
+    ) -> Result<(Vec<String>, Vec<String>), DataError>;
 
     #[allow(clippy::needless_lifetimes)]
     fn process_numeric_features<'py>(
         data: &Bound<'py, PyAny>,
         features: &[String],
-    ) -> Result<(Option<Bound<'py, PyAny>>, Option<String>), PyDataError>;
+    ) -> Result<(Option<Bound<'py, PyAny>>, Option<String>), DataError>;
 
     #[allow(clippy::needless_lifetimes)]
     fn process_string_features<'py>(
         data: &Bound<'py, PyAny>,
         features: &[String],
-    ) -> Result<Option<Vec<Vec<String>>>, PyDataError>;
+    ) -> Result<Option<Vec<Vec<String>>>, DataError>;
 
     fn prepare_data<'py>(
         py: Python<'py>,
         data: &Bound<'py, PyAny>,
-    ) -> Result<ConvertedData<'py>, PyDataError>;
+    ) -> Result<ConvertedData<'py>, DataError>;
 }

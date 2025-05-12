@@ -50,46 +50,35 @@ pub enum DriftError {
 
     #[error("Invalid configuration provided for drifter. Please check that the configuration type matches the drifter type")]
     InvalidConfigError,
-}
 
-#[derive(Error, Debug)]
-pub enum PyDriftError {
-    #[error(transparent)]
-    DriftError(#[from] DriftError),
-
-    #[error(transparent)]
-    PyErr(#[from] pyo3::PyErr),
-
-    #[error(transparent)]
-    PyProfileError(#[from] scouter_types::error::PyProfileError),
-
-    #[error("Failed to downcast Python object: {0}")]
-    DowncastError(String),
+    #[error("Not implemented")]
+    NotImplemented,
 
     #[error("Data type not supported: {0}")]
     UnsupportedDataTypeError(String),
 
-    #[error(transparent)]
-    TypeError(#[from] scouter_types::error::TypeError),
-
-    #[error(transparent)]
-    ShapeError(#[from] ndarray::ShapeError),
+    #[error("Failed to downcast Python object: {0}")]
+    DowncastError(String),
 
     #[error(transparent)]
     ProfileError(#[from] scouter_types::error::ProfileError),
-
-    #[error("Not implemented")]
-    NotImplemented,
 }
-impl<'a> From<pyo3::DowncastError<'a, 'a>> for PyDriftError {
+
+impl<'a> From<pyo3::DowncastError<'a, 'a>> for DriftError {
     fn from(err: pyo3::DowncastError) -> Self {
-        PyDriftError::DowncastError(err.to_string())
+        DriftError::DowncastError(err.to_string())
     }
 }
 
-impl From<PyDriftError> for PyErr {
-    fn from(err: PyDriftError) -> PyErr {
+impl From<DriftError> for PyErr {
+    fn from(err: DriftError) -> PyErr {
         let msg = err.to_string();
         PyRuntimeError::new_err(msg)
+    }
+}
+
+impl From<PyErr> for DriftError {
+    fn from(err: PyErr) -> DriftError {
+        DriftError::RunTimeError(err.to_string())
     }
 }

@@ -1,4 +1,4 @@
-use scouter_drift::error::PyDriftError;
+use scouter_drift::error::DriftError;
 use scouter_types::custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig};
 
 #[derive(Default)]
@@ -14,7 +14,7 @@ impl CustomDrifter {
         config: CustomMetricDriftConfig,
         comparison_metrics: Vec<CustomMetric>,
         scouter_version: Option<String>,
-    ) -> Result<CustomDriftProfile, PyDriftError> {
+    ) -> Result<CustomDriftProfile, DriftError> {
         Ok(CustomDriftProfile::new(
             config,
             comparison_metrics,

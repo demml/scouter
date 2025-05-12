@@ -8,9 +8,6 @@ pub enum DataProfileError {
     #[error("Failed to parse JSON")]
     JsonParseError(#[from] serde_json::Error),
 
-    #[error(transparent)]
-    PyErr(#[from] pyo3::PyErr),
-
     #[error("Failed to calculate mean")]
     MeanError,
 
@@ -28,11 +25,23 @@ pub enum DataProfileError {
 
     #[error(transparent)]
     TypeError(#[from] scouter_types::error::TypeError),
+
+    #[error("{0}")]
+    PyError(String),
+
+    #[error("{0}")]
+    RuntimeError(String),
 }
 
 impl From<DataProfileError> for PyErr {
     fn from(err: DataProfileError) -> PyErr {
         let msg = err.to_string();
         PyRuntimeError::new_err(msg)
+    }
+}
+
+impl From<PyErr> for DataProfileError {
+    fn from(err: PyErr) -> DataProfileError {
+        DataProfileError::PyError(err.to_string())
     }
 }

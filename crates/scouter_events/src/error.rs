@@ -141,6 +141,9 @@ pub enum EventError {
 
     #[error("RabbitMQ feature not enabled")]
     RabbitMQFeatureNotEnabledError,
+
+    #[error("Invalid compressions type")]
+    InvalidCompressionTypeError,
 }
 
 #[derive(Error, Debug)]
@@ -156,9 +159,6 @@ pub enum PyEventError {
 
     #[error(transparent)]
     TypeError(#[from] scouter_types::error::TypeError),
-
-    #[error(transparent)]
-    PyTypeError(#[from] scouter_types::error::PyTypeError),
 
     #[error(transparent)]
     ProfileError(#[from] scouter_types::error::ProfileError),

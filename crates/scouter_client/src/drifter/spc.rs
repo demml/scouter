@@ -3,7 +3,7 @@ use ndarray::Axis;
 use ndarray::{concatenate, Array2};
 use num_traits::{Float, FromPrimitive, Num};
 use numpy::PyReadonlyArray2;
-use scouter_drift::error::PyDriftError;
+use scouter_drift::error::DriftError;
 use scouter_drift::{
     spc::{generate_alerts, SpcDriftMap, SpcMonitor},
     CategoricalFeatureHelpers,
@@ -31,7 +31,7 @@ impl SpcDrifter {
         features: Vec<String>,
         array: Vec<Vec<String>>,
         drift_profile: SpcDriftProfile,
-    ) -> Result<Array2<f32>, PyDriftError> {
+    ) -> Result<Array2<f32>, DriftError> {
         let array = self.monitor.convert_strings_to_ndarray_f32(
             &features,
             &array,
@@ -46,7 +46,7 @@ impl SpcDrifter {
         features: Vec<String>,
         array: Vec<Vec<String>>,
         drift_profile: SpcDriftProfile,
-    ) -> Result<Array2<f64>, PyDriftError> {
+    ) -> Result<Array2<f64>, DriftError> {
         let array = self.monitor.convert_strings_to_ndarray_f64(
             &features,
             &array,
@@ -61,7 +61,7 @@ impl SpcDrifter {
         drift_array: PyReadonlyArray2<f64>,
         features: Vec<String>,
         alert_rule: SpcAlertRule,
-    ) -> Result<SpcFeatureAlerts, PyDriftError> {
+    ) -> Result<SpcFeatureAlerts, DriftError> {
         let drift_array = drift_array.as_array();
 
         Ok(generate_alerts(&drift_array, &features, &alert_rule)?)
@@ -72,7 +72,7 @@ impl SpcDrifter {
         array: Vec<Vec<String>>,
         features: Vec<String>,
         mut drift_config: SpcDriftConfig,
-    ) -> Result<SpcDriftProfile, PyDriftError> {
+    ) -> Result<SpcDriftProfile, DriftError> {
         let feature_map = match create_feature_map(&features, &array) {
             Ok(feature_map) => feature_map,
             Err(e) => {
@@ -112,7 +112,7 @@ impl SpcDrifter {
         array: PyReadonlyArray2<F>,
         features: Vec<String>,
         drift_config: SpcDriftConfig,
-    ) -> Result<SpcDriftProfile, PyDriftError>
+    ) -> Result<SpcDriftProfile, DriftError>
     where
         F: Float
             + Sync
@@ -138,7 +138,7 @@ impl SpcDrifter {
         &mut self,
         data: ConvertedData<'_>,
         drift_profile: SpcDriftProfile,
-    ) -> Result<SpcDriftMap, PyDriftError> {
+    ) -> Result<SpcDriftMap, DriftError> {
         let (num_features, num_array, dtype, string_features, string_array) = data;
         let dtype = dtype.unwrap_or("float32".to_string());
 
@@ -210,7 +210,7 @@ impl SpcDrifter {
         &mut self,
         data: ConvertedData<'_>,
         config: SpcDriftConfig,
-    ) -> Result<SpcDriftProfile, PyDriftError> {
+    ) -> Result<SpcDriftProfile, DriftError> {
         let (num_features, num_array, dtype, string_features, string_array) = data;
 
         let mut features = HashMap::new();

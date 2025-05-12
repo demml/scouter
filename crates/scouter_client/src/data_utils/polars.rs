@@ -1,5 +1,5 @@
 use crate::data_utils::{ConvertedData, DataConverter};
-use crate::error::PyDataError;
+use crate::error::DataError;
 use pyo3::prelude::*;
 
 pub struct PolarsDataConverter;
@@ -8,7 +8,7 @@ impl DataConverter for PolarsDataConverter {
     fn categorize_features<'py>(
         py: Python<'py>,
         data: &Bound<'py, PyAny>,
-    ) -> Result<(Vec<String>, Vec<String>), PyDataError> {
+    ) -> Result<(Vec<String>, Vec<String>), DataError> {
         let cs = py.import("polars")?.getattr("selectors")?;
 
         let columns = data.getattr("columns")?.extract::<Vec<String>>()?;
@@ -30,7 +30,7 @@ impl DataConverter for PolarsDataConverter {
     fn process_numeric_features<'py>(
         data: &Bound<'py, PyAny>,
         features: &[String],
-    ) -> Result<(Option<Bound<'py, PyAny>>, Option<String>), PyDataError> {
+    ) -> Result<(Option<Bound<'py, PyAny>>, Option<String>), DataError> {
         if features.is_empty() {
             return Ok((None, None));
         }
@@ -45,7 +45,7 @@ impl DataConverter for PolarsDataConverter {
     fn process_string_features<'py>(
         data: &Bound<'py, PyAny>,
         features: &[String],
-    ) -> Result<Option<Vec<Vec<String>>>, PyDataError> {
+    ) -> Result<Option<Vec<Vec<String>>>, DataError> {
         if features.is_empty() {
             return Ok(None);
         }
@@ -60,14 +60,14 @@ impl DataConverter for PolarsDataConverter {
                         .extract::<Vec<String>>()?;
                     Ok(array)
                 })
-                .collect::<Result<Vec<Vec<String>>, PyDataError>>()?,
+                .collect::<Result<Vec<Vec<String>>, DataError>>()?,
         ))
     }
 
     fn prepare_data<'py>(
         py: Python<'py>,
         data: &Bound<'py, PyAny>,
-    ) -> Result<ConvertedData<'py>, PyDataError> {
+    ) -> Result<ConvertedData<'py>, DataError> {
         let (numeric_features, string_features) =
             PolarsDataConverter::categorize_features(py, data)?;
 
