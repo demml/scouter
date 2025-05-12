@@ -9,7 +9,7 @@ pub use crate::producer::kafka::KafkaConfig;
 pub use crate::producer::rabbitmq::RabbitMQConfig;
 use crate::queue::types::TransportConfig;
 
-use scouter_error::EventError;
+use crate::error::EventError;
 use scouter_types::ServerRecords;
 use tracing::debug;
 

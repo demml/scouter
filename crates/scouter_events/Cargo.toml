@@ -29,6 +29,7 @@ scouter-sql = { workspace = true, optional = true }
 scouter-types = { workspace = true }
 sqlx = { workspace = true, optional = true }
 time = { workspace = true }
+thiserror = { workspace = true }
 tokio = { workspace = true }
 tokio-stream = { workspace = true }
 tracing = { workspace = true }

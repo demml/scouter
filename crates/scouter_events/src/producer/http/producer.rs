@@ -1,9 +1,9 @@
 // ScouterProducer expects an async client
 
+use crate::error::EventError;
 use reqwest::header;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, Response};
-use scouter_error::{ClientError, EventError};
 use scouter_settings::HTTPConfig;
 use scouter_types::{JwtToken, RequestType, Routes, ServerRecords};
 use serde_json::Value;
@@ -15,23 +15,12 @@ const TIMEOUT_SECS: u64 = 60;
 pub fn build_http_client(settings: &HTTPConfig) -> Result<Client, EventError> {
     let mut headers = HeaderMap::new();
 
-    headers.insert(
-        "Username",
-        HeaderValue::from_str(&settings.username)
-            .map_err(ClientError::traced_create_header_error)?,
-    );
+    headers.insert("Username", HeaderValue::from_str(&settings.username)?);
 
-    headers.insert(
-        "Password",
-        HeaderValue::from_str(&settings.password)
-            .map_err(ClientError::traced_create_header_error)?,
-    );
+    headers.insert("Password", HeaderValue::from_str(&settings.password)?);
 
     let client_builder = Client::builder().timeout(std::time::Duration::from_secs(TIMEOUT_SECS));
-    let client = client_builder
-        .default_headers(headers)
-        .build()
-        .map_err(ClientError::traced_create_client_error)?;
+    let client = client_builder.default_headers(headers).build()?;
     Ok(client)
 }
 
@@ -52,10 +41,7 @@ impl HTTPClient {
             base_path: format!("{}/{}", config.server_uri, "scouter"),
         };
 
-        api_client
-            .get_jwt_token()
-            .await
-            .map_err(ClientError::traced_jwt_error)?;
+        api_client.get_jwt_token().await?;
 
         Ok(api_client)
     }
@@ -65,22 +51,14 @@ impl HTTPClient {
         let url = format!("{}/{}", self.base_path, Routes::AuthLogin.as_str());
         debug!("Getting JWT token from {}", url);
 
-        let response = self
-            .client
-            .get(url)
-            .send()
-            .await
-            .map_err(ClientError::traced_request_error)?;
+        let response = self.client.get(url).send().await?;
 
         // check if unauthorized
         if response.status().is_client_error() {
-            return Err(EventError::ClientError(ClientError::Unauthorized));
+            return Err(EventError::UnauthorizedError);
         }
 
-        let response = response
-            .json::<JwtToken>()
-            .await
-            .map_err(ClientError::traced_parse_jwt_error)?;
+        let response = response.json::<JwtToken>().await?;
 
         self.config.auth_token = response.token;
 
@@ -122,27 +100,26 @@ impl HTTPClient {
                     .headers(headers)
                     .bearer_auth(&self.config.auth_token)
                     .send()
-                    .await
-                    .map_err(ClientError::traced_request_error)?
+                    .await?
             }
-            RequestType::Post => self
-                .client
-                .post(url)
-                .headers(headers)
-                .json(&body_params)
-                .bearer_auth(&self.config.auth_token)
-                .send()
-                .await
-                .map_err(ClientError::traced_request_error)?,
-            RequestType::Put => self
-                .client
-                .put(url)
-                .headers(headers)
-                .json(&body_params)
-                .bearer_auth(&self.config.auth_token)
-                .send()
-                .await
-                .map_err(ClientError::traced_request_error)?,
+            RequestType::Post => {
+                self.client
+                    .post(url)
+                    .headers(headers)
+                    .json(&body_params)
+                    .bearer_auth(&self.config.auth_token)
+                    .send()
+                    .await?
+            }
+            RequestType::Put => {
+                self.client
+                    .put(url)
+                    .headers(headers)
+                    .json(&body_params)
+                    .bearer_auth(&self.config.auth_token)
+                    .send()
+                    .await?
+            }
             RequestType::Delete => {
                 let url = if let Some(query_string) = query_string {
                     format!("{}?{}", url, query_string)
@@ -154,8 +131,7 @@ impl HTTPClient {
                     .headers(headers)
                     .bearer_auth(&self.config.auth_token)
                     .send()
-                    .await
-                    .map_err(ClientError::traced_request_error)?
+                    .await?
             }
         };
 
@@ -199,8 +175,7 @@ impl HTTPProducer {
     }
 
     pub async fn publish(&mut self, message: ServerRecords) -> Result<(), EventError> {
-        let serialized_msg: Value =
-            serde_json::to_value(&message).map_err(ClientError::traced_serialize_error)?;
+        let serialized_msg: Value = serde_json::to_value(&message)?;
 
         let response = self
             .client
