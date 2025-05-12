@@ -42,27 +42,27 @@ impl From<FeatureQueueError> for PyErr {
 
 #[derive(Error, Debug)]
 pub enum EventError {
-    #[cfg(feature = "kafka")]
+    #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
     #[error("Failed to connect to kakfa consumer")]
     ConnectKafkaConsumerError(#[source] KafkaError),
 
-    #[cfg(feature = "kafka")]
+    #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
     #[error("Failed to connect to kakfa producer")]
     ConnectKafkaProducerError(#[source] KafkaError),
 
-    #[cfg(feature = "kafka")]
+    #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
     #[error("Failed to subscribe to topic")]
     SubscribeTopicError(#[source] KafkaError),
 
-    #[cfg(feature = "kafka")]
+    #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
     #[error("Failed to flush kafka producer")]
     FlushKafkaProducerError(#[source] KafkaError),
 
-    #[cfg(feature = "kafka")]
+    #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
     #[error("Failed to create producer")]
     CreateKafkaProducerError(#[source] KafkaError),
 
-    #[cfg(feature = "kafka")]
+    #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
     #[error("Failed to publish message")]
     PublishKafkaMessageError(#[source] KafkaError),
 
