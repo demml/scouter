@@ -49,7 +49,7 @@ pub trait SpcSqlLogic {
     ) -> Result<Vec<String>, SqlError> {
         let query = Queries::GetSpcFeatures.get_query();
 
-        sqlx::query(&query.sql)
+        Ok(sqlx::query(&query.sql)
             .bind(&service_info.name)
             .bind(&service_info.space)
             .bind(&service_info.version)
@@ -60,7 +60,7 @@ pub trait SpcSqlLogic {
                     .iter()
                     .map(|row| row.get("feature"))
                     .collect::<Vec<String>>()
-            })
+            })?)
     }
 
     /// Get SPC drift records
@@ -204,9 +204,7 @@ pub trait SpcSqlLogic {
             )
             .await?;
 
-        dataframe_to_spc_drift_features(archived_df)
-            .await
-            .map_err(SqlError::traced_failed_to_convert_dataframe_error)
+        Ok(dataframe_to_spc_drift_features(archived_df).await?)
     }
 
     // Queries the database for drift records based on a time window and aggregation
