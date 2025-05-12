@@ -25,4 +25,10 @@ pub enum SqlError {
 
     #[error(transparent)]
     SerdeJsonError(#[from] serde_json::Error),
+
+    #[error(transparent)]
+    CronError(#[from] cron::error::Error),
+
+    #[error("Failed to get next run for cron schedule")]
+    GetNextRunError,
 }
