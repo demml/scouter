@@ -1,9 +1,9 @@
+use crate::error::FeatureQueueError;
 use crate::queue::traits::FeatureQueue;
 use core::result::Result::Ok;
 use ndarray::prelude::*;
 use ndarray::Array2;
 use scouter_drift::spc::monitor::SpcMonitor;
-use scouter_error::FeatureQueueError;
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::QueueExt;
 use scouter_types::{Feature, ServerRecords};

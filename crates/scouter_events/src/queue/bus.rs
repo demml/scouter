@@ -1,5 +1,5 @@
+use crate::error::{EventError, PyEventError};
 use pyo3::prelude::*;
-use scouter_error::{EventError, ScouterError};
 use scouter_types::QueueItem;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot;
@@ -38,9 +38,7 @@ impl QueueBus {
 
     #[instrument(skip_all)]
     pub fn publish(&self, event: Event) -> Result<(), EventError> {
-        self.tx
-            .send(event)
-            .map_err(|e| EventError::SendEntityError(e.to_string()))
+        Ok(self.tx.send(event)?)
     }
 }
 
@@ -50,7 +48,7 @@ impl QueueBus {
     ///
     /// # Arguments
     /// * `event` - The event to publish
-    pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> Result<(), ScouterError> {
+    pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> Result<(), PyEventError> {
         let entity = QueueItem::from_py_entity(entity)?;
         let event = Event::Task(entity);
         self.publish(event)?;

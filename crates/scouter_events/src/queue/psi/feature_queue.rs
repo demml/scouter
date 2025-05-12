@@ -1,7 +1,7 @@
+use crate::error::FeatureQueueError;
 use crate::queue::traits::FeatureQueue;
 use core::result::Result::Ok;
 use scouter_drift::psi::monitor::PsiMonitor;
-use scouter_error::FeatureQueueError;
 use scouter_types::{
     psi::{Bin, BinType, PsiDriftProfile},
     Feature, PsiServerRecord, QueueExt, ServerRecord, ServerRecords,
@@ -66,9 +66,8 @@ impl PsiFeatureQueue {
             let count = queue
                 .get_mut(&bin_id)
                 .ok_or(FeatureQueueError::GetBinError)
-                .map_err(|e| {
+                .inspect_err(|e| {
                     error!("Error processing binary queue: {:?}", e);
-                    e
                 })?;
             *count += 1;
         } else if value == 1.0 {
@@ -76,9 +75,8 @@ impl PsiFeatureQueue {
             let count = queue
                 .get_mut(&bin_id)
                 .ok_or(FeatureQueueError::GetBinError)
-                .map_err(|e| {
+                .inspect_err(|e| {
                     error!("Error processing binary queue: {:?}", e);
-                    e
                 })?;
             *count += 1;
         } else {
@@ -99,9 +97,8 @@ impl PsiFeatureQueue {
         let count = queue
             .get_mut(value)
             .ok_or(FeatureQueueError::GetBinError)
-            .map_err(|e| {
+            .inspect_err(|e| {
                 error!("Error processing categorical queue: {:?}", e);
-                e
             })?;
         *count += 1;
         Ok(())

@@ -1,11 +1,10 @@
 // implements a BackgroundQueue trait
 
+use crate::error::{EventError, FeatureQueueError};
 use crate::producer::RustScouterProducer;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
-use scouter_error::EventError;
-use scouter_error::FeatureQueueError;
 use scouter_types::QueueExt;
 use scouter_types::ServerRecords;
 use std::sync::Arc;
@@ -187,7 +186,7 @@ pub trait QueueMethods {
                 Err(_) => {
                     current_retry += 1;
                     if current_retry == max_retries {
-                        return Err(EventError::queue_push_error("Queue full after retries"));
+                        return Err(EventError::QueuePushError);
                     }
                     // Exponential backoff: 100ms, 200ms, 400ms
                     sleep(Duration::from_millis(100 * 2_u64.pow(current_retry))).await;
@@ -195,8 +194,6 @@ pub trait QueueMethods {
             }
         }
 
-        Err(EventError::queue_push_error(
-            "Failed to insert after max retries",
-        ))
+        Err(EventError::QueuePushRetryError)
     }
 }

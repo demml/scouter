@@ -1,3 +1,4 @@
+use crate::error::EventError;
 use crate::producer::RustScouterProducer;
 use crate::queue::psi::feature_queue::PsiFeatureQueue;
 use crate::queue::traits::{BackgroundTask, QueueMethods};
@@ -5,7 +6,6 @@ use crate::queue::types::TransportConfig;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
-use scouter_error::EventError;
 use scouter_types::psi::PsiDriftProfile;
 use scouter_types::Features;
 use std::sync::Arc;
