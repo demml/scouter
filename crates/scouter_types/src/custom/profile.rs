@@ -1,7 +1,6 @@
 #![allow(clippy::useless_conversion)]
 use crate::custom::alert::{CustomMetric, CustomMetricAlertConfig};
-use crate::error::TypeError;
-use crate::error::UtilError;
+use crate::error::{ProfileError, TypeError};
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::ProfileRequest;
 use crate::{
@@ -61,11 +60,9 @@ impl CustomMetricDriftConfig {
         sample_size: usize,
         alert_config: CustomMetricAlertConfig,
         config_path: Option<PathBuf>,
-    ) -> Result<Self, CustomMetricError> {
+    ) -> Result<Self, ProfileError> {
         if let Some(config_path) = config_path {
-            let config = CustomMetricDriftConfig::load_from_json_file(config_path)
-                .map_err(|e| CustomMetricError::Error(e.to_string()));
-
+            let config = CustomMetricDriftConfig::load_from_json_file(config_path);
             return config;
         }
 
@@ -80,12 +77,12 @@ impl CustomMetricDriftConfig {
     }
 
     #[staticmethod]
-    pub fn load_from_json_file(path: PathBuf) -> Result<CustomMetricDriftConfig, UtilError> {
+    pub fn load_from_json_file(path: PathBuf) -> Result<CustomMetricDriftConfig, ProfileError> {
         // deserialize the string to a struct
 
         let file = std::fs::read_to_string(&path)?;
 
-        serde_json::from_str(&file).map_err(|e| UtilError::DeSerializeError(e.to_string()).into())
+        Ok(serde_json::from_str(&file)?)
     }
 
     pub fn __str__(&self) -> String {
@@ -176,7 +173,7 @@ impl CustomDriftProfile {
         ProfileFuncs::__json__(self)
     }
 
-    pub fn model_dump(&self, py: Python) -> Result<Py<PyDict>, UtilError> {
+    pub fn model_dump(&self, py: Python) -> Result<Py<PyDict>, ProfileError> {
         let json_str = serde_json::to_string(&self)?;
 
         let json_value: Value = serde_json::from_str(&json_str)?;
@@ -193,8 +190,12 @@ impl CustomDriftProfile {
 
     // Convert python dict into a drift profile
     #[pyo3(signature = (path=None))]
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ScouterError> {
-        ProfileFuncs::save_to_json(self, path, FileName::CustomDriftProfile.to_str())
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ProfileError> {
+        Ok(ProfileFuncs::save_to_json(
+            self,
+            path,
+            FileName::CustomDriftProfile.to_str(),
+        )?)
     }
 
     #[staticmethod]
@@ -212,10 +213,10 @@ impl CustomDriftProfile {
     }
 
     #[staticmethod]
-    pub fn from_file(path: PathBuf) -> Result<CustomDriftProfile, ScouterError> {
-        let file = std::fs::read_to_string(&path).map_err(|_| UtilError::ReadError)?;
+    pub fn from_file(path: PathBuf) -> Result<CustomDriftProfile, ProfileError> {
+        let file = std::fs::read_to_string(&path)?;
 
-        serde_json::from_str(&file).map_err(|e| UtilError::DeSerializeError(e.to_string()).into())
+        Ok(serde_json::from_str(&file)?)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -232,16 +233,14 @@ impl CustomDriftProfile {
     }
 
     #[getter]
-    pub fn custom_metrics(&self) -> Result<Vec<CustomMetric>, ScouterError> {
-        let alert_conditions =
-            &self
-                .config
-                .alert_config
-                .alert_conditions
-                .clone()
-                .ok_or(ScouterError::Error(
-                    "Custom alert threshols have not been set".to_string(),
-                ))?;
+    pub fn custom_metrics(&self) -> Result<Vec<CustomMetric>, ProfileError> {
+        let alert_conditions = &self
+            .config
+            .alert_config
+            .alert_conditions
+            .clone()
+            .ok_or(ProfileError::CustomThresholdNotSetError)?;
+
         Ok(self
             .metrics
             .iter()
@@ -249,9 +248,7 @@ impl CustomDriftProfile {
                 // get the alert threshold for the metric
                 let alert = alert_conditions
                     .get(name)
-                    .ok_or(ScouterError::Error(
-                        "Custom alert threshold not found".to_string(),
-                    ))
+                    .ok_or(ProfileError::CustomAlertThresholdNotFound)
                     .unwrap();
                 CustomMetric::new(
                     name,

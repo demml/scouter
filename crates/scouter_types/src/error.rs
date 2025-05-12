@@ -168,6 +168,12 @@ pub enum ProfileError {
 
     #[error("Missing sample size argument")]
     MissingSampleSizeError,
+
+    #[error("Custom alert thresholds have not been set")]
+    CustomThresholdNotSetError,
+
+    #[error("Custom alert threshold not found")]
+    CustomAlertThresholdNotFound,
 }
 
 impl From<ProfileError> for PyErr {
