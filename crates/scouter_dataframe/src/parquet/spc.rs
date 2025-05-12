@@ -1,4 +1,5 @@
 use super::types::BinnedTableName;
+use crate::error::DataFrameError;
 use crate::parquet::traits::ParquetFrame;
 use crate::sql::helper::get_binned_spc_drift_records_query;
 use crate::storage::ObjectStore;
@@ -12,7 +13,6 @@ use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
 use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
-use scouter_error::DataFrameError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::spc::{SpcDriftFeature, SpcDriftFeatures};
 use scouter_types::{ServerRecords, SpcServerRecord};
@@ -37,9 +37,7 @@ impl ParquetFrame for SpcDataFrame {
 
         let ctx = self.object_store.get_session()?;
 
-        let df = ctx
-            .read_batches(vec![batch])
-            .map_err(DataFrameError::traced_read_batch_error)?;
+        let df = ctx.read_batches(vec![batch])?;
 
         Ok(df)
     }
@@ -110,7 +108,7 @@ impl SpcDataFrame {
         let feature = StringArray::from_iter_values(records.iter().map(|r| r.feature.as_str()));
         let value = Float64Array::from_iter_values(records.iter().map(|r| r.value));
 
-        RecordBatch::try_new(
+        Ok(RecordBatch::try_new(
             self.schema.clone(),
             vec![
                 Arc::new(created_at),
@@ -120,8 +118,7 @@ impl SpcDataFrame {
                 Arc::new(feature),
                 Arc::new(value),
             ],
-        )
-        .map_err(DataFrameError::traced_create_batch_error)
+        )?)
     }
 }
 
@@ -149,13 +146,13 @@ fn process_spc_record_batch(
         .column(1)
         .as_any()
         .downcast_ref::<ListArray>()
-        .ok_or_else(|| DataFrameError::traced_get_column_error("created_at"))?;
+        .ok_or_else(|| DataFrameError::GetColumnError("created_at"))?;
 
     let values_list = batch
         .column(2)
         .as_any()
         .downcast_ref::<ListArray>()
-        .ok_or_else(|| DataFrameError::traced_get_column_error("values"))?;
+        .ok_or_else(|| DataFrameError::GetColumnError("values"))?;
 
     for row in 0..batch.num_rows() {
         let feature_name = feature_array.value(row).to_string();
@@ -194,10 +191,7 @@ fn process_spc_record_batch(
 pub async fn dataframe_to_spc_drift_features(
     df: DataFrame,
 ) -> Result<SpcDriftFeatures, DataFrameError> {
-    let batches = df
-        .collect()
-        .await
-        .map_err(DataFrameError::traced_read_batch_error)?;
+    let batches = df.collect().await?;
 
     let mut features = BTreeMap::new();
 

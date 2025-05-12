@@ -1,6 +1,4 @@
-use scouter_types::RecordType;
 use thiserror::Error;
-use tracing::span::Record;
 
 #[derive(Error, Debug)]
 pub enum StorageError {
@@ -31,32 +29,29 @@ pub enum DataFrameError {
     #[error(transparent)]
     StorageError(#[from] StorageError),
 
-    #[error("Failed to add year column: {0}")]
-    AddYearColumnError(String),
+    #[error("Failed to add year column")]
+    AddYearColumnError(#[source] datafusion::error::DataFusionError),
 
-    #[error("Failed to add month column: {0}")]
-    AddMonthColumnError(String),
+    #[error("Failed to add month column")]
+    AddMonthColumnError(#[source] datafusion::error::DataFusionError),
 
-    #[error("Failed to add day column: {0}")]
-    AddDayColumnError(String),
+    #[error("Failed to add day column")]
+    AddDayColumnError(#[source] datafusion::error::DataFusionError),
 
-    #[error("Failed to add hour column: {0}")]
-    AddHourColumnError(String),
+    #[error("Failed to add hour column")]
+    AddHourColumnError(#[source] datafusion::error::DataFusionError),
 
-    #[error("Failed to write to parquet: {0}")]
-    WriteParquetError(String),
+    #[error("Failed to write to parquet")]
+    WriteParquetError(#[source] datafusion::error::DataFusionError),
 
-    #[error("Failed to parse table path: {0}")]
-    ParseTablePathError(String),
+    #[error("Failed to infer schema")]
+    InferSchemaError(#[source] datafusion::error::DataFusionError),
 
-    #[error("Failed to infer schema: {0}")]
-    InferSchemaError(String),
+    #[error("Failed to create listing table")]
+    CreateListingTableError(#[source] datafusion::error::DataFusionError),
 
-    #[error("Failed to create listing table: {0}")]
-    CreateListingTableError(String),
-
-    #[error("Failed to register table: {0}")]
-    RegisterTableError(String),
+    #[error("Failed to register table")]
+    RegisterTableError(#[source] datafusion::error::DataFusionError),
 
     #[error("Downcast error: {0}")]
     DowncastError(&'static str),
@@ -76,6 +71,6 @@ pub enum DataFrameError {
     #[error(transparent)]
     ArrowError(#[from] arrow::error::ArrowError),
 
-    #[error("Invalid recor type: {0}")]
-    InvalidRecordTypeError(&'static RecordType),
+    #[error("Invalid record type provided")]
+    InvalidRecordTypeError,
 }

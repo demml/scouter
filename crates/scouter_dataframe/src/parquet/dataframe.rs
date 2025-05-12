@@ -28,7 +28,7 @@ impl ParquetDataFrame {
             RecordType::Psi => Ok(ParquetDataFrame::Psi(PsiDataFrame::new(storage_settings)?)),
             RecordType::Spc => Ok(ParquetDataFrame::Spc(SpcDataFrame::new(storage_settings)?)),
 
-            _ => Err(DataFrameError::InvalidRecordTypeError(record_type)),
+            _ => Err(DataFrameError::InvalidRecordTypeError),
         }
     }
 
