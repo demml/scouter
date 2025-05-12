@@ -1,8 +1,8 @@
+use crate::error::AuthError;
 use jsonwebtoken::{decode, encode, DecodingKey, EncodingKey, Header, Validation};
 use password_auth::verify_password;
 use rand::distr::Alphanumeric;
 use rand::Rng;
-use scouter_error::AuthError;
 use scouter_sql::sql::schema::User;
 use serde::{Deserialize, Serialize};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -119,6 +119,6 @@ impl AuthManager {
     }
 
     pub fn validate_user(&self, user: &User, password: &str) -> Result<(), AuthError> {
-        verify_password(password, &user.password_hash).map_err(|_| AuthError::InvalidPassword)
+        verify_password(password, &user.password_hash).map_err(AuthError::InvalidPassword)
     }
 }

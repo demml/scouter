@@ -12,7 +12,7 @@ password-auth = { workspace = true }
 jsonwebtoken = { workspace = true }
 rand = { workspace = true }
 serde = { workspace = true }
+thiserror = { workspace = true }
 
-scouter-error = { workspace = true }
 scouter-sql = { workspace = true }
  

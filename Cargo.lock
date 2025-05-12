@@ -4045,7 +4045,6 @@ dependencies = [
  "reqwest",
  "rusty-logging",
  "scouter-client",
- "scouter-error",
  "scouter-server",
  "time",
  "tokio",
@@ -4786,9 +4785,9 @@ dependencies = [
  "jsonwebtoken",
  "password-auth",
  "rand 0.9.1",
- "scouter-error",
  "scouter-sql",
  "serde",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -4888,16 +4887,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "scouter-error"
-version = "0.4.6"
-dependencies = [
- "pyo3",
- "serde",
- "thiserror 2.0.12",
- "tracing",
-]
-
-[[package]]
 name = "scouter-events"
 version = "0.4.6"
 dependencies = [
@@ -4939,7 +4928,6 @@ dependencies = [
  "pyo3",
  "rand 0.8.5",
  "rayon",
- "scouter-error",
  "scouter-types",
  "serde",
  "tracing",
