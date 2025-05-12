@@ -1,8 +1,8 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::User;
 
+use crate::sql::error::SqlError;
 use async_trait::async_trait;
-use scouter_error::{SqlError, UtilError};
 
 use sqlx::{Pool, Postgres};
 use std::result::Result::Ok;
@@ -20,11 +20,9 @@ pub trait UserSqlLogic {
     async fn insert_user(pool: &Pool<Postgres>, user: &User) -> Result<(), SqlError> {
         let query = Queries::InsertUser.get_query();
 
-        let group_permissions = serde_json::to_value(&user.group_permissions)
-            .map_err(UtilError::traced_serialize_error)?;
+        let group_permissions = serde_json::to_value(&user.group_permissions)?;
 
-        let permissions =
-            serde_json::to_value(&user.permissions).map_err(UtilError::traced_serialize_error)?;
+        let permissions = serde_json::to_value(&user.permissions)?;
 
         sqlx::query(&query.sql)
             .bind(&user.username)
@@ -35,7 +33,7 @@ pub trait UserSqlLogic {
             .bind(user.active)
             .execute(pool)
             .await
-            .map_err(SqlError::traced_query_error)?;
+            .map_err(SqlError::SqlxError)?;
 
         Ok(())
     }
@@ -55,7 +53,7 @@ pub trait UserSqlLogic {
             .bind(username)
             .fetch_optional(pool)
             .await
-            .map_err(SqlError::traced_query_error)?;
+            .map_err(SqlError::SqlxError)?;
 
         Ok(user)
     }
@@ -72,11 +70,9 @@ pub trait UserSqlLogic {
     async fn update_user(pool: &Pool<Postgres>, user: &User) -> Result<(), SqlError> {
         let query = Queries::UpdateUser.get_query();
 
-        let group_permissions = serde_json::to_value(&user.group_permissions)
-            .map_err(UtilError::traced_serialize_error)?;
+        let group_permissions = serde_json::to_value(&user.group_permissions)?;
 
-        let permissions =
-            serde_json::to_value(&user.permissions).map_err(UtilError::traced_serialize_error)?;
+        let permissions = serde_json::to_value(&user.permissions)?;
 
         sqlx::query(&query.sql)
             .bind(user.active)
@@ -87,7 +83,7 @@ pub trait UserSqlLogic {
             .bind(&user.username)
             .execute(pool)
             .await
-            .map_err(SqlError::traced_query_error)?;
+            .map_err(SqlError::SqlxError)?;
 
         Ok(())
     }
@@ -105,7 +101,7 @@ pub trait UserSqlLogic {
         let users = sqlx::query_as::<_, User>(&query.sql)
             .fetch_all(pool)
             .await
-            .map_err(SqlError::traced_query_error)?;
+            .map_err(SqlError::SqlxError)?;
 
         Ok(users)
     }
@@ -125,7 +121,7 @@ pub trait UserSqlLogic {
         let admins: Vec<String> = sqlx::query_scalar(&query.sql)
             .fetch_all(pool)
             .await
-            .map_err(SqlError::traced_query_error)?;
+            .map_err(SqlError::SqlxError)?;
 
         // check if length is 1 and the username is the same
         if admins.len() > 1 {
@@ -153,7 +149,7 @@ pub trait UserSqlLogic {
             .bind(username)
             .execute(pool)
             .await
-            .map_err(SqlError::traced_query_error)?;
+            .map_err(SqlError::SqlxError)?;
 
         Ok(())
     }
