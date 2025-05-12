@@ -288,7 +288,7 @@ fn extract_overall_proportions(
 /// * `features` - The features to populate
 ///
 /// # Returns
-/// * `Result<(), ScouterError>` - The result of the processing
+/// * `Result<(), DataFrameError>` - The result of the processing
 fn process_psi_record_batch(
     batch: &RecordBatch,
 ) -> Result<FeatureBinProportionResult, DataFrameError> {

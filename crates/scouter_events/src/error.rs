@@ -135,6 +135,12 @@ pub enum EventError {
 
     #[error("Failed to setup tokio runtime")]
     ShutdownReceiverError(#[source] tokio::sync::oneshot::error::RecvError),
+
+    #[error("Kafka feature not enabled")]
+    KafkaFeatureNotEnabledError,
+
+    #[error("RabbitMQ feature not enabled")]
+    RabbitMQFeatureNotEnabledError,
 }
 
 #[derive(Error, Debug)]

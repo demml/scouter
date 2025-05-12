@@ -4046,6 +4046,7 @@ dependencies = [
  "rusty-logging",
  "scouter-client",
  "scouter-server",
+ "thiserror 2.0.12",
  "time",
  "tokio",
  "tracing",

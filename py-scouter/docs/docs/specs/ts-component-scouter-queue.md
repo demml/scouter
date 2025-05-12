@@ -27,7 +27,7 @@ pub struct ScouterQueue {
         py: Python,
         path: HashMap<String, PathBuf>,
         transport_config: &Bound<'_, PyAny>,
-    ) -> Result<Self, ScouterError>
+    ) -> Result<Self, EventError>
 ```
 
 ```python

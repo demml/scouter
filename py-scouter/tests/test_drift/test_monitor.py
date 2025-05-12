@@ -7,7 +7,6 @@ from scouter import (  # type: ignore[attr-defined]
     SpcDriftConfig,
     SpcDriftProfile,
 )
-from scouter.types import ScouterError
 
 
 def test_monitor_f64(array: NDArray, drift_config: SpcDriftConfig):
@@ -60,7 +59,7 @@ def test_monitor_pandas(array: NDArray, drift_config: SpcDriftConfig):
 def test_fail(array: NDArray, drift_config: SpcDriftConfig):
     scouter = Drifter()
 
-    with pytest.raises(ScouterError):
+    with pytest.raises(RuntimeError):
         scouter.create_drift_profile(array.astype("str"), config=drift_config)
 
 

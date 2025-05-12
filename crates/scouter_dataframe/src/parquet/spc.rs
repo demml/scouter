@@ -129,7 +129,7 @@ impl SpcDataFrame {
 /// * `features` - The features to populate
 ///
 /// # Returns
-/// * `Result<(), ScouterError>` - The result of the processing
+/// * `Result<(), DataFrameError>` - The result of the processing
 fn process_spc_record_batch(
     batch: &RecordBatch,
     features: &mut BTreeMap<String, SpcDriftFeature>,

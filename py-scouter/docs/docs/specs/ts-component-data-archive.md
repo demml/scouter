@@ -94,7 +94,7 @@ The primary method for the background worker is `archive_expired_data`, which wi
 pub async fn archive_old_data(
     db_pool: &Pool<Postgres>,
     config: &Arc<ScouterServerConfig>,
-) -> Result<ArchiveRecord, ScouterError>
+) -> Result<ArchiveRecord, ServerError>
 ```
 
 ```rust
@@ -102,7 +102,7 @@ async fn process_record_type(
     db_pool: &Pool<Postgres>,
     record_type: &RecordType,
     config: &Arc<ScouterServerConfig>,
-) -> Result<bool, ScouterError>
+) -> Result<bool, ServerError>
 ```
 
 ```rust
@@ -110,7 +110,7 @@ async fn get_entities_to_archive(
     db_pool: &Pool<Postgres>,
     record_type: &RecordType,
     retention_period: &i32,
-) -> Result<Vec<Entity>, ScouterError>
+) -> Result<Vec<Entity>, ServerError>
 ```
 
 ```rust
@@ -118,7 +118,7 @@ async fn get_data_to_archive(
     tx: &mut Transaction<'_, Postgres>,
     record_type: &RecordType,
     entity: &Entity,
-) -> Result<ServerRecords, ScouterError>
+) -> Result<ServerRecords, ServerError>
 ```
 
 
@@ -127,7 +127,7 @@ async fn update_entities_to_archived(
     tx: &mut Transaction<'_, Postgres>,
     record_type: &RecordType,
     entity: &Entity,
-) -> Result<(), ScouterError>`
+) -> Result<(), ServerError>`
 ```
 
 ## Dependencies
