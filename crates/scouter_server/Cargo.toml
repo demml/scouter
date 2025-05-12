@@ -28,6 +28,7 @@ axum = {workspace = true}
 axum-extra = { workspace = true, version = "0.*", features = ["cookie"] }
 chrono = { workspace = true }
 futures = { workspace = true }
+flume = { workspace = true }
 metrics = { workspace = true }
 metrics-exporter-prometheus = { workspace = true }
 password-auth = { workspace = true }
