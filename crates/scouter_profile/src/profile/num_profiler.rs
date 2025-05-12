@@ -1,8 +1,8 @@
+use crate::error::DataProfileError;
 use crate::profile::types::{Distinct, FeatureProfile, Histogram, NumericStats, Quantiles};
 use ndarray::prelude::*;
 use ndarray::Axis;
 use ndarray_stats::MaybeNan;
-use scouter_error::ProfilerError;
 
 use crate::profile::stats::compute_feature_correlations;
 use crate::profile::types::DataProfile;
@@ -28,7 +28,10 @@ impl NumProfiler {
     /// # Returns
     ///
     /// A 2D array of noisy floats.
-    pub fn compute_quantiles<F>(&self, array: &ArrayView2<F>) -> Result<Vec<Vec<F>>, ProfilerError>
+    pub fn compute_quantiles<F>(
+        &self,
+        array: &ArrayView2<F>,
+    ) -> Result<Vec<Vec<F>>, DataProfileError>
     where
         F: Num + ndarray_stats::MaybeNan + std::marker::Send + Sync + Clone + Copy,
         <F as ndarray_stats::MaybeNan>::NotNan: Clone,
@@ -60,11 +63,13 @@ impl NumProfiler {
     /// # Returns
     ///
     /// A 1D array of f64 values.
-    pub fn compute_mean<F>(&self, array: &ArrayView2<F>) -> Result<Array1<F>, ProfilerError>
+    pub fn compute_mean<F>(&self, array: &ArrayView2<F>) -> Result<Array1<F>, DataProfileError>
     where
         F: FromPrimitive + Num + Clone,
     {
-        let mean = array.mean_axis(Axis(0)).ok_or(ProfilerError::MeanError)?;
+        let mean = array
+            .mean_axis(Axis(0))
+            .ok_or(DataProfileError::MeanError)?;
 
         Ok(mean)
     }
@@ -78,7 +83,7 @@ impl NumProfiler {
     /// # Returns
     ///
     /// A 1D array of f64 values.
-    pub fn compute_stddev<F>(&self, array: &ArrayView2<F>) -> Result<Array1<F>, ProfilerError>
+    pub fn compute_stddev<F>(&self, array: &ArrayView2<F>) -> Result<Array1<F>, DataProfileError>
     where
         F: FromPrimitive + Num + Float,
     {
@@ -96,7 +101,7 @@ impl NumProfiler {
     /// # Returns
     ///
     /// A 1D array of values.
-    pub fn compute_min<F>(&self, array: &ArrayView2<F>) -> Result<Array1<F>, ProfilerError>
+    pub fn compute_min<F>(&self, array: &ArrayView2<F>) -> Result<Array1<F>, DataProfileError>
     where
         F: MaybeNan + Num + Clone,
         <F as MaybeNan>::NotNan: Ord,
@@ -115,7 +120,7 @@ impl NumProfiler {
     /// # Returns
     ///
     /// A 1D array of values.
-    pub fn compute_max<F>(&self, array: &ArrayView2<F>) -> Result<Array1<F>, ProfilerError>
+    pub fn compute_max<F>(&self, array: &ArrayView2<F>) -> Result<Array1<F>, DataProfileError>
     where
         F: MaybeNan + Num + Clone,
         <F as MaybeNan>::NotNan: Ord,
@@ -134,7 +139,10 @@ impl NumProfiler {
     /// # Returns
     ///
     /// A 1D array of values.
-    pub fn compute_distinct<F>(&self, array: &ArrayView2<F>) -> Result<Vec<Distinct>, ProfilerError>
+    pub fn compute_distinct<F>(
+        &self,
+        array: &ArrayView2<F>,
+    ) -> Result<Vec<Distinct>, DataProfileError>
     where
         F: std::fmt::Display + Num,
     {
@@ -164,23 +172,15 @@ impl NumProfiler {
         &self,
         array: &ArrayView1<F>,
         bin_size: &usize,
-    ) -> Result<Vec<f64>, ProfilerError>
+    ) -> Result<Vec<f64>, DataProfileError>
     where
         F: Float + Num + core::ops::Sub,
         f64: From<F>,
     {
         // find the min and max of the data
 
-        let max: f64 = array
-            .max()
-            .map_err(|_| ProfilerError::ComputeError("Failed to calculate maximum".to_string()))?
-            .to_owned()
-            .into();
-        let min: f64 = array
-            .min()
-            .map_err(|_| ProfilerError::ComputeError("Failed to calculate minimum".to_string()))?
-            .to_owned()
-            .into();
+        let max: f64 = array.max()?.to_owned().into();
+        let min: f64 = array.min()?.to_owned().into();
 
         // create a vector of bins
         let mut bins = Vec::<f64>::with_capacity(*bin_size);
@@ -201,16 +201,14 @@ impl NumProfiler {
         &self,
         array: &ArrayView1<F>,
         bins: &[f64],
-    ) -> Result<Vec<i32>, ProfilerError>
+    ) -> Result<Vec<i32>, DataProfileError>
     where
         F: Num + ndarray_stats::MaybeNan + std::marker::Send + Sync + Clone + Copy,
         f64: From<F>,
     {
         // create a vector of size bins
         let mut bin_counts = vec![0; bins.len()];
-        let max_bin = bins.last().ok_or(ProfilerError::ComputeError(
-            "Failed to get max bin".to_string(),
-        ))?;
+        let max_bin = bins.last().ok_or(DataProfileError::MaxBinError)?;
 
         array.map(|datum| {
             // iterate over the bins
@@ -244,7 +242,7 @@ impl NumProfiler {
         array: &ArrayView2<F>,
         features: &[String],
         bin_size: &usize,
-    ) -> Result<HashMap<String, Histogram>, ProfilerError>
+    ) -> Result<HashMap<String, Histogram>, DataProfileError>
     where
         F: Num
             + ndarray_stats::MaybeNan
@@ -255,29 +253,20 @@ impl NumProfiler {
             + num_traits::Float,
         f64: From<F>,
     {
-        let hist: HashMap<String, Histogram> = array
+        // Process each column in parallel
+        array
             .axis_iter(Axis(1))
             .into_par_iter()
             .enumerate()
-            .map(|(idx, x)| {
-                let bins = self
-                    .compute_bins(&x, bin_size)
-                    .map_err(|_| {
-                        ProfilerError::ComputeError("Failed to calculate bins".to_string())
-                    })
-                    .unwrap();
-                let bin_counts = self
-                    .compute_bin_counts(&x, &bins)
-                    .map_err(|_| {
-                        ProfilerError::ComputeError("Failed to calculate bin counts".to_string())
-                    })
-                    .unwrap();
-                (features[idx].clone(), Histogram { bins, bin_counts })
-                // return
-            })
-            .collect();
+            .map(|(idx, column)| {
+                // Compute histogram components
+                let bins = self.compute_bins(&column, bin_size)?;
+                let bin_counts = self.compute_bin_counts(&column, &bins)?;
 
-        Ok(hist)
+                // Create histogram for this feature
+                Ok((features[idx].clone(), Histogram { bins, bin_counts }))
+            })
+            .collect()
     }
 
     /// Compute the base stats for a 1D array of data
@@ -294,7 +283,7 @@ impl NumProfiler {
         features: &[String],
         array: &ArrayView2<F>,
         bin_size: &usize,
-    ) -> Result<Vec<FeatureProfile>, ProfilerError>
+    ) -> Result<Vec<FeatureProfile>, DataProfileError>
     where
         F: Float
             + MaybeNan
@@ -311,29 +300,14 @@ impl NumProfiler {
         f64: From<F>,
         <F as MaybeNan>::NotNan: Clone,
     {
-        let means = self
-            .compute_mean(array)
-            .map_err(|_| ProfilerError::ComputeError("Error computing mean".to_string()))?;
+        let means = self.compute_mean(array)?;
 
-        let stddevs = self
-            .compute_stddev(array)
-            .map_err(|_| ProfilerError::ComputeError("Error computing standard dev".to_string()))?;
-        let quantiles = self
-            .compute_quantiles(array)
-            .map_err(|_| ProfilerError::ComputeError("Error computing quantiles".to_string()))?;
-        let mins = self
-            .compute_min(array)
-            .map_err(|_| ProfilerError::ComputeError("Error computing minimum".to_string()))?;
-        let maxs = self
-            .compute_max(array)
-            .map_err(|_| ProfilerError::ComputeError("Error computing maximum".to_string()))?;
-        let distinct = self
-            .compute_distinct(array)
-            .map_err(|_| ProfilerError::ComputeError("Error computing distinct".to_string()))?;
-
-        let hist = self
-            .compute_histogram(array, features, bin_size)
-            .map_err(|_| ProfilerError::ComputeError("Error computing histogram".to_string()))?;
+        let stddevs = self.compute_stddev(array)?;
+        let quantiles = self.compute_quantiles(array)?;
+        let mins = self.compute_min(array)?;
+        let maxs = self.compute_max(array)?;
+        let distinct = self.compute_distinct(array)?;
+        let hist = self.compute_histogram(array, features, bin_size)?;
 
         // loop over list
         let mut profiles = Vec::new();
@@ -387,7 +361,7 @@ impl NumProfiler {
         numeric_array: &ArrayView2<F>,
         numeric_features: Vec<String>,
         bin_size: usize,
-    ) -> Result<DataProfile, ProfilerError>
+    ) -> Result<DataProfile, DataProfileError>
     where
         F: Float
             + MaybeNan
@@ -404,12 +378,7 @@ impl NumProfiler {
         f64: From<F>,
         <F as MaybeNan>::NotNan: Clone,
     {
-        let profiles = self
-            .compute_stats(&numeric_features, numeric_array, &bin_size)
-            .map_err(|e| {
-                ProfilerError::ComputeError(format!("Failed to create feature data profile: {}", e))
-            })?;
-
+        let profiles = self.compute_stats(&numeric_features, numeric_array, &bin_size)?;
         let correlations = if compute_correlations {
             let feature_names = numeric_features.clone();
             let feature_correlations = compute_feature_correlations(numeric_array, &feature_names);

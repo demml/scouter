@@ -1,3 +1,4 @@
+use crate::error::DataFrameError;
 use crate::parquet::traits::ParquetFrame;
 use crate::parquet::types::BinnedTableName;
 use crate::sql::helper::get_binned_custom_metric_values_query;
@@ -12,7 +13,6 @@ use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
 use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
-use scouter_error::DataFrameError;
 use scouter_settings::ObjectStorageSettings;
 
 use scouter_types::{
@@ -38,9 +38,7 @@ impl ParquetFrame for CustomMetricDataFrame {
 
         let ctx = self.object_store.get_session()?;
 
-        let df = ctx
-            .read_batches(vec![batch])
-            .map_err(DataFrameError::traced_read_batch_error)?;
+        let df = ctx.read_batches(vec![batch])?;
 
         Ok(df)
     }
@@ -125,8 +123,7 @@ impl CustomMetricDataFrame {
                 Arc::new(metric_array),
                 Arc::new(value_array),
             ],
-        )
-        .map_err(DataFrameError::traced_create_batch_error)?;
+        )?;
 
         Ok(batch)
     }
@@ -215,10 +212,7 @@ fn process_custom_record_batch(batch: &RecordBatch) -> Result<BinnedCustomMetric
 pub async fn dataframe_to_custom_drift_metrics(
     df: DataFrame,
 ) -> Result<BinnedCustomMetrics, DataFrameError> {
-    let batches = df
-        .collect()
-        .await
-        .map_err(DataFrameError::traced_read_batch_error)?;
+    let batches = df.collect().await?;
 
     let metrics: Vec<BinnedCustomMetric> = batches
         .iter()

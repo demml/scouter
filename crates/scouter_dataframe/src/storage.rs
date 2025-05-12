@@ -1,13 +1,13 @@
+use crate::error::StorageError;
 use base64::prelude::*;
 use datafusion::prelude::SessionContext;
-use futures::StreamExt;
+use futures::TryStreamExt;
 use object_store::aws::{AmazonS3, AmazonS3Builder};
 use object_store::azure::{MicrosoftAzure, MicrosoftAzureBuilder};
 use object_store::gcp::{GoogleCloudStorage, GoogleCloudStorageBuilder};
 use object_store::local::LocalFileSystem;
 use object_store::path::Path;
 use object_store::ObjectStore as ObjStore;
-use scouter_error::{StorageError, UtilError};
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::StorageType;
 use std::sync::Arc;
@@ -16,11 +16,9 @@ use url::Url;
 
 /// Helper function to decode base64 encoded string
 fn decode_base64_str(service_base64_creds: &str) -> Result<String, StorageError> {
-    let decoded = BASE64_STANDARD
-        .decode(service_base64_creds)
-        .map_err(UtilError::traced_decode_base64_error)?;
+    let decoded = BASE64_STANDARD.decode(service_base64_creds)?;
 
-    Ok(String::from_utf8(decoded).map_err(UtilError::traced_convert_utf8_error)?)
+    Ok(String::from_utf8(decoded).map_err(|e| StorageError::ConvertUtf8Error(e.to_string()))?)
 }
 
 /// Storage provider enum for common object stores
@@ -48,12 +46,7 @@ impl StorageProvider {
                 // Add bucket name and build
                 let storage = builder
                     .with_bucket_name(storage_settings.storage_root())
-                    .build()
-                    .map_err(|_| {
-                        StorageError::ObjectStoreError(
-                            "Failed to create Google Cloud Storage builder".to_string(),
-                        )
-                    })?;
+                    .build()?;
 
                 StorageProvider::Google(Arc::new(storage))
             }
@@ -61,12 +54,7 @@ impl StorageProvider {
                 let builder = AmazonS3Builder::from_env()
                     .with_bucket_name(storage_settings.storage_root())
                     .with_region(storage_settings.region.clone())
-                    .build()
-                    .map_err(|_| {
-                        StorageError::ObjectStoreError(
-                            "Failed to create AWS S3 builder".to_string(),
-                        )
-                    })?;
+                    .build()?;
                 StorageProvider::Aws(Arc::new(builder))
             }
             StorageType::Local => {
@@ -77,13 +65,7 @@ impl StorageProvider {
             StorageType::Azure => {
                 let builder = MicrosoftAzureBuilder::from_env()
                     .with_container_name(storage_settings.storage_root())
-                    .build()
-                    .map_err(|e| {
-                        StorageError::ObjectStoreError(format!(
-                            "Failed to create Azure Storage builder: {}",
-                            e
-                        ))
-                    })?;
+                    .build()?;
 
                 StorageProvider::Azure(Arc::new(builder))
             }
@@ -97,25 +79,10 @@ impl StorageProvider {
         storage_settings: &ObjectStorageSettings,
     ) -> Result<Url, StorageError> {
         match self {
-            StorageProvider::Google(_) => Url::parse(&storage_settings.storage_uri).map_err(|_| {
-                StorageError::ObjectStoreError(
-                    "Failed to parse Google Cloud Storage URI".to_string(),
-                )
-            }),
-            StorageProvider::Aws(_) => Url::parse(&storage_settings.storage_uri).map_err(|_| {
-                StorageError::ObjectStoreError("Failed to parse AWS S3 URI".to_string())
-            }),
-            StorageProvider::Local(_) => {
-                // For local storage, use a file:// URL scheme
-                Url::parse("file:///").map_err(|_| {
-                    StorageError::ObjectStoreError(
-                        "Failed to parse local file system URI".to_string(),
-                    )
-                })
-            }
-            StorageProvider::Azure(_) => Url::parse(&storage_settings.storage_uri).map_err(|_| {
-                StorageError::ObjectStoreError("Failed to parse Azure file system URI".to_string())
-            }),
+            StorageProvider::Google(_) => Ok(Url::parse(&storage_settings.storage_uri)?),
+            StorageProvider::Aws(_) => Ok(Url::parse(&storage_settings.storage_uri)?),
+            StorageProvider::Local(_) => Ok(Url::parse("file:///")?),
+            StorageProvider::Azure(_) => Ok(Url::parse(&storage_settings.storage_uri)?),
         }
     }
 
@@ -152,10 +119,8 @@ impl StorageProvider {
     /// # Returns
     /// * `Result<Vec<String>, StorageError>` - A result containing a vector of file paths or an error.
     pub async fn list(&self, path: Option<&Path>) -> Result<Vec<String>, StorageError> {
-        let mut files = Vec::new();
-
         // Get the stream based on the provided path
-        let mut stream = match self {
+        let stream = match self {
             StorageProvider::Local(store) => store.list(path),
             StorageProvider::Google(store) => store.list(path),
             StorageProvider::Aws(store) => store.list(path),
@@ -163,47 +128,31 @@ impl StorageProvider {
         };
 
         // Process each item in the stream
-        while let Some(result) = stream.next().await {
-            match result {
-                Ok(meta) => {
-                    files.push(meta.location.to_string());
-                }
-                Err(e) => {
-                    return Err(StorageError::ObjectStoreError(format!(
-                        "Error listing files: {}",
-                        e
-                    )));
-                }
-            }
-        }
-
-        Ok(files)
+        stream
+            .try_fold(Vec::new(), |mut files, meta| async move {
+                files.push(meta.location.to_string());
+                Ok(files)
+            })
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn delete(&self, path: &Path) -> Result<(), StorageError> {
         match self {
             StorageProvider::Local(store) => {
-                store.delete(path).await.map_err(|e| {
-                    StorageError::ObjectStoreError(format!("Failed to delete file: {}", e))
-                })?;
+                store.delete(path).await?;
                 Ok(())
             }
             StorageProvider::Google(store) => {
-                store.delete(path).await.map_err(|e| {
-                    StorageError::ObjectStoreError(format!("Failed to delete file: {}", e))
-                })?;
+                store.delete(path).await?;
                 Ok(())
             }
             StorageProvider::Aws(store) => {
-                store.delete(path).await.map_err(|e| {
-                    StorageError::ObjectStoreError(format!("Failed to delete file: {}", e))
-                })?;
+                store.delete(path).await?;
                 Ok(())
             }
             StorageProvider::Azure(store) => {
-                store.delete(path).await.map_err(|e| {
-                    StorageError::ObjectStoreError(format!("Failed to delete file: {}", e))
-                })?;
+                store.delete(path).await?;
                 Ok(())
             }
         }

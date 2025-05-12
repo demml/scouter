@@ -4962,10 +4962,10 @@ dependencies = [
  "pyo3",
  "rand 0.9.1",
  "rayon",
- "scouter-error",
  "scouter-types",
  "serde",
  "serde_json",
+ "thiserror 2.0.12",
  "tracing",
 ]
 
@@ -4993,7 +4993,6 @@ dependencies = [
  "scouter-dataframe",
  "scouter-dispatch",
  "scouter-drift",
- "scouter-error",
  "scouter-events",
  "scouter-observability",
  "scouter-settings",

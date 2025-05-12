@@ -32,13 +32,29 @@ pub enum UtilError {
     CreatePathError,
 
     #[error(transparent)]
-    PyErr(#[from] pyo3::PyErr),
+    IoError(#[from] std::io::Error),
 
+    #[error(transparent)]
+    SerdeJsonError(#[from] serde_json::Error),
+}
+
+#[derive(Error, Debug)]
+pub enum PyUtilError {
     #[error(transparent)]
     SerdeJsonError(#[from] serde_json::Error),
 
     #[error(transparent)]
-    IoError(#[from] std::io::Error),
+    UtilError(#[from] UtilError),
+
+    #[error(transparent)]
+    PyErr(#[from] pyo3::PyErr),
+}
+
+impl From<PyUtilError> for PyErr {
+    fn from(err: PyUtilError) -> PyErr {
+        let msg = err.to_string();
+        PyRuntimeError::new_err(msg)
+    }
 }
 
 #[derive(Error, Debug)]
@@ -117,9 +133,6 @@ impl From<ContractError> for PyErr {
 
 #[derive(Error, Debug)]
 pub enum RecordError {
-    #[error(transparent)]
-    PyErr(#[from] pyo3::PyErr),
-
     #[error("Unable to extract record into any known ServerRecord variant")]
     ExtractionError,
 
@@ -133,8 +146,17 @@ pub enum RecordError {
     InvalidDriftTypeError,
 }
 
-impl From<RecordError> for PyErr {
-    fn from(err: RecordError) -> PyErr {
+#[derive(Error, Debug)]
+pub enum PyRecordError {
+    #[error(transparent)]
+    RecordError(#[from] RecordError),
+
+    #[error(transparent)]
+    PyErr(#[from] pyo3::PyErr),
+}
+
+impl From<PyRecordError> for PyErr {
+    fn from(err: PyRecordError) -> PyErr {
         let msg = err.to_string();
         PyRuntimeError::new_err(msg)
     }

@@ -71,7 +71,7 @@ impl SpcDriftMap {
     }
 
     #[staticmethod]
-    pub fn model_validate_json(json_string: String) -> SpcDriftMap {
+    pub fn model_validate_json(json_string: String) -> Result<SpcDriftMap, UtilError> {
         // deserialize the string to a struct
         serde_json::from_str(&json_string)
             .map_err(UtilError::traced_deserialize_error)

@@ -1,8 +1,8 @@
 use chrono::Utc;
 use core::fmt::Debug;
 use pyo3::prelude::*;
-use scouter_error::ScouterError;
-use scouter_error::UtilError;
+use scouter_types::error::PyUtilError;
+
 use scouter_types::{FileName, ProfileFuncs};
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
@@ -133,16 +133,18 @@ impl DataProfile {
     }
 
     #[staticmethod]
-    pub fn model_validate_json(json_string: String) -> DataProfile {
+    pub fn model_validate_json(json_string: String) -> Result<DataProfile, PyUtilError> {
         // deserialize the string to a struct
-        serde_json::from_str(&json_string)
-            .map_err(UtilError::traced_deserialize_error)
-            .unwrap()
+        Ok(serde_json::from_str(&json_string)?)
     }
 
     #[pyo3(signature = (path=None))]
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ScouterError> {
-        ProfileFuncs::save_to_json(self, path, FileName::DataProfile.to_str())
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, PyUtilError> {
+        Ok(ProfileFuncs::save_to_json(
+            self,
+            path,
+            FileName::DataProfile.to_str(),
+        )?)
     }
 }
 
