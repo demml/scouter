@@ -56,6 +56,17 @@ pub enum PyDriftError {
 
     #[error(transparent)]
     PyErr(#[from] pyo3::PyErr),
+
+    #[error("Failed to downcast Python object: {0}")]
+    DowncastError(String),
+
+    #[error("Data type not supported: {0}")]
+    UnsupportedDataTypeError(String),
+}
+impl<'a> From<pyo3::DowncastError<'a, 'a>> for PyDriftError {
+    fn from(err: pyo3::DowncastError) -> Self {
+        PyDriftError::DowncastError(err.to_string())
+    }
 }
 
 impl From<PyDriftError> for PyErr {
