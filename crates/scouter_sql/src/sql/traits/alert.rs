@@ -98,9 +98,6 @@ pub trait AlertSqlLogic {
             .await
             .map_err(SqlError::SqlxError);
 
-        match result {
-            Ok(result) => Ok(result),
-            Err(e) => Err(e),
-        }
+        result
     }
 }

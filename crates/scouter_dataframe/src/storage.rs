@@ -18,7 +18,7 @@ use url::Url;
 fn decode_base64_str(service_base64_creds: &str) -> Result<String, StorageError> {
     let decoded = BASE64_STANDARD.decode(service_base64_creds)?;
 
-    Ok(String::from_utf8(decoded).map_err(|e| StorageError::ConvertUtf8Error(e.to_string()))?)
+    Ok(String::from_utf8(decoded)?)
 }
 
 /// Storage provider enum for common object stores

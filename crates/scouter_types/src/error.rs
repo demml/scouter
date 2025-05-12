@@ -4,29 +4,11 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum UtilError {
-    #[error("Failed to parse cron expression: {0}")]
-    ParseCronError(String),
-
-    #[error("Failed to decode base64-encoded string: {0}")]
-    DecodeBase64Error(String),
-
-    #[error("Failed to convert string to Utf-8: {0}")]
-    ConvertUtf8Error(String),
-
-    #[error("Failed to set log level: {0}")]
-    SetLogLevelError(String),
-
     #[error("Failed to get parent path")]
     GetParentPathError,
 
     #[error("Failed to create directory")]
     CreateDirectoryError,
-
-    #[error("Failed to write to file")]
-    WriteError,
-
-    #[error("Failed to read to file")]
-    ReadError,
 
     #[error("Failed to read to create path")]
     CreatePathError,

@@ -8,14 +8,14 @@ pub enum StorageError {
     #[error(transparent)]
     UtilError(#[from] scouter_types::error::UtilError),
 
-    #[error("Failed to convert string to Utf-8: {0}")]
-    ConvertUtf8Error(String),
-
     #[error(transparent)]
     ObjectStorageError(#[from] object_store::Error),
 
     #[error(transparent)]
     ParseError(#[from] url::ParseError),
+
+    #[error(transparent)]
+    Utf8Error(#[from] std::string::FromUtf8Error),
 }
 
 #[derive(Error, Debug)]
