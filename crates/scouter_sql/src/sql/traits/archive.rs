@@ -4,7 +4,7 @@ use crate::sql::schema::Entity;
 use crate::sql::utils::pg_rows_to_server_records;
 use chrono::{DateTime, Utc};
 
-use scouter_error::SqlError;
+use crate::sql::error::SqlError;
 use scouter_types::{RecordType, ServerRecords};
 
 use sqlx::{Pool, Postgres, Transaction};
@@ -31,15 +31,14 @@ pub trait ArchiveSqlLogic {
             RecordType::Psi => Queries::GetBinCountEntities.get_query(),
             RecordType::Custom => Queries::GetCustomEntities.get_query(),
             _ => {
-                return Err(SqlError::traced_invalid_record_type_error(record_type));
+                return Err(SqlError::InvalidRecordTypeError);
             }
         };
 
         let entities: Vec<Entity> = sqlx::query_as(&query.sql)
             .bind(retention_period)
             .fetch_all(pool)
-            .await
-            .map_err(SqlError::traced_get_entities_error)?;
+            .await?;
 
         Ok(entities)
     }
@@ -69,7 +68,7 @@ pub trait ArchiveSqlLogic {
             RecordType::Psi => Queries::GetBinCountDataForArchive.get_query(),
             RecordType::Custom => Queries::GetCustomDataForArchive.get_query(),
             _ => {
-                return Err(SqlError::traced_invalid_record_type_error(record_type));
+                return Err(SqlError::InvalidRecordTypeError);
             }
         };
         let rows = sqlx::query(&query.sql)
@@ -80,7 +79,7 @@ pub trait ArchiveSqlLogic {
             .bind(version)
             .fetch_all(&mut **tx)
             .await
-            .map_err(SqlError::traced_get_entity_data_error)?;
+            .map_err(SqlError::SqlxError)?;
 
         // need to convert the rows to server records (storage dataframe expects this)
         pg_rows_to_server_records(&rows, record_type)
@@ -100,7 +99,7 @@ pub trait ArchiveSqlLogic {
             RecordType::Psi => Queries::UpdateBinCountEntities.get_query(),
             RecordType::Custom => Queries::UpdateCustomEntities.get_query(),
             _ => {
-                return Err(SqlError::traced_invalid_record_type_error(record_type));
+                return Err(SqlError::InvalidRecordTypeError);
             }
         };
         sqlx::query(&query.sql)
@@ -111,7 +110,7 @@ pub trait ArchiveSqlLogic {
             .bind(version)
             .execute(&mut **tx)
             .await
-            .map_err(SqlError::traced_get_entity_data_error)?;
+            .map_err(SqlError::SqlxError)?;
 
         Ok(())
     }

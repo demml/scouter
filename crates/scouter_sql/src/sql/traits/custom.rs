@@ -1,10 +1,10 @@
+use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
 use crate::sql::schema::BinnedCustomMetricWrapper;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use scouter_dataframe::parquet::{dataframe_to_custom_drift_metrics, ParquetDataFrame};
-use scouter_error::SqlError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::{DriftRequest, ServiceInfo};
 use scouter_types::{custom::BinnedCustomMetrics, CustomMetricServerRecord, RecordType};
@@ -21,7 +21,7 @@ pub trait CustomMetricSqlLogic {
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertCustomMetricValues.get_query();
 
-        let query_result = sqlx::query(&query.sql)
+        sqlx::query(&query.sql)
             .bind(record.created_at)
             .bind(&record.name)
             .bind(&record.space)
@@ -29,12 +29,8 @@ pub trait CustomMetricSqlLogic {
             .bind(&record.metric)
             .bind(record.value)
             .execute(pool)
-            .await;
-
-        match query_result {
-            Ok(result) => Ok(result),
-            Err(e) => Err(SqlError::traced_insert_custom_metrics_error(e)),
-        }
+            .await
+            .map_err(SqlError::SqlxError)
     }
 
     async fn get_custom_metric_values(
@@ -53,7 +49,7 @@ pub trait CustomMetricSqlLogic {
             .bind(metrics)
             .fetch_all(pool)
             .await
-            .map_err(SqlError::traced_get_custom_metrics_error)?;
+            .map_err(SqlError::SqlxError)?;
 
         let metric_map = records
             .into_iter()
@@ -94,7 +90,7 @@ pub trait CustomMetricSqlLogic {
             .bind(&params.version)
             .fetch_all(pool)
             .await
-            .map_err(SqlError::traced_query_error)?;
+            .map_err(SqlError::SqlxError)?;
 
         Ok(BinnedCustomMetrics::from_vec(
             records.into_iter().map(|wrapper| wrapper.0).collect(),
@@ -153,9 +149,7 @@ pub trait CustomMetricSqlLogic {
             )
             .await?;
 
-        dataframe_to_custom_drift_metrics(archived_df)
-            .await
-            .map_err(SqlError::traced_failed_to_convert_dataframe_error)
+        Ok(dataframe_to_custom_drift_metrics(archived_df).await?)
     }
 
     // Queries the database for drift records based on a time window and aggregation

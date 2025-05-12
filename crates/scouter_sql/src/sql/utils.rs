@@ -1,5 +1,5 @@
+use crate::sql::error::SqlError;
 use chrono::{DateTime, Utc};
-use scouter_error::SqlError;
 use scouter_types::{
     CustomMetricServerRecord, PsiServerRecord, RecordType, ServerRecord, ServerRecords,
     SpcServerRecord,
@@ -9,52 +9,26 @@ use sqlx::{postgres::PgRow, Row};
 /// Helper for converting a row to an `SpcServerRecord`.
 fn spc_record_from_row(row: &PgRow) -> Result<SpcServerRecord, SqlError> {
     Ok(SpcServerRecord {
-        created_at: row
-            .try_get("created_at")
-            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "created_at"))?,
-        name: row
-            .try_get("name")
-            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "name"))?,
-        space: row
-            .try_get("space")
-            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "space"))?,
-        version: row
-            .try_get("version")
-            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "version"))?,
-        feature: row
-            .try_get("feature")
-            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "feature"))?,
-        value: row
-            .try_get("value")
-            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "value"))?,
+        created_at: row.try_get("created_at")?,
+        name: row.try_get("name")?,
+        space: row.try_get("space")?,
+        version: row.try_get("version")?,
+        feature: row.try_get("feature")?,
+        value: row.try_get("value")?,
     })
 }
 
 /// Helper for converting a row to a `PsiServerRecord`.
 fn psi_record_from_row(row: &PgRow) -> Result<PsiServerRecord, SqlError> {
-    let bin_id: i32 = row
-        .try_get("bin_id")
-        .map_err(|e| SqlError::traced_failed_to_extract_error(e, "bin_id"))?;
-    let bin_count: i32 = row
-        .try_get("bin_count")
-        .map_err(|e| SqlError::traced_failed_to_extract_error(e, "bin_count"))?;
+    let bin_id: i32 = row.try_get("bin_id")?;
+    let bin_count: i32 = row.try_get("bin_count")?;
 
     Ok(PsiServerRecord {
-        created_at: row
-            .try_get("created_at")
-            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "created_at"))?,
-        name: row
-            .try_get("name")
-            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "name"))?,
-        space: row
-            .try_get("space")
-            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "space"))?,
-        version: row
-            .try_get("version")
-            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "version"))?,
-        feature: row
-            .try_get("feature")
-            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "feature"))?,
+        created_at: row.try_get("created_at")?,
+        name: row.try_get("name")?,
+        space: row.try_get("space")?,
+        version: row.try_get("version")?,
+        feature: row.try_get("feature")?,
         bin_id: bin_id as usize,
         bin_count: bin_count as usize,
     })
@@ -63,24 +37,12 @@ fn psi_record_from_row(row: &PgRow) -> Result<PsiServerRecord, SqlError> {
 /// Helper for converting a row to a `ustomMetricServerRecord`.
 fn custom_record_from_row(row: &PgRow) -> Result<CustomMetricServerRecord, SqlError> {
     Ok(CustomMetricServerRecord {
-        created_at: row
-            .try_get("created_at")
-            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "created_at"))?,
-        name: row
-            .try_get("name")
-            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "name"))?,
-        space: row
-            .try_get("space")
-            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "space"))?,
-        version: row
-            .try_get("version")
-            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "version"))?,
-        metric: row
-            .try_get("metric")
-            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "metric"))?,
-        value: row
-            .try_get("value")
-            .map_err(|e| SqlError::traced_failed_to_extract_error(e, "value"))?,
+        created_at: row.try_get("created_at")?,
+        name: row.try_get("name")?,
+        space: row.try_get("space")?,
+        version: row.try_get("version")?,
+        metric: row.try_get("metric")?,
+        value: row.try_get("value")?,
     })
 }
 
@@ -105,7 +67,7 @@ pub fn pg_rows_to_server_records(
         RecordType::Spc => |row| Ok(ServerRecord::Spc(spc_record_from_row(row)?)),
         RecordType::Psi => |row| Ok(ServerRecord::Psi(psi_record_from_row(row)?)),
         RecordType::Custom => |row| Ok(ServerRecord::Custom(custom_record_from_row(row)?)),
-        _ => return Err(SqlError::traced_invalid_record_type_error(record_type)),
+        _ => return Err(SqlError::InvalidRecordTypeError),
     };
 
     // Pre-allocate vector with exact capacity needed
@@ -155,9 +117,7 @@ pub fn split_custom_interval(
     retention_period: &i32,
 ) -> Result<QueryTimestamps, SqlError> {
     if begin_datetime >= end_datetime {
-        return Err(SqlError::InvalidDateRangeError(
-            "Begin datetime must be before end datetime".to_string(),
-        ));
+        return Err(SqlError::InvalidDateRangeError);
     }
 
     let retention_date = Utc::now() - chrono::Duration::days(*retention_period as i64);

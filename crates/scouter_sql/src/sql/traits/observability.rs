@@ -1,7 +1,7 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::ObservabilityResult;
 
-use scouter_error::{SqlError, UtilError};
+use crate::sql::error::SqlError;
 use scouter_types::TimeInterval;
 use scouter_types::{ObservabilityMetricRequest, ObservabilityMetrics};
 
@@ -23,8 +23,7 @@ pub trait ObservabilitySqlLogic {
         record: &ObservabilityMetrics,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertObservabilityRecord.get_query();
-        let route_metrics = serde_json::to_value(&record.route_metrics)
-            .map_err(UtilError::traced_serialize_error)?;
+        let route_metrics = serde_json::to_value(&record.route_metrics)?;
 
         sqlx::query(&query.sql)
             .bind(&record.space)
@@ -35,7 +34,7 @@ pub trait ObservabilitySqlLogic {
             .bind(route_metrics)
             .execute(pool)
             .await
-            .map_err(SqlError::traced_query_error)
+            .map_err(SqlError::SqlxError)
     }
 
     async fn get_binned_observability_metrics(
@@ -48,16 +47,14 @@ pub trait ObservabilitySqlLogic {
 
         let bin = time_interval as f64 / params.max_data_points as f64;
 
-        let observability_metrics: Result<Vec<ObservabilityResult>, sqlx::Error> =
-            sqlx::query_as(&query.sql)
-                .bind(bin)
-                .bind(time_interval)
-                .bind(&params.name)
-                .bind(&params.space)
-                .bind(&params.version)
-                .fetch_all(pool)
-                .await;
-
-        observability_metrics.map_err(SqlError::traced_query_error)
+        sqlx::query_as(&query.sql)
+            .bind(bin)
+            .bind(time_interval)
+            .bind(&params.name)
+            .bind(&params.space)
+            .bind(&params.version)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError)
     }
 }

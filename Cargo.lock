@@ -4914,7 +4914,6 @@ dependencies = [
  "reqwest",
  "rusty-logging",
  "scouter-drift",
- "scouter-error",
  "scouter-settings",
  "scouter-sql",
  "scouter-types",

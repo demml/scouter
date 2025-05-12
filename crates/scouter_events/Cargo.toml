@@ -24,7 +24,6 @@ rusty-logging = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 scouter-drift = { workspace = true }
-scouter-error = { workspace = true }
 scouter-settings = { workspace = true }
 scouter-sql = { workspace = true, optional = true }
 scouter-types = { workspace = true }
