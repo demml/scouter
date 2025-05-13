@@ -4,3 +4,4 @@ SET active = false,
 WHERE space = $1
   and name = $2
   and version != $3;
+  and ($4 IS NULL OR drift_type = $4);

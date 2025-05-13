@@ -196,6 +196,7 @@ pub trait ProfileSqlLogic {
                         .bind(&params.name)
                         .bind(&params.space)
                         .bind(&params.version)
+                        .bind(params.drift_type.as_ref().map(|t| t.to_string()))
                         .execute(pool)
                         .await
                         .map_err(SqlError::SqlxError);
