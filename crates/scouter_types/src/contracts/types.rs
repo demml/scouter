@@ -393,3 +393,8 @@ impl ScouterResponse {
         ScouterResponse { status, message }
     }
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UpdateAlertResponse {
+    pub updated: bool,
+}

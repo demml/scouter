@@ -1,4 +1,3 @@
-use crate::api::routes::alerts::types::UpdateAlertResponse;
 use crate::api::state::AppState;
 
 use anyhow::{Context, Result};
@@ -11,7 +10,9 @@ use axum::{
 use scouter_sql::sql::traits::AlertSqlLogic;
 use scouter_sql::PostgresClient;
 use scouter_types::alert::Alerts;
-use scouter_types::contracts::{DriftAlertRequest, ScouterServerError, UpdateAlertStatus};
+use scouter_types::contracts::{
+    DriftAlertRequest, ScouterServerError, UpdateAlertResponse, UpdateAlertStatus,
+};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::error;
