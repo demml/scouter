@@ -14,5 +14,5 @@ WHERE
     AND version = $1
     AND name = $2
     AND space = $3
-    AND ($4 IS NULL OR created_at >= $4::timestamp)
+    AND ($4 IS NULL OR created_at >= $4)
     

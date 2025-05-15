@@ -1,11 +1,11 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::{AlertWrapper, UpdateAlertResult};
 
-use scouter_types::contracts::{DriftAlertRequest, ServiceInfo, UpdateAlertStatus};
+use scouter_types::contracts::{DriftAlertRequest, UpdateAlertStatus};
 
 use crate::sql::error::SqlError;
 use scouter_types::alert::Alert;
-use scouter_types::DriftType;
+use scouter_types::{DriftTaskInfo, DriftType};
 
 use sqlx::{postgres::PgQueryResult, Pool, Postgres};
 use std::collections::BTreeMap;
@@ -26,7 +26,7 @@ pub trait AlertSqlLogic {
     ///
     async fn insert_drift_alert(
         pool: &Pool<Postgres>,
-        service_info: &ServiceInfo,
+        task_info: &DriftTaskInfo,
         feature: &str,
         alert: &BTreeMap<String, String>,
         drift_type: &DriftType,
@@ -34,9 +34,9 @@ pub trait AlertSqlLogic {
         let query = Queries::InsertDriftAlert.get_query();
 
         let query_result = sqlx::query(&query.sql)
-            .bind(&service_info.name)
-            .bind(&service_info.space)
-            .bind(&service_info.version)
+            .bind(&task_info.name)
+            .bind(&task_info.space)
+            .bind(&task_info.version)
             .bind(feature)
             .bind(serde_json::to_value(alert).unwrap())
             .bind(drift_type.to_string())

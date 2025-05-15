@@ -70,11 +70,11 @@ pub mod psi_drifter {
 
             if observed_bin_proportions.is_empty() {
                 info!(
-                "No observed bin proportions available for {}/{}/{}. This indicates that no real-world data values have been recorded in the database for the monitored features as of {}. Skipping alert processing.",
+                "No observed bin proportions available for {}/{}/{}. Skipping alert processing.",
                 self.service_info.space,
                 self.service_info.name,
                 self.service_info.version,
-                limit_datetime
+           
             );
                 return Ok(None);
             }
@@ -186,11 +186,6 @@ pub mod psi_drifter {
             db_pool: &Pool<Postgres>,
             previous_run: DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
-            info!(
-                "Processing drift task for profile: {}/{}/{}",
-                self.service_info.space, self.service_info.name, self.service_info.version
-            );
-
             if self
                 .profile
                 .config
@@ -198,12 +193,10 @@ pub mod psi_drifter {
                 .features_to_monitor
                 .is_empty()
             {
-                info!(
-                    "No PSI profiles to process for {}/{}/{}",
-                    self.service_info.space, self.service_info.name, self.service_info.version
-                );
                 return Ok(None);
             }
+
+            
 
             let drift_map = self.get_drift_map(&previous_run, db_pool).await?;
 
@@ -282,6 +275,8 @@ pub mod psi_drifter {
                 );
                 return Ok(BinnedPsiFeatureMetrics::default());
             }
+
+            
 
             // iterate over each feature and calculate psi for each time period
             let binned_map = binned_records

@@ -50,3 +50,14 @@ pub struct FeatureBinProportionResult {
     pub bin_proportions: Vec<BTreeMap<usize, f64>>,
     pub overall_proportions: BTreeMap<usize, f64>,
 }
+
+impl Default for FeatureBinProportionResult {
+    fn default() -> Self {
+        FeatureBinProportionResult {
+            feature: String::new(),
+            created_at: Vec::new(),
+            bin_proportions: Vec::new(),
+            overall_proportions: BTreeMap::new(),
+        }
+    }
+}

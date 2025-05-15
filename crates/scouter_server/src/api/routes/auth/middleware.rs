@@ -23,6 +23,8 @@ pub struct ErrorResponse {
     pub message: String,
 }
 
+const X_BOOTSTRAP_TOKEN: &str = "x-bootstrap-token";
+
 pub async fn auth_api_middleware(
     cookie_jar: CookieJar,
     State(state): State<Arc<AppState>>,
@@ -30,12 +32,22 @@ pub async fn auth_api_middleware(
     next: Next,
 ) -> Result<impl IntoResponse, (StatusCode, Json<AuthError>)> {
     let headers = req.headers();
-    if let Some(key) = headers.get("X-Bootstrap-Key") {
+
+    if let Some(key) = headers.get(X_BOOTSTRAP_TOKEN) {
         let bootstrap_key = &state.config.bootstrap_key;
+
         if key.as_bytes() == bootstrap_key.as_bytes()
-            && (req.uri().path().contains("/user") || req.uri().path().contains("/healthcheck"))
-            && req.method() == axum::http::Method::POST
+            && ((req.uri().path().contains("/user") && req.method() == axum::http::Method::POST)
+                || req.uri().path().contains("/healthcheck"))
         {
+            // create temp auth middleware to handle bootstrap permissions
+            let auth_middleware = UserPermissions {
+                username: "bootstrap".to_string(),
+                permissions: vec!["admin".to_string()],
+                group_permissions: vec!["admin".to_string()],
+            };
+
+            req.extensions_mut().insert(auth_middleware);
             return Ok(next.run(req).await);
         }
     }

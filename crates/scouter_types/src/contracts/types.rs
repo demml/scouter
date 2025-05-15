@@ -183,6 +183,15 @@ pub struct ServiceInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DriftTaskInfo {
+    pub space: String,
+    pub name: String,
+    pub version: String,
+    pub uid: String,
+    pub drift_type: DriftType,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ObservabilityMetricRequest {
     pub name: String,
     pub space: String,

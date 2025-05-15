@@ -62,6 +62,12 @@ pub enum DriftError {
 
     #[error(transparent)]
     ProfileError(#[from] scouter_types::error::ProfileError),
+
+    #[error("Invalid drift type")]
+    InvalidDriftType,
+
+    #[error("Error processing alert: {0}")]
+    AlertProcessingError(String),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for DriftError {

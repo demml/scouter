@@ -163,7 +163,6 @@ pub trait PsiSqlLogic {
         retention_period: &i32,
         storage_settings: &ObjectStorageSettings,
     ) -> Result<Vec<FeatureBinProportionResult>, SqlError> {
-        debug!("Getting binned PSI drift records for {:?}", params);
         if !params.has_custom_interval() {
             debug!("No custom interval provided, using default");
             let minutes = params.time_interval.to_minutes();

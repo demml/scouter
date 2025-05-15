@@ -102,6 +102,7 @@ pub struct TaskRequest {
     pub drift_type: String,
     pub previous_run: DateTime<Utc>,
     pub schedule: String,
+    pub uid: String,
 }
 
 impl<'r> FromRow<'r, PgRow> for TaskRequest {
@@ -116,6 +117,7 @@ impl<'r> FromRow<'r, PgRow> for TaskRequest {
             drift_type: row.try_get("drift_type")?,
             previous_run: row.try_get("previous_run")?,
             schedule: row.try_get("schedule")?,
+            uid: row.try_get("uid")?,
         })
     }
 }

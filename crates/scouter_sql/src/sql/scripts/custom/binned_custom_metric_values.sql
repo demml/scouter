@@ -6,7 +6,7 @@ WITH subquery1 AS (
     FROM scouter.custom_metric
     WHERE 
         1=1
-        AND created_at > timezone('utc', now()) - interval '$2 minute'
+        AND created_at > CURRENT_TIMESTAMP - (interval '1 minute' * $2)
         AND name = $3
         AND space = $4
         AND version = $5
@@ -38,7 +38,7 @@ subquery3 AS (
 
 SELECT 
     metric,
-    array_agg(created_at) as created_at,
-    array_agg(stats) as stats
+    array_agg(created_at order by created_at desc) as created_at,
+    array_agg(stats order by created_at desc) as stats
 FROM subquery3
 GROUP BY metric;

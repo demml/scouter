@@ -13,7 +13,7 @@ use scouter_profile::{
 use scouter_types::DataType;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
-use tracing::info;
+use tracing::debug;
 
 #[pyclass]
 pub struct DataProfiler {
@@ -41,7 +41,7 @@ impl DataProfiler {
         bin_size: Option<usize>,
         compute_correlations: Option<bool>,
     ) -> Result<DataProfile, DataProfileError> {
-        info!("Creating data profile");
+        debug!("Creating data profile");
 
         let bin_size = bin_size.unwrap_or(20);
         let compute_correlations = compute_correlations.unwrap_or(false);

@@ -1,7 +1,7 @@
 UPDATE scouter.drift_profile
 SET previous_run = next_run,
     next_run     = $1,
-    updated_at   = timezone('utc', now())
-WHERE name = $2
-  and space = $3
-  and version = $4;
+    status       = 'pending',
+    processing_started_at = null,
+    updated_at   = CURRENT_TIMESTAMP
+WHERE uid= $2

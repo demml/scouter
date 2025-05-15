@@ -203,10 +203,12 @@ mod tests {
         let timestamp = Utc::now();
 
         for _ in 0..10 {
-            let service_info = ServiceInfo {
+            let task_info = DriftTaskInfo {
                 space: SPACE.to_string(),
                 name: NAME.to_string(),
                 version: VERSION.to_string(),
+                uid: "test".to_string(),
+                drift_type: DriftType::Spc,
             };
 
             let alert = (0..10)
@@ -215,7 +217,7 @@ mod tests {
 
             let result = PostgresClient::insert_drift_alert(
                 &pool,
-                &service_info,
+                &task_info,
                 "test",
                 &alert,
                 &DriftType::Spc,

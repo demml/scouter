@@ -58,6 +58,10 @@ async fn create_user(
     Json(create_req): Json<CreateUserRequest>,
 ) -> Result<Json<UserResponse>, (StatusCode, Json<ScouterServerError>)> {
     // Check if requester has admin permissions
+
+    println!("User permissions: {:?}", perms);
+    println!("Create request: {:?}", create_req);
+
     if !perms.group_permissions.contains(&"admin".to_string()) {
         return Err((
             StatusCode::FORBIDDEN,

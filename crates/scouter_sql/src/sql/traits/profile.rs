@@ -6,9 +6,9 @@ use cron::Schedule;
 
 use crate::sql::error::SqlError;
 use async_trait::async_trait;
-use scouter_types::{DriftProfile, GetProfileRequest, ProfileStatusRequest, ServiceInfo};
+use scouter_types::{DriftProfile, DriftTaskInfo, GetProfileRequest, ProfileStatusRequest};
 use serde_json::Value;
-use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row, Transaction};
+use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::result::Result::Ok;
 use std::str::FromStr;
 use tracing::{error, instrument};
@@ -118,11 +118,11 @@ pub trait ProfileSqlLogic {
     }
 
     async fn get_drift_profile_task(
-        transaction: &mut Transaction<'_, Postgres>,
+        pool: &Pool<Postgres>,
     ) -> Result<Option<TaskRequest>, SqlError> {
         let query = Queries::GetDriftTask.get_query();
         sqlx::query_as(&query.sql)
-            .fetch_optional(&mut **transaction)
+            .fetch_optional(pool)
             .await
             .map_err(SqlError::SqlxError)
     }
@@ -140,8 +140,8 @@ pub trait ProfileSqlLogic {
     /// * `Result<(), SqlError>` - Result of the query
     #[instrument(skip_all)]
     async fn update_drift_profile_run_dates(
-        transaction: &mut Transaction<'_, Postgres>,
-        service_info: &ServiceInfo,
+        pool: &Pool<Postgres>,
+        task_info: &DriftTaskInfo,
         schedule: &str,
     ) -> Result<(), SqlError> {
         let query = Queries::UpdateDriftProfileRunDates.get_query();
@@ -157,10 +157,8 @@ pub trait ProfileSqlLogic {
 
         let query_result = sqlx::query(&query.sql)
             .bind(next_run)
-            .bind(&service_info.name)
-            .bind(&service_info.space)
-            .bind(&service_info.version)
-            .execute(&mut **transaction)
+            .bind(&task_info.uid)
+            .execute(pool)
             .await
             .map_err(SqlError::SqlxError);
 

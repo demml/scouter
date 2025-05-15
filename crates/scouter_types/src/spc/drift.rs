@@ -36,3 +36,9 @@ impl SpcDriftFeatures {
         ProfileFuncs::__str__(self)
     }
 }
+
+impl SpcDriftFeatures {
+    pub fn is_empty(&self) -> bool {
+        self.features.is_empty()
+    }
+}

@@ -1,7 +1,7 @@
 use scouter_sql::sql::schema::User;
 use serde::{Deserialize, Serialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Debug)]
 pub struct CreateUserRequest {
     pub username: String,
     pub password: String,

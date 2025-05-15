@@ -29,6 +29,9 @@ impl BackgroundDriftManager {
                 drift_executor,
                 worker_shutdown_rx,
             )));
+
+            // sleep for a bit to stagger the start of the workers
+            tokio::time::sleep(std::time::Duration::from_millis(200)).await;
         }
 
         debug!("✅ Started {} drift workers", num_workers);
