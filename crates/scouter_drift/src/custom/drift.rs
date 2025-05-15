@@ -177,7 +177,7 @@ pub mod custom_drifter {
             let mut alert_vec = Vec::new();
             alerts.iter_mut().for_each(|alert| {
                 let mut alert_map = BTreeMap::new();
-                alert_map.insert("metric_name".to_string(), alert.metric_name.clone());
+                alert_map.insert("entity_name".to_string(), alert.metric_name.clone());
                 alert_map.insert(
                     "training_metric_value".to_string(),
                     alert.training_metric_value.to_string(),

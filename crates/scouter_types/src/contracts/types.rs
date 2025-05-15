@@ -204,6 +204,7 @@ pub struct ObservabilityMetricRequest {
 pub struct UpdateAlertStatus {
     pub id: i32,
     pub active: bool,
+    pub space: String,
 }
 
 /// Common struct for returning errors from scouter server (axum response)

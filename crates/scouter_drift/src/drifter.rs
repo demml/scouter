@@ -167,7 +167,7 @@ pub mod drift_executor {
                         PostgresClient::insert_drift_alert(
                             &self.db_pool,
                             task_info,
-                            alert.get("feature").unwrap_or(&"NA".to_string()),
+                            alert.get("entity_name").unwrap_or(&"NA".to_string()),
                             &alert,
                             &drift_type,
                         )

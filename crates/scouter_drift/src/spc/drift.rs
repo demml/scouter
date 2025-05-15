@@ -205,7 +205,7 @@ pub mod spc_drifter {
                         let mut alert_map = BTreeMap::new();
                         alert_map.insert("zone".to_string(), alert.zone.clone().to_string());
                         alert_map.insert("kind".to_string(), alert.kind.clone().to_string());
-                        alert_map.insert("feature".to_string(), feature.feature.clone());
+                        alert_map.insert("entity_name".to_string(), feature.feature.clone());
                         alert_map
                     };
                     tasks.push(alert_map);

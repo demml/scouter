@@ -27,7 +27,7 @@ pub trait AlertSqlLogic {
     async fn insert_drift_alert(
         pool: &Pool<Postgres>,
         task_info: &DriftTaskInfo,
-        feature: &str,
+        entity_name: &str,
         alert: &BTreeMap<String, String>,
         drift_type: &DriftType,
     ) -> Result<PgQueryResult, SqlError> {
@@ -37,7 +37,7 @@ pub trait AlertSqlLogic {
             .bind(&task_info.name)
             .bind(&task_info.space)
             .bind(&task_info.version)
-            .bind(feature)
+            .bind(entity_name)
             .bind(serde_json::to_value(alert).unwrap())
             .bind(drift_type.to_string())
             .execute(pool)

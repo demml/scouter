@@ -172,7 +172,7 @@ pub mod psi_drifter {
             let mut alert_vec = Vec::new();
             alerts.iter_mut().for_each(|(feature, psi)| {
                 let mut alert_map = BTreeMap::new();
-                alert_map.insert("feature".to_string(), feature.clone());
+                alert_map.insert("entity_name".to_string(), feature.clone());
                 alert_map.insert("psi".to_string(), psi.to_string());
                 alert_map.insert("threshold".to_string(), threshold.to_string());
                 alert_vec.push(alert_map);
