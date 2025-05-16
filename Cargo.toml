@@ -9,7 +9,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.4.5"
+version = "0.4.6"
 authors = [
       "Thorrester <support@demmlai.com>",
       "russellkemmit <support@demmlai.com>",
@@ -50,6 +50,7 @@ cron = "0.*"
 crossbeam-queue = "0.*"
 datafusion = { version = "*", features = ["parquet"] }
 futures-util = { version = "0.*" }
+flume = "0.11.*"
 futures = "0.*"
 include_dir = "0.*"
 indicatif = "0.*"
@@ -68,7 +69,7 @@ object_store = { version = "0.11.*", features = ["aws", "azure", "gcp" ] }
 parquet = { version = "*", features = ["arrow"] }
 password-auth = "1.*"
 pyo3 = { version = ">=0.*, <1.0.0", features = ["chrono", "anyhow", "extension-module"] }
-rand = "0.*"
+rand = "0.9.*"
 rayon = "1.*"
 redis = { version = "0.*", features = ["tokio-comp"] }
 reqwest = { version = "0.12.*", features = ["json", "multipart", "rustls-tls", "rustls-tls-native-roots", "blocking" ], default-features = false }

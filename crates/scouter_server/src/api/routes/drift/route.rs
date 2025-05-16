@@ -11,13 +11,13 @@ use scouter_contracts::{DriftRequest, GetProfileRequest, ScouterResponse, Scoute
 use scouter_drift::psi::PsiDrifter;
 use scouter_error::ScouterError;
 use scouter_settings::ScouterServerConfig;
-use scouter_sql::sql::traits::{CustomMetricSqlLogic, ProfileSqlLogic, PsiSqlLogic, SpcSqlLogic};
+use scouter_sql::sql::traits::{CustomMetricSqlLogic, ProfileSqlLogic, SpcSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::{
     custom::BinnedCustomMetrics,
     psi::{BinnedPsiFeatureMetrics, PsiDriftProfile},
     spc::SpcDriftFeatures,
-    DriftType, RecordType, ServerRecords, ToDriftRecords,
+    DriftType, ServerRecords,
 };
 use sqlx::{Pool, Postgres};
 use std::panic::{catch_unwind, AssertUnwindSafe};
@@ -168,55 +168,11 @@ pub async fn get_custom_drift(
 }
 
 #[instrument(skip_all)]
-async fn insert_spc_drift(
-    records: &ServerRecords,
-    db_pool: &Pool<Postgres>,
-) -> Result<(), ScouterError> {
-    let records = records.to_spc_drift_records()?;
-
-    for record in records {
-        PostgresClient::insert_spc_drift_record(db_pool, &record).await?;
-    }
-
-    Ok(())
-}
-
-#[instrument(skip_all)]
-async fn insert_psi_drift(
-    records: &ServerRecords,
-    db_pool: &Pool<Postgres>,
-) -> Result<(), ScouterError> {
-    let records = records.to_psi_drift_records()?;
-
-    for record in records {
-        PostgresClient::insert_bin_counts(db_pool, &record).await?;
-    }
-
-    Ok(())
-}
-
-#[instrument(skip_all)]
-async fn insert_custom_drift(
-    records: &ServerRecords,
-    db_pool: &Pool<Postgres>,
-) -> Result<(), ScouterError> {
-    let records = records.to_custom_metric_drift_records()?;
-
-    for record in records {
-        PostgresClient::insert_custom_metric_value(db_pool, &record).await?;
-    }
-
-    Ok(())
-}
-
-#[instrument(skip_all)]
 pub async fn insert_drift(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
     Json(body): Json<ServerRecords>,
 ) -> Result<Json<ScouterResponse>, (StatusCode, Json<ScouterServerError>)> {
-    debug!("Inserting drift record: {:?}", body);
-
     if !perms.has_write_permission(&body.space()) {
         return Err((
             StatusCode::FORBIDDEN,
@@ -224,42 +180,18 @@ pub async fn insert_drift(
         ));
     }
 
-    let record_type = match body.record_type() {
-        Ok(rt) => rt,
-        Err(e) => {
-            error!("Invalid record type: {:?}", e);
-            return Err((
-                StatusCode::BAD_REQUEST,
-                Json(ScouterServerError::new(format!(
-                    "Invalid record type: {:?}",
-                    e
-                ))),
-            ));
-        }
-    };
-
-    let result = match record_type {
-        RecordType::Spc => insert_spc_drift(&body, &data.db_pool).await,
-        RecordType::Psi => insert_psi_drift(&body, &data.db_pool).await,
-        RecordType::Custom => insert_custom_drift(&body, &data.db_pool).await,
-        _ => Err(ScouterError::Error("Invalid record type".to_string())),
-    };
-
-    match result {
-        Ok(_) => Ok(Json(ScouterResponse::new(
-            "success".to_string(),
-            "Drift record inserted successfully".to_string(),
-        ))),
-        Err(e) => {
-            error!("Failed to insert drift record: {:?}", e);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::new(format!(
-                    "Failed to insert drift record: {:?}",
-                    e
-                ))),
-            ))
-        }
+    match data.http_consumer_tx.send_async(body).await {
+        Ok(_) => Ok(Json(ScouterResponse {
+            status: "success".to_string(),
+            message: "Drift records queued for processing".to_string(),
+        })),
+        Err(e) => Err((
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ScouterServerError::new(format!(
+                "Failed to enqueue drift records: {:?}",
+                e
+            ))),
+        )),
     }
 }
 

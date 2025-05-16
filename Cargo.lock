@@ -201,12 +201,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "arc-swap"
-version = "1.7.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "69f7f8c3906b62b754cd5326047894316021dcfe5a194c8ea52bdd94934a3457"
-
-[[package]]
 name = "argon2"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1129,20 +1123,6 @@ dependencies = [
  "serde",
  "serde_json",
  "yansi",
-]
-
-[[package]]
-name = "combine"
-version = "4.6.7"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba5a308b75df32fe02788e748662718f03fde005016435c444eea572398219fd"
-dependencies = [
- "bytes",
- "futures-core",
- "memchr",
- "pin-project-lite",
- "tokio",
- "tokio-util",
 ]
 
 [[package]]
@@ -2182,6 +2162,7 @@ checksum = "da0e4dd2a88388a1f4ccc7c9ce104604dab68d9f408dc34cd45823d5a9069095"
 dependencies = [
  "futures-core",
  "futures-sink",
+ "nanorand",
  "spin",
 ]
 
@@ -3268,12 +3249,21 @@ dependencies = [
  "hyper",
  "hyper-util",
  "log",
- "rand 0.9.0",
+ "rand 0.9.1",
  "regex",
  "serde_json",
  "serde_urlencoded",
  "similar",
  "tokio",
+]
+
+[[package]]
+name = "nanorand"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6a51313c5820b0b02bd422f4b44776fbf47961755c74ce64afc73bfad10226c3"
+dependencies = [
+ "getrandom 0.2.15",
 ]
 
 [[package]]
@@ -3671,7 +3661,7 @@ dependencies = [
  "hmac",
  "pkcs12",
  "pkcs5",
- "rand 0.9.0",
+ "rand 0.9.1",
  "rc2",
  "sha1",
  "sha2",
@@ -4056,7 +4046,7 @@ dependencies = [
 
 [[package]]
 name = "py-scouter"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "ndarray-stats",
  "num-traits",
@@ -4192,7 +4182,7 @@ checksum = "b820744eb4dc9b57a3398183639c511b5a26d2ed702cedd3febaa1393caa22cc"
 dependencies = [
  "bytes",
  "getrandom 0.3.2",
- "rand 0.9.0",
+ "rand 0.9.1",
  "ring",
  "rustc-hash",
  "rustls",
@@ -4256,13 +4246,12 @@ dependencies = [
 
 [[package]]
 name = "rand"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3779b94aeb87e8bd4e834cee3650289ee9e0d5677f976ecdb6d219e5f4f6cd94"
+checksum = "9fbfd9d094a40bf3ae768db9361049ace4c0e04a4fd6b359518bd7b73a73dd97"
 dependencies = [
  "rand_chacha 0.9.0",
  "rand_core 0.9.3",
- "zerocopy 0.8.24",
 ]
 
 [[package]]
@@ -4427,29 +4416,6 @@ checksum = "76009fbe0614077fc1a2ce255e3a1881a2e3a3527097d5dc6d8212c585e7e38b"
 dependencies = [
  "quote",
  "syn",
-]
-
-[[package]]
-name = "redis"
-version = "0.30.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "438a4e5f8e9aa246d6f3666d6978441bf1b37d5f417b50c4dd220be09f5fcc17"
-dependencies = [
- "arc-swap",
- "bytes",
- "cfg-if",
- "combine",
- "futures-util",
- "itoa",
- "num-bigint",
- "percent-encoding",
- "pin-project-lite",
- "ryu",
- "sha1_smol",
- "socket2 0.5.9",
- "tokio",
- "tokio-util",
- "url",
 ]
 
 [[package]]
@@ -4825,11 +4791,11 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scouter-auth"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "jsonwebtoken",
  "password-auth",
- "rand 0.9.0",
+ "rand 0.9.1",
  "scouter-error",
  "scouter-sql",
  "serde",
@@ -4837,7 +4803,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-client"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "chrono",
  "ndarray",
@@ -4864,7 +4830,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-contracts"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "chrono",
  "pyo3",
@@ -4877,7 +4843,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-dataframe"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -4888,7 +4854,7 @@ dependencies = [
  "futures",
  "object_store",
  "parquet",
- "rand 0.9.0",
+ "rand 0.9.1",
  "scouter-error",
  "scouter-settings",
  "scouter-types",
@@ -4900,7 +4866,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-dispatch"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "futures",
  "mockito",
@@ -4916,7 +4882,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-drift"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "approx",
  "chrono",
@@ -4930,7 +4896,7 @@ dependencies = [
  "num-traits",
  "numpy",
  "pyo3",
- "rand 0.9.0",
+ "rand 0.9.1",
  "rayon",
  "rusty-logging",
  "scouter-contracts",
@@ -4948,7 +4914,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-error"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "pyo3",
  "serde",
@@ -4958,20 +4924,19 @@ dependencies = [
 
 [[package]]
 name = "scouter-events"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "async-trait",
  "chrono",
  "crossbeam-queue",
+ "flume",
  "futures",
- "futures-util",
  "lapin",
  "metrics",
  "ndarray",
  "ndarray-rand",
  "pyo3",
  "rdkafka",
- "redis",
  "reqwest",
  "rusty-logging",
  "scouter-contracts",
@@ -4992,7 +4957,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-observability"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "itertools 0.14.0",
  "ndarray",
@@ -5009,7 +4974,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-profile"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "approx",
  "chrono",
@@ -5022,7 +4987,7 @@ dependencies = [
  "num-traits",
  "numpy",
  "pyo3",
- "rand 0.9.0",
+ "rand 0.9.1",
  "rayon",
  "scouter-error",
  "scouter-types",
@@ -5033,13 +4998,14 @@ dependencies = [
 
 [[package]]
 name = "scouter-server"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "anyhow",
  "approx",
  "axum",
  "axum-extra",
  "chrono",
+ "flume",
  "futures",
  "http-body-util",
  "metrics",
@@ -5049,7 +5015,7 @@ dependencies = [
  "ndarray-rand",
  "object_store",
  "password-auth",
- "rand 0.9.0",
+ "rand 0.9.1",
  "rusty-logging",
  "scouter-auth",
  "scouter-contracts",
@@ -5078,7 +5044,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-settings"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "base64",
  "pyo3",
@@ -5090,13 +5056,13 @@ dependencies = [
 
 [[package]]
 name = "scouter-sql"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
  "cron",
- "rand 0.9.0",
+ "rand 0.9.1",
  "scouter-contracts",
  "scouter-dataframe",
  "scouter-error",
@@ -5113,7 +5079,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-types"
-version = "0.4.5"
+version = "0.4.6"
 dependencies = [
  "chrono",
  "colored_json",
@@ -5266,12 +5232,6 @@ dependencies = [
  "cpufeatures",
  "digest",
 ]
-
-[[package]]
-name = "sha1_smol"
-version = "1.0.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bbfa15b3dddfee50a0fff136974b3e1bde555604ba463834a7eb7deb6417705d"
 
 [[package]]
 name = "sha2"

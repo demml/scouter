@@ -146,3 +146,17 @@ impl Default for RedisSettings {
         }
     }
 }
+pub struct HttpConsumerSettings {
+    pub num_workers: usize,
+}
+impl Default for HttpConsumerSettings {
+    fn default() -> Self {
+        let num_workers = std::env::var("HTTP_CONSUMER_WORKER_COUNT")
+            .unwrap_or_else(|_| "1".to_string())
+            .parse::<usize>()
+            .map_err(|e| ConfigError::Error(format!("{:?}", e)))
+            .unwrap();
+
+        Self { num_workers }
+    }
+}

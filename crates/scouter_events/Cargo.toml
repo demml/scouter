@@ -15,6 +15,7 @@ description = "Logic for setting up and running Scouter event-driven consumers a
 async-trait = { workspace = true }
 chrono = { workspace = true }
 crossbeam-queue = { workspace = true }
+flume = { workspace = true }
 futures = { workspace = true }
 futures-util = { workspace = true }
 metrics = { workspace = true }

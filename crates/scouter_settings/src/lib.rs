@@ -11,6 +11,7 @@ pub mod http;
 pub mod polling;
 pub mod storage;
 
+use crate::events::HttpConsumerSettings;
 pub use auth::AuthSettings;
 pub use database::DatabaseSettings;
 pub use events::{KafkaSettings, RabbitMQSettings, RedisSettings};
@@ -37,6 +38,7 @@ pub struct ScouterServerConfig {
     pub kafka_settings: Option<KafkaSettings>,
     pub rabbitmq_settings: Option<RabbitMQSettings>,
     pub redis_settings: Option<RedisSettings>,
+    pub http_consumer_settings: HttpConsumerSettings,
     pub auth_settings: AuthSettings,
     pub bootstrap_key: String,
     pub storage_settings: ObjectStorageSettings,
@@ -61,13 +63,13 @@ impl Default for ScouterServerConfig {
     fn default() -> Self {
         let polling = PollingSettings::default();
         let database = DatabaseSettings::default();
-        let kafka = if std::env::var("KAFKA_BROKERS").is_ok() {
+        let kafka = if env::var("KAFKA_BROKERS").is_ok() {
             Some(KafkaSettings::default())
         } else {
             None
         };
 
-        let rabbitmq = if std::env::var("RABBITMQ_ADDR").is_ok() {
+        let rabbitmq = if env::var("RABBITMQ_ADDR").is_ok() {
             Some(RabbitMQSettings::default())
         } else {
             None
@@ -78,6 +80,7 @@ impl Default for ScouterServerConfig {
         } else {
             None
         };
+        let http_consumer_settings = HttpConsumerSettings::default();
 
         let auth_settings = AuthSettings {
             jwt_secret: env::var("SCOUTER_ENCRYPT_SECRET").unwrap_or_else(|_| {
@@ -108,6 +111,7 @@ impl Default for ScouterServerConfig {
             redis_settings: redis,
             auth_settings,
             bootstrap_key,
+            http_consumer_settings,
             storage_settings: ObjectStorageSettings::default(),
         }
     }
