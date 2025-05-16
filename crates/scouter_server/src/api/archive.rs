@@ -6,7 +6,6 @@ use scouter_settings::ScouterServerConfig;
 use scouter_sql::sql::traits::ArchiveSqlLogic;
 use scouter_sql::{sql::schema::Entity, PostgresClient};
 use scouter_types::{ArchiveRecord, DriftType, RecordType, ServerRecords};
-use sqlx::Transaction;
 use sqlx::{Pool, Postgres};
 use std::sync::Arc;
 use strum::IntoEnumIterator;
@@ -97,7 +96,7 @@ async fn get_entities_to_archive(
 
 /// Get data records for a given entity
 async fn get_data_to_archive(
-    tx: &mut Transaction<'_, Postgres>,
+    db_pool: &Pool<Postgres>,
     record_type: &RecordType,
     entity: &Entity,
 ) -> Result<ServerRecords, ScouterError> {
@@ -109,7 +108,7 @@ async fn get_data_to_archive(
         &entity.begin_timestamp,
         &entity.end_timestamp,
         record_type,
-        tx,
+        db_pool,
     )
     .await?;
 
@@ -120,7 +119,7 @@ async fn get_data_to_archive(
 /// Note - this doesn't delete the data from the database. It just marks it as archived
 /// Deletion occurs via pg-cron
 async fn update_entities_to_archived(
-    tx: &mut Transaction<'_, Postgres>,
+    db_pool: &Pool<Postgres>,
     record_type: &RecordType,
     entity: &Entity,
 ) -> Result<(), ScouterError> {
@@ -132,7 +131,7 @@ async fn update_entities_to_archived(
         &entity.begin_timestamp,
         &entity.end_timestamp,
         record_type,
-        tx,
+        db_pool,
     )
     .await?;
 
@@ -163,25 +162,14 @@ async fn process_record_type(
 
     // iterate over the entities and archive the data
     for entity in entities {
-        // hold transaction here
-        let mut tx = db_pool
-            .begin()
-            .await
-            .map_err(|e| ScouterError::Error(e.to_string()))?;
-
         // get data for space/name/version
-        let records = get_data_to_archive(&mut tx, record_type, &entity).await?;
+        let records = get_data_to_archive(db_pool, record_type, &entity).await?;
         let rpath = entity.get_write_path(record_type);
 
         df.write_parquet(&rpath, records).await?;
 
         // update the entity in the database
-        update_entities_to_archived(&mut tx, record_type, &entity).await?;
-
-        tx.commit().await.map_err(|e| {
-            error!("Error committing transaction: {}", e);
-            ScouterError::Error(e.to_string())
-        })?;
+        update_entities_to_archived(db_pool, record_type, &entity).await?;
     }
 
     debug!("Archiving data for record type: {:?} complete", record_type);
