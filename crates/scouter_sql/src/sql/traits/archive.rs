@@ -7,7 +7,7 @@ use chrono::{DateTime, Utc};
 use scouter_error::SqlError;
 use scouter_types::{RecordType, ServerRecords};
 
-use sqlx::{Pool, Postgres, Transaction};
+use sqlx::{Pool, Postgres};
 
 use std::result::Result::Ok;
 
@@ -62,7 +62,7 @@ pub trait ArchiveSqlLogic {
         begin_timestamp: &DateTime<Utc>,
         end_timestamp: &DateTime<Utc>,
         record_type: &RecordType,
-        tx: &mut Transaction<'_, Postgres>,
+        db_pool: &Pool<Postgres>,
     ) -> Result<ServerRecords, SqlError> {
         let query = match record_type {
             RecordType::Spc => Queries::GetSpcDataForArchive.get_query(),
@@ -78,7 +78,7 @@ pub trait ArchiveSqlLogic {
             .bind(space)
             .bind(name)
             .bind(version)
-            .fetch_all(&mut **tx)
+            .fetch_all(db_pool)
             .await
             .map_err(SqlError::traced_get_entity_data_error)?;
 
@@ -93,7 +93,7 @@ pub trait ArchiveSqlLogic {
         begin_timestamp: &DateTime<Utc>,
         end_timestamp: &DateTime<Utc>,
         record_type: &RecordType,
-        tx: &mut Transaction<'_, Postgres>,
+        db_pool: &Pool<Postgres>,
     ) -> Result<(), SqlError> {
         let query = match record_type {
             RecordType::Spc => Queries::UpdateSpcEntities.get_query(),
@@ -109,7 +109,7 @@ pub trait ArchiveSqlLogic {
             .bind(space)
             .bind(name)
             .bind(version)
-            .execute(&mut **tx)
+            .execute(db_pool)
             .await
             .map_err(SqlError::traced_get_entity_data_error)?;
 
