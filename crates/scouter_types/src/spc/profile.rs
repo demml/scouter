@@ -1,16 +1,17 @@
 #![allow(clippy::useless_conversion)]
+use crate::error::{ProfileError, TypeError};
 use crate::spc::alert::SpcAlertConfig;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, ProfileArgs, ProfileBaseArgs,
-    ProfileFuncs, MISSING,
+    ProfileFuncs, ProfileRequest, MISSING,
 };
 
 use chrono::{DateTime, Utc};
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
-use scouter_error::{ScouterError, TypeError, UtilError};
+
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -111,7 +112,7 @@ impl SpcDriftConfig {
         sample_size: Option<usize>,
         alert_config: Option<SpcAlertConfig>,
         config_path: Option<PathBuf>,
-    ) -> Result<Self, ScouterError> {
+    ) -> Result<Self, ProfileError> {
         if let Some(config_path) = config_path {
             let config = SpcDriftConfig::load_from_json_file(config_path);
             return config;
@@ -142,12 +143,12 @@ impl SpcDriftConfig {
     }
 
     #[staticmethod]
-    pub fn load_from_json_file(path: PathBuf) -> Result<SpcDriftConfig, ScouterError> {
+    pub fn load_from_json_file(path: PathBuf) -> Result<SpcDriftConfig, ProfileError> {
         // deserialize the string to a struct
 
-        let file = std::fs::read_to_string(&path).map_err(|_| UtilError::ReadError)?;
+        let file = std::fs::read_to_string(&path)?;
 
-        serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)
+        Ok(serde_json::from_str(&file)?)
     }
 
     pub fn __str__(&self) -> String {
@@ -181,31 +182,29 @@ impl SpcDriftConfig {
         sample: Option<bool>,
         sample_size: Option<usize>,
         alert_config: Option<SpcAlertConfig>,
-    ) -> Result<(), TypeError> {
+    ) -> Result<(), ProfileError> {
         if name.is_some() {
-            self.name = name.ok_or(TypeError::MissingAttribute("name".to_string()))?;
+            self.name = name.ok_or(TypeError::MissingNameError)?;
         }
 
         if space.is_some() {
-            self.space = space.ok_or(TypeError::MissingAttribute("space".to_string()))?;
+            self.space = space.ok_or(TypeError::MissingSpaceError)?;
         }
 
         if version.is_some() {
-            self.version = version.ok_or(TypeError::MissingAttribute("version".to_string()))?;
+            self.version = version.ok_or(TypeError::MissingVersionError)?;
         }
 
         if sample.is_some() {
-            self.sample = sample.ok_or(TypeError::MissingAttribute("sample".to_string()))?;
+            self.sample = sample.ok_or(ProfileError::MissingSampleError)?;
         }
 
         if sample_size.is_some() {
-            self.sample_size =
-                sample_size.ok_or(TypeError::MissingAttribute("sample size".to_string()))?;
+            self.sample_size = sample_size.ok_or(ProfileError::MissingSampleSizeError)?;
         }
 
         if alert_config.is_some() {
-            self.alert_config =
-                alert_config.ok_or(TypeError::MissingAttribute("alert_config".to_string()))?;
+            self.alert_config = alert_config.ok_or(TypeError::MissingAlertConfigError)?;
         }
 
         Ok(())
@@ -217,11 +216,10 @@ impl SpcDriftConfig {
         self.feature_map = feature_map;
     }
 
-    pub fn load_map_from_json(path: PathBuf) -> Result<HashMap<String, Value>, ScouterError> {
+    pub fn load_map_from_json(path: PathBuf) -> Result<HashMap<String, Value>, ProfileError> {
         // deserialize the string to a struct
-        let file = std::fs::read_to_string(&path).map_err(|_| UtilError::ReadError)?;
-        let config =
-            serde_json::from_str(&file).map_err(|e| UtilError::DeSerializeError(e.to_string()))?;
+        let file = std::fs::read_to_string(&path)?;
+        let config = serde_json::from_str(&file)?;
         Ok(config)
     }
 }
@@ -277,11 +275,10 @@ impl SpcDriftProfile {
         ProfileFuncs::__json__(self)
     }
     #[allow(clippy::useless_conversion)]
-    pub fn model_dump(&self, py: Python) -> PyResult<Py<PyDict>> {
-        let json_str = serde_json::to_string(&self).map_err(|_| ScouterError::SerializeError)?;
+    pub fn model_dump(&self, py: Python) -> Result<Py<PyDict>, ProfileError> {
+        let json_str = serde_json::to_string(&self)?;
 
-        let json_value: Value =
-            serde_json::from_str(&json_str).map_err(|_| ScouterError::DeSerializeError)?;
+        let json_value: Value = serde_json::from_str(&json_str)?;
 
         // Create a new Python dictionary
         let dict = PyDict::new(py);
@@ -309,15 +306,19 @@ impl SpcDriftProfile {
 
     // Convert python dict into a drift profile
     #[pyo3(signature = (path=None))]
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ScouterError> {
-        ProfileFuncs::save_to_json(self, path, FileName::SpcDriftProfile.to_str())
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ProfileError> {
+        Ok(ProfileFuncs::save_to_json(
+            self,
+            path,
+            FileName::SpcDriftProfile.to_str(),
+        )?)
     }
 
     #[staticmethod]
-    pub fn from_file(path: PathBuf) -> Result<SpcDriftProfile, ScouterError> {
-        let file = std::fs::read_to_string(&path).map_err(|_| UtilError::ReadError)?;
+    pub fn from_file(path: PathBuf) -> Result<SpcDriftProfile, ProfileError> {
+        let file = std::fs::read_to_string(&path)?;
 
-        serde_json::from_str(&file).map_err(|_| ScouterError::DeSerializeError)
+        Ok(serde_json::from_str(&file)?)
     }
 
     // update the arguments of the drift config
@@ -342,9 +343,18 @@ impl SpcDriftProfile {
         sample: Option<bool>,
         sample_size: Option<usize>,
         alert_config: Option<SpcAlertConfig>,
-    ) -> Result<(), TypeError> {
+    ) -> Result<(), ProfileError> {
         self.config
             .update_config_args(space, name, version, sample, sample_size, alert_config)
+    }
+
+    /// Create a profile request from the profile
+    pub fn create_profile_request(&self) -> Result<ProfileRequest, TypeError> {
+        Ok(ProfileRequest {
+            space: self.config.space.clone(),
+            profile: self.model_dump_json(),
+            drift_type: self.config.drift_type.clone(),
+        })
     }
 }
 

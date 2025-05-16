@@ -1,8 +1,8 @@
 #[cfg(all(feature = "rabbitmq", feature = "sql"))]
 pub mod rabbitmq_consumer {
+    use crate::error::EventError;
     use futures::StreamExt;
     use metrics::counter;
-    use scouter_error::EventError;
     use scouter_settings::RabbitMQSettings;
     use scouter_sql::MessageHandler;
     use scouter_types::ServerRecords;
@@ -132,13 +132,13 @@ pub mod rabbitmq_consumer {
     ) -> Result<Consumer, EventError> {
         let conn = Connection::connect(&settings.address, ConnectionProperties::default())
             .await
-            .map_err(EventError::traced_connection_error)?;
+            .map_err(EventError::ConnectRabbitMQError)?;
 
         let channel = conn.create_channel().await.unwrap();
         channel
             .basic_qos(settings.prefetch_count, BasicQosOptions::default())
             .await
-            .map_err(EventError::traced_setup_qos_error)?;
+            .map_err(EventError::SetupRabbitMQQosError)?;
 
         channel
             .queue_declare(
@@ -147,7 +147,7 @@ pub mod rabbitmq_consumer {
                 FieldTable::default(),
             )
             .await
-            .map_err(EventError::traced_declare_queue_error)?;
+            .map_err(EventError::DeclareRabbitMQQueueError)?;
 
         let consumer = channel
             .basic_consume(
@@ -157,7 +157,7 @@ pub mod rabbitmq_consumer {
                 FieldTable::default(),
             )
             .await
-            .map_err(EventError::traced_consume_error)?;
+            .map_err(EventError::ConsumeRabbitMQError)?;
 
         info!("✅ Started consumer for RabbitMQ");
 

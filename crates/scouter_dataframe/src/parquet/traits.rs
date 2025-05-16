@@ -1,5 +1,6 @@
 use arrow::datatypes::DataType;
 
+use crate::error::DataFrameError;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use datafusion::datasource::file_format::parquet::ParquetFormat;
@@ -9,7 +10,6 @@ use datafusion::datasource::listing::{
 use datafusion::prelude::SessionContext;
 use datafusion::prelude::*;
 use datafusion::{dataframe::DataFrameWriteOptions, prelude::DataFrame};
-use scouter_error::DataFrameError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::ServerRecords;
 use scouter_types::StorageType;
@@ -40,13 +40,13 @@ pub trait ParquetFrame {
         // add partition columns
         let df = df
             .with_column("year", date_part(lit("year"), col("created_at")))
-            .map_err(DataFrameError::traced_add_year_column_error)?
+            .map_err(DataFrameError::AddYearColumnError)?
             .with_column("month", date_part(lit("month"), col("created_at")))
-            .map_err(DataFrameError::traced_add_month_column_error)?
+            .map_err(DataFrameError::AddMonthColumnError)?
             .with_column("day", date_part(lit("day"), col("created_at")))
-            .map_err(DataFrameError::traced_add_day_column_error)?
+            .map_err(DataFrameError::AddDayColumnError)?
             .with_column("hour", date_part(lit("hour"), col("created_at")))
-            .map_err(DataFrameError::traced_add_hour_column_error)?;
+            .map_err(DataFrameError::AddHourColumnError)?;
 
         let write_options = DataFrameWriteOptions::new().with_partition_by(vec![
             // time partitioning
@@ -58,7 +58,7 @@ pub trait ParquetFrame {
 
         df.write_parquet(rpath, write_options, None)
             .await
-            .map_err(DataFrameError::traced_write_parquet_error)?;
+            .map_err(DataFrameError::WriteParquetError)?;
 
         Ok(())
     }
@@ -101,8 +101,7 @@ pub trait ParquetFrame {
     ) -> Result<SessionContext, DataFrameError> {
         let ctx = self.get_session_context()?;
 
-        let table_path =
-            ListingTableUrl::parse(path).map_err(DataFrameError::traced_parse_table_path_error)?;
+        let table_path = ListingTableUrl::parse(path)?;
 
         let file_format = ParquetFormat::new();
         let listing_options = ListingOptions::new(Arc::new(file_format))
@@ -118,19 +117,18 @@ pub trait ParquetFrame {
         let resolved_schema = listing_options
             .infer_schema(&ctx.state(), &table_path)
             .await
-            .map_err(DataFrameError::traced_infer_schema_error)?;
+            .map_err(DataFrameError::InferSchemaError)?;
 
         let config = ListingTableConfig::new(table_path)
             .with_listing_options(listing_options)
             .with_schema(resolved_schema);
 
         let provider = Arc::new(
-            ListingTable::try_new(config)
-                .map_err(DataFrameError::traced_create_listing_table_error)?,
+            ListingTable::try_new(config).map_err(DataFrameError::CreateListingTableError)?,
         );
 
         ctx.register_table(table_name, provider)
-            .map_err(DataFrameError::traced_register_table_error)?;
+            .map_err(DataFrameError::RegisterTableError)?;
         Ok(ctx)
     }
 
@@ -161,10 +159,7 @@ pub trait ParquetFrame {
         let ctx = self.register_table(path, &self.table_name()).await?;
         let sql = self.get_binned_sql(bin, start_time, end_time, space, name, version);
 
-        let df = ctx
-            .sql(&sql)
-            .await
-            .map_err(DataFrameError::traced_read_batch_error)?;
+        let df = ctx.sql(&sql).await?;
 
         Ok(df)
     }

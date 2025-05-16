@@ -10,7 +10,7 @@ use scouter_types::spc::SpcAlertConfig;
 use scouter_types::spc::SpcDriftConfig;
 use scouter_types::DriftType;
 
-use scouter_contracts::{GetProfileRequest, ProfileRequest, ProfileStatusRequest};
+use scouter_types::contracts::{GetProfileRequest, ProfileRequest, ProfileStatusRequest};
 
 #[tokio::test]
 async fn test_create_spc_profile() {
@@ -107,6 +107,7 @@ async fn test_create_spc_profile() {
         version: profile.config.version.clone(),
         active: true,
         drift_type: None,
+        deactivate_others: true,
     };
 
     let body = serde_json::to_string(&request).unwrap();

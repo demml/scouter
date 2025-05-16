@@ -1,6 +1,6 @@
 use crate::data_utils::{ConvertedData, DataConverter};
+use crate::error::DataError;
 use pyo3::prelude::*;
-use scouter_error::ScouterError;
 
 pub struct NumpyDataConverter;
 
@@ -8,11 +8,11 @@ impl DataConverter for NumpyDataConverter {
     fn categorize_features<'py>(
         py: Python<'py>,
         data: &Bound<'py, PyAny>,
-    ) -> Result<(Vec<String>, Vec<String>), ScouterError> {
+    ) -> Result<(Vec<String>, Vec<String>), DataError> {
         let numpy = py.import("numpy")?.getattr("ndarray")?;
 
         if !data.is_instance(&numpy)? {
-            return Err(ScouterError::traced_data_not_numpy_error());
+            return Err(DataError::NotNumpyArrayError);
         }
 
         let mut string_features = Vec::new();
@@ -37,7 +37,7 @@ impl DataConverter for NumpyDataConverter {
     fn process_numeric_features<'py>(
         data: &Bound<'py, PyAny>,
         features: &[String],
-    ) -> Result<(Option<Bound<'py, PyAny>>, Option<String>), ScouterError> {
+    ) -> Result<(Option<Bound<'py, PyAny>>, Option<String>), DataError> {
         if features.is_empty() {
             return Ok((None, None));
         }
@@ -50,7 +50,7 @@ impl DataConverter for NumpyDataConverter {
     fn process_string_features<'py>(
         data: &Bound<'py, PyAny>,
         features: &[String],
-    ) -> Result<Option<Vec<Vec<String>>>, ScouterError> {
+    ) -> Result<Option<Vec<Vec<String>>>, DataError> {
         if features.is_empty() {
             return Ok(None);
         }
@@ -65,7 +65,7 @@ impl DataConverter for NumpyDataConverter {
     fn prepare_data<'py>(
         py: Python<'py>,
         data: &Bound<'py, PyAny>,
-    ) -> Result<ConvertedData<'py>, ScouterError> {
+    ) -> Result<ConvertedData<'py>, DataError> {
         let (numeric_features, string_features) =
             NumpyDataConverter::categorize_features(py, data)?;
 

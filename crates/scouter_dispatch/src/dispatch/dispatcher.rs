@@ -1,4 +1,4 @@
-use scouter_error::DispatchError;
+use crate::dispatch::error::DispatchError;
 use scouter_types::{
     AlertDispatchConfig, AlertDispatchType, DispatchAlertDescription, DispatchDriftConfig,
     DriftArgs, OpsGenieDispatchConfig, SlackDispatchConfig,

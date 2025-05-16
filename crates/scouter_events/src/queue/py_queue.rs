@@ -1,4 +1,5 @@
 #![allow(clippy::useless_conversion)]
+use crate::error::{EventError, PyEventError};
 use crate::queue::bus::{Event, QueueBus};
 use crate::queue::custom::CustomQueue;
 use crate::queue::psi::PsiQueue;
@@ -6,7 +7,6 @@ use crate::queue::spc::SpcQueue;
 use crate::queue::traits::queue::QueueMethods;
 use crate::queue::types::TransportConfig;
 use pyo3::prelude::*;
-use scouter_error::{EventError, ScouterError};
 use scouter_types::{DriftProfile, QueueItem};
 use scouter_types::{Features, Metrics};
 use std::collections::HashMap;
@@ -68,9 +68,7 @@ impl QueueNum {
         match self {
             QueueNum::Psi(queue) => queue.insert(features).await,
             QueueNum::Spc(queue) => queue.insert(features).await,
-            _ => Err(EventError::traced_insert_record_error(
-                "Queue not supported for feature entity",
-            )),
+            _ => Err(EventError::QueueNotSupportedFeatureError),
         }
     }
 
@@ -82,9 +80,7 @@ impl QueueNum {
     pub async fn insert_metrics(&mut self, metrics: Metrics) -> Result<(), EventError> {
         match self {
             QueueNum::Custom(queue) => queue.insert(metrics).await,
-            _ => Err(EventError::traced_insert_record_error(
-                "Queue not supported for metrics entity",
-            )),
+            _ => Err(EventError::QueueNotSupportedMetricsError),
         }
     }
 
@@ -115,7 +111,7 @@ async fn handle_queue_events(
     // Signal that initialization is complete
     startup_tx
         .send(())
-        .map_err(|_| EventError::SetupRuntimeError("Failed to signal startup".to_string()))?;
+        .map_err(|_| EventError::SignalStartupError)?;
 
     loop {
         tokio::select! {
@@ -136,7 +132,7 @@ async fn handle_queue_events(
             _ = &mut shutdown_rx => {
                 debug!("Shutdown signal received for queue {}", id);
                 queue.flush().await?;
-                completion_tx.send(()).map_err(|_| EventError::SetupRuntimeError("Failed to signal completion".to_string()))?;
+                completion_tx.send(()).map_err(|_| EventError::SignalCompletionError)?;
                 break;
             }
         }
@@ -176,7 +172,7 @@ impl ScouterQueue {
         py: Python,
         path: HashMap<String, PathBuf>,
         transport_config: &Bound<'_, PyAny>,
-    ) -> Result<Self, ScouterError> {
+    ) -> Result<Self, PyEventError> {
         let mut queues = HashMap::new();
         let mut startup_rxs = Vec::new();
         let mut completion_rxs = HashMap::new();
@@ -185,10 +181,8 @@ impl ScouterQueue {
         let config = TransportConfig::from_py_config(transport_config)?;
 
         // create a tokio runtime to run the background tasks
-        let shared_runtime = Arc::new(
-            tokio::runtime::Runtime::new()
-                .map_err(|e| EventError::SetupRuntimeError(e.to_string()))?,
-        );
+        let shared_runtime =
+            Arc::new(tokio::runtime::Runtime::new().map_err(EventError::SetupTokioRuntimeError)?);
 
         // load each profile from path
         // In practice you can load as many profiles as you want
@@ -228,12 +222,10 @@ impl ScouterQueue {
         // wait for all queues to start up
         shared_runtime.block_on(async {
             for (id, startup_rx) in startup_rxs {
-                startup_rx
-                    .await
-                    .map_err(|e| EventError::SetupRuntimeError(e.to_string()))?;
+                startup_rx.await.map_err(EventError::StartupReceiverError)?;
                 debug!("Queue {} initialized successfully", id);
             }
-            Ok::<_, ScouterError>(())
+            Ok::<_, EventError>(())
         })?;
 
         Ok(ScouterQueue {
@@ -257,10 +249,10 @@ impl ScouterQueue {
         &self,
         py: Python<'py>,
         key: &str,
-    ) -> Result<&Bound<'py, QueueBus>, ScouterError> {
+    ) -> Result<&Bound<'py, QueueBus>, PyEventError> {
         match self.queues.get(key) {
             Some(queue) => Ok(queue.bind(py)),
-            None => Err(ScouterError::MissingQueueError(key.to_string())),
+            None => Err(PyEventError::MissingQueueError(key.to_string())),
         }
     }
 
@@ -275,23 +267,23 @@ impl ScouterQueue {
     /// scouter_queues.shutdown()
     ///
     /// ```
-    pub fn shutdown(&mut self, py: Python) -> Result<(), ScouterError> {
+    pub fn shutdown(&mut self, py: Python) -> Result<(), PyEventError> {
         // trigger shutdown for all queues
         for queue in self.queues.values() {
             let bound = queue.bind(py);
             bound
                 .call_method0("shutdown")
-                .map_err(|e| ScouterError::QueueShutdownError(e.to_string()))?;
+                .map_err(PyEventError::ShutdownQueueError)?;
         }
 
         self._shared_runtime.block_on(async {
             for (id, completion_rx) in self.completion_rxs.drain() {
                 completion_rx
                     .await
-                    .map_err(|e| ScouterError::QueueShutdownError(e.to_string()))?;
+                    .map_err(EventError::ShutdownReceiverError)?;
                 debug!("Queue {} initialized successfully", id);
             }
-            Ok::<_, ScouterError>(())
+            Ok::<_, PyEventError>(())
         })?;
 
         self.queues.clear();

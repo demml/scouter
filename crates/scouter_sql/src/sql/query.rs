@@ -48,6 +48,8 @@ const UPDATE_DRIFT_PROFILE_RUN_DATES: &str =
 const UPDATE_DRIFT_PROFILE_STATUS: &str =
     include_str!("scripts/profile/update_drift_profile_status.sql");
 const UPDATE_DRIFT_PROFILE: &str = include_str!("scripts/profile/update_drift_profile.sql");
+const DEACTIVATE_DRIFT_PROFILES: &str =
+    include_str!("scripts/profile/deactivate_drift_profiles.sql");
 
 // alert
 const INSERT_DRIFT_ALERT: &str = include_str!("scripts/alert/insert_drift_alert.sql");
@@ -83,6 +85,7 @@ pub enum Queries {
     GetDriftProfile,
     UpdateDriftProfileRunDates,
     UpdateDriftProfileStatus,
+    DeactivateDriftProfiles,
     UpdateDriftProfile,
     GetFeatureBinProportions,
     GetCustomMetricValues,
@@ -135,6 +138,7 @@ impl Queries {
             Queries::UpdateDriftProfileRunDates => SqlQuery::new(UPDATE_DRIFT_PROFILE_RUN_DATES),
             Queries::UpdateDriftProfileStatus => SqlQuery::new(UPDATE_DRIFT_PROFILE_STATUS),
             Queries::UpdateDriftProfile => SqlQuery::new(UPDATE_DRIFT_PROFILE),
+            Queries::DeactivateDriftProfiles => SqlQuery::new(DEACTIVATE_DRIFT_PROFILES),
             Queries::GetDriftProfile => SqlQuery::new(GET_DRIFT_PROFILE),
             Queries::GetFeatureBinProportions => SqlQuery::new(GET_FEATURE_BIN_PROPORTIONS),
             Queries::InsertBinCounts => SqlQuery::new(INSERT_BIN_COUNTS),

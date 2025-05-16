@@ -22,12 +22,9 @@ repository = "https://github.com/demml/scouter"
 [workspace.dependencies]
 scouter-auth = { path = "crates/scouter_auth" }
 scouter-client = { path = "crates/scouter_client" }
-scouter-contracts = { path = "crates/scouter_contracts" }
 scouter-dispatch = { path = "crates/scouter_dispatch" }
 scouter-drift = { path = "crates/scouter_drift", default-features = false }
-scouter-error = { path = "crates/scouter_error" }
 scouter-events = { path = "crates/scouter_events", default-features = false }
-consumer-events = { path = "crates/consumer_events" }
 scouter-observability = { path = "crates/scouter_observability" }
 scouter-profile = { path = "crates/scouter_profile" }
 scouter-server = { path = "crates/scouter_server" }

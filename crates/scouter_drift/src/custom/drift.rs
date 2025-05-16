@@ -1,12 +1,12 @@
 #[cfg(feature = "sql")]
 pub mod custom_drifter {
 
+    use crate::error::DriftError;
     use chrono::{DateTime, Utc};
-    use scouter_contracts::ServiceInfo;
     use scouter_dispatch::AlertDispatcher;
-    use scouter_error::DriftError;
     use scouter_sql::sql::traits::CustomMetricSqlLogic;
     use scouter_sql::PostgresClient;
+    use scouter_types::contracts::ServiceInfo;
     use scouter_types::custom::{AlertThreshold, ComparisonMetricAlert, CustomDriftProfile};
     use sqlx::{Pool, Postgres};
     use std::collections::{BTreeMap, HashMap};
@@ -37,21 +37,20 @@ pub mod custom_drifter {
         ) -> Result<HashMap<String, f64>, DriftError> {
             let metrics: Vec<String> = self.profile.metrics.keys().cloned().collect();
 
-            PostgresClient::get_custom_metric_values(
+            Ok(PostgresClient::get_custom_metric_values(
                 db_pool,
                 &self.service_info,
                 limit_datetime,
                 &metrics,
             )
             .await
-            .map_err(|e| {
+            .inspect_err(|e| {
                 let msg = format!(
                     "Error: Unable to obtain custom metric data from DB for {}/{}/{}: {}",
                     self.service_info.space, self.service_info.name, self.service_info.version, e
                 );
                 error!(msg);
-                DriftError::Error(msg)
-            })
+            })?)
         }
 
         pub async fn get_metric_map(
@@ -148,27 +147,28 @@ pub mod custom_drifter {
                 return Ok(None);
             }
 
-            let alert_dispatcher = AlertDispatcher::new(&self.profile.config).map_err(|e| {
+            let alert_dispatcher = AlertDispatcher::new(&self.profile.config).inspect_err(|e| {
                 let msg = format!(
                     "Error creating alert dispatcher for {}/{}/{}: {}",
                     self.service_info.space, self.service_info.name, self.service_info.version, e
                 );
                 error!(msg);
-                DriftError::Error(msg)
             })?;
 
             for alert in &metric_alerts {
-                alert_dispatcher.process_alerts(alert).await.map_err(|e| {
-                    let msg = format!(
-                        "Error processing alerts for {}/{}/{}: {}",
-                        self.service_info.space,
-                        self.service_info.name,
-                        self.service_info.version,
-                        e
-                    );
-                    error!(msg);
-                    DriftError::Error(msg)
-                })?;
+                alert_dispatcher
+                    .process_alerts(alert)
+                    .await
+                    .inspect_err(|e| {
+                        let msg = format!(
+                            "Error processing alerts for {}/{}/{}: {}",
+                            self.service_info.space,
+                            self.service_info.name,
+                            self.service_info.version,
+                            e
+                        );
+                        error!(msg);
+                    })?;
             }
 
             Ok(Some(metric_alerts))
@@ -221,7 +221,7 @@ pub mod custom_drifter {
 
             match metric_map {
                 Some(metric_map) => {
-                    let alerts = self.generate_alerts(&metric_map).await.map_err(|e| {
+                    let alerts = self.generate_alerts(&metric_map).await.inspect_err(|e| {
                         let msg = format!(
                             "Error generating alerts for {}/{}/{}: {}",
                             self.service_info.space,
@@ -230,7 +230,6 @@ pub mod custom_drifter {
                             e
                         );
                         error!(msg);
-                        DriftError::Error(msg)
                     })?;
                     match alerts {
                         Some(alerts) => Ok(Some(Self::organize_alerts(alerts))),

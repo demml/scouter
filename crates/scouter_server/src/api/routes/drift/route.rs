@@ -1,3 +1,4 @@
+use crate::api::error::ServerError;
 use crate::api::state::AppState;
 use anyhow::{Context, Result};
 use axum::{
@@ -7,9 +8,7 @@ use axum::{
     Extension, Json, Router,
 };
 use scouter_auth::permission::UserPermissions;
-use scouter_contracts::{DriftRequest, GetProfileRequest, ScouterResponse, ScouterServerError};
 use scouter_drift::psi::PsiDrifter;
-use scouter_error::ScouterError;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::sql::traits::{CustomMetricSqlLogic, ProfileSqlLogic, SpcSqlLogic};
 use scouter_sql::PostgresClient;
@@ -19,6 +18,7 @@ use scouter_types::{
     spc::SpcDriftFeatures,
     DriftType, ServerRecords,
 };
+use scouter_types::{DriftRequest, GetProfileRequest, ScouterResponse, ScouterServerError};
 use sqlx::{Pool, Postgres};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
@@ -67,7 +67,7 @@ async fn get_binned_psi_feature_metrics(
     params: &DriftRequest,
     db_pool: &Pool<Postgres>,
     config: &Arc<ScouterServerConfig>,
-) -> Result<BinnedPsiFeatureMetrics, ScouterError> {
+) -> Result<BinnedPsiFeatureMetrics, ServerError> {
     debug!("Querying drift records: {:?}", params);
 
     let profile_request = GetProfileRequest {
@@ -77,12 +77,16 @@ async fn get_binned_psi_feature_metrics(
         drift_type: DriftType::Psi,
     };
 
-    let value = PostgresClient::get_drift_profile(db_pool, &profile_request).await?;
+    let value = PostgresClient::get_drift_profile(db_pool, &profile_request)
+        .await
+        .inspect_err(|e| {
+            error!("Failed to get drift profile: {:?}", e);
+        })?;
 
     let profile: PsiDriftProfile = match value {
         Some(profile) => serde_json::from_value(profile).unwrap(),
         None => {
-            return Err(ScouterError::Error("Failed to load profile".to_string()));
+            return Err(ServerError::NoProfileFoundError);
         }
     };
 
@@ -94,7 +98,10 @@ async fn get_binned_psi_feature_metrics(
             &config.database_settings.retention_period,
             &config.storage_settings,
         )
-        .await?)
+        .await
+        .inspect_err(|e| {
+            error!("Failed to get binned drift map: {:?}", e);
+        })?)
 }
 
 /// This route is used to get the drift data for the PSI visualization

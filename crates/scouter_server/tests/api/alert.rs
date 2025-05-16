@@ -5,8 +5,8 @@ use axum::{
     http::{header, Request, StatusCode},
 };
 use http_body_util::BodyExt;
-use scouter_contracts::{DriftAlertRequest, UpdateAlertStatus};
 use scouter_types::alert::Alerts;
+use scouter_types::contracts::{DriftAlertRequest, UpdateAlertStatus};
 
 #[tokio::test]
 async fn test_get_drift_alerts() {

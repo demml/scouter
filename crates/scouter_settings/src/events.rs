@@ -1,4 +1,3 @@
-use scouter_error::ConfigError;
 use serde::Serialize;
 
 #[derive(Clone, Serialize)]
@@ -39,7 +38,6 @@ impl Default for KafkaSettings {
         let num_workers = std::env::var("KAFKA_WORKER_COUNT")
             .unwrap_or_else(|_| "3".to_string())
             .parse::<usize>()
-            .map_err(|e| ConfigError::Error(format!("{:?}", e)))
             .unwrap();
 
         let topics = std::env::var("KAFKA_TOPIC")
@@ -91,13 +89,11 @@ impl Default for RabbitMQSettings {
         let num_consumers = std::env::var("RABBITMQ_CONSUMER_COUNT")
             .unwrap_or_else(|_| "3".to_string())
             .parse::<usize>()
-            .map_err(|e| ConfigError::Error(format!("{:?}", e)))
             .unwrap();
 
         let prefetch_count = std::env::var("RABBITMQ_PREFETCH_COUNT")
             .unwrap_or_else(|_| "10".to_string())
             .parse::<u16>()
-            .map_err(|e| ConfigError::Error(format!("{:?}", e)))
             .unwrap();
 
         let address = std::env::var("RABBITMQ_ADDR")
@@ -131,7 +127,6 @@ impl Default for RedisSettings {
         let num_consumers = std::env::var("REDIS_CONSUMER_COUNT")
             .unwrap_or_else(|_| "3".to_string())
             .parse::<usize>()
-            .map_err(|e| ConfigError::Error(format!("{:?}", e)))
             .unwrap();
         let channel =
             std::env::var("REDIS_CHANNEL").unwrap_or_else(|_| "scouter_monitoring".to_string());
@@ -156,7 +151,6 @@ impl Default for HttpConsumerSettings {
         let num_workers = std::env::var("HTTP_CONSUMER_WORKER_COUNT")
             .unwrap_or_else(|_| "1".to_string())
             .parse::<usize>()
-            .map_err(|e| ConfigError::Error(format!("{:?}", e)))
             .unwrap();
 
         Self { num_workers }

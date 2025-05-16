@@ -1,6 +1,7 @@
 // add test logic
 use pyo3::prelude::*;
 use std::path::PathBuf;
+use thiserror::Error;
 use tracing::debug;
 
 #[cfg(feature = "server")]
@@ -15,6 +16,24 @@ use std::thread::sleep;
 use std::time::Duration;
 #[cfg(feature = "server")]
 use tokio::{runtime::Runtime, sync::Mutex, task::JoinHandle};
+
+#[derive(Error, Debug)]
+pub enum TestServerError {
+    #[error("Failed to find port")]
+    PortError,
+
+    #[error("Failed to start server")]
+    StartServerError,
+
+    #[error("Server feature not enabled")]
+    FeatureNotEnabled,
+}
+
+impl From<TestServerError> for PyErr {
+    fn from(err: TestServerError) -> PyErr {
+        pyo3::exceptions::PyRuntimeError::new_err(err.to_string())
+    }
+}
 
 #[pyclass]
 #[allow(dead_code)]
@@ -55,9 +74,7 @@ impl ScouterTestServer {
         }
         #[cfg(not(feature = "server"))]
         {
-            Err(scouter_error::PyScouterError::new_err(
-                "Scouter Server feature not enabled",
-            ))
+            Err(TestServerError::FeatureNotEnabled.into())
         }
     }
 
@@ -86,9 +103,7 @@ impl ScouterTestServer {
             {
                 Some(p) => p,
                 None => {
-                    return Err(scouter_error::PyScouterError::new_err(
-                        "Failed to find available port",
-                    ))
+                    return Err(TestServerError::PortError.into());
                 }
             };
 
@@ -126,15 +141,11 @@ impl ScouterTestServer {
                 last_check = start_time.elapsed();
             }
 
-            Err(scouter_error::PyScouterError::new_err(
-                "Failed to start Scouter Server",
-            ))
+            Err(TestServerError::StartServerError.into())
         }
         #[cfg(not(feature = "server"))]
         {
-            Err(scouter_error::PyScouterError::new_err(
-                "Scouter Server feature not enabled",
-            ))
+            Err(TestServerError::FeatureNotEnabled.into())
         }
     }
 
@@ -155,9 +166,7 @@ impl ScouterTestServer {
         }
         #[cfg(not(feature = "server"))]
         {
-            Err(scouter_error::PyScouterError::new_err(
-                "Scouter Server feature not enabled",
-            ))
+            Err(TestServerError::FeatureNotEnabled.into())
         }
     }
 

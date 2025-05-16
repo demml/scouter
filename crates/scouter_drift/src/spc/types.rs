@@ -1,11 +1,12 @@
 #![allow(clippy::useless_conversion)]
+use crate::error::DriftError;
 use core::fmt::Debug;
 use ndarray::Array;
 use ndarray::Array2;
 use numpy::{IntoPyArray, PyArray2};
 use pyo3::prelude::*;
-use scouter_error::ScouterError;
-use scouter_error::UtilError;
+use scouter_types::error::UtilError;
+
 use scouter_types::{FileName, ProfileFuncs};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -71,15 +72,13 @@ impl SpcDriftMap {
     }
 
     #[staticmethod]
-    pub fn model_validate_json(json_string: String) -> SpcDriftMap {
+    pub fn model_validate_json(json_string: String) -> Result<SpcDriftMap, UtilError> {
         // deserialize the string to a struct
-        serde_json::from_str(&json_string)
-            .map_err(UtilError::traced_deserialize_error)
-            .unwrap()
+        Ok(serde_json::from_str(&json_string)?)
     }
 
     #[pyo3(signature = (path=None))]
-    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ScouterError> {
+    pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, UtilError> {
         ProfileFuncs::save_to_json(self, path, FileName::SpcDriftMap.to_str())
     }
 
@@ -87,11 +86,14 @@ impl SpcDriftMap {
     pub fn to_numpy<'py>(
         &self,
         py: Python<'py>,
-    ) -> PyResult<(
-        Bound<'py, PyArray2<f64>>,
-        Bound<'py, PyArray2<f64>>,
-        Vec<String>,
-    )> {
+    ) -> Result<
+        (
+            Bound<'py, PyArray2<f64>>,
+            Bound<'py, PyArray2<f64>>,
+            Vec<String>,
+        ),
+        DriftError,
+    > {
         let (drift_array, sample_array, features) = self.to_array()?;
 
         Ok((
@@ -114,7 +116,7 @@ impl SpcDriftMap {
         }
     }
 
-    pub fn to_array(&self) -> Result<ArrayReturn, ScouterError> {
+    pub fn to_array(&self) -> Result<ArrayReturn, DriftError> {
         let columns = self.features.len();
         let rows = self.features.values().next().unwrap().samples.len();
 

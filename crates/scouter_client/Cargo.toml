@@ -14,10 +14,8 @@ description = "Client and server contract for scouter"
 [dependencies]
 chrono = { workspace = true }
 reqwest = { workspace = true}
-scouter-contracts = { workspace = true }
 scouter-dispatch = { workspace = true }
 scouter-drift = { workspace = true, default-features = false }
-scouter-error = { workspace = true }
 scouter-events = { workspace = true, features = ["kafka-vendored", "rabbitmq", "redis_events"], default-features = false }
 scouter-observability = { workspace = true }
 scouter-profile = { workspace = true }
@@ -32,6 +30,7 @@ pyo3 = { workspace = true }
 numpy = { workspace = true }
 num-traits = { workspace = true }
 ndarray-stats = { workspace = true }
+thiserror = { workspace = true }
 tracing = { workspace = true }
 
 

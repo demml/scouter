@@ -12,8 +12,10 @@ use scouter_types::spc::SpcDriftConfig;
 use scouter_types::DriftType;
 
 use http_body_util::BodyExt;
-use scouter_contracts::{DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest};
 use scouter_drift::psi::PsiMonitor;
+use scouter_types::contracts::{
+    DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
+};
 use scouter_types::custom::{
     AlertThreshold, BinnedCustomMetrics, CustomDriftProfile, CustomMetric, CustomMetricAlertConfig,
     CustomMetricDriftConfig,
@@ -119,6 +121,7 @@ async fn test_create_spc_profile() {
         version: profile.config.version.clone(),
         active: true,
         drift_type: None,
+        deactivate_others: true,
     };
 
     let body = serde_json::to_string(&request).unwrap();

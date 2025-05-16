@@ -1,6 +1,6 @@
 use crate::data_utils::{ConvertedData, DataConverter};
+use crate::error::DataError;
 use pyo3::prelude::*;
-use scouter_error::ScouterError;
 
 pub struct PandasDataConverter;
 
@@ -8,7 +8,7 @@ impl DataConverter for PandasDataConverter {
     fn categorize_features<'py>(
         _py: Python<'py>,
         data: &Bound<'py, PyAny>,
-    ) -> Result<(Vec<String>, Vec<String>), ScouterError> {
+    ) -> Result<(Vec<String>, Vec<String>), DataError> {
         let column_name_dtype = data
             .getattr("columns")?
             .getattr("dtype")?
@@ -16,7 +16,7 @@ impl DataConverter for PandasDataConverter {
             .to_string();
 
         if !column_name_dtype.contains("object") {
-            return Err(ScouterError::ColumnNamesMustBeStrings);
+            return Err(DataError::ColumnNamesMustBeStrings);
         }
 
         let all_columns = data.getattr("columns")?.extract::<Vec<String>>()?;
@@ -39,7 +39,7 @@ impl DataConverter for PandasDataConverter {
     fn process_numeric_features<'py>(
         data: &Bound<'py, PyAny>,
         features: &[String],
-    ) -> Result<(Option<Bound<'py, PyAny>>, Option<String>), ScouterError> {
+    ) -> Result<(Option<Bound<'py, PyAny>>, Option<String>), DataError> {
         if features.is_empty() {
             return Ok((None, None));
         }
@@ -54,7 +54,7 @@ impl DataConverter for PandasDataConverter {
     fn process_string_features<'py>(
         data: &Bound<'py, PyAny>,
         features: &[String],
-    ) -> Result<Option<Vec<Vec<String>>>, ScouterError> {
+    ) -> Result<Option<Vec<Vec<String>>>, DataError> {
         if features.is_empty() {
             return Ok(None);
         }
@@ -73,7 +73,7 @@ impl DataConverter for PandasDataConverter {
     fn prepare_data<'py>(
         py: Python<'py>,
         data: &Bound<'py, PyAny>,
-    ) -> Result<ConvertedData<'py>, ScouterError> {
+    ) -> Result<ConvertedData<'py>, DataError> {
         let (numeric_features, string_features) =
             PandasDataConverter::categorize_features(py, data)?;
 

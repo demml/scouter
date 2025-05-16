@@ -1,7 +1,7 @@
 use crate::ProfileFuncs;
 use pyo3::prelude::*;
-use scouter_error::ScouterError;
-use scouter_error::TypeError;
+
+use crate::error::TypeError;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
@@ -64,7 +64,7 @@ impl StringFeature {
 }
 
 impl StringFeature {
-    pub fn to_float(&self, feature_map: &FeatureMap) -> Result<f64, ScouterError> {
+    pub fn to_float(&self, feature_map: &FeatureMap) -> Result<f64, TypeError> {
         feature_map
             .features
             .get(&self.name)
@@ -74,7 +74,7 @@ impl StringFeature {
                     .or_else(|| feat_map.get("missing"))
             })
             .map(|&val| val as f64)
-            .ok_or(ScouterError::MissingValue)
+            .ok_or(TypeError::MissingStringValueError)
     }
 }
 
@@ -109,7 +109,7 @@ impl Feature {
 }
 
 impl Feature {
-    pub fn to_float(&self, feature_map: &FeatureMap) -> Result<f64, ScouterError> {
+    pub fn to_float(&self, feature_map: &FeatureMap) -> Result<f64, TypeError> {
         match self {
             Feature::Int(feature) => Ok(feature.to_float()),
             Feature::Float(feature) => Ok(feature.value),
@@ -239,23 +239,15 @@ pub enum QueueItem {
 impl QueueItem {
     /// Helper for extracting an Entity from a Python object
     pub fn from_py_entity(entity: &Bound<'_, PyAny>) -> Result<Self, TypeError> {
-        let entity_type = entity
-            .getattr("entity_type")
-            .map_err(|e| TypeError::MissingAttribute(e.to_string()))?
-            .extract::<EntityType>()
-            .map_err(|e| TypeError::MissingAttribute(e.to_string()))?;
+        let entity_type = entity.getattr("entity_type")?.extract::<EntityType>()?;
 
         match entity_type {
             EntityType::Feature => {
-                let features = entity
-                    .extract::<Features>()
-                    .map_err(|e| TypeError::ExtractionError(e.to_string()))?;
+                let features = entity.extract::<Features>()?;
                 Ok(QueueItem::Features(features))
             }
             EntityType::Metric => {
-                let metrics = entity
-                    .extract::<Metrics>()
-                    .map_err(|e| TypeError::ExtractionError(e.to_string()))?;
+                let metrics = entity.extract::<Metrics>()?;
                 Ok(QueueItem::Metrics(metrics))
             }
         }

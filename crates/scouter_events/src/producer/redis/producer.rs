@@ -1,10 +1,10 @@
 #[cfg(feature = "redis_events")]
 pub mod redis_producer {
+    use crate::error::EventError;
     use crate::producer::redis::RedisConfig;
     use redis::aio::{MultiplexedConnection, PubSub};
     use redis::AsyncCommands;
     use redis::Client;
-    use scouter_error::EventError;
     use scouter_types::ServerRecords;
     use tracing::debug;
 
@@ -14,8 +14,7 @@ pub mod redis_producer {
 
     impl RedisMessageBroker {
         pub fn new(redis_url: &str) -> Result<Self, EventError> {
-            let client =
-                Client::open(redis_url).map_err(|e| EventError::RedisOpenError(e.to_string()))?;
+            let client = Client::open(redis_url).map_err(EventError::RedisError)?;
             Ok(Self { client })
         }
 
@@ -23,14 +22,14 @@ pub mod redis_producer {
             self.client
                 .get_multiplexed_async_connection()
                 .await
-                .map_err(|e| EventError::RedisConnectionError(e.to_string()))
+                .map_err(EventError::RedisError)
         }
 
         pub async fn get_pub_sub(&self) -> Result<PubSub, EventError> {
             self.client
                 .get_async_pubsub()
                 .await
-                .map_err(|e| EventError::RedisPubSubError(e.to_string()))
+                .map_err(EventError::RedisError)
         }
     }
 
@@ -94,7 +93,7 @@ pub mod redis_producer {
                 .connection
                 .publish(&self.channel, &serialized_msg)
                 .await
-                .map_err(EventError::traced_publish_error)?;
+                .map_err(EventError::RedisError)?;
             Ok(())
         }
 

@@ -4100,8 +4100,8 @@ dependencies = [
  "reqwest",
  "rusty-logging",
  "scouter-client",
- "scouter-error",
  "scouter-server",
+ "thiserror 2.0.12",
  "time",
  "tokio",
  "tracing",
@@ -4820,9 +4820,9 @@ dependencies = [
  "jsonwebtoken",
  "password-auth",
  "rand 0.9.1",
- "scouter-error",
  "scouter-sql",
  "serde",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -4836,10 +4836,8 @@ dependencies = [
  "numpy",
  "pyo3",
  "reqwest",
- "scouter-contracts",
  "scouter-dispatch",
  "scouter-drift",
- "scouter-error",
  "scouter-events",
  "scouter-observability",
  "scouter-profile",
@@ -4848,20 +4846,8 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_qs",
+ "thiserror 2.0.12",
  "tokio",
- "tracing",
-]
-
-[[package]]
-name = "scouter-contracts"
-version = "0.4.6"
-dependencies = [
- "chrono",
- "pyo3",
- "scouter-error",
- "scouter-types",
- "serde",
- "serde_json",
  "tracing",
 ]
 
@@ -4879,10 +4865,10 @@ dependencies = [
  "object_store",
  "parquet",
  "rand 0.9.1",
- "scouter-error",
  "scouter-settings",
  "scouter-types",
  "tempfile",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
  "url",
@@ -4896,10 +4882,10 @@ dependencies = [
  "mockito",
  "pyo3",
  "reqwest",
- "scouter-error",
  "scouter-types",
  "serde",
  "serde_json",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
 ]
@@ -4923,26 +4909,15 @@ dependencies = [
  "rand 0.9.1",
  "rayon",
  "rusty-logging",
- "scouter-contracts",
  "scouter-dispatch",
- "scouter-error",
  "scouter-settings",
  "scouter-sql",
  "scouter-types",
  "serde",
  "serde_json",
  "sqlx",
- "tokio",
- "tracing",
-]
-
-[[package]]
-name = "scouter-error"
-version = "0.4.6"
-dependencies = [
- "pyo3",
- "serde",
  "thiserror 2.0.12",
+ "tokio",
  "tracing",
 ]
 
@@ -4965,15 +4940,14 @@ dependencies = [
  "redis",
  "reqwest",
  "rusty-logging",
- "scouter-contracts",
  "scouter-drift",
- "scouter-error",
  "scouter-settings",
  "scouter-sql",
  "scouter-types",
  "serde",
  "serde_json",
  "sqlx",
+ "thiserror 2.0.12",
  "time",
  "tokio",
  "tokio-stream",
@@ -4992,9 +4966,9 @@ dependencies = [
  "pyo3",
  "rand 0.8.5",
  "rayon",
- "scouter-error",
  "scouter-types",
  "serde",
+ "thiserror 2.0.12",
  "tracing",
 ]
 
@@ -5015,10 +4989,10 @@ dependencies = [
  "pyo3",
  "rand 0.9.1",
  "rayon",
- "scouter-error",
  "scouter-types",
  "serde",
  "serde_json",
+ "thiserror 2.0.12",
  "tracing",
 ]
 
@@ -5044,11 +5018,9 @@ dependencies = [
  "rand 0.9.1",
  "rusty-logging",
  "scouter-auth",
- "scouter-contracts",
  "scouter-dataframe",
  "scouter-dispatch",
  "scouter-drift",
- "scouter-error",
  "scouter-events",
  "scouter-observability",
  "scouter-settings",
@@ -5059,6 +5031,7 @@ dependencies = [
  "serde_qs",
  "sqlx",
  "strum",
+ "thiserror 2.0.12",
  "time",
  "tokio",
  "tower",
@@ -5074,7 +5047,6 @@ version = "0.4.6"
 dependencies = [
  "base64",
  "pyo3",
- "scouter-error",
  "scouter-types",
  "serde",
  "tracing",
@@ -5089,15 +5061,14 @@ dependencies = [
  "chrono",
  "cron",
  "rand 0.9.1",
- "scouter-contracts",
  "scouter-dataframe",
- "scouter-error",
  "scouter-settings",
  "scouter-types",
  "serde",
  "serde_json",
  "sqlx",
  "sqlx-cli",
+ "thiserror 2.0.12",
  "tokio",
  "tower",
  "tracing",
@@ -5112,12 +5083,12 @@ dependencies = [
  "cron",
  "pyo3",
  "rayon",
- "scouter-error",
  "serde",
  "serde_json",
  "strum",
  "strum_macros",
  "tempfile",
+ "thiserror 2.0.12",
  "tracing",
 ]
 

@@ -1,5 +1,6 @@
 pub mod data_utils;
 pub mod drifter;
+pub mod error;
 pub mod http;
 pub mod profiler;
 
@@ -24,25 +25,21 @@ pub use scouter_types::{
         SpcDriftFeature, SpcDriftFeatures, SpcDriftProfile, SpcFeatureAlert, SpcFeatureAlerts,
         SpcFeatureDriftProfile,
     },
-    AlertDispatchType, ConsoleDispatchConfig, CustomMetricServerRecord, DataType, DriftProfile,
-    DriftType, EntityType, Feature, FeatureMap, Features, LatencyMetrics, Metric, Metrics,
-    ObservabilityMetrics, OpsGenieDispatchConfig, PsiServerRecord, RecordType, RouteMetrics,
-    ServerRecord, ServerRecords, SlackDispatchConfig, SpcServerRecord, TimeInterval,
+    AlertDispatchType, ConsoleDispatchConfig, CustomMetricServerRecord, DataType,
+    DriftAlertRequest, DriftProfile, DriftRequest, DriftType, EntityType, Feature, FeatureMap,
+    Features, GetProfileRequest, LatencyMetrics, Metric, Metrics, ObservabilityMetrics,
+    OpsGenieDispatchConfig, ProfileRequest, ProfileStatusRequest, PsiServerRecord, RecordType,
+    RouteMetrics, ScouterResponse, ScouterServerError, ServerRecord, ServerRecords,
+    SlackDispatchConfig, SpcServerRecord, TimeInterval,
 };
 
-pub use crate::http::ScouterClient;
-
-pub use scouter_contracts::{
-    DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
-    ScouterResponse, ScouterServerError,
-};
+pub use crate::http::{PyScouterClient, ScouterClient};
 
 pub use scouter_drift::{
     psi::PsiMonitor,
     spc::{generate_alerts, SpcDriftMap, SpcFeatureDrift, SpcMonitor},
     utils::CategoricalFeatureHelpers,
 };
-pub use scouter_error::{ProfilerError, PyScouterError, ScouterError};
 pub use scouter_events::producer::{
     kafka::KafkaConfig, rabbitmq::RabbitMQConfig, redis::RedisConfig,
 };
@@ -56,3 +53,10 @@ pub use scouter_profile::{
     compute_feature_correlations, CharStats, DataProfile, Distinct, FeatureProfile, Histogram,
     NumProfiler, NumericStats, Quantiles, StringProfiler, StringStats, WordStats,
 };
+
+// exposing errors
+pub use error::ClientError;
+pub use scouter_drift::error::DriftError;
+pub use scouter_events::error::EventError;
+pub use scouter_profile::error::DataProfileError;
+pub use scouter_types::error::{ContractError, ProfileError, RecordError, TypeError, UtilError};

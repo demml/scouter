@@ -1,12 +1,12 @@
 #[cfg(feature = "rabbitmq")]
 pub mod rabbitmq_producer {
+    use crate::error::EventError;
     use crate::producer::rabbitmq::types::RabbitMQConfig;
     use lapin::{
         options::{BasicPublishOptions, QueueDeclareOptions},
         types::FieldTable,
         BasicProperties, Channel, ChannelState, Connection, ConnectionProperties,
     };
-    use scouter_error::EventError;
     use scouter_types::ServerRecords;
     use tracing::{debug, error, info};
 
@@ -27,11 +27,11 @@ pub mod rabbitmq_producer {
             info!("Setting up RabbitMQ producer");
             let conn = Connection::connect(&config.address, ConnectionProperties::default())
                 .await
-                .map_err(EventError::traced_connection_error)?;
+                .map_err(EventError::ConnectRabbitMQError)?;
             let channel = conn
                 .create_channel()
                 .await
-                .map_err(EventError::traced_channel_error)?;
+                .map_err(EventError::CreateRabbitMQChannelError)?;
 
             channel
                 .queue_declare(
@@ -40,7 +40,7 @@ pub mod rabbitmq_producer {
                     FieldTable::default(),
                 )
                 .await
-                .map_err(EventError::traced_declare_queue_error)?;
+                .map_err(EventError::DeclareRabbitMQQueueError)?;
 
             info!("RabbitMQ producer setup complete");
             Ok(channel)
@@ -78,7 +78,7 @@ pub mod rabbitmq_producer {
                     BasicProperties::default(),
                 )
                 .await
-                .map_err(EventError::traced_publish_error)?;
+                .map_err(EventError::PublishRabbitMQMessageError)?;
 
             Ok(())
         }
@@ -99,7 +99,7 @@ pub mod rabbitmq_producer {
                     self.producer
                         .close(0, "Normal shutdown")
                         .await
-                        .map_err(EventError::traced_flush_error)?;
+                        .map_err(EventError::FlushRabbitMQChannelError)?;
                     Ok(())
                 }
             }

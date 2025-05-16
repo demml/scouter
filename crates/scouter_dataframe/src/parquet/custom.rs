@@ -1,3 +1,4 @@
+use crate::error::DataFrameError;
 use crate::parquet::traits::ParquetFrame;
 use crate::parquet::types::BinnedTableName;
 use crate::sql::helper::get_binned_custom_metric_values_query;
@@ -12,7 +13,6 @@ use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
 use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
-use scouter_error::DataFrameError;
 use scouter_settings::ObjectStorageSettings;
 
 use scouter_types::{
@@ -38,9 +38,7 @@ impl ParquetFrame for CustomMetricDataFrame {
 
         let ctx = self.object_store.get_session()?;
 
-        let df = ctx
-            .read_batches(vec![batch])
-            .map_err(DataFrameError::traced_read_batch_error)?;
+        let df = ctx.read_batches(vec![batch])?;
 
         Ok(df)
     }
@@ -125,8 +123,7 @@ impl CustomMetricDataFrame {
                 Arc::new(metric_array),
                 Arc::new(value_array),
             ],
-        )
-        .map_err(DataFrameError::traced_create_batch_error)?;
+        )?;
 
         Ok(batch)
     }
@@ -137,7 +134,7 @@ fn extract_created_at(batch: &RecordBatch) -> Result<Vec<DateTime<Utc>>, DataFra
         .column(1)
         .as_any()
         .downcast_ref::<ListArray>()
-        .ok_or_else(|| DataFrameError::DowncastError("ListArray".to_string()))?;
+        .ok_or_else(|| DataFrameError::DowncastError("ListArray"))?;
 
     let created_at_array = created_at_list.value(0);
     Ok(created_at_array
@@ -152,32 +149,32 @@ fn extract_stats(batch: &RecordBatch) -> Result<BinnedCustomMetricStats, DataFra
         .column(2)
         .as_any()
         .downcast_ref::<ListArray>()
-        .ok_or_else(|| DataFrameError::DowncastError("ListArray".to_string()))?
+        .ok_or_else(|| DataFrameError::DowncastError("ListArray"))?
         .value(0);
 
     let stats_structs = stats_list
         .as_any()
         .downcast_ref::<StructArray>()
-        .ok_or_else(|| DataFrameError::DowncastError("StructArray".to_string()))?;
+        .ok_or_else(|| DataFrameError::DowncastError("StructArray"))?;
 
     // extract avg, lower_bound, and upper_bound from the struct
 
     // Extract avg, lower_bound, and upper_bound from the struct
     let avg = stats_structs
         .column_by_name("avg")
-        .ok_or_else(|| DataFrameError::MissingFieldError("avg".to_string()))?
+        .ok_or_else(|| DataFrameError::MissingFieldError("avg"))?
         .as_primitive::<Float64Type>()
         .value(0);
 
     let lower_bound = stats_structs
         .column_by_name("lower_bound")
-        .ok_or_else(|| DataFrameError::MissingFieldError("lower_bound".to_string()))?
+        .ok_or_else(|| DataFrameError::MissingFieldError("lower_bound"))?
         .as_primitive::<Float64Type>()
         .value(0);
 
     let upper_bound = stats_structs
         .column_by_name("upper_bound")
-        .ok_or_else(|| DataFrameError::MissingFieldError("upper_bound".to_string()))?
+        .ok_or_else(|| DataFrameError::MissingFieldError("upper_bound"))?
         .as_primitive::<Float64Type>()
         .value(0);
 
@@ -215,10 +212,7 @@ fn process_custom_record_batch(batch: &RecordBatch) -> Result<BinnedCustomMetric
 pub async fn dataframe_to_custom_drift_metrics(
     df: DataFrame,
 ) -> Result<BinnedCustomMetrics, DataFrameError> {
-    let batches = df
-        .collect()
-        .await
-        .map_err(DataFrameError::traced_read_batch_error)?;
+    let batches = df.collect().await?;
 
     let metrics: Vec<BinnedCustomMetric> = batches
         .iter()

@@ -4,14 +4,13 @@ use crate::sql::schema::FeatureBinProportionWrapper;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
-use scouter_contracts::{DriftRequest, ServiceInfo};
 use scouter_dataframe::parquet::{dataframe_to_psi_drift_features, ParquetDataFrame};
 
-use scouter_error::SqlError;
+use crate::sql::error::SqlError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{
     psi::{FeatureBinProportionResult, FeatureBinProportions},
-    PsiServerRecord, RecordType,
+    DriftRequest, PsiServerRecord, RecordType, ServiceInfo,
 };
 use sqlx::{postgres::PgQueryResult, Pool, Postgres};
 use std::collections::BTreeMap;
@@ -43,7 +42,7 @@ pub trait PsiSqlLogic {
             .bind(record.bin_count as i64)
             .execute(pool)
             .await
-            .map_err(SqlError::traced_query_error)
+            .map_err(SqlError::SqlxError)
     }
 
     /// Queries the database for PSI drift records based on a time window
@@ -71,7 +70,7 @@ pub trait PsiSqlLogic {
             .bind(&params.version)
             .fetch_all(pool)
             .await
-            .map_err(SqlError::traced_query_error)?
+            .map_err(SqlError::SqlxError)?
             .into_iter()
             .map(|wrapper: FeatureBinProportionResultWrapper| wrapper.0)
             .collect();
@@ -113,9 +112,7 @@ pub trait PsiSqlLogic {
             )
             .await?;
 
-        dataframe_to_psi_drift_features(archived_df)
-            .await
-            .map_err(SqlError::traced_failed_to_convert_dataframe_error)
+        Ok(dataframe_to_psi_drift_features(archived_df).await?)
     }
 
     /// Helper for merging current and archived binned PSI drift records.
@@ -218,7 +215,7 @@ pub trait PsiSqlLogic {
             .bind(features_to_monitor)
             .fetch_all(pool)
             .await
-            .map_err(SqlError::traced_get_bin_proportions_error)?;
+            .map_err(SqlError::SqlxError)?;
 
         let binned: FeatureBinProportions = binned.into_iter().map(|wrapper| wrapper.0).collect();
 

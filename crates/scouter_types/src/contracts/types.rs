@@ -1,10 +1,10 @@
 use std::fmt::Display;
 
+use crate::error::ContractError;
+use crate::CustomInterval;
+use crate::{DriftType, TimeInterval};
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
-use scouter_error::ScouterError;
-use scouter_types::CustomInterval;
-use scouter_types::{DriftType, TimeInterval};
 use serde::Deserialize;
 use serde::Serialize;
 use tracing::error;
@@ -59,7 +59,7 @@ impl DriftRequest {
         drift_type: DriftType,
         begin_datetime: Option<DateTime<Utc>>,
         end_datetime: Option<DateTime<Utc>>,
-    ) -> Result<Self, ScouterError> {
+    ) -> Result<Self, ContractError> {
         // validate time interval
         let custom_interval = match (begin_datetime, end_datetime) {
             (Some(begin), Some(end)) => Some(CustomInterval::new(begin, end)?),
@@ -99,6 +99,7 @@ impl DriftRequest {
     }
 }
 
+#[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProfileRequest {
     pub space: String,
@@ -114,18 +115,20 @@ pub struct ProfileStatusRequest {
     pub version: String,
     pub active: bool,
     pub drift_type: Option<DriftType>,
+    pub deactivate_others: bool,
 }
 
 #[pymethods]
 impl ProfileStatusRequest {
     #[new]
-    #[pyo3(signature = (name, space, version, drift_type=None, active=false))]
+    #[pyo3(signature = (name, space, version, drift_type=None, active=false, deactivate_others=false))]
     pub fn new(
         name: String,
         space: String,
         version: String,
         drift_type: Option<DriftType>,
         active: bool,
+        deactivate_others: bool,
     ) -> Self {
         ProfileStatusRequest {
             name,
@@ -133,6 +136,7 @@ impl ProfileStatusRequest {
             version,
             active,
             drift_type,
+            deactivate_others,
         }
     }
 }
@@ -193,6 +197,7 @@ pub struct UpdateAlertStatus {
     pub active: bool,
 }
 
+/// Common struct for returning errors from scouter server (axum response)
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ScouterServerError {
     pub error: String,

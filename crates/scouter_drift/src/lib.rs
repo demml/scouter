@@ -1,4 +1,5 @@
 pub mod custom;
+pub mod error;
 pub mod psi;
 pub mod spc;
 pub mod utils;

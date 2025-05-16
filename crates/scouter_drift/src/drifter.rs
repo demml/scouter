@@ -1,13 +1,13 @@
 #[cfg(feature = "sql")]
 pub mod drift_executor {
 
+    use crate::error::DriftError;
     use crate::{custom::CustomDrifter, psi::PsiDrifter, spc::SpcDrifter};
     use chrono::{DateTime, Utc};
-    use scouter_contracts::ServiceInfo;
-    use scouter_error::DriftError;
+    use scouter_sql::sql::error::SqlError;
     use scouter_sql::sql::traits::{AlertSqlLogic, ProfileSqlLogic};
     use scouter_sql::{sql::schema::TaskRequest, PostgresClient};
-    use scouter_types::{DriftProfile, DriftType};
+    use scouter_types::{DriftProfile, DriftType, ServiceInfo};
     use sqlx::{Pool, Postgres, Transaction};
     use std::collections::BTreeMap;
     use std::result::Result;
@@ -110,7 +110,7 @@ pub mod drift_executor {
             debug!("Polling for drift tasks");
             let mut transaction = self.db_pool.begin().await.map_err(|e| {
                 error!("Error starting transaction: {:?}", e);
-                DriftError::Error(e.to_string())
+                SqlError::SqlxError(e)
             })?;
 
             // this will pull a drift profile from the db
@@ -185,9 +185,7 @@ pub mod drift_executor {
             let (task, mut trx) = self.do_poll().await?;
 
             let Some(task) = task else {
-                trx.commit()
-                    .await
-                    .map_err(|e| DriftError::Error(e.to_string()))?;
+                trx.commit().await.map_err(SqlError::SqlxError)?;
                 info!("No triggered schedules found in db. Sleeping for 10 seconds");
                 tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
                 return Ok(());
@@ -218,7 +216,7 @@ pub mod drift_executor {
 
             trx.commit().await.map_err(|e| {
                 error!("Error committing transaction: {:?}", e);
-                DriftError::Error(e.to_string())
+                SqlError::SqlxError(e)
             })?;
 
             Ok(())
@@ -229,9 +227,9 @@ pub mod drift_executor {
     mod tests {
         use super::*;
         use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
-        use scouter_contracts::DriftAlertRequest;
         use scouter_settings::DatabaseSettings;
         use scouter_sql::PostgresClient;
+        use scouter_types::DriftAlertRequest;
         use sqlx::{postgres::Postgres, Pool};
 
         pub async fn cleanup(pool: &Pool<Postgres>) {

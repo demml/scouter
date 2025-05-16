@@ -1,6 +1,6 @@
+use crate::error::EventError;
 use flume::{Receiver, Sender};
 use metrics::counter;
-use scouter_error::EventError;
 use scouter_settings::events::HttpConsumerSettings;
 use scouter_sql::MessageHandler;
 use scouter_types::ServerRecords;

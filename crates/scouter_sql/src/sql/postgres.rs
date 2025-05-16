@@ -3,7 +3,7 @@ use crate::sql::traits::{
     PsiSqlLogic, SpcSqlLogic, UserSqlLogic,
 };
 
-use scouter_error::{ScouterError, SqlError};
+use crate::sql::error::SqlError;
 use scouter_settings::DatabaseSettings;
 
 use scouter_types::{RecordType, ServerRecords, ToDriftRecords};
@@ -67,7 +67,7 @@ impl PostgresClient {
         sqlx::migrate!("src/migrations")
             .run(pool)
             .await
-            .map_err(|e| SqlError::MigrationError(format!("{}", e)))?;
+            .map_err(SqlError::MigrateError)?;
 
         debug!("Migrations complete");
 
@@ -82,7 +82,7 @@ impl MessageHandler {
     pub async fn insert_server_records(
         pool: &Pool<Postgres>,
         records: &ServerRecords,
-    ) -> Result<(), ScouterError> {
+    ) -> Result<(), SqlError> {
         match records.record_type()? {
             RecordType::Spc => {
                 debug!("SPC record count: {:?}", records.len());
@@ -143,9 +143,6 @@ mod tests {
     use crate::sql::schema::User;
     use chrono::Utc;
     use rand::Rng;
-    use scouter_contracts::{
-        DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileStatusRequest, ServiceInfo,
-    };
     use scouter_settings::ObjectStorageSettings;
     use scouter_types::spc::SpcDriftProfile;
     use scouter_types::*;
@@ -375,6 +372,7 @@ mod tests {
                 version: spc_profile.config.version.clone(),
                 active: false,
                 drift_type: Some(DriftType::Spc),
+                deactivate_others: false,
             },
         )
         .await

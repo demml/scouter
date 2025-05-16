@@ -3,11 +3,10 @@ use crate::sql::schema::TaskRequest;
 
 use chrono::Utc;
 use cron::Schedule;
-use scouter_contracts::{GetProfileRequest, ProfileStatusRequest, ServiceInfo};
 
+use crate::sql::error::SqlError;
 use async_trait::async_trait;
-use scouter_error::{SqlError, UtilError};
-use scouter_types::DriftProfile;
+use scouter_types::{DriftProfile, GetProfileRequest, ProfileStatusRequest, ServiceInfo};
 use serde_json::Value;
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row, Transaction};
 use std::result::Result::Ok;
@@ -35,13 +34,12 @@ pub trait ProfileSqlLogic {
 
         let current_time = Utc::now();
 
-        let schedule =
-            Schedule::from_str(&base_args.schedule).map_err(UtilError::traced_parse_cron_error)?;
+        let schedule = Schedule::from_str(&base_args.schedule)?;
 
         let next_run = match schedule.upcoming(Utc).take(1).next() {
             Some(next_run) => next_run,
             None => {
-                return Err(SqlError::GetNextRunError(schedule.to_string()));
+                return Err(SqlError::GetNextRunError);
             }
         };
 
@@ -58,7 +56,7 @@ pub trait ProfileSqlLogic {
             .bind(current_time)
             .execute(pool)
             .await
-            .map_err(SqlError::traced_query_error)
+            .map_err(SqlError::SqlxError)
     }
 
     /// Update a drift profile in the database
@@ -85,7 +83,7 @@ pub trait ProfileSqlLogic {
             .bind(base_args.version)
             .execute(pool)
             .await
-            .map_err(SqlError::traced_query_error)
+            .map_err(SqlError::SqlxError)
     }
 
     /// Get a drift profile from the database
@@ -108,7 +106,7 @@ pub trait ProfileSqlLogic {
             .bind(request.drift_type.to_string())
             .fetch_optional(pool)
             .await
-            .map_err(SqlError::traced_query_error)?;
+            .map_err(SqlError::SqlxError)?;
 
         match result {
             Some(result) => {
@@ -123,11 +121,10 @@ pub trait ProfileSqlLogic {
         transaction: &mut Transaction<'_, Postgres>,
     ) -> Result<Option<TaskRequest>, SqlError> {
         let query = Queries::GetDriftTask.get_query();
-        let result: Result<Option<TaskRequest>, sqlx::Error> = sqlx::query_as(&query.sql)
+        sqlx::query_as(&query.sql)
             .fetch_optional(&mut **transaction)
-            .await;
-
-        result.map_err(SqlError::traced_get_drift_task_error)
+            .await
+            .map_err(SqlError::SqlxError)
     }
 
     /// Update the drift profile run dates in the database
@@ -149,12 +146,12 @@ pub trait ProfileSqlLogic {
     ) -> Result<(), SqlError> {
         let query = Queries::UpdateDriftProfileRunDates.get_query();
 
-        let schedule = Schedule::from_str(schedule).map_err(UtilError::traced_parse_cron_error)?;
+        let schedule = Schedule::from_str(schedule)?;
 
         let next_run = match schedule.upcoming(Utc).take(1).next() {
             Some(next_run) => next_run,
             None => {
-                return Err(SqlError::GetNextRunError(schedule.to_string()));
+                return Err(SqlError::GetNextRunError);
             }
         };
 
@@ -164,11 +161,12 @@ pub trait ProfileSqlLogic {
             .bind(&service_info.space)
             .bind(&service_info.version)
             .execute(&mut **transaction)
-            .await;
+            .await
+            .map_err(SqlError::SqlxError);
 
         match query_result {
             Ok(_) => Ok(()),
-            Err(e) => Err(SqlError::traced_update_drift_profile_error(e)),
+            Err(e) => Err(e),
         }
     }
 
@@ -186,13 +184,37 @@ pub trait ProfileSqlLogic {
             .bind(&params.version)
             .bind(params.drift_type.as_ref().map(|t| t.to_string()))
             .execute(pool)
-            .await;
+            .await
+            .map_err(SqlError::SqlxError);
 
         match query_result {
-            Ok(_) => Ok(()),
+            Ok(_) => {
+                if params.deactivate_others {
+                    let query = Queries::DeactivateDriftProfiles.get_query();
+
+                    let query_result = sqlx::query(&query.sql)
+                        .bind(&params.name)
+                        .bind(&params.space)
+                        .bind(&params.version)
+                        .bind(params.drift_type.as_ref().map(|t| t.to_string()))
+                        .execute(pool)
+                        .await
+                        .map_err(SqlError::SqlxError);
+
+                    match query_result {
+                        Ok(_) => Ok(()),
+                        Err(e) => {
+                            error!("Failed to deactivate other drift profiles: {:?}", e);
+                            Err(e)
+                        }
+                    }
+                } else {
+                    Ok(())
+                }
+            }
             Err(e) => {
                 error!("Failed to update drift profile status: {:?}", e);
-                Err(SqlError::traced_update_drift_profile_error(e))
+                Err(e)
             }
         }
     }

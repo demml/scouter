@@ -1,6 +1,6 @@
+use crate::error::FeatureQueueError;
 use crate::queue::traits::FeatureQueue;
 use core::result::Result::Ok;
-use scouter_error::FeatureQueueError;
 use scouter_types::Metric;
 use scouter_types::QueueExt;
 use scouter_types::{

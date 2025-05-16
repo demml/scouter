@@ -6,9 +6,9 @@ use anyhow::{Context, Result};
 use axum::extract::State;
 use axum::{http::header, http::header::HeaderMap, http::StatusCode, routing::get, Json, Router};
 
-use scouter_contracts::ScouterServerError;
 use scouter_sql::sql::traits::UserSqlLogic;
 use scouter_sql::PostgresClient;
+use scouter_types::contracts::ScouterServerError;
 use scouter_types::JwtToken;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;

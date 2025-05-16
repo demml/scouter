@@ -1,4 +1,4 @@
-use scouter_contracts::ObservabilityMetricRequest;
+use scouter_types::contracts::ObservabilityMetricRequest;
 
 use axum::{
     extract::{Query, State},

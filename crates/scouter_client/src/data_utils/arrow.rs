@@ -1,6 +1,6 @@
 use crate::data_utils::{ConvertedData, DataConverter};
+use crate::error::DataError;
 use pyo3::prelude::*;
-use scouter_error::ScouterError;
 
 pub struct ArrowDataConverter;
 
@@ -9,7 +9,7 @@ impl DataConverter for ArrowDataConverter {
     fn categorize_features<'py>(
         py: Python<'py>,
         data: &Bound<'py, PyAny>,
-    ) -> Result<(Vec<String>, Vec<String>), ScouterError> {
+    ) -> Result<(Vec<String>, Vec<String>), DataError> {
         let mut string_features = Vec::new();
         let mut numeric_features = Vec::new();
         let features = data.getattr("column_names")?.extract::<Vec<String>>()?;
@@ -46,7 +46,7 @@ impl DataConverter for ArrowDataConverter {
     fn process_numeric_features<'py>(
         data: &Bound<'py, PyAny>,
         features: &[String],
-    ) -> Result<(Option<Bound<'py, PyAny>>, Option<String>), ScouterError> {
+    ) -> Result<(Option<Bound<'py, PyAny>>, Option<String>), DataError> {
         let py = data.py();
         if features.is_empty() {
             return Ok((None, None));
@@ -61,7 +61,7 @@ impl DataConverter for ArrowDataConverter {
 
                 Ok(array)
             })
-            .collect::<Result<Vec<Bound<'py, PyAny>>, ScouterError>>()?;
+            .collect::<Result<Vec<Bound<'py, PyAny>>, DataError>>()?;
 
         let numpy = py.import("numpy")?;
 
@@ -76,7 +76,7 @@ impl DataConverter for ArrowDataConverter {
     fn process_string_features<'py>(
         data: &Bound<'py, PyAny>,
         features: &[String],
-    ) -> Result<Option<Vec<Vec<String>>>, ScouterError> {
+    ) -> Result<Option<Vec<Vec<String>>>, DataError> {
         if features.is_empty() {
             return Ok(None);
         }
@@ -90,14 +90,14 @@ impl DataConverter for ArrowDataConverter {
                     .extract::<Vec<String>>()?;
                 Ok(array)
             })
-            .collect::<Result<Vec<Vec<String>>, ScouterError>>()?;
+            .collect::<Result<Vec<Vec<String>>, DataError>>()?;
         Ok(Some(array))
     }
 
     fn prepare_data<'py>(
         py: Python<'py>,
         data: &Bound<'py, PyAny>,
-    ) -> Result<ConvertedData<'py>, ScouterError> {
+    ) -> Result<ConvertedData<'py>, DataError> {
         let (numeric_features, string_features) =
             ArrowDataConverter::categorize_features(py, data)?;
 
@@ -106,10 +106,10 @@ impl DataConverter for ArrowDataConverter {
         let string_array = ArrowDataConverter::process_string_features(data, &string_features)?;
 
         Ok((
-            numeric_features,
+            numeric_features.to_vec(),
             numeric_array,
             dtype,
-            string_features,
+            string_features.to_vec(),
             string_array,
         ))
     }

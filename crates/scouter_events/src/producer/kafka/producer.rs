@@ -2,6 +2,7 @@
 pub mod kafka_producer {
     use crate::producer::kafka::types::KafkaConfig;
 
+    use crate::error::EventError;
     use futures::TryFutureExt;
     use rdkafka::{
         config::RDKafkaLogLevel,
@@ -9,7 +10,6 @@ pub mod kafka_producer {
         ClientConfig,
     };
     use rusty_logging::logger::LogLevel;
-    use scouter_error::{EventError, UtilError};
     use scouter_types::ServerRecords;
     use std::result::Result::Ok;
 
@@ -34,11 +34,7 @@ pub mod kafka_producer {
             let mut retries = self.config.max_retries;
 
             loop {
-                match self
-                    ._publish(message.clone())
-                    .await
-                    .map_err(EventError::traced_publish_error)
-                {
+                match self._publish(message.clone()).await {
                     Ok(_) => {
                         break;
                     }
@@ -57,7 +53,7 @@ pub mod kafka_producer {
         pub fn flush(&self) -> Result<(), EventError> {
             self.producer
                 .flush(Duration::from_millis(self.config.message_timeout_ms))
-                .map_err(EventError::traced_flush_error)
+                .map_err(EventError::FlushKafkaProducerError)
         }
 
         fn setup_producer(
@@ -82,7 +78,7 @@ pub mod kafka_producer {
             let producer = kafka_config
                 .set_log_level(kafka_log_level)
                 .create()
-                .map_err(UtilError::traced_set_log_level_error)?;
+                .map_err(EventError::CreateKafkaProducerError)?;
 
             info!("Kafka producer setup complete");
             Ok(producer)
@@ -99,7 +95,7 @@ pub mod kafka_producer {
                     record,
                     Duration::from_millis(self.config.message_timeout_ms),
                 )
-                .map_err(|(e, _)| EventError::traced_send_error(e.to_string()))
+                .map_err(|(e, _)| EventError::PublishKafkaMessageError(e))
                 .await?;
             Ok(())
         }

@@ -12,7 +12,7 @@ pub use crate::producer::kafka::KafkaConfig;
 pub use crate::producer::rabbitmq::RabbitMQConfig;
 use crate::queue::types::TransportConfig;
 
-use scouter_error::EventError;
+use crate::error::EventError;
 use scouter_types::ServerRecords;
 use tracing::debug;
 
@@ -74,10 +74,7 @@ impl RustScouterProducer {
                 }
                 #[cfg(not(feature = "rabbitmq"))]
                 {
-                    return Err(EventError::FeatureNotEnabledError(
-                        "rabbitmq feature is not enabled".to_string(),
-                    )
-                    .into());
+                    return Err(EventError::RabbitMQFeatureNotEnabledError);
                 }
             }
             TransportConfig::Kafka(config) => {
@@ -88,10 +85,7 @@ impl RustScouterProducer {
                 }
                 #[cfg(not(any(feature = "kafka", feature = "kafka-vendored")))]
                 {
-                    return Err(EventError::FeatureNotEnabledError(
-                        "kafka feature is not enabled".to_string(),
-                    )
-                    .into());
+                    return Err(EventError::KafkaFeatureNotEnabledError);
                 }
             }
             TransportConfig::Redis(config) => {

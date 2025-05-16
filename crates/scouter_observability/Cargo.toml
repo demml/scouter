@@ -12,7 +12,6 @@ license = "MIT"
 description = "Drift logic for Scouter"
 
 [dependencies]
-scouter-error = { workspace = true }
 scouter-types = { workspace = true }
 
 
@@ -23,6 +22,7 @@ rayon = { workspace = true }
 noisy_float = { workspace = true }
 ndarray = { workspace = true }
 ndarray-stats = { workspace = true }
+thiserror = { workspace = true }
 tracing = { workspace = true }
 
 

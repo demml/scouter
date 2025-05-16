@@ -1,5 +1,5 @@
+use crate::api::error::ServerError;
 use scouter_drift::DriftExecutor;
-use scouter_error::ScouterError;
 use scouter_settings::PollingSettings;
 use sqlx::{Pool, Postgres};
 use tokio::sync::watch;
@@ -15,7 +15,7 @@ impl BackgroundDriftManager {
         db_pool: &Pool<Postgres>,
         poll_settings: &PollingSettings,
         shutdown_rx: watch::Receiver<()>,
-    ) -> Result<(), ScouterError> {
+    ) -> Result<(), ServerError> {
         let num_workers = poll_settings.num_workers;
         let mut workers = Vec::with_capacity(num_workers);
 

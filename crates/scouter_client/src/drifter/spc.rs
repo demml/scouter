@@ -3,11 +3,11 @@ use ndarray::Axis;
 use ndarray::{concatenate, Array2};
 use num_traits::{Float, FromPrimitive, Num};
 use numpy::PyReadonlyArray2;
+use scouter_drift::error::DriftError;
 use scouter_drift::{
     spc::{generate_alerts, SpcDriftMap, SpcMonitor},
     CategoricalFeatureHelpers,
 };
-use scouter_error::{DriftError, ScouterError};
 use scouter_types::{
     create_feature_map,
     spc::{SpcAlertRule, SpcDriftConfig, SpcDriftProfile, SpcFeatureAlerts},
@@ -31,7 +31,7 @@ impl SpcDrifter {
         features: Vec<String>,
         array: Vec<Vec<String>>,
         drift_profile: SpcDriftProfile,
-    ) -> Result<Array2<f32>, ScouterError> {
+    ) -> Result<Array2<f32>, DriftError> {
         let array = self.monitor.convert_strings_to_ndarray_f32(
             &features,
             &array,
@@ -46,7 +46,7 @@ impl SpcDrifter {
         features: Vec<String>,
         array: Vec<Vec<String>>,
         drift_profile: SpcDriftProfile,
-    ) -> Result<Array2<f64>, ScouterError> {
+    ) -> Result<Array2<f64>, DriftError> {
         let array = self.monitor.convert_strings_to_ndarray_f64(
             &features,
             &array,
@@ -61,10 +61,10 @@ impl SpcDrifter {
         drift_array: PyReadonlyArray2<f64>,
         features: Vec<String>,
         alert_rule: SpcAlertRule,
-    ) -> Result<SpcFeatureAlerts, ScouterError> {
+    ) -> Result<SpcFeatureAlerts, DriftError> {
         let drift_array = drift_array.as_array();
 
-        Ok(generate_alerts(&drift_array, &features, &alert_rule)?)
+        generate_alerts(&drift_array, &features, &alert_rule)
     }
 
     pub fn create_string_drift_profile(
@@ -72,44 +72,22 @@ impl SpcDrifter {
         array: Vec<Vec<String>>,
         features: Vec<String>,
         mut drift_config: SpcDriftConfig,
-    ) -> Result<SpcDriftProfile, ScouterError> {
+    ) -> Result<SpcDriftProfile, DriftError> {
         let feature_map = match create_feature_map(&features, &array) {
             Ok(feature_map) => feature_map,
-            Err(_e) => {
-                let msg = format!("Failed to create feature map: {}", _e);
-                return Err(ScouterError::Error(msg));
+            Err(e) => {
+                return Err(e.into());
             }
         };
 
         drift_config.update_feature_map(feature_map.clone());
 
-        let array =
-            match self
-                .monitor
-                .convert_strings_to_ndarray_f32(&features, &array, &feature_map)
-            {
-                Ok(array) => array,
-                Err(_e) => {
-                    return Err(ScouterError::Error(
-                        "Failed to create 2D drift profile".to_string(),
-                    ));
-                }
-            };
+        let array = self
+            .monitor
+            .convert_strings_to_ndarray_f32(&features, &array, &feature_map)?;
 
-        let profile =
-            match self
-                .monitor
-                .create_2d_drift_profile(&features, &array.view(), &drift_config)
-            {
-                Ok(profile) => profile,
-                Err(_e) => {
-                    return Err(ScouterError::Error(
-                        "Failed to create 2D drift profile".to_string(),
-                    ));
-                }
-            };
-
-        Ok(profile)
+        self.monitor
+            .create_2d_drift_profile(&features, &array.view(), &drift_config)
     }
 
     pub fn create_numeric_drift_profile<F>(
@@ -117,7 +95,7 @@ impl SpcDrifter {
         array: PyReadonlyArray2<F>,
         features: Vec<String>,
         drift_config: SpcDriftConfig,
-    ) -> Result<SpcDriftProfile, ScouterError>
+    ) -> Result<SpcDriftProfile, DriftError>
     where
         F: Float
             + Sync
@@ -143,7 +121,7 @@ impl SpcDrifter {
         &mut self,
         data: ConvertedData<'_>,
         drift_profile: SpcDriftProfile,
-    ) -> Result<SpcDriftMap, ScouterError> {
+    ) -> Result<SpcDriftMap, DriftError> {
         let (num_features, num_array, dtype, string_features, string_array) = data;
         let dtype = dtype.unwrap_or("float32".to_string());
 
@@ -161,8 +139,7 @@ impl SpcDrifter {
                 if num_array.is_some() {
                     let array = convert_array_type::<f64>(num_array.unwrap(), &dtype)?;
                     let concatenated =
-                        concatenate(Axis(1), &[array.as_array(), string_array.view()])
-                            .map_err(DriftError::traced_shape_error)?;
+                        concatenate(Axis(1), &[array.as_array(), string_array.view()])?;
                     Ok(self.monitor.compute_drift(
                         &features,
                         &concatenated.view(),
@@ -185,8 +162,7 @@ impl SpcDrifter {
                 if num_array.is_some() {
                     let array = convert_array_type::<f32>(num_array.unwrap(), &dtype)?;
                     let concatenated =
-                        concatenate(Axis(1), &[array.as_array(), string_array.view()])
-                            .map_err(DriftError::traced_shape_error)?;
+                        concatenate(Axis(1), &[array.as_array(), string_array.view()])?;
                     Ok(self.monitor.compute_drift(
                         &features,
                         &concatenated.view(),
@@ -217,7 +193,7 @@ impl SpcDrifter {
         &mut self,
         data: ConvertedData<'_>,
         config: SpcDriftConfig,
-    ) -> Result<SpcDriftProfile, ScouterError> {
+    ) -> Result<SpcDriftProfile, DriftError> {
         let (num_features, num_array, dtype, string_features, string_array) = data;
 
         let mut features = HashMap::new();

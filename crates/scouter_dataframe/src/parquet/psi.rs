@@ -1,3 +1,4 @@
+use crate::error::DataFrameError;
 use crate::parquet::traits::ParquetFrame;
 use crate::sql::helper::get_binned_psi_drift_records_query;
 use crate::storage::ObjectStore;
@@ -13,7 +14,6 @@ use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
 use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
-use scouter_error::DataFrameError;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{
     psi::FeatureBinProportionResult, PsiServerRecord, ServerRecords, StorageType, ToDriftRecords,
@@ -39,9 +39,7 @@ impl ParquetFrame for PsiDataFrame {
 
         let ctx = self.object_store.get_session()?;
 
-        let df = ctx
-            .read_batches(vec![batch])
-            .map_err(DataFrameError::traced_read_batch_error)?;
+        let df = ctx.read_batches(vec![batch])?;
         Ok(df)
     }
 
@@ -128,8 +126,7 @@ impl PsiDataFrame {
                 Arc::new(bin_id_array),
                 Arc::new(bin_count_array),
             ],
-        )
-        .map_err(DataFrameError::traced_create_batch_error)?;
+        )?;
 
         Ok(batch)
     }
@@ -141,7 +138,7 @@ fn extract_feature(batch: &RecordBatch) -> Result<String, DataFrameError> {
         .column(0)
         .as_any()
         .downcast_ref::<StringViewArray>()
-        .ok_or_else(|| DataFrameError::traced_downcast_error("StringArray Error"))?;
+        .ok_or_else(|| DataFrameError::GetColumnError("feature"))?;
     Ok(feature_array.value(0).to_string())
 }
 
@@ -151,7 +148,7 @@ fn extract_created_at(batch: &RecordBatch) -> Result<Vec<DateTime<Utc>>, DataFra
         .column(1)
         .as_any()
         .downcast_ref::<ListArray>()
-        .ok_or_else(|| DataFrameError::traced_get_column_error("created_at"))?;
+        .ok_or_else(|| DataFrameError::GetColumnError("created_at"))?;
 
     let created_at_array = created_at_list.value(0);
     Ok(created_at_array
@@ -167,24 +164,24 @@ fn get_bin_proportions_struct(batch: &RecordBatch) -> Result<&ListArray, DataFra
         .column(2)
         .as_any()
         .downcast_ref::<ListArray>()
-        .ok_or_else(|| DataFrameError::traced_get_column_error("bin_proportions"))
+        .ok_or_else(|| DataFrameError::GetColumnError("bin_proportions"))
 }
 
 /// Extraction logic to get bin ids and proportions from a return record batch
 fn get_bin_fields(structs: &StructArray) -> Result<(&ListArray, &ListArray), DataFrameError> {
     let bin_ids = structs
         .column_by_name("bin_id")
-        .ok_or_else(|| DataFrameError::MissingFieldError("bin_id".to_string()))?
+        .ok_or_else(|| DataFrameError::MissingFieldError("bin_id"))?
         .as_any()
         .downcast_ref::<ListArray>()
-        .ok_or_else(|| DataFrameError::DowncastError("bin_id".to_string()))?;
+        .ok_or_else(|| DataFrameError::GetColumnError("bin_id"))?;
 
     let proportions = structs
         .column_by_name("proportion")
-        .ok_or_else(|| DataFrameError::MissingFieldError("proportion".to_string()))?
+        .ok_or_else(|| DataFrameError::MissingFieldError("proportion"))?
         .as_any()
         .downcast_ref::<ListArray>()
-        .ok_or_else(|| DataFrameError::DowncastError("proporition".to_string()))?;
+        .ok_or_else(|| DataFrameError::GetColumnError("proportion"))?;
 
     Ok((bin_ids, proportions))
 }
@@ -228,7 +225,7 @@ fn extract_bin_proportions(
     let bin_structs = bin_structs
         .as_any()
         .downcast_ref::<StructArray>()
-        .ok_or_else(|| DataFrameError::DowncastError("StructArray".to_string()))?;
+        .ok_or_else(|| DataFrameError::DowncastError("Bin structs"))?;
 
     let (bin_ids_field, proportions_field) = get_bin_fields(bin_structs)?;
 
@@ -247,7 +244,7 @@ fn get_overall_proportions_struct(batch: &RecordBatch) -> Result<&StructArray, D
         .column(3)
         .as_any()
         .downcast_ref::<StructArray>()
-        .ok_or_else(|| DataFrameError::DowncastError("StructArray".to_string()))?;
+        .ok_or_else(|| DataFrameError::DowncastError("overall proportion struct"))?;
 
     Ok(overall_proportions_struct)
 }
@@ -257,17 +254,17 @@ fn get_overall_fields(
 ) -> Result<(&ListArray, &ListArray), DataFrameError> {
     let overall_bin_ids = overall_struct
         .column_by_name("bin_id")
-        .ok_or_else(|| DataFrameError::MissingFieldError("bin_id".to_string()))?
+        .ok_or_else(|| DataFrameError::MissingFieldError("bin_id"))?
         .as_any()
         .downcast_ref::<ListArray>()
-        .ok_or_else(|| DataFrameError::DowncastError("bin_id".to_string()))?;
+        .ok_or_else(|| DataFrameError::DowncastError("bin_id"))?;
 
     let overall_proportions = overall_struct
         .column_by_name("proportion")
-        .ok_or_else(|| DataFrameError::MissingFieldError("proportion".to_string()))?
+        .ok_or_else(|| DataFrameError::MissingFieldError("proportion"))?
         .as_any()
         .downcast_ref::<ListArray>()
-        .ok_or_else(|| DataFrameError::DowncastError("proporition".to_string()))?;
+        .ok_or_else(|| DataFrameError::DowncastError("proporition"))?;
 
     Ok((overall_bin_ids, overall_proportions))
 }
@@ -291,7 +288,7 @@ fn extract_overall_proportions(
 /// * `features` - The features to populate
 ///
 /// # Returns
-/// * `Result<(), ScouterError>` - The result of the processing
+/// * `Result<(), DataFrameError>` - The result of the processing
 fn process_psi_record_batch(
     batch: &RecordBatch,
 ) -> Result<FeatureBinProportionResult, DataFrameError> {
@@ -313,10 +310,7 @@ fn process_psi_record_batch(
 pub async fn dataframe_to_psi_drift_features(
     df: DataFrame,
 ) -> Result<Vec<FeatureBinProportionResult>, DataFrameError> {
-    let batches = df
-        .collect()
-        .await
-        .map_err(DataFrameError::traced_read_batch_error)?;
+    let batches = df.collect().await?;
 
     batches
         .into_iter()

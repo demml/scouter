@@ -1,3 +1,4 @@
+use crate::error::TypeError;
 use crate::{
     dispatch::AlertDispatchType, AlertDispatchConfig, CommonCrons, DispatchAlertDescription,
     OpsGenieDispatchConfig, ProfileFuncs, SlackDispatchConfig, ValidateAlertConfig,
@@ -5,7 +6,7 @@ use crate::{
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyString;
-use scouter_error::PyScouterError;
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::collections::HashSet;
@@ -101,7 +102,7 @@ impl SpcAlertConfig {
         schedule: Option<&Bound<'_, PyAny>>,
         features_to_monitor: Vec<String>,
         dispatch_config: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<Self> {
+    ) -> Result<Self, TypeError> {
         let alert_dispatch_config = match dispatch_config {
             None => AlertDispatchConfig::default(),
             Some(config) => {
@@ -125,7 +126,7 @@ impl SpcAlertConfig {
                     schedule.extract::<CommonCrons>().unwrap().cron()
                 } else {
                     error!("Invalid schedule type");
-                    return Err(PyScouterError::new_err("Invalid schedule type"))?;
+                    return Err(TypeError::InvalidScheduleError)?;
                 }
             }
             None => CommonCrons::EveryDay.cron(),

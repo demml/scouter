@@ -1,6 +1,6 @@
+use crate::api::error::ServerError;
 use chrono::{Duration, Utc};
 use scouter_dataframe::parquet::dataframe::ParquetDataFrame;
-use scouter_error::ScouterError;
 /// Functionality for persisting data from postgres to long-term storage
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::sql::traits::ArchiveSqlLogic;
@@ -24,7 +24,7 @@ impl DataArchiver {
         db_pool: &Pool<Postgres>,
         shutdown_rx: watch::Receiver<()>,
         config: &Arc<ScouterServerConfig>,
-    ) -> Result<(), ScouterError> {
+    ) -> Result<(), ServerError> {
         let mut workers = Vec::with_capacity(1);
 
         let pool = db_pool.clone();
@@ -86,10 +86,14 @@ async fn get_entities_to_archive(
     db_pool: &Pool<Postgres>,
     record_type: &RecordType,
     retention_period: &i32,
-) -> Result<Vec<Entity>, ScouterError> {
+) -> Result<Vec<Entity>, ServerError> {
     // get the data from the database
-    let data =
-        PostgresClient::get_entities_to_archive(db_pool, record_type, retention_period).await?;
+    let data = PostgresClient::get_entities_to_archive(db_pool, record_type, retention_period)
+        .await
+        .map_err(|e| {
+            error!("Error getting entities to archive: {}", e);
+            ServerError::GetEntitiesToArchiveError(e)
+        })?;
 
     Ok(data)
 }
@@ -99,7 +103,7 @@ async fn get_data_to_archive(
     db_pool: &Pool<Postgres>,
     record_type: &RecordType,
     entity: &Entity,
-) -> Result<ServerRecords, ScouterError> {
+) -> Result<ServerRecords, ServerError> {
     // get the data from the database
     let data = PostgresClient::get_data_to_archive(
         &entity.space,
@@ -110,7 +114,11 @@ async fn get_data_to_archive(
         record_type,
         db_pool,
     )
-    .await?;
+    .await
+    .map_err(|e| {
+        error!("Error getting data to archive: {}", e);
+        ServerError::GetDataToArchiveError(e)
+    })?;
 
     Ok(data)
 }
@@ -122,7 +130,7 @@ async fn update_entities_to_archived(
     db_pool: &Pool<Postgres>,
     record_type: &RecordType,
     entity: &Entity,
-) -> Result<(), ScouterError> {
+) -> Result<(), ServerError> {
     // get the data from the database
     PostgresClient::update_data_to_archived(
         &entity.space,
@@ -133,7 +141,11 @@ async fn update_entities_to_archived(
         record_type,
         db_pool,
     )
-    .await?;
+    .await
+    .map_err(|e| {
+        error!("Error updating data to archived: {}", e);
+        ServerError::UpdateDataToArchivedError(e)
+    })?;
 
     Ok(())
 }
@@ -143,7 +155,7 @@ async fn process_record_type(
     db_pool: &Pool<Postgres>,
     record_type: &RecordType,
     config: &Arc<ScouterServerConfig>,
-) -> Result<bool, ScouterError> {
+) -> Result<bool, ServerError> {
     let df = ParquetDataFrame::new(&config.storage_settings, record_type)?;
 
     // get the entities for archival
@@ -185,12 +197,12 @@ async fn process_record_type(
 /// * `retention_period` - The retention period to use for the archival
 ///
 /// # Returns
-/// * `Result<(), ScouterError>` - The result of the archival
+/// * `Result<(), ServerError>` - The result of the archival
 #[instrument(skip_all)]
 pub async fn archive_old_data(
     db_pool: &Pool<Postgres>,
     config: &Arc<ScouterServerConfig>,
-) -> Result<ArchiveRecord, ScouterError> {
+) -> Result<ArchiveRecord, ServerError> {
     // get old records
     debug!("Archiving old data");
 

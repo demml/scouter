@@ -1,11 +1,10 @@
 pub mod utils;
 
 use crate::utils::setup_logging;
-use scouter_contracts::ServiceInfo;
 
 use scouter_sql::sql::traits::SpcSqlLogic;
 use scouter_sql::PostgresClient;
-use scouter_types::{ServerRecord, ServerRecords, SpcServerRecord};
+use scouter_types::{ServerRecord, ServerRecords, ServiceInfo, SpcServerRecord};
 use std::time::{Duration, Instant};
 use utils::TestHelper;
 

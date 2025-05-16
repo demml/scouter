@@ -1,17 +1,16 @@
 #[cfg(feature = "sql")]
 pub mod psi_drifter {
 
+    use crate::error::DriftError;
     use crate::psi::monitor::PsiMonitor;
     use crate::psi::types::{FeatureBinMapping, FeatureBinProportionPairs};
     use chrono::{DateTime, Utc};
     use rayon::iter::{IntoParallelIterator, ParallelIterator};
-    use scouter_contracts::DriftRequest;
-    use scouter_contracts::ServiceInfo;
     use scouter_dispatch::AlertDispatcher;
-    use scouter_error::DriftError;
     use scouter_settings::ObjectStorageSettings;
     use scouter_sql::sql::traits::PsiSqlLogic;
     use scouter_sql::PostgresClient;
+    use scouter_types::contracts::{DriftRequest, ServiceInfo};
     use scouter_types::psi::{
         BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiDriftProfile, PsiFeatureAlerts,
         PsiFeatureDriftProfile,
@@ -62,12 +61,11 @@ pub mod psi_drifter {
                 &self.profile.config.alert_config.features_to_monitor,
             )
             .await
-            .map_err(|e| {
+            .inspect_err(|e| {
                 error!(
                     "Error: Unable to fetch feature bin proportions from DB for {}/{}/{}: {}",
                     self.service_info.space, self.service_info.name, self.service_info.version, e
                 );
-                DriftError::Error("Error processing alerts".to_string())
             })?;
 
             if observed_bin_proportions.is_empty() {
@@ -122,12 +120,11 @@ pub mod psi_drifter {
             &self,
             drift_map: &HashMap<String, f64>,
         ) -> Result<Option<HashMap<String, f64>>, DriftError> {
-            let alert_dispatcher = AlertDispatcher::new(&self.profile.config).map_err(|e| {
+            let alert_dispatcher = AlertDispatcher::new(&self.profile.config).inspect_err(|e| {
                 error!(
                     "Error creating alert dispatcher for {}/{}/{}: {}",
                     self.service_info.space, self.service_info.name, self.service_info.version, e
                 );
-                DriftError::Error("Error creating alert dispatcher".to_string())
             })?;
 
             let filtered_map = self.filter_drift_map(drift_map);
@@ -146,7 +143,7 @@ pub mod psi_drifter {
                     threshold: self.profile.config.alert_config.psi_threshold,
                 })
                 .await
-                .map_err(|e| {
+                .inspect_err(|e| {
                     error!(
                         "Error processing alerts for {}/{}/{}: {}",
                         self.service_info.space,
@@ -154,7 +151,6 @@ pub mod psi_drifter {
                         self.service_info.version,
                         e
                     );
-                    DriftError::Error("Error processing alerts".to_string())
                 })?;
             Ok(Some(filtered_map))
         }
@@ -213,7 +209,7 @@ pub mod psi_drifter {
 
             match drift_map {
                 Some(drift_map) => {
-                    let alerts = self.generate_alerts(&drift_map).await.map_err(|e| {
+                    let alerts = self.generate_alerts(&drift_map).await.inspect_err(|e| {
                         error!(
                             "Error generating alerts for {}/{}/{}: {}",
                             self.service_info.space,
@@ -221,7 +217,6 @@ pub mod psi_drifter {
                             self.service_info.version,
                             e
                         );
-                        DriftError::Error("Error processing alerts".to_string())
                     })?;
                     match alerts {
                         Some(alerts) => Ok(Some(self.organize_alerts(alerts))),
@@ -242,7 +237,7 @@ pub mod psi_drifter {
                 Some(profile) => profile,
                 None => {
                     error!("Error: Unable to fetch profile for feature {}", feature);
-                    return Err(DriftError::Error("Error processing alerts".to_string()));
+                    return Err(DriftError::ProcessAlertError);
                 }
             };
 
@@ -278,8 +273,7 @@ pub mod psi_drifter {
                 retention_period,
                 storage_settings,
             )
-            .await
-            .map_err(|e| DriftError::Error(e.to_string()))?;
+            .await?;
 
             if binned_records.is_empty() {
                 info!(

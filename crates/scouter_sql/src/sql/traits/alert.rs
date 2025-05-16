@@ -1,9 +1,9 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::{AlertWrapper, UpdateAlertResult};
 
-use scouter_contracts::{DriftAlertRequest, ServiceInfo, UpdateAlertStatus};
+use scouter_types::contracts::{DriftAlertRequest, ServiceInfo, UpdateAlertStatus};
 
-use scouter_error::SqlError;
+use crate::sql::error::SqlError;
 use scouter_types::alert::Alert;
 use scouter_types::DriftType;
 
@@ -33,7 +33,7 @@ pub trait AlertSqlLogic {
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertDriftAlert.get_query();
 
-        let query_result: std::result::Result<PgQueryResult, SqlError> = sqlx::query(&query.sql)
+        let query_result = sqlx::query(&query.sql)
             .bind(&service_info.name)
             .bind(&service_info.space)
             .bind(&service_info.version)
@@ -41,10 +41,9 @@ pub trait AlertSqlLogic {
             .bind(serde_json::to_value(alert).unwrap())
             .bind(drift_type.to_string())
             .execute(pool)
-            .await
-            .map_err(SqlError::traced_query_error);
+            .await?;
 
-        query_result
+        Ok(query_result)
     }
 
     /// Get drift alerts from the database
@@ -60,22 +59,17 @@ pub trait AlertSqlLogic {
         pool: &Pool<Postgres>,
         params: &DriftAlertRequest,
     ) -> Result<Vec<Alert>, SqlError> {
-        let query = Queries::GetDriftAlerts.get_query().sql;
+        let mut query = Queries::GetDriftAlerts.get_query().sql;
 
-        // check if active (status can be 'active' or  'acknowledged')
-        let query = if params.active.unwrap_or(false) {
-            format!("{} AND active = true", query)
-        } else {
-            query
-        };
+        if params.active.unwrap_or(false) {
+            query.push_str(" AND active = true");
+        }
 
-        let query = format!("{} ORDER BY created_at DESC", query);
+        query.push_str(" ORDER BY created_at DESC");
 
-        let query = if let Some(limit) = params.limit {
-            format!("{} LIMIT {}", query, limit)
-        } else {
-            query
-        };
+        if let Some(limit) = params.limit {
+            query.push_str(&format!(" LIMIT {}", limit));
+        }
 
         // convert limit timestamp to string if it exists, leave as None if not
 
@@ -86,7 +80,7 @@ pub trait AlertSqlLogic {
             .bind(params.limit_datetime)
             .fetch_all(pool)
             .await
-            .map_err(SqlError::traced_query_error);
+            .map_err(SqlError::SqlxError);
 
         result.map(|result| result.into_iter().map(|wrapper| wrapper.0).collect())
     }
@@ -102,11 +96,8 @@ pub trait AlertSqlLogic {
             .bind(params.active)
             .fetch_one(pool)
             .await
-            .map_err(SqlError::traced_query_error);
+            .map_err(SqlError::SqlxError);
 
-        match result {
-            Ok(result) => Ok(result),
-            Err(e) => Err(SqlError::traced_query_error(e.to_string())),
-        }
+        result
     }
 }

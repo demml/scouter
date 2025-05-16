@@ -1,15 +1,15 @@
 #[cfg(feature = "sql")]
 pub mod spc_drifter {
+    use crate::error::DriftError;
     use crate::spc::alert::generate_alerts;
     use crate::spc::monitor::SpcMonitor;
     use chrono::{DateTime, Utc};
     use ndarray::Array2;
     use ndarray::ArrayView2;
-    use scouter_contracts::ServiceInfo;
     use scouter_dispatch::AlertDispatcher;
-    use scouter_error::DriftError;
     use scouter_sql::sql::traits::SpcSqlLogic;
     use scouter_sql::PostgresClient;
+    use scouter_types::contracts::ServiceInfo;
     use scouter_types::spc::{SpcDriftFeatures, SpcDriftProfile, TaskAlerts};
     use sqlx::{Pool, Postgres};
     use std::collections::BTreeMap;
@@ -81,8 +81,7 @@ pub mod spc_drifter {
                 limit_datetime,
                 features_to_monitor,
             )
-            .await
-            .map_err(|e| DriftError::Error(e.to_string()))?;
+            .await?;
             Ok(SpcDriftArray::new(records))
         }
 
@@ -142,19 +141,18 @@ pub mod spc_drifter {
             // Get dispatcher, will default to console if env vars are not found for 3rd party service
             // TODO: Add ability to pass hashmap of kwargs to dispatcher (from drift profile)
             // This would be for things like opsgenie team, feature priority, slack channel, etc.
-            let alert_dispatcher = AlertDispatcher::new(&self.profile.config).map_err(|e| {
+            let alert_dispatcher = AlertDispatcher::new(&self.profile.config).inspect_err(|e| {
                 error!(
                     "Error creating alert dispatcher for {}/{}/{}: {}",
                     self.service_info.space, self.service_info.name, self.service_info.version, e
                 );
-                DriftError::Error("Error creating alert dispatcher".to_string())
             })?;
 
             if alerts.has_alerts {
                 alert_dispatcher
                     .process_alerts(&alerts)
                     .await
-                    .map_err(|e| {
+                    .inspect_err(|e| {
                         error!(
                             "Error processing alerts for {}/{}/{}: {}",
                             self.service_info.space,
@@ -162,7 +160,6 @@ pub mod spc_drifter {
                             self.service_info.version,
                             e
                         );
-                        DriftError::Error("Error processing alerts".to_string())
                     })?;
                 task_alerts.alerts = alerts;
                 return Ok(Some(task_alerts));
@@ -230,7 +227,7 @@ pub mod spc_drifter {
             let alerts = self
                 .generate_alerts(&drift_array.view(), &keys)
                 .await
-                .map_err(|e| {
+                .inspect_err(|e| {
                     error!(
                         "Error generating alerts for {}/{}/{}: {}",
                         self.service_info.space,
@@ -238,7 +235,6 @@ pub mod spc_drifter {
                         self.service_info.version,
                         e
                     );
-                    DriftError::Error("Error generating alerts".to_string())
                 })?;
 
             match alerts {

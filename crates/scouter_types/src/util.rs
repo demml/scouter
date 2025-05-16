@@ -1,13 +1,13 @@
+use crate::error::{ProfileError, TypeError, UtilError};
 use crate::FeatureMap;
 use crate::{CommonCrons, DriftType};
 use chrono::{DateTime, Utc};
 use colored_json::{Color, ColorMode, ColoredFormatter, PrettyFormatter, Styler};
-use pyo3::exceptions::{PyTypeError, PyValueError};
+use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
 use pyo3::IntoPyObjectExt;
 use rayon::prelude::*;
-use scouter_error::{ScouterError, UtilError};
 use serde::Serialize;
 use serde_json::{json, Value};
 use std::collections::{BTreeSet, HashMap};
@@ -77,17 +77,16 @@ impl ProfileFuncs {
         model: T,
         path: Option<PathBuf>,
         filename: &str,
-    ) -> Result<PathBuf, ScouterError>
+    ) -> Result<PathBuf, UtilError>
     where
         T: Serialize,
     {
         // serialize the struct to a string
-        let json =
-            serde_json::to_string_pretty(&model).map_err(|_| ScouterError::SerializeError)?;
+        let json = serde_json::to_string_pretty(&model)?;
 
         // check if path is provided
         let write_path = if path.is_some() {
-            let mut new_path = path.ok_or(ScouterError::CreatePathError)?;
+            let mut new_path = path.ok_or(UtilError::CreatePathError)?;
 
             // ensure .json extension
             new_path.set_extension("json");
@@ -105,7 +104,7 @@ impl ProfileFuncs {
             PathBuf::from(filename)
         };
 
-        std::fs::write(&write_path, json).map_err(|_| UtilError::WriteError)?;
+        std::fs::write(&write_path, json)?;
 
         Ok(write_path)
     }
@@ -124,7 +123,9 @@ pub fn json_to_pyobject(py: Python, value: &Value, dict: &Bound<'_, PyDict>) -> 
                         } else if let Some(f) = n.as_f64() {
                             f.into_py_any(py).unwrap()
                         } else {
-                            return Err(PyValueError::new_err("Invalid number"));
+                            return Err(PyRuntimeError::new_err(
+                                "Invalid number type, expected i64 or f64",
+                            ));
                         }
                     }
                     Value::String(s) => s.into_py_any(py).unwrap(),
@@ -145,7 +146,7 @@ pub fn json_to_pyobject(py: Python, value: &Value, dict: &Bound<'_, PyDict>) -> 
                 dict.set_item(k, py_value)?;
             }
         }
-        _ => return Err(PyValueError::new_err("Root must be an object")),
+        _ => return Err(PyRuntimeError::new_err("Root must be object")),
     }
     Ok(())
 }
@@ -160,7 +161,9 @@ pub fn json_to_pyobject_value(py: Python, value: &Value) -> PyResult<PyObject> {
             } else if let Some(f) = n.as_f64() {
                 f.into_py_any(py).unwrap()
             } else {
-                return Err(PyValueError::new_err("Invalid number"));
+                return Err(PyRuntimeError::new_err(
+                    "Invalid number type, expected i64 or f64",
+                ));
             }
         }
         Value::String(s) => s.into_py_any(py).unwrap(),
@@ -212,22 +215,17 @@ pub fn pyobject_to_json(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
     } else if obj.is_none() {
         Ok(Value::Null)
     } else {
-        Err(PyTypeError::new_err(format!(
-            "Unsupported type: {}",
-            obj.get_type().name()?
-        )))
+        Err(PyRuntimeError::new_err("Unsupported type"))
     }
 }
 
 pub fn create_feature_map(
     features: &[String],
     array: &[Vec<String>],
-) -> Result<FeatureMap, ScouterError> {
+) -> Result<FeatureMap, ProfileError> {
     // check if features and array are the same length
     if features.len() != array.len() {
-        return Err(ScouterError::ShapeMismatchError(
-            "Features and array are not the same length".to_string(),
-        ));
+        return Err(ProfileError::FeatureArrayLengthError);
     };
 
     let feature_map = array
@@ -312,13 +310,13 @@ impl Display for DataType {
 }
 
 impl DataType {
-    pub fn from_module_name(module_name: &str) -> Result<Self, ScouterError> {
+    pub fn from_module_name(module_name: &str) -> Result<Self, TypeError> {
         match module_name {
             "pandas.core.frame.DataFrame" => Ok(DataType::Pandas),
             "polars.dataframe.frame.DataFrame" => Ok(DataType::Polars),
             "numpy.ndarray" => Ok(DataType::Numpy),
             "pyarrow.lib.Table" => Ok(DataType::Arrow),
-            _ => Err(ScouterError::Error("Invalid data type".to_string())),
+            _ => Err(TypeError::InvalidDataType),
         }
     }
 }

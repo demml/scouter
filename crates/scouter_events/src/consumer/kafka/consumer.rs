@@ -1,4 +1,5 @@
 pub mod kafka_consumer {
+    use crate::error::EventError;
     use metrics::counter;
     use rdkafka::config::ClientConfig;
     use rdkafka::consumer::CommitMode;
@@ -6,7 +7,6 @@ pub mod kafka_consumer {
     use rdkafka::consumer::StreamConsumer;
     use rdkafka::message::BorrowedMessage;
     use rdkafka::message::Message;
-    use scouter_error::EventError;
     use scouter_settings::KafkaSettings;
     use scouter_sql::MessageHandler;
     use scouter_types::ServerRecords;
@@ -142,7 +142,7 @@ pub mod kafka_consumer {
 
         let consumer: StreamConsumer = config
             .create()
-            .map_err(EventError::traced_connection_error)?;
+            .map_err(EventError::ConnectKafkaConsumerError)?;
 
         let topics = settings
             .topics
@@ -152,7 +152,7 @@ pub mod kafka_consumer {
 
         consumer
             .subscribe(&topics)
-            .map_err(EventError::traced_subscribe_error)?;
+            .map_err(EventError::SubscribeTopicError)?;
 
         info!("✅ Started consumer for topics: {:?}", topics);
         Ok(consumer)

@@ -1,8 +1,8 @@
+use crate::error::DataError;
 use pyo3::prelude::*;
-use scouter_error::ScouterError;
-
 pub mod arrow;
 pub mod base;
+
 pub mod numpy;
 pub mod pandas;
 pub mod polars;
@@ -38,13 +38,13 @@ impl DataConverterEnum {
         py: Python<'py>,
         data_type: &DataType,
         data: &Bound<'py, PyAny>,
-    ) -> Result<ConvertedData<'py>, ScouterError> {
+    ) -> Result<ConvertedData<'py>, DataError> {
         match data_type {
             DataType::Arrow => ArrowDataConverter::prepare_data(py, data),
             DataType::Numpy => NumpyDataConverter::prepare_data(py, data),
             DataType::Pandas => PandasDataConverter::prepare_data(py, data),
             DataType::Polars => PolarsDataConverter::prepare_data(py, data),
-            _ => Err(ScouterError::traced_unsupported_data_type_error(data_type)),
+            _ => Err(DataError::UnsupportedDataTypeError(data_type.to_string())),
         }
     }
 }

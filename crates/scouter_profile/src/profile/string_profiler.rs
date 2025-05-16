@@ -1,10 +1,10 @@
+use crate::error::DataProfileError;
 use crate::profile::types::DataProfile;
 use crate::profile::types::{CharStats, Distinct, FeatureProfile, StringStats, WordStats};
 use crate::stats::compute_feature_correlations;
 use chrono::Utc;
 use ndarray::Array2;
 use rayon::prelude::*;
-use scouter_error::ProfilerError;
 use scouter_types::create_feature_map;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -21,22 +21,12 @@ impl StringProfiler {
         string_array: Vec<Vec<String>>,
         string_features: Vec<String>,
         compute_correlations: bool,
-    ) -> Result<DataProfile, ProfilerError> {
-        let profiles = self
-            .create_string_profile(&string_array, &string_features)
-            .map_err(|e| {
-                ProfilerError::StringProfileError(format!("Failed to create string profile: {}", e))
-            })?;
+    ) -> Result<DataProfile, DataProfileError> {
+        let profiles = self.create_string_profile(&string_array, &string_features)?;
 
         let correlations: Option<HashMap<String, HashMap<String, f32>>> = if compute_correlations {
-            let converted_array = self
-                .convert_string_vec_to_num_array(&string_array, &string_features)
-                .map_err(|e| {
-                    ProfilerError::ConversionError(format!(
-                        "Failed to convert string array to numeric array: {}",
-                        e
-                    ))
-                })?;
+            let converted_array =
+                self.convert_string_vec_to_num_array(&string_array, &string_features)?;
 
             let correlations =
                 compute_feature_correlations(&converted_array.view(), &string_features);
@@ -68,13 +58,8 @@ impl StringProfiler {
         &self,
         string_array: &[Vec<String>],
         string_features: &[String],
-    ) -> Result<Array2<f32>, ProfilerError> {
-        let feature_map = create_feature_map(string_features, string_array).map_err(|e| {
-            ProfilerError::FeatureMapError(format!(
-                "Failed to create feature map for string array: {}",
-                e
-            ))
-        })?;
+    ) -> Result<Array2<f32>, DataProfileError> {
+        let feature_map = create_feature_map(string_features, string_array)?;
 
         // zip and map string_array and string_features
         let arrays = string_array
@@ -95,8 +80,7 @@ impl StringProfiler {
         let num_array = ndarray::concatenate(
             ndarray::Axis(1),
             &arrays.iter().map(|a| a.view()).collect::<Vec<_>>(),
-        )
-        .map_err(ProfilerError::traced_concatenate_error)?;
+        )?;
 
         Ok(num_array)
     }
@@ -114,11 +98,9 @@ impl StringProfiler {
         &self,
         string_array: &[Vec<String>],
         string_features: &[String],
-    ) -> Result<Vec<FeatureProfile>, ProfilerError> {
+    ) -> Result<Vec<FeatureProfile>, DataProfileError> {
         let string_profiler = StringProfiler::new();
-        let string_profile = string_profiler
-            .compute_2d_stats(string_array, string_features)
-            .map_err(ProfilerError::traced_string_stats_error)?;
+        let string_profile = string_profiler.compute_2d_stats(string_array, string_features)?;
 
         Ok(string_profile)
     }
@@ -132,7 +114,7 @@ impl StringProfiler {
     // # Returns
     //
     // * `StringStats` - A struct containing the statistics for the string array
-    pub fn compute_stats(&self, array: &Vec<String>) -> Result<StringStats, ProfilerError> {
+    pub fn compute_stats(&self, array: &Vec<String>) -> Result<StringStats, DataProfileError> {
         let mut unique = HashMap::new();
 
         let count = array.len();
@@ -185,7 +167,7 @@ impl StringProfiler {
         &self,
         array: &[Vec<String>],
         string_features: &[String],
-    ) -> Result<Vec<FeatureProfile>, ProfilerError> {
+    ) -> Result<Vec<FeatureProfile>, DataProfileError> {
         // zip the string features with the array
 
         let map_vec = array
@@ -193,9 +175,7 @@ impl StringProfiler {
             .enumerate()
             .map(|(i, col)| {
                 let feature = &string_features[i];
-                let stats = self
-                    .compute_stats(col)
-                    .map_err(ProfilerError::traced_string_stats_error)?;
+                let stats = self.compute_stats(col)?;
 
                 Ok(FeatureProfile {
                     id: feature.to_string(),
@@ -205,7 +185,7 @@ impl StringProfiler {
                     correlations: None,
                 })
             })
-            .collect::<Result<Vec<FeatureProfile>, ProfilerError>>()?;
+            .collect::<Result<Vec<FeatureProfile>, DataProfileError>>()?;
 
         Ok(map_vec)
     }

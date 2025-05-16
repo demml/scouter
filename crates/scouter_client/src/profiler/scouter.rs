@@ -6,7 +6,7 @@ use numpy::ndarray::ArrayView2;
 use numpy::ndarray::{concatenate, Axis};
 use numpy::PyReadonlyArray2;
 use pyo3::prelude::*;
-use scouter_error::{DriftError, ProfilerError, PyScouterError, ScouterError};
+use scouter_profile::error::DataProfileError;
 use scouter_profile::{
     compute_feature_correlations, DataProfile, FeatureProfile, NumProfiler, StringProfiler,
 };
@@ -40,7 +40,7 @@ impl DataProfiler {
         data_type: Option<&DataType>,
         bin_size: Option<usize>,
         compute_correlations: Option<bool>,
-    ) -> PyResult<DataProfile> {
+    ) -> Result<DataProfile, DataProfileError> {
         info!("Creating data profile");
 
         let bin_size = bin_size.unwrap_or(20);
@@ -55,42 +55,36 @@ impl DataProfiler {
                 let name = class.getattr("__name__")?.str()?.to_string();
                 let full_class_name = format!("{}.{}", module, name);
 
-                &DataType::from_module_name(&full_class_name)
-                    .map_err(|e| PyScouterError::new_err(e.to_string()))?
+                &DataType::from_module_name(&full_class_name)?
             }
         };
 
         let (num_features, num_array, dtype, string_features, string_vec) =
-            DataConverterEnum::convert_data(py, data_type, data)
-                .map_err(|e| PyScouterError::new_err(e.to_string()))?;
+            DataConverterEnum::convert_data(py, data_type, data)?;
 
         // if num_features is not empty, check dtype. If dtype == "float64", process as f64, else process as f32
         if let Some(dtype) = dtype {
             if dtype == "float64" {
                 let read_array = convert_array_type::<f64>(num_array.unwrap(), &dtype)?;
 
-                return self
-                    .create_data_profile_f64(
-                        compute_correlations,
-                        bin_size,
-                        num_features,
-                        Some(read_array),
-                        string_features,
-                        string_vec,
-                    )
-                    .map_err(|e| PyScouterError::new_err(e.to_string()));
+                return self.create_data_profile_f64(
+                    compute_correlations,
+                    bin_size,
+                    num_features,
+                    Some(read_array),
+                    string_features,
+                    string_vec,
+                );
             } else {
                 let read_array = convert_array_type::<f32>(num_array.unwrap(), &dtype)?;
-                return self
-                    .create_data_profile_f32(
-                        compute_correlations,
-                        bin_size,
-                        num_features,
-                        Some(read_array),
-                        string_features,
-                        string_vec,
-                    )
-                    .map_err(|e| PyScouterError::new_err(e.to_string()));
+                return self.create_data_profile_f32(
+                    compute_correlations,
+                    bin_size,
+                    num_features,
+                    Some(read_array),
+                    string_features,
+                    string_vec,
+                );
             }
         }
 
@@ -102,7 +96,6 @@ impl DataProfiler {
             string_features,
             string_vec,
         )
-        .map_err(|e| PyScouterError::new_err(e.to_string()))
     }
 }
 
@@ -115,47 +108,33 @@ impl DataProfiler {
         numeric_array: Option<PyReadonlyArray2<f32>>,
         string_features: Vec<String>,
         string_array: Option<Vec<Vec<String>>>,
-    ) -> Result<DataProfile, ScouterError> {
+    ) -> Result<DataProfile, DataProfileError> {
         if !string_features.is_empty() && string_array.is_some() && numeric_array.is_none() {
-            let profile = self
-                .string_profiler
-                .process_string_array::<f32>(
-                    string_array.unwrap(),
-                    string_features,
-                    compute_correlations,
-                )
-                .map_err(|e| {
-                    ScouterError::Error(format!("Failed to create feature data profile: {}", e))
-                })?;
+            let profile = self.string_profiler.process_string_array::<f32>(
+                string_array.unwrap(),
+                string_features,
+                compute_correlations,
+            )?;
             Ok(profile)
         } else if string_array.is_none() && numeric_array.is_some() && !numeric_features.is_empty()
         {
-            let profile = self
-                .num_profiler
-                .process_num_array(
-                    compute_correlations,
-                    &numeric_array.unwrap().as_array(),
-                    numeric_features,
-                    bin_size,
-                )
-                .map_err(|e| {
-                    ScouterError::Error(format!("Failed to create feature data profile: {}", e))
-                })?;
+            let profile = self.num_profiler.process_num_array(
+                compute_correlations,
+                &numeric_array.unwrap().as_array(),
+                numeric_features,
+                bin_size,
+            )?;
 
             Ok(profile)
         } else {
-            let profile = self
-                .process_string_and_num_array(
-                    compute_correlations,
-                    numeric_array.unwrap().as_array(),
-                    string_array.unwrap(),
-                    numeric_features,
-                    string_features,
-                    bin_size,
-                )
-                .map_err(|e| {
-                    ScouterError::Error(format!("Failed to create feature data profile: {}", e))
-                })?;
+            let profile = self.process_string_and_num_array(
+                compute_correlations,
+                numeric_array.unwrap().as_array(),
+                string_array.unwrap(),
+                numeric_features,
+                string_features,
+                bin_size,
+            )?;
 
             Ok(profile)
         }
@@ -169,47 +148,33 @@ impl DataProfiler {
         numeric_array: Option<PyReadonlyArray2<f64>>,
         string_features: Vec<String>,
         string_array: Option<Vec<Vec<String>>>,
-    ) -> Result<DataProfile, ScouterError> {
+    ) -> Result<DataProfile, DataProfileError> {
         if !string_features.is_empty() && string_array.is_some() && numeric_array.is_none() {
-            let profile = self
-                .string_profiler
-                .process_string_array::<f32>(
-                    string_array.unwrap(),
-                    string_features,
-                    compute_correlations,
-                )
-                .map_err(|e| {
-                    ScouterError::Error(format!("Failed to create feature data profile: {}", e))
-                })?;
+            let profile = self.string_profiler.process_string_array::<f32>(
+                string_array.unwrap(),
+                string_features,
+                compute_correlations,
+            )?;
             Ok(profile)
         } else if string_array.is_none() && numeric_array.is_some() && !numeric_features.is_empty()
         {
-            let profile = self
-                .num_profiler
-                .process_num_array(
-                    compute_correlations,
-                    &numeric_array.unwrap().as_array(),
-                    numeric_features,
-                    bin_size,
-                )
-                .map_err(|e| {
-                    ScouterError::Error(format!("Failed to create feature data profile: {}", e))
-                })?;
+            let profile = self.num_profiler.process_num_array(
+                compute_correlations,
+                &numeric_array.unwrap().as_array(),
+                numeric_features,
+                bin_size,
+            )?;
 
             Ok(profile)
         } else {
-            let profile = self
-                .process_string_and_num_array(
-                    compute_correlations,
-                    numeric_array.unwrap().as_array(),
-                    string_array.unwrap(),
-                    numeric_features,
-                    string_features,
-                    bin_size,
-                )
-                .map_err(|e| {
-                    ScouterError::Error(format!("Failed to create feature data profile: {}", e))
-                })?;
+            let profile = self.process_string_and_num_array(
+                compute_correlations,
+                numeric_array.unwrap().as_array(),
+                string_array.unwrap(),
+                numeric_features,
+                string_features,
+                bin_size,
+            )?;
 
             Ok(profile)
         }
@@ -223,7 +188,7 @@ impl DataProfiler {
         numeric_features: Vec<String>,
         string_features: Vec<String>,
         bin_size: usize,
-    ) -> Result<DataProfile, ScouterError>
+    ) -> Result<DataProfile, DataProfileError>
     where
         F: Float
             + MaybeNan
@@ -244,23 +209,14 @@ impl DataProfiler {
             .string_profiler
             .create_string_profile(&string_array, &string_features)?;
 
-        let num_profiles = self
-            .num_profiler
-            .compute_stats(&numeric_features, &numeric_array, &bin_size)
-            .map_err(|e| {
-                ProfilerError::ComputeError(format!("Failed to create feature data profile: {}", e))
-            })?;
+        let num_profiles =
+            self.num_profiler
+                .compute_stats(&numeric_features, &numeric_array, &bin_size)?;
 
         let correlations: Option<HashMap<String, HashMap<String, f32>>> = if compute_correlations {
             let converted_array = self
                 .string_profiler
-                .convert_string_vec_to_num_array(&string_array, &string_features)
-                .map_err(|e| {
-                    ProfilerError::ConversionError(format!(
-                        "Failed to convert string array to numeric array: {}",
-                        e
-                    ))
-                })?;
+                .convert_string_vec_to_num_array(&string_array, &string_features)?;
 
             // convert all values to F
             let converted_array = converted_array.mapv(|x| F::from(x).unwrap());
@@ -269,8 +225,7 @@ impl DataProfiler {
             let concatenated_array = {
                 let numeric_array_view = numeric_array.view();
                 let converted_array_view = converted_array.view();
-                concatenate(Axis(1), &[numeric_array_view, converted_array_view])
-                    .map_err(DriftError::traced_shape_error)?
+                concatenate(Axis(1), &[numeric_array_view, converted_array_view])?
             };
 
             // merge numeric and string features

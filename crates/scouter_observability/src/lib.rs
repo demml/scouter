@@ -1,3 +1,5 @@
+pub mod error;
+use crate::error::ObservabilityError;
 use ndarray::Array1;
 use ndarray_stats::interpolate::Nearest;
 use ndarray_stats::Quantile1dExt;
@@ -5,7 +7,6 @@ use noisy_float::types::n64;
 use pyo3::prelude::*;
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
-use scouter_error::ObserverError;
 use scouter_types::{
     LatencyMetrics, ObservabilityMetrics, RouteMetrics, ServerRecord, ServerRecords,
 };
@@ -62,7 +63,7 @@ impl Observer {
         latency: f64,
         status: &str,
         status_code: usize,
-    ) -> Result<(), ObserverError> {
+    ) -> Result<(), ObservabilityError> {
         // handling OK status
         if status == "OK" {
             // insert latency for route if it doesn't exist, otherwise increment
@@ -107,7 +108,7 @@ impl Observer {
         let route_latency = self
             .request_latency
             .get_mut(route)
-            .ok_or(ObserverError::RouteNotFound(route.to_string()))?;
+            .ok_or(ObservabilityError::RouteNotFound(route.to_string()))?;
         if let Some(status_code_count) = route_latency.status_codes.get_mut(&status_code) {
             *status_code_count += 1;
         } else {
@@ -122,7 +123,7 @@ impl Observer {
         route: &str,
         latency: f64,
         status_code: usize,
-    ) -> Result<(), ObserverError> {
+    ) -> Result<(), ObservabilityError> {
         let status = if (200..400).contains(&status_code) {
             "OK"
         } else {
@@ -140,7 +141,7 @@ impl Observer {
         Ok(())
     }
 
-    pub fn collect_metrics(&self) -> Result<Option<ServerRecords>, ObserverError> {
+    pub fn collect_metrics(&self) -> Result<Option<ServerRecords>, ObservabilityError> {
         if self.request_count == 0 {
             return Ok(None);
         }
@@ -179,10 +180,10 @@ impl Observer {
                         route_name: route,
                     }),
                     // its ok if route fails, but we want to know why
-                    Err(e) => Err(ObserverError::QuantileError(e.to_string())),
+                    Err(e) => Err(ObservabilityError::QuantileError(e.to_string())),
                 }
             })
-            .collect::<Vec<Result<RouteMetrics, ObserverError>>>();
+            .collect::<Vec<Result<RouteMetrics, ObservabilityError>>>();
 
         // check if any route failed (log it and filter it out)
         let route_metrics = route_metrics

@@ -1,3 +1,4 @@
+use crate::error::TypeError;
 use crate::{
     dispatch::AlertDispatchType, AlertDispatchConfig, CommonCrons, DispatchAlertDescription,
     OpsGenieDispatchConfig, ProfileFuncs, SlackDispatchConfig, ValidateAlertConfig,
@@ -5,13 +6,11 @@ use crate::{
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyString;
-use scouter_error::PyScouterError;
-use scouter_error::{CustomMetricError, ScouterError};
+
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::fmt::Formatter;
-use tracing::error;
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -35,10 +34,9 @@ impl CustomMetric {
         value: f64,
         alert_threshold: AlertThreshold,
         alert_threshold_value: Option<f64>,
-    ) -> Result<Self, CustomMetricError> {
+    ) -> Result<Self, TypeError> {
         let custom_condition =
-            CustomMetricAlertCondition::new(alert_threshold, alert_threshold_value)
-                .map_err(|e| CustomMetricError::Error(e.to_string()))?;
+            CustomMetricAlertCondition::new(alert_threshold, alert_threshold_value);
 
         Ok(Self {
             name: name.to_lowercase(),
@@ -118,14 +116,11 @@ pub struct CustomMetricAlertCondition {
 impl CustomMetricAlertCondition {
     #[new]
     #[pyo3(signature = (alert_threshold, alert_threshold_value=None))]
-    pub fn new(
-        alert_threshold: AlertThreshold,
-        alert_threshold_value: Option<f64>,
-    ) -> Result<Self, ScouterError> {
-        Ok(Self {
+    pub fn new(alert_threshold: AlertThreshold, alert_threshold_value: Option<f64>) -> Self {
+        Self {
             alert_threshold,
             alert_threshold_value,
-        })
+        }
     }
 
     pub fn __str__(&self) -> String {
@@ -166,7 +161,7 @@ impl CustomMetricAlertConfig {
     pub fn new(
         schedule: Option<&Bound<'_, PyAny>>,
         dispatch_config: Option<&Bound<'_, PyAny>>,
-    ) -> PyResult<Self> {
+    ) -> Result<Self, TypeError> {
         let alert_dispatch_config = match dispatch_config {
             None => AlertDispatchConfig::default(),
             Some(config) => {
@@ -187,8 +182,7 @@ impl CustomMetricAlertConfig {
                 } else if schedule.is_instance_of::<CommonCrons>() {
                     schedule.extract::<CommonCrons>().unwrap().cron()
                 } else {
-                    error!("Invalid schedule type");
-                    return Err(PyScouterError::new_err("Invalid schedule type"))?;
+                    return Err(TypeError::InvalidScheduleError)?;
                 }
             }
             None => CommonCrons::EveryDay.cron(),
