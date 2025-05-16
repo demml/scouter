@@ -3,10 +3,10 @@ WITH subquery1 AS (
         date_bin('$1 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
         jsonb_array_elements(route_metrics) as route_metric
     FROM scouter.observability_metric
-    WHERE 
-        created_at > CURRENT_TIMESTAMP - (interval '1 minute' * $2)
-        AND name = $3
+    WHERE 1=1
+        AND created_at > CURRENT_TIMESTAMP - (interval '1 minute' * $2)
         AND space = $4
+        AND name = $3
         AND version = $5
 ),
 

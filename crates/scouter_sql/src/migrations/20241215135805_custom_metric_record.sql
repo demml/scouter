@@ -11,7 +11,8 @@ CREATE TABLE IF NOT exists scouter.custom_drift (
 )
 PARTITION BY RANGE (created_at);
 
-CREATE INDEX ON scouter.custom_drift (name, space, version, created_at, metric);
+CREATE INDEX idx_custom_drift_created_at_space_name_version_metric
+ON scouter.custom_drift (created_at, space, name, version, metric);
 
 SELECT scouter.create_parent(
                'scouter.custom_drift',

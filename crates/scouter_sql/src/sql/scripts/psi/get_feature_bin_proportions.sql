@@ -7,10 +7,11 @@ WITH feature_bin_total AS (
     bin_id,
     SUM(bin_count) AS bin_total_count
   FROM scouter.psi_drift
-  WHERE name = $1
+  WHERE 1=1
+    AND created_at > $4
     AND space = $2
+    AND name = $1
     AND version = $3
-    AND created_at > $4::timestamptz
     AND feature = ANY($5)
   GROUP BY 1, 2, 3, 4, 5
 ),
@@ -21,10 +22,11 @@ feature_total AS (
             feature,
             SUM(bin_count) AS feature_total_count
     FROM scouter.psi_drift
-    WHERE name = $1
+    WHERE 1=1
+      AND created_at > $4
       AND space = $2
+      AND name = $1
       AND version = $3
-      AND created_at > $4::timestamptz
       AND feature = ANY($5)
     GROUP BY 1, 2, 3, 4
 ),

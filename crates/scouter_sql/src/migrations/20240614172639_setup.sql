@@ -16,7 +16,10 @@ CREATE TABLE IF NOT exists scouter.spc_drift (
 )
 PARTITION BY RANGE (created_at);
 
-CREATE INDEX ON scouter.spc_drift (name, space, version, created_at);
+
+CREATE INDEX idx_spc_drift_created_at_space_name_version_feature
+ON scouter.spc_drift (created_at, space, name, version, feature);
+
 
 SELECT scouter.create_parent(
     'scouter.spc_drift',
@@ -50,7 +53,7 @@ ON scouter.drift_profile (next_run)
 WHERE active = true;
 
 CREATE INDEX idx_drift_profile_status 
-ON scouter.drift_profile (status, next_run)
+ON scouter.drift_profile (next_run, status)
 WHERE active = true;
 
 

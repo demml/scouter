@@ -10,8 +10,8 @@ WITH subquery1 AS (
     WHERE 
         1=1
         AND created_at > CURRENT_TIMESTAMP - (interval '1 minute' * $2)
-        AND name = $3
         AND space = $4
+        AND name = $3
         AND version = $5
     ),
 
