@@ -75,6 +75,7 @@ impl TestHelper {
     pub async fn new() -> Self {
         std::env::set_var("KAFKA_BROKERS", "localhost:9092");
         std::env::set_var("RABBITMQ_ADDR", "amqp://guest:guest@127.0.0.1:5672/%2f");
+        std::env::set_var("REDIS_ADDR", "redis://127.0.0.1:6379");
 
         let config = ScouterServerConfig::default();
 

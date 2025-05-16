@@ -154,8 +154,8 @@ async fn test_spc_server_records() {
 
     let response = helper.send_oneshot(request).await;
 
-    // Sleep for 1 second to allow the http consumer time to process all server records sent above.
-    sleep(Duration::from_secs(1)).await;
+    // Sleep for 2 seconds to allow the http consumer time to process all server records sent above.
+    sleep(Duration::from_secs(2)).await;
 
     //assert response
     assert_eq!(response.status(), StatusCode::OK);
@@ -248,8 +248,8 @@ async fn test_psi_server_records() {
     //assert response
     assert_eq!(response.status(), StatusCode::OK);
 
-    // Sleep for 1 second to allow the http consumer time to process all server records sent above.
-    sleep(Duration::from_secs(1)).await;
+    // Sleep for 2 seconds to allow the http consumer time to process all server records sent above.
+    sleep(Duration::from_secs(2)).await;
 
     // get drift records
     let params = DriftRequest {
@@ -331,8 +331,8 @@ async fn test_custom_server_records() {
     //assert response
     assert_eq!(response.status(), StatusCode::OK);
 
-    // Sleep for 1 second to allow the http consumer time to process all server records sent above.
-    sleep(Duration::from_secs(1)).await;
+    // Sleep for 2 seconds to allow the http consumer time to process all server records sent above.
+    sleep(Duration::from_secs(2)).await;
 
     // get drift records
     let params = DriftRequest {

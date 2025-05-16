@@ -1,6 +1,5 @@
 use base64::prelude::*;
 use scouter_types::StorageType;
-use serde::Serialize;
 use std::env;
 use tracing::warn;
 
@@ -14,7 +13,7 @@ pub mod storage;
 use crate::events::HttpConsumerSettings;
 pub use auth::AuthSettings;
 pub use database::DatabaseSettings;
-pub use events::{KafkaSettings, RabbitMQSettings};
+pub use events::{KafkaSettings, RabbitMQSettings, RedisSettings};
 pub use http::HTTPConfig;
 pub use polling::PollingSettings;
 pub use storage::ObjectStorageSettings;
@@ -31,12 +30,13 @@ fn generate_default_secret() -> String {
     BASE64_STANDARD.encode(key)
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone)]
 pub struct ScouterServerConfig {
     pub polling_settings: PollingSettings,
     pub database_settings: DatabaseSettings,
     pub kafka_settings: Option<KafkaSettings>,
     pub rabbitmq_settings: Option<RabbitMQSettings>,
+    pub redis_settings: Option<RedisSettings>,
     pub http_consumer_settings: HttpConsumerSettings,
     pub auth_settings: AuthSettings,
     pub bootstrap_key: String,
@@ -74,6 +74,11 @@ impl Default for ScouterServerConfig {
             None
         };
 
+        let redis = if std::env::var("REDIS_ADDR").is_ok() {
+            Some(RedisSettings::default())
+        } else {
+            None
+        };
         let http_consumer_settings = HttpConsumerSettings::default();
 
         let auth_settings = AuthSettings {
@@ -102,6 +107,7 @@ impl Default for ScouterServerConfig {
             database_settings: database,
             kafka_settings: kafka,
             rabbitmq_settings: rabbitmq,
+            redis_settings: redis,
             auth_settings,
             bootstrap_key,
             http_consumer_settings,
@@ -117,5 +123,9 @@ impl ScouterServerConfig {
 
     pub fn rabbitmq_enabled(&self) -> bool {
         self.rabbitmq_settings.is_some()
+    }
+
+    pub fn redis_enabled(&self) -> bool {
+        self.redis_settings.is_some()
     }
 }
