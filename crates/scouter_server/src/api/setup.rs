@@ -56,6 +56,7 @@ impl ScouterSetupComponents {
         .await?;
 
         if config.kafka_enabled() {
+            #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
             Self::setup_kafka(
                 config.kafka_settings.as_ref().unwrap(),
                 &db_pool,
@@ -65,6 +66,7 @@ impl ScouterSetupComponents {
         }
 
         if config.rabbitmq_enabled() {
+            #[cfg(feature = "rabbitmq")]
             Self::setup_rabbitmq(
                 config.rabbitmq_settings.as_ref().unwrap(),
                 &db_pool,
@@ -74,6 +76,7 @@ impl ScouterSetupComponents {
         }
 
         if config.redis_enabled() {
+            #[cfg(feature = "redis_events")]
             Self::setup_redis(
                 config.redis_settings.as_ref().unwrap(),
                 &db_pool,
@@ -220,12 +223,12 @@ impl ScouterSetupComponents {
     ///
     /// Returns:
     /// * `AnyhowResult<()>` - The result of the setup
+    #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
     async fn setup_kafka(
         settings: &KafkaSettings,
         db_pool: &Pool<Postgres>,
         shutdown_rx: tokio::sync::watch::Receiver<()>,
     ) -> AnyhowResult<()> {
-        #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
         KafkaConsumerManager::start_workers(settings, db_pool, shutdown_rx).await?;
         info!("✅ Started Kafka workers");
 
@@ -242,12 +245,12 @@ impl ScouterSetupComponents {
     ///
     /// Returns:
     /// * `AnyhowResult<()>` - The result of the setup
+    #[cfg(feature = "rabbitmq")]
     async fn setup_rabbitmq(
         settings: &RabbitMQSettings,
         db_pool: &Pool<Postgres>,
         shutdown_rx: tokio::sync::watch::Receiver<()>,
     ) -> AnyhowResult<()> {
-        #[cfg(feature = "rabbitmq")]
         RabbitMQConsumerManager::start_workers(settings, db_pool, shutdown_rx).await?;
         info!("✅ Started RabbitMQ workers");
 
@@ -306,12 +309,12 @@ impl ScouterSetupComponents {
     ///
     /// Returns:
     /// * `AnyhowResult<()>` - The result of the setup
+    #[cfg(feature = "redis_events")]
     pub async fn setup_redis(
         settings: &scouter_settings::RedisSettings,
         db_pool: &Pool<Postgres>,
         shutdown_rx: tokio::sync::watch::Receiver<()>,
     ) -> AnyhowResult<()> {
-        #[cfg(feature = "redis_events")]
         RedisConsumerManager::start_workers(settings, db_pool, shutdown_rx).await?;
         info!("✅ Started Redis workers");
 

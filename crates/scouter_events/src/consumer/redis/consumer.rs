@@ -1,11 +1,11 @@
 #[cfg(all(feature = "redis_events", feature = "sql"))]
 pub mod redis_consumer {
+    use crate::error::EventError;
     use crate::producer::redis::producer::redis_producer::RedisMessageBroker;
     use futures_util::StreamExt;
     use metrics::counter;
     use redis::aio::PubSub;
     use redis::{Msg, RedisResult};
-    use scouter_error::EventError;
     use scouter_settings::RedisSettings;
     use scouter_sql::MessageHandler;
     use scouter_types::ServerRecords;
@@ -30,7 +30,7 @@ pub mod redis_consumer {
             self.sub
                 .subscribe(channel)
                 .await
-                .map_err(|e| EventError::SubscribeError(e.to_string()))
+                .map_err(EventError::RedisError)
         }
     }
 

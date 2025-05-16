@@ -94,6 +94,10 @@ pub enum EventError {
     #[error("Failed to flush RabbitMQ channel")]
     FlushRabbitMQChannelError(#[source] lapin::Error),
 
+    #[cfg(feature = "redis_events")]
+    #[error("Failed to connect to Redis")]
+    RedisError(#[source] redis::RedisError),
+
     #[error(transparent)]
     ReqwestError(#[from] reqwest::Error),
 

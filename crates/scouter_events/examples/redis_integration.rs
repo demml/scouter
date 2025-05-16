@@ -2,7 +2,7 @@ pub mod utils;
 
 use crate::utils::setup_logging;
 
-use scouter_contracts::ServiceInfo;
+use scouter_types::ServiceInfo;
 
 use scouter_events::producer::redis::{producer::redis_producer::RedisProducer, RedisConfig};
 use scouter_sql::sql::traits::SpcSqlLogic;

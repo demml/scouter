@@ -127,7 +127,6 @@ impl Default for RedisSettings {
         let num_consumers = std::env::var("REDIS_CONSUMER_COUNT")
             .unwrap_or_else(|_| "3".to_string())
             .parse::<usize>()
-            .map_err(|e| ConfigError::Error(format!("{:?}", e)))
             .unwrap();
         let channel =
             std::env::var("REDIS_CHANNEL").unwrap_or_else(|_| "scouter_monitoring".to_string());
