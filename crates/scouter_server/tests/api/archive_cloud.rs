@@ -1,3 +1,4 @@
+use std::time::Duration;
 // storage integration tests for cloud storage
 use crate::common::{TestHelper, NAME, SPACE, VERSION};
 
@@ -16,6 +17,7 @@ use scouter_types::{
     DriftType, RecordType,
 };
 use sqlx::types::chrono::Utc;
+use tokio::time::sleep;
 
 #[tokio::test]
 async fn test_storage_integration_cloud() {
@@ -80,6 +82,9 @@ async fn test_storage_integration_cloud() {
         //assert response
         assert_eq!(response.status(), StatusCode::OK);
     }
+
+    // Sleep for 1 second to allow the http consumer time to process all server records sent above.
+    sleep(Duration::from_secs(1)).await;
 
     let record = archive_old_data(&helper.pool, &helper.config)
         .await
