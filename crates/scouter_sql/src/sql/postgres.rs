@@ -161,7 +161,7 @@ mod tests {
             FROM scouter.observability_metric;
 
             DELETE
-            FROM scouter.custom_metric;
+            FROM scouter.custom_drift;
 
             DELETE
             FROM scouter.drift_alert;
@@ -170,7 +170,7 @@ mod tests {
             FROM scouter.drift_profile;
 
             DELETE
-            FROM scouter.observed_bin_count;
+            FROM scouter.psi_drift;
 
              DELETE
             FROM scouter.user;

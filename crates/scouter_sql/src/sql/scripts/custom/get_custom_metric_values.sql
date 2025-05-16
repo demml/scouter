@@ -1,6 +1,6 @@
 SELECT metric,
        AVG(value) AS value
-FROM scouter.custom_metric
+FROM scouter.custom_drift
 WHERE name = $1
   AND space = $2
   AND version = $3

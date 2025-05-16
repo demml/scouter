@@ -7,7 +7,7 @@ WITH feature_bin_total AS (
         feature,
         bin_id,
         SUM(bin_count) AS bin_total_count
-    FROM scouter.observed_bin_count
+    FROM scouter.psi_drift
     WHERE 
         1=1
         AND created_at > CURRENT_TIMESTAMP - (interval '1 minute' * $2)
@@ -25,7 +25,7 @@ feature_total AS (
         version,
         feature,
         SUM(bin_count) AS feature_total_count
-    FROM scouter.observed_bin_count
+    FROM scouter.psi_drift
     WHERE 
         1=1
         AND created_at > CURRENT_TIMESTAMP - (interval '1 minute' * $2)

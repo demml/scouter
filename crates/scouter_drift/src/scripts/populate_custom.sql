@@ -48,7 +48,7 @@ VALUES
     );
 
 
--- populate observed_bin_count table with dummy data
+-- populate psi_drift table with dummy data
 DO $$
     DECLARE
         n INTEGER := 3; -- Number of records per metric
@@ -64,7 +64,7 @@ DO $$
                             metric_value := random() + 16.0;
                         END IF;
 
-                        INSERT INTO scouter.custom_metric (created_at, name, space, version, metric, value)
+                        INSERT INTO scouter.custom_drift (created_at, name, space, version, metric, value)
                         VALUES
                             (created_at + (random() * INTERVAL '1 second'), 'model', 'scouter', '0.1.0', metric_names[j], metric_value);
                     END LOOP;

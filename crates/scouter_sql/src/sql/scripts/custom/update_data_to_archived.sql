@@ -1,4 +1,4 @@
-UPDATE scouter.custom_metric
+UPDATE scouter.custom_drift
 SET 
     archived = true,
     updated_at = CURRENT_TIMESTAMP

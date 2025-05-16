@@ -1,5 +1,5 @@
 SELECT *
-FROM scouter.observed_bin_count
+FROM scouter.psi_drift
 WHERE 1=1 
     AND created_at BETWEEN $1 AND $2
     AND space = $3
