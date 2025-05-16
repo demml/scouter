@@ -94,7 +94,7 @@ def test_data_profile_pandas(array: NDArray):
     with pytest.raises(RuntimeError) as error:
         profile: DataProfile = scouter.create_data_profile(df)
 
-    assert str(error.value) == "Column names must be string type"
+    assert str(error.value) == "Column names must be strings"
 
     df.columns = df.columns.astype(str)
     profile: DataProfile = scouter.create_data_profile(df)

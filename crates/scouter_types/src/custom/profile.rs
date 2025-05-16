@@ -33,8 +33,13 @@ pub struct CustomMetricDriftConfig {
     #[pyo3(get, set)]
     pub alert_config: CustomMetricAlertConfig,
 
-    #[pyo3(get)]
+    #[pyo3(get, set)]
+    #[serde(default = "default_drift_type")]
     pub drift_type: DriftType,
+}
+
+fn default_drift_type() -> DriftType {
+    DriftType::Custom
 }
 
 impl DispatchDriftConfig for CustomMetricDriftConfig {
