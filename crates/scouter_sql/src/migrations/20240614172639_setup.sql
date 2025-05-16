@@ -28,6 +28,7 @@ UPDATE scouter.part_config SET retention = '60 days' WHERE parent_table = 'scout
 
 -- Create table for service drift configuration
 CREATE table IF NOT exists scouter.drift_profile (
+  uid TEXT PRIMARY KEY DEFAULT gen_random_uuid(),
   created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
   name text,
@@ -39,9 +40,19 @@ CREATE table IF NOT exists scouter.drift_profile (
   schedule  text,
   next_run TIMESTAMPTZ,
   previous_run TIMESTAMPTZ,
-  scouter_version text not null default '0.1.0',
-  PRIMARY KEY (name, space, version, drift_type)
+  status text NOT NULL default 'pending',
+  processing_started_at TIMESTAMPTZ,
+  scouter_version text not null default '0.1.0'
 );
+
+CREATE INDEX idx_drift_profile_job_queue 
+ON scouter.drift_profile (next_run)
+WHERE active = true;
+
+CREATE INDEX idx_drift_profile_status 
+ON scouter.drift_profile (status, next_run)
+WHERE active = true;
+
 
 -- Run maintenance every hour
 SELECT  cron.schedule('partition-maintenance', '0 * * * *', $$CALL scouter.run_maintenance_proc()$$);

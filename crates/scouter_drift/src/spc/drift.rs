@@ -23,9 +23,18 @@ pub mod spc_drifter {
     }
 
     impl SpcDriftArray {
-        pub fn new(records: SpcDriftFeatures) -> Self {
+        pub fn new(records: SpcDriftFeatures) -> Result<Self, DriftError> {
             let mut features = Vec::new();
             let mut flattened = Vec::new();
+
+            // check if records is empty. If so return Array2::default()
+            if records.is_empty() {
+                return Ok(SpcDriftArray {
+                    features,
+                    array: Array2::default((0, 0)),
+                });
+            }
+
             for (feature, drift) in records.features.into_iter() {
                 features.push(feature);
                 flattened.extend(drift.values);
@@ -33,9 +42,9 @@ pub mod spc_drifter {
 
             let rows = features.len();
             let cols = flattened.len() / rows;
-            let array = Array2::from_shape_vec((rows, cols), flattened).unwrap();
+            let array = Array2::from_shape_vec((rows, cols), flattened)?;
 
-            SpcDriftArray { features, array }
+            Ok(SpcDriftArray { features, array })
         }
     }
 
@@ -82,7 +91,7 @@ pub mod spc_drifter {
                 features_to_monitor,
             )
             .await?;
-            Ok(SpcDriftArray::new(records))
+            SpcDriftArray::new(records)
         }
 
         /// Compute drift for a given drift profile
@@ -107,6 +116,12 @@ pub mod spc_drifter {
                     &self.profile.config.alert_config.features_to_monitor,
                 )
                 .await?;
+
+            // if drift features is empty, return early
+            if drift_features.array.is_empty() {
+                info!("No features to process returning early");
+                return Ok((drift_features.array, drift_features.features));
+            }
 
             let drift = SpcMonitor::new().calculate_drift_from_sample(
                 &drift_features.features,
@@ -190,7 +205,7 @@ pub mod spc_drifter {
                         let mut alert_map = BTreeMap::new();
                         alert_map.insert("zone".to_string(), alert.zone.clone().to_string());
                         alert_map.insert("kind".to_string(), alert.kind.clone().to_string());
-                        alert_map.insert("feature".to_string(), feature.feature.clone());
+                        alert_map.insert("entity_name".to_string(), feature.feature.clone());
                         alert_map
                     };
                     tasks.push(alert_map);
@@ -209,17 +224,11 @@ pub mod spc_drifter {
             db_client: &Pool<Postgres>,
             previous_run: DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
-            info!(
-                "Processing drift task for profile: {}/{}/{}",
-                self.service_info.space, self.service_info.name, self.service_info.version
-            );
-
             // Compute drift
             let (drift_array, keys) = self.compute_drift(&previous_run, db_client).await?;
 
             // if drift array is empty, return early
             if drift_array.is_empty() {
-                info!("No features to process returning early");
                 return Ok(None);
             }
 

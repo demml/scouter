@@ -11,7 +11,7 @@ use axum::{
 };
 
 use std::sync::Arc;
-use tracing::{debug, error, instrument};
+use tracing::{debug, error, info, instrument};
 
 use crate::api::state::AppState;
 use anyhow::{Context, Result};
@@ -28,18 +28,23 @@ use std::panic::{catch_unwind, AssertUnwindSafe};
 pub async fn insert_drift_profile(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
-    Json(body): Json<ProfileRequest>,
+    Json(request): Json<ProfileRequest>,
 ) -> Result<Json<ScouterResponse>, (StatusCode, Json<ScouterServerError>)> {
-    if !perms.has_write_permission(&body.space) {
+    if !perms.has_write_permission(&request.space) {
         return Err((
             StatusCode::FORBIDDEN,
             Json(ScouterServerError::permission_denied()),
         ));
     }
 
+    info!(
+        "Inserting drift profile: {:?} {:?}",
+        &request.space, &request.drift_type
+    );
+
     // validate profile is correct
     // this will be used to validate different versions of the drift profile in the future
-    let body = match DriftProfile::from_str(body.drift_type, body.profile) {
+    let body = match DriftProfile::from_str(request.drift_type, request.profile) {
         Ok(profile) => profile,
         Err(e) => {
             error!("Failed to parse drift profile: {:?}", e);
@@ -194,7 +199,7 @@ pub async fn get_profile(
 /// # Returns
 ///
 /// * `Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)>` - Result of the request
-#[instrument(skip(data, body))]
+#[instrument(skip_all)]
 pub async fn update_drift_profile_status(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
@@ -206,7 +211,7 @@ pub async fn update_drift_profile_status(
             Json(ScouterServerError::permission_denied()),
         ));
     }
-    debug!("Updating drift profile status: {:?}", &body);
+    info!("Updating drift profile status: {:?}", &body);
 
     let query_result = PostgresClient::update_drift_profile_status(&data.db_pool, &body).await;
 

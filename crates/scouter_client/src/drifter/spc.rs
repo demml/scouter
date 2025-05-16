@@ -222,6 +222,11 @@ impl SpcDrifter {
             features.extend(drift_profile.features);
         }
 
+        // if config.features_to_monitor is empty, set it to all features
+        if config.alert_config.features_to_monitor.is_empty() {
+            final_config.alert_config.features_to_monitor = features.keys().cloned().collect();
+        }
+
         Ok(SpcDriftProfile::new(features, final_config, None))
     }
 }

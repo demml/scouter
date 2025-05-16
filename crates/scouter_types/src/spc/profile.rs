@@ -93,10 +93,16 @@ pub struct SpcDriftConfig {
     pub alert_config: SpcAlertConfig,
 
     #[pyo3(get)]
+    #[serde(default)]
     pub feature_map: FeatureMap,
 
     #[pyo3(get, set)]
+    #[serde(default = "default_drift_type")]
     pub drift_type: DriftType,
+}
+
+fn default_drift_type() -> DriftType {
+    DriftType::Spc
 }
 
 #[pymethods]

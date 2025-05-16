@@ -64,12 +64,9 @@ pub mod custom_drifter {
 
             if metric_map.is_empty() {
                 info!(
-                "No custom metric data was found for {}/{}/{}. This indicates that no real-world data values have been recorded in the database for the monitored features as of {}. Skipping alert processing.",
-                self.service_info.space,
-                self.service_info.name,
-                self.service_info.version,
-                limit_datetime
-            );
+                    "No custom metric data was found for {}/{}/{}. Skipping alert processing.",
+                    self.service_info.space, self.service_info.name, self.service_info.version,
+                );
                 return Ok(None);
             }
 
@@ -180,7 +177,7 @@ pub mod custom_drifter {
             let mut alert_vec = Vec::new();
             alerts.iter_mut().for_each(|alert| {
                 let mut alert_map = BTreeMap::new();
-                alert_map.insert("metric_name".to_string(), alert.metric_name.clone());
+                alert_map.insert("entity_name".to_string(), alert.metric_name.clone());
                 alert_map.insert(
                     "training_metric_value".to_string(),
                     alert.training_metric_value.to_string(),
@@ -212,11 +209,6 @@ pub mod custom_drifter {
             db_pool: &Pool<Postgres>,
             previous_run: DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
-            info!(
-                "Processing custom metric(s) task for profile: {}/{}/{}",
-                self.service_info.space, self.service_info.name, self.service_info.version
-            );
-
             let metric_map = self.get_metric_map(&previous_run, db_pool).await?;
 
             match metric_map {

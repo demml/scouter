@@ -183,6 +183,15 @@ pub struct ServiceInfo {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct DriftTaskInfo {
+    pub space: String,
+    pub name: String,
+    pub version: String,
+    pub uid: String,
+    pub drift_type: DriftType,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ObservabilityMetricRequest {
     pub name: String,
     pub space: String,
@@ -195,6 +204,7 @@ pub struct ObservabilityMetricRequest {
 pub struct UpdateAlertStatus {
     pub id: i32,
     pub active: bool,
+    pub space: String,
 }
 
 /// Common struct for returning errors from scouter server (axum response)
@@ -382,4 +392,9 @@ impl ScouterResponse {
     pub fn new(status: String, message: String) -> Self {
         ScouterResponse { status, message }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct UpdateAlertResponse {
+    pub updated: bool,
 }

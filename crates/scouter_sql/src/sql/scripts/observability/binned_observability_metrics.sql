@@ -4,7 +4,7 @@ WITH subquery1 AS (
         jsonb_array_elements(route_metrics) as route_metric
     FROM scouter.observability_metric
     WHERE 
-        created_at > timezone('utc', now()) - interval '$2 minute'
+        created_at > CURRENT_TIMESTAMP - (interval '1 minute' * $2)
         AND name = $3
         AND space = $4
         AND version = $5

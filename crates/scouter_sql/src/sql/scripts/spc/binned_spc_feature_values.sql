@@ -9,7 +9,7 @@ WITH subquery1 AS (
     FROM scouter.spc_drift
     WHERE 
         1=1
-        AND created_at > timezone('utc', now()) - interval '$2 minute'
+        AND created_at > CURRENT_TIMESTAMP - (interval '1 minute' * $2)
         AND name = $3
         AND space = $4
         AND version = $5

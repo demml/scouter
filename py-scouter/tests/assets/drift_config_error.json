@@ -5,12 +5,14 @@
     "sample_size": 100,
     "version": "1.0.0",
     "alert_config": {
-        "alert_rule": {
-            "process": {
-                "zones_to_monitor": []
+        "rule": {
+            "rule": "8 16 4 8 2 4 1 1"
+        },
+        "dispatch_config": {
+            "Slack": {
+                "channel": "test_channel"
             }
         },
-        "dispatch_config": {"Slack": {"channel": "test_channel"}},
         "schedule": "0 0 * * *",
         "features_to_monitor": [
             "feature1",

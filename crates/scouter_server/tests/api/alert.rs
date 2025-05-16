@@ -45,6 +45,7 @@ async fn test_get_drift_alerts() {
     let request = UpdateAlertStatus {
         id: results.alerts[0].id,
         active: false,
+        space: "repo_1".to_string(),
     };
 
     // put request

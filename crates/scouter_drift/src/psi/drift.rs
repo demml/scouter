@@ -70,15 +70,13 @@ pub mod psi_drifter {
 
             if observed_bin_proportions.is_empty() {
                 info!(
-                "No observed bin proportions available for {}/{}/{}. This indicates that no real-world data values have been recorded in the database for the monitored features as of {}. Skipping alert processing.",
+                "No observed bin proportions available for {}/{}/{}. Skipping alert processing.",
                 self.service_info.space,
                 self.service_info.name,
                 self.service_info.version,
-                limit_datetime
             );
                 return Ok(None);
             }
-
             Ok(Some(FeatureBinMapping::from_observed_bin_proportions(
                 &observed_bin_proportions,
                 &profiles_to_monitor,
@@ -172,7 +170,7 @@ pub mod psi_drifter {
             let mut alert_vec = Vec::new();
             alerts.iter_mut().for_each(|(feature, psi)| {
                 let mut alert_map = BTreeMap::new();
-                alert_map.insert("feature".to_string(), feature.clone());
+                alert_map.insert("entity_name".to_string(), feature.clone());
                 alert_map.insert("psi".to_string(), psi.to_string());
                 alert_map.insert("threshold".to_string(), threshold.to_string());
                 alert_vec.push(alert_map);
@@ -186,11 +184,6 @@ pub mod psi_drifter {
             db_pool: &Pool<Postgres>,
             previous_run: DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
-            info!(
-                "Processing drift task for profile: {}/{}/{}",
-                self.service_info.space, self.service_info.name, self.service_info.version
-            );
-
             if self
                 .profile
                 .config
@@ -198,10 +191,6 @@ pub mod psi_drifter {
                 .features_to_monitor
                 .is_empty()
             {
-                info!(
-                    "No PSI profiles to process for {}/{}/{}",
-                    self.service_info.space, self.service_info.name, self.service_info.version
-                );
                 return Ok(None);
             }
 

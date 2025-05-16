@@ -179,7 +179,7 @@ def test_load_from_file_error():
     with pytest.raises(RuntimeError) as e:
         SpcDriftConfig(config_path=Path("tests/assets/drift_config_error.json"))
 
-    assert "Failed to deserialize string" in str(e)
+    assert "missing field `zones_to_monitor`" in str(e)
 
 
 def test_empty_params():

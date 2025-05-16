@@ -39,14 +39,20 @@ pub struct PsiDriftConfig {
     #[pyo3(get, set)]
     pub version: String,
 
-    #[pyo3(get)]
-    pub feature_map: FeatureMap,
-
     #[pyo3(get, set)]
     pub alert_config: PsiAlertConfig,
 
     #[pyo3(get)]
+    #[serde(default)]
+    pub feature_map: FeatureMap,
+
+    #[pyo3(get, set)]
+    #[serde(default = "default_drift_type")]
     pub drift_type: DriftType,
+}
+
+fn default_drift_type() -> DriftType {
+    DriftType::Psi
 }
 
 impl PsiDriftConfig {

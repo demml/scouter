@@ -43,7 +43,7 @@ impl BinnedPsiFeatureMetrics {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct FeatureBinProportionResult {
     pub feature: String,
     pub created_at: Vec<DateTime<Utc>>,

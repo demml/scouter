@@ -232,6 +232,20 @@ impl PyScouterClient {
         Ok(true)
     }
 
+    /// Update the status of a profile
+    ///
+    /// # Arguments
+    /// * `request` - A profile status request object
+    ///
+    /// # Returns
+    /// * `Ok(())` if the profile status was updated successfully
+    pub fn update_profile_status(
+        &self,
+        request: ProfileStatusRequest,
+    ) -> Result<bool, ClientError> {
+        self.client.update_profile_status(&request)
+    }
+
     /// Get binned drift data from the scouter server
     ///
     /// # Arguments

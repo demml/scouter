@@ -20,7 +20,7 @@ pub struct Alert {
     pub version: String,
 
     #[pyo3(get)]
-    pub feature: String,
+    pub entity_name: String,
 
     #[pyo3(get)]
     pub alert: BTreeMap<String, String>,

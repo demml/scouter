@@ -10,7 +10,7 @@ WITH feature_bin_total AS (
   WHERE name = $1
     AND space = $2
     AND version = $3
-    AND created_at > $4::timestamp
+    AND created_at > $4::timestamptz
     AND feature = ANY($5)
   GROUP BY 1, 2, 3, 4, 5
 ),
@@ -24,7 +24,7 @@ feature_total AS (
     WHERE name = $1
       AND space = $2
       AND version = $3
-      AND created_at > $4::timestamp
+      AND created_at > $4::timestamptz
       AND feature = ANY($5)
     GROUP BY 1, 2, 3, 4
 ),

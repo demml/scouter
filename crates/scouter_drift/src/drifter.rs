@@ -4,11 +4,11 @@ pub mod drift_executor {
     use crate::error::DriftError;
     use crate::{custom::CustomDrifter, psi::PsiDrifter, spc::SpcDrifter};
     use chrono::{DateTime, Utc};
-    use scouter_sql::sql::error::SqlError;
+
     use scouter_sql::sql::traits::{AlertSqlLogic, ProfileSqlLogic};
     use scouter_sql::{sql::schema::TaskRequest, PostgresClient};
-    use scouter_types::{DriftProfile, DriftType, ServiceInfo};
-    use sqlx::{Pool, Postgres, Transaction};
+    use scouter_types::{DriftProfile, DriftTaskInfo, DriftType};
+    use sqlx::{Pool, Postgres};
     use std::collections::BTreeMap;
     use std::result::Result;
     use std::result::Result::Ok;
@@ -104,75 +104,90 @@ pub mod drift_executor {
                 .await
         }
 
-        async fn do_poll(
-            &mut self,
-        ) -> Result<(Option<TaskRequest>, Transaction<'static, Postgres>), DriftError> {
+        async fn do_poll(&mut self) -> Result<Option<TaskRequest>, DriftError> {
             debug!("Polling for drift tasks");
-            let mut transaction = self.db_pool.begin().await.map_err(|e| {
-                error!("Error starting transaction: {:?}", e);
-                SqlError::SqlxError(e)
-            })?;
 
-            // this will pull a drift profile from the db
-            let task = match PostgresClient::get_drift_profile_task(&mut transaction).await {
-                Ok(task) => task,
-                Err(e) => {
-                    error!("Error getting drift profile task: {:?}", e);
-                    tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-                    None
-                }
+            // Get task from the database (query uses skip lock to pull task and update to processing)
+            let task = PostgresClient::get_drift_profile_task(&self.db_pool).await?;
+
+            let Some(task) = task else {
+                return Ok(None);
             };
 
-            Ok((task, transaction))
+            let task_info = DriftTaskInfo {
+                space: task.space.clone(),
+                name: task.name.clone(),
+                version: task.version.clone(),
+                uid: task.uid.clone(),
+                drift_type: DriftType::from_str(&task.drift_type).unwrap(),
+            };
+
+            info!(
+                "Processing drift task for profile: {}/{}/{} and type {}",
+                task.space, task.name, task.version, task.drift_type
+            );
+
+            self.process_task(&task, &task_info).await?;
+
+            // Update the run dates while still holding the lock
+            PostgresClient::update_drift_profile_run_dates(
+                &self.db_pool,
+                &task_info,
+                &task.schedule,
+            )
+            .instrument(span!(Level::INFO, "Update Run Dates"))
+            .await?;
+
+            Ok(Some(task))
         }
 
         async fn process_task(
             &mut self,
             task: &TaskRequest,
-            service_info: &ServiceInfo,
+            task_info: &DriftTaskInfo,
         ) -> Result<(), DriftError> {
-            match DriftType::from_str(&task.drift_type) {
-                // match drift_profile
-                Ok(drift_type) => {
-                    match DriftProfile::from_str(drift_type.clone(), task.profile.clone()) {
-                        // process drift profile task
-                        Ok(profile) => match self._process_task(profile, task.previous_run).await {
-                            // check for alerts
-                            Ok(alerts) => {
-                                info!("Drift task processed successfully");
+            // get the drift type
+            let drift_type = DriftType::from_str(&task.drift_type).inspect_err(|e| {
+                error!("Error converting drift type: {:?}", e);
+            })?;
 
-                                if let Some(alerts) = alerts {
-                                    // insert each task into db
-                                    for alert in alerts {
-                                        if let Err(e) = PostgresClient::insert_drift_alert(
-                                            &self.db_pool,
-                                            service_info,
-                                            alert.get("feature").unwrap_or(&"NA".to_string()),
-                                            &alert,
-                                            &drift_type,
-                                        )
-                                        .await
-                                        {
-                                            error!("Error inserting drift alerts: {:?}", e);
-                                        }
-                                    }
-                                }
-                            }
-                            Err(e) => {
-                                error!("Error processing drift task: {:?}", e);
-                            }
-                        },
-                        Err(e) => {
-                            error!("Error converting drift profile: {:?}", e);
-                        }
+            // get the drift profile
+            let profile = DriftProfile::from_str(drift_type.clone(), task.profile.clone())
+                .inspect_err(|e| {
+                    error!("Error converting drift profile: {:?}", e);
+                })?;
+
+            // check for alerts
+            match self._process_task(profile, task.previous_run).await {
+                Ok(Some(alerts)) => {
+                    info!("Drift task processed successfully with alerts");
+
+                    // Insert alerts atomically within the same transaction
+                    for alert in alerts {
+                        PostgresClient::insert_drift_alert(
+                            &self.db_pool,
+                            task_info,
+                            alert.get("entity_name").unwrap_or(&"NA".to_string()),
+                            &alert,
+                            &drift_type,
+                        )
+                        .await
+                        .map_err(|e| {
+                            error!("Error inserting drift alert: {:?}", e);
+                            DriftError::SqlError(e)
+                        })?;
                     }
+                    Ok(())
+                }
+                Ok(None) => {
+                    info!("Drift task processed successfully with no alerts");
+                    Ok(())
                 }
                 Err(e) => {
-                    error!("Error converting drift type: {:?}", e);
+                    error!("Error processing drift task: {:?}", e);
+                    Err(DriftError::AlertProcessingError(e.to_string()))
                 }
             }
-
-            Ok(())
         }
 
         /// Execute single drift computation and alerting
@@ -181,45 +196,17 @@ pub mod drift_executor {
         ///
         /// * `Result<()>` - Result of drift computation and alerting
         pub async fn poll_for_tasks(&mut self) -> Result<(), DriftError> {
-            // this will pull a drift profile from the db
-            let (task, mut trx) = self.do_poll().await?;
-
-            let Some(task) = task else {
-                trx.commit().await.map_err(SqlError::SqlxError)?;
-                info!("No triggered schedules found in db. Sleeping for 10 seconds");
-                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-                return Ok(());
-            };
-
-            let service_info = ServiceInfo {
-                space: task.space.clone(),
-                name: task.name.clone(),
-                version: task.version.clone(),
-            };
-
-            self.process_task(&task, &service_info)
-                .instrument(span!(Level::INFO, "Process Task"))
-                .await?;
-
-            if let Err(e) = PostgresClient::update_drift_profile_run_dates(
-                &mut trx,
-                &service_info,
-                &task.schedule,
-            )
-            .instrument(span!(Level::INFO, "Update Run Dates"))
-            .await
-            {
-                error!("Error updating drift profile run dates: {:?}", e);
-            } else {
-                info!("Drift profile run dates updated successfully");
+            match self.do_poll().await? {
+                Some(_) => {
+                    info!("Successfully processed drift task");
+                    Ok(())
+                }
+                None => {
+                    info!("No triggered schedules found in db. Sleeping for 10 seconds");
+                    tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+                    Ok(())
+                }
             }
-
-            trx.commit().await.map_err(|e| {
-                error!("Error committing transaction: {:?}", e);
-                SqlError::SqlxError(e)
-            })?;
-
-            Ok(())
         }
     }
 

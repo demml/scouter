@@ -1,7 +1,7 @@
 UPDATE scouter.spc_drift
 SET 
     archived = true,
-    updated_at = timezone('utc', now())
+    updated_at = CURRENT_TIMESTAMP
 WHERE 1=1
     AND created_at BETWEEN $1 AND $2
     AND space = $3
