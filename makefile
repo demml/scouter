@@ -82,7 +82,7 @@ build.all_backends:
 	docker compose up -d --build server-backends --wait
 
 .PHONE: start.server
-start.server: stop.server
+start.server: stop.server build.all_backends
 	export KAFKA_BROKERS=localhost:9092 && \
 	export RABBITMQ_ADDR=amqp://guest:guest@127.0.0.1:5672/%2f && \
 	cargo build -p scouter-server --all-features && \
