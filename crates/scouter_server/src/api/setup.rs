@@ -20,6 +20,9 @@ use scouter_events::consumer::kafka::KafkaConsumerManager;
 #[cfg(feature = "rabbitmq")]
 use scouter_events::consumer::rabbitmq::RabbitMQConsumerManager;
 
+#[cfg(feature = "redis_events")]
+use scouter_events::consumer::redis::RedisConsumerManager;
+
 use scouter_events::consumer::http::consumer::HttpConsumerManager;
 use scouter_settings::events::HttpConsumerSettings;
 use scouter_types::ServerRecords;
@@ -64,6 +67,15 @@ impl ScouterSetupComponents {
         if config.rabbitmq_enabled() {
             Self::setup_rabbitmq(
                 config.rabbitmq_settings.as_ref().unwrap(),
+                &db_pool,
+                tokio_shutdown_rx.clone(),
+            )
+            .await?;
+        }
+
+        if config.redis_enabled() {
+            Self::setup_redis(
+                config.redis_settings.as_ref().unwrap(),
                 &db_pool,
                 tokio_shutdown_rx.clone(),
             )
@@ -280,6 +292,28 @@ impl ScouterSetupComponents {
     ) -> AnyhowResult<()> {
         BackgroundDriftManager::start_workers(db_pool, poll_settings, shutdown_rx).await?;
         info!("✅ Started background workers");
+
+        Ok(())
+    }
+
+    /// Helper to setup the redis consumer
+    /// This worker will continually run and check for redis events
+    ///
+    /// Arguments:
+    /// * `settings` - The redis settings to use for the consumer
+    /// * `db_pool` - The database client to use for the worker
+    /// * `shutdown_rx` - The shutdown receiver to use for the worker
+    ///
+    /// Returns:
+    /// * `AnyhowResult<()>` - The result of the setup
+    pub async fn setup_redis(
+        settings: &scouter_settings::RedisSettings,
+        db_pool: &Pool<Postgres>,
+        shutdown_rx: tokio::sync::watch::Receiver<()>,
+    ) -> AnyhowResult<()> {
+        #[cfg(feature = "redis_events")]
+        RedisConsumerManager::start_workers(settings, db_pool, shutdown_rx).await?;
+        info!("✅ Started Redis workers");
 
         Ok(())
     }

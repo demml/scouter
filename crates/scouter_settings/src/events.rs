@@ -146,6 +146,8 @@ impl Default for RedisSettings {
         }
     }
 }
+
+#[derive(Debug, Clone)]
 pub struct HttpConsumerSettings {
     pub num_workers: usize,
 }

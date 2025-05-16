@@ -1,6 +1,5 @@
 use base64::prelude::*;
 use scouter_types::StorageType;
-use serde::Serialize;
 use std::env;
 use tracing::warn;
 
@@ -31,7 +30,7 @@ fn generate_default_secret() -> String {
     BASE64_STANDARD.encode(key)
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone)]
 pub struct ScouterServerConfig {
     pub polling_settings: PollingSettings,
     pub database_settings: DatabaseSettings,
