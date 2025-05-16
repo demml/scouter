@@ -122,13 +122,12 @@ async fn test_storage_integration_cloud() {
         .unwrap();
 
     let response = helper.send_oneshot(request).await;
-    //
+
     //assert response
     assert_eq!(response.status(), StatusCode::OK);
     let val = response.into_body().collect().await.unwrap().to_bytes();
-    //
     let results: BinnedPsiFeatureMetrics = serde_json::from_slice(&val).unwrap();
-    //
+
     assert!(!results.features.is_empty());
 
     for file in files.iter() {
