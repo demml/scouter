@@ -3,7 +3,6 @@ name: Storage Tests
 on:
   push:
     branches:
-      - rust-client-for-opsml
       - main
       - master
 
