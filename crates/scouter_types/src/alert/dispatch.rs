@@ -118,8 +118,9 @@ pub trait DispatchDriftConfig {
 
 #[pyclass]
 #[derive(Debug, PartialEq, Clone)]
-pub enum TransportTypes {
+pub enum TransportType {
     Kafka,
     RabbitMQ,
     Http,
+    Redis,
 }

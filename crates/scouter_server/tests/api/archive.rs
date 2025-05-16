@@ -20,6 +20,7 @@ use scouter_types::{
     DriftType, RecordType,
 };
 use sqlx::types::chrono::Utc;
+use tokio::time::{sleep, Duration};
 
 #[tokio::test]
 async fn test_data_archive_spc() {
@@ -83,6 +84,9 @@ async fn test_data_archive_spc() {
         //assert response
         assert_eq!(response.status(), StatusCode::OK);
     }
+
+    // Sleep for 2 seconds to allow the http consumer time to process all server records sent above.
+    sleep(Duration::from_secs(2)).await;
 
     let record = archive_old_data(&helper.pool, &helper.config)
         .await
@@ -199,6 +203,9 @@ async fn test_data_archive_psi() {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
+    // Sleep for 2 second to allow the http consumer time to process all server records sent above.
+    sleep(Duration::from_secs(2)).await;
+
     let record = archive_old_data(&helper.pool, &helper.config)
         .await
         .unwrap();
@@ -300,6 +307,9 @@ async fn test_data_archive_custom() {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
+    // Sleep for 2 seconds to allow the http consumer time to process all server records sent above.
+    sleep(Duration::from_secs(2)).await;
+
     let record = archive_old_data(&helper.pool, &helper.config)
         .await
         .unwrap();
@@ -345,6 +355,6 @@ async fn test_data_archive_custom() {
     let results: BinnedCustomMetrics = serde_json::from_slice(&val).unwrap();
 
     assert!(!results.metrics.is_empty());
-    assert!(results.metrics["metric_1"].created_at.len() == 2);
+    assert_eq!(results.metrics["metric_1"].created_at.len(), 2);
     TestHelper::cleanup_storage()
 }

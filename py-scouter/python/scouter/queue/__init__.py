@@ -6,6 +6,7 @@ ScouterQueue = queue.ScouterQueue
 Queue = queue.Queue
 KafkaConfig = queue.KafkaConfig
 RabbitMQConfig = queue.RabbitMQConfig
+RedisConfig = queue.RedisConfig
 SpcServerRecord = queue.SpcServerRecord
 PsiServerRecord = queue.PsiServerRecord
 CustomMetricServerRecord = queue.CustomMetricServerRecord
@@ -24,6 +25,7 @@ __all__ = [
     "Queue",
     "KafkaConfig",
     "RabbitMQConfig",
+    "RedisConfig",
     "SpcServerRecord",
     "PsiServerRecord",
     "CustomMetricServerRecord",

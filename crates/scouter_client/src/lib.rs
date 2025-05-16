@@ -40,8 +40,9 @@ pub use scouter_drift::{
     spc::{generate_alerts, SpcDriftMap, SpcFeatureDrift, SpcMonitor},
     utils::CategoricalFeatureHelpers,
 };
-
-pub use scouter_events::producer::{kafka::KafkaConfig, rabbitmq::RabbitMQConfig};
+pub use scouter_events::producer::{
+    kafka::KafkaConfig, rabbitmq::RabbitMQConfig, redis::RedisConfig,
+};
 pub use scouter_events::queue::{
     custom::CustomMetricFeatureQueue, psi::PsiFeatureQueue, spc::SpcFeatureQueue, QueueBus,
     ScouterQueue,

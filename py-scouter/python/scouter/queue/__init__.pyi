@@ -8,6 +8,12 @@ from ..client import HTTPConfig
 from ..logging import LogLevel
 from ..observe import ObservabilityMetrics
 
+class TransportType:
+    Kafka = "TransportType"
+    RabbitMQ = "TransportType"
+    Redis = "TransportType"
+    HTTP = "TransportType"
+
 class EntityType:
     Feature = "EntityType"
     Metric = "EntityType"
@@ -27,13 +33,13 @@ class KafkaConfig:
     log_level: LogLevel
     config: Dict[str, str]
     max_retries: int
+    transport_type: TransportType
 
     def __init__(
         self,
         brokers: Optional[str] = None,
         topic: Optional[str] = None,
         compression_type: Optional[str] = None,
-        raise_on_error: bool = False,
         message_timeout_ms: int = 600_000,
         message_max_bytes: int = 2097164,
         log_level: LogLevel = LogLevel.Info,
@@ -54,10 +60,6 @@ class KafkaConfig:
             compression_type:
                 Compression type to use for messages.
                 Default is "gzip".
-
-            raise_on_error:
-                Whether to raise an error if message delivery fails.
-                Default is True.
 
             message_timeout_ms:
                 Message timeout in milliseconds.
@@ -84,8 +86,8 @@ class KafkaConfig:
 class RabbitMQConfig:
     address: str
     queue: str
-    raise_on_error: bool
     max_retries: int
+    transport_type: TransportType
 
     def __init__(
         self,
@@ -94,7 +96,6 @@ class RabbitMQConfig:
         username: Optional[str] = None,
         password: Optional[str] = None,
         queue: Optional[str] = None,
-        raise_on_error: bool = False,
         max_retries: int = 3,
     ) -> None:
         """RabbitMQ configuration to use with the RabbitMQProducer.
@@ -120,13 +121,31 @@ class RabbitMQConfig:
                 RabbitMQ queue to publish messages to.
                 If not provided, the value of the RABBITMQ_QUEUE environment variable is used.
 
-            raise_on_error:
-                Whether to raise an error if message delivery fails.
-                Default is False.
-
             max_retries:
                 Maximum number of retries to attempt when publishing messages.
                 Default is 3.
+        """
+
+class RedisConfig:
+    address: str
+    channel: str
+    transport_type: TransportType
+
+    def __init__(
+        self,
+        address: Optional[str] = None,
+        chanel: Optional[str] = None,
+    ) -> None:
+        """Redis configuration to use with a Redis producer
+
+        Args:
+            address (str):
+                Redis address.
+                If not provided, the value of the REDIS_ADDR environment variable is used and defaults to "redis://localhost:6379".
+
+            channel (str):
+                Redis channel to publish messages to.
+                If not provided, the value of the REDIS_CHANNEL environment variable is used and defaults to "scouter_monitoring".
         """
 
 class ServerRecord:
@@ -464,7 +483,12 @@ class ScouterQueue:
     @staticmethod
     def from_path(
         path: Dict[str, Path],
-        transport_config: Union[KafkaConfig, RabbitMQConfig, HTTPConfig],
+        transport_config: Union[
+            KafkaConfig,
+            RabbitMQConfig,
+            RedisConfig,
+            HTTPConfig,
+        ],
     ) -> ScouterQueue:
         """Initializes Scouter queue from one or more drift profile paths
 
@@ -472,9 +496,9 @@ class ScouterQueue:
             path (Dict[str, Path]):
                 Dictionary of drift profile paths.
                 Each key is a user-defined alias for accessing a queue
-            transport_config (Union[KafkaConfig, RabbitMQConfig, HTTPConfig]):
+            transport_config (Union[KafkaConfig, RabbitMQConfig, RedisConfig, HTTPConfig]):
                 Transport configuration for the queue publisher
-                Can be KafkaConfig, RabbitMQConfig or HTTPConfig
+                Can be KafkaConfig, RabbitMQConfig RedisConfig, or HTTPConfig
 
         Example:
             ```python

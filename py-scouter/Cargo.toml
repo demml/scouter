@@ -17,7 +17,7 @@ ndarray-stats = { workspace = true }
 reqwest = { workspace = true, optional = true }
 rusty-logging = { workspace = true }
 scouter-client = { workspace = true }
-scouter-server = { workspace = true , optional = true, features = ["kafka", "rabbitmq"] }
+scouter-server = { workspace = true , optional = true, features = ["kafka", "rabbitmq", "redis_events"] }
 thiserror = { workspace = true }
 tokio = { workspace = true,  optional = true }
 tracing-subscriber = { workspace = true }

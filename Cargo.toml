@@ -25,7 +25,6 @@ scouter-client = { path = "crates/scouter_client" }
 scouter-dispatch = { path = "crates/scouter_dispatch" }
 scouter-drift = { path = "crates/scouter_drift", default-features = false }
 scouter-events = { path = "crates/scouter_events", default-features = false }
-consumer-events = { path = "crates/consumer_events" }
 scouter-observability = { path = "crates/scouter_observability" }
 scouter-profile = { path = "crates/scouter_profile" }
 scouter-server = { path = "crates/scouter_server" }
@@ -47,7 +46,8 @@ colored_json = "*"
 cron = "0.*"
 crossbeam-queue = "0.*"
 datafusion = { version = "*", features = ["parquet"] }
-
+futures-util = { version = "0.*" }
+flume = "0.11.*"
 futures = "0.*"
 include_dir = "0.*"
 indicatif = "0.*"
@@ -68,6 +68,7 @@ password-auth = "1.*"
 pyo3 = { version = ">=0.*, <1.0.0", features = ["chrono", "anyhow", "extension-module"] }
 rand = "0.9.*"
 rayon = "1.*"
+redis = { version = "0.*", features = ["tokio-comp"] }
 reqwest = { version = "0.12.*", features = ["json", "multipart", "rustls-tls", "rustls-tls-native-roots", "blocking" ], default-features = false }
 rusty-logging="0.*"
 serde = { version = "1.*", features = ["derive"] }

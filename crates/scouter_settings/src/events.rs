@@ -114,3 +114,45 @@ impl Default for RabbitMQSettings {
         }
     }
 }
+
+#[derive(Debug, Clone, Serialize)]
+pub struct RedisSettings {
+    pub num_consumers: usize,
+    pub channel: String,
+    pub address: String,
+}
+
+impl Default for RedisSettings {
+    fn default() -> Self {
+        let num_consumers = std::env::var("REDIS_CONSUMER_COUNT")
+            .unwrap_or_else(|_| "3".to_string())
+            .parse::<usize>()
+            .unwrap();
+        let channel =
+            std::env::var("REDIS_CHANNEL").unwrap_or_else(|_| "scouter_monitoring".to_string());
+
+        let address =
+            std::env::var("REDIS_ADDR").unwrap_or_else(|_| "redis://127.0.0.1:6379".to_string());
+
+        Self {
+            num_consumers,
+            channel,
+            address,
+        }
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct HttpConsumerSettings {
+    pub num_workers: usize,
+}
+impl Default for HttpConsumerSettings {
+    fn default() -> Self {
+        let num_workers = std::env::var("HTTP_CONSUMER_WORKER_COUNT")
+            .unwrap_or_else(|_| "1".to_string())
+            .parse::<usize>()
+            .unwrap();
+
+        Self { num_workers }
+    }
+}

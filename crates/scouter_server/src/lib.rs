@@ -1,10 +1,10 @@
 pub mod api;
 
+use crate::api::setup::ScouterSetupComponents;
 use crate::api::shutdown::shutdown_signal;
 use crate::api::state::AppState;
 use anyhow::Context;
 use api::router::create_router;
-use api::setup::setup_components;
 use axum::Router;
 use scouter_auth::auth::AuthManager;
 use std::sync::Arc;
@@ -27,16 +27,20 @@ use tracing::info;
 pub async fn create_app() -> Result<(Router, Arc<AppState>), anyhow::Error> {
     // setup logging, soft fail if it fails
 
-    let (config, db_pool, shutdown_tx) = setup_components().await?;
+    let scouter_components = ScouterSetupComponents::new().await?;
 
     let app_state = Arc::new(AppState {
-        db_pool,
-        shutdown_tx,
+        db_pool: scouter_components.db_pool,
+        shutdown_tx: scouter_components.tokio_shutdown_tx,
         auth_manager: AuthManager::new(
-            &config.auth_settings.jwt_secret,
-            &config.auth_settings.refresh_secret,
+            &scouter_components.server_config.auth_settings.jwt_secret,
+            &scouter_components
+                .server_config
+                .auth_settings
+                .refresh_secret,
         ),
-        config,
+        config: scouter_components.server_config,
+        http_consumer_tx: scouter_components.http_consumer_tx,
     });
 
     let router = create_router(app_state.clone())

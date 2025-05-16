@@ -1,3 +1,4 @@
+use std::time::Duration;
 // storage integration tests for cloud storage
 use crate::common::{TestHelper, NAME, SPACE, VERSION};
 
@@ -15,6 +16,7 @@ use scouter_types::{
     DriftType, RecordType,
 };
 use sqlx::types::chrono::Utc;
+use tokio::time::sleep;
 
 #[tokio::test]
 async fn test_storage_integration_cloud() {
@@ -80,6 +82,9 @@ async fn test_storage_integration_cloud() {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
+    // Sleep for 3 second to allow the http consumer time to process all server records sent above.
+    sleep(Duration::from_secs(3)).await;
+
     let record = archive_old_data(&helper.pool, &helper.config)
         .await
         .unwrap();
@@ -116,13 +121,12 @@ async fn test_storage_integration_cloud() {
         .unwrap();
 
     let response = helper.send_oneshot(request).await;
-    //
+
     //assert response
     assert_eq!(response.status(), StatusCode::OK);
     let val = response.into_body().collect().await.unwrap().to_bytes();
-    //
     let results: BinnedPsiFeatureMetrics = serde_json::from_slice(&val).unwrap();
-    //
+
     assert!(!results.features.is_empty());
 
     for file in files.iter() {
