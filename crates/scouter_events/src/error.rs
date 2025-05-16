@@ -146,6 +146,9 @@ pub enum EventError {
     #[error("RabbitMQ feature not enabled")]
     RabbitMQFeatureNotEnabledError,
 
+    #[error("Redis feature not enabled")]
+    RedisFeatureNotEnabledError,
+
     #[error("Invalid compressions type")]
     InvalidCompressionTypeError,
 }

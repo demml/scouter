@@ -97,10 +97,7 @@ impl RustScouterProducer {
                 }
                 #[cfg(not(feature = "redis_events"))]
                 {
-                    return Err(EventError::FeatureNotEnabledError(
-                        "redis_events feature is not enabled".to_string(),
-                    )
-                    .into());
+                    return Err(EventError::RedisFeatureNotEnabledError);
                 }
             }
             TransportConfig::Http(config) => {
