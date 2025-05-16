@@ -74,11 +74,9 @@ pub mod psi_drifter {
                 self.service_info.space,
                 self.service_info.name,
                 self.service_info.version,
-           
             );
                 return Ok(None);
             }
-
             Ok(Some(FeatureBinMapping::from_observed_bin_proportions(
                 &observed_bin_proportions,
                 &profiles_to_monitor,
@@ -196,8 +194,6 @@ pub mod psi_drifter {
                 return Ok(None);
             }
 
-            
-
             let drift_map = self.get_drift_map(&previous_run, db_pool).await?;
 
             match drift_map {
@@ -275,8 +271,6 @@ pub mod psi_drifter {
                 );
                 return Ok(BinnedPsiFeatureMetrics::default());
             }
-
-            
 
             // iterate over each feature and calculate psi for each time period
             let binned_map = binned_records
