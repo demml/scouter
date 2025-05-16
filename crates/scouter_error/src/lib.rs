@@ -788,6 +788,18 @@ pub enum EventError {
 
     #[error("Failed to create send entity to consumer: {0}")]
     SendEntityError(String),
+
+    #[error("Failed to open Redis connection: {0}")]
+    RedisOpenError(String),
+
+    #[error("Failed to get Redis Connection: {0}")]
+    RedisConnectionError(String),
+
+    #[error("Failed to get Redis PubSub: {0}")]
+    RedisPubSubError(String),
+
+    #[error("{0}")]
+    FeatureNotEnabledError(String),
 }
 
 impl TracedError for EventError {}

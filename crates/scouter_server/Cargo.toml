@@ -63,6 +63,7 @@ default = []
 kafka-vendored = ["scouter-events/kafka-vendored"]
 kafka = ["scouter-events/kafka"]
 rabbitmq = ["scouter-events/rabbitmq"]
+redis_events = ["scouter-events/redis_events"]
 
 [profile.release]
 lto = "fat"

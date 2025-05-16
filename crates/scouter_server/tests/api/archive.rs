@@ -85,8 +85,8 @@ async fn test_data_archive_spc() {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    // Sleep for 1 second to allow the http consumer time to process all server records sent above.
-    sleep(Duration::from_secs(1)).await;
+    // Sleep for 2 seconds to allow the http consumer time to process all server records sent above.
+    sleep(Duration::from_secs(2)).await;
 
     let record = archive_old_data(&helper.pool, &helper.config)
         .await
@@ -307,8 +307,8 @@ async fn test_data_archive_custom() {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    // Sleep for 1 second to allow the http consumer time to process all server records sent above.
-    sleep(Duration::from_secs(1)).await;
+    // Sleep for 2 seconds to allow the http consumer time to process all server records sent above.
+    sleep(Duration::from_secs(2)).await;
 
     let record = archive_old_data(&helper.pool, &helper.config)
         .await
