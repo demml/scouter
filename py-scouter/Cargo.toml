@@ -29,8 +29,6 @@ tracing = { workspace = true }
 default = []
 server = ["scouter-server", "tokio", "reqwest"]
 
-
-
 [profile.release]
 lto = "fat"
 codegen-units = 1

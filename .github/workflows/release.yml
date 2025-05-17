@@ -282,6 +282,7 @@ jobs:
   python-release:
     if: github.event_name == 'release'
     name: Release-Python
+    environment: pypi
     runs-on: ubuntu-latest
     needs: [test-builds-os]
     steps:
@@ -312,7 +313,6 @@ jobs:
         env:
           TWINE_USERNAME: __token__
           TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
-
 #  rust-release:
 #    if: github.event_name == 'release'
 #    environment: crates.io
