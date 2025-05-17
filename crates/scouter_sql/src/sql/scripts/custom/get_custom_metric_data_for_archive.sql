@@ -1,5 +1,5 @@
 SELECT *
-FROM scouter.custom_metric
+FROM scouter.custom_drift
 WHERE 1=1 
     AND created_at BETWEEN $1 AND $2
     AND space = $3

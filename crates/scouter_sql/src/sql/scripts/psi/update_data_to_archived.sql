@@ -1,4 +1,4 @@
-UPDATE scouter.observed_bin_count
+UPDATE scouter.psi_drift
 SET 
     archived = true,
     updated_at = CURRENT_TIMESTAMP

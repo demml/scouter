@@ -3,12 +3,12 @@ WITH subquery1 AS (
         date_bin('$1 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
         metric,
         value
-    FROM scouter.custom_metric
+    FROM scouter.custom_drift
     WHERE 
         1=1
         AND created_at > CURRENT_TIMESTAMP - (interval '1 minute' * $2)
-        AND name = $3
         AND space = $4
+        AND name = $3
         AND version = $5
     ),
 

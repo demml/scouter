@@ -229,7 +229,7 @@ pub mod drift_executor {
                 FROM scouter.observability_metric;
 
                 DELETE
-                FROM scouter.custom_metric;
+                FROM scouter.custom_drift;
 
                 DELETE
                 FROM scouter.drift_alert;
@@ -238,7 +238,7 @@ pub mod drift_executor {
                 FROM scouter.drift_profile;
 
                 DELETE
-                FROM scouter.observed_bin_count;
+                FROM scouter.psi_drift;
                 "#,
             )
             .fetch_all(pool)

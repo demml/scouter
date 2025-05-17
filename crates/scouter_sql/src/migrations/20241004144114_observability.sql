@@ -12,7 +12,7 @@ CREATE TABLE IF NOT exists scouter.observability_metric (
 )
 PARTITION BY RANGE (created_at);
 
-CREATE INDEX ON scouter.observability_metric (name, space, version, created_at);
+CREATE INDEX ON scouter.observability_metric (created_at, space, name, version);
 
 SELECT scouter.create_parent(
     'scouter.observability_metric',

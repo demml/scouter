@@ -311,7 +311,7 @@ VALUES
     );
 
 
--- populate observed_bin_count table with dummy data
+-- populate psi_drift table with dummy data
 DO $$
     DECLARE
         created_at_1 timestamp := timezone('utc', current_timestamp - interval '1 days') + (random() * INTERVAL '1 minutes') + (random() * INTERVAL '1 second');
@@ -326,7 +326,7 @@ DO $$
         FOR i IN 1..10 LOOP
                 bin_id := i;
                 bin_count := (random() * 1000)::integer; -- random integer between 0 and 1000
-                INSERT INTO scouter.observed_bin_count (created_at, name, space, version, feature, bin_id, bin_count)
+                INSERT INTO scouter.psi_drift (created_at, name, space, version, feature, bin_id, bin_count)
                 VALUES (created_at_1, name, space, version, feature, bin_id, bin_count);
                 created_at_1 := created_at_1 + (random() * INTERVAL '1 second'); -- Adjust time slightly for each row
             END LOOP;
@@ -335,7 +335,7 @@ DO $$
         FOR i IN 1..10 LOOP
                 bin_id := i;
                 bin_count := (random() * 1000)::integer;
-                INSERT INTO scouter.observed_bin_count (created_at, name, space, version, feature, bin_id, bin_count)
+                INSERT INTO scouter.psi_drift (created_at, name, space, version, feature, bin_id, bin_count)
                 VALUES (created_at_1, name, space, version, feature, bin_id, bin_count);
                 created_at_1 := created_at_1 + (random() * INTERVAL '1 second');
             END LOOP;
@@ -344,7 +344,7 @@ DO $$
         FOR i IN 1..10 LOOP
                 bin_id := i;
                 bin_count := (random() * 1000)::integer;
-                INSERT INTO scouter.observed_bin_count (created_at, name, space, version, feature, bin_id, bin_count)
+                INSERT INTO scouter.psi_drift (created_at, name, space, version, feature, bin_id, bin_count)
                 VALUES (created_at_1, name, space, version, feature, bin_id, bin_count);
                 created_at_1 := created_at_1 + (random() * INTERVAL '1 second');
             END LOOP;
@@ -365,7 +365,7 @@ DO $$
         FOR i IN 1..10 LOOP
                 bin_id := i;
                 bin_count := (random() * 1000)::integer;
-                INSERT INTO scouter.observed_bin_count (created_at, name, space, version, feature, bin_id, bin_count)
+                INSERT INTO scouter.psi_drift (created_at, name, space, version, feature, bin_id, bin_count)
                 VALUES (created_at_2, name, space, version, feature, bin_id, bin_count);
                 created_at_2 := created_at_2 + (random() * INTERVAL '1 second');
             END LOOP;
@@ -374,7 +374,7 @@ DO $$
         FOR i IN 1..10 LOOP
                 bin_id := i;
                 bin_count := (random() * 1000)::integer;
-                INSERT INTO scouter.observed_bin_count (created_at, name, space, version, feature, bin_id, bin_count)
+                INSERT INTO scouter.psi_drift (created_at, name, space, version, feature, bin_id, bin_count)
                 VALUES (created_at_2, name, space, version, feature, bin_id, bin_count);
                 created_at_2 := created_at_2 + (random() * INTERVAL '1 second');
             END LOOP;
@@ -383,7 +383,7 @@ DO $$
         FOR i IN 1..10 LOOP
                 bin_id := i;
                 bin_count := (random() * 1000)::integer;
-                INSERT INTO scouter.observed_bin_count (created_at, name, space, version, feature, bin_id, bin_count)
+                INSERT INTO scouter.psi_drift (created_at, name, space, version, feature, bin_id, bin_count)
                 VALUES (created_at_2, name, space, version, feature, bin_id, bin_count);
                 created_at_2 := created_at_2 + (random() * INTERVAL '1 second');
             END LOOP;
@@ -403,7 +403,7 @@ DO $$
         FOR i IN 1..10 LOOP
                 bin_id := i;
                 bin_count := (random() * 1000)::integer;
-                INSERT INTO scouter.observed_bin_count (created_at, name, space, version, feature, bin_id, bin_count)
+                INSERT INTO scouter.psi_drift (created_at, name, space, version, feature, bin_id, bin_count)
                 VALUES (created_at_3, name, space, version, feature, bin_id, bin_count);
                 created_at_3 := created_at_3 + (random() * INTERVAL '1 second');
             END LOOP;
@@ -412,7 +412,7 @@ DO $$
         FOR i IN 1..10 LOOP
                 bin_id := i;
                 bin_count := (random() * 1000)::integer;
-                INSERT INTO scouter.observed_bin_count (created_at, name, space, version, feature, bin_id, bin_count)
+                INSERT INTO scouter.psi_drift (created_at, name, space, version, feature, bin_id, bin_count)
                 VALUES (created_at_3, name, space, version, feature, bin_id, bin_count);
                 created_at_3 := created_at_3 + (random() * INTERVAL '1 second');
             END LOOP;
@@ -421,7 +421,7 @@ DO $$
         FOR i IN 1..10 LOOP
                 bin_id := i;
                 bin_count := (random() * 1000)::integer;
-                INSERT INTO scouter.observed_bin_count (created_at, name, space, version, feature, bin_id, bin_count)
+                INSERT INTO scouter.psi_drift (created_at, name, space, version, feature, bin_id, bin_count)
                 VALUES (created_at_3, name, space, version, feature, bin_id, bin_count);
                 created_at_3 := created_at_3 + (random() * INTERVAL '1 second');
             END LOOP;
