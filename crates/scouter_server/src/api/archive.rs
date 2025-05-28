@@ -62,7 +62,9 @@ impl DataArchiver {
                     let now = Utc::now();
                     let should_run = match last_cleanup {
                         None => true,
-                        Some(last_time) => now.signed_duration_since(last_time) >= Duration::days(1),
+                        // change this to days in subsequent pr. We need to test this in prod
+                        // All unit and integration tests work, i'm just being a little paranoid and want to test in a live situation
+                        Some(last_time) => now.signed_duration_since(last_time) >= Duration::hours(1),
                     };
 
                     if should_run {

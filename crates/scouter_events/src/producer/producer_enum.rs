@@ -65,10 +65,10 @@ pub struct RustScouterProducer {
 impl RustScouterProducer {
     pub async fn new(config: TransportConfig) -> Result<Self, EventError> {
         let producer = match config {
-            TransportConfig::RabbitMQ(config) => {
+            TransportConfig::RabbitMQ(_config) => {
                 #[cfg(feature = "rabbitmq")]
                 {
-                    let producer = RabbitMQProducer::new(config).await?;
+                    let producer = RabbitMQProducer::new(_config).await?;
                     debug!("Creating RabbitMQ producer");
                     ProducerEnum::RabbitMQ(producer)
                 }
@@ -77,21 +77,21 @@ impl RustScouterProducer {
                     return Err(EventError::RabbitMQFeatureNotEnabledError);
                 }
             }
-            TransportConfig::Kafka(config) => {
+            TransportConfig::Kafka(_config) => {
                 #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
                 {
                     debug!("Creating Kafka producer");
-                    ProducerEnum::Kafka(KafkaProducer::new(config)?)
+                    ProducerEnum::Kafka(KafkaProducer::new(_config)?)
                 }
                 #[cfg(not(any(feature = "kafka", feature = "kafka-vendored")))]
                 {
                     return Err(EventError::KafkaFeatureNotEnabledError);
                 }
             }
-            TransportConfig::Redis(config) => {
+            TransportConfig::Redis(_config) => {
                 #[cfg(feature = "redis_events")]
                 {
-                    let producer = RedisProducer::new(config).await?;
+                    let producer = RedisProducer::new(_config).await?;
                     debug!("Creating Redis producer");
                     ProducerEnum::Redis(producer)
                 }
