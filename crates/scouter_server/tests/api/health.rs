@@ -21,8 +21,5 @@ async fn test_health_check() {
 
     let v: Alive = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(
-        v.alive, true,
-        "Health check should return alive status true"
-    );
+    assert!(v.alive, "Health check should return alive status");
 }
