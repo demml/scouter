@@ -13,6 +13,7 @@ use axum::{
 };
 use password_auth::generate_hash;
 use scouter_auth::permission::UserPermissions;
+use scouter_auth::util::generate_recovery_codes_with_hashes;
 use scouter_sql::sql::schema::User;
 use scouter_sql::sql::traits::UserSqlLogic;
 use scouter_sql::PostgresClient;
@@ -20,6 +21,8 @@ use scouter_types::contracts::{ScouterResponse, ScouterServerError};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::{error, info, instrument};
+
+use super::schema::CreateUserResponse;
 
 pub async fn initialize_users(
     State(state): State<AppState>,
@@ -56,7 +59,7 @@ async fn create_user(
     State(state): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
     Json(create_req): Json<CreateUserRequest>,
-) -> Result<Json<UserResponse>, (StatusCode, Json<ScouterServerError>)> {
+) -> Result<Json<CreateUserResponse>, (StatusCode, Json<ScouterServerError>)> {
     // Check if requester has admin permissions
 
     if !perms.group_permissions.contains(&"admin".to_string()) {
@@ -77,13 +80,18 @@ async fn create_user(
     // Hash the password
     let password_hash = generate_hash(&create_req.password);
 
+    let (recovery_codes, hashed_recovery_codes) = generate_recovery_codes_with_hashes(4);
+
     // Create the user
     let mut user = User::new(
         create_req.username,
         password_hash,
+        create_req.email,
+        hashed_recovery_codes,
         create_req.permissions,
         create_req.group_permissions,
         create_req.role,
+        None,
     );
 
     // Set active status if provided
@@ -100,7 +108,10 @@ async fn create_user(
     }
 
     info!("User {} created successfully", user.username);
-    Ok(Json(UserResponse::from(user)))
+    Ok(Json(CreateUserResponse::new(
+        UserResponse::from(user),
+        recovery_codes,
+    )))
 }
 
 /// Get a user by username
@@ -195,26 +206,29 @@ async fn update_user(
     }
 
     // Get the current user state
-    let mut user = match get_user_from_db(&state, &username).await {
-        Ok(user) => user,
-        Err((status, error)) => {
-            return Err((status, error));
-        }
-    };
+    let mut user = get_user_from_db(&state, &username).await?;
 
     // Update fields based on request
     if let Some(password) = update_req.password {
         user.password_hash = generate_hash(&password);
     }
 
+    if let Some(favorite_spaces) = update_req.favorite_spaces {
+        // make  request favorite into unique list
+        let hash_set: std::collections::HashSet<_> = favorite_spaces.into_iter().collect();
+        user.favorite_spaces = hash_set.into_iter().collect();
+    }
+
     // Only admins can change permissions
     if is_admin {
         if let Some(permissions) = update_req.permissions {
-            user.permissions = permissions;
+            let hash_set: std::collections::HashSet<_> = permissions.into_iter().collect();
+            user.permissions = hash_set.into_iter().collect();
         }
 
         if let Some(group_permissions) = update_req.group_permissions {
-            user.group_permissions = group_permissions;
+            let hash_set: std::collections::HashSet<_> = group_permissions.into_iter().collect();
+            user.group_permissions = hash_set.into_iter().collect();
         }
 
         if let Some(active) = update_req.active {

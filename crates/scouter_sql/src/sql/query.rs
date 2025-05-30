@@ -118,6 +118,8 @@ pub enum Queries {
 }
 
 impl Queries {
+    // TODO: shouldn't we just return the string directly? Not sure if that's true for all db operations, I'm
+    // just noticing it in the few that im working on. (user related queries)
     pub fn get_query(&self) -> SqlQuery {
         match self {
             // load sql file from scripts/insert.sql

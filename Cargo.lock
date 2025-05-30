@@ -4820,6 +4820,7 @@ dependencies = [
  "jsonwebtoken",
  "password-auth",
  "rand 0.9.1",
+ "rayon",
  "scouter-sql",
  "serde",
  "thiserror 2.0.12",
