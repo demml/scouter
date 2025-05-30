@@ -344,6 +344,12 @@ impl PyScouterClient {
         )?;
 
         if response.status().is_client_error() || response.status().is_server_error() {
+            // print response text
+            error!(
+                "Failed to get PSI drift data. Status: {:?}",
+                response.status()
+            );
+            error!("Response text: {:?}", response.text());
             return Err(ClientError::GetDriftDataError);
         }
 

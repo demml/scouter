@@ -147,7 +147,7 @@ pub async fn get_profile(
     Query(params): Query<GetProfileRequest>,
     Extension(perms): Extension<UserPermissions>,
 ) -> Result<Json<DriftProfile>, (StatusCode, Json<ScouterServerError>)> {
-    if !perms.has_read_permission() {
+    if !perms.has_read_permission(&params.space) {
         return Err((
             StatusCode::FORBIDDEN,
             Json(ScouterServerError::permission_denied()),
