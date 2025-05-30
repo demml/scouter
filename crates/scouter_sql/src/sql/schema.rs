@@ -223,19 +223,27 @@ pub struct User {
     pub active: bool,
     pub username: String,
     pub password_hash: String,
+    pub hashed_recovery_codes: Vec<String>,
     pub permissions: Vec<String>,
     pub group_permissions: Vec<String>,
     pub role: String,
+    pub favorite_spaces: Vec<String>,
     pub refresh_token: Option<String>,
+    pub email: String,
+    pub updated_at: DateTime<Utc>,
 }
 
 impl User {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         username: String,
         password_hash: String,
+        email: String,
+        hashed_recovery_codes: Vec<String>,
         permissions: Option<Vec<String>>,
         group_permissions: Option<Vec<String>>,
         role: Option<String>,
+        favorite_spaces: Option<Vec<String>>,
     ) -> Self {
         let created_at = get_utc_datetime();
 
@@ -245,44 +253,56 @@ impl User {
             active: true,
             username,
             password_hash,
-            permissions: permissions.unwrap_or(vec!["read".to_string(), "write".to_string()]),
+            hashed_recovery_codes,
+            permissions: permissions.unwrap_or(vec!["read:all".to_string()]),
             group_permissions: group_permissions.unwrap_or(vec!["user".to_string()]),
+            favorite_spaces: favorite_spaces.unwrap_or_default(),
             role: role.unwrap_or("user".to_string()),
             refresh_token: None,
+            email,
+            updated_at: created_at,
         }
     }
 }
 
 impl FromRow<'_, PgRow> for User {
     fn from_row(row: &PgRow) -> Result<Self, sqlx::Error> {
-        let id: Option<i32> = row.try_get("id")?;
-        let created_at: DateTime<Utc> = row.try_get("created_at")?;
-        let active: bool = row.try_get("active")?;
-        let username: String = row.try_get("username")?;
-        let password_hash: String = row.try_get("password_hash")?;
+        let id = row.try_get("id")?;
+        let created_at = row.try_get("created_at")?;
+        let updated_at = row.try_get("updated_at")?;
+        let active = row.try_get("active")?;
+        let username = row.try_get("username")?;
+        let password_hash = row.try_get("password_hash")?;
+        let email = row.try_get("email")?;
+        let role = row.try_get("role")?;
+        let refresh_token = row.try_get("refresh_token")?;
 
-        // Deserialize JSON strings into Vec<String>
-        let permissions: serde_json::Value = row.try_get("permissions")?;
-        let permissions: Vec<String> = serde_json::from_value(permissions).unwrap_or_default();
-
-        let group_permissions: serde_json::Value = row.try_get("group_permissions")?;
         let group_permissions: Vec<String> =
-            serde_json::from_value(group_permissions).unwrap_or_default();
+            serde_json::from_value(row.try_get("group_permissions")?).unwrap_or_default();
 
-        let role: String = row.try_get("role")?;
+        let permissions: Vec<String> =
+            serde_json::from_value(row.try_get("permissions")?).unwrap_or_default();
 
-        let refresh_token: Option<String> = row.try_get("refresh_token")?;
+        let hashed_recovery_codes: Vec<String> =
+            serde_json::from_value(row.try_get("hashed_recovery_codes")?).unwrap_or_default();
+
+        let favorite_spaces: Vec<String> =
+            serde_json::from_value(row.try_get("favorite_spaces")?).unwrap_or_default();
 
         Ok(User {
             id,
             created_at,
+            updated_at,
             active,
             username,
             password_hash,
-            permissions,
-            group_permissions,
+            email,
             role,
             refresh_token,
+            hashed_recovery_codes,
+            permissions,
+            group_permissions,
+            favorite_spaces,
         })
     }
 }
