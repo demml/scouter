@@ -4091,7 +4091,7 @@ dependencies = [
 
 [[package]]
 name = "py-scouter"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "ndarray-stats",
  "num-traits",
@@ -4815,7 +4815,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scouter-auth"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "jsonwebtoken",
  "password-auth",
@@ -4828,7 +4828,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-client"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "chrono",
  "ndarray",
@@ -4854,7 +4854,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-dataframe"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -4877,7 +4877,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-dispatch"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "futures",
  "mockito",
@@ -4893,7 +4893,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-drift"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "approx",
  "chrono",
@@ -4924,7 +4924,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-events"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "async-trait",
  "chrono",
@@ -4958,7 +4958,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-observability"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "itertools 0.13.0",
  "ndarray",
@@ -4975,7 +4975,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-profile"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "approx",
  "chrono",
@@ -4999,7 +4999,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-server"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "approx",
@@ -5044,7 +5044,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-settings"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "base64",
  "pyo3",
@@ -5055,7 +5055,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-sql"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5077,7 +5077,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-types"
-version = "0.5.1"
+version = "0.5.2"
 dependencies = [
  "chrono",
  "colored_json",

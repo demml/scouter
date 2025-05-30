@@ -9,7 +9,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.5.1"
+version = "0.5.2"
 authors = [
       "Thorrester <support@demmlai.com>",
       "russellkemmit <support@demmlai.com>",
