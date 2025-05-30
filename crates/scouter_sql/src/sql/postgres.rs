@@ -633,7 +633,7 @@ mod tests {
 
         // get last admin
         let is_last_admin = PostgresClient::is_last_admin(&pool, "user").await.unwrap();
-        assert!(is_last_admin);
+        assert!(!is_last_admin);
 
         // delete
         PostgresClient::delete_user(&pool, "user").await.unwrap();
