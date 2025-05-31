@@ -10,14 +10,12 @@ use std::sync::Arc;
 
 #[derive(Serialize, Deserialize)]
 pub struct Alive {
-    pub status: String,
+    pub alive: bool,
 }
 
 impl Default for Alive {
     fn default() -> Self {
-        Self {
-            status: "Alive".to_string(),
-        }
+        Self { alive: true }
     }
 }
 

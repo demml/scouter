@@ -65,10 +65,10 @@ impl ScouterTestServer {
         }
     }
 
-    pub fn set_env_vars_for_client(&self) -> PyResult<()> {
+    pub fn set_env_vars_for_client(&self, port: u16) -> PyResult<()> {
         #[cfg(feature = "server")]
         {
-            std::env::set_var("SCOUTER_SERVER_URI", "http://localhost:8000");
+            std::env::set_var("SCOUTER_SERVER_URI", format!("http://localhost:{}", port));
             std::env::set_var("APP_ENV", "dev_client");
             Ok(())
         }
@@ -98,7 +98,7 @@ impl ScouterTestServer {
             let handle = self.handle.clone();
             let runtime = self.runtime.clone();
 
-            let port = match (8000..8010)
+            let port = match (3000..3010)
                 .find(|port| StdTcpListener::bind(("127.0.0.1", *port)).is_ok())
             {
                 Some(p) => p,
@@ -117,28 +117,32 @@ impl ScouterTestServer {
             });
 
             let client = reqwest::blocking::Client::new();
-            // get current time
-            let start_time = std::time::Instant::now();
-            let mut last_check = start_time.elapsed();
+            let mut attempts = 0;
+            let max_attempts = 30;
 
-            // wait for a max of 60 seconds for the server to start
-            while last_check.as_secs() < 60 {
+            while attempts < max_attempts {
+                println!(
+                    "Checking if Scouter Server is running at http://localhost:{}/scouter/healthcheck",
+                    port
+                );
                 let res = client
-                    .get("http://localhost:8000/scouter/healthcheck")
+                    .get(format!("http://localhost:{}/scouter/healthcheck", port))
                     .send();
-
                 if let Ok(response) = res {
                     if response.status() == 200 {
-                        self.set_env_vars_for_client()?;
+                        self.set_env_vars_for_client(port)?;
                         println!("Scouter Server started successfully");
                         return Ok(());
                     }
+                } else {
+                    let resp_msg = res.unwrap_err().to_string();
+                    println!("Scouter Server not yet ready: {}", resp_msg);
                 }
 
-                //print response
+                attempts += 1;
+                sleep(Duration::from_millis(100 + (attempts * 10)));
 
-                sleep(Duration::from_millis(100));
-                last_check = start_time.elapsed();
+                // set env vars for SCOUTER_TRACKING_URI
             }
 
             Err(TestServerError::StartServerError.into())

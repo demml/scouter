@@ -45,6 +45,10 @@ impl HTTPClient {
 
         api_client.refresh_token()?;
 
+        debug!(
+            "HTTPClient initialized with base path: {}",
+            api_client.base_path
+        );
         Ok(api_client)
     }
 

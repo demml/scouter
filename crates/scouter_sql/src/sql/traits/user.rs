@@ -20,20 +20,23 @@ pub trait UserSqlLogic {
     async fn insert_user(pool: &Pool<Postgres>, user: &User) -> Result<(), SqlError> {
         let query = Queries::InsertUser.get_query();
 
+        let hashed_recovery_codes = serde_json::to_value(&user.hashed_recovery_codes)?;
         let group_permissions = serde_json::to_value(&user.group_permissions)?;
-
         let permissions = serde_json::to_value(&user.permissions)?;
+        let favorite_spaces = serde_json::to_value(&user.favorite_spaces)?;
 
         sqlx::query(&query.sql)
             .bind(&user.username)
             .bind(&user.password_hash)
+            .bind(&hashed_recovery_codes)
             .bind(&permissions)
             .bind(&group_permissions)
+            .bind(&favorite_spaces)
             .bind(&user.role)
             .bind(user.active)
+            .bind(&user.email)
             .execute(pool)
-            .await
-            .map_err(SqlError::SqlxError)?;
+            .await?;
 
         Ok(())
     }
@@ -70,20 +73,23 @@ pub trait UserSqlLogic {
     async fn update_user(pool: &Pool<Postgres>, user: &User) -> Result<(), SqlError> {
         let query = Queries::UpdateUser.get_query();
 
+        let hashed_recovery_codes = serde_json::to_value(&user.hashed_recovery_codes)?;
         let group_permissions = serde_json::to_value(&user.group_permissions)?;
-
         let permissions = serde_json::to_value(&user.permissions)?;
+        let favorite_spaces = serde_json::to_value(&user.favorite_spaces)?;
 
         sqlx::query(&query.sql)
             .bind(user.active)
             .bind(&user.password_hash)
+            .bind(&hashed_recovery_codes)
             .bind(&permissions)
             .bind(&group_permissions)
+            .bind(&favorite_spaces)
             .bind(&user.refresh_token)
+            .bind(&user.email)
             .bind(&user.username)
             .execute(pool)
-            .await
-            .map_err(SqlError::SqlxError)?;
+            .await?;
 
         Ok(())
     }

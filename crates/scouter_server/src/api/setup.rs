@@ -2,7 +2,9 @@ use crate::api::archive::DataArchiver;
 use crate::api::drift_manager::BackgroundDriftManager;
 use anyhow::{Context, Result as AnyhowResult};
 use flume::Sender;
+use password_auth::generate_hash;
 use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
+use scouter_auth::util::generate_recovery_codes_with_hashes;
 use scouter_settings::{
     DatabaseSettings, KafkaSettings, PollingSettings, RabbitMQSettings, ScouterServerConfig,
 };
@@ -148,13 +150,18 @@ impl ScouterSetupComponents {
             std::env::var("SCOUTER_DEFAULT_PASSWORD").unwrap_or("admin".to_string());
         let password_hash = password_auth::generate_hash(&default_password);
 
+        let (_, hashed_recovery_codes) = generate_recovery_codes_with_hashes(1);
+
         // Create admin user with admin permissions
         let admin_user = User::new(
             default_username.clone(),
             password_hash,
-            Some(vec!["read".to_string(), "write".to_string()]), // permissions
-            Some(vec!["admin".to_string()]),                     // group_permissions
-            Some("admin".to_string()),                           // role
+            "admin".to_string(),
+            hashed_recovery_codes, // recovery codes
+            Some(vec!["read:all".to_string(), "write:all".to_string()]), // permissions
+            Some(vec!["admin".to_string()]), // group_permissions
+            Some("admin".to_string()), // role
+            None,
         );
 
         // Insert the user
@@ -162,15 +169,23 @@ impl ScouterSetupComponents {
             .await
             .context("❌ Failed to create default admin user")?;
 
+        let (_, hashed_recovery_codes) = generate_recovery_codes_with_hashes(1);
+
         // create guest user
         let guest_user = User::new(
             "guest".to_string(),
-            password_auth::generate_hash("guest"),
-            Some(vec!["read".to_string(), "write:all".to_string()]),
+            generate_hash("guest"),
+            "default".to_string(),
+            hashed_recovery_codes,
+            Some(vec![
+                "read:all".to_string(),
+                "write:all".to_string(),
+                "delete:all".to_string(),
+            ]),
             Some(vec!["user".to_string()]),
             Some("guest".to_string()),
+            None,
         );
-
         // Insert the user
         PostgresClient::insert_user(db_pool, &guest_user)
             .await

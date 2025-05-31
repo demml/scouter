@@ -589,14 +589,18 @@ mod tests {
     #[tokio::test]
     async fn test_postgres_user() {
         let pool = db_pool().await;
+        let recovery_codes = vec!["recovery_code_1".to_string(), "recovery_code_2".to_string()];
 
         // Create
         let user = User::new(
             "user".to_string(),
             "pass".to_string(),
+            "email".to_string(),
+            recovery_codes,
             None,
             None,
-            Some("admin".to_string()),
+            None,
+            None,
         );
         PostgresClient::insert_user(&pool, &user).await.unwrap();
 
@@ -605,7 +609,10 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
+
         assert_eq!(user.username, "user");
+        assert_eq!(user.group_permissions, vec!["user"]);
+        assert_eq!(user.email, "email");
 
         // update user
         user.active = false;
@@ -626,7 +633,7 @@ mod tests {
 
         // get last admin
         let is_last_admin = PostgresClient::is_last_admin(&pool, "user").await.unwrap();
-        assert!(is_last_admin);
+        assert!(!is_last_admin);
 
         // delete
         PostgresClient::delete_user(&pool, "user").await.unwrap();

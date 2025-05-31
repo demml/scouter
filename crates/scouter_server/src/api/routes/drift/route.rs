@@ -34,7 +34,7 @@ pub async fn get_spc_drift(
 
     debug!("Querying drift records: {:?}", params);
 
-    if !perms.has_read_permission() {
+    if !perms.has_read_permission(&params.space) {
         return Err((
             StatusCode::FORBIDDEN,
             Json(ScouterServerError::permission_denied()),
@@ -114,7 +114,9 @@ pub async fn get_psi_drift(
     Extension(perms): Extension<UserPermissions>,
 ) -> Result<Json<BinnedPsiFeatureMetrics>, (StatusCode, Json<ScouterServerError>)> {
     //1. check for permissions
-    if !perms.has_read_permission() {
+    if !perms.has_read_permission(&params.space) {
+        error!("User does not have read permission for drift data");
+        // list user permissions
         return Err((
             StatusCode::FORBIDDEN,
             Json(ScouterServerError::permission_denied()),
@@ -146,7 +148,7 @@ pub async fn get_custom_drift(
 ) -> Result<Json<BinnedCustomMetrics>, (StatusCode, Json<ScouterServerError>)> {
     // validate time window
 
-    if !perms.has_read_permission() {
+    if !perms.has_read_permission(&params.space) {
         return Err((
             StatusCode::FORBIDDEN,
             Json(ScouterServerError::permission_denied()),
