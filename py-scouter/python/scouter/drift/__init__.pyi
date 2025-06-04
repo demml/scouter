@@ -331,6 +331,7 @@ class PsiDriftConfig:
         version: str = "0.1.0",
         alert_config: PsiAlertConfig = PsiAlertConfig(),
         config_path: Optional[Path] = None,
+        categorical_features: Optional[list[str]] = None
     ):
         """Initialize monitor config
 
@@ -345,6 +346,8 @@ class PsiDriftConfig:
                 Alert configuration
             config_path:
                 Optional path to load config from.
+            categorical_features:
+                List of features to treat as categorical for PSI calculation.
         """
 
     @property
@@ -520,7 +523,6 @@ class Bin:
         """Return the proportion of data found in the bin."""
 
 class BinType:
-    Binary: "BinType"
     Numeric: "BinType"
     Category: "BinType"
 

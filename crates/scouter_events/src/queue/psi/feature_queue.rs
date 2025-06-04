@@ -56,40 +56,6 @@ impl PsiFeatureQueue {
     }
 
     #[instrument(skip_all)]
-    fn process_binary_queue(
-        feature: &str,
-        queue: &mut HashMap<usize, usize>,
-        value: f64,
-    ) -> Result<(), FeatureQueueError> {
-        if value == 0.0 {
-            let bin_id = 0;
-            let count = queue
-                .get_mut(&bin_id)
-                .ok_or(FeatureQueueError::GetBinError)
-                .inspect_err(|e| {
-                    error!("Error processing binary queue: {:?}", e);
-                })?;
-            *count += 1;
-        } else if value == 1.0 {
-            let bin_id = 1;
-            let count = queue
-                .get_mut(&bin_id)
-                .ok_or(FeatureQueueError::GetBinError)
-                .inspect_err(|e| {
-                    error!("Error processing binary queue: {:?}", e);
-                })?;
-            *count += 1;
-        } else {
-            error!("Failed to convert binary value");
-            return Err(FeatureQueueError::InvalidValueError(
-                feature.to_string(),
-                "failed to convert binary value".to_string(),
-            ));
-        }
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
     fn process_categorical_queue(
         queue: &mut HashMap<usize, usize>,
         value: &usize,
@@ -158,7 +124,7 @@ impl PsiFeatureQueue {
                     .ok_or(FeatureQueueError::GetFeatureError)?;
 
                 match feature_drift_profile.bin_type {
-                    BinType::Numeric | BinType::Binary => {
+                    BinType::Numeric => {
                         let value = feature.to_float(feat_map).map_err(|e| {
                             error!("Error converting feature to float: {:?}", e);
                             FeatureQueueError::InvalidValueError(
@@ -167,13 +133,7 @@ impl PsiFeatureQueue {
                             )
                         })?;
 
-                        match feature_drift_profile.bin_type {
-                            BinType::Numeric => Self::process_numeric_queue(queue, value, bins)?,
-                            BinType::Binary => {
-                                Self::process_binary_queue(feature.name(), queue, value)?
-                            }
-                            _ => unreachable!(),
-                        }
+                        Self::process_numeric_queue(queue, value, bins)?
                     }
                     BinType::Category => {
                         let value = self
@@ -282,7 +242,7 @@ mod tests {
             features_to_monitor: features.clone(),
             ..Default::default()
         };
-        let config = PsiDriftConfig::new("name", "repo", DEFAULT_VERSION, alert_config, None);
+        let config = PsiDriftConfig::new("name", "repo", DEFAULT_VERSION, alert_config, None, None);
 
         let profile = monitor
             .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
