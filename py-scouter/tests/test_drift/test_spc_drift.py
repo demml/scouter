@@ -115,11 +115,11 @@ def test_alerts_control(array: NDArray, drift_config: SpcDriftConfig):
 def test_multi_type_drift(
     polars_dataframe_multi_dtype: pl.DataFrame,
     polars_dataframe_multi_dtype_drift: pl.DataFrame,
-    drift_config: SpcDriftConfig,
+    multi_dtype_spc_drift_config: SpcDriftConfig,
 ):
     drifter = Drifter()
 
-    profile: SpcDriftProfile = drifter.create_drift_profile(polars_dataframe_multi_dtype, drift_config)
+    profile: SpcDriftProfile = drifter.create_drift_profile(polars_dataframe_multi_dtype, multi_dtype_spc_drift_config)
 
     drift_map = drifter.compute_drift(polars_dataframe_multi_dtype_drift, profile)
     assert len(drift_map.features) == 5
@@ -139,13 +139,13 @@ def test_only_string_drift(pandas_categorical_dataframe: pd.DataFrame, drift_con
 
 def test_data_pyarrow_mixed_type(
     polars_dataframe_multi_dtype: pl.DataFrame,
-    drift_config: SpcDriftConfig,
+    multi_dtype_spc_drift_config: SpcDriftConfig,
 ):
     arrow_table = polars_dataframe_multi_dtype.to_arrow()
 
     drifter = Drifter()
 
-    profile: SpcDriftProfile = drifter.create_drift_profile(arrow_table, drift_config)
+    profile: SpcDriftProfile = drifter.create_drift_profile(arrow_table, multi_dtype_spc_drift_config)
     drift_map = drifter.compute_drift(arrow_table, profile)
 
     assert len(drift_map.features) == 5

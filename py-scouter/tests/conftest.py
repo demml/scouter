@@ -88,7 +88,19 @@ def drift_config() -> YieldFixture[SpcDriftConfig]:
         name="test",
         space="test",
         alert_config=SpcAlertConfig(
-            features_to_monitor=["column_0", "column_1", "column_2"],
+            features_to_monitor=["feature_0", "feature_1", "feature_2"],
+        ),
+    )
+    yield config
+
+
+@pytest.fixture(scope="function")
+def multi_dtype_spc_drift_config() -> YieldFixture[SpcDriftConfig]:
+    config = SpcDriftConfig(
+        name="test",
+        space="test",
+        alert_config=SpcAlertConfig(
+            features_to_monitor=["cat1", "num1", "num2", "num3", "cat2"],
         ),
     )
     yield config
@@ -100,8 +112,34 @@ def psi_drift_config() -> YieldFixture[PsiDriftConfig]:
         name="test",
         space="test",
         alert_config=PsiAlertConfig(
-            features_to_monitor=["column_0", "column_1", "column_2"],
+            features_to_monitor=["feature_0", "feature_1", "feature_2"],
         ),
+    )
+    yield config
+
+
+@pytest.fixture(scope="function")
+def psi_drift_config_with_categorical_features() -> YieldFixture[PsiDriftConfig]:
+    config = PsiDriftConfig(
+        name="test",
+        space="test",
+        alert_config=PsiAlertConfig(
+            features_to_monitor=["feature_0", "feature_1", "feature_2"],
+        ),
+        categorical_features=["feature_0", "feature_1", "feature_2"],
+    )
+    yield config
+
+
+@pytest.fixture(scope="function")
+def multi_dtype_psi_drift_config() -> YieldFixture[PsiDriftConfig]:
+    config = PsiDriftConfig(
+        name="test",
+        space="test",
+        alert_config=PsiAlertConfig(
+            features_to_monitor=["cat1", "num1", "num2", "num3", "cat2"],
+        ),
+        categorical_features=["cat1", "cat2"],
     )
     yield config
 
@@ -111,7 +149,7 @@ def pandas_dataframe(array: NDArray) -> YieldFixture:
     df = pd.DataFrame(array)
 
     # change column names
-    df.rename(columns={0: "column_0", 1: "column_1", 2: "column_2"}, inplace=True)
+    df.rename(columns={0: "feature_0", 1: "feature_1", 2: "feature_2"}, inplace=True)
 
     yield df
 
@@ -206,9 +244,9 @@ def polars_dataframe_multi_dtype_drift(array: NDArray) -> YieldFixture:
 def pandas_categorical_dataframe() -> YieldFixture:
     df = pd.DataFrame(
         {
-            "cat1": pd.Categorical(["a", "b", "c", "e", "f", "g"] * 333),
-            "cat2": pd.Categorical(["h", "i", "j", "k", "l", "m"] * 333),
-            "cat3": pd.Categorical(["n", "o", "p", "q", "r", "s"] * 333),
+            "feature_0": pd.Categorical(["a", "b", "c", "e", "f", "g"] * 333),
+            "feature_1": pd.Categorical(["h", "i", "j", "k", "l", "m"] * 333),
+            "feature_2": pd.Categorical(["n", "o", "p", "q", "r", "s"] * 333),
         }
     )
 

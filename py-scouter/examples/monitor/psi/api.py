@@ -18,7 +18,6 @@ from scouter import (  # type: ignore
     ScouterClient,
     ScouterQueue,
 )
-from scouter.alert import SlackDispatchConfig
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.util import FeatureMixin
 
@@ -49,6 +48,7 @@ class PredictRequest(BaseModel, FeatureMixin):
             ]
         )
 
+
 def generate_data() -> pd.DataFrame:
     """Create a fake data frame for testing"""
     n = 10_000
@@ -58,7 +58,7 @@ def generate_data() -> pd.DataFrame:
         col_names.append(f"feature_{i}")
     X = pd.DataFrame(X_train, columns=col_names)
 
-    X['category'] = np.random.choice([11, 12, 22, 31, 14], size=n)
+    X["category"] = np.random.choice([11, 12, 22, 31, 14], size=n)
 
     return X
 
@@ -95,7 +95,7 @@ def create_psi_profile() -> Path:
                 "feature_2",
             ],
         ),
-        categorical_features=["category"]
+        categorical_features=["category"],
     )
 
     # create psi profile

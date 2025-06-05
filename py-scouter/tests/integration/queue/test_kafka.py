@@ -38,9 +38,9 @@ def test_spc_monitor_pandas_kafka(
     for record in records:
         features = Features(
             features=[
-                Feature.float("column_0", record["column_0"]),
-                Feature.float("column_1", record["column_1"]),
-                Feature.float("column_2", record["column_2"]),
+                Feature.float("feature_0", record["feature_0"]),
+                Feature.float("feature_1", record["feature_0"]),
+                Feature.float("feature_2", record["feature_2"]),
             ]
         )
         queue["a"].insert(features)
@@ -59,4 +59,4 @@ def test_spc_monitor_pandas_kafka(
         )
     )
 
-    assert len(binned_records.features["column_0"].values) > 0
+    assert len(binned_records.features["feature_0"].values) > 0
