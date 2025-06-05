@@ -124,6 +124,14 @@ impl Feature {
             Feature::String(feature) => &feature.name,
         }
     }
+
+    pub fn to_usize(&self, feature_map: &FeatureMap) -> Result<usize, TypeError> {
+        match self {
+            Feature::Int(f) => Ok(f.value as usize),
+            Feature::Float(f) => Ok(f.value as usize),
+            Feature::String(f) => Ok(f.to_float(feature_map)? as usize),
+        }
+    }
 }
 
 impl Display for Feature {

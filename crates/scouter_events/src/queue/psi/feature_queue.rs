@@ -134,28 +134,17 @@ impl PsiFeatureQueue {
 
                         Self::process_numeric_queue(queue, value, bins)?
                     }
-                    BinType::Category => match feature {
-                        Feature::Int(int_feature) => {
-                            let value = int_feature.value as usize;
-                            Self::process_categorical_queue(queue, &value)?;
-                        }
-                        Feature::Float(float_feature) => {
-                            let value = float_feature.value as usize;
-                            Self::process_categorical_queue(queue, &value)?;
-                        }
-                        Feature::String(string_feature) => {
-                            let value = self
-                                .drift_profile
-                                .config
-                                .feature_map
-                                .features
-                                .get(&name)
-                                .ok_or(FeatureQueueError::GetFeatureError)?
-                                .get(&string_feature.value)
-                                .ok_or(FeatureQueueError::GetFeatureError)?;
-                            Self::process_categorical_queue(queue, value)?;
-                        }
-                    },
+                    BinType::Category => {
+                        let value = feature.to_usize(feat_map).map_err(|e| {
+                            error!("Error converting feature to usize: {:?}", e);
+                            FeatureQueueError::InvalidValueError(
+                                feature.name().to_string(),
+                                e.to_string(),
+                            )
+                        })?;
+
+                        Self::process_categorical_queue(queue, &value)?
+                    }
                 }
             }
         }
