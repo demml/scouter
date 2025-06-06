@@ -1,5 +1,3 @@
-import pandas as pd
-import polars as pl
 import pytest
 from numpy.typing import NDArray
 from scouter import (  # type: ignore[attr-defined]

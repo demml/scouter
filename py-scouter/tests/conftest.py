@@ -5,10 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from numpy.typing import NDArray
-from scouter.alert import (
-    CustomMetricAlertConfig,
-    SlackDispatchConfig,
-)
+from scouter.alert import CustomMetricAlertConfig, SlackDispatchConfig
 from scouter.drift import CustomMetricDriftConfig, PsiDriftConfig, SpcDriftConfig
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 
@@ -85,6 +82,7 @@ def feature_names() -> YieldFixture[list[str]]:
     features = ["feature_0", "feature_1", "feature_2"]
     yield features
 
+
 @pytest.fixture(scope="function")
 def cat_feature_names() -> YieldFixture[list[str]]:
     features = ["cat_feature_0", "cat_feature_1", "cat_feature_2"]
@@ -121,9 +119,7 @@ def psi_drift_config_with_categorical_features(cat_feature_names: list[str]) -> 
 
 @pytest.fixture(scope="function")
 def pandas_dataframe(array: NDArray, feature_names: list[str]) -> YieldFixture:
-    df = pd.DataFrame(array)
-
-    df.columns = feature_names
+    df = pd.DataFrame(array, columns=feature_names)
 
     yield df
 
@@ -155,16 +151,11 @@ def categorical_polars_dataframe(cat_feature_names: list[str], nrow: int) -> Yie
 
     df = pl.from_numpy(array, schema=cat_feature_names)
 
-    df = df.with_columns(
-        [
-            pl.col(column_name).cast(str).cast(pl.Categorical) for column_name in cat_feature_names
-        ]
-    )
+    df = df.with_columns([pl.col(column_name).cast(str).cast(pl.Categorical) for column_name in cat_feature_names])
 
     yield df
 
     cleanup()
-
 
 
 @pytest.fixture(scope="function")
@@ -187,9 +178,7 @@ def polars_dataframe_multi_dtype_drift(polars_dataframe_multi_dtype, cat_feature
 
     # Scale the first categorical column
     first_cat_col = cat_feature_names[0]
-    df = df.with_columns(
-        (pl.col(first_cat_col).cast(pl.Int32) + 3).cast(str).cast(pl.Categorical).alias(first_cat_col)
-    )
+    df = df.with_columns((pl.col(first_cat_col).cast(pl.Int32) + 3).cast(str).cast(pl.Categorical).alias(first_cat_col))
 
     yield df
     cleanup()
@@ -199,7 +188,7 @@ def polars_dataframe_multi_dtype_drift(polars_dataframe_multi_dtype, cat_feature
 def pandas_categorical_dataframe(cat_feature_names: list[str]) -> YieldFixture:
     data = {}
     for i, col_name in enumerate(cat_feature_names):
-        start_letter = ord('a') + (i * 6)
+        start_letter = ord("a") + (i * 6)
         categories = [chr(start_letter + j) for j in range(6)]
         data[col_name] = pd.Categorical(categories * 333)
 
