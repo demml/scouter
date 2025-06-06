@@ -130,7 +130,7 @@ impl PsiMonitor {
         drift_config: &PsiDriftConfig,
     ) -> Result<(Vec<Bin>, BinType), DriftError>
     where
-        F: Float + FromPrimitive + Default + Sync + PartialOrd,
+        F: Float + FromPrimitive + Default + Sync,
         F: Into<f64>,
     {
         match &drift_config.categorical_features {
@@ -155,7 +155,7 @@ impl PsiMonitor {
         drift_config: &PsiDriftConfig,
     ) -> Result<PsiFeatureDriftProfile, DriftError>
     where
-        F: Float + Sync + FromPrimitive + Default + PartialOrd,
+        F: Float + Sync + FromPrimitive + Default,
         F: Into<f64>,
     {
         let (bins, bin_type) = self.create_bins(&feature_name, column_vector, drift_config)?;
@@ -175,7 +175,7 @@ impl PsiMonitor {
         drift_config: &PsiDriftConfig,
     ) -> Result<PsiDriftProfile, DriftError>
     where
-        F: Float + Sync + FromPrimitive + Default + PartialOrd,
+        F: Float + Sync + FromPrimitive + Default,
         F: Into<f64>,
     {
         let mut psi_feature_drift_profiles = HashMap::new();
