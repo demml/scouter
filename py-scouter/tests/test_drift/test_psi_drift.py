@@ -65,13 +65,13 @@ def test_only_string_drift_psi(
 
 def test_data_pyarrow_mixed_type(
     polars_dataframe_multi_dtype: pl.DataFrame,
-    multi_dtype_psi_drift_config: PsiDriftConfig,
+    psi_drift_config_with_categorical_features: PsiDriftConfig,
 ):
     arrow_table = polars_dataframe_multi_dtype.to_arrow()
 
     drifter = Drifter()
 
-    profile: PsiDriftProfile = drifter.create_drift_profile(arrow_table, multi_dtype_psi_drift_config)
+    profile: PsiDriftProfile = drifter.create_drift_profile(arrow_table, psi_drift_config_with_categorical_features)
     drift_map = drifter.compute_drift(arrow_table, profile)
 
-    assert len(drift_map.features) == 5
+    assert len(drift_map.features) == 6

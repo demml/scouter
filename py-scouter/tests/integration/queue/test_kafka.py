@@ -37,11 +37,7 @@ def test_spc_monitor_pandas_kafka(
 
     for record in records:
         features = Features(
-            features=[
-                Feature.float("feature_0", record["feature_0"]),
-                Feature.float("feature_1", record["feature_0"]),
-                Feature.float("feature_2", record["feature_2"]),
-            ]
+            features=[Feature.float(column_name, record[column_name]) for column_name in pandas_dataframe.columns]
         )
         queue["a"].insert(features)
 

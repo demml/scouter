@@ -39,11 +39,7 @@ def test_psi_monitor_pandas_http(
     records = pandas_dataframe.to_dict(orient="records")
     for record in records:
         features = Features(
-            features=[
-                Feature.float("feature_0", record["feature_0"]),
-                Feature.float("feature_1", record["feature_1"]),
-                Feature.float("feature_2", record["feature_2"]),
-            ]
+            features=[Feature.float(column_name, record[column_name]) for column_name in pandas_dataframe.columns]
         )
         # 3. Send records to Scouter
         queue["a"].insert(features)
