@@ -57,6 +57,9 @@ def generate_data() -> pd.DataFrame:
     for i in range(0, X_train.shape[1]):
         col_names.append(f"feature_{i}")
     X = pd.DataFrame(X_train, columns=col_names)
+
+    X["category"] = np.random.choice([11, 12, 22, 31, 14], size=n)
+
     return X
 
 
@@ -80,7 +83,6 @@ def create_psi_profile() -> Path:
 
     # create fake data
     data = generate_data()
-
     # create psi configuration
     psi_config = PsiDriftConfig(
         space="scouter",
@@ -93,6 +95,7 @@ def create_psi_profile() -> Path:
                 "feature_2",
             ],
         ),
+        categorical_features=["category"],
     )
 
     # create psi profile

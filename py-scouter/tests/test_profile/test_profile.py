@@ -93,11 +93,11 @@ def test_data_profile_polars_mixed_type(
     scouter = DataProfiler()
     profile: DataProfile = scouter.create_data_profile(polars_dataframe_multi_dtype)
 
-    assert profile.features["cat2"].string_stats.distinct.count == 3
-    assert profile.features["cat2"].string_stats.word_stats.words["3.0"].percent == pytest.approx(0.352, abs=0.1)
+    assert profile.features["cat_feature_0"].string_stats.distinct.count == 3
+    assert profile.features["cat_feature_0"].string_stats.word_stats.words["3"].percent == pytest.approx(0.323, abs=0.1)
 
-    assert profile.features["cat1"].string_stats.distinct.count == 5
-    assert profile.features["cat1"].string_stats.word_stats.words["7.0"].percent == pytest.approx(0.19, abs=0.1)
+    assert profile.features["cat_feature_1"].string_stats.distinct.count == 5
+    assert profile.features["cat_feature_1"].string_stats.word_stats.words["7"].percent == pytest.approx(0.22, abs=0.1)
 
 
 def test_data_profile_pandas_mixed_type(
@@ -106,11 +106,11 @@ def test_data_profile_pandas_mixed_type(
     scouter = DataProfiler()
     profile: DataProfile = scouter.create_data_profile(polars_dataframe_multi_dtype.to_pandas())
 
-    assert profile.features["cat2"].string_stats.distinct.count == 3
-    assert profile.features["cat2"].string_stats.word_stats.words["3.0"].percent == pytest.approx(0.352, abs=0.1)
+    assert profile.features["cat_feature_0"].string_stats.distinct.count == 3
+    assert profile.features["cat_feature_0"].string_stats.word_stats.words["3"].percent == pytest.approx(0.323, abs=0.1)
 
-    assert profile.features["cat1"].string_stats.distinct.count == 5
-    assert profile.features["cat1"].string_stats.word_stats.words["7.0"].percent == pytest.approx(0.19, abs=0.1)
+    assert profile.features["cat_feature_1"].string_stats.distinct.count == 5
+    assert profile.features["cat_feature_1"].string_stats.word_stats.words["7"].percent == pytest.approx(0.22, abs=0.1)
 
 
 def test_data_profile_pyarrow_mixed_type(
@@ -121,8 +121,8 @@ def test_data_profile_pyarrow_mixed_type(
     scouter = DataProfiler()
     profile: DataProfile = scouter.create_data_profile(arrow_table)
 
-    assert profile.features["cat2"].string_stats.distinct.count == 3
-    assert profile.features["cat2"].string_stats.word_stats.words["3.0"].percent == pytest.approx(0.352, abs=0.1)
+    assert profile.features["cat_feature_0"].string_stats.distinct.count == 3
+    assert profile.features["cat_feature_0"].string_stats.word_stats.words["3"].percent == pytest.approx(0.323, abs=0.1)
 
-    assert profile.features["cat1"].string_stats.distinct.count == 5
-    assert profile.features["cat1"].string_stats.word_stats.words["7.0"].percent == pytest.approx(0.19, abs=0.1)
+    assert profile.features["cat_feature_1"].string_stats.distinct.count == 5
+    assert profile.features["cat_feature_1"].string_stats.word_stats.words["7"].percent == pytest.approx(0.22, abs=0.1)
