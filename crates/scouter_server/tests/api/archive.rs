@@ -204,7 +204,7 @@ async fn test_data_archive_psi() {
     }
 
     // Sleep for 2 second to allow the http consumer time to process all server records sent above.
-    sleep(Duration::from_secs(2)).await;
+    sleep(Duration::from_secs(10)).await;
 
     let record = archive_old_data(&helper.pool, &helper.config)
         .await

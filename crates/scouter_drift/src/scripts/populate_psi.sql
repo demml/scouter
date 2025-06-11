@@ -297,7 +297,7 @@ VALUES
                         "feature_2",
                         "feature_3"
                       ],
-                      "psi_threshold": 0.03
+                      "threshold_config": null
                     },
                     "drift_type": "Psi"
                   },

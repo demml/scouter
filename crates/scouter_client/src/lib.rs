@@ -18,7 +18,7 @@ pub use scouter_types::{
     },
     psi::{
         Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiDriftConfig, PsiDriftMap,
-        PsiDriftProfile, PsiFeatureDriftProfile,
+        PsiDriftProfile, PsiFeatureDriftProfile, PsiFixedThreshold, PsiChiSquareThreshold, PsiNormalThreshold
     },
     spc::{
         AlertZone, SpcAlert, SpcAlertConfig, SpcAlertRule, SpcAlertType, SpcDriftConfig,

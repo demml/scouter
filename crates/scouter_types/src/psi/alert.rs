@@ -1,14 +1,88 @@
 use crate::error::TypeError;
-use crate::{
-    AlertDispatchConfig, AlertDispatchType, CommonCrons, DispatchAlertDescription,
-    OpsGenieDispatchConfig, SlackDispatchConfig, ValidateAlertConfig,
-};
+use crate::{AlertDispatchConfig, AlertDispatchType, CommonCrons, DispatchAlertDescription, OpsGenieDispatchConfig, SlackDispatchConfig, ValidateAlertConfig};
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyString;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use tracing::error;
+use pyo3::IntoPyObjectExt;
+
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub enum PsiThresholdConfig {
+    Normal(PsiNormalThreshold),
+    ChiSquare(PsiChiSquareThreshold),
+    Fixed(PsiFixedThreshold),
+}
+
+impl PsiThresholdConfig {
+    pub fn config<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        match self {
+            PsiThresholdConfig::Normal(config) => config.clone().into_bound_py_any(py),
+            PsiThresholdConfig::ChiSquare(config) => config.clone().into_bound_py_any(py),
+            PsiThresholdConfig::Fixed(config) => config.clone().into_bound_py_any(py),
+        }
+    }
+}
+
+#[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct PsiNormalThreshold {
+    #[pyo3(get, set)]
+    pub alpha: f64,
+}
+
+#[pymethods]
+impl PsiNormalThreshold {
+    #[new]
+    pub fn new(alpha: f64) -> PyResult<Self> {
+        if !(0.0..1.0).contains(&alpha) {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "alpha must be between 0.0 and 1.0 (exclusive)"
+            ));
+        }
+        Ok(Self { alpha })
+    }
+}
+
+#[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct PsiChiSquareThreshold {
+    #[pyo3(get, set)]
+    pub alpha: f64,
+}
+
+#[pymethods]
+impl PsiChiSquareThreshold {
+    #[new]
+    pub fn new(alpha: f64) -> PyResult<Self> {
+        if !(0.0..1.0).contains(&alpha) {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "alpha must be between 0.0 and 1.0 (exclusive)"
+            ));
+        }
+        Ok(Self { alpha })
+    }
+}
+
+#[pyclass]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub struct PsiFixedThreshold {
+    #[pyo3(get, set)]
+    pub threshold: f64,
+}
+
+#[pymethods]
+impl PsiFixedThreshold {
+    #[new]
+    pub fn new(threshold: f64) -> PyResult<Self> {
+        if threshold < 0.0 {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "Threshold values must be non-zero"
+            ));
+        }
+        Ok(Self { threshold })
+    }
+}
 
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
@@ -19,10 +93,9 @@ pub struct PsiAlertConfig {
     #[pyo3(get, set)]
     pub features_to_monitor: Vec<String>,
 
-    #[pyo3(get, set)]
-    pub psi_threshold: f64,
-
     pub dispatch_config: AlertDispatchConfig,
+
+    pub threshold_config: Option<PsiThresholdConfig>
 }
 
 impl Default for PsiAlertConfig {
@@ -30,8 +103,8 @@ impl Default for PsiAlertConfig {
         Self {
             schedule: CommonCrons::EveryDay.cron(),
             features_to_monitor: Vec::new(),
-            psi_threshold: 0.25,
             dispatch_config: AlertDispatchConfig::default(),
+            threshold_config: None,
         }
     }
 }
@@ -41,22 +114,38 @@ impl ValidateAlertConfig for PsiAlertConfig {}
 #[pymethods]
 impl PsiAlertConfig {
     #[new]
-    #[pyo3(signature = (schedule=None, features_to_monitor=vec![], psi_threshold=0.25, dispatch_config=None))]
+    #[pyo3(signature = (schedule=None, features_to_monitor=vec![], dispatch_config=None, threshold_config=None))]
     pub fn new(
         schedule: Option<&Bound<'_, PyAny>>,
         features_to_monitor: Vec<String>,
-        psi_threshold: f64,
         dispatch_config: Option<&Bound<'_, PyAny>>,
+        threshold_config: Option<&Bound<'_, PyAny>>,
     ) -> Result<Self, TypeError> {
-        let alert_dispatch_config = match dispatch_config {
+
+        let dispatch_config = match dispatch_config {
             None => AlertDispatchConfig::default(),
             Some(config) => {
                 if config.is_instance_of::<SlackDispatchConfig>() {
-                    AlertDispatchConfig::Slack(config.extract::<SlackDispatchConfig>()?)
+                    AlertDispatchConfig::Slack(config.extract()?)
                 } else if config.is_instance_of::<OpsGenieDispatchConfig>() {
-                    AlertDispatchConfig::OpsGenie(config.extract::<OpsGenieDispatchConfig>()?)
+                    AlertDispatchConfig::OpsGenie(config.extract()?)
                 } else {
-                    AlertDispatchConfig::default()
+                    return Err(TypeError::InvalidDispatchConfigError);
+                }
+            }
+        };
+
+        let threshold_config = match threshold_config {
+            None => None,
+            Some(config) => {
+                if config.is_instance_of::<PsiNormalThreshold>() {
+                    Some(PsiThresholdConfig::Normal(config.extract()?))
+                } else if config.is_instance_of::<PsiChiSquareThreshold>() {
+                    Some(PsiThresholdConfig::ChiSquare(config.extract()?))
+                } else if config.is_instance_of::<PsiFixedThreshold>() {  // ← Fixed bug
+                    Some(PsiThresholdConfig::Fixed(config.extract()?))
+                } else {
+                    return Err(TypeError::InvalidPsiThresholdConfigError);
                 }
             }
         };
@@ -66,10 +155,9 @@ impl PsiAlertConfig {
                 if schedule.is_instance_of::<PyString>() {
                     schedule.to_string()
                 } else if schedule.is_instance_of::<CommonCrons>() {
-                    schedule.extract::<CommonCrons>().unwrap().cron()
+                    schedule.extract::<CommonCrons>()?.cron()
                 } else {
-                    error!("Invalid schedule type");
-                    return Err(TypeError::InvalidScheduleError)?;
+                    return Err(TypeError::InvalidScheduleError);
                 }
             }
             None => CommonCrons::EveryDay.cron(),
@@ -80,11 +168,10 @@ impl PsiAlertConfig {
         Ok(Self {
             schedule,
             features_to_monitor,
-            psi_threshold,
-            dispatch_config: alert_dispatch_config,
+            dispatch_config,
+            threshold_config,
         })
     }
-
     #[getter]
     pub fn dispatch_type(&self) -> AlertDispatchType {
         self.dispatch_config.dispatch_type()
@@ -93,6 +180,14 @@ impl PsiAlertConfig {
     #[getter]
     pub fn dispatch_config<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         self.dispatch_config.config(py)
+    }
+
+    #[getter]
+    pub fn threshold_config<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        match &self.threshold_config {
+            None => Ok(py.None().into_bound_py_any(py)?),
+            Some(config) => config.config(py),
+        }
     }
 }
 

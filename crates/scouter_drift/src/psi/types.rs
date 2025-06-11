@@ -1,5 +1,5 @@
 use crate::error::DriftError;
-use scouter_types::psi::{FeatureBinProportions, PsiFeatureDriftProfile};
+use scouter_types::psi::{FeatureDistributions, PsiFeatureDriftProfile};
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, HashMap};
 
@@ -34,14 +34,14 @@ pub struct FeatureBinMapping {
 
 impl FeatureBinMapping {
     pub fn from_observed_bin_proportions(
-        observed_bin_proportions: &FeatureBinProportions,
+        observed_bin_proportions: &FeatureDistributions,
         profiles_to_monitor: &[PsiFeatureDriftProfile],
     ) -> Result<Self, DriftError> {
         let features: HashMap<String, FeatureBinProportionPairs> = profiles_to_monitor
             .iter()
             .map(|profile| {
                 let proportion_pairs = FeatureBinProportionPairs::from_observed_bin_proportions(
-                    observed_bin_proportions.features.get(&profile.id).unwrap(),
+                    &observed_bin_proportions.distributions.get(&profile.id).unwrap().bins,
                     profile,
                 )
                 .unwrap();
