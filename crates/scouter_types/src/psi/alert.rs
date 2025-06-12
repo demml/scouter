@@ -314,6 +314,69 @@ mod tests {
     use super::*;
 
     #[test]
+    fn test_constructor_alpha_validation() {
+        // Test 1: Valid alpha values should succeed
+        let valid_alphas = [0.01, 0.05, 0.1, 0.5, 0.99];
+
+        for alpha in valid_alphas {
+            let result = PsiChiSquareThreshold::new(alpha);
+            assert!(
+                result.is_ok(),
+                "Constructor should accept valid alpha value: {}",
+                alpha
+            );
+
+            let threshold = result.unwrap();
+            assert_eq!(
+                threshold.alpha,
+                alpha,
+                "Alpha value should be stored correctly: {}",
+                alpha
+            );
+        }
+
+        // Test 2: Invalid alpha = 0.0 should fail
+        let result = PsiChiSquareThreshold::new(0.0);
+        assert!(
+            result.is_err(),
+            "Constructor should reject alpha = 0.0"
+        );
+        assert!(
+            result.unwrap_err().to_string().contains("alpha must be between 0.0 and 1.0"),
+            "Error message should mention valid alpha range"
+        );
+
+        // Test 3: Invalid alpha = 1.0 should fail
+        let result = PsiChiSquareThreshold::new(1.0);
+        assert!(
+            result.is_err(),
+            "Constructor should reject alpha = 1.0"
+        );
+        assert!(
+            result.unwrap_err().to_string().contains("alpha must be between 0.0 and 1.0"),
+            "Error message should mention valid alpha range"
+        );
+
+        // Test 4: Negative alpha values should fail
+        let negative_alphas = [-0.1, -1.0, -0.001];
+
+        for alpha in negative_alphas {
+            let result = PsiChiSquareThreshold::new(alpha);
+            assert!(
+                result.is_err(),
+                "Constructor should reject negative alpha value: {}",
+                alpha
+            );
+            assert!(
+                result.unwrap_err().to_string().contains("alpha must be between 0.0 and 1.0"),
+                "Error message should mention valid alpha range for negative value: {}",
+                alpha
+            );
+        }
+
+    }
+
+    #[test]
     fn test_alert_config() {
         //test console alert config
         let alert_config = PsiAlertConfig::default();
@@ -360,15 +423,19 @@ mod tests {
 
     #[test]
     fn test_create_alert_description() {
-        let features = HashMap::from([
-            ("feature1".to_string(), 0.35),
-            ("feature2".to_string(), 0.45),
-        ]);
-        let threshold = 0.3;
-        let psi_feature_alerts = PsiFeatureAlerts {
-            features,
-            threshold,
-        };
+        let alerts = vec![
+            PsiFeatureAlert {
+                feature: "feature1".to_string(),
+                drift: 0.35,
+                threshold: 0.3,
+            },
+            PsiFeatureAlert {
+                feature: "feature2".to_string(),
+                drift: 0.45,
+                threshold: 0.3,
+            },
+        ];
+        let psi_feature_alerts = PsiFeatureAlerts { alerts };
 
         // Test for Console dispatch type
         let description = psi_feature_alerts.create_alert_description(AlertDispatchType::Console);
