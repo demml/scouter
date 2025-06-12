@@ -108,7 +108,7 @@ pub mod psi_drifter {
                 .collect()
         }
 
-        pub async fn generate_alerts(
+        async fn generate_alerts(
             &self,
             drift_map: &HashMap<String, f64>,
             target_feature_distributions: &FeatureDistributions,
@@ -156,7 +156,7 @@ pub mod psi_drifter {
         ///
         /// # Returns
         ///
-        fn organize_alerts(&self, alerts: &Vec<PsiFeatureAlert>) -> Vec<BTreeMap<String, String>> {
+        fn organize_alerts(alerts: &[PsiFeatureAlert]) -> Vec<BTreeMap<String, String>> {
             alerts
                 .iter()
                 .map(|alert| {
@@ -170,7 +170,6 @@ pub mod psi_drifter {
         }
 
         fn get_drift_map(
-            &self,
             target_feature_distributions: &FeatureDistributions,
             profiles_to_monitor: &[PsiFeatureDriftProfile],
         ) -> Result<HashMap<String, f64>, DriftError> {
@@ -208,7 +207,7 @@ pub mod psi_drifter {
 
             // Compute drift for each feature
             let drift_map =
-                self.get_drift_map(&target_feature_distributions, &profiles_to_monitor)?;
+                Self::get_drift_map(&target_feature_distributions, &profiles_to_monitor)?;
 
             // Generate alerts, if any
             let Some(alerts) = self
@@ -227,7 +226,7 @@ pub mod psi_drifter {
                 return Ok(None);
             };
 
-            Ok(Some(self.organize_alerts(&alerts)))
+            Ok(Some(Self::organize_alerts(&alerts)))
         }
 
         fn create_feature_bin_proportion_pairs(
@@ -335,21 +334,19 @@ pub mod psi_drifter {
     #[cfg(test)]
     mod tests {
         use super::*;
-        use crate::psi::types::FeatureBinProportionPairs;
         use ndarray::Array;
         use ndarray_rand::rand_distr::Uniform;
         use ndarray_rand::RandomExt;
+        use scouter_types::psi::{Bin, BinType, PsiNormalThreshold, PsiThresholdConfig};
         use scouter_types::{
-            psi::{
-                Bin, BinType, DistributionData, FeatureDistributions, PsiAlertConfig,
-                PsiDriftConfig, PsiFeatureDriftProfile,
-            },
+            psi::{DistributionData, FeatureDistributions, PsiAlertConfig, PsiDriftConfig},
             DEFAULT_VERSION,
         };
 
-        fn get_test_drifter() -> PsiDrifter {
+        fn get_test_drifter(threshold_config: Option<PsiThresholdConfig>) -> PsiDrifter {
             let alert_config = PsiAlertConfig {
                 features_to_monitor: vec!["feature_1".to_string(), "feature_3".to_string()],
+                threshold_config,
                 ..Default::default()
             };
 
@@ -374,8 +371,289 @@ pub mod psi_drifter {
         }
 
         #[test]
+        fn test_get_drift_map_only_maps_matching_features() {
+            // Arrange
+            // Create target distributions
+            let mut distributions = BTreeMap::new();
+
+            let mut bins1 = BTreeMap::new();
+            bins1.insert(0, 0.3);
+            bins1.insert(1, 0.4);
+            bins1.insert(2, 0.3);
+
+            distributions.insert(
+                "feature1".to_string(),
+                DistributionData {
+                    sample_size: 1000,
+                    bins: bins1,
+                },
+            );
+
+            let mut bins2 = BTreeMap::new();
+            bins2.insert(0, 0.25);
+            bins2.insert(1, 0.5);
+            bins2.insert(2, 0.25);
+
+            distributions.insert(
+                "feature2".to_string(),
+                DistributionData {
+                    sample_size: 800,
+                    bins: bins2,
+                },
+            );
+
+            let target_distributions = FeatureDistributions { distributions };
+
+            // Create profiles with one matching and one non-matching feature
+            let profiles = vec![
+                PsiFeatureDriftProfile {
+                    id: "feature1".to_string(), // This exists in target_distributions
+                    bins: vec![Bin {
+                        id: 0,
+                        lower_limit: None,
+                        upper_limit: Some(10.0),
+                        proportion: 0.35,
+                    }],
+                    timestamp: Utc::now(),
+                    bin_type: BinType::Numeric,
+                },
+                PsiFeatureDriftProfile {
+                    id: "feature2".to_string(), // This doesn't exist
+                    bins: vec![Bin {
+                        id: 0,
+                        lower_limit: None,
+                        upper_limit: Some(10.0),
+                        proportion: 0.5,
+                    }],
+                    timestamp: Utc::now(),
+                    bin_type: BinType::Numeric,
+                },
+            ];
+
+            // Act
+            let result = PsiDrifter::get_drift_map(&target_distributions, &profiles);
+
+            // Assert
+            assert!(result.is_ok());
+            let drift_map = result.unwrap();
+
+            // Only the matching feature should be in the result
+            assert_eq!(drift_map.len(), 2);
+            assert!(drift_map.contains_key("feature1"));
+            assert!(drift_map.contains_key("feature2"));
+        }
+
+        #[test]
+        fn test_get_feature_alerts_all_above() {
+            let bin_count = 10;
+            let sample_size = 10000;
+            let threshold = PsiNormalThreshold { alpha: 0.05 };
+            let result = threshold.compute_threshold(sample_size, bin_count);
+
+            let drifter_with_normal_threshold =
+                get_test_drifter(Some(PsiThresholdConfig::Normal(threshold)));
+
+            let feature_1 = "feature_1";
+            let feature_2 = "feature_2";
+            let feature_3 = "feature_3";
+
+            let mut drift_map = HashMap::new();
+            drift_map.insert(feature_1.to_string(), result + 0.1);
+            drift_map.insert(feature_2.to_string(), result + 0.1);
+            drift_map.insert(feature_3.to_string(), result + 0.1);
+
+            let mut distributions = BTreeMap::new();
+            let mut bins = BTreeMap::new();
+            for i in 0..bin_count {
+                bins.insert(i as usize, (sample_size / bin_count) as f64);
+            }
+
+            distributions.insert(
+                feature_1.to_string(),
+                DistributionData {
+                    sample_size,
+                    bins: bins.clone(),
+                },
+            );
+            distributions.insert(
+                feature_2.to_string(),
+                DistributionData {
+                    sample_size,
+                    bins: bins.clone(),
+                },
+            );
+            distributions.insert(
+                feature_3.to_string(),
+                DistributionData {
+                    sample_size,
+                    bins: bins.clone(),
+                },
+            );
+
+            let target_feature_distributions = FeatureDistributions { distributions };
+
+            let alerts = drifter_with_normal_threshold
+                .get_feature_alerts(&drift_map, &target_feature_distributions);
+
+            assert_eq!(alerts.len(), 3);
+        }
+
+        #[test]
+        fn test_get_feature_alerts_all_below() {
+            let bin_count = 10;
+            let sample_size = 10000;
+            let threshold = PsiNormalThreshold { alpha: 0.05 };
+            let result = threshold.compute_threshold(sample_size, bin_count);
+
+            let drifter_with_normal_threshold =
+                get_test_drifter(Some(PsiThresholdConfig::Normal(threshold)));
+
+            let feature_1 = "feature_1";
+            let feature_2 = "feature_2";
+            let feature_3 = "feature_3";
+
+            let mut drift_map = HashMap::new();
+            drift_map.insert(feature_1.to_string(), result - 0.1); // Below threshold
+            drift_map.insert(feature_2.to_string(), result - 0.1); // Below threshold
+            drift_map.insert(feature_3.to_string(), result - 0.1); // Below threshold
+
+            let mut distributions = BTreeMap::new();
+            let mut bins = BTreeMap::new();
+            for i in 0..bin_count {
+                bins.insert(i as usize, (sample_size / bin_count) as f64);
+            }
+
+            distributions.insert(
+                feature_1.to_string(),
+                DistributionData {
+                    sample_size,
+                    bins: bins.clone(),
+                },
+            );
+            distributions.insert(
+                feature_2.to_string(),
+                DistributionData {
+                    sample_size,
+                    bins: bins.clone(),
+                },
+            );
+            distributions.insert(
+                feature_3.to_string(),
+                DistributionData {
+                    sample_size,
+                    bins: bins.clone(),
+                },
+            );
+
+            let target_feature_distributions = FeatureDistributions { distributions };
+
+            let alerts = drifter_with_normal_threshold
+                .get_feature_alerts(&drift_map, &target_feature_distributions);
+
+            assert_eq!(alerts.len(), 0); // No alerts expected
+        }
+
+        #[test]
+        fn test_get_feature_alerts_mixed_above_below() {
+            let bin_count = 10;
+            let sample_size = 10000;
+            let threshold = PsiNormalThreshold { alpha: 0.05 };
+            let result = threshold.compute_threshold(sample_size, bin_count);
+
+            let drifter_with_normal_threshold =
+                get_test_drifter(Some(PsiThresholdConfig::Normal(threshold)));
+
+            let feature_1 = "feature_1";
+            let feature_2 = "feature_2";
+            let feature_3 = "feature_3";
+
+            let mut drift_map = HashMap::new();
+            drift_map.insert(feature_1.to_string(), result + 0.1); // Above threshold
+            drift_map.insert(feature_2.to_string(), result - 0.1); // Below threshold
+            drift_map.insert(feature_3.to_string(), result + 0.2); // Above threshold
+
+            let mut distributions = BTreeMap::new();
+            let mut bins = BTreeMap::new();
+            for i in 0..bin_count {
+                bins.insert(i as usize, (sample_size / bin_count) as f64);
+            }
+
+            distributions.insert(
+                feature_1.to_string(),
+                DistributionData {
+                    sample_size,
+                    bins: bins.clone(),
+                },
+            );
+            distributions.insert(
+                feature_2.to_string(),
+                DistributionData {
+                    sample_size,
+                    bins: bins.clone(),
+                },
+            );
+            distributions.insert(
+                feature_3.to_string(),
+                DistributionData {
+                    sample_size,
+                    bins: bins.clone(),
+                },
+            );
+
+            let target_feature_distributions = FeatureDistributions { distributions };
+
+            let alerts = drifter_with_normal_threshold
+                .get_feature_alerts(&drift_map, &target_feature_distributions);
+
+            assert_eq!(alerts.len(), 2); // Only feature_1 and feature_3 should alert
+
+            // Verify correct features alerted
+            let alert_features: Vec<String> = alerts.iter().map(|a| a.feature.clone()).collect();
+            assert!(alert_features.contains(&feature_1.to_string()));
+            assert!(alert_features.contains(&feature_3.to_string()));
+            assert!(!alert_features.contains(&feature_2.to_string()));
+        }
+
+        #[test]
+        fn test_get_feature_alerts_drift_exactly_at_threshold() {
+            let bin_count = 10;
+            let sample_size = 10000;
+            let threshold = PsiNormalThreshold { alpha: 0.05 };
+            let result = threshold.compute_threshold(sample_size, bin_count);
+
+            let drifter_with_normal_threshold =
+                get_test_drifter(Some(PsiThresholdConfig::Normal(threshold)));
+
+            let feature_1 = "feature_1";
+
+            let mut drift_map = HashMap::new();
+            drift_map.insert(feature_1.to_string(), result); // Exactly at threshold
+
+            let mut distributions = BTreeMap::new();
+            let mut bins = BTreeMap::new();
+            for i in 0..bin_count {
+                bins.insert(i as usize, (sample_size / bin_count) as f64);
+            }
+
+            distributions.insert(
+                feature_1.to_string(),
+                DistributionData {
+                    sample_size,
+                    bins: bins.clone(),
+                },
+            );
+
+            let target_feature_distributions = FeatureDistributions { distributions };
+
+            let alerts = drifter_with_normal_threshold
+                .get_feature_alerts(&drift_map, &target_feature_distributions);
+
+            assert_eq!(alerts.len(), 0); // Should be 0 since drift is not > threshold
+        }
+
+        #[test]
         fn test_get_monitored_profiles() {
-            let drifter = get_test_drifter();
+            let drifter = get_test_drifter(None);
 
             let profiles_to_monitor = drifter.get_monitored_profiles();
 
@@ -390,93 +668,5 @@ pub mod psi_drifter {
                     || profiles_to_monitor[1].id == "feature_3"
             );
         }
-
-        // #[test]
-        // fn test_get_feature_bin_proportion_pairs() {
-        //     let training_feat1_decile1_prop = 0.2;
-        //     let training_feat1_decile2_prop = 0.5;
-        //     let training_feat1_decile3_prop = 0.3;
-        //
-        //     let feature_drift_profile = PsiFeatureDriftProfile {
-        //         id: "feature_1".to_string(),
-        //         bin_type: BinType::Numeric,
-        //         bins: vec![
-        //             Bin {
-        //                 id: 1,
-        //                 lower_limit: Some(0.1),
-        //                 upper_limit: Some(0.2),
-        //                 proportion: training_feat1_decile1_prop,
-        //             },
-        //             Bin {
-        //                 id: 2,
-        //                 lower_limit: Some(0.2),
-        //                 upper_limit: Some(0.4),
-        //                 proportion: training_feat1_decile2_prop,
-        //             },
-        //             Bin {
-        //                 id: 3,
-        //                 lower_limit: Some(0.4),
-        //                 upper_limit: Some(0.8),
-        //                 proportion: training_feat1_decile3_prop,
-        //             },
-        //         ],
-        //         timestamp: Default::default(),
-        //     };
-        //
-        //     let observed_feat1_decile1_prop = 0.6;
-        //     let observed_feat1_decile2_prop = 0.3;
-        //     let observed_feat1_decile3_prop = 0.1;
-        //
-        //     let mut feat1_bins = BTreeMap::new();
-        //     feat1_bins.insert(1, observed_feat1_decile1_prop);
-        //     feat1_bins.insert(2, observed_feat1_decile2_prop);
-        //     feat1_bins.insert(3, observed_feat1_decile3_prop);
-        //
-        //     let observed_proportions =
-        //         FeatureBinProportions::from_features(vec![FeatureBinProportion {
-        //             feature: "feature_1".to_string(),
-        //             bins: feat1_bins,
-        //             total_count: 10
-        //         }]);
-        //
-        //     let pairs = FeatureBinProportionPairs::from_observed_bin_proportions(
-        //         observed_proportions.features.get("feature_1").unwrap(),
-        //         &feature_drift_profile,
-        //     )
-        //     .unwrap();
-        //
-        //     pairs.pairs.iter().for_each(|(a, b)| {
-        //         if *a == training_feat1_decile1_prop {
-        //             assert_eq!(*b, observed_feat1_decile1_prop);
-        //         } else if *a == training_feat1_decile2_prop {
-        //             assert_eq!(*b, observed_feat1_decile2_prop);
-        //         } else if *a == training_feat1_decile3_prop {
-        //             assert_eq!(*b, observed_feat1_decile3_prop);
-        //         } else {
-        //             panic!("test failed: proportion mismatch!");
-        //         }
-        //     })
-        // }
-
-        // TODO uncomment this
-        // #[test]
-        // fn test_filter_drift_map() {
-        //     let drifter = get_test_drifter();
-        //
-        //     let mut drift_map = HashMap::new();
-        //
-        //     let feature_with_drift = "feature_4".to_string();
-        //
-        //     drift_map.insert("feature_1".to_string(), 0.07);
-        //     drift_map.insert("feature_2".to_string(), 0.2);
-        //     drift_map.insert("feature_3".to_string(), 0.23);
-        //     drift_map.insert(feature_with_drift.clone(), 0.3);
-        //     drift_map.insert("feature_5".to_string(), 0.12);
-        //
-        //     // we did not specify a custom psi threshold and thus will be using the default of 0.25
-        //     let filtered_drift_map = drifter.filter_drift_map(&drift_map);
-        //     assert_eq!(filtered_drift_map.len(), 1);
-        //     assert!(filtered_drift_map.contains_key(&feature_with_drift));
-        // }
     }
 }

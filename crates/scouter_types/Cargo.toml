@@ -27,6 +27,7 @@ statrs = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+approx = { workspace = true }
 
 
 [profile.release]

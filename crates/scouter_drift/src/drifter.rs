@@ -337,7 +337,9 @@ pub mod drift_executor {
                 std::env::current_dir().expect("Failed to get current directory");
             populate_path.push("src/scripts/populate_psi.sql");
 
-            let script = std::fs::read_to_string(populate_path).unwrap();
+            let mut script = std::fs::read_to_string(populate_path).unwrap();
+            let bin_count = 1000;
+            script = script.replace("{{bin_count}}", &bin_count.to_string());
             sqlx::raw_sql(&script).execute(&db_pool).await.unwrap();
 
             let mut drift_executor = DriftExecutor::new(&db_pool);
@@ -358,6 +360,43 @@ pub mod drift_executor {
                 .unwrap();
 
             assert!(alerts.len() >= 2);
+        }
+
+        #[tokio::test]
+        async fn test_drift_executor_psi_not_enough_target_samples() {
+            let db_pool = PostgresClient::create_db_pool(&DatabaseSettings::default())
+                .await
+                .unwrap();
+
+            cleanup(&db_pool).await;
+
+            let mut populate_path =
+                std::env::current_dir().expect("Failed to get current directory");
+            populate_path.push("src/scripts/populate_psi.sql");
+
+            let mut script = std::fs::read_to_string(populate_path).unwrap();
+            let bin_count = 2;
+            script = script.replace("{{bin_count}}", &bin_count.to_string());
+            sqlx::raw_sql(&script).execute(&db_pool).await.unwrap();
+
+            let mut drift_executor = DriftExecutor::new(&db_pool);
+
+            drift_executor.poll_for_tasks().await.unwrap();
+
+            // get alerts from db
+            let request = DriftAlertRequest {
+                space: "scouter".to_string(),
+                name: "model".to_string(),
+                version: "0.1.0".to_string(),
+                limit_datetime: None,
+                active: None,
+                limit: None,
+            };
+            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request)
+                .await
+                .unwrap();
+
+            assert!(alerts.is_empty());
         }
 
         #[tokio::test]

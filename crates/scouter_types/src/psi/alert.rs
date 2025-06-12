@@ -312,68 +312,161 @@ impl DispatchAlertDescription for PsiFeatureAlerts {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use approx::assert_relative_eq;
 
     #[test]
-    fn test_constructor_alpha_validation() {
-        // Test 1: Valid alpha values should succeed
-        let valid_alphas = [0.01, 0.05, 0.1, 0.5, 0.99];
+    fn test_compute_threshold_method_i_paper_validation() {
+        // Test based on Yurdakul (2018) Method I: Normal approximation for fixed base population
+        //
+        // Test case from Table 3.1 in the paper
+        // B = 10 bins, M = 400 sample size, α = 0.05 (95th percentile)
+        let threshold = PsiNormalThreshold { alpha: 0.05 };
+        let result = threshold.compute_threshold(400, 10);
 
-        for alpha in valid_alphas {
-            let result = PsiChiSquareThreshold::new(alpha);
-            assert!(
-                result.is_ok(),
-                "Constructor should accept valid alpha value: {}",
-                alpha
-            );
+        // From Table 3.1: Expected ~4.0% for N=∞, M=400, B=10 using normal approximation
+        // Expected value = 9 / 400 = 0.0225
+        // Std dev = sqrt(2 * 9) / 400 ≈ 4.24 / 400 ≈ 0.0106
+        // z_α for 95th percentile ≈ 1.645
+        // Threshold ≈ 0.0225 + 1.645 * 0.0106 ≈ 0.0400
+        assert_relative_eq!(result, 0.0400, epsilon = 0.002);
+    }
 
-            let threshold = result.unwrap();
-            assert_eq!(
-                threshold.alpha,
-                alpha,
-                "Alpha value should be stored correctly: {}",
-                alpha
-            );
+    #[test]
+    fn test_compute_threshold_method_ii_paper_validation() {
+        // Test based on Yurdakul (2018) Method II: PSI > χ²_{α,B-1} × (1/M)
+
+        // Test case from Tables 3.2 and 3.4 in the paper
+        // B=10 bins, M=400 sample size, α=0.05 (95th percentile)
+        let threshold = PsiChiSquareThreshold { alpha: 0.05 };
+        let result = threshold.compute_threshold(400, 10);
+
+        // From Table 3.2: Expected ~8.5% for N=∞, M=400, B=10
+        // Chi-square with 9 df at 95th percentile ≈ 16.919
+        // Expected: 16.919 / 400 ≈ 0.0423 (4.23%)
+        assert_relative_eq!(result, 0.0423, epsilon = 0.002);
+
+        // Test case: B=20 bins, M=1000 sample size, α=0.05
+        let result_20_bins = threshold.compute_threshold(1000, 20);
+        // Chi-square with 19 df at 95th percentile ≈ 30.144
+        // Expected: 30.144 / 1000 ≈ 0.0301 (3.01%)
+        assert_relative_eq!(result_20_bins, 0.0301, epsilon = 0.002);
+    }
+
+    #[test]
+    fn test_compute_threshold_paper_table_values() {
+        // Validate against Table 3.2 from the paper
+        // Method II: P95 of χ²_{B-1}, B=10
+
+        let threshold = PsiChiSquareThreshold { alpha: 0.05 };
+
+        // Sample sizes from the paper's table
+        let test_cases = [
+            (100, 0.169),  // M=100 → ~16.9%
+            (200, 0.085),  // M=200 → ~8.5%
+            (400, 0.042),  // M=400 → ~4.2%
+            (1000, 0.017), // M=1000 → ~1.7%
+        ];
+
+        for (sample_size, expected_approx) in test_cases {
+            let result = threshold.compute_threshold(sample_size, 10);
+            let diff = (result - expected_approx).abs();
+
+            if diff >= 0.005 {
+                panic!(
+                    "Failed for sample size {}: expected ~{}, got {}, diff={}",
+                    sample_size, expected_approx, result, diff
+                );
+            }
         }
+    }
 
-        // Test 2: Invalid alpha = 0.0 should fail
-        let result = PsiChiSquareThreshold::new(0.0);
+    #[test]
+    fn test_degrees_of_freedom_relationship_chi() {
+        // Test that B-1 degrees of freedom is correctly applied
+        let threshold = PsiChiSquareThreshold { alpha: 0.05 };
+
+        // More bins (higher df) should give larger chi-square critical values
+        let bins_5 = threshold.compute_threshold(1000, 5); // 4 df
+        let bins_10 = threshold.compute_threshold(1000, 10); // 9 df
+        let bins_20 = threshold.compute_threshold(1000, 20); // 19 df
+
         assert!(
-            result.is_err(),
-            "Constructor should reject alpha = 0.0"
+            bins_5 < bins_10,
+            "5 bins should give smaller threshold than 10 bins"
         );
         assert!(
-            result.unwrap_err().to_string().contains("alpha must be between 0.0 and 1.0"),
-            "Error message should mention valid alpha range"
+            bins_10 < bins_20,
+            "10 bins should give smaller threshold than 20 bins"
         );
+    }
 
-        // Test 3: Invalid alpha = 1.0 should fail
-        let result = PsiChiSquareThreshold::new(1.0);
+    #[test]
+    fn test_degrees_of_freedom_relationship_normal() {
+        let threshold = PsiNormalThreshold { alpha: 0.05 };
+
+        let t_5 = threshold.compute_threshold(1000, 5);
+        let t_10 = threshold.compute_threshold(1000, 10);
+        let t_20 = threshold.compute_threshold(1000, 20);
+
+        assert!(t_5 < t_10 && t_10 < t_20);
+    }
+
+    #[test]
+    fn test_alpha_significance_levels_chi() {
+        // Test different alpha values (significance levels)
+        let sample_size = 1000;
+        let bin_count = 10;
+
+        let alpha_01 = PsiChiSquareThreshold { alpha: 0.01 }; // 99th percentile
+        let alpha_05 = PsiChiSquareThreshold { alpha: 0.05 }; // 95th percentile
+        let alpha_10 = PsiChiSquareThreshold { alpha: 0.10 }; // 90th percentile
+
+        let threshold_99 = alpha_01.compute_threshold(sample_size, bin_count);
+        let threshold_95 = alpha_05.compute_threshold(sample_size, bin_count);
+        let threshold_90 = alpha_10.compute_threshold(sample_size, bin_count);
+
+        // More conservative (lower alpha) should give higher thresholds
         assert!(
-            result.is_err(),
-            "Constructor should reject alpha = 1.0"
+            threshold_99 > threshold_95,
+            "99th percentile should be higher than 95th: {} > {}",
+            threshold_99,
+            threshold_95
         );
         assert!(
-            result.unwrap_err().to_string().contains("alpha must be between 0.0 and 1.0"),
-            "Error message should mention valid alpha range"
+            threshold_95 > threshold_90,
+            "95th percentile should be higher than 90th: {} > {}",
+            threshold_95,
+            threshold_90
         );
+    }
 
-        // Test 4: Negative alpha values should fail
-        let negative_alphas = [-0.1, -1.0, -0.001];
+    #[test]
+    fn test_alpha_significance_levels_normal() {
+        // Test different alpha values (significance levels)
+        let sample_size = 1000;
+        let bin_count = 10;
 
-        for alpha in negative_alphas {
-            let result = PsiChiSquareThreshold::new(alpha);
-            assert!(
-                result.is_err(),
-                "Constructor should reject negative alpha value: {}",
-                alpha
-            );
-            assert!(
-                result.unwrap_err().to_string().contains("alpha must be between 0.0 and 1.0"),
-                "Error message should mention valid alpha range for negative value: {}",
-                alpha
-            );
-        }
+        let alpha_01 = PsiNormalThreshold { alpha: 0.01 }; // 99th percentile
+        let alpha_05 = PsiNormalThreshold { alpha: 0.05 }; // 95th percentile
+        let alpha_10 = PsiNormalThreshold { alpha: 0.10 }; // 90th percentile
 
+        let threshold_99 = alpha_01.compute_threshold(sample_size, bin_count);
+        let threshold_95 = alpha_05.compute_threshold(sample_size, bin_count);
+        let threshold_90 = alpha_10.compute_threshold(sample_size, bin_count);
+
+        // More conservative (lower alpha) should give higher thresholds
+        assert!(
+            threshold_99 > threshold_95,
+            "99th percentile should be higher than 95th: {} > {}",
+            threshold_99,
+            threshold_95
+        );
+        assert!(
+            threshold_95 > threshold_90,
+            "95th percentile should be higher than 90th: {} > {}",
+            threshold_95,
+            threshold_90
+        );
     }
 
     #[test]

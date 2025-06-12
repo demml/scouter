@@ -5111,6 +5111,7 @@ dependencies = [
 name = "scouter-types"
 version = "0.5.2"
 dependencies = [
+ "approx",
  "chrono",
  "colored_json",
  "cron",
