@@ -99,7 +99,7 @@ def create_psi_profile() -> Path:
     psi_profile = drifter.create_drift_profile(data, psi_config)
 
     # register profile
-    client.register_profile(profile=psi_profile)
+    client.register_profile(profile=psi_profile, set_active=True)
 
     # save profile to json (for example purposes)
     return psi_profile.save_to_json()
