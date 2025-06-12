@@ -41,7 +41,11 @@ impl FeatureBinMapping {
             .iter()
             .map(|profile| {
                 let proportion_pairs = FeatureBinProportionPairs::from_observed_bin_proportions(
-                    &observed_bin_proportions.distributions.get(&profile.id).unwrap().bins,
+                    &observed_bin_proportions
+                        .distributions
+                        .get(&profile.id)
+                        .unwrap()
+                        .bins,
                     profile,
                 )
                 .unwrap();

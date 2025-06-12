@@ -1,16 +1,16 @@
 use chrono::{DateTime, Utc};
+use scouter_types::psi::DistributionData;
 use scouter_types::{
     alert::Alert,
     custom::{BinnedCustomMetric, BinnedCustomMetricStats},
     get_utc_datetime,
-    psi::{FeatureBinProportionResult},
+    psi::FeatureBinProportionResult,
     RecordType,
 };
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, Error, FromRow, Row};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
-use scouter_types::psi::{DistributionData, FeatureDistributions};
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRecord {
@@ -47,13 +47,16 @@ impl<'r> FromRow<'r, PgRow> for FeatureDistributionWrapper {
         let feature: String = row.try_get("feature")?;
         let sample_size: i64 = row.try_get("sample_size")?;
         let bins_json: serde_json::Value = row.try_get("bins")?;
-        let bins: BTreeMap<usize, f64> = serde_json::from_value(bins_json)
-            .map_err(|e| Error::Decode(e.into()))?;
+        let bins: BTreeMap<usize, f64> =
+            serde_json::from_value(bins_json).map_err(|e| Error::Decode(e.into()))?;
 
-        Ok(FeatureDistributionWrapper(feature, DistributionData {
-            sample_size: sample_size as u64,
-            bins,
-        }))
+        Ok(FeatureDistributionWrapper(
+            feature,
+            DistributionData {
+                sample_size: sample_size as u64,
+                bins,
+            },
+        ))
     }
 }
 

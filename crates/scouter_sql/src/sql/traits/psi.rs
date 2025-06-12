@@ -1,5 +1,5 @@
 use crate::sql::query::Queries;
-use crate::sql::schema::{FeatureBinProportionResultWrapper};
+use crate::sql::schema::FeatureBinProportionResultWrapper;
 use crate::sql::schema::FeatureDistributionWrapper;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
@@ -8,14 +8,13 @@ use scouter_dataframe::parquet::{dataframe_to_psi_drift_features, ParquetDataFra
 
 use crate::sql::error::SqlError;
 use scouter_settings::ObjectStorageSettings;
+use scouter_types::psi::FeatureDistributions;
 use scouter_types::{
-    psi::{FeatureBinProportionResult},
-    DriftRequest, PsiServerRecord, RecordType, ServiceInfo,
+    psi::FeatureBinProportionResult, DriftRequest, PsiServerRecord, RecordType, ServiceInfo,
 };
 use sqlx::{postgres::PgQueryResult, Pool, Postgres};
 use std::collections::BTreeMap;
 use tracing::{debug, instrument};
-use scouter_types::psi::FeatureDistributions;
 
 #[async_trait]
 pub trait PsiSqlLogic {
@@ -199,7 +198,7 @@ pub trait PsiSqlLogic {
         Ok(feature_map.into_values().collect())
     }
 
-    async fn get_feature_bin_proportions(
+    async fn get_feature_distribution(
         pool: &Pool<Postgres>,
         service_info: &ServiceInfo,
         limit_datetime: &DateTime<Utc>,
@@ -222,6 +221,6 @@ pub trait PsiSqlLogic {
             .map(|wrapper| (wrapper.0, wrapper.1))
             .collect();
 
-        Ok(FeatureDistributions{distributions})
+        Ok(FeatureDistributions { distributions })
     }
 }

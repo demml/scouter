@@ -111,7 +111,7 @@ class SpcAlertRule:
 
 
 class PsiNormalThreshold:
-    def __init__(self, alpha: float):
+    def __init__(self, alpha: float = 0.05):
         """Initialize PSI threshold using normal approximation.
 
         Uses the asymptotic normal distribution of PSI to calculate critical values
@@ -135,7 +135,7 @@ class PsiNormalThreshold:
 
 
 class PsiChiSquareThreshold:
-    def __init__(self, alpha: float):
+    def __init__(self, alpha: float = 0.05):
         """Initialize PSI threshold using chi-square approximation.
 
         Uses the asymptotic chi-square distribution of PSI.
@@ -160,13 +160,12 @@ class PsiChiSquareThreshold:
         """Set significance level (must be between 0.0 and 1.0, exclusive)."""
 
 class PsiFixedThreshold:
-    def __init__(self, threshold: float):
+    def __init__(self, threshold: float = 0.25):
         """Initialize PSI threshold using a fixed value.
 
         Uses a predetermined PSI threshold value, similar to traditional
         "rule of thumb" approaches (e.g., 0.10 for moderate drift, 0.25
-        for significant drift). Unlike statistical methods, this threshold
-        is independent of sample size and number of bins.
+        for significant drift).
 
         Args:
             threshold: Fixed PSI threshold value (must be positive).

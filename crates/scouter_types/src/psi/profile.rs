@@ -524,22 +524,7 @@ pub struct FeatureDistributions {
     pub distributions: BTreeMap<String, DistributionData>,
 }
 
-
 impl FeatureDistributions {
-    // pub fn from_features(features: Vec<FeatureDistribution>) -> Self {
-    //     let mut feature_map: BTreeMap<String, BTreeMap<usize, f64>> = BTreeMap::new();
-    //     for feature in features {
-    //         feature_map.insert(feature.feature, feature.bins);
-    //     }
-    //     FeatureBinProportions {
-    //         features: feature_map,
-    //     }
-    // }
-    //
-    // pub fn get(&self, feature: &str, bin: &usize) -> Option<&f64> {
-    //     self.features.get(feature).and_then(|f| f.get(bin))
-    // }
-    //
     pub fn is_empty(&self) -> bool {
         self.distributions.is_empty()
     }
