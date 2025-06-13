@@ -9,7 +9,7 @@ authors = [
 ]
 
 license = "MIT"
-description = "Rust Scouter server logic"
+description = "Scouter server logic"
 
 [dependencies]
 scouter-dataframe = { workspace = true }
