@@ -144,9 +144,11 @@ mod tests {
     use chrono::Utc;
     use rand::Rng;
     use scouter_settings::ObjectStorageSettings;
+    use scouter_types::psi::{Bin, BinType, PsiDriftConfig, PsiFeatureDriftProfile};
     use scouter_types::spc::SpcDriftProfile;
     use scouter_types::*;
     use std::collections::BTreeMap;
+
     const SPACE: &str = "space";
     const NAME: &str = "name";
     const VERSION: &str = "1.0.0";
@@ -443,74 +445,115 @@ mod tests {
         assert_eq!(binned_records.features.len(), 10);
     }
 
-    // #[tokio::test]
-    // async fn test_postgres_bin_proportions() {
-    //     let pool = db_pool().await;
-    //
-    //     let timestamp = Utc::now();
-    //
-    //     for feature in 0..3 {
-    //         for bin in 0..=5 {
-    //             for _ in 0..=100 {
-    //                 let record = PsiServerRecord {
-    //                     created_at: Utc::now(),
-    //                     space: SPACE.to_string(),
-    //                     name: NAME.to_string(),
-    //                     version: VERSION.to_string(),
-    //                     feature: format!("feature{}", feature),
-    //                     bin_id: bin,
-    //                     bin_count: rand::rng().random_range(0..10),
-    //                 };
-    //
-    //                 PostgresClient::insert_bin_counts(&pool, &record)
-    //                     .await
-    //                     .unwrap();
-    //             }
-    //         }
-    //     }
-    //
-    //     let binned_records = PostgresClient::get_feature_bin_proportions(
-    //         &pool,
-    //         &ServiceInfo {
-    //             space: SPACE.to_string(),
-    //             name: NAME.to_string(),
-    //             version: VERSION.to_string(),
-    //         },
-    //         &timestamp,
-    //         &["feature0".to_string()],
-    //     )
-    //     .await
-    //     .unwrap();
-    //
-    //     // assert binned_records.features["test"]["decile_1"] is around .5
-    //     let bin_proportion = binned_records
-    //         .features
-    //         .get("feature0")
-    //         .unwrap()
-    //         .get(&1)
-    //         .unwrap();
-    //
-    //     assert!(*bin_proportion > 0.1 && *bin_proportion < 0.2);
-    //
-    //     let binned_records = PostgresClient::get_binned_psi_drift_records(
-    //         &pool,
-    //         &DriftRequest {
-    //             space: SPACE.to_string(),
-    //             name: NAME.to_string(),
-    //             version: VERSION.to_string(),
-    //             time_interval: TimeInterval::OneHour,
-    //             max_data_points: 1000,
-    //             drift_type: DriftType::Psi,
-    //             ..Default::default()
-    //         },
-    //         &DatabaseSettings::default().retention_period,
-    //         &ObjectStorageSettings::default(),
-    //     )
-    //     .await
-    //     .unwrap();
-    //     //
-    //     assert_eq!(binned_records.len(), 3);
-    // }
+    #[tokio::test]
+    async fn test_postgres_bin_proportions() {
+        let pool = db_pool().await;
+
+        let timestamp = Utc::now();
+
+        let num_features = 3;
+        let num_bins = 5;
+
+        let features = (0..=num_features)
+            .map(|feature| {
+                let bins = (0..=num_bins)
+                    .map(|bind_id| Bin {
+                        id: bind_id,
+                        lower_limit: None,
+                        upper_limit: None,
+                        proportion: 0.0,
+                    })
+                    .collect();
+                let feature_name = format!("feature{}", feature);
+                let feature_profile = PsiFeatureDriftProfile {
+                    id: feature_name.clone(),
+                    bins,
+                    timestamp,
+                    bin_type: BinType::Numeric,
+                };
+                (feature_name, feature_profile)
+            })
+            .collect();
+
+        let _ = PostgresClient::insert_drift_profile(
+            &pool,
+            &DriftProfile::Psi(psi::PsiDriftProfile::new(
+                features,
+                PsiDriftConfig {
+                    space: SPACE.to_string(),
+                    name: NAME.to_string(),
+                    version: VERSION.to_string(),
+                    ..Default::default()
+                },
+                None,
+            )),
+        )
+        .await
+        .unwrap();
+
+        for feature in 0..num_features {
+            for bin in 0..=num_bins {
+                for _ in 0..=100 {
+                    let record = PsiServerRecord {
+                        created_at: Utc::now(),
+                        space: SPACE.to_string(),
+                        name: NAME.to_string(),
+                        version: VERSION.to_string(),
+                        feature: format!("feature{}", feature),
+                        bin_id: bin,
+                        bin_count: rand::rng().random_range(0..10),
+                    };
+
+                    PostgresClient::insert_bin_counts(&pool, &record)
+                        .await
+                        .unwrap();
+                }
+            }
+        }
+
+        let binned_records = PostgresClient::get_feature_distributions(
+            &pool,
+            &ServiceInfo {
+                space: SPACE.to_string(),
+                name: NAME.to_string(),
+                version: VERSION.to_string(),
+            },
+            &timestamp,
+            &["feature0".to_string()],
+        )
+        .await
+        .unwrap();
+
+        // assert binned_records.features["test"]["decile_1"] is around .5
+        let bin_proportion = binned_records
+            .distributions
+            .get("feature0")
+            .unwrap()
+            .bins
+            .get(&1)
+            .unwrap();
+
+        assert!(*bin_proportion > 0.1 && *bin_proportion < 0.2);
+
+        let binned_records = PostgresClient::get_binned_psi_drift_records(
+            &pool,
+            &DriftRequest {
+                space: SPACE.to_string(),
+                name: NAME.to_string(),
+                version: VERSION.to_string(),
+                time_interval: TimeInterval::OneHour,
+                max_data_points: 1000,
+                drift_type: DriftType::Psi,
+                ..Default::default()
+            },
+            &DatabaseSettings::default().retention_period,
+            &ObjectStorageSettings::default(),
+        )
+        .await
+        .unwrap();
+        //
+        assert_eq!(binned_records.len(), 3);
+    }
 
     #[tokio::test]
     async fn test_postgres_cru_custom_metric() {

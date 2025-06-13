@@ -198,7 +198,7 @@ pub trait PsiSqlLogic {
         Ok(feature_map.into_values().collect())
     }
 
-    async fn get_feature_distribution(
+    async fn get_feature_distributions(
         pool: &Pool<Postgres>,
         service_info: &ServiceInfo,
         limit_datetime: &DateTime<Utc>,

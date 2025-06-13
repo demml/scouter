@@ -52,7 +52,7 @@ pub mod psi_drifter {
             limit_datetime: &DateTime<Utc>,
             db_pool: &Pool<Postgres>,
         ) -> Result<Option<FeatureDistributions>, DriftError> {
-            let feature_distributions = PostgresClient::get_feature_distribution(
+            let feature_distributions = PostgresClient::get_feature_distributions(
                 db_pool,
                 &self.service_info,
                 limit_datetime,
