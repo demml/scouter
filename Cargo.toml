@@ -55,6 +55,7 @@ itertools = "0.*"
 jsonwebtoken = "9.*"
 metrics = { version = "0.*", default-features = false }
 metrics-exporter-prometheus = { version = "0.*", default-features = false }
+mimalloc = { version = "*", features = ["secure"] }
 mockito = "1.*"
 ndarray = { version = "0.*", features = ["rayon"] }
 ndarray-rand = "0.*"

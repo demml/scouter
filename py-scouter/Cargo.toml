@@ -11,6 +11,7 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 
 pyo3 = { workspace = true }
+mimalloc = { workspace = true}
 numpy = { workspace = true }
 num-traits = { workspace = true }
 ndarray-stats = { workspace = true }

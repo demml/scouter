@@ -151,6 +151,9 @@ pub enum EventError {
 
     #[error("Invalid compressions type")]
     InvalidCompressionTypeError,
+
+    #[error("Failed to send event: {0}")]
+    FlumeSendError(#[source] flume::SendError<Event>),
 }
 
 #[derive(Error, Debug)]
