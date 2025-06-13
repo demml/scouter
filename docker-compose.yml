@@ -98,7 +98,7 @@ services:
   init-kafka:
     image: confluentinc/cp-kafka:latest
     depends_on:
-      - kafka-ui
+      - kafka
     entrypoint: ["/bin/sh", "-c"]
     command: |
       "
