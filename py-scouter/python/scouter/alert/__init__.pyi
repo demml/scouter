@@ -108,8 +108,6 @@ class SpcAlertRule:
     def zones_to_monitor(self, zones_to_monitor: List[AlertZone]) -> None:
         """Set the zones to monitor"""
 
-
-
 class PsiNormalThreshold:
     def __init__(self, alpha: float = 0.05):
         """Initialize PSI threshold using normal approximation.
@@ -132,7 +130,6 @@ class PsiNormalThreshold:
     @alpha.setter
     def alpha(self, alpha: float) -> None:
         """Set significance level (must be between 0.0 and 1.0, exclusive)."""
-
 
 class PsiChiSquareThreshold:
     def __init__(self, alpha: float = 0.05):
@@ -234,7 +231,6 @@ class PsiAlertConfig:
     @features_to_monitor.setter
     def features_to_monitor(self, features_to_monitor: List[str]) -> None:
         """Set the features to monitor"""
-
 
 class SpcAlertConfig:
     def __init__(

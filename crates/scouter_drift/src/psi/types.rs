@@ -10,7 +10,7 @@ pub struct FeatureBinProportionPairs {
 }
 
 impl FeatureBinProportionPairs {
-    pub fn from_observed_bin_proportions( 
+    pub fn from_observed_bin_proportions(
         observed_bin_proportions: &BTreeMap<usize, f64>,
         profile: &PsiFeatureDriftProfile,
     ) -> Result<Self, DriftError> {

@@ -263,7 +263,7 @@ impl PsiAlertConfig {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct PsiFeatureAlert {
     pub feature: String,
     pub drift: f64,

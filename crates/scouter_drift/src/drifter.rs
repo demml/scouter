@@ -339,7 +339,13 @@ pub mod drift_executor {
 
             let mut script = std::fs::read_to_string(populate_path).unwrap();
             let bin_count = 1000;
+            let skew_feature = "feature_1";
+            let skew_factor = 10;
+            let apply_skew = true;
             script = script.replace("{{bin_count}}", &bin_count.to_string());
+            script = script.replace("{{skew_feature}}", skew_feature);
+            script = script.replace("{{skew_factor}}", &skew_factor.to_string());
+            script = script.replace("{{apply_skew}}", &apply_skew.to_string());
             sqlx::raw_sql(&script).execute(&db_pool).await.unwrap();
 
             let mut drift_executor = DriftExecutor::new(&db_pool);
@@ -359,9 +365,21 @@ pub mod drift_executor {
                 .await
                 .unwrap();
 
-            assert!(alerts.len() >= 2);
+            assert_eq!(alerts.len(), 1);
         }
 
+        /// This test verifies that the PSI drift executor does **not** generate any drift alerts
+        /// when there are **not enough target samples** to meet the minimum threshold required
+        /// for PSI calculation.
+        ///
+        /// This arg determines how many bin counts to simulate for a production environment.
+        /// In the script there are 3 features, each with 10 bins.
+        /// `bin_count = 2` means we simulate 2 observations per bin.
+        /// So for each feature: 10 bins * 2 samples = 20 samples inserted PER insert.
+        /// Since the script inserts each feature's data 3 times (simulating 3 production batches),
+        /// each feature ends up with: 20 samples * 3 = 60 samples total.
+        /// This is below the required threshold of >100 samples per feature for PSI calculation,
+        /// so no drift alert should be generated.
         #[tokio::test]
         async fn test_drift_executor_psi_not_enough_target_samples() {
             let db_pool = PostgresClient::create_db_pool(&DatabaseSettings::default())
@@ -376,7 +394,13 @@ pub mod drift_executor {
 
             let mut script = std::fs::read_to_string(populate_path).unwrap();
             let bin_count = 2;
+            let skew_feature = "feature_1";
+            let skew_factor = 1;
+            let apply_skew = false;
             script = script.replace("{{bin_count}}", &bin_count.to_string());
+            script = script.replace("{{skew_feature}}", skew_feature);
+            script = script.replace("{{skew_factor}}", &skew_factor.to_string());
+            script = script.replace("{{apply_skew}}", &apply_skew.to_string());
             sqlx::raw_sql(&script).execute(&db_pool).await.unwrap();
 
             let mut drift_executor = DriftExecutor::new(&db_pool);
