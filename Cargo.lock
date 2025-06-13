@@ -4918,7 +4918,7 @@ dependencies = [
  "chrono",
  "cron",
  "indicatif",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "ndarray",
  "ndarray-rand",
  "ndarray-stats",
@@ -4979,7 +4979,7 @@ dependencies = [
 name = "scouter-observability"
 version = "0.5.3"
 dependencies = [
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "ndarray",
  "ndarray-stats",
  "noisy_float",
@@ -4999,7 +4999,7 @@ dependencies = [
  "approx",
  "chrono",
  "indicatif",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "ndarray",
  "ndarray-rand",
  "ndarray-stats",
