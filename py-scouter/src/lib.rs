@@ -12,11 +12,6 @@ use pyo3::prelude::*;
 
 use pyo3::wrap_pymodule;
 
-use mimalloc::MiMalloc;
-
-#[global_allocator]
-static GLOBAL: MiMalloc = MiMalloc;
-
 #[pymodule]
 fn scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_wrapped(wrap_pymodule!(queue::queue))?;

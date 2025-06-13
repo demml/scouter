@@ -4112,7 +4112,6 @@ dependencies = [
 name = "py-scouter"
 version = "0.5.2"
 dependencies = [
- "mimalloc",
  "ndarray-stats",
  "num-traits",
  "numpy",
