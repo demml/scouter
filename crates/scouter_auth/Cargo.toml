@@ -4,6 +4,10 @@ version = { workspace = true }
 edition = { workspace = true }
 repository = { workspace = true }
 
+license = "MIT"
+description = "Rust Scouter authentication logic"
+
+
 [lib]
 doctest = false
 
