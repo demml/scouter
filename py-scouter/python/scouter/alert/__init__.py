@@ -15,12 +15,16 @@ SpcAlertConfig = alert.SpcAlertConfig
 SpcAlertRule = alert.SpcAlertRule
 SpcAlertType = alert.SpcAlertType
 SlackDispatchConfig = alert.SlackDispatchConfig
+PsiNormalThreshold = alert.PsiNormalThreshold
+PsiChiSquareThreshold = alert.PsiChiSquareThreshold
+PsiFixedThreshold = alert.PsiFixedThreshold
 
 
 __all__ = [
     "AlertZone",
     "SpcAlertType",
     "SpcAlertRule",
+    "PsiAlertConfig",
     "PsiAlertConfig",
     "SpcAlertConfig",
     "SpcAlert",
@@ -31,4 +35,7 @@ __all__ = [
     "OpsGenieDispatchConfig",
     "ConsoleDispatchConfig",
     "AlertDispatchType",
+    "PsiNormalThreshold",
+    "PsiChiSquareThreshold",
+    "PsiFixedThreshold",
 ]

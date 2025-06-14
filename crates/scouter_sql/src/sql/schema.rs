@@ -1,9 +1,10 @@
 use chrono::{DateTime, Utc};
+use scouter_types::psi::DistributionData;
 use scouter_types::{
     alert::Alert,
     custom::{BinnedCustomMetric, BinnedCustomMetricStats},
     get_utc_datetime,
-    psi::{FeatureBinProportion, FeatureBinProportionResult},
+    psi::FeatureBinProportionResult,
     RecordType,
 };
 use serde::{Deserialize, Serialize};
@@ -38,17 +39,24 @@ impl<'r> FromRow<'r, PgRow> for SpcFeatureResult {
     }
 }
 
-pub struct FeatureBinProportionWrapper(pub FeatureBinProportion);
+#[derive(Debug)]
+pub struct FeatureDistributionWrapper(pub String, pub DistributionData);
 
-impl<'r> FromRow<'r, PgRow> for FeatureBinProportionWrapper {
+impl<'r> FromRow<'r, PgRow> for FeatureDistributionWrapper {
     fn from_row(row: &'r PgRow) -> Result<Self, Error> {
-        let value: serde_json::Value = row.try_get("bins")?;
-        let bins: BTreeMap<usize, f64> = serde_json::from_value(value).unwrap_or_default();
+        let feature: String = row.try_get("feature")?;
+        let sample_size: i64 = row.try_get("sample_size")?;
+        let bins_json: serde_json::Value = row.try_get("bins")?;
+        let bins: BTreeMap<usize, f64> =
+            serde_json::from_value(bins_json).map_err(|e| Error::Decode(e.into()))?;
 
-        Ok(FeatureBinProportionWrapper(FeatureBinProportion {
-            feature: row.try_get("feature")?,
-            bins,
-        }))
+        Ok(FeatureDistributionWrapper(
+            feature,
+            DistributionData {
+                sample_size: sample_size as u64,
+                bins,
+            },
+        ))
     }
 }
 
