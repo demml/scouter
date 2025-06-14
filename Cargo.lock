@@ -4852,6 +4852,7 @@ dependencies = [
  "chrono",
  "ndarray",
  "ndarray-stats",
+ "noisy_float",
  "num-traits",
  "numpy",
  "pyo3",

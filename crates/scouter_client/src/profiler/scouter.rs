@@ -13,7 +13,7 @@ use scouter_profile::{
 use scouter_types::DataType;
 use std::collections::BTreeMap;
 use std::collections::HashMap;
-use tracing::debug;
+use tracing::{debug, error, instrument};
 
 #[pyclass]
 pub struct DataProfiler {
@@ -33,6 +33,7 @@ impl DataProfiler {
     }
 
     #[pyo3(signature = (data, data_type=None, bin_size=20, compute_correlations=false))]
+    #[instrument(skip_all)]
     pub fn create_data_profile<'py>(
         &mut self,
         py: Python<'py>,
@@ -59,13 +60,19 @@ impl DataProfiler {
             }
         };
 
+        debug!("Converting data with type: {:?}", data_type);
         let (num_features, num_array, dtype, string_features, string_vec) =
             DataConverterEnum::convert_data(py, data_type, data)?;
 
         // if num_features is not empty, check dtype. If dtype == "float64", process as f64, else process as f32
         if let Some(dtype) = dtype {
+            debug!("Data type detected for numeric data: {:?}", dtype);
             if dtype == "float64" {
-                let read_array = convert_array_type::<f64>(num_array.unwrap(), &dtype)?;
+                let read_array =
+                    convert_array_type::<f64>(num_array.unwrap(), &dtype).map_err(|e| {
+                        error!("Failed to convert numeric array: {}", e);
+                        e
+                    })?;
 
                 return self.create_data_profile_f64(
                     compute_correlations,
@@ -76,7 +83,11 @@ impl DataProfiler {
                     string_vec,
                 );
             } else {
-                let read_array = convert_array_type::<f32>(num_array.unwrap(), &dtype)?;
+                let read_array =
+                    convert_array_type::<f32>(num_array.unwrap(), &dtype).map_err(|e| {
+                        error!("Failed to convert numeric array: {}", e);
+                        e
+                    })?;
                 return self.create_data_profile_f32(
                     compute_correlations,
                     bin_size,
@@ -167,6 +178,7 @@ impl DataProfiler {
 
             Ok(profile)
         } else {
+            debug!("Processing both string and numeric arrays");
             let profile = self.process_string_and_num_array(
                 compute_correlations,
                 numeric_array.unwrap().as_array(),
@@ -180,6 +192,53 @@ impl DataProfiler {
         }
     }
 
+    fn compute_correlations<F>(
+        &mut self,
+        numeric_array: ArrayView2<F>,
+        string_array: Vec<Vec<String>>,
+        numeric_features: Vec<String>,
+        string_features: Vec<String>,
+    ) -> Result<HashMap<String, HashMap<String, f32>>, DataProfileError>
+    where
+        F: Float
+            + MaybeNan
+            + FromPrimitive
+            + std::fmt::Display
+            + Sync
+            + Send
+            + Num
+            + Clone
+            + std::fmt::Debug
+            + 'static
+            + std::convert::Into<f64>,
+        <F as MaybeNan>::NotNan: Ord,
+        f64: From<F>,
+        <F as MaybeNan>::NotNan: Clone,
+    {
+        debug!("Creating Numeric Profile: Computing correlations");
+        let converted_array = self
+            .string_profiler
+            .convert_string_vec_to_num_array(&string_array, &string_features)?;
+
+        // convert all values to F
+        let converted_array = converted_array.mapv(|x| F::from(x).unwrap());
+
+        // combine numeric_array and converted_array
+        let concatenated_array = {
+            let numeric_array_view = numeric_array.view();
+            let converted_array_view = converted_array.view();
+            concatenate(Axis(1), &[numeric_array_view, converted_array_view])?
+        };
+
+        // merge numeric and string features
+        let mut features = numeric_features.clone();
+        features.append(&mut string_features.clone());
+
+        let correlations = compute_feature_correlations(&concatenated_array.view(), &features);
+        Ok(correlations)
+    }
+
+    #[instrument(skip_all)]
     fn process_string_and_num_array<F>(
         &mut self,
         compute_correlations: bool,
@@ -205,36 +264,31 @@ impl DataProfiler {
         f64: From<F>,
         <F as MaybeNan>::NotNan: Clone,
     {
+        debug!("Creating String Profile");
         let string_profiles = self
             .string_profiler
             .create_string_profile(&string_array, &string_features)?;
 
+        debug!("Creating Numeric Profile: Computing stats");
         let num_profiles =
             self.num_profiler
                 .compute_stats(&numeric_features, &numeric_array, &bin_size)?;
 
         let correlations: Option<HashMap<String, HashMap<String, f32>>> = if compute_correlations {
-            let converted_array = self
-                .string_profiler
-                .convert_string_vec_to_num_array(&string_array, &string_features)?;
-
-            // convert all values to F
-            let converted_array = converted_array.mapv(|x| F::from(x).unwrap());
-
-            // combine numeric_array and converted_array
-            let concatenated_array = {
-                let numeric_array_view = numeric_array.view();
-                let converted_array_view = converted_array.view();
-                concatenate(Axis(1), &[numeric_array_view, converted_array_view])?
-            };
-
-            // merge numeric and string features
-            let mut features = numeric_features.clone();
-            features.append(&mut string_features.clone());
-
-            let correlations = compute_feature_correlations(&concatenated_array.view(), &features);
-            Some(correlations)
+            match self.compute_correlations(
+                numeric_array,
+                string_array,
+                numeric_features.clone(),
+                string_features.clone(),
+            ) {
+                Ok(correlations) => Some(correlations),
+                Err(e) => {
+                    error!("Failed to compute correlations: {}", e);
+                    None
+                }
+            }
         } else {
+            debug!("Creating Numeric Profile: Skipping correlations");
             None
         };
 

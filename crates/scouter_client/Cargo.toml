@@ -26,6 +26,7 @@ serde_json = { workspace = true }
 serde_qs = { workspace = true }
 tokio = { workspace = true }
 ndarray = { workspace = true }
+noisy_float = { workspace = true }
 pyo3 = { workspace = true }
 numpy = { workspace = true }
 num-traits = { workspace = true }
