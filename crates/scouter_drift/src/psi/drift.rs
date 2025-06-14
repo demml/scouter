@@ -47,7 +47,7 @@ pub mod psi_drifter {
                 .collect()
         }
 
-        async fn get_target_feature_distributions(
+        async fn resolve_target_feature_distributions(
             &self,
             limit_datetime: &DateTime<Utc>,
             db_pool: &Pool<Postgres>,
@@ -68,11 +68,9 @@ pub mod psi_drifter {
 
             if feature_distributions.is_empty() {
                 info!(
-                "No observed bin proportions available for {}/{}/{}. Skipping alert processing.",
-                self.service_info.space,
-                self.service_info.name,
-                self.service_info.version,
-            );
+                    "No enough target samples collected for {}/{}/{}. Skipping alert processing.",
+                    self.service_info.space, self.service_info.name, self.service_info.version,
+                );
                 return Ok(None);
             }
 
@@ -95,9 +93,13 @@ pub mod psi_drifter {
             drift_map
                 .iter()
                 .filter_map(|(feature, drift)| {
-                    let dist_data = target_feature_distributions.distributions.get(feature)?;
-                    let threshold = threshold_cfg
-                        .compute_threshold(dist_data.sample_size, dist_data.bins.len() as u64);
+                    let target_sample_size = target_feature_distributions
+                        .distributions
+                        .get(feature)?
+                        .sample_size;
+                    let number_of_bins = self.profile.features.get(feature)?.bins.len();
+                    let threshold =
+                        threshold_cfg.compute_threshold(target_sample_size, number_of_bins as u64);
 
                     (*drift > threshold).then(|| PsiFeatureAlert {
                         feature: feature.clone(),
@@ -199,7 +201,7 @@ pub mod psi_drifter {
 
             // Fetch, if any, target feature distributions
             let Some(target_feature_distributions) = self
-                .get_target_feature_distributions(&previous_run, db_pool)
+                .resolve_target_feature_distributions(&previous_run, db_pool)
                 .await?
             else {
                 return Ok(None);
