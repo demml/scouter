@@ -1,4 +1,5 @@
-use crate::data_utils::ConvertedData;
+use crate::data_utils::{ConvertedData, DataTypes};
+
 use crate::error::DataError;
 use num_traits::Float;
 use numpy::PyArray2;
@@ -30,12 +31,12 @@ pub trait DataConverter {
     fn categorize_features<'py>(
         py: Python<'py>,
         data: &Bound<'py, PyAny>,
-    ) -> Result<(Vec<String>, Vec<String>), DataError>;
+    ) -> Result<DataTypes, DataError>;
 
     #[allow(clippy::needless_lifetimes)]
     fn process_numeric_features<'py>(
         data: &Bound<'py, PyAny>,
-        features: &[String],
+        data_type: &DataTypes,
     ) -> Result<(Option<Bound<'py, PyAny>>, Option<String>), DataError>;
 
     #[allow(clippy::needless_lifetimes)]

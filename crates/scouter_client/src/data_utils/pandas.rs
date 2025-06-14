@@ -1,14 +1,17 @@
+use crate::data_utils::types::DataTypes;
 use crate::data_utils::{ConvertedData, DataConverter};
 use crate::error::DataError;
 use pyo3::prelude::*;
+use tracing::{debug, instrument};
 
 pub struct PandasDataConverter;
 
 impl DataConverter for PandasDataConverter {
+    #[instrument(skip_all)]
     fn categorize_features<'py>(
         _py: Python<'py>,
         data: &Bound<'py, PyAny>,
-    ) -> Result<(Vec<String>, Vec<String>), DataError> {
+    ) -> Result<DataTypes, DataError> {
         let column_name_dtype = data
             .getattr("columns")?
             .getattr("dtype")?
@@ -21,31 +24,54 @@ impl DataConverter for PandasDataConverter {
 
         let all_columns = data.getattr("columns")?.extract::<Vec<String>>()?;
 
-        // Check for non-numeric columns
-        let numeric_columns = data
-            .call_method1("select_dtypes", ("number",))?
+        // get integer and float columns
+        let integer_columns = data
+            .call_method1("select_dtypes", ("integer",))?
+            .getattr("columns")?
+            .extract::<Vec<String>>()?;
+
+        let float_columns = data
+            .call_method1("select_dtypes", ("float",))?
             .getattr("columns")?
             .extract::<Vec<String>>()?;
 
         let non_numeric_columns: Vec<String> = all_columns
             .iter()
-            .filter(|col| !numeric_columns.contains(col))
+            .filter(|col| !float_columns.contains(col) && !integer_columns.contains(col))
             .cloned()
             .collect();
 
-        Ok((numeric_columns, non_numeric_columns))
+        debug!("Non-numeric columns: {:?}", non_numeric_columns);
+
+        // Introducing specific numeric types because we may want to handle them differently at a later point
+        Ok(DataTypes::new(
+            integer_columns,
+            float_columns,
+            non_numeric_columns,
+        ))
     }
 
     fn process_numeric_features<'py>(
         data: &Bound<'py, PyAny>,
-        features: &[String],
+        data_types: &DataTypes,
     ) -> Result<(Option<Bound<'py, PyAny>>, Option<String>), DataError> {
-        if features.is_empty() {
+        if data_types.numeric_features.is_empty() {
             return Ok((None, None));
         }
 
-        let array = data.get_item(features)?.call_method0("to_numpy")?;
+        // if mixed type is true, it assumes we are at least dealing with float and integer types. we will need to convert all to float64
+        let array = if data_types.has_mixed_types() {
+            data.get_item(&data_types.numeric_features)?
+                .call_method1("astype", ("float64",))?
+                .call_method0("to_numpy")?
+        } else {
+            data.get_item(&data_types.numeric_features)?
+                .call_method0("to_numpy")?
+        };
+
         let dtype = Some(array.getattr("dtype")?.str()?.to_string());
+
+        //
 
         Ok((Some(array), dtype))
     }
@@ -70,22 +96,24 @@ impl DataConverter for PandasDataConverter {
         Ok(Some(string_array))
     }
 
+    #[instrument(skip_all)]
     fn prepare_data<'py>(
         py: Python<'py>,
         data: &Bound<'py, PyAny>,
     ) -> Result<ConvertedData<'py>, DataError> {
-        let (numeric_features, string_features) =
-            PandasDataConverter::categorize_features(py, data)?;
+        let data_types = PandasDataConverter::categorize_features(py, data)?;
 
         let (numeric_array, dtype) =
-            PandasDataConverter::process_numeric_features(data, &numeric_features)?;
-        let string_array = PandasDataConverter::process_string_features(data, &string_features)?;
+            PandasDataConverter::process_numeric_features(data, &data_types)?;
+
+        let string_array =
+            PandasDataConverter::process_string_features(data, &data_types.string_features)?;
 
         Ok((
-            numeric_features,
+            data_types.numeric_features,
             numeric_array,
             dtype,
-            string_features,
+            data_types.string_features,
             string_array,
         ))
     }

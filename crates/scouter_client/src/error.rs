@@ -20,6 +20,9 @@ pub enum DataError {
 
     #[error("Column names must be strings")]
     ColumnNamesMustBeStrings,
+
+    #[error("Detected missing, Nan, or infinite values in the data. Scouter does not currently support these value types")]
+    MissingNanOrInfiniteValues,
 }
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for DataError {
     fn from(err: pyo3::DowncastError) -> Self {
