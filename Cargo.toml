@@ -9,7 +9,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.5.2"
+version = "0.5.4"
 authors = [
       "Thorrester <support@demmlai.com>",
       "russellkemmit <support@demmlai.com>",
@@ -20,32 +20,32 @@ repository = "https://github.com/demml/scouter"
 
 
 [workspace.dependencies]
-scouter-auth = { path = "crates/scouter_auth" }
-scouter-client = { path = "crates/scouter_client" }
-scouter-dispatch = { path = "crates/scouter_dispatch" }
-scouter-drift = { path = "crates/scouter_drift", default-features = false }
-scouter-events = { path = "crates/scouter_events", default-features = false }
-scouter-observability = { path = "crates/scouter_observability" }
-scouter-profile = { path = "crates/scouter_profile" }
-scouter-server = { path = "crates/scouter_server" }
-scouter-settings = { path = "crates/scouter_settings" }
-scouter-dataframe = { path = "crates/scouter_dataframe" }
-scouter-sql = { path = "crates/scouter_sql" }
-scouter-types = { path = "crates/scouter_types" }
+scouter-auth = { path = "crates/scouter_auth", version = "0.5.4" }
+scouter-client = { path = "crates/scouter_client", version = "0.5.4" }
+scouter-dispatch = { path = "crates/scouter_dispatch", version = "0.5.4" }
+scouter-drift = { path = "crates/scouter_drift", version = "0.5.4", default-features = false }
+scouter-events = { path = "crates/scouter_events", version = "0.5.4", default-features = false }
+scouter-observability = { path = "crates/scouter_observability", version = "0.5.4" }
+scouter-profile = { path = "crates/scouter_profile", version = "0.5.4" }
+scouter-server = { path = "crates/scouter_server", version = "0.5.4" }
+scouter-settings = { path = "crates/scouter_settings", version = "0.5.4" }
+scouter-dataframe = { path = "crates/scouter_dataframe", version = "0.5.4" }
+scouter-sql = { path = "crates/scouter_sql", version = "0.5.4" }
+scouter-types = { path = "crates/scouter_types", version = "0.5.4" }
 
 anyhow = "1.*"
-axum = "0.*"
-axum-extra = { version =  "0.*", features = ["cookie"] }
-approx = "0.*"
-arrow = { version = "*" } 
-arrow-array = { version = "*" }
-async-trait = "0.*"
-base64 = "0.22.*"
+axum = ">=0.8, <1.0"
+axum-extra = { version =  ">=0.10, <1.0", features = ["cookie"] }
+approx = "0.5.1"
+arrow = { version = ">=55.0" }
+arrow-array = { version = ">=55.0" }
+async-trait = ">=0.1"
+base64 = ">=0.22"
 chrono ={ version = "0.*", features = ["serde"] }
-colored_json = "*"
+colored_json = "5.*"
 cron = "0.*"
 crossbeam-queue = "0.*"
-datafusion = { version = "*", features = ["parquet"] }
+datafusion = { version = "47.*", features = ["parquet"] }
 futures-util = { version = "0.*" }
 flume = "0.11.*"
 futures = "0.*"
@@ -55,6 +55,7 @@ itertools = "0.*"
 jsonwebtoken = "9.*"
 metrics = { version = "0.*", default-features = false }
 metrics-exporter-prometheus = { version = "0.*", default-features = false }
+mimalloc = { version = "*", features = ["secure"] }
 mockito = "1.*"
 ndarray = { version = "0.*", features = ["rayon"] }
 ndarray-rand = "0.*"
@@ -63,7 +64,7 @@ noisy_float = "0.*"
 numpy = "0.*"
 num-traits = "0.*"
 object_store = { version = "0.*", features = ["aws", "azure", "gcp" ] }
-parquet = { version = "*", features = ["arrow"] }
+parquet = { version = ">=55.*", features = ["arrow"] }
 password-auth = "1.*"
 pyo3 = { version = ">=0.*, <1.0.0", features = ["chrono", "anyhow", "extension-module"] }
 rand = "0.9.*"

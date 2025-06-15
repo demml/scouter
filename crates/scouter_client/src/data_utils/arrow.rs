@@ -1,4 +1,4 @@
-use crate::data_utils::{ConvertedData, DataConverter};
+use crate::data_utils::{ConvertedData, DataConverter, DataTypes};
 use crate::error::DataError;
 use pyo3::prelude::*;
 
@@ -9,9 +9,10 @@ impl DataConverter for ArrowDataConverter {
     fn categorize_features<'py>(
         py: Python<'py>,
         data: &Bound<'py, PyAny>,
-    ) -> Result<(Vec<String>, Vec<String>), DataError> {
+    ) -> Result<DataTypes, DataError> {
         let mut string_features = Vec::new();
-        let mut numeric_features = Vec::new();
+        let mut integer_features = Vec::new();
+        let mut float_features = Vec::new();
         let features = data.getattr("column_names")?.extract::<Vec<String>>()?;
         let schema = data.getattr("schema")?;
 
@@ -24,42 +25,54 @@ impl DataConverter for ArrowDataConverter {
                 .call_method1("is_integer", (&dtype,))?
                 .extract::<bool>()?
             {
-                numeric_features.push(feature);
+                integer_features.push(feature);
             } else if pa_types
                 .call_method1("is_floating", (&dtype,))?
                 .extract::<bool>()?
             {
-                numeric_features.push(feature);
+                float_features.push(feature);
             } else if pa_types
                 .call_method1("is_decimal", (&dtype,))?
                 .extract::<bool>()?
             {
-                numeric_features.push(feature);
+                float_features.push(feature);
             } else {
                 string_features.push(feature);
             }
         }
 
-        Ok((numeric_features, string_features))
+        Ok(DataTypes::new(
+            integer_features,
+            float_features,
+            string_features,
+        ))
     }
 
     fn process_numeric_features<'py>(
         data: &Bound<'py, PyAny>,
-        features: &[String],
+        data_types: &DataTypes,
     ) -> Result<(Option<Bound<'py, PyAny>>, Option<String>), DataError> {
         let py = data.py();
-        if features.is_empty() {
+        if data_types.numeric_features.is_empty() {
             return Ok((None, None));
         }
 
-        let array = features
+        let is_mixed_type = data_types.has_mixed_types();
+
+        let array = data_types
+            .numeric_features
             .iter()
             .map(|feature| {
                 let array = data
                     .call_method1("column", (&feature,))?
                     .call_method0("to_numpy")?;
 
-                Ok(array)
+                // Convert all to f64
+                if is_mixed_type {
+                    Ok(array.call_method1("astype", ("float64",))?)
+                } else {
+                    Ok(array)
+                }
             })
             .collect::<Result<Vec<Bound<'py, PyAny>>, DataError>>()?;
 
@@ -98,18 +111,18 @@ impl DataConverter for ArrowDataConverter {
         py: Python<'py>,
         data: &Bound<'py, PyAny>,
     ) -> Result<ConvertedData<'py>, DataError> {
-        let (numeric_features, string_features) =
-            ArrowDataConverter::categorize_features(py, data)?;
+        let data_types = ArrowDataConverter::categorize_features(py, data)?;
 
         let (numeric_array, dtype) =
-            ArrowDataConverter::process_numeric_features(data, &numeric_features)?;
-        let string_array = ArrowDataConverter::process_string_features(data, &string_features)?;
+            ArrowDataConverter::process_numeric_features(data, &data_types)?;
+        let string_array =
+            ArrowDataConverter::process_string_features(data, &data_types.string_features)?;
 
         Ok((
-            numeric_features.to_vec(),
+            data_types.numeric_features,
             numeric_array,
             dtype,
-            string_features.to_vec(),
+            data_types.string_features,
             string_array,
         ))
     }

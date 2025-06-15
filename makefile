@@ -79,7 +79,7 @@ test: build.all_backends test.needs_sql test.unit build.shutdown
 .PHONY: build.all_backends
 build.all_backends:
 	docker compose down
-	docker compose up -d --build server-backends --wait
+	docker compose up --build server-backends --wait
 
 .PHONE: start.server
 start.server: stop.server build.all_backends

@@ -31,7 +31,7 @@ pub async fn create_app() -> Result<(Router, Arc<AppState>), anyhow::Error> {
 
     let app_state = Arc::new(AppState {
         db_pool: scouter_components.db_pool,
-        shutdown_tx: scouter_components.tokio_shutdown_tx,
+        task_manager: scouter_components.task_manager,
         auth_manager: AuthManager::new(
             &scouter_components.server_config.auth_settings.jwt_secret,
             &scouter_components

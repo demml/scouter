@@ -877,6 +877,9 @@ class Drifter:
             data:
                 Data to create a data profile from. Data can be a numpy array,
                 a polars dataframe or a pandas dataframe.
+
+                **Data is expected to not contain any missing values, NaNs or infinities**
+
             config:
                 SpcDriftConfig
             data_type:
@@ -898,6 +901,9 @@ class Drifter:
             data:
                 Data to create a data profile from. Data can be a numpy array,
                 a polars dataframe or a pandas dataframe.
+
+                **Data is expected to not contain any missing values, NaNs or infinities**
+
             config:
                 SpcDriftConfig
             data_type:
@@ -920,6 +926,9 @@ class Drifter:
             data:
                 Data to create a data profile from. Data can be a numpy array,
                 a polars dataframe or a pandas dataframe.
+
+                **Data is expected to not contain any missing values, NaNs or infinities**
+
             config:
                 PsiDriftConfig
             data_type:
@@ -963,6 +972,9 @@ class Drifter:
                 Data to create a data profile from. Data can be a numpy array,
                 a polars dataframe, pandas dataframe or a list of CustomMetric if creating
                 a custom metric profile.
+
+                **Data is expected to not contain any missing values, NaNs or infinities**
+
             config:
                 Drift config that will be used for monitoring
             data_type:

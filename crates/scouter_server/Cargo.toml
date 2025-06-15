@@ -9,7 +9,7 @@ authors = [
 ]
 
 license = "MIT"
-description = "Rust Scouter server logic"
+description = "Scouter server logic"
 
 [dependencies]
 scouter-dataframe = { workspace = true }
@@ -29,6 +29,7 @@ futures = { workspace = true }
 flume = { workspace = true }
 metrics = { workspace = true }
 metrics-exporter-prometheus = { workspace = true }
+mimalloc = { workspace = true }
 password-auth = { workspace = true }
 rand = { workspace = true }
 rusty-logging= { workspace = true }

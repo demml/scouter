@@ -16,7 +16,6 @@ pub mod kafka_consumer {
     use std::result::Result::Ok;
     use tokio::sync::watch;
     use tokio::task::JoinHandle;
-    use tracing::debug;
     use tracing::instrument;
     use tracing::{error, info};
 
@@ -27,31 +26,7 @@ pub mod kafka_consumer {
     }
 
     impl KafkaConsumerManager {
-        #[instrument(skip_all, name = "start_kafka_workers")]
-        pub async fn start_workers(
-            kafka_settings: &KafkaSettings,
-            db_pool: &Pool<Postgres>,
-            shutdown_rx: watch::Receiver<()>,
-        ) -> Result<Self, EventError> {
-            let num_consumers = kafka_settings.num_workers;
-            let mut workers = Vec::with_capacity(num_consumers);
-
-            for id in 0..num_consumers {
-                let consumer = create_kafka_consumer(kafka_settings, None).await?;
-                let kafka_pool = db_pool.clone();
-
-                let worker_shutdown_rx = shutdown_rx.clone();
-                workers.push(tokio::spawn(async move {
-                    Self::start_worker(id, consumer, kafka_pool, worker_shutdown_rx).await;
-                }));
-            }
-
-            debug!("✅ Started {} Kafka workers", num_consumers);
-
-            Ok(Self { workers })
-        }
-
-        async fn start_worker(
+        pub async fn start_worker(
             id: usize,
             consumer: StreamConsumer,
             db_pool: Pool<Postgres>,
