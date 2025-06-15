@@ -102,6 +102,7 @@ impl PsiDrifter {
 
         // Validate categorical_features
         if let Some(categorical_features) = final_config.categorical_features.as_ref() {
+            // fail if the specified categorical features are not in the num_features or string_features
             if let Some(missing_feature) = categorical_features
                 .iter()
                 .find(|&key| !num_features.contains(key) && !string_features.contains(key))
