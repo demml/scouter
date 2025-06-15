@@ -22,7 +22,7 @@ from scouter.types import DriftType
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"
 
 
-def _test_psi_monitor_pandas_http(
+def test_psi_monitor_pandas_http(
     http_scouter_server,
     pandas_dataframe: pd.DataFrame,
     psi_drift_config: PsiDriftConfig,
