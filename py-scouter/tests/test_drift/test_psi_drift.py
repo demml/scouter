@@ -89,9 +89,7 @@ def test_data_pyarrow_mixed_type(
 
     drifter = Drifter()
 
-    profile: PsiDriftProfile = drifter.create_drift_profile(
-        arrow_table, psi_drift_config_with_categorical_features
-    )
+    profile: PsiDriftProfile = drifter.create_drift_profile(arrow_table, psi_drift_config_with_categorical_features)
     drift_map = drifter.compute_drift(arrow_table, profile)
 
     assert len(drift_map.features) == 6
