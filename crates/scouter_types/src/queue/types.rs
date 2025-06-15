@@ -103,6 +103,11 @@ impl Feature {
         Feature::String(StringFeature { name, value })
     }
 
+    #[staticmethod]
+    pub fn categorical(name: String, value: String) -> Self {
+        Feature::String(StringFeature { name, value })
+    }
+
     pub fn __str__(&self) -> String {
         ProfileFuncs::__str__(self)
     }

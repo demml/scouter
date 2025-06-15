@@ -99,13 +99,16 @@ def test_psi_monitor_polars_categorical_http(
     )
 
     for record in records:
-        features = Features(
-            features=[
-                Feature.float(column_name, record[column_name])
-                for column_name in polars_dataframe_multi_dtype.columns
-                if column_name not in categorical_features
-            ]
-        )
+        keys = record.keys()
+        features = []
+
+        for key in keys:
+            if key in categorical_features:
+                features.append(Feature.categorical(key, record[key]))
+            else:
+                features.append(Feature.float(key, record[key]))
+
+        features = Features(features=features)
         # 3. Send records to Scouter
         queue["a"].insert(features)
 
