@@ -11,8 +11,11 @@ PsiDriftConfig(
     space="wine_model",
     version="0.0.1",
     alert_config=PsiAlertConfig()
+    categorical_features = ["feature_1", "feature_2"],  # (1)
 )
 ```
+
+1. To ensure accurate PSI calculations, categorical features must be explicitly specified.
 
 ### Parameters
 
