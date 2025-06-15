@@ -17,10 +17,14 @@ use std::sync::Arc;
 use tracing::{debug, info};
 
 #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
-use scouter_events::consumer::kafka::KafkaConsumerManager;
+use scouter_events::consumer::kafka::{
+    consumer::kafka_consumer::create_kafka_consumer, KafkaConsumerManager,
+};
 
 #[cfg(feature = "rabbitmq")]
-use scouter_events::consumer::rabbitmq::RabbitMQConsumerManager;
+use scouter_events::consumer::rabbitmq::{
+    consumer::rabbitmq_consumer::create_rabbitmq_consumer, RabbitMQConsumerManager,
+};
 
 #[cfg(feature = "redis_events")]
 use scouter_events::consumer::redis::RedisConsumerManager;
@@ -29,10 +33,12 @@ use scouter_events::consumer::http::consumer::HttpConsumerManager;
 use scouter_settings::events::HttpConsumerSettings;
 use scouter_types::ServerRecords;
 
+use crate::api::task_manager::TaskManager;
+
 pub struct ScouterSetupComponents {
     pub server_config: Arc<ScouterServerConfig>,
     pub db_pool: Pool<Postgres>,
-    pub tokio_shutdown_tx: tokio::sync::watch::Sender<()>,
+    pub task_manager: TaskManager,
     pub http_consumer_tx: Sender<ServerRecords>,
 }
 
@@ -48,12 +54,13 @@ impl ScouterSetupComponents {
 
         let db_pool = Self::setup_database(&config.database_settings).await?;
 
-        let (tokio_shutdown_tx, tokio_shutdown_rx) = tokio::sync::watch::channel(());
+        let mut task_manager = TaskManager::new();
+        let tokio_shutdown_rx = task_manager.get_shutdown_receiver();
 
         let http_consumer_manager = Self::setup_http_consumer_manager(
             &config.http_consumer_settings,
             &db_pool,
-            tokio_shutdown_rx.clone(),
+            &mut task_manager,
         )
         .await?;
 
@@ -62,7 +69,7 @@ impl ScouterSetupComponents {
             Self::setup_kafka(
                 config.kafka_settings.as_ref().unwrap(),
                 &db_pool,
-                tokio_shutdown_rx.clone(),
+                &mut task_manager,
             )
             .await?;
         }
@@ -72,7 +79,7 @@ impl ScouterSetupComponents {
             Self::setup_rabbitmq(
                 config.rabbitmq_settings.as_ref().unwrap(),
                 &db_pool,
-                tokio_shutdown_rx.clone(),
+                &mut task_manager,
             )
             .await?;
         }
@@ -94,12 +101,12 @@ impl ScouterSetupComponents {
         )
         .await?;
 
-        Self::setup_background_data_archive_workers(&db_pool, &config, tokio_shutdown_rx).await?;
+        Self::setup_background_data_archive_worker(&db_pool, &config, &mut task_manager).await?;
 
         Ok(Self {
             server_config: config,
             db_pool,
-            tokio_shutdown_tx,
+            task_manager,
             http_consumer_tx: http_consumer_manager.tx,
         })
     }
@@ -207,12 +214,24 @@ impl ScouterSetupComponents {
     ///
     /// Returns:
     /// * `AnyhowResult<()>` - The result of the setup
-    async fn setup_background_data_archive_workers(
+    async fn setup_background_data_archive_worker(
         db_pool: &Pool<Postgres>,
         config: &Arc<ScouterServerConfig>,
-        shutdown_rx: tokio::sync::watch::Receiver<()>,
+        task_manager: &mut TaskManager,
     ) -> AnyhowResult<()> {
-        DataArchiver::start_workers(db_pool, shutdown_rx, config).await?;
+        // Clone needed values for the worker task
+        let pool = db_pool.clone();
+        let config_clone = config.clone();
+        let shutdown_rx = task_manager.get_shutdown_receiver();
+
+        // Spawn the worker directly through the task manager
+        task_manager.spawn(DataArchiver::start_worker(
+            0,
+            pool,
+            config_clone,
+            shutdown_rx,
+        ));
+
         info!("✅ Started data archive workers");
         Ok(())
     }
@@ -234,7 +253,7 @@ impl ScouterSetupComponents {
     /// * `settings` - The kafka settings to use for the consumer
     /// * `db_settings` - The database settings to use for the consumer
     /// * `db_client` - The database client to use for the consumer
-    /// * `shutdown_rx` - The shutdown receiver to use for the consumer
+    /// * `task_manager` - The task manager to use for the consumer
     ///
     /// Returns:
     /// * `AnyhowResult<()>` - The result of the setup
@@ -242,10 +261,21 @@ impl ScouterSetupComponents {
     async fn setup_kafka(
         settings: &KafkaSettings,
         db_pool: &Pool<Postgres>,
-        shutdown_rx: tokio::sync::watch::Receiver<()>,
+        task_manager: &mut TaskManager,
     ) -> AnyhowResult<()> {
-        KafkaConsumerManager::start_workers(settings, db_pool, shutdown_rx).await?;
-        info!("✅ Started Kafka workers");
+        let num_consumers = settings.num_workers;
+
+        for id in 0..num_consumers {
+            let consumer = create_kafka_consumer(settings, None).await?;
+            let kafka_pool = db_pool.clone();
+            let shutdown_rx = task_manager.get_shutdown_receiver();
+
+            task_manager.spawn(async move {
+                KafkaConsumerManager::start_worker(id, consumer, kafka_pool, shutdown_rx).await;
+            });
+        }
+
+        debug!("✅ Started {} Kafka workers", num_consumers);
 
         Ok(())
     }
@@ -256,7 +286,7 @@ impl ScouterSetupComponents {
     /// * `settings` - The rabbitmq settings to use for the consumer
     /// * `db_settings` - The database settings to use for the consumer
     /// * `db_client` - The database client to use for the consumer
-    /// * `shutdown_rx` - The shutdown receiver to use for the consumer
+    /// * `task_manager` - The task manager to use for the consumer
     ///
     /// Returns:
     /// * `AnyhowResult<()>` - The result of the setup
@@ -264,10 +294,21 @@ impl ScouterSetupComponents {
     async fn setup_rabbitmq(
         settings: &RabbitMQSettings,
         db_pool: &Pool<Postgres>,
-        shutdown_rx: tokio::sync::watch::Receiver<()>,
+        task_manager: &mut TaskManager,
     ) -> AnyhowResult<()> {
-        RabbitMQConsumerManager::start_workers(settings, db_pool, shutdown_rx).await?;
-        info!("✅ Started RabbitMQ workers");
+        let num_consumers = settings.num_consumers;
+
+        for id in 0..num_consumers {
+            let consumer = create_rabbitmq_consumer(settings).await?;
+            let rabbit_db_pool = db_pool.clone();
+            let shutdown_rx = task_manager.get_shutdown_receiver();
+            task_manager.spawn(async move {
+                RabbitMQConsumerManager::start_worker(id, consumer, rabbit_db_pool, shutdown_rx)
+                    .await;
+            });
+        }
+
+        info!("✅ Started {} RabbitMQ workers", num_consumers);
 
         Ok(())
     }
@@ -277,18 +318,31 @@ impl ScouterSetupComponents {
     /// Arguments:
     /// * `settings` - The http consumer settings
     /// * `db_pool` - The pg db pool used by the consumers
-    /// * `shutdown_rx` - The shutdown receiver to use for the consumer
+    /// * `task_manager` - The task manager to use for the consumer
     ///
     /// Returns:
     /// * `AnyhowResult<HttpConsumerManager>` - http consumer manager struct containing the flume channel transmitter
     async fn setup_http_consumer_manager(
         settings: &HttpConsumerSettings,
         db_pool: &Pool<Postgres>,
-        shutdown_rx: tokio::sync::watch::Receiver<()>,
+        task_manager: &mut TaskManager,
     ) -> AnyhowResult<HttpConsumerManager> {
-        let manager = HttpConsumerManager::new(settings, db_pool, shutdown_rx).await?;
-        info!("✅ Started http consumers");
-        Ok(manager)
+        let (tx, rx) = flume::bounded(1000);
+        let num_workers = settings.num_workers;
+
+        for id in 0..num_workers {
+            let consumer = rx.clone();
+            let worker_shutdown_rx = task_manager.get_shutdown_receiver();
+            let db_pool_clone = db_pool.clone();
+
+            task_manager.spawn(async move {
+                HttpConsumerManager::start_worker(id, consumer, db_pool_clone, worker_shutdown_rx)
+                    .await;
+            });
+        }
+
+        info!("✅ Started {} HTTP consumers", num_workers);
+        Ok(HttpConsumerManager { tx })
     }
 
     /// Helper to setup the background drift worker

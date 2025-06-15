@@ -1,17 +1,18 @@
 use crate::error::DataProfileError;
-use crate::profile::types::{Distinct, FeatureProfile, Histogram, NumericStats, Quantiles};
-use ndarray::prelude::*;
-use ndarray::Axis;
-use ndarray_stats::MaybeNan;
-
 use crate::profile::stats::compute_feature_correlations;
 use crate::profile::types::DataProfile;
+use crate::profile::types::{Distinct, FeatureProfile, Histogram, NumericStats, Quantiles};
+use ndarray::prelude::*;
+use ndarray::{aview1, Axis};
+use ndarray_stats::MaybeNan;
 use ndarray_stats::{interpolate::Nearest, QuantileExt};
-use noisy_float::types::n64;
+use noisy_float::types::{n64, N64};
+use num_traits::ToPrimitive;
 use num_traits::{Float, FromPrimitive, Num};
 use rayon::prelude::*;
 use std::cmp::Ord;
 use std::collections::{BTreeMap, HashMap, HashSet};
+use tracing::{debug, error, warn};
 pub struct NumProfiler {}
 
 impl NumProfiler {
@@ -31,27 +32,27 @@ impl NumProfiler {
     pub fn compute_quantiles<F>(
         &self,
         array: &ArrayView2<F>,
-    ) -> Result<Vec<Vec<F>>, DataProfileError>
+    ) -> Result<(Option<Array2<N64>>, bool), DataProfileError>
     where
-        F: Num + ndarray_stats::MaybeNan + std::marker::Send + Sync + Clone + Copy,
+        F: Num + ndarray_stats::MaybeNan + std::marker::Send + Sync + Clone + Copy + Float,
         <F as ndarray_stats::MaybeNan>::NotNan: Clone,
         <F as ndarray_stats::MaybeNan>::NotNan: Ord,
+        f64: From<F>,
     {
-        let axis = Axis(0);
+        // First convert to f64, then to n64
+        // Check for NaN or Inf values early to avoid unnecessary computation
+        if array.iter().any(|&x| x.is_nan() || x.is_infinite()) {
+            warn!("Array contains NaN or Inf values, skipping quantile computation");
+            return Ok((None, true));
+        }
+
+        // Convert F values to n64 in one step
+        let mut n64_array = array.mapv(|x| n64(f64::from(x)));
+
         let qs = &[n64(0.25), n64(0.5), n64(0.75), n64(0.99)];
+        let quantiles = n64_array.quantiles_axis_mut(Axis(0), &aview1(qs), &Nearest)?;
 
-        let quantiles = qs
-            .par_iter()
-            .map(|q| {
-                array
-                    .to_owned()
-                    .quantile_axis_skipnan_mut(axis, *q, &Nearest)
-                    .unwrap()
-                    .to_vec()
-            })
-            .collect::<Vec<_>>();
-
-        Ok(quantiles)
+        Ok((Some(quantiles), false))
     }
 
     /// Compute the mean for a 2D array.
@@ -203,18 +204,24 @@ impl NumProfiler {
         bins: &[f64],
     ) -> Result<Vec<i32>, DataProfileError>
     where
-        F: Num + ndarray_stats::MaybeNan + std::marker::Send + Sync + Clone + Copy,
+        F: Num
+            + ndarray_stats::MaybeNan
+            + std::marker::Send
+            + Sync
+            + Clone
+            + Copy
+            + num_traits::Float,
         f64: From<F>,
     {
         // create a vector of size bins
         let mut bin_counts = vec![0; bins.len()];
         let max_bin = bins.last().ok_or(DataProfileError::MaxBinError)?;
 
-        array.map(|datum| {
+        array.for_each(|datum| {
+            let val: f64 = datum.to_owned().into();
+
             // iterate over the bins
             for (i, bin) in bins.iter().enumerate() {
-                let val: f64 = datum.to_owned().into();
-
                 if bin != max_bin {
                     // check if datum is between bin and next bin
                     if &val >= bin && val < bins[i + 1] {
@@ -242,6 +249,7 @@ impl NumProfiler {
         array: &ArrayView2<F>,
         features: &[String],
         bin_size: &usize,
+        has_unsupported_types: bool,
     ) -> Result<HashMap<String, Histogram>, DataProfileError>
     where
         F: Num
@@ -250,7 +258,8 @@ impl NumProfiler {
             + Sync
             + Clone
             + Copy
-            + num_traits::Float,
+            + num_traits::Float
+            + std::fmt::Debug,
         f64: From<F>,
     {
         // Process each column in parallel
@@ -260,8 +269,33 @@ impl NumProfiler {
             .enumerate()
             .map(|(idx, column)| {
                 // Compute histogram components
-                let bins = self.compute_bins(&column, bin_size)?;
-                let bin_counts = self.compute_bin_counts(&column, &bins)?;
+
+                if has_unsupported_types {
+                    warn!(
+                        "Skipping histogram computation for feature {} due to unsupported types",
+                        features.get(idx).unwrap_or(&"Unknown".to_string())
+                    );
+                    return Ok((features[idx].clone(), Histogram::default()));
+                }
+
+                let bins = self.compute_bins(&column, bin_size).map_err(|e| {
+                    error!(
+                        error = %e,
+                        feature = %features.get(idx).unwrap_or(&"Unknown".to_string()),
+                        column = ?column,
+                        bin_size = bin_size,
+                        "Failed to compute bins"
+                    );
+                    e
+                })?;
+                let bin_counts = self.compute_bin_counts(&column, &bins).map_err(|e| {
+                    error!(
+                        error = %e,
+                        feature = %features.get(idx).unwrap_or(&"Unknown".to_string()),
+                        "Failed to compute bin counts"
+                    );
+                    e
+                })?;
 
                 // Create histogram for this feature
                 Ok((features[idx].clone(), Histogram { bins, bin_counts }))
@@ -302,12 +336,23 @@ impl NumProfiler {
     {
         let means = self.compute_mean(array)?;
 
+        debug!("Computing stddev");
         let stddevs = self.compute_stddev(array)?;
-        let quantiles = self.compute_quantiles(array)?;
+
+        debug!("Computing quantiles");
+        let (quantiles, has_unsupported_types) = self.compute_quantiles(array)?;
+
+        debug!("Computing min");
         let mins = self.compute_min(array)?;
+
+        debug!("Computing max");
         let maxs = self.compute_max(array)?;
+
+        debug!("Computing distinct values");
         let distinct = self.compute_distinct(array)?;
-        let hist = self.compute_histogram(array, features, bin_size)?;
+
+        debug!("Computing histogram");
+        let hist = self.compute_histogram(array, features, bin_size, has_unsupported_types)?;
 
         // loop over list
         let mut profiles = Vec::new();
@@ -316,10 +361,10 @@ impl NumProfiler {
             let stddev = &stddevs[i];
             let min = &mins[i];
             let max = &maxs[i];
-            let q25 = &quantiles[0][i];
-            let q50 = &quantiles[1][i];
-            let q75 = &quantiles[2][i];
-            let q99 = &quantiles[3][i];
+            let q25 = quantiles.as_ref().map(|q| q[[0, i]]);
+            let q50 = quantiles.as_ref().map(|q| q[[1, i]]);
+            let q75 = quantiles.as_ref().map(|q| q[[2, i]]);
+            let q99 = quantiles.as_ref().map(|q| q[[3, i]]);
             let dist = &distinct[i];
 
             let numeric_stats = NumericStats {
@@ -333,10 +378,10 @@ impl NumProfiler {
                     percent: dist.percent,
                 },
                 quantiles: Quantiles {
-                    q25: f64::from(*q25),
-                    q50: f64::from(*q50),
-                    q75: f64::from(*q75),
-                    q99: f64::from(*q99),
+                    q25: q25.unwrap_or_default().to_f64().unwrap_or_default(),
+                    q50: q50.unwrap_or_default().to_f64().unwrap_or_default(),
+                    q75: q75.unwrap_or_default().to_f64().unwrap_or_default(),
+                    q99: q99.unwrap_or_default().to_f64().unwrap_or_default(),
                 },
                 histogram: hist[&features[i]].clone(),
             };

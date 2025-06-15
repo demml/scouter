@@ -24,7 +24,6 @@ def test_psi_monitor_pandas_http(
 ):
     scouter = Drifter()
     client = ScouterClient()
-
     profile = scouter.create_drift_profile(pandas_dataframe, psi_drift_config)
     client.register_profile(profile)
 
@@ -40,11 +39,7 @@ def test_psi_monitor_pandas_http(
     records = pandas_dataframe.to_dict(orient="records")
     for record in records:
         features = Features(
-            features=[
-                Feature.float("column_0", record["column_0"]),
-                Feature.float("column_1", record["column_1"]),
-                Feature.float("column_2", record["column_2"]),
-            ]
+            features=[Feature.float(column_name, record[column_name]) for column_name in pandas_dataframe.columns]
         )
         # 3. Send records to Scouter
         queue["a"].insert(features)

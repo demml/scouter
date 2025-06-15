@@ -1,7 +1,7 @@
 use crate::api::state::AppState;
 use std::sync::Arc;
 use tokio::signal;
-use tracing::{error, info};
+use tracing::info;
 
 pub async fn shutdown_signal(app_state: Arc<AppState>) {
     // Wait for a shutdown signal
@@ -30,9 +30,8 @@ pub async fn shutdown_signal(app_state: Arc<AppState>) {
 
     info!("Shutdown signal received, shutting down gracefully...");
 
-    if let Err(e) = app_state.shutdown_tx.send(()) {
-        error!("Failed to send shutdown signal: {:?}", e);
-    }
+    app_state.shutdown().await;
+    info!("Application shutdown complete.");
 }
 
 pub async fn shutdown_metric_signal() {

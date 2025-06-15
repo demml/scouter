@@ -178,7 +178,7 @@ pub struct Quantiles {
 /// * `bin_counts` - A vector of bin counts
 ///
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
 pub struct Histogram {
     #[pyo3(get)]
     pub bins: Vec<f64>,

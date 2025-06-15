@@ -22,7 +22,6 @@ use tracing::debug;
 #[pyclass(eq)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum BinType {
-    Binary,
     Numeric,
     Category,
 }
@@ -49,6 +48,9 @@ pub struct PsiDriftConfig {
     #[pyo3(get, set)]
     #[serde(default = "default_drift_type")]
     pub drift_type: DriftType,
+
+    #[pyo3(get, set)]
+    pub categorical_features: Option<Vec<String>>,
 }
 
 fn default_drift_type() -> DriftType {
@@ -64,15 +66,15 @@ impl PsiDriftConfig {
 #[pymethods]
 #[allow(clippy::too_many_arguments)]
 impl PsiDriftConfig {
-    // TODO dry this out
     #[new]
-    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, alert_config=PsiAlertConfig::default(), config_path=None))]
+    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, alert_config=PsiAlertConfig::default(), config_path=None, categorical_features=None))]
     pub fn new(
         space: &str,
         name: &str,
         version: &str,
         alert_config: PsiAlertConfig,
         config_path: Option<PathBuf>,
+        categorical_features: Option<Vec<String>>,
     ) -> Result<Self, ProfileError> {
         if let Some(config_path) = config_path {
             let config = PsiDriftConfig::load_from_json_file(config_path);
@@ -88,6 +90,7 @@ impl PsiDriftConfig {
             space: space.to_string(),
             version: version.to_string(),
             alert_config,
+            categorical_features,
             feature_map: FeatureMap::default(),
             drift_type: DriftType::Psi,
         })
@@ -150,6 +153,7 @@ impl Default for PsiDriftConfig {
             feature_map: FeatureMap::default(),
             alert_config: PsiAlertConfig::default(),
             drift_type: DriftType::Psi,
+            categorical_features: None,
         }
     }
 }
@@ -541,6 +545,7 @@ mod tests {
             MISSING,
             DEFAULT_VERSION,
             PsiAlertConfig::default(),
+            None,
             None,
         )
         .unwrap();
