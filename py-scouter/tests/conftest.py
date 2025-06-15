@@ -5,7 +5,13 @@ import numpy as np
 import pandas as pd
 import pytest
 from numpy.typing import NDArray
-from scouter.alert import CustomMetricAlertConfig, SlackDispatchConfig
+from scouter.alert import (
+    CustomMetricAlertConfig,
+    SlackDispatchConfig,
+    PsiAlertConfig,
+    PsiNormalThreshold,
+    PsiChiSquareThreshold,
+)
 from scouter.drift import CustomMetricDriftConfig, PsiDriftConfig, SpcDriftConfig
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 
@@ -108,7 +114,33 @@ def psi_drift_config() -> YieldFixture[PsiDriftConfig]:
 
 
 @pytest.fixture(scope="function")
-def psi_drift_config_with_categorical_features(cat_feature_names: list[str]) -> YieldFixture[PsiDriftConfig]:
+def psi_drift_normal_threshold_psi_config() -> YieldFixture[PsiDriftConfig]:
+    config = PsiDriftConfig(
+        name="test",
+        space="test",
+        alert_config=PsiAlertConfig(
+            threshold_config=PsiNormalThreshold(),
+        ),
+    )
+    yield config
+
+
+@pytest.fixture(scope="function")
+def psi_drift_chi_threshold_psi_config() -> YieldFixture[PsiDriftConfig]:
+    config = PsiDriftConfig(
+        name="test",
+        space="test",
+        alert_config=PsiAlertConfig(
+            threshold_config=PsiChiSquareThreshold(),
+        ),
+    )
+    yield config
+
+
+@pytest.fixture(scope="function")
+def psi_drift_config_with_categorical_features(
+    cat_feature_names: list[str],
+) -> YieldFixture[PsiDriftConfig]:
     config = PsiDriftConfig(
         name="test",
         space="test",
@@ -138,7 +170,9 @@ def polars_dataframe(array: NDArray, feature_names: list[str]) -> YieldFixture:
 
 
 @pytest.fixture(scope="function")
-def categorical_polars_dataframe(cat_feature_names: list[str], nrow: int) -> YieldFixture:
+def categorical_polars_dataframe(
+    cat_feature_names: list[str], nrow: int
+) -> YieldFixture:
     import polars as pl
 
     ints = np.random.randint(1, 4, nrow).reshape(-1, 1)
@@ -151,7 +185,12 @@ def categorical_polars_dataframe(cat_feature_names: list[str], nrow: int) -> Yie
 
     df = pl.from_numpy(array, schema=cat_feature_names)
 
-    df = df.with_columns([pl.col(column_name).cast(str).cast(pl.Categorical) for column_name in cat_feature_names])
+    df = df.with_columns(
+        [
+            pl.col(column_name).cast(str).cast(pl.Categorical)
+            for column_name in cat_feature_names
+        ]
+    )
 
     yield df
 
@@ -159,7 +198,9 @@ def categorical_polars_dataframe(cat_feature_names: list[str], nrow: int) -> Yie
 
 
 @pytest.fixture(scope="function")
-def polars_dataframe_multi_dtype(polars_dataframe, categorical_polars_dataframe) -> YieldFixture:
+def polars_dataframe_multi_dtype(
+    polars_dataframe, categorical_polars_dataframe
+) -> YieldFixture:
     import polars as pl
 
     df = pl.concat([polars_dataframe, categorical_polars_dataframe], how="horizontal")
@@ -170,7 +211,9 @@ def polars_dataframe_multi_dtype(polars_dataframe, categorical_polars_dataframe)
 
 
 @pytest.fixture(scope="function")
-def polars_dataframe_multi_dtype_drift(polars_dataframe_multi_dtype, cat_feature_names) -> YieldFixture:
+def polars_dataframe_multi_dtype_drift(
+    polars_dataframe_multi_dtype, cat_feature_names
+) -> YieldFixture:
     import polars as pl
 
     # Create a copy and modify the first categorical column to simulate drift
@@ -178,7 +221,12 @@ def polars_dataframe_multi_dtype_drift(polars_dataframe_multi_dtype, cat_feature
 
     # Scale the first categorical column
     first_cat_col = cat_feature_names[0]
-    df = df.with_columns((pl.col(first_cat_col).cast(pl.Int32) + 3).cast(str).cast(pl.Categorical).alias(first_cat_col))
+    df = df.with_columns(
+        (pl.col(first_cat_col).cast(pl.Int32) + 3)
+        .cast(str)
+        .cast(pl.Categorical)
+        .alias(first_cat_col)
+    )
 
     yield df
     cleanup()

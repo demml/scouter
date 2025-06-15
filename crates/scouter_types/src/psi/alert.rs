@@ -40,6 +40,7 @@ impl PsiThresholdConfig {
 }
 
 impl Default for PsiThresholdConfig {
+    // Default threshold is ChiSquare with alpha = 0.05
     fn default() -> Self {
         PsiThresholdConfig::ChiSquare(PsiChiSquareThreshold { alpha: 0.05 })
     }

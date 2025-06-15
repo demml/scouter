@@ -89,7 +89,31 @@ def test_data_pyarrow_mixed_type(
 
     drifter = Drifter()
 
-    profile: PsiDriftProfile = drifter.create_drift_profile(arrow_table, psi_drift_config_with_categorical_features)
+    profile: PsiDriftProfile = drifter.create_drift_profile(
+        arrow_table, psi_drift_config_with_categorical_features
+    )
     drift_map = drifter.compute_drift(arrow_table, profile)
 
     assert len(drift_map.features) == 6
+
+
+def test_psi_drift_normal_threshold(
+    pandas_dataframe: pd.DataFrame,
+    psi_drift_normal_threshold_psi_config: PsiDriftConfig,
+):
+    scouter = Drifter()
+    scouter.create_drift_profile(
+        pandas_dataframe,
+        psi_drift_normal_threshold_psi_config,
+    )
+
+
+def test_psi_drift_chi_threshold(
+    pandas_dataframe: pd.DataFrame,
+    psi_drift_chi_threshold_psi_config: PsiDriftConfig,
+):
+    scouter = Drifter()
+    scouter.create_drift_profile(
+        pandas_dataframe,
+        psi_drift_chi_threshold_psi_config,
+    )
