@@ -36,7 +36,7 @@ pub enum TypeError {
     InvalidScheduleError,
 
     #[error("Invalid PSI threshold configuration")]
-    InvalidPsiThresholdConfigError,
+    InvalidPsiThresholdError,
 
     #[error("Invalid alert dispatch configuration")]
     InvalidDispatchConfigError,

@@ -119,7 +119,7 @@ def psi_drift_normal_threshold_psi_config() -> YieldFixture[PsiDriftConfig]:
         name="test",
         space="test",
         alert_config=PsiAlertConfig(
-            threshold_config=PsiNormalThreshold(),
+            threshold=PsiNormalThreshold(),
         ),
     )
     yield config
@@ -131,7 +131,7 @@ def psi_drift_chi_threshold_psi_config() -> YieldFixture[PsiDriftConfig]:
         name="test",
         space="test",
         alert_config=PsiAlertConfig(
-            threshold_config=PsiChiSquareThreshold(),
+            threshold=PsiChiSquareThreshold(),
         ),
     )
     yield config
