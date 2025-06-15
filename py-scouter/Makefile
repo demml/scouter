@@ -67,3 +67,5 @@ serve.docs:
 
 publish.docs:
 	uv run mkdocs gh-deploy --force
+
+
