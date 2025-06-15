@@ -59,5 +59,11 @@ uv.sub.pre.tag:
 
 prep.pre.patch: uv.pre.patch uv.sub.pre.tag
 
+build.docs:
+	uv run mkdocs build
+
+serve.docs:
+	uv run mkdocs serve
+
 publish.docs:
 	uv run mkdocs gh-deploy --force

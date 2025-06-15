@@ -56,40 +56,6 @@ impl PsiFeatureQueue {
     }
 
     #[instrument(skip_all)]
-    fn process_binary_queue(
-        feature: &str,
-        queue: &mut HashMap<usize, usize>,
-        value: f64,
-    ) -> Result<(), FeatureQueueError> {
-        if value == 0.0 {
-            let bin_id = 0;
-            let count = queue
-                .get_mut(&bin_id)
-                .ok_or(FeatureQueueError::GetBinError)
-                .inspect_err(|e| {
-                    error!("Error processing binary queue: {:?}", e);
-                })?;
-            *count += 1;
-        } else if value == 1.0 {
-            let bin_id = 1;
-            let count = queue
-                .get_mut(&bin_id)
-                .ok_or(FeatureQueueError::GetBinError)
-                .inspect_err(|e| {
-                    error!("Error processing binary queue: {:?}", e);
-                })?;
-            *count += 1;
-        } else {
-            error!("Failed to convert binary value");
-            return Err(FeatureQueueError::InvalidValueError(
-                feature.to_string(),
-                "failed to convert binary value".to_string(),
-            ));
-        }
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
     fn process_categorical_queue(
         queue: &mut HashMap<usize, usize>,
         value: &usize,
@@ -152,13 +118,12 @@ impl PsiFeatureQueue {
                 }
 
                 let bins = &feature_drift_profile.bins;
-
                 let queue = queue
                     .get_mut(&name)
                     .ok_or(FeatureQueueError::GetFeatureError)?;
 
                 match feature_drift_profile.bin_type {
-                    BinType::Numeric | BinType::Binary => {
+                    BinType::Numeric => {
                         let value = feature.to_float(feat_map).map_err(|e| {
                             error!("Error converting feature to float: {:?}", e);
                             FeatureQueueError::InvalidValueError(
@@ -167,25 +132,18 @@ impl PsiFeatureQueue {
                             )
                         })?;
 
-                        match feature_drift_profile.bin_type {
-                            BinType::Numeric => Self::process_numeric_queue(queue, value, bins)?,
-                            BinType::Binary => {
-                                Self::process_binary_queue(feature.name(), queue, value)?
-                            }
-                            _ => unreachable!(),
-                        }
+                        Self::process_numeric_queue(queue, value, bins)?
                     }
                     BinType::Category => {
-                        let value = self
-                            .drift_profile
-                            .config
-                            .feature_map
-                            .features
-                            .get(&name)
-                            .ok_or(FeatureQueueError::GetFeatureError)?
-                            .get(&feature.to_string())
-                            .ok_or(FeatureQueueError::GetFeatureError)?;
-                        Self::process_categorical_queue(queue, value)?;
+                        let value = feature.to_usize(feat_map).map_err(|e| {
+                            error!("Error converting feature to usize: {:?}", e);
+                            FeatureQueueError::InvalidValueError(
+                                feature.name().to_string(),
+                                e.to_string(),
+                            )
+                        })?;
+
+                        Self::process_categorical_queue(queue, &value)?
                     }
                 }
             }
@@ -282,7 +240,7 @@ mod tests {
             features_to_monitor: features.clone(),
             ..Default::default()
         };
-        let config = PsiDriftConfig::new("name", "repo", DEFAULT_VERSION, alert_config, None);
+        let config = PsiDriftConfig::new("name", "repo", DEFAULT_VERSION, alert_config, None, None);
 
         let profile = monitor
             .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
@@ -318,19 +276,24 @@ mod tests {
     }
 
     #[test]
-    fn test_feature_queue_insert_binary() {
-        let binary_column =
+    fn test_feature_queue_insert_numeric_categorical() {
+        let numeric_cat_column =
             Array::random((100, 1), Bernoulli::new(0.5).unwrap())
                 .mapv(|x| if x { 1.0 } else { 0.0 });
         let uniform_column = Array::random((100, 1), Uniform::new(0.0, 20.0));
-        let array = ndarray::concatenate![Axis(1), binary_column, uniform_column];
+        let array = ndarray::concatenate![Axis(1), numeric_cat_column, uniform_column];
 
         let features = vec!["feature_1".to_string(), "feature_2".to_string()];
 
         let monitor = PsiMonitor::new();
 
+        let drift_config = PsiDriftConfig {
+            categorical_features: Some(features.clone()),
+            ..Default::default()
+        };
+
         let mut profile = monitor
-            .create_2d_drift_profile(&features, &array.view(), &PsiDriftConfig::default())
+            .create_2d_drift_profile(&features, &array.view(), &drift_config)
             .unwrap();
         profile.config.alert_config.features_to_monitor = features.clone();
 
@@ -392,6 +355,7 @@ mod tests {
 
         let mut config = PsiDriftConfig {
             feature_map: feature_map.clone(),
+            categorical_features: Some(string_features.clone()),
             ..Default::default()
         };
 

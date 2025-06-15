@@ -103,6 +103,11 @@ impl Feature {
         Feature::String(StringFeature { name, value })
     }
 
+    #[staticmethod]
+    pub fn categorical(name: String, value: String) -> Self {
+        Feature::String(StringFeature { name, value })
+    }
+
     pub fn __str__(&self) -> String {
         ProfileFuncs::__str__(self)
     }
@@ -122,6 +127,14 @@ impl Feature {
             Feature::Int(feature) => &feature.name,
             Feature::Float(feature) => &feature.name,
             Feature::String(feature) => &feature.name,
+        }
+    }
+
+    pub fn to_usize(&self, feature_map: &FeatureMap) -> Result<usize, TypeError> {
+        match self {
+            Feature::Int(f) => Ok(f.value as usize),
+            Feature::Float(f) => Ok(f.value as usize),
+            Feature::String(f) => Ok(f.to_float(feature_map)? as usize),
         }
     }
 }

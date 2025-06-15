@@ -1,4 +1,4 @@
-Population Stability Index (PSI) is one of the most common ways to monitor ML models in production. The following sections will walk you throug:
+Population Stability Index (PSI) is one of the most common ways to monitor ML models in production. The following sections will walk you through:
 
 - Setting up a PSI drift profile
 - Configuring real-time notifications for model drift detection
@@ -35,7 +35,7 @@ psi_config = PsiDriftConfig(
 )
 
 # Create the drift profile
-psi_profile = scouter.create_drift_profile(X, psi_config)
+psi_profile = scouter.create_drift_profile(X, psi_config) # (1)
 
 # Register your profile with scouter server
 client = ScouterClient()
@@ -44,6 +44,9 @@ client = ScouterClient()
 # You can always set this later
 client.register_profile(profile=psi_profile, set_active=True)
 ```
+
+1.  The data you pass to `create_drift_profile` should be the baseline dataset used to train your model. It is recommended to use a representative sample of your training data. It is also expected that the data is free of missing values, nans and infinities, or else the drift profile creation may fail or give unexpected results.
+
 
 !!!note
     Your drift profile is now registered with the `Scouter` server and is ready to be used. To run real-time monitoring, refer to the [Scouter Queues](#) section for more information on how to set up your queues and send data to the Scouter server.

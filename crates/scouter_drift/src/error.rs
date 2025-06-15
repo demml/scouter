@@ -68,6 +68,12 @@ pub enum DriftError {
 
     #[error("Error processing alert: {0}")]
     AlertProcessingError(String),
+
+    #[error("Feature to monitor: {0}, not present in data")]
+    FeatureToMonitorMissingError(String),
+
+    #[error("Categorical feature specified in drift config: {0}, not present in data")]
+    CategoricalFeatureMissingError(String),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for DriftError {

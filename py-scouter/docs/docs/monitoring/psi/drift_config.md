@@ -11,34 +11,40 @@ PsiDriftConfig(
     space="wine_model",
     version="0.0.1",
     alert_config=PsiAlertConfig()
+    categorical_features = ["feature_1", "feature_2"],  # (1)
 )
 ```
 
+1. To ensure accurate PSI calculations, categorical features must be explicitly specified.
+
 ### Parameters
 
-| Parameter       | Type             | Description                                                                                                          | Example |
-|---------------|------------------|----------------------------------------------------------------------------------------------------------------------|---------|
-| name        | `str`            | The name of the model or dataset being monitored. Defaults to '\_\_missing\_\_' if not provided.                     | `config.name → "wine_model"` |
-| space  | `str`            | The space where the model or dataset is stored. Defaults to '\_\_missing\_\_' if not provided.                  | `config.space → "wine_model"` |
-| version     | `str`            | The version of the model or dataset being monitored. Defaults to '0.0.1' if not provided.                            | `config.version → "0.0.1"` |
-| alert_config | `PsiAlertConfig` | Configuration for alerting when drift is detected. Defaults to the default implementation of PsiAlertConfig if not provided. | `config.alert_config → *Instance of PsiAlertConfig*` |
-| targets     | `list[str]`      | List of target features, typically the dependent variable(s).                                                        | `config.targets → ["churn"]` |
-| config_path | `Optional[Path]` | Path to a pre existing PsiDriftConfig. Defaults to None if not provided                                             | `config.config_path → Path("/configs/drift.yaml")` |
+| Parameter       | Type                  | Description                                                                                                                  | Example                                                    |
+|---------------|-----------------------|------------------------------------------------------------------------------------------------------------------------------|------------------------------------------------------------|
+| name        | `str`                 | The name of the model or dataset being monitored. Defaults to '\_\_missing\_\_' if not provided.                             | `config.name → "wine_model"`                               |
+| space  | `str`                 | The space where the model or dataset is stored. Defaults to '\_\_missing\_\_' if not provided.                               | `config.space → "wine_model"`                              |
+| version     | `str`                 | The version of the model or dataset being monitored. Defaults to '0.0.1' if not provided.                                    | `config.version → "0.0.1"`                                 |
+| alert_config | `PsiAlertConfig`      | Configuration for alerting when drift is detected. Defaults to the default implementation of PsiAlertConfig if not provided. | `config.alert_config → *Instance of PsiAlertConfig*`       |
+| targets     | `list[str]`           | List of target features, typically the dependent variable(s).                                                                | `config.targets → ["churn"]`                               |
+| config_path | `Optional[Path]`      | Path to a pre existing PsiDriftConfig. Defaults to None if not provided                                                      | `config.config_path → Path("/configs/drift.yaml")`         |
+| categorical_features | `Optional[list[str]]` | To ensure accurate PSI calculations, categorical features must be explicitly specified.                                  | `config.categorical_features → ["feature_1", "feature_2"]` |
 
 
 
 ### Properties
 
 
-| Property       | Type             | Description                                                                                                                                        | Example                                            |
-|----------------|------------------|----------------------------------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------|
-| `name`         | `str`            | The name of the model or dataset being monitored.                                                                                                  | `config.name` → `"wine_model"`                     |
-| `space`   | `str`            | The space where the model or dataset is stored.                                                                                               | `config.space` → `"wine_model"`               |
-| `version`      | `str`            | The version of the model or dataset being monitored.                                                                                               | `config.version` → `"0.0.1"`                       |
+| Property       | Type             | Description                                                                                                                | Example                                            |
+|----------------|------------------|----------------------------------------------------------------------------------------------------------------------------|----------------------------------------------------|
+| `name`         | `str`            | The name of the model or dataset being monitored.                                                                          | `config.name` → `"wine_model"`                     |
+| `space`   | `str`            | The space where the model or dataset is stored.                                                                            | `config.space` → `"wine_model"`               |
+| `version`      | `str`            | The version of the model or dataset being monitored.                                                                       | `config.version` → `"0.0.1"`                       |
 | `feature_map`  | `FeatureMap`     | When a non-numeric covariate is detected, each unique value is assigned a corresponding numeric value. This mapping is represented by feature_map. | `config.feature_map` → `Instance of FeatureMap`      |
-| `targets`      | `list[str]`      | List of target features, typically the dependent variable(s).                                                                                      | `config.targets` → `label`                         |
-| `alert_config` | `PsiAlertConfig` | Configuration for alerting when drift is detected.                                                                                                 | `config.alert_config` → `Instance of PsiAlertConfig` |
-| `drift_type`   | `DriftType`      | Type of drift profile.                                                                                                                             | `config.drift_type` → `DriftType.Psi`              |
+| `targets`      | `list[str]`      | List of target features, typically the dependent variable(s).                                                              | `config.targets` → `label`                         |
+| `alert_config` | `PsiAlertConfig` | Configuration for alerting when drift is detected.                                                                         | `config.alert_config` → `Instance of PsiAlertConfig` |
+| `drift_type`   | `DriftType`      | Type of drift profile.                                                                                                     | `config.drift_type` → `DriftType.Psi`              |
+| `categorical_features`   | `Optional[list[str]]`      | List of categorical features                                                                                               | `config.categorical_features → ["feature_1", "feature_2"]`              |
+
 
 
 

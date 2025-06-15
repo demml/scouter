@@ -19,16 +19,6 @@ impl PsiMonitor {
     pub fn new() -> Self {
         PsiMonitor {}
     }
-    fn compute_1d_array_mean<F>(&self, array: &ArrayView<F, Ix1>) -> Result<f64, DriftError>
-    where
-        F: Float + FromPrimitive,
-        F: Into<f64>,
-    {
-        array
-            .mean()
-            .ok_or(DriftError::ComputeMeanError)
-            .map(|v| v.into())
-    }
 
     fn compute_bin_count<F>(
         &self,
@@ -44,16 +34,6 @@ impl PsiMonitor {
             .iter()
             .filter(|&&value| value.into() > *lower_threshold && value.into() <= *upper_threshold)
             .count()
-    }
-
-    fn data_are_binary<F>(&self, column_vector: &ArrayView1<F>) -> bool
-    where
-        F: Float,
-        F: Into<f64>,
-    {
-        column_vector
-            .iter()
-            .all(|&value| value.into() == 0.0 || value.into() == 1.0)
     }
 
     fn compute_deciles<F>(&self, column_vector: &ArrayView1<F>) -> Result<[F; 9], DriftError>
@@ -87,57 +67,28 @@ impl PsiMonitor {
         Ok(decile_vec)
     }
 
-    fn create_categorical_bins<F>(
-        &self,
-        column_vector: &ArrayView<F, Ix1>,
-        categorical_feature_map: &HashMap<String, usize>,
-    ) -> Vec<Bin>
+    fn create_categorical_bins<F>(&self, column_vector: &ArrayView<F, Ix1>) -> Vec<Bin>
     where
         F: Float + FromPrimitive + Default + Sync,
         F: Into<f64>,
     {
-        categorical_feature_map
-            .into_par_iter()
-            .map(|(_, numeric_key)| {
-                let count = column_vector
-                    .iter()
-                    .filter(|&&value| value.into() == *numeric_key as f64)
-                    .count();
+        let vector_len = column_vector.len() as f64;
+        let mut counts: HashMap<usize, usize> = HashMap::new();
 
-                Bin {
-                    id: *numeric_key,
-                    lower_limit: None,
-                    upper_limit: None,
-                    proportion: (count as f64) / (column_vector.len() as f64),
-                }
+        for &value in column_vector.iter() {
+            let key = Into::<f64>::into(value) as usize;
+            *counts.entry(key).or_insert(0) += 1;
+        }
+
+        counts
+            .into_par_iter()
+            .map(|(id, count)| Bin {
+                id,
+                lower_limit: None,
+                upper_limit: None,
+                proportion: (count as f64) / vector_len,
             })
             .collect()
-    }
-
-    fn create_binary_bins<F>(
-        &self,
-        column_vector: &ArrayView<F, Ix1>,
-    ) -> Result<Vec<Bin>, DriftError>
-    where
-        F: Float + FromPrimitive + Default + Sync,
-        F: Into<f64>,
-    {
-        let column_vector_mean = self.compute_1d_array_mean(column_vector)?;
-
-        Ok(vec![
-            Bin {
-                id: 0,
-                lower_limit: None,
-                upper_limit: None,
-                proportion: 1.0 - column_vector_mean,
-            },
-            Bin {
-                id: 1,
-                lower_limit: None,
-                upper_limit: None,
-                proportion: column_vector_mean,
-            },
-        ])
     }
 
     fn create_numeric_bins<F>(&self, column_vector: &ArrayView1<F>) -> Result<Vec<Bin>, DriftError>
@@ -182,17 +133,18 @@ impl PsiMonitor {
         F: Float + FromPrimitive + Default + Sync,
         F: Into<f64>,
     {
-        if let Some(categorical_feature_map) = drift_config.feature_map.features.get(feature_name) {
-            return Ok((
-                self.create_categorical_bins(column_vector, categorical_feature_map),
-                BinType::Category,
-            ));
-        }
-
-        if self.data_are_binary(column_vector) {
-            Ok((self.create_binary_bins(column_vector)?, BinType::Binary))
-        } else {
-            Ok((self.create_numeric_bins(column_vector)?, BinType::Numeric))
+        match &drift_config.categorical_features {
+            Some(features) if features.contains(feature_name) => {
+                // Process as categorical
+                Ok((
+                    self.create_categorical_bins(column_vector),
+                    BinType::Category,
+                ))
+            }
+            _ => {
+                // Process as continuous
+                Ok((self.create_numeric_bins(column_vector)?, BinType::Numeric))
+            }
         }
     }
 
@@ -267,13 +219,13 @@ impl PsiMonitor {
         &self,
         column_vector: &ArrayView<F, Ix1>,
         bin: &Bin,
-        categorical_feature_map: Option<&HashMap<String, usize>>,
+        feature_is_categorical: bool,
     ) -> Result<(f64, f64), DriftError>
     where
         F: Float + FromPrimitive,
         F: Into<f64>,
     {
-        if categorical_feature_map.is_some() {
+        if feature_is_categorical {
             let bin_count = column_vector
                 .iter()
                 .filter(|&&value| value.into() == bin.id as f64)
@@ -284,13 +236,6 @@ impl PsiMonitor {
             ));
         }
 
-        if self.data_are_binary(column_vector) {
-            let column_vector_mean = self.compute_1d_array_mean(column_vector)?;
-            if bin.id == 1 {
-                return Ok((bin.proportion, 1.0 - column_vector_mean));
-            }
-            return Ok((bin.proportion, column_vector_mean));
-        }
         let bin_count = self.compute_bin_count(
             column_vector,
             &bin.lower_limit.unwrap(),
@@ -318,17 +263,19 @@ impl PsiMonitor {
     fn compute_feature_drift<F>(
         &self,
         column_vector: &ArrayView<F, Ix1>,
-        features: &PsiFeatureDriftProfile,
-        category_map: Option<&HashMap<String, usize>>,
+        feature_drift_profile: &PsiFeatureDriftProfile,
+        feature_is_categorical: bool,
     ) -> Result<f64, DriftError>
     where
         F: Float + Sync + FromPrimitive,
         F: Into<f64>,
     {
-        let bins = &features.bins;
+        let bins = &feature_drift_profile.bins;
         let feature_proportions: Vec<(f64, f64)> = bins
             .into_par_iter()
-            .map(|bin| self.compute_psi_proportion_pairs(column_vector, bin, category_map))
+            .map(|bin| {
+                self.compute_psi_proportion_pairs(column_vector, bin, feature_is_categorical)
+            })
             .collect::<Result<Vec<(f64, f64)>, DriftError>>()?;
 
         Ok(PsiMonitor::compute_psi(&feature_proportions))
@@ -391,10 +338,15 @@ impl PsiMonitor {
             .collect_vec()
             .into_par_iter()
             .map(|(column_vector, feature_name)| {
+                let feature_is_categorical = drift_profile
+                    .config
+                    .categorical_features
+                    .as_ref()
+                    .is_some_and(|features| features.contains(feature_name));
                 self.compute_feature_drift(
                     &column_vector,
                     drift_profile.features.get(feature_name).unwrap(),
-                    drift_profile.config.feature_map.features.get(feature_name),
+                    feature_is_categorical,
                 )
             })
             .collect::<Result<Vec<f64>, DriftError>>()?;
@@ -478,12 +430,12 @@ mod tests {
     }
 
     #[test]
-    fn test_compute_psi_proportion_pairs_binary() {
+    fn test_compute_psi_proportion_pairs_categorical() {
         let psi_monitor = PsiMonitor::default();
 
-        let binary_vector = Array::from_vec(vec![0.0, 1.0, 0.0, 1.0, 0.0, 1.0]);
+        let cat_vector = Array::from_vec(vec![0.0, 1.0, 0.0, 1.0, 0.0, 1.0]);
 
-        let binary_zero_bin = Bin {
+        let cat_zero_bin = Bin {
             id: 0,
             lower_limit: None,
             upper_limit: None,
@@ -491,7 +443,7 @@ mod tests {
         };
 
         let (_, prod_proportion) = psi_monitor
-            .compute_psi_proportion_pairs(&binary_vector.view(), &binary_zero_bin, None)
+            .compute_psi_proportion_pairs(&cat_vector.view(), &cat_zero_bin, true)
             .unwrap();
 
         let expected_prod_proportion = 0.5;
@@ -503,7 +455,7 @@ mod tests {
     }
 
     #[test]
-    fn test_compute_psi_proportion_pairs_non_binary() {
+    fn test_compute_psi_proportion_pairs_non_categorical() {
         let psi_monitor = PsiMonitor::default();
 
         let vector = Array::from_vec(vec![
@@ -518,7 +470,7 @@ mod tests {
         };
 
         let (_, prod_proportion) = psi_monitor
-            .compute_psi_proportion_pairs(&vector.view(), &bin, None)
+            .compute_psi_proportion_pairs(&vector.view(), &bin, false)
             .unwrap();
 
         let expected_prod_proportion = 0.4;
@@ -527,29 +479,6 @@ mod tests {
             (prod_proportion - expected_prod_proportion).abs() < 1e-9,
             "prod_proportion was expected to be 40%"
         );
-    }
-
-    #[test]
-    fn test_data_are_binary_with_binary_vector() {
-        let psi_monitor = PsiMonitor::default();
-
-        let binary_vector = Array::from_vec(vec![0.0, 1.0, 1.0, 0.0, 0.0]);
-
-        let result = psi_monitor.data_are_binary(&binary_vector.view());
-
-        assert!(result, "Expected the binary vector to return true");
-    }
-
-    #[test]
-    fn test_data_are_binary_with_non_binary_vector() {
-        let psi_monitor = PsiMonitor::default();
-
-        let non_binary_vector = Array::from_vec(vec![0.0, 2.0, 1.0, 3.0, 0.0]);
-        let column_view = non_binary_vector.view();
-
-        let result = psi_monitor.data_are_binary(&column_view);
-
-        assert!(!result, "Expected the non-binary vector to return false");
     }
 
     #[test]
@@ -575,28 +504,15 @@ mod tests {
     }
 
     #[test]
-    fn test_create_bins_binary() {
+    fn test_create_bins_non_categorical() {
         let psi_monitor = PsiMonitor::default();
 
-        let binary_data = Array::from_vec(vec![0.0, 1.0, 1.0, 0.0, 1.0, 0.0, 0.0, 0.0]);
-
-        let result = psi_monitor.create_binary_bins(&ArrayView::from(&binary_data)); // Replace `your_struct_instance` with the actual instance
-
-        assert!(result.is_ok());
-        let bins = result.unwrap();
-        assert_eq!(bins.len(), 2);
-    }
-
-    #[test]
-    fn test_create_bins_non_binary() {
-        let psi_monitor = PsiMonitor::default();
-
-        let non_binary_data = Array::from_vec(vec![
+        let non_categorical_data = Array::from_vec(vec![
             120.0, 1.0, 33.0, 71.0, 15.0, 59.0, 8.0, 62.0, 4.0, 21.0, 10.0, 2.0, 344.0, 437.0,
             53.0, 39.0, 83.0, 6.0, 4.30, 2.0,
         ]);
 
-        let result = psi_monitor.create_numeric_bins(&ArrayView::from(&non_binary_data));
+        let result = psi_monitor.create_numeric_bins(&ArrayView::from(&non_categorical_data));
 
         assert!(result.is_ok());
         let bins = result.unwrap();
@@ -612,15 +528,7 @@ mod tests {
             1.0,
         ]);
 
-        let mut categorical_feature_map = HashMap::new();
-        categorical_feature_map.insert("cat1".to_string(), 1);
-        categorical_feature_map.insert("cat2".to_string(), 2);
-        categorical_feature_map.insert("cat3".to_string(), 3);
-
-        let bins = psi_monitor.create_categorical_bins(
-            &ArrayView::from(&categorical_data),
-            &categorical_feature_map,
-        );
+        let bins = psi_monitor.create_categorical_bins(&ArrayView::from(&categorical_data));
         assert_eq!(bins.len(), 3);
     }
 
