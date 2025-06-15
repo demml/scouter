@@ -74,6 +74,13 @@ nav:
       - Overview: "docs/specs/Readme.md"
       - Archive: "docs/specs/ts-component-data-archive.md"
       - Queue: "docs/specs/ts-component-scouter-queue.md"
+  - API Documentation:
+      - Alert: "docs/api/alert.md"
+      - Client: "docs/api/client.md"
+      - Drift: "docs/api/drift.md"
+      - Profile: "docs/api/profile.md"
+      - Queue: "docs/api/queue.md"
+      - Types: "docs/api/types.md"
 
 markdown_extensions:
   - tables
