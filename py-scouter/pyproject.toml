@@ -6,7 +6,7 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-version = "0.5.4"
+version = "0.5.5"
 description = ""
 authors = [
     {name = "Thorrester", email = "<support@demmlai.com>"},
