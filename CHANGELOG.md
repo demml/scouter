@@ -2,6 +2,25 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.5] - 2025-06-16
+
+### 🐛 Bug Fixes
+
+- Fix tests
+- Fix lints
+- Add test for string and no categorical
+
+### 🚜 Refactor
+
+- *psi_threshold* Threshold_config -> threshold
+
+### 📚 Documentation
+
+- Adding changelog
+- Add threshold types
+- Add script to generate api specs
+- Add make command for changelog
+
 ## [0.5.4] - 2025-06-14
 
 * add templates by @thorrester in https://github.com/demml/scouter/pull/77
