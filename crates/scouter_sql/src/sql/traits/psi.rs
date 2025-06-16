@@ -1,6 +1,6 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::FeatureBinProportionResultWrapper;
-use crate::sql::schema::FeatureBinProportionWrapper;
+use crate::sql::schema::FeatureDistributionWrapper;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -8,9 +8,9 @@ use scouter_dataframe::parquet::{dataframe_to_psi_drift_features, ParquetDataFra
 
 use crate::sql::error::SqlError;
 use scouter_settings::ObjectStorageSettings;
+use scouter_types::psi::FeatureDistributions;
 use scouter_types::{
-    psi::{FeatureBinProportionResult, FeatureBinProportions},
-    DriftRequest, PsiServerRecord, RecordType, ServiceInfo,
+    psi::FeatureBinProportionResult, DriftRequest, PsiServerRecord, RecordType, ServiceInfo,
 };
 use sqlx::{postgres::PgQueryResult, Pool, Postgres};
 use std::collections::BTreeMap;
@@ -198,15 +198,15 @@ pub trait PsiSqlLogic {
         Ok(feature_map.into_values().collect())
     }
 
-    async fn get_feature_bin_proportions(
+    async fn get_feature_distributions(
         pool: &Pool<Postgres>,
         service_info: &ServiceInfo,
         limit_datetime: &DateTime<Utc>,
         features_to_monitor: &[String],
-    ) -> Result<FeatureBinProportions, SqlError> {
+    ) -> Result<FeatureDistributions, SqlError> {
         let query = Queries::GetFeatureBinProportions.get_query();
 
-        let binned: Vec<FeatureBinProportionWrapper> = sqlx::query_as(&query.sql)
+        let feature_distributions: Vec<FeatureDistributionWrapper> = sqlx::query_as(&query.sql)
             .bind(&service_info.name)
             .bind(&service_info.space)
             .bind(&service_info.version)
@@ -216,8 +216,11 @@ pub trait PsiSqlLogic {
             .await
             .map_err(SqlError::SqlxError)?;
 
-        let binned: FeatureBinProportions = binned.into_iter().map(|wrapper| wrapper.0).collect();
+        let distributions = feature_distributions
+            .into_iter()
+            .map(|wrapper| (wrapper.0, wrapper.1))
+            .collect();
 
-        Ok(binned)
+        Ok(FeatureDistributions { distributions })
     }
 }

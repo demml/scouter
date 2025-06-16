@@ -5,7 +5,13 @@ import numpy as np
 import pandas as pd
 import pytest
 from numpy.typing import NDArray
-from scouter.alert import CustomMetricAlertConfig, SlackDispatchConfig
+from scouter.alert import (
+    CustomMetricAlertConfig,
+    PsiAlertConfig,
+    PsiChiSquareThreshold,
+    PsiNormalThreshold,
+    SlackDispatchConfig,
+)
 from scouter.drift import CustomMetricDriftConfig, PsiDriftConfig, SpcDriftConfig
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 
@@ -108,7 +114,33 @@ def psi_drift_config() -> YieldFixture[PsiDriftConfig]:
 
 
 @pytest.fixture(scope="function")
-def psi_drift_config_with_categorical_features(cat_feature_names: list[str]) -> YieldFixture[PsiDriftConfig]:
+def psi_drift_normal_threshold_psi_config() -> YieldFixture[PsiDriftConfig]:
+    config = PsiDriftConfig(
+        name="test",
+        space="test",
+        alert_config=PsiAlertConfig(
+            threshold=PsiNormalThreshold(),
+        ),
+    )
+    yield config
+
+
+@pytest.fixture(scope="function")
+def psi_drift_chi_threshold_psi_config() -> YieldFixture[PsiDriftConfig]:
+    config = PsiDriftConfig(
+        name="test",
+        space="test",
+        alert_config=PsiAlertConfig(
+            threshold=PsiChiSquareThreshold(),
+        ),
+    )
+    yield config
+
+
+@pytest.fixture(scope="function")
+def psi_drift_config_with_categorical_features(
+    cat_feature_names: list[str],
+) -> YieldFixture[PsiDriftConfig]:
     config = PsiDriftConfig(
         name="test",
         space="test",

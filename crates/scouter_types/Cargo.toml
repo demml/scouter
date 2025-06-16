@@ -23,9 +23,11 @@ strum = { workspace = true }
 strum_macros = { workspace = true }
 thiserror = { workspace = true }
 tracing = { workspace = true }
+statrs = { workspace = true }
 
 [dev-dependencies]
 tempfile = { workspace = true }
+approx = { workspace = true }
 
 
 [profile.release]

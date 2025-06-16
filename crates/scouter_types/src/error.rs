@@ -35,6 +35,12 @@ pub enum TypeError {
     #[error("Invalid schedule")]
     InvalidScheduleError,
 
+    #[error("Invalid PSI threshold configuration")]
+    InvalidPsiThresholdError,
+
+    #[error("Invalid alert dispatch configuration")]
+    InvalidDispatchConfigError,
+
     #[error("Missing space argument")]
     MissingSpaceError,
 

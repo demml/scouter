@@ -518,45 +518,19 @@ impl ProfileBaseArgs for PsiDriftProfile {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FeatureBinProportion {
-    pub feature: String,
+pub struct DistributionData {
+    pub sample_size: u64,
     pub bins: BTreeMap<usize, f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FeatureBinProportions {
-    pub features: BTreeMap<String, BTreeMap<usize, f64>>,
+pub struct FeatureDistributions {
+    pub distributions: BTreeMap<String, DistributionData>,
 }
 
-impl FromIterator<FeatureBinProportion> for FeatureBinProportions {
-    fn from_iter<T: IntoIterator<Item = FeatureBinProportion>>(iter: T) -> Self {
-        let mut feature_map: BTreeMap<String, BTreeMap<usize, f64>> = BTreeMap::new();
-        for feature in iter {
-            feature_map.insert(feature.feature, feature.bins);
-        }
-        FeatureBinProportions {
-            features: feature_map,
-        }
-    }
-}
-
-impl FeatureBinProportions {
-    pub fn from_features(features: Vec<FeatureBinProportion>) -> Self {
-        let mut feature_map: BTreeMap<String, BTreeMap<usize, f64>> = BTreeMap::new();
-        for feature in features {
-            feature_map.insert(feature.feature, feature.bins);
-        }
-        FeatureBinProportions {
-            features: feature_map,
-        }
-    }
-
-    pub fn get(&self, feature: &str, bin: &usize) -> Option<&f64> {
-        self.features.get(feature).and_then(|f| f.get(bin))
-    }
-
+impl FeatureDistributions {
     pub fn is_empty(&self) -> bool {
-        self.features.is_empty()
+        self.distributions.is_empty()
     }
 }
 
