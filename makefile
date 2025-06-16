@@ -96,3 +96,10 @@ build.shutdown:
 .PHONE: stop.server
 stop.server:
 	-lsof -ti:8000 | xargs kill -9 2>/dev/null || true
+
+.PHONY: changelog
+prepend.changelog:
+	# get version from Cargo.toml
+	@VERSION=$(shell grep '^version =' Cargo.toml | cut -d '"' -f 2) && \
+	git cliff --unreleased --tag $$VERSION --prepend CHANGELOG.md
+
