@@ -5,12 +5,7 @@ import numpy as np
 import pandas as pd
 import pytest
 from numpy.typing import NDArray
-from scouter.alert import (
-    CustomMetricAlertConfig,
-    PsiAlertConfig,
-    SlackDispatchConfig,
-    SpcAlertConfig,
-)
+from scouter.alert import CustomMetricAlertConfig, SlackDispatchConfig
 from scouter.drift import CustomMetricDriftConfig, PsiDriftConfig, SpcDriftConfig
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 
@@ -83,13 +78,22 @@ def multivariate_array_drift() -> YieldFixture[NDArray]:
 
 
 @pytest.fixture(scope="function")
+def feature_names() -> YieldFixture[list[str]]:
+    features = ["feature_0", "feature_1", "feature_2"]
+    yield features
+
+
+@pytest.fixture(scope="function")
+def cat_feature_names() -> YieldFixture[list[str]]:
+    features = ["cat_feature_0", "cat_feature_1", "cat_feature_2"]
+    yield features
+
+
+@pytest.fixture(scope="function")
 def drift_config() -> YieldFixture[SpcDriftConfig]:
     config = SpcDriftConfig(
         name="test",
         space="test",
-        alert_config=SpcAlertConfig(
-            features_to_monitor=["column_0", "column_1", "column_2"],
-        ),
     )
     yield config
 
@@ -99,19 +103,23 @@ def psi_drift_config() -> YieldFixture[PsiDriftConfig]:
     config = PsiDriftConfig(
         name="test",
         space="test",
-        alert_config=PsiAlertConfig(
-            features_to_monitor=["column_0", "column_1", "column_2"],
-        ),
     )
     yield config
 
 
 @pytest.fixture(scope="function")
-def pandas_dataframe(array: NDArray) -> YieldFixture:
-    df = pd.DataFrame(array)
+def psi_drift_config_with_categorical_features(cat_feature_names: list[str]) -> YieldFixture[PsiDriftConfig]:
+    config = PsiDriftConfig(
+        name="test",
+        space="test",
+        categorical_features=cat_feature_names,
+    )
+    yield config
 
-    # change column names
-    df.rename(columns={0: "column_0", 1: "column_1", 2: "column_2"}, inplace=True)
+
+@pytest.fixture(scope="function")
+def pandas_dataframe(array: NDArray, feature_names: list[str]) -> YieldFixture:
+    df = pd.DataFrame(array, columns=feature_names)
 
     yield df
 
@@ -119,29 +127,10 @@ def pandas_dataframe(array: NDArray) -> YieldFixture:
 
 
 @pytest.fixture(scope="function")
-def pandas_dataframe_multi_type(array: NDArray) -> YieldFixture:
-    df = pd.DataFrame(array)
-
-    # change column names
-    df.rename(columns={0: "column_0", 1: "column_1", 2: "column_2"}, inplace=True)
-
-    # change column_0 to be int
-    df["column_0"] = df["column_0"].astype(int)
-
-    # column 3 should be string of ints between 1 and 3
-    # df["column_3"]  = np.random.randint(1, 4, df.shape[0])
-    # df["column_3"] = df["column_3"].astype(str)
-
-    yield df
-
-    cleanup()
-
-
-@pytest.fixture(scope="function")
-def polars_dataframe(array: NDArray) -> YieldFixture:
+def polars_dataframe(array: NDArray, feature_names: list[str]) -> YieldFixture:
     import polars as pl
 
-    df = pl.from_numpy(array, schema=["column_0", "column_1", "column_2"])
+    df = pl.from_numpy(array, schema=feature_names)
 
     yield df
 
@@ -149,26 +138,20 @@ def polars_dataframe(array: NDArray) -> YieldFixture:
 
 
 @pytest.fixture(scope="function")
-def polars_dataframe_multi_dtype(array: NDArray, nrow: int) -> YieldFixture:
+def categorical_polars_dataframe(cat_feature_names: list[str], nrow: int) -> YieldFixture:
     import polars as pl
 
-    # add column of ints between 1 and 3
     ints = np.random.randint(1, 4, nrow).reshape(-1, 1)
 
     ints2 = np.random.randint(5, 10, nrow).reshape(-1, 1)
 
-    # add to array
-    array = np.concatenate([ints2, array, ints], axis=1)
+    ints3 = np.random.randint(10, 20, nrow).reshape(-1, 1)
 
-    df = pl.from_numpy(array, schema=["cat1", "num1", "num2", "num3", "cat2"])
+    array = np.concatenate([ints, ints2, ints3], axis=1)
 
-    # add categorical column
-    df = df.with_columns(
-        [
-            pl.col("cat1").cast(str).cast(pl.String),
-            pl.col("cat2").cast(str).cast(pl.Categorical),
-        ]
-    )
+    df = pl.from_numpy(array, schema=cat_feature_names)
+
+    df = df.with_columns([pl.col(column_name).cast(str).cast(pl.Categorical) for column_name in cat_feature_names])
 
     yield df
 
@@ -176,26 +159,10 @@ def polars_dataframe_multi_dtype(array: NDArray, nrow: int) -> YieldFixture:
 
 
 @pytest.fixture(scope="function")
-def polars_dataframe_multi_dtype_drift(array: NDArray) -> YieldFixture:
+def polars_dataframe_multi_dtype(polars_dataframe, categorical_polars_dataframe) -> YieldFixture:
     import polars as pl
 
-    # add column of ints between 1 and 3
-    ints = np.random.randint(4, 6, 1000).reshape(-1, 1)
-
-    ints2 = np.random.randint(5, 10, 1000).reshape(-1, 1)
-
-    # add to array
-    array = np.concatenate([ints2, array, ints], axis=1)
-
-    df = pl.from_numpy(array, schema=["cat1", "num1", "num2", "num3", "cat2"])
-
-    # add categorical column
-    df = df.with_columns(
-        [
-            pl.col("cat1").cast(str).cast(pl.String),
-            pl.col("cat2").cast(str).cast(pl.Categorical),
-        ]
-    )
+    df = pl.concat([polars_dataframe, categorical_polars_dataframe], how="horizontal")
 
     yield df
 
@@ -203,15 +170,29 @@ def polars_dataframe_multi_dtype_drift(array: NDArray) -> YieldFixture:
 
 
 @pytest.fixture(scope="function")
-def pandas_categorical_dataframe() -> YieldFixture:
-    df = pd.DataFrame(
-        {
-            "cat1": pd.Categorical(["a", "b", "c", "e", "f", "g"] * 333),
-            "cat2": pd.Categorical(["h", "i", "j", "k", "l", "m"] * 333),
-            "cat3": pd.Categorical(["n", "o", "p", "q", "r", "s"] * 333),
-        }
-    )
+def polars_dataframe_multi_dtype_drift(polars_dataframe_multi_dtype, cat_feature_names) -> YieldFixture:
+    import polars as pl
 
+    # Create a copy and modify the first categorical column to simulate drift
+    df = polars_dataframe_multi_dtype.clone()
+
+    # Scale the first categorical column
+    first_cat_col = cat_feature_names[0]
+    df = df.with_columns((pl.col(first_cat_col).cast(pl.Int32) + 3).cast(str).cast(pl.Categorical).alias(first_cat_col))
+
+    yield df
+    cleanup()
+
+
+@pytest.fixture(scope="function")
+def pandas_categorical_dataframe(cat_feature_names: list[str]) -> YieldFixture:
+    data = {}
+    for i, col_name in enumerate(cat_feature_names):
+        start_letter = ord("a") + (i * 6)
+        categories = [chr(start_letter + j) for j in range(6)]
+        data[col_name] = pd.Categorical(categories * 333)
+
+    df = pd.DataFrame(data)
     yield df
 
     cleanup()

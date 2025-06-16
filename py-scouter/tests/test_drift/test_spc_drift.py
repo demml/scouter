@@ -118,11 +118,10 @@ def test_multi_type_drift(
     drift_config: SpcDriftConfig,
 ):
     drifter = Drifter()
-
     profile: SpcDriftProfile = drifter.create_drift_profile(polars_dataframe_multi_dtype, drift_config)
 
     drift_map = drifter.compute_drift(polars_dataframe_multi_dtype_drift, profile)
-    assert len(drift_map.features) == 5
+    assert len(drift_map.features) == 6
 
     drift_map.to_numpy()
 
@@ -148,7 +147,7 @@ def test_data_pyarrow_mixed_type(
     profile: SpcDriftProfile = drifter.create_drift_profile(arrow_table, drift_config)
     drift_map = drifter.compute_drift(arrow_table, profile)
 
-    assert len(drift_map.features) == 5
+    assert len(drift_map.features) == 6
 
 
 def test_drift_config_alert_kwargs():

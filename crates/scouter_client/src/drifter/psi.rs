@@ -78,7 +78,7 @@ impl PsiDrifter {
         drift_config: PsiDriftConfig,
     ) -> Result<PsiDriftProfile, DriftError>
     where
-        F: Float + Sync + FromPrimitive + Default,
+        F: Float + Sync + FromPrimitive + Default + PartialOrd,
         F: Into<f64>,
         F: numpy::Element,
     {
@@ -98,9 +98,22 @@ impl PsiDrifter {
     ) -> Result<PsiDriftProfile, DriftError> {
         let (num_features, num_array, dtype, string_features, string_array) = data;
 
+        let mut final_config = config.clone();
+
+        // Validate categorical_features
+        if let Some(categorical_features) = final_config.categorical_features.as_ref() {
+            // fail if the specified categorical features are not in the num_features or string_features
+            if let Some(missing_feature) = categorical_features
+                .iter()
+                .find(|&key| !num_features.contains(key) && !string_features.contains(key))
+            {
+                return Err(DriftError::CategoricalFeatureMissingError(
+                    missing_feature.to_string(),
+                ));
+            }
+        }
+
         let mut features = HashMap::new();
-        let cfg = config.clone();
-        let mut final_config = cfg.clone();
 
         if let Some(string_array) = string_array {
             let profile = self.create_string_drift_profile(
@@ -125,8 +138,20 @@ impl PsiDrifter {
         }
 
         // if config.features_to_monitor is empty, set it to all features
-        if config.alert_config.features_to_monitor.is_empty() {
+        if final_config.alert_config.features_to_monitor.is_empty() {
             final_config.alert_config.features_to_monitor = features.keys().cloned().collect();
+        }
+
+        // Validate features_to_monitor
+        if let Some(missing_feature) = final_config
+            .alert_config
+            .features_to_monitor
+            .iter()
+            .find(|&key| !features.contains_key(key))
+        {
+            return Err(DriftError::FeatureToMonitorMissingError(
+                missing_feature.to_string(),
+            ));
         }
 
         Ok(PsiDriftProfile::new(features, final_config, None))

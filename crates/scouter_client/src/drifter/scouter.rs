@@ -71,6 +71,8 @@ impl Drifter {
         config: DriftConfig,
     ) -> Result<DriftProfile, DriftError> {
         match self {
+            // Before creating the profile, we first need to do a rough split of the data into string and numeric data types before
+            // passing it to the drifter
             Drifter::Spc(drifter) => {
                 let data = DataConverterEnum::convert_data(py, data_type, data)?;
                 let profile = drifter.create_drift_profile(data, config.spc_config()?.clone())?;
