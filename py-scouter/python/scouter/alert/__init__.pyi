@@ -180,7 +180,7 @@ class PsiFixedThreshold:
     def threshold(self, threshold: float) -> None:
         """Set threshold value (must be positive)."""
 
-PsiThresholdConfigType = PsiNormalThreshold | PsiChiSquareThreshold | PsiFixedThreshold
+PsiThresholdType = PsiNormalThreshold | PsiChiSquareThreshold | PsiFixedThreshold
 
 class PsiAlertConfig:
     def __init__(
@@ -188,7 +188,7 @@ class PsiAlertConfig:
         dispatch_config: Optional[SlackDispatchConfig | OpsGenieDispatchConfig] = None,
         schedule: Optional[str | CommonCrons] = None,
         features_to_monitor: List[str] = [],
-        threshold_config: Optional[PsiNormalThreshold | PsiChiSquareThreshold | PsiFixedThreshold] = None,
+        threshold: Optional[PsiThresholdType] = None,
     ):
         """Initialize alert config
 
@@ -200,7 +200,7 @@ class PsiAlertConfig:
                 Schedule to run monitor. Defaults to daily at midnight
             features_to_monitor:
                 List of features to monitor. Defaults to empty list, which means all features
-            threshold_config:
+            threshold:
                 Configuration that helps determine how to calculate PSI critical values
         """
 
@@ -213,7 +213,7 @@ class PsiAlertConfig:
         """Return the dispatch config"""
 
     @property
-    def threshold_config(self) -> PsiThresholdConfigType:
+    def threshold(self) -> PsiThresholdType:
         """Return the threshold config"""
 
     @property

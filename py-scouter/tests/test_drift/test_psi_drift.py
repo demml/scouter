@@ -49,10 +49,32 @@ def test_psi_drift_f32(array: NDArray, psi_drift_config: PsiDriftConfig):
     _ = scouter.compute_drift(array, profile)
 
 
-def test_only_string_drift_psi(pandas_categorical_dataframe: pd.DataFrame, psi_drift_config: PsiDriftConfig):
+def test_only_string_drift_categorical_psi(
+    pandas_categorical_dataframe: pd.DataFrame,
+    psi_drift_config_with_categorical_features: PsiDriftConfig,
+):
     drifter = Drifter()
 
-    profile: PsiDriftProfile = drifter.create_drift_profile(pandas_categorical_dataframe, psi_drift_config)
+    profile: PsiDriftProfile = drifter.create_drift_profile(
+        pandas_categorical_dataframe,
+        psi_drift_config_with_categorical_features,
+    )
+
+    drift_map = drifter.compute_drift(pandas_categorical_dataframe, profile)
+
+    assert len(drift_map.features) == 3
+
+
+def test_only_string_profile_psi(
+    pandas_categorical_dataframe: pd.DataFrame,
+    psi_drift_config: PsiDriftConfig,
+):
+    drifter = Drifter()
+
+    profile: PsiDriftProfile = drifter.create_drift_profile(
+        pandas_categorical_dataframe,
+        psi_drift_config,
+    )
 
     drift_map = drifter.compute_drift(pandas_categorical_dataframe, profile)
 
@@ -61,13 +83,35 @@ def test_only_string_drift_psi(pandas_categorical_dataframe: pd.DataFrame, psi_d
 
 def test_data_pyarrow_mixed_type(
     polars_dataframe_multi_dtype: pl.DataFrame,
-    psi_drift_config: PsiDriftConfig,
+    psi_drift_config_with_categorical_features: PsiDriftConfig,
 ):
     arrow_table = polars_dataframe_multi_dtype.to_arrow()
 
     drifter = Drifter()
 
-    profile: PsiDriftProfile = drifter.create_drift_profile(arrow_table, psi_drift_config)
+    profile: PsiDriftProfile = drifter.create_drift_profile(arrow_table, psi_drift_config_with_categorical_features)
     drift_map = drifter.compute_drift(arrow_table, profile)
 
-    assert len(drift_map.features) == 5
+    assert len(drift_map.features) == 6
+
+
+def test_psi_drift_normal_threshold(
+    pandas_dataframe: pd.DataFrame,
+    psi_drift_normal_threshold_psi_config: PsiDriftConfig,
+):
+    scouter = Drifter()
+    scouter.create_drift_profile(
+        pandas_dataframe,
+        psi_drift_normal_threshold_psi_config,
+    )
+
+
+def test_psi_drift_chi_threshold(
+    pandas_dataframe: pd.DataFrame,
+    psi_drift_chi_threshold_psi_config: PsiDriftConfig,
+):
+    scouter = Drifter()
+    scouter.create_drift_profile(
+        pandas_dataframe,
+        psi_drift_chi_threshold_psi_config,
+    )

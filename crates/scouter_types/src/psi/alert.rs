@@ -11,37 +11,34 @@ use serde::{Deserialize, Serialize};
 use statrs::distribution::{ChiSquared, ContinuousCDF, Normal};
 
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub enum PsiThresholdConfig {
+pub enum PsiThreshold {
     Normal(PsiNormalThreshold),
     ChiSquare(PsiChiSquareThreshold),
     Fixed(PsiFixedThreshold),
 }
 
-impl PsiThresholdConfig {
+impl PsiThreshold {
     pub fn config<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         match self {
-            PsiThresholdConfig::Normal(config) => config.clone().into_bound_py_any(py),
-            PsiThresholdConfig::ChiSquare(config) => config.clone().into_bound_py_any(py),
-            PsiThresholdConfig::Fixed(config) => config.clone().into_bound_py_any(py),
+            PsiThreshold::Normal(config) => config.clone().into_bound_py_any(py),
+            PsiThreshold::ChiSquare(config) => config.clone().into_bound_py_any(py),
+            PsiThreshold::Fixed(config) => config.clone().into_bound_py_any(py),
         }
     }
 
     pub fn compute_threshold(&self, target_sample_size: u64, bin_count: u64) -> f64 {
         match self {
-            PsiThresholdConfig::Normal(normal) => {
-                normal.compute_threshold(target_sample_size, bin_count)
-            }
-            PsiThresholdConfig::ChiSquare(chi) => {
-                chi.compute_threshold(target_sample_size, bin_count)
-            }
-            PsiThresholdConfig::Fixed(fixed) => fixed.compute_threshold(),
+            PsiThreshold::Normal(normal) => normal.compute_threshold(target_sample_size, bin_count),
+            PsiThreshold::ChiSquare(chi) => chi.compute_threshold(target_sample_size, bin_count),
+            PsiThreshold::Fixed(fixed) => fixed.compute_threshold(),
         }
     }
 }
 
-impl Default for PsiThresholdConfig {
+impl Default for PsiThreshold {
+    // Default threshold is ChiSquare with alpha = 0.05
     fn default() -> Self {
-        PsiThresholdConfig::ChiSquare(PsiChiSquareThreshold { alpha: 0.05 })
+        PsiThreshold::ChiSquare(PsiChiSquareThreshold { alpha: 0.05 })
     }
 }
 
@@ -167,7 +164,7 @@ pub struct PsiAlertConfig {
 
     pub dispatch_config: AlertDispatchConfig,
 
-    pub threshold_config: Option<PsiThresholdConfig>,
+    pub threshold: Option<PsiThreshold>,
 }
 
 impl Default for PsiAlertConfig {
@@ -176,7 +173,7 @@ impl Default for PsiAlertConfig {
             schedule: CommonCrons::EveryDay.cron(),
             features_to_monitor: Vec::new(),
             dispatch_config: AlertDispatchConfig::default(),
-            threshold_config: None,
+            threshold: None,
         }
     }
 }
@@ -186,12 +183,12 @@ impl ValidateAlertConfig for PsiAlertConfig {}
 #[pymethods]
 impl PsiAlertConfig {
     #[new]
-    #[pyo3(signature = (schedule=None, features_to_monitor=vec![], dispatch_config=None, threshold_config=None))]
+    #[pyo3(signature = (schedule=None, features_to_monitor=vec![], dispatch_config=None, threshold=None))]
     pub fn new(
         schedule: Option<&Bound<'_, PyAny>>,
         features_to_monitor: Vec<String>,
         dispatch_config: Option<&Bound<'_, PyAny>>,
-        threshold_config: Option<&Bound<'_, PyAny>>,
+        threshold: Option<&Bound<'_, PyAny>>,
     ) -> Result<Self, TypeError> {
         let dispatch_config = match dispatch_config {
             None => AlertDispatchConfig::default(),
@@ -206,18 +203,18 @@ impl PsiAlertConfig {
             }
         };
 
-        let threshold_config = match threshold_config {
+        let threshold = match threshold {
             None => None,
             Some(config) => {
                 if config.is_instance_of::<PsiNormalThreshold>() {
-                    Some(PsiThresholdConfig::Normal(config.extract()?))
+                    Some(PsiThreshold::Normal(config.extract()?))
                 } else if config.is_instance_of::<PsiChiSquareThreshold>() {
-                    Some(PsiThresholdConfig::ChiSquare(config.extract()?))
+                    Some(PsiThreshold::ChiSquare(config.extract()?))
                 } else if config.is_instance_of::<PsiFixedThreshold>() {
                     // ← Fixed bug
-                    Some(PsiThresholdConfig::Fixed(config.extract()?))
+                    Some(PsiThreshold::Fixed(config.extract()?))
                 } else {
-                    return Err(TypeError::InvalidPsiThresholdConfigError);
+                    return Err(TypeError::InvalidPsiThresholdError);
                 }
             }
         };
@@ -241,7 +238,7 @@ impl PsiAlertConfig {
             schedule,
             features_to_monitor,
             dispatch_config,
-            threshold_config,
+            threshold,
         })
     }
     #[getter]
@@ -255,8 +252,8 @@ impl PsiAlertConfig {
     }
 
     #[getter]
-    pub fn threshold_config<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        match &self.threshold_config {
+    pub fn threshold<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        match &self.threshold {
             None => Ok(py.None().into_bound_py_any(py)?),
             Some(config) => config.config(py),
         }

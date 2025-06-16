@@ -9,7 +9,7 @@ authors = [
 ]
 
 license = "MIT"
-description = "Drift logic for Scouter"
+description = "Scouter profile logic"
 
 [dependencies]
 scouter-types = { workspace = true }

@@ -33,7 +33,7 @@ async fn test_storage_integration_cloud() {
         ..Default::default()
     };
 
-    let config = PsiDriftConfig::new(SPACE, NAME, VERSION, alert_config, None);
+    let config = PsiDriftConfig::new(SPACE, NAME, VERSION, alert_config, None, None);
 
     let monitor = PsiMonitor::new();
 

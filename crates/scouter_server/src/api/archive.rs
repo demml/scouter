@@ -19,30 +19,8 @@ pub struct DataArchiver {
 }
 
 impl DataArchiver {
-    /// Start a new data manager
-    pub async fn start_workers(
-        db_pool: &Pool<Postgres>,
-        shutdown_rx: watch::Receiver<()>,
-        config: &Arc<ScouterServerConfig>,
-    ) -> Result<(), ServerError> {
-        let mut workers = Vec::with_capacity(1);
-
-        let pool = db_pool.clone();
-        let cloned_config = config.clone();
-        let shutdown_rx = shutdown_rx.clone();
-        let worker_shutdown_rx = shutdown_rx.clone();
-
-        workers.push(tokio::spawn(Self::start_worker(
-            0,
-            pool,
-            cloned_config,
-            worker_shutdown_rx,
-        )));
-
-        Ok(())
-    }
-
-    async fn start_worker(
+    /// Start a new data archiver worker
+    pub async fn start_worker(
         id: usize,
         db_pool: Pool<Postgres>,
         config: Arc<ScouterServerConfig>,
@@ -72,6 +50,7 @@ impl DataArchiver {
                             Ok(_) => {
                                 debug!("Archive completed successfully for worker {}", id);
                                 last_cleanup = Some(now);
+
                             }
                             Err(e) => error!("Archive failed for worker {}: {}", id, e),
                         }

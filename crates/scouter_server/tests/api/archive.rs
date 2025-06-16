@@ -154,7 +154,7 @@ async fn test_data_archive_psi() {
         ..Default::default()
     };
 
-    let config = PsiDriftConfig::new(SPACE, NAME, VERSION, alert_config, None);
+    let config = PsiDriftConfig::new(SPACE, NAME, VERSION, alert_config, None, None);
 
     let monitor = PsiMonitor::new();
 

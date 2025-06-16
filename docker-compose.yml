@@ -96,7 +96,7 @@ services:
       - kafka
 
   init-kafka:
-    image: confluentinc/cp-kafka:latest
+    image: confluentinc/cp-kafka:7.9.1
     depends_on:
       - kafka
     entrypoint: ["/bin/sh", "-c"]

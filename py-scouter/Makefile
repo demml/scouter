@@ -48,7 +48,6 @@ test.integration.client:
 test.integration: test.integration.queue test.integration.api test.integration.client
 
 uv.pre.patch:
-
 	uv version prepatch
 
 uv.sub.pre.tag:
@@ -59,5 +58,14 @@ uv.sub.pre.tag:
 
 prep.pre.patch: uv.pre.patch uv.sub.pre.tag
 
+build.docs:
+	uv run mkdocs build
+
+serve.docs:
+	uv run mkdocs serve
+
 publish.docs:
+	uv run python scripts/build_docs.py
 	uv run mkdocs gh-deploy --force
+
+

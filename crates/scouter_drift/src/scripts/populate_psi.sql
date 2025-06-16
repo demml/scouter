@@ -296,7 +296,7 @@ VALUES (timezone('utc', NOW()),
                 "feature_2",
                 "feature_3"
               ],
-              "threshold_config": null
+              "threshold": null
             },
             "drift_type": "Psi"
           },

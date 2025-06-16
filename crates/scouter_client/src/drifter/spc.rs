@@ -227,6 +227,18 @@ impl SpcDrifter {
             final_config.alert_config.features_to_monitor = features.keys().cloned().collect();
         }
 
+        // Validate features_to_monitor
+        if let Some(missing_feature) = final_config
+            .alert_config
+            .features_to_monitor
+            .iter()
+            .find(|&key| !features.contains_key(key))
+        {
+            return Err(DriftError::FeatureToMonitorMissingError(
+                missing_feature.to_string(),
+            ));
+        }
+
         Ok(SpcDriftProfile::new(features, final_config, None))
     }
 }

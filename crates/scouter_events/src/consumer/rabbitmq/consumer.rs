@@ -9,7 +9,7 @@ pub mod rabbitmq_consumer {
     use sqlx::{Pool, Postgres};
     use tokio::sync::watch;
     use tokio::task::JoinHandle;
-    use tracing::{debug, error, info, instrument};
+    use tracing::{error, info, instrument};
 
     use lapin::{
         message::Delivery, options::*, types::FieldTable, Connection, ConnectionProperties,
@@ -26,42 +26,8 @@ pub mod rabbitmq_consumer {
     }
 
     impl RabbitMQConsumerManager {
-        /// Start a number of workers to consume messages from RabbitMQ
-        /// This function creates a number of workers to consume messages from RabbitMQ. Each worker will consume messages from RabbitMQ and insert them into the database
-        ///
-        /// # Arguments
-        /// * `rabbit_settings` - The RabbitMQ settings
-        /// * `db_client` - The database client
-        /// * `shutdown_rx` - The shutdown receiver
-        ///
-        /// # Returns
-        ///
-        /// * `Result<RabbitMQConsumerManager, EventError>` - The result of the operation
-        #[instrument(skip_all, name = "start_rabbitmq_workers")]
-        pub async fn start_workers(
-            rabbit_settings: &RabbitMQSettings,
-            db_pool: &Pool<Postgres>,
-            shutdown_rx: watch::Receiver<()>,
-        ) -> Result<Self, EventError> {
-            let num_consumers = rabbit_settings.num_consumers;
-            let mut workers = Vec::with_capacity(num_consumers);
-
-            for id in 0..num_consumers {
-                let consumer = create_rabbitmq_consumer(rabbit_settings).await?;
-                let rabbit_db_pool = db_pool.clone();
-
-                let worker_shutdown_rx = shutdown_rx.clone();
-                workers.push(tokio::spawn(async move {
-                    Self::start_worker(id, consumer, rabbit_db_pool, worker_shutdown_rx).await;
-                }));
-            }
-
-            debug!("✅ Started {} RabbitMQ workers", num_consumers);
-
-            Ok(Self { workers })
-        }
-
-        async fn start_worker(
+        #[instrument(skip_all, name = "start_rabbitmq_worker")]
+        pub async fn start_worker(
             id: usize,
             mut consumer: Consumer,
             db_pool: Pool<Postgres>,
