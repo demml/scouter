@@ -164,7 +164,7 @@ pub struct PsiAlertConfig {
 
     pub dispatch_config: AlertDispatchConfig,
 
-    pub threshold: Option<PsiThreshold>,
+    pub threshold: PsiThreshold,
 }
 
 impl Default for PsiAlertConfig {
@@ -173,7 +173,7 @@ impl Default for PsiAlertConfig {
             schedule: CommonCrons::EveryDay.cron(),
             features_to_monitor: Vec::new(),
             dispatch_config: AlertDispatchConfig::default(),
-            threshold: None,
+            threshold: PsiThreshold::default(),
         }
     }
 }
@@ -204,15 +204,15 @@ impl PsiAlertConfig {
         };
 
         let threshold = match threshold {
-            None => None,
+            None => PsiThreshold::default(),
             Some(config) => {
                 if config.is_instance_of::<PsiNormalThreshold>() {
-                    Some(PsiThreshold::Normal(config.extract()?))
+                    PsiThreshold::Normal(config.extract()?)
                 } else if config.is_instance_of::<PsiChiSquareThreshold>() {
-                    Some(PsiThreshold::ChiSquare(config.extract()?))
+                    PsiThreshold::ChiSquare(config.extract()?)
                 } else if config.is_instance_of::<PsiFixedThreshold>() {
                     // ← Fixed bug
-                    Some(PsiThreshold::Fixed(config.extract()?))
+                    PsiThreshold::Fixed(config.extract()?)
                 } else {
                     return Err(TypeError::InvalidPsiThresholdError);
                 }
@@ -253,10 +253,7 @@ impl PsiAlertConfig {
 
     #[getter]
     pub fn threshold<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        match &self.threshold {
-            None => Ok(py.None().into_bound_py_any(py)?),
-            Some(config) => config.config(py),
-        }
+        self.threshold.config(py)
     }
 }
 
