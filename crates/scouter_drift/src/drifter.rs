@@ -154,7 +154,10 @@ pub mod drift_executor {
             // get the drift profile
             let profile = DriftProfile::from_str(drift_type.clone(), task.profile.clone())
                 .inspect_err(|e| {
-                    error!("Error converting drift profile: {:?}", e);
+                    error!(
+                        "Error converting drift profile for type {:?}: {:?}",
+                        drift_type, e
+                    );
                 })?;
 
             // check for alerts
