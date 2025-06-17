@@ -90,7 +90,7 @@ VALUES
           },
           "scouter_version":"0.4.5"
         }',
-        'SPC',
+        'Spc',
         true,
         '0 0 0 * * *',
         timezone('utc', now() - interval '2 days'),
@@ -138,33 +138,33 @@ VALUES
               "timestamp": "2024-06-26T20:43:27.957230"
             }
           },
-        "config": {
-          "sample_size": 25,
-          "sample": true,
-          "name": "test_app",
-          "space": "mathworld",
-          "version": "0.1.0",
-          "alert_config": {
-              "dispatch_config": {
-                "Console": {
-                  "enabled": true
-                }
-              },
-              "schedule": "0 0 0 * * *",
-              "rule": {
-                      "rule": "8 16 4 8 2 4 1 1",
-                      "zones_to_monitor": ["Zone 1", "Zone 2", "Zone 3", "Zone 4"]
-              },
-              "features_to_monitor": []
+          "config": {
+            "sample_size": 25,
+            "sample": true,
+            "name": "test_app",
+            "space": "mathworld",
+            "version": "0.1.0",
+            "alert_config": {
+                "dispatch_config": {
+                  "Console": {
+                    "enabled": true
+                  }
+                },
+                "schedule": "0 0 0 * * *",
+                "rule": {
+                        "rule": "8 16 4 8 2 4 1 1",
+                        "zones_to_monitor": ["Zone 1", "Zone 2", "Zone 3", "Zone 4"]
+                },
+                "features_to_monitor": []
+            },
+            "feature_map": {
+              "features": {}
+            },
+            "drift_type": "SPC"
           },
-          "feature_map": {
-            "features": {}
-          },
-          "drift_type": "SPC"
-        },
         "scouter_version": "0.1.0"
         }',
-        'SPC',
+        'Spc',
         false,
         '0 0 0 * * *',
         timezone('utc', now() - interval '2 days'),

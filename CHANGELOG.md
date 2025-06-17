@@ -2,6 +2,17 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.5.6] - 2025-06-17
+
+### 🐛 Bug Fixes
+
+- Remove option for psi threshold in config
+
+### 🧪 Testing
+
+- Update tests for default PsiThreshold
+- Fix populate script
+
 ## [0.5.5] - 2025-06-16
 
 ### 🐛 Bug Fixes

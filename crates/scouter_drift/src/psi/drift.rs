@@ -82,13 +82,7 @@ pub mod psi_drifter {
             drift_map: &HashMap<String, f64>,
             target_feature_distributions: &FeatureDistributions,
         ) -> Vec<PsiFeatureAlert> {
-            let threshold_cfg = self
-                .profile
-                .config
-                .alert_config
-                .threshold
-                .clone()
-                .unwrap_or_default();
+            let threshold_cfg = &self.profile.config.alert_config.threshold;
 
             drift_map
                 .iter()
@@ -345,7 +339,7 @@ pub mod psi_drifter {
             DEFAULT_VERSION,
         };
 
-        fn get_test_drifter(threshold: Option<PsiThreshold>) -> PsiDrifter {
+        fn get_test_drifter(threshold: PsiThreshold) -> PsiDrifter {
             let alert_config = PsiAlertConfig {
                 features_to_monitor: vec!["feature_1".to_string(), "feature_3".to_string()],
                 threshold,
@@ -453,8 +447,7 @@ pub mod psi_drifter {
             let threshold = PsiNormalThreshold { alpha: 0.05 };
             let result = threshold.compute_threshold(sample_size, bin_count);
 
-            let drifter_with_normal_threshold =
-                get_test_drifter(Some(PsiThreshold::Normal(threshold)));
+            let drifter_with_normal_threshold = get_test_drifter(PsiThreshold::Normal(threshold));
 
             let feature_1 = "feature_1";
             let feature_2 = "feature_2";
@@ -508,8 +501,7 @@ pub mod psi_drifter {
             let threshold = PsiNormalThreshold { alpha: 0.05 };
             let result = threshold.compute_threshold(sample_size, bin_count);
 
-            let drifter_with_normal_threshold =
-                get_test_drifter(Some(PsiThreshold::Normal(threshold)));
+            let drifter_with_normal_threshold = get_test_drifter(PsiThreshold::Normal(threshold));
 
             let feature_1 = "feature_1";
             let feature_2 = "feature_2";
@@ -563,8 +555,7 @@ pub mod psi_drifter {
             let threshold = PsiNormalThreshold { alpha: 0.05 };
             let result = threshold.compute_threshold(sample_size, bin_count);
 
-            let drifter_with_normal_threshold =
-                get_test_drifter(Some(PsiThreshold::Normal(threshold)));
+            let drifter_with_normal_threshold = get_test_drifter(PsiThreshold::Normal(threshold));
 
             let feature_1 = "feature_1";
             let feature_2 = "feature_2";
@@ -624,8 +615,7 @@ pub mod psi_drifter {
             let threshold = PsiNormalThreshold { alpha: 0.05 };
             let result = threshold.compute_threshold(sample_size, bin_count);
 
-            let drifter_with_normal_threshold =
-                get_test_drifter(Some(PsiThreshold::Normal(threshold)));
+            let drifter_with_normal_threshold = get_test_drifter(PsiThreshold::Normal(threshold));
 
             let feature_1 = "feature_1";
 
@@ -656,7 +646,7 @@ pub mod psi_drifter {
 
         #[test]
         fn test_get_monitored_profiles() {
-            let drifter = get_test_drifter(None);
+            let drifter = get_test_drifter(PsiThreshold::default());
 
             let profiles_to_monitor = drifter.get_monitored_profiles();
 

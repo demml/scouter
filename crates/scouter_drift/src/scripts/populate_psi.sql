@@ -296,7 +296,11 @@ VALUES (timezone('utc', NOW()),
                 "feature_2",
                 "feature_3"
               ],
-              "threshold": null
+              "threshold": {
+                "ChiSquare": {
+                  "alpha": 0.05
+                }
+              }
             },
             "drift_type": "Psi"
           },
