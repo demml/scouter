@@ -41,6 +41,7 @@ pub use scouter_drift::{
     spc::{generate_alerts, SpcDriftMap, SpcFeatureDrift, SpcMonitor},
     utils::CategoricalFeatureHelpers,
 };
+pub use scouter_events::error::PyEventError;
 pub use scouter_events::producer::{
     kafka::KafkaConfig, rabbitmq::RabbitMQConfig, redis::RedisConfig,
 };
