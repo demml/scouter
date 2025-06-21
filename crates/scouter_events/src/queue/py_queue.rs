@@ -267,6 +267,11 @@ impl ScouterQueue {
         let mut startup_rxs = Vec::new();
         let mut completion_rxs = HashMap::new();
 
+        // assert transport config is not None
+        if transport_config.is_none() {
+            return Err(PyEventError::MissingTransportConfig);
+        }
+
         // Extract transport config from python object
         let config = TransportConfig::from_py_config(transport_config)?;
 
