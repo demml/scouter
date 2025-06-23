@@ -82,6 +82,7 @@ class KafkaConfig:
                 Default is 3.
 
         """
+
     def __str__(self): ...
 
 class RabbitMQConfig:
@@ -151,6 +152,7 @@ class RedisConfig:
 
                 If not provided, the value of the REDIS_CHANNEL environment variable is used and defaults to "scouter_monitoring".
         """
+
     def __str__(self): ...
 
 class ServerRecord:
@@ -170,9 +172,7 @@ class ServerRecord:
     @property
     def record(
         self,
-    ) -> Union[
-        SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics
-    ]:
+    ) -> Union[SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics]:
         """Return the drift server record."""
 
 class ServerRecords:
