@@ -10,6 +10,10 @@ publish = false
 repo_url = "https://github.com/demml/scouter"
 
 [[package]]
+name = "scouter-dataframe"
+publish = true
+
+[[package]]
 name = "scouter-dispatch"
 publish = true
 
@@ -35,5 +39,9 @@ publish = true
 
 [[package]]
 name = "scouter-types"
+publish = true
+
+[[package]]
+name = "scouter-sql"
 publish = true
 
