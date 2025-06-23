@@ -173,6 +173,9 @@ pub enum PyEventError {
     #[error("Failed to get queue: {0}")]
     MissingQueueError(String),
 
+    #[error("Transport config was not provided")]
+    MissingTransportConfig,
+
     #[error("Failed to shutdown queue")]
     ShutdownQueueError(#[source] pyo3::PyErr),
 }

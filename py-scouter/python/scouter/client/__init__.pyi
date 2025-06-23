@@ -35,6 +35,8 @@ class HTTPConfig:
 
         """
 
+    def __str__(self): ...
+
 class TimeInterval:
     FiveMinutes: "TimeInterval"
     FifteenMinutes: "TimeInterval"

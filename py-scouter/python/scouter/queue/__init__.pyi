@@ -83,6 +83,8 @@ class KafkaConfig:
 
         """
 
+    def __str__(self): ...
+
 class RabbitMQConfig:
     address: str
     queue: str
@@ -126,6 +128,8 @@ class RabbitMQConfig:
                 Default is 3.
         """
 
+    def __str__(self): ...
+
 class RedisConfig:
     address: str
     channel: str
@@ -145,8 +149,11 @@ class RedisConfig:
 
             channel (str):
                 Redis channel to publish messages to.
+
                 If not provided, the value of the REDIS_CHANNEL environment variable is used and defaults to "scouter_monitoring".
         """
+
+    def __str__(self): ...
 
 class ServerRecord:
     Spc: "ServerRecord"

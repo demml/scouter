@@ -1,8 +1,10 @@
 use pyo3::prelude::*;
+use scouter_types::ProfileFuncs;
 use scouter_types::TransportType;
+use serde::Serialize;
 
 #[pyclass]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 pub struct HTTPConfig {
     #[pyo3(get, set)]
     pub server_uri: String,
@@ -34,6 +36,7 @@ impl HTTPConfig {
             std::env::var("SCOUTER_SERVER_URI")
                 .unwrap_or_else(|_| "http://localhost:8000".to_string())
         });
+
         let username = username.unwrap_or_else(|| {
             std::env::var("SCOUTER_USERNAME").unwrap_or_else(|_| "admin".to_string())
         });
@@ -51,6 +54,11 @@ impl HTTPConfig {
             auth_token,
             transport_type: TransportType::Http,
         }
+    }
+
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
     }
 }
 
