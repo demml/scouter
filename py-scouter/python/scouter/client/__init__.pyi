@@ -34,6 +34,7 @@ class HTTPConfig:
                 Authorization token to use for authentication.
 
         """
+    def __str__(self): ...
 
 class TimeInterval:
     FiveMinutes: "TimeInterval"
@@ -75,7 +76,9 @@ class DriftRequest:
         """
 
 class ProfileStatusRequest:
-    def __init__(self, name: str, space: str, version: str, drift_type: DriftType, active: bool) -> None:
+    def __init__(
+        self, name: str, space: str, version: str, drift_type: DriftType, active: bool
+    ) -> None:
         """Initialize profile status request
 
         Args:
@@ -92,7 +95,9 @@ class ProfileStatusRequest:
         """
 
 class GetProfileRequest:
-    def __init__(self, name: str, space: str, version: str, drift_type: DriftType) -> None:
+    def __init__(
+        self, name: str, space: str, version: str, drift_type: DriftType
+    ) -> None:
         """Initialize get profile request
 
         Args:

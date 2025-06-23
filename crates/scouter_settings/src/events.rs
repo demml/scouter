@@ -1,3 +1,4 @@
+use scouter_types::ProfileFuncs;
 use serde::Serialize;
 
 #[derive(Clone, Serialize)]
@@ -12,6 +13,13 @@ pub struct KafkaSettings {
     pub sasl_mechanism: String,
     pub offset_reset: String,
     pub cert_location: Option<String>,
+}
+
+impl KafkaSettings {
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
 }
 
 impl std::fmt::Debug for KafkaSettings {
@@ -84,6 +92,14 @@ pub struct RabbitMQSettings {
     pub consumer_tag: String,
     pub address: String,
 }
+
+impl RabbitMQSettings {
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
+}
+
 impl Default for RabbitMQSettings {
     fn default() -> Self {
         let num_consumers = std::env::var("RABBITMQ_CONSUMER_COUNT")
@@ -120,6 +136,13 @@ pub struct RedisSettings {
     pub num_consumers: usize,
     pub channel: String,
     pub address: String,
+}
+
+impl RedisSettings {
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
 }
 
 impl Default for RedisSettings {
