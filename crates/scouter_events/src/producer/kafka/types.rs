@@ -54,7 +54,7 @@ fn add_kafka_security(config: &mut HashMap<String, String>) -> Result<(), PyEven
             config.insert("sasl.username".to_string(), sasl_username);
             config.insert("sasl.password".to_string(), sasl_password);
             config.insert("security.protocol".to_string(), "SASL_SSL".to_string());
-            config.insert("sasl.mechanisms".to_string(), "PLAIN".to_string());
+            config.insert("sasl.mechanism".to_string(), "PLAIN".to_string());
         }
     }
     Ok(())
