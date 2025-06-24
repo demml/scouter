@@ -45,3 +45,7 @@ publish = true
 name = "scouter-sql"
 publish = true
 
+[[package]]
+name = "scouter-client"
+publish = true
+
