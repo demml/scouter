@@ -263,6 +263,7 @@ impl ScouterQueue {
         transport_config: &Bound<'_, PyAny>,
         shared_runtime: Arc<tokio::runtime::Runtime>,
     ) -> Result<Self, PyEventError> {
+        debug!("Creating ScouterQueue from path");
         let mut queues = HashMap::new();
         let mut startup_rxs = Vec::new();
         let mut completion_rxs = HashMap::new();
@@ -271,6 +272,8 @@ impl ScouterQueue {
         if transport_config.is_none() {
             return Err(PyEventError::MissingTransportConfig);
         }
+
+        println!("Transport config: {:?}", transport_config);
 
         // Extract transport config from python object
         let config = TransportConfig::from_py_config(transport_config)?;

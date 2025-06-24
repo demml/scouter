@@ -5,6 +5,7 @@ use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use scouter_settings::HTTPConfig;
 use scouter_types::TransportType;
+use tracing::{debug, error};
 
 #[derive(Clone, Debug)]
 pub enum TransportConfig {
@@ -25,11 +26,14 @@ impl TransportConfig {
     /// # Returns
     /// * `TransportConfig` - TransportConfig object
     pub fn from_py_config(config: &Bound<'_, PyAny>) -> PyResult<Self> {
-        let transport_type = config
-            .getattr("transport_type")?
-            .extract::<TransportType>()?;
+        let transport_type = config.getattr("transport_type")?;
 
-        match transport_type {
+        let extracted_type = transport_type.extract::<TransportType>().map_err(|e| {
+            error!("Failed to extract transport type: {}", e);
+            e
+        })?;
+
+        match extracted_type {
             TransportType::RabbitMQ => {
                 let rabbitmq_config = config.extract::<RabbitMQConfig>()?;
                 Ok(TransportConfig::RabbitMQ(rabbitmq_config))
