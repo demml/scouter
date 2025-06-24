@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use scouter_settings::HTTPConfig;
 use scouter_types::TransportType;
-use tracing::{debug, error};
+use tracing::error;
 
 #[derive(Clone, Debug)]
 pub enum TransportConfig {

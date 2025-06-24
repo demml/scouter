@@ -131,13 +131,13 @@ pub enum EventError {
     #[error("Failed to signal startup")]
     SignalCompletionError,
 
-    #[error("Failed to setup tokio runtime: {0}")]
+    #[error("Failed to setup tokio runtime for ScouterQueue: {0}")]
     SetupTokioRuntimeError(#[source] io::Error),
 
-    #[error("Failed to setup tokio runtime")]
+    #[error("Failed to start receiver tokio runtime: {0}")]
     StartupReceiverError(#[source] tokio::sync::oneshot::error::RecvError),
 
-    #[error("Failed to setup tokio runtime")]
+    #[error("Failed to shutdown receiver tokio runtime: {0}")]
     ShutdownReceiverError(#[source] tokio::sync::oneshot::error::RecvError),
 
     #[error("Kafka feature not enabled")]
