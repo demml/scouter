@@ -103,16 +103,15 @@ async fn handle_queue_events(
     config: TransportConfig,
     id: String,
     queue_runtime: Arc<tokio::runtime::Runtime>,
-    startup_tx: oneshot::Sender<()>,
     completion_tx: oneshot::Sender<()>,
 ) -> Result<(), EventError> {
-    let mut queue = QueueNum::new(drift_profile, config, queue_runtime).await?;
-
-    // Signal that initialization is complete
-    startup_tx
-        .send(())
-        .map_err(|_| EventError::SignalStartupError)?;
-
+    let mut queue = match QueueNum::new(drift_profile, config.clone(), queue_runtime).await {
+        Ok(q) => q,
+        Err(e) => {
+            error!("Failed to initialize queue {}: {}", id, e);
+            return Err(e);
+        }
+    };
     loop {
         tokio::select! {
             Some(event) = rx.recv() => {
@@ -265,15 +264,13 @@ impl ScouterQueue {
     ) -> Result<Self, PyEventError> {
         debug!("Creating ScouterQueue from path");
         let mut queues = HashMap::new();
-        let mut startup_rxs = Vec::new();
+        //let mut startup_rxs = Vec::new();
         let mut completion_rxs = HashMap::new();
 
         // assert transport config is not None
         if transport_config.is_none() {
             return Err(PyEventError::MissingTransportConfig);
         }
-
-        println!("Transport config: {:?}", transport_config);
 
         // Extract transport config from python object
         let config = TransportConfig::from_py_config(transport_config)?;
@@ -285,7 +282,7 @@ impl ScouterQueue {
             let drift_profile = DriftProfile::from_profile_path(profile_path)?;
 
             // create startup channels to ensure queues are initialized before use
-            let (startup_tx, startup_rx) = oneshot::channel();
+            //let (startup_tx, startup_rx) = oneshot::channel();
 
             // create completion channels to ensure queues are flushed before shutdown
             let (completion_tx, completion_rx) = oneshot::channel();
@@ -295,32 +292,40 @@ impl ScouterQueue {
 
             // spawn a new thread for each queue
             let id_clone = id.clone();
-            shared_runtime.spawn(handle_queue_events(
-                rx,
-                shutdown_rx,
-                drift_profile,
-                cloned_config,
-                id_clone,
-                queue_runtime,
-                startup_tx,
-                completion_tx,
-            ));
+
+            // Just spawn the task without waiting for initialization
+            shared_runtime.spawn(async move {
+                match handle_queue_events(
+                    rx,
+                    shutdown_rx,
+                    drift_profile,
+                    cloned_config,
+                    id_clone,
+                    queue_runtime,
+                    completion_tx,
+                )
+                .await
+                {
+                    Ok(_) => debug!("Queue handler exited successfully"),
+                    Err(e) => error!("Queue handler exited with error: {}", e),
+                }
+            });
 
             let queue = Py::new(py, bus)?;
 
             queues.insert(id.clone(), queue);
-            startup_rxs.push((id.clone(), startup_rx));
+            //startup_rxs.push((id.clone(), startup_rx));
             completion_rxs.insert(id, completion_rx);
         }
 
         // wait for all queues to start up
-        shared_runtime.block_on(async {
-            for (id, startup_rx) in startup_rxs {
-                startup_rx.await.map_err(EventError::StartupReceiverError)?;
-                debug!("Queue {} initialized successfully", id);
-            }
-            Ok::<_, EventError>(())
-        })?;
+        //shared_runtime.block_on(async {
+        //    for (id, startup_rx) in startup_rxs {
+        //        startup_rx.await.map_err(EventError::StartupReceiverError)?;
+        //        debug!("Queue {} initialized successfully", id);
+        //    }
+        //    Ok::<_, EventError>(())
+        //})?;
 
         Ok(ScouterQueue {
             queues,
