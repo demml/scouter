@@ -131,7 +131,7 @@ pub enum EventError {
     #[error("Failed to signal startup")]
     SignalCompletionError,
 
-    #[error("Failed to setup tokio runtime")]
+    #[error("Failed to setup tokio runtime: {0}")]
     SetupTokioRuntimeError(#[source] io::Error),
 
     #[error("Failed to setup tokio runtime")]

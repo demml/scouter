@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
-from scouter import KafkaConfig, ScouterQueue  # type: ignore[attr-defined]
+from scouter import HTTPConfig, KafkaConfig, ScouterQueue  # type: ignore[attr-defined]
 from scouter.alert import SpcAlertConfig
 from scouter.client import ScouterClient
 from scouter.drift import Drifter, SpcDriftConfig, SpcDriftProfile
@@ -66,8 +66,37 @@ class PredictRequest(BaseModel, FeatureMixin):
     feature_3: float
 
 
-def create_app(profile_path: Path) -> FastAPI:
+def create_kafka_app(profile_path: Path) -> FastAPI:
     config = KafkaConfig()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):
+        logger.info("Starting up FastAPI app")
+
+        app.state.queue = ScouterQueue.from_path(
+            path={"spc": profile_path},
+            transport_config=config,
+        )
+        yield
+
+        logger.info("Shutting down FastAPI app")
+        # Shutdown the queue
+        app.state.queue.shutdown()
+        app.state.queue = None
+
+    app = FastAPI(lifespan=lifespan)
+
+    @app.post("/predict", response_model=TestResponse)
+    async def predict(request: Request, payload: PredictRequest) -> TestResponse:
+        print(f"Received payload: {request.app.state}")
+        request.app.state.queue["spc"].insert(payload.to_features())
+        return TestResponse(message="success")
+
+    return app
+
+
+def create_http_app(profile_path: Path) -> FastAPI:
+    config = HTTPConfig()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
