@@ -100,7 +100,7 @@ pub mod kafka_consumer {
         if settings.username.is_some() && settings.password.is_some() {
             config
                 .set("security.protocol", &settings.security_protocol)
-                .set("sasl.mechanisms", &settings.sasl_mechanism)
+                .set("sasl.mechanism", &settings.sasl_mechanism)
                 .set("sasl.username", settings.username.as_ref().unwrap())
                 .set("sasl.password", settings.password.as_ref().unwrap());
 
