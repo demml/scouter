@@ -123,4 +123,5 @@ pub enum TransportType {
     RabbitMQ,
     Http,
     Redis,
+    Mock,
 }

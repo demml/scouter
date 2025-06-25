@@ -1,4 +1,5 @@
 use crate::producer::kafka::KafkaConfig;
+use crate::producer::mock::MockConfig;
 use crate::producer::rabbitmq::RabbitMQConfig;
 use crate::producer::redis::RedisConfig;
 use pyo3::prelude::*;
@@ -13,6 +14,7 @@ pub enum TransportConfig {
     Kafka(KafkaConfig),
     Http(HTTPConfig),
     Redis(RedisConfig),
+    Mock(MockConfig),
 }
 
 impl TransportConfig {
@@ -50,6 +52,10 @@ impl TransportConfig {
                 let redis_config = config.extract::<RedisConfig>()?;
                 Ok(TransportConfig::Redis(redis_config))
             }
+            TransportType::Mock => {
+                let mock_config = config.extract::<MockConfig>()?;
+                Ok(TransportConfig::Mock(mock_config))
+            }
         }
     }
 
@@ -60,6 +66,7 @@ impl TransportConfig {
             TransportConfig::Kafka(config) => config.clone().into_bound_py_any(py),
             TransportConfig::Http(config) => config.clone().into_bound_py_any(py),
             TransportConfig::Redis(config) => config.clone().into_bound_py_any(py),
+            TransportConfig::Mock(config) => config.clone().into_bound_py_any(py),
         }
     }
 }
