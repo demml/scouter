@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Union
 from ..client import HTTPConfig
 from ..logging import LogLevel
 from ..observe import ObservabilityMetrics
+from ..test import MockConfig
 
 class TransportType:
     Kafka = "TransportType"
@@ -554,3 +555,9 @@ class ScouterQueue:
 
     def shutdown(self) -> None:
         """Shutdown the queue. This will close and flush all queues and transports"""
+
+    @property
+    def transport_config(
+        self,
+    ) -> Union[KafkaConfig, RabbitMQConfig, RedisConfig, HTTPConfig, MockConfig]:
+        """Return the transport configuration used by the queue"""

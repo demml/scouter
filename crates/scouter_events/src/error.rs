@@ -181,6 +181,9 @@ pub enum PyEventError {
 
     #[error("Failed to shutdown queue")]
     ShutdownQueueError(#[source] pyo3::PyErr),
+
+    #[error("Failed to convert TransportConfig type to py object: {0}")]
+    ConvertToPyError(#[source] pyo3::PyErr),
 }
 impl From<PyEventError> for PyErr {
     fn from(err: PyEventError) -> PyErr {

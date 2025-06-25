@@ -22,3 +22,9 @@ impl MockConfig {
         "MockConfig".to_string()
     }
 }
+
+impl Default for MockConfig {
+    fn default() -> Self {
+        MockConfig::new()
+    }
+}
