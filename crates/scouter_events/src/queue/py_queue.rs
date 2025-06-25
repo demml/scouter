@@ -267,7 +267,6 @@ impl ScouterQueue {
     ) -> Result<Self, PyEventError> {
         debug!("Creating ScouterQueue from path");
         let mut queues = HashMap::new();
-        //let mut startup_rxs = Vec::new();
         let mut completion_rxs = HashMap::new();
 
         // assert transport config is not None
@@ -309,7 +308,7 @@ impl ScouterQueue {
                 )
                 .await
                 {
-                    Ok(_) => debug!("Queue handler exited successfully"),
+                    Ok(_) => debug!("Queue handler started successfully"),
                     Err(e) => error!("Queue handler exited with error: {}", e),
                 }
             });
