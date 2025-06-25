@@ -1,7 +1,7 @@
 import random
 import tempfile
 from pathlib import Path
-
+import time
 import pandas as pd
 from scouter.client import (
     BinnedPsiFeatureMetrics,
@@ -39,13 +39,18 @@ def test_psi_monitor_pandas_http(
     records = pandas_dataframe.to_dict(orient="records")
     for record in records:
         features = Features(
-            features=[Feature.float(column_name, record[column_name]) for column_name in pandas_dataframe.columns]
+            features=[
+                Feature.float(column_name, record[column_name])
+                for column_name in pandas_dataframe.columns
+            ]
         )
         # 3. Send records to Scouter
         queue["a"].insert(features)
 
     # 4. Shutdown the queue
     queue.shutdown()
+
+    time.sleep(10)  # Wait for the data to be processed
 
     binned_records: BinnedPsiFeatureMetrics = client.get_binned_drift(
         DriftRequest(
