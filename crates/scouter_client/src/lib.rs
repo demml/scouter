@@ -43,7 +43,7 @@ pub use scouter_drift::{
 };
 pub use scouter_events::error::PyEventError;
 pub use scouter_events::producer::{
-    kafka::KafkaConfig, rabbitmq::RabbitMQConfig, redis::RedisConfig,
+    kafka::KafkaConfig, mock::MockConfig, rabbitmq::RabbitMQConfig, redis::RedisConfig,
 };
 pub use scouter_events::queue::{
     custom::CustomMetricFeatureQueue, psi::PsiFeatureQueue, spc::SpcFeatureQueue, QueueBus,

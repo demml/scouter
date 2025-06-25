@@ -49,3 +49,7 @@ class ScouterTestServer:
     @staticmethod
     def cleanup() -> None:
         """Cleans up the test server."""
+
+class MockConfig:
+    def __init__(self) -> None:
+        """Mock configuration for the ScouterQueue"""
