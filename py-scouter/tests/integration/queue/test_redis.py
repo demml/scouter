@@ -1,5 +1,6 @@
 import random
 import tempfile
+import time
 from pathlib import Path
 
 import pandas as pd
@@ -23,7 +24,7 @@ from scouter.types import DriftType
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"
 
 
-def test_psi_monitor_pandas_http(
+def test_psi_monitor_pandas_redis(
     http_scouter_server,
     pandas_dataframe: pd.DataFrame,
     psi_drift_config: PsiDriftConfig,
@@ -53,6 +54,8 @@ def test_psi_monitor_pandas_http(
 
     # 4. Shutdown the queue
     queue.shutdown()
+
+    time.sleep(5)
 
     binned_records: BinnedPsiFeatureMetrics = client.get_binned_drift(
         DriftRequest(
@@ -110,6 +113,8 @@ def test_psi_monitor_polars_categorical_http(
 
     # 4. Shutdown the queue
     queue.shutdown()
+
+    time.sleep(5)  # Wait for the data to be processed
 
     binned_records: BinnedPsiFeatureMetrics = client.get_binned_drift(
         DriftRequest(

@@ -78,11 +78,12 @@ impl PostgresClient {
 pub struct MessageHandler {}
 
 impl MessageHandler {
-    #[instrument(skip(records), name = "Insert Server Records")]
+    #[instrument(skip_all)]
     pub async fn insert_server_records(
         pool: &Pool<Postgres>,
         records: &ServerRecords,
     ) -> Result<(), SqlError> {
+        debug!("Inserting server records: {:?}", records);
         match records.record_type()? {
             RecordType::Spc => {
                 debug!("SPC record count: {:?}", records.len());

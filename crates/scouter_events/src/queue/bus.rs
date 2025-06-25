@@ -1,6 +1,8 @@
 use crate::error::{EventError, PyEventError};
 use pyo3::prelude::*;
 use scouter_types::QueueItem;
+use std::sync::Arc;
+use std::sync::RwLock;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot;
 use tracing::{debug, instrument};
@@ -8,6 +10,7 @@ use tracing::{debug, instrument};
 #[derive(Debug)]
 pub enum Event {
     Task(QueueItem),
+    Init,
 }
 
 /// QueueBus is an mpsc bus that allows for publishing events to subscribers.
@@ -17,6 +20,7 @@ pub enum Event {
 pub struct QueueBus {
     tx: UnboundedSender<Event>,
     shutdown_tx: Option<oneshot::Sender<()>>,
+    pub initialized: Arc<RwLock<bool>>,
 }
 
 impl QueueBus {
@@ -25,11 +29,13 @@ impl QueueBus {
         debug!("Creating unbounded QueueBus");
         let (tx, rx) = mpsc::unbounded_channel();
         let (shutdown_tx, shutdown_rx) = oneshot::channel();
+        let initialized = Arc::new(RwLock::new(false));
 
         (
             Self {
                 tx,
                 shutdown_tx: Some(shutdown_tx),
+                initialized,
             },
             rx,
             shutdown_rx,
@@ -39,6 +45,15 @@ impl QueueBus {
     #[instrument(skip_all)]
     pub fn publish(&self, event: Event) -> Result<(), EventError> {
         Ok(self.tx.send(event)?)
+    }
+
+    pub fn is_initialized(&self) -> bool {
+        // Check if the bus is initialized
+        if let Ok(initialized) = self.initialized.read() {
+            *initialized
+        } else {
+            false
+        }
     }
 }
 
@@ -50,6 +65,7 @@ impl QueueBus {
     /// * `event` - The event to publish
     pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> Result<(), PyEventError> {
         let entity = QueueItem::from_py_entity(entity)?;
+        debug!("Inserting event into QueueBus: {:?}", entity);
         let event = Event::Task(entity);
         self.publish(event)?;
         Ok(())
@@ -63,5 +79,26 @@ impl QueueBus {
         if let Some(shutdown_tx) = self.shutdown_tx.take() {
             let _ = shutdown_tx.send(());
         }
+    }
+}
+
+impl QueueBus {
+    /// Check if the bus is initialized
+    pub fn init(&self) -> Result<(), EventError> {
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        let mut attempts = 0;
+        while !self.is_initialized() {
+            debug!("QueueBus is not initialized, waiting...");
+            if attempts >= 100 {
+                return Err(EventError::InitializationError);
+            }
+            attempts += 1;
+            std::thread::sleep(std::time::Duration::from_millis(10));
+
+            let event = Event::Init;
+            debug!("Initializing QueueBus");
+            self.publish(event)?;
+        }
+        Ok(())
     }
 }

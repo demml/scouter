@@ -57,6 +57,8 @@ impl SpcFeatureQueue {
                         queue.push(value);
                     }
                 }
+            } else {
+                error!("Feature {} not found in drift profile", name);
             }
         });
 

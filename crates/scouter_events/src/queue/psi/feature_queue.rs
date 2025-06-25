@@ -114,6 +114,10 @@ impl PsiFeatureQueue {
 
                 // if feature not in features_to_monitor, skip
                 if !self.feature_names.contains(&name) {
+                    error!(
+                        "Feature {} not in features to monitor, skipping",
+                        feature.name()
+                    );
                     continue;
                 }
 

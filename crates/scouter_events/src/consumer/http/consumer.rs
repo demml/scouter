@@ -29,7 +29,7 @@ impl HttpConsumerManager {
                     match result {
                         Ok(records) => {
                             if let Err(e) = MessageHandler::insert_server_records(&db_pool,&records).await {
-                                error!("Http consumer  {}: Error handling message: {}", id, e);
+                                error!("Http consumer {}: Error handling message: {}", id, e);
                                 counter!("db_insert_errors_from_http_consumer").increment(1);
                             } else {
                                 counter!("records_inserted_from_http_consumer").absolute(records.records.len() as u64);

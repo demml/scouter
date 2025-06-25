@@ -73,7 +73,7 @@ def test_custom_monitor_pandas_rabbitmq(rabbitmq_scouter_server):
     queue.shutdown()
 
     # wait for rabbitmq to process the message
-    time.sleep(5)
+    time.sleep(10)
 
     request = DriftRequest(
         name=profile.config.name,
@@ -85,6 +85,7 @@ def test_custom_monitor_pandas_rabbitmq(rabbitmq_scouter_server):
     )
 
     binned_records: BinnedCustomMetrics = client.get_binned_drift(request)  # type: ignore
+
     assert len(binned_records.metrics["mae"].stats) > 0
 
     client.update_profile_status(
@@ -97,14 +98,24 @@ def test_custom_monitor_pandas_rabbitmq(rabbitmq_scouter_server):
     )
 
     # wait for alerts to process
-    # wait for 11 because background drift task runs every 10 seconds
-    time.sleep(5)
-    alerts = client.get_alerts(
-        DriftAlertRequest(
-            name=profile.config.name,
-            space=profile.config.space,
-            version=profile.config.version,
-        )
-    )
+    # wait for 5 because background drift task runs every 10 seconds
+    attempts = 0
 
-    assert len(alerts) > 0
+    ## wait for alerts to be created, if not created after 5 attempts, fail the test
+    while attempts < 5:
+        alerts = client.get_alerts(
+            DriftAlertRequest(
+                name=profile.config.name,
+                space=profile.config.space,
+                version=profile.config.version,
+            )
+        )
+
+        if len(alerts) > 0:
+            break
+
+        time.sleep(5)
+        attempts += 1
+
+    else:
+        raise AssertionError("No alerts were created")

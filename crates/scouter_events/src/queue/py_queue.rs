@@ -12,9 +12,10 @@ use scouter_types::{Features, Metrics};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::RwLock;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::oneshot;
-use tracing::{debug, error};
+use tracing::{debug, error, instrument};
 
 pub enum QueueNum {
     Spc(SpcQueue),
@@ -51,7 +52,9 @@ impl QueueNum {
     ///
     /// # Arguments
     /// * `entity` - The entity to insert into the queue
+    #[instrument(skip_all)]
     pub async fn insert(&mut self, entity: QueueItem) -> Result<(), EventError> {
+        debug!("Inserting entity into queue: {:?}", entity);
         match entity {
             QueueItem::Features(features) => self.insert_features(features).await,
             QueueItem::Metrics(metrics) => self.insert_metrics(metrics).await,
@@ -64,6 +67,7 @@ impl QueueNum {
     /// * `features` - The features to insert into the queue
     ///
     ///
+    #[instrument(skip_all)]
     pub async fn insert_features(&mut self, features: Features) -> Result<(), EventError> {
         match self {
             QueueNum::Psi(queue) => queue.insert(features).await,
@@ -103,16 +107,16 @@ async fn handle_queue_events(
     config: TransportConfig,
     id: String,
     queue_runtime: Arc<tokio::runtime::Runtime>,
-    startup_tx: oneshot::Sender<()>,
     completion_tx: oneshot::Sender<()>,
+    initialized: Arc<RwLock<bool>>,
 ) -> Result<(), EventError> {
-    let mut queue = QueueNum::new(drift_profile, config, queue_runtime).await?;
-
-    // Signal that initialization is complete
-    startup_tx
-        .send(())
-        .map_err(|_| EventError::SignalStartupError)?;
-
+    let mut queue = match QueueNum::new(drift_profile, config.clone(), queue_runtime).await {
+        Ok(q) => q,
+        Err(e) => {
+            error!("Failed to initialize queue {}: {}", id, e);
+            return Err(e);
+        }
+    };
     loop {
         tokio::select! {
             Some(event) = rx.recv() => {
@@ -124,6 +128,18 @@ async fn handle_queue_events(
                             }
                             Err(e) => {
                                 error!("Error inserting entity into queue {}: {}", id, e);
+                            }
+                        }
+                    }
+                    Event::Init => {
+                        debug!("Received Init event for queue {}", id);
+                        match initialized.write() {
+                            Ok(mut init) => {
+                                *init = true;
+                                debug!("Queue {} initialized successfully", id);
+                            }
+                            Err(e) => {
+                                error!("Failed to write to initialized lock for queue {}: {}", id, e);
                             }
                         }
                     }
@@ -263,8 +279,8 @@ impl ScouterQueue {
         transport_config: &Bound<'_, PyAny>,
         shared_runtime: Arc<tokio::runtime::Runtime>,
     ) -> Result<Self, PyEventError> {
+        debug!("Creating ScouterQueue from path");
         let mut queues = HashMap::new();
-        let mut startup_rxs = Vec::new();
         let mut completion_rxs = HashMap::new();
 
         // assert transport config is not None
@@ -282,7 +298,7 @@ impl ScouterQueue {
             let drift_profile = DriftProfile::from_profile_path(profile_path)?;
 
             // create startup channels to ensure queues are initialized before use
-            let (startup_tx, startup_rx) = oneshot::channel();
+            //let (startup_tx, startup_rx) = oneshot::channel();
 
             // create completion channels to ensure queues are flushed before shutdown
             let (completion_tx, completion_rx) = oneshot::channel();
@@ -292,32 +308,36 @@ impl ScouterQueue {
 
             // spawn a new thread for each queue
             let id_clone = id.clone();
-            shared_runtime.spawn(handle_queue_events(
-                rx,
-                shutdown_rx,
-                drift_profile,
-                cloned_config,
-                id_clone,
-                queue_runtime,
-                startup_tx,
-                completion_tx,
-            ));
+            let initialized = bus.initialized.clone();
+
+            // Just spawn the task without waiting for initialization
+            shared_runtime.spawn(async move {
+                match handle_queue_events(
+                    rx,
+                    shutdown_rx,
+                    drift_profile,
+                    cloned_config,
+                    id_clone,
+                    queue_runtime,
+                    completion_tx,
+                    initialized,
+                )
+                .await
+                {
+                    Ok(_) => debug!("Queue handler started successfully"),
+                    Err(e) => error!("Queue handler exited with error: {}", e),
+                }
+            });
+
+            // Check bus initialization.
+            // This will send an init event to ensure the spawned loop is working.
+            // If loop is running, loop will set the initialized flag to true
+            bus.init()?;
 
             let queue = Py::new(py, bus)?;
-
             queues.insert(id.clone(), queue);
-            startup_rxs.push((id.clone(), startup_rx));
             completion_rxs.insert(id, completion_rx);
         }
-
-        // wait for all queues to start up
-        shared_runtime.block_on(async {
-            for (id, startup_rx) in startup_rxs {
-                startup_rx.await.map_err(EventError::StartupReceiverError)?;
-                debug!("Queue {} initialized successfully", id);
-            }
-            Ok::<_, EventError>(())
-        })?;
 
         Ok(ScouterQueue {
             queues,

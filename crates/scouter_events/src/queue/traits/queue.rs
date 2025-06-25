@@ -7,6 +7,7 @@ use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
 use scouter_types::QueueExt;
 use scouter_types::ServerRecords;
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime::Runtime;
@@ -72,8 +73,7 @@ pub trait BackgroundTask {
                                         if let Err(e) = producer.publish(records).await {
                                             error!("Failed to publish records: {}", e);
                                         } else {
-
-                                            debug!("Successfully published records");
+                                            info!("Successfully published records");
                                         }
                                     }
                                     Err(e) => error!("Failed to create drift records: {}", e),
@@ -103,7 +103,7 @@ pub trait BackgroundTask {
 /// It provides the basic functionality for inserting, publishing, and flushing
 #[async_trait]
 pub trait QueueMethods {
-    type ItemType: QueueExt + 'static + Clone;
+    type ItemType: QueueExt + 'static + Clone + Debug;
     type FeatureQueue: FeatureQueue + 'static;
 
     /// These all need to be implemented in the concrete queue type
@@ -132,6 +132,7 @@ pub trait QueueMethods {
 
     /// Insert an item into the queue
     async fn insert(&mut self, item: Self::ItemType) -> Result<(), EventError> {
+        debug!("Inserting item into queue: {:?}", item);
         self.insert_with_backpressure(item).await?;
 
         let queue = self.queue();
@@ -139,6 +140,7 @@ pub trait QueueMethods {
         // Check if we need to process the queue
         // queues have a buffer in case of overflow, so we need to check if we are over the capacity, which is smaller
         if queue.len() >= self.capacity() {
+            info!("Queue reached capacity, processing queue");
             self.try_publish(queue).await?;
         }
 
