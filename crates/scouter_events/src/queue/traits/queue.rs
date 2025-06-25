@@ -72,8 +72,7 @@ pub trait BackgroundTask {
                                         if let Err(e) = producer.publish(records).await {
                                             error!("Failed to publish records: {}", e);
                                         } else {
-
-                                            debug!("Successfully published records");
+                                            info!("Successfully published records");
                                         }
                                     }
                                     Err(e) => error!("Failed to create drift records: {}", e),
@@ -139,6 +138,7 @@ pub trait QueueMethods {
         // Check if we need to process the queue
         // queues have a buffer in case of overflow, so we need to check if we are over the capacity, which is smaller
         if queue.len() >= self.capacity() {
+            info!("Queue reached capacity, processing queue");
             self.try_publish(queue).await?;
         }
 
