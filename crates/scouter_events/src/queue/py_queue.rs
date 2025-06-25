@@ -161,6 +161,7 @@ pub struct ScouterQueue {
     queues: HashMap<String, Py<QueueBus>>,
     _shared_runtime: Arc<tokio::runtime::Runtime>,
     completion_rxs: HashMap<String, oneshot::Receiver<()>>,
+    transport_config: TransportConfig,
 }
 
 #[pymethods]
@@ -214,6 +215,15 @@ impl ScouterQueue {
             Some(queue) => Ok(queue.bind(py)),
             None => Err(PyEventError::MissingQueueError(key.to_string())),
         }
+    }
+
+    #[getter]
+    /// Get the transport config for the ScouterQueue
+    pub fn transport_config<'py>(
+        &self,
+        py: Python<'py>,
+    ) -> Result<Bound<'py, PyAny>, PyEventError> {
+        self.transport_config.to_py(py)
     }
 
     /// Triggers a global shutdown for all queues
@@ -344,6 +354,7 @@ impl ScouterQueue {
             // need to keep the runtime alive for the life of ScouterQueue
             _shared_runtime: shared_runtime,
             completion_rxs,
+            transport_config: config,
         })
     }
 }

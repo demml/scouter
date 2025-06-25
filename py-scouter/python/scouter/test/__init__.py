@@ -2,5 +2,6 @@
 from .. import test
 
 ScouterTestServer = test.ScouterTestServer
+MockConfig = test.MockConfig
 
-__all__ = ["ScouterTestServer"]
+__all__ = ["ScouterTestServer", "MockConfig"]

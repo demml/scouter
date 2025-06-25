@@ -1,4 +1,6 @@
+use crate::error::PyEventError;
 use crate::producer::kafka::KafkaConfig;
+use crate::producer::mock::MockConfig;
 use crate::producer::rabbitmq::RabbitMQConfig;
 use crate::producer::redis::RedisConfig;
 use pyo3::prelude::*;
@@ -13,6 +15,7 @@ pub enum TransportConfig {
     Kafka(KafkaConfig),
     Http(HTTPConfig),
     Redis(RedisConfig),
+    Mock(MockConfig),
 }
 
 impl TransportConfig {
@@ -50,16 +53,29 @@ impl TransportConfig {
                 let redis_config = config.extract::<RedisConfig>()?;
                 Ok(TransportConfig::Redis(redis_config))
             }
+            TransportType::Mock => {
+                let mock_config = config.extract::<MockConfig>()?;
+                Ok(TransportConfig::Mock(mock_config))
+            }
         }
     }
 
     /// helper method to convert the TransportConfig to a python object
-    pub fn to_py<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
-        match self {
+    pub fn to_py<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, PyEventError> {
+        let transport = match self {
             TransportConfig::RabbitMQ(config) => config.clone().into_bound_py_any(py),
             TransportConfig::Kafka(config) => config.clone().into_bound_py_any(py),
             TransportConfig::Http(config) => config.clone().into_bound_py_any(py),
             TransportConfig::Redis(config) => config.clone().into_bound_py_any(py),
+            TransportConfig::Mock(config) => config.clone().into_bound_py_any(py),
+        };
+
+        match transport {
+            Ok(t) => Ok(t),
+            Err(e) => {
+                error!("Failed to convert TransportConfig to Python object: {}", e);
+                Err(PyEventError::ConvertToPyError(e))
+            }
         }
     }
 }
