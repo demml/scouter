@@ -50,6 +50,7 @@ impl QueueBus {
     /// * `event` - The event to publish
     pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> Result<(), PyEventError> {
         let entity = QueueItem::from_py_entity(entity)?;
+        debug!("Inserting event into QueueBus: {:?}", entity);
         let event = Event::Task(entity);
         self.publish(event)?;
         Ok(())

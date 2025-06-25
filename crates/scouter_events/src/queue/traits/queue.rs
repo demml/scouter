@@ -7,6 +7,7 @@ use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
 use scouter_types::QueueExt;
 use scouter_types::ServerRecords;
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime::Runtime;
@@ -102,7 +103,7 @@ pub trait BackgroundTask {
 /// It provides the basic functionality for inserting, publishing, and flushing
 #[async_trait]
 pub trait QueueMethods {
-    type ItemType: QueueExt + 'static + Clone;
+    type ItemType: QueueExt + 'static + Clone + Debug;
     type FeatureQueue: FeatureQueue + 'static;
 
     /// These all need to be implemented in the concrete queue type
@@ -131,6 +132,7 @@ pub trait QueueMethods {
 
     /// Insert an item into the queue
     async fn insert(&mut self, item: Self::ItemType) -> Result<(), EventError> {
+        debug!("Inserting item into queue: {:?}", item);
         self.insert_with_backpressure(item).await?;
 
         let queue = self.queue();
