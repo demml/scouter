@@ -12,6 +12,7 @@ use scouter_types::{Features, Metrics};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::RwLock;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::oneshot;
 use tracing::{debug, error, instrument};
@@ -107,6 +108,7 @@ async fn handle_queue_events(
     id: String,
     queue_runtime: Arc<tokio::runtime::Runtime>,
     completion_tx: oneshot::Sender<()>,
+    initialized: Arc<RwLock<bool>>,
 ) -> Result<(), EventError> {
     let mut queue = match QueueNum::new(drift_profile, config.clone(), queue_runtime).await {
         Ok(q) => q,
@@ -126,6 +128,18 @@ async fn handle_queue_events(
                             }
                             Err(e) => {
                                 error!("Error inserting entity into queue {}: {}", id, e);
+                            }
+                        }
+                    }
+                    Event::Init => {
+                        debug!("Received Init event for queue {}", id);
+                        match initialized.write() {
+                            Ok(mut init) => {
+                                *init = true;
+                                debug!("Queue {} initialized successfully", id);
+                            }
+                            Err(e) => {
+                                error!("Failed to write to initialized lock for queue {}: {}", id, e);
                             }
                         }
                     }
@@ -294,6 +308,7 @@ impl ScouterQueue {
 
             // spawn a new thread for each queue
             let id_clone = id.clone();
+            let initialized = bus.initialized.clone();
 
             // Just spawn the task without waiting for initialization
             shared_runtime.spawn(async move {
@@ -305,6 +320,7 @@ impl ScouterQueue {
                     id_clone,
                     queue_runtime,
                     completion_tx,
+                    initialized,
                 )
                 .await
                 {
@@ -313,21 +329,15 @@ impl ScouterQueue {
                 }
             });
 
-            let queue = Py::new(py, bus)?;
+            // Check bus initialization.
+            // This will send an init event to ensure the spawned loop is working.
+            // If loop is running, loop will set the initialized flag to true
+            bus.init()?;
 
+            let queue = Py::new(py, bus)?;
             queues.insert(id.clone(), queue);
-            //startup_rxs.push((id.clone(), startup_rx));
             completion_rxs.insert(id, completion_rx);
         }
-
-        // wait for all queues to start up
-        //shared_runtime.block_on(async {
-        //    for (id, startup_rx) in startup_rxs {
-        //        startup_rx.await.map_err(EventError::StartupReceiverError)?;
-        //        debug!("Queue {} initialized successfully", id);
-        //    }
-        //    Ok::<_, EventError>(())
-        //})?;
 
         Ok(ScouterQueue {
             queues,

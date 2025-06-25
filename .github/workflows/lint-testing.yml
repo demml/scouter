@@ -152,7 +152,7 @@ jobs:
         run: make test.unit
 
   test-os-integration:
-    needs: [test-os]
+    #needs: [test-os]
     name: test integration
 
     strategy:

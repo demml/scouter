@@ -48,7 +48,7 @@ def test_psi_monitor_pandas_http(
     # 4. Shutdown the queue
     queue.shutdown()
 
-    time.sleep(10)  # Wait for the data to be processed
+    time.sleep(5)  # Wait for the data to be processed
 
     binned_records: BinnedPsiFeatureMetrics = client.get_binned_drift(
         DriftRequest(

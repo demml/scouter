@@ -151,6 +151,9 @@ pub enum EventError {
 
     #[error("Invalid compressions type")]
     InvalidCompressionTypeError,
+
+    #[error("Failed to initialize QueueBus")]
+    InitializationError,
 }
 
 #[derive(Error, Debug)]
