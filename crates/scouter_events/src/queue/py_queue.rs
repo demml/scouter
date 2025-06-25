@@ -53,7 +53,7 @@ impl QueueNum {
     /// * `entity` - The entity to insert into the queue
     #[instrument(skip_all)]
     pub async fn insert(&mut self, entity: QueueItem) -> Result<(), EventError> {
-        debug!("Inserting entity into queue: {:?}", entity);
+        info!("Inserting entity into queue: {:?}", entity);
         match entity {
             QueueItem::Features(features) => self.insert_features(features).await,
             QueueItem::Metrics(metrics) => self.insert_metrics(metrics).await,
