@@ -14,7 +14,7 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::oneshot;
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, instrument};
 
 pub enum QueueNum {
     Spc(SpcQueue),
@@ -53,7 +53,7 @@ impl QueueNum {
     /// * `entity` - The entity to insert into the queue
     #[instrument(skip_all)]
     pub async fn insert(&mut self, entity: QueueItem) -> Result<(), EventError> {
-        info!("Inserting entity into queue: {:?}", entity);
+        debug!("Inserting entity into queue: {:?}", entity);
         match entity {
             QueueItem::Features(features) => self.insert_features(features).await,
             QueueItem::Metrics(metrics) => self.insert_metrics(metrics).await,
@@ -122,7 +122,7 @@ async fn handle_queue_events(
                     Event::Task(entity) => {
                         match queue.insert(entity).await {
                             Ok(_) => {
-                                info!("Inserted entity into queue {}", id);
+                                debug!("Inserted entity into queue {}", id);
                             }
                             Err(e) => {
                                 error!("Error inserting entity into queue {}: {}", id, e);

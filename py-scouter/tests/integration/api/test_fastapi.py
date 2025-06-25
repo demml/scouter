@@ -8,8 +8,8 @@ from tests.integration.api.conftest import PredictRequest
 
 from .conftest import (
     create_and_register_drift_profile,
-    create_kafka_app,
     create_http_app,
+    create_kafka_app,
 )
 
 
