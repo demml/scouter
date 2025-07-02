@@ -1,0 +1,16 @@
+[package]
+name = "scouter-genai"
+version = { workspace = true }
+edition = { workspace = true }
+repository = { workspace = true }
+
+license = "MIT"
+description = "Rust Scouter GenAI utility create for monitoring"
+
+
+[lib]
+doctest = false
+
+[dependencies]
+potato-head = { workspace = true }
+thiserror = { workspace = true }
