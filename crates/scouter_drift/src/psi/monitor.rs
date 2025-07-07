@@ -9,6 +9,7 @@ use scouter_types::psi::{
     Bin, BinType, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
 };
 use std::collections::HashMap;
+use crate::binning::equal_width::{EqualWidthBinning, EqualWidthMethod, Scott};
 
 #[derive(Default)]
 pub struct PsiMonitor {}
@@ -61,10 +62,6 @@ impl PsiMonitor {
         F: Float + Default,
         F: Into<f64>,
     {
-        // TODO: Explore using ndarray_stats quantiles instead of manual computation
-        if column_vector.len() < 10 {
-            return Err(DriftError::NotEnoughDecileValuesError);
-        }
 
         let sorted_column_vector = column_vector
             .iter()
@@ -145,6 +142,12 @@ impl PsiMonitor {
         F: Float + FromPrimitive + Default + Sync,
         F: Into<f64>,
     {
+        let binning = EqualWidthBinning {
+            method: EqualWidthMethod::Scott(Scott)  // This should work
+        };
+        let bins = binning.method.num_bins(column_vector);
+        println!("{}", bins);
+        
         let deciles = self.compute_deciles(column_vector)?;
 
         let bins: Vec<Bin> = (0..=deciles.len())
@@ -223,7 +226,7 @@ impl PsiMonitor {
         drift_config: &PsiDriftConfig,
     ) -> Result<PsiDriftProfile, DriftError>
     where
-        F: Float + Sync + FromPrimitive + Default,
+        F: Float + Sync + FromPrimitive + Default + PartialOrd,
         F: Into<f64>,
     {
         let mut psi_feature_drift_profiles = HashMap::new();
@@ -422,6 +425,7 @@ mod tests {
     use ndarray::Array;
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
+    use crate::binning::quantile::QuantileBinning;
 
     #[test]
     fn test_check_features_all_exist() {
@@ -564,6 +568,10 @@ mod tests {
         let column_view = unsorted_vector.view();
 
         let result = psi_monitor.compute_deciles(&column_view);
+        
+        let res = QuantileBinning { num_quantiles: 10 }.compute_edges(&column_view);
+        
+        println!("{:?}", res);
 
         let expected_deciles: [f64; 9] = [2.0, 4.0, 6.0, 10.0, 21.0, 39.0, 59.0, 71.0, 120.0];
 

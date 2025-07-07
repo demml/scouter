@@ -2,7 +2,7 @@
 resolver = "2"
 members = [
   "crates/*",
-  "py-scouter",
+#  "py-scouter",
 ]
 default-members = [
   "crates/*",
@@ -88,9 +88,11 @@ tower-http = { version = "0.*", features = ["cors"] }
 tracing = "0.*"
 tracing-subscriber = {version = "0.*", features = ["json", "time"]}
 url = "2.*"
+statrs = "0.18.0"
 
 # RabbitMQ dependencies
 lapin = { version = "2.*" }
+
 
 
 [profile.release]

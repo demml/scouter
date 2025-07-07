@@ -4,6 +4,7 @@ pub mod psi;
 pub mod spc;
 pub mod utils;
 
+mod binning;
 #[cfg(feature = "sql")]
 pub mod drifter;
 

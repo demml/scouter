@@ -11,9 +11,6 @@ pub enum DriftError {
     #[error("Failed to compute mean")]
     ComputeMeanError,
 
-    #[error("At least 10 values needed to compute deciles")]
-    NotEnoughDecileValuesError,
-
     #[error("Failed to convert deciles to array")]
     ConvertDecileToArray,
 
@@ -68,6 +65,9 @@ pub enum DriftError {
 
     #[error("Error processing alert: {0}")]
     AlertProcessingError(String),
+
+    #[error("Error computing quantiles: {0}")]
+    QuantileComputationError(String),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for DriftError {
