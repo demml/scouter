@@ -295,21 +295,18 @@ async fn delete_user(
     info!("User {} deleted successfully", username);
     Ok(Json(ScouterResponse {
         status: "success".to_string(),
-        message: format!("User {} deleted successfully", username),
+        message: format!("User {username} deleted successfully"),
     }))
 }
 
 pub async fn get_user_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {
         Router::new()
-            .route(&format!("{}/user", prefix), post(create_user))
-            .route(&format!("{}/user", prefix), get(list_users))
-            .route(&format!("{}/user/{{username}}", prefix), get(get_user))
-            .route(&format!("{}/user/{{username}}", prefix), put(update_user))
-            .route(
-                &format!("{}/user/{{username}}", prefix),
-                delete(delete_user),
-            )
+            .route(&format!("{prefix}/user"), post(create_user))
+            .route(&format!("{prefix}/user"), get(list_users))
+            .route(&format!("{prefix}/user/{{username}}"), get(get_user))
+            .route(&format!("{prefix}/user/{{username}}"), put(update_user))
+            .route(&format!("{prefix}/user/{{username}}"), delete(delete_user))
     }));
 
     match result {

@@ -47,7 +47,7 @@ pub async fn get_observability_metrics(
 pub async fn get_observability_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {
         Router::new().route(
-            &format!("{}/observability/metrics", prefix),
+            &format!("{prefix}/observability/metrics"),
             get(get_observability_metrics),
         )
     }));

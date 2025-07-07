@@ -167,7 +167,7 @@ mod tests {
                     name: "test".to_string(),
                     space: "test".to_string(),
                     version: "1.0".to_string(),
-                    metric: format!("metric{}", i),
+                    metric: format!("metric{i}"),
                     value: j as f64,
                 });
 

@@ -25,7 +25,7 @@ async fn test_get_drift_alerts() {
     let query_string = serde_qs::to_string(&request).unwrap();
 
     let request = Request::builder()
-        .uri(format!("/scouter/alerts?{}", query_string))
+        .uri(format!("/scouter/alerts?{query_string}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();

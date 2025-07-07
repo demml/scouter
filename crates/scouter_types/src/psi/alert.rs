@@ -287,7 +287,7 @@ impl DispatchAlertDescription for PsiFeatureAlerts {
                 AlertDispatchType::Slack => format!("{}: \n", alert.feature),
             };
 
-            alert_description = format!("{}{}", alert_description, feature_name);
+            alert_description = format!("{alert_description}{feature_name}");
 
             let alert_details = match dispatch_type {
                 AlertDispatchType::Console | AlertDispatchType::OpsGenie => {
@@ -297,7 +297,7 @@ impl DispatchAlertDescription for PsiFeatureAlerts {
                     format!("{:indent$}Drift Value: {}\n", "", description, indent = 4)
                 }
             };
-            alert_description = format!("{}{}", alert_description, alert_details);
+            alert_description = format!("{alert_description}{alert_details}");
         }
         alert_description
     }
@@ -367,8 +367,7 @@ mod tests {
 
             if diff >= 0.005 {
                 panic!(
-                    "Failed for sample size {}: expected ~{}, got {}, diff={}",
-                    sample_size, expected_approx, result, diff
+                    "Failed for sample size {sample_size}: expected ~{expected_approx}, got {result}, diff={diff}"
                 );
             }
         }
@@ -422,15 +421,11 @@ mod tests {
         // More conservative (lower alpha) should give higher thresholds
         assert!(
             threshold_99 > threshold_95,
-            "99th percentile should be higher than 95th: {} > {}",
-            threshold_99,
-            threshold_95
+            "99th percentile should be higher than 95th: {threshold_99} > {threshold_95}"
         );
         assert!(
             threshold_95 > threshold_90,
-            "95th percentile should be higher than 90th: {} > {}",
-            threshold_95,
-            threshold_90
+            "95th percentile should be higher than 90th: {threshold_95} > {threshold_90}"
         );
     }
 
@@ -451,15 +446,11 @@ mod tests {
         // More conservative (lower alpha) should give higher thresholds
         assert!(
             threshold_99 > threshold_95,
-            "99th percentile should be higher than 95th: {} > {}",
-            threshold_99,
-            threshold_95
+            "99th percentile should be higher than 95th: {threshold_99} > {threshold_95}"
         );
         assert!(
             threshold_95 > threshold_90,
-            "95th percentile should be higher than 90th: {} > {}",
-            threshold_95,
-            threshold_90
+            "95th percentile should be higher than 90th: {threshold_95} > {threshold_90}"
         );
     }
 

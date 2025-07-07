@@ -51,8 +51,7 @@ pub async fn insert_drift_profile(
             return Err((
                 StatusCode::BAD_REQUEST,
                 Json(ScouterServerError::new(format!(
-                    "Invalid drift profile: {:?}",
-                    e
+                    "Invalid drift profile: {e:?}",
                 ))),
             ));
         }
@@ -69,8 +68,7 @@ pub async fn insert_drift_profile(
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ScouterServerError::new(format!(
-                    "Failed to insert monitor profile: {:?}",
-                    e
+                    "Failed to insert monitor profile: {e:?}",
                 ))),
             ))
         }
@@ -105,8 +103,7 @@ pub async fn update_drift_profile(
             return Err((
                 StatusCode::BAD_REQUEST,
                 Json(ScouterServerError::new(format!(
-                    "Invalid drift profile: {:?}",
-                    e
+                    "Invalid drift profile: {e:?}"
                 ))),
             ));
         }
@@ -123,8 +120,7 @@ pub async fn update_drift_profile(
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ScouterServerError::new(format!(
-                    "Failed to update drift profile: {:?}",
-                    e
+                    "Failed to update drift profile: {e:?}",
                 ))),
             ))
         }
@@ -182,8 +178,7 @@ pub async fn get_profile(
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ScouterServerError::new(format!(
-                    "Failed to parse drift profile: {:?}",
-                    e
+                    "Failed to parse drift profile: {e:?}",
                 ))),
             ))
         }
@@ -231,8 +226,7 @@ pub async fn update_drift_profile_status(
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ScouterServerError::new(format!(
-                    "Failed to update drift profile status: {:?}",
-                    e
+                    "Failed to update drift profile status: {e:?}",
                 ))),
             ))
         }
@@ -243,13 +237,13 @@ pub async fn get_profile_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {
         Router::new()
             .route(
-                &format!("{}/profile", prefix),
+                &format!("{prefix}/profile"),
                 post(insert_drift_profile)
                     .put(update_drift_profile)
                     .get(get_profile),
             )
             .route(
-                &format!("{}/profile/status", prefix),
+                &format!("{prefix}/profile/status"),
                 put(update_drift_profile_status),
             )
     }));

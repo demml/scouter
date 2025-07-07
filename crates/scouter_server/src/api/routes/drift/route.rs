@@ -197,8 +197,7 @@ pub async fn insert_drift(
         Err(e) => Err((
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(ScouterServerError::new(format!(
-                "Failed to enqueue drift records: {:?}",
-                e
+                "Failed to enqueue drift records: {e:?}"
             ))),
         )),
     }
@@ -207,10 +206,10 @@ pub async fn insert_drift(
 pub async fn get_drift_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {
         Router::new()
-            .route(&format!("{}/drift", prefix), post(insert_drift))
-            .route(&format!("{}/drift/spc", prefix), get(get_spc_drift))
-            .route(&format!("{}/drift/custom", prefix), get(get_custom_drift))
-            .route(&format!("{}/drift/psi", prefix), get(get_psi_drift))
+            .route(&format!("{prefix}/drift"), post(insert_drift))
+            .route(&format!("{prefix}/drift/spc"), get(get_spc_drift))
+            .route(&format!("{prefix}/drift/custom"), get(get_custom_drift))
+            .route(&format!("{prefix}/drift/psi"), get(get_psi_drift))
     }));
 
     match result {

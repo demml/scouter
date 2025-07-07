@@ -47,7 +47,7 @@ impl RabbitMQConfig {
             let password = password.or_else(|| std::env::var("RABBITMQ_PASSWORD").ok());
 
             if username.is_none() || password.is_none() {
-                format!("amqp://{}:{}/%2f", host, port)
+                format!("amqp://{host}:{port}/%2f")
             } else {
                 format!(
                     "amqp://{}:{}@{}:{}/%2f",

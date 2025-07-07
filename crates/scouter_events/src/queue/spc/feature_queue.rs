@@ -98,7 +98,7 @@ impl SpcFeatureQueue {
         )
         .map_err(|e| {
             error!("Failed to concatenate arrays: {:?}", e);
-            FeatureQueueError::DriftRecordError(format!("Failed to concatenate arrays: {:?}", e))
+            FeatureQueueError::DriftRecordError(format!("Failed to concatenate arrays: {e:?}"))
         })?;
 
         let records = self
@@ -106,10 +106,7 @@ impl SpcFeatureQueue {
             .sample_data(&feature_names, &concatenated.view(), &self.drift_profile)
             .map_err(|e| {
                 error!("Failed to create drift record: {:?}", e);
-                FeatureQueueError::DriftRecordError(format!(
-                    "Failed to create drift record: {:?}",
-                    e
-                ))
+                FeatureQueueError::DriftRecordError(format!("Failed to create drift record: {e:?}"))
             })?;
 
         Ok(records)

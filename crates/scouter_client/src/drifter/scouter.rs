@@ -181,7 +181,7 @@ impl PyDrifter {
                 let class = data.getattr("__class__")?;
                 let module = class.getattr("__module__")?.str()?.to_string();
                 let name = class.getattr("__name__")?.str()?.to_string();
-                let full_class_name = format!("{}.{}", module, name);
+                let full_class_name = format!("{module}.{name}");
 
                 &DataType::from_module_name(&full_class_name).unwrap_or(DataType::Unknown)
                 // for handling custom
@@ -233,7 +233,7 @@ impl PyDrifter {
                 let class = data.getattr("__class__")?;
                 let module = class.getattr("__module__")?.str()?.to_string();
                 let name = class.getattr("__name__")?.str()?.to_string();
-                let full_class_name = format!("{}.{}", module, name);
+                let full_class_name = format!("{module}.{name}");
 
                 &DataType::from_module_name(&full_class_name).unwrap_or(DataType::Unknown)
                 // for handling custom
@@ -294,7 +294,7 @@ impl PyDrifter {
                 let class = data.getattr("__class__")?;
                 let module = class.getattr("__module__")?.str()?.to_string();
                 let name = class.getattr("__name__")?.str()?.to_string();
-                let full_class_name = format!("{}.{}", module, name);
+                let full_class_name = format!("{module}.{name}");
 
                 &DataType::from_module_name(&full_class_name).unwrap_or(DataType::Unknown)
                 // for handling custom

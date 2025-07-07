@@ -212,15 +212,12 @@ async fn validate_jwt_token(
 pub async fn get_auth_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {
         Router::new()
-            .route(&format!("{}/auth/login", prefix), get(api_login_handler))
+            .route(&format!("{prefix}/auth/login"), get(api_login_handler))
             .route(
-                &format!("{}/auth/refresh", prefix),
+                &format!("{prefix}/auth/refresh"),
                 get(api_refresh_token_handler),
             )
-            .route(
-                &format!("{}/auth/validate", prefix),
-                get(validate_jwt_token),
-            )
+            .route(&format!("{prefix}/auth/validate"), get(validate_jwt_token))
     }));
 
     match result {
