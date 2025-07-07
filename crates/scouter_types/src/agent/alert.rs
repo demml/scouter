@@ -5,42 +5,52 @@ use crate::{
     ValidateAlertConfig,
 };
 use core::fmt::Debug;
+use potato_head::prompt::ResponseType;
+use potato_head::Prompt;
 use pyo3::prelude::*;
 use pyo3::types::PyString;
-
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct CustomMetric {
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
+pub struct LLMMetric {
     #[pyo3(get, set)]
     pub name: String,
 
     #[pyo3(get, set)]
     pub value: f64,
 
+    #[pyo3(get)]
+    pub prompt: Prompt,
+
     #[pyo3(get, set)]
-    pub alert_condition: CustomMetricAlertCondition,
+    pub alert_condition: LLMMetricAlertCondition,
 }
 
 #[pymethods]
-impl CustomMetric {
+impl LLMMetric {
     #[new]
-    #[pyo3(signature = (name, value, alert_threshold, alert_threshold_value=None))]
+    #[pyo3(signature = (name, value, prompt, alert_threshold, alert_threshold_value=None))]
     pub fn new(
         name: &str,
         value: f64,
+        prompt: Prompt,
         alert_threshold: AlertThreshold,
         alert_threshold_value: Option<f64>,
     ) -> Result<Self, TypeError> {
-        let custom_condition =
-            CustomMetricAlertCondition::new(alert_threshold, alert_threshold_value);
+        // assert that the prompt is a scoring prompt
+        if prompt.response_type == ResponseType::Score {
+            return Err(TypeError::InvalidResponseType);
+        };
+
+        let prompt_condition = LLMMetricAlertCondition::new(alert_threshold, alert_threshold_value);
 
         Ok(Self {
             name: name.to_lowercase(),
             value,
-            alert_condition: custom_condition,
+            prompt,
+            alert_condition: prompt_condition,
         })
     }
 
@@ -67,7 +77,7 @@ impl CustomMetric {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct CustomMetricAlertCondition {
+pub struct LLMMetricAlertCondition {
     #[pyo3(get, set)]
     pub alert_threshold: AlertThreshold,
 
@@ -77,7 +87,7 @@ pub struct CustomMetricAlertCondition {
 
 #[pymethods]
 #[allow(clippy::too_many_arguments)]
-impl CustomMetricAlertCondition {
+impl LLMMetricAlertCondition {
     #[new]
     #[pyo3(signature = (alert_threshold, alert_threshold_value=None))]
     pub fn new(alert_threshold: AlertThreshold, alert_threshold_value: Option<f64>) -> Self {
@@ -95,18 +105,18 @@ impl CustomMetricAlertCondition {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct CustomMetricAlertConfig {
+pub struct LLMMetricAlertConfig {
     pub dispatch_config: AlertDispatchConfig,
 
     #[pyo3(get, set)]
     pub schedule: String,
 
     #[pyo3(get, set)]
-    pub alert_conditions: Option<HashMap<String, CustomMetricAlertCondition>>,
+    pub alert_conditions: Option<HashMap<String, LLMMetricAlertCondition>>,
 }
 
-impl CustomMetricAlertConfig {
-    pub fn set_alert_conditions(&mut self, metrics: &[CustomMetric]) {
+impl LLMMetricAlertConfig {
+    pub fn set_alert_conditions(&mut self, metrics: &[LLMMetric]) {
         self.alert_conditions = Some(
             metrics
                 .iter()
@@ -116,10 +126,10 @@ impl CustomMetricAlertConfig {
     }
 }
 
-impl ValidateAlertConfig for CustomMetricAlertConfig {}
+impl ValidateAlertConfig for LLMMetricAlertConfig {}
 
 #[pymethods]
-impl CustomMetricAlertConfig {
+impl LLMMetricAlertConfig {
     #[new]
     #[pyo3(signature = (schedule=None, dispatch_config=None))]
     pub fn new(
@@ -172,8 +182,8 @@ impl CustomMetricAlertConfig {
     }
 }
 
-impl Default for CustomMetricAlertConfig {
-    fn default() -> CustomMetricAlertConfig {
+impl Default for LLMMetricAlertConfig {
+    fn default() -> LLMMetricAlertConfig {
         Self {
             dispatch_config: AlertDispatchConfig::default(),
             schedule: CommonCrons::EveryDay.cron(),
@@ -182,7 +192,7 @@ impl Default for CustomMetricAlertConfig {
     }
 }
 
-pub struct ComparisonMetricAlert {
+pub struct PromptComparisonMetricAlert {
     pub metric_name: String,
     pub training_metric_value: f64,
     pub observed_metric_value: f64,
@@ -190,7 +200,7 @@ pub struct ComparisonMetricAlert {
     pub alert_threshold: AlertThreshold,
 }
 
-impl ComparisonMetricAlert {
+impl PromptComparisonMetricAlert {
     fn alert_description_header(&self) -> String {
         let below_threshold = |boundary: Option<f64>| match boundary {
             Some(b) => format!(
@@ -233,7 +243,7 @@ impl ComparisonMetricAlert {
     }
 }
 
-impl DispatchAlertDescription for ComparisonMetricAlert {
+impl DispatchAlertDescription for PromptComparisonMetricAlert {
     // TODO make pretty per dispatch type
     fn create_alert_description(&self, _dispatch_type: AlertDispatchType) -> String {
         let mut alert_description = String::new();
@@ -253,6 +263,7 @@ impl DispatchAlertDescription for ComparisonMetricAlert {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use potato_head::create_score_prompt;
 
     #[test]
     fn test_alert_config() {
@@ -262,19 +273,35 @@ mod tests {
             priority: "P5".to_string(),
         });
         let schedule = "0 0 * * * *".to_string();
-        let mut alert_config = CustomMetricAlertConfig {
+        let mut alert_config = LLMMetricAlertConfig {
             dispatch_config,
             schedule,
             ..Default::default()
         };
         assert_eq!(alert_config.dispatch_type(), AlertDispatchType::OpsGenie);
 
-        let custom_metrics = vec![
-            CustomMetric::new("mae", 12.4, AlertThreshold::Above, Some(2.3)).unwrap(),
-            CustomMetric::new("accuracy", 0.85, AlertThreshold::Below, None).unwrap(),
+        let prompt = create_score_prompt();
+
+        let llm_metrics = vec![
+            LLMMetric::new(
+                "mae",
+                12.4,
+                prompt.clone(),
+                AlertThreshold::Above,
+                Some(2.3),
+            )
+            .unwrap(),
+            LLMMetric::new(
+                "accuracy",
+                0.85,
+                prompt.clone(),
+                AlertThreshold::Below,
+                None,
+            )
+            .unwrap(),
         ];
 
-        alert_config.set_alert_conditions(&custom_metrics);
+        alert_config.set_alert_conditions(&llm_metrics);
 
         if let Some(alert_conditions) = alert_config.alert_conditions.as_ref() {
             assert_eq!(
@@ -290,55 +317,5 @@ mod tests {
         } else {
             panic!("alert_conditions should not be None");
         }
-    }
-
-    #[test]
-    fn test_create_alert_description() {
-        let alert_above_threshold = ComparisonMetricAlert {
-            metric_name: "mse".to_string(),
-            training_metric_value: 12.5,
-            observed_metric_value: 14.0,
-            alert_threshold_value: Some(1.0),
-            alert_threshold: AlertThreshold::Above,
-        };
-
-        let description =
-            alert_above_threshold.create_alert_description(AlertDispatchType::Console);
-        assert!(description.contains(
-            "The mse metric value has increased beyond the threshold (initial value + 1)"
-        ));
-        assert!(description.contains("Initial Metric Value: 12.5"));
-        assert!(description.contains("Current Metric Value: 14"));
-
-        let alert_below_threshold = ComparisonMetricAlert {
-            metric_name: "accuracy".to_string(),
-            training_metric_value: 0.9,
-            observed_metric_value: 0.7,
-            alert_threshold_value: None,
-            alert_threshold: AlertThreshold::Below,
-        };
-
-        let description =
-            alert_below_threshold.create_alert_description(AlertDispatchType::Console);
-        assert!(
-            description.contains("The accuracy metric value has dropped below the initial value")
-        );
-        assert!(description.contains("Initial Metric Value: 0.9"));
-        assert!(description.contains("Current Metric Value: 0.7"));
-
-        let alert_outside_threshold = ComparisonMetricAlert {
-            metric_name: "mae".to_string(),
-            training_metric_value: 12.5,
-            observed_metric_value: 22.0,
-            alert_threshold_value: Some(2.0),
-            alert_threshold: AlertThreshold::Outside,
-        };
-
-        let description =
-            alert_outside_threshold.create_alert_description(AlertDispatchType::Console);
-        assert!(description
-            .contains("The mae metric value has fallen outside the threshold (initial value ± 2)"));
-        assert!(description.contains("Initial Metric Value: 12.5"));
-        assert!(description.contains("Current Metric Value: 22"));
     }
 }

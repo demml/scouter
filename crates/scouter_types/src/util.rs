@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
 use pyo3::IntoPyObjectExt;
 use rayon::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeSet, HashMap};
 use std::fmt::{Display, Formatter};
@@ -26,6 +26,7 @@ pub enum FileName {
     CustomDriftProfile,
     DriftProfile,
     DataProfile,
+    LLMDriftProfile,
 }
 
 impl FileName {
@@ -38,6 +39,7 @@ impl FileName {
             FileName::CustomDriftProfile => "custom_drift_profile.json",
             FileName::DataProfile => "data_profile.json",
             FileName::DriftProfile => "drift_profile.json",
+            FileName::LLMDriftProfile => "llm_drift_profile.json",
         }
     }
 }
@@ -323,6 +325,41 @@ impl DataType {
 
 pub fn get_utc_datetime() -> DateTime<Utc> {
     Utc::now()
+}
+
+#[pyclass(eq)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub enum AlertThreshold {
+    Below,
+    Above,
+    Outside,
+}
+
+impl Display for AlertThreshold {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+#[pymethods]
+impl AlertThreshold {
+    #[staticmethod]
+    pub fn from_value(value: &str) -> Option<Self> {
+        match value.to_lowercase().as_str() {
+            "below" => Some(AlertThreshold::Below),
+            "above" => Some(AlertThreshold::Above),
+            "outside" => Some(AlertThreshold::Outside),
+            _ => None,
+        }
+    }
+
+    pub fn __str__(&self) -> String {
+        match self {
+            AlertThreshold::Below => "Below".to_string(),
+            AlertThreshold::Above => "Above".to_string(),
+            AlertThreshold::Outside => "Outside".to_string(),
+        }
+    }
 }
 
 #[cfg(test)]

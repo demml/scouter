@@ -72,6 +72,10 @@ test.events: test.kafka_events test.rabbitmq_events
 test.dataframe:
 	cargo test -p scouter-dataframe -- --nocapture --test-threads=1
 
+.PHONY: test.agents
+test.agents:
+	cargo test -p scouter-agents --all-features -- --nocapture --test-threads=1
+
 .PHONY: test
 test: build.all_backends test.needs_sql test.unit build.shutdown
 

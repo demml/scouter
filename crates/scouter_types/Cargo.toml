@@ -18,17 +18,22 @@ cron = { workspace = true }
 rayon = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
+potato-head = { workspace = true }
 pyo3 = {workspace = true }
 strum = { workspace = true }
 strum_macros = { workspace = true }
 thiserror = { workspace = true }
+tokio = { workspace = true, optional = true }
 tracing = { workspace = true }
 statrs = { workspace = true }
+
+
+[features]
+mock = ["potato-head/mock", "tokio"]
 
 [dev-dependencies]
 tempfile = { workspace = true }
 approx = { workspace = true }
-
 
 [profile.release]
 lto = "fat"

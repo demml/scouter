@@ -79,6 +79,11 @@ pub enum TypeError {
 
     #[error("{0}")]
     PyError(String),
+
+    #[error(
+        "Invalid prompt response type. Expect Score as the output type for the LLMMetric prompt"
+    )]
+    InvalidResponseType,
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for TypeError {
@@ -187,6 +192,24 @@ pub enum ProfileError {
 
     #[error("{0}")]
     PyError(String),
+
+    #[error("Missing evaluation workflow")]
+    MissingWorkflowError,
+
+    #[error("Invalid argument for workflow. Argument must be a Workflow object")]
+    InvalidWorkflowType,
+
+    #[error(transparent)]
+    AgentError(#[from] potato_head::AgentError),
+
+    #[error(transparent)]
+    WorkflowError(#[from] potato_head::WorkflowError),
+
+    #[error("Invalid metric name found: {0}")]
+    InvalidMetricNameError(String),
+
+    #[error("No metrics provided for workflow validation")]
+    EmptyMetricsList,
 }
 
 impl From<ProfileError> for PyErr {

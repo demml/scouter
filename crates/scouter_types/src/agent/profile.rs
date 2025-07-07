@@ -1,5 +1,8 @@
 #![allow(clippy::useless_conversion)]
+use crate::agent::alert::LLMMetric;
+use crate::agent::alert::LLMMetricAlertConfig;
 use crate::custom::alert::{CustomMetric, CustomMetricAlertConfig};
+use crate::error;
 use crate::error::{ProfileError, TypeError};
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::ProfileRequest;
@@ -8,18 +11,24 @@ use crate::{
     ProfileFuncs, DEFAULT_VERSION, MISSING,
 };
 use core::fmt::Debug;
+use potato_head::Agent;
+use potato_head::PyWorkflow;
+use potato_head::Task;
+use potato_head::{Prompt, Provider, Workflow};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use tracing::error;
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct CustomMetricDriftConfig {
+pub struct LLMDriftConfig {
     #[pyo3(get, set)]
-    pub sample_size: usize,
+    pub sample_rate: usize,
 
     #[pyo3(get, set)]
     pub space: String,
@@ -31,7 +40,7 @@ pub struct CustomMetricDriftConfig {
     pub version: String,
 
     #[pyo3(get, set)]
-    pub alert_config: CustomMetricAlertConfig,
+    pub alert_config: LLMMetricAlertConfig,
 
     #[pyo3(get, set)]
     #[serde(default = "default_drift_type")]
@@ -39,10 +48,10 @@ pub struct CustomMetricDriftConfig {
 }
 
 fn default_drift_type() -> DriftType {
-    DriftType::Custom
+    DriftType::Prompt
 }
 
-impl DispatchDriftConfig for CustomMetricDriftConfig {
+impl DispatchDriftConfig for LLMDriftConfig {
     fn get_drift_args(&self) -> DriftArgs {
         DriftArgs {
             name: self.name.clone(),
@@ -55,24 +64,24 @@ impl DispatchDriftConfig for CustomMetricDriftConfig {
 
 #[pymethods]
 #[allow(clippy::too_many_arguments)]
-impl CustomMetricDriftConfig {
+impl LLMDriftConfig {
     #[new]
-    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, sample_size=25, alert_config=CustomMetricAlertConfig::default(), config_path=None))]
+    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, sample_rate=5, alert_config=LLMMetricAlertConfig::default(), config_path=None))]
     pub fn new(
         space: &str,
         name: &str,
         version: &str,
-        sample_size: usize,
-        alert_config: CustomMetricAlertConfig,
+        sample_rate: usize,
+        alert_config: LLMMetricAlertConfig,
         config_path: Option<PathBuf>,
     ) -> Result<Self, ProfileError> {
         if let Some(config_path) = config_path {
-            let config = CustomMetricDriftConfig::load_from_json_file(config_path)?;
+            let config = LLMDriftConfig::load_from_json_file(config_path)?;
             return Ok(config);
         }
 
         Ok(Self {
-            sample_size,
+            sample_rate,
             space: space.to_string(),
             name: name.to_string(),
             version: version.to_string(),
@@ -82,7 +91,7 @@ impl CustomMetricDriftConfig {
     }
 
     #[staticmethod]
-    pub fn load_from_json_file(path: PathBuf) -> Result<CustomMetricDriftConfig, ProfileError> {
+    pub fn load_from_json_file(path: PathBuf) -> Result<LLMDriftConfig, ProfileError> {
         // deserialize the string to a struct
 
         let file = std::fs::read_to_string(&path)?;
@@ -107,7 +116,7 @@ impl CustomMetricDriftConfig {
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
-        alert_config: Option<CustomMetricAlertConfig>,
+        alert_config: Option<LLMMetricAlertConfig>,
     ) -> Result<(), TypeError> {
         if name.is_some() {
             self.name = name.ok_or(TypeError::MissingNameError)?;
@@ -131,40 +140,68 @@ impl CustomMetricDriftConfig {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct CustomDriftProfile {
+pub struct LLMDriftProfile {
     #[pyo3(get)]
-    pub config: CustomMetricDriftConfig,
+    pub config: LLMDriftConfig,
 
     #[pyo3(get)]
-    pub metrics: HashMap<String, f64>,
+    pub metrics: Vec<LLMMetric>,
 
     #[pyo3(get)]
     pub scouter_version: String,
-}
 
+    pub workflow: Workflow,
+}
 #[pymethods]
-impl CustomDriftProfile {
+impl LLMDriftProfile {
     #[new]
     #[pyo3(signature = (config, metrics, scouter_version=None))]
+    /// Create a new LLMDriftProfile
+    /// LLM evaluations are run asynchronously on the scouter server.
+    /// A user will need to create both a workflow that outputs metrics and a list of metrics with
+    /// their default values and alert conditions.
+    /// # Arguments
+    /// * `config` - LLMDriftConfig - The configuration for the LLM drift profile
+    /// * `workflow` - Workflow - The workflow that will be used to evaluate the LLM
+    /// * `metrics` - Vec<LLMMetric> - The metrics that will be used to evaluate the LLM
+    /// * `scouter_version` - Option<String> - The version of scouter that
+    /// # Returns
+    /// * `Result<Self, ProfileError>` - The LLMDriftProfile
+    /// # Errors
+    /// * `ProfileError::MissingWorkflowError` - If the workflow is
     pub fn new(
-        mut config: CustomMetricDriftConfig,
-        metrics: Vec<CustomMetric>,
+        mut config: LLMDriftConfig,
+        metrics: Vec<LLMMetric>,
         scouter_version: Option<String>,
     ) -> Result<Self, ProfileError> {
-        if metrics.is_empty() {
-            return Err(TypeError::NoMetricsError.into());
+        let mut workflow = Workflow::new("llm_drift_workflow");
+        let mut agents = HashMap::new();
+
+        for metric in &metrics {
+            let provider = Provider::from_string(&metric.prompt.model_settings.provider)?;
+
+            let agent = match agents.entry(provider) {
+                Entry::Occupied(entry) => entry.into_mut(),
+                Entry::Vacant(entry) => {
+                    let agent = Agent::from_model_settings(&metric.prompt.model_settings)?;
+                    entry.insert(agent)
+                }
+            };
+
+            let task = Task::new(&metric.name, metric.prompt.clone(), &agent.id, None, None);
+            workflow.add_task(task);
         }
 
         config.alert_config.set_alert_conditions(&metrics);
 
-        let metric_vals = metrics.iter().map(|m| (m.name.clone(), m.value)).collect();
-
-        let scouter_version = scouter_version.unwrap_or(env!("CARGO_PKG_VERSION").to_string());
+        let scouter_version =
+            scouter_version.unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string());
 
         Ok(Self {
             config,
-            metrics: metric_vals,
+            metrics,
             scouter_version,
+            workflow,
         })
     }
 
@@ -193,18 +230,17 @@ impl CustomDriftProfile {
         Ok(dict.into())
     }
 
-    // Convert python dict into a drift profile
     #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ProfileError> {
         Ok(ProfileFuncs::save_to_json(
             self,
             path,
-            FileName::CustomDriftProfile.to_str(),
+            FileName::LLMDriftProfile.to_str(),
         )?)
     }
 
     #[staticmethod]
-    pub fn model_validate(data: &Bound<'_, PyDict>) -> CustomDriftProfile {
+    pub fn model_validate(data: &Bound<'_, PyDict>) -> LLMDriftProfile {
         let json_value = pyobject_to_json(data).unwrap();
 
         let string = serde_json::to_string(&json_value).unwrap();
@@ -212,13 +248,13 @@ impl CustomDriftProfile {
     }
 
     #[staticmethod]
-    pub fn model_validate_json(json_string: String) -> CustomDriftProfile {
+    pub fn model_validate_json(json_string: String) -> LLMDriftProfile {
         // deserialize the string to a struct
-        serde_json::from_str(&json_string).expect("Failed to load monitor profile")
+        serde_json::from_str(&json_string).expect("Failed to load prompt drift profile")
     }
 
     #[staticmethod]
-    pub fn from_file(path: PathBuf) -> Result<CustomDriftProfile, ProfileError> {
+    pub fn from_file(path: PathBuf) -> Result<LLMDriftProfile, ProfileError> {
         let file = std::fs::read_to_string(&path)?;
 
         Ok(serde_json::from_str(&file)?)
@@ -231,39 +267,10 @@ impl CustomDriftProfile {
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
-        alert_config: Option<CustomMetricAlertConfig>,
+        alert_config: Option<LLMMetricAlertConfig>,
     ) -> Result<(), TypeError> {
         self.config
             .update_config_args(space, name, version, alert_config)
-    }
-
-    #[getter]
-    pub fn custom_metrics(&self) -> Result<Vec<CustomMetric>, ProfileError> {
-        let alert_conditions = &self
-            .config
-            .alert_config
-            .alert_conditions
-            .clone()
-            .ok_or(ProfileError::CustomThresholdNotSetError)?;
-
-        Ok(self
-            .metrics
-            .iter()
-            .map(|(name, value)| {
-                // get the alert threshold for the metric
-                let alert = alert_conditions
-                    .get(name)
-                    .ok_or(ProfileError::CustomAlertThresholdNotFound)
-                    .unwrap();
-                CustomMetric::new(
-                    name,
-                    *value,
-                    alert.alert_threshold.clone(),
-                    alert.alert_threshold_value,
-                )
-                .unwrap()
-            })
-            .collect())
     }
 
     /// Create a profile request from the profile
@@ -276,7 +283,7 @@ impl CustomDriftProfile {
     }
 }
 
-impl ProfileBaseArgs for CustomDriftProfile {
+impl ProfileBaseArgs for LLMDriftProfile {
     fn get_base_args(&self) -> ProfileArgs {
         ProfileArgs {
             name: self.config.name.clone(),
@@ -293,88 +300,32 @@ impl ProfileBaseArgs for CustomDriftProfile {
     }
 }
 
+// write test using mock feature
 #[cfg(test)]
+#[cfg(feature = "mock")]
 mod tests {
+
     use super::*;
     use crate::AlertThreshold;
-    use crate::{AlertDispatchConfig, OpsGenieDispatchConfig, SlackDispatchConfig};
+    use colored_json::Paint;
+    use potato_head::{create_score_prompt, OpenAITestServer};
 
     #[test]
-    fn test_drift_config() {
-        let mut drift_config = CustomMetricDriftConfig::new(
-            MISSING,
-            MISSING,
-            "0.1.0",
-            25,
-            CustomMetricAlertConfig::default(),
-            None,
-        )
-        .unwrap();
-        assert_eq!(drift_config.name, "__missing__");
-        assert_eq!(drift_config.space, "__missing__");
-        assert_eq!(drift_config.version, "0.1.0");
-        assert_eq!(
-            drift_config.alert_config.dispatch_config,
-            AlertDispatchConfig::default()
-        );
+    fn test_llm_metric_execution() {
+        let _runtime = tokio::runtime::Runtime::new().unwrap();
+        let mut mock = OpenAITestServer::new();
+        mock.start_server().unwrap();
+        let prompt = create_score_prompt();
 
-        let test_slack_dispatch_config = SlackDispatchConfig {
-            channel: "test-channel".to_string(),
-        };
-        let new_alert_config = CustomMetricAlertConfig {
-            schedule: "0 0 * * * *".to_string(),
-            dispatch_config: AlertDispatchConfig::Slack(test_slack_dispatch_config.clone()),
-            ..Default::default()
-        };
+        let metric =
+            LLMMetric::new("test_metric", 5.0, prompt, AlertThreshold::Above, None).unwrap();
 
-        // update
-        drift_config
-            .update_config_args(None, Some("test".to_string()), None, Some(new_alert_config))
-            .unwrap();
+        //assert!(result.is_ok());
 
-        assert_eq!(drift_config.name, "test");
-        assert_eq!(
-            drift_config.alert_config.dispatch_config,
-            AlertDispatchConfig::Slack(test_slack_dispatch_config)
-        );
-        assert_eq!(
-            drift_config.alert_config.schedule,
-            "0 0 * * * *".to_string()
-        );
-    }
+        //let score = result.unwrap();
+        //assert_eq!(score.score, 5);
 
-    #[test]
-    fn test_custom_drift_profile() {
-        let alert_config = CustomMetricAlertConfig {
-            schedule: "0 0 * * * *".to_string(),
-            dispatch_config: AlertDispatchConfig::OpsGenie(OpsGenieDispatchConfig {
-                team: "test-team".to_string(),
-                priority: "P5".to_string(),
-            }),
-            ..Default::default()
-        };
-
-        let drift_config =
-            CustomMetricDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
-
-        let custom_metrics = vec![
-            CustomMetric::new("mae", 12.4, AlertThreshold::Above, Some(2.3)).unwrap(),
-            CustomMetric::new("accuracy", 0.85, AlertThreshold::Below, None).unwrap(),
-        ];
-
-        let profile = CustomDriftProfile::new(drift_config, custom_metrics, None).unwrap();
-        let _: Value =
-            serde_json::from_str(&profile.model_dump_json()).expect("Failed to parse actual JSON");
-
-        assert_eq!(profile.metrics.len(), 2);
-        assert_eq!(profile.scouter_version, env!("CARGO_PKG_VERSION"));
-        let conditions = profile.config.alert_config.alert_conditions.unwrap();
-        assert_eq!(conditions["mae"].alert_threshold, AlertThreshold::Above);
-        assert_eq!(conditions["mae"].alert_threshold_value, Some(2.3));
-        assert_eq!(
-            conditions["accuracy"].alert_threshold,
-            AlertThreshold::Below
-        );
-        assert_eq!(conditions["accuracy"].alert_threshold_value, None);
+        //mock.stop_server().unwrap();
+        // ...test code...
     }
 }

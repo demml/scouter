@@ -20,12 +20,12 @@ repository = "https://github.com/demml/scouter"
 
 
 [workspace.dependencies]
+scouter-agents = { path = "crates/scouter_agents", version = "0.6.2" }
 scouter-auth = { path = "crates/scouter_auth", version = "0.6.2" }
 scouter-client = { path = "crates/scouter_client", version = "0.6.2" }
 scouter-dispatch = { path = "crates/scouter_dispatch", version = "0.6.2" }
 scouter-drift = { path = "crates/scouter_drift", version = "0.6.2", default-features = false }
 scouter-events = { path = "crates/scouter_events", version = "0.6.2", default-features = false }
-scouter-genai = { path = "crates/scouter_genai", version = "0.6.2" }
 scouter-observability = { path = "crates/scouter_observability", version = "0.6.2" }
 scouter-profile = { path = "crates/scouter_profile", version = "0.6.2" }
 scouter-server = { path = "crates/scouter_server", version = "0.6.2" }
@@ -94,7 +94,6 @@ statrs = "0.18.0"
 
 # RabbitMQ dependencies
 lapin = { version = "2.*" }
-
 
 [profile.release]
 lto = "fat"
