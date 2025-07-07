@@ -61,7 +61,7 @@ impl ProfileFuncs {
         .to_colored_json(&object, ColorMode::On)
         {
             Ok(json) => json,
-            Err(e) => format!("Failed to serialize to json: {}", e),
+            Err(e) => format!("Failed to serialize to json: {e}"),
         }
         // serialize the struct to a string
     }
@@ -69,7 +69,7 @@ impl ProfileFuncs {
     pub fn __json__<T: Serialize>(object: T) -> String {
         match serde_json::to_string_pretty(&object) {
             Ok(json) => json,
-            Err(e) => format!("Failed to serialize to json: {}", e),
+            Err(e) => format!("Failed to serialize to json: {e}"),
         }
     }
 

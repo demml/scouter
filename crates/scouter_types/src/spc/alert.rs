@@ -276,13 +276,13 @@ impl DispatchAlertDescription for SpcFeatureAlerts {
                 AlertDispatchType::Slack => format!("{}: \n", &feature_alert.feature),
             };
 
-            alert_description = format!("{}{}", alert_description, feature_name);
+            alert_description = format!("{alert_description}{feature_name}");
             feature_alert.alerts.iter().for_each(|alert| {
                 let alert_details = match dispatch_type {
                     AlertDispatchType::Console | AlertDispatchType::OpsGenie => {
                         let kind = format!("{:indent$}Kind: {}\n", "", &alert.kind, indent = 8);
                         let zone = format!("{:indent$}Zone: {}\n", "", &alert.zone, indent = 8);
-                        format!("{}{}", kind, zone)
+                        format!("{kind}{zone}")
                     }
                     AlertDispatchType::Slack => format!(
                         "{:indent$}{} error in {}\n",
@@ -292,7 +292,7 @@ impl DispatchAlertDescription for SpcFeatureAlerts {
                         indent = 4
                     ),
                 };
-                alert_description = format!("{}{}", alert_description, alert_details);
+                alert_description = format!("{alert_description}{alert_details}");
             });
         }
         alert_description

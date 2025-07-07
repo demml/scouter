@@ -104,5 +104,3 @@ opt-level = 3
 inherits = "release"
 lto = false
 
-[workspace.lints.clippy]
-uninlined_format_args = "allow"

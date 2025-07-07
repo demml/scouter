@@ -287,7 +287,7 @@ impl DispatchAlertDescription for PsiFeatureAlerts {
                 AlertDispatchType::Slack => format!("{}: \n", alert.feature),
             };
 
-            alert_description = format!("{}{}", alert_description, feature_name);
+            alert_description = format!("{alert_description}{feature_name}");
 
             let alert_details = match dispatch_type {
                 AlertDispatchType::Console | AlertDispatchType::OpsGenie => {
@@ -297,7 +297,7 @@ impl DispatchAlertDescription for PsiFeatureAlerts {
                     format!("{:indent$}Drift Value: {}\n", "", description, indent = 4)
                 }
             };
-            alert_description = format!("{}{}", alert_description, alert_details);
+            alert_description = format!("{alert_description}{alert_details}");
         }
         alert_description
     }
