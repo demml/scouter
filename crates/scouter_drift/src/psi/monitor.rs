@@ -9,7 +9,7 @@ use scouter_types::psi::{
     Bin, BinType, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
 };
 use std::collections::HashMap;
-use crate::binning::equal_width::{EqualWidthBinning, EqualWidthMethod, Scott};
+// use crate::binning::equal_width::{EqualWidthBinning, EqualWidthMethod, Scott};
 
 #[derive(Default)]
 pub struct PsiMonitor {}
@@ -142,11 +142,6 @@ impl PsiMonitor {
         F: Float + FromPrimitive + Default + Sync,
         F: Into<f64>,
     {
-        let binning = EqualWidthBinning {
-            method: EqualWidthMethod::Scott(Scott)  // This should work
-        };
-        let bins = binning.method.num_bins(column_vector);
-        println!("{}", bins);
         
         let deciles = self.compute_deciles(column_vector)?;
 
