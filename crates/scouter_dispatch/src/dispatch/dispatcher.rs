@@ -63,7 +63,7 @@ impl OpsGenieAlerter {
         let priority = dispatch_config.priority.clone();
 
         Ok(Self {
-            header_auth_value: format!("GenieKey {}", api_key),
+            header_auth_value: format!("GenieKey {api_key}"),
             api_url,
             team_name,
             name: name.to_string(),
@@ -153,8 +153,8 @@ impl SlackAlerter {
         let slack_channel = dispatch_config.channel.clone();
 
         Ok(Self {
-            header_auth_value: format!("Bearer {}", app_token),
-            api_url: format!("{}/chat.postMessage", api_url),
+            header_auth_value: format!("Bearer {app_token}"),
+            api_url: format!("{api_url}/chat.postMessage"),
             name: name.to_string(),
             space: space.to_string(),
             version: version.to_string(),
@@ -263,7 +263,7 @@ impl<T: HttpAlertWrapper + DispatchHelpers + std::marker::Sync> Dispatch
 
         self.send_alerts(alert_body)
             .await
-            .map_err(|e| DispatchError::HttpError(format!("Failed to send alerts: {}", e)))?;
+            .map_err(|e| DispatchError::HttpError(format!("Failed to send alerts: {e}")))?;
 
         Ok(())
     }
@@ -295,10 +295,10 @@ impl Dispatch for ConsoleAlertDispatcher {
         if !alert_description.is_empty() {
             let msg1 = "Drift detected for";
             let msg2 = format!("{}/{}/{}!", self.space, self.name, self.version);
-            let mut body = format!("\n{} {} \n", msg1, msg2);
+            let mut body = format!("\n{msg1} {msg2} \n");
             body.push_str(&alert_description);
 
-            println!("{}", body);
+            println!("{body}");
         }
         Ok(())
     }

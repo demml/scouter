@@ -115,7 +115,7 @@ async fn test_storage_integration_cloud() {
     let query_string = serde_qs::to_string(&params).unwrap();
 
     let request = Request::builder()
-        .uri(format!("/scouter/drift/psi?{}", query_string))
+        .uri(format!("/scouter/drift/psi?{query_string}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();

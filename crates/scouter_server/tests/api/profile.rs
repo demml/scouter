@@ -90,7 +90,7 @@ async fn test_create_spc_profile() {
     let query_string = serde_qs::to_string(&params).unwrap();
 
     let request = Request::builder()
-        .uri(format!("/scouter/profile?{}", query_string))
+        .uri(format!("/scouter/profile?{query_string}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();

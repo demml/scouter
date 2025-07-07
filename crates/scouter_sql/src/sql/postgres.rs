@@ -397,7 +397,7 @@ mod tests {
                     space: SPACE.to_string(),
                     name: NAME.to_string(),
                     version: VERSION.to_string(),
-                    feature: format!("test{}", j),
+                    feature: format!("test{j}"),
                     value: j as f64,
                 };
 
@@ -465,7 +465,7 @@ mod tests {
                         proportion: 0.0,
                     })
                     .collect();
-                let feature_name = format!("feature{}", feature);
+                let feature_name = format!("feature{feature}");
                 let feature_profile = PsiFeatureDriftProfile {
                     id: feature_name.clone(),
                     bins,
@@ -500,7 +500,7 @@ mod tests {
                         space: SPACE.to_string(),
                         name: NAME.to_string(),
                         version: VERSION.to_string(),
-                        feature: format!("feature{}", feature),
+                        feature: format!("feature{feature}"),
                         bin_id: bin,
                         bin_count: rand::rng().random_range(0..10),
                     };
@@ -569,7 +569,7 @@ mod tests {
                     space: SPACE.to_string(),
                     name: NAME.to_string(),
                     version: VERSION.to_string(),
-                    metric: format!("metric{}", i),
+                    metric: format!("metric{i}"),
                     value: rand::rng().random_range(0..10) as f64,
                 };
 

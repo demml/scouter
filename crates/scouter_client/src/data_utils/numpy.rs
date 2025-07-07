@@ -24,11 +24,11 @@ impl DataConverter for NumpyDataConverter {
         if dtypes.getattr("kind")?.extract::<String>()? == "u" {
             // create vec from shape[1]
             string_features = (0..shape[1])
-                .map(|i| format!("feature_{}", i))
+                .map(|i| format!("feature_{i}"))
                 .collect::<Vec<String>>();
         } else {
             float_features = (0..shape[1])
-                .map(|i| format!("feature_{}", i))
+                .map(|i| format!("feature_{i}"))
                 .collect::<Vec<String>>();
         }
 

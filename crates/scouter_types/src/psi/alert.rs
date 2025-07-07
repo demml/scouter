@@ -367,8 +367,7 @@ mod tests {
 
             if diff >= 0.005 {
                 panic!(
-                    "Failed for sample size {}: expected ~{}, got {}, diff={}",
-                    sample_size, expected_approx, result, diff
+                    "Failed for sample size {sample_size}: expected ~{expected_approx}, got {result}, diff={diff}"
                 );
             }
         }
@@ -422,15 +421,11 @@ mod tests {
         // More conservative (lower alpha) should give higher thresholds
         assert!(
             threshold_99 > threshold_95,
-            "99th percentile should be higher than 95th: {} > {}",
-            threshold_99,
-            threshold_95
+            "99th percentile should be higher than 95th: {threshold_99} > {threshold_95}"
         );
         assert!(
             threshold_95 > threshold_90,
-            "95th percentile should be higher than 90th: {} > {}",
-            threshold_95,
-            threshold_90
+            "95th percentile should be higher than 90th: {threshold_95} > {threshold_90}"
         );
     }
 
@@ -451,15 +446,11 @@ mod tests {
         // More conservative (lower alpha) should give higher thresholds
         assert!(
             threshold_99 > threshold_95,
-            "99th percentile should be higher than 95th: {} > {}",
-            threshold_99,
-            threshold_95
+            "99th percentile should be higher than 95th: {threshold_99} > {threshold_95}"
         );
         assert!(
             threshold_95 > threshold_90,
-            "95th percentile should be higher than 90th: {} > {}",
-            threshold_95,
-            threshold_90
+            "95th percentile should be higher than 90th: {threshold_95} > {threshold_90}"
         );
     }
 

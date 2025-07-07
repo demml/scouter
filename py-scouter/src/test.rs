@@ -69,7 +69,7 @@ impl ScouterTestServer {
     pub fn set_env_vars_for_client(&self, port: u16) -> PyResult<()> {
         #[cfg(feature = "server")]
         {
-            std::env::set_var("SCOUTER_SERVER_URI", format!("http://localhost:{}", port));
+            std::env::set_var("SCOUTER_SERVER_URI", format!("http://localhost:{port}"));
             std::env::set_var("APP_ENV", "dev_client");
             Ok(())
         }
@@ -123,11 +123,11 @@ impl ScouterTestServer {
 
             while attempts < max_attempts {
                 println!(
-                    "Checking if Scouter Server is running at http://localhost:{}/scouter/healthcheck",
-                    port
+                    "Checking if Scouter Server is running at http://localhost:{port}/scouter/healthcheck",
+
                 );
                 let res = client
-                    .get(format!("http://localhost:{}/scouter/healthcheck", port))
+                    .get(format!("http://localhost:{port}/scouter/healthcheck"))
                     .send();
                 if let Ok(response) = res {
                     if response.status() == 200 {
@@ -137,7 +137,7 @@ impl ScouterTestServer {
                     }
                 } else {
                     let resp_msg = res.unwrap_err().to_string();
-                    println!("Scouter Server not yet ready: {}", resp_msg);
+                    println!("Scouter Server not yet ready: {resp_msg}");
                 }
 
                 attempts += 1;
