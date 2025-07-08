@@ -1,9 +1,6 @@
-#![allow(clippy::useless_conversion)]
-use crate::agent::alert::LLMMetric;
-use crate::agent::alert::LLMMetricAlertConfig;
-use crate::custom::alert::{CustomMetric, CustomMetricAlertConfig};
-use crate::error;
 use crate::error::{ProfileError, TypeError};
+use crate::llm::alert::LLMMetric;
+use crate::llm::alert::LLMMetricAlertConfig;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::ProfileRequest;
 use crate::{
@@ -12,9 +9,8 @@ use crate::{
 };
 use core::fmt::Debug;
 use potato_head::Agent;
-use potato_head::PyWorkflow;
 use potato_head::Task;
-use potato_head::{Prompt, Provider, Workflow};
+use potato_head::{Provider, Workflow};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde::{Deserialize, Serialize};
@@ -22,7 +18,6 @@ use serde_json::Value;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use tracing::error;
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -48,7 +43,7 @@ pub struct LLMDriftConfig {
 }
 
 fn default_drift_type() -> DriftType {
-    DriftType::Prompt
+    DriftType::LLM
 }
 
 impl DispatchDriftConfig for LLMDriftConfig {
@@ -158,11 +153,10 @@ impl LLMDriftProfile {
     #[pyo3(signature = (config, metrics, scouter_version=None))]
     /// Create a new LLMDriftProfile
     /// LLM evaluations are run asynchronously on the scouter server.
-    /// A user will need to create both a workflow that outputs metrics and a list of metrics with
-    /// their default values and alert conditions.
+    /// A user will supply a vec of LLMMetrics, which will be parsed into a rust Workflow.
+    /// In addition, baseline metrics and threshold will be extracted from the LLMMetric.
     /// # Arguments
     /// * `config` - LLMDriftConfig - The configuration for the LLM drift profile
-    /// * `workflow` - Workflow - The workflow that will be used to evaluate the LLM
     /// * `metrics` - Vec<LLMMetric> - The metrics that will be used to evaluate the LLM
     /// * `scouter_version` - Option<String> - The version of scouter that
     /// # Returns
@@ -188,8 +182,8 @@ impl LLMDriftProfile {
                 }
             };
 
-            let task = Task::new(&metric.name, metric.prompt.clone(), &agent.id, None, None);
-            workflow.add_task(task);
+            let task = Task::new(&agent.id, metric.prompt.clone(), &metric.name, None, None);
+            workflow.add_task(task)?;
         }
 
         config.alert_config.set_alert_conditions(&metrics);
@@ -307,25 +301,91 @@ mod tests {
 
     use super::*;
     use crate::AlertThreshold;
-    use colored_json::Paint;
+    use crate::{AlertDispatchConfig, OpsGenieDispatchConfig, SlackDispatchConfig};
     use potato_head::{create_score_prompt, OpenAITestServer};
 
     #[test]
-    fn test_llm_metric_execution() {
+    fn test_llm_drift_config() {
+        let mut drift_config = LLMDriftConfig::new(
+            MISSING,
+            MISSING,
+            "0.1.0",
+            25,
+            LLMMetricAlertConfig::default(),
+            None,
+        )
+        .unwrap();
+        assert_eq!(drift_config.name, "__missing__");
+        assert_eq!(drift_config.space, "__missing__");
+        assert_eq!(drift_config.version, "0.1.0");
+        assert_eq!(
+            drift_config.alert_config.dispatch_config,
+            AlertDispatchConfig::default()
+        );
+
+        let test_slack_dispatch_config = SlackDispatchConfig {
+            channel: "test-channel".to_string(),
+        };
+        let new_alert_config = LLMMetricAlertConfig {
+            schedule: "0 0 * * * *".to_string(),
+            dispatch_config: AlertDispatchConfig::Slack(test_slack_dispatch_config.clone()),
+            ..Default::default()
+        };
+
+        drift_config
+            .update_config_args(None, Some("test".to_string()), None, Some(new_alert_config))
+            .unwrap();
+
+        assert_eq!(drift_config.name, "test");
+        assert_eq!(
+            drift_config.alert_config.dispatch_config,
+            AlertDispatchConfig::Slack(test_slack_dispatch_config)
+        );
+        assert_eq!(
+            drift_config.alert_config.schedule,
+            "0 0 * * * *".to_string()
+        );
+    }
+
+    #[test]
+    fn test_llm_drift_profile() {
         let _runtime = tokio::runtime::Runtime::new().unwrap();
         let mut mock = OpenAITestServer::new();
         mock.start_server().unwrap();
         let prompt = create_score_prompt();
 
-        let metric =
-            LLMMetric::new("test_metric", 5.0, prompt, AlertThreshold::Above, None).unwrap();
+        let metric1 =
+            LLMMetric::new("metric1", 5.0, prompt.clone(), AlertThreshold::Above, None).unwrap();
+        let metric2 = LLMMetric::new(
+            "metric2",
+            3.0,
+            prompt.clone(),
+            AlertThreshold::Below,
+            Some(1.0),
+        )
+        .unwrap();
 
-        //assert!(result.is_ok());
+        let llm_metrics = vec![metric1, metric2];
 
-        //let score = result.unwrap();
-        //assert_eq!(score.score, 5);
+        let alert_config = LLMMetricAlertConfig {
+            schedule: "0 0 * * * *".to_string(),
+            dispatch_config: AlertDispatchConfig::OpsGenie(OpsGenieDispatchConfig {
+                team: "test-team".to_string(),
+                priority: "P5".to_string(),
+            }),
+            ..Default::default()
+        };
 
-        //mock.stop_server().unwrap();
-        // ...test code...
+        let drift_config =
+            LLMDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
+
+        let profile = LLMDriftProfile::new(drift_config, llm_metrics, None).unwrap();
+        let _: Value =
+            serde_json::from_str(&profile.model_dump_json()).expect("Failed to parse actual JSON");
+
+        assert_eq!(profile.metrics.len(), 2);
+        assert_eq!(profile.scouter_version, env!("CARGO_PKG_VERSION"));
+
+        mock.stop_server().unwrap();
     }
 }

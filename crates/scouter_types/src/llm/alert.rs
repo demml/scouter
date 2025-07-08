@@ -40,7 +40,7 @@ impl LLMMetric {
         alert_threshold_value: Option<f64>,
     ) -> Result<Self, TypeError> {
         // assert that the prompt is a scoring prompt
-        if prompt.response_type == ResponseType::Score {
+        if !(prompt.response_type == ResponseType::Score) {
             return Err(TypeError::InvalidResponseType);
         };
 
@@ -261,6 +261,7 @@ impl DispatchAlertDescription for PromptComparisonMetricAlert {
 }
 
 #[cfg(test)]
+#[cfg(feature = "mock")]
 mod tests {
     use super::*;
     use potato_head::create_score_prompt;

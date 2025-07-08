@@ -205,6 +205,7 @@ pub async fn archive_old_data(
                 // get the data from the database
                 record.custom = process_record_type(db_pool, &RecordType::Custom, config).await?;
             }
+            _ => todo!("LLM drift not implemented yet"),
         }
     }
 

@@ -9,6 +9,7 @@ use scouter_drift::spc::SpcDriftMap;
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::{
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
+    llm::{LLMDriftConfig, LLMDriftProfile},
     psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile},
     spc::SpcDriftConfig,
     DataType, DriftProfile, DriftType,
@@ -22,6 +23,7 @@ pub enum DriftMap {
 pub enum DriftConfig {
     Spc(SpcDriftConfig),
     Psi(PsiDriftConfig),
+    LLM(LLMDriftConfig),
     Custom(CustomMetricDriftConfig),
 }
 
@@ -60,6 +62,7 @@ impl Drifter {
             DriftType::Spc => Drifter::Spc(SpcDrifter::new()),
             DriftType::Psi => Drifter::Psi(PsiDrifter::new()),
             DriftType::Custom => Drifter::Custom(CustomDrifter::new()),
+            _ => todo!("Implement drift profile for LLM"),
         }
     }
 
@@ -165,6 +168,10 @@ impl PyDrifter {
                     let config = obj.extract::<CustomMetricDriftConfig>()?;
                     DriftConfig::Custom(config)
                 }
+                DriftType::LLM => {
+                    let config = obj.extract::<LLMDriftConfig>()?;
+                    DriftConfig::LLM(config)
+                }
             };
             (drift_config, drift_type)
         } else {
@@ -194,6 +201,7 @@ impl PyDrifter {
             DriftProfile::Spc(profile) => Ok(profile.into_bound_py_any(py)?),
             DriftProfile::Psi(profile) => Ok(profile.into_bound_py_any(py)?),
             DriftProfile::Custom(profile) => Ok(profile.into_bound_py_any(py)?),
+            DriftProfile::LLM(profile) => Ok(profile.into_bound_py_any(py)?),
         }
     }
 
@@ -222,6 +230,10 @@ impl PyDrifter {
             DriftType::Custom => {
                 let profile = drift_profile.extract::<CustomDriftProfile>()?;
                 DriftProfile::Custom(profile)
+            }
+            DriftType::LLM => {
+                let profile = drift_profile.extract::<LLMDriftProfile>()?;
+                DriftProfile::LLM(profile)
             }
         };
 
@@ -253,6 +265,7 @@ impl PyDrifter {
 
 impl PyDrifter {
     // method used internally to return DriftProfile Enum
+    // TODO: Can we get rid of this?
     pub fn internal_create_drift_profile<'py>(
         &self,
         py: Python,
@@ -277,6 +290,10 @@ impl PyDrifter {
                 DriftType::Custom => {
                     let config = obj.extract::<CustomMetricDriftConfig>()?;
                     DriftConfig::Custom(config)
+                }
+                DriftType::LLM => {
+                    let config = obj.extract::<LLMDriftConfig>()?;
+                    DriftConfig::LLM(config)
                 }
             };
             (drift_config, drift_type)

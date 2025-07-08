@@ -17,13 +17,13 @@ use scouter_types::contracts::{
     DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
 };
 use scouter_types::custom::{
-    AlertThreshold, BinnedCustomMetrics, CustomDriftProfile, CustomMetric, CustomMetricAlertConfig,
+    BinnedCustomMetrics, CustomDriftProfile, CustomMetric, CustomMetricAlertConfig,
     CustomMetricDriftConfig,
 };
 use scouter_types::psi::BinnedPsiFeatureMetrics;
 use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
 use scouter_types::spc::SpcDriftFeatures;
-use scouter_types::TimeInterval;
+use scouter_types::{AlertThreshold, TimeInterval};
 use tokio::time::sleep;
 
 #[tokio::test]

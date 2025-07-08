@@ -14,10 +14,10 @@ use scouter_types::contracts::ProfileRequest;
 use scouter_types::custom::CustomMetricAlertConfig;
 use scouter_types::{
     custom::BinnedCustomMetrics,
-    custom::{AlertThreshold, CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
+    custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
     psi::{BinnedPsiFeatureMetrics, PsiAlertConfig, PsiDriftConfig},
     spc::{SpcAlertConfig, SpcDriftConfig, SpcDriftFeatures},
-    DriftType, RecordType,
+    AlertThreshold, DriftType, RecordType,
 };
 use sqlx::types::chrono::Utc;
 use tokio::time::{sleep, Duration};

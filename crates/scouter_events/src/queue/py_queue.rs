@@ -42,6 +42,7 @@ impl QueueNum {
                 let queue = CustomQueue::new(custom_profile, config, queue_runtime).await?;
                 Ok(QueueNum::Custom(queue))
             }
+            _ => todo!("Implement drift profile for LLM"),
         }
     }
 

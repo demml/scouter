@@ -12,9 +12,8 @@ pub use scouter_types::{
     create_feature_map,
     cron::*,
     custom::{
-        AlertThreshold, BinnedCustomMetric, BinnedCustomMetricStats, BinnedCustomMetrics,
-        CustomDriftProfile, CustomMetric, CustomMetricAlertCondition, CustomMetricAlertConfig,
-        CustomMetricDriftConfig,
+        BinnedCustomMetric, BinnedCustomMetricStats, BinnedCustomMetrics, CustomDriftProfile,
+        CustomMetric, CustomMetricAlertCondition, CustomMetricAlertConfig, CustomMetricDriftConfig,
     },
     psi::{
         Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiChiSquareThreshold,
@@ -26,7 +25,7 @@ pub use scouter_types::{
         SpcDriftFeature, SpcDriftFeatures, SpcDriftProfile, SpcFeatureAlert, SpcFeatureAlerts,
         SpcFeatureDriftProfile,
     },
-    AlertDispatchType, ConsoleDispatchConfig, CustomMetricServerRecord, DataType,
+    AlertDispatchType, AlertThreshold, ConsoleDispatchConfig, CustomMetricServerRecord, DataType,
     DriftAlertRequest, DriftProfile, DriftRequest, DriftType, EntityType, Feature, FeatureMap,
     Features, GetProfileRequest, LatencyMetrics, Metric, Metrics, ObservabilityMetrics,
     OpsGenieDispatchConfig, ProfileRequest, ProfileStatusRequest, PsiServerRecord, RecordType,

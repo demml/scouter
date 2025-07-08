@@ -65,6 +65,7 @@ pub mod drift_executor {
                 DriftProfile::Custom(profile) => {
                     Drifter::CustomDrifter(CustomDrifter::new(profile.clone()))
                 }
+                _ => todo!("Implement drift profile for LLM"),
             }
         }
     }

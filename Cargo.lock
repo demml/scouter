@@ -5042,18 +5042,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
-name = "scouter-agents"
-version = "0.6.2"
-dependencies = [
- "potato-head",
- "pyo3",
- "serde",
- "serde_json",
- "thiserror 2.0.12",
- "tokio",
-]
-
-[[package]]
 name = "scouter-auth"
 version = "0.6.2"
 dependencies = [
@@ -5195,6 +5183,18 @@ dependencies = [
  "tokio-stream",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "scouter-llm"
+version = "0.6.2"
+dependencies = [
+ "potato-head",
+ "pyo3",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.12",
+ "tokio",
 ]
 
 [[package]]

@@ -40,7 +40,12 @@ test.needs_sql: test.sql test.server test.drift.executor
 #### Unit tests
 .PHONY: test.types
 test.types:
-	cargo test -p scouter-types -- --nocapture --test-threads=1
+	cargo test -p scouter-types -- --nocapture --all-features --test-threads=1
+
+#### LLM profile tests
+.PHONY: test.llm
+test.llm:
+	cargo test -p scouter-types test_llm --all-features -- --nocapture --test-threads=1
 
 .PHONY: test.dispatch
 test.dispatch:
@@ -74,7 +79,7 @@ test.dataframe:
 
 .PHONY: test.agents
 test.agents:
-	cargo test -p scouter-agents --all-features -- --nocapture --test-threads=1
+	cargo test -p scouter-llm --all-features -- --nocapture --test-threads=1
 
 .PHONY: test
 test: build.all_backends test.needs_sql test.unit build.shutdown

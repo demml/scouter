@@ -7,7 +7,10 @@ pub mod custom_drifter {
     use scouter_sql::sql::traits::CustomMetricSqlLogic;
     use scouter_sql::PostgresClient;
     use scouter_types::contracts::ServiceInfo;
-    use scouter_types::custom::{AlertThreshold, ComparisonMetricAlert, CustomDriftProfile};
+    use scouter_types::{
+        custom::{ComparisonMetricAlert, CustomDriftProfile},
+        AlertThreshold,
+    };
     use sqlx::{Pool, Postgres};
     use std::collections::{BTreeMap, HashMap};
     use tracing::error;

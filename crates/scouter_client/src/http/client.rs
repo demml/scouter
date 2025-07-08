@@ -270,6 +270,7 @@ impl PyScouterClient {
             DriftType::Custom => {
                 PyScouterClient::get_custom_binned_drift(py, &self.client.client, drift_request)
             }
+            _ => todo!("LLM drift not implemented yet"),
         }
     }
 
