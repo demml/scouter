@@ -50,7 +50,7 @@ impl BackgroundDriftManager {
                     info!("Drift executor {}: Shutting down", id);
                     break;
                 }
-                result = executor.poll_for_tasks().instrument(span!(Level::INFO, "Poll")) => {
+                result = executor.poll_for_tasks().instrument(span!(Level::INFO, "poll_for_tasks")) => {
                     if let Err(e) = result {
                         error!("Alert poller error: {:?}", e);
                     }

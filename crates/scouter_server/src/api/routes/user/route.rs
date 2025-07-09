@@ -24,6 +24,7 @@ use tracing::{error, info, instrument};
 
 use super::schema::CreateUserResponse;
 
+#[instrument(skip_all)]
 pub async fn initialize_users(
     State(state): State<AppState>,
     Json(users): Json<Vec<User>>,
@@ -55,6 +56,7 @@ pub async fn initialize_users(
 /// Create a new user via SDK
 ///
 /// Requires admin permissions
+#[instrument(skip_all)]
 async fn create_user(
     State(state): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,

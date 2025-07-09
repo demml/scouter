@@ -13,7 +13,7 @@ pub mod drift_executor {
     use std::result::Result;
     use std::result::Result::Ok;
     use std::str::FromStr;
-    use tracing::{debug, error, info, span, Instrument, Level};
+    use tracing::{debug, error, info, instrument, span, Instrument, Level};
 
     #[allow(clippy::enum_variant_names)]
     pub enum Drifter {
@@ -141,6 +141,7 @@ pub mod drift_executor {
             Ok(Some(task))
         }
 
+        #[instrument(skip_all)]
         async fn process_task(
             &mut self,
             task: &TaskRequest,
@@ -198,6 +199,7 @@ pub mod drift_executor {
         /// # Returns
         ///
         /// * `Result<()>` - Result of drift computation and alerting
+        #[instrument(skip_all)]
         pub async fn poll_for_tasks(&mut self) -> Result<(), DriftError> {
             match self.do_poll().await? {
                 Some(_) => {
