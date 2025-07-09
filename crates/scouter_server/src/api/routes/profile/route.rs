@@ -25,6 +25,7 @@ use scouter_sql::PostgresClient;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 
 /// Insert a drift profile into the database
+#[instrument(skip_all)]
 pub async fn insert_drift_profile(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
@@ -83,6 +84,7 @@ pub async fn insert_drift_profile(
 /// * `data` - Arc<AppState> - Application state
 /// * `body` - Json<ProfileRequest> - Profile request
 ///
+#[instrument(skip_all)]
 pub async fn update_drift_profile(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,

@@ -11,7 +11,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tracing::error;
-use tracing::info;
+use tracing::{info, instrument};
 
 /// Create the main server
 ///
@@ -51,6 +51,7 @@ pub async fn create_app() -> Result<(Router, Arc<AppState>), anyhow::Error> {
 }
 
 /// Start the main server
+#[instrument(skip_all)]
 pub async fn start_server() -> Result<(), anyhow::Error> {
     let (router, app_state) = create_app().await?;
 

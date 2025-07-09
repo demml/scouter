@@ -1,8 +1,9 @@
 use crate::api::state::AppState;
 use std::sync::Arc;
 use tokio::signal;
-use tracing::info;
+use tracing::{info, instrument};
 
+#[instrument(skip_all)]
 pub async fn shutdown_signal(app_state: Arc<AppState>) {
     // Wait for a shutdown signal
 
