@@ -5128,6 +5128,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "cron",
+ "itertools 0.13.0",
  "rand 0.9.1",
  "scouter-dataframe",
  "scouter-settings",

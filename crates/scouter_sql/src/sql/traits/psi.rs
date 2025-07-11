@@ -7,6 +7,7 @@ use chrono::{DateTime, Utc};
 use scouter_dataframe::parquet::{dataframe_to_psi_drift_features, ParquetDataFrame};
 
 use crate::sql::error::SqlError;
+use itertools::multiunzip;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::psi::FeatureDistributions;
 use scouter_types::{
@@ -36,13 +37,25 @@ pub trait PsiSqlLogic {
 
         let query = Queries::InsertBinCountsBatch.get_query();
 
-        let created_ats: Vec<DateTime<Utc>> = records.iter().map(|r| r.created_at).collect();
-        let names: Vec<&str> = records.iter().map(|r| r.name.as_str()).collect();
-        let spaces: Vec<&str> = records.iter().map(|r| r.space.as_str()).collect();
-        let versions: Vec<&str> = records.iter().map(|r| r.version.as_str()).collect();
-        let features: Vec<&str> = records.iter().map(|r| r.feature.as_str()).collect();
-        let bin_ids: Vec<i64> = records.iter().map(|r| r.bin_id as i64).collect();
-        let bin_counts: Vec<i64> = records.iter().map(|r| r.bin_count as i64).collect();
+        let (created_ats, names, spaces, versions, features, bin_ids, bin_counts): (
+            Vec<DateTime<Utc>>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<i64>,
+            Vec<i64>,
+        ) = multiunzip(records.iter().map(|r| {
+            (
+                r.created_at,
+                r.name.as_str(),
+                r.space.as_str(),
+                r.version.as_str(),
+                r.feature.as_str(),
+                r.bin_id as i64,
+                r.bin_count as i64,
+            )
+        }));
 
         sqlx::query(&query.sql)
             .bind(created_ats)

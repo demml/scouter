@@ -4,13 +4,13 @@ use crate::sql::schema::SpcFeatureResult;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use itertools::multiunzip;
 use scouter_dataframe::parquet::{dataframe_to_spc_drift_features, ParquetDataFrame};
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{
     spc::{SpcDriftFeature, SpcDriftFeatures},
     DriftRequest, RecordType, ServiceInfo, SpcServerRecord,
 };
-
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::collections::BTreeMap;
 use tracing::{debug, instrument};
@@ -33,12 +33,23 @@ pub trait SpcSqlLogic {
 
         let query = Queries::InsertSpcDriftRecordBatch.get_query();
 
-        let created_ats: Vec<DateTime<Utc>> = records.iter().map(|r| r.created_at).collect();
-        let names: Vec<&str> = records.iter().map(|r| r.name.as_str()).collect();
-        let spaces: Vec<&str> = records.iter().map(|r| r.space.as_str()).collect();
-        let versions: Vec<&str> = records.iter().map(|r| r.version.as_str()).collect();
-        let features: Vec<&str> = records.iter().map(|r| r.feature.as_str()).collect();
-        let values: Vec<f64> = records.iter().map(|r| r.value).collect();
+        let (created_ats, names, spaces, versions, features, values): (
+            Vec<DateTime<Utc>>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<f64>,
+        ) = multiunzip(records.iter().map(|r| {
+            (
+                r.created_at,
+                r.name.as_str(),
+                r.space.as_str(),
+                r.version.as_str(),
+                r.feature.as_str(),
+                r.value,
+            )
+        }));
 
         sqlx::query(&query.sql)
             .bind(created_ats)

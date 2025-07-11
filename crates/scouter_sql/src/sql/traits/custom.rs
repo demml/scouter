@@ -4,6 +4,7 @@ use crate::sql::schema::BinnedCustomMetricWrapper;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use itertools::multiunzip;
 use scouter_dataframe::parquet::{dataframe_to_custom_drift_metrics, ParquetDataFrame};
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::{DriftRequest, ServiceInfo};
@@ -11,7 +12,6 @@ use scouter_types::{custom::BinnedCustomMetrics, CustomMetricServerRecord, Recor
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::collections::HashMap;
 use tracing::{debug, instrument};
-
 #[async_trait]
 pub trait CustomMetricSqlLogic {
     async fn insert_custom_metric_values_batch(
@@ -24,12 +24,23 @@ pub trait CustomMetricSqlLogic {
 
         let query = Queries::InsertCustomMetricValuesBatch.get_query();
 
-        let created_ats: Vec<DateTime<Utc>> = records.iter().map(|r| r.created_at).collect();
-        let names: Vec<&str> = records.iter().map(|r| r.name.as_str()).collect();
-        let spaces: Vec<&str> = records.iter().map(|r| r.space.as_str()).collect();
-        let versions: Vec<&str> = records.iter().map(|r| r.version.as_str()).collect();
-        let metrics: Vec<&str> = records.iter().map(|r| r.metric.as_str()).collect();
-        let values: Vec<f64> = records.iter().map(|r| r.value).collect();
+        let (created_ats, names, spaces, versions, metrics, values): (
+            Vec<DateTime<Utc>>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<f64>,
+        ) = multiunzip(records.iter().map(|r| {
+            (
+                r.created_at,
+                r.name.as_str(),
+                r.space.as_str(),
+                r.version.as_str(),
+                r.metric.as_str(),
+                r.value,
+            )
+        }));
 
         sqlx::query(&query.sql)
             .bind(created_ats)
