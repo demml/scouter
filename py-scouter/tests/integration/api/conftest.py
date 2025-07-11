@@ -34,13 +34,14 @@ def generate_data() -> pd.DataFrame:
 
 def create_and_register_drift_profile(
     client: ScouterClient,
+    name: str,
 ) -> SpcDriftProfile:
     data = generate_data()
 
     # create drift config (usually associated with a model name, space name, version)
     config = SpcDriftConfig(
         space="scouter",
-        name="model",
+        name=name,
         version="0.1.0",
         alert_config=SpcAlertConfig(features_to_monitor=data.columns.tolist()),
     )
