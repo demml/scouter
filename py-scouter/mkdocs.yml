@@ -51,7 +51,9 @@ repo_url: https://github.com/demml/scouter
 nav:
   - Overview: "index.md"
   - Installation: "installation.md"
-  - Server: "server.md"
+  - Server:
+      - Overview: "docs/server/index.md"
+      - Postgres: "docs/server/postgres.md"
   - Monitoring:
       - Overview: "docs/monitoring/index.md"
       - PSI:

@@ -36,6 +36,7 @@ pub struct HTTPClient {
 impl HTTPClient {
     pub fn new(config: HTTPConfig) -> Result<Self, ClientError> {
         let client = build_http_client(&config)?;
+        debug!("HTTPClient created with base path: {}", config.server_uri);
 
         let api_client = HTTPClient {
             client,
@@ -61,10 +62,15 @@ impl HTTPClient {
 
         // check if unauthorized
         if response.status().is_client_error() {
+            error!("Unauthorized login request");
             return Err(ClientError::Unauthorized);
         }
 
-        let token = response.json::<JwtToken>()?;
+        // Try to parse as JSON
+        let token = response.json::<JwtToken>().map_err(|e| {
+            error!("Failed to parse response as JSON: {}", e);
+            ClientError::ParseJwtTokenError(e.to_string())
+        })?;
 
         if let Ok(mut token_guard) = self.auth_token.write() {
             *token_guard = token.token;

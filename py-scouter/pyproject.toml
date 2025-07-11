@@ -38,6 +38,7 @@ dev = [
     'polars>=1.0.0, <2.0.0',
     'pyarrow>=18.0.0',
     "httpx>=0.28.1",
+    "pytest-benchmark>=5.0.1",
 ]
 docs = [
     "mkdocs-material >= 9.5.4, < 10.0.0",

@@ -38,6 +38,8 @@ class KafkaConfig:
 
     def __init__(
         self,
+        username: Optional[str] = None,
+        password: Optional[str] = None,
         brokers: Optional[str] = None,
         topic: Optional[str] = None,
         compression_type: Optional[str] = None,
@@ -47,41 +49,88 @@ class KafkaConfig:
         config: Dict[str, str] = {},
         max_retries: int = 3,
     ) -> None:
-        """Kafka configuration to use with the KafkaProducer.
+        """Kafka configuration for connecting to and publishing messages to Kafka brokers.
+
+        This configuration supports both authenticated (SASL) and unauthenticated connections.
+        When credentials are provided, SASL authentication is automatically enabled with
+        secure defaults.
+
+        Authentication Priority (first match wins):
+            1. Direct parameters (username/password)
+            2. Environment variables (KAFKA_USERNAME/KAFKA_PASSWORD)
+            3. Configuration dictionary (sasl.username/sasl.password)
+
+        SASL Security Defaults:
+            - security.protocol: "SASL_SSL" (override via KAFKA_SECURITY_PROTOCOL env var)
+            - sasl.mechanism: "PLAIN" (override via KAFKA_SASL_MECHANISM env var)
 
         Args:
+            username:
+                SASL username for authentication.
+                Fallback: KAFKA_USERNAME environment variable.
+            password:
+                SASL password for authentication.
+                Fallback: KAFKA_PASSWORD environment variable.
             brokers:
-                Comma-separated list of Kafka brokers.
-                If not provided, the value of the KAFKA_BROKERS environment variable is used.
-
+                Comma-separated list of Kafka broker addresses (host:port).
+                Fallback: KAFKA_BROKERS environment variable.
+                Default: "localhost:9092"
             topic:
-                Kafka topic to publish messages to.
-                If not provided, the value of the KAFKA_TOPIC environment variable is used.
-
+                Target Kafka topic for message publishing.
+                Fallback: KAFKA_TOPIC environment variable.
+                Default: "scouter_monitoring"
             compression_type:
-                Compression type to use for messages.
-                Default is "gzip".
-
+                Message compression algorithm.
+                Options: "none", "gzip", "snappy", "lz4", "zstd"
+                Default: "gzip"
             message_timeout_ms:
-                Message timeout in milliseconds.
-                Default is 600_000.
-
+                Maximum time to wait for message delivery (milliseconds).
+                Default: 600000 (10 minutes)
             message_max_bytes:
                 Maximum message size in bytes.
-                Default is 2097164.
-
+                Default: 2097164 (~2MB)
             log_level:
-                Log level for the Kafka producer.
-                Default is LogLevel.Info.
-
+                Logging verbosity for the Kafka producer.
+                Default: LogLevel.Info
             config:
-                Additional Kafka configuration options. These will be passed to the Kafka producer.
-                See https://kafka.apache.org/documentation/#configuration.
-
+                Additional Kafka producer configuration parameters.
+                See: https://kafka.apache.org/documentation/#producerconfigs
+                Note: Direct parameters take precedence over config dictionary values.
             max_retries:
-                Maximum number of retries to attempt when publishing messages.
-                Default is 3.
+                Maximum number of retry attempts for failed message deliveries.
+                Default: 3
 
+        Examples:
+            Basic usage (unauthenticated):
+            ```python
+            config = KafkaConfig(
+                brokers="kafka1:9092,kafka2:9092",
+                topic="my_topic"
+            )
+            ```
+
+            SASL authentication:
+            ```python
+            config = KafkaConfig(
+                username="my_user",
+                password="my_password",
+                brokers="secure-kafka:9093",
+                topic="secure_topic"
+            )
+            ```
+
+            Advanced configuration:
+            ```python
+            config = KafkaConfig(
+                brokers="kafka:9092",
+                compression_type="lz4",
+                config={
+                    "acks": "all",
+                    "batch.size": "32768",
+                    "linger.ms": "10"
+                }
+            )
+            ```
         """
 
     def __str__(self): ...
@@ -374,6 +423,24 @@ class CustomMetricServerRecord:
         """Return the dictionary representation of the record."""
 
 class Feature:
+    def __init__(self, name: str, value: Any) -> None:
+        """Initialize feature. Will attempt to convert the value to it's corresponding feature type.
+        Current support types are int, float, string.
+
+        Args:
+            name:
+                Name of the feature
+            value:
+                Value of the feature. Can be an int, float, or string.
+
+        Example:
+            ```python
+            feature = Feature("feature_1", 1) # int feature
+            feature = Feature("feature_2", 2.0) # float feature
+            feature = Feature("feature_3", "value") # string feature
+            ```
+        """
+
     @staticmethod
     def int(name: str, value: int) -> "Feature":
         """Create an integer feature
@@ -419,12 +486,44 @@ class Feature:
         """
 
 class Features:
-    def __init__(self, features: List[Feature]) -> None:
-        """Initialize features
+    def __init__(
+        self,
+        features: List[Feature] | Dict[str, Union[int, float, str]],
+    ) -> None:
+        """Initialize a features class
 
         Args:
             features:
-                List of features
+                List of features or a dictionary of key-value pairs.
+                If a list, each item must be an instance of Feature.
+                If a dictionary, each key is the feature name and each value is the feature value.
+                Supported types for values are int, float, and string.
+
+        Example:
+            ```python
+            # Passing a list of features
+            features = Features(
+                features=[
+                    Feature.int("feature_1", 1),
+                    Feature.float("feature_2", 2.0),
+                    Feature.string("feature_3", "value"),
+                ]
+            )
+
+            # Passing a dictionary (pydantic model) of features
+            class MyFeatures(BaseModel):
+                feature1: int
+                feature2: float
+                feature3: str
+
+            my_features = MyFeatures(
+                feature1=1,
+                feature2=2.0,
+                feature3="value",
+            )
+
+            features = Features(my_features.model_dump())
+            ```
         """
 
     def __str__(self) -> str:
@@ -439,14 +538,14 @@ class Features:
         """Return the entity type"""
 
 class Metric:
-    def __init__(self, name: str, value: float) -> None:
+    def __init__(self, name: str, value: float | int) -> None:
         """Initialize metric
 
         Args:
             name:
                 Name of the metric
             value:
-                Value to assign to the metric
+                Value to assign to the metric. Can be an int or float but will be converted to float.
         """
 
     def __str__(self) -> str:
@@ -461,12 +560,39 @@ class Metric:
         """Return the entity type"""
 
 class Metrics:
-    def __init__(self, metrics: List[Metric]) -> None:
+    def __init__(self, metrics: List[Metric] | Dict[str, Union[int, float]]) -> None:
         """Initialize metrics
 
         Args:
             metrics:
-                List of metrics
+                List of metrics or a dictionary of key-value pairs.
+                If a list, each item must be an instance of Metric.
+                If a dictionary, each key is the metric name and each value is the metric value.
+
+
+        Example:
+            ```python
+
+            # Passing a list of metrics
+            metrics = Metrics(
+                metrics=[
+                    Metric("metric_1", 1.0),
+                    Metric("metric_2", 2.5),
+                    Metric("metric_3", 3),
+                ]
+            )
+
+            # Passing a dictionary (pydantic model) of metrics
+            class MyMetrics(BaseModel):
+                metric1: float
+                metric2: int
+
+            my_metrics = MyMetrics(
+                metric1=1.0,
+                metric2=2,
+            )
+
+            metrics = Metrics(my_metrics.model_dump())
         """
 
     def __str__(self) -> str:

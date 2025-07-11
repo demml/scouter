@@ -34,6 +34,7 @@ pub async fn get_user(
     PostgresClient::get_user(&state.db_pool, username)
         .await
         .map_err(|e| {
+            error!("Failed to get user from database: {}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ScouterServerError::get_user_error(e)),

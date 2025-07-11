@@ -18,7 +18,7 @@ def test_api_kafka(kafka_scouter_server):
     scouter_client = ScouterClient()
 
     # create the drift profile
-    profile = create_and_register_drift_profile(client=scouter_client)
+    profile = create_and_register_drift_profile(client=scouter_client, name="kafka_test")
     drift_path = profile.save_to_json()
 
     # Create FastAPI app
@@ -46,7 +46,7 @@ def test_api_kafka(kafka_scouter_server):
         space=profile.config.space,
         version=profile.config.version,
         time_interval=TimeInterval.FiveMinutes,
-        max_data_points=100,
+        max_data_points=1,
         drift_type=DriftType.Spc,
     )
 
@@ -58,6 +58,7 @@ def test_api_kafka(kafka_scouter_server):
         "feature_2",
         "feature_3",
     }
+
     assert len(drift.features["feature_0"].values) == 1
 
     # delete the drift_path
@@ -69,7 +70,7 @@ def test_api_http(http_scouter_server):
     scouter_client = ScouterClient()
 
     # create the drift profile
-    profile = create_and_register_drift_profile(client=scouter_client)
+    profile = create_and_register_drift_profile(client=scouter_client, name="http_test")
     drift_path = profile.save_to_json()
 
     # Create FastAPI app
@@ -97,7 +98,7 @@ def test_api_http(http_scouter_server):
         space=profile.config.space,
         version=profile.config.version,
         time_interval=TimeInterval.FiveMinutes,
-        max_data_points=100,
+        max_data_points=1,
         drift_type=DriftType.Spc,
     )
 
@@ -109,6 +110,7 @@ def test_api_http(http_scouter_server):
         "feature_2",
         "feature_3",
     }
+
     assert len(drift.features["feature_0"].values) == 1
 
     # delete the drift_path

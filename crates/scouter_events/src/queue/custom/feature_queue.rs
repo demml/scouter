@@ -133,8 +133,8 @@ mod tests {
 
         let mut metric_batch = Vec::new();
         for i in 0..25 {
-            let one = Metric::new("mae".to_string(), i as f64);
-            let two = Metric::new("mape".to_string(), i as f64);
+            let one = Metric::new_rs("mae".to_string(), i as f64);
+            let two = Metric::new_rs("mape".to_string(), i as f64);
 
             let metrics = Metrics {
                 metrics: vec![one, two],

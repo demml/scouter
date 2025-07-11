@@ -315,5 +315,5 @@ jobs:
         run: |
           for i in $(find dist -type f -print)
           do
-            gh release upload ${{ github.event.release.name }} $i
+            gh release upload ${{ secrets.GITHUB_TOKEN }} $i
           done
