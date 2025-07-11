@@ -45,6 +45,38 @@ pub trait PsiSqlLogic {
             .map_err(SqlError::SqlxError)
     }
 
+    /// Inserts multiple PSI bin counts into the database in a batch.
+    async fn insert_bin_counts_batch(
+        pool: &Pool<Postgres>,
+        records: &[PsiServerRecord],
+    ) -> Result<PgQueryResult, SqlError> {
+        if records.is_empty() {
+            return Err(SqlError::EmptyBatchError);
+        }
+
+        let query = Queries::InsertBinCountsBatch.get_query();
+
+        let created_ats: Vec<DateTime<Utc>> = records.iter().map(|r| r.created_at).collect();
+        let names: Vec<&str> = records.iter().map(|r| r.name.as_str()).collect();
+        let spaces: Vec<&str> = records.iter().map(|r| r.space.as_str()).collect();
+        let versions: Vec<&str> = records.iter().map(|r| r.version.as_str()).collect();
+        let features: Vec<&str> = records.iter().map(|r| r.feature.as_str()).collect();
+        let bin_ids: Vec<i64> = records.iter().map(|r| r.bin_id as i64).collect();
+        let bin_counts: Vec<i64> = records.iter().map(|r| r.bin_count as i64).collect();
+
+        sqlx::query(&query.sql)
+            .bind(created_ats)
+            .bind(names)
+            .bind(spaces)
+            .bind(versions)
+            .bind(features)
+            .bind(bin_ids)
+            .bind(bin_counts)
+            .execute(pool)
+            .await
+            .map_err(SqlError::SqlxError)
+    }
+
     /// Queries the database for PSI drift records based on a time window
     /// and aggregation.
     ///

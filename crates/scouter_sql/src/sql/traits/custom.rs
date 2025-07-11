@@ -33,6 +33,35 @@ pub trait CustomMetricSqlLogic {
             .map_err(SqlError::SqlxError)
     }
 
+    async fn insert_custom_metric_values_batch(
+        pool: &Pool<Postgres>,
+        records: &[CustomMetricServerRecord],
+    ) -> Result<PgQueryResult, SqlError> {
+        if records.is_empty() {
+            return Err(SqlError::EmptyBatchError);
+        }
+
+        let query = Queries::InsertCustomMetricValuesBatch.get_query();
+
+        let created_ats: Vec<DateTime<Utc>> = records.iter().map(|r| r.created_at).collect();
+        let names: Vec<&str> = records.iter().map(|r| r.name.as_str()).collect();
+        let spaces: Vec<&str> = records.iter().map(|r| r.space.as_str()).collect();
+        let versions: Vec<&str> = records.iter().map(|r| r.version.as_str()).collect();
+        let metrics: Vec<&str> = records.iter().map(|r| r.metric.as_str()).collect();
+        let values: Vec<f64> = records.iter().map(|r| r.value).collect();
+
+        sqlx::query(&query.sql)
+            .bind(created_ats)
+            .bind(names)
+            .bind(spaces)
+            .bind(versions)
+            .bind(metrics)
+            .bind(values)
+            .execute(pool)
+            .await
+            .map_err(SqlError::SqlxError)
+    }
+
     async fn get_custom_metric_values(
         pool: &Pool<Postgres>,
         service_info: &ServiceInfo,

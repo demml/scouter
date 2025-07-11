@@ -41,6 +41,35 @@ pub trait SpcSqlLogic {
             .await?)
     }
 
+    async fn insert_spc_drift_records_batch(
+        pool: &Pool<Postgres>,
+        records: &[SpcServerRecord],
+    ) -> Result<PgQueryResult, SqlError> {
+        if records.is_empty() {
+            return Err(SqlError::EmptyBatchError);
+        }
+
+        let query = Queries::InsertSpcDriftRecordBatch.get_query();
+
+        let created_ats: Vec<DateTime<Utc>> = records.iter().map(|r| r.created_at).collect();
+        let names: Vec<&str> = records.iter().map(|r| r.name.as_str()).collect();
+        let spaces: Vec<&str> = records.iter().map(|r| r.space.as_str()).collect();
+        let versions: Vec<&str> = records.iter().map(|r| r.version.as_str()).collect();
+        let features: Vec<&str> = records.iter().map(|r| r.feature.as_str()).collect();
+        let values: Vec<f64> = records.iter().map(|r| r.value).collect();
+
+        sqlx::query(&query.sql)
+            .bind(created_ats)
+            .bind(names)
+            .bind(spaces)
+            .bind(versions)
+            .bind(features)
+            .bind(values)
+            .execute(pool)
+            .await
+            .map_err(SqlError::SqlxError)
+    }
+
     // Queries the database for all features under a service
     // Private method that'll be used to run drift retrieval in parallel
     async fn get_spc_features(

@@ -78,8 +78,70 @@ impl PostgresClient {
 pub struct MessageHandler {}
 
 impl MessageHandler {
+    const DEFAULT_BATCH_SIZE: usize = 500;
     #[instrument(skip_all)]
     pub async fn insert_server_records(
+        pool: &Pool<Postgres>,
+        records: &ServerRecords,
+    ) -> Result<(), SqlError> {
+        debug!("Inserting server records: {:?}", records);
+
+        match records.record_type()? {
+            RecordType::Spc => {
+                let spc_records = records.to_spc_drift_records()?;
+                debug!("SPC record count: {}", spc_records.len());
+
+                for chunk in spc_records.chunks(Self::DEFAULT_BATCH_SIZE) {
+                    PostgresClient::insert_spc_drift_records_batch(pool, chunk)
+                        .await
+                        .map_err(|e| {
+                            error!("Failed to insert SPC drift records batch: {:?}", e);
+                            e
+                        })?;
+                }
+            }
+
+            RecordType::Psi => {
+                let psi_records = records.to_psi_drift_records()?;
+                debug!("PSI record count: {}", psi_records.len());
+
+                for chunk in psi_records.chunks(Self::DEFAULT_BATCH_SIZE) {
+                    PostgresClient::insert_bin_counts_batch(pool, chunk)
+                        .await
+                        .map_err(|e| {
+                            error!("Failed to insert PSI drift records batch: {:?}", e);
+                            e
+                        })?;
+                }
+            }
+            RecordType::Custom => {
+                let custom_records = records.to_custom_metric_drift_records()?;
+                debug!("Custom record count: {}", custom_records.len());
+
+                for chunk in custom_records.chunks(Self::DEFAULT_BATCH_SIZE) {
+                    PostgresClient::insert_custom_metric_values_batch(pool, chunk)
+                        .await
+                        .map_err(|e| {
+                            error!("Failed to insert custom metric records batch: {:?}", e);
+                            e
+                        })?;
+                }
+            }
+
+            _ => {
+                error!(
+                    "Unsupported record type for batch insert: {:?}",
+                    records.record_type()?
+                );
+                return Err(SqlError::UnsupportedBatchTypeError);
+            }
+        }
+
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    pub async fn insert_server_record(
         pool: &Pool<Postgres>,
         records: &ServerRecords,
     ) -> Result<(), SqlError> {
