@@ -1,11 +1,16 @@
-from scouter import Feature, Features
 from pydantic import BaseModel
+from scouter.queue import Feature, Features, Metric, Metrics
 
 
 class MyFeatures(BaseModel):
     feature_1: int
     feature_2: float
     feature_3: str
+
+
+class MyMetrics(BaseModel):
+    metric_1: int
+    metric_2: float
 
 
 def test_feature():
@@ -47,3 +52,26 @@ def test_features():
     # 3rd way (pass a dictionary of key-value pairs)
     features = MyFeatures(feature_1=1, feature_2=2.0, feature_3="value")
     Features(features.model_dump())
+
+
+def test_metric():
+    """This is a simple test to ensure Metric can be instantiated in different ways."""
+
+    # Using init
+    Metric("metric_1", 1)
+    Metric("metric_2", 2.0)
+
+
+def test_metrics():
+    """This is a simple test to ensure Metrics can be instantiated in different ways."""
+
+    # First way (pass list of Metric instances, static method)
+    Metrics(
+        [
+            Metric("metric_1", 1),
+            Metric("metric_2", 2.0),
+        ]
+    )
+
+    my_metrics = MyMetrics(metric_1=1, metric_2=2.0)
+    Metrics(my_metrics.model_dump())

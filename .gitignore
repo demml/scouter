@@ -77,3 +77,10 @@ postgres-data/
 py-scouter/examples/custom_profile.json
 py-scouter/examples/psi_profile.json
 py-scouter/examples/spc_profile.json
+
+# Dont want to show auto-generated doc files
+py-scouter/python/scouter/queue/_queue.pyi
+py-scouter/python/scouter/alert/_alert.pyi
+py-scouter/python/scouter/client/_client.pyi
+py-scouter/python/scouter/profile/_profile.pyi
+py-scouter/python/scouter/types/_types.pyi

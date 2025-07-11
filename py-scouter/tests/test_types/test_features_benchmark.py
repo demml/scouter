@@ -1,5 +1,5 @@
-from scouter import Feature, Features
 from pydantic import BaseModel
+from scouter.queue import Feature, Features
 
 
 class MyFeatures(BaseModel):

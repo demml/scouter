@@ -288,8 +288,15 @@ impl Metric {
         };
         Metric { name, value }
     }
+
     pub fn __str__(&self) -> String {
         ProfileFuncs::__str__(self)
+    }
+}
+
+impl Metric {
+    pub fn new_rs(name: String, value: f64) -> Self {
+        Metric { name, value }
     }
 }
 

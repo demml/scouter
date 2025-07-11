@@ -12,7 +12,7 @@ use scouter_types::contracts::ScouterServerError;
 use scouter_types::JwtToken;
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
-use tracing::{error, instrument};
+use tracing::{debug, error, instrument};
 
 /// Route for the login endpoint when using the API
 ///
@@ -30,6 +30,9 @@ pub async fn api_login_handler(
     headers: HeaderMap,
 ) -> Result<Json<JwtToken>, (StatusCode, Json<ScouterServerError>)> {
     // get Username and Password from headers
+
+    debug!("API login handler called");
+
     let username = headers
         .get("Username")
         .ok_or_else(|| {
@@ -65,6 +68,7 @@ pub async fn api_login_handler(
         .to_string();
 
     // get user from database
+    debug!("Attempting to get user: {}", username);
     let mut user = get_user(&state, &username).await?;
 
     // check if password is correct
@@ -72,11 +76,14 @@ pub async fn api_login_handler(
         .auth_manager
         .validate_user(&user, &password)
         .map_err(|e| {
+            error!("Failed to validate user: {}", e);
             (
                 StatusCode::UNAUTHORIZED,
                 Json(ScouterServerError::unauthorized(e)),
             )
         })?;
+
+    debug!("User {} validated successfully", username);
 
     // we may get multiple requests for the same user (setting up storage and registries), so we
     // need to check if current refresh and jwt tokens are valid and return them if they are
