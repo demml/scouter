@@ -84,6 +84,9 @@ pub enum TypeError {
         "Unsupported feature type. Supported types are float, integer and string. Received: {0}"
     )]
     UnsupportedFeatureTypeError(String),
+
+    #[error("Unsupported features type. Features must be a list of Feature instances or a dictionary of key value pairs. Received: {0}")]
+    UnsupportedFeaturesTypeError(String),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for TypeError {

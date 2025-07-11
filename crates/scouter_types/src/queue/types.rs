@@ -1,7 +1,7 @@
 use crate::error::TypeError;
 use crate::ProfileFuncs;
 use pyo3::prelude::*;
-use pyo3::types::{PyFloat, PyInt, PyString};
+use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PyString};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
@@ -201,11 +201,42 @@ pub struct Features {
 #[pymethods]
 impl Features {
     #[new]
-    pub fn new(features: Vec<Feature>) -> Self {
-        Features {
+    /// Creates a new Features instance.
+    /// A user may supply either a list of features or a single feature.
+    /// Extract features into a Vec<Feature>
+    /// Extraction follows the following rules:
+    /// 1. Check if Pylist, if so, extract to Vec<Feature>
+    /// 2. Check if PyDict, if so, iterate over each key-value pair and create a Feature
+    /// 3. If neither, return an error
+    /// # Arguments
+    /// * `features` - A Python object that can be a list of Feature instances or
+    ///               a dictionary of key-value pairs where keys are feature names
+    /// # Returns
+    /// * `Features` - A new Features instance containing the extracted features.
+    pub fn new(features: Bound<'_, PyAny>) -> Result<Self, TypeError> {
+        let features = if features.is_instance_of::<PyList>() {
+            features
+                .downcast::<PyList>()
+                .unwrap()
+                .iter()
+                .map(|item| item.extract::<Feature>().unwrap())
+                .collect()
+        } else if features.is_instance_of::<PyDict>() {
+            features
+                .downcast::<PyDict>()
+                .unwrap()
+                .iter()
+                .map(|(key, value)| Feature::new(key.extract().unwrap(), value.clone()).unwrap())
+                .collect()
+        } else {
+            Err(TypeError::UnsupportedFeaturesTypeError(
+                features.get_type().name()?.to_string(),
+            ))?
+        };
+        Ok(Features {
             features,
             entity_type: EntityType::Feature,
-        }
+        })
     }
 
     pub fn __str__(&self) -> String {
