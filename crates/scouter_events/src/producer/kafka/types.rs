@@ -45,21 +45,6 @@ impl std::fmt::Display for CompressionType {
     }
 }
 
-fn add_kafka_security(config: &mut HashMap<String, String>) -> Result<(), PyEventError> {
-    if !config.contains_key("sasl.username") || !config.contains_key("sasl.password") {
-        if let (Ok(sasl_username), Ok(sasl_password)) = (
-            env::var("KAFKA_SASL_USERNAME"),
-            env::var("KAFKA_SASL_PASSWORD"),
-        ) {
-            config.insert("sasl.username".to_string(), sasl_username);
-            config.insert("sasl.password".to_string(), sasl_password);
-            config.insert("security.protocol".to_string(), "SASL_SSL".to_string());
-            config.insert("sasl.mechanism".to_string(), "PLAIN".to_string());
-        }
-    }
-    Ok(())
-}
-
 fn add_kafka_args(
     brokers: String,
     compression: CompressionType,
@@ -115,8 +100,10 @@ pub struct KafkaConfig {
 #[allow(clippy::too_many_arguments)]
 impl KafkaConfig {
     #[new]
-    #[pyo3(signature = (brokers=None, topic=None, compression_type=CompressionType::Gzip.to_string(), message_timeout_ms=600000, message_max_bytes=2097164, log_level=LogLevel::Info, config=None, max_retries=3))]
+    #[pyo3(signature = (username=None, password=None,brokers=None, topic=None, compression_type=CompressionType::Gzip.to_string(), message_timeout_ms=600000, message_max_bytes=2097164, log_level=LogLevel::Info, config=None, max_retries=3))]
     pub fn new(
+        username: Option<String>,
+        password: Option<String>,
         brokers: Option<String>,
         topic: Option<String>,
         compression_type: Option<String>,
@@ -126,6 +113,9 @@ impl KafkaConfig {
         config: Option<&Bound<'_, PyDict>>,
         max_retries: Option<i32>,
     ) -> Result<Self, PyEventError> {
+        let username = username.or_else(|| std::env::var("KAFKA_USERNAME").ok());
+        let password = password.or_else(|| std::env::var("KAFKA_PASSWORD").ok());
+
         let brokers = brokers.unwrap_or_else(|| {
             env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_string())
         });
@@ -133,7 +123,7 @@ impl KafkaConfig {
             env::var("KAFKA_TOPIC").unwrap_or_else(|_| "scouter_monitoring".to_string())
         });
         let compression_type =
-            CompressionType::from_str(&compression_type.unwrap_or("gzip".to_string()))?;
+            CompressionType::from_str(&compression_type.unwrap_or_else(|| "gzip".to_string()))?;
         let message_timeout_ms = message_timeout_ms.unwrap_or(600_000);
         let message_max_bytes = message_max_bytes.unwrap_or(2097164);
 
@@ -145,7 +135,9 @@ impl KafkaConfig {
             None => HashMap::new(),
         };
 
-        add_kafka_security(&mut config)?;
+        // add username and password if provided and not already in config
+        Self::add_sasl_credentials(&mut config, username, password);
+
         add_kafka_args(
             brokers.clone(),
             compression_type.clone(),
@@ -154,21 +146,7 @@ impl KafkaConfig {
             &mut config,
         )?;
 
-        let log_level = if let Some(level) = log_level {
-            level
-        } else {
-            let env_var = env::var("LOG_LEVEL")
-                .unwrap_or_else(|_| "info".to_string())
-                .to_lowercase();
-            match env_var.as_str() {
-                "info" => LogLevel::Info,
-                "debug" => LogLevel::Debug,
-                "error" => LogLevel::Error,
-                "warn" => LogLevel::Warn,
-                "trace" => LogLevel::Trace,
-                _ => LogLevel::Info,
-            }
-        };
+        let log_level = Self::resolve_log_level(log_level);
 
         Ok(KafkaConfig {
             brokers,
@@ -180,6 +158,51 @@ impl KafkaConfig {
             config,
             max_retries: max_retries.unwrap_or(3),
             transport_type: TransportType::Kafka,
+        })
+    }
+}
+
+impl KafkaConfig {
+    fn add_sasl_credentials(
+        config: &mut HashMap<String, String>,
+        username: Option<String>,
+        password: Option<String>,
+    ) {
+        // Only add credentials if both are provided and neither key exists in config
+        if !config.contains_key("sasl.username") && !config.contains_key("sasl.password") {
+            if let (Some(username), Some(password)) = (username, password) {
+                config.insert("sasl.username".to_string(), username);
+                config.insert("sasl.password".to_string(), password);
+
+                // If security protocol and sasl mechanism are not set, use defaults
+                if !config.contains_key("security.protocol") {
+                    let security_protocol = std::env::var("KAFKA_SECURITY_PROTOCOL")
+                        .unwrap_or_else(|_| "SASL_SSL".to_string());
+                    config.insert("security.protocol".to_string(), security_protocol);
+                }
+
+                if !config.contains_key("sasl.mechanism") {
+                    let sasl_mechanism = std::env::var("KAFKA_SASL_MECHANISM")
+                        .unwrap_or_else(|_| "PLAIN".to_string());
+                    config.insert("sasl.mechanism".to_string(), sasl_mechanism);
+                }
+            }
+        }
+    }
+
+    /// Resolve log level from parameter or environment variable
+    fn resolve_log_level(log_level: Option<LogLevel>) -> LogLevel {
+        log_level.unwrap_or_else(|| {
+            let env_var = env::var("LOG_LEVEL")
+                .unwrap_or_else(|_| "info".to_string())
+                .to_lowercase();
+            match env_var.as_str() {
+                "debug" => LogLevel::Debug,
+                "error" => LogLevel::Error,
+                "warn" => LogLevel::Warn,
+                "trace" => LogLevel::Trace,
+                _ => LogLevel::Info,
+            }
         })
     }
 }

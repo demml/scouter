@@ -1,8 +1,9 @@
 from pydantic import BaseModel
 from scouter.queue import Feature, Features, Metric, Metrics
+from scouter.util import FeatureMixin
 
 
-class MyFeatures(BaseModel):
+class MyFeatures(BaseModel, FeatureMixin):
     feature_1: int
     feature_2: float
     feature_3: str
@@ -52,6 +53,8 @@ def test_features():
     # 3rd way (pass a dictionary of key-value pairs)
     features = MyFeatures(feature_1=1, feature_2=2.0, feature_3="value")
     Features(features.model_dump())
+
+    features.to_features()
 
 
 def test_metric():

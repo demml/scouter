@@ -66,9 +66,9 @@ class PredictRequest(BaseModel):
     feature_2: float
     feature_3: float
 
-    def to_features(self, prediction: float) -> Features:  # (1)
+    def to_features(self, target: float) -> Features:  # (1)
         model = self.model_dump()
-        model["prediction"] = prediction
+        model["target"] = target
         return Features(features=model)
 
 
@@ -95,6 +95,67 @@ request.to_features()
 
 In the above logic, we access the queue via the request.app.state and the corresponding alias. We then call the insert method with the features we want to send to the Scouter server. This is a simple exchange of data, as the ScouterQueue will pass the features through a channel to a background worker that is running independently on a separate thread. In our benchmarks, inserting data is extremely fast (<1us), so you can expect minimal overhead in your API response time. However, if you want to move the insertion logic to a background task, you can use the `BackgroundTasks` from FastAPI to do so.
 
+
+#### What Queues Expect
+As you can see in the above example, the `ScouterQueue` expects either a `Features` object or a `Metrics` object. Both of these objects designed to be flexible and can be created in a variety of ways. The `Features` object is used for PSI and SPC monitoring, where you are monitoring 'features', and the `Metrics` object is used for custom metrics that you want to monitor.
+
+The `Features` object can be created from a dictionary of key-value pairs, where the keys are the feature names (string) and the values are the feature values (float, int, string). **Note** - these types should correspond to the types that were inferred while creating a drift profile (i.e. if `feat1` was inferred as a `float`, then you should pass a `float` value for `feat1` when inserting data). You can also create a `Features` object by passing a list of `Feature` objects, where each `Feature` object represents a single feature with a name and value.
+
+```python
+from scouter.queue import Features, Feature
+# Passing a list of features
+features = Features(
+    features=[
+        Feature("feature_1", 1),
+        Feature("feature_2", 2.0),
+        Feature("feature_3", "value"),
+    ]
+)
+
+# Passing a dictionary (pydantic model) of features
+class MyFeatures(BaseModel):
+    feature1: int
+    feature2: float
+    feature3: str
+
+my_features = MyFeatures(
+    feature1=1,
+    feature2=2.0,
+    feature3="value",
+)
+
+features = Features(my_features.model_dump())
+```
+
+`Scouter` also comes with a `FeatureMixin`, that can be used to automatically convert a Pydantic model to a `Features` object. This is useful when you want to send the entire model as features without manually creating the `Features` object.
+
+```python
+from scouter.util import FeatureMixin
+class MyFeatures(FeatureMixin, BaseModel):
+    feature1: int
+    feature2: float
+    feature3: str   
+
+my_features = MyFeatures(
+    feature1=1,
+    feature2=2.0,
+    feature3="value",
+)
+features = my_features.to_features()
+```
+`Metrics` also follow a similar pattern to `Features`.
+
+```python
+Metrics(
+    [
+        Metric("metric_1", 1),
+        Metric("metric_2", 2.0),
+    ]
+)
+
+my_metrics = MyMetrics(metric_1=1, metric_2=2.0)
+Metrics(my_metrics.model_dump())
+```
 
 ### Ready to go!
 
