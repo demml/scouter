@@ -173,7 +173,9 @@ class ServerRecord:
     @property
     def record(
         self,
-    ) -> Union[SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics]:
+    ) -> Union[
+        SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics
+    ]:
         """Return the drift server record."""
 
 class ServerRecords:
@@ -374,6 +376,24 @@ class CustomMetricServerRecord:
         """Return the dictionary representation of the record."""
 
 class Feature:
+    def __init__(self, name: str, value: Any) -> None:
+        """Initialize feature. Will attempt to convert the value to it's corresponding feature type.
+        Current support types are int, float, string.
+
+        Args:
+            name:
+                Name of the feature
+            value:
+                Value of the feature. Can be an int, float, or string.
+
+        Example:
+            ```python
+            feature = Feature("feature_1", 1) # int feature
+            feature = Feature("feature_2", 2.0) # float feature
+            feature = Feature("feature_3", "value") # string feature
+            ```
+        """
+
     @staticmethod
     def int(name: str, value: int) -> "Feature":
         """Create an integer feature

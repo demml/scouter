@@ -1,7 +1,7 @@
+use crate::error::TypeError;
 use crate::ProfileFuncs;
 use pyo3::prelude::*;
-
-use crate::error::TypeError;
+use pyo3::types::{PyFloat, PyInt, PyString};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
@@ -88,6 +88,45 @@ pub enum Feature {
 
 #[pymethods]
 impl Feature {
+    #[new]
+    /// Parses a value to it's corresponding feature type.
+    /// PyFLoat -> FloatFeature
+    /// PyInt -> IntFeature
+    /// PyString -> StringFeature
+    /// # Arguments
+    /// * `name` - The name of the feature.
+    /// * `feature` - The value of the feature, which can be a PyFloat
+    /// # Returns
+    /// * `Feature` - The corresponding feature type.
+    /// # Errors
+    /// * `TypeError` - If the feature type is not supported.
+    pub fn new(name: &str, feature: Bound<'_, PyAny>) -> Result<Self, TypeError> {
+        // check python type
+        if feature.is_instance_of::<PyFloat>() {
+            let value: f64 = feature.extract().unwrap();
+            Ok(Feature::Float(FloatFeature {
+                name: name.into(),
+                value,
+            }))
+        } else if feature.is_instance_of::<PyInt>() {
+            let value: i64 = feature.extract().unwrap();
+            Ok(Feature::Int(IntFeature {
+                name: name.into(),
+                value,
+            }))
+        } else if feature.is_instance_of::<PyString>() {
+            let value: String = feature.extract().unwrap();
+            Ok(Feature::String(StringFeature {
+                name: name.into(),
+                value,
+            }))
+        } else {
+            Err(TypeError::UnsupportedFeatureTypeError(
+                feature.get_type().name()?.to_string(),
+            ))
+        }
+    }
+
     #[staticmethod]
     pub fn int(name: String, value: i64) -> Self {
         Feature::Int(IntFeature { name, value })
