@@ -17,30 +17,12 @@ use tracing::{debug, instrument};
 
 #[async_trait]
 pub trait SpcSqlLogic {
-    /// Inserts a drift record into the database
-    ///
+    /// Inserts a batch of SPC drift records into the database
     /// # Arguments
-    ///
-    /// * `record` - A drift record to insert into the database
-    /// * `table_name` - The name of the table to insert the record into
-    ///
-    async fn insert_spc_drift_record(
-        pool: &Pool<Postgres>,
-        record: &SpcServerRecord,
-    ) -> Result<PgQueryResult, SqlError> {
-        let query = Queries::InsertDriftRecord.get_query();
-
-        Ok(sqlx::query(&query.sql)
-            .bind(record.created_at)
-            .bind(&record.name)
-            .bind(&record.space)
-            .bind(&record.version)
-            .bind(&record.feature)
-            .bind(record.value)
-            .execute(pool)
-            .await?)
-    }
-
+    /// * `pool` - The database connection pool
+    /// * `records` - The SPC drift records to insert
+    /// # Returns
+    /// * A result containing the query result or an error
     async fn insert_spc_drift_records_batch(
         pool: &Pool<Postgres>,
         records: &[SpcServerRecord],

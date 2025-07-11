@@ -139,61 +139,6 @@ impl MessageHandler {
 
         Ok(())
     }
-
-    #[instrument(skip_all)]
-    pub async fn insert_server_record(
-        pool: &Pool<Postgres>,
-        records: &ServerRecords,
-    ) -> Result<(), SqlError> {
-        debug!("Inserting server records: {:?}", records);
-        match records.record_type()? {
-            RecordType::Spc => {
-                debug!("SPC record count: {:?}", records.len());
-                let records = records.to_spc_drift_records()?;
-                for record in records.iter() {
-                    let _ = PostgresClient::insert_spc_drift_record(pool, record)
-                        .await
-                        .map_err(|e| {
-                            error!("Failed to insert drift record: {:?}", e);
-                        });
-                }
-            }
-            RecordType::Observability => {
-                debug!("Observability record count: {:?}", records.len());
-                let records = records.to_observability_drift_records()?;
-                for record in records.iter() {
-                    let _ = PostgresClient::insert_observability_record(pool, record)
-                        .await
-                        .map_err(|e| {
-                            error!("Failed to insert observability record: {:?}", e);
-                        });
-                }
-            }
-            RecordType::Psi => {
-                debug!("PSI record count: {:?}", records.len());
-                let records = records.to_psi_drift_records()?;
-                for record in records.iter() {
-                    let _ = PostgresClient::insert_bin_counts(pool, record)
-                        .await
-                        .map_err(|e| {
-                            error!("Failed to insert bin count record: {:?}", e);
-                        });
-                }
-            }
-            RecordType::Custom => {
-                debug!("Custom record count: {:?}", records.len());
-                let records = records.to_custom_metric_drift_records()?;
-                for record in records.iter() {
-                    let _ = PostgresClient::insert_custom_metric_value(pool, record)
-                        .await
-                        .map_err(|e| {
-                            error!("Failed to insert bin count record: {:?}", e);
-                        });
-                }
-            }
-        };
-        Ok(())
-    }
 }
 
 /// Runs database integratino tests
@@ -343,7 +288,7 @@ mod tests {
     async fn test_postgres_spc_drift_record() {
         let pool = db_pool().await;
 
-        let record = SpcServerRecord {
+        let record1 = SpcServerRecord {
             created_at: Utc::now(),
             space: SPACE.to_string(),
             name: NAME.to_string(),
@@ -352,18 +297,27 @@ mod tests {
             value: 1.0,
         };
 
-        let result = PostgresClient::insert_spc_drift_record(&pool, &record)
+        let record2 = SpcServerRecord {
+            created_at: Utc::now(),
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
+            feature: "test2".to_string(),
+            value: 2.0,
+        };
+
+        let result = PostgresClient::insert_spc_drift_records_batch(&pool, &[record1, record2])
             .await
             .unwrap();
 
-        assert_eq!(result.rows_affected(), 1);
+        assert_eq!(result.rows_affected(), 2);
     }
 
     #[tokio::test]
     async fn test_postgres_bin_count() {
         let pool = db_pool().await;
 
-        let record = PsiServerRecord {
+        let record1 = PsiServerRecord {
             created_at: Utc::now(),
             space: SPACE.to_string(),
             name: NAME.to_string(),
@@ -373,11 +327,21 @@ mod tests {
             bin_count: 1,
         };
 
-        let result = PostgresClient::insert_bin_counts(&pool, &record)
+        let record2 = PsiServerRecord {
+            created_at: Utc::now(),
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
+            feature: "test2".to_string(),
+            bin_id: 2,
+            bin_count: 2,
+        };
+
+        let result = PostgresClient::insert_bin_counts_batch(&pool, &[record1, record2])
             .await
             .unwrap();
 
-        assert_eq!(result.rows_affected(), 1);
+        assert_eq!(result.rows_affected(), 2);
     }
 
     #[tokio::test]
@@ -453,9 +417,10 @@ mod tests {
         let timestamp = Utc::now();
 
         for _ in 0..10 {
+            let mut records = Vec::new();
             for j in 0..10 {
                 let record = SpcServerRecord {
-                    created_at: Utc::now(),
+                    created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                     space: SPACE.to_string(),
                     name: NAME.to_string(),
                     version: VERSION.to_string(),
@@ -463,11 +428,13 @@ mod tests {
                     value: j as f64,
                 };
 
-                let result = PostgresClient::insert_spc_drift_record(&pool, &record)
-                    .await
-                    .unwrap();
-                assert_eq!(result.rows_affected(), 1);
+                records.push(record);
             }
+
+            let result = PostgresClient::insert_spc_drift_records_batch(&pool, &records)
+                .await
+                .unwrap();
+            assert_eq!(result.rows_affected(), records.len() as u64);
         }
 
         let service_info = ServiceInfo {
@@ -556,9 +523,10 @@ mod tests {
 
         for feature in 0..num_features {
             for bin in 0..=num_bins {
-                for _ in 0..=100 {
+                let mut records = Vec::new();
+                for j in 0..=100 {
                     let record = PsiServerRecord {
-                        created_at: Utc::now(),
+                        created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                         space: SPACE.to_string(),
                         name: NAME.to_string(),
                         version: VERSION.to_string(),
@@ -567,10 +535,11 @@ mod tests {
                         bin_count: rand::rng().random_range(0..10),
                     };
 
-                    PostgresClient::insert_bin_counts(&pool, &record)
-                        .await
-                        .unwrap();
+                    records.push(record);
                 }
+                PostgresClient::insert_bin_counts_batch(&pool, &records)
+                    .await
+                    .unwrap();
             }
         }
 
@@ -625,21 +594,22 @@ mod tests {
         let timestamp = Utc::now();
 
         for i in 0..2 {
-            for _ in 0..25 {
+            let mut records = Vec::new();
+            for j in 0..25 {
                 let record = CustomMetricServerRecord {
-                    created_at: Utc::now(),
+                    created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                     space: SPACE.to_string(),
                     name: NAME.to_string(),
                     version: VERSION.to_string(),
                     metric: format!("metric{i}"),
                     value: rand::rng().random_range(0..10) as f64,
                 };
-
-                let result = PostgresClient::insert_custom_metric_value(&pool, &record)
-                    .await
-                    .unwrap();
-                assert_eq!(result.rows_affected(), 1);
+                records.push(record);
             }
+            let result = PostgresClient::insert_custom_metric_values_batch(&pool, &records)
+                .await
+                .unwrap();
+            assert_eq!(result.rows_affected(), 25);
         }
 
         // insert random record to test has statistics funcs handle single record
@@ -652,7 +622,7 @@ mod tests {
             value: rand::rng().random_range(0..10) as f64,
         };
 
-        let result = PostgresClient::insert_custom_metric_value(&pool, &record)
+        let result = PostgresClient::insert_custom_metric_values_batch(&pool, &[record])
             .await
             .unwrap();
         assert_eq!(result.rows_affected(), 1);

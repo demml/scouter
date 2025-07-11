@@ -14,25 +14,6 @@ use tracing::{debug, instrument};
 
 #[async_trait]
 pub trait CustomMetricSqlLogic {
-    /// Inserts a custom metric value into the database.
-    async fn insert_custom_metric_value(
-        pool: &Pool<Postgres>,
-        record: &CustomMetricServerRecord,
-    ) -> Result<PgQueryResult, SqlError> {
-        let query = Queries::InsertCustomMetricValues.get_query();
-
-        sqlx::query(&query.sql)
-            .bind(record.created_at)
-            .bind(&record.name)
-            .bind(&record.space)
-            .bind(&record.version)
-            .bind(&record.metric)
-            .bind(record.value)
-            .execute(pool)
-            .await
-            .map_err(SqlError::SqlxError)
-    }
-
     async fn insert_custom_metric_values_batch(
         pool: &Pool<Postgres>,
         records: &[CustomMetricServerRecord],

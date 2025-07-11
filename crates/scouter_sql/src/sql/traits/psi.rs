@@ -18,34 +18,14 @@ use tracing::{debug, instrument};
 
 #[async_trait]
 pub trait PsiSqlLogic {
-    /// Inserts a PSI bin count into the database.
+    /// Inserts multiple PSI bin counts into the database in a batch.
     ///
     /// # Arguments
     /// * `pool` - The database connection pool
-    /// * `record` - The PSI server record to insert
+    /// * `records` - The PSI server records to insert
     ///
     /// # Returns
     /// * A result containing the query result or an error
-    async fn insert_bin_counts(
-        pool: &Pool<Postgres>,
-        record: &PsiServerRecord,
-    ) -> Result<PgQueryResult, SqlError> {
-        let query = Queries::InsertBinCounts.get_query();
-
-        sqlx::query(&query.sql)
-            .bind(record.created_at)
-            .bind(&record.name)
-            .bind(&record.space)
-            .bind(&record.version)
-            .bind(&record.feature)
-            .bind(record.bin_id as i64)
-            .bind(record.bin_count as i64)
-            .execute(pool)
-            .await
-            .map_err(SqlError::SqlxError)
-    }
-
-    /// Inserts multiple PSI bin counts into the database in a batch.
     async fn insert_bin_counts_batch(
         pool: &Pool<Postgres>,
         records: &[PsiServerRecord],
