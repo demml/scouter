@@ -275,7 +275,17 @@ pub struct Metric {
 #[pymethods]
 impl Metric {
     #[new]
-    pub fn new(name: String, value: f64) -> Self {
+    pub fn new(name: String, value: Bound<'_, PyAny>) -> Self {
+        let value = if value.is_instance_of::<PyFloat>() {
+            value.extract::<f64>().unwrap()
+        } else if value.is_instance_of::<PyInt>() {
+            value.extract::<i64>().unwrap() as f64
+        } else {
+            panic!(
+                "Unsupported metric type: {}",
+                value.get_type().name().unwrap()
+            );
+        };
         Metric { name, value }
     }
     pub fn __str__(&self) -> String {
@@ -296,11 +306,30 @@ pub struct Metrics {
 #[pymethods]
 impl Metrics {
     #[new]
-    pub fn new(metrics: Vec<Metric>) -> Self {
-        Metrics {
+    pub fn new(metrics: Bound<'_, PyAny>) -> Result<Self, TypeError> {
+        let metrics = if metrics.is_instance_of::<PyList>() {
+            metrics
+                .downcast::<PyList>()
+                .unwrap()
+                .iter()
+                .map(|item| item.extract::<Metric>().unwrap())
+                .collect()
+        } else if metrics.is_instance_of::<PyDict>() {
+            metrics
+                .downcast::<PyDict>()
+                .unwrap()
+                .iter()
+                .map(|(key, value)| Metric::new(key.extract().unwrap(), value))
+                .collect()
+        } else {
+            Err(TypeError::UnsupportedMetricsTypeError(
+                metrics.get_type().name()?.to_string(),
+            ))?
+        };
+        Ok(Metrics {
             metrics,
             entity_type: EntityType::Metric,
-        }
+        })
     }
     pub fn __str__(&self) -> String {
         ProfileFuncs::__str__(self)

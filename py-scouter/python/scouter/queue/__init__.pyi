@@ -439,12 +439,44 @@ class Feature:
         """
 
 class Features:
-    def __init__(self, features: List[Feature]) -> None:
-        """Initialize features
+    def __init__(
+        self,
+        features: List[Feature] | Dict[str, Union[int, float, str]],
+    ) -> None:
+        """Initialize a features class
 
         Args:
             features:
-                List of features
+                List of features or a dictionary of key-value pairs.
+                If a list, each item must be an instance of Feature.
+                If a dictionary, each key is the feature name and each value is the feature value.
+                Supported types for values are int, float, and string.
+
+        Example:
+            ```python
+            # Passing a list of features
+            features = Features(
+                features=[
+                    Feature.int("feature_1", 1),
+                    Feature.float("feature_2", 2.0),
+                    Feature.string("feature_3", "value"),
+                ]
+            )
+
+            # Passing a dictionary (pydantic model) of features
+            class MyFeatures(BaseModel):
+                feature1: int
+                feature2: float
+                feature3: str
+
+            my_features = MyFeatures(
+                feature1=1,
+                feature2=2.0,
+                feature3="value",
+            )
+
+            features = Features(my_features.model_dump())
+            ```
         """
 
     def __str__(self) -> str:
@@ -459,14 +491,14 @@ class Features:
         """Return the entity type"""
 
 class Metric:
-    def __init__(self, name: str, value: float) -> None:
+    def __init__(self, name: str, value: float | int) -> None:
         """Initialize metric
 
         Args:
             name:
                 Name of the metric
             value:
-                Value to assign to the metric
+                Value to assign to the metric. Can be an int or float but will be converted to float.
         """
 
     def __str__(self) -> str:
@@ -481,12 +513,39 @@ class Metric:
         """Return the entity type"""
 
 class Metrics:
-    def __init__(self, metrics: List[Metric]) -> None:
+    def __init__(self, metrics: List[Metric] | Dict[str, Union[int, float]]) -> None:
         """Initialize metrics
 
         Args:
             metrics:
-                List of metrics
+                List of metrics or a dictionary of key-value pairs.
+                If a list, each item must be an instance of Metric.
+                If a dictionary, each key is the metric name and each value is the metric value.
+
+
+        Example:
+            ```python
+
+            # Passing a list of metrics
+            metrics = Metrics(
+                metrics=[
+                    Metric("metric_1", 1.0),
+                    Metric("metric_2", 2.5),
+                    Metric("metric_3", 3),
+                ]
+            )
+
+            # Passing a dictionary (pydantic model) of metrics
+            class MyMetrics(BaseModel):
+                metric1: float
+                metric2: int
+
+            my_metrics = MyMetrics(
+                metric1=1.0,
+                metric2=2,
+            )
+
+            metrics = Metrics(my_metrics.model_dump())
         """
 
     def __str__(self) -> str:
