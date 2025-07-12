@@ -1,6 +1,6 @@
 # pylint: disable=dangerous-default-value
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, overload
+from typing import Any, Dict, List, Optional, Union, overload, Protocol
 
 from ..alert import (
     AlertThreshold,
@@ -858,6 +858,57 @@ class CustomDriftProfile:
             None
         """
 
+class Prompt(Protocol):
+    """Potato Head Prompt Protocol"""
+
+class LLMMetric:
+    """Metric for monitoring LLM performance."""
+
+    def __init__(
+        self,
+        name: str,
+        value: float,
+        alert_threshold: AlertThreshold,
+        alert_threshold_value: Optional[float] = None,
+        prompt: Optional[Prompt] = None,
+    ):
+        """
+        Initialize a metric for monitoring LLM performance.
+
+        Args:
+            name (str):
+                The name of the metric being monitored. This should be a
+                descriptive identifier for the metric.
+            value (float):
+                The current value of the metric.
+            alert_threshold (AlertThreshold):
+                The condition used to determine when an alert should be triggered.
+            alert_threshold_value (Optional[float]):
+                The threshold or boundary value used in conjunction with the alert_threshold.
+                If supplied, this value will be added or subtracted from the provided metric value to
+                determine if an alert should be triggered.
+            prompt (Optional[Prompt]):
+                Optional prompt associated with the metric. This can be used to provide context or
+                additional information about the metric being monitored. If creating an LLM drift profile
+                from a pre-defined workflow, this can be none.
+        """
+
+    @property
+    def name(self) -> str:
+        """Return the metric name"""
+
+    @property
+    def value(self) -> float:
+        """Return the metric value"""
+
+    @property
+    def prompt(self) -> Optional[Prompt]:
+        """Return the prompt associated with the metric"""
+
+    @property
+    def alert_condition(self) -> LLMMetricAlertCondition:
+        """Return the alert_condition"""
+
 class Drifter:
     def __init__(self) -> None:
         """Instantiate Rust Drifter class that is
@@ -962,7 +1013,9 @@ class Drifter:
     def create_drift_profile(  # type: ignore
         self,
         data: Any,
-        config: Optional[Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]] = None,
+        config: Optional[
+            Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]
+        ] = None,
         data_type: Optional[DataType] = None,
     ) -> Union[SpcDriftProfile, PsiDriftProfile, CustomDriftProfile]:
         """Create a drift profile from data.

@@ -217,5 +217,13 @@ impl ScouterTestServer {
 pub fn test(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ScouterTestServer>()?;
     m.add_class::<MockConfig>()?;
+
+    #[cfg(feature = "server")]
+    {
+        m.add_class::<potato_head::PyAgent>()?;
+        m.add_class::<potato_head::PyWorkflow>()?;
+        m.add_class::<potato_head::PyTask>()?;
+        m.add_class::<potato_head::Prompt>()?;
+    }
     Ok(())
 }

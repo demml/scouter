@@ -55,7 +55,9 @@ class AlertDispatchType:
     def to_string() -> str:
         """Return the string representation of the alert dispatch type"""
 
-DispatchConfigType = ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
+DispatchConfigType = (
+    ConsoleDispatchConfig | SlackDispatchConfig | OpsGenieDispatchConfig
+)
 
 class AlertZone:
     Zone1: "AlertZone"
@@ -399,5 +401,60 @@ class CustomMetricAlertConfig:
         """Return the alert_condition that were set during metric definition"""
 
     @alert_conditions.setter
-    def alert_conditions(self, alert_conditions: dict[str, CustomMetricAlertCondition]) -> None:
+    def alert_conditions(
+        self, alert_conditions: dict[str, CustomMetricAlertCondition]
+    ) -> None:
         """Update the alert_condition that were set during metric definition"""
+
+class LLMMetricAlertConfig:
+    def __init__(
+        self,
+        dispatch_config: Optional[SlackDispatchConfig | OpsGenieDispatchConfig] = None,
+        schedule: Optional[str | CommonCrons] = None,
+    ):
+        """Initialize alert config
+
+        Args:
+            dispatch_config:
+                Alert dispatch config. Defaults to console
+            schedule:
+                Schedule to run monitor. Defaults to daily at midnight
+
+        """
+
+    @property
+    def dispatch_type(self) -> AlertDispatchType:
+        """Return the alert dispatch type"""
+
+    @property
+    def dispatch_config(self) -> DispatchConfigType:
+        """Return the dispatch config"""
+
+    @property
+    def schedule(self) -> str:
+        """Return the schedule"""
+
+    @schedule.setter
+    def schedule(self, schedule: str) -> None:
+        """Set the schedule"""
+
+class LLMMetricAlertCondition:
+    def __init__(
+        self,
+        alert_threshold: AlertThreshold,
+        alert_threshold_value: Optional[float],
+    ):
+        """Initialize a LLMMetricAlertCondition instance.
+        Args:
+            alert_threshold (AlertThreshold):
+                The condition that determines when an alert should be triggered.
+                Must be one of the AlertThreshold enum members like Below, Above, or Outside.
+            alert_threshold_value (Optional[float], optional):
+                A numerical boundary used in conjunction with the alert_threshold.
+                This can be None for certain types of comparisons that don't require a fixed boundary.
+        Example:
+            alert_threshold = LLMMetricAlertCondition(AlertCondition.BELOW, 2.0)
+        """
+
+    def __str__(self): ...
+    """Return the string representation of the alert condition."""
