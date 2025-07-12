@@ -1,14 +1,14 @@
 # pylint: disable=dangerous-default-value
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union, overload, Protocol
+from typing import Any, Dict, List, Optional, Protocol, Union, overload
 
 from ..alert import (
     AlertThreshold,
     CustomMetricAlertCondition,
     CustomMetricAlertConfig,
+    LLMAlertConfig,
     PsiAlertConfig,
     SpcAlertConfig,
-    LLMAlertConfig,
 )
 from ..types import DataType, DriftType
 
@@ -1259,9 +1259,7 @@ class Drifter:
     def create_drift_profile(  # type: ignore
         self,
         data: Any,
-        config: Optional[
-            Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]
-        ] = None,
+        config: Optional[Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]] = None,
         data_type: Optional[DataType] = None,
     ) -> Union[SpcDriftProfile, PsiDriftProfile, CustomDriftProfile]:
         """Create a drift profile from data.

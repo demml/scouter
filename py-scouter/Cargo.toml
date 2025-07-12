@@ -19,6 +19,7 @@ reqwest = { workspace = true, optional = true }
 rusty-logging = { workspace = true }
 scouter-client = { workspace = true }
 scouter-server = { workspace = true , optional = true, features = ["kafka", "rabbitmq", "redis_events"] }
+scouter-mocks = { workspace = true}
 thiserror = { workspace = true }
 tokio = { workspace = true,  optional = true }
 tracing-subscriber = { workspace = true }
@@ -27,8 +28,7 @@ tracing = { workspace = true }
 
 [features]
 default = []
-mock = ["potato-head"]
-server = ["scouter-server", "tokio", "reqwest"]
+server = ["scouter-server", "tokio", "reqwest", "scouter-mocks/server"]
 
 [profile.release]
 lto = "fat"

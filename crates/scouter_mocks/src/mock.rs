@@ -1,6 +1,5 @@
 // add test logic
 use pyo3::prelude::*;
-use scouter_client::MockConfig;
 use std::path::PathBuf;
 use thiserror::Error;
 use tracing::debug;
@@ -213,17 +212,21 @@ impl ScouterTestServer {
     }
 }
 
-#[pymodule]
-pub fn test(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<ScouterTestServer>()?;
-    m.add_class::<MockConfig>()?;
+// Create a dummy PyAgent class for testing
+#[pyclass(name = "Agent")]
+pub struct PyAgent;
 
-    #[cfg(feature = "mock")]
-    {
-        m.add_class::<potato_head::PyAgent>()?;
-        m.add_class::<potato_head::PyWorkflow>()?;
-        m.add_class::<potato_head::PyTask>()?;
-        m.add_class::<potato_head::Prompt>()?;
-    }
-    Ok(())
-}
+#[pyclass(name = "Workflow")]
+pub struct PyWorkflow;
+
+#[pyclass(name = "Task")]
+pub struct Task;
+
+#[pyclass(name = "Prompt")]
+pub struct Prompt;
+
+#[pyclass(name = "Score")]
+pub struct Score;
+
+#[pyclass(name = "OpenAITestServer")]
+pub struct OpenAITestServer;
