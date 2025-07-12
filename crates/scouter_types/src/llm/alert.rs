@@ -31,13 +31,13 @@ pub struct LLMMetric {
 #[pymethods]
 impl LLMMetric {
     #[new]
-    #[pyo3(signature = (name, value, prompt, alert_threshold, alert_threshold_value=None))]
+    #[pyo3(signature = (name, value, alert_threshold, alert_threshold_value=None, prompt=None))]
     pub fn new(
         name: &str,
         value: f64,
-        prompt: Option<Prompt>,
         alert_threshold: AlertThreshold,
         alert_threshold_value: Option<f64>,
+        prompt: Option<Prompt>,
     ) -> Result<Self, TypeError> {
         // assert that the prompt is a scoring prompt
         if let Some(ref prompt) = prompt {
@@ -102,7 +102,7 @@ impl LLMMetricAlertCondition {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct LLMMetricAlertConfig {
+pub struct LLMAlertConfig {
     pub dispatch_config: AlertDispatchConfig,
 
     #[pyo3(get, set)]
@@ -112,7 +112,7 @@ pub struct LLMMetricAlertConfig {
     pub alert_conditions: Option<HashMap<String, LLMMetricAlertCondition>>,
 }
 
-impl LLMMetricAlertConfig {
+impl LLMAlertConfig {
     pub fn set_alert_conditions(&mut self, metrics: &[LLMMetric]) {
         self.alert_conditions = Some(
             metrics
@@ -123,10 +123,10 @@ impl LLMMetricAlertConfig {
     }
 }
 
-impl ValidateAlertConfig for LLMMetricAlertConfig {}
+impl ValidateAlertConfig for LLMAlertConfig {}
 
 #[pymethods]
-impl LLMMetricAlertConfig {
+impl LLMAlertConfig {
     #[new]
     #[pyo3(signature = (schedule=None, dispatch_config=None))]
     pub fn new(
@@ -179,8 +179,8 @@ impl LLMMetricAlertConfig {
     }
 }
 
-impl Default for LLMMetricAlertConfig {
-    fn default() -> LLMMetricAlertConfig {
+impl Default for LLMAlertConfig {
+    fn default() -> LLMAlertConfig {
         Self {
             dispatch_config: AlertDispatchConfig::default(),
             schedule: CommonCrons::EveryDay.cron(),
@@ -271,7 +271,7 @@ mod tests {
             priority: "P5".to_string(),
         });
         let schedule = "0 0 * * * *".to_string();
-        let mut alert_config = LLMMetricAlertConfig {
+        let mut alert_config = LLMAlertConfig {
             dispatch_config,
             schedule,
             ..Default::default()
@@ -284,17 +284,17 @@ mod tests {
             LLMMetric::new(
                 "mae",
                 12.4,
-                Some(prompt.clone()),
                 AlertThreshold::Above,
                 Some(2.3),
+                Some(prompt.clone()),
             )
             .unwrap(),
             LLMMetric::new(
                 "accuracy",
                 0.85,
-                Some(prompt.clone()),
                 AlertThreshold::Below,
                 None,
+                Some(prompt.clone()),
             )
             .unwrap(),
         ];

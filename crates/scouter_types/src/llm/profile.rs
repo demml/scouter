@@ -1,6 +1,6 @@
 use crate::error::{ProfileError, TypeError};
+use crate::llm::alert::LLMAlertConfig;
 use crate::llm::alert::LLMMetric;
-use crate::llm::alert::LLMMetricAlertConfig;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::ProfileRequest;
 use crate::{
@@ -40,7 +40,7 @@ pub struct LLMDriftConfig {
     pub version: String,
 
     #[pyo3(get, set)]
-    pub alert_config: LLMMetricAlertConfig,
+    pub alert_config: LLMAlertConfig,
 
     #[pyo3(get, set)]
     #[serde(default = "default_drift_type")]
@@ -66,13 +66,13 @@ impl DispatchDriftConfig for LLMDriftConfig {
 #[allow(clippy::too_many_arguments)]
 impl LLMDriftConfig {
     #[new]
-    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, sample_rate=5, alert_config=LLMMetricAlertConfig::default(), config_path=None))]
+    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, sample_rate=5, alert_config=LLMAlertConfig::default(), config_path=None))]
     pub fn new(
         space: &str,
         name: &str,
         version: &str,
         sample_rate: usize,
-        alert_config: LLMMetricAlertConfig,
+        alert_config: LLMAlertConfig,
         config_path: Option<PathBuf>,
     ) -> Result<Self, ProfileError> {
         if let Some(config_path) = config_path {
@@ -116,7 +116,7 @@ impl LLMDriftConfig {
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
-        alert_config: Option<LLMMetricAlertConfig>,
+        alert_config: Option<LLMAlertConfig>,
     ) -> Result<(), TypeError> {
         if name.is_some() {
             self.name = name.ok_or(TypeError::MissingNameError)?;
@@ -304,7 +304,6 @@ impl LLMDriftProfile {
     /// * `config` - LLMDriftConfig - The configuration for the LLM drift profile
     /// * `metrics` - Option<Bound<'_, PyList>> - Optional list of metrics that will be used to evaluate the LLM
     /// * `workflow` - Option<Bound<'_, PyAny>> - Optional workflow to use for the LLM drift profile
-    /// * `scouter_version` - Option<String> - The version of scouter that
     ///
     /// # Returns
     /// * `Result<Self, ProfileError>` - The LLMDriftProfile
@@ -396,7 +395,7 @@ impl LLMDriftProfile {
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
-        alert_config: Option<LLMMetricAlertConfig>,
+        alert_config: Option<LLMAlertConfig>,
     ) -> Result<(), TypeError> {
         self.config
             .update_config_args(space, name, version, alert_config)
@@ -593,7 +592,7 @@ mod tests {
             MISSING,
             "0.1.0",
             25,
-            LLMMetricAlertConfig::default(),
+            LLMAlertConfig::default(),
             None,
         )
         .unwrap();
@@ -608,7 +607,7 @@ mod tests {
         let test_slack_dispatch_config = SlackDispatchConfig {
             channel: "test-channel".to_string(),
         };
-        let new_alert_config = LLMMetricAlertConfig {
+        let new_alert_config = LLMAlertConfig {
             schedule: "0 0 * * * *".to_string(),
             dispatch_config: AlertDispatchConfig::Slack(test_slack_dispatch_config.clone()),
             ..Default::default()
@@ -639,23 +638,23 @@ mod tests {
         let metric1 = LLMMetric::new(
             "metric1",
             5.0,
-            Some(prompt.clone()),
             AlertThreshold::Above,
             None,
+            Some(prompt.clone()),
         )
         .unwrap();
         let metric2 = LLMMetric::new(
             "metric2",
             3.0,
-            Some(prompt.clone()),
             AlertThreshold::Below,
             Some(1.0),
+            Some(prompt.clone()),
         )
         .unwrap();
 
         let llm_metrics = vec![metric1, metric2];
 
-        let alert_config = LLMMetricAlertConfig {
+        let alert_config = LLMAlertConfig {
             schedule: "0 0 * * * *".to_string(),
             dispatch_config: AlertDispatchConfig::OpsGenie(OpsGenieDispatchConfig {
                 team: "test-team".to_string(),
@@ -723,12 +722,12 @@ mod tests {
             ))
             .unwrap();
 
-        let metric1 = LLMMetric::new("task2", 3.0, None, AlertThreshold::Below, Some(1.0)).unwrap();
-        let metric2 = LLMMetric::new("task3", 4.0, None, AlertThreshold::Above, Some(2.0)).unwrap();
+        let metric1 = LLMMetric::new("task2", 3.0, AlertThreshold::Below, Some(1.0), None).unwrap();
+        let metric2 = LLMMetric::new("task3", 4.0, AlertThreshold::Above, Some(2.0), None).unwrap();
 
         let llm_metrics = vec![metric1, metric2];
 
-        let alert_config = LLMMetricAlertConfig {
+        let alert_config = LLMAlertConfig {
             schedule: "0 0 * * * *".to_string(),
             dispatch_config: AlertDispatchConfig::OpsGenie(OpsGenieDispatchConfig {
                 team: "test-team".to_string(),

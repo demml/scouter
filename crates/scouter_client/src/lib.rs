@@ -15,9 +15,7 @@ pub use scouter_types::{
         BinnedCustomMetric, BinnedCustomMetricStats, BinnedCustomMetrics, CustomDriftProfile,
         CustomMetric, CustomMetricAlertCondition, CustomMetricAlertConfig, CustomMetricDriftConfig,
     },
-    llm::{
-        LLMDriftConfig, LLMDriftProfile, LLMMetric, LLMMetricAlertCondition, LLMMetricAlertConfig,
-    },
+    llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftProfile, LLMMetric, LLMMetricAlertCondition},
     psi::{
         Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiChiSquareThreshold,
         PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile, PsiFixedThreshold,

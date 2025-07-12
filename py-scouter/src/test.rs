@@ -218,7 +218,7 @@ pub fn test(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ScouterTestServer>()?;
     m.add_class::<MockConfig>()?;
 
-    #[cfg(feature = "server")]
+    #[cfg(feature = "mock")]
     {
         m.add_class::<potato_head::PyAgent>()?;
         m.add_class::<potato_head::PyWorkflow>()?;

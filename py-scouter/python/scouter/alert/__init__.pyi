@@ -1,6 +1,6 @@
 # pylint: disable=dangerous-default-value
 
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from ..types import CommonCrons
 
@@ -406,7 +406,7 @@ class CustomMetricAlertConfig:
     ) -> None:
         """Update the alert_condition that were set during metric definition"""
 
-class LLMMetricAlertConfig:
+class LLMAlertConfig:
     def __init__(
         self,
         dispatch_config: Optional[SlackDispatchConfig | OpsGenieDispatchConfig] = None,
@@ -437,6 +437,10 @@ class LLMMetricAlertConfig:
     @schedule.setter
     def schedule(self, schedule: str) -> None:
         """Set the schedule"""
+
+    @property
+    def alert_conditions(self) -> Optional[Dict[str, LLMMetricAlertCondition]]:
+        """Return the alert conditions"""
 
 class LLMMetricAlertCondition:
     def __init__(
