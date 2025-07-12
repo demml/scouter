@@ -2,6 +2,8 @@
 
 // spc
 const INSERT_DRIFT_RECORD: &str = include_str!("scripts/spc/insert_spc_drift_record.sql");
+const INSERT_SPC_DRIFT_RECORD_BATCH: &str =
+    include_str!("scripts/spc/insert_spc_drift_record_batch.sql");
 const GET_SPC_FEATURES: &str = include_str!("scripts/spc/unique_spc_features.sql");
 const GET_BINNED_SPC_FEATURE_VALUES: &str =
     include_str!("scripts/spc/binned_spc_feature_values.sql");
@@ -12,6 +14,7 @@ const UPDATE_SPC_ENTITIES: &str = include_str!("scripts/spc/update_data_to_archi
 
 // psi
 const INSERT_BIN_COUNTS: &str = include_str!("scripts/psi/insert_bin_counts.sql");
+const INSERT_BIN_COUNTS_BATCH: &str = include_str!("scripts/psi/insert_bin_counts_batch.sql");
 const GET_BINNED_PSI_FEATURE_BINS: &str =
     include_str!("scripts/psi/binned_psi_feature_bin_proportions.sql");
 const GET_FEATURE_BIN_PROPORTIONS: &str =
@@ -28,6 +31,8 @@ const GET_BINNED_CUSTOM_METRIC_VALUES: &str =
 const GET_CUSTOM_METRIC_VALUES: &str = include_str!("scripts/custom/get_custom_metric_values.sql");
 const INSERT_CUSTOM_METRIC_VALUES: &str =
     include_str!("scripts/custom/insert_custom_metric_values.sql");
+const INSERT_CUSTOM_METRIC_VALUES_BATCH: &str =
+    include_str!("scripts/custom/insert_custom_metric_values_batch.sql");
 const GET_CUSTOM_ENTITIES: &str =
     include_str!("scripts/custom/get_custom_metric_entities_for_archive.sql");
 const GET_CUSTOM_DATA_FOR_ARCHIVE: &str =
@@ -90,6 +95,10 @@ pub enum Queries {
     GetFeatureBinProportions,
     GetCustomMetricValues,
     InsertCustomMetricValues,
+
+    InsertCustomMetricValuesBatch,
+    InsertSpcDriftRecordBatch,
+    InsertBinCountsBatch,
 
     // archive
     // entities
@@ -163,6 +172,11 @@ impl Queries {
             Queries::LastAdmin => SqlQuery::new(LAST_ADMIN),
             Queries::DeleteUser => SqlQuery::new(DELETE_USER),
             Queries::UpdateAlertStatus => SqlQuery::new(UPDATE_ALERT_STATUS),
+            Queries::InsertCustomMetricValuesBatch => {
+                SqlQuery::new(INSERT_CUSTOM_METRIC_VALUES_BATCH)
+            }
+            Queries::InsertSpcDriftRecordBatch => SqlQuery::new(INSERT_SPC_DRIFT_RECORD_BATCH),
+            Queries::InsertBinCountsBatch => SqlQuery::new(INSERT_BIN_COUNTS_BATCH),
         }
     }
 }

@@ -4,41 +4,63 @@ use crate::sql::schema::SpcFeatureResult;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use itertools::multiunzip;
 use scouter_dataframe::parquet::{dataframe_to_spc_drift_features, ParquetDataFrame};
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{
     spc::{SpcDriftFeature, SpcDriftFeatures},
     DriftRequest, RecordType, ServiceInfo, SpcServerRecord,
 };
-
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::collections::BTreeMap;
 use tracing::{debug, instrument};
 
 #[async_trait]
 pub trait SpcSqlLogic {
-    /// Inserts a drift record into the database
-    ///
+    /// Inserts a batch of SPC drift records into the database
     /// # Arguments
-    ///
-    /// * `record` - A drift record to insert into the database
-    /// * `table_name` - The name of the table to insert the record into
-    ///
-    async fn insert_spc_drift_record(
+    /// * `pool` - The database connection pool
+    /// * `records` - The SPC drift records to insert
+    /// # Returns
+    /// * A result containing the query result or an error
+    async fn insert_spc_drift_records_batch(
         pool: &Pool<Postgres>,
-        record: &SpcServerRecord,
+        records: &[SpcServerRecord],
     ) -> Result<PgQueryResult, SqlError> {
-        let query = Queries::InsertDriftRecord.get_query();
+        if records.is_empty() {
+            return Err(SqlError::EmptyBatchError);
+        }
 
-        Ok(sqlx::query(&query.sql)
-            .bind(record.created_at)
-            .bind(&record.name)
-            .bind(&record.space)
-            .bind(&record.version)
-            .bind(&record.feature)
-            .bind(record.value)
+        let query = Queries::InsertSpcDriftRecordBatch.get_query();
+
+        let (created_ats, names, spaces, versions, features, values): (
+            Vec<DateTime<Utc>>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<f64>,
+        ) = multiunzip(records.iter().map(|r| {
+            (
+                r.created_at,
+                r.name.as_str(),
+                r.space.as_str(),
+                r.version.as_str(),
+                r.feature.as_str(),
+                r.value,
+            )
+        }));
+
+        sqlx::query(&query.sql)
+            .bind(created_ats)
+            .bind(names)
+            .bind(spaces)
+            .bind(versions)
+            .bind(features)
+            .bind(values)
             .execute(pool)
-            .await?)
+            .await
+            .map_err(SqlError::SqlxError)
     }
 
     // Queries the database for all features under a service

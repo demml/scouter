@@ -7,6 +7,7 @@ use chrono::{DateTime, Utc};
 use scouter_dataframe::parquet::{dataframe_to_psi_drift_features, ParquetDataFrame};
 
 use crate::sql::error::SqlError;
+use itertools::multiunzip;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::psi::FeatureDistributions;
 use scouter_types::{
@@ -18,28 +19,52 @@ use tracing::{debug, instrument};
 
 #[async_trait]
 pub trait PsiSqlLogic {
-    /// Inserts a PSI bin count into the database.
+    /// Inserts multiple PSI bin counts into the database in a batch.
     ///
     /// # Arguments
     /// * `pool` - The database connection pool
-    /// * `record` - The PSI server record to insert
+    /// * `records` - The PSI server records to insert
     ///
     /// # Returns
     /// * A result containing the query result or an error
-    async fn insert_bin_counts(
+    async fn insert_bin_counts_batch(
         pool: &Pool<Postgres>,
-        record: &PsiServerRecord,
+        records: &[PsiServerRecord],
     ) -> Result<PgQueryResult, SqlError> {
-        let query = Queries::InsertBinCounts.get_query();
+        if records.is_empty() {
+            return Err(SqlError::EmptyBatchError);
+        }
+
+        let query = Queries::InsertBinCountsBatch.get_query();
+
+        let (created_ats, names, spaces, versions, features, bin_ids, bin_counts): (
+            Vec<DateTime<Utc>>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<i64>,
+            Vec<i64>,
+        ) = multiunzip(records.iter().map(|r| {
+            (
+                r.created_at,
+                r.name.as_str(),
+                r.space.as_str(),
+                r.version.as_str(),
+                r.feature.as_str(),
+                r.bin_id as i64,
+                r.bin_count as i64,
+            )
+        }));
 
         sqlx::query(&query.sql)
-            .bind(record.created_at)
-            .bind(&record.name)
-            .bind(&record.space)
-            .bind(&record.version)
-            .bind(&record.feature)
-            .bind(record.bin_id as i64)
-            .bind(record.bin_count as i64)
+            .bind(created_ats)
+            .bind(names)
+            .bind(spaces)
+            .bind(versions)
+            .bind(features)
+            .bind(bin_ids)
+            .bind(bin_counts)
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)

@@ -4,6 +4,7 @@ use crate::sql::schema::BinnedCustomMetricWrapper;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use itertools::multiunzip;
 use scouter_dataframe::parquet::{dataframe_to_custom_drift_metrics, ParquetDataFrame};
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::{DriftRequest, ServiceInfo};
@@ -11,23 +12,43 @@ use scouter_types::{custom::BinnedCustomMetrics, CustomMetricServerRecord, Recor
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::collections::HashMap;
 use tracing::{debug, instrument};
-
 #[async_trait]
 pub trait CustomMetricSqlLogic {
-    /// Inserts a custom metric value into the database.
-    async fn insert_custom_metric_value(
+    async fn insert_custom_metric_values_batch(
         pool: &Pool<Postgres>,
-        record: &CustomMetricServerRecord,
+        records: &[CustomMetricServerRecord],
     ) -> Result<PgQueryResult, SqlError> {
-        let query = Queries::InsertCustomMetricValues.get_query();
+        if records.is_empty() {
+            return Err(SqlError::EmptyBatchError);
+        }
+
+        let query = Queries::InsertCustomMetricValuesBatch.get_query();
+
+        let (created_ats, names, spaces, versions, metrics, values): (
+            Vec<DateTime<Utc>>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<f64>,
+        ) = multiunzip(records.iter().map(|r| {
+            (
+                r.created_at,
+                r.name.as_str(),
+                r.space.as_str(),
+                r.version.as_str(),
+                r.metric.as_str(),
+                r.value,
+            )
+        }));
 
         sqlx::query(&query.sql)
-            .bind(record.created_at)
-            .bind(&record.name)
-            .bind(&record.space)
-            .bind(&record.version)
-            .bind(&record.metric)
-            .bind(record.value)
+            .bind(created_ats)
+            .bind(names)
+            .bind(spaces)
+            .bind(versions)
+            .bind(metrics)
+            .bind(values)
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)
