@@ -210,6 +210,25 @@ pub enum ProfileError {
 
     #[error("No metrics provided for workflow validation")]
     EmptyMetricsList,
+
+    #[error("LLM Metric prompts must contain one of (or both) input and output bound parameters")]
+    MissingPromptParametersError(String),
+
+    #[error(
+        "Missing prompt in LLM Metric. If providing a list of metrics, prompt must be present"
+    )]
+    MissingPromptError(String),
+
+    #[error("No tasks found in the workflow when validating: {0}")]
+    NoTasksFoundError(String),
+
+    #[error(
+        "Invalid prompt response type. Expected Score as the output type for the LLMMetric prompt. Id: {0}"
+    )]
+    InvalidResponseType(String),
+
+    #[error("No metrics found for the output task: {0}")]
+    MetricNotFoundForOutputTask(String),
 }
 
 impl From<ProfileError> for PyErr {

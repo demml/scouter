@@ -8,8 +8,9 @@ use crate::{
     ProfileFuncs, DEFAULT_VERSION, MISSING,
 };
 use core::fmt::Debug;
-use potato_head::Agent;
+use potato_head::prompt::ResponseType;
 use potato_head::Task;
+use potato_head::{Agent, Prompt};
 use potato_head::{Provider, Workflow};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -18,6 +19,10 @@ use serde_json::Value;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::path::PathBuf;
+use std::sync::Arc;
+use tracing::{error, instrument};
+
+const REQUIRED_PARAMS: &[&str] = &["input", "response"];
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -133,6 +138,141 @@ impl LLMDriftConfig {
     }
 }
 
+/// Validates that a prompt contains at least one required parameter.
+///
+/// LLM evaluation prompts must have either "input" or "output" parameters
+/// to access the data being evaluated.
+///
+/// # Arguments
+/// * `prompt` - The prompt to validate
+/// * `id` - Identifier for error reporting
+///
+/// # Returns
+/// * `Ok(())` if validation passes
+/// * `Err(ProfileError::MissingPromptParametersError)` if no required parameters found
+///
+/// # Errors
+/// Returns an error if the prompt lacks both "input" and "output" parameters.
+fn validate_prompt_parameters(prompt: &Prompt, id: &str) -> Result<(), ProfileError> {
+    let has_required_param = prompt
+        .parameters
+        .iter()
+        .any(|param| REQUIRED_PARAMS.contains(&param.as_str()));
+
+    if !has_required_param {
+        return Err(ProfileError::MissingPromptParametersError(id.to_string()));
+    }
+
+    Ok(())
+}
+
+/// Validates that a prompt has the correct response type for scoring.
+///
+/// LLM evaluation prompts must return scores for drift detection.
+///
+/// # Arguments
+/// * `prompt` - The prompt to validate
+/// * `id` - Identifier for error reporting
+///
+/// # Returns
+/// * `Ok(())` if validation passes
+/// * `Err(ProfileError::InvalidResponseType)` if response type is not Score
+fn validate_prompt_response_type(prompt: &Prompt, id: &str) -> Result<(), ProfileError> {
+    if prompt.response_type != ResponseType::Score {
+        return Err(ProfileError::InvalidResponseType(id.to_string()));
+    }
+
+    Ok(())
+}
+
+/// Helper function to safely retrieve a task from the workflow.
+fn get_workflow_task<'a>(
+    workflow: &'a Workflow,
+    task_id: &'a str,
+) -> Result<&'a Arc<std::sync::RwLock<potato_head::Task>>, ProfileError> {
+    workflow
+        .task_list
+        .tasks
+        .get(task_id)
+        .ok_or_else(|| ProfileError::NoTasksFoundError(format!("Task '{}' not found", task_id)))
+}
+
+/// Helper function to validate first tasks in workflow execution.
+fn validate_first_tasks(
+    workflow: &Workflow,
+    execution_order: &HashMap<i32, std::collections::HashSet<String>>,
+) -> Result<(), ProfileError> {
+    let first_tasks = execution_order
+        .get(&1)
+        .ok_or_else(|| ProfileError::NoTasksFoundError("No initial tasks found".to_string()))?;
+
+    for task_id in first_tasks {
+        let task = get_workflow_task(workflow, task_id)?;
+        let task_guard = task
+            .read()
+            .map_err(|_| ProfileError::NoTasksFoundError("Failed to read task".to_string()))?;
+
+        validate_prompt_parameters(&task_guard.prompt, &task_guard.id)?;
+    }
+
+    Ok(())
+}
+
+/// Helper function to validate last tasks in workflow execution.
+fn validate_last_tasks(
+    workflow: &Workflow,
+    execution_order: &HashMap<i32, std::collections::HashSet<String>>,
+    metrics: &[LLMMetric],
+) -> Result<(), ProfileError> {
+    let last_step = execution_order.len() as i32;
+    let last_tasks = execution_order
+        .get(&last_step)
+        .ok_or_else(|| ProfileError::NoTasksFoundError("No final tasks found".to_string()))?;
+
+    for task_id in last_tasks {
+        // assert task_id exists in metrics (all output tasks must have a corresponding metric)
+        if !metrics.iter().any(|m| m.name == *task_id) {
+            return Err(ProfileError::MetricNotFoundForOutputTask(task_id.clone()));
+        }
+
+        let task = get_workflow_task(workflow, task_id)?;
+        let task_guard = task
+            .read()
+            .map_err(|_| ProfileError::NoTasksFoundError("Failed to read task".to_string()))?;
+
+        validate_prompt_response_type(&task_guard.prompt, &task_guard.id)?;
+    }
+
+    Ok(())
+}
+
+/// Validates workflow execution parameters and response types.
+///
+/// Ensures that:
+/// - First tasks have required prompt parameters
+/// - Last tasks have Score response type
+///
+/// # Arguments
+/// * `workflow` - The workflow to validate
+///
+/// # Returns
+/// * `Ok(())` if validation passes
+/// * `Err(ProfileError)` if validation fails
+///
+/// # Errors
+/// Returns various ProfileError types based on validation failures.
+fn validate_workflow(workflow: &Workflow, metrics: &[LLMMetric]) -> Result<(), ProfileError> {
+    let execution_order = workflow.execution_plan()?;
+
+    // Validate first tasks have required parameters
+    validate_first_tasks(&workflow, &execution_order)?;
+
+    // Validate last tasks have correct response type
+    validate_last_tasks(&workflow, &execution_order, &metrics)?;
+
+    Ok(())
+}
+
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct LLMDriftProfile {
@@ -150,53 +290,48 @@ pub struct LLMDriftProfile {
 #[pymethods]
 impl LLMDriftProfile {
     #[new]
-    #[pyo3(signature = (config, metrics, scouter_version=None))]
+    #[pyo3(signature = (config, metrics, workflow=None))]
     /// Create a new LLMDriftProfile
     /// LLM evaluations are run asynchronously on the scouter server.
-    /// A user will supply a vec of LLMMetrics, which will be parsed into a rust Workflow.
+    ///
+    /// # Logic flow:
+    ///  1. If a user provides only a list of metrics, a workflow will be created from the metrics using `from_metrics` method.
+    ///  2. If a user provides a workflow, It will be parsed and validated using `from_workflow` method.
+    ///     - The user must also provide a list of metrics that will be used to evaluate the output of the workflow.
+    ///     - The metric names must correspond to the final task names in the workflow
     /// In addition, baseline metrics and threshold will be extracted from the LLMMetric.
     /// # Arguments
     /// * `config` - LLMDriftConfig - The configuration for the LLM drift profile
-    /// * `metrics` - Vec<LLMMetric> - The metrics that will be used to evaluate the LLM
+    /// * `metrics` - Option<Bound<'_, PyList>> - Optional list of metrics that will be used to evaluate the LLM
+    /// * `workflow` - Option<Bound<'_, PyAny>> - Optional workflow to use for the LLM drift profile
     /// * `scouter_version` - Option<String> - The version of scouter that
+    ///
     /// # Returns
     /// * `Result<Self, ProfileError>` - The LLMDriftProfile
+    ///
     /// # Errors
     /// * `ProfileError::MissingWorkflowError` - If the workflow is
+    #[instrument(skip_all)]
     pub fn new(
-        mut config: LLMDriftConfig,
+        config: LLMDriftConfig,
         metrics: Vec<LLMMetric>,
-        scouter_version: Option<String>,
+        workflow: Option<Bound<'_, PyAny>>,
     ) -> Result<Self, ProfileError> {
-        let mut workflow = Workflow::new("llm_drift_workflow");
-        let mut agents = HashMap::new();
-
-        for metric in &metrics {
-            let provider = Provider::from_string(&metric.prompt.model_settings.provider)?;
-
-            let agent = match agents.entry(provider) {
-                Entry::Occupied(entry) => entry.into_mut(),
-                Entry::Vacant(entry) => {
-                    let agent = Agent::from_model_settings(&metric.prompt.model_settings)?;
-                    entry.insert(agent)
+        match workflow {
+            Some(py_workflow) => {
+                // Extract and validate workflow from Python object
+                let workflow = Self::extract_workflow(&py_workflow)?;
+                validate_workflow(&workflow, &metrics)?;
+                Self::from_workflow(config, workflow, metrics)
+            }
+            None => {
+                // Ensure metrics are provided when no workflow specified
+                if metrics.is_empty() {
+                    return Err(ProfileError::EmptyMetricsList);
                 }
-            };
-
-            let task = Task::new(&agent.id, metric.prompt.clone(), &metric.name, None, None);
-            workflow.add_task(task)?;
+                Self::from_metrics(config, metrics)
+            }
         }
-
-        config.alert_config.set_alert_conditions(&metrics);
-
-        let scouter_version =
-            scouter_version.unwrap_or_else(|| env!("CARGO_PKG_VERSION").to_string());
-
-        Ok(Self {
-            config,
-            metrics,
-            scouter_version,
-            workflow,
-        })
     }
 
     pub fn __str__(&self) -> String {
@@ -277,6 +412,119 @@ impl LLMDriftProfile {
     }
 }
 
+impl LLMDriftProfile {
+    /// Creates an LLMDriftProfile from a configuration and a list of metrics.
+    ///
+    /// # Arguments
+    /// * `config` - LLMDriftConfig - The configuration for the LLM
+    /// * `metrics` - Vec<LLMMetric> - The metrics that will be used to evaluate the LLM
+    /// * `scouter_version` - Option<String> - The version of scouter that the profile is created with.
+    /// # Returns
+    /// * `Result<Self, ProfileError>` - The LLMDriftProfile
+    pub fn from_metrics(
+        mut config: LLMDriftConfig,
+        metrics: Vec<LLMMetric>,
+    ) -> Result<Self, ProfileError> {
+        // Build a workflow from metrics
+        let mut workflow = Workflow::new("llm_drift_workflow");
+        let mut agents = HashMap::new();
+
+        // Create agents. We don't want to duplicate, so we check if the agent already exists.
+        // if it doesn't, we create it.
+        for metric in &metrics {
+            // get prompt (if providing a list of metrics, prompt must be present)
+            let prompt = metric
+                .prompt
+                .as_ref()
+                .ok_or_else(|| ProfileError::MissingPromptError(metric.name.clone()))?;
+
+            let provider = Provider::from_string(&prompt.model_settings.provider)?;
+
+            let agent = match agents.entry(provider) {
+                Entry::Occupied(entry) => entry.into_mut(),
+                Entry::Vacant(entry) => {
+                    let agent = Agent::from_model_settings(&prompt.model_settings)?;
+                    entry.insert(agent)
+                }
+            };
+
+            let task = Task::new(&agent.id, prompt.clone(), &metric.name, None, None);
+            validate_prompt_parameters(&prompt, &metric.name)?;
+            workflow.add_task(task)?;
+        }
+
+        config.alert_config.set_alert_conditions(&metrics);
+
+        Ok(Self {
+            config,
+            metrics,
+            scouter_version: env!("CARGO_PKG_VERSION").to_string(),
+            workflow,
+        })
+    }
+
+    /// Creates an LLMDriftProfile from a workflow and a list of metrics.
+    /// This is useful when the workflow is already defined and you want to create a profile from it.
+    /// This is also for more advanced use cases where the workflow may need to execute many dependent tasks.
+    /// Because of this, there are a few requirements:
+    /// 1. All beginning tasks in the the workflow must have "input" and/or "output" parameters defined.
+    /// 2. All ending tasks in the workflow must have a response type of "Score".
+    /// 3. The user must also supply a list of metrics that will be used to evaluate the output of the workflow.
+    /// /// 3.a The metric names must correspond to the final task names in the workflow.
+    ///
+    /// # Arguments
+    /// * `config` - LLMDriftConfig - The configuration for the LLM
+    /// * `workflow` - Workflow - The workflow that will be used to evaluate the L
+    /// * `metrics` - Vec<LLMMetric> - The metrics that will be used to evaluate the LLM
+    /// * `scouter_version` - Option<String> - The version of scouter that
+    /// the profile is created with.
+    ///
+    /// # Returns
+    /// * `Result<Self, ProfileError>` - The LLMDriftProfile
+    pub fn from_workflow(
+        mut config: LLMDriftConfig,
+        workflow: Workflow,
+        metrics: Vec<LLMMetric>,
+    ) -> Result<Self, ProfileError> {
+        validate_workflow(&workflow, &metrics)?;
+
+        config.alert_config.set_alert_conditions(&metrics);
+
+        Ok(Self {
+            config,
+            metrics,
+            scouter_version: env!("CARGO_PKG_VERSION").to_string(),
+            workflow,
+        })
+    }
+
+    /// Extracts a Workflow from a Python object.
+    ///
+    /// # Arguments
+    /// * `py_workflow` - Python object that should implement `__workflow__()` method
+    ///
+    /// # Returns
+    /// * `Result<Workflow, ProfileError>` - Extracted workflow
+    ///
+    /// # Errors
+    /// * `ProfileError::InvalidWorkflowType` - If object doesn't implement required interface
+    fn extract_workflow(py_workflow: &Bound<'_, PyAny>) -> Result<Workflow, ProfileError> {
+        if !py_workflow.hasattr("__workflow__")? {
+            error!("Invalid workflow type provided. Expected object with __workflow__ method.");
+            return Err(ProfileError::InvalidWorkflowType);
+        }
+
+        let workflow_string = py_workflow
+            .call_method0("__workflow__")?
+            .extract::<String>()?;
+
+        serde_json::from_str(&workflow_string).map_err(|e| {
+            error!("Failed to deserialize workflow: {}", e);
+            ProfileError::InvalidWorkflowType
+        })
+    }
+}
+
 impl ProfileBaseArgs for LLMDriftProfile {
     fn get_base_args(&self) -> ProfileArgs {
         ProfileArgs {
@@ -302,7 +550,41 @@ mod tests {
     use super::*;
     use crate::AlertThreshold;
     use crate::{AlertDispatchConfig, OpsGenieDispatchConfig, SlackDispatchConfig};
-    use potato_head::{create_score_prompt, OpenAITestServer};
+    use potato_head::prompt::ResponseType;
+    use potato_head::Score;
+    use potato_head::StructuredOutput;
+    use potato_head::{Message, OpenAITestServer, PromptContent};
+
+    pub fn create_parameterized_prompt() -> Prompt {
+        let user_content =
+            PromptContent::Str("What is ${input} + ${response} + ${context}?".to_string());
+        let system_content = PromptContent::Str("You are a helpful assistant.".to_string());
+        Prompt::new_rs(
+            vec![Message::new_rs(user_content)],
+            Some("gpt-4o"),
+            Some("openai"),
+            vec![Message::new_rs(system_content)],
+            None,
+            None,
+            ResponseType::Null,
+        )
+        .unwrap()
+    }
+
+    pub fn create_score_prompt() -> Prompt {
+        let user_content = PromptContent::Str("${input}".to_string());
+        let system_content = PromptContent::Str("You are a helpful assistant.".to_string());
+        Prompt::new_rs(
+            vec![Message::new_rs(user_content)],
+            Some("gpt-4o"),
+            Some("openai"),
+            vec![Message::new_rs(system_content)],
+            None,
+            Some(Score::get_structured_output_schema()),
+            ResponseType::Score,
+        )
+        .unwrap()
+    }
 
     #[test]
     fn test_llm_drift_config() {
@@ -348,18 +630,24 @@ mod tests {
     }
 
     #[test]
-    fn test_llm_drift_profile() {
+    fn test_llm_drift_profile_metric() {
         let _runtime = tokio::runtime::Runtime::new().unwrap();
         let mut mock = OpenAITestServer::new();
         mock.start_server().unwrap();
         let prompt = create_score_prompt();
 
-        let metric1 =
-            LLMMetric::new("metric1", 5.0, prompt.clone(), AlertThreshold::Above, None).unwrap();
+        let metric1 = LLMMetric::new(
+            "metric1",
+            5.0,
+            Some(prompt.clone()),
+            AlertThreshold::Above,
+            None,
+        )
+        .unwrap();
         let metric2 = LLMMetric::new(
             "metric2",
             3.0,
-            prompt.clone(),
+            Some(prompt.clone()),
             AlertThreshold::Below,
             Some(1.0),
         )
@@ -379,12 +667,95 @@ mod tests {
         let drift_config =
             LLMDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
-        let profile = LLMDriftProfile::new(drift_config, llm_metrics, None).unwrap();
+        let profile = LLMDriftProfile::from_metrics(drift_config, llm_metrics).unwrap();
         let _: Value =
             serde_json::from_str(&profile.model_dump_json()).expect("Failed to parse actual JSON");
 
         assert_eq!(profile.metrics.len(), 2);
         assert_eq!(profile.scouter_version, env!("CARGO_PKG_VERSION"));
+
+        mock.stop_server().unwrap();
+    }
+
+    #[test]
+    fn test_llm_drift_profile_workflow() {
+        let mut mock = OpenAITestServer::new();
+        mock.start_server().unwrap();
+
+        let mut workflow = Workflow::new("My eval Workflow");
+
+        let initial_prompt = create_parameterized_prompt();
+        let final_prompt1 = create_score_prompt();
+        let final_prompt2 = create_score_prompt();
+
+        let agent1 = Agent::new(Provider::OpenAI, None).unwrap();
+        workflow.add_agent(&agent1);
+
+        // First task with parameters
+        workflow
+            .add_task(Task::new(
+                &agent1.id,
+                initial_prompt.clone(),
+                "task1",
+                None,
+                None,
+            ))
+            .unwrap();
+
+        // Final tasks that depend on the first task
+        workflow
+            .add_task(Task::new(
+                &agent1.id,
+                final_prompt1.clone(),
+                "task2",
+                Some(vec!["task1".to_string()]),
+                None,
+            ))
+            .unwrap();
+
+        workflow
+            .add_task(Task::new(
+                &agent1.id,
+                final_prompt2.clone(),
+                "task3",
+                Some(vec!["task1".to_string()]),
+                None,
+            ))
+            .unwrap();
+
+        let metric1 = LLMMetric::new("task2", 3.0, None, AlertThreshold::Below, Some(1.0)).unwrap();
+        let metric2 = LLMMetric::new("task3", 4.0, None, AlertThreshold::Above, Some(2.0)).unwrap();
+
+        let llm_metrics = vec![metric1, metric2];
+
+        let alert_config = LLMMetricAlertConfig {
+            schedule: "0 0 * * * *".to_string(),
+            dispatch_config: AlertDispatchConfig::OpsGenie(OpsGenieDispatchConfig {
+                team: "test-team".to_string(),
+                priority: "P5".to_string(),
+            }),
+            ..Default::default()
+        };
+
+        let drift_config =
+            LLMDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
+
+        let profile = LLMDriftProfile::from_workflow(drift_config, workflow, llm_metrics).unwrap();
+
+        let _: Value =
+            serde_json::from_str(&profile.model_dump_json()).expect("Failed to parse actual JSON");
+
+        assert_eq!(profile.metrics.len(), 2);
+        assert_eq!(profile.scouter_version, env!("CARGO_PKG_VERSION"));
+
+        let plan = profile.workflow.execution_plan().unwrap();
+
+        // plan should have 2 steps
+        assert_eq!(plan.len(), 2);
+        // first step should have 1 task
+        assert_eq!(plan.get(&1).unwrap().len(), 1);
+        // last step should have 2 tasks
+        assert_eq!(plan.get(&(plan.len() as i32)).unwrap().len(), 2);
 
         mock.stop_server().unwrap();
     }

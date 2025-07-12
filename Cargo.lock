@@ -769,7 +769,7 @@ dependencies = [
 [[package]]
 name = "baked-potato"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#7a501dab5c15acd37ec578c4fcad3c994e8e150a"
+source = "git+https://github.com/demml/potatohead.git?branch=main#337dee8a1032554043b5329edeff08d951777f0b"
 dependencies = [
  "mockito",
  "potato-agent",
@@ -1024,23 +1024,12 @@ dependencies = [
 
 [[package]]
 name = "chrono-tz"
-version = "0.10.3"
+version = "0.10.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efdce149c370f133a071ca8ef6ea340b7b88748ab0810097a9e2976eaa34b4f3"
+checksum = "a6139a8597ed92cf816dfb33f5dd6cf0bb93a6adc938f11039f371bc5bcd26c3"
 dependencies = [
  "chrono",
- "chrono-tz-build",
  "phf",
-]
-
-[[package]]
-name = "chrono-tz-build"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8f10f8c9340e31fc120ff885fcdb54a0b48e474bbd77cab557f0c30a3e569402"
-dependencies = [
- "parse-zoneinfo",
- "phf_codegen",
 ]
 
 [[package]]
@@ -1055,9 +1044,9 @@ dependencies = [
 
 [[package]]
 name = "clap"
-version = "4.5.40"
+version = "4.5.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40b6887a1d8685cebccf115538db5c0efe625ccac9696ad45c409d96566e910f"
+checksum = "be92d32e80243a54711e5d7ce823c35c41c9d929dc4ab58e1276f625841aadf9"
 dependencies = [
  "clap_builder",
  "clap_derive",
@@ -1065,9 +1054,9 @@ dependencies = [
 
 [[package]]
 name = "clap_builder"
-version = "4.5.40"
+version = "4.5.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e0c66c08ce9f0c698cbce5c0279d0bb6ac936d8674174fe48f736533b964f59e"
+checksum = "707eab41e9622f9139419d573eca0900137718000c517d47da73045f54331c3d"
 dependencies = [
  "anstream",
  "anstyle",
@@ -1078,9 +1067,9 @@ dependencies = [
 
 [[package]]
 name = "clap_derive"
-version = "4.5.40"
+version = "4.5.41"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2c7947ae4cc3d851207c1adb5b5e260ff0cca11446b1d6d1423788e442257ce"
+checksum = "ef4f52386a59ca4c860f7393bcf8abd8dfd91ecccc0f774635ff68e92eeef491"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -3880,15 +3869,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "parse-zoneinfo"
-version = "0.3.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1f2a05b18d44e2957b88f96ba460715e295bc1d7510468a2f3d3b44535d26c24"
-dependencies = [
- "regex",
-]
-
-[[package]]
 name = "password-auth"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3964,38 +3944,18 @@ dependencies = [
 
 [[package]]
 name = "phf"
-version = "0.11.3"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1fd6780a80ae0c52cc120a26a1a42c1ae51b247a253e4e06113d23d2c2edd078"
+checksum = "913273894cec178f401a31ec4b656318d95473527be05c0752cc41cdc32be8b7"
 dependencies = [
  "phf_shared",
-]
-
-[[package]]
-name = "phf_codegen"
-version = "0.11.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aef8048c789fa5e851558d709946d6d79a8ff88c0440c587967f8e94bfb1216a"
-dependencies = [
- "phf_generator",
- "phf_shared",
-]
-
-[[package]]
-name = "phf_generator"
-version = "0.11.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3c80231409c20246a13fddb31776fb942c38553c51e871f8cbd687a4cfb5843d"
-dependencies = [
- "phf_shared",
- "rand 0.8.5",
 ]
 
 [[package]]
 name = "phf_shared"
-version = "0.11.3"
+version = "0.12.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "67eabc2ef2a60eb7faa00097bd1ffdb5bd28e62bf39990626a582201b7a754e5"
+checksum = "06005508882fb681fd97892ecff4b7fd0fee13ef1aa569f8695dae7ab9099981"
 dependencies = [
  "siphasher",
 ]
@@ -4141,7 +4101,7 @@ dependencies = [
 [[package]]
 name = "potato-agent"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#7a501dab5c15acd37ec578c4fcad3c994e8e150a"
+source = "git+https://github.com/demml/potatohead.git?branch=main#337dee8a1032554043b5329edeff08d951777f0b"
 dependencies = [
  "potato-prompt",
  "potato-type",
@@ -4158,7 +4118,7 @@ dependencies = [
 [[package]]
 name = "potato-head"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#7a501dab5c15acd37ec578c4fcad3c994e8e150a"
+source = "git+https://github.com/demml/potatohead.git?branch=main#337dee8a1032554043b5329edeff08d951777f0b"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -4171,7 +4131,7 @@ dependencies = [
 [[package]]
 name = "potato-prompt"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#7a501dab5c15acd37ec578c4fcad3c994e8e150a"
+source = "git+https://github.com/demml/potatohead.git?branch=main#337dee8a1032554043b5329edeff08d951777f0b"
 dependencies = [
  "mime_guess",
  "potato-type",
@@ -4188,7 +4148,7 @@ dependencies = [
 [[package]]
 name = "potato-type"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#7a501dab5c15acd37ec578c4fcad3c994e8e150a"
+source = "git+https://github.com/demml/potatohead.git?branch=main#337dee8a1032554043b5329edeff08d951777f0b"
 dependencies = [
  "potato-util",
  "pyo3",
@@ -4200,7 +4160,7 @@ dependencies = [
 [[package]]
 name = "potato-util"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#7a501dab5c15acd37ec578c4fcad3c994e8e150a"
+source = "git+https://github.com/demml/potatohead.git?branch=main#337dee8a1032554043b5329edeff08d951777f0b"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -4215,7 +4175,7 @@ dependencies = [
 [[package]]
 name = "potato-workflow"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#7a501dab5c15acd37ec578c4fcad3c994e8e150a"
+source = "git+https://github.com/demml/potatohead.git?branch=main#337dee8a1032554043b5329edeff08d951777f0b"
 dependencies = [
  "chrono",
  "potato-agent",
@@ -4863,9 +4823,9 @@ dependencies = [
 
 [[package]]
 name = "rustls"
-version = "0.23.28"
+version = "0.23.29"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7160e3e10bf4535308537f3c4e1641468cd0e485175d6163087c0393c7d46643"
+checksum = "2491382039b29b9b11ff08b76ff6c97cf287671dbb74f0be44bda389fffe9bd1"
 dependencies = [
  "once_cell",
  "ring",
@@ -4934,9 +4894,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.3"
+version = "0.103.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4a72fe2bcf7a6ac6fd7d0b9e5cb68aeb7d4c0a0271730218b3e92d43b4eb435"
+checksum = "0a17884ae0c1b773f1ccd2bd4a8c72f16da897310a98b0e84bf349ad5ead92fc"
 dependencies = [
  "ring",
  "rustls-pki-types",
@@ -5183,18 +5143,6 @@ dependencies = [
  "tokio-stream",
  "tracing",
  "tracing-subscriber",
-]
-
-[[package]]
-name = "scouter-llm"
-version = "0.6.2"
-dependencies = [
- "potato-head",
- "pyo3",
- "serde",
- "serde_json",
- "thiserror 2.0.12",
- "tokio",
 ]
 
 [[package]]
@@ -6247,7 +6195,7 @@ checksum = "41fe8c660ae4257887cf66394862d21dbca4a6ddd26f04a3560410406a2f819a"
 dependencies = [
  "indexmap",
  "toml_datetime",
- "winnow 0.7.11",
+ "winnow 0.7.12",
 ]
 
 [[package]]
@@ -7014,9 +6962,9 @@ dependencies = [
 
 [[package]]
 name = "winnow"
-version = "0.7.11"
+version = "0.7.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74c7b26e3480b707944fc872477815d29a8e429d2f93a1ce000f5fa84a15cbcd"
+checksum = "f3edebf492c8125044983378ecb5766203ad3b4c2f7a922bd7dd207f6d443e95"
 dependencies = [
  "memchr",
 ]

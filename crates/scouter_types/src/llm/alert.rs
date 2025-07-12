@@ -22,7 +22,7 @@ pub struct LLMMetric {
     pub value: f64,
 
     #[pyo3(get)]
-    pub prompt: Prompt,
+    pub prompt: Option<Prompt>,
 
     #[pyo3(get, set)]
     pub alert_condition: LLMMetricAlertCondition,
@@ -35,14 +35,16 @@ impl LLMMetric {
     pub fn new(
         name: &str,
         value: f64,
-        prompt: Prompt,
+        prompt: Option<Prompt>,
         alert_threshold: AlertThreshold,
         alert_threshold_value: Option<f64>,
     ) -> Result<Self, TypeError> {
         // assert that the prompt is a scoring prompt
-        if !(prompt.response_type == ResponseType::Score) {
-            return Err(TypeError::InvalidResponseType);
-        };
+        if let Some(ref prompt) = prompt {
+            if prompt.response_type != ResponseType::Score {
+                return Err(TypeError::InvalidResponseType);
+            }
+        }
 
         let prompt_condition = LLMMetricAlertCondition::new(alert_threshold, alert_threshold_value);
 
@@ -67,11 +69,6 @@ impl LLMMetric {
     #[getter]
     pub fn alert_threshold_value(&self) -> Option<f64> {
         self.alert_condition.alert_threshold_value
-    }
-
-    #[getter]
-    pub fn class_id(&self) -> String {
-        self.name.clone()
     }
 }
 
@@ -287,7 +284,7 @@ mod tests {
             LLMMetric::new(
                 "mae",
                 12.4,
-                prompt.clone(),
+                Some(prompt.clone()),
                 AlertThreshold::Above,
                 Some(2.3),
             )
@@ -295,7 +292,7 @@ mod tests {
             LLMMetric::new(
                 "accuracy",
                 0.85,
-                prompt.clone(),
+                Some(prompt.clone()),
                 AlertThreshold::Below,
                 None,
             )
