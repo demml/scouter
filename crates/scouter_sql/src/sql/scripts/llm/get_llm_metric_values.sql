@@ -1,5 +1,5 @@
 SELECT metric,
-       AVG(value) AS value
+       AVG(score) AS value
 FROM scouter.llm_drift
 WHERE 1=1
   AND created_at > $4

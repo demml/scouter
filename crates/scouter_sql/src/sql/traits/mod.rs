@@ -1,6 +1,7 @@
 pub mod alert;
 pub mod archive;
 pub mod custom;
+pub mod llm;
 pub mod observability;
 pub mod profile;
 pub mod psi;

@@ -34,6 +34,16 @@ const GET_CUSTOM_DATA_FOR_ARCHIVE: &str =
     include_str!("scripts/custom/get_custom_metric_data_for_archive.sql");
 const UPDATE_CUSTOM_ENTITIES: &str = include_str!("scripts/custom/update_data_to_archived.sql");
 
+// llm
+const GET_LLM_METRIC_VALUES: &str = include_str!("scripts/llm/get_llm_metric_values.sql");
+const GET_BINNED_LLM_METRIC_VALUES: &str = include_str!("scripts/llm/binned_llm_metric_values.sql");
+const INSERT_LLM_METRIC_VALUES: &str = include_str!("scripts/llm/insert_llm_metric_values.sql");
+const INSERT_LLM_DRIFT_RECORD: &str = include_str!("scripts/llm/insert_llm_drift_record.sql");
+const GET_LLM_ENTITIES: &str = include_str!("scripts/llm/get_llm_metric_entities_for_archive.sql");
+const GET_LLM_DATA_FOR_ARCHIVE: &str =
+    include_str!("scripts/llm/get_llm_metric_data_for_archive.sql");
+const UPDATE_LLM_ENTITIES: &str = include_str!("scripts/llm/update_data_to_archived.sql");
+
 // observability (experimental)
 const GET_BINNED_OBSERVABILITY_METRICS: &str =
     include_str!("scripts/observability/binned_observability_metrics.sql");
@@ -115,6 +125,15 @@ pub enum Queries {
     LastAdmin,
     DeleteUser,
     UpdateAlertStatus,
+
+    // llm
+    GetLlmMetricValues,
+    GetBinnedLlmMetricValues,
+    InsertLlmMetricValues,
+    InsertLlmDriftRecord,
+    GetLlmEntities,
+    GetLlmDataForArchive,
+    UpdateLlmEntities,
 }
 
 impl Queries {
@@ -163,6 +182,15 @@ impl Queries {
             Queries::LastAdmin => SqlQuery::new(LAST_ADMIN),
             Queries::DeleteUser => SqlQuery::new(DELETE_USER),
             Queries::UpdateAlertStatus => SqlQuery::new(UPDATE_ALERT_STATUS),
+
+            //llm
+            Queries::GetLlmMetricValues => SqlQuery::new(GET_LLM_METRIC_VALUES),
+            Queries::GetBinnedLlmMetricValues => SqlQuery::new(GET_BINNED_LLM_METRIC_VALUES),
+            Queries::InsertLlmMetricValues => SqlQuery::new(INSERT_LLM_METRIC_VALUES),
+            Queries::InsertLlmDriftRecord => SqlQuery::new(INSERT_LLM_DRIFT_RECORD),
+            Queries::GetLlmEntities => SqlQuery::new(GET_LLM_ENTITIES),
+            Queries::GetLlmDataForArchive => SqlQuery::new(GET_LLM_DATA_FOR_ARCHIVE),
+            Queries::UpdateLlmEntities => SqlQuery::new(UPDATE_LLM_ENTITIES),
         }
     }
 }
