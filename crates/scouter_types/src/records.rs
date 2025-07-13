@@ -446,7 +446,7 @@ impl ServerRecord {
                 )))
             }
 
-            _ => return Err(RecordError::InvalidDriftTypeError),
+            _ => Err(RecordError::InvalidDriftTypeError),
         }
     }
 

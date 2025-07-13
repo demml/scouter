@@ -194,7 +194,7 @@ fn get_workflow_task<'a>(
         .task_list
         .tasks
         .get(task_id)
-        .ok_or_else(|| ProfileError::NoTasksFoundError(format!("Task '{}' not found", task_id)))
+        .ok_or_else(|| ProfileError::NoTasksFoundError(format!("Task '{task_id}' not found")))
 }
 
 /// Helper function to validate first tasks in workflow execution.
@@ -265,10 +265,10 @@ fn validate_workflow(workflow: &Workflow, metrics: &[LLMMetric]) -> Result<(), P
     let execution_order = workflow.execution_plan()?;
 
     // Validate first tasks have required parameters
-    validate_first_tasks(&workflow, &execution_order)?;
+    validate_first_tasks(workflow, &execution_order)?;
 
     // Validate last tasks have correct response type
-    validate_last_tasks(&workflow, &execution_order, &metrics)?;
+    validate_last_tasks(workflow, &execution_order, metrics)?;
 
     Ok(())
 }
@@ -451,7 +451,7 @@ impl LLMDriftProfile {
             };
 
             let task = Task::new(&agent.id, prompt.clone(), &metric.name, None, None);
-            validate_prompt_parameters(&prompt, &metric.name)?;
+            validate_prompt_parameters(prompt, &metric.name)?;
             workflow.add_task(task)?;
         }
 
@@ -472,14 +472,13 @@ impl LLMDriftProfile {
     /// 1. All beginning tasks in the the workflow must have "input" and/or "output" parameters defined.
     /// 2. All ending tasks in the workflow must have a response type of "Score".
     /// 3. The user must also supply a list of metrics that will be used to evaluate the output of the workflow.
-    /// /// 3.a The metric names must correspond to the final task names in the workflow.
+    ///    - The metric names must correspond to the final task names in the workflow.
     ///
     /// # Arguments
     /// * `config` - LLMDriftConfig - The configuration for the LLM
     /// * `workflow` - Workflow - The workflow that will be used to evaluate the L
     /// * `metrics` - Vec<LLMMetric> - The metrics that will be used to evaluate the LLM
-    /// * `scouter_version` - Option<String> - The version of scouter that
-    /// the profile is created with.
+    /// * `scouter_version` - Option<String> - The version of scouter that the profile is created with.
     ///
     /// # Returns
     /// * `Result<Self, ProfileError>` - The LLMDriftProfile
@@ -526,9 +525,11 @@ impl LLMDriftProfile {
                 ProfileError::InvalidWorkflowType
             })?
             .extract::<String>()
-            .map_err(|e| {
-                error!("Failed to extract workflow string from Python object");
-                e
+            .inspect_err(|e| {
+                error!(
+                    "Failed to extract workflow string from Python object: {}",
+                    e
+                );
             })?;
 
         serde_json::from_str(&workflow_string).map_err(|e| {
