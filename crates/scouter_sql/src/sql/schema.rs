@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use potato_head::Prompt;
 use scouter_types::psi::DistributionData;
 use scouter_types::{
     alert::Alert,
@@ -8,6 +9,8 @@ use scouter_types::{
     RecordType,
 };
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use sqlx::types::Json;
 use sqlx::{postgres::PgRow, Error, FromRow, Row};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -320,4 +323,23 @@ pub struct UpdateAlertResult {
     pub id: i32,
     pub active: bool,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct LLMDriftServerSQLRecord {
+    pub created_at: chrono::DateTime<Utc>,
+
+    pub space: String,
+
+    pub name: String,
+
+    pub version: String,
+
+    pub input: String,
+
+    pub response: String,
+
+    pub prompt: Json<Prompt>,
+
+    pub context: Json<Value>,
 }

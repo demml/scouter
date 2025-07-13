@@ -5269,6 +5269,7 @@ dependencies = [
  "async-trait",
  "chrono",
  "cron",
+ "potato-head",
  "rand 0.9.1",
  "scouter-dataframe",
  "scouter-settings",
