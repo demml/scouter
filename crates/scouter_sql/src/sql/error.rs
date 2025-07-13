@@ -31,4 +31,7 @@ pub enum SqlError {
 
     #[error("Failed to get next run for cron schedule")]
     GetNextRunError,
+
+    #[error("Empty batch of records")]
+    EmptyBatchError,
 }

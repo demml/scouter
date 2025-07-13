@@ -1,6 +1,7 @@
 use chrono::{DateTime, Utc};
 use potato_head::Prompt;
 use scouter_types::psi::DistributionData;
+use scouter_types::LLMDriftServerRecord;
 use scouter_types::{
     alert::Alert,
     custom::{BinnedCustomMetric, BinnedCustomMetricStats},
@@ -342,4 +343,19 @@ pub struct LLMDriftServerSQLRecord {
     pub prompt: Json<Prompt>,
 
     pub context: Json<Value>,
+}
+
+impl LLMDriftServerSQLRecord {
+    pub fn from_server_record(record: &LLMDriftServerRecord) -> Self {
+        LLMDriftServerSQLRecord {
+            created_at: record.created_at,
+            space: record.space.clone(),
+            name: record.name.clone(),
+            version: record.version.clone(),
+            input: record.input.clone(),
+            response: record.response.clone(),
+            prompt: Json(record.prompt.clone()),
+            context: Json(record.context.clone()),
+        }
+    }
 }

@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct BinnedPromptMetricStats {
+pub struct BinnedLLMMetricStats {
     #[pyo3(get)]
     pub avg: f64,
 
@@ -18,7 +18,7 @@ pub struct BinnedPromptMetricStats {
 }
 
 #[pymethods]
-impl BinnedPromptMetricStats {
+impl BinnedLLMMetricStats {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__str__(self)
@@ -27,7 +27,7 @@ impl BinnedPromptMetricStats {
 
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct BinnedPromptMetric {
+pub struct BinnedLLMMetric {
     #[pyo3(get)]
     pub metric: String,
 
@@ -35,11 +35,11 @@ pub struct BinnedPromptMetric {
     pub created_at: Vec<DateTime<Utc>>,
 
     #[pyo3(get)]
-    pub stats: Vec<BinnedPromptMetricStats>,
+    pub stats: Vec<BinnedLLMMetricStats>,
 }
 
 #[pymethods]
-impl BinnedPromptMetric {
+impl BinnedLLMMetric {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__str__(self)
@@ -48,25 +48,25 @@ impl BinnedPromptMetric {
 
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
-pub struct BinnedPromptMetrics {
+pub struct BinnedLLMMetrics {
     #[pyo3(get)]
-    pub metrics: BTreeMap<String, BinnedPromptMetric>,
+    pub metrics: BTreeMap<String, BinnedLLMMetric>,
 }
 
 #[pymethods]
-impl BinnedPromptMetrics {
+impl BinnedLLMMetrics {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__str__(self)
     }
 }
 
-impl BinnedPromptMetrics {
-    pub fn from_vec(metrics: Vec<BinnedPromptMetric>) -> Self {
-        let mapped: BTreeMap<String, BinnedPromptMetric> = metrics
+impl BinnedLLMMetrics {
+    pub fn from_vec(metrics: Vec<BinnedLLMMetric>) -> Self {
+        let mapped: BTreeMap<String, BinnedLLMMetric> = metrics
             .into_iter()
             .map(|metric| (metric.metric.clone(), metric))
             .collect();
-        BinnedPromptMetrics { metrics: mapped }
+        BinnedLLMMetrics { metrics: mapped }
     }
 }

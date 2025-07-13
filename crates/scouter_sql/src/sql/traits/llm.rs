@@ -1,33 +1,87 @@
 use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
-use crate::sql::schema::BinnedCustomMetricWrapper;
+use crate::sql::schema::{BinnedCustomMetricWrapper, LLMDriftServerSQLRecord};
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
+use itertools::multiunzip;
 use scouter_dataframe::parquet::{dataframe_to_custom_drift_metrics, ParquetDataFrame};
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::{DriftRequest, ServiceInfo};
-use scouter_types::{custom::BinnedCustomMetrics, CustomMetricServerRecord, RecordType};
+use scouter_types::LLMMetricServerRecord;
+use scouter_types::{
+    custom::BinnedCustomMetrics, CustomMetricServerRecord, LLMDriftServerRecord, RecordType,
+};
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::collections::HashMap;
 use tracing::{debug, instrument};
 
 #[async_trait]
 pub trait LLMMetricSqlLogic {
-    /// Inserts a custom metric value into the database.
-    async fn insert_custom_metric_value(
+    /// Inserts an LLM drift record into the database.
+    /// # Arguments
+    /// * `pool` - The database connection pool
+    /// * `record` - The LLM drift record to insert
+    /// # Returns
+    /// * A result containing the query result or an error
+    async fn insert_llm_drift_record(
         pool: &Pool<Postgres>,
-        record: &CustomMetricServerRecord,
+        record: &LLMDriftServerRecord,
     ) -> Result<PgQueryResult, SqlError> {
-        let query = Queries::InsertCustomMetricValues.get_query();
+        let query = Queries::InsertLLMDriftRecord.get_query();
+
+        let sql_record = LLMDriftServerSQLRecord::from_server_record(record);
 
         sqlx::query(&query.sql)
-            .bind(record.created_at)
-            .bind(&record.name)
-            .bind(&record.space)
-            .bind(&record.version)
-            .bind(&record.metric)
-            .bind(record.value)
+            .bind(&sql_record.name)
+            .bind(&sql_record.space)
+            .bind(&sql_record.version)
+            .bind(&sql_record.input)
+            .bind(&sql_record.response)
+            .bind(&sql_record.context)
+            .bind(&sql_record.prompt)
+            .execute(pool)
+            .await
+            .map_err(SqlError::SqlxError)
+    }
+
+    /// Inserts a batch of LLM metric values into the database.
+    /// This is the output from processing/evaluating the LLM drift records.
+    async fn insert_llm_metric_values_batch(
+        pool: &Pool<Postgres>,
+        records: &[LLMMetricServerRecord],
+    ) -> Result<PgQueryResult, SqlError> {
+        if records.is_empty() {
+            return Err(SqlError::EmptyBatchError);
+        }
+
+        let query = Queries::InsertLLMMetricValuesBatch.get_query();
+
+        let (created_ats, names, spaces, versions, metrics, values): (
+            Vec<DateTime<Utc>>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<f64>,
+        ) = multiunzip(records.iter().map(|r| {
+            (
+                r.created_at,
+                r.name.as_str(),
+                r.space.as_str(),
+                r.version.as_str(),
+                r.metric.as_str(),
+                r.value,
+            )
+        }));
+
+        sqlx::query(&query.sql)
+            .bind(created_ats)
+            .bind(names)
+            .bind(spaces)
+            .bind(versions)
+            .bind(metrics)
+            .bind(values)
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)

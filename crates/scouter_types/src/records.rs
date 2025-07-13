@@ -226,6 +226,16 @@ impl LLMDriftServerRecord {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LLMMetricServerRecord {
+    pub created_at: chrono::DateTime<Utc>,
+    pub space: String,
+    pub name: String,
+    pub version: String,
+    pub metric: String,
+    pub value: f64,
+}
+
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct CustomMetricServerRecord {
