@@ -1290,9 +1290,9 @@ checksum = "19d374276b40fb8bbdee95aef7c7fa6b5316ec764510eb64b8dd0e2ed0d7e7f5"
 
 [[package]]
 name = "crc32fast"
-version = "1.4.2"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a97769d94ddab943e4510d138150169a2758b5ef3eb191a9ee688de3e23ef7b3"
+checksum = "9481c1c90cbf2ac953f07c8d4a58aa3945c425b7185c9154d67a65e4230da511"
 dependencies = [
  "cfg-if",
 ]
@@ -4243,7 +4243,7 @@ dependencies = [
 
 [[package]]
 name = "py-scouter"
-version = "0.6.2"
+version = "0.6.4"
 dependencies = [
  "ndarray-stats",
  "num-traits",
@@ -5005,7 +5005,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scouter-auth"
-version = "0.6.2"
+version = "0.6.4"
 dependencies = [
  "jsonwebtoken",
  "password-auth",
@@ -5018,7 +5018,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-client"
-version = "0.6.2"
+version = "0.6.4"
 dependencies = [
  "chrono",
  "ndarray",
@@ -5045,7 +5045,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-dataframe"
-version = "0.6.2"
+version = "0.6.4"
 dependencies = [
  "arrow",
  "arrow-array",
@@ -5069,7 +5069,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-dispatch"
-version = "0.6.2"
+version = "0.6.4"
 dependencies = [
  "futures",
  "mockito",
@@ -5085,7 +5085,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-drift"
-version = "0.6.2"
+version = "0.6.4"
 dependencies = [
  "approx",
  "chrono",
@@ -5116,7 +5116,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-events"
-version = "0.6.2"
+version = "0.6.4"
 dependencies = [
  "async-trait",
  "chrono",
@@ -5150,7 +5150,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-mocks"
-version = "0.6.2"
+version = "0.6.4"
 dependencies = [
  "mockito",
  "potato-head",
@@ -5166,7 +5166,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-observability"
-version = "0.6.2"
+version = "0.6.4"
 dependencies = [
  "itertools 0.14.0",
  "ndarray",
@@ -5183,7 +5183,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-profile"
-version = "0.6.2"
+version = "0.6.4"
 dependencies = [
  "approx",
  "chrono",
@@ -5207,7 +5207,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-server"
-version = "0.6.2"
+version = "0.6.4"
 dependencies = [
  "anyhow",
  "approx",
@@ -5253,7 +5253,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-settings"
-version = "0.6.2"
+version = "0.6.4"
 dependencies = [
  "base64",
  "pyo3",
@@ -5264,13 +5264,13 @@ dependencies = [
 
 [[package]]
 name = "scouter-sql"
-version = "0.6.2"
+version = "0.6.4"
 dependencies = [
  "anyhow",
  "async-trait",
  "chrono",
  "cron",
- "itertools 0.13.0",
+ "itertools 0.14.0",
  "potato-head",
  "rand 0.9.1",
  "scouter-dataframe",
@@ -5288,7 +5288,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-types"
-version = "0.6.2"
+version = "0.6.4"
 dependencies = [
  "approx",
  "chrono",

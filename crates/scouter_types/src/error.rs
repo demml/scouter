@@ -85,6 +85,11 @@ pub enum TypeError {
     )]
     InvalidResponseType,
 
+    #[error(
+        "Unsupported feature type. Feature must be an integer, float or string. Received: {0}"
+    )]
+    UnsupportedFeatureTypeError(String),
+
     #[error("Unsupported features type. Features must be a list of Feature instances or a dictionary of key value pairs. Received: {0}")]
     UnsupportedFeaturesTypeError(String),
 

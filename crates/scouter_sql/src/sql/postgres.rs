@@ -155,7 +155,7 @@ impl MessageHandler {
                 }
             }
 
-             _ => {
+            _ => {
                 error!(
                     "Unsupported record type for batch insert: {:?}",
                     records.record_type()?
