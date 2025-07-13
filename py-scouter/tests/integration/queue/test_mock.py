@@ -5,8 +5,8 @@ from pathlib import Path
 import pandas as pd
 from scouter.client import HTTPConfig, ScouterClient
 from scouter.drift import Drifter, PsiDriftConfig
-from scouter.queue import Feature, Features, ScouterQueue
 from scouter.mock import MockConfig
+from scouter.queue import Feature, Features, ScouterQueue
 
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"
 
@@ -34,10 +34,7 @@ def test_mock_config(
     records = pandas_dataframe.to_dict(orient="records")
     for record in records:
         features = Features(
-            features=[
-                Feature.float(column_name, record[column_name])
-                for column_name in pandas_dataframe.columns
-            ]
+            features=[Feature.float(column_name, record[column_name]) for column_name in pandas_dataframe.columns]
         )
         # 3. Send records to Scouter
         queue["a"].insert(features)

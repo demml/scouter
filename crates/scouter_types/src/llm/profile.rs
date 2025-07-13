@@ -20,7 +20,7 @@ use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
-use tracing::{error, instrument};
+use tracing::{debug, error, instrument};
 
 const REQUIRED_PARAMS: &[&str] = &["input", "response"];
 
@@ -319,7 +319,10 @@ impl LLMDriftProfile {
         match workflow {
             Some(py_workflow) => {
                 // Extract and validate workflow from Python object
-                let workflow = Self::extract_workflow(&py_workflow)?;
+                let workflow = Self::extract_workflow(&py_workflow).map_err(|e| {
+                    error!("Failed to extract workflow: {}", e);
+                    e
+                })?;
                 validate_workflow(&workflow, &metrics)?;
                 Self::from_workflow(config, workflow, metrics)
             }
@@ -507,15 +510,26 @@ impl LLMDriftProfile {
     ///
     /// # Errors
     /// * `ProfileError::InvalidWorkflowType` - If object doesn't implement required interface
+    #[instrument(skip_all)]
     fn extract_workflow(py_workflow: &Bound<'_, PyAny>) -> Result<Workflow, ProfileError> {
+        debug!("Extracting workflow from Python object");
+
         if !py_workflow.hasattr("__workflow__")? {
             error!("Invalid workflow type provided. Expected object with __workflow__ method.");
             return Err(ProfileError::InvalidWorkflowType);
         }
 
         let workflow_string = py_workflow
-            .call_method0("__workflow__")?
-            .extract::<String>()?;
+            .getattr("__workflow__")
+            .map_err(|e| {
+                error!("Failed to call __workflow__ property: {}", e);
+                ProfileError::InvalidWorkflowType
+            })?
+            .extract::<String>()
+            .map_err(|e| {
+                error!("Failed to extract workflow string from Python object");
+                e
+            })?;
 
         serde_json::from_str(&workflow_string).map_err(|e| {
             error!("Failed to deserialize workflow: {}", e);

@@ -1,10 +1,18 @@
-from scouter.alert import AlertThreshold, LLMAlertConfig, LLMMetricAlertCondition
+from pathlib import Path
+from tempfile import TemporaryDirectory
+
+import pytest
+from pydantic import BaseModel
+from scouter.alert import AlertThreshold
 from scouter.drift import LLMDriftConfig, LLMDriftProfile, LLMMetric
-from scouter.mock import Agent, Prompt, Score, Task, Workflow
-from scouter.mock import OpenAITestServer
+from scouter.mock import Agent, OpenAITestServer, Prompt, Score, Task, Workflow
 
 
-def test_llm_drift_profile():
+class TaskOutput(BaseModel):
+    task_output: str
+
+
+def test_llm_drift_profile_from_metrics():
     with OpenAITestServer():
         prompt = Prompt(
             user_message="${input} + ${response}?",
@@ -27,7 +35,217 @@ def test_llm_drift_profile():
             alert_threshold=AlertThreshold.Above,
         )
 
-        profile = LLMDriftProfile(
+        _profile = LLMDriftProfile(
             config=LLMDriftConfig(),
             metrics=[metric1, metric2],
+        )
+
+
+def test_llm_drift_profile_from_workflow():
+    with OpenAITestServer():
+        start_prompt = Prompt(
+            user_message="${input} + ${response}?",
+            system_message="You are a helpful assistant.",
+            model="gpt-4o",
+            provider="openai",
+        )
+
+        end_prompt = Prompt(
+            user_message="Foo bar",
+            system_message="You are a helpful assistant.",
+            model="gpt-4o",
+            provider="openai",
+            response_format=Score,
+        )
+
+        open_agent = Agent("openai")
+        workflow = Workflow(name="test_workflow")
+        workflow.add_agent(open_agent)
+        workflow.add_tasks(
+            [  # allow adding list of tasks
+                Task(
+                    prompt=start_prompt,
+                    agent_id=open_agent.id,
+                    id="start_task",
+                ),
+                Task(
+                    prompt=end_prompt,
+                    agent_id=open_agent.id,
+                    id="relevance",
+                    dependencies=["start_task"],
+                ),
+            ]
+        )
+
+        metric = LLMMetric(
+            name="relevance",
+            value=5.0,
+            alert_threshold=AlertThreshold.Below,
+        )
+
+        profile = LLMDriftProfile(
+            config=LLMDriftConfig(),
+            workflow=workflow,
+            metrics=[metric],
+        )
+
+        assert profile.config is not None
+
+        assert isinstance(profile.model_dump_json(), str)
+        assert isinstance(profile.model_dump(), dict)
+
+        with TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "profile.json"
+            profile.save_to_json(path)
+            assert (Path(temp_dir) / "profile.json").exists()
+
+            with open(path, "r") as f:
+                LLMDriftProfile.model_validate_json(f.read())
+
+
+def test_llm_drift_profile_from_metrics_fail():
+    with OpenAITestServer():
+        prompt = Prompt(
+            user_message="foo bar",
+            system_message="You are a helpful assistant.",
+            model="gpt-4o",
+            provider="openai",
+            response_format=Score,
+        )
+
+        metric1 = LLMMetric(
+            name="test_metric",
+            prompt=prompt,
+            value=5.0,
+            alert_threshold=AlertThreshold.Below,
+        )
+        metric2 = LLMMetric(
+            name="test_metric_2",
+            value=10.0,
+            alert_threshold=AlertThreshold.Above,
+        )
+
+        # Drift profile with no required parameters should raise an error
+        with pytest.raises(
+            RuntimeError, match="LLM Metric prompts must contain one of"
+        ):
+            _profile = LLMDriftProfile(
+                config=LLMDriftConfig(),
+                metrics=[metric1],
+            )
+
+        # Drift profile with metric without prompt should raise an error
+        with pytest.raises(RuntimeError, match="Missing prompt in LLM Metric"):
+            _profile = LLMDriftProfile(
+                config=LLMDriftConfig(),
+                metrics=[metric2],
+            )
+
+
+def test_llm_drift_profile_from_workflow_fail():
+    with OpenAITestServer():
+        start_prompt = Prompt(
+            user_message="Foo bar",
+            system_message="You are a helpful assistant.",
+            model="gpt-4o",
+            provider="openai",
+        )
+
+        end_prompt = Prompt(
+            user_message="Foo bar",
+            system_message="You are a helpful assistant.",
+            model="gpt-4o",
+            provider="openai",
+            response_format=Score,
+        )
+
+        open_agent = Agent("openai")
+        workflow = Workflow(name="test_workflow")
+        workflow.add_agent(open_agent)
+        workflow.add_tasks(
+            [  # allow adding list of tasks
+                Task(
+                    prompt=start_prompt,
+                    agent_id=open_agent.id,
+                    id="start_task",
+                ),
+                Task(
+                    prompt=end_prompt,
+                    agent_id=open_agent.id,
+                    id="relevance",
+                    dependencies=["start_task"],
+                ),
+            ]
+        )
+
+        metric = LLMMetric(
+            name="relevance",
+            value=5.0,
+            alert_threshold=AlertThreshold.Below,
+        )
+
+        with pytest.raises(
+            RuntimeError, match="LLM Metric prompts must contain one of"
+        ):
+            _profile = LLMDriftProfile(
+                config=LLMDriftConfig(),
+                workflow=workflow,
+                metrics=[metric],
+            )
+
+
+def test_llm_drift_profile_workflow_run_context():
+    with OpenAITestServer():
+        # this should bind the input and response context and return TaskOutput
+        start_prompt = Prompt(
+            user_message="${input} + ${response}?",
+            system_message="You are a helpful assistant.",
+            model="gpt-4o",
+            provider="openai",
+            response_format=TaskOutput,
+        )
+
+        # this should bind the task_output context and return Score
+        end_prompt = Prompt(
+            user_message="${task_output}",
+            system_message="You are a helpful assistant.",
+            model="gpt-4o",
+            provider="openai",
+            response_format=Score,
+        )
+
+        open_agent = Agent("openai")
+        workflow = Workflow(name="test_workflow")
+        workflow.add_agent(open_agent)
+        workflow.add_tasks(
+            [  # allow adding list of tasks
+                Task(
+                    prompt=start_prompt,
+                    agent_id=open_agent.id,
+                    id="start_task",
+                ),
+                Task(
+                    prompt=end_prompt,
+                    agent_id=open_agent.id,
+                    id="relevance",
+                    dependencies=["start_task"],
+                ),
+            ]
+        )
+
+        global_context = {
+            "input": "What is the capital of France?",
+            "response": "The capital of France is Paris.",
+        }
+        result = workflow.run(
+            global_context=global_context,
+        )
+
+        assert (
+            result.tasks.get("start_task").prompt.user_message[0].unwrap()
+            == '"What is the capital of France?" + "The capital of France is Paris."?'
+        )
+
+        assert (
+            result.tasks.get("relevance").prompt.user_message[1].unwrap() == '"foo bar"'
         )

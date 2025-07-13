@@ -6,8 +6,8 @@ from typing import Any, Dict, List, Optional, Union
 
 from ..client import HTTPConfig
 from ..logging import LogLevel
-from ..observe import ObservabilityMetrics
 from ..mock import MockConfig
+from ..observe import ObservabilityMetrics
 
 class TransportType:
     Kafka = "TransportType"
@@ -173,9 +173,7 @@ class ServerRecord:
     @property
     def record(
         self,
-    ) -> Union[
-        SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics
-    ]:
+    ) -> Union[SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics]:
         """Return the drift server record."""
 
 class ServerRecords:
