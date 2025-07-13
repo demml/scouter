@@ -177,16 +177,34 @@ mod tests {
     use super::*;
     use crate::sql::schema::User;
     use chrono::Utc;
+    use potato_head::{prompt, StructuredOutput};
+    use potato_head::{prompt::ResponseType, Message, Prompt, PromptContent, Score};
     use rand::Rng;
     use scouter_settings::ObjectStorageSettings;
     use scouter_types::psi::{Bin, BinType, PsiDriftConfig, PsiFeatureDriftProfile};
     use scouter_types::spc::SpcDriftProfile;
     use scouter_types::*;
+    use serde_json::Value;
     use std::collections::BTreeMap;
 
     const SPACE: &str = "space";
     const NAME: &str = "name";
     const VERSION: &str = "1.0.0";
+
+    pub fn create_score_prompt() -> Prompt {
+        let user_content = PromptContent::Str("${input}".to_string());
+        let system_content = PromptContent::Str("You are a helpful assistant.".to_string());
+        Prompt::new_rs(
+            vec![Message::new_rs(user_content)],
+            Some("gpt-4o"),
+            Some("openai"),
+            vec![Message::new_rs(system_content)],
+            None,
+            Some(Score::get_structured_output_schema()),
+            ResponseType::Score,
+        )
+        .unwrap()
+    }
 
     pub async fn cleanup(pool: &Pool<Postgres>) {
         sqlx::raw_sql(
@@ -209,8 +227,14 @@ mod tests {
             DELETE
             FROM scouter.psi_drift;
 
-             DELETE
+            DELETE
             FROM scouter.user;
+
+            DELETE
+            FROM scouter.llm_drift;
+
+            DELETE
+            FROM scouter.llm_metric;
             "#,
         )
         .fetch_all(pool)
@@ -740,5 +764,72 @@ mod tests {
 
         // delete
         PostgresClient::delete_user(&pool, "user").await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_postgres_llm_metrics() {
+        let pool = db_pool().await;
+
+        let timestamp = Utc::now();
+
+        let input = "This is a test input";
+        let output = "This is a test output";
+        let prompt = create_score_prompt();
+
+        for j in 0..10 {
+            let record = LLMDriftServerRecord {
+                created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
+                space: SPACE.to_string(),
+                name: NAME.to_string(),
+                version: VERSION.to_string(),
+                input: input.to_string(),
+                response: output.to_string(),
+                prompt: prompt.clone(),
+                context: Value::Object(serde_json::Map::new()),
+            };
+
+            let result = PostgresClient::insert_llm_drift_record(&pool, &record)
+                .await
+                .unwrap();
+
+            assert_eq!(result.rows_affected(), 1);
+        }
+
+        let service_info = ServiceInfo {
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
+        };
+
+        let features = PostgresClient::get_spc_features(&pool, &service_info)
+            .await
+            .unwrap();
+        assert_eq!(features.len(), 10);
+
+        let records =
+            PostgresClient::get_spc_drift_records(&pool, &service_info, &timestamp, &features)
+                .await
+                .unwrap();
+
+        assert_eq!(records.features.len(), 10);
+
+        let binned_records = PostgresClient::get_binned_spc_drift_records(
+            &pool,
+            &DriftRequest {
+                space: SPACE.to_string(),
+                name: NAME.to_string(),
+                version: VERSION.to_string(),
+                time_interval: TimeInterval::FiveMinutes,
+                max_data_points: 10,
+                drift_type: DriftType::Spc,
+                ..Default::default()
+            },
+            &DatabaseSettings::default().retention_period,
+            &ObjectStorageSettings::default(),
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(binned_records.features.len(), 10);
     }
 }

@@ -191,6 +191,15 @@ pub struct LLMDriftServerRecord {
 #[pymethods]
 impl LLMDriftServerRecord {
     #[new]
+    #[pyo3(signature = (
+        space,
+        name,
+        version,
+        input,
+        response,
+        prompt,
+        context = None
+    ))]
     pub fn new(
         space: String,
         name: String,
@@ -198,9 +207,13 @@ impl LLMDriftServerRecord {
         input: String,
         response: String,
         prompt: Prompt,
-        context: Bound<'_, PyDict>,
+        context: Option<Bound<'_, PyDict>>,
     ) -> Result<Self, RecordError> {
-        let context_val = pyobject_to_json(&context)?;
+        // Check if pydict was provided, if not, create an empty Map
+        let context_val = context
+            .map(|c| pyobject_to_json(&c))
+            .unwrap_or(Ok(Value::Object(serde_json::Map::new())))?;
+
         Ok(Self {
             created_at: Utc::now(),
             space,
