@@ -56,8 +56,7 @@ pub async fn update_alert_status(
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ScouterServerError::new(format!(
-                    "Failed to update drift alert status: {:?}",
-                    e
+                    "Failed to update drift alert status: {e:?}"
                 ))),
             )
         })?;
@@ -68,8 +67,7 @@ pub async fn update_alert_status(
         Err((
             StatusCode::BAD_REQUEST,
             Json(ScouterServerError::new(format!(
-                "Failed to update drift alert status: {:?}",
-                query_result
+                "Failed to update drift alert status: {query_result:?}"
             ))),
         ))
     }
@@ -78,7 +76,7 @@ pub async fn update_alert_status(
 pub async fn get_alert_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {
         Router::new().route(
-            &format!("{}/alerts", prefix),
+            &format!("{prefix}/alerts"),
             get(get_drift_alerts).put(update_alert_status),
         )
     }));

@@ -367,17 +367,17 @@ impl ScouterServerError {
     }
 
     pub fn query_records_error<T: Display>(e: T) -> Self {
-        let msg = format!("Failed to query records: {}", e);
+        let msg = format!("Failed to query records: {e}");
         ScouterServerError { error: msg }
     }
 
     pub fn query_alerts_error<T: Display>(e: T) -> Self {
-        let msg = format!("Failed to query alerts: {}", e);
+        let msg = format!("Failed to query alerts: {e}");
         ScouterServerError { error: msg }
     }
 
     pub fn query_profile_error<T: Display>(e: T) -> Self {
-        let msg = format!("Failed to query profile: {}", e);
+        let msg = format!("Failed to query profile: {e}");
         ScouterServerError { error: msg }
     }
 }

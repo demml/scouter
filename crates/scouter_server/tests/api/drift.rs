@@ -104,7 +104,7 @@ async fn test_create_spc_profile() {
     let query_string = serde_qs::to_string(&params).unwrap();
 
     let request = Request::builder()
-        .uri(format!("/scouter/profile?{}", query_string))
+        .uri(format!("/scouter/profile?{query_string}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();
@@ -174,7 +174,7 @@ async fn test_spc_server_records() {
     let query_string = serde_qs::to_string(&params).unwrap();
 
     let request = Request::builder()
-        .uri(format!("/scouter/drift/spc?{}", query_string))
+        .uri(format!("/scouter/drift/spc?{query_string}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();
@@ -265,7 +265,7 @@ async fn test_psi_server_records() {
     let query_string = serde_qs::to_string(&params).unwrap();
 
     let request = Request::builder()
-        .uri(format!("/scouter/drift/psi?{}", query_string))
+        .uri(format!("/scouter/drift/psi?{query_string}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();
@@ -348,7 +348,7 @@ async fn test_custom_server_records() {
     let query_string = serde_qs::to_string(&params).unwrap();
 
     let request = Request::builder()
-        .uri(format!("/scouter/drift/custom?{}", query_string))
+        .uri(format!("/scouter/drift/custom?{query_string}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();

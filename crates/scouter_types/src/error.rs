@@ -84,6 +84,12 @@ pub enum TypeError {
         "Invalid prompt response type. Expect Score as the output type for the LLMMetric prompt"
     )]
     InvalidResponseType,
+
+    #[error("Unsupported features type. Features must be a list of Feature instances or a dictionary of key value pairs. Received: {0}")]
+    UnsupportedFeaturesTypeError(String),
+
+    #[error("Unsupported metrics type. Metrics must be a list of Metric instances or a dictionary of key value pairs. Received: {0}")]
+    UnsupportedMetricsTypeError(String),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for TypeError {

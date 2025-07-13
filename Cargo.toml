@@ -9,7 +9,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.6.2"
+version = "0.6.4"
 authors = [
       "Thorrester <support@demmlai.com>",
       "russellkemmit <support@demmlai.com>",
@@ -20,18 +20,18 @@ repository = "https://github.com/demml/scouter"
 
 
 [workspace.dependencies]
-scouter-auth = { path = "crates/scouter_auth", version = "0.6.2" }
-scouter-client = { path = "crates/scouter_client", version = "0.6.2" }
-scouter-dispatch = { path = "crates/scouter_dispatch", version = "0.6.2" }
-scouter-drift = { path = "crates/scouter_drift", version = "0.6.2", default-features = false }
-scouter-events = { path = "crates/scouter_events", version = "0.6.2", default-features = false }
-scouter-observability = { path = "crates/scouter_observability", version = "0.6.2" }
-scouter-profile = { path = "crates/scouter_profile", version = "0.6.2" }
-scouter-server = { path = "crates/scouter_server", version = "0.6.2" }
-scouter-settings = { path = "crates/scouter_settings", version = "0.6.2" }
-scouter-dataframe = { path = "crates/scouter_dataframe", version = "0.6.2" }
-scouter-sql = { path = "crates/scouter_sql", version = "0.6.2" }
-scouter-types = { path = "crates/scouter_types", version = "0.6.2" }
+scouter-auth = { path = "crates/scouter_auth", version = "0.6.4" }
+scouter-client = { path = "crates/scouter_client", version = "0.6.4" }
+scouter-dispatch = { path = "crates/scouter_dispatch", version = "0.6.4" }
+scouter-drift = { path = "crates/scouter_drift", version = "0.6.4", default-features = false }
+scouter-events = { path = "crates/scouter_events", version = "0.6.4", default-features = false }
+scouter-observability = { path = "crates/scouter_observability", version = "0.6.4" }
+scouter-profile = { path = "crates/scouter_profile", version = "0.6.4" }
+scouter-server = { path = "crates/scouter_server", version = "0.6.4" }
+scouter-settings = { path = "crates/scouter_settings", version = "0.6.4" }
+scouter-dataframe = { path = "crates/scouter_dataframe", version = "0.6.4" }
+scouter-sql = { path = "crates/scouter_sql", version = "0.6.4" }
+scouter-types = { path = "crates/scouter_types", version = "0.6.4" }
 scouter-mocks = { path = "crates/scouter_mocks" }
 
 anyhow = "1.*"
@@ -104,3 +104,4 @@ opt-level = 3
 [profile.release-no-lto]
 inherits = "release"
 lto = false
+

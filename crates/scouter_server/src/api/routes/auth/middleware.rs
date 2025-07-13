@@ -15,7 +15,7 @@ use scouter_sql::sql::traits::UserSqlLogic;
 use scouter_sql::PostgresClient;
 use serde::Serialize;
 use std::sync::Arc;
-use tracing::info;
+use tracing::{info, instrument};
 
 #[derive(Debug, Serialize)]
 pub struct ErrorResponse {
@@ -25,6 +25,7 @@ pub struct ErrorResponse {
 
 const X_BOOTSTRAP_TOKEN: &str = "x-bootstrap-token";
 
+#[instrument(skip_all)]
 pub async fn auth_api_middleware(
     cookie_jar: CookieJar,
     State(state): State<Arc<AppState>>,
@@ -148,7 +149,7 @@ pub async fn auth_api_middleware(
                     // Add new token to request headers for downstream handlers
                     req.headers_mut().insert(
                         header::AUTHORIZATION,
-                        HeaderValue::from_str(&format!("Bearer {}", new_access_token)).unwrap(),
+                        HeaderValue::from_str(&format!("Bearer {new_access_token}")).unwrap(),
                     );
 
                     // Run the request and modify the response
@@ -158,7 +159,7 @@ pub async fn auth_api_middleware(
                     // Add new token to response headers
                     response.headers_mut().insert(
                         header::AUTHORIZATION,
-                        HeaderValue::from_str(&format!("Bearer {}", new_access_token)).unwrap(),
+                        HeaderValue::from_str(&format!("Bearer {new_access_token}")).unwrap(),
                     );
 
                     return Ok(response);

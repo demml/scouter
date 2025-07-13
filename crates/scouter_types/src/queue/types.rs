@@ -1,7 +1,7 @@
+use crate::error::TypeError;
 use crate::ProfileFuncs;
 use pyo3::prelude::*;
-
-use crate::error::TypeError;
+use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PyString};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fmt;
@@ -88,6 +88,45 @@ pub enum Feature {
 
 #[pymethods]
 impl Feature {
+    #[new]
+    /// Parses a value to it's corresponding feature type.
+    /// PyFLoat -> FloatFeature
+    /// PyInt -> IntFeature
+    /// PyString -> StringFeature
+    /// # Arguments
+    /// * `name` - The name of the feature.
+    /// * `feature` - The value of the feature, which can be a PyFloat
+    /// # Returns
+    /// * `Feature` - The corresponding feature type.
+    /// # Errors
+    /// * `TypeError` - If the feature type is not supported.
+    pub fn new(name: &str, feature: Bound<'_, PyAny>) -> Result<Self, TypeError> {
+        // check python type
+        if feature.is_instance_of::<PyFloat>() {
+            let value: f64 = feature.extract().unwrap();
+            Ok(Feature::Float(FloatFeature {
+                name: name.into(),
+                value,
+            }))
+        } else if feature.is_instance_of::<PyInt>() {
+            let value: i64 = feature.extract().unwrap();
+            Ok(Feature::Int(IntFeature {
+                name: name.into(),
+                value,
+            }))
+        } else if feature.is_instance_of::<PyString>() {
+            let value: String = feature.extract().unwrap();
+            Ok(Feature::String(StringFeature {
+                name: name.into(),
+                value,
+            }))
+        } else {
+            Err(TypeError::UnsupportedFeatureTypeError(
+                feature.get_type().name()?.to_string(),
+            ))
+        }
+    }
+
     #[staticmethod]
     pub fn int(name: String, value: i64) -> Self {
         Feature::Int(IntFeature { name, value })
@@ -162,11 +201,42 @@ pub struct Features {
 #[pymethods]
 impl Features {
     #[new]
-    pub fn new(features: Vec<Feature>) -> Self {
-        Features {
+    /// Creates a new Features instance.
+    /// A user may supply either a list of features or a single feature.
+    /// Extract features into a Vec<Feature>
+    /// Extraction follows the following rules:
+    /// 1. Check if Pylist, if so, extract to Vec<Feature>
+    /// 2. Check if PyDict, if so, iterate over each key-value pair and create a Feature
+    /// 3. If neither, return an error
+    /// # Arguments
+    /// * `features` - A Python object that can be a list of Feature instances or
+    ///               a dictionary of key-value pairs where keys are feature names
+    /// # Returns
+    /// * `Features` - A new Features instance containing the extracted features.
+    pub fn new(features: Bound<'_, PyAny>) -> Result<Self, TypeError> {
+        let features = if features.is_instance_of::<PyList>() {
+            features
+                .downcast::<PyList>()
+                .unwrap()
+                .iter()
+                .map(|item| item.extract::<Feature>().unwrap())
+                .collect()
+        } else if features.is_instance_of::<PyDict>() {
+            features
+                .downcast::<PyDict>()
+                .unwrap()
+                .iter()
+                .map(|(key, value)| Feature::new(key.extract().unwrap(), value.clone()).unwrap())
+                .collect()
+        } else {
+            Err(TypeError::UnsupportedFeaturesTypeError(
+                features.get_type().name()?.to_string(),
+            ))?
+        };
+        Ok(Features {
             features,
             entity_type: EntityType::Feature,
-        }
+        })
     }
 
     pub fn __str__(&self) -> String {
@@ -205,11 +275,28 @@ pub struct Metric {
 #[pymethods]
 impl Metric {
     #[new]
-    pub fn new(name: String, value: f64) -> Self {
+    pub fn new(name: String, value: Bound<'_, PyAny>) -> Self {
+        let value = if value.is_instance_of::<PyFloat>() {
+            value.extract::<f64>().unwrap()
+        } else if value.is_instance_of::<PyInt>() {
+            value.extract::<i64>().unwrap() as f64
+        } else {
+            panic!(
+                "Unsupported metric type: {}",
+                value.get_type().name().unwrap()
+            );
+        };
         Metric { name, value }
     }
+
     pub fn __str__(&self) -> String {
         ProfileFuncs::__str__(self)
+    }
+}
+
+impl Metric {
+    pub fn new_rs(name: String, value: f64) -> Self {
+        Metric { name, value }
     }
 }
 
@@ -226,11 +313,30 @@ pub struct Metrics {
 #[pymethods]
 impl Metrics {
     #[new]
-    pub fn new(metrics: Vec<Metric>) -> Self {
-        Metrics {
+    pub fn new(metrics: Bound<'_, PyAny>) -> Result<Self, TypeError> {
+        let metrics = if metrics.is_instance_of::<PyList>() {
+            metrics
+                .downcast::<PyList>()
+                .unwrap()
+                .iter()
+                .map(|item| item.extract::<Metric>().unwrap())
+                .collect()
+        } else if metrics.is_instance_of::<PyDict>() {
+            metrics
+                .downcast::<PyDict>()
+                .unwrap()
+                .iter()
+                .map(|(key, value)| Metric::new(key.extract().unwrap(), value))
+                .collect()
+        } else {
+            Err(TypeError::UnsupportedMetricsTypeError(
+                metrics.get_type().name()?.to_string(),
+            ))?
+        };
+        Ok(Metrics {
             metrics,
             entity_type: EntityType::Metric,
-        }
+        })
     }
     pub fn __str__(&self) -> String {
         ProfileFuncs::__str__(self)

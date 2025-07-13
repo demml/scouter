@@ -11,7 +11,7 @@ use std::sync::Arc;
 use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tracing::error;
-use tracing::info;
+use tracing::{info, instrument};
 
 /// Create the main server
 ///
@@ -51,14 +51,15 @@ pub async fn create_app() -> Result<(Router, Arc<AppState>), anyhow::Error> {
 }
 
 /// Start the main server
+#[instrument(skip_all)]
 pub async fn start_server() -> Result<(), anyhow::Error> {
     let (router, app_state) = create_app().await?;
 
     let port = std::env::var("SCOUTER_SERVER_PORT").unwrap_or_else(|_| "8000".to_string());
-    let addr = format!("0.0.0.0:{}", port);
+    let addr = format!("0.0.0.0:{port}");
     let listener = tokio::net::TcpListener::bind(addr.clone())
         .await
-        .with_context(|| format!("Failed to bind to port {}", port))?;
+        .with_context(|| format!("Failed to bind to port {port}"))?;
 
     info!(
         "🚀 Scouter Server started successfully on {:?}",

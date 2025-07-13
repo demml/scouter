@@ -14,7 +14,7 @@ use scouter_sql::PostgresClient;
 use sqlx::{Pool, Postgres};
 use std::str::FromStr;
 use std::sync::Arc;
-use tracing::{debug, info};
+use tracing::{debug, info, instrument};
 
 #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
 use scouter_events::consumer::kafka::{
@@ -258,6 +258,7 @@ impl ScouterSetupComponents {
     /// Returns:
     /// * `AnyhowResult<()>` - The result of the setup
     #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
+    #[instrument(skip_all)]
     async fn setup_kafka(
         settings: &KafkaSettings,
         db_pool: &Pool<Postgres>,
@@ -291,6 +292,7 @@ impl ScouterSetupComponents {
     /// Returns:
     /// * `AnyhowResult<()>` - The result of the setup
     #[cfg(feature = "rabbitmq")]
+    #[instrument(skip_all)]
     async fn setup_rabbitmq(
         settings: &RabbitMQSettings,
         db_pool: &Pool<Postgres>,
@@ -322,6 +324,7 @@ impl ScouterSetupComponents {
     ///
     /// Returns:
     /// * `AnyhowResult<HttpConsumerManager>` - http consumer manager struct containing the flume channel transmitter
+    #[instrument(skip_all)]
     async fn setup_http_consumer_manager(
         settings: &HttpConsumerSettings,
         db_pool: &Pool<Postgres>,
@@ -357,6 +360,7 @@ impl ScouterSetupComponents {
     ///
     /// Returns:
     /// * `AnyhowResult<()>` - The result of the setup
+    #[instrument(skip_all)]
     async fn setup_background_drift_workers(
         db_pool: &Pool<Postgres>,
         poll_settings: &PollingSettings,
@@ -379,6 +383,7 @@ impl ScouterSetupComponents {
     /// Returns:
     /// * `AnyhowResult<()>` - The result of the setup
     #[cfg(feature = "redis_events")]
+    #[instrument(skip_all)]
     pub async fn setup_redis(
         settings: &scouter_settings::RedisSettings,
         db_pool: &Pool<Postgres>,

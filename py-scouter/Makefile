@@ -35,6 +35,7 @@ test.unit:
 		--cov-fail-under=0 \
 		--cov-report xml:./coverage.xml \
 		--cov-report term 
+		--benchmark-skip
 
 test.integration.api:
 	uv run pytest -s tests/integration/api

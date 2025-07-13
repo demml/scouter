@@ -311,8 +311,7 @@ impl PsiMonitor {
 
                     return Err(DriftError::RunTimeError(
                         format!(
-                            "Feature mismatch, feature '{}' not found. Available features in the drift profile: {}",
-                            feature_name, available_keys
+                            "Feature mismatch, feature '{feature_name}' not found. Available features in the drift profile: {available_keys}"
                         ),
                     ));
                 }

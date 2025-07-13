@@ -92,6 +92,9 @@ pub enum ClientError {
 
     #[error(transparent)]
     UtilError(#[from] scouter_types::error::UtilError),
+
+    #[error("Failed to parse JWT token from response: {0}")]
+    ParseJwtTokenError(String),
 }
 
 impl From<ClientError> for PyErr {

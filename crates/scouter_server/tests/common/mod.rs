@@ -171,7 +171,7 @@ impl TestHelper {
                     space: SPACE.to_string(),
                     name: NAME.to_string(),
                     version: VERSION.to_string(),
-                    feature: format!("feature_{}", j),
+                    feature: format!("feature_{j}"),
                     value: j as f64,
                 };
 
@@ -195,7 +195,7 @@ impl TestHelper {
                         space: SPACE.to_string(),
                         name: NAME.to_string(),
                         version: VERSION.to_string(),
-                        feature: format!("feature_{}", feature),
+                        feature: format!("feature_{feature}"),
                         bin_id: decile,
                         bin_count: rand::rng().random_range(0..10),
                     };
@@ -217,7 +217,7 @@ impl TestHelper {
                     space: SPACE.to_string(),
                     name: NAME.to_string(),
                     version: VERSION.to_string(),
-                    metric: format!("metric_{}", i),
+                    metric: format!("metric_{i}"),
                     value: rand::rng().random_range(0..10) as f64,
                 };
 

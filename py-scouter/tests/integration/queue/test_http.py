@@ -2,6 +2,7 @@ import random
 import tempfile
 import time
 from pathlib import Path
+from typing import Dict, Union, cast
 
 import pandas as pd
 from scouter.client import (
@@ -12,7 +13,7 @@ from scouter.client import (
     TimeInterval,
 )
 from scouter.drift import Drifter, PsiDriftConfig
-from scouter.queue import Feature, Features, ScouterQueue
+from scouter.queue import Features, ScouterQueue
 from scouter.types import DriftType
 
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"
@@ -38,9 +39,13 @@ def test_psi_monitor_pandas_http(
 
     # 2. Simulate records
     records = pandas_dataframe.to_dict(orient="records")
+
     for record in records:
         features = Features(
-            features=[Feature.float(column_name, record[column_name]) for column_name in pandas_dataframe.columns]
+            features=cast(
+                Dict[str, Union[float, int, str]],
+                record,
+            )
         )
         # 3. Send records to Scouter
         queue["a"].insert(features)

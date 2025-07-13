@@ -119,7 +119,7 @@ async fn test_data_archive_spc() {
     let query_string = serde_qs::to_string(&params).unwrap();
 
     let request = Request::builder()
-        .uri(format!("/scouter/drift/spc?{}", query_string))
+        .uri(format!("/scouter/drift/spc?{query_string}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();
@@ -237,7 +237,7 @@ async fn test_data_archive_psi() {
     let query_string = serde_qs::to_string(&params).unwrap();
 
     let request = Request::builder()
-        .uri(format!("/scouter/drift/psi?{}", query_string))
+        .uri(format!("/scouter/drift/psi?{query_string}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();
@@ -341,7 +341,7 @@ async fn test_data_archive_custom() {
     let query_string = serde_qs::to_string(&params).unwrap();
 
     let request = Request::builder()
-        .uri(format!("/scouter/drift/custom?{}", query_string))
+        .uri(format!("/scouter/drift/custom?{query_string}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();

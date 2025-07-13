@@ -34,4 +34,7 @@ pub enum SqlError {
 
     #[error("Empty batch of records")]
     EmptyBatchError,
+
+    #[error("Record batch type is not supported")]
+    UnsupportedBatchTypeError,
 }

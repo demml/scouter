@@ -4,7 +4,7 @@ use crate::api::middleware::metrics::metrics_app;
 use crate::api::shutdown::shutdown_metric_signal;
 use anyhow::Context;
 use scouter_server::start_server;
-use tracing::info;
+use tracing::{info, instrument};
 
 use mimalloc::MiMalloc;
 
@@ -12,6 +12,7 @@ use mimalloc::MiMalloc;
 static GLOBAL: MiMalloc = MiMalloc;
 
 /// Start the metrics server for prometheus
+#[instrument(skip_all)]
 async fn start_metrics_server() -> Result<(), anyhow::Error> {
     let app = metrics_app().with_context(|| "Failed to setup metrics app")?;
 

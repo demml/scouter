@@ -68,7 +68,7 @@ pub trait AlertSqlLogic {
         query.push_str(" ORDER BY created_at DESC");
 
         if let Some(limit) = params.limit {
-            query.push_str(&format!(" LIMIT {}", limit));
+            query.push_str(&format!(" LIMIT {limit}"));
         }
 
         // convert limit timestamp to string if it exists, leave as None if not
