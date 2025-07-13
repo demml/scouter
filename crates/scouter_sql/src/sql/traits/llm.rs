@@ -5,20 +5,18 @@ use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::multiunzip;
-use scouter_dataframe::parquet::{dataframe_to_custom_drift_metrics, ParquetDataFrame};
+use scouter_dataframe::parquet::llm::metric::dataframe_to_llm_drift_metrics;
+use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::{DriftRequest, ServiceInfo};
 use scouter_types::LLMMetricServerRecord;
-use scouter_types::{
-    llm::{BinnedLLMMetric, BinnedLLMMetricStats, BinnedLLMMetrics},
-    LLMDriftServerRecord, RecordType,
-};
+use scouter_types::{llm::BinnedLLMMetrics, LLMDriftServerRecord, RecordType};
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::collections::HashMap;
 use tracing::{debug, instrument};
 
 #[async_trait]
-pub trait LLMMetricSqlLogic {
+pub trait LLMDriftSqlLogic {
     /// Inserts an LLM drift record into the database.
     /// # Arguments
     /// * `pool` - The database connection pool
@@ -183,31 +181,6 @@ pub trait LLMMetricSqlLogic {
     /// # Returns
     /// * A vector of drift records
     #[instrument(skip_all)]
-    async fn get_archived_drift_records(
-        params: &DriftRequest,
-        begin: DateTime<Utc>,
-        end: DateTime<Utc>,
-        minutes: i32,
-        storage_settings: &ObjectStorageSettings,
-    ) -> Result<BinnedLLMMetrics, SqlError> {
-        let path = format!("{}/{}/{}/llm", params.space, params.name, params.version);
-        let bin = minutes as f64 / params.max_data_points as f64;
-        let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::LLMDrift)?
-            .get_binned_metrics(
-                &path,
-                &bin,
-                &begin,
-                &end,
-                &params.space,
-                &params.name,
-                &params.version,
-            )
-            .await?;
-
-        Ok(dataframe_to_custom_drift_metrics(archived_df).await?)
-    }
-
-    #[instrument(skip_all)]
     async fn get_archived_metric_records(
         params: &DriftRequest,
         begin: DateTime<Utc>,
@@ -229,7 +202,7 @@ pub trait LLMMetricSqlLogic {
             )
             .await?;
 
-        Ok(dataframe_to_custom_drift_metrics(archived_df).await?)
+        Ok(dataframe_to_llm_drift_metrics(archived_df).await?)
     }
 
     // Queries the database for drift records based on a time window and aggregation
@@ -242,7 +215,7 @@ pub trait LLMMetricSqlLogic {
     //
     // * A vector of drift records
     #[instrument(skip_all)]
-    async fn get_binned_llm_drift_records(
+    async fn get_binned_llm_metric_records(
         pool: &Pool<Postgres>,
         params: &DriftRequest,
         retention_period: &i32,

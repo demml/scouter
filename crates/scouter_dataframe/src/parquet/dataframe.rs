@@ -30,6 +30,12 @@ impl ParquetDataFrame {
             )?)),
             RecordType::Psi => Ok(ParquetDataFrame::Psi(PsiDataFrame::new(storage_settings)?)),
             RecordType::Spc => Ok(ParquetDataFrame::Spc(SpcDataFrame::new(storage_settings)?)),
+            RecordType::LLMMetric => Ok(ParquetDataFrame::LLMMetric(LLMMetricDataFrame::new(
+                storage_settings,
+            )?)),
+            RecordType::LLMDrift => Ok(ParquetDataFrame::LLMDrift(LLMDriftDataFrame::new(
+                storage_settings,
+            )?)),
 
             _ => Err(DataFrameError::InvalidRecordTypeError),
         }

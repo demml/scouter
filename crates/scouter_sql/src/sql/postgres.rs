@@ -1,6 +1,6 @@
 use crate::sql::traits::{
-    AlertSqlLogic, ArchiveSqlLogic, CustomMetricSqlLogic, ObservabilitySqlLogic, ProfileSqlLogic,
-    PsiSqlLogic, SpcSqlLogic, UserSqlLogic,
+    AlertSqlLogic, ArchiveSqlLogic, CustomMetricSqlLogic, LLMDriftSqlLogic, ObservabilitySqlLogic,
+    ProfileSqlLogic, PsiSqlLogic, SpcSqlLogic, UserSqlLogic,
 };
 
 use crate::sql::error::SqlError;
@@ -22,6 +22,7 @@ pub struct PostgresClient {}
 impl SpcSqlLogic for PostgresClient {}
 impl CustomMetricSqlLogic for PostgresClient {}
 impl PsiSqlLogic for PostgresClient {}
+impl LLMDriftSqlLogic for PostgresClient {}
 impl UserSqlLogic for PostgresClient {}
 impl ProfileSqlLogic for PostgresClient {}
 impl ObservabilitySqlLogic for PostgresClient {}
@@ -78,6 +79,8 @@ impl PostgresClient {
 pub struct MessageHandler {}
 
 impl MessageHandler {
+    const DEFAULT_BATCH_SIZE: usize = 500;
+
     #[instrument(skip_all)]
     pub async fn insert_server_records(
         pool: &Pool<Postgres>,
@@ -127,6 +130,32 @@ impl MessageHandler {
                         .map_err(|e| {
                             error!("Failed to insert bin count record: {:?}", e);
                         });
+                }
+            }
+
+            RecordType::LLMDrift => {
+                debug!("LLM Drift record count: {:?}", records.len());
+                let records = records.to_llm_drift_records()?;
+                for record in records.iter() {
+                    let _ = PostgresClient::insert_llm_drift_record(pool, record)
+                        .await
+                        .map_err(|e| {
+                            error!("Failed to insert LLM drift record: {:?}", e);
+                        });
+                }
+            }
+
+            RecordType::LLMMetric => {
+                debug!("LLM Metric record count: {:?}", records.len());
+                let llm_metric_records = records.to_llm_metric_records()?;
+
+                for chunk in llm_metric_records.chunks(Self::DEFAULT_BATCH_SIZE) {
+                    PostgresClient::insert_llm_metric_values_batch(pool, chunk)
+                        .await
+                        .map_err(|e| {
+                            error!("Failed to insert LLM metric records batch: {:?}", e);
+                            e
+                        })?;
                 }
             }
         };

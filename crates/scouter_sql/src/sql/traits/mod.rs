@@ -11,6 +11,7 @@ pub mod user;
 pub use alert::AlertSqlLogic;
 pub use archive::ArchiveSqlLogic;
 pub use custom::CustomMetricSqlLogic;
+pub use llm::LLMDriftSqlLogic;
 pub use observability::ObservabilitySqlLogic;
 pub use profile::ProfileSqlLogic;
 pub use psi::PsiSqlLogic;
