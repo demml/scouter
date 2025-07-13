@@ -230,6 +230,20 @@ impl LLMDriftServerRecord {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct BoxedLLMDriftServerRecord {
+    pub record: Box<LLMDriftServerRecord>,
+}
+
+impl BoxedLLMDriftServerRecord {
+    pub fn new(record: LLMDriftServerRecord) -> Self {
+        Self {
+            record: Box::new(record),
+        }
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LLMMetricServerRecord {
     pub created_at: chrono::DateTime<Utc>,
     pub space: String,
@@ -396,7 +410,7 @@ pub enum ServerRecord {
     Psi(PsiServerRecord),
     Custom(CustomMetricServerRecord),
     Observability(ObservabilityMetrics),
-    LLMDrift(LLMDriftServerRecord),
+    LLMDrift(BoxedLLMDriftServerRecord),
     LLMMetric(LLMMetricServerRecord),
 }
 
@@ -411,28 +425,28 @@ impl ServerRecord {
         match record_type {
             RecordType::Spc => {
                 let spc_record = record.extract::<SpcServerRecord>()?;
-                return Ok(ServerRecord::Spc(spc_record));
+                Ok(ServerRecord::Spc(spc_record))
             }
             RecordType::Psi => {
                 let psi_record = record.extract::<PsiServerRecord>()?;
-                return Ok(ServerRecord::Psi(psi_record));
+                Ok(ServerRecord::Psi(psi_record))
             }
             RecordType::Custom => {
                 let custom_record = record.extract::<CustomMetricServerRecord>()?;
-                return Ok(ServerRecord::Custom(custom_record));
+                Ok(ServerRecord::Custom(custom_record))
             }
             RecordType::Observability => {
                 let observability_record = record.extract::<ObservabilityMetrics>()?;
-                return Ok(ServerRecord::Observability(observability_record));
+                Ok(ServerRecord::Observability(observability_record))
             }
             RecordType::LLMDrift => {
                 let llm_drift_record = record.extract::<LLMDriftServerRecord>()?;
-                return Ok(ServerRecord::LLMDrift(llm_drift_record));
+                Ok(ServerRecord::LLMDrift(BoxedLLMDriftServerRecord::new(
+                    llm_drift_record,
+                )))
             }
 
-            _ => {
-                return Err(RecordError::InvalidDriftTypeError);
-            }
+            _ => return Err(RecordError::InvalidDriftTypeError),
         }
     }
 
@@ -443,7 +457,7 @@ impl ServerRecord {
             ServerRecord::Psi(record) => Ok(record.clone().into_py_any(py)?),
             ServerRecord::Custom(record) => Ok(record.clone().into_py_any(py)?),
             ServerRecord::Observability(record) => Ok(record.clone().into_py_any(py)?),
-            ServerRecord::LLMDrift(record) => Ok(record.clone().into_py_any(py)?),
+            ServerRecord::LLMDrift(record) => Ok(record.record.clone().into_py_any(py)?),
             ServerRecord::LLMMetric(record) => Ok(record.clone().into_py_any(py)?),
         }
     }
@@ -454,7 +468,7 @@ impl ServerRecord {
             ServerRecord::Psi(record) => record.space.clone(),
             ServerRecord::Custom(record) => record.space.clone(),
             ServerRecord::Observability(record) => record.space.clone(),
-            ServerRecord::LLMDrift(record) => record.space.clone(),
+            ServerRecord::LLMDrift(record) => record.record.space.clone(),
             ServerRecord::LLMMetric(record) => record.space.clone(),
         }
     }
@@ -466,7 +480,7 @@ impl ServerRecord {
             ServerRecord::Psi(record) => record.__str__(),
             ServerRecord::Custom(record) => record.__str__(),
             ServerRecord::Observability(record) => record.__str__(),
-            ServerRecord::LLMDrift(record) => record.__str__(),
+            ServerRecord::LLMDrift(record) => record.record.__str__(),
             ServerRecord::LLMMetric(record) => record.__str__(),
         }
     }
@@ -610,7 +624,7 @@ impl ToDriftRecords for ServerRecords {
 
     fn to_llm_drift_records(&self) -> Result<Vec<LLMDriftServerRecord>, RecordError> {
         extract_records(self, |record| match record {
-            ServerRecord::LLMDrift(inner) => Some(inner.clone()),
+            ServerRecord::LLMDrift(inner) => Some(*inner.record.clone()),
             _ => None,
         })
     }
