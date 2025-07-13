@@ -1,5 +1,6 @@
 use crate::error::DataFrameError;
 use crate::parquet::custom::CustomMetricDataFrame;
+use crate::parquet::llm::{LLMDriftDataFrame, LLMMetricDataFrame};
 use crate::parquet::psi::PsiDataFrame;
 use crate::parquet::spc::SpcDataFrame;
 use crate::parquet::traits::ParquetFrame;
@@ -14,6 +15,8 @@ pub enum ParquetDataFrame {
     CustomMetric(CustomMetricDataFrame),
     Psi(PsiDataFrame),
     Spc(SpcDataFrame),
+    LLMMetric(LLMMetricDataFrame),
+    LLMDrift(LLMDriftDataFrame),
 }
 
 impl ParquetDataFrame {
@@ -51,6 +54,8 @@ impl ParquetDataFrame {
             ParquetDataFrame::CustomMetric(df) => df.write_parquet(rpath, records).await,
             ParquetDataFrame::Psi(df) => df.write_parquet(rpath, records).await,
             ParquetDataFrame::Spc(df) => df.write_parquet(rpath, records).await,
+            ParquetDataFrame::LLMMetric(df) => df.write_parquet(rpath, records).await,
+            ParquetDataFrame::LLMDrift(df) => df.write_parquet(rpath, records).await,
         }
     }
 
@@ -59,6 +64,8 @@ impl ParquetDataFrame {
             ParquetDataFrame::CustomMetric(df) => df.storage_root(),
             ParquetDataFrame::Psi(df) => df.storage_root(),
             ParquetDataFrame::Spc(df) => df.storage_root(),
+            ParquetDataFrame::LLMMetric(df) => df.storage_root(),
+            ParquetDataFrame::LLMDrift(df) => df.storage_root(),
         }
     }
 
@@ -68,6 +75,8 @@ impl ParquetDataFrame {
             ParquetDataFrame::CustomMetric(df) => df.object_store.clone(),
             ParquetDataFrame::Psi(df) => df.object_store.clone(),
             ParquetDataFrame::Spc(df) => df.object_store.clone(),
+            ParquetDataFrame::LLMMetric(df) => df.object_store.clone(),
+            ParquetDataFrame::LLMDrift(df) => df.object_store.clone(),
         }
     }
 
@@ -107,6 +116,14 @@ impl ParquetDataFrame {
                 df.get_binned_metrics(read_path, bin, start_time, end_time, space, name, version)
                     .await
             }
+
+            ParquetDataFrame::LLMMetric(df) => {
+                df.get_binned_metrics(read_path, bin, start_time, end_time, space, name, version)
+                    .await
+            }
+            ParquetDataFrame::LLMDrift(_) => Err(DataFrameError::UnsupportedOperation(
+                "LLMDrift does not support binned metrics".to_string(),
+            )),
         }
     }
 
@@ -118,6 +135,10 @@ impl ParquetDataFrame {
             }
             ParquetDataFrame::Psi(df) => df.object_store.storage_settings.storage_type.clone(),
             ParquetDataFrame::Spc(df) => df.object_store.storage_settings.storage_type.clone(),
+            ParquetDataFrame::LLMMetric(df) => {
+                df.object_store.storage_settings.storage_type.clone()
+            }
+            ParquetDataFrame::LLMDrift(df) => df.object_store.storage_settings.storage_type.clone(),
         }
     }
 

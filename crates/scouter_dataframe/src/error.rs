@@ -73,4 +73,7 @@ pub enum DataFrameError {
 
     #[error("Invalid record type provided")]
     InvalidRecordTypeError,
+
+    #[error("Unsupported operation: {0}")]
+    UnsupportedOperation(String),
 }

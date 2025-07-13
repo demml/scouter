@@ -6,6 +6,7 @@ use scouter_types::{
     alert::Alert,
     custom::{BinnedCustomMetric, BinnedCustomMetricStats},
     get_utc_datetime,
+    llm::{BinnedLLMMetric, BinnedLLMMetricStats},
     psi::FeatureBinProportionResult,
     RecordType,
 };
@@ -76,6 +77,25 @@ impl<'r> FromRow<'r, PgRow> for BinnedCustomMetricWrapper {
             .collect();
 
         Ok(BinnedCustomMetricWrapper(BinnedCustomMetric {
+            metric: row.try_get("metric")?,
+            created_at: row.try_get("created_at")?,
+            stats,
+        }))
+    }
+}
+
+pub struct BinnedLLMMetricWrapper(pub BinnedLLMMetric);
+
+impl<'r> FromRow<'r, PgRow> for BinnedLLMMetricWrapper {
+    fn from_row(row: &'r PgRow) -> Result<Self, Error> {
+        let stats_json: Vec<serde_json::Value> = row.try_get("stats")?;
+
+        let stats: Vec<BinnedLLMMetricStats> = stats_json
+            .into_iter()
+            .map(|value| serde_json::from_value(value).unwrap_or_default())
+            .collect();
+
+        Ok(BinnedLLMMetricWrapper(BinnedLLMMetric {
             metric: row.try_get("metric")?,
             created_at: row.try_get("created_at")?,
             stats,

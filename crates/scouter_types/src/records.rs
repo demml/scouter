@@ -21,6 +21,7 @@ pub enum RecordType {
     Observability,
     Custom,
     LLMDrift,
+    LLMMetric,
 }
 
 impl Display for RecordType {
@@ -31,6 +32,7 @@ impl Display for RecordType {
             RecordType::Observability => write!(f, "observability"),
             RecordType::Custom => write!(f, "custom"),
             RecordType::LLMDrift => write!(f, "llm_drift"),
+            RecordType::LLMMetric => write!(f, "llm_metric"),
         }
     }
 }
@@ -226,6 +228,7 @@ impl LLMDriftServerRecord {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct LLMMetricServerRecord {
     pub created_at: chrono::DateTime<Utc>,
@@ -234,6 +237,14 @@ pub struct LLMMetricServerRecord {
     pub version: String,
     pub metric: String,
     pub value: f64,
+}
+
+#[pymethods]
+impl LLMMetricServerRecord {
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
 }
 
 #[pyclass]
@@ -386,6 +397,7 @@ pub enum ServerRecord {
     Custom(CustomMetricServerRecord),
     Observability(ObservabilityMetrics),
     LLMDrift(LLMDriftServerRecord),
+    LLMMetric(LLMMetricServerRecord),
 }
 
 #[pymethods]
@@ -417,6 +429,10 @@ impl ServerRecord {
                 let llm_drift_record = record.extract::<LLMDriftServerRecord>()?;
                 return Ok(ServerRecord::LLMDrift(llm_drift_record));
             }
+
+            _ => {
+                return Err(RecordError::InvalidDriftTypeError);
+            }
         }
     }
 
@@ -428,6 +444,7 @@ impl ServerRecord {
             ServerRecord::Custom(record) => Ok(record.clone().into_py_any(py)?),
             ServerRecord::Observability(record) => Ok(record.clone().into_py_any(py)?),
             ServerRecord::LLMDrift(record) => Ok(record.clone().into_py_any(py)?),
+            ServerRecord::LLMMetric(record) => Ok(record.clone().into_py_any(py)?),
         }
     }
 
@@ -438,6 +455,7 @@ impl ServerRecord {
             ServerRecord::Custom(record) => record.space.clone(),
             ServerRecord::Observability(record) => record.space.clone(),
             ServerRecord::LLMDrift(record) => record.space.clone(),
+            ServerRecord::LLMMetric(record) => record.space.clone(),
         }
     }
 
@@ -449,6 +467,7 @@ impl ServerRecord {
             ServerRecord::Custom(record) => record.__str__(),
             ServerRecord::Observability(record) => record.__str__(),
             ServerRecord::LLMDrift(record) => record.__str__(),
+            ServerRecord::LLMMetric(record) => record.__str__(),
         }
     }
 
@@ -459,6 +478,7 @@ impl ServerRecord {
             ServerRecord::Custom(_) => RecordType::Custom,
             ServerRecord::Observability(_) => RecordType::Observability,
             ServerRecord::LLMDrift(_) => RecordType::LLMDrift,
+            ServerRecord::LLMMetric(_) => RecordType::LLMMetric,
         }
     }
 }
@@ -557,6 +577,7 @@ pub trait ToDriftRecords {
     fn to_psi_drift_records(&self) -> Result<Vec<PsiServerRecord>, RecordError>;
     fn to_custom_metric_drift_records(&self) -> Result<Vec<CustomMetricServerRecord>, RecordError>;
     fn to_llm_drift_records(&self) -> Result<Vec<LLMDriftServerRecord>, RecordError>;
+    fn to_llm_metric_records(&self) -> Result<Vec<LLMMetricServerRecord>, RecordError>;
 }
 impl ToDriftRecords for ServerRecords {
     fn to_spc_drift_records(&self) -> Result<Vec<SpcServerRecord>, RecordError> {
@@ -590,6 +611,13 @@ impl ToDriftRecords for ServerRecords {
     fn to_llm_drift_records(&self) -> Result<Vec<LLMDriftServerRecord>, RecordError> {
         extract_records(self, |record| match record {
             ServerRecord::LLMDrift(inner) => Some(inner.clone()),
+            _ => None,
+        })
+    }
+
+    fn to_llm_metric_records(&self) -> Result<Vec<LLMMetricServerRecord>, RecordError> {
+        extract_records(self, |record| match record {
+            ServerRecord::LLMMetric(inner) => Some(inner.clone()),
             _ => None,
         })
     }

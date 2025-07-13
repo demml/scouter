@@ -1,6 +1,6 @@
 use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
-use crate::sql::schema::{BinnedCustomMetricWrapper, LLMDriftServerSQLRecord};
+use crate::sql::schema::{BinnedLLMMetricWrapper, LLMDriftServerSQLRecord};
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -10,7 +10,8 @@ use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::{DriftRequest, ServiceInfo};
 use scouter_types::LLMMetricServerRecord;
 use scouter_types::{
-    custom::BinnedCustomMetrics, CustomMetricServerRecord, LLMDriftServerRecord, RecordType,
+    llm::{BinnedLLMMetric, BinnedLLMMetricStats, BinnedLLMMetrics},
+    LLMDriftServerRecord, RecordType,
 };
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::collections::HashMap;
@@ -87,13 +88,13 @@ pub trait LLMMetricSqlLogic {
             .map_err(SqlError::SqlxError)
     }
 
-    async fn get_custom_metric_values(
+    async fn get_llm_metric_values(
         pool: &Pool<Postgres>,
         service_info: &ServiceInfo,
         limit_datetime: &DateTime<Utc>,
         metrics: &[String],
     ) -> Result<HashMap<String, f64>, SqlError> {
-        let query = Queries::GetCustomMetricValues.get_query();
+        let query = Queries::GetLLMMetricValues.get_query();
 
         let records = sqlx::query(&query.sql)
             .bind(&service_info.name)
@@ -117,7 +118,7 @@ pub trait LLMMetricSqlLogic {
         Ok(metric_map)
     }
 
-    // Queries the database for Custom drift records based on a time window
+    // Queries the database for LLM metric records based on a time window
     /// and aggregation.
     ///
     /// # Arguments
@@ -131,12 +132,12 @@ pub trait LLMMetricSqlLogic {
         pool: &Pool<Postgres>,
         params: &DriftRequest,
         minutes: i32,
-    ) -> Result<BinnedCustomMetrics, SqlError> {
+    ) -> Result<BinnedLLMMetrics, SqlError> {
         let bin = params.time_interval.to_minutes() as f64 / params.max_data_points as f64;
 
-        let query = Queries::GetBinnedCustomMetricValues.get_query();
+        let query = Queries::GetBinnedLLMMetrics.get_query();
 
-        let records: Vec<BinnedCustomMetricWrapper> = sqlx::query_as(&query.sql)
+        let records: Vec<BinnedLLMMetricWrapper> = sqlx::query_as(&query.sql)
             .bind(bin)
             .bind(minutes)
             .bind(&params.name)
@@ -146,15 +147,15 @@ pub trait LLMMetricSqlLogic {
             .await
             .map_err(SqlError::SqlxError)?;
 
-        Ok(BinnedCustomMetrics::from_vec(
+        Ok(BinnedLLMMetrics::from_vec(
             records.into_iter().map(|wrapper| wrapper.0).collect(),
         ))
     }
 
     /// Helper for merging custom drift records
     fn merge_feature_results(
-        results: BinnedCustomMetrics,
-        map: &mut BinnedCustomMetrics,
+        results: BinnedLLMMetrics,
+        map: &mut BinnedLLMMetrics,
     ) -> Result<(), SqlError> {
         for (name, metric) in results.metrics {
             let metric_clone = metric.clone();
@@ -182,16 +183,41 @@ pub trait LLMMetricSqlLogic {
     /// # Returns
     /// * A vector of drift records
     #[instrument(skip_all)]
-    async fn get_archived_records(
+    async fn get_archived_drift_records(
         params: &DriftRequest,
         begin: DateTime<Utc>,
         end: DateTime<Utc>,
         minutes: i32,
         storage_settings: &ObjectStorageSettings,
-    ) -> Result<BinnedCustomMetrics, SqlError> {
-        let path = format!("{}/{}/{}/custom", params.space, params.name, params.version);
+    ) -> Result<BinnedLLMMetrics, SqlError> {
+        let path = format!("{}/{}/{}/llm", params.space, params.name, params.version);
         let bin = minutes as f64 / params.max_data_points as f64;
-        let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::Custom)?
+        let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::LLMDrift)?
+            .get_binned_metrics(
+                &path,
+                &bin,
+                &begin,
+                &end,
+                &params.space,
+                &params.name,
+                &params.version,
+            )
+            .await?;
+
+        Ok(dataframe_to_custom_drift_metrics(archived_df).await?)
+    }
+
+    #[instrument(skip_all)]
+    async fn get_archived_metric_records(
+        params: &DriftRequest,
+        begin: DateTime<Utc>,
+        end: DateTime<Utc>,
+        minutes: i32,
+        storage_settings: &ObjectStorageSettings,
+    ) -> Result<BinnedLLMMetrics, SqlError> {
+        let path = format!("{}/{}/{}/llm", params.space, params.name, params.version);
+        let bin = minutes as f64 / params.max_data_points as f64;
+        let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::LLMMetric)?
             .get_binned_metrics(
                 &path,
                 &bin,
@@ -216,12 +242,12 @@ pub trait LLMMetricSqlLogic {
     //
     // * A vector of drift records
     #[instrument(skip_all)]
-    async fn get_binned_custom_drift_records(
+    async fn get_binned_llm_drift_records(
         pool: &Pool<Postgres>,
         params: &DriftRequest,
         retention_period: &i32,
         storage_settings: &ObjectStorageSettings,
-    ) -> Result<BinnedCustomMetrics, SqlError> {
+    ) -> Result<BinnedLLMMetrics, SqlError> {
         debug!("Getting binned Custom drift records for {:?}", params);
 
         if !params.has_custom_interval() {
@@ -233,7 +259,7 @@ pub trait LLMMetricSqlLogic {
         debug!("Custom interval provided, using custom interval");
         let interval = params.clone().to_custom_interval().unwrap();
         let timestamps = split_custom_interval(interval.start, interval.end, retention_period)?;
-        let mut custom_metric_map = BinnedCustomMetrics::default();
+        let mut custom_metric_map = BinnedLLMMetrics::default();
 
         // get data from postgres
         if let Some(minutes) = timestamps.current_minutes {
@@ -245,7 +271,7 @@ pub trait LLMMetricSqlLogic {
 
         if let Some((archive_begin, archive_end)) = timestamps.archived_range {
             if let Some(archived_minutes) = timestamps.archived_minutes {
-                let archived_results = Self::get_archived_records(
+                let archived_results = Self::get_archived_metric_records(
                     params,
                     archive_begin,
                     archive_end,

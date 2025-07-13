@@ -5059,6 +5059,7 @@ dependencies = [
  "rand 0.9.1",
  "scouter-settings",
  "scouter-types",
+ "serde_json",
  "tempfile",
  "thiserror 2.0.12",
  "tokio",
