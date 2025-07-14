@@ -239,10 +239,10 @@ pub trait LLMDriftSqlLogic {
         let query = Queries::GetLLMMetricValues.get_query();
 
         let records = sqlx::query(&query.sql)
-            .bind(&service_info.name)
-            .bind(&service_info.space)
-            .bind(&service_info.version)
             .bind(limit_datetime)
+            .bind(&service_info.space)
+            .bind(&service_info.name)
+            .bind(&service_info.version)
             .bind(metrics)
             .fetch_all(pool)
             .await
@@ -268,7 +268,7 @@ pub trait LLMDriftSqlLogic {
     /// * `params` - The drift request parameters
     ///
     /// # Returns
-    /// * BinnedCustomMetrics
+    /// * BinnedLLMMetrics
     #[instrument(skip_all)]
     async fn get_records(
         pool: &Pool<Postgres>,
@@ -282,8 +282,8 @@ pub trait LLMDriftSqlLogic {
         let records: Vec<BinnedLLMMetricWrapper> = sqlx::query_as(&query.sql)
             .bind(bin)
             .bind(minutes)
-            .bind(&params.name)
             .bind(&params.space)
+            .bind(&params.name)
             .bind(&params.version)
             .fetch_all(pool)
             .await

@@ -889,4 +889,63 @@ mod tests {
         let diff = last_record.id - first_record.id + 1; // +1 because IDs are inclusive
         assert!(diff == 10);
     }
+
+    #[tokio::test]
+    async fn test_postgres_llm_metrics_insert_get() {
+        let pool = db_pool().await;
+
+        let timestamp = Utc::now();
+
+        for i in 0..2 {
+            let mut records = Vec::new();
+            for j in 0..25 {
+                let record = LLMMetricServerRecord {
+                    created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
+                    space: SPACE.to_string(),
+                    name: NAME.to_string(),
+                    version: VERSION.to_string(),
+                    metric: format!("metric{i}"),
+                    value: rand::rng().random_range(0..10) as f64,
+                };
+                records.push(record);
+            }
+            let result = PostgresClient::insert_llm_metric_values_batch(&pool, &records)
+                .await
+                .unwrap();
+            assert_eq!(result.rows_affected(), 25);
+        }
+
+        let metrics = PostgresClient::get_llm_metric_values(
+            &pool,
+            &ServiceInfo {
+                space: SPACE.to_string(),
+                name: NAME.to_string(),
+                version: VERSION.to_string(),
+            },
+            &timestamp,
+            &["metric1".to_string()],
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(metrics.len(), 1);
+        let binned_records = PostgresClient::get_binned_llm_metric_records(
+            &pool,
+            &DriftRequest {
+                space: SPACE.to_string(),
+                name: NAME.to_string(),
+                version: VERSION.to_string(),
+                time_interval: TimeInterval::OneHour,
+                max_data_points: 1000,
+                drift_type: DriftType::LLM,
+                ..Default::default()
+            },
+            &DatabaseSettings::default().retention_period,
+            &ObjectStorageSettings::default(),
+        )
+        .await
+        .unwrap();
+        //
+        assert_eq!(binned_records.metrics.len(), 2);
+    }
 }
