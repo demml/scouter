@@ -42,6 +42,7 @@ CREATE TABLE IF NOT exists scouter.llm_drift_record (
     status text NOT NULL default 'pending', -- pending, processing, completed, failed
     processing_started_at TIMESTAMPTZ,
     processing_ended_at TIMESTAMPTZ,
+    archived boolean default false,
     PRIMARY KEY (id, created_at),
     UNIQUE (created_at, name, space, version)
 )

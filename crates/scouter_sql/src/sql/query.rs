@@ -45,12 +45,21 @@ const GET_BINNED_LLM_METRIC_VALUES: &str = include_str!("scripts/llm/binned_llm_
 const INSERT_LLM_METRIC_VALUES_BATCH: &str =
     include_str!("scripts/llm/insert_llm_metric_values.sql");
 const INSERT_LLM_DRIFT_RECORD: &str = include_str!("scripts/llm/insert_llm_drift_record.sql");
-const GET_LLM_ENTITIES: &str = include_str!("scripts/llm/get_llm_metric_entities_for_archive.sql");
-const GET_LLM_DATA_FOR_ARCHIVE: &str =
-    include_str!("scripts/llm/get_llm_metric_data_for_archive.sql");
-const UPDATE_LLM_ENTITIES: &str = include_str!("scripts/llm/update_data_to_archived.sql");
+
 const GET_LLM_DRIFT_RECORDS: &str = include_str!("scripts/llm/get_llm_drift_records.sql");
 const UPDATE_LLM_DRIFT_TASK: &str = include_str!("scripts/llm/update_llm_drift_task.sql");
+const GET_LLM_DRIFT_RECORD_ENTITIES: &str =
+    include_str!("scripts/llm/get_llm_drift_record_entities_for_archive.sql");
+const GET_LLM_METRIC_ENTITIES: &str =
+    include_str!("scripts/llm/get_llm_metric_entities_for_archive.sql");
+const GET_LLM_DRIFT_RECORD_DATA_FOR_ARCHIVE: &str =
+    include_str!("scripts/llm/get_llm_drift_record_data_for_archive.sql");
+const GET_LLM_METRIC_DATA_FOR_ARCHIVE: &str =
+    include_str!("scripts/llm/get_llm_metric_data_for_archive.sql");
+const UPDATE_LLM_METRIC_ENTITIES: &str =
+    include_str!("scripts/llm/update_llm_drift_metric_to_archived.sql");
+const UPDATE_LLM_DRIFT_ENTITIES: &str =
+    include_str!("scripts/llm/update_llm_drift_record_to_archived.sql");
 
 // observability (experimental)
 const GET_BINNED_OBSERVABILITY_METRICS: &str =
@@ -145,11 +154,16 @@ pub enum Queries {
     GetBinnedLLMMetrics,
     InsertLLMMetricValuesBatch,
     InsertLLMDriftRecord,
-    GetLLMEntities,
-    GetLLMDataForArchive,
-    UpdateLLMEntities,
     GetPendingLLMDriftTask,
     UpdateLLMDriftTask,
+
+    GetLLMDriftRecordEntitiesForArchive,
+    GetLLMMetricEntitiesForArchive,
+    GetLLMDriftRecordDataForArchive,
+    GetLLMMetricDataForArchive,
+
+    UpdateLLMMetricEntities,
+    UpdateLLMDriftEntities,
 }
 
 impl Queries {
@@ -204,11 +218,19 @@ impl Queries {
             Queries::GetBinnedLLMMetrics => SqlQuery::new(GET_BINNED_LLM_METRIC_VALUES),
             Queries::InsertLLMMetricValuesBatch => SqlQuery::new(INSERT_LLM_METRIC_VALUES_BATCH),
             Queries::InsertLLMDriftRecord => SqlQuery::new(INSERT_LLM_DRIFT_RECORD),
-            Queries::GetLLMEntities => SqlQuery::new(GET_LLM_ENTITIES),
-            Queries::GetLLMDataForArchive => SqlQuery::new(GET_LLM_DATA_FOR_ARCHIVE),
-            Queries::UpdateLLMEntities => SqlQuery::new(UPDATE_LLM_ENTITIES),
+
             Queries::GetLLMDriftRecords => SqlQuery::new(GET_LLM_DRIFT_RECORDS),
             Queries::GetPendingLLMDriftTask => SqlQuery::new(GET_PENDING_LLM_DRIFT_TASK),
+            Queries::GetLLMDriftRecordEntitiesForArchive => {
+                SqlQuery::new(GET_LLM_DRIFT_RECORD_ENTITIES)
+            }
+            Queries::GetLLMMetricEntitiesForArchive => SqlQuery::new(GET_LLM_METRIC_ENTITIES),
+            Queries::GetLLMDriftRecordDataForArchive => {
+                SqlQuery::new(GET_LLM_DRIFT_RECORD_DATA_FOR_ARCHIVE)
+            }
+            Queries::GetLLMMetricDataForArchive => SqlQuery::new(GET_LLM_METRIC_DATA_FOR_ARCHIVE),
+            Queries::UpdateLLMMetricEntities => SqlQuery::new(UPDATE_LLM_METRIC_ENTITIES),
+            Queries::UpdateLLMDriftEntities => SqlQuery::new(UPDATE_LLM_DRIFT_ENTITIES),
 
             Queries::InsertCustomMetricValuesBatch => {
                 SqlQuery::new(INSERT_CUSTOM_METRIC_VALUES_BATCH)

@@ -205,6 +205,13 @@ pub async fn archive_old_data(
                 // get the data from the database
                 record.custom = process_record_type(db_pool, &RecordType::Custom, config).await?;
             }
+            DriftType::LLM => {
+                // process LLM drift and metric records
+                record.llm_metric =
+                    process_record_type(db_pool, &RecordType::LLMMetric, config).await?;
+                record.llm_drift =
+                    process_record_type(db_pool, &RecordType::LLMDrift, config).await?;
+            }
             _ => todo!("LLM drift not implemented yet"),
         }
     }
