@@ -70,3 +70,21 @@ impl BinnedLLMMetrics {
         BinnedLLMMetrics { metrics: mapped }
     }
 }
+
+#[derive(Debug, Clone)]
+pub struct PaginationCursor {
+    pub id: i64,
+}
+
+#[derive(Debug, Clone)]
+pub struct PaginationRequest {
+    pub limit: i32,
+    pub cursor: Option<PaginationCursor>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PaginationResponse<T> {
+    pub items: Vec<T>,
+    pub next_cursor: Option<PaginationCursor>,
+    pub has_more: bool,
+}

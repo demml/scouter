@@ -49,6 +49,7 @@ const GET_LLM_ENTITIES: &str = include_str!("scripts/llm/get_llm_metric_entities
 const GET_LLM_DATA_FOR_ARCHIVE: &str =
     include_str!("scripts/llm/get_llm_metric_data_for_archive.sql");
 const UPDATE_LLM_ENTITIES: &str = include_str!("scripts/llm/update_data_to_archived.sql");
+const GET_LLM_DRIFT_RECORDS: &str = include_str!("scripts/llm/get_llm_drift_records.sql");
 
 // observability (experimental)
 const GET_BINNED_OBSERVABILITY_METRICS: &str =
@@ -138,6 +139,7 @@ pub enum Queries {
 
     // llm
     GetLLMMetricValues,
+    GetLLMDriftRecords,
     GetBinnedLLMMetrics,
     InsertLLMMetricValuesBatch,
     InsertLLMDriftRecord,
@@ -201,6 +203,8 @@ impl Queries {
             Queries::GetLLMEntities => SqlQuery::new(GET_LLM_ENTITIES),
             Queries::GetLLMDataForArchive => SqlQuery::new(GET_LLM_DATA_FOR_ARCHIVE),
             Queries::UpdateLLMEntities => SqlQuery::new(UPDATE_LLM_ENTITIES),
+            Queries::GetLLMDriftRecords => SqlQuery::new(GET_LLM_DRIFT_RECORDS),
+
             Queries::InsertCustomMetricValuesBatch => {
                 SqlQuery::new(INSERT_CUSTOM_METRIC_VALUES_BATCH)
             }

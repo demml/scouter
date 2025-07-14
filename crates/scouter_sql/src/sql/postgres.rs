@@ -177,10 +177,11 @@ mod tests {
     use super::*;
     use crate::sql::schema::User;
     use chrono::Utc;
-    use potato_head::{prompt, StructuredOutput};
+    use potato_head::StructuredOutput;
     use potato_head::{prompt::ResponseType, Message, Prompt, PromptContent, Score};
     use rand::Rng;
     use scouter_settings::ObjectStorageSettings;
+    use scouter_types::llm::PaginationRequest;
     use scouter_types::psi::{Bin, BinType, PsiDriftConfig, PsiFeatureDriftProfile};
     use scouter_types::spc::SpcDriftProfile;
     use scouter_types::*;
@@ -231,10 +232,10 @@ mod tests {
             FROM scouter.user;
 
             DELETE
-            FROM scouter.llm_drift;
+            FROM scouter.llm_drift_record;
 
             DELETE
-            FROM scouter.llm_metric;
+            FROM scouter.llm_drift;
             "#,
         )
         .fetch_all(pool)
@@ -767,13 +768,11 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_postgres_llm_metrics() {
+    async fn test_postgres_llm_drift_record_insert_get() {
         let pool = db_pool().await;
 
-        let timestamp = Utc::now();
-
         let input = "This is a test input";
-        let output = "This is a test output";
+        let output = "This is a test response";
         let prompt = create_score_prompt();
 
         for j in 0..10 {
@@ -786,6 +785,8 @@ mod tests {
                 response: output.to_string(),
                 prompt: prompt.clone(),
                 context: Value::Object(serde_json::Map::new()),
+                status: Status::Pending,
+                id: 0, // This will be set by the database
             };
 
             let result = PostgresClient::insert_llm_drift_record(&pool, &record)
@@ -801,35 +802,91 @@ mod tests {
             version: VERSION.to_string(),
         };
 
-        let features = PostgresClient::get_spc_features(&pool, &service_info)
+        let features = PostgresClient::get_llm_drift_records(&pool, &service_info, None, None)
             .await
             .unwrap();
         assert_eq!(features.len(), 10);
+    }
 
-        let records =
-            PostgresClient::get_spc_drift_records(&pool, &service_info, &timestamp, &features)
-                .await
-                .unwrap();
+    #[tokio::test]
+    async fn test_postgres_llm_drift_record_pagination() {
+        let pool = db_pool().await;
 
-        assert_eq!(records.features.len(), 10);
+        let input = "This is a test input";
+        let output = "This is a test response";
+        let prompt = create_score_prompt();
 
-        let binned_records = PostgresClient::get_binned_spc_drift_records(
-            &pool,
-            &DriftRequest {
+        for j in 0..10 {
+            let record = LLMDriftServerRecord {
+                created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                 space: SPACE.to_string(),
                 name: NAME.to_string(),
                 version: VERSION.to_string(),
-                time_interval: TimeInterval::FiveMinutes,
-                max_data_points: 10,
-                drift_type: DriftType::Spc,
-                ..Default::default()
-            },
-            &DatabaseSettings::default().retention_period,
-            &ObjectStorageSettings::default(),
+                input: input.to_string(),
+                response: output.to_string(),
+                prompt: prompt.clone(),
+                context: Value::Object(serde_json::Map::new()),
+                status: Status::Pending,
+                id: 0, // This will be set by the database
+            };
+
+            let result = PostgresClient::insert_llm_drift_record(&pool, &record)
+                .await
+                .unwrap();
+
+            assert_eq!(result.rows_affected(), 1);
+        }
+
+        let service_info = ServiceInfo {
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
+        };
+
+        // Get paginated records (1st page)
+        let pagination = PaginationRequest {
+            limit: 5,
+            cursor: None, // Start from the beginning
+        };
+
+        let paginated_features = PostgresClient::get_llm_drift_records_pagination(
+            &pool,
+            &service_info,
+            None,
+            pagination,
         )
         .await
         .unwrap();
 
-        assert_eq!(binned_records.features.len(), 10);
+        assert_eq!(paginated_features.items.len(), 5);
+        assert!(paginated_features.next_cursor.is_some());
+
+        // get id of the most recent record in the first page
+        let last_record = paginated_features.items.first().unwrap();
+
+        // Get paginated records (2nd page)
+        let next_cursor = paginated_features.next_cursor.unwrap();
+        let pagination = PaginationRequest {
+            limit: 5,
+            cursor: Some(next_cursor),
+        };
+
+        let paginated_features = PostgresClient::get_llm_drift_records_pagination(
+            &pool,
+            &service_info,
+            None,
+            pagination,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(paginated_features.items.len(), 5);
+        assert!(paginated_features.next_cursor.is_none());
+
+        // get last record of the second page
+        let first_record = paginated_features.items.last().unwrap();
+
+        let diff = last_record.id - first_record.id + 1; // +1 because IDs are inclusive
+        assert!(diff == 10);
     }
 }

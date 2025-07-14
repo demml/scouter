@@ -362,6 +362,46 @@ impl AlertThreshold {
     }
 }
 
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+pub enum Status {
+    All,
+    Pending,
+    Processed,
+}
+
+impl Status {
+    pub fn as_str(&self) -> Option<&'static str> {
+        match self {
+            Status::All => None,
+            Status::Pending => Some("pending"),
+            Status::Processed => Some("processed"),
+        }
+    }
+}
+
+impl FromStr for Status {
+    type Err = TypeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "all" => Ok(Status::All),
+            "pending" => Ok(Status::Pending),
+            "processed" => Ok(Status::Processed),
+            _ => Err(TypeError::InvalidStatusError(s.to_string())),
+        }
+    }
+}
+
+impl Display for Status {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Status::All => write!(f, "all"),
+            Status::Pending => write!(f, "pending"),
+            Status::Processed => write!(f, "processed"),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,6 +1,7 @@
 use crate::error::RecordError;
 use crate::util::pyobject_to_json;
 use crate::ProfileFuncs;
+use crate::Status;
 use chrono::DateTime;
 use chrono::Utc;
 use potato_head::Prompt;
@@ -186,6 +187,10 @@ pub struct LLMDriftServerRecord {
     pub prompt: Prompt,
 
     pub context: Value,
+
+    pub status: Status,
+
+    pub id: i64,
 }
 
 #[pymethods]
@@ -223,6 +228,8 @@ impl LLMDriftServerRecord {
             response,
             prompt,
             context: context_val,
+            status: Status::Pending,
+            id: 0, // This is a placeholder, as the ID will be set by the database
         })
     }
 

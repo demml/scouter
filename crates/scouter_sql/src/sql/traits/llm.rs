@@ -9,10 +9,14 @@ use scouter_dataframe::parquet::llm::metric::dataframe_to_llm_drift_metrics;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::{DriftRequest, ServiceInfo};
-use scouter_types::LLMMetricServerRecord;
-use scouter_types::{llm::BinnedLLMMetrics, LLMDriftServerRecord, RecordType};
+use scouter_types::{
+    llm::{BinnedLLMMetrics, PaginationCursor, PaginationRequest, PaginationResponse},
+    LLMDriftServerRecord, RecordType,
+};
+use scouter_types::{LLMMetricServerRecord, Status};
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::collections::HashMap;
+use std::str::FromStr;
 use tracing::{debug, instrument};
 
 #[async_trait]
@@ -84,6 +88,146 @@ pub trait LLMDriftSqlLogic {
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)
+    }
+
+    async fn get_llm_drift_records(
+        pool: &Pool<Postgres>,
+        service_info: &ServiceInfo,
+        limit_datetime: Option<&DateTime<Utc>>,
+        status: Option<Status>,
+    ) -> Result<Vec<LLMDriftServerRecord>, SqlError> {
+        let mut query_string = Queries::GetLLMDriftRecords.get_query().sql;
+
+        let mut bind_count = 3;
+
+        if limit_datetime.is_some() {
+            bind_count += 1;
+            query_string.push_str(&format!(" AND created_at > ${bind_count}"));
+        }
+
+        let status_value = status.as_ref().and_then(|s| s.as_str());
+        if status_value.is_some() {
+            bind_count += 1;
+            query_string.push_str(&format!(" AND status = ${bind_count}"));
+        }
+
+        let mut query = sqlx::query_as::<_, LLMDriftServerSQLRecord>(&query_string)
+            .bind(&service_info.space)
+            .bind(&service_info.name)
+            .bind(&service_info.version);
+
+        if let Some(datetime) = limit_datetime {
+            query = query.bind(datetime);
+        }
+        // Bind status if provided
+        if let Some(status) = status_value {
+            query = query.bind(status);
+        }
+
+        let records = query.fetch_all(pool).await.map_err(SqlError::SqlxError)?;
+
+        Ok(records
+            .into_iter()
+            .map({
+                |record| LLMDriftServerRecord {
+                    created_at: record.created_at,
+                    space: record.space,
+                    name: record.name,
+                    version: record.version,
+                    input: record.input,
+                    response: record.response,
+                    prompt: record.prompt.0,
+                    context: record.context.0,
+                    status: Status::from_str(&record.status).unwrap_or(Status::Pending), // Default to Pending if parsing fails
+                    id: record.id, // Ensure we include the ID
+                }
+            })
+            .collect())
+    }
+
+    async fn get_llm_drift_records_pagination(
+        pool: &Pool<Postgres>,
+        service_info: &ServiceInfo,
+        status: Option<Status>,
+        pagination: PaginationRequest,
+    ) -> Result<PaginationResponse<LLMDriftServerRecord>, SqlError> {
+        let limit = pagination.limit.clamp(1, 100); // Cap at 100, min 1
+        let query_limit = limit + 1;
+
+        // Get initial SQL query
+        let mut sql = Queries::GetLLMDriftRecords.get_query().sql;
+        let mut bind_count = 3;
+
+        // If querying any page other than the first, we need to add a cursor condition
+        // Everything is filtered by ID desc (most recent), so if last ID is provided, we need to filter for IDs less than that
+        if pagination.cursor.is_some() {
+            bind_count += 1;
+            sql.push_str(&format!(" AND id < ${bind_count}"));
+        }
+
+        // Optional status filter
+        let status_value = status.as_ref().and_then(|s| s.as_str());
+        if status_value.is_some() {
+            bind_count += 1;
+            sql.push_str(&format!(" AND status = ${bind_count}"));
+        }
+
+        sql.push_str(&format!(" ORDER BY id DESC LIMIT ${}", bind_count + 1));
+
+        let mut query = sqlx::query_as::<_, LLMDriftServerSQLRecord>(&sql)
+            .bind(&service_info.space)
+            .bind(&service_info.name)
+            .bind(&service_info.version);
+
+        // Bind cursor parameter
+        if let Some(cursor) = &pagination.cursor {
+            query = query.bind(cursor.id);
+        }
+
+        // Bind status if provided
+        if let Some(status) = status_value {
+            query = query.bind(status);
+        }
+
+        // Bind limit
+        query = query.bind(query_limit);
+
+        let mut records = query.fetch_all(pool).await.map_err(SqlError::SqlxError)?;
+
+        // Check if there are more records
+        let has_more = records.len() > limit as usize;
+        if has_more {
+            records.pop(); // Remove the extra record
+        }
+
+        let next_cursor = if has_more && !records.is_empty() {
+            let last_record = records.last().unwrap();
+            Some(PaginationCursor { id: last_record.id })
+        } else {
+            None
+        };
+
+        let items = records
+            .into_iter()
+            .map(|record| LLMDriftServerRecord {
+                created_at: record.created_at,
+                space: record.space,
+                name: record.name,
+                version: record.version,
+                input: record.input,
+                response: record.response,
+                prompt: record.prompt.0,
+                context: record.context.0,
+                status: Status::from_str(&record.status).unwrap_or(Status::Pending),
+                id: record.id, // Ensure we include the ID
+            })
+            .collect();
+
+        Ok(PaginationResponse {
+            items,
+            next_cursor,
+            has_more,
+        })
     }
 
     async fn get_llm_metric_values(

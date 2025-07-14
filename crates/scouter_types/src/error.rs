@@ -95,6 +95,9 @@ pub enum TypeError {
 
     #[error("Unsupported metrics type. Metrics must be a list of Metric instances or a dictionary of key value pairs. Received: {0}")]
     UnsupportedMetricsTypeError(String),
+
+    #[error("Unsupported status. Status must be one of: All, Pending or Processed. Received: {0}")]
+    InvalidStatusError(String),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for TypeError {

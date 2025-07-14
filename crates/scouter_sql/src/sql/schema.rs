@@ -363,9 +363,14 @@ pub struct LLMDriftServerSQLRecord {
     pub prompt: Json<Prompt>,
 
     pub context: Json<Value>,
+
+    pub status: String,
+
+    pub id: i64,
 }
 
 impl LLMDriftServerSQLRecord {
+    /// Method use when server receives a record from the client
     pub fn from_server_record(record: &LLMDriftServerRecord) -> Self {
         LLMDriftServerSQLRecord {
             created_at: record.created_at,
@@ -376,6 +381,8 @@ impl LLMDriftServerSQLRecord {
             response: record.response.clone(),
             prompt: Json(record.prompt.clone()),
             context: Json(record.context.clone()),
+            status: record.status.to_string(),
+            id: 0, // This is a placeholder, as the ID will be set by the database
         }
     }
 }
