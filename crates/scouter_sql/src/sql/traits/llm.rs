@@ -359,7 +359,7 @@ pub trait LLMDriftSqlLogic {
     //
     // * A vector of drift records
     #[instrument(skip_all)]
-    async fn get_binned_llm_metric_records(
+    async fn get_binned_llm_metric_values(
         pool: &Pool<Postgres>,
         params: &DriftRequest,
         retention_period: &i32,

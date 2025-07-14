@@ -929,7 +929,7 @@ mod tests {
         .unwrap();
 
         assert_eq!(metrics.len(), 1);
-        let binned_records = PostgresClient::get_binned_llm_metric_records(
+        let binned_records = PostgresClient::get_binned_llm_metric_values(
             &pool,
             &DriftRequest {
                 space: SPACE.to_string(),
