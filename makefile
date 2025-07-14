@@ -20,7 +20,7 @@ build.sql:
 	
 .PHONY: test.sql
 test.sql:
-	cargo test -p scouter-sql test_postgres_llm -- --nocapture --test-threads=1
+	cargo test -p scouter-sql -- --nocapture --test-threads=1
 
 .PHONY: test.server
 test.server:
@@ -75,7 +75,7 @@ test.events: test.kafka_events test.rabbitmq_events
 
 .PHONY: test.dataframe
 test.dataframe:
-	cargo test -p scouter-dataframe -- --nocapture --test-threads=1
+	cargo test -p scouter-dataframe test_write_llm_drift -- --nocapture --test-threads=1
 
 .PHONY: test.agents
 test.agents:

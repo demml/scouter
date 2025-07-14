@@ -158,15 +158,20 @@ mod tests {
 
     use super::*;
     use crate::parquet::custom::dataframe_to_custom_drift_metrics;
+    use crate::parquet::llm::metric::dataframe_to_llm_drift_metrics;
     use crate::parquet::psi::dataframe_to_psi_drift_features;
     use crate::parquet::spc::dataframe_to_spc_drift_features;
     use chrono::Utc;
     use object_store::path::Path;
+    use potato_head::create_score_prompt;
     use rand::Rng;
     use scouter_settings::ObjectStorageSettings;
     use scouter_types::{
-        CustomMetricServerRecord, PsiServerRecord, ServerRecord, ServerRecords, SpcServerRecord,
+        BoxedLLMDriftServerRecord, CustomMetricServerRecord, LLMDriftServerRecord,
+        LLMMetricServerRecord, PsiServerRecord, ServerRecord, ServerRecords, SpcServerRecord,
+        Status,
     };
+    use serde_json::Map;
 
     fn cleanup() {
         let storage_settings = ObjectStorageSettings::default();
@@ -175,6 +180,145 @@ mod tests {
         if storage_path.exists() {
             std::fs::remove_dir_all(storage_path).unwrap();
         }
+    }
+
+    #[tokio::test]
+    async fn test_write_llm_drift_record_dataframe_local() {
+        cleanup();
+        let storage_settings = ObjectStorageSettings::default();
+        let df = ParquetDataFrame::new(&storage_settings, &RecordType::LLMDrift).unwrap();
+        let mut batch = Vec::new();
+
+        let prompt = create_score_prompt();
+
+        // create records
+        for i in 0..3 {
+            for _ in 0..50 {
+                let record = LLMDriftServerRecord {
+                    created_at: Utc::now() + chrono::Duration::hours(i),
+                    space: "test".to_string(),
+                    name: "test".to_string(),
+                    version: "1.0".to_string(),
+                    prompt: prompt.clone(),
+                    input: format!("input{i}"),
+                    response: format!("output{i}"),
+                    context: serde_json::Value::Object(Map::new()),
+                    status: Status::Pending,
+                    id: 0,
+                    uid: "test-uid".to_string(),
+                    updated_at: None,
+                    processing_started_at: None,
+                    processing_ended_at: None,
+                };
+
+                let boxed_record = BoxedLLMDriftServerRecord::new(record);
+                batch.push(ServerRecord::LLMDrift(boxed_record));
+            }
+        }
+
+        let records = ServerRecords::new(batch);
+        let rpath = "llm_drift";
+        df.write_parquet(rpath, records.clone()).await.unwrap();
+
+        // get canonical path
+        let canonical_path = df.storage_root();
+        let data_path = object_store::path::Path::from(canonical_path);
+
+        // Check if the file exists
+        let files = df.storage_client().list(Some(&data_path)).await.unwrap();
+        assert_eq!(files.len(), 3);
+
+        //// delete the file
+        for file in files.iter() {
+            let path = Path::from(file.to_string());
+            df.storage_client()
+                .delete(&path)
+                .await
+                .expect("Failed to delete file");
+        }
+        //
+        //// Check if the file is deleted
+        let files = df.storage_client().list(Some(&data_path)).await.unwrap();
+        assert_eq!(files.len(), 0);
+
+        // cleanup
+        cleanup();
+    }
+
+    #[tokio::test]
+    async fn test_write_llm_drift_metric_dataframe_local() {
+        cleanup();
+        let storage_settings = ObjectStorageSettings::default();
+        let df = ParquetDataFrame::new(&storage_settings, &RecordType::LLMMetric).unwrap();
+        let mut batch = Vec::new();
+        let start_utc = Utc::now();
+        let end_utc_for_test = start_utc + chrono::Duration::hours(3);
+
+        // create records
+        for i in 0..3 {
+            for j in 0..50 {
+                let record = ServerRecord::LLMMetric(LLMMetricServerRecord {
+                    created_at: Utc::now() + chrono::Duration::hours(i),
+                    name: "test".to_string(),
+                    space: "test".to_string(),
+                    version: "1.0".to_string(),
+                    metric: format!("metric{i}"),
+                    value: j as f64,
+                });
+
+                batch.push(record);
+            }
+        }
+
+        let records = ServerRecords::new(batch);
+        let rpath = "llm_metric";
+        df.write_parquet(rpath, records.clone()).await.unwrap();
+
+        // get canonical path
+        let canonical_path = df.storage_root();
+        let data_path = object_store::path::Path::from(canonical_path);
+
+        // Check if the file exists
+        let files = df.storage_client().list(Some(&data_path)).await.unwrap();
+        assert_eq!(files.len(), 3);
+
+        // attempt to read the file
+        let new_df = ParquetDataFrame::new(&storage_settings, &RecordType::LLMMetric).unwrap();
+
+        let read_df = new_df
+            .get_binned_metrics(
+                rpath,
+                &0.01,
+                &start_utc,
+                &end_utc_for_test,
+                "test",
+                "test",
+                "1.0",
+            )
+            .await
+            .unwrap();
+
+        //read_df.show().await.unwrap();
+
+        let binned_metrics = dataframe_to_llm_drift_metrics(read_df).await.unwrap();
+
+        assert_eq!(binned_metrics.metrics.len(), 3);
+
+        //// delete the file
+        for file in files.iter() {
+            let path = Path::from(file.to_string());
+            df.storage_client()
+                .delete(&path)
+                .await
+                .expect("Failed to delete file");
+        }
+        //
+        //// Check if the file is deleted
+        let files = df.storage_client().list(Some(&data_path)).await.unwrap();
+        assert_eq!(files.len(), 0);
+
+        // cleanup
+        cleanup();
     }
 
     #[tokio::test]

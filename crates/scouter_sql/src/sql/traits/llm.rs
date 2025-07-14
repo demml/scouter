@@ -140,7 +140,11 @@ pub trait LLMDriftSqlLogic {
                     prompt: record.prompt.0,
                     context: record.context.0,
                     status: Status::from_str(&record.status).unwrap_or(Status::Pending), // Default to Pending if parsing fails
-                    id: record.id, // Ensure we include the ID
+                    id: record.id,                 // Ensure we include the ID
+                    uid: record.uid,               // Include the UID
+                    updated_at: record.updated_at, // Include the updated_at field
+                    processing_started_at: record.processing_started_at, // Include the processing_started_at field
+                    processing_ended_at: record.processing_ended_at, // Include the processing_ended_at
                 }
             })
             .collect())
@@ -220,7 +224,11 @@ pub trait LLMDriftSqlLogic {
                 prompt: record.prompt.0,
                 context: record.context.0,
                 status: Status::from_str(&record.status).unwrap_or(Status::Pending),
-                id: record.id, // Ensure we include the ID
+                id: record.id,                 // Ensure we include the ID
+                uid: record.uid,               // Include the UID
+                updated_at: record.updated_at, // Include the updated_at field
+                processing_started_at: record.processing_started_at, // Include the processing_started_at field
+                processing_ended_at: record.processing_ended_at, // Include the processing_ended_at
             })
             .collect();
 

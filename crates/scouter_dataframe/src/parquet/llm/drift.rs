@@ -69,11 +69,13 @@ impl ParquetFrame for LLMDriftDataFrame {
 impl LLMDriftDataFrame {
     pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
         let schema = Arc::new(Schema::new(vec![
+            Field::new("id", DataType::Int64, false),
             Field::new(
                 "created_at",
                 DataType::Timestamp(TimeUnit::Nanosecond, None),
                 false,
             ),
+            Field::new("uid", DataType::Utf8, false),
             Field::new("space", DataType::Utf8, false),
             Field::new("name", DataType::Utf8, false),
             Field::new("version", DataType::Utf8, false),
@@ -81,6 +83,22 @@ impl LLMDriftDataFrame {
             Field::new("response", DataType::Utf8, false),
             Field::new("context", DataType::Utf8, false),
             Field::new("prompt", DataType::Utf8, false),
+            Field::new(
+                "updated_at",
+                DataType::Timestamp(TimeUnit::Nanosecond, None),
+                true,
+            ),
+            Field::new("status", DataType::Utf8, false),
+            Field::new(
+                "processing_started_at",
+                DataType::Timestamp(TimeUnit::Nanosecond, None),
+                true,
+            ),
+            Field::new(
+                "processing_ended_at",
+                DataType::Timestamp(TimeUnit::Nanosecond, None),
+                true,
+            ),
         ]));
 
         let object_store = ObjectStore::new(storage_settings)?;
@@ -95,12 +113,13 @@ impl LLMDriftDataFrame {
         &self,
         records: Vec<LLMDriftServerRecord>,
     ) -> Result<RecordBatch, DataFrameError> {
+        let id_array = arrow_array::Int64Array::from_iter_values(records.iter().map(|r| r.id));
         let created_at_array = TimestampNanosecondArray::from_iter_values(
             records
                 .iter()
                 .map(|r| r.created_at.timestamp_nanos_opt().unwrap_or_default()),
         );
-
+        let uid_array = StringArray::from_iter_values(records.iter().map(|r| r.uid.as_str()));
         let space_array = StringArray::from_iter_values(records.iter().map(|r| r.space.as_str()));
         let name_array = StringArray::from_iter_values(records.iter().map(|r| r.name.as_str()));
         let version_array =
@@ -121,11 +140,32 @@ impl LLMDriftDataFrame {
                 .iter()
                 .map(|r| serde_json::to_string(&r.prompt).unwrap_or_else(|_| "{}".to_string())),
         );
+        let updated_at_array = TimestampNanosecondArray::from_iter(
+            records
+                .iter()
+                .map(|r| r.updated_at.and_then(|dt| dt.timestamp_nanos_opt())),
+        );
+        let status_array =
+            StringArray::from_iter_values(records.iter().map(|r| r.status.to_string()));
+
+        let processing_started_at_array =
+            TimestampNanosecondArray::from_iter(records.iter().map(|r| {
+                r.processing_started_at
+                    .and_then(|dt| dt.timestamp_nanos_opt())
+            }));
+
+        let processing_ended_at_array =
+            TimestampNanosecondArray::from_iter(records.iter().map(|r| {
+                r.processing_ended_at
+                    .and_then(|dt| dt.timestamp_nanos_opt())
+            }));
 
         let batch = RecordBatch::try_new(
             self.schema.clone(),
             vec![
+                Arc::new(id_array),
                 Arc::new(created_at_array),
+                Arc::new(uid_array),
                 Arc::new(space_array),
                 Arc::new(name_array),
                 Arc::new(version_array),
@@ -133,6 +173,10 @@ impl LLMDriftDataFrame {
                 Arc::new(response_array),
                 Arc::new(context_array),
                 Arc::new(prompt_array),
+                Arc::new(updated_at_array),
+                Arc::new(status_array),
+                Arc::new(processing_started_at_array),
+                Arc::new(processing_ended_at_array),
             ],
         )?;
 

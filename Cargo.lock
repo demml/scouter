@@ -5056,6 +5056,7 @@ dependencies = [
  "futures",
  "object_store",
  "parquet",
+ "potato-head",
  "rand 0.9.1",
  "scouter-settings",
  "scouter-types",

@@ -4,6 +4,7 @@ use crate::ProfileFuncs;
 use crate::Status;
 use chrono::DateTime;
 use chrono::Utc;
+use potato_head::create_uuid7;
 use potato_head::Prompt;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -191,6 +192,12 @@ pub struct LLMDriftServerRecord {
     pub status: Status,
 
     pub id: i64,
+
+    pub uid: String,
+
+    pub updated_at: Option<DateTime<Utc>>,
+    pub processing_started_at: Option<DateTime<Utc>>,
+    pub processing_ended_at: Option<DateTime<Utc>>,
 }
 
 #[pymethods]
@@ -230,6 +237,10 @@ impl LLMDriftServerRecord {
             context: context_val,
             status: Status::Pending,
             id: 0, // This is a placeholder, as the ID will be set by the database
+            uid: create_uuid7(),
+            updated_at: None,
+            processing_started_at: None,
+            processing_ended_at: None,
         })
     }
 

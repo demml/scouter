@@ -34,7 +34,7 @@ url = { workspace = true }
 rand = { workspace = true }
 tempfile = { workspace = true }
 tokio = { workspace = true }
-
+potato-head = { workspace = true, features = ["mock"] }
 
 [profile.release]
 lto = "fat"

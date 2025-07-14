@@ -370,6 +370,12 @@ pub struct LLMDriftServerSQLRecord {
     pub status: String,
 
     pub id: i64,
+
+    pub updated_at: Option<DateTime<Utc>>,
+
+    pub processing_started_at: Option<DateTime<Utc>>,
+
+    pub processing_ended_at: Option<DateTime<Utc>>,
 }
 
 impl LLMDriftServerSQLRecord {
@@ -387,6 +393,9 @@ impl LLMDriftServerSQLRecord {
             status: record.status.to_string(),
             id: 0,               // This is a placeholder, as the ID will be set by the database
             uid: create_uuid7(), // This is also a placeholder, as the UID will be set by the database
+            updated_at: None,
+            processing_started_at: None,
+            processing_ended_at: None,
         }
     }
 }

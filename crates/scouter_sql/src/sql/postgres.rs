@@ -787,6 +787,10 @@ mod tests {
                 context: Value::Object(serde_json::Map::new()),
                 status: Status::Pending,
                 id: 0, // This will be set by the database
+                uid: "test".to_string(),
+                updated_at: None,
+                processing_started_at: None,
+                processing_ended_at: None,
             };
 
             let result = PostgresClient::insert_llm_drift_record(&pool, &record)
@@ -862,6 +866,10 @@ mod tests {
                 context: Value::Object(serde_json::Map::new()),
                 status: Status::Pending,
                 id: 0, // This will be set by the database
+                uid: "test".to_string(),
+                updated_at: None,
+                processing_started_at: None,
+                processing_ended_at: None,
             };
 
             let result = PostgresClient::insert_llm_drift_record(&pool, &record)
