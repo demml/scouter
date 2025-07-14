@@ -1,5 +1,5 @@
 use crate::error::DriftError;
-use ndarray::{ArrayView1};
+use ndarray::ArrayView1;
 use num_traits::{Float, FromPrimitive};
 
 pub struct QuantileBinning {
@@ -10,7 +10,7 @@ impl QuantileBinning {
     /// Computes quantile edges for binning using the R-7 method (Hyndman & Fan Type 7).
     ///
     /// This implementation follows the R-7 quantile definition from:
-    /// Hyndman, R. J. and Fan, Y. (1996) "Sample quantiles in statistical packages," 
+    /// Hyndman, R. J. and Fan, Y. (1996) "Sample quantiles in statistical packages,"
     /// The American Statistician, 50(4), pp. 361-365.
     ///
     /// The R-7 method uses the formula:
@@ -19,7 +19,7 @@ impl QuantileBinning {
     /// - h = np + m - j
     /// - Q(p) = (1 - h) × x[j] + h × x[j+1]
     ///
-    /// This method is the default in R and provides continuous, median-unbiased 
+    /// This method is the default in R and provides continuous, median-unbiased
     /// quantile estimates that are approximately unbiased for normal distributions.
     ///
     /// # Arguments
@@ -35,7 +35,21 @@ impl QuantileBinning {
     where
         F: Float + Default + Copy + PartialOrd + Clone + FromPrimitive,
     {
-        
+        if arr.len() < self.num_quantiles {
+            return Err(DriftError::InsufficientDataError(format!(
+                "Need at least {} data points for {} quantiles, got {}",
+                self.num_quantiles,
+                self.num_quantiles,
+                arr.len()
+            )));
+        }
+
+        if self.num_quantiles < 2 {
+            return Err(DriftError::InvalidParameterError(
+                "num_quantiles must be at least 2".to_string(),
+            ));
+        }
+
         let mut data: Vec<F> = arr.to_vec();
         data.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
 

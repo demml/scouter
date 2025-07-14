@@ -1,3 +1,4 @@
+use crate::binning::equal_width::{EqualWidthBinning, EqualWidthMethod, Sturges};
 use crate::error::DriftError;
 use crate::utils::CategoricalFeatureHelpers;
 use itertools::Itertools;
@@ -62,7 +63,6 @@ impl PsiMonitor {
         F: Float + Default,
         F: Into<f64>,
     {
-
         let sorted_column_vector = column_vector
             .iter()
             .sorted_by(|a, b| a.partial_cmp(b).unwrap()) // Use partial_cmp and unwrap since we assume no NaNs
@@ -142,7 +142,6 @@ impl PsiMonitor {
         F: Float + FromPrimitive + Default + Sync,
         F: Into<f64>,
     {
-        
         let deciles = self.compute_deciles(column_vector)?;
 
         let bins: Vec<Bin> = (0..=deciles.len())
@@ -180,6 +179,16 @@ impl PsiMonitor {
         F: Float + FromPrimitive + Default + Sync,
         F: Into<f64>,
     {
+        let equal_width_manual = EqualWidthBinning {
+            method: EqualWidthMethod::Sturges(Sturges),
+        };
+
+        // Create array with values 0 to 100
+        let data: Vec<f64> = (0..=100).map(|i| i as f64).collect();
+        let array = Array1::from(data);
+
+        let edges = equal_width_manual.compute_edges(&array.view())?;
+        println!("{edges:?}");
         if let Some(categorical_feature_map) = drift_config.feature_map.features.get(feature_name) {
             return Ok((
                 self.create_categorical_bins(column_vector, categorical_feature_map),
@@ -417,10 +426,10 @@ impl PsiMonitor {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::binning::quantile::QuantileBinning;
     use ndarray::Array;
     use ndarray_rand::rand_distr::Uniform;
     use ndarray_rand::RandomExt;
-    use crate::binning::quantile::QuantileBinning;
 
     #[test]
     fn test_check_features_all_exist() {
@@ -563,9 +572,9 @@ mod tests {
         let column_view = unsorted_vector.view();
 
         let result = psi_monitor.compute_deciles(&column_view);
-        
+
         let res = QuantileBinning { num_quantiles: 10 }.compute_edges(&column_view);
-        
+
         println!("{:?}", res);
 
         let expected_deciles: [f64; 9] = [2.0, 4.0, 6.0, 10.0, 21.0, 39.0, 59.0, 71.0, 120.0];

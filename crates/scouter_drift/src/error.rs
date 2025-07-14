@@ -68,6 +68,12 @@ pub enum DriftError {
 
     #[error("Error computing quantiles: {0}")]
     QuantileComputationError(String),
+
+    #[error("Insufficient Data Error: {0}")]
+    InsufficientDataError(String),
+
+    #[error("{0}")]
+    InvalidParameterError(String),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for DriftError {
