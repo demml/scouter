@@ -30,6 +30,7 @@ UPDATE scouter.part_config SET retention = '60 days' WHERE parent_table = 'scout
 CREATE TABLE IF NOT exists scouter.llm_drift_record (
     id BIGSERIAL,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    uid text DEFAULT gen_random_uuid(),
     name text not null,
     space text not null,
     version text not null,
@@ -38,8 +39,9 @@ CREATE TABLE IF NOT exists scouter.llm_drift_record (
     context jsonb not null,
     prompt jsonb not null,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    status text NOT NULL default 'pending', -- pending, processed
+    status text NOT NULL default 'pending', -- pending, processing, completed, failed
     processing_started_at TIMESTAMPTZ,
+    processing_ended_at TIMESTAMPTZ,
     PRIMARY KEY (id, created_at),
     UNIQUE (created_at, name, space, version)
 )

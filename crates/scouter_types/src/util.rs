@@ -366,6 +366,7 @@ impl AlertThreshold {
 pub enum Status {
     All,
     Pending,
+    Processing,
     Processed,
 }
 
@@ -374,6 +375,7 @@ impl Status {
         match self {
             Status::All => None,
             Status::Pending => Some("pending"),
+            Status::Processing => Some("processing"),
             Status::Processed => Some("processed"),
         }
     }
@@ -386,6 +388,7 @@ impl FromStr for Status {
         match s.to_lowercase().as_str() {
             "all" => Ok(Status::All),
             "pending" => Ok(Status::Pending),
+            "processing" => Ok(Status::Processing),
             "processed" => Ok(Status::Processed),
             _ => Err(TypeError::InvalidStatusError(s.to_string())),
         }
@@ -397,6 +400,7 @@ impl Display for Status {
         match self {
             Status::All => write!(f, "all"),
             Status::Pending => write!(f, "pending"),
+            Status::Processing => write!(f, "processing"),
             Status::Processed => write!(f, "processed"),
         }
     }

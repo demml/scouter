@@ -1,6 +1,6 @@
 WITH subquery1 AS (
     SELECT
-        date_bin('$1 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
+        date_bin(($1 || ' minutes')::interval, created_at, TIMESTAMP '1970-01-01') as created_at,
         metric,
         value
     FROM scouter.llm_drift

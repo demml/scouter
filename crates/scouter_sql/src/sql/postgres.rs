@@ -806,6 +806,40 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(features.len(), 10);
+
+        // get pending task
+        let pending_tasks = PostgresClient::get_pending_llm_drift_task(&pool)
+            .await
+            .unwrap();
+
+        // assert not empty
+        assert!(pending_tasks.is_some());
+
+        // get pending task with space, name, version
+        let task_input = &pending_tasks.as_ref().unwrap().input;
+        assert_eq!(*task_input, "This is a test input".to_string());
+
+        // update pending task
+        PostgresClient::update_llm_drift_task_status(
+            &pool,
+            &pending_tasks.unwrap(),
+            Status::Processed,
+        )
+        .await
+        .unwrap();
+
+        // query processed tasks
+        let processed_tasks = PostgresClient::get_llm_drift_records(
+            &pool,
+            &service_info,
+            None,
+            Some(Status::Processed),
+        )
+        .await
+        .unwrap();
+
+        // assert not empty
+        assert_eq!(processed_tasks.len(), 1);
     }
 
     #[tokio::test]

@@ -50,6 +50,7 @@ const GET_LLM_DATA_FOR_ARCHIVE: &str =
     include_str!("scripts/llm/get_llm_metric_data_for_archive.sql");
 const UPDATE_LLM_ENTITIES: &str = include_str!("scripts/llm/update_data_to_archived.sql");
 const GET_LLM_DRIFT_RECORDS: &str = include_str!("scripts/llm/get_llm_drift_records.sql");
+const UPDATE_LLM_DRIFT_TASK: &str = include_str!("scripts/llm/update_llm_drift_task.sql");
 
 // observability (experimental)
 const GET_BINNED_OBSERVABILITY_METRICS: &str =
@@ -75,6 +76,7 @@ const UPDATE_ALERT_STATUS: &str = include_str!("scripts/alert/update_alert_statu
 
 // poll
 const GET_DRIFT_TASK: &str = include_str!("scripts/poll/poll_for_drift_task.sql");
+const GET_PENDING_LLM_DRIFT_TASK: &str = include_str!("scripts/poll/poll_for_llm_drift_task.sql");
 
 // auth
 const INSERT_USER: &str = include_str!("scripts/user/insert_user.sql");
@@ -146,6 +148,8 @@ pub enum Queries {
     GetLLMEntities,
     GetLLMDataForArchive,
     UpdateLLMEntities,
+    GetPendingLLMDriftTask,
+    UpdateLLMDriftTask,
 }
 
 impl Queries {
@@ -204,12 +208,14 @@ impl Queries {
             Queries::GetLLMDataForArchive => SqlQuery::new(GET_LLM_DATA_FOR_ARCHIVE),
             Queries::UpdateLLMEntities => SqlQuery::new(UPDATE_LLM_ENTITIES),
             Queries::GetLLMDriftRecords => SqlQuery::new(GET_LLM_DRIFT_RECORDS),
+            Queries::GetPendingLLMDriftTask => SqlQuery::new(GET_PENDING_LLM_DRIFT_TASK),
 
             Queries::InsertCustomMetricValuesBatch => {
                 SqlQuery::new(INSERT_CUSTOM_METRIC_VALUES_BATCH)
             }
             Queries::InsertSpcDriftRecordBatch => SqlQuery::new(INSERT_SPC_DRIFT_RECORD_BATCH),
             Queries::InsertBinCountsBatch => SqlQuery::new(INSERT_BIN_COUNTS_BATCH),
+            Queries::UpdateLLMDriftTask => SqlQuery::new(UPDATE_LLM_DRIFT_TASK),
         }
     }
 }

@@ -1,5 +1,6 @@
 use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
+use crate::sql::schema::LLMDriftTaskRequest;
 use crate::sql::schema::{BinnedLLMMetricWrapper, LLMDriftServerSQLRecord};
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
@@ -36,8 +37,8 @@ pub trait LLMDriftSqlLogic {
         let sql_record = LLMDriftServerSQLRecord::from_server_record(record);
 
         sqlx::query(&query.sql)
-            .bind(&sql_record.name)
             .bind(&sql_record.space)
+            .bind(&sql_record.name)
             .bind(&sql_record.version)
             .bind(&sql_record.input)
             .bind(&sql_record.response)
@@ -401,5 +402,34 @@ pub trait LLMDriftSqlLogic {
         }
 
         Ok(custom_metric_map)
+    }
+
+    /// Retrieves the next pending LLM drift task from drift_records.
+    async fn get_pending_llm_drift_task(
+        pool: &Pool<Postgres>,
+    ) -> Result<Option<LLMDriftTaskRequest>, SqlError> {
+        let query = Queries::GetPendingLLMDriftTask.get_query();
+        sqlx::query_as(&query.sql)
+            .fetch_optional(pool)
+            .await
+            .map_err(SqlError::SqlxError)
+    }
+
+    #[instrument(skip_all)]
+    async fn update_llm_drift_task_status(
+        pool: &Pool<Postgres>,
+        task_info: &LLMDriftTaskRequest,
+        status: Status,
+    ) -> Result<(), SqlError> {
+        let query = Queries::UpdateLLMDriftTask.get_query();
+
+        let _query_result = sqlx::query(&query.sql)
+            .bind(status.as_str())
+            .bind(&task_info.uid)
+            .execute(pool)
+            .await
+            .map_err(SqlError::SqlxError)?;
+
+        Ok(())
     }
 }

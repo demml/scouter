@@ -1,4 +1,5 @@
 use chrono::{DateTime, Utc};
+use potato_head::create_uuid7;
 use potato_head::Prompt;
 use scouter_types::psi::DistributionData;
 use scouter_types::LLMDriftServerRecord;
@@ -348,6 +349,8 @@ pub struct UpdateAlertResult {
 
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct LLMDriftServerSQLRecord {
+    pub uid: String,
+
     pub created_at: chrono::DateTime<Utc>,
 
     pub space: String,
@@ -382,7 +385,21 @@ impl LLMDriftServerSQLRecord {
             prompt: Json(record.prompt.clone()),
             context: Json(record.context.clone()),
             status: record.status.to_string(),
-            id: 0, // This is a placeholder, as the ID will be set by the database
+            id: 0,               // This is a placeholder, as the ID will be set by the database
+            uid: create_uuid7(), // This is also a placeholder, as the UID will be set by the database
         }
     }
+}
+
+#[derive(Debug, Clone, FromRow)]
+pub struct LLMDriftTaskRequest {
+    pub uid: String,
+    pub created_at: DateTime<Utc>,
+    pub space: String,
+    pub name: String,
+    pub version: String,
+    pub input: String,
+    pub response: String,
+    pub prompt: Json<Prompt>,
+    pub context: Json<Value>,
 }

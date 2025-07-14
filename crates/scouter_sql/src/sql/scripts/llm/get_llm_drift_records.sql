@@ -1,4 +1,5 @@
 SELECT 
+    uid,
     created_at, 
     name, 
     space, 
