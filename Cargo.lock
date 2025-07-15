@@ -5099,6 +5099,7 @@ dependencies = [
  "noisy_float",
  "num-traits",
  "numpy",
+ "potato-head",
  "pyo3",
  "rand 0.9.1",
  "rayon",

@@ -1,5 +1,5 @@
 use crate::api::archive::DataArchiver;
-use crate::api::drift_manager::BackgroundDriftManager;
+use crate::api::polling::drift_poller::BackgroundDriftManager;
 use anyhow::{Context, Result as AnyhowResult};
 use flume::Sender;
 use password_auth::generate_hash;

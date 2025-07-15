@@ -428,8 +428,8 @@ pub struct LLMDriftTaskRequest {
     pub space: String,
     pub name: String,
     pub version: String,
-    pub input: String,
-    pub response: String,
+    pub input: Option<String>,
+    pub response: Option<String>,
     pub prompt: Json<Prompt>,
     pub context: Json<Value>,
 }

@@ -1,3 +1,4 @@
+use potato_head::error::WorkflowError;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::PyErr;
 use scouter_dispatch::error::DispatchError;
@@ -74,6 +75,15 @@ pub enum DriftError {
 
     #[error("Categorical feature specified in drift config: {0}, not present in data")]
     CategoricalFeatureMissingError(String),
+
+    #[error("Failed to deserialize: {0}")]
+    SerdeJsonError(#[from] serde_json::Error),
+
+    #[error("Context is not a valid JSON object. Should be a Map<String, Value>")]
+    InvalidContextFormat,
+
+    #[error(transparent)]
+    WorkflowError(#[from] WorkflowError),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for DriftError {
