@@ -15,11 +15,10 @@ use scouter_types::contracts::ProfileRequest;
 use scouter_types::custom::CustomMetricAlertConfig;
 use scouter_types::llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftProfile, LLMMetric};
 use scouter_types::{
-    custom::BinnedCustomMetrics,
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
     psi::{BinnedPsiFeatureMetrics, PsiAlertConfig, PsiDriftConfig},
     spc::{SpcAlertConfig, SpcDriftConfig, SpcDriftFeatures},
-    AlertThreshold, DriftType, RecordType,
+    AlertThreshold, BinnedMetrics, DriftType, RecordType,
 };
 use sqlx::types::chrono::Utc;
 use tokio::time::{sleep, Duration};
@@ -354,7 +353,7 @@ async fn test_data_archive_custom() {
     assert_eq!(response.status(), StatusCode::OK);
     let val = response.into_body().collect().await.unwrap().to_bytes();
 
-    let results: BinnedCustomMetrics = serde_json::from_slice(&val).unwrap();
+    let results: BinnedMetrics = serde_json::from_slice(&val).unwrap();
 
     assert!(!results.metrics.is_empty());
     assert_eq!(results.metrics["metric_1"].created_at.len(), 2);
@@ -362,7 +361,7 @@ async fn test_data_archive_custom() {
 }
 
 #[test]
-fn test_data_archive_drift_record() {
+fn test_data_archive_llm_drift_record() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
     let mut mock = OpenAITestServer::new();
     mock.start_server().unwrap();
@@ -461,4 +460,137 @@ fn test_data_archive_drift_record() {
 
     mock.stop_server().unwrap();
     TestHelper::cleanup_storage()
+}
+
+#[test]
+fn test_data_archive_llm_drift_metrics() {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let mut mock = OpenAITestServer::new();
+    mock.start_server().unwrap();
+
+    let helper = runtime.block_on(async { TestHelper::new(false, false).await.unwrap() });
+
+    let alert_config = LLMAlertConfig::default();
+    let config = LLMDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
+    let prompt = create_score_prompt(Some(vec!["input".to_string()]));
+
+    let _alert_threshold = AlertThreshold::Above;
+    let metric1 = LLMMetric::new(
+        "metric1",
+        5.0,
+        AlertThreshold::Above,
+        None,
+        Some(prompt.clone()),
+    )
+    .unwrap();
+    let metric2 = LLMMetric::new(
+        "metric2",
+        3.0,
+        AlertThreshold::Below,
+        Some(1.0),
+        Some(prompt.clone()),
+    )
+    .unwrap();
+    let llm_metrics = vec![metric1, metric2];
+    let profile = LLMDriftProfile::from_metrics(config, llm_metrics).unwrap();
+
+    let request = ProfileRequest {
+        space: profile.config.space.clone(),
+        profile: profile.model_dump_json(),
+        drift_type: DriftType::LLM,
+    };
+
+    let body = serde_json::to_string(&request).unwrap();
+    let request = Request::builder()
+        .uri("/scouter/profile")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let response = runtime.block_on(async { helper.send_oneshot(request).await });
+
+    //assert response
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // 10 day old records
+    let long_term_records = helper.get_llm_drift_metrics(Some(10));
+
+    // 0 day old records
+    let short_term_records = helper.get_llm_drift_metrics(None);
+
+    for records in [short_term_records, long_term_records].iter() {
+        let body = serde_json::to_string(records).unwrap();
+        let request = Request::builder()
+            .uri("/scouter/drift")
+            .method("POST")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body))
+            .unwrap();
+
+        let response = runtime.block_on(async { helper.send_oneshot(request).await });
+
+        //assert response
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    // Sleep for 2 seconds to allow the http consumer time to process all server records sent above.
+    runtime.block_on(async { sleep(Duration::from_secs(2)).await });
+
+    let record = runtime.block_on(async {
+        archive_old_data(&helper.pool, &helper.config)
+            .await
+            .unwrap()
+    });
+
+    assert!(!record.spc);
+    assert!(!record.psi);
+    assert!(!record.custom);
+    assert!(record.llm_metric);
+    assert!(!record.llm_drift);
+
+    let df =
+        ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::LLMMetric).unwrap();
+    let path = format!("{SPACE}/{NAME}/{VERSION}/llm_metric");
+
+    let canonical_path = format!("{}/{}", df.storage_root(), path);
+    let data_path = object_store::path::Path::from(canonical_path);
+
+    let files =
+        runtime.block_on(async { df.storage_client().list(Some(&data_path)).await.unwrap() });
+
+    assert!(!files.is_empty());
+
+    let params = DriftRequest {
+        space: SPACE.to_string(),
+        name: NAME.to_string(),
+        version: VERSION.to_string(),
+        max_data_points: 100,
+        drift_type: DriftType::LLM,
+        begin_custom_datetime: Some(Utc::now() - chrono::Duration::days(15)),
+        end_custom_datetime: Some(Utc::now()),
+        ..Default::default()
+    };
+
+    let query_string = serde_qs::to_string(&params).unwrap();
+
+    let request = Request::builder()
+        .uri(format!("/scouter/drift/llm?{query_string}"))
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = runtime.block_on(async { helper.send_oneshot(request).await });
+
+    //assert response
+    assert_eq!(response.status(), StatusCode::OK);
+    let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
+
+    let results: BinnedMetrics = serde_json::from_slice(&val).unwrap();
+
+    assert!(!results.metrics.is_empty());
+    assert_eq!(results.metrics["metric1"].created_at.len(), 2);
+
+    mock.stop_server().unwrap();
+    TestHelper::cleanup_storage();
 }

@@ -6,12 +6,8 @@ use scouter_types::psi::DistributionData;
 use scouter_types::BoxedLLMDriftServerRecord;
 use scouter_types::LLMDriftServerRecord;
 use scouter_types::{
-    alert::Alert,
-    custom::{BinnedCustomMetric, BinnedCustomMetricStats},
-    get_utc_datetime,
-    llm::{BinnedLLMMetric, BinnedLLMMetricStats},
-    psi::FeatureBinProportionResult,
-    RecordType,
+    alert::Alert, get_utc_datetime, psi::FeatureBinProportionResult, BinnedMetric,
+    BinnedMetricStats, RecordType,
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -68,37 +64,18 @@ impl<'r> FromRow<'r, PgRow> for FeatureDistributionWrapper {
     }
 }
 
-pub struct BinnedCustomMetricWrapper(pub BinnedCustomMetric);
+pub struct BinnedMetricWrapper(pub BinnedMetric);
 
-impl<'r> FromRow<'r, PgRow> for BinnedCustomMetricWrapper {
+impl<'r> FromRow<'r, PgRow> for BinnedMetricWrapper {
     fn from_row(row: &'r PgRow) -> Result<Self, Error> {
         let stats_json: Vec<serde_json::Value> = row.try_get("stats")?;
 
-        let stats: Vec<BinnedCustomMetricStats> = stats_json
+        let stats: Vec<BinnedMetricStats> = stats_json
             .into_iter()
             .map(|value| serde_json::from_value(value).unwrap_or_default())
             .collect();
 
-        Ok(BinnedCustomMetricWrapper(BinnedCustomMetric {
-            metric: row.try_get("metric")?,
-            created_at: row.try_get("created_at")?,
-            stats,
-        }))
-    }
-}
-
-pub struct BinnedLLMMetricWrapper(pub BinnedLLMMetric);
-
-impl<'r> FromRow<'r, PgRow> for BinnedLLMMetricWrapper {
-    fn from_row(row: &'r PgRow) -> Result<Self, Error> {
-        let stats_json: Vec<serde_json::Value> = row.try_get("stats")?;
-
-        let stats: Vec<BinnedLLMMetricStats> = stats_json
-            .into_iter()
-            .map(|value| serde_json::from_value(value).unwrap_or_default())
-            .collect();
-
-        Ok(BinnedLLMMetricWrapper(BinnedLLMMetric {
+        Ok(BinnedMetricWrapper(BinnedMetric {
             metric: row.try_get("metric")?,
             created_at: row.try_get("created_at")?,
             stats,
@@ -427,6 +404,15 @@ impl From<LLMDriftServerSQLRecord> for LLMDriftServerRecord {
 /// Conversion is done by first converting the row to an `LLMDriftServerSQLRecord`
 /// and then converting that to an `LLMDriftServerRecord`.
 pub fn llm_drift_record_from_row(row: &PgRow) -> Result<BoxedLLMDriftServerRecord, SqlError> {
+    let sql_record = LLMDriftServerSQLRecord::from_row(row)?;
+    let record = LLMDriftServerRecord::from(sql_record);
+
+    Ok(BoxedLLMDriftServerRecord {
+        record: Box::new(record),
+    })
+}
+
+pub fn llm_drift_metric_from_row(row: &PgRow) -> Result<BoxedLLMDriftServerRecord, SqlError> {
     let sql_record = LLMDriftServerSQLRecord::from_row(row)?;
     let record = LLMDriftServerRecord::from(sql_record);
 

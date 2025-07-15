@@ -1,6 +1,7 @@
+use crate::error::DataFrameError;
+
 use arrow::datatypes::DataType;
 
-use crate::error::DataFrameError;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use datafusion::datasource::file_format::parquet::ParquetFormat;

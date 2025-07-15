@@ -17,13 +17,12 @@ use scouter_types::contracts::{
     DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
 };
 use scouter_types::custom::{
-    BinnedCustomMetrics, CustomDriftProfile, CustomMetric, CustomMetricAlertConfig,
-    CustomMetricDriftConfig,
+    CustomDriftProfile, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig,
 };
 use scouter_types::psi::BinnedPsiFeatureMetrics;
 use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
 use scouter_types::spc::SpcDriftFeatures;
-use scouter_types::{AlertThreshold, TimeInterval};
+use scouter_types::{AlertThreshold, BinnedMetrics, TimeInterval};
 use tokio::time::sleep;
 
 #[tokio::test]
@@ -362,7 +361,7 @@ async fn test_custom_server_records() {
 
     let val = response.into_body().collect().await.unwrap().to_bytes();
 
-    let results: BinnedCustomMetrics = serde_json::from_slice(&val).unwrap();
+    let results: BinnedMetrics = serde_json::from_slice(&val).unwrap();
 
     assert!(!results.metrics.is_empty());
 }

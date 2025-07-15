@@ -159,10 +159,9 @@ impl ParquetDataFrame {
 mod tests {
 
     use super::*;
-    use crate::parquet::custom::dataframe_to_custom_drift_metrics;
-    use crate::parquet::llm::metric::dataframe_to_llm_drift_metrics;
     use crate::parquet::psi::dataframe_to_psi_drift_features;
     use crate::parquet::spc::dataframe_to_spc_drift_features;
+    use crate::parquet::utils::BinnedMetricsExtractor;
     use chrono::Utc;
     use object_store::path::Path;
     use potato_head::create_score_prompt;
@@ -302,7 +301,9 @@ mod tests {
 
         //read_df.show().await.unwrap();
 
-        let binned_metrics = dataframe_to_llm_drift_metrics(read_df).await.unwrap();
+        let binned_metrics = BinnedMetricsExtractor::dataframe_to_binned_metrics(read_df)
+            .await
+            .unwrap();
 
         assert_eq!(binned_metrics.metrics.len(), 3);
 
@@ -378,7 +379,9 @@ mod tests {
 
         //read_df.show().await.unwrap();
 
-        let binned_metrics = dataframe_to_custom_drift_metrics(read_df).await.unwrap();
+        let binned_metrics = BinnedMetricsExtractor::dataframe_to_binned_metrics(read_df)
+            .await
+            .unwrap();
 
         assert_eq!(binned_metrics.metrics.len(), 3);
 

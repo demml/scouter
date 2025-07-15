@@ -15,11 +15,10 @@ use scouter_sql::sql::traits::{
 };
 use scouter_sql::PostgresClient;
 use scouter_types::{
-    custom::BinnedCustomMetrics,
     llm::PaginationResponse,
     psi::{BinnedPsiFeatureMetrics, PsiDriftProfile},
     spc::SpcDriftFeatures,
-    DriftType, LLMDriftRecordPaginationRequest, LLMDriftServerRecord, ServerRecords,
+    BinnedMetrics, DriftType, LLMDriftRecordPaginationRequest, LLMDriftServerRecord, ServerRecords,
 };
 use scouter_types::{DriftRequest, GetProfileRequest, ScouterResponse, ScouterServerError};
 use sqlx::{Pool, Postgres};
@@ -148,7 +147,7 @@ pub async fn get_custom_drift(
     State(data): State<Arc<AppState>>,
     Query(params): Query<DriftRequest>,
     Extension(perms): Extension<UserPermissions>,
-) -> Result<Json<BinnedCustomMetrics>, (StatusCode, Json<ScouterServerError>)> {
+) -> Result<Json<BinnedMetrics>, (StatusCode, Json<ScouterServerError>)> {
     // validate time window
 
     if !perms.has_read_permission(&params.space) {
@@ -179,6 +178,7 @@ pub async fn get_custom_drift(
     }
 }
 
+/// This route is used to get the latest LLM drift records by page
 #[instrument(skip_all)]
 pub async fn get_llm_drift_records(
     State(data): State<Arc<AppState>>,
@@ -200,6 +200,42 @@ pub async fn get_llm_drift_records(
         &params.service_info,
         params.status,
         params.pagination,
+    )
+    .await;
+
+    match metrics {
+        Ok(metrics) => Ok(Json(metrics)),
+        Err(e) => {
+            error!("Failed to query drift records: {:?}", e);
+
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::query_records_error(e)),
+            ))
+        }
+    }
+}
+
+#[instrument(skip_all)]
+pub async fn get_llm_drift_metrics(
+    State(data): State<Arc<AppState>>,
+    Query(params): Query<DriftRequest>,
+    Extension(perms): Extension<UserPermissions>,
+) -> Result<Json<BinnedMetrics>, (StatusCode, Json<ScouterServerError>)> {
+    // validate time window
+
+    if !perms.has_read_permission(&params.space) {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(ScouterServerError::permission_denied()),
+        ));
+    }
+
+    let metrics = PostgresClient::get_binned_llm_metric_values(
+        &data.db_pool,
+        &params,
+        &data.config.database_settings.retention_period,
+        &data.config.storage_settings,
     )
     .await;
 
@@ -250,6 +286,7 @@ pub async fn get_drift_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
             .route(&format!("{prefix}/drift/spc"), get(get_spc_drift))
             .route(&format!("{prefix}/drift/custom"), get(get_custom_drift))
             .route(&format!("{prefix}/drift/psi"), get(get_psi_drift))
+            .route(&format!("{prefix}/drift/llm"), get(get_llm_drift_metrics))
             .route(
                 &format!("{prefix}/drift/llm/records"),
                 get(get_llm_drift_records),

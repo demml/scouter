@@ -5,7 +5,6 @@ use crate::sql::traits::{
 
 use crate::sql::error::SqlError;
 use scouter_settings::DatabaseSettings;
-
 use scouter_types::{RecordType, ServerRecords, ToDriftRecords};
 
 use sqlx::{postgres::PgPoolOptions, Pool, Postgres};

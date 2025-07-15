@@ -106,7 +106,7 @@ pub enum Queries {
     GetDriftAlerts,
     GetBinnedSpcFeatureValues,
     GetBinnedPsiFeatureBins,
-    GetBinnedCustomMetricValues,
+    GetBinnedMetricValues,
     GetBinnedObservabilityMetrics,
     GetSpcFeatureValues,
     GetDriftTask,
@@ -151,7 +151,7 @@ pub enum Queries {
     // llm
     GetLLMMetricValues,
     GetLLMDriftRecords,
-    GetBinnedLLMMetrics,
+    GetBinnedMetrics,
     InsertLLMMetricValuesBatch,
     InsertLLMDriftRecord,
     GetPendingLLMDriftTask,
@@ -176,7 +176,7 @@ impl Queries {
             Queries::InsertDriftRecord => SqlQuery::new(INSERT_DRIFT_RECORD),
             Queries::GetBinnedSpcFeatureValues => SqlQuery::new(GET_BINNED_SPC_FEATURE_VALUES),
             Queries::GetBinnedPsiFeatureBins => SqlQuery::new(GET_BINNED_PSI_FEATURE_BINS),
-            Queries::GetBinnedCustomMetricValues => SqlQuery::new(GET_BINNED_CUSTOM_METRIC_VALUES),
+            Queries::GetBinnedMetricValues => SqlQuery::new(GET_BINNED_CUSTOM_METRIC_VALUES),
             Queries::GetBinnedObservabilityMetrics => {
                 SqlQuery::new(GET_BINNED_OBSERVABILITY_METRICS)
             }
@@ -215,7 +215,7 @@ impl Queries {
 
             //llm
             Queries::GetLLMMetricValues => SqlQuery::new(GET_LLM_METRIC_VALUES),
-            Queries::GetBinnedLLMMetrics => SqlQuery::new(GET_BINNED_LLM_METRIC_VALUES),
+            Queries::GetBinnedMetrics => SqlQuery::new(GET_BINNED_LLM_METRIC_VALUES),
             Queries::InsertLLMMetricValuesBatch => SqlQuery::new(INSERT_LLM_METRIC_VALUES_BATCH),
             Queries::InsertLLMDriftRecord => SqlQuery::new(INSERT_LLM_DRIFT_RECORD),
 

@@ -18,8 +18,8 @@ use scouter_settings::{DatabaseSettings, ScouterServerConfig};
 use scouter_sql::PostgresClient;
 use scouter_types::JwtToken;
 use scouter_types::{
-    BoxedLLMDriftServerRecord, LLMDriftServerRecord, ServerRecord, ServerRecords, SpcServerRecord,
-    Status,
+    BoxedLLMDriftServerRecord, LLMDriftServerRecord, LLMMetricServerRecord, ServerRecord,
+    ServerRecords, SpcServerRecord, Status,
 };
 use scouter_types::{CustomMetricServerRecord, PsiServerRecord};
 use serde_json::Map;
@@ -265,6 +265,28 @@ impl TestHelper {
 
                 let boxed_record = BoxedLLMDriftServerRecord::new(record);
                 records.push(ServerRecord::LLMDrift(boxed_record));
+            }
+        }
+
+        ServerRecords::new(records)
+    }
+
+    pub fn get_llm_drift_metrics(&self, time_offset: Option<i64>) -> ServerRecords {
+        let mut records: Vec<ServerRecord> = Vec::new();
+        let offset = time_offset.unwrap_or(0);
+
+        for i in 0..2 {
+            for j in 0..25 {
+                let record = LLMMetricServerRecord {
+                    created_at: Utc::now() + chrono::Duration::microseconds(j as i64)
+                        - chrono::Duration::days(offset),
+                    space: SPACE.to_string(),
+                    name: NAME.to_string(),
+                    version: VERSION.to_string(),
+                    metric: format!("metric{i}"),
+                    value: rand::rng().random_range(0..10) as f64,
+                };
+                records.push(ServerRecord::LLMMetric(record));
             }
         }
 

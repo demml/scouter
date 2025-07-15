@@ -9,8 +9,8 @@ use scouter_types::http::{RequestType, Routes};
 
 use crate::http::HTTPClient;
 use scouter_types::{
-    alert::Alert, custom::BinnedCustomMetrics, psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures,
-    DriftProfile, DriftType, ProfileFuncs,
+    alert::Alert, psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures, BinnedMetrics, DriftProfile,
+    DriftType, ProfileFuncs,
 };
 use std::path::PathBuf;
 use tracing::{debug, error};
@@ -382,7 +382,7 @@ impl PyScouterClient {
 
         let body = response.bytes()?;
 
-        let results: BinnedCustomMetrics = serde_json::from_slice(&body)?;
+        let results: BinnedMetrics = serde_json::from_slice(&body)?;
 
         Ok(results.into_bound_py_any(py).unwrap())
     }

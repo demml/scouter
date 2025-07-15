@@ -1,23 +1,24 @@
 use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
 use crate::sql::schema::LLMDriftTaskRequest;
-use crate::sql::schema::{BinnedLLMMetricWrapper, LLMDriftServerSQLRecord};
+use crate::sql::schema::{BinnedMetricWrapper, LLMDriftServerSQLRecord};
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::multiunzip;
-use scouter_dataframe::parquet::llm::metric::dataframe_to_llm_drift_metrics;
+use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::{DriftRequest, ServiceInfo};
 use scouter_types::{
-    llm::{BinnedLLMMetrics, PaginationCursor, PaginationRequest, PaginationResponse},
-    LLMDriftServerRecord, RecordType,
+    llm::{PaginationCursor, PaginationRequest, PaginationResponse},
+    BinnedMetrics, LLMDriftServerRecord, RecordType,
 };
 use scouter_types::{LLMMetricServerRecord, Status};
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::collections::HashMap;
 use std::str::FromStr;
+use tracing::error;
 use tracing::{debug, instrument};
 
 #[async_trait]
@@ -151,6 +152,16 @@ pub trait LLMDriftSqlLogic {
             .collect())
     }
 
+    /// Retrieves a paginated list of LLM drift records from the database
+    /// for a given service.
+    /// # Arguments
+    /// * `pool` - The database connection pool
+    /// * `service_info` - The service information to filter records by
+    /// * `status` - Optional status filter for the records
+    /// * `pagination` - The pagination request containing limit and cursor
+    /// # Returns
+    /// * A result containing a pagination response with LLM drift records or an error
+    #[instrument(skip_all)]
     async fn get_llm_drift_records_pagination(
         pool: &Pool<Postgres>,
         service_info: &ServiceInfo,
@@ -278,18 +289,18 @@ pub trait LLMDriftSqlLogic {
     /// * `params` - The drift request parameters
     ///
     /// # Returns
-    /// * BinnedLLMMetrics
+    /// * BinnedMetrics
     #[instrument(skip_all)]
     async fn get_records(
         pool: &Pool<Postgres>,
         params: &DriftRequest,
         minutes: i32,
-    ) -> Result<BinnedLLMMetrics, SqlError> {
+    ) -> Result<BinnedMetrics, SqlError> {
         let bin = params.time_interval.to_minutes() as f64 / params.max_data_points as f64;
 
-        let query = Queries::GetBinnedLLMMetrics.get_query();
+        let query = Queries::GetBinnedMetrics.get_query();
 
-        let records: Vec<BinnedLLMMetricWrapper> = sqlx::query_as(&query.sql)
+        let records: Vec<BinnedMetricWrapper> = sqlx::query_as(&query.sql)
             .bind(bin)
             .bind(minutes)
             .bind(&params.space)
@@ -299,15 +310,15 @@ pub trait LLMDriftSqlLogic {
             .await
             .map_err(SqlError::SqlxError)?;
 
-        Ok(BinnedLLMMetrics::from_vec(
+        Ok(BinnedMetrics::from_vec(
             records.into_iter().map(|wrapper| wrapper.0).collect(),
         ))
     }
 
     /// Helper for merging custom drift records
     fn merge_feature_results(
-        results: BinnedLLMMetrics,
-        map: &mut BinnedLLMMetrics,
+        results: BinnedMetrics,
+        map: &mut BinnedMetrics,
     ) -> Result<(), SqlError> {
         for (name, metric) in results.metrics {
             let metric_clone = metric.clone();
@@ -341,8 +352,12 @@ pub trait LLMDriftSqlLogic {
         end: DateTime<Utc>,
         minutes: i32,
         storage_settings: &ObjectStorageSettings,
-    ) -> Result<BinnedLLMMetrics, SqlError> {
-        let path = format!("{}/{}/{}/llm", params.space, params.name, params.version);
+    ) -> Result<BinnedMetrics, SqlError> {
+        debug!("Getting archived LLM metrics for params: {:?}", params);
+        let path = format!(
+            "{}/{}/{}/llm_metric",
+            params.space, params.name, params.version
+        );
         let bin = minutes as f64 / params.max_data_points as f64;
         let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::LLMMetric)?
             .get_binned_metrics(
@@ -354,9 +369,12 @@ pub trait LLMDriftSqlLogic {
                 &params.name,
                 &params.version,
             )
-            .await?;
+            .await
+            .inspect_err(|e| {
+                error!("Failed to get archived LLM metrics: {:?}", e);
+            })?;
 
-        Ok(dataframe_to_llm_drift_metrics(archived_df).await?)
+        Ok(BinnedMetricsExtractor::dataframe_to_binned_metrics(archived_df).await?)
     }
 
     // Queries the database for drift records based on a time window and aggregation
@@ -374,7 +392,7 @@ pub trait LLMDriftSqlLogic {
         params: &DriftRequest,
         retention_period: &i32,
         storage_settings: &ObjectStorageSettings,
-    ) -> Result<BinnedLLMMetrics, SqlError> {
+    ) -> Result<BinnedMetrics, SqlError> {
         debug!("Getting binned Custom drift records for {:?}", params);
 
         if !params.has_custom_interval() {
@@ -386,7 +404,7 @@ pub trait LLMDriftSqlLogic {
         debug!("Custom interval provided, using custom interval");
         let interval = params.clone().to_custom_interval().unwrap();
         let timestamps = split_custom_interval(interval.start, interval.end, retention_period)?;
-        let mut custom_metric_map = BinnedLLMMetrics::default();
+        let mut custom_metric_map = BinnedMetrics::default();
 
         // get data from postgres
         if let Some(minutes) = timestamps.current_minutes {
@@ -395,7 +413,6 @@ pub trait LLMDriftSqlLogic {
         }
 
         // get archived data
-
         if let Some((archive_begin, archive_end)) = timestamps.archived_range {
             if let Some(archived_minutes) = timestamps.archived_minutes {
                 let archived_results = Self::get_archived_metric_records(

@@ -5,9 +5,9 @@ from .. import client  # noqa: F401
 TimeInterval = client.TimeInterval
 DriftRequest = client.DriftRequest
 ScouterClient = client.ScouterClient
-BinnedCustomMetricStats = client.BinnedCustomMetricStats
-BinnedCustomMetric = client.BinnedCustomMetric
-BinnedCustomMetrics = client.BinnedCustomMetrics
+BinnedMetricStats = client.BinnedMetricStats
+BinnedMetric = client.BinnedMetric
+BinnedMetrics = client.BinnedMetrics
 BinnedPsiMetric = client.BinnedPsiMetric
 BinnedPsiFeatureMetrics = client.BinnedPsiFeatureMetrics
 SpcDriftFeature = client.SpcDriftFeature
@@ -22,9 +22,9 @@ __all__ = [
     "TimeInterval",
     "DriftRequest",
     "ScouterClient",
-    "BinnedCustomMetricStats",
-    "BinnedCustomMetric",
-    "BinnedCustomMetrics",
+    "BinnedMetricStats",
+    "BinnedMetric",
+    "BinnedMetrics",
     "BinnedPsiMetric",
     "BinnedPsiFeatureMetrics",
     "SpcDriftFeature",

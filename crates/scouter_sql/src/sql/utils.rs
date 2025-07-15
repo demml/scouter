@@ -2,8 +2,8 @@ use crate::sql::error::SqlError;
 use crate::sql::schema::llm_drift_record_from_row;
 use chrono::{DateTime, Utc};
 use scouter_types::{
-    CustomMetricServerRecord, PsiServerRecord, RecordType, ServerRecord, ServerRecords,
-    SpcServerRecord,
+    CustomMetricServerRecord, LLMMetricServerRecord, PsiServerRecord, RecordType, ServerRecord,
+    ServerRecords, SpcServerRecord,
 };
 
 use sqlx::{postgres::PgRow, Row};
@@ -47,6 +47,17 @@ fn custom_record_from_row(row: &PgRow) -> Result<CustomMetricServerRecord, SqlEr
     })
 }
 
+fn llm_drift_metric_from_row(row: &PgRow) -> Result<LLMMetricServerRecord, SqlError> {
+    Ok(LLMMetricServerRecord {
+        created_at: row.try_get("created_at")?,
+        space: row.try_get("space")?,
+        name: row.try_get("name")?,
+        version: row.try_get("version")?,
+        metric: row.try_get("metric")?,
+        value: row.try_get("value")?,
+    })
+}
+
 /// Converts a slice of `PgRow` to a `ServerRecords` based on the provided `RecordType`.
 ///
 /// # Arguments
@@ -69,6 +80,7 @@ pub fn pg_rows_to_server_records(
         RecordType::Psi => |row| Ok(ServerRecord::Psi(psi_record_from_row(row)?)),
         RecordType::Custom => |row| Ok(ServerRecord::Custom(custom_record_from_row(row)?)),
         RecordType::LLMDrift => |row| Ok(ServerRecord::LLMDrift(llm_drift_record_from_row(row)?)),
+        RecordType::LLMMetric => |row| Ok(ServerRecord::LLMMetric(llm_drift_metric_from_row(row)?)),
         _ => return Err(SqlError::InvalidRecordTypeError(record_type.to_string())),
     };
 
