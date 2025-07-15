@@ -208,7 +208,7 @@ pub mod drift_executor {
                 }
                 None => {
                     info!("No triggered schedules found in db. Sleeping for 10 seconds");
-                    tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+                    tokio::time::sleep(tokio::time::Duration::from_secs(1000000)).await;
                     Ok(())
                 }
             }

@@ -7,6 +7,7 @@ import pandas as pd
 import uvicorn
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
+
 from scouter import (  # type: ignore
     CommonCrons,
     Drifter,
@@ -59,6 +60,7 @@ def generate_data() -> pd.DataFrame:
     X = pd.DataFrame(X_train, columns=col_names)
 
     X["category"] = np.random.choice([11, 12, 22, 31, 14], size=n)
+    # X["apple"] = np.random.choice([np.nan, 10, 23, 12, 32, 56, 322, 44, 343, 23, 23, 67, 88], size=n)
 
     return X
 
@@ -76,10 +78,10 @@ def create_psi_profile() -> Path:
     5. Save the profile to a json file (we'll use this to load it in the api for demo purposes)
     """
     # Drifter class for creating drift profiles
-    drifter = Drifter()
+
 
     # Simple client to register drift profiles (scouter client must be running)
-    client = ScouterClient()
+    # client = ScouterClient()
 
     # create fake data
     data = generate_data()
@@ -91,18 +93,18 @@ def create_psi_profile() -> Path:
         alert_config=PsiAlertConfig(
             schedule=CommonCrons.Every6Hours,  # You can also use a custom cron expression
             features_to_monitor=[  # we only want to monitor these features
-                "feature_1",
-                "feature_2",
+                "feature_1"
             ],
         ),
         categorical_features=["category"],
     )
-
+    breakpoint()
     # create psi profile
+    drifter = Drifter()
     psi_profile = drifter.create_drift_profile(data, psi_config)
 
     # register profile
-    client.register_profile(profile=psi_profile, set_active=True)
+    # client.register_profile(profile=psi_profile, set_active=True)
 
     # save profile to json (for example purposes)
     return psi_profile.save_to_json()
@@ -112,30 +114,3 @@ if __name__ == "__main__":
     # Create a PSI profile and get its path
     profile_path = create_psi_profile()
 
-    # Setup the FastAPI app
-    config = HTTPConfig()
-
-    # Setup api lifespan
-    @asynccontextmanager
-    async def lifespan(fast_app: FastAPI):
-        logger.info("Starting up FastAPI app")
-
-        fast_app.state.queue = ScouterQueue.from_path(
-            path={"psi": profile_path},
-            transport_config=config,
-        )
-        yield
-
-        logger.info("Shutting down FastAPI app")
-        # Shutdown the queue
-        fast_app.state.queue.shutdown()
-        fast_app.state.queue = None
-
-    app = FastAPI(lifespan=lifespan)
-
-    @app.post("/predict", response_model=Response)
-    async def predict(request: Request, payload: PredictRequest) -> Response:
-        request.app.state.queue["psi"].insert(payload.to_features())
-        return Response(message="success")
-
-    uvicorn.run(app, host="0.0.0.0", port=8888)

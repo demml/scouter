@@ -9,6 +9,8 @@ use scouter_types::psi::{
     Bin, BinType, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
 };
 use std::collections::HashMap;
+use std::fmt::Debug;
+use tracing::debug;
 
 #[derive(Default)]
 pub struct PsiMonitor {}
@@ -30,6 +32,7 @@ impl PsiMonitor {
         F: Float + FromPrimitive,
         F: Into<f64>,
     {
+        debug!("made it to compute_bin_count");
         array
             .iter()
             .filter(|&&value| value.into() > *lower_threshold && value.into() <= *upper_threshold)
@@ -38,13 +41,16 @@ impl PsiMonitor {
 
     fn compute_deciles<F>(&self, column_vector: &ArrayView1<F>) -> Result<[F; 9], DriftError>
     where
-        F: Float + Default,
+        F: Float + Default + Debug,
         F: Into<f64>,
     {
         // TODO: Explore using ndarray_stats quantiles instead of manual computation
         if column_vector.len() < 10 {
             return Err(DriftError::NotEnoughDecileValuesError);
         }
+        debug!("made it to compute_deciles");
+
+        debug!("{column_vector:?}");
 
         let sorted_column_vector = column_vector
             .iter()
@@ -72,6 +78,7 @@ impl PsiMonitor {
         F: Float + FromPrimitive + Default + Sync,
         F: Into<f64>,
     {
+        debug!("made it to create_categorical_bins");
         let vector_len = column_vector.len() as f64;
         let mut counts: HashMap<usize, usize> = HashMap::new();
 
@@ -93,9 +100,10 @@ impl PsiMonitor {
 
     fn create_numeric_bins<F>(&self, column_vector: &ArrayView1<F>) -> Result<Vec<Bin>, DriftError>
     where
-        F: Float + FromPrimitive + Default + Sync,
+        F: Float + FromPrimitive + Default + Sync + Debug,
         F: Into<f64>,
     {
+        debug!("made it to create_numeric_bins");
         let deciles = self.compute_deciles(column_vector)?;
 
         let bins: Vec<Bin> = (0..=deciles.len())
@@ -130,9 +138,10 @@ impl PsiMonitor {
         drift_config: &PsiDriftConfig,
     ) -> Result<(Vec<Bin>, BinType), DriftError>
     where
-        F: Float + FromPrimitive + Default + Sync,
+        F: Float + FromPrimitive + Default + Sync + Debug,
         F: Into<f64>,
     {
+        debug!("made it to create_bins");
         match &drift_config.categorical_features {
             Some(features) if features.contains(feature_name) => {
                 // Process as categorical
@@ -155,9 +164,10 @@ impl PsiMonitor {
         drift_config: &PsiDriftConfig,
     ) -> Result<PsiFeatureDriftProfile, DriftError>
     where
-        F: Float + Sync + FromPrimitive + Default,
+        F: Float + Sync + FromPrimitive + Default + Debug,
         F: Into<f64>,
     {
+        debug!("made it to create_psi_feature_drift_profile");
         let (bins, bin_type) = self.create_bins(&feature_name, column_vector, drift_config)?;
 
         Ok(PsiFeatureDriftProfile {
@@ -175,9 +185,10 @@ impl PsiMonitor {
         drift_config: &PsiDriftConfig,
     ) -> Result<PsiDriftProfile, DriftError>
     where
-        F: Float + Sync + FromPrimitive + Default,
+        F: Float + Sync + FromPrimitive + Default + Debug,
         F: Into<f64>,
     {
+        debug!("made it to create_2d_drift_profile");
         let mut psi_feature_drift_profiles = HashMap::new();
 
         // Ensure that the number of features matches the number of columns in the array
@@ -193,9 +204,21 @@ impl PsiMonitor {
             .collect_vec()
             .into_par_iter()
             .map(|(column_vector, feature_name)| {
+                debug!("original column vector: {column_vector:?}");
+                // We need to ensure nan and inf values are not getting through
+                let clean_data: Vec<F> = column_vector
+                    .iter()
+                    .filter(|&&x| x.is_finite())
+                    .cloned()
+                    .collect();
+
+                let clean_array = Array1::from(clean_data);
+                let clean_view = clean_array.view();
+                debug!("cleaned column vector: {clean_view:?}");
+
                 self.create_psi_feature_drift_profile(
                     feature_name.to_string(),
-                    &column_vector,
+                    &clean_view,
                     drift_config,
                 )
             })

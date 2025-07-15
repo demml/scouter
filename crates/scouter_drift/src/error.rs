@@ -74,6 +74,21 @@ pub enum DriftError {
 
     #[error("Categorical feature specified in drift config: {0}, not present in data")]
     CategoricalFeatureMissingError(String),
+
+    #[error("Error computing quantiles: {0}")]
+    QuantileComputationError(String),
+
+    #[error("Insufficient Data Error: {0}")]
+    InsufficientDataError(String),
+
+    #[error("{0}")]
+    InvalidParameterError(String),
+
+    #[error("{0}")]
+    InvalidBinCountError(String),
+
+    #[error("{0}")]
+    InvalidValueError(String),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for DriftError {

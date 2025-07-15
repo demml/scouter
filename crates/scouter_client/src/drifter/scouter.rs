@@ -4,6 +4,7 @@ use crate::drifter::{custom::CustomDrifter, psi::PsiDrifter, spc::SpcDrifter};
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use pyo3::IntoPyObjectExt;
+use tracing::debug;
 use scouter_drift::error::DriftError;
 use scouter_drift::spc::SpcDriftMap;
 use scouter_types::spc::SpcDriftProfile;
@@ -63,42 +64,43 @@ impl Drifter {
         }
     }
 
-    fn create_drift_profile<'py>(
-        &mut self,
-        py: Python<'py>,
-        data: &Bound<'py, PyAny>,
-        data_type: &DataType,
-        config: DriftConfig,
-    ) -> Result<DriftProfile, DriftError> {
-        match self {
-            // Before creating the profile, we first need to do a rough split of the data into string and numeric data types before
-            // passing it to the drifter
-            Drifter::Spc(drifter) => {
-                let data = DataConverterEnum::convert_data(py, data_type, data)?;
-                let profile = drifter.create_drift_profile(data, config.spc_config()?.clone())?;
-                Ok(DriftProfile::Spc(profile))
-            }
-            Drifter::Psi(drifter) => {
-                let data = DataConverterEnum::convert_data(py, data_type, data)?;
-                let profile = drifter.create_drift_profile(data, config.psi_config()?.clone())?;
-                Ok(DriftProfile::Psi(profile))
-            }
-            Drifter::Custom(drifter) => {
-                // check if data is pylist. If it is, convert to Vec<CustomMetric>
-                // if not extract to CustomMetric and add to vec
-                let data = if data.is_instance_of::<PyList>() {
-                    data.extract::<Vec<CustomMetric>>()?
-                } else {
-                    let metric = data.extract::<CustomMetric>()?;
-                    vec![metric]
-                };
+    // fn create_drift_profile<'py>(
+    //     &mut self,
+    //     py: Python<'py>,
+    //     data: &Bound<'py, PyAny>,
+    //     data_type: &DataType,
+    //     config: DriftConfig,
+    // ) -> Result<DriftProfile, DriftError> {
+    //     debug!("MADE IT TO create_drift_profile<'py>");
+    //     match self {
+    //         // Before creating the profile, we first need to do a rough split of the data into string and numeric data types before
+    //         // passing it to the drifter
+    //         Drifter::Spc(drifter) => {
+    //             let data = DataConverterEnum::convert_data(py, data_type, data)?;
+    //             let profile = drifter.create_drift_profile(data, config.spc_config()?.clone())?;
+    //             Ok(DriftProfile::Spc(profile))
+    //         }
+    //         Drifter::Psi(drifter) => {
+    //             let data = DataConverterEnum::convert_data(py, data_type, data)?;
+    //             let profile = drifter.create_drift_profile(data, config.psi_config()?.clone())?;
+    //             Ok(DriftProfile::Psi(profile))
+    //         }
+    //         Drifter::Custom(drifter) => {
+    //             // check if data is pylist. If it is, convert to Vec<CustomMetric>
+    //             // if not extract to CustomMetric and add to vec
+    //             let data = if data.is_instance_of::<PyList>() {
+    //                 data.extract::<Vec<CustomMetric>>()?
+    //             } else {
+    //                 let metric = data.extract::<CustomMetric>()?;
+    //                 vec![metric]
+    //             };
 
-                let profile =
-                    drifter.create_drift_profile(config.custom_config()?.clone(), data, None)?;
-                Ok(DriftProfile::Custom(profile))
-            }
-        }
-    }
+    //             let profile =
+    //                 drifter.create_drift_profile(config.custom_config()?.clone(), data, None)?;
+    //             Ok(DriftProfile::Custom(profile))
+    //         }
+    //     }
+    // }
 
     fn compute_drift<'py>(
         &mut self,
@@ -139,63 +141,64 @@ impl PyDrifter {
         Self {}
     }
 
-    #[pyo3(signature = (data, config=None, data_type=None))]
-    pub fn create_drift_profile<'py>(
-        &self,
-        py: Python<'py>,
-        data: &Bound<'py, PyAny>,
-        config: Option<&Bound<'py, PyAny>>,
-        data_type: Option<&DataType>,
-    ) -> Result<Bound<'py, PyAny>, DriftError> {
-        // if config is None, then we need to create a default config
+    // #[pyo3(signature = (data, config=None, data_type=None))]
+    // pub fn create_drift_profile<'py>(
+    //     &self,
+    //     py: Python<'py>,
+    //     data: &Bound<'py, PyAny>,
+    //     config: Option<&Bound<'py, PyAny>>,
+    //     data_type: Option<&DataType>,
+    // ) -> Result<Bound<'py, PyAny>, DriftError> {
+    //     panic!("made it to create_drift_profile<'py>");
+    //     // if config is None, then we need to create a default config
 
-        let (config_helper, drift_type) = if config.is_some() {
-            let obj = config.unwrap();
-            let drift_type = obj.getattr("drift_type")?.extract::<DriftType>()?;
-            let drift_config = match drift_type {
-                DriftType::Spc => {
-                    let config = obj.extract::<SpcDriftConfig>()?;
-                    DriftConfig::Spc(config)
-                }
-                DriftType::Psi => {
-                    let config = obj.extract::<PsiDriftConfig>()?;
-                    DriftConfig::Psi(config)
-                }
-                DriftType::Custom => {
-                    let config = obj.extract::<CustomMetricDriftConfig>()?;
-                    DriftConfig::Custom(config)
-                }
-            };
-            (drift_config, drift_type)
-        } else {
-            (DriftConfig::Spc(SpcDriftConfig::default()), DriftType::Spc)
-        };
+    //     let (config_helper, drift_type) = if config.is_some() {
+    //         let obj = config.unwrap();
+    //         let drift_type = obj.getattr("drift_type")?.extract::<DriftType>()?;
+    //         let drift_config = match drift_type {
+    //             DriftType::Spc => {
+    //                 let config = obj.extract::<SpcDriftConfig>()?;
+    //                 DriftConfig::Spc(config)
+    //             }
+    //             DriftType::Psi => {
+    //                 let config = obj.extract::<PsiDriftConfig>()?;
+    //                 DriftConfig::Psi(config)
+    //             }
+    //             DriftType::Custom => {
+    //                 let config = obj.extract::<CustomMetricDriftConfig>()?;
+    //                 DriftConfig::Custom(config)
+    //             }
+    //         };
+    //         (drift_config, drift_type)
+    //     } else {
+    //         (DriftConfig::Spc(SpcDriftConfig::default()), DriftType::Spc)
+    //     };
 
-        let mut drift_helper = Drifter::from_drift_type(drift_type);
+    //     let mut drift_helper = Drifter::from_drift_type(drift_type);
 
-        // if data_type is None, try to infer it from the class name
-        // This is for handling, numpy, pandas, pyarrow
-        let data_type = match data_type {
-            Some(data_type) => data_type,
-            None => {
-                let class = data.getattr("__class__")?;
-                let module = class.getattr("__module__")?.str()?.to_string();
-                let name = class.getattr("__name__")?.str()?.to_string();
-                let full_class_name = format!("{module}.{name}");
+    //     // if data_type is None, try to infer it from the class name
+    //     // This is for handling, numpy, pandas, pyarrow
+    //     let data_type = match data_type {
+    //         Some(data_type) => data_type,
+    //         None => {
+    //             let class = data.getattr("__class__")?;
+    //             let module = class.getattr("__module__")?.str()?.to_string();
+    //             let name = class.getattr("__name__")?.str()?.to_string();
+    //             let full_class_name = format!("{module}.{name}");
 
-                &DataType::from_module_name(&full_class_name).unwrap_or(DataType::Unknown)
-                // for handling custom
-            }
-        };
+    //             &DataType::from_module_name(&full_class_name).unwrap_or(DataType::Unknown)
+    //             // for handling custom
+    //         }
+    //     };
 
-        let profile = drift_helper.create_drift_profile(py, data, data_type, config_helper)?;
+    //     let profile = drift_helper.create_drift_profile(py, data, data_type, config_helper)?;
 
-        match profile {
-            DriftProfile::Spc(profile) => Ok(profile.into_bound_py_any(py)?),
-            DriftProfile::Psi(profile) => Ok(profile.into_bound_py_any(py)?),
-            DriftProfile::Custom(profile) => Ok(profile.into_bound_py_any(py)?),
-        }
-    }
+    //     match profile {
+    //         DriftProfile::Spc(profile) => Ok(profile.into_bound_py_any(py)?),
+    //         DriftProfile::Psi(profile) => Ok(profile.into_bound_py_any(py)?),
+    //         DriftProfile::Custom(profile) => Ok(profile.into_bound_py_any(py)?),
+    //     }
+    // }
 
     #[pyo3(signature = (data, drift_profile, data_type=None))]
     pub fn compute_drift<'py>(
@@ -253,54 +256,54 @@ impl PyDrifter {
 
 impl PyDrifter {
     // method used internally to return DriftProfile Enum
-    pub fn internal_create_drift_profile<'py>(
-        &self,
-        py: Python,
-        data: &Bound<'py, PyAny>,
-        config: Option<&Bound<'py, PyAny>>,
-        data_type: Option<&DataType>,
-    ) -> Result<DriftProfile, DriftError> {
-        // if config is None, then we need to create a default config
+    // pub fn internal_create_drift_profile<'py>(
+    //     &self,
+    //     py: Python,
+    //     data: &Bound<'py, PyAny>,
+    //     config: Option<&Bound<'py, PyAny>>,
+    //     data_type: Option<&DataType>,
+    // ) -> Result<DriftProfile, DriftError> {
+    //     // if config is None, then we need to create a default config
 
-        let (config_helper, drift_type) = if config.is_some() {
-            let obj = config.unwrap();
-            let drift_type = obj.getattr("drift_type")?.extract::<DriftType>()?;
-            let drift_config = match drift_type {
-                DriftType::Spc => {
-                    let config = obj.extract::<SpcDriftConfig>()?;
-                    DriftConfig::Spc(config)
-                }
-                DriftType::Psi => {
-                    let config = obj.extract::<PsiDriftConfig>()?;
-                    DriftConfig::Psi(config)
-                }
-                DriftType::Custom => {
-                    let config = obj.extract::<CustomMetricDriftConfig>()?;
-                    DriftConfig::Custom(config)
-                }
-            };
-            (drift_config, drift_type)
-        } else {
-            (DriftConfig::Spc(SpcDriftConfig::default()), DriftType::Spc)
-        };
+    //     let (config_helper, drift_type) = if config.is_some() {
+    //         let obj = config.unwrap();
+    //         let drift_type = obj.getattr("drift_type")?.extract::<DriftType>()?;
+    //         let drift_config = match drift_type {
+    //             DriftType::Spc => {
+    //                 let config = obj.extract::<SpcDriftConfig>()?;
+    //                 DriftConfig::Spc(config)
+    //             }
+    //             DriftType::Psi => {
+    //                 let config = obj.extract::<PsiDriftConfig>()?;
+    //                 DriftConfig::Psi(config)
+    //             }
+    //             DriftType::Custom => {
+    //                 let config = obj.extract::<CustomMetricDriftConfig>()?;
+    //                 DriftConfig::Custom(config)
+    //             }
+    //         };
+    //         (drift_config, drift_type)
+    //     } else {
+    //         (DriftConfig::Spc(SpcDriftConfig::default()), DriftType::Spc)
+    //     };
 
-        let mut drift_helper = Drifter::from_drift_type(drift_type);
+    //     let mut drift_helper = Drifter::from_drift_type(drift_type);
 
-        // if data_type is None, try to infer it from the class name
-        // This is for handling, numpy, pandas, pyarrow
-        let data_type = match data_type {
-            Some(data_type) => data_type,
-            None => {
-                let class = data.getattr("__class__")?;
-                let module = class.getattr("__module__")?.str()?.to_string();
-                let name = class.getattr("__name__")?.str()?.to_string();
-                let full_class_name = format!("{module}.{name}");
+    //     // if data_type is None, try to infer it from the class name
+    //     // This is for handling, numpy, pandas, pyarrow
+    //     let data_type = match data_type {
+    //         Some(data_type) => data_type,
+    //         None => {
+    //             let class = data.getattr("__class__")?;
+    //             let module = class.getattr("__module__")?.str()?.to_string();
+    //             let name = class.getattr("__name__")?.str()?.to_string();
+    //             let full_class_name = format!("{module}.{name}");
 
-                &DataType::from_module_name(&full_class_name).unwrap_or(DataType::Unknown)
-                // for handling custom
-            }
-        };
+    //             &DataType::from_module_name(&full_class_name).unwrap_or(DataType::Unknown)
+    //             // for handling custom
+    //         }
+    //     };
 
-        drift_helper.create_drift_profile(py, data, data_type, config_helper)
-    }
+    //     drift_helper.create_drift_profile(py, data, data_type, config_helper)
+    // }
 }

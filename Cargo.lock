@@ -4983,6 +4983,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sqlx",
+ "statrs",
  "thiserror 2.0.12",
  "tokio",
  "tracing",

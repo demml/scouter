@@ -6,7 +6,8 @@ use scouter_drift::error::DriftError;
 use scouter_drift::{psi::PsiMonitor, CategoricalFeatureHelpers};
 use scouter_types::psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile};
 use std::collections::HashMap;
-use tracing::instrument;
+use std::fmt::Debug;
+use tracing::{debug, instrument};
 
 #[derive(Default)]
 pub struct PsiDrifter {
@@ -56,6 +57,7 @@ impl PsiDrifter {
         features: Vec<String>,
         mut drift_config: PsiDriftConfig,
     ) -> Result<PsiDriftProfile, DriftError> {
+        debug!("made it to create_string_drift_profile");
         let feature_map = self.monitor.create_feature_map(&features, &array)?;
 
         drift_config.update_feature_map(feature_map.clone());
@@ -78,10 +80,11 @@ impl PsiDrifter {
         drift_config: PsiDriftConfig,
     ) -> Result<PsiDriftProfile, DriftError>
     where
-        F: Float + Sync + FromPrimitive + Default + PartialOrd,
+        F: Float + Sync + FromPrimitive + Default + PartialOrd + Debug,
         F: Into<f64>,
         F: numpy::Element,
     {
+        debug!("made it to create_numeric_drift_profile");
         let array = array.as_array();
 
         let profile = self
@@ -96,6 +99,7 @@ impl PsiDrifter {
         data: ConvertedData<'_>,
         config: PsiDriftConfig,
     ) -> Result<PsiDriftProfile, DriftError> {
+        debug!("made it here create_drift_profile in psi profile");
         let (num_features, num_array, dtype, string_features, string_array) = data;
 
         let mut final_config = config.clone();

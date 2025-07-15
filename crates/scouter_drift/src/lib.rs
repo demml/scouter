@@ -6,6 +6,7 @@ pub mod utils;
 
 #[cfg(feature = "sql")]
 pub mod drifter;
+pub mod binning;
 
 pub use utils::*;
 
