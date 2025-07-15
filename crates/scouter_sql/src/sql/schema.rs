@@ -1,7 +1,9 @@
+use crate::sql::error::SqlError;
 use chrono::{DateTime, Utc};
 use potato_head::create_uuid7;
 use potato_head::Prompt;
 use scouter_types::psi::DistributionData;
+use scouter_types::BoxedLLMDriftServerRecord;
 use scouter_types::LLMDriftServerRecord;
 use scouter_types::{
     alert::Alert,
@@ -398,6 +400,39 @@ impl LLMDriftServerSQLRecord {
             processing_ended_at: None,
         }
     }
+}
+
+impl From<LLMDriftServerSQLRecord> for LLMDriftServerRecord {
+    fn from(sql_record: LLMDriftServerSQLRecord) -> Self {
+        Self {
+            id: sql_record.id,
+            created_at: sql_record.created_at,
+            space: sql_record.space,
+            name: sql_record.name,
+            version: sql_record.version,
+            input: sql_record.input,
+            response: sql_record.response,
+            context: sql_record.context.0,
+            prompt: sql_record.prompt.0,
+            status: sql_record.status.parse().unwrap_or_default(), // Handle parsing appropriately
+            processing_started_at: sql_record.processing_started_at,
+            processing_ended_at: sql_record.processing_ended_at,
+            updated_at: sql_record.updated_at,
+            uid: sql_record.uid,
+        }
+    }
+}
+
+/// Converts a `PgRow` to a `BoxedLLMDriftServerRecord`
+/// Conversion is done by first converting the row to an `LLMDriftServerSQLRecord`
+/// and then converting that to an `LLMDriftServerRecord`.
+pub fn llm_drift_record_from_row(row: &PgRow) -> Result<BoxedLLMDriftServerRecord, SqlError> {
+    let sql_record = LLMDriftServerSQLRecord::from_row(row)?;
+    let record = LLMDriftServerRecord::from(sql_record);
+
+    Ok(BoxedLLMDriftServerRecord {
+        record: Box::new(record),
+    })
 }
 
 #[derive(Debug, Clone, FromRow)]

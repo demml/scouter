@@ -177,8 +177,7 @@ mod tests {
     use super::*;
     use crate::sql::schema::User;
     use chrono::Utc;
-    use potato_head::StructuredOutput;
-    use potato_head::{prompt::ResponseType, Message, Prompt, PromptContent, Score};
+    use potato_head::create_score_prompt;
     use rand::Rng;
     use scouter_settings::ObjectStorageSettings;
     use scouter_types::llm::PaginationRequest;
@@ -191,21 +190,6 @@ mod tests {
     const SPACE: &str = "space";
     const NAME: &str = "name";
     const VERSION: &str = "1.0.0";
-
-    pub fn create_score_prompt() -> Prompt {
-        let user_content = PromptContent::Str("${input}".to_string());
-        let system_content = PromptContent::Str("You are a helpful assistant.".to_string());
-        Prompt::new_rs(
-            vec![Message::new_rs(user_content)],
-            Some("gpt-4o"),
-            Some("openai"),
-            vec![Message::new_rs(system_content)],
-            None,
-            Some(Score::get_structured_output_schema()),
-            ResponseType::Score,
-        )
-        .unwrap()
-    }
 
     pub async fn cleanup(pool: &Pool<Postgres>) {
         sqlx::raw_sql(
@@ -773,7 +757,7 @@ mod tests {
 
         let input = "This is a test input";
         let output = "This is a test response";
-        let prompt = create_score_prompt();
+        let prompt = create_score_prompt(None);
 
         for j in 0..10 {
             let record = LLMDriftServerRecord {
@@ -852,7 +836,7 @@ mod tests {
 
         let input = "This is a test input";
         let output = "This is a test response";
-        let prompt = create_score_prompt();
+        let prompt = create_score_prompt(None);
 
         for j in 0..10 {
             let record = LLMDriftServerRecord {

@@ -14,8 +14,8 @@ pub enum SqlError {
     #[error(transparent)]
     RecordError(#[from] RecordError),
 
-    #[error("Invalid record type")]
-    InvalidRecordTypeError,
+    #[error("Invalid record type: {0}")]
+    InvalidRecordTypeError(String),
 
     #[error("Begin datetime must be before end datetime")]
     InvalidDateRangeError,

@@ -37,7 +37,9 @@ impl ParquetDataFrame {
                 storage_settings,
             )?)),
 
-            _ => Err(DataFrameError::InvalidRecordTypeError),
+            _ => Err(DataFrameError::InvalidRecordTypeError(
+                record_type.to_string(),
+            )),
         }
     }
 
@@ -189,7 +191,7 @@ mod tests {
         let df = ParquetDataFrame::new(&storage_settings, &RecordType::LLMDrift).unwrap();
         let mut batch = Vec::new();
 
-        let prompt = create_score_prompt();
+        let prompt = create_score_prompt(None);
 
         // create records
         for i in 0..3 {

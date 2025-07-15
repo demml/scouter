@@ -362,8 +362,9 @@ impl AlertThreshold {
     }
 }
 
-#[derive(Debug, Clone, Deserialize, Serialize, PartialEq)]
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
 pub enum Status {
+    #[default]
     All,
     Pending,
     Processing,

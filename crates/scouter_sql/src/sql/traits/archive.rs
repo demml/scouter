@@ -33,7 +33,7 @@ pub trait ArchiveSqlLogic {
             RecordType::LLMDrift => Queries::GetLLMDriftRecordEntitiesForArchive.get_query(),
             RecordType::LLMMetric => Queries::GetLLMMetricEntitiesForArchive.get_query(),
             _ => {
-                return Err(SqlError::InvalidRecordTypeError);
+                return Err(SqlError::InvalidRecordTypeError(record_type.to_string()));
             }
         };
 
@@ -72,7 +72,7 @@ pub trait ArchiveSqlLogic {
             RecordType::LLMDrift => Queries::GetLLMDriftRecordDataForArchive.get_query(),
             RecordType::LLMMetric => Queries::GetLLMMetricDataForArchive.get_query(),
             _ => {
-                return Err(SqlError::InvalidRecordTypeError);
+                return Err(SqlError::InvalidRecordTypeError(record_type.to_string()));
             }
         };
         let rows = sqlx::query(&query.sql)
@@ -105,7 +105,7 @@ pub trait ArchiveSqlLogic {
             RecordType::LLMDrift => Queries::UpdateLLMDriftEntities.get_query(),
             RecordType::LLMMetric => Queries::UpdateLLMMetricEntities.get_query(),
             _ => {
-                return Err(SqlError::InvalidRecordTypeError);
+                return Err(SqlError::InvalidRecordTypeError(record_type.to_string()));
             }
         };
         sqlx::query(&query.sql)

@@ -564,9 +564,9 @@ mod tests {
     use super::*;
     use crate::AlertThreshold;
     use crate::{AlertDispatchConfig, OpsGenieDispatchConfig, SlackDispatchConfig};
+    use potato_head::create_score_prompt;
     use potato_head::prompt::ResponseType;
-    use potato_head::Score;
-    use potato_head::StructuredOutput;
+
     use potato_head::{Message, OpenAITestServer, PromptContent};
 
     pub fn create_parameterized_prompt() -> Prompt {
@@ -581,21 +581,6 @@ mod tests {
             None,
             None,
             ResponseType::Null,
-        )
-        .unwrap()
-    }
-
-    pub fn create_score_prompt() -> Prompt {
-        let user_content = PromptContent::Str("${input}".to_string());
-        let system_content = PromptContent::Str("You are a helpful assistant.".to_string());
-        Prompt::new_rs(
-            vec![Message::new_rs(user_content)],
-            Some("gpt-4o"),
-            Some("openai"),
-            vec![Message::new_rs(system_content)],
-            None,
-            Some(Score::get_structured_output_schema()),
-            ResponseType::Score,
         )
         .unwrap()
     }
@@ -648,7 +633,7 @@ mod tests {
         let _runtime = tokio::runtime::Runtime::new().unwrap();
         let mut mock = OpenAITestServer::new();
         mock.start_server().unwrap();
-        let prompt = create_score_prompt();
+        let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
         let metric1 = LLMMetric::new(
             "metric1",
@@ -699,8 +684,8 @@ mod tests {
         let mut workflow = Workflow::new("My eval Workflow");
 
         let initial_prompt = create_parameterized_prompt();
-        let final_prompt1 = create_score_prompt();
-        let final_prompt2 = create_score_prompt();
+        let final_prompt1 = create_score_prompt(None);
+        let final_prompt2 = create_score_prompt(None);
 
         let agent1 = Agent::new(Provider::OpenAI, None).unwrap();
         workflow.add_agent(&agent1);

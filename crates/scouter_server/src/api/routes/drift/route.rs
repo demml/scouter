@@ -10,13 +10,16 @@ use axum::{
 use scouter_auth::permission::UserPermissions;
 use scouter_drift::psi::PsiDrifter;
 use scouter_settings::ScouterServerConfig;
-use scouter_sql::sql::traits::{CustomMetricSqlLogic, ProfileSqlLogic, SpcSqlLogic};
+use scouter_sql::sql::traits::{
+    CustomMetricSqlLogic, LLMDriftSqlLogic, ProfileSqlLogic, SpcSqlLogic,
+};
 use scouter_sql::PostgresClient;
 use scouter_types::{
     custom::BinnedCustomMetrics,
+    llm::PaginationResponse,
     psi::{BinnedPsiFeatureMetrics, PsiDriftProfile},
     spc::SpcDriftFeatures,
-    DriftType, ServerRecords,
+    DriftType, LLMDriftRecordPaginationRequest, LLMDriftServerRecord, ServerRecords,
 };
 use scouter_types::{DriftRequest, GetProfileRequest, ScouterResponse, ScouterServerError};
 use sqlx::{Pool, Postgres};
@@ -177,6 +180,43 @@ pub async fn get_custom_drift(
 }
 
 #[instrument(skip_all)]
+pub async fn get_llm_drift_records(
+    State(data): State<Arc<AppState>>,
+    Query(params): Query<LLMDriftRecordPaginationRequest>,
+    Extension(perms): Extension<UserPermissions>,
+) -> Result<Json<PaginationResponse<LLMDriftServerRecord>>, (StatusCode, Json<ScouterServerError>)>
+{
+    // validate time window
+
+    if !perms.has_read_permission(&params.service_info.space) {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(ScouterServerError::permission_denied()),
+        ));
+    }
+
+    let metrics = PostgresClient::get_llm_drift_records_pagination(
+        &data.db_pool,
+        &params.service_info,
+        params.status,
+        params.pagination,
+    )
+    .await;
+
+    match metrics {
+        Ok(metrics) => Ok(Json(metrics)),
+        Err(e) => {
+            error!("Failed to query drift records: {:?}", e);
+
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::query_records_error(e)),
+            ))
+        }
+    }
+}
+
+#[instrument(skip_all)]
 pub async fn insert_drift(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
@@ -210,6 +250,10 @@ pub async fn get_drift_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
             .route(&format!("{prefix}/drift/spc"), get(get_spc_drift))
             .route(&format!("{prefix}/drift/custom"), get(get_custom_drift))
             .route(&format!("{prefix}/drift/psi"), get(get_psi_drift))
+            .route(
+                &format!("{prefix}/drift/llm/records"),
+                get(get_llm_drift_records),
+            )
     }));
 
     match result {

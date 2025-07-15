@@ -10,14 +10,19 @@ use http_body_util::BodyExt;
 use ndarray::Array;
 use ndarray_rand::rand_distr::Uniform;
 use ndarray_rand::RandomExt;
+use potato_head::create_score_prompt;
 use rand::Rng;
 use scouter_server::create_app;
 use scouter_settings::ObjectStorageSettings;
 use scouter_settings::{DatabaseSettings, ScouterServerConfig};
 use scouter_sql::PostgresClient;
 use scouter_types::JwtToken;
+use scouter_types::{
+    BoxedLLMDriftServerRecord, LLMDriftServerRecord, ServerRecord, ServerRecords, SpcServerRecord,
+    Status,
+};
 use scouter_types::{CustomMetricServerRecord, PsiServerRecord};
-use scouter_types::{ServerRecord, ServerRecords, SpcServerRecord};
+use serde_json::Map;
 use sqlx::{PgPool, Pool, Postgres};
 use std::env;
 use std::sync::Arc;
@@ -50,6 +55,12 @@ pub async fn cleanup(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> {
 
         DELETE
         FROM scouter.psi_drift;
+
+        DELETE
+        FROM scouter.llm_drift;
+
+        DELETE
+        FROM scouter.llm_drift_record;
         "#,
     )
     .fetch_all(pool)
@@ -222,6 +233,38 @@ impl TestHelper {
                 };
 
                 records.push(ServerRecord::Custom(record));
+            }
+        }
+
+        ServerRecords::new(records)
+    }
+
+    pub fn get_llm_drift_records(&self, time_offset: Option<i64>) -> ServerRecords {
+        let mut records: Vec<ServerRecord> = Vec::new();
+        let offset = time_offset.unwrap_or(0);
+        let prompt = create_score_prompt(None);
+
+        for i in 0..3 {
+            for _ in 0..50 {
+                let record = LLMDriftServerRecord {
+                    created_at: Utc::now() - chrono::Duration::days(offset),
+                    space: SPACE.to_string(),
+                    name: NAME.to_string(),
+                    version: VERSION.to_string(),
+                    prompt: prompt.clone(),
+                    input: format!("input{i}"),
+                    response: format!("output{i}"),
+                    context: serde_json::Value::Object(Map::new()),
+                    status: Status::Pending,
+                    id: 0,
+                    uid: "test-uid".to_string(),
+                    updated_at: None,
+                    processing_started_at: None,
+                    processing_ended_at: None,
+                };
+
+                let boxed_record = BoxedLLMDriftServerRecord::new(record);
+                records.push(ServerRecord::LLMDrift(boxed_record));
             }
         }
 

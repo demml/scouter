@@ -1,11 +1,12 @@
 use crate::sql::error::SqlError;
+use crate::sql::schema::llm_drift_record_from_row;
 use chrono::{DateTime, Utc};
 use scouter_types::{
     CustomMetricServerRecord, PsiServerRecord, RecordType, ServerRecord, ServerRecords,
     SpcServerRecord,
 };
-use sqlx::{postgres::PgRow, Row};
 
+use sqlx::{postgres::PgRow, Row};
 /// Helper for converting a row to an `SpcServerRecord`.
 fn spc_record_from_row(row: &PgRow) -> Result<SpcServerRecord, SqlError> {
     Ok(SpcServerRecord {
@@ -67,7 +68,8 @@ pub fn pg_rows_to_server_records(
         RecordType::Spc => |row| Ok(ServerRecord::Spc(spc_record_from_row(row)?)),
         RecordType::Psi => |row| Ok(ServerRecord::Psi(psi_record_from_row(row)?)),
         RecordType::Custom => |row| Ok(ServerRecord::Custom(custom_record_from_row(row)?)),
-        _ => return Err(SqlError::InvalidRecordTypeError),
+        RecordType::LLMDrift => |row| Ok(ServerRecord::LLMDrift(llm_drift_record_from_row(row)?)),
+        _ => return Err(SqlError::InvalidRecordTypeError(record_type.to_string())),
     };
 
     // Pre-allocate vector with exact capacity needed

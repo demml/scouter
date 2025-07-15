@@ -37,6 +37,7 @@ pub trait LLMDriftSqlLogic {
         let sql_record = LLMDriftServerSQLRecord::from_server_record(record);
 
         sqlx::query(&query.sql)
+            .bind(sql_record.created_at)
             .bind(&sql_record.space)
             .bind(&sql_record.name)
             .bind(&sql_record.version)

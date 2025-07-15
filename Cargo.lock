@@ -769,7 +769,7 @@ dependencies = [
 [[package]]
 name = "baked-potato"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#76532bf1c8217590a892c8750a2135e1f4069b32"
+source = "git+https://github.com/demml/potatohead.git?branch=main#e9c0a1af749e644ef078ba59e57081358dd6c951"
 dependencies = [
  "mockito",
  "potato-agent",
@@ -4101,7 +4101,7 @@ dependencies = [
 [[package]]
 name = "potato-agent"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#76532bf1c8217590a892c8750a2135e1f4069b32"
+source = "git+https://github.com/demml/potatohead.git?branch=main#e9c0a1af749e644ef078ba59e57081358dd6c951"
 dependencies = [
  "potato-prompt",
  "potato-type",
@@ -4118,7 +4118,7 @@ dependencies = [
 [[package]]
 name = "potato-head"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#76532bf1c8217590a892c8750a2135e1f4069b32"
+source = "git+https://github.com/demml/potatohead.git?branch=main#e9c0a1af749e644ef078ba59e57081358dd6c951"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -4131,7 +4131,7 @@ dependencies = [
 [[package]]
 name = "potato-prompt"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#76532bf1c8217590a892c8750a2135e1f4069b32"
+source = "git+https://github.com/demml/potatohead.git?branch=main#e9c0a1af749e644ef078ba59e57081358dd6c951"
 dependencies = [
  "mime_guess",
  "potato-type",
@@ -4148,7 +4148,7 @@ dependencies = [
 [[package]]
 name = "potato-type"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#76532bf1c8217590a892c8750a2135e1f4069b32"
+source = "git+https://github.com/demml/potatohead.git?branch=main#e9c0a1af749e644ef078ba59e57081358dd6c951"
 dependencies = [
  "potato-util",
  "pyo3",
@@ -4160,7 +4160,7 @@ dependencies = [
 [[package]]
 name = "potato-util"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#76532bf1c8217590a892c8750a2135e1f4069b32"
+source = "git+https://github.com/demml/potatohead.git?branch=main#e9c0a1af749e644ef078ba59e57081358dd6c951"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -4175,7 +4175,7 @@ dependencies = [
 [[package]]
 name = "potato-workflow"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#76532bf1c8217590a892c8750a2135e1f4069b32"
+source = "git+https://github.com/demml/potatohead.git?branch=main#e9c0a1af749e644ef078ba59e57081358dd6c951"
 dependencies = [
  "chrono",
  "potato-agent",
@@ -4609,9 +4609,9 @@ dependencies = [
 
 [[package]]
 name = "redis"
-version = "0.32.3"
+version = "0.32.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7f0f6a8c53351d89a3869a703459995a0bcadcfa846002707fbc7e5cca235c4a"
+checksum = "e1f66bf4cac9733a23bcdf1e0e01effbaaad208567beba68be8f67e5f4af3ee1"
 dependencies = [
  "bytes",
  "cfg-if",
@@ -4623,7 +4623,7 @@ dependencies = [
  "pin-project-lite",
  "ryu",
  "sha1_smol",
- "socket2 0.5.10",
+ "socket2 0.6.0",
  "tokio",
  "tokio-util",
  "url",
@@ -5226,6 +5226,7 @@ dependencies = [
  "ndarray-rand",
  "object_store",
  "password-auth",
+ "potato-head",
  "rand 0.9.1",
  "rusty-logging",
  "scouter-auth",
@@ -5603,6 +5604,16 @@ checksum = "e22376abed350d73dd1cd119b57ffccad95b4e585a7cda43e286245ce23c0678"
 dependencies = [
  "libc",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "socket2"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "233504af464074f9d066d7b5416c5f9b894a5862a6506e306f7b816cdd6f1807"
+dependencies = [
+ "libc",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]

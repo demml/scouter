@@ -212,7 +212,6 @@ pub async fn archive_old_data(
                 record.llm_drift =
                     process_record_type(db_pool, &RecordType::LLMDrift, config).await?;
             }
-            _ => todo!("LLM drift not implemented yet"),
         }
     }
 

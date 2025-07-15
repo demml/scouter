@@ -5,6 +5,7 @@ use axum::{
     http::{header, Request, StatusCode},
 };
 use http_body_util::BodyExt;
+use potato_head::{create_score_prompt, OpenAITestServer};
 use scouter_dataframe::parquet::dataframe::ParquetDataFrame;
 use scouter_drift::psi::PsiMonitor;
 use scouter_drift::spc::SpcMonitor;
@@ -12,6 +13,7 @@ use scouter_server::api::archive::archive_old_data;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::contracts::ProfileRequest;
 use scouter_types::custom::CustomMetricAlertConfig;
+use scouter_types::llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftProfile, LLMMetric};
 use scouter_types::{
     custom::BinnedCustomMetrics,
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
@@ -356,5 +358,107 @@ async fn test_data_archive_custom() {
 
     assert!(!results.metrics.is_empty());
     assert_eq!(results.metrics["metric_1"].created_at.len(), 2);
+    TestHelper::cleanup_storage()
+}
+
+#[test]
+fn test_data_archive_drift_record() {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let mut mock = OpenAITestServer::new();
+    mock.start_server().unwrap();
+
+    let helper = runtime.block_on(async { TestHelper::new(false, false).await.unwrap() });
+
+    let alert_config = LLMAlertConfig::default();
+    let config = LLMDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
+    let prompt = create_score_prompt(Some(vec!["input".to_string()]));
+
+    let _alert_threshold = AlertThreshold::Above;
+    let metric1 = LLMMetric::new(
+        "metric1",
+        5.0,
+        AlertThreshold::Above,
+        None,
+        Some(prompt.clone()),
+    )
+    .unwrap();
+    let metric2 = LLMMetric::new(
+        "metric2",
+        3.0,
+        AlertThreshold::Below,
+        Some(1.0),
+        Some(prompt.clone()),
+    )
+    .unwrap();
+    let llm_metrics = vec![metric1, metric2];
+    let profile = LLMDriftProfile::from_metrics(config, llm_metrics).unwrap();
+
+    let request = ProfileRequest {
+        space: profile.config.space.clone(),
+        profile: profile.model_dump_json(),
+        drift_type: DriftType::LLM,
+    };
+
+    let body = serde_json::to_string(&request).unwrap();
+    let request = Request::builder()
+        .uri("/scouter/profile")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let response = runtime.block_on(async { helper.send_oneshot(request).await });
+
+    //assert response
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // 10 day old records
+    let long_term_records = helper.get_llm_drift_records(Some(10));
+
+    // 0 day old records
+    let short_term_records = helper.get_llm_drift_records(None);
+
+    for records in [short_term_records, long_term_records].iter() {
+        let body = serde_json::to_string(records).unwrap();
+        let request = Request::builder()
+            .uri("/scouter/drift")
+            .method("POST")
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(body))
+            .unwrap();
+
+        let response = runtime.block_on(async { helper.send_oneshot(request).await });
+
+        //assert response
+        assert_eq!(response.status(), StatusCode::OK);
+    }
+
+    // Sleep for 2 seconds to allow the http consumer time to process all server records sent above.
+    runtime.block_on(async { sleep(Duration::from_secs(2)).await });
+
+    let record = runtime.block_on(async {
+        archive_old_data(&helper.pool, &helper.config)
+            .await
+            .unwrap()
+    });
+
+    assert!(!record.spc);
+    assert!(!record.psi);
+    assert!(!record.custom);
+    assert!(!record.llm_metric);
+    assert!(record.llm_drift);
+
+    let df = ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::LLMDrift).unwrap();
+    let path = format!("{SPACE}/{NAME}/{VERSION}/llm_drift");
+
+    let canonical_path = format!("{}/{}", df.storage_root(), path);
+    let data_path = object_store::path::Path::from(canonical_path);
+
+    let files =
+        runtime.block_on(async { df.storage_client().list(Some(&data_path)).await.unwrap() });
+
+    assert!(!files.is_empty());
+
+    mock.stop_server().unwrap();
     TestHelper::cleanup_storage()
 }

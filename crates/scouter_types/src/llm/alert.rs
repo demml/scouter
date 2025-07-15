@@ -278,7 +278,7 @@ mod tests {
         };
         assert_eq!(alert_config.dispatch_type(), AlertDispatchType::OpsGenie);
 
-        let prompt = create_score_prompt();
+        let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
         let llm_metrics = vec![
             LLMMetric::new(

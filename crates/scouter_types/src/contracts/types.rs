@@ -1,7 +1,8 @@
 use std::fmt::Display;
 
 use crate::error::ContractError;
-use crate::CustomInterval;
+use crate::llm::PaginationRequest;
+use crate::{CustomInterval, Status};
 use crate::{DriftType, TimeInterval};
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
@@ -177,6 +178,13 @@ impl DriftAlertRequest {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ServiceInfo {
+    pub space: String,
+    pub name: String,
+    pub version: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LLMServiceInfo {
     pub space: String,
     pub name: String,
     pub version: String,
@@ -397,4 +405,11 @@ impl ScouterResponse {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UpdateAlertResponse {
     pub updated: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LLMDriftRecordPaginationRequest {
+    pub service_info: ServiceInfo,
+    pub status: Option<Status>,
+    pub pagination: PaginationRequest,
 }
