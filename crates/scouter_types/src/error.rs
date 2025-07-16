@@ -157,6 +157,9 @@ pub enum RecordError {
 
     #[error("{0}")]
     PyError(String),
+
+    #[error("Failed to supply either input or response for the llm record")]
+    MissingInputOrResponse,
 }
 
 impl From<RecordError> for PyErr {

@@ -1,12 +1,18 @@
 // Module for polling LLM drift records that are "pending" and need to be processed
 use crate::error::DriftError;
+use potato_head::Score;
+use potato_head::StructuredOutput;
+use potato_head::TaskStatus;
+use potato_head::Workflow;
 use scouter_sql::sql::schema::LLMDriftTaskRequest;
 use scouter_sql::sql::traits::{LLMDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::llm::LLMDriftProfile;
-use scouter_types::{DriftType, GetProfileRequest, Status};
+use scouter_types::{DriftType, GetProfileRequest, LLMMetricServerRecord, Status};
 use serde_json::Value;
 use sqlx::{Pool, Postgres};
+use std::sync::Arc;
+use std::sync::RwLock;
 use tracing::{debug, error, info, instrument};
 pub struct LLMEvaluator {
     db_pool: Pool<Postgres>,
@@ -19,6 +25,53 @@ impl LLMEvaluator {
         }
     }
 
+    /// Gets the final task results of the workflow.
+    /// # Returns a HashMap where the keys are task IDs and the values are AgentResponse objects.
+    pub fn get_final_task_results(
+        &self,
+        workflow: Arc<RwLock<Workflow>>,
+        profile: &LLMDriftProfile,
+    ) -> Result<Vec<LLMMetricServerRecord>, DriftError> {
+        let workflow = workflow.read().unwrap();
+        let task_list = &workflow.task_list;
+        let execution_plan = workflow.execution_plan()?;
+
+        let max_step = execution_plan.keys().max().copied().unwrap_or(0);
+
+        if max_step == 0 {
+            return Ok(Vec::new());
+        }
+
+        let mut final_results = Vec::new();
+
+        if let Some(final_task_ids) = execution_plan.get(&max_step) {
+            for task_id in final_task_ids {
+                if let Some(task) = task_list.get_task(task_id) {
+                    let task_guard = task.read().unwrap();
+                    if task_guard.status == TaskStatus::Completed {
+                        if let Some(result) = &task_guard.result {
+                            let task_id = task_guard.id.clone();
+                            let score = Score::model_validate_json_value(&result.content())?;
+
+                            let record = LLMMetricServerRecord {
+                                created_at: chrono::Utc::now(),
+                                space: profile.config.space.clone(),
+                                name: profile.config.name.clone(),
+                                version: profile.config.version.clone(),
+                                metric: task_id,
+                                value: (score.score as f64),
+                            };
+
+                            final_results.push(record);
+                        }
+                    }
+                }
+            }
+        }
+
+        Ok(final_results)
+    }
+
     pub async fn process_record(
         &mut self,
         task: &LLMDriftTaskRequest,
@@ -27,17 +80,16 @@ impl LLMEvaluator {
         debug!("Processing workflow");
 
         let mut context = task.context.0.clone();
-
         let merged_context = match &mut context {
             Value::Object(ref mut map) => {
-                // Insert input if present
-                if let Some(input) = &task.input {
-                    map.insert("input".to_string(), Value::String(input.clone()));
+                // Insert input if not empty
+                if !task.input.is_empty() {
+                    map.insert("input".to_string(), Value::String(task.input.clone()));
                 }
 
                 // Insert response if present
-                if let Some(response) = &task.response {
-                    map.insert("response".to_string(), Value::String(response.clone()));
+                if !task.response.is_empty() {
+                    map.insert("response".to_string(), Value::String(task.response.clone()));
                 }
 
                 debug!("Successfully merged input and response into context");
@@ -49,7 +101,25 @@ impl LLMEvaluator {
             }
         };
 
-        profile.workflow.run(Some(merged_context)).await?;
+        let workflow_result = profile
+            .workflow
+            .run(Some(merged_context))
+            .await
+            .inspect_err(|e| {
+                error!("Failed to run workflow: {:?}", e);
+            })?;
+
+        let final_results = self
+            .get_final_task_results(workflow_result, profile)
+            .inspect_err(|e| {
+                error!("Failed to get final task results: {:?}", e);
+            })?;
+
+        PostgresClient::insert_llm_metric_values_batch(&self.db_pool, &final_results)
+            .await
+            .inspect_err(|e| {
+                error!("Failed to insert LLM metric values: {:?}", e);
+            })?;
 
         Ok(true)
     }

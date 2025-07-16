@@ -42,7 +42,7 @@ CREATE TABLE IF NOT exists scouter.llm_drift_record (
     status text NOT NULL default 'pending', -- pending, processing, completed, failed
     processing_started_at TIMESTAMPTZ,
     processing_ended_at TIMESTAMPTZ,
-    archived boolean default false,
+    archived
     PRIMARY KEY (id, created_at),
     UNIQUE (created_at, name, space, version)
 )
@@ -66,3 +66,4 @@ SELECT scouter.create_parent(
                '1 day'
 );
 UPDATE scouter.part_config SET retention = '60 days' WHERE parent_table = 'scouter.llm_drift_record';
+

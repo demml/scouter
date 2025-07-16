@@ -207,18 +207,18 @@ impl LLMDriftServerRecord {
         space,
         name,
         version,
-        input,
-        response,
         prompt,
-        context = None
+        input = None,
+        response = None,
+        context = None,
     ))]
     pub fn new(
         space: String,
         name: String,
         version: String,
-        input: String,
-        response: String,
         prompt: Prompt,
+        input: Option<String>,
+        response: Option<String>,
         context: Option<Bound<'_, PyDict>>,
     ) -> Result<Self, RecordError> {
         // Check if pydict was provided, if not, create an empty Map
@@ -226,13 +226,18 @@ impl LLMDriftServerRecord {
             .map(|c| pyobject_to_json(&c))
             .unwrap_or(Ok(Value::Object(serde_json::Map::new())))?;
 
+        // assert either input or response is provided
+        if input.is_none() && response.is_none() {
+            return Err(RecordError::MissingInputOrResponse);
+        }
+
         Ok(Self {
             created_at: Utc::now(),
             space,
             name,
             version,
-            input,
-            response,
+            input: input.unwrap_or_default(), // Default to empty string if None
+            response: response.unwrap_or_default(),
             prompt,
             context: context_val,
             status: Status::Pending,
