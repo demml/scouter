@@ -10,7 +10,7 @@ use http_body_util::BodyExt;
 use ndarray::Array;
 use ndarray_rand::rand_distr::Uniform;
 use ndarray_rand::RandomExt;
-use potato_head::create_score_prompt;
+use potato_head::{create_score_prompt, OpenAIMockAsync};
 use rand::Rng;
 use scouter_server::create_app;
 use scouter_settings::ObjectStorageSettings;
@@ -75,6 +75,7 @@ pub struct TestHelper {
     token: JwtToken,
     pub pool: PgPool,
     pub config: Arc<ScouterServerConfig>,
+    pub openai_mock: OpenAIMockAsync,
 }
 
 impl TestHelper {
@@ -89,11 +90,15 @@ impl TestHelper {
     pub async fn new(enable_kafka: bool, enable_rabbitmq: bool) -> Result<Self, anyhow::Error> {
         TestHelper::cleanup_storage();
 
+        let openai_mock = OpenAIMockAsync::new().await;
+
         env::set_var("RUST_LOG", "debug");
         env::set_var("LOG_LEVEL", "debug");
         env::set_var("LOG_JSON", "false");
         env::set_var("POLLING_WORKER_COUNT", "1");
         env::set_var("DATA_RETENTION_PERIOD", "5");
+        std::env::set_var("OPENAI_API_KEY", "test_key");
+        std::env::set_var("OPENAI_API_URL", openai_mock.url.to_string());
 
         if enable_kafka {
             std::env::set_var("KAFKA_BROKERS", "localhost:9092");
@@ -117,6 +122,7 @@ impl TestHelper {
             token,
             pool: db_pool,
             config: app_state.config.clone(),
+            openai_mock,
         })
     }
 

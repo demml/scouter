@@ -365,3 +365,8 @@ async fn test_custom_server_records() {
 
     assert!(!results.metrics.is_empty());
 }
+
+#[tokio::test]
+async fn test_llm_server_records() {
+    let helper = TestHelper::new(false, false).await.unwrap();
+}

@@ -584,7 +584,7 @@ dependencies = [
  "futures-lite 2.6.0",
  "parking",
  "polling 3.8.0",
- "rustix 1.0.7",
+ "rustix 1.0.8",
  "slab",
  "tracing",
  "windows-sys 0.59.0",
@@ -769,7 +769,7 @@ dependencies = [
 [[package]]
 name = "baked-potato"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#e9c0a1af749e644ef078ba59e57081358dd6c951"
+source = "git+https://github.com/demml/potatohead.git?branch=main#f62ed8fc3f2d21d9173d9c8c6f25fc06244050af"
 dependencies = [
  "mockito",
  "potato-agent",
@@ -3649,9 +3649,9 @@ dependencies = [
 
 [[package]]
 name = "object_store"
-version = "0.12.2"
+version = "0.12.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7781f96d79ed0f961a7021424ab01840efbda64ae7a505aaea195efc91eaaec4"
+checksum = "efc4f07659e11cd45a341cd24d71e683e3be65d9ff1f8150061678fe60437496"
 dependencies = [
  "async-trait",
  "base64",
@@ -4078,7 +4078,7 @@ dependencies = [
  "concurrent-queue",
  "hermit-abi 0.5.2",
  "pin-project-lite",
- "rustix 1.0.7",
+ "rustix 1.0.8",
  "tracing",
  "windows-sys 0.59.0",
 ]
@@ -4101,7 +4101,7 @@ dependencies = [
 [[package]]
 name = "potato-agent"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#e9c0a1af749e644ef078ba59e57081358dd6c951"
+source = "git+https://github.com/demml/potatohead.git?branch=main#f62ed8fc3f2d21d9173d9c8c6f25fc06244050af"
 dependencies = [
  "potato-prompt",
  "potato-type",
@@ -4118,7 +4118,7 @@ dependencies = [
 [[package]]
 name = "potato-head"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#e9c0a1af749e644ef078ba59e57081358dd6c951"
+source = "git+https://github.com/demml/potatohead.git?branch=main#f62ed8fc3f2d21d9173d9c8c6f25fc06244050af"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -4131,7 +4131,7 @@ dependencies = [
 [[package]]
 name = "potato-prompt"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#e9c0a1af749e644ef078ba59e57081358dd6c951"
+source = "git+https://github.com/demml/potatohead.git?branch=main#f62ed8fc3f2d21d9173d9c8c6f25fc06244050af"
 dependencies = [
  "mime_guess",
  "potato-type",
@@ -4148,7 +4148,7 @@ dependencies = [
 [[package]]
 name = "potato-type"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#e9c0a1af749e644ef078ba59e57081358dd6c951"
+source = "git+https://github.com/demml/potatohead.git?branch=main#f62ed8fc3f2d21d9173d9c8c6f25fc06244050af"
 dependencies = [
  "potato-util",
  "pyo3",
@@ -4160,7 +4160,7 @@ dependencies = [
 [[package]]
 name = "potato-util"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#e9c0a1af749e644ef078ba59e57081358dd6c951"
+source = "git+https://github.com/demml/potatohead.git?branch=main#f62ed8fc3f2d21d9173d9c8c6f25fc06244050af"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -4175,7 +4175,7 @@ dependencies = [
 [[package]]
 name = "potato-workflow"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#e9c0a1af749e644ef078ba59e57081358dd6c951"
+source = "git+https://github.com/demml/potatohead.git?branch=main#f62ed8fc3f2d21d9173d9c8c6f25fc06244050af"
 dependencies = [
  "chrono",
  "potato-agent",
@@ -4344,9 +4344,9 @@ dependencies = [
 
 [[package]]
 name = "quick-xml"
-version = "0.37.5"
+version = "0.38.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "331e97a1af0bf59823e6eadffe373d7b27f485be8748f71471c662c1f269b7fb"
+checksum = "8927b0664f5c5a98265138b7e3f90aa19a6b21353182469ace36d4ac527b7b1b"
 dependencies = [
  "memchr",
  "serde",
@@ -4812,15 +4812,15 @@ dependencies = [
 
 [[package]]
 name = "rustix"
-version = "1.0.7"
+version = "1.0.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c71e83d6afe7ff64890ec6b71d6a69bb8a610ab78ce364b3352876bb4c801266"
+checksum = "11181fbabf243db407ef8df94a6ce0b2f9a733bd8be4ad02b4eda9602296cac8"
 dependencies = [
  "bitflags 2.9.1",
  "errno",
  "libc",
  "linux-raw-sys 0.9.4",
- "windows-sys 0.59.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -6011,7 +6011,7 @@ dependencies = [
  "fastrand 2.3.0",
  "getrandom 0.3.3",
  "once_cell",
- "rustix 1.0.7",
+ "rustix 1.0.8",
  "windows-sys 0.59.0",
 ]
 
@@ -6021,7 +6021,7 @@ version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "45c6481c4829e4cc63825e62c49186a34538b7b2750b73b266581ffb612fb5ed"
 dependencies = [
- "rustix 1.0.7",
+ "rustix 1.0.8",
  "windows-sys 0.59.0",
 ]
 
