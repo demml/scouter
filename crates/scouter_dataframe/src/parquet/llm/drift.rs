@@ -82,7 +82,7 @@ impl LLMDriftDataFrame {
             Field::new("input", DataType::Utf8, false),
             Field::new("response", DataType::Utf8, false),
             Field::new("context", DataType::Utf8, false),
-            Field::new("prompt", DataType::Utf8, false),
+            Field::new("prompt", DataType::Utf8, true),
             Field::new(
                 "updated_at",
                 DataType::Timestamp(TimeUnit::Nanosecond, None),

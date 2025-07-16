@@ -200,7 +200,7 @@ mod tests {
                     space: "test".to_string(),
                     name: "test".to_string(),
                     version: "1.0".to_string(),
-                    prompt: prompt.clone(),
+                    prompt: Some(prompt.clone()),
                     input: format!("input{i}"),
                     response: format!("output{i}"),
                     context: serde_json::Value::Object(Map::new()),

@@ -766,7 +766,7 @@ mod tests {
                 version: VERSION.to_string(),
                 input: input.to_string(),
                 response: output.to_string(),
-                prompt: prompt.clone(),
+                prompt: Some(prompt.clone()),
                 context: Value::Object(serde_json::Map::new()),
                 status: Status::Pending,
                 id: 0, // This will be set by the database
@@ -845,7 +845,7 @@ mod tests {
                 version: VERSION.to_string(),
                 input: input.to_string(),
                 response: output.to_string(),
-                prompt: prompt.clone(),
+                prompt: Some(prompt.clone()),
                 context: Value::Object(serde_json::Map::new()),
                 status: Status::Pending,
                 id: 0, // This will be set by the database

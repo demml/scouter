@@ -1,18 +1,21 @@
 use crate::error::TypeError;
+use crate::util::pyobject_to_json;
 use crate::ProfileFuncs;
+use potato_head::Prompt;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PyString};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
-
 #[pyclass]
 #[derive(Clone, Debug, Serialize)]
 pub enum EntityType {
     Feature,
     Metric,
+    LLM,
 }
 
 #[pyclass]
@@ -349,10 +352,54 @@ impl Metrics {
     }
 }
 
+#[pyclass]
+#[derive(Clone, Serialize, Debug)]
+pub struct LLMRecord {
+    #[pyo3(get)]
+    pub input: String,
+
+    #[pyo3(get)]
+    pub response: String,
+    pub context: Value,
+
+    #[pyo3(get)]
+    pub prompt: Option<Prompt>,
+
+    #[pyo3(get)]
+    pub entity_type: EntityType,
+}
+
+#[pymethods]
+impl LLMRecord {
+    #[new]
+    pub fn new(
+        input: Option<String>,
+        response: Option<String>,
+        context: Option<Bound<'_, PyDict>>,
+        prompt: Option<Prompt>,
+    ) -> Result<Self, TypeError> {
+        if input.is_none() && response.is_none() {
+            return Err(TypeError::MissingInputOrResponse);
+        }
+        let context_val = context
+            .map(|c| pyobject_to_json(&c))
+            .unwrap_or(Ok(Value::Object(serde_json::Map::new())))?;
+
+        Ok(LLMRecord {
+            input: input.unwrap_or_default(),
+            response: response.unwrap_or_default(),
+            context: context_val,
+            prompt,
+            entity_type: EntityType::LLM,
+        })
+    }
+}
+
 #[derive(Debug)]
 pub enum QueueItem {
     Features(Features),
     Metrics(Metrics),
+    LLM(LLMRecord),
 }
 
 impl QueueItem {
@@ -369,6 +416,11 @@ impl QueueItem {
                 let metrics = entity.extract::<Metrics>()?;
                 Ok(QueueItem::Metrics(metrics))
             }
+            EntityType::LLM => {
+                // LLM is not supported in this context
+                let llm = entity.extract::<LLMRecord>()?;
+                Ok(QueueItem::LLM(llm))
+            }
         }
     }
 }
@@ -376,6 +428,7 @@ impl QueueItem {
 pub trait QueueExt: Send + Sync {
     fn metrics(&self) -> &Vec<Metric>;
     fn features(&self) -> &Vec<Feature>;
+    fn llm_records(&self) -> Vec<&LLMRecord>;
 }
 
 impl QueueExt for Features {
@@ -389,6 +442,12 @@ impl QueueExt for Features {
     fn features(&self) -> &Vec<Feature> {
         &self.features
     }
+
+    fn llm_records(&self) -> Vec<&LLMRecord> {
+        // this is not a real implementation, just a placeholder
+        // to satisfy the trait bound
+        vec![]
+    }
 }
 
 impl QueueExt for Metrics {
@@ -401,5 +460,31 @@ impl QueueExt for Metrics {
         // to satisfy the trait bound
         static EMPTY: Vec<Feature> = Vec::new();
         &EMPTY
+    }
+
+    fn llm_records(&self) -> Vec<&LLMRecord> {
+        // this is not a real implementation, just a placeholder
+        // to satisfy the trait bound
+        vec![]
+    }
+}
+
+impl QueueExt for LLMRecord {
+    fn metrics(&self) -> &Vec<Metric> {
+        // this is not a real implementation, just a placeholder
+        // to satisfy the trait bound
+        static EMPTY: Vec<Metric> = Vec::new();
+        &EMPTY
+    }
+
+    fn features(&self) -> &Vec<Feature> {
+        // this is not a real implementation, just a placeholder
+        // to satisfy the trait bound
+        static EMPTY: Vec<Feature> = Vec::new();
+        &EMPTY
+    }
+
+    fn llm_records(&self) -> Vec<&LLMRecord> {
+        vec![self]
     }
 }

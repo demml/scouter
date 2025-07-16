@@ -185,7 +185,7 @@ pub struct LLMDriftServerRecord {
     pub response: String,
 
     #[pyo3(get)]
-    pub prompt: Prompt,
+    pub prompt: Option<Prompt>,
 
     pub context: Value,
 
@@ -207,18 +207,19 @@ impl LLMDriftServerRecord {
         space,
         name,
         version,
-        prompt,
-        input = None,
-        response = None,
+        input,
+        response,
+        prompt= None,
         context = None,
     ))]
+
     pub fn new(
         space: String,
         name: String,
         version: String,
-        prompt: Prompt,
-        input: Option<String>,
-        response: Option<String>,
+        input: String,
+        response: String,
+        prompt: Option<Prompt>,
         context: Option<Bound<'_, PyDict>>,
     ) -> Result<Self, RecordError> {
         // Check if pydict was provided, if not, create an empty Map
@@ -226,18 +227,13 @@ impl LLMDriftServerRecord {
             .map(|c| pyobject_to_json(&c))
             .unwrap_or(Ok(Value::Object(serde_json::Map::new())))?;
 
-        // assert either input or response is provided
-        if input.is_none() && response.is_none() {
-            return Err(RecordError::MissingInputOrResponse);
-        }
-
         Ok(Self {
             created_at: Utc::now(),
             space,
             name,
             version,
-            input: input.unwrap_or_default(), // Default to empty string if None
-            response: response.unwrap_or_default(),
+            input,
+            response,
             prompt,
             context: context_val,
             status: Status::Pending,
@@ -261,6 +257,35 @@ impl LLMDriftServerRecord {
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__json__(self)
+    }
+}
+
+impl LLMDriftServerRecord {
+    pub fn new_rs(
+        space: String,
+        name: String,
+        version: String,
+        input: String,
+        response: String,
+        prompt: Option<Prompt>,
+        context: Value,
+    ) -> Self {
+        Self {
+            created_at: Utc::now(),
+            space,
+            name,
+            version,
+            input,
+            response,
+            prompt,
+            context,
+            status: Status::Pending,
+            id: 0, // This is a placeholder, as the ID will be set by the database
+            uid: create_uuid7(),
+            updated_at: None,
+            processing_started_at: None,
+            processing_ended_at: None,
+        }
     }
 }
 

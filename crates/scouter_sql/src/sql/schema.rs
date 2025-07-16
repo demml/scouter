@@ -342,7 +342,7 @@ pub struct LLMDriftServerSQLRecord {
 
     pub response: String,
 
-    pub prompt: Json<Prompt>,
+    pub prompt: Json<Option<Prompt>>,
 
     pub context: Json<Value>,
 

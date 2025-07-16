@@ -98,6 +98,9 @@ pub enum TypeError {
 
     #[error("Unsupported status. Status must be one of: All, Pending or Processed. Received: {0}")]
     InvalidStatusError(String),
+
+    #[error("Failed to supply either input or response for the llm record")]
+    MissingInputOrResponse,
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for TypeError {
