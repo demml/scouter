@@ -84,7 +84,7 @@ impl MessageHandler {
         pool: &Pool<Postgres>,
         records: &ServerRecords,
     ) -> Result<(), SqlError> {
-        debug!("Inserting server records: {:?}", records);
+        debug!("Inserting server records: {:?}", records.record_type()?);
 
         match records.record_type()? {
             RecordType::Spc => {

@@ -86,7 +86,7 @@ impl LLMDriftConfig {
             name: name.to_string(),
             version: version.to_string(),
             alert_config,
-            drift_type: DriftType::Custom,
+            drift_type: DriftType::LLM,
         })
     }
 
@@ -446,6 +446,7 @@ impl LLMDriftProfile {
                 Entry::Occupied(entry) => entry.into_mut(),
                 Entry::Vacant(entry) => {
                     let agent = Agent::from_model_settings(&prompt.model_settings)?;
+                    workflow.add_agent(&agent);
                     entry.insert(agent)
                 }
             };

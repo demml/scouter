@@ -5,7 +5,7 @@ use axum::{
     body::Body,
     http::{header, Request, StatusCode},
 };
-
+use potato_head::OpenAITestServer;
 use scouter_drift::spc::SpcMonitor;
 use scouter_types::spc::SpcAlertConfig;
 use scouter_types::spc::SpcDriftConfig;
@@ -366,7 +366,86 @@ async fn test_custom_server_records() {
     assert!(!results.metrics.is_empty());
 }
 
-#[tokio::test]
-async fn test_llm_server_records() {
-    let helper = TestHelper::new(false, false).await.unwrap();
+#[test]
+fn test_llm_server_records() {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let mut mock = OpenAITestServer::new();
+    mock.start_server().unwrap();
+
+    let helper = runtime.block_on(async { TestHelper::new(false, false).await.unwrap() });
+
+    let profile = TestHelper::create_llm_drift_profile();
+
+    let request = ProfileRequest {
+        space: profile.config.space.clone(),
+        profile: profile.model_dump_json(),
+        drift_type: DriftType::LLM,
+    };
+
+    let body = serde_json::to_string(&request).unwrap();
+    let request = Request::builder()
+        .uri("/scouter/profile")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let response = runtime.block_on(async { helper.send_oneshot(request).await });
+
+    //assert response
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // populate the server with LLM drift records
+    let records = helper.get_llm_drift_records(None);
+
+    let body = serde_json::to_string(&records).unwrap();
+    //
+    let request = Request::builder()
+        .uri("/scouter/drift")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let response = runtime.block_on(async { helper.send_oneshot(request).await });
+
+    assert_eq!(response.status(), StatusCode::OK);
+    //
+    //// Sleep for 2 seconds to allow the http consumer time to process all server records sent above.
+    runtime.block_on(async { sleep(Duration::from_secs(5)).await });
+
+    // get drift records
+    let params = DriftRequest {
+        space: SPACE.to_string(),
+        name: NAME.to_string(),
+        version: VERSION.to_string(),
+        time_interval: TimeInterval::FiveMinutes,
+        max_data_points: 100,
+        drift_type: DriftType::LLM,
+        ..Default::default()
+    };
+
+    let query_string = serde_qs::to_string(&params).unwrap();
+
+    let request = Request::builder()
+        .uri(format!("/scouter/drift/llm?{query_string}"))
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = runtime.block_on(async { helper.send_oneshot(request).await });
+
+    //assert response
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // collect body into serde Value
+
+    let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
+
+    let results: BinnedMetrics = serde_json::from_slice(&val).unwrap();
+
+    assert!(!results.metrics.is_empty());
+
+    mock.stop_server().unwrap();
+    //TestHelper::cleanup_storage();
 }

@@ -10,7 +10,7 @@ use http_body_util::BodyExt;
 use ndarray::Array;
 use ndarray_rand::rand_distr::Uniform;
 use ndarray_rand::RandomExt;
-use potato_head::{create_score_prompt, OpenAIMockAsync};
+use potato_head::create_score_prompt;
 use rand::Rng;
 use scouter_server::create_app;
 use scouter_settings::ObjectStorageSettings;
@@ -18,10 +18,13 @@ use scouter_settings::{DatabaseSettings, ScouterServerConfig};
 use scouter_sql::PostgresClient;
 use scouter_types::JwtToken;
 use scouter_types::{
-    BoxedLLMDriftServerRecord, LLMDriftServerRecord, LLMMetricServerRecord, ServerRecord,
-    ServerRecords, SpcServerRecord, Status,
+    llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftProfile, LLMMetric},
+    AlertThreshold, CustomMetricServerRecord, LLMMetricServerRecord, PsiServerRecord,
 };
-use scouter_types::{CustomMetricServerRecord, PsiServerRecord};
+use scouter_types::{
+    BoxedLLMDriftServerRecord, LLMDriftServerRecord, ServerRecord, ServerRecords, SpcServerRecord,
+    Status,
+};
 use serde_json::Map;
 use sqlx::{PgPool, Pool, Postgres};
 use std::env;
@@ -75,7 +78,6 @@ pub struct TestHelper {
     token: JwtToken,
     pub pool: PgPool,
     pub config: Arc<ScouterServerConfig>,
-    pub openai_mock: OpenAIMockAsync,
 }
 
 impl TestHelper {
@@ -90,15 +92,12 @@ impl TestHelper {
     pub async fn new(enable_kafka: bool, enable_rabbitmq: bool) -> Result<Self, anyhow::Error> {
         TestHelper::cleanup_storage();
 
-        let openai_mock = OpenAIMockAsync::new().await;
-
-        env::set_var("RUST_LOG", "debug");
-        env::set_var("LOG_LEVEL", "debug");
+        env::set_var("RUST_LOG", "info");
+        env::set_var("LOG_LEVEL", "inf");
         env::set_var("LOG_JSON", "false");
         env::set_var("POLLING_WORKER_COUNT", "1");
         env::set_var("DATA_RETENTION_PERIOD", "5");
         std::env::set_var("OPENAI_API_KEY", "test_key");
-        std::env::set_var("OPENAI_API_URL", openai_mock.url.to_string());
 
         if enable_kafka {
             std::env::set_var("KAFKA_BROKERS", "localhost:9092");
@@ -122,7 +121,6 @@ impl TestHelper {
             token,
             pool: db_pool,
             config: app_state.config.clone(),
-            openai_mock,
         })
     }
 
@@ -251,7 +249,7 @@ impl TestHelper {
         let prompt = create_score_prompt(None);
 
         for i in 0..3 {
-            for _ in 0..50 {
+            for _ in 0..5 {
                 let record = LLMDriftServerRecord {
                     created_at: Utc::now() - chrono::Duration::days(offset),
                     space: SPACE.to_string(),
@@ -290,13 +288,40 @@ impl TestHelper {
                     name: NAME.to_string(),
                     version: VERSION.to_string(),
                     metric: format!("metric{i}"),
-                    value: rand::rng().random_range(0..10) as f64,
+                    value: rand::rng().random_range(0..3) as f64,
                 };
                 records.push(ServerRecord::LLMMetric(record));
             }
         }
 
         ServerRecords::new(records)
+    }
+
+    pub fn create_llm_drift_profile() -> LLMDriftProfile {
+        let alert_config = LLMAlertConfig::default();
+        let config = LLMDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
+        let prompt = create_score_prompt(Some(vec!["input".to_string()]));
+
+        let _alert_threshold = AlertThreshold::Above;
+        let metric1 = LLMMetric::new(
+            "metric1",
+            5.0,
+            AlertThreshold::Above,
+            None,
+            Some(prompt.clone()),
+        )
+        .unwrap();
+
+        let metric2 = LLMMetric::new(
+            "metric2",
+            3.0,
+            AlertThreshold::Below,
+            Some(0.5),
+            Some(prompt.clone()),
+        )
+        .unwrap();
+        let llm_metrics = vec![metric1, metric2];
+        LLMDriftProfile::from_metrics(config, llm_metrics).unwrap()
     }
 
     pub async fn insert_alerts(&self) -> Result<(), anyhow::Error> {

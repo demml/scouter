@@ -87,6 +87,9 @@ pub enum DriftError {
 
     #[error("Incorrect method called: {0}")]
     WrongMethodError(String),
+
+    #[error("Invalid content type. Expected a json string or value")]
+    InvalidContentTypeError,
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for DriftError {

@@ -51,7 +51,11 @@ impl LLMEvaluator {
                     if task_guard.status == TaskStatus::Completed {
                         if let Some(result) = &task_guard.result {
                             let task_id = task_guard.id.clone();
-                            let score = Score::model_validate_json_value(&result.content())?;
+                            let content = result.content();
+                            let score =
+                                Score::model_validate_json_value(&content).inspect_err(|e| {
+                                    error!("Failed to validate score: {:?}", e);
+                                })?;
 
                             let record = LLMMetricServerRecord {
                                 created_at: chrono::Utc::now(),
@@ -127,8 +131,6 @@ impl LLMEvaluator {
 
     #[instrument(skip_all)]
     pub async fn do_poll(&mut self) -> Result<bool, DriftError> {
-        debug!("Polling for drift tasks");
-
         // Get task from the database (query uses skip lock to pull task and update to processing)
         let task = PostgresClient::get_pending_llm_drift_task(&self.db_pool).await?;
 
@@ -180,14 +182,10 @@ impl LLMEvaluator {
         // silent error handling
         match result {
             Ok(true) => {
-                info!("Successfully processed drift record");
+                debug!("Successfully processed drift record");
                 Ok(())
             }
-            Ok(false) => {
-                info!("No drift records found in db. Sleeping for 10 seconds");
-                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
-                Ok(())
-            }
+            Ok(false) => Ok(()),
             Err(e) => {
                 error!("Error processing drift record: {:?}", e);
                 Ok(())
