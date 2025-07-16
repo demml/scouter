@@ -126,7 +126,7 @@ impl LLMEvaluator {
     }
 
     #[instrument(skip_all)]
-    pub async fn poll_for_tasks(&mut self) -> Result<bool, DriftError> {
+    pub async fn do_poll(&mut self) -> Result<bool, DriftError> {
         debug!("Polling for drift tasks");
 
         // Get task from the database (query uses skip lock to pull task and update to processing)
@@ -171,5 +171,27 @@ impl LLMEvaluator {
             .await?;
 
         Ok(true)
+    }
+
+    #[instrument(skip_all)]
+    pub async fn poll_for_tasks(&mut self) -> Result<(), DriftError> {
+        let result = self.do_poll().await;
+
+        // silent error handling
+        match result {
+            Ok(true) => {
+                info!("Successfully processed drift record");
+                Ok(())
+            }
+            Ok(false) => {
+                info!("No drift records found in db. Sleeping for 10 seconds");
+                tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
+                Ok(())
+            }
+            Err(e) => {
+                error!("Error processing drift record: {:?}", e);
+                Ok(())
+            }
+        }
     }
 }
