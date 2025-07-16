@@ -72,7 +72,8 @@ impl LLMEvaluator {
         Ok(final_results)
     }
 
-    pub async fn process_record(
+    #[instrument(skip_all)]
+    pub async fn process_drift_record(
         &mut self,
         task: &LLMDriftTaskRequest,
         profile: &LLMDriftProfile,
@@ -125,7 +126,7 @@ impl LLMEvaluator {
     }
 
     #[instrument(skip_all)]
-    pub async fn do_llm_eval_poll(&mut self) -> Result<bool, DriftError> {
+    pub async fn poll_for_tasks(&mut self) -> Result<bool, DriftError> {
         debug!("Polling for drift tasks");
 
         // Get task from the database (query uses skip lock to pull task and update to processing)
@@ -163,7 +164,7 @@ impl LLMEvaluator {
             return Ok(false);
         };
 
-        self.process_record(&task, &llm_profile).await?;
+        self.process_drift_record(&task, &llm_profile).await?;
 
         // Update the run dates while still holding the lock
         PostgresClient::update_llm_drift_task_status(&self.db_pool, &task, Status::Processed)

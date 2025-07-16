@@ -5259,6 +5259,7 @@ name = "scouter-settings"
 version = "0.6.4"
 dependencies = [
  "base64",
+ "potato-head",
  "pyo3",
  "scouter-types",
  "serde",
