@@ -1259,7 +1259,9 @@ class Drifter:
     def create_drift_profile(  # type: ignore
         self,
         data: Any,
-        config: Optional[Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]] = None,
+        config: Optional[
+            Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]
+        ] = None,
         data_type: Optional[DataType] = None,
     ) -> Union[SpcDriftProfile, PsiDriftProfile, CustomDriftProfile]:
         """Create a drift profile from data.
@@ -1279,6 +1281,66 @@ class Drifter:
 
         Returns:
             SpcDriftProfile, PsiDriftProfile or CustomDriftProfile
+        """
+
+    def create_llm_drift_profile(
+        self,
+        config: LLMDriftConfig,
+        metrics: List[LLMMetric],
+        workflow: Optional[Workflow] = None,
+    ) -> LLMDriftProfile:
+        """Initialize a LLMDriftProfile for LLM evaluation and drift detection.
+
+        LLM evaluations are run asynchronously on the scouter server.
+
+        Logic flow:
+            1. If only metrics are provided, a workflow will be created automatically
+               from the metrics. In this case a prompt is required for each metric.
+            2. If a workflow is provided, it will be parsed and validated for compatibility:
+               - A list of metrics to evaluate workflow output must be provided
+               - Metric names must correspond to the final task names in the workflow
+
+        Baseline metrics and thresholds will be extracted from the LLMMetric objects.
+
+        Args:
+            config (LLMDriftConfig):
+                The configuration for the LLM drift profile containing space, name,
+                version, and alert settings.
+            metrics (list[LLMMetric]):
+                A list of LLMMetric objects representing the metrics to be monitored.
+                Each metric defines evaluation criteria and alert thresholds.
+            workflow (Optional[Workflow]):
+                Optional custom workflow for advanced evaluation scenarios. If provided,
+                the workflow will be validated to ensure proper parameter and response
+                type configuration.
+
+        Returns:
+            LLMDriftProfile: Configured profile ready for LLM drift monitoring.
+
+        Raises:
+            ProfileError: If workflow validation fails, metrics are empty when no
+                workflow is provided, or if workflow tasks don't match metric names.
+
+        Examples:
+            Basic usage with metrics only:
+
+            >>> config = LLMDriftConfig("my_space", "my_model", "1.0")
+            >>> metrics = [
+            ...     LLMMetric("accuracy", 0.95, AlertThreshold.Above, 0.1, prompt),
+            ...     LLMMetric("relevance", 0.85, AlertThreshold.Below, 0.2, prompt2)
+            ... ]
+            >>> profile = Drifter().create_llm_drift_profile(config, metrics)
+
+            Advanced usage with custom workflow:
+
+            >>> workflow = create_custom_workflow()  # Your custom workflow
+            >>> metrics = [LLMMetric("final_task", 0.9, AlertThreshold.Above)]
+            >>> profile = Drifter().create_llm_drift_profile(config, metrics, workflow)
+
+        Note:
+            - When using custom workflows, ensure final tasks have Score response types
+            - Initial workflow tasks must include "input" and/or "response" parameters
+            - All metric names must match corresponding workflow task names
         """
 
     def compute_drift(

@@ -246,6 +246,9 @@ pub enum ProfileError {
 
     #[error("No metrics found for the output task: {0}")]
     MetricNotFoundForOutputTask(String),
+
+    #[error("Metric not found in profile LLM metrics: {0}")]
+    MetricNotFound(String),
 }
 
 impl From<ProfileError> for PyErr {

@@ -537,6 +537,14 @@ impl LLMDriftProfile {
             ProfileError::InvalidWorkflowType
         })
     }
+
+    pub fn get_metric_value(&self, metric_name: &str) -> Result<f64, ProfileError> {
+        self.metrics
+            .iter()
+            .find(|m| m.name == metric_name)
+            .map(|m| m.value)
+            .ok_or_else(|| ProfileError::MetricNotFound(metric_name.to_string()))
+    }
 }
 
 impl ProfileBaseArgs for LLMDriftProfile {

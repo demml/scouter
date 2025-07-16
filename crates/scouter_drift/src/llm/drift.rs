@@ -1,25 +1,22 @@
 use crate::error::DriftError;
 use chrono::{DateTime, Utc};
 use scouter_dispatch::AlertDispatcher;
-use scouter_sql::sql::traits::CustomMetricSqlLogic;
+use scouter_sql::sql::traits::LLMDriftSqlLogic;
 use scouter_sql::PostgresClient;
 use scouter_types::contracts::ServiceInfo;
-use scouter_types::{
-    custom::{ComparisonMetricAlert, CustomDriftProfile},
-    AlertThreshold,
-};
+use scouter_types::{custom::ComparisonMetricAlert, llm::LLMDriftProfile, AlertThreshold};
 use sqlx::{Pool, Postgres};
 use std::collections::{BTreeMap, HashMap};
 use tracing::error;
 use tracing::info;
 
-pub struct CustomDrifter {
+pub struct LLMDrifter {
     service_info: ServiceInfo,
-    profile: CustomDriftProfile,
+    profile: LLMDriftProfile,
 }
 
-impl CustomDrifter {
-    pub fn new(profile: CustomDriftProfile) -> Self {
+impl LLMDrifter {
+    pub fn new(profile: LLMDriftProfile) -> Self {
         Self {
             service_info: ServiceInfo {
                 name: profile.config.name.clone(),
@@ -30,14 +27,19 @@ impl CustomDrifter {
         }
     }
 
-    pub async fn get_observed_custom_metric_values(
+    pub async fn get_observed_llm_metric_values(
         &self,
         limit_datetime: &DateTime<Utc>,
         db_pool: &Pool<Postgres>,
     ) -> Result<HashMap<String, f64>, DriftError> {
-        let metrics: Vec<String> = self.profile.metrics.keys().cloned().collect();
+        let metrics: Vec<String> = self
+            .profile
+            .metrics
+            .iter()
+            .map(|metric| metric.name.clone())
+            .collect();
 
-        Ok(PostgresClient::get_custom_metric_values(
+        Ok(PostgresClient::get_llm_metric_values(
             db_pool,
             &self.service_info,
             limit_datetime,
@@ -46,7 +48,7 @@ impl CustomDrifter {
         .await
         .inspect_err(|e| {
             let msg = format!(
-                "Error: Unable to obtain custom metric data from DB for {}/{}/{}: {}",
+                "Error: Unable to obtain llm metric data from DB for {}/{}/{}: {}",
                 self.service_info.space, self.service_info.name, self.service_info.version, e
             );
             error!(msg);
@@ -59,12 +61,12 @@ impl CustomDrifter {
         db_pool: &Pool<Postgres>,
     ) -> Result<Option<HashMap<String, f64>>, DriftError> {
         let metric_map = self
-            .get_observed_custom_metric_values(limit_datetime, db_pool)
+            .get_observed_llm_metric_values(limit_datetime, db_pool)
             .await?;
 
         if metric_map.is_empty() {
             info!(
-                "No custom metric data was found for {}/{}/{}. Skipping alert processing.",
+                "No llm metric data was found for {}/{}/{}. Skipping alert processing.",
                 self.service_info.space, self.service_info.name, self.service_info.version,
             );
             return Ok(None);
@@ -109,7 +111,14 @@ impl CustomDrifter {
         let metric_alerts: Vec<ComparisonMetricAlert> = metric_map
             .iter()
             .filter_map(|(name, observed_value)| {
-                let training_value = self.profile.metrics[name];
+                let training_value = self
+                    .profile
+                    .get_metric_value(name)
+                    .inspect_err(|e| {
+                        let msg = format!("Error getting training value for metric {name}: {e}");
+                        error!(msg);
+                    })
+                    .ok()?;
                 let alert_condition = &self
                     .profile
                     .config
@@ -234,95 +243,82 @@ impl CustomDrifter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use scouter_types::custom::{CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig};
+    use potato_head::create_score_prompt;
+    use scouter_types::llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftProfile, LLMMetric};
 
-    fn get_test_drifter() -> CustomDrifter {
-        let custom_metrics = vec![
-            CustomMetric::new("mse", 12.02, AlertThreshold::Above, Some(1.0)).unwrap(),
-            CustomMetric::new("accuracy", 0.75, AlertThreshold::Below, None).unwrap(),
-        ];
-
-        let drift_config = CustomMetricDriftConfig::new(
-            "scouter",
-            "model",
-            "0.1.0",
-            25,
-            CustomMetricAlertConfig::default(),
-            None,
+    fn get_test_drifter() -> LLMDrifter {
+        let prompt = create_score_prompt(Some(vec!["input".to_string()]));
+        let metric1 = LLMMetric::new(
+            "coherence",
+            5.0,
+            AlertThreshold::Below,
+            Some(0.5),
+            Some(prompt.clone()),
         )
         .unwrap();
 
-        let profile = CustomDriftProfile::new(drift_config, custom_metrics, None).unwrap();
+        let metric2 = LLMMetric::new(
+            "relevancy",
+            5.0,
+            AlertThreshold::Below,
+            None,
+            Some(prompt.clone()),
+        )
+        .unwrap();
 
-        CustomDrifter::new(profile)
+        let alert_config = LLMAlertConfig::default();
+        let drift_config =
+            LLMDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
+
+        let profile = LLMDriftProfile::from_metrics(drift_config, vec![metric1, metric2]).unwrap();
+
+        LLMDrifter::new(profile)
     }
 
     #[test]
     fn test_is_out_of_bounds() {
-        // mse training value obtained during initial model training.
-        let mse_training_value = 12.0;
+        // relevancy training value obtained during initial model training.
+        let relevancy_training_value = 5.0;
 
-        // observed mse metric value captured somewhere after the initial training run.
-        let mse_observed_value = 14.5;
+        // observed relevancy metric value captured somewhere after the initial training run.
+        let relevancy_observed_value = 4.0;
 
-        // we want mse to be as small as possible, so we want to see if the metric has increased.
-        let mse_alert_condition = AlertThreshold::Above;
+        // we want relevancy to be as small as possible, so we want to see if the metric has increased.
+        let relevancy_alert_condition = AlertThreshold::Below;
 
-        // we do not want to alert if the mse values has simply increased, but we want to alert
-        // if the metric observed has increased beyond (mse_training_value + 2.0)
-        let mse_alert_boundary = Some(2.0);
+        // we do not want to alert if the relevancy values have decreased by more than 0.5
+        // if the metric observed has increased beyond (relevancy_training_value - 0.5)
+        let relevancy_alert_boundary = Some(0.5);
 
-        let mse_is_out_of_bounds = CustomDrifter::is_out_of_bounds(
-            mse_training_value,
-            mse_observed_value,
-            &mse_alert_condition,
-            mse_alert_boundary,
+        let relevancy_is_out_of_bounds = LLMDrifter::is_out_of_bounds(
+            relevancy_training_value,
+            relevancy_observed_value,
+            &relevancy_alert_condition,
+            relevancy_alert_boundary,
         );
-        assert!(mse_is_out_of_bounds);
+        assert!(relevancy_is_out_of_bounds);
 
         // test observed metric has decreased beyond threshold.
 
-        // accuracy training value obtained during initial model training.
-        let accuracy_training_value = 0.76;
+        // coherence training value obtained during initial model training.
+        let coherence_training_value = 0.76;
 
-        // observed accuracy metric value captured somewhere after the initial training run.
-        let accuracy_observed_value = 0.67;
+        // observed coherence metric value captured somewhere after the initial training run.
+        let coherence_observed_value = 0.67;
 
-        // we want to alert if accuracy has decreased.
-        let accuracy_alert_condition = AlertThreshold::Below;
+        // we want to alert if coherence has decreased.
+        let coherence_alert_condition = AlertThreshold::Below;
 
-        // we will not be specifying a boundary here as we want to alert if accuracy has decreased by any amount
-        let accuracy_alert_boundary = None;
+        // we will not be specifying a boundary here as we want to alert if coherence has decreased by any amount
+        let coherence_alert_boundary = None;
 
-        let accuracy_is_out_of_bounds = CustomDrifter::is_out_of_bounds(
-            accuracy_training_value,
-            accuracy_observed_value,
-            &accuracy_alert_condition,
-            accuracy_alert_boundary,
+        let coherence_is_out_of_bounds = LLMDrifter::is_out_of_bounds(
+            coherence_training_value,
+            coherence_observed_value,
+            &coherence_alert_condition,
+            coherence_alert_boundary,
         );
-        assert!(accuracy_is_out_of_bounds);
-
-        // test observed metric has not increased.
-
-        // mae training value obtained during initial model training.
-        let mae_training_value = 13.5;
-
-        // observed mae metric value captured somewhere after the initial training run.
-        let mae_observed_value = 10.5;
-
-        // we want to alert if mae has increased.
-        let mae_alert_condition = AlertThreshold::Above;
-
-        // we will not be specifying a boundary here as we want to alert if mae has increased by any amount
-        let mae_alert_boundary = None;
-
-        let mae_is_out_of_bounds = CustomDrifter::is_out_of_bounds(
-            mae_training_value,
-            mae_observed_value,
-            &mae_alert_condition,
-            mae_alert_boundary,
-        );
-        assert!(!mae_is_out_of_bounds);
+        assert!(coherence_is_out_of_bounds);
     }
 
     #[tokio::test]
@@ -331,9 +327,9 @@ mod tests {
 
         let mut metric_map = HashMap::new();
         // mse had an initial value of 12.02 when the profile was generated
-        metric_map.insert("mse".to_string(), 14.0);
+        metric_map.insert("coherence".to_string(), 4.0);
         // accuracy had an initial 0.75 when the profile was generated
-        metric_map.insert("accuracy".to_string(), 0.65);
+        metric_map.insert("relevancy".to_string(), 4.5);
 
         let alerts = drifter.generate_alerts(&metric_map).await.unwrap().unwrap();
 

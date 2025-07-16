@@ -2,7 +2,7 @@
 pub mod drift_executor {
 
     use crate::error::DriftError;
-    use crate::{custom::CustomDrifter, psi::PsiDrifter, spc::SpcDrifter};
+    use crate::{custom::CustomDrifter, llm::LLMDrifter, psi::PsiDrifter, spc::SpcDrifter};
     use chrono::{DateTime, Utc};
 
     use scouter_sql::sql::traits::{AlertSqlLogic, ProfileSqlLogic};
@@ -20,6 +20,7 @@ pub mod drift_executor {
         SpcDrifter(SpcDrifter),
         PsiDrifter(PsiDrifter),
         CustomDrifter(CustomDrifter),
+        LLMDrifter(LLMDrifter),
     }
 
     impl Drifter {
@@ -36,6 +37,9 @@ pub mod drift_executor {
                     drifter.check_for_alerts(db_pool, previous_run).await
                 }
                 Drifter::CustomDrifter(drifter) => {
+                    drifter.check_for_alerts(db_pool, previous_run).await
+                }
+                Drifter::LLMDrifter(drifter) => {
                     drifter.check_for_alerts(db_pool, previous_run).await
                 }
             }
@@ -65,7 +69,7 @@ pub mod drift_executor {
                 DriftProfile::Custom(profile) => {
                     Drifter::CustomDrifter(CustomDrifter::new(profile.clone()))
                 }
-                _ => todo!("Implement drift profile for LLM"),
+                DriftProfile::LLM(profile) => Drifter::LLMDrifter(LLMDrifter::new(profile.clone())),
             }
         }
     }

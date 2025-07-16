@@ -42,6 +42,7 @@ approx = { workspace = true }
 ndarray-rand = { workspace = true }
 rand = { workspace = true }
 rusty-logging = { workspace = true }
+potato-head = { workspace = true, features = ["mock"] }
 scouter-settings = { workspace = true }
 
 

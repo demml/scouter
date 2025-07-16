@@ -84,6 +84,9 @@ pub enum DriftError {
 
     #[error(transparent)]
     WorkflowError(#[from] WorkflowError),
+
+    #[error("Incorrect method called: {0}")]
+    WrongMethodError(String),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for DriftError {
