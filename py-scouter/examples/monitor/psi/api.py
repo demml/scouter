@@ -18,6 +18,7 @@ from scouter import (  # type: ignore
     ScouterClient,
     ScouterQueue,
 )
+from scouter.alert import SlackDispatchConfig
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.util import FeatureMixin
 
@@ -34,7 +35,6 @@ class Response(BaseModel):
 class PredictRequest(BaseModel, FeatureMixin):
     feature_1: float
     feature_2: float
-    feature_3: float
 
     # This helper function is necessary to convert Scouter Python types into the appropriate Rust types.
     # This is what the mixin does under the hood.
@@ -44,14 +44,13 @@ class PredictRequest(BaseModel, FeatureMixin):
             features=[
                 Feature.float("feature_1", self.feature_1),
                 Feature.float("feature_2", self.feature_2),
-                Feature.float("feature_3", self.feature_3),
             ]
         )
 
 
 def generate_data() -> pd.DataFrame:
     """Create a fake data frame for testing"""
-    n = 10_000
+    n = 0
     X_train = np.random.normal(-4, 2.0, size=(n, 4))
     col_names = []
     for i in range(0, X_train.shape[1]):
@@ -94,11 +93,14 @@ def create_psi_profile() -> Path:
                 "feature_1",
                 "feature_2",
             ],
+            dispatch_config=SlackDispatchConfig(channel="test")
         ),
         categorical_features=["category"],
+        binning_
     )
 
     # create psi profile
+    breakpoint()
     psi_profile = drifter.create_drift_profile(data, psi_config)
 
     # register profile
@@ -112,30 +114,30 @@ if __name__ == "__main__":
     # Create a PSI profile and get its path
     profile_path = create_psi_profile()
 
-    # Setup the FastAPI app
-    config = HTTPConfig()
-
-    # Setup api lifespan
-    @asynccontextmanager
-    async def lifespan(fast_app: FastAPI):
-        logger.info("Starting up FastAPI app")
-
-        fast_app.state.queue = ScouterQueue.from_path(
-            path={"psi": profile_path},
-            transport_config=config,
-        )
-        yield
-
-        logger.info("Shutting down FastAPI app")
-        # Shutdown the queue
-        fast_app.state.queue.shutdown()
-        fast_app.state.queue = None
-
-    app = FastAPI(lifespan=lifespan)
-
-    @app.post("/predict", response_model=Response)
-    async def predict(request: Request, payload: PredictRequest) -> Response:
-        request.app.state.queue["psi"].insert(payload.to_features())
-        return Response(message="success")
-
-    uvicorn.run(app, host="0.0.0.0", port=8888)
+    # # Setup the FastAPI app
+    # config = HTTPConfig()
+    #
+    # # Setup api lifespan
+    # @asynccontextmanager
+    # async def lifespan(fast_app: FastAPI):
+    #     logger.info("Starting up FastAPI app")
+    #
+    #     fast_app.state.queue = ScouterQueue.from_path(
+    #         path={"psi": profile_path},
+    #         transport_config=config,
+    #     )
+    #     yield
+    #
+    #     logger.info("Shutting down FastAPI app")
+    #     # Shutdown the queue
+    #     fast_app.state.queue.shutdown()
+    #     fast_app.state.queue = None
+    #
+    # app = FastAPI(lifespan=lifespan)
+    #
+    # @app.post("/predict", response_model=Response)
+    # async def predict(request: Request, payload: PredictRequest) -> Response:
+    #     request.app.state.queue["psi"].insert(PredictRequest(feature_1=12.2, feature_2=np.nan).to_features())
+    #     return Response(message="success")
+    #
+    # uvicorn.run(app, host="0.0.0.0", port=8888)

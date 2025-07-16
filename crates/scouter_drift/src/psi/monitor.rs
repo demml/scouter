@@ -9,6 +9,7 @@ use scouter_types::psi::{
     Bin, BinType, PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile,
 };
 use std::collections::HashMap;
+use std::fmt::Debug;
 
 #[derive(Default)]
 pub struct PsiMonitor {}
@@ -168,6 +169,19 @@ impl PsiMonitor {
         })
     }
 
+    fn clean_column_vector<F>(column_vector: &ArrayView<F, Ix1>) -> Array<F, Ix1>
+    where
+        F: Float,
+    {
+        Array1::from(
+            column_vector
+                .iter()
+                .filter(|&&x| x.is_finite())
+                .cloned()
+                .collect::<Vec<F>>(),
+        )
+    }
+
     pub fn create_2d_drift_profile<F>(
         &self,
         features: &[String],
@@ -175,7 +189,7 @@ impl PsiMonitor {
         drift_config: &PsiDriftConfig,
     ) -> Result<PsiDriftProfile, DriftError>
     where
-        F: Float + Sync + FromPrimitive + Default,
+        F: Float + Sync + FromPrimitive + Default + Debug,
         F: Into<f64>,
     {
         let mut psi_feature_drift_profiles = HashMap::new();
@@ -193,9 +207,17 @@ impl PsiMonitor {
             .collect_vec()
             .into_par_iter()
             .map(|(column_vector, feature_name)| {
+                let clean_column_vector = Self::clean_column_vector(&column_vector);
+
+                if clean_column_vector.is_empty() {
+                    return Err(DriftError::EmptyArrayError(
+                        format!("PSI drift profile creation failure, unable to create psi feature drift profile for {feature_name}")
+                    ));
+                }
+
                 self.create_psi_feature_drift_profile(
                     feature_name.to_string(),
-                    &column_vector,
+                    &clean_column_vector.view(),
                     drift_config,
                 )
             })

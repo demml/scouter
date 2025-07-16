@@ -323,6 +323,24 @@ class SpcDriftMap:
     def to_numpy(self) -> Any:
         """Return drift map as a tuple of sample_array, drift_array and list of features"""
 
+
+class SlackDispatchConfig:
+    def __init__(self, channel: str):
+        """Initialize alert config
+
+        Args:
+            channel:
+                Slack channel name for where alerts will be reported
+        """
+
+    @property
+    def channel(self) -> str:
+        """Return the slack channel name"""
+
+    @channel.setter
+    def channel(self, channel: str) -> None:
+        """Set the slack channel name for where alerts will be reported"""
+
 class PsiDriftConfig:
     def __init__(
         self,

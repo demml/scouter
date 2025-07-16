@@ -7,7 +7,7 @@ use scouter_types::{
     Feature, PsiServerRecord, QueueExt, ServerRecord, ServerRecords,
 };
 use std::collections::HashMap;
-use tracing::{debug, error, instrument};
+use tracing::{debug, error, info, instrument};
 
 pub struct PsiFeatureQueue {
     pub drift_profile: PsiDriftProfile,
@@ -107,6 +107,8 @@ impl PsiFeatureQueue {
         features: &[Feature],
         queue: &mut HashMap<String, HashMap<usize, usize>>,
     ) -> Result<(), FeatureQueueError> {
+        let apple = f64::INFINITY as usize;
+        println!("{apple}");
         let feat_map = &self.drift_profile.config.feature_map;
         for feature in features.iter() {
             if let Some(feature_drift_profile) = self.drift_profile.features.get(feature.name()) {
@@ -135,6 +137,14 @@ impl PsiFeatureQueue {
                                 e.to_string(),
                             )
                         })?;
+
+                        if !value.is_finite() {
+                            info!(
+                                "Non finite value detected for {}, value will not be inserted into queue",
+                                feature.name()
+                            );
+                            continue;
+                        }
 
                         Self::process_numeric_queue(queue, value, bins)?
                     }
@@ -169,6 +179,7 @@ impl PsiFeatureQueue {
             .collect::<HashMap<_, _>>();
 
         debug!("Filtered queue count: {:?}", filtered_queue.len());
+        println!("made it here");
 
         let records = filtered_queue
             .iter()
@@ -201,7 +212,6 @@ impl FeatureQueue for PsiFeatureQueue {
         for elem in batch {
             self.insert(elem.features(), &mut queue)?;
         }
-
         self.create_drift_records(queue)
     }
 }

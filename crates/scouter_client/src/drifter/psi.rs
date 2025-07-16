@@ -6,6 +6,7 @@ use scouter_drift::error::DriftError;
 use scouter_drift::{psi::PsiMonitor, CategoricalFeatureHelpers};
 use scouter_types::psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile};
 use std::collections::HashMap;
+use std::fmt::Debug;
 use tracing::instrument;
 
 #[derive(Default)]
@@ -78,7 +79,7 @@ impl PsiDrifter {
         drift_config: PsiDriftConfig,
     ) -> Result<PsiDriftProfile, DriftError>
     where
-        F: Float + Sync + FromPrimitive + Default + PartialOrd,
+        F: Float + Sync + FromPrimitive + Default + PartialOrd + Debug,
         F: Into<f64>,
         F: numpy::Element,
     {

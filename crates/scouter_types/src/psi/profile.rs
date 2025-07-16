@@ -2,7 +2,7 @@
 use crate::error::{ProfileError, TypeError};
 use crate::psi::alert::PsiAlertConfig;
 use crate::util::{json_to_pyobject, pyobject_to_json};
-use crate::ProfileRequest;
+use crate::{AlertDispatchConfig, OpsGenieDispatchConfig, ProfileRequest, SlackDispatchConfig};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, ProfileArgs, ProfileBaseArgs,
     ProfileFuncs, DEFAULT_VERSION, MISSING,
@@ -18,6 +18,7 @@ use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use tracing::debug;
+use crate::binning::strategy::BinningStrategy;
 
 #[pyclass(eq)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -51,6 +52,8 @@ pub struct PsiDriftConfig {
 
     #[pyo3(get, set)]
     pub categorical_features: Option<Vec<String>>,
+
+    binning_strategy: BinningStrategy
 }
 
 fn default_drift_type() -> DriftType {
@@ -67,7 +70,7 @@ impl PsiDriftConfig {
 #[allow(clippy::too_many_arguments)]
 impl PsiDriftConfig {
     #[new]
-    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, alert_config=PsiAlertConfig::default(), config_path=None, categorical_features=None))]
+    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, alert_config=PsiAlertConfig::default(), config_path=None, categorical_features=None, binning_strategy=None))]
     pub fn new(
         space: &str,
         name: &str,
@@ -75,11 +78,25 @@ impl PsiDriftConfig {
         alert_config: PsiAlertConfig,
         config_path: Option<PathBuf>,
         categorical_features: Option<Vec<String>>,
+        binning_strategy: Option<&Bound<'_, PyAny>>,
     ) -> Result<Self, ProfileError> {
         if let Some(config_path) = config_path {
             let config = PsiDriftConfig::load_from_json_file(config_path);
             return config;
         }
+
+        let binning_strategy = match binning_strategy {
+            None => BinningStrategy::default(),
+            Some(config) => {
+                if config.is_instance_of::<SlackDispatchConfig>() {
+                    AlertDispatchConfig::Slack(config.extract()?)
+                } else if config.is_instance_of::<OpsGenieDispatchConfig>() {
+                    AlertDispatchConfig::OpsGenie(config.extract()?)
+                } else {
+                    return Err(ProfileError::InvalidBinningStrategyError);
+                }
+            }
+        };
 
         if name == MISSING || space == MISSING {
             debug!("Name and space were not provided. Defaulting to __missing__");
@@ -93,6 +110,7 @@ impl PsiDriftConfig {
             categorical_features,
             feature_map: FeatureMap::default(),
             drift_type: DriftType::Psi,
+            binning_strategy,
         })
     }
 
@@ -154,6 +172,7 @@ impl Default for PsiDriftConfig {
             alert_config: PsiAlertConfig::default(),
             drift_type: DriftType::Psi,
             categorical_features: None,
+            binning_strategy: BinningStrategy::default(),
         }
     }
 }

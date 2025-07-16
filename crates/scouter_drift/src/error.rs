@@ -74,6 +74,9 @@ pub enum DriftError {
 
     #[error("Categorical feature specified in drift config: {0}, not present in data")]
     CategoricalFeatureMissingError(String),
+
+    #[error("Empty Array Detected: {0}")]
+    EmptyArrayError(String),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for DriftError {
