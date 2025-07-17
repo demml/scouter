@@ -51,5 +51,9 @@ class ScouterTestServer:
         """Cleans up the test server."""
 
 class MockConfig:
-    def __init__(self) -> None:
-        """Mock configuration for the ScouterQueue"""
+    def __init__(self, **kwargs) -> None:
+        """Mock configuration for the ScouterQueue
+
+        Args:
+            **kwargs: Arbitrary keyword arguments to set as attributes.
+        """

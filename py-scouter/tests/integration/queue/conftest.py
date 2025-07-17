@@ -3,7 +3,7 @@ from typing import Iterator
 from unittest import mock
 
 import pytest
-from scouter.test import MockConfig
+from scouter.mock import MockConfig
 
 
 @dataclass
