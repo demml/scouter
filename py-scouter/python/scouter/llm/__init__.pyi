@@ -1,8 +1,8 @@
 # pylint: disable=redefined-builtin, invalid-name, dangerous-default-value
 
+import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Sequence
-import datetime
 
 class PromptTokenDetails:
     """Details about the prompt tokens used in a request."""
@@ -230,7 +230,7 @@ class Message:
                 The message with the context bound.
         """
 
-    def bind_mutable(self, name: str, context: str) -> "Message":
+    def bind_mut(self, name: str, context: str) -> "Message":
         """Bind context to a specific variable in the prompt. This is a mutable operation meaning that it
         will modify the current Message object.
 
@@ -245,7 +245,7 @@ class Message:
                     ],
                     system_message="system_prompt",
                 )
-                prompt.user_message[0].bind_mutable("variable", "hello world") # we bind "hello world" to "variable"
+                prompt.user_message[0].bind_mut("variable", "hello world") # we bind "hello world" to "variable"
             ```
 
         Args:
@@ -382,11 +382,13 @@ class ModelSettings:
 class Prompt:
     def __init__(
         self,
-        user_message: str
-        | Sequence[str | ImageUrl | AudioUrl | BinaryContent | DocumentUrl]
-        | Message
-        | List[Message]
-        | List[Dict[str, Any]],
+        user_message: (
+            str
+            | Sequence[str | ImageUrl | AudioUrl | BinaryContent | DocumentUrl]
+            | Message
+            | List[Message]
+            | List[Dict[str, Any]]
+        ),
         model: Optional[str] = None,
         provider: Optional[str] = None,
         system_message: Optional[str | List[str]] = None,
@@ -720,6 +722,7 @@ class Workflow:
             bool:
                 True if the workflow is complete, False otherwise.
         """
+
     def pending_count(self) -> int:
         """Get the number of pending tasks in the workflow.
 

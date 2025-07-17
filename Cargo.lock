@@ -769,7 +769,7 @@ dependencies = [
 [[package]]
 name = "baked-potato"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#852ab51a038a29c32aae64bdafc9623e844ba519"
+source = "git+https://github.com/demml/potatohead.git?branch=main#781834dca0bc793738d1b8fe997437e85335a4bc"
 dependencies = [
  "mockito",
  "potato-agent",
@@ -4101,7 +4101,7 @@ dependencies = [
 [[package]]
 name = "potato-agent"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#852ab51a038a29c32aae64bdafc9623e844ba519"
+source = "git+https://github.com/demml/potatohead.git?branch=main#781834dca0bc793738d1b8fe997437e85335a4bc"
 dependencies = [
  "potato-prompt",
  "potato-type",
@@ -4118,7 +4118,7 @@ dependencies = [
 [[package]]
 name = "potato-head"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#852ab51a038a29c32aae64bdafc9623e844ba519"
+source = "git+https://github.com/demml/potatohead.git?branch=main#781834dca0bc793738d1b8fe997437e85335a4bc"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -4131,7 +4131,7 @@ dependencies = [
 [[package]]
 name = "potato-prompt"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#852ab51a038a29c32aae64bdafc9623e844ba519"
+source = "git+https://github.com/demml/potatohead.git?branch=main#781834dca0bc793738d1b8fe997437e85335a4bc"
 dependencies = [
  "mime_guess",
  "potato-type",
@@ -4148,7 +4148,7 @@ dependencies = [
 [[package]]
 name = "potato-type"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#852ab51a038a29c32aae64bdafc9623e844ba519"
+source = "git+https://github.com/demml/potatohead.git?branch=main#781834dca0bc793738d1b8fe997437e85335a4bc"
 dependencies = [
  "potato-util",
  "pyo3",
@@ -4160,7 +4160,7 @@ dependencies = [
 [[package]]
 name = "potato-util"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#852ab51a038a29c32aae64bdafc9623e844ba519"
+source = "git+https://github.com/demml/potatohead.git?branch=main#781834dca0bc793738d1b8fe997437e85335a4bc"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -4175,7 +4175,7 @@ dependencies = [
 [[package]]
 name = "potato-workflow"
 version = "0.2.3"
-source = "git+https://github.com/demml/potatohead.git?branch=main#852ab51a038a29c32aae64bdafc9623e844ba519"
+source = "git+https://github.com/demml/potatohead.git?branch=main#781834dca0bc793738d1b8fe997437e85335a4bc"
 dependencies = [
  "chrono",
  "potato-agent",

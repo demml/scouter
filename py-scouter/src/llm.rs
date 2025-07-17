@@ -1,6 +1,7 @@
 use potato_head::{
-    AudioUrl, BinaryContent, ChatResponse, DocumentUrl, EventDetails, ImageUrl, Message,
-    ModelSettings, Prompt, Provider, PyAgent, PyTask, PyWorkflow, Score, Task, TaskEvent,
+    AudioUrl, BinaryContent, ChatResponse, CompletionTokenDetails, DocumentUrl, EventDetails,
+    ImageUrl, Message, ModelSettings, Prompt, PromptTokenDetails, Provider, PyAgent,
+    PyAgentResponse, PyTask, PyWorkflow, Score, Task, TaskEvent, TaskList, TaskStatus, Usage,
     WorkflowResult,
 };
 use pyo3::prelude::*;
@@ -23,5 +24,11 @@ pub fn llm(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ChatResponse>()?;
     m.add_class::<TaskEvent>()?;
     m.add_class::<WorkflowResult>()?;
+    m.add_class::<CompletionTokenDetails>()?;
+    m.add_class::<PromptTokenDetails>()?;
+    m.add_class::<Usage>()?;
+    m.add_class::<TaskList>()?;
+    m.add_class::<TaskStatus>()?;
+    m.add_class::<PyAgentResponse>()?;
     Ok(())
 }

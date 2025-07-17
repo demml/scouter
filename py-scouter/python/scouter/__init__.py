@@ -11,6 +11,7 @@ from .scouter import (  # noqa
     profile,
     queue,
     types,
+    llm,
 )
 from .version import __version__
 
@@ -23,6 +24,10 @@ PsiDriftProfile = drift.PsiDriftProfile
 CustomMetric = drift.CustomMetric
 CustomDriftProfile = drift.CustomDriftProfile
 CustomMetricDriftConfig = drift.CustomMetricDriftConfig
+LLMMetric = drift.LLMMetric
+LLMDriftConfig = drift.LLMDriftConfig
+LLMDriftProfile = drift.LLMDriftProfile
+
 
 # Profile imports
 DataProfiler = profile.DataProfiler
@@ -63,6 +68,9 @@ __all__ = [
     "CustomMetric",
     "CustomDriftProfile",
     "CustomMetricDriftConfig",
+    "LLMMetric",
+    "LLMDriftConfig",
+    "LLMDriftProfile",
     # Profile
     "DataProfiler",
     "DataProfile",
