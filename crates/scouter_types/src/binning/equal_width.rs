@@ -2,10 +2,9 @@ use crate::error::TypeError;
 use ndarray::ArrayView1;
 use ndarray_stats::QuantileExt;
 use num_traits::{Float, FromPrimitive};
-use pyo3::{pyclass, pymethods, Bound, PyAny, PyResult};
+use pyo3::{pyclass, pymethods, Bound, PyAny};
 use pyo3::prelude::PyAnyMethods;
 use serde::{Deserialize, Serialize};
-
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -235,6 +234,12 @@ impl EqualWidthMethod {
     }
 }
 
+impl Default for EqualWidthMethod {
+    fn default() -> Self {
+        EqualWidthMethod::Doane(Doane)
+    }
+}
+
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct EqualWidthBinning {
@@ -243,16 +248,41 @@ pub struct EqualWidthBinning {
 
 impl Default for EqualWidthBinning {
     fn default() -> Self {
-        Self { method: EqualWidthMethod::Doane(Doane) }
+        Self { method: EqualWidthMethod::default() }
     }
 }
 
 #[pymethods]
 impl EqualWidthBinning {
     #[new]
-    #[pyo3(signature = (method=EqualWidthMethod::Doane(Doane)))]
+    #[pyo3(signature = (method=None))]
     pub fn new(method: Option<&Bound<'_, PyAny>>) -> Result<Self, TypeError> {
-       Self { method: EqualWidthMethod::Doane(Doane) }
+        let method = match method {
+            None => EqualWidthMethod::default(),
+            Some(method_obj) => {
+                if method_obj.is_instance_of::<Manual>() {
+                    EqualWidthMethod::Manual(method_obj.extract()?)
+                } else if method_obj.is_instance_of::<SquareRoot>() {
+                    EqualWidthMethod::SquareRoot(method_obj.extract()?)
+                } else if method_obj.is_instance_of::<Rice>() {
+                    EqualWidthMethod::Rice(method_obj.extract()?)
+                } else if method_obj.is_instance_of::<Sturges>() {
+                    EqualWidthMethod::Sturges(method_obj.extract()?)
+                } else if method_obj.is_instance_of::<Doane>() {
+                    EqualWidthMethod::Doane(method_obj.extract()?)
+                } else if method_obj.is_instance_of::<Scott>() {
+                    EqualWidthMethod::Scott(method_obj.extract()?)
+                } else if method_obj.is_instance_of::<TerrellScott>() {
+                    EqualWidthMethod::TerrellScott(method_obj.extract()?)
+                } else if method_obj.is_instance_of::<FreedmanDiaconis>() {
+                    EqualWidthMethod::FreedmanDiaconis(method_obj.extract()?)
+                } else {
+                    return Err(TypeError::InvalidEqualWidthBinningMethodError);
+                }
+            }
+        };
+
+        Ok(EqualWidthBinning { method })
     }
 }
 

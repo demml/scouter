@@ -18,10 +18,9 @@ from scouter import (  # type: ignore
     ScouterClient,
     ScouterQueue,
     QuantileBinning,
-    EqualWidthBinning
+    EqualWidthBinning, Manual, Scott
 )
 from scouter.alert import SlackDispatchConfig
-from scouter.drift import EqualWidthMethod
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.util import FeatureMixin
 
@@ -98,11 +97,11 @@ def create_psi_profile() -> Path:
             ],
             dispatch_config=SlackDispatchConfig(channel="test")
         ),
-        categorical_features=["category"]
+        categorical_features=["category"],
+        binning_strategy=EqualWidthBinning(method=Scott())
     )
 
     # create psi profile
-    breakpoint()
     print(psi_config.binning_strategy)
     psi_profile = drifter.create_drift_profile(data, psi_config)
 

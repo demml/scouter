@@ -21,5 +21,13 @@ pub fn drift(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<CustomDriftProfile>()?;
     m.add_class::<QuantileBinning>()?;
     m.add_class::<EqualWidthBinning>()?;
+    m.add_class::<Manual>()?;
+    m.add_class::<SquareRoot>()?;
+    m.add_class::<Sturges>()?;
+    m.add_class::<Rice>()?;
+    m.add_class::<Doane>()?;
+    m.add_class::<Scott>()?;
+    m.add_class::<TerrellScott>()?;
+    m.add_class::<FreedmanDiaconis>()?;
     Ok(())
 }

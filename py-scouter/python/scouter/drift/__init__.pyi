@@ -361,9 +361,10 @@ class FreedmanDiaconis:
     def __init__(self):
         """Manual binning with specified number of bins"""
 
+EqualWidthMethods = Manual | SquareRoot | Sturges | Rice | Doane | Scott | TerrellScott | FreedmanDiaconis
 
 class EqualWidthBinning:
-    def __init__(self, method: Union[Manual, EqualWidthMethod] = EqualWidthMethod.DOANE):
+    def __init__(self, method: EqualWidthMethods = Doane()):
         """Initialize equal width binning config
 
         Args:
