@@ -5,8 +5,8 @@ from pathlib import Path
 import pandas as pd
 from scouter.client import HTTPConfig, ScouterClient
 from scouter.drift import Drifter, PsiDriftConfig
+from scouter.mock import MockConfig
 from scouter.queue import Feature, Features, ScouterQueue
-from scouter.test import MockConfig
 
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"
 
@@ -43,3 +43,11 @@ def test_mock_config(
     queue.shutdown()
 
     assert isinstance(queue.transport_config, MockConfig)
+
+
+def test_mock_config_kwargs():
+    MockConfig(
+        kafka_brokers="localhost:9092",
+        kafka_topic="test_topic",
+        kafka_compression_type="gzip",
+    )

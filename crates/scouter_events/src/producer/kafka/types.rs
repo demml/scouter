@@ -113,14 +113,25 @@ impl KafkaConfig {
         config: Option<&Bound<'_, PyDict>>,
         max_retries: Option<i32>,
     ) -> Result<Self, PyEventError> {
-        let username = username.or_else(|| std::env::var("KAFKA_USERNAME").ok());
-        let password = password.or_else(|| std::env::var("KAFKA_PASSWORD").ok());
+        let username = username.or_else(|| {
+            std::env::var("KAFKA_USERNAME")
+                .ok()
+                .or_else(|| std::env::var("KAFKA_KEY").ok())
+        });
+
+        let password = password.or_else(|| {
+            std::env::var("KAFKA_PASSWORD")
+                .ok()
+                .or_else(|| std::env::var("KAFKA_SECRET").ok())
+        });
 
         let brokers = brokers.unwrap_or_else(|| {
             env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_string())
         });
         let topic = topic.unwrap_or_else(|| {
-            env::var("KAFKA_TOPIC").unwrap_or_else(|_| "scouter_monitoring".to_string())
+            env::var("SCOUTER_KAFKA_TOPIC")
+                .or_else(|_| env::var("KAFKA_TOPIC"))
+                .unwrap_or_else(|_| "scouter_monitoring".to_string())
         });
         let compression_type =
             CompressionType::from_str(&compression_type.unwrap_or_else(|| "gzip".to_string()))?;
