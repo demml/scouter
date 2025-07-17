@@ -338,13 +338,13 @@ pub struct LLMDriftServerSQLRecord {
 
     pub version: String,
 
-    pub input: String,
+    pub input: Value,
 
-    pub response: String,
+    pub response: Value,
 
     pub prompt: Json<Option<Prompt>>,
 
-    pub context: Json<Value>,
+    pub context: Value,
 
     pub status: String,
 
@@ -368,7 +368,7 @@ impl LLMDriftServerSQLRecord {
             input: record.input.clone(),
             response: record.response.clone(),
             prompt: Json(record.prompt.clone()),
-            context: Json(record.context.clone()),
+            context: record.context.clone(),
             status: record.status.to_string(),
             id: 0,               // This is a placeholder, as the ID will be set by the database
             uid: create_uuid7(), // This is also a placeholder, as the UID will be set by the database
@@ -389,7 +389,7 @@ impl From<LLMDriftServerSQLRecord> for LLMDriftServerRecord {
             version: sql_record.version,
             input: sql_record.input,
             response: sql_record.response,
-            context: sql_record.context.0,
+            context: sql_record.context,
             prompt: sql_record.prompt.0,
             status: sql_record.status.parse().unwrap_or_default(), // Handle parsing appropriately
             processing_started_at: sql_record.processing_started_at,
@@ -428,8 +428,8 @@ pub struct LLMDriftTaskRequest {
     pub space: String,
     pub name: String,
     pub version: String,
-    pub input: String,
-    pub response: String,
+    pub input: Value,
+    pub response: Value,
     pub prompt: Json<Prompt>,
-    pub context: Json<Value>,
+    pub context: Value,
 }

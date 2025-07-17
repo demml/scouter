@@ -179,13 +179,11 @@ pub struct LLMDriftServerRecord {
     pub version: String,
 
     #[pyo3(get)]
-    pub input: String,
-
-    #[pyo3(get)]
-    pub response: String,
-
-    #[pyo3(get)]
     pub prompt: Option<Prompt>,
+
+    pub input: Value,
+
+    pub response: Value,
 
     pub context: Value,
 
@@ -217,8 +215,8 @@ impl LLMDriftServerRecord {
         space: String,
         name: String,
         version: String,
-        input: String,
-        response: String,
+        input: Bound<'_, PyAny>,
+        response: Bound<'_, PyAny>,
         prompt: Option<Prompt>,
         context: Option<Bound<'_, PyDict>>,
     ) -> Result<Self, RecordError> {
@@ -226,6 +224,9 @@ impl LLMDriftServerRecord {
         let context_val = context
             .map(|c| pyobject_to_json(&c))
             .unwrap_or(Ok(Value::Object(serde_json::Map::new())))?;
+
+        let input = pyobject_to_json(&input)?;
+        let response = pyobject_to_json(&response)?;
 
         Ok(Self {
             created_at: Utc::now(),
@@ -265,8 +266,8 @@ impl LLMDriftServerRecord {
         space: String,
         name: String,
         version: String,
-        input: String,
-        response: String,
+        input: Value,
+        response: Value,
         prompt: Option<Prompt>,
         context: Value,
     ) -> Self {

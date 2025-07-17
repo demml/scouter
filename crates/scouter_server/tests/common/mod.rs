@@ -26,6 +26,7 @@ use scouter_types::{
     Status,
 };
 use serde_json::Map;
+use serde_json::Value;
 use sqlx::{PgPool, Pool, Postgres};
 use std::env;
 use std::sync::Arc;
@@ -256,8 +257,8 @@ impl TestHelper {
                     name: NAME.to_string(),
                     version: VERSION.to_string(),
                     prompt: Some(prompt.clone()),
-                    input: format!("input{i}"),
-                    response: format!("output{i}"),
+                    input: Value::String(format!("input{i}")),
+                    response: Value::String(format!("output{i}")),
                     context: serde_json::Value::Object(Map::new()),
                     status: Status::Pending,
                     id: 0,

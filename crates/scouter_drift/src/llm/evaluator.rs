@@ -84,19 +84,12 @@ impl LLMEvaluator {
     ) -> Result<bool, DriftError> {
         debug!("Processing workflow");
 
-        let mut context = task.context.0.clone();
+        let mut context = task.context.clone();
         let merged_context = match &mut context {
             Value::Object(ref mut map) => {
                 // Insert input if not empty
-                if !task.input.is_empty() {
-                    map.insert("input".to_string(), Value::String(task.input.clone()));
-                }
-
-                // Insert response if present
-                if !task.response.is_empty() {
-                    map.insert("response".to_string(), Value::String(task.response.clone()));
-                }
-
+                map.insert("input".to_string(), task.input.clone());
+                map.insert("response".to_string(), task.response.clone());
                 debug!("Successfully merged input and response into context");
                 context
             }

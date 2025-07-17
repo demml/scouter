@@ -15,6 +15,7 @@ use scouter_types::{
     BinnedMetrics, LLMDriftServerRecord, RecordType,
 };
 use scouter_types::{LLMMetricServerRecord, Status};
+use sqlx::types::Json;
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::collections::HashMap;
 use std::str::FromStr;
@@ -35,17 +36,15 @@ pub trait LLMDriftSqlLogic {
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertLLMDriftRecord.get_query();
 
-        let sql_record = LLMDriftServerSQLRecord::from_server_record(record);
-
         sqlx::query(&query.sql)
-            .bind(sql_record.created_at)
-            .bind(&sql_record.space)
-            .bind(&sql_record.name)
-            .bind(&sql_record.version)
-            .bind(&sql_record.input)
-            .bind(&sql_record.response)
-            .bind(&sql_record.context)
-            .bind(&sql_record.prompt)
+            .bind(record.created_at)
+            .bind(&record.space)
+            .bind(&record.name)
+            .bind(&record.version)
+            .bind(&record.input)
+            .bind(&record.response)
+            .bind(&record.context)
+            .bind(Json(&record.prompt))
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)
@@ -140,7 +139,7 @@ pub trait LLMDriftSqlLogic {
                     input: record.input,
                     response: record.response,
                     prompt: record.prompt.0,
-                    context: record.context.0,
+                    context: record.context,
                     status: Status::from_str(&record.status).unwrap_or(Status::Pending), // Default to Pending if parsing fails
                     id: record.id,                 // Ensure we include the ID
                     uid: record.uid,               // Include the UID
@@ -234,7 +233,7 @@ pub trait LLMDriftSqlLogic {
                 input: record.input,
                 response: record.response,
                 prompt: record.prompt.0,
-                context: record.context.0,
+                context: record.context,
                 status: Status::from_str(&record.status).unwrap_or(Status::Pending),
                 id: record.id,                 // Ensure we include the ID
                 uid: record.uid,               // Include the UID

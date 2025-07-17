@@ -173,6 +173,7 @@ mod tests {
         Status,
     };
     use serde_json::Map;
+    use serde_json::Value;
 
     fn cleanup() {
         let storage_settings = ObjectStorageSettings::default();
@@ -201,8 +202,8 @@ mod tests {
                     name: "test".to_string(),
                     version: "1.0".to_string(),
                     prompt: Some(prompt.clone()),
-                    input: format!("input{i}"),
-                    response: format!("output{i}"),
+                    input: Value::String(format!("input{i}")),
+                    response: Value::String(format!("output{i}")),
                     context: serde_json::Value::Object(Map::new()),
                     status: Status::Pending,
                     id: 0,

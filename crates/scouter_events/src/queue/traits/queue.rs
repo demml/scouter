@@ -190,7 +190,7 @@ pub trait QueueMethods {
                     if current_retry == max_retries {
                         return Err(EventError::QueuePushError);
                     }
-                    // Exponential backoff: 100ms, 200ms, 400ms
+                    // Added exponential backoff: 100ms, 200ms, 400ms
                     sleep(Duration::from_millis(100 * 2_u64.pow(current_retry))).await;
                 }
             }

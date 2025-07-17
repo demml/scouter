@@ -1,9 +1,11 @@
 use crate::error::TypeError;
+use crate::json_to_pyobject_value;
 use crate::util::pyobject_to_json;
 use crate::ProfileFuncs;
 use potato_head::Prompt;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PyString};
+use pyo3::IntoPyObjectExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -355,11 +357,10 @@ impl Metrics {
 #[pyclass]
 #[derive(Clone, Serialize, Debug)]
 pub struct LLMRecord {
-    #[pyo3(get)]
-    pub input: String,
+    pub input: Value,
 
-    #[pyo3(get)]
-    pub response: String,
+    pub response: Value,
+
     pub context: Value,
 
     #[pyo3(get)]
@@ -373,8 +374,8 @@ pub struct LLMRecord {
 impl LLMRecord {
     #[new]
     pub fn new(
-        input: Option<String>,
-        response: Option<String>,
+        input: Option<Bound<'_, PyAny>>,
+        response: Option<Bound<'_, PyAny>>,
         context: Option<Bound<'_, PyDict>>,
         prompt: Option<Prompt>,
     ) -> Result<Self, TypeError> {
@@ -385,20 +386,52 @@ impl LLMRecord {
             .map(|c| pyobject_to_json(&c))
             .unwrap_or(Ok(Value::Object(serde_json::Map::new())))?;
 
+        // Convert input and response to JSON values, default to empty string Value if None
+        let input = input
+            .map(|i| pyobject_to_json(&i))
+            .unwrap_or(Ok(Value::String(String::new())))?;
+
+        let response = response
+            .map(|r| pyobject_to_json(&r))
+            .unwrap_or(Ok(Value::String(String::new())))?;
+
         Ok(LLMRecord {
-            input: input.unwrap_or_default(),
-            response: response.unwrap_or_default(),
+            input,
+            response,
             context: context_val,
             prompt,
             entity_type: EntityType::LLM,
         })
     }
+
+    #[getter]
+    pub fn input<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
+        Ok(json_to_pyobject_value(py, &self.input)?
+            .bind(py)
+            .clone()
+            .into_bound_py_any(py)?
+            .clone())
+    }
+
+    #[getter]
+    pub fn response<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
+        Ok(json_to_pyobject_value(py, &self.response)?
+            .into_bound_py_any(py)?
+            .clone())
+    }
+
+    #[getter]
+    pub fn context<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
+        Ok(json_to_pyobject_value(py, &self.context)?
+            .into_bound_py_any(py)?
+            .clone())
+    }
 }
 
 impl LLMRecord {
     pub fn new_rs(
-        input: Option<String>,
-        response: Option<String>,
+        input: Option<Value>,
+        response: Option<Value>,
         context: Option<Value>,
         prompt: Option<Prompt>,
     ) -> Self {
@@ -420,7 +453,7 @@ impl LLMRecord {
 pub enum QueueItem {
     Features(Features),
     Metrics(Metrics),
-    LLM(LLMRecord),
+    LLM(Box<LLMRecord>),
 }
 
 impl QueueItem {
@@ -440,7 +473,7 @@ impl QueueItem {
             EntityType::LLM => {
                 // LLM is not supported in this context
                 let llm = entity.extract::<LLMRecord>()?;
-                Ok(QueueItem::LLM(llm))
+                Ok(QueueItem::LLM(Box::new(llm)))
             }
         }
     }

@@ -64,7 +64,7 @@ impl QueueNum {
         match entity {
             QueueItem::Features(features) => self.insert_features(features).await,
             QueueItem::Metrics(metrics) => self.insert_metrics(metrics).await,
-            QueueItem::LLM(llm_record) => self.insert_llm_record(llm_record).await,
+            QueueItem::LLM(llm_record) => self.insert_llm_record(*llm_record).await,
         }
     }
 

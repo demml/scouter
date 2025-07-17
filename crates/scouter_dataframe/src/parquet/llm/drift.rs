@@ -125,9 +125,16 @@ impl LLMDriftDataFrame {
         let version_array =
             StringArray::from_iter_values(records.iter().map(|r| r.version.as_str()));
 
-        let input_array = StringArray::from_iter_values(records.iter().map(|r| r.input.as_str()));
-        let response_array =
-            StringArray::from_iter_values(records.iter().map(|r| r.response.as_str()));
+        let input_array = StringArray::from_iter_values(
+            records
+                .iter()
+                .map(|r| serde_json::to_string(&r.input).unwrap_or_else(|_| "{}".to_string())),
+        );
+        let response_array = StringArray::from_iter_values(
+            records
+                .iter()
+                .map(|r| serde_json::to_string(&r.response).unwrap_or_else(|_| "{}".to_string())),
+        );
 
         let context_array = StringArray::from_iter_values(
             records

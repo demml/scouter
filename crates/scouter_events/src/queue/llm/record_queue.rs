@@ -28,7 +28,7 @@ impl LLMRecordQueue {
     /// # Returns
     ///
     /// * `Result<(), FeatureQueueError>` - A result indicating success or failure
-    #[instrument(skip_all, name = "insert_custom")]
+    #[instrument(skip_all, name = "insert_llm")]
     pub fn insert(
         &self,
         records: Vec<&LLMRecord>,
