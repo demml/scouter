@@ -11,9 +11,6 @@ from ..logging import LogLevel
 from ..mock import MockConfig
 from ..observe import ObservabilityMetrics
 
-class Prompt(Protocol):
-    """Potato Head Prompt Protocol"""
-
 class TransportType:
     Kafka = "TransportType"
     RabbitMQ = "TransportType"
@@ -227,7 +224,9 @@ class ServerRecord:
     @property
     def record(
         self,
-    ) -> Union[SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics]:
+    ) -> Union[
+        SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics
+    ]:
         """Return the drift server record."""
 
 class ServerRecords:

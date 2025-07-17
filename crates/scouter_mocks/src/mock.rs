@@ -212,5 +212,14 @@ impl ScouterTestServer {
     }
 }
 
+<<<<<<<< HEAD:crates/scouter_mocks/src/mock.rs
 #[pyclass(name = "OpenAITestServer")]
 pub struct OpenAITestServer;
+========
+#[pymodule]
+pub fn mock(m: &Bound<'_, PyModule>) -> PyResult<()> {
+    m.add_class::<ScouterTestServer>()?;
+    m.add_class::<MockConfig>()?;
+    Ok(())
+}
+>>>>>>>> cleanup/env-vars:py-scouter/src/mock.rs
