@@ -19,7 +19,7 @@ pub fn mock(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     #[cfg(not(feature = "server"))]
     {
-        m.add_class::<scouter_mocks::MockPyAgent>()?;
+        m.add_class::<scouter_mocks::MockAgent>()?;
         m.add_class::<scouter_mocks::MockWorkflow>()?;
         m.add_class::<scouter_mocks::MockTask>()?;
         m.add_class::<scouter_mocks::MockPrompt>()?;

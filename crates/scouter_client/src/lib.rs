@@ -29,10 +29,10 @@ pub use scouter_types::{
     AlertDispatchType, AlertThreshold, BinnedMetric, BinnedMetricStats, BinnedMetrics,
     ConsoleDispatchConfig, CustomMetricServerRecord, DataType, DriftAlertRequest, DriftProfile,
     DriftRequest, DriftType, EntityType, Feature, FeatureMap, Features, GetProfileRequest,
-    LatencyMetrics, Metric, Metrics, ObservabilityMetrics, OpsGenieDispatchConfig, ProfileRequest,
-    ProfileStatusRequest, PsiServerRecord, RecordType, RouteMetrics, ScouterResponse,
-    ScouterServerError, ServerRecord, ServerRecords, SlackDispatchConfig, SpcServerRecord,
-    TimeInterval, UpdateAlertResponse, UpdateAlertStatus,
+    LLMRecord, LatencyMetrics, Metric, Metrics, ObservabilityMetrics, OpsGenieDispatchConfig,
+    ProfileRequest, ProfileStatusRequest, PsiServerRecord, RecordType, RouteMetrics,
+    ScouterResponse, ScouterServerError, ServerRecord, ServerRecords, SlackDispatchConfig,
+    SpcServerRecord, TimeInterval, UpdateAlertResponse, UpdateAlertStatus,
 };
 
 pub use crate::http::{PyScouterClient, ScouterClient};
@@ -47,8 +47,8 @@ pub use scouter_events::producer::{
     kafka::KafkaConfig, mock::MockConfig, rabbitmq::RabbitMQConfig, redis::RedisConfig,
 };
 pub use scouter_events::queue::{
-    custom::CustomMetricFeatureQueue, psi::PsiFeatureQueue, spc::SpcFeatureQueue, QueueBus,
-    ScouterQueue,
+    custom::CustomMetricFeatureQueue, llm::LLMRecordQueue, psi::PsiFeatureQueue,
+    spc::SpcFeatureQueue, QueueBus, ScouterQueue,
 };
 
 pub use scouter_observability::Observer;

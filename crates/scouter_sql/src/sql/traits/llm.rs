@@ -138,7 +138,7 @@ pub trait LLMDriftSqlLogic {
                     version: record.version,
                     input: record.input,
                     response: record.response,
-                    prompt: record.prompt.0,
+                    prompt: record.prompt,
                     context: record.context,
                     status: Status::from_str(&record.status).unwrap_or(Status::Pending), // Default to Pending if parsing fails
                     id: record.id,                 // Ensure we include the ID
@@ -232,7 +232,7 @@ pub trait LLMDriftSqlLogic {
                 version: record.version,
                 input: record.input,
                 response: record.response,
-                prompt: record.prompt.0,
+                prompt: record.prompt,
                 context: record.context,
                 status: Status::from_str(&record.status).unwrap_or(Status::Pending),
                 id: record.id,                 // Ensure we include the ID

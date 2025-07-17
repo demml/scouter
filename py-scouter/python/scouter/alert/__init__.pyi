@@ -456,5 +456,5 @@ class LLMMetricAlertCondition:
             alert_threshold = LLMMetricAlertCondition(AlertCondition.BELOW, 2.0)
         """
 
-    def __str__(self): ...
-    """Return the string representation of the alert condition."""
+    def __str__(self) -> str:
+        """Return the string representation of LLMMetricAlertCondition."""

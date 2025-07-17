@@ -1,6 +1,6 @@
 pub mod mock;
 pub use mock::{
-    OpenAITestServer as MockOpenAITestServer, Prompt, PyAgent as MockAgent,
+    OpenAITestServer as MockOpenAITestServer, Prompt as MockPrompt, PyAgent as MockAgent,
     PyWorkflow as MockWorkflow, Score as MockScore, ScouterTestServer, Task as MockTask,
 };
 

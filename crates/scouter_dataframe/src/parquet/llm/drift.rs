@@ -142,11 +142,11 @@ impl LLMDriftDataFrame {
                 .map(|r| serde_json::to_string(&r.context).unwrap_or_else(|_| "{}".to_string())),
         );
 
-        let prompt_array = StringArray::from_iter_values(
-            records
-                .iter()
-                .map(|r| serde_json::to_string(&r.prompt).unwrap_or_else(|_| "{}".to_string())),
-        );
+        let prompt_array = StringArray::from_iter(records.iter().map(|r| {
+            r.prompt
+                .as_ref()
+                .map(|p| serde_json::to_string(p).unwrap_or_else(|_| "{}".to_string()))
+        }));
         let updated_at_array = TimestampNanosecondArray::from_iter(
             records
                 .iter()

@@ -363,8 +363,7 @@ pub struct LLMRecord {
 
     pub context: Value,
 
-    #[pyo3(get)]
-    pub prompt: Option<Prompt>,
+    pub prompt: Option<Value>,
 
     #[pyo3(get)]
     pub entity_type: EntityType,
@@ -373,11 +372,17 @@ pub struct LLMRecord {
 #[pymethods]
 impl LLMRecord {
     #[new]
+    #[pyo3(signature = (
+        input=None,
+        response=None,
+        context=None,
+        prompt=None,
+    ))]
     pub fn new(
         input: Option<Bound<'_, PyAny>>,
         response: Option<Bound<'_, PyAny>>,
         context: Option<Bound<'_, PyDict>>,
-        prompt: Option<Prompt>,
+        prompt: Option<Bound<'_, PyAny>>,
     ) -> Result<Self, TypeError> {
         if input.is_none() && response.is_none() {
             return Err(TypeError::MissingInputOrResponse);
@@ -394,6 +399,18 @@ impl LLMRecord {
         let response = response
             .map(|r| pyobject_to_json(&r))
             .unwrap_or(Ok(Value::String(String::new())))?;
+
+        let prompt: Option<Value> = match prompt {
+            Some(p) => {
+                if p.is_instance_of::<Prompt>() {
+                    let prompt = p.extract::<Prompt>()?;
+                    Some(serde_json::to_value(prompt)?)
+                } else {
+                    Some(pyobject_to_json(&p)?)
+                }
+            }
+            None => None,
+        };
 
         Ok(LLMRecord {
             input,
@@ -433,7 +450,7 @@ impl LLMRecord {
         input: Option<Value>,
         response: Option<Value>,
         context: Option<Value>,
-        prompt: Option<Prompt>,
+        prompt: Option<Value>,
     ) -> Self {
         LLMRecord {
             input: input.unwrap_or_default(),

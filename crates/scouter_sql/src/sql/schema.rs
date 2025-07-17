@@ -342,7 +342,7 @@ pub struct LLMDriftServerSQLRecord {
 
     pub response: Value,
 
-    pub prompt: Json<Option<Prompt>>,
+    pub prompt: Option<Value>,
 
     pub context: Value,
 
@@ -367,7 +367,7 @@ impl LLMDriftServerSQLRecord {
             version: record.version.clone(),
             input: record.input.clone(),
             response: record.response.clone(),
-            prompt: Json(record.prompt.clone()),
+            prompt: record.prompt.clone(),
             context: record.context.clone(),
             status: record.status.to_string(),
             id: 0,               // This is a placeholder, as the ID will be set by the database
@@ -390,7 +390,7 @@ impl From<LLMDriftServerSQLRecord> for LLMDriftServerRecord {
             input: sql_record.input,
             response: sql_record.response,
             context: sql_record.context,
-            prompt: sql_record.prompt.0,
+            prompt: sql_record.prompt,
             status: sql_record.status.parse().unwrap_or_default(), // Handle parsing appropriately
             processing_started_at: sql_record.processing_started_at,
             processing_ended_at: sql_record.processing_ended_at,

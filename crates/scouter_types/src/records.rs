@@ -178,8 +178,7 @@ pub struct LLMDriftServerRecord {
     #[pyo3(get)]
     pub version: String,
 
-    #[pyo3(get)]
-    pub prompt: Option<Prompt>,
+    pub prompt: Option<Value>,
 
     pub input: Value,
 
@@ -217,7 +216,7 @@ impl LLMDriftServerRecord {
         version: String,
         input: Bound<'_, PyAny>,
         response: Bound<'_, PyAny>,
-        prompt: Option<Prompt>,
+        prompt: Option<Bound<'_, PyAny>>,
         context: Option<Bound<'_, PyDict>>,
     ) -> Result<Self, RecordError> {
         // Check if pydict was provided, if not, create an empty Map
@@ -227,6 +226,19 @@ impl LLMDriftServerRecord {
 
         let input = pyobject_to_json(&input)?;
         let response = pyobject_to_json(&response)?;
+
+        // if prompt is provided, check if it is a valid Prompt object
+        let prompt: Option<Value> = match prompt {
+            Some(p) => {
+                if p.is_instance_of::<Prompt>() {
+                    let prompt = p.extract::<Prompt>()?;
+                    Some(serde_json::to_value(prompt)?)
+                } else {
+                    Some(pyobject_to_json(&p)?)
+                }
+            }
+            None => None,
+        };
 
         Ok(Self {
             created_at: Utc::now(),
@@ -268,7 +280,7 @@ impl LLMDriftServerRecord {
         version: String,
         input: Value,
         response: Value,
-        prompt: Option<Prompt>,
+        prompt: Option<Value>,
         context: Value,
     ) -> Self {
         Self {

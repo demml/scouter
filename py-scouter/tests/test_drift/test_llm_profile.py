@@ -5,7 +5,14 @@ import pytest
 from pydantic import BaseModel
 from scouter.alert import AlertThreshold
 from scouter.drift import LLMDriftConfig, LLMDriftProfile, LLMMetric
-from scouter.mock import Agent, OpenAITestServer, Prompt, Score, Task, Workflow
+from scouter.mock import (  # type: ignore
+    Agent,
+    OpenAITestServer,
+    Prompt,
+    Score,
+    Task,
+    Workflow,
+)
 
 
 class TaskOutput(BaseModel):
