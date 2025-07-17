@@ -2,6 +2,18 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.6.5] - 2025-07-17
+
+### 🚜 Refactor
+
+- Should be able to instantiate Feature without specifying type
+- Parsing logic for list and dictionary
+- Switching over to batch insert
+
+### 📚 Documentation
+
+- Docs
+
 ## [0.5.6] - 2025-06-17
 
 ### 🐛 Bug Fixes
