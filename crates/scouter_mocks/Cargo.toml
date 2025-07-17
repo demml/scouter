@@ -6,7 +6,7 @@ edition = "2021"
 [dependencies]
 pyo3 = { workspace = true }
 mockito = { workspace = true, optional = true }
-potato-head = { workspace = true , optional = true}
+potato-head = { workspace = true , optional = true, features = ["mock"] }
 reqwest = { workspace = true, optional = true }
 scouter-client = { workspace = true }
 scouter-server = { workspace = true , optional = true, features = ["kafka", "rabbitmq", "redis_events"] }
@@ -23,7 +23,6 @@ server = [
     "mockito",
     "serde_json",
     "scouter-server",
-    "potato-head/mock",
 ]
 
 [profile.release]

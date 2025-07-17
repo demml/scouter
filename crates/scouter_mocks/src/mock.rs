@@ -212,21 +212,5 @@ impl ScouterTestServer {
     }
 }
 
-// Create a dummy PyAgent class for testing
-#[pyclass(name = "Agent")]
-pub struct PyAgent;
-
-#[pyclass(name = "Workflow")]
-pub struct PyWorkflow;
-
-#[pyclass(name = "Task")]
-pub struct Task;
-
-#[pyclass(name = "Prompt")]
-pub struct Prompt;
-
-#[pyclass(name = "Score")]
-pub struct Score;
-
 #[pyclass(name = "OpenAITestServer")]
 pub struct OpenAITestServer;

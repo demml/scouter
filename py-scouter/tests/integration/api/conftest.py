@@ -8,7 +8,14 @@ from pydantic import BaseModel
 from scouter import HTTPConfig, KafkaConfig, ScouterQueue  # type: ignore[attr-defined]
 from scouter.alert import SpcAlertConfig
 from scouter.client import ScouterClient
-from scouter.drift import Drifter, SpcDriftConfig, SpcDriftProfile
+from scouter.drift import (
+    Drifter,
+    SpcDriftConfig,
+    SpcDriftProfile,
+    LLMDriftProfile,
+    LLMDriftConfig,
+    LLMMetric,
+)
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.util import FeatureMixin
 
@@ -38,6 +45,28 @@ def create_and_register_drift_profile(
 ) -> SpcDriftProfile:
     data = generate_data()
 
+    # create drift config (usually associated with a model name, space name, version)
+    config = SpcDriftConfig(
+        space="scouter",
+        name=name,
+        version="0.1.0",
+        alert_config=SpcAlertConfig(features_to_monitor=data.columns.tolist()),
+    )
+
+    # create drifter
+    drifter = Drifter()
+
+    # create drift profile
+    profile = drifter.create_drift_profile(data, config)
+    client.register_profile(profile, True)
+
+    return profile
+
+
+def create_and_register_llm_drift_profile(
+    client: ScouterClient,
+    name: str,
+) -> List[LLMDriftProfile]:
     # create drift config (usually associated with a model name, space name, version)
     config = SpcDriftConfig(
         space="scouter",

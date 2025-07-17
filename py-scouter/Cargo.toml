@@ -17,6 +17,7 @@ ndarray-stats = { workspace = true }
 potato-head = { workspace = true, optional = true }
 reqwest = { workspace = true, optional = true }
 rusty-logging = { workspace = true }
+potato-head = { workspace = true, features = ["mock"] }
 scouter-client = { workspace = true }
 scouter-server = { workspace = true , optional = true, features = ["kafka", "rabbitmq", "redis_events"] }
 scouter-mocks = { workspace = true}
