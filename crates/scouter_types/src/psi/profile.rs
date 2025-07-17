@@ -1,4 +1,7 @@
 #![allow(clippy::useless_conversion)]
+use crate::binning::quantile::QuantileBinning;
+use crate::binning::equal_width::EqualWidthBinning;
+use crate::binning::strategy::BinningStrategy;
 use crate::error::{ProfileError, TypeError};
 use crate::psi::alert::PsiAlertConfig;
 use crate::util::{json_to_pyobject, pyobject_to_json};
@@ -18,7 +21,6 @@ use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::path::PathBuf;
 use tracing::debug;
-use crate::binning::strategy::BinningStrategy;
 
 #[pyclass(eq)]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
@@ -53,7 +55,7 @@ pub struct PsiDriftConfig {
     #[pyo3(get, set)]
     pub categorical_features: Option<Vec<String>>,
 
-    binning_strategy: BinningStrategy
+    pub binning_strategy: BinningStrategy,
 }
 
 fn default_drift_type() -> DriftType {
@@ -87,16 +89,18 @@ impl PsiDriftConfig {
 
         let binning_strategy = match binning_strategy {
             None => BinningStrategy::default(),
-            Some(config) => {
-                if config.is_instance_of::<SlackDispatchConfig>() {
-                    AlertDispatchConfig::Slack(config.extract()?)
-                } else if config.is_instance_of::<OpsGenieDispatchConfig>() {
-                    AlertDispatchConfig::OpsGenie(config.extract()?)
+            Some(strategy) => {
+                if strategy.is_instance_of::<QuantileBinning>() {
+                    BinningStrategy::QuantileBinning(strategy.extract()?)
+                } else if strategy.is_instance_of::<EqualWidthBinning>() {
+                    BinningStrategy::EqualWidthBinning(strategy.extract()?)
                 } else {
                     return Err(ProfileError::InvalidBinningStrategyError);
                 }
             }
         };
+
+        println!("{binning_strategy:#?}");
 
         if name == MISSING || space == MISSING {
             debug!("Name and space were not provided. Defaulting to __missing__");
@@ -159,6 +163,11 @@ impl PsiDriftConfig {
         }
 
         Ok(())
+    }
+
+    #[getter]
+    pub fn binning_strategy<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        self.binning_strategy.strategy(py)
     }
 }
 
@@ -566,6 +575,7 @@ mod tests {
             PsiAlertConfig::default(),
             None,
             None,
+            None
         )
         .unwrap();
         assert_eq!(drift_config.name, "__missing__");

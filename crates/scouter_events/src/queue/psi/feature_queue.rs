@@ -254,7 +254,7 @@ mod tests {
             features_to_monitor: features.clone(),
             ..Default::default()
         };
-        let config = PsiDriftConfig::new("name", "repo", DEFAULT_VERSION, alert_config, None, None);
+        let config = PsiDriftConfig::new("name", "repo", DEFAULT_VERSION, alert_config, None, None, None);
 
         let profile = monitor
             .create_2d_drift_profile(&features, &array.view(), &config.unwrap())

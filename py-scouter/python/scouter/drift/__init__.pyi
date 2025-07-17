@@ -1,7 +1,9 @@
 # pylint: disable=dangerous-default-value
+
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, overload
 
+from scouter.drift import EqualWidthMethod
 from ..alert import (
     AlertThreshold,
     CustomMetricAlertCondition,
@@ -323,23 +325,67 @@ class SpcDriftMap:
     def to_numpy(self) -> Any:
         """Return drift map as a tuple of sample_array, drift_array and list of features"""
 
+class Manual:
+    def __init__(self, num_bins: int):
+        """Manual binning with specified number of bins
 
-class SlackDispatchConfig:
-    def __init__(self, channel: str):
+        Args:
+            num_bins: The number of bins you want created
+        """
+
+class SquareRoot:
+    def __init__(self):
+        """Manual binning with specified number of bins"""
+
+class Sturges:
+    def __init__(self):
+        """Manual binning with specified number of bins"""
+
+class Rice:
+    def __init__(self):
+        """Manual binning with specified number of bins"""
+
+class Doane:
+    def __init__(self):
+        """Manual binning with specified number of bins"""
+
+class Scott:
+    def __init__(self):
+        """Manual binning with specified number of bins"""
+
+class TerrellScott:
+    def __init__(self):
+        """Manual binning with specified number of bins"""
+
+class FreedmanDiaconis:
+    def __init__(self):
+        """Manual binning with specified number of bins"""
+
+
+class EqualWidthBinning:
+    def __init__(self, method: Union[Manual, EqualWidthMethod] = EqualWidthMethod.DOANE):
+        """Initialize equal width binning config
+
+        Args:
+            method: Either Manual(num_bins) or an EqualWidthMethod enum value
+        """
+
+class QuantileBinning:
+    def __init__(self, num_bins: int = 10):
         """Initialize alert config
 
         Args:
-            channel:
-                Slack channel name for where alerts will be reported
+            num_bins:
+                The number of bins you want created using the r7 quantile method
         """
 
     @property
-    def channel(self) -> str:
-        """Return the slack channel name"""
+    def num_bins(self) -> int:
+        """The number of bins you want created using the r7 quantile method"""
 
-    @channel.setter
-    def channel(self, channel: str) -> None:
-        """Set the slack channel name for where alerts will be reported"""
+    @num_bins.setter
+    def num_bins(self, num_bins: int) -> None:
+        """Set the number of bins you want created using the r7 quantile method"""
 
 class PsiDriftConfig:
     def __init__(
@@ -350,6 +396,7 @@ class PsiDriftConfig:
         alert_config: PsiAlertConfig = PsiAlertConfig(),
         config_path: Optional[Path] = None,
         categorical_features: Optional[list[str]] = None,
+        binning_strategy: QuantileBinning | EqualWidthBinning = QuantileBinning(num_bins=10),
     ):
         """Initialize monitor config
 
@@ -366,6 +413,8 @@ class PsiDriftConfig:
                 Optional path to load config from.
             categorical_features:
                 List of features to treat as categorical for PSI calculation.
+            binning_strategy:
+                Strategy used to compute bin edges (e.g., quantile-based). Used for PSI calculation.
         """
 
     @property
@@ -407,6 +456,10 @@ class PsiDriftConfig:
     @property
     def drift_type(self) -> DriftType:
         """Drift type"""
+
+    @property
+    def binning_strategy(self) -> QuantileBinning:
+        """binning_strategy"""
 
     @property
     def categorical_features(self) -> list[str]:

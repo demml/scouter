@@ -19,5 +19,7 @@ pub fn drift(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<CustomMetric>()?;
     m.add_class::<CustomMetricDriftConfig>()?;
     m.add_class::<CustomDriftProfile>()?;
+    m.add_class::<QuantileBinning>()?;
+    m.add_class::<EqualWidthBinning>()?;
     Ok(())
 }

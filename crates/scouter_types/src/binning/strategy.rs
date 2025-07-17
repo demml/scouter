@@ -19,10 +19,10 @@ impl Default for BinningStrategy {
 }
 
 impl BinningStrategy {
-    pub fn config<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+    pub fn strategy<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         match self {
-            BinningStrategy::QuantileBinning(config) => config.clone().into_bound_py_any(py),
-            BinningStrategy::EqualWidthBinning(config) => config.clone().into_bound_py_any(py)
+            BinningStrategy::QuantileBinning(strategy) => strategy.clone().into_bound_py_any(py),
+            BinningStrategy::EqualWidthBinning(strategy) => strategy.clone().into_bound_py_any(py),
         }
     }
 

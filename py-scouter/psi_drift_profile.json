@@ -1,0 +1,346 @@
+{
+  "features": {
+    "feature_0": {
+      "id": "feature_0",
+      "bins": [
+        {
+          "id": 1,
+          "lower_limit": "-inf",
+          "upper_limit": -6.525702027450775,
+          "proportion": 0.1
+        },
+        {
+          "id": 2,
+          "lower_limit": -6.525702027450775,
+          "upper_limit": -5.7939352169408425,
+          "proportion": 0.1
+        },
+        {
+          "id": 3,
+          "lower_limit": -5.7939352169408425,
+          "upper_limit": -5.113631441435414,
+          "proportion": 0.1
+        },
+        {
+          "id": 4,
+          "lower_limit": -5.113631441435414,
+          "upper_limit": -4.619628286942593,
+          "proportion": 0.1
+        },
+        {
+          "id": 5,
+          "lower_limit": -4.619628286942593,
+          "upper_limit": -4.132333328089873,
+          "proportion": 0.1
+        },
+        {
+          "id": 6,
+          "lower_limit": -4.132333328089873,
+          "upper_limit": -3.556368476017117,
+          "proportion": 0.1
+        },
+        {
+          "id": 7,
+          "lower_limit": -3.556368476017117,
+          "upper_limit": -3.0113187451351644,
+          "proportion": 0.1
+        },
+        {
+          "id": 8,
+          "lower_limit": -3.0113187451351644,
+          "upper_limit": -2.332465800819874,
+          "proportion": 0.1
+        },
+        {
+          "id": 9,
+          "lower_limit": -2.332465800819874,
+          "upper_limit": -1.377105174352871,
+          "proportion": 0.1
+        },
+        {
+          "id": 10,
+          "lower_limit": -1.377105174352871,
+          "upper_limit": "inf",
+          "proportion": 0.1
+        }
+      ],
+      "timestamp": "2025-07-17T00:16:58.175500Z",
+      "bin_type": "Numeric"
+    },
+    "category": {
+      "id": "category",
+      "bins": [
+        {
+          "id": 14,
+          "lower_limit": null,
+          "upper_limit": null,
+          "proportion": 0.196
+        },
+        {
+          "id": 22,
+          "lower_limit": null,
+          "upper_limit": null,
+          "proportion": 0.212
+        },
+        {
+          "id": 31,
+          "lower_limit": null,
+          "upper_limit": null,
+          "proportion": 0.192
+        },
+        {
+          "id": 12,
+          "lower_limit": null,
+          "upper_limit": null,
+          "proportion": 0.197
+        },
+        {
+          "id": 11,
+          "lower_limit": null,
+          "upper_limit": null,
+          "proportion": 0.203
+        }
+      ],
+      "timestamp": "2025-07-17T00:16:58.175411Z",
+      "bin_type": "Category"
+    },
+    "feature_1": {
+      "id": "feature_1",
+      "bins": [
+        {
+          "id": 1,
+          "lower_limit": "-inf",
+          "upper_limit": -6.574716987700096,
+          "proportion": 0.1
+        },
+        {
+          "id": 2,
+          "lower_limit": -6.574716987700096,
+          "upper_limit": -5.709243554442466,
+          "proportion": 0.1
+        },
+        {
+          "id": 3,
+          "lower_limit": -5.709243554442466,
+          "upper_limit": -5.100270439007556,
+          "proportion": 0.1
+        },
+        {
+          "id": 4,
+          "lower_limit": -5.100270439007556,
+          "upper_limit": -4.547377803863573,
+          "proportion": 0.1
+        },
+        {
+          "id": 5,
+          "lower_limit": -4.547377803863573,
+          "upper_limit": -4.060316668471195,
+          "proportion": 0.1
+        },
+        {
+          "id": 6,
+          "lower_limit": -4.060316668471195,
+          "upper_limit": -3.487629997267937,
+          "proportion": 0.1
+        },
+        {
+          "id": 7,
+          "lower_limit": -3.487629997267937,
+          "upper_limit": -2.918972039529587,
+          "proportion": 0.1
+        },
+        {
+          "id": 8,
+          "lower_limit": -2.918972039529587,
+          "upper_limit": -2.330987221366591,
+          "proportion": 0.1
+        },
+        {
+          "id": 9,
+          "lower_limit": -2.330987221366591,
+          "upper_limit": -1.4355953826616954,
+          "proportion": 0.1
+        },
+        {
+          "id": 10,
+          "lower_limit": -1.4355953826616954,
+          "upper_limit": "inf",
+          "proportion": 0.1
+        }
+      ],
+      "timestamp": "2025-07-17T00:16:58.175500Z",
+      "bin_type": "Numeric"
+    },
+    "feature_2": {
+      "id": "feature_2",
+      "bins": [
+        {
+          "id": 1,
+          "lower_limit": "-inf",
+          "upper_limit": -6.5781722936192235,
+          "proportion": 0.1
+        },
+        {
+          "id": 2,
+          "lower_limit": -6.5781722936192235,
+          "upper_limit": -5.603611573946956,
+          "proportion": 0.1
+        },
+        {
+          "id": 3,
+          "lower_limit": -5.603611573946956,
+          "upper_limit": -5.03186481069133,
+          "proportion": 0.1
+        },
+        {
+          "id": 4,
+          "lower_limit": -5.03186481069133,
+          "upper_limit": -4.420630943733651,
+          "proportion": 0.1
+        },
+        {
+          "id": 5,
+          "lower_limit": -4.420630943733651,
+          "upper_limit": -3.898909560715277,
+          "proportion": 0.1
+        },
+        {
+          "id": 6,
+          "lower_limit": -3.898909560715277,
+          "upper_limit": -3.3735970591014266,
+          "proportion": 0.1
+        },
+        {
+          "id": 7,
+          "lower_limit": -3.3735970591014266,
+          "upper_limit": -2.822855127413935,
+          "proportion": 0.1
+        },
+        {
+          "id": 8,
+          "lower_limit": -2.822855127413935,
+          "upper_limit": -2.2597579169977458,
+          "proportion": 0.1
+        },
+        {
+          "id": 9,
+          "lower_limit": -2.2597579169977458,
+          "upper_limit": -1.292335708227263,
+          "proportion": 0.1
+        },
+        {
+          "id": 10,
+          "lower_limit": -1.292335708227263,
+          "upper_limit": "inf",
+          "proportion": 0.1
+        }
+      ],
+      "timestamp": "2025-07-17T00:16:58.175503Z",
+      "bin_type": "Numeric"
+    },
+    "feature_3": {
+      "id": "feature_3",
+      "bins": [
+        {
+          "id": 1,
+          "lower_limit": "-inf",
+          "upper_limit": -6.584325668874023,
+          "proportion": 0.1
+        },
+        {
+          "id": 2,
+          "lower_limit": -6.584325668874023,
+          "upper_limit": -5.702380362434225,
+          "proportion": 0.1
+        },
+        {
+          "id": 3,
+          "lower_limit": -5.702380362434225,
+          "upper_limit": -5.094258302626679,
+          "proportion": 0.1
+        },
+        {
+          "id": 4,
+          "lower_limit": -5.094258302626679,
+          "upper_limit": -4.526742473517264,
+          "proportion": 0.1
+        },
+        {
+          "id": 5,
+          "lower_limit": -4.526742473517264,
+          "upper_limit": -4.023633977118738,
+          "proportion": 0.1
+        },
+        {
+          "id": 6,
+          "lower_limit": -4.023633977118738,
+          "upper_limit": -3.5541497727007196,
+          "proportion": 0.1
+        },
+        {
+          "id": 7,
+          "lower_limit": -3.5541497727007196,
+          "upper_limit": -3.0974468275343794,
+          "proportion": 0.1
+        },
+        {
+          "id": 8,
+          "lower_limit": -3.0974468275343794,
+          "upper_limit": -2.5045163339198178,
+          "proportion": 0.1
+        },
+        {
+          "id": 9,
+          "lower_limit": -2.5045163339198178,
+          "upper_limit": -1.6551554338262342,
+          "proportion": 0.1
+        },
+        {
+          "id": 10,
+          "lower_limit": -1.6551554338262342,
+          "upper_limit": "inf",
+          "proportion": 0.1
+        }
+      ],
+      "timestamp": "2025-07-17T00:16:58.175506Z",
+      "bin_type": "Numeric"
+    }
+  },
+  "config": {
+    "space": "scouter",
+    "name": "psi_test",
+    "version": "0.0.1",
+    "alert_config": {
+      "schedule": "0 0 */6 * * *",
+      "features_to_monitor": [
+        "feature_1",
+        "feature_2"
+      ],
+      "dispatch_config": {
+        "Slack": {
+          "channel": "test"
+        }
+      },
+      "threshold": {
+        "ChiSquare": {
+          "alpha": 0.05
+        }
+      }
+    },
+    "feature_map": {
+      "features": {}
+    },
+    "drift_type": "Psi",
+    "categorical_features": [
+      "category"
+    ],
+    "binning_strategy": {
+      "EqualWidthBinning": {
+        "method": {
+          "Doane": null
+        }
+      }
+    }
+  },
+  "scouter_version": "0.6.4"
+}

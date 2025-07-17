@@ -17,8 +17,11 @@ from scouter import (  # type: ignore
     PsiDriftConfig,
     ScouterClient,
     ScouterQueue,
+    QuantileBinning,
+    EqualWidthBinning
 )
 from scouter.alert import SlackDispatchConfig
+from scouter.drift import EqualWidthMethod
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.util import FeatureMixin
 
@@ -50,7 +53,7 @@ class PredictRequest(BaseModel, FeatureMixin):
 
 def generate_data() -> pd.DataFrame:
     """Create a fake data frame for testing"""
-    n = 0
+    n = 1000
     X_train = np.random.normal(-4, 2.0, size=(n, 4))
     col_names = []
     for i in range(0, X_train.shape[1]):
@@ -95,12 +98,12 @@ def create_psi_profile() -> Path:
             ],
             dispatch_config=SlackDispatchConfig(channel="test")
         ),
-        categorical_features=["category"],
-        binning_
+        categorical_features=["category"]
     )
 
     # create psi profile
     breakpoint()
+    print(psi_config.binning_strategy)
     psi_profile = drifter.create_drift_profile(data, psi_config)
 
     # register profile

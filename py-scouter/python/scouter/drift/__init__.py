@@ -1,6 +1,6 @@
 # type: ignore
 from .. import drift
-
+from enum import Enum
 FeatureMap = drift.FeatureMap
 SpcFeatureDriftProfile = drift.SpcFeatureDriftProfile
 SpcDriftConfig = drift.SpcDriftConfig
@@ -14,6 +14,17 @@ CustomMetricDriftConfig = drift.CustomMetricDriftConfig
 CustomMetric = drift.CustomMetric
 CustomDriftProfile = drift.CustomDriftProfile
 Drifter = drift.Drifter
+QuantileBinning = drift.QuantileBinning
+EqualWidthBinning = drift.EqualWidthBinning
+Manual = drift.Manual
+SquareRoot = drift.SquareRoot
+Sturges = drift.Sturges
+Rice = drift.Rice
+Doane = drift.Doane
+Scott = drift.Scott
+TerrellScott = drift.TerrellScott
+FreedmanDiaconis = drift.FreedmanDiaconis
+
 
 __all__ = [
     "FeatureMap",
@@ -29,4 +40,15 @@ __all__ = [
     "CustomMetric",
     "CustomDriftProfile",
     "Drifter",
+    "QuantileBinning",
+    "EqualWidthBinning",
+    "EqualWidthMethod",
+    "Manual",
+    "SquareRoot",
+    "Sturges",
+    "Rice",
+    "Doane",
+    "Scott",
+    "TerrellScott",
+    "FreedmanDiaconis"
 ]

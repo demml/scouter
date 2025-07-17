@@ -22,3 +22,4 @@ pub use http::*;
 pub use queue::types::*;
 pub use records::*;
 pub use util::*;
+pub use binning::*;

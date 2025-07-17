@@ -7,12 +7,14 @@ use serde::{Deserialize, Serialize};
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct QuantileBinning {
+    #[pyo3(get, set)]
     pub num_bins: usize,
 }
 
 #[pymethods]
 impl QuantileBinning {
     #[new]
+    #[pyo3(signature = (num_bins=10))]
     pub fn new(num_bins: usize) -> PyResult<Self> {
         Ok(QuantileBinning { num_bins })
     }

@@ -2,13 +2,24 @@ use crate::error::TypeError;
 use ndarray::ArrayView1;
 use ndarray_stats::QuantileExt;
 use num_traits::{Float, FromPrimitive};
-use pyo3::{pyclass, pymethods, PyResult};
+use pyo3::{pyclass, pymethods, Bound, PyAny, PyResult};
+use pyo3::prelude::PyAnyMethods;
 use serde::{Deserialize, Serialize};
-use crate::binning::quantile::QuantileBinning;
 
+
+#[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Manual {
     num_bins: usize,
+}
+
+
+#[pymethods]
+impl Manual {
+    #[new]
+    pub fn new(num_bins: usize) -> Self {
+        Manual { num_bins }
+    }
 }
 
 impl Manual {
@@ -17,8 +28,17 @@ impl Manual {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct SquareRoot;
+
+#[pymethods]
+impl SquareRoot {
+    #[new]
+    pub fn new() -> Self {
+        SquareRoot
+    }
+}
 
 impl SquareRoot {
     pub fn num_bins<F>(&self, arr: &ArrayView1<F>) -> usize {
@@ -27,8 +47,17 @@ impl SquareRoot {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Sturges;
+
+#[pymethods]
+impl Sturges {
+    #[new]
+    pub fn new() -> Self {
+        Sturges
+    }
+}
 
 impl Sturges {
     pub fn num_bins<F>(&self, arr: &ArrayView1<F>) -> usize {
@@ -37,8 +66,17 @@ impl Sturges {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Rice;
+
+#[pymethods]
+impl Rice {
+    #[new]
+    pub fn new() -> Self {
+        Rice
+    }
+}
 
 impl Rice {
     pub fn num_bins<F>(&self, arr: &ArrayView1<F>) -> usize {
@@ -46,8 +84,17 @@ impl Rice {
         (2.0 * n.powf(1.0 / 3.0)).ceil() as usize
     }
 }
+#[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Doane;
+
+#[pymethods]
+impl Doane {
+    #[new]
+    pub fn new() -> Self {
+        Doane
+    }
+}
 
 impl Doane {
     pub fn num_bins<F>(&self, arr: &ArrayView1<F>) -> usize
@@ -65,8 +112,18 @@ impl Doane {
         k.round() as usize
     }
 }
+#[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Scott;
+
+#[pymethods]
+impl Scott {
+    #[new]
+    pub fn new() -> Self {
+        Scott
+    }
+}
+
 
 impl Scott {
     pub fn num_bins<F>(&self, arr: &ArrayView1<F>) -> usize
@@ -86,8 +143,18 @@ impl Scott {
         (range / bin_width).ceil() as usize
     }
 }
+#[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct TerrellScott;
+
+#[pymethods]
+impl TerrellScott {
+    #[new]
+    pub fn new() -> Self {
+        TerrellScott
+    }
+}
+
 
 impl TerrellScott {
     pub fn num_bins<F>(&self, arr: &ArrayView1<F>) -> usize {
@@ -95,8 +162,18 @@ impl TerrellScott {
         (2.0 * n).powf(1.0 / 3.0).ceil() as usize
     }
 }
+
+#[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct FreedmanDiaconis;
+
+#[pymethods]
+impl FreedmanDiaconis {
+    #[new]
+    pub fn new() -> Self {
+        FreedmanDiaconis
+    }
+}
 
 impl FreedmanDiaconis {
     pub fn num_bins<F>(&self, arr: &ArrayView1<F>) -> usize
@@ -126,6 +203,7 @@ impl FreedmanDiaconis {
     }
 }
 
+#[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum EqualWidthMethod {
     Manual(Manual),
@@ -137,6 +215,7 @@ pub enum EqualWidthMethod {
     TerrellScott(TerrellScott),
     FreedmanDiaconis(FreedmanDiaconis),
 }
+
 
 impl EqualWidthMethod {
     pub fn num_bins<F>(&self, arr: &ArrayView1<F>) -> usize
@@ -162,14 +241,21 @@ pub struct EqualWidthBinning {
     pub method: EqualWidthMethod,
 }
 
+impl Default for EqualWidthBinning {
+    fn default() -> Self {
+        Self { method: EqualWidthMethod::Doane(Doane) }
+    }
+}
+
 #[pymethods]
 impl EqualWidthBinning {
     #[new]
-    pub fn new(num_bins: usize) -> PyResult<Self> {
-
-        Ok(EqualWidthBinning { method })
+    #[pyo3(signature = (method=EqualWidthMethod::Doane(Doane)))]
+    pub fn new(method: Option<&Bound<'_, PyAny>>) -> Result<Self, TypeError> {
+       Self { method: EqualWidthMethod::Doane(Doane) }
     }
 }
+
 
 impl EqualWidthBinning {
     pub fn compute_edges<F>(&self, arr: &ArrayView1<F>) -> Result<Vec<F>, TypeError>

@@ -41,6 +41,9 @@ pub enum TypeError {
     #[error("Invalid alert dispatch configuration")]
     InvalidDispatchConfigError,
 
+    #[error("Invalid equal width binning method")]
+    InvalidEqualWidthBinningMethodError,
+
     #[error("Missing space argument")]
     MissingSpaceError,
 

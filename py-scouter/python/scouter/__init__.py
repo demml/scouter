@@ -23,6 +23,16 @@ PsiDriftProfile = drift.PsiDriftProfile
 CustomMetric = drift.CustomMetric
 CustomDriftProfile = drift.CustomDriftProfile
 CustomMetricDriftConfig = drift.CustomMetricDriftConfig
+QuantileBinning = drift.QuantileBinning
+EqualWidthBinning = drift.EqualWidthBinning
+Manual = drift.Manual
+SquareRoot = drift.SquareRoot
+Sturges = drift.Sturges
+Rice = drift.Rice
+Doane = drift.Doane
+Scott = drift.Scott
+TerrellScott = drift.TerrellScott
+FreedmanDiaconis = drift.FreedmanDiaconis
 
 # Profile imports
 DataProfiler = profile.DataProfiler
@@ -85,4 +95,14 @@ __all__ = [
     # Client
     "HTTPConfig",
     "ScouterClient",
+    "QuantileBinning",
+    "EqualWidthBinning",
+    "Manual",
+    "SquareRoot",
+    "Sturges",
+    "Rice",
+    "Doane",
+    "Scott",
+    "TerrellScott",
+    "FreedmanDiaconis"
 ]
