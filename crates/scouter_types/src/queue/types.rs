@@ -395,6 +395,27 @@ impl LLMRecord {
     }
 }
 
+impl LLMRecord {
+    pub fn new_rs(
+        input: Option<String>,
+        response: Option<String>,
+        context: Option<Value>,
+        prompt: Option<Prompt>,
+    ) -> Self {
+        LLMRecord {
+            input: input.unwrap_or_default(),
+            response: response.unwrap_or_default(),
+            context: context.unwrap_or(Value::Object(serde_json::Map::new())),
+            prompt,
+            entity_type: EntityType::LLM,
+        }
+    }
+
+    pub fn __str__(&self) -> String {
+        ProfileFuncs::__str__(self)
+    }
+}
+
 #[derive(Debug)]
 pub enum QueueItem {
     Features(Features),

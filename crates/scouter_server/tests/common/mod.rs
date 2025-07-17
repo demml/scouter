@@ -255,7 +255,7 @@ impl TestHelper {
                     space: SPACE.to_string(),
                     name: NAME.to_string(),
                     version: VERSION.to_string(),
-                    prompt: prompt.clone(),
+                    prompt: Some(prompt.clone()),
                     input: format!("input{i}"),
                     response: format!("output{i}"),
                     context: serde_json::Value::Object(Map::new()),

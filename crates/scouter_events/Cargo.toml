@@ -23,6 +23,7 @@ ndarray = { workspace = true }
 pyo3 = { workspace = true }
 reqwest = { workspace = true }
 rusty-logging = { workspace = true }
+rand = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 scouter-drift = { workspace = true }
@@ -47,6 +48,7 @@ rdkafka = { version = "0.*", features = ["cmake-build", "ssl-vendored"] , option
 
 [dev-dependencies]
 ndarray-rand = { workspace = true }
+potato-head = { workspace = true, features = ["mock"] }
 
 [features]
 default = ["sql"]

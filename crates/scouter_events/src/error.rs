@@ -125,6 +125,9 @@ pub enum EventError {
     #[error("Queue not supported for metrics entity")]
     QueueNotSupportedMetricsError,
 
+    #[error("Queue not supported for LLM entity")]
+    QueueNotSupportedLLMError,
+
     #[error("Failed to signal startup")]
     SignalStartupError,
 

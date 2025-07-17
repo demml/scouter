@@ -4,12 +4,8 @@ use core::result::Result::Ok;
 use scouter_types::BoxedLLMDriftServerRecord;
 use scouter_types::LLMRecord;
 use scouter_types::QueueExt;
-use scouter_types::{
-    llm::LLMDriftProfile, CustomMetricServerRecord, LLMDriftServerRecord, ServerRecord,
-    ServerRecords,
-};
-use std::collections::HashMap;
-use tracing::{error, instrument};
+use scouter_types::{llm::LLMDriftProfile, LLMDriftServerRecord, ServerRecord, ServerRecords};
+use tracing::instrument;
 pub struct LLMRecordQueue {
     drift_profile: LLMDriftProfile,
     empty_queue: Vec<LLMRecord>,
@@ -33,7 +29,7 @@ impl LLMRecordQueue {
     ///
     /// * `Result<(), FeatureQueueError>` - A result indicating success or failure
     #[instrument(skip_all, name = "insert_custom")]
-    fn insert(
+    pub fn insert(
         &self,
         records: Vec<&LLMRecord>,
         queue: &mut Vec<LLMRecord>,
@@ -89,59 +85,55 @@ impl FeatureQueue for LLMRecordQueue {
 mod tests {
 
     use super::*;
-    use scouter_types::custom::{CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig};
-    use scouter_types::{AlertThreshold, EntityType};
-    use scouter_types::{Metric, Metrics};
+    use potato_head::create_score_prompt;
+    use scouter_types::llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftProfile, LLMMetric};
+    use scouter_types::AlertThreshold;
 
-    #[test]
-    fn test_feature_queue_custom_insert_metric() {
-        let metric1 = CustomMetric::new("mae", 10.0, AlertThreshold::Above, None).unwrap();
-
-        let metric2 = CustomMetric::new("mape", 10.0, AlertThreshold::Above, None).unwrap();
-
-        let metric3 = CustomMetric::new("empty", 10.0, AlertThreshold::Above, None).unwrap();
-
-        let custom_config = CustomMetricDriftConfig::new(
-            "test",
-            "test",
-            "0.1.0",
-            25,
-            CustomMetricAlertConfig::default(),
-            None,
+    fn get_test_drift_profile() -> LLMDriftProfile {
+        let prompt = create_score_prompt(Some(vec!["input".to_string()]));
+        let metric1 = LLMMetric::new(
+            "coherence",
+            5.0,
+            AlertThreshold::Below,
+            Some(0.5),
+            Some(prompt.clone()),
         )
         .unwrap();
-        let profile =
-            CustomDriftProfile::new(custom_config, vec![metric1, metric2, metric3], None).unwrap();
-        let feature_queue = CustomMetricFeatureQueue::new(profile);
 
-        assert_eq!(feature_queue.empty_queue.len(), 3);
+        let metric2 = LLMMetric::new(
+            "relevancy",
+            5.0,
+            AlertThreshold::Below,
+            None,
+            Some(prompt.clone()),
+        )
+        .unwrap();
 
-        let mut metric_batch = Vec::new();
-        for i in 0..25 {
-            let one = Metric::new_rs("mae".to_string(), i as f64);
-            let two = Metric::new_rs("mape".to_string(), i as f64);
+        let alert_config = LLMAlertConfig::default();
+        let drift_config =
+            LLMDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
-            let metrics = Metrics {
-                metrics: vec![one, two],
-                entity_type: EntityType::Metric,
-            };
+        LLMDriftProfile::from_metrics(drift_config, vec![metric1, metric2]).unwrap()
+    }
 
-            metric_batch.push(metrics);
+    #[test]
+    fn test_feature_queue_llm_insert_record() {
+        let drift_profile = get_test_drift_profile();
+        let feature_queue = LLMRecordQueue::new(drift_profile);
+
+        assert_eq!(feature_queue.empty_queue.len(), 0);
+
+        let mut record_batch = Vec::new();
+        for _ in 0..1 {
+            let record = LLMRecord::new_rs(None, None, None, None);
+            record_batch.push(record);
         }
 
         let records = feature_queue
-            .create_drift_records_from_batch(metric_batch)
+            .create_drift_records_from_batch(record_batch)
             .unwrap();
 
         // empty should be excluded
-        assert_eq!(records.records.len(), 2);
-
-        // check average of mae
-        for record in records.records.iter() {
-            if let ServerRecord::Custom(custom_record) = record {
-                assert!(custom_record.metric.contains("ma"));
-                assert_eq!(custom_record.value, 12.0);
-            }
-        }
+        assert_eq!(records.records.len(), 1);
     }
 }

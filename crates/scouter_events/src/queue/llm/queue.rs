@@ -1,22 +1,16 @@
 use crate::error::EventError;
 use crate::producer::RustScouterProducer;
-use crate::queue::custom::feature_queue::CustomMetricFeatureQueue;
-use crate::queue::llm::record_queue::LLMDriftRecordQueue;
+use crate::queue::llm::record_queue::LLMRecordQueue;
 use crate::queue::traits::BackgroundTask;
-use crate::queue::traits::FeatureQueue;
 use crate::queue::traits::QueueMethods;
 use crate::queue::types::TransportConfig;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
-use scouter_types::custom::CustomDriftProfile;
 use scouter_types::llm::LLMDriftProfile;
 use scouter_types::LLMRecord;
-use scouter_types::Metrics;
 use std::sync::Arc;
 use std::sync::RwLock;
-use tokio::runtime;
-use tokio::sync::watch;
 use tracing::debug;
 
 /// The following code is a custom queue implementation for handling custom metrics.
@@ -34,19 +28,17 @@ use tracing::debug;
 /// - `sample`: A boolean indicating whether to sample metrics.
 pub struct LLMQueue {
     queue: Arc<ArrayQueue<LLMRecord>>,
-    drift_queue: Arc<LLMRecordQueue>,
+    record_queue: Arc<LLMRecordQueue>,
     producer: RustScouterProducer,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
-    stop_tx: Option<watch::Sender<()>>,
     capacity: usize,
     sample_rate_percentage: f64,
 }
 
-impl LLMDriftQueue {
+impl LLMQueue {
     pub async fn new(
         drift_profile: LLMDriftProfile,
         config: TransportConfig,
-        runtime: Arc<runtime::Runtime>,
     ) -> Result<Self, EventError> {
         let sample_rate = drift_profile.config.sample_rate;
 
@@ -56,60 +48,44 @@ impl LLMDriftQueue {
         debug!("Creating LLM Drift Queue");
         // ArrayQueue size is based on sample rate
         let queue = Arc::new(ArrayQueue::new(sample_rate * 2));
-        let llm_drift_queue = Arc::new(LLMDriftRecordQueue::new(drift_profile));
+        let record_queue = Arc::new(LLMRecordQueue::new(drift_profile));
         let last_publish = Arc::new(RwLock::new(Utc::now()));
 
         debug!("Creating Producer");
         let producer = RustScouterProducer::new(config).await?;
 
-        let (stop_tx, stop_rx) = watch::channel(());
-
-        let llm_queue = LLMDriftQueue {
-            queue: queue.clone(),
-            drift_queue: llm_drift_queue.clone(),
+        let llm_queue = LLMQueue {
+            queue,
+            record_queue,
             producer,
             last_publish,
-            stop_tx: Some(stop_tx),
             capacity: sample_rate,
             sample_rate_percentage,
         };
 
-        debug!("Starting Background Task");
-        llm_queue.start_background_worker(queue, llm_drift_queue, stop_rx, runtime)?;
-
         Ok(llm_queue)
     }
 
-    fn start_background_worker(
-        &self,
-        queue: Arc<ArrayQueue<LLMDriftRecord>>,
-        drift_queue: Arc<LLMDriftRecordQueue>,
-        stop_rx: watch::Receiver<()>,
-        rt: Arc<tokio::runtime::Runtime>,
-    ) -> Result<(), EventError> {
-        self.start_background_task(
-            queue,
-            drift_queue,
-            self.producer.clone(),
-            self.last_publish.clone(),
-            rt.clone(),
-            stop_rx,
-            self.capacity,
-            "Custom Background Polling",
-        )
+    pub fn should_insert(&self) -> bool {
+        // if the sample rate is 1, we always insert
+        if self.sample_rate_percentage == 1.0 {
+            return true;
+        }
+        // otherwise, we use the sample rate to determine if we should insert
+        rand::random::<f64>() < self.sample_rate_percentage
     }
 }
 
-impl BackgroundTask for LLMDriftQueue {
-    type DataItem = LLMDriftRecord;
-    type Processor = LLMDriftRecordQueue;
+impl BackgroundTask for LLMQueue {
+    type DataItem = LLMRecord;
+    type Processor = LLMRecordQueue;
 }
 
 #[async_trait]
 /// Implementing primary methods
-impl QueueMethods for LLMDriftQueue {
-    type ItemType = LLMDriftRecord;
-    type FeatureQueue = LLMDriftRecordQueue;
+impl QueueMethods for LLMQueue {
+    type ItemType = LLMRecord;
+    type FeatureQueue = LLMRecordQueue;
 
     fn capacity(&self) -> usize {
         self.capacity
@@ -124,7 +100,7 @@ impl QueueMethods for LLMDriftQueue {
     }
 
     fn feature_queue(&self) -> Arc<Self::FeatureQueue> {
-        self.drift_queue.clone()
+        self.record_queue.clone()
     }
 
     fn last_publish(&self) -> Arc<RwLock<DateTime<Utc>>> {
@@ -138,9 +114,6 @@ impl QueueMethods for LLMDriftQueue {
     async fn flush(&mut self) -> Result<(), EventError> {
         // publish any remaining drift records
         self.try_publish(self.queue()).await?;
-        if let Some(stop_tx) = self.stop_tx.take() {
-            let _ = stop_tx.send(());
-        }
         self.producer.flush().await
     }
 }

@@ -2,12 +2,13 @@
 use crate::error::{EventError, PyEventError};
 use crate::queue::bus::{Event, QueueBus};
 use crate::queue::custom::CustomQueue;
+use crate::queue::llm::LLMQueue;
 use crate::queue::psi::PsiQueue;
 use crate::queue::spc::SpcQueue;
 use crate::queue::traits::queue::QueueMethods;
 use crate::queue::types::TransportConfig;
 use pyo3::prelude::*;
-use scouter_types::{DriftProfile, QueueItem};
+use scouter_types::{DriftProfile, LLMRecord, QueueItem};
 use scouter_types::{Features, Metrics};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -21,6 +22,7 @@ pub enum QueueNum {
     Spc(SpcQueue),
     Psi(PsiQueue),
     Custom(CustomQueue),
+    LLM(LLMQueue),
 }
 
 impl QueueNum {
@@ -42,7 +44,10 @@ impl QueueNum {
                 let queue = CustomQueue::new(custom_profile, config, queue_runtime).await?;
                 Ok(QueueNum::Custom(queue))
             }
-            _ => todo!("Implement drift profile for LLM"),
+            DriftProfile::LLM(llm_profile) => {
+                let queue = LLMQueue::new(llm_profile, config).await?;
+                Ok(QueueNum::LLM(queue))
+            }
         }
     }
 
@@ -59,6 +64,7 @@ impl QueueNum {
         match entity {
             QueueItem::Features(features) => self.insert_features(features).await,
             QueueItem::Metrics(metrics) => self.insert_metrics(metrics).await,
+            QueueItem::LLM(llm_record) => self.insert_llm_record(llm_record).await,
         }
     }
 
@@ -89,6 +95,24 @@ impl QueueNum {
         }
     }
 
+    /// Insert LLM record into the queue. Currently only applies to LLM queues
+    ///
+    /// # Arguments
+    /// * `llm_record` - The LLM record to insert into the queue
+    ///
+    pub async fn insert_llm_record(&mut self, llm_record: LLMRecord) -> Result<(), EventError> {
+        match self {
+            QueueNum::LLM(queue) => {
+                if !queue.should_insert() {
+                    debug!("Skipping LLM record insertion due to sampling rate");
+                    return Ok(());
+                }
+                queue.insert(llm_record).await
+            }
+            _ => Err(EventError::QueueNotSupportedLLMError),
+        }
+    }
+
     /// Flush the queue. This will publish the records to the producer
     /// and shut down the background tasks
     pub async fn flush(&mut self) -> Result<(), EventError> {
@@ -96,6 +120,7 @@ impl QueueNum {
             QueueNum::Spc(queue) => queue.flush().await,
             QueueNum::Psi(queue) => queue.flush().await,
             QueueNum::Custom(queue) => queue.flush().await,
+            QueueNum::LLM(queue) => queue.flush().await,
         }
     }
 }
