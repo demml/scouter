@@ -3,12 +3,13 @@ use ndarray::ArrayView1;
 use ndarray_stats::QuantileExt;
 use num_traits::{Float, FromPrimitive};
 use pyo3::prelude::PyAnyMethods;
-use pyo3::{pyclass, pymethods, Bound, PyAny};
+use pyo3::{pyclass, pymethods, Bound, IntoPyObjectExt, PyAny, PyResult, Python};
 use serde::{Deserialize, Serialize};
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct Manual {
+    #[pyo3(get, set)]
     num_bins: usize,
 }
 
@@ -281,6 +282,20 @@ impl EqualWidthBinning {
         };
 
         Ok(EqualWidthBinning { method })
+    }
+
+    #[getter]
+    pub fn method<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
+        match &self.method {
+            EqualWidthMethod::Manual(m) => m.clone().into_bound_py_any(py),
+            EqualWidthMethod::SquareRoot(_) => "SquareRoot".into_bound_py_any(py),
+            EqualWidthMethod::Sturges(_) => "Sturges".into_bound_py_any(py),
+            EqualWidthMethod::Rice(_) => "Rice".into_bound_py_any(py),
+            EqualWidthMethod::Doane(d) => d.clone().into_bound_py_any(py),
+            EqualWidthMethod::Scott(_) => "Scott".into_bound_py_any(py),
+            EqualWidthMethod::TerrellScott(_) => "TerrellScott".into_bound_py_any(py),
+            EqualWidthMethod::FreedmanDiaconis(_) => "FreedmanDiaconis".into_bound_py_any(py),
+        }
     }
 }
 

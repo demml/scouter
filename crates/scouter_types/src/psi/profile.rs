@@ -169,6 +169,20 @@ impl PsiDriftConfig {
     pub fn binning_strategy<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         self.binning_strategy.strategy(py)
     }
+
+    #[setter]
+    pub fn set_binning_strategy(&mut self, strategy: &Bound<'_, PyAny>) -> PyResult<()> {
+        if strategy.is_instance_of::<QuantileBinning>() {
+            self.binning_strategy = BinningStrategy::QuantileBinning(strategy.extract()?);
+        } else if strategy.is_instance_of::<EqualWidthBinning>() {
+            self.binning_strategy = BinningStrategy::EqualWidthBinning(strategy.extract()?);
+        } else {
+            return Err(PyErr::new::<pyo3::exceptions::PyTypeError, _>(
+                "Invalid binning strategy type",
+            ));
+        }
+        Ok(())
+    }
 }
 
 impl Default for PsiDriftConfig {

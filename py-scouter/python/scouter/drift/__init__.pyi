@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, overload
 
 from scouter.drift import EqualWidthMethod
+
 from ..alert import (
     AlertThreshold,
     CustomMetricAlertCondition,
@@ -327,57 +328,127 @@ class SpcDriftMap:
 
 class Manual:
     def __init__(self, num_bins: int):
-        """Manual binning with specified number of bins
+        """Manual equal-width binning strategy.
+
+        Divides the feature range into a fixed number of equally sized bins.
 
         Args:
-            num_bins: The number of bins you want created
+            num_bins:
+                The exact number of bins to create.
         """
+
+    @property
+    def num_bins(self) -> int:
+        """The number of bins you want created"""
+
+    @num_bins.setter
+    def num_bins(self, num_bins: int) -> None:
+        """Set the number of bins you want created"""
 
 class SquareRoot:
     def __init__(self):
-        """Manual binning with specified number of bins"""
+        """Use the SquareRoot equal-width method.
+
+        For more information, please see: https://en.wikipedia.org/wiki/Histogram
+        """
 
 class Sturges:
     def __init__(self):
-        """Manual binning with specified number of bins"""
+        """Use the Sturges equal-width method.
+
+        For more information, please see: https://en.wikipedia.org/wiki/Histogram
+        """
 
 class Rice:
     def __init__(self):
-        """Manual binning with specified number of bins"""
+        """Use the Rice equal-width method.
+
+        For more information, please see: https://en.wikipedia.org/wiki/Histogram
+        """
 
 class Doane:
     def __init__(self):
-        """Manual binning with specified number of bins"""
+        """Use the Doane equal-width method.
+
+        For more information, please see: https://en.wikipedia.org/wiki/Histogram
+        """
 
 class Scott:
     def __init__(self):
-        """Manual binning with specified number of bins"""
+        """Use the Scott equal-width method.
+
+        For more information, please see: https://en.wikipedia.org/wiki/Histogram
+        """
 
 class TerrellScott:
     def __init__(self):
-        """Manual binning with specified number of bins"""
+        """Use the Terrell-Scott equal-width method.
+
+        For more information, please see: https://en.wikipedia.org/wiki/Histogram
+        """
 
 class FreedmanDiaconis:
     def __init__(self):
-        """Manual binning with specified number of bins"""
+        """Use the Freedman–Diaconis equal-width method.
+
+        For more information, please see: https://en.wikipedia.org/wiki/Histogram
+        """
 
 EqualWidthMethods = Manual | SquareRoot | Sturges | Rice | Doane | Scott | TerrellScott | FreedmanDiaconis
 
 class EqualWidthBinning:
     def __init__(self, method: EqualWidthMethods = Doane()):
-        """Initialize equal width binning config
+        """Initialize the equal-width binning configuration.
+
+        This strategy divides the range of values into bins of equal width.
+        Several binning rules are supported to automatically determine the
+        appropriate number of bins based on the input distribution.
+
+        Note:
+            Detailed explanations of each method are provided in their respective
+            constructors or documentation.
 
         Args:
-            method: Either Manual(num_bins) or an EqualWidthMethod enum value
+            method:
+                Specifies how the number of bins should be determined.
+                Options include:
+                  - Manual(num_bins): Explicitly sets the number of bins.
+                  - SquareRoot, Sturges, Rice, Doane, Scott, TerrellScott,
+                    FreedmanDiaconis: Rules that infer bin counts from data.
+                Defaults to Doane().
         """
+
+    @property
+    def method(self) -> EqualWidthMethods:
+        """Specifies how the number of bins should be determined."""
+
+    @method.setter
+    def method(self, method: EqualWidthMethods) -> None:
+        """Specifies how the number of bins should be determined."""
 
 class QuantileBinning:
     def __init__(self, num_bins: int = 10):
-        """Initialize alert config
+        """Initialize the quantile binning strategy.
+
+        This strategy uses the R-7 quantile method (Hyndman & Fan Type 7) to
+        compute bin edges. It is the default quantile method in R and provides
+        continuous, median-unbiased estimates that are approximately unbiased
+        for normal distributions.
+
+        The R-7 method defines quantiles using:
+            - m = 1 - p
+            - j = floor(n * p + m)
+            - h = n * p + m - j
+            - Q(p) = (1 - h) * x[j] + h * x[j+1]
+
+        Reference:
+            Hyndman, R. J. & Fan, Y. (1996). "Sample quantiles in statistical packages."
+            The American Statistician, 50(4), pp. 361–365.
+            PDF: https://www.amherst.edu/media/view/129116/original/Sample+Quantiles.pdf
 
         Args:
             num_bins:
-                The number of bins you want created using the r7 quantile method
+                Number of bins to compute using the R-7 quantile method.
         """
 
     @property
@@ -415,7 +486,11 @@ class PsiDriftConfig:
             categorical_features:
                 List of features to treat as categorical for PSI calculation.
             binning_strategy:
-                Strategy used to compute bin edges (e.g., quantile-based). Used for PSI calculation.
+                Strategy for binning continuous features during PSI calculation.
+                Supports:
+                  - QuantileBinning (R-7 method, Hyndman & Fan Type 7).
+                  - EqualWidthBinning which divides the range of values into fixed-width bins.
+                Default is QuantileBinning with 10 bins. You can also specify methods like Doane's rule with EqualWidthBinning.
         """
 
     @property
@@ -459,8 +534,12 @@ class PsiDriftConfig:
         """Drift type"""
 
     @property
-    def binning_strategy(self) -> QuantileBinning:
+    def binning_strategy(self) -> QuantileBinning | EqualWidthBinning:
         """binning_strategy"""
+
+    @binning_strategy.setter
+    def binning_strategy(self, binning_strategy: QuantileBinning | EqualWidthBinning) -> None:
+        """Set binning_strategy"""
 
     @property
     def categorical_features(self) -> list[str]:

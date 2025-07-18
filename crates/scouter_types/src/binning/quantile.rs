@@ -18,6 +18,17 @@ impl QuantileBinning {
     pub fn new(num_bins: usize) -> PyResult<Self> {
         Ok(QuantileBinning { num_bins })
     }
+
+    #[getter]
+    fn get_num_bins(&self) -> usize {
+        self.num_bins
+    }
+
+    #[setter]
+    fn set_num_bins(&mut self, value: usize) -> PyResult<()> {
+        self.num_bins = value;
+        Ok(())
+    }
 }
 
 impl Default for QuantileBinning {
@@ -39,7 +50,7 @@ impl QuantileBinning {
     /// - h = np + m - j
     /// - Q(p) = (1 - h) × x[j] + h × x[j+1]
     ///
-    /// This method is the default in R and provides continuous, median-unbiased
+    /// This method is the default in many statistical packages, median-unbiased
     /// quantile estimates that are approximately unbiased for normal distributions.
     ///
     /// # Arguments
@@ -119,21 +130,6 @@ mod tests {
                 assert_eq!(msg, "num_bins must be at least 2");
             }
             _ => panic!("Expected InvalidParameterError"),
-        }
-    }
-
-    #[test]
-    fn test_empty_array() {
-        let binning = QuantileBinning { num_bins: 4 };
-        let data = Array1::<f64>::from(vec![]);
-        let result = binning.compute_edges(&data.view());
-
-        assert!(result.is_err());
-        match result.unwrap_err() {
-            TypeError::EmptyArrayError(msg) => {
-                assert_eq!(msg, "unable to compute quantile bin edges");
-            }
-            _ => panic!("Expected EmptyArrayError"),
         }
     }
 

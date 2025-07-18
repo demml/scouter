@@ -3,9 +3,10 @@ use crate::binning::quantile::QuantileBinning;
 use crate::error::TypeError;
 use ndarray::{Array1, ArrayView1};
 use num_traits::{Float, FromPrimitive};
-use pyo3::{Bound, IntoPyObjectExt, PyAny, PyResult, Python};
+use pyo3::{pyclass, Bound, IntoPyObjectExt, PyAny, PyResult, Python};
 use serde::{Deserialize, Serialize};
 
+#[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub enum BinningStrategy {
     QuantileBinning(QuantileBinning),
@@ -39,7 +40,7 @@ impl BinningStrategy {
 
         if clean_arr.is_empty() {
             return Err(TypeError::EmptyArrayError(
-                "unable to compute quantile bin edges".to_string(),
+                "unable to compute bin edges".to_string(),
             ));
         }
 
@@ -64,7 +65,7 @@ mod tests {
         assert!(result.is_err());
         match result.unwrap_err() {
             TypeError::EmptyArrayError(msg) => {
-                assert_eq!(msg, "unable to compute quantile bin edges");
+                assert_eq!(msg, "unable to compute bin edges");
             }
             _ => panic!("Expected EmptyArrayError"),
         }

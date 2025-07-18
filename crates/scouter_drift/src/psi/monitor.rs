@@ -168,7 +168,7 @@ impl PsiMonitor {
         drift_config: &PsiDriftConfig,
     ) -> Result<PsiDriftProfile, DriftError>
     where
-        F: Float + Sync + FromPrimitive + Default + Debug,
+        F: Float + Sync + FromPrimitive + Default,
         F: Into<f64>,
     {
         let mut psi_feature_drift_profiles = HashMap::new();
@@ -490,7 +490,10 @@ mod tests {
             53.0, 39.0, 83.0, 6.0, 4.30, 2.0,
         ]);
 
-        let result = psi_monitor.create_numeric_bins(&ArrayView::from(&non_categorical_data), &PsiDriftConfig::default());
+        let result = psi_monitor.create_numeric_bins(
+            &ArrayView::from(&non_categorical_data),
+            &PsiDriftConfig::default(),
+        );
 
         assert!(result.is_ok());
         let bins = result.unwrap();

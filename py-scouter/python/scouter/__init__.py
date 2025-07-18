@@ -104,5 +104,5 @@ __all__ = [
     "Doane",
     "Scott",
     "TerrellScott",
-    "FreedmanDiaconis"
+    "FreedmanDiaconis",
 ]

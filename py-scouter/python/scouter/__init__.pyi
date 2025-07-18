@@ -6,21 +6,21 @@ from .drift import (
     CustomDriftProfile,
     CustomMetric,
     CustomMetricDriftConfig,
+    Doane,
     Drifter,
+    EqualWidthBinning,
+    FreedmanDiaconis,
+    Manual,
     PsiDriftConfig,
     PsiDriftProfile,
+    QuantileBinning,
+    Rice,
+    Scott,
     SpcDriftConfig,
     SpcDriftProfile,
-    QuantileBinning,
-    EqualWidthBinning,
-    Manual,
     SquareRoot,
     Sturges,
-    Rice,
-    Doane,
-    Scott,
     TerrellScott,
-    FreedmanDiaconis
 )
 from .profile import DataProfile, DataProfiler
 from .queue import (
@@ -77,6 +77,5 @@ __all__ = [
     "Doane",
     "Scott",
     "TerrellScott",
-    "FreedmanDiaconis"
+    "FreedmanDiaconis",
 ]
-

@@ -9,16 +9,19 @@ from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from scouter import (  # type: ignore
     CommonCrons,
+    Doane,
     Drifter,
+    EqualWidthBinning,
     Feature,
     Features,
     HTTPConfig,
+    Manual,
     PsiAlertConfig,
     PsiDriftConfig,
+    QuantileBinning,
+    Scott,
     ScouterClient,
     ScouterQueue,
-    QuantileBinning,
-    EqualWidthBinning, Manual, Scott
 )
 from scouter.alert import SlackDispatchConfig
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
@@ -80,7 +83,7 @@ def create_psi_profile() -> Path:
     drifter = Drifter()
 
     # Simple client to register drift profiles (scouter client must be running)
-    client = ScouterClient()
+    # client = ScouterClient()
 
     # create fake data
     data = generate_data()
@@ -95,13 +98,14 @@ def create_psi_profile() -> Path:
                 "feature_1",
                 "feature_2",
             ],
-            dispatch_config=SlackDispatchConfig(channel="test")
+            dispatch_config=SlackDispatchConfig(channel="test"),
         ),
         categorical_features=["category"],
-        binning_strategy=EqualWidthBinning(method=Scott())
+        # binning_strategy=EqualWidthBinning()
     )
 
     # create psi profile
+    breakpoint()
     psi_profile = drifter.create_drift_profile(data, psi_config)
 
     # register profile

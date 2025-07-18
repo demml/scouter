@@ -1,6 +1,8 @@
 # type: ignore
-from .. import drift
 from enum import Enum
+
+from .. import drift
+
 FeatureMap = drift.FeatureMap
 SpcFeatureDriftProfile = drift.SpcFeatureDriftProfile
 SpcDriftConfig = drift.SpcDriftConfig
@@ -50,5 +52,5 @@ __all__ = [
     "Doane",
     "Scott",
     "TerrellScott",
-    "FreedmanDiaconis"
+    "FreedmanDiaconis",
 ]
