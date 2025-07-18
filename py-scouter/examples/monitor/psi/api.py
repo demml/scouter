@@ -102,7 +102,6 @@ def create_psi_profile() -> Path:
     )
 
     # create psi profile
-    print(psi_config.binning_strategy)
     psi_profile = drifter.create_drift_profile(data, psi_config)
 
     # register profile

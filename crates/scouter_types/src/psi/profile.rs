@@ -1,6 +1,6 @@
 #![allow(clippy::useless_conversion)]
-use crate::binning::quantile::QuantileBinning;
 use crate::binning::equal_width::EqualWidthBinning;
+use crate::binning::quantile::QuantileBinning;
 use crate::binning::strategy::BinningStrategy;
 use crate::error::{ProfileError, TypeError};
 use crate::psi::alert::PsiAlertConfig;
@@ -575,7 +575,7 @@ mod tests {
             PsiAlertConfig::default(),
             None,
             None,
-            None
+            None,
         )
         .unwrap();
         assert_eq!(drift_config.name, "__missing__");

@@ -2,8 +2,8 @@ use crate::error::TypeError;
 use ndarray::ArrayView1;
 use ndarray_stats::QuantileExt;
 use num_traits::{Float, FromPrimitive};
-use pyo3::{pyclass, pymethods, Bound, PyAny};
 use pyo3::prelude::PyAnyMethods;
+use pyo3::{pyclass, pymethods, Bound, PyAny};
 use serde::{Deserialize, Serialize};
 
 #[pyclass]
@@ -11,7 +11,6 @@ use serde::{Deserialize, Serialize};
 pub struct Manual {
     num_bins: usize,
 }
-
 
 #[pymethods]
 impl Manual {
@@ -123,7 +122,6 @@ impl Scott {
     }
 }
 
-
 impl Scott {
     pub fn num_bins<F>(&self, arr: &ArrayView1<F>) -> usize
     where
@@ -153,7 +151,6 @@ impl TerrellScott {
         TerrellScott
     }
 }
-
 
 impl TerrellScott {
     pub fn num_bins<F>(&self, arr: &ArrayView1<F>) -> usize {
@@ -215,7 +212,6 @@ pub enum EqualWidthMethod {
     FreedmanDiaconis(FreedmanDiaconis),
 }
 
-
 impl EqualWidthMethod {
     pub fn num_bins<F>(&self, arr: &ArrayView1<F>) -> usize
     where
@@ -248,7 +244,9 @@ pub struct EqualWidthBinning {
 
 impl Default for EqualWidthBinning {
     fn default() -> Self {
-        Self { method: EqualWidthMethod::default() }
+        Self {
+            method: EqualWidthMethod::default(),
+        }
     }
 }
 
@@ -285,7 +283,6 @@ impl EqualWidthBinning {
         Ok(EqualWidthBinning { method })
     }
 }
-
 
 impl EqualWidthBinning {
     pub fn compute_edges<F>(&self, arr: &ArrayView1<F>) -> Result<Vec<F>, TypeError>

@@ -26,14 +26,14 @@ pub use scouter_types::{
         SpcDriftFeature, SpcDriftFeatures, SpcDriftProfile, SpcFeatureAlert, SpcFeatureAlerts,
         SpcFeatureDriftProfile,
     },
-    AlertDispatchType, ConsoleDispatchConfig, CustomMetricServerRecord, DataType,
-    DriftAlertRequest, DriftProfile, DriftRequest, DriftType, EntityType, Feature, FeatureMap,
-    Features, GetProfileRequest, LatencyMetrics, Metric, Metrics, ObservabilityMetrics,
-    OpsGenieDispatchConfig, ProfileRequest, ProfileStatusRequest, PsiServerRecord, RecordType,
-    RouteMetrics, ScouterResponse, ScouterServerError, ServerRecord, ServerRecords,
-    SlackDispatchConfig, SpcServerRecord, TimeInterval, UpdateAlertResponse, UpdateAlertStatus,
-    QuantileBinning, EqualWidthBinning, Manual, SquareRoot, Sturges, Rice, Doane, Scott, TerrellScott,
-    FreedmanDiaconis
+    AlertDispatchType, ConsoleDispatchConfig, CustomMetricServerRecord, DataType, Doane,
+    DriftAlertRequest, DriftProfile, DriftRequest, DriftType, EntityType, EqualWidthBinning,
+    Feature, FeatureMap, Features, FreedmanDiaconis, GetProfileRequest, LatencyMetrics, Manual,
+    Metric, Metrics, ObservabilityMetrics, OpsGenieDispatchConfig, ProfileRequest,
+    ProfileStatusRequest, PsiServerRecord, QuantileBinning, RecordType, Rice, RouteMetrics, Scott,
+    ScouterResponse, ScouterServerError, ServerRecord, ServerRecords, SlackDispatchConfig,
+    SpcServerRecord, SquareRoot, Sturges, TerrellScott, TimeInterval, UpdateAlertResponse,
+    UpdateAlertStatus,
 };
 
 pub use crate::http::{PyScouterClient, ScouterClient};

@@ -77,6 +77,9 @@ pub enum DriftError {
 
     #[error("Empty Array Detected: {0}")]
     EmptyArrayError(String),
+
+    #[error("Failed to compute binning edges: {0}")]
+    BinningError(String),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for DriftError {
