@@ -6,7 +6,6 @@ use scouter_drift::error::DriftError;
 use scouter_drift::{psi::PsiMonitor, CategoricalFeatureHelpers};
 use scouter_types::psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile};
 use std::collections::HashMap;
-use std::fmt::Debug;
 use tracing::instrument;
 
 #[derive(Default)]

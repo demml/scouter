@@ -5,7 +5,7 @@ use crate::binning::strategy::BinningStrategy;
 use crate::error::{ProfileError, TypeError};
 use crate::psi::alert::PsiAlertConfig;
 use crate::util::{json_to_pyobject, pyobject_to_json};
-use crate::{AlertDispatchConfig, OpsGenieDispatchConfig, ProfileRequest, SlackDispatchConfig};
+use crate::ProfileRequest;
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, ProfileArgs, ProfileBaseArgs,
     ProfileFuncs, DEFAULT_VERSION, MISSING,

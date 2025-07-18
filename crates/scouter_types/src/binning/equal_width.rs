@@ -31,6 +31,12 @@ impl Manual {
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct SquareRoot;
 
+impl Default for SquareRoot {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[pymethods]
 impl SquareRoot {
     #[new]
@@ -58,6 +64,12 @@ impl Sturges {
     }
 }
 
+impl Default for Sturges {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Sturges {
     pub fn num_bins<F>(&self, arr: &ArrayView1<F>) -> usize {
         let n = arr.len() as f64;
@@ -77,6 +89,12 @@ impl Rice {
     }
 }
 
+impl Default for Rice {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl Rice {
     pub fn num_bins<F>(&self, arr: &ArrayView1<F>) -> usize {
         let n = arr.len() as f64;
@@ -92,6 +110,12 @@ impl Doane {
     #[new]
     pub fn new() -> Self {
         Doane
+    }
+}
+
+impl Default for Doane {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -120,6 +144,12 @@ impl Scott {
     #[new]
     pub fn new() -> Self {
         Scott
+    }
+}
+
+impl Default for Scott {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -153,6 +183,12 @@ impl TerrellScott {
     }
 }
 
+impl Default for TerrellScott {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TerrellScott {
     pub fn num_bins<F>(&self, arr: &ArrayView1<F>) -> usize {
         let n = arr.len() as f64;
@@ -163,6 +199,12 @@ impl TerrellScott {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct FreedmanDiaconis;
+
+impl Default for FreedmanDiaconis {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 #[pymethods]
 impl FreedmanDiaconis {
@@ -238,17 +280,9 @@ impl Default for EqualWidthMethod {
 }
 
 #[pyclass]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone, Default)]
 pub struct EqualWidthBinning {
     pub method: EqualWidthMethod,
-}
-
-impl Default for EqualWidthBinning {
-    fn default() -> Self {
-        Self {
-            method: EqualWidthMethod::default(),
-        }
-    }
 }
 
 #[pymethods]
@@ -288,13 +322,13 @@ impl EqualWidthBinning {
     pub fn method<'py>(&self, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         match &self.method {
             EqualWidthMethod::Manual(m) => m.clone().into_bound_py_any(py),
-            EqualWidthMethod::SquareRoot(_) => "SquareRoot".into_bound_py_any(py),
-            EqualWidthMethod::Sturges(_) => "Sturges".into_bound_py_any(py),
-            EqualWidthMethod::Rice(_) => "Rice".into_bound_py_any(py),
-            EqualWidthMethod::Doane(d) => d.clone().into_bound_py_any(py),
-            EqualWidthMethod::Scott(_) => "Scott".into_bound_py_any(py),
-            EqualWidthMethod::TerrellScott(_) => "TerrellScott".into_bound_py_any(py),
-            EqualWidthMethod::FreedmanDiaconis(_) => "FreedmanDiaconis".into_bound_py_any(py),
+            EqualWidthMethod::SquareRoot(m) => m.clone().into_bound_py_any(py),
+            EqualWidthMethod::Sturges(m) => m.clone().into_bound_py_any(py),
+            EqualWidthMethod::Rice(m) => m.clone().into_bound_py_any(py),
+            EqualWidthMethod::Doane(m) => m.clone().into_bound_py_any(py),
+            EqualWidthMethod::Scott(m) => m.clone().into_bound_py_any(py),
+            EqualWidthMethod::TerrellScott(m) => m.clone().into_bound_py_any(py),
+            EqualWidthMethod::FreedmanDiaconis(m) => m.clone().into_bound_py_any(py),
         }
     }
 }
@@ -310,7 +344,7 @@ impl EqualWidthBinning {
 
         if num_bins < 2 {
             return Err(TypeError::InvalidBinCountError(
-                format!("Specified Binning strategy did not return enough bins, at least 2 are needed, got {}", num_bins)
+                format!("Specified Binning strategy did not return enough bins, at least 2 are needed, got {num_bins}")
             ));
         }
 
@@ -326,7 +360,7 @@ impl EqualWidthBinning {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ndarray::{Array1, ArrayView1};
+    use ndarray::Array1;
 
     #[test]
     fn test_insufficient_data_error() {
