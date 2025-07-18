@@ -7,7 +7,7 @@ use scouter_types::{
     Feature, PsiServerRecord, QueueExt, ServerRecord, ServerRecords,
 };
 use std::collections::HashMap;
-use tracing::{debug, error, instrument};
+use tracing::{debug, error, info, instrument};
 
 pub struct PsiFeatureQueue {
     pub drift_profile: PsiDriftProfile,
@@ -136,6 +136,14 @@ impl PsiFeatureQueue {
                             )
                         })?;
 
+                        if !value.is_finite() {
+                            info!(
+                                "Non finite value detected for {}, value will not be inserted into queue",
+                                feature.name()
+                            );
+                            continue;
+                        }
+
                         Self::process_numeric_queue(queue, value, bins)?
                     }
                     BinType::Category => {
@@ -201,7 +209,6 @@ impl FeatureQueue for PsiFeatureQueue {
         for elem in batch {
             self.insert(elem.features(), &mut queue)?;
         }
-
         self.create_drift_records(queue)
     }
 }
@@ -244,7 +251,15 @@ mod tests {
             features_to_monitor: features.clone(),
             ..Default::default()
         };
-        let config = PsiDriftConfig::new("name", "repo", DEFAULT_VERSION, alert_config, None, None);
+        let config = PsiDriftConfig::new(
+            "name",
+            "repo",
+            DEFAULT_VERSION,
+            alert_config,
+            None,
+            None,
+            None,
+        );
 
         let profile = monitor
             .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
