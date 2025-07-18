@@ -6,10 +6,10 @@ from .scouter import (  # noqa
     client,
     drift,
     logging,
+    mock,
     observe,
     profile,
     queue,
-    test,
     types,
 )
 from .version import __version__

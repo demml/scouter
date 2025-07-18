@@ -214,7 +214,7 @@ impl ScouterTestServer {
 }
 
 #[pymodule]
-pub fn test(m: &Bound<'_, PyModule>) -> PyResult<()> {
+pub fn mock(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ScouterTestServer>()?;
     m.add_class::<MockConfig>()?;
     Ok(())

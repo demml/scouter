@@ -1,5 +1,5 @@
 import pytest
-from scouter.test import ScouterTestServer
+from scouter.mock import ScouterTestServer
 
 
 @pytest.fixture()
