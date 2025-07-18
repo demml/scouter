@@ -5,13 +5,13 @@ from .scouter import (  # noqa
     alert,
     client,
     drift,
+    llm,
     logging,
     mock,
     observe,
     profile,
     queue,
     types,
-    llm,
 )
 from .version import __version__
 

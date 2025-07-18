@@ -1,5 +1,7 @@
 // add test logic
+use potato_head::OpenAITestServer;
 use pyo3::prelude::*;
+use scouter_client::MockConfig;
 use std::path::PathBuf;
 use thiserror::Error;
 use tracing::debug;
@@ -42,26 +44,36 @@ pub struct ScouterTestServer {
     handle: Arc<Mutex<Option<JoinHandle<()>>>>,
     #[cfg(feature = "server")]
     runtime: Arc<Runtime>,
+    openai_server: Option<OpenAITestServer>,
     cleanup: bool,
     base_path: Option<PathBuf>,
     rabbit_mq: bool,
     kafka: bool,
+    openai: bool,
 }
 
 #[pymethods]
 impl ScouterTestServer {
     #[new]
-    #[pyo3(signature = (cleanup = true, rabbit_mq = false, kafka = false, base_path = None))]
-    fn new(cleanup: bool, rabbit_mq: bool, kafka: bool, base_path: Option<PathBuf>) -> Self {
+    #[pyo3(signature = (cleanup = true, rabbit_mq = false, kafka = false, openai = false, base_path = None))]
+    fn new(
+        cleanup: bool,
+        rabbit_mq: bool,
+        kafka: bool,
+        openai: bool,
+        base_path: Option<PathBuf>,
+    ) -> Self {
         ScouterTestServer {
             #[cfg(feature = "server")]
             handle: Arc::new(Mutex::new(None)),
             #[cfg(feature = "server")]
             runtime: Arc::new(Runtime::new().unwrap()),
+            openai_server: None,
             cleanup,
             base_path,
             rabbit_mq,
             kafka,
+            openai,
         }
     }
 
@@ -93,6 +105,23 @@ impl ScouterTestServer {
 
             if self.kafka {
                 std::env::set_var("KAFKA_BROKERS", "localhost:9092");
+            }
+
+            if self.openai {
+                let mut server = OpenAITestServer::new();
+                server.start_server().unwrap();
+                self.openai_server = Some(server);
+
+                println!("Started OpenAI Test Server");
+                // print env vars for OpenAI
+                println!(
+                    "OpenAI API Key: {}",
+                    std::env::var("OPENAI_API_KEY").unwrap_or_else(|_| "Not set".to_string())
+                );
+                println!(
+                    "OpenAI API URL: {}",
+                    std::env::var("OPENAI_API_URL").unwrap_or_else(|_| "Not set".to_string())
+                );
             }
 
             let handle = self.handle.clone();
@@ -153,7 +182,7 @@ impl ScouterTestServer {
         }
     }
 
-    fn stop_server(&self) -> PyResult<()> {
+    fn stop_server(&mut self) -> PyResult<()> {
         #[cfg(feature = "server")]
         {
             let handle = self.handle.clone();
@@ -161,6 +190,14 @@ impl ScouterTestServer {
             runtime.spawn(async move {
                 stop_server(handle).await;
             });
+
+            if self.openai {
+                debug!("Stopping OpenAI Test Server...");
+                if let Some(server) = &mut self.openai_server {
+                    server.stop_server().unwrap();
+                }
+                debug!("OpenAI Test Server stopped");
+            }
 
             if self.cleanup {
                 self.cleanup()?;
@@ -203,7 +240,7 @@ impl ScouterTestServer {
     }
 
     fn __exit__(
-        &self,
+        &mut self,
         _exc_type: PyObject,
         _exc_value: PyObject,
         _traceback: PyObject,
@@ -212,14 +249,9 @@ impl ScouterTestServer {
     }
 }
 
-<<<<<<<< HEAD:crates/scouter_mocks/src/mock.rs
-#[pyclass(name = "OpenAITestServer")]
-pub struct OpenAITestServer;
-========
 #[pymodule]
 pub fn mock(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ScouterTestServer>()?;
     m.add_class::<MockConfig>()?;
     Ok(())
 }
->>>>>>>> cleanup/env-vars:py-scouter/src/mock.rs

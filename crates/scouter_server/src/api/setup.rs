@@ -406,7 +406,7 @@ impl ScouterSetupComponents {
         shutdown_rx: tokio::sync::watch::Receiver<()>,
     ) -> AnyhowResult<()> {
         BackgroundLLMDriftManager::start_workers(db_pool, poll_settings, shutdown_rx).await?;
-        info!("✅ Started background workers");
+        info!("✅ Started background llm workers");
 
         Ok(())
     }

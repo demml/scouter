@@ -7,7 +7,8 @@ use crate::sql::error::SqlError;
 use scouter_settings::DatabaseSettings;
 use scouter_types::{RecordType, ServerRecords, ToDriftRecords};
 
-use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
+use sqlx::ConnectOptions;
+use sqlx::{postgres::PgConnectOptions, PgPool, Pool, Postgres};
 use std::result::Result::Ok;
 use tracing::{debug, error, info, instrument};
 
@@ -38,11 +39,13 @@ impl PostgresClient {
     pub async fn create_db_pool(
         database_settings: &DatabaseSettings,
     ) -> Result<Pool<Postgres>, SqlError> {
-        let pool = match PgPoolOptions::new()
-            .max_connections(database_settings.max_connections)
-            .connect(&database_settings.connection_uri)
-            .await
-        {
+        let mut opts: PgConnectOptions = database_settings.connection_uri.parse()?;
+
+        // Sqlx logs a lot of debug information by default, which can be overwhelming.
+        // TODO: In the future, we may want to make this configurable.
+        opts = opts.log_statements(log::LevelFilter::Off);
+
+        let pool = match PgPool::connect_with(opts).await {
             Ok(pool) => {
                 info!("✅ Successfully connected to database");
                 pool

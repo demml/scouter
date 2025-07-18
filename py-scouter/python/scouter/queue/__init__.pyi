@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional, Protocol, Union
 from typing_extensions import TypeAlias
 
 from ..client import HTTPConfig
+from ..llm import Prompt
 from ..logging import LogLevel
 from ..mock import MockConfig
 from ..observe import ObservabilityMetrics
@@ -224,9 +225,7 @@ class ServerRecord:
     @property
     def record(
         self,
-    ) -> Union[
-        SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics
-    ]:
+    ) -> Union[SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics]:
         """Return the drift server record."""
 
 class ServerRecords:
@@ -605,24 +604,24 @@ class Metrics:
 class Queue:
     """Individual queue associated with a drift profile"""
 
-    def insert(self, entity: Union[Features, Metrics]) -> None:
+    def insert(self, entity: Union[Features, Metrics, LLMRecord]) -> None:
         """Insert a record into the queue
 
         Args:
             entity:
                 Entity to insert into the queue.
-                Can be an instance for Features or Metrics
+                Can be an instance for Features, Metrics, or LLMRecord.
 
         Example:
             ```python
             features = Features(
                 features=[
-                    Feature.int("feature_1", 1),
-                    Feature.float("feature_2", 2.0),
-                    Feature.string("feature_3", "value"),
+                    Feature("feature_1", 1),
+                    Feature("feature_2", 2.0),
+                    Feature("feature_3", "value"),
                 ]
             )
-            queue.insert(Features(features))
+            queue.insert(features)
             ```
         """
 
@@ -665,9 +664,9 @@ class ScouterQueue:
             queue["psi"].insert(
                 Features(
                     features=[
-                        Feature.int("feature_1", 1),
-                        Feature.float("feature_2", 2.0),
-                        Feature.string("feature_3", "value"),
+                        Feature("feature_1", 1),
+                        Feature("feature_2", 2.0),
+                        Feature("feature_3", "value"),
                     ]
                 )
             )

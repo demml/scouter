@@ -189,9 +189,7 @@ class DocumentUrl:
         """The format of the document URL."""
 
 class Message:
-    def __init__(
-        self, content: str | ImageUrl | AudioUrl | BinaryContent | DocumentUrl
-    ) -> None:
+    def __init__(self, content: str | ImageUrl | AudioUrl | BinaryContent | DocumentUrl) -> None:
         """Create a Message object.
 
         Args:
@@ -203,7 +201,7 @@ class Message:
     def content(self) -> str | ImageUrl | AudioUrl | BinaryContent | DocumentUrl:
         """The content of the message"""
 
-    def bind(self, name: str, context: str) -> "Message":
+    def bind(self, name: str, value: str) -> "Message":
         """Bind context to a specific variable in the prompt. This is an immutable operation meaning that it
         will return a new Message object with the context bound.
 
@@ -222,15 +220,17 @@ class Message:
             ```
 
         Args:
-            context (str):
-                The context to bind.
+            name (str):
+                The name of the variable to bind.
+            value (str):
+                The value to bind the variable to.
 
         Returns:
             Message:
                 The message with the context bound.
         """
 
-    def bind_mut(self, name: str, context: str) -> "Message":
+    def bind_mut(self, name: str, value: str) -> "Message":
         """Bind context to a specific variable in the prompt. This is a mutable operation meaning that it
         will modify the current Message object.
 
@@ -249,8 +249,10 @@ class Message:
             ```
 
         Args:
-            context (str):
-                The context to bind.
+            name (str):
+                The name of the variable to bind.
+            value (str):
+                The value to bind the variable to.
 
         Returns:
             Message:
@@ -497,6 +499,50 @@ class Prompt:
         Returns:
             str:
                 The JSON string.
+        """
+
+    def bind(
+        self,
+        name: Optional[str] = None,
+        value: Optional[str | int | float | bool | list] = None,
+        **kwargs: Any,
+    ) -> "Prompt":
+        """Bind context to a specific variable in the prompt. This is an immutable operation meaning that it
+        will return a new Prompt object with the context bound. This will iterate over all user messages.
+
+        Args:
+            name (str):
+                The name of the variable to bind.
+            value (str | int | float | bool | list):
+                The value to bind the variable to. Must be a JSON serializable type.
+            **kwargs (Any):
+                Additional keyword arguments to bind to the prompt. This can be used to bind multiple variables at once.
+
+        Returns:
+            Prompt:
+                The prompt with the context bound.
+        """
+
+    def bind_mut(
+        self,
+        name: Optional[str] = None,
+        value: Optional[str | int | float | bool | list] = None,
+        **kwargs: Any,
+    ) -> "Prompt":
+        """Bind context to a specific variable in the prompt. This is a mutable operation meaning that it
+        will modify the current Prompt object. This will iterate over all user messages.
+
+        Args:
+            name (str):
+                The name of the variable to bind.
+            value (str | int | float | bool | list):
+                The value to bind the variable to. Must be a JSON serializable type.
+            **kwargs (Any):
+                Additional keyword arguments to bind to the prompt. This can be used to bind multiple variables at once.
+
+        Returns:
+            Prompt:
+                The prompt with the context bound.
         """
 
     @property
@@ -752,9 +798,7 @@ class Workflow:
         """
 
     @staticmethod
-    def model_validate_json(
-        json_string: str, output_types: Optional[Dict[str, Any]]
-    ) -> "Workflow":
+    def model_validate_json(json_string: str, output_types: Optional[Dict[str, Any]]) -> "Workflow":
         """Load a workflow from a JSON string.
 
         Args:
@@ -871,12 +915,26 @@ class WorkflowResult:
         """
 
 class Score:
+    """A class representing a score with a score value and a reason. This is typically used
+    as a response type for tasks/prompts that require scoring or evaluation of results.
+
+    Example:
+    ```python
+        Prompt(
+            model="openai:gpt-4o",
+            user_message="What is the score of this response?",
+            system_message="system_prompt",
+            response_format=Score,
+        )
+    ```
+    """
+
     @property
     def score(self) -> int:
         """The score value."""
 
     @property
-    def reason(self) -> Optional[str]:
+    def reason(self) -> str:
         """The reason for the score."""
 
     @staticmethod

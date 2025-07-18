@@ -1,6 +1,6 @@
 use std::fmt::Display;
 
-use crate::error::ContractError;
+use crate::error::{ContractError, TypeError};
 use crate::llm::PaginationRequest;
 use crate::{CustomInterval, Status};
 use crate::{DriftType, ProfileFuncs, TimeInterval};
@@ -10,7 +10,6 @@ use serde::Deserialize;
 use serde::Serialize;
 use std::collections::BTreeMap;
 use tracing::error;
-
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetProfileRequest {
@@ -469,6 +468,20 @@ impl BinnedMetrics {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__str__(self)
+    }
+
+    pub fn __getitem__<'py>(
+        &self,
+        py: Python<'py>,
+        key: &str,
+    ) -> Result<Option<Py<BinnedMetric>>, TypeError> {
+        match self.metrics.get(key) {
+            Some(metric) => {
+                let metric = Py::new(py, metric.clone())?;
+                Ok(Some(metric))
+            }
+            None => Ok(None),
+        }
     }
 }
 

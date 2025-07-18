@@ -1,7 +1,6 @@
 use crate::sql::error::SqlError;
 use chrono::{DateTime, Utc};
 use potato_head::create_uuid7;
-use potato_head::Prompt;
 use scouter_types::psi::DistributionData;
 use scouter_types::BoxedLLMDriftServerRecord;
 use scouter_types::LLMDriftServerRecord;
@@ -11,7 +10,6 @@ use scouter_types::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use sqlx::types::Json;
 use sqlx::{postgres::PgRow, Error, FromRow, Row};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -430,6 +428,6 @@ pub struct LLMDriftTaskRequest {
     pub version: String,
     pub input: Value,
     pub response: Value,
-    pub prompt: Json<Prompt>,
+    pub prompt: Value,
     pub context: Value,
 }

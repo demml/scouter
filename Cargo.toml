@@ -54,6 +54,7 @@ include_dir = "0.*"
 indicatif = "0.*"
 itertools = "0.*"
 jsonwebtoken = "9.*"
+log = "0.*"
 metrics = { version = "0.*", default-features = false }
 metrics-exporter-prometheus = { version = "0.*", default-features = false }
 mimalloc = { version = "*", features = ["secure"] }

@@ -217,15 +217,18 @@ impl PyDrifter {
         }
     }
 
+    // Specific method for creating LLM drift profiles
+    // This is to avoid confusion with the other drifters
     #[pyo3(signature = (config, metrics, workflow=None))]
-    pub fn create_llm_drift_profile(
+    pub fn create_llm_drift_profile<'py>(
         &mut self,
+        py: Python<'py>,
         config: LLMDriftConfig,
         metrics: Vec<LLMMetric>,
-        workflow: Option<Bound<'_, PyAny>>,
-    ) -> Result<DriftProfile, DriftError> {
+        workflow: Option<Bound<'py, PyAny>>,
+    ) -> Result<Bound<'py, PyAny>, DriftError> {
         let profile = LLMDriftProfile::new(config, metrics, workflow)?;
-        Ok(DriftProfile::LLM(profile))
+        Ok(profile.into_bound_py_any(py)?)
     }
 
     #[pyo3(signature = (data, drift_profile, data_type=None))]
