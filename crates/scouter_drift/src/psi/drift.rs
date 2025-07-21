@@ -334,9 +334,8 @@ pub mod psi_drifter {
         use ndarray_rand::rand_distr::Uniform;
         use ndarray_rand::RandomExt;
         use scouter_types::psi::{Bin, BinType, PsiNormalThreshold, PsiThreshold};
-        use scouter_types::{
-            psi::{DistributionData, FeatureDistributions, PsiAlertConfig, PsiDriftConfig},
-            DEFAULT_VERSION,
+        use scouter_types::psi::{
+            DistributionData, FeatureDistributions, PsiAlertConfig, PsiDriftConfig,
         };
 
         fn get_test_drifter(threshold: PsiThreshold) -> PsiDrifter {
@@ -345,17 +344,12 @@ pub mod psi_drifter {
                 threshold,
                 ..Default::default()
             };
-
-            let config = PsiDriftConfig::new(
-                "name",
-                "repo",
-                DEFAULT_VERSION,
+            let config = PsiDriftConfig {
+                space: "name".to_string(),
+                name: "repo".to_string(),
                 alert_config,
-                None,
-                None,
-                None,
-            )
-            .unwrap();
+                ..Default::default()
+            };
 
             let array = Array::random((1030, 3), Uniform::new(1.0, 100.0));
 

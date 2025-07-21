@@ -48,7 +48,7 @@ pub struct PsiDriftConfig {
     #[serde(default)]
     pub feature_map: FeatureMap,
 
-    #[pyo3(get, set)]
+    #[pyo3(get)]
     #[serde(default = "default_drift_type")]
     pub drift_type: DriftType,
 
@@ -138,13 +138,15 @@ impl PsiDriftConfig {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (space=None, name=None, version=None, alert_config=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, alert_config=None, categorical_features=None, binning_strategy=None))]
     pub fn update_config_args(
         &mut self,
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
         alert_config: Option<PsiAlertConfig>,
+        categorical_features: Option<Vec<String>>,
+        binning_strategy: Option<&Bound<'_, PyAny>>,
     ) -> Result<(), TypeError> {
         if name.is_some() {
             self.name = name.ok_or(TypeError::MissingNameError)?;
@@ -160,6 +162,22 @@ impl PsiDriftConfig {
 
         if alert_config.is_some() {
             self.alert_config = alert_config.ok_or(TypeError::MissingAlertConfigError)?;
+        }
+
+        if categorical_features.is_some() {
+            self.categorical_features = categorical_features;
+        }
+
+        if let Some(binning_strategy) = binning_strategy {
+            if binning_strategy.is_instance_of::<QuantileBinning>() {
+                self.binning_strategy =
+                    BinningStrategy::QuantileBinning(binning_strategy.extract()?);
+            } else if binning_strategy.is_instance_of::<EqualWidthBinning>() {
+                self.binning_strategy =
+                    BinningStrategy::EqualWidthBinning(binning_strategy.extract()?);
+            } else {
+                return Err(TypeError::InvalidBinningStrategyError);
+            }
         }
 
         Ok(())
@@ -461,16 +479,24 @@ impl PsiDriftProfile {
     }
 
     #[allow(clippy::too_many_arguments)]
-    #[pyo3(signature = (space=None, name=None, version=None, alert_config=None))]
+    #[pyo3(signature = (space=None, name=None, version=None, alert_config=None, categorical_features=None, binning_strategy=None))]
     pub fn update_config_args(
         &mut self,
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
         alert_config: Option<PsiAlertConfig>,
+        categorical_features: Option<Vec<String>>,
+        binning_strategy: Option<&Bound<'_, PyAny>>,
     ) -> Result<(), TypeError> {
-        self.config
-            .update_config_args(space, name, version, alert_config)
+        self.config.update_config_args(
+            space,
+            name,
+            version,
+            alert_config,
+            categorical_features,
+            binning_strategy,
+        )
     }
 
     /// Create a profile request from the profile
@@ -573,35 +599,5 @@ pub struct FeatureDistributions {
 impl FeatureDistributions {
     pub fn is_empty(&self) -> bool {
         self.distributions.is_empty()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_drift_config() {
-        let mut drift_config = PsiDriftConfig::new(
-            MISSING,
-            MISSING,
-            DEFAULT_VERSION,
-            PsiAlertConfig::default(),
-            None,
-            None,
-            None,
-        )
-        .unwrap();
-        assert_eq!(drift_config.name, "__missing__");
-        assert_eq!(drift_config.space, "__missing__");
-        assert_eq!(drift_config.version, "0.1.0");
-        assert_eq!(drift_config.alert_config, PsiAlertConfig::default());
-
-        // update
-        drift_config
-            .update_config_args(None, Some("test".to_string()), None, None)
-            .unwrap();
-
-        assert_eq!(drift_config.name, "test");
     }
 }

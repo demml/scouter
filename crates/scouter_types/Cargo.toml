@@ -31,6 +31,8 @@ ndarray = { workspace = true }
 [dev-dependencies]
 tempfile = { workspace = true }
 approx = { workspace = true }
+ndarray-rand = { workspace = true }
+rand = { workspace = true }
 
 
 [profile.release]

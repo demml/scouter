@@ -1,6 +1,4 @@
 # type: ignore
-from enum import Enum
-
 from .. import drift
 
 FeatureMap = drift.FeatureMap
@@ -44,7 +42,6 @@ __all__ = [
     "Drifter",
     "QuantileBinning",
     "EqualWidthBinning",
-    "EqualWidthMethod",
     "Manual",
     "SquareRoot",
     "Sturges",

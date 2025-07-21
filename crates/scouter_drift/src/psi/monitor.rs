@@ -501,17 +501,15 @@ mod tests {
 
     #[test]
     fn test_create_bins_categorical() {
-        // let psi_monitor = PsiMonitor::default();
+        let psi_monitor = PsiMonitor::default();
 
         let categorical_data = Array::from_vec(vec![
             1.0, 1.0, 2.0, 3.0, 2.0, 3.0, 2.0, 1.0, 2.0, 1.0, 1.0, 2.0, 3.0, 3.0, 2.0, 3.0, 1.0,
             1.0,
         ]);
 
-        println!("{:?}", categorical_data);
-
-        // let bins = psi_monitor.create_categorical_bins(&ArrayView::from(&categorical_data));
-        // assert_eq!(bins.len(), 3);
+        let bins = psi_monitor.create_categorical_bins(&ArrayView::from(&categorical_data));
+        assert_eq!(bins.len(), 3);
     }
 
     #[test]
@@ -581,5 +579,26 @@ mod tests {
             .features
             .values()
             .for_each(|value| assert!(*value > 0.0));
+    }
+
+    #[test]
+    fn test_empty_array() {
+        let features = vec!["feature_1".to_string()];
+
+        // Create a 2D array with shape (0, 3) - 0 rows, 3 columns
+        let data = Array::<f64, _>::zeros((0, 1));
+
+        let monitor = PsiMonitor::default();
+
+        let profile =
+            monitor.create_2d_drift_profile(&features, &data.view(), &PsiDriftConfig::default());
+
+        assert!(profile.is_err());
+        match profile.unwrap_err() {
+            DriftError::EmptyArrayError(msg) => {
+                assert_eq!(msg, "PSI drift profile creation failure, unable to create psi feature drift profile for feature_1");
+            }
+            _ => panic!("Expected EmptyArrayError"),
+        }
     }
 }

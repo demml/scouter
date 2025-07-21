@@ -70,4 +70,13 @@ mod tests {
             _ => panic!("Expected EmptyArrayError"),
         }
     }
+
+    #[test]
+    fn test_default_method() {
+        let default_method = BinningStrategy::default();
+        match default_method {
+            BinningStrategy::QuantileBinning(_) => {} // Expected
+            _ => panic!("Default should be QuantileBinning"),
+        }
+    }
 }

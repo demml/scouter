@@ -105,6 +105,9 @@ pub enum TypeError {
 
     #[error("Empty Array Detected: {0}")]
     EmptyArrayError(String),
+
+    #[error("Invalid binning strategy")]
+    InvalidBinningStrategyError,
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for TypeError {
@@ -214,7 +217,7 @@ pub enum ProfileError {
     #[error("{0}")]
     PyError(String),
 
-    #[error("Invalid alert dispatch configuration")]
+    #[error("Invalid binning strategy")]
     InvalidBinningStrategyError,
 }
 

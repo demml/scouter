@@ -18,17 +18,6 @@ impl QuantileBinning {
     pub fn new(num_bins: usize) -> PyResult<Self> {
         Ok(QuantileBinning { num_bins })
     }
-
-    #[getter]
-    fn get_num_bins(&self) -> usize {
-        self.num_bins
-    }
-
-    #[setter]
-    fn set_num_bins(&mut self, value: usize) -> PyResult<()> {
-        self.num_bins = value;
-        Ok(())
-    }
 }
 
 impl Default for QuantileBinning {

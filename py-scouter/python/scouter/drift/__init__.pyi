@@ -3,8 +3,6 @@
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union, overload
 
-from scouter.drift import EqualWidthMethod
-
 from ..alert import (
     AlertThreshold,
     CustomMetricAlertCondition,
@@ -570,6 +568,8 @@ class PsiDriftConfig:
         name: Optional[str] = None,
         version: Optional[str] = None,
         alert_config: Optional[PsiAlertConfig] = None,
+        categorical_features: Optional[list[str]] = None,
+        binning_strategy: Optional[QuantileBinning | EqualWidthBinning] = None,
     ) -> None:
         """Inplace operation that updates config args
 
@@ -582,6 +582,10 @@ class PsiDriftConfig:
                 Model version
             alert_config:
                 Alert configuration
+            categorical_features:
+                Categorical features
+            binning_strategy:
+                Binning strategy
         """
 
 class PsiDriftProfile:
@@ -647,6 +651,8 @@ class PsiDriftProfile:
         name: Optional[str] = None,
         version: Optional[str] = None,
         alert_config: Optional[PsiAlertConfig] = None,
+        categorical_features: Optional[list[str]] = None,
+        binning_strategy: Optional[QuantileBinning | EqualWidthBinning] = None,
     ) -> None:
         """Inplace operation that updates config args
 
@@ -659,6 +665,10 @@ class PsiDriftProfile:
                 Model version
             alert_config:
                 Alert configuration
+            categorical_features:
+                Categorical Features
+            binning_strategy:
+                Binning strategy
         """
 
     def __str__(self) -> str:
