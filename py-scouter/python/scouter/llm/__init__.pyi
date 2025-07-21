@@ -189,7 +189,9 @@ class DocumentUrl:
         """The format of the document URL."""
 
 class Message:
-    def __init__(self, content: str | ImageUrl | AudioUrl | BinaryContent | DocumentUrl) -> None:
+    def __init__(
+        self, content: str | ImageUrl | AudioUrl | BinaryContent | DocumentUrl
+    ) -> None:
         """Create a Message object.
 
         Args:
@@ -277,8 +279,8 @@ class Message:
 class ModelSettings:
     def __init__(
         self,
-        model: str,
-        provider: str,
+        model: Optional[str] = None,
+        provider: Optional[str] = None,
         max_tokens: Optional[int] = None,
         temperature: Optional[float] = None,
         top_p: Optional[float] = None,
@@ -289,15 +291,16 @@ class ModelSettings:
         seed: Optional[int] = None,
         logit_bias: Optional[dict[str, int]] = None,
         stop_sequences: Optional[List[str]] = None,
+        logprobs: Optional[bool] = None,
         extra_body: Optional[dict[str, Any]] = None,
     ) -> None:
         """ModelSettings for configuring the model.
 
         Args:
-            model (str):
-                The model to use.
-            provider (str):
-                The provider to use.
+            model (Optional[str]):
+                The model to use. This is required if model is not provided in the prompt.
+            provider (Optional[str]):
+                The provider to use. This is required if provider is not provided in the prompt.
             max_tokens (Optional[int]):
                 The maximum number of tokens to generate.
             temperature (Optional[float]):
@@ -321,6 +324,8 @@ class ModelSettings:
                 the generated text.
             stop_sequences (Optional[List[str]]):
                 The stop sequences to use that will cause the model to stop generating text.
+            logprobs (Optional[bool]):
+                Whether to include log probabilities in the response. This is a gemini specific setting.
             extra_body (Optional[dict[str, Any]]):
                 The extra body to use. Must be a dictionary
 
@@ -412,9 +417,10 @@ class Prompt:
                 The model settings to use for the prompt.
                 Defaults to None which means no model settings will be used
             response_format (Optional[BaseModel | Score]):
-                The response format to use for the prompt. This is used for Structure Outputs
+                The response format to use for the prompt. This is used for Structured Outputs
                 (https://platform.openai.com/docs/guides/structured-outputs?api-mode=chat).
                 Currently, response_format only support Pydantic BaseModel classes and the PotatoHead Score class.
+                The provided response_format will be parsed into a JSON schema.
         """
 
     @property
@@ -546,17 +552,39 @@ class Prompt:
         """
 
     @property
-    def response_format(self) -> Optional[str]: ...
+    def response_json_schema(self) -> Optional[str]:
+        """The JSON schema for the response if provided."""
+
     def __str__(self): ...
 
 class Provider:
     OpenAI: "Provider"
+    Gemini: "Provider"
 
 class TaskStatus:
     Pending: "TaskStatus"
     Running: "TaskStatus"
     Completed: "TaskStatus"
     Failed: "TaskStatus"
+
+class ResponseLogProbs:
+    @property
+    def token(self) -> str:
+        """The token for which the log probabilities are calculated."""
+
+    @property
+    def logprob(self) -> float:
+        """The log probability of the token."""
+
+class LogProbs:
+    @property
+    def tokens(self) -> List[ResponseLogProbs]:
+        """The log probabilities of the tokens in the response.
+        This is primarily used for debugging and analysis purposes.
+        """
+
+    def __str__(self) -> str:
+        """String representation of the log probabilities."""
 
 class AgentResponse:
     @property
@@ -574,10 +602,9 @@ class AgentResponse:
         """Returns the token usage of the agent response if supported"""
 
     @property
-    def failed_conversion(self) -> bool:
-        """Returns True if the agent response failed to convert to the expected output type, otherwise False.
-        If conversion fails, result.result will still attempt to return a python json response
-        (dictionary, array, number, string, boolean, None).
+    def log_probs(self) -> List["ResponseLogProbs"]:
+        """Returns the log probabilities of the agent response if supported.
+        This is primarily used for debugging and analysis purposes.
         """
 
 class Task:
@@ -798,7 +825,9 @@ class Workflow:
         """
 
     @staticmethod
-    def model_validate_json(json_string: str, output_types: Optional[Dict[str, Any]]) -> "Workflow":
+    def model_validate_json(
+        json_string: str, output_types: Optional[Dict[str, Any]]
+    ) -> "Workflow":
         """Load a workflow from a JSON string.
 
         Args:

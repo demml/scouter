@@ -1,9 +1,7 @@
 // Module for polling LLM drift records that are "pending" and need to be processed
 use crate::error::DriftError;
-use potato_head::Score;
-use potato_head::StructuredOutput;
-use potato_head::TaskStatus;
-use potato_head::Workflow;
+use potato_head::agents::provider::traits::ResponseLogProbs;
+use potato_head::{calculate_weighted_score, Score, StructuredOutput, TaskStatus, Workflow};
 use scouter_sql::sql::schema::LLMDriftTaskRequest;
 use scouter_sql::sql::traits::{LLMDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
@@ -13,7 +11,7 @@ use serde_json::Value;
 use sqlx::{Pool, Postgres};
 use std::sync::Arc;
 use std::sync::RwLock;
-use tracing::{debug, error, info, instrument};
+use tracing::{debug, error, info, instrument, warn};
 pub struct LLMEvaluator {
     db_pool: Pool<Postgres>,
 }
@@ -46,30 +44,62 @@ impl LLMEvaluator {
 
         if let Some(final_task_ids) = execution_plan.get(&max_step) {
             for task_id in final_task_ids {
-                if let Some(task) = task_list.get_task(task_id) {
-                    let task_guard = task.read().unwrap();
-                    if task_guard.status == TaskStatus::Completed {
-                        if let Some(result) = &task_guard.result {
-                            let task_id = task_guard.id.clone();
-                            let content = result.content();
-                            let score =
-                                Score::model_validate_json_value(&content).inspect_err(|e| {
-                                    error!("Failed to validate score: {:?}", e);
-                                })?;
+                // Get the task from the task list
+                let Some(task) = task_list.get_task(task_id) else {
+                    continue;
+                };
 
-                            let record = LLMMetricServerRecord {
-                                created_at: chrono::Utc::now(),
-                                space: profile.config.space.clone(),
-                                name: profile.config.name.clone(),
-                                version: profile.config.version.clone(),
-                                metric: task_id,
-                                value: (score.score as f64),
-                            };
+                // Lock the task for reading
+                let task_guard = task.read().unwrap();
 
-                            final_results.push(record);
-                        }
+                // Only process completed tasks with a result
+                let (TaskStatus::Completed, Some(result)) =
+                    (&task_guard.status, &task_guard.result)
+                else {
+                    continue;
+                };
+
+                let task_id = task_guard.id.clone();
+
+                // Content should be returned as a json string
+                let content = match result.content() {
+                    Some(c) => c,
+                    None => {
+                        warn!("Task result content is empty for task ID: {}", task_id);
+                        continue;
                     }
-                }
+                };
+
+                // Validate the content as a Score object
+                let score = Score::model_validate_json_str(&content).inspect_err(|e| {
+                    error!("Failed to validate score: {:?}", e);
+                })?;
+
+                // Check for log_probs in the result
+                let log_probs: Vec<ResponseLogProbs> = result.log_probs();
+
+                // Calculate weighted score if log_probs is not empty
+                // Default to score if no log_probs are present or if calculation returns None
+                let value = if !log_probs.is_empty() {
+                    match calculate_weighted_score(&log_probs)? {
+                        Some(weighted) => weighted,
+                        None => score.score as f64,
+                    }
+                } else {
+                    score.score as f64
+                };
+
+                // Create the LLMMetricServerRecord
+                let record = LLMMetricServerRecord {
+                    created_at: chrono::Utc::now(),
+                    space: profile.config.space.clone(),
+                    name: profile.config.name.clone(),
+                    version: profile.config.version.clone(),
+                    metric: task_id,
+                    value,
+                };
+
+                final_results.push(record);
             }
         }
 

@@ -7,7 +7,7 @@ from scouter.alert import AlertThreshold
 from scouter.drift import LLMDriftConfig, LLMDriftProfile, LLMMetric
 from scouter.mock import (  # type: ignore
     Agent,
-    OpenAITestServer,
+    LLMTestServer,
     Prompt,
     Score,
     Task,
@@ -20,7 +20,7 @@ class TaskOutput(BaseModel):
 
 
 def test_llm_drift_profile_from_metrics():
-    with OpenAITestServer():
+    with LLMTestServer():
         prompt = Prompt(
             user_message="${input} + ${response}?",
             system_message="You are a helpful assistant.",
@@ -49,7 +49,7 @@ def test_llm_drift_profile_from_metrics():
 
 
 def test_llm_drift_profile_from_workflow():
-    with OpenAITestServer():
+    with LLMTestServer():
         start_prompt = Prompt(
             user_message="${input} + ${response}?",
             system_message="You are a helpful assistant.",
@@ -111,7 +111,7 @@ def test_llm_drift_profile_from_workflow():
 
 
 def test_llm_drift_profile_from_metrics_fail():
-    with OpenAITestServer():
+    with LLMTestServer():
         prompt = Prompt(
             user_message="foo bar",
             system_message="You are a helpful assistant.",
@@ -148,7 +148,7 @@ def test_llm_drift_profile_from_metrics_fail():
 
 
 def test_llm_drift_profile_from_workflow_fail():
-    with OpenAITestServer():
+    with LLMTestServer():
         start_prompt = Prompt(
             user_message="Foo bar",
             system_message="You are a helpful assistant.",
@@ -198,7 +198,7 @@ def test_llm_drift_profile_from_workflow_fail():
 
 
 def test_llm_drift_profile_workflow_run_context():
-    with OpenAITestServer():
+    with LLMTestServer():
         # this should bind the input and response context and return TaskOutput
         start_prompt = Prompt(
             user_message="${input} + ${response}?",

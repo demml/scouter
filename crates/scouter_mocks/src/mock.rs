@@ -1,5 +1,5 @@
 // add test logic
-use potato_head::OpenAITestServer;
+use potato_head::LLMTestServer;
 use pyo3::prelude::*;
 use scouter_client::MockConfig;
 use std::path::PathBuf;
@@ -44,7 +44,7 @@ pub struct ScouterTestServer {
     handle: Arc<Mutex<Option<JoinHandle<()>>>>,
     #[cfg(feature = "server")]
     runtime: Arc<Runtime>,
-    openai_server: Option<OpenAITestServer>,
+    openai_server: Option<LLMTestServer>,
     cleanup: bool,
     base_path: Option<PathBuf>,
     rabbit_mq: bool,
@@ -108,7 +108,7 @@ impl ScouterTestServer {
             }
 
             if self.openai {
-                let mut server = OpenAITestServer::new();
+                let mut server = LLMTestServer::new();
                 server.start_server().unwrap();
                 self.openai_server = Some(server);
 

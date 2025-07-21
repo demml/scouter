@@ -5,7 +5,7 @@ use axum::{
     body::Body,
     http::{header, Request, StatusCode},
 };
-use potato_head::OpenAITestServer;
+use potato_head::LLMTestServer;
 use scouter_drift::spc::SpcMonitor;
 use scouter_types::spc::SpcAlertConfig;
 use scouter_types::spc::SpcDriftConfig;
@@ -369,7 +369,7 @@ async fn test_custom_server_records() {
 #[test]
 fn test_llm_server_records() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
-    let mut mock = OpenAITestServer::new();
+    let mut mock = LLMTestServer::new();
     mock.start_server().unwrap();
 
     let helper = runtime.block_on(async { TestHelper::new(false, false).await.unwrap() });

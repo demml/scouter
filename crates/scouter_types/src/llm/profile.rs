@@ -576,7 +576,7 @@ mod tests {
     use potato_head::create_score_prompt;
     use potato_head::prompt::ResponseType;
 
-    use potato_head::{Message, OpenAITestServer, PromptContent};
+    use potato_head::{LLMTestServer, Message, PromptContent};
 
     pub fn create_parameterized_prompt() -> Prompt {
         let user_content =
@@ -640,7 +640,7 @@ mod tests {
     #[test]
     fn test_llm_drift_profile_metric() {
         let _runtime = tokio::runtime::Runtime::new().unwrap();
-        let mut mock = OpenAITestServer::new();
+        let mut mock = LLMTestServer::new();
         mock.start_server().unwrap();
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
@@ -687,7 +687,7 @@ mod tests {
 
     #[test]
     fn test_llm_drift_profile_workflow() {
-        let mut mock = OpenAITestServer::new();
+        let mut mock = LLMTestServer::new();
         mock.start_server().unwrap();
 
         let mut workflow = Workflow::new("My eval Workflow");

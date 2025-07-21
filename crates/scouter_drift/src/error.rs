@@ -37,6 +37,9 @@ pub enum DriftError {
     #[error(transparent)]
     SqlError(#[from] SqlError),
 
+    #[error(transparent)]
+    UtilError(#[from] potato_head::UtilError),
+
     #[error("SPC rule length is not 8")]
     SpcRuleLengthError,
 

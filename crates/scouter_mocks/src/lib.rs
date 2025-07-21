@@ -1,3 +1,3 @@
 pub mod mock;
 pub use mock::ScouterTestServer;
-pub use potato_head::OpenAITestServer;
+pub use potato_head::LLMTestServer;

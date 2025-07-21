@@ -252,6 +252,9 @@ pub enum ProfileError {
 
     #[error("Metric not found in profile LLM metrics: {0}")]
     MetricNotFound(String),
+
+    #[error(transparent)]
+    PotatoTypeError(#[from] potato_head::TypeError),
 }
 
 impl From<ProfileError> for PyErr {

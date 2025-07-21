@@ -5,7 +5,7 @@ use axum::{
     http::{header, Request, StatusCode},
 };
 use http_body_util::BodyExt;
-use potato_head::{create_score_prompt, OpenAITestServer};
+use potato_head::{create_score_prompt, LLMTestServer};
 use scouter_dataframe::parquet::dataframe::ParquetDataFrame;
 use scouter_drift::psi::PsiMonitor;
 use scouter_drift::spc::SpcMonitor;
@@ -363,7 +363,7 @@ async fn test_data_archive_custom() {
 #[test]
 fn test_data_archive_llm_drift_record() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
-    let mut mock = OpenAITestServer::new();
+    let mut mock = LLMTestServer::new();
     mock.start_server().unwrap();
 
     let helper = runtime.block_on(async { TestHelper::new(false, false).await.unwrap() });
@@ -465,7 +465,7 @@ fn test_data_archive_llm_drift_record() {
 #[test]
 fn test_data_archive_llm_drift_metrics() {
     let runtime = tokio::runtime::Runtime::new().unwrap();
-    let mut mock = OpenAITestServer::new();
+    let mut mock = LLMTestServer::new();
     mock.start_server().unwrap();
 
     let helper = runtime.block_on(async { TestHelper::new(false, false).await.unwrap() });

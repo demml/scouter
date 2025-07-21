@@ -3,6 +3,6 @@ from .. import mock
 
 ScouterTestServer = mock.ScouterTestServer
 MockConfig = mock.MockConfig
-OpenAITestServer = mock.OpenAITestServer
+LLMTestServer = mock.LLMTestServer
 
-__all__ = ["ScouterTestServer", "MockConfig", "OpenAITestServer"]
+__all__ = ["ScouterTestServer", "MockConfig", "LLMTestServer"]
