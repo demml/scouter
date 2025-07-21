@@ -34,7 +34,7 @@ test.unit:
 		--cov \
 		--cov-fail-under=0 \
 		--cov-report xml:./coverage.xml \
-		--cov-report term 
+		--cov-report term \
 		--benchmark-skip
 
 test.integration.api:

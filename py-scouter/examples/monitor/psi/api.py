@@ -79,7 +79,7 @@ def create_psi_profile() -> Path:
     drifter = Drifter()
 
     # Simple client to register drift profiles (scouter client must be running)
-    # client = ScouterClient()
+    client = ScouterClient()
 
     # create fake data
     data = generate_data()
@@ -100,10 +100,9 @@ def create_psi_profile() -> Path:
 
     # create psi profile
     psi_profile = drifter.create_drift_profile(data, psi_config)
-    breakpoint()
 
     # register profile
-    # client.register_profile(profile=psi_profile, set_active=True)
+    client.register_profile(profile=psi_profile, set_active=True)
 
     # save profile to json (for example purposes)
     return psi_profile.save_to_json()
