@@ -584,8 +584,7 @@ mod tests {
     #[test]
     fn test_empty_array() {
         let features = vec!["feature_1".to_string()];
-
-        // Create a 2D array with shape (0, 3) - 0 rows, 3 columns
+        
         let data = Array::<f64, _>::zeros((0, 1));
 
         let monitor = PsiMonitor::default();
