@@ -127,7 +127,9 @@ def test_llm_drift_profile_from_metrics_fail():
         )
 
         # Drift profile with no required parameters should raise an error
-        with pytest.raises(RuntimeError, match="LLM Metric prompts must contain one of"):
+        with pytest.raises(
+            RuntimeError, match="LLM Metric prompts must contain one of"
+        ):
             _profile = LLMDriftProfile(
                 config=LLMDriftConfig(),
                 metrics=[metric1],
@@ -183,7 +185,9 @@ def test_llm_drift_profile_from_workflow_fail():
             alert_threshold=AlertThreshold.Below,
         )
 
-        with pytest.raises(RuntimeError, match="LLM Metric prompts must contain one of"):
+        with pytest.raises(
+            RuntimeError, match="LLM Metric prompts must contain one of"
+        ):
             _profile = LLMDriftProfile(
                 config=LLMDriftConfig(),
                 workflow=workflow,
@@ -243,4 +247,6 @@ def test_llm_drift_profile_workflow_run_context():
             == '"What is the capital of France?" + "The capital of France is Paris."?'
         )
 
-        assert result.tasks.get("relevance").prompt.user_message[1].unwrap() == '"foo bar"'
+        assert (
+            result.tasks.get("relevance").prompt.user_message[1].unwrap() == '"foo bar"'
+        )
