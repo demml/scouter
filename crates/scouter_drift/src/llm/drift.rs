@@ -243,7 +243,7 @@ impl LLMDrifter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use potato_head::create_score_prompt;
+    use potato_head::{create_score_prompt, LLMTestServer};
     use scouter_types::llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftProfile, LLMMetric};
 
     fn get_test_drifter() -> LLMDrifter {
@@ -321,8 +321,12 @@ mod tests {
         assert!(coherence_is_out_of_bounds);
     }
 
-    #[tokio::test]
-    async fn test_generate_alerts() {
+    #[test]
+    fn test_generate_llm_alerts() {
+        let mut mock = LLMTestServer::new();
+        mock.start_server().unwrap();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+
         let drifter = get_test_drifter();
 
         let mut metric_map = HashMap::new();
@@ -331,8 +335,10 @@ mod tests {
         // accuracy had an initial 0.75 when the profile was generated
         metric_map.insert("relevancy".to_string(), 4.5);
 
-        let alerts = drifter.generate_alerts(&metric_map).await.unwrap().unwrap();
+        let alerts = runtime
+            .block_on(async { drifter.generate_alerts(&metric_map).await.unwrap().unwrap() });
 
         assert_eq!(alerts.len(), 2);
+        mock.stop_server().unwrap();
     }
 }

@@ -189,9 +189,7 @@ class DocumentUrl:
         """The format of the document URL."""
 
 class Message:
-    def __init__(
-        self, content: str | ImageUrl | AudioUrl | BinaryContent | DocumentUrl
-    ) -> None:
+    def __init__(self, content: str | ImageUrl | AudioUrl | BinaryContent | DocumentUrl) -> None:
         """Create a Message object.
 
         Args:
@@ -218,7 +216,9 @@ class Message:
                     ],
                     system_message="system_prompt",
                 )
-                bounded_prompt = prompt.user_message[0].bind("variable", "hello world").unwrap() # we bind "hello world" to "variable"
+                bounded_prompt = prompt.user_message[0].bind(
+                    "variable", "hello world"
+                    ).unwrap() # we bind "hello world" to "variable"
             ```
 
         Args:
@@ -593,8 +593,9 @@ class AgentResponse:
 
     @property
     def result(self) -> Any:
-        """The result of the agent response. This can be a Pydantic BaseModel class or a supported potato_head response type such as `Score`.
-        If neither is provided, the response json will be returned as a dictionary.
+        """The result of the agent response. This can be a Pydantic BaseModel class or a
+        supported potato_head response type such as `Score`. If neither is provided,
+        the response json will be returned as a dictionary.
         """
 
     @property
@@ -721,6 +722,17 @@ class Agent:
     def id(self) -> str:
         """The ID of the agent. This is a random uuid7 that is generated when the agent is created."""
 
+class WorkflowResult:
+    @property
+    def tasks(self) -> Dict[str, PyTask]:
+        """The tasks in the workflow result."""
+
+    @property
+    def events(self) -> List[TaskEvent]:
+        """The events that occurred during the workflow execution. This is a list of dictionaries
+        where each dictionary contains information about the event such as the task ID, status, and timestamp.
+        """
+
 class Workflow:
     def __init__(self, name: str) -> None:
         """Create a Workflow object.
@@ -825,9 +837,7 @@ class Workflow:
         """
 
     @staticmethod
-    def model_validate_json(
-        json_string: str, output_types: Optional[Dict[str, Any]]
-    ) -> "Workflow":
+    def model_validate_json(json_string: str, output_types: Optional[Dict[str, Any]]) -> "Workflow":
         """Load a workflow from a JSON string.
 
         Args:
@@ -931,17 +941,6 @@ class TaskEvent:
     @property
     def details(self) -> EventDetails:
         """Additional details about the event. This can include information such as error messages or other relevant data."""
-
-class WorkflowResult:
-    @property
-    def tasks(self) -> Dict[str, PyTask]:
-        """The tasks in the workflow result."""
-
-    @property
-    def events(self) -> List[TaskEvent]:
-        """The events that occurred during the workflow execution. This is a list of dictionaries
-        where each dictionary contains information about the event such as the task ID, status, and timestamp.
-        """
 
 class Score:
     """A class representing a score with a score value and a reason. This is typically used

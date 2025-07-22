@@ -20,11 +20,11 @@ build.sql:
 	
 .PHONY: test.sql
 test.sql:
-	cargo test -p scouter-sql -- --nocapture --test-threads=1
+	cargo test -p scouter-sql test_postgres --all-features -- --nocapture --test-threads=1
 
 .PHONY: test.server
 test.server:
-	cargo test -p scouter-server --all-features test_llm_server_records -- --nocapture --test-threads=1 --skip test_storage_integration_cloud
+	cargo test -p scouter-server --all-features -- --nocapture --test-threads=1 --skip test_storage_integration_cloud
 
 .PHONY: test.server.cloud
 test.server.cloud: build.all_backends
@@ -40,7 +40,7 @@ test.needs_sql: test.sql test.server test.drift.executor
 #### Unit tests
 .PHONY: test.types
 test.types:
-	cargo test -p scouter-types -- --nocapture --all-features --test-threads=1
+	cargo test -p scouter-types --all-features -- --nocapture --test-threads=1
 
 #### LLM profile tests
 .PHONY: test.llm
