@@ -12,8 +12,11 @@ pub mod records;
 pub mod spc;
 pub mod util;
 
+pub mod binning;
+
 pub use alert::*;
 pub use archive::*;
+pub use binning::*;
 pub use contracts::types::*;
 pub use drift::*;
 pub use http::*;

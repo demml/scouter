@@ -5,7 +5,13 @@ import pandas as pd
 import polars as pl
 import pytest
 from numpy.typing import NDArray
-from scouter import Drifter, PsiDriftConfig, PsiDriftProfile  # type: ignore
+from scouter import (  # type: ignore
+    Drifter,
+    EqualWidthBinning,
+    PsiDriftConfig,
+    PsiDriftProfile,
+    SquareRoot,
+)
 
 
 def test_drift_f64(array: NDArray, psi_drift_config: PsiDriftConfig):
@@ -115,3 +121,26 @@ def test_psi_drift_chi_threshold(
         pandas_dataframe,
         psi_drift_chi_threshold_psi_config,
     )
+
+
+def test_update_psi_drift_config(
+    pandas_categorical_dataframe: pd.DataFrame,
+    psi_drift_config: PsiDriftConfig,
+):
+    drifter = Drifter()
+
+    profile: PsiDriftProfile = drifter.create_drift_profile(
+        pandas_categorical_dataframe,
+        psi_drift_config,
+    )
+
+    original_space = profile.config.space
+    original_name = profile.config.name
+    original_binning_strategy = profile.config.binning_strategy
+
+    profile.update_config_args(
+        space="some_other_space", name="some_other_name", binning_strategy=EqualWidthBinning(method=SquareRoot())
+    )
+    assert profile.config.space != original_space
+    assert profile.config.name != original_name
+    assert profile.config.binning_strategy != original_binning_strategy

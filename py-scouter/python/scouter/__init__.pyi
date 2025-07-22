@@ -6,11 +6,21 @@ from .drift import (
     CustomDriftProfile,
     CustomMetric,
     CustomMetricDriftConfig,
+    Doane,
     Drifter,
+    EqualWidthBinning,
+    FreedmanDiaconis,
+    Manual,
     PsiDriftConfig,
     PsiDriftProfile,
+    QuantileBinning,
+    Rice,
+    Scott,
     SpcDriftConfig,
     SpcDriftProfile,
+    SquareRoot,
+    Sturges,
+    TerrellScott,
 )
 from .profile import DataProfile, DataProfiler
 from .queue import (
@@ -58,4 +68,14 @@ __all__ = [
     # Client
     "HTTPConfig",
     "ScouterClient",
+    "QuantileBinning",
+    "EqualWidthBinning",
+    "Manual",
+    "SquareRoot",
+    "Sturges",
+    "Rice",
+    "Doane",
+    "Scott",
+    "TerrellScott",
+    "FreedmanDiaconis",
 ]
