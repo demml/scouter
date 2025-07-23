@@ -1,10 +1,8 @@
 // add test logic
 use potato_head::LLMTestServer;
 use pyo3::prelude::*;
-use scouter_client::MockConfig;
 use std::path::PathBuf;
 use thiserror::Error;
-use tracing::debug;
 
 #[cfg(feature = "server")]
 use scouter_server::{start_server_in_background, stop_server};
@@ -18,6 +16,8 @@ use std::thread::sleep;
 use std::time::Duration;
 #[cfg(feature = "server")]
 use tokio::{runtime::Runtime, sync::Mutex, task::JoinHandle};
+#[cfg(feature = "server")]
+use tracing::debug;
 
 #[derive(Error, Debug)]
 pub enum TestServerError {
@@ -247,11 +247,4 @@ impl ScouterTestServer {
     ) -> PyResult<()> {
         self.stop_server()
     }
-}
-
-#[pymodule]
-pub fn mock(m: &Bound<'_, PyModule>) -> PyResult<()> {
-    m.add_class::<ScouterTestServer>()?;
-    m.add_class::<MockConfig>()?;
-    Ok(())
 }

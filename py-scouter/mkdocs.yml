@@ -69,7 +69,10 @@ nav:
           - Theory: "docs/monitoring/spc/theory.md"
       - Custom Metric:
           - Overview: "docs/monitoring/custom/quickstart.md"
-      - Inference: "docs/monitoring/inference.md"
+      - LLM:
+          - Overview: "docs/monitoring/llm/overview.md"
+      - Get to the Queue!:
+          - Inference: "docs/monitoring/inference.md"
   - Profiling:
       - Data Profile: "docs/profiling/overview.md"
   - Tech Specs:
@@ -81,6 +84,7 @@ nav:
       - Client: "docs/api/client.md"
       - Drift: "docs/api/drift.md"
       - Profile: "docs/api/profile.md"
+      - LLM: "docs/api/llm.md"
       - Queue: "docs/api/queue.md"
       - Types: "docs/api/types.md"
 

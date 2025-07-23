@@ -589,6 +589,7 @@ fn test_data_archive_llm_drift_metrics() {
     let results: BinnedMetrics = serde_json::from_slice(&val).unwrap();
 
     assert!(!results.metrics.is_empty());
+    println!("Metrics: {:?}", results.metrics);
     assert_eq!(results.metrics["metric1"].created_at.len(), 2);
 
     mock.stop_server().unwrap();

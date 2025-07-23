@@ -291,7 +291,11 @@ impl Metric {
                 value.get_type().name().unwrap()
             );
         };
-        Metric { name, value }
+        let lowercase_name = name.to_lowercase();
+        Metric {
+            name: lowercase_name,
+            value,
+        }
     }
 
     pub fn __str__(&self) -> String {
