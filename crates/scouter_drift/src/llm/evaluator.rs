@@ -2,31 +2,26 @@
 use crate::error::DriftError;
 use potato_head::agents::provider::traits::ResponseLogProbs;
 use potato_head::{calculate_weighted_score, Score, StructuredOutput, TaskStatus, Workflow};
-use scouter_sql::sql::schema::LLMDriftTaskRequest;
-use scouter_sql::sql::traits::{LLMDriftSqlLogic, ProfileSqlLogic};
-use scouter_sql::PostgresClient;
 use scouter_types::llm::LLMDriftProfile;
-use scouter_types::{DriftType, GetProfileRequest, LLMMetricServerRecord, Status};
+use scouter_types::{LLMMetricRecord, LLMRecord};
 use serde_json::Value;
-use sqlx::{Pool, Postgres};
 use std::sync::Arc;
 use std::sync::RwLock;
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, error, instrument, warn};
 pub struct LLMEvaluator {}
 
 impl LLMEvaluator {
-    pub fn new(db_pool: &Pool<Postgres>) -> Self {
+    pub fn new() -> Self {
         LLMEvaluator {}
-        }
     }
 
     /// Gets the final task results of the workflow.
     /// # Returns a HashMap where the keys are task IDs and the values are AgentResponse objects.
     pub fn get_final_task_results(
-        &self,
         workflow: Arc<RwLock<Workflow>>,
         profile: &LLMDriftProfile,
-    ) -> Result<Vec<LLMMetricServerRecord>, DriftError> {
+        record_uid: &str,
+    ) -> Result<Vec<LLMMetricRecord>, DriftError> {
         let workflow = workflow.read().unwrap();
         let task_list = &workflow.task_list;
         let execution_plan = workflow.execution_plan()?;
@@ -86,8 +81,9 @@ impl LLMEvaluator {
                     score.score as f64
                 };
 
-                // Create the LLMMetricServerRecord
-                let record = LLMMetricServerRecord {
+                // Create the LLMMetricRecord
+                let record = LLMMetricRecord {
+                    record_uid: record_uid.to_string(),
                     created_at: chrono::Utc::now(),
                     space: profile.config.space.clone(),
                     name: profile.config.name.clone(),
@@ -105,48 +101,32 @@ impl LLMEvaluator {
 
     #[instrument(skip_all)]
     pub async fn process_drift_record(
-        &mut self,
-        task: &LLMDriftTaskRequest,
+        record: &LLMRecord,
         profile: &LLMDriftProfile,
-    ) -> Result<bool, DriftError> {
+    ) -> Result<Vec<LLMMetricRecord>, DriftError> {
         debug!("Processing workflow");
 
-        let mut context = task.context.clone();
+        let mut context = record.context.clone();
         let merged_context = match &mut context {
             Value::Object(ref mut map) => {
-                // Insert input if not empty
-                map.insert("input".to_string(), task.input.clone());
-                map.insert("response".to_string(), task.response.clone());
+                map.insert("input".to_string(), record.input.clone());
+                map.insert("response".to_string(), record.response.clone());
                 debug!("Successfully merged input and response into context");
                 context
             }
-            _other => {
+            _ => {
                 error!("Context is not a JSON object");
                 return Err(DriftError::InvalidContextFormat);
             }
         };
 
-        let workflow_result = profile
-            .workflow
-            .run(Some(merged_context))
-            .await
-            .inspect_err(|e| {
-                error!("Failed to run workflow: {:?}", e);
-            })?;
-
-        let final_results = self
-            .get_final_task_results(workflow_result, profile)
-            .inspect_err(|e| {
-                error!("Failed to get final task results: {:?}", e);
-            })?;
-
-        PostgresClient::insert_llm_metric_values_batch(&self.db_pool, &final_results)
-            .await
-            .inspect_err(|e| {
-                error!("Failed to insert LLM metric values: {:?}", e);
-            })?;
-
-        Ok(true)
+        let workflow_result = profile.workflow.run(Some(merged_context)).await?;
+        Self::get_final_task_results(workflow_result, profile, &record.uid)
     }
+}
 
+impl Default for LLMEvaluator {
+    fn default() -> Self {
+        Self::new()
+    }
 }

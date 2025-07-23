@@ -47,7 +47,7 @@ const INSERT_LLM_METRIC_VALUES_BATCH: &str =
 const INSERT_LLM_DRIFT_RECORD: &str = include_str!("scripts/llm/insert_llm_drift_record.sql");
 
 const GET_LLM_DRIFT_RECORDS: &str = include_str!("scripts/llm/get_llm_drift_records.sql");
-const UPDATE_LLM_DRIFT_TASK: &str = include_str!("scripts/llm/update_llm_drift_task.sql");
+const UPDATE_LLM_DRIFT_TASK: &str = include_str!("scripts/llm/update_llm_drift_record.sql");
 const GET_LLM_DRIFT_RECORD_ENTITIES: &str =
     include_str!("scripts/llm/get_llm_drift_record_entities_for_archive.sql");
 const GET_LLM_METRIC_ENTITIES: &str =

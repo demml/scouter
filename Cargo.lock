@@ -5092,6 +5092,7 @@ dependencies = [
  "approx",
  "chrono",
  "cron",
+ "futures",
  "indicatif",
  "itertools 0.13.0",
  "ndarray",

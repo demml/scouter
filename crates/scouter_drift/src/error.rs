@@ -1,11 +1,11 @@
+use futures::io;
 use potato_head::error::WorkflowError;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::PyErr;
 use scouter_dispatch::error::DispatchError;
-use thiserror::Error;
-
 #[cfg(feature = "sql")]
 use scouter_sql::sql::error::SqlError;
+use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum DriftError {
@@ -93,6 +93,9 @@ pub enum DriftError {
 
     #[error("Invalid content type. Expected a json string or value")]
     InvalidContentTypeError,
+
+    #[error("Failed to setup tokio runtime for computing LLM drift: {0}")]
+    SetupTokioRuntimeError(#[source] io::Error),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for DriftError {

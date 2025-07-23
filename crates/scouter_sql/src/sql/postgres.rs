@@ -798,7 +798,7 @@ mod tests {
         assert_eq!(features.len(), 10);
 
         // get pending task
-        let pending_tasks = PostgresClient::get_pending_llm_drift_task(&pool)
+        let pending_tasks = PostgresClient::get_pending_llm_drift_record(&pool)
             .await
             .unwrap();
 
@@ -810,7 +810,7 @@ mod tests {
         assert_eq!(*task_input, "This is a test input".to_string());
 
         // update pending task
-        PostgresClient::update_llm_drift_task_status(
+        PostgresClient::update_llm_drift_record_status(
             &pool,
             &pending_tasks.unwrap(),
             Status::Processed,
@@ -927,7 +927,8 @@ mod tests {
         for i in 0..2 {
             let mut records = Vec::new();
             for j in 0..25 {
-                let record = LLMMetricServerRecord {
+                let record = LLMMetricRecord {
+                    record_uid: format!("uid{i}{j}"),
                     created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                     space: SPACE.to_string(),
                     name: NAME.to_string(),

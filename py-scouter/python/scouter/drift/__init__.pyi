@@ -10,6 +10,7 @@ from ..alert import (
     PsiAlertConfig,
     SpcAlertConfig,
 )
+from datetime import datetime
 from ..types import DataType, DriftType
 
 class FeatureMap:
@@ -598,6 +599,13 @@ class PsiDriftMap:
 
         """
 
+class LLMDriftMap:
+    @property
+    def records(self) -> List[LLMMetricRecord]:
+        """Return the list of LLM records."""
+
+    def __str__(self): ...
+
 class CustomMetricDriftConfig:
     def __init__(
         self,
@@ -918,6 +926,38 @@ class LLMMetric:
     @property
     def alert_threshold_value(self) -> Optional[float]:
         """Return the alert_threshold_value"""
+
+class LLMMetricRecord:
+    @property
+    def record_uid(self) -> str:
+        """Return the record id"""
+
+    @property
+    def created_at(self) -> datetime:
+        """Return the timestamp when the record was created"""
+
+    @property
+    def space(self) -> str:
+        """Return the space associated with the record"""
+
+    @property
+    def name(self) -> str:
+        """Return the name associated with the record"""
+
+    @property
+    def version(self) -> str:
+        """Return the version associated with the record"""
+
+    @property
+    def metric(self) -> str:
+        """Return the name of the metric associated with the record"""
+
+    @property
+    def value(self) -> float:
+        """Return the value of the metric associated with the record"""
+
+    def __str__(self) -> str:
+        """Return the string representation of the record"""
 
 class LLMDriftConfig:
     def __init__(
@@ -1259,7 +1299,9 @@ class Drifter:
     def create_drift_profile(  # type: ignore
         self,
         data: Any,
-        config: Optional[Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]] = None,
+        config: Optional[
+            Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]
+        ] = None,
         data_type: Optional[DataType] = None,
     ) -> Union[SpcDriftProfile, PsiDriftProfile, CustomDriftProfile]:
         """Create a drift profile from data.
@@ -1344,7 +1386,7 @@ class Drifter:
     def compute_drift(
         self,
         data: Any,
-        drift_profile: Union[SpcDriftProfile, PsiDriftProfile],
+        drift_profile: Union[SpcDriftProfile, PsiDriftProfile, LLMDriftProfile],
         data_type: Optional[DataType] = None,
     ) -> Any:
         """Create a drift profile from data.
@@ -1352,13 +1394,12 @@ class Drifter:
         Args:
             data:
                 Data to create a data profile from. Data can be a numpy array,
-                a polars dataframe, pandas dataframe or a list of CustomMetric if creating
-                a custom metric profile.
+                a polars dataframe, pandas dataframe or a list of LLMRecords.
             drift_profile:
                 Drift profile to use to compute drift map
             data_type:
                 Optional data type. Inferred from data if not provided.
 
         Returns:
-            SpcDriftMap or PsiDriftMap
+            SpcDriftMap, PsiDriftMap or LLMDriftMap
         """

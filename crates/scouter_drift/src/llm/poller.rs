@@ -1,153 +1,44 @@
 // Module for polling LLM drift records that are "pending" and need to be processed
 use crate::error::DriftError;
-use potato_head::agents::provider::traits::ResponseLogProbs;
-use potato_head::{calculate_weighted_score, Score, StructuredOutput, TaskStatus, Workflow};
-use scouter_sql::sql::schema::LLMDriftTaskRequest;
+use crate::llm::evaluator::LLMEvaluator;
 use scouter_sql::sql::traits::{LLMDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::llm::LLMDriftProfile;
-use scouter_types::{DriftType, GetProfileRequest, LLMMetricServerRecord, Status};
-use serde_json::Value;
+use scouter_types::{DriftType, GetProfileRequest, LLMRecord, Status};
 use sqlx::{Pool, Postgres};
-use std::sync::Arc;
-use std::sync::RwLock;
-use tracing::{debug, error, info, instrument, warn};
-pub struct LLMEvaluator {
+use tracing::{debug, error, info, instrument};
+pub struct LLMPoller {
     db_pool: Pool<Postgres>,
 }
 
-impl LLMEvaluator {
+impl LLMPoller {
     pub fn new(db_pool: &Pool<Postgres>) -> Self {
-        LLMEvaluator {
+        LLMPoller {
             db_pool: db_pool.clone(),
         }
-    }
-
-    /// Gets the final task results of the workflow.
-    /// # Returns a HashMap where the keys are task IDs and the values are AgentResponse objects.
-    pub fn get_final_task_results(
-        &self,
-        workflow: Arc<RwLock<Workflow>>,
-        profile: &LLMDriftProfile,
-    ) -> Result<Vec<LLMMetricServerRecord>, DriftError> {
-        let workflow = workflow.read().unwrap();
-        let task_list = &workflow.task_list;
-        let execution_plan = workflow.execution_plan()?;
-
-        let max_step = execution_plan.keys().max().copied().unwrap_or(0);
-
-        if max_step == 0 {
-            return Ok(Vec::new());
-        }
-
-        let mut final_results = Vec::new();
-
-        if let Some(final_task_ids) = execution_plan.get(&max_step) {
-            for task_id in final_task_ids {
-                // Get the task from the task list
-                let Some(task) = task_list.get_task(task_id) else {
-                    continue;
-                };
-
-                // Lock the task for reading
-                let task_guard = task.read().unwrap();
-
-                // Only process completed tasks with a result
-                let (TaskStatus::Completed, Some(result)) =
-                    (&task_guard.status, &task_guard.result)
-                else {
-                    continue;
-                };
-
-                let task_id = task_guard.id.clone();
-
-                // Content should be returned as a json string
-                let content = match result.content() {
-                    Some(c) => c,
-                    None => {
-                        warn!("Task result content is empty for task ID: {}", task_id);
-                        continue;
-                    }
-                };
-
-                // Validate the content as a Score object
-                let score = Score::model_validate_json_str(&content).inspect_err(|e| {
-                    error!("Failed to validate score: {:?}", e);
-                })?;
-
-                // Check for log_probs in the result
-                let log_probs: Vec<ResponseLogProbs> = result.log_probs();
-
-                // Calculate weighted score if log_probs is not empty
-                // Default to score if no log_probs are present or if calculation returns None
-                let value = if !log_probs.is_empty() {
-                    match calculate_weighted_score(&log_probs)? {
-                        Some(weighted) => weighted,
-                        None => score.score as f64,
-                    }
-                } else {
-                    score.score as f64
-                };
-
-                // Create the LLMMetricServerRecord
-                let record = LLMMetricServerRecord {
-                    created_at: chrono::Utc::now(),
-                    space: profile.config.space.clone(),
-                    name: profile.config.name.clone(),
-                    version: profile.config.version.clone(),
-                    metric: task_id,
-                    value,
-                };
-
-                final_results.push(record);
-            }
-        }
-
-        Ok(final_results)
     }
 
     #[instrument(skip_all)]
     pub async fn process_drift_record(
         &mut self,
-        task: &LLMDriftTaskRequest,
+        record: &LLMRecord,
         profile: &LLMDriftProfile,
     ) -> Result<bool, DriftError> {
         debug!("Processing workflow");
 
-        let mut context = task.context.clone();
-        let merged_context = match &mut context {
-            Value::Object(ref mut map) => {
-                // Insert input if not empty
-                map.insert("input".to_string(), task.input.clone());
-                map.insert("response".to_string(), task.response.clone());
-                debug!("Successfully merged input and response into context");
-                context
+        match LLMEvaluator::process_drift_record(record, profile).await {
+            Ok(metrics) => {
+                PostgresClient::insert_llm_metric_values_batch(&self.db_pool, &metrics)
+                    .await
+                    .inspect_err(|e| {
+                        error!("Failed to insert LLM metric values: {:?}", e);
+                    })?;
             }
-            _other => {
-                error!("Context is not a JSON object");
-                return Err(DriftError::InvalidContextFormat);
+            Err(e) => {
+                error!("Failed to process drift record: {:?}", e);
+                return Ok(false);
             }
         };
-
-        let workflow_result = profile
-            .workflow
-            .run(Some(merged_context))
-            .await
-            .inspect_err(|e| {
-                error!("Failed to run workflow: {:?}", e);
-            })?;
-
-        let final_results = self
-            .get_final_task_results(workflow_result, profile)
-            .inspect_err(|e| {
-                error!("Failed to get final task results: {:?}", e);
-            })?;
-
-        PostgresClient::insert_llm_metric_values_batch(&self.db_pool, &final_results)
-            .await
-            .inspect_err(|e| {
-                error!("Failed to insert LLM metric values: {:?}", e);
-            })?;
 
         Ok(true)
     }
@@ -155,7 +46,7 @@ impl LLMEvaluator {
     #[instrument(skip_all)]
     pub async fn do_poll(&mut self) -> Result<bool, DriftError> {
         // Get task from the database (query uses skip lock to pull task and update to processing)
-        let task = PostgresClient::get_pending_llm_drift_task(&self.db_pool).await?;
+        let task = PostgresClient::get_pending_llm_drift_record(&self.db_pool).await?;
 
         let Some(task) = task else {
             return Ok(false);
@@ -189,10 +80,25 @@ impl LLMEvaluator {
             return Ok(false);
         };
 
-        self.process_drift_record(&task, &llm_profile).await?;
+        let result = self.process_drift_record(&task, &llm_profile).await?;
+
+        // result will be false if the workflow execution failed
+        // in that case, we should update the task status to Failed
+        if !result {
+            // Update the task status to Failed
+            PostgresClient::update_llm_drift_record_status(&self.db_pool, &task, Status::Failed)
+                .await
+                .inspect_err(|e| {
+                    error!(
+                        "Failed to update LLM drift record status to Failed: {:?}",
+                        e
+                    );
+                })?;
+            return Ok(false);
+        }
 
         // Update the run dates while still holding the lock
-        PostgresClient::update_llm_drift_task_status(&self.db_pool, &task, Status::Processed)
+        PostgresClient::update_llm_drift_record_status(&self.db_pool, &task, Status::Processed)
             .await?;
 
         Ok(true)

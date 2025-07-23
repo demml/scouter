@@ -19,7 +19,7 @@ use scouter_sql::PostgresClient;
 use scouter_types::JwtToken;
 use scouter_types::{
     llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftProfile, LLMMetric},
-    AlertThreshold, CustomMetricServerRecord, LLMMetricServerRecord, PsiServerRecord,
+    AlertThreshold, CustomMetricServerRecord, LLMMetricRecord, PsiServerRecord,
 };
 use scouter_types::{
     BoxedLLMDriftServerRecord, LLMDriftServerRecord, ServerRecord, ServerRecords, SpcServerRecord,
@@ -282,7 +282,8 @@ impl TestHelper {
 
         for i in 0..2 {
             for j in 0..25 {
-                let record = LLMMetricServerRecord {
+                let record = LLMMetricRecord {
+                    record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::microseconds(j as i64)
                         - chrono::Duration::days(offset),
                     space: SPACE.to_string(),

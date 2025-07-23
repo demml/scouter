@@ -420,19 +420,6 @@ pub fn llm_drift_metric_from_row(row: &PgRow) -> Result<BoxedLLMDriftServerRecor
     })
 }
 
-#[derive(Debug, Clone, FromRow)]
-pub struct LLMDriftTaskRequest {
-    pub uid: String,
-    pub created_at: DateTime<Utc>,
-    pub space: String,
-    pub name: String,
-    pub version: String,
-    pub input: Value,
-    pub response: Value,
-    pub prompt: Value,
-    pub context: Value,
-}
-
 pub struct LLMRecordWrapper(pub LLMRecord);
 
 impl<'r> FromRow<'r, PgRow> for LLMRecordWrapper {

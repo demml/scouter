@@ -225,6 +225,13 @@ impl DriftProfile {
         }
     }
 
+    pub fn get_llm_profile(&self) -> Result<&LLMDriftProfile, ProfileError> {
+        match self {
+            DriftProfile::LLM(profile) => Ok(profile),
+            _ => Err(ProfileError::InvalidDriftTypeError),
+        }
+    }
+
     pub fn drift_type(&self) -> DriftType {
         match self {
             DriftProfile::Spc(_) => DriftType::Spc,

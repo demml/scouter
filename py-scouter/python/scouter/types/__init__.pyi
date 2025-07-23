@@ -31,3 +31,4 @@ class DataType:
     Polars: "DataType"
     Numpy: "DataType"
     Arrow: "DataType"
+    LLM: "DataType"

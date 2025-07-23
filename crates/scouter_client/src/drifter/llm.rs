@@ -1,6 +1,9 @@
 use pyo3::prelude::*;
-use scouter_drift::error::DriftError;
+use scouter_drift::{error::DriftError, LLMEvaluator};
 use scouter_types::llm::{LLMDriftConfig, LLMDriftProfile, LLMMetric};
+use scouter_types::{LLMMetricRecord, LLMRecord};
+use std::sync::Arc;
+
 #[derive(Default)]
 pub struct LLMDrifter {}
 
@@ -17,5 +20,29 @@ impl LLMDrifter {
     ) -> Result<LLMDriftProfile, DriftError> {
         let profile = LLMDriftProfile::new(config, metrics, workflow)?;
         Ok(profile)
+    }
+
+    pub fn compute_drift_single(
+        record: &LLMRecord,
+        profile: &LLMDriftProfile,
+    ) -> Result<Vec<LLMMetricRecord>, DriftError> {
+        let shared_runtime =
+            Arc::new(tokio::runtime::Runtime::new().map_err(DriftError::SetupTokioRuntimeError)?);
+        let metrics = shared_runtime
+            .block_on(async { LLMEvaluator::process_drift_record(record, profile).await })?;
+        Ok(metrics)
+    }
+
+    pub fn compute_drift(
+        &mut self,
+        data: Vec<LLMRecord>,
+        profile: &LLMDriftProfile,
+    ) -> Result<Vec<LLMMetricRecord>, DriftError> {
+        let mut results = Vec::new();
+        for record in data {
+            let metrics = Self::compute_drift_single(&record, profile)?;
+            results.extend(metrics);
+        }
+        Ok(results)
     }
 }

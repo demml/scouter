@@ -2,6 +2,7 @@ use crate::error::{ProfileError, TypeError};
 use crate::llm::alert::LLMAlertConfig;
 use crate::llm::alert::LLMMetric;
 use crate::util::{json_to_pyobject, pyobject_to_json};
+use crate::LLMMetricRecord;
 use crate::ProfileRequest;
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
@@ -562,6 +563,26 @@ impl ProfileBaseArgs for LLMDriftProfile {
 
     fn to_value(&self) -> Value {
         serde_json::to_value(self).unwrap()
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LLMDriftMap {
+    #[pyo3(get)]
+    pub records: Vec<LLMMetricRecord>,
+}
+
+#[pymethods]
+impl LLMDriftMap {
+    #[new]
+    pub fn new(records: Vec<LLMMetricRecord>) -> Self {
+        Self { records }
+    }
+
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
     }
 }
 

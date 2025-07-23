@@ -1,7 +1,7 @@
 use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
 use crate::sql::schema::LLMRecordWrapper;
-use crate::sql::schema::{BinnedMetricWrapper, LLMDriftServerSQLRecord, LLMDriftTaskRequest};
+use crate::sql::schema::{BinnedMetricWrapper, LLMDriftServerSQLRecord};
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -15,7 +15,7 @@ use scouter_types::{
     llm::{PaginationCursor, PaginationRequest, PaginationResponse},
     BinnedMetrics, LLMDriftServerRecord, RecordType,
 };
-use scouter_types::{LLMMetricServerRecord, Status};
+use scouter_types::{LLMMetricRecord, Status};
 use sqlx::types::Json;
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::collections::HashMap;
@@ -55,7 +55,7 @@ pub trait LLMDriftSqlLogic {
     /// This is the output from processing/evaluating the LLM drift records.
     async fn insert_llm_metric_values_batch(
         pool: &Pool<Postgres>,
-        records: &[LLMMetricServerRecord],
+        records: &[LLMMetricRecord],
     ) -> Result<PgQueryResult, SqlError> {
         if records.is_empty() {
             return Err(SqlError::EmptyBatchError);
@@ -63,8 +63,9 @@ pub trait LLMDriftSqlLogic {
 
         let query = Queries::InsertLLMMetricValuesBatch.get_query();
 
-        let (created_ats, names, spaces, versions, metrics, values): (
+        let (created_ats, record_uids, names, spaces, versions, metrics, values): (
             Vec<DateTime<Utc>>,
+            Vec<&str>,
             Vec<&str>,
             Vec<&str>,
             Vec<&str>,
@@ -73,6 +74,7 @@ pub trait LLMDriftSqlLogic {
         ) = multiunzip(records.iter().map(|r| {
             (
                 r.created_at,
+                r.record_uid.as_str(),
                 r.name.as_str(),
                 r.space.as_str(),
                 r.version.as_str(),
@@ -83,8 +85,9 @@ pub trait LLMDriftSqlLogic {
 
         sqlx::query(&query.sql)
             .bind(created_ats)
-            .bind(names)
+            .bind(record_uids)
             .bind(spaces)
+            .bind(names)
             .bind(versions)
             .bind(metrics)
             .bind(values)
@@ -431,7 +434,7 @@ pub trait LLMDriftSqlLogic {
     }
 
     /// Retrieves the next pending LLM drift task from drift_records.
-    async fn get_pending_llm_drift_task(
+    async fn get_pending_llm_drift_record(
         pool: &Pool<Postgres>,
     ) -> Result<Option<LLMRecord>, SqlError> {
         let query = Queries::GetPendingLLMDriftTask.get_query();
@@ -444,16 +447,16 @@ pub trait LLMDriftSqlLogic {
     }
 
     #[instrument(skip_all)]
-    async fn update_llm_drift_task_status(
+    async fn update_llm_drift_record_status(
         pool: &Pool<Postgres>,
-        task_info: &LLMDriftTaskRequest,
+        record: &LLMRecord,
         status: Status,
     ) -> Result<(), SqlError> {
         let query = Queries::UpdateLLMDriftTask.get_query();
 
         let _query_result = sqlx::query(&query.sql)
             .bind(status.as_str())
-            .bind(&task_info.uid)
+            .bind(&record.uid)
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)?;

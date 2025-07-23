@@ -1,6 +1,6 @@
 // Module to process LLM drift record tasks
 use crate::api::error::ServerError;
-use scouter_drift::LLMEvaluator;
+use scouter_drift::llm::LLMPoller;
 use scouter_settings::PollingSettings;
 use sqlx::{Pool, Postgres};
 use tokio::sync::watch;
@@ -23,12 +23,12 @@ impl BackgroundLLMDriftManager {
 
         for id in 0..num_workers {
             let shutdown_rx = shutdown_rx.clone();
-            let llm_evaluator = LLMEvaluator::new(db_pool);
+            let llm_poller = LLMPoller::new(db_pool);
             let worker_shutdown_rx = shutdown_rx.clone();
 
             workers.push(tokio::spawn(Self::start_worker(
                 id,
-                llm_evaluator,
+                llm_poller,
                 worker_shutdown_rx,
             )));
 
@@ -43,7 +43,7 @@ impl BackgroundLLMDriftManager {
 
     async fn start_worker(
         id: usize,
-        mut executor: LLMEvaluator,
+        mut poller: LLMPoller,
         mut shutdown: watch::Receiver<()>, // Accept receiver
     ) {
         loop {
@@ -52,7 +52,7 @@ impl BackgroundLLMDriftManager {
                     info!("LLM evaluator {}: Shutting down", id);
                     break;
                 }
-                result = executor.poll_for_tasks().instrument(span!(Level::INFO, "poll_for_llm_tasks")) => {
+                result = poller.poll_for_tasks().instrument(span!(Level::INFO, "poll_for_llm_tasks")) => {
                     if let Err(e) = result {
                         error!("Alert poller error: {:?}", e);
                     }

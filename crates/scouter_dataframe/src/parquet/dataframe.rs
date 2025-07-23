@@ -168,9 +168,8 @@ mod tests {
     use rand::Rng;
     use scouter_settings::ObjectStorageSettings;
     use scouter_types::{
-        BoxedLLMDriftServerRecord, CustomMetricServerRecord, LLMDriftServerRecord,
-        LLMMetricServerRecord, PsiServerRecord, ServerRecord, ServerRecords, SpcServerRecord,
-        Status,
+        BoxedLLMDriftServerRecord, CustomMetricServerRecord, LLMDriftServerRecord, LLMMetricRecord,
+        PsiServerRecord, ServerRecord, ServerRecords, SpcServerRecord, Status,
     };
     use serde_json::Map;
     use serde_json::Value;
@@ -259,7 +258,8 @@ mod tests {
         // create records
         for i in 0..3 {
             for j in 0..50 {
-                let record = ServerRecord::LLMMetric(LLMMetricServerRecord {
+                let record = ServerRecord::LLMMetric(LLMMetricRecord {
+                    record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::hours(i),
                     name: "test".to_string(),
                     space: "test".to_string(),

@@ -274,6 +274,7 @@ impl LLMDriftServerRecord {
 }
 
 impl LLMDriftServerRecord {
+    #[allow(clippy::too_many_arguments)]
     pub fn new_rs(
         space: String,
         name: String,
@@ -320,17 +321,31 @@ impl BoxedLLMDriftServerRecord {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct LLMMetricServerRecord {
+pub struct LLMMetricRecord {
+    #[pyo3(get)]
+    pub record_uid: String,
+
+    #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
+
+    #[pyo3(get)]
     pub space: String,
+
+    #[pyo3(get)]
     pub name: String,
+
+    #[pyo3(get)]
     pub version: String,
+
+    #[pyo3(get)]
     pub metric: String,
+
+    #[pyo3(get)]
     pub value: f64,
 }
 
 #[pymethods]
-impl LLMMetricServerRecord {
+impl LLMMetricRecord {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__str__(self)
@@ -487,7 +502,7 @@ pub enum ServerRecord {
     Custom(CustomMetricServerRecord),
     Observability(ObservabilityMetrics),
     LLMDrift(BoxedLLMDriftServerRecord),
-    LLMMetric(LLMMetricServerRecord),
+    LLMMetric(LLMMetricRecord),
 }
 
 #[pymethods]
@@ -667,7 +682,7 @@ pub trait ToDriftRecords {
     fn to_psi_drift_records(&self) -> Result<Vec<PsiServerRecord>, RecordError>;
     fn to_custom_metric_drift_records(&self) -> Result<Vec<CustomMetricServerRecord>, RecordError>;
     fn to_llm_drift_records(&self) -> Result<Vec<LLMDriftServerRecord>, RecordError>;
-    fn to_llm_metric_records(&self) -> Result<Vec<LLMMetricServerRecord>, RecordError>;
+    fn to_llm_metric_records(&self) -> Result<Vec<LLMMetricRecord>, RecordError>;
 }
 impl ToDriftRecords for ServerRecords {
     fn to_spc_drift_records(&self) -> Result<Vec<SpcServerRecord>, RecordError> {
@@ -705,7 +720,7 @@ impl ToDriftRecords for ServerRecords {
         })
     }
 
-    fn to_llm_metric_records(&self) -> Result<Vec<LLMMetricServerRecord>, RecordError> {
+    fn to_llm_metric_records(&self) -> Result<Vec<LLMMetricRecord>, RecordError> {
         extract_records(self, |record| match record {
             ServerRecord::LLMMetric(inner) => Some(inner.clone()),
             _ => None,

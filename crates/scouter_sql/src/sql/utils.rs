@@ -2,7 +2,7 @@ use crate::sql::error::SqlError;
 use crate::sql::schema::llm_drift_record_from_row;
 use chrono::{DateTime, Utc};
 use scouter_types::{
-    CustomMetricServerRecord, LLMMetricServerRecord, PsiServerRecord, RecordType, ServerRecord,
+    CustomMetricServerRecord, LLMMetricRecord, PsiServerRecord, RecordType, ServerRecord,
     ServerRecords, SpcServerRecord,
 };
 
@@ -47,8 +47,9 @@ fn custom_record_from_row(row: &PgRow) -> Result<CustomMetricServerRecord, SqlEr
     })
 }
 
-fn llm_drift_metric_from_row(row: &PgRow) -> Result<LLMMetricServerRecord, SqlError> {
-    Ok(LLMMetricServerRecord {
+fn llm_drift_metric_from_row(row: &PgRow) -> Result<LLMMetricRecord, SqlError> {
+    Ok(LLMMetricRecord {
+        record_uid: row.try_get("record_uid")?,
         created_at: row.try_get("created_at")?,
         space: row.try_get("space")?,
         name: row.try_get("name")?,

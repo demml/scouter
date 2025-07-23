@@ -1,14 +1,15 @@
 -- Add migration script here
 CREATE TABLE IF NOT exists scouter.llm_drift (
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    name text not null,
+    record_uid text not null,
     space text not null,
+    name text not null,
     version text not null,
     metric text not null,
     value double precision,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     archived boolean default false,
-    UNIQUE (created_at, name, space, version)
+    UNIQUE (created_at, space, name, version)
 )
 PARTITION BY RANGE (created_at);
 

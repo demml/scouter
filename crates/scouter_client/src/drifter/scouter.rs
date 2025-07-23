@@ -5,8 +5,9 @@ use pyo3::types::PyList;
 use pyo3::IntoPyObjectExt;
 use scouter_drift::error::DriftError;
 use scouter_drift::spc::SpcDriftMap;
-use scouter_types::llm::LLMMetric;
+use scouter_types::llm::{LLMDriftMap, LLMMetric};
 use scouter_types::spc::SpcDriftProfile;
+use scouter_types::LLMRecord;
 use scouter_types::{
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
     llm::{LLMDriftConfig, LLMDriftProfile},
@@ -19,6 +20,7 @@ use std::sync::RwLock;
 pub enum DriftMap {
     Spc(SpcDriftMap),
     Psi(PsiDriftMap),
+    LLM(LLMDriftMap),
 }
 
 pub enum DriftConfig {
@@ -162,10 +164,17 @@ impl Drifter {
                 Err(DriftError::NotImplemented)
             }
 
-            Drifter::LLM(_) => {
-                // check if data is pylist. If it is, convert to Vec<CustomMetric>
-                // if not extract to CustomMetric and add to vec
-                Err(DriftError::NotImplemented)
+            Drifter::LLM(drifter) => {
+                // extract data to be Vec<LLMRecord>
+                let data = if data.is_instance_of::<PyList>() {
+                    data.extract::<Vec<LLMRecord>>()?
+                } else {
+                    let metric = data.extract::<LLMRecord>()?;
+                    vec![metric]
+                };
+                let records = drifter.compute_drift(data, profile.get_llm_profile()?)?;
+
+                Ok(DriftMap::LLM(LLMDriftMap { records }))
             }
         }
     }
@@ -307,16 +316,23 @@ impl PyDrifter {
 
         // if data_type is None, try to infer it from the class name
         // This is for handling, numpy, pandas, pyarrow
+        // skip if drift_type is LLM, as it will be handled separately
+
         let data_type = match data_type {
             Some(data_type) => data_type,
             None => {
-                let class = data.getattr("__class__")?;
-                let module = class.getattr("__module__")?.str()?.to_string();
-                let name = class.getattr("__name__")?.str()?.to_string();
-                let full_class_name = format!("{module}.{name}");
+                if drift_type == DriftType::LLM {
+                    // For LLM, we will handle it separately in the create_llm_drift_profile method
+                    &DataType::LLM
+                } else {
+                    let class = data.getattr("__class__")?;
+                    let module = class.getattr("__module__")?.str()?.to_string();
+                    let name = class.getattr("__name__")?.str()?.to_string();
+                    let full_class_name = format!("{module}.{name}");
 
-                &DataType::from_module_name(&full_class_name).unwrap_or(DataType::Unknown)
-                // for handling custom
+                    // for handling custom
+                    &DataType::from_module_name(&full_class_name).unwrap_or(DataType::Unknown)
+                }
             }
         };
 
@@ -327,6 +343,7 @@ impl PyDrifter {
         match drift_map {
             DriftMap::Spc(map) => Ok(map.into_bound_py_any(py)?),
             DriftMap::Psi(map) => Ok(map.into_bound_py_any(py)?),
+            DriftMap::LLM(map) => Ok(map.into_bound_py_any(py)?),
         }
     }
 }

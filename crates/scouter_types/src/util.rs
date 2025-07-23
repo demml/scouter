@@ -297,6 +297,7 @@ pub enum DataType {
     Numpy,
     Arrow,
     Unknown,
+    LLM,
 }
 
 impl Display for DataType {
@@ -307,6 +308,7 @@ impl Display for DataType {
             DataType::Numpy => write!(f, "numpy"),
             DataType::Arrow => write!(f, "arrow"),
             DataType::Unknown => write!(f, "unknown"),
+            DataType::LLM => write!(f, "llm"),
         }
     }
 }
@@ -318,6 +320,7 @@ impl DataType {
             "polars.dataframe.frame.DataFrame" => Ok(DataType::Polars),
             "numpy.ndarray" => Ok(DataType::Numpy),
             "pyarrow.lib.Table" => Ok(DataType::Arrow),
+            "scouter_drift.llm.LLMRecord" => Ok(DataType::LLM),
             _ => Err(TypeError::InvalidDataType),
         }
     }
@@ -369,6 +372,7 @@ pub enum Status {
     Pending,
     Processing,
     Processed,
+    Failed,
 }
 
 impl Status {
@@ -378,6 +382,7 @@ impl Status {
             Status::Pending => Some("pending"),
             Status::Processing => Some("processing"),
             Status::Processed => Some("processed"),
+            Status::Failed => Some("failed"),
         }
     }
 }
@@ -391,6 +396,7 @@ impl FromStr for Status {
             "pending" => Ok(Status::Pending),
             "processing" => Ok(Status::Processing),
             "processed" => Ok(Status::Processed),
+            "failed" => Ok(Status::Failed),
             _ => Err(TypeError::InvalidStatusError(s.to_string())),
         }
     }
@@ -403,6 +409,7 @@ impl Display for Status {
             Status::Pending => write!(f, "pending"),
             Status::Processing => write!(f, "processing"),
             Status::Processed => write!(f, "processed"),
+            Status::Failed => write!(f, "failed"),
         }
     }
 }

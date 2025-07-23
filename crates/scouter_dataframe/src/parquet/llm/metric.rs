@@ -11,7 +11,7 @@ use chrono::{DateTime, Utc};
 use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::{LLMMetricServerRecord, ServerRecords, StorageType, ToDriftRecords};
+use scouter_types::{LLMMetricRecord, ServerRecords, StorageType, ToDriftRecords};
 use std::sync::Arc;
 
 pub struct LLMMetricDataFrame {
@@ -73,6 +73,7 @@ impl LLMMetricDataFrame {
                 DataType::Timestamp(TimeUnit::Nanosecond, None),
                 false,
             ),
+            Field::new("record_uid", DataType::Utf8, false),
             Field::new("space", DataType::Utf8, false),
             Field::new("name", DataType::Utf8, false),
             Field::new("version", DataType::Utf8, false),
@@ -88,16 +89,14 @@ impl LLMMetricDataFrame {
         })
     }
 
-    fn build_batch(
-        &self,
-        records: Vec<LLMMetricServerRecord>,
-    ) -> Result<RecordBatch, DataFrameError> {
+    fn build_batch(&self, records: Vec<LLMMetricRecord>) -> Result<RecordBatch, DataFrameError> {
         let created_at_array = TimestampNanosecondArray::from_iter_values(
             records
                 .iter()
                 .map(|r| r.created_at.timestamp_nanos_opt().unwrap_or_default()),
         );
-
+        let record_uid_array =
+            StringArray::from_iter_values(records.iter().map(|r| r.record_uid.as_str()));
         let space_array = StringArray::from_iter_values(records.iter().map(|r| r.space.as_str()));
         let name_array = StringArray::from_iter_values(records.iter().map(|r| r.name.as_str()));
         let version_array =
@@ -110,6 +109,7 @@ impl LLMMetricDataFrame {
             self.schema.clone(),
             vec![
                 Arc::new(created_at_array),
+                Arc::new(record_uid_array),
                 Arc::new(space_array),
                 Arc::new(name_array),
                 Arc::new(version_array),
