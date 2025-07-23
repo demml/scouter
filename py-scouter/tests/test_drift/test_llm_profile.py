@@ -9,7 +9,6 @@ from scouter.drift import (
     LLMDriftProfile,
     LLMMetric,
     Drifter,
-    LLMDriftMap,
 )
 from scouter.queue import LLMRecord
 from scouter.llm import Agent, Prompt, Score, Task, Workflow
