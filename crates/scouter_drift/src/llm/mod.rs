@@ -2,6 +2,9 @@
 pub mod evaluator;
 
 #[cfg(feature = "sql")]
+pub mod poller;
+
+#[cfg(feature = "sql")]
 pub mod drift;
 
 #[cfg(feature = "sql")]

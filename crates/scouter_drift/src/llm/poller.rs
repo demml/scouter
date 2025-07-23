@@ -12,11 +12,14 @@ use sqlx::{Pool, Postgres};
 use std::sync::Arc;
 use std::sync::RwLock;
 use tracing::{debug, error, info, instrument, warn};
-pub struct LLMEvaluator {}
+pub struct LLMEvaluator {
+    db_pool: Pool<Postgres>,
+}
 
 impl LLMEvaluator {
     pub fn new(db_pool: &Pool<Postgres>) -> Self {
-        LLMEvaluator {}
+        LLMEvaluator {
+            db_pool: db_pool.clone(),
         }
     }
 
@@ -149,4 +152,67 @@ impl LLMEvaluator {
         Ok(true)
     }
 
+    #[instrument(skip_all)]
+    pub async fn do_poll(&mut self) -> Result<bool, DriftError> {
+        // Get task from the database (query uses skip lock to pull task and update to processing)
+        let task = PostgresClient::get_pending_llm_drift_task(&self.db_pool).await?;
+
+        let Some(task) = task else {
+            return Ok(false);
+        };
+
+        info!(
+            "Processing llm drift record for profile: {}/{}/{}",
+            task.space, task.name, task.version
+        );
+
+        // get profile
+        let request = GetProfileRequest {
+            space: task.space.clone(),
+            name: task.name.clone(),
+            version: task.version.clone(),
+            drift_type: DriftType::LLM,
+        };
+        let llm_profile = if let Some(profile) =
+            PostgresClient::get_drift_profile(&self.db_pool, &request).await?
+        {
+            let llm_profile: LLMDriftProfile =
+                serde_json::from_value(profile).inspect_err(|e| {
+                    error!("Failed to deserialize LLM drift profile: {:?}", e);
+                })?;
+            llm_profile
+        } else {
+            error!(
+                "No LLM drift profile found for {}/{}/{}",
+                task.space, task.name, task.version
+            );
+            return Ok(false);
+        };
+
+        self.process_drift_record(&task, &llm_profile).await?;
+
+        // Update the run dates while still holding the lock
+        PostgresClient::update_llm_drift_task_status(&self.db_pool, &task, Status::Processed)
+            .await?;
+
+        Ok(true)
+    }
+
+    #[instrument(skip_all)]
+    pub async fn poll_for_tasks(&mut self) -> Result<(), DriftError> {
+        let result = self.do_poll().await;
+
+        // silent error handling
+        match result {
+            Ok(true) => {
+                debug!("Successfully processed drift record");
+                Ok(())
+            }
+            Ok(false) => Ok(()),
+            Err(e) => {
+                error!("Error processing drift record: {:?}", e);
+                Ok(())
+            }
+        }
+    }
 }

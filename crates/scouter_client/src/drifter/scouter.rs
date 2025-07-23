@@ -99,7 +99,7 @@ impl Drifter {
             }
             Drifter::Psi(drifter) => {
                 let data = DataConverterEnum::convert_data(py, data_type, data)?;
-                let profile = drifter.create_drift_profile(data, config.psi_config()?.clone())?;
+                let profile = drifter.create_drift_profile(data, config.psi_config()?)?;
                 Ok(DriftProfile::Psi(profile))
             }
             Drifter::Custom(drifter) => {
@@ -112,19 +112,27 @@ impl Drifter {
                     vec![metric]
                 };
 
-                let profile =
-                    drifter.create_drift_profile(config.custom_config()?.clone(), data, None)?;
+                let profile = drifter.create_drift_profile(
+                    config.custom_config()?.read().unwrap().clone(),
+                    data,
+                    None,
+                )?;
                 Ok(DriftProfile::Custom(profile))
             }
             Drifter::LLM(drifter) => {
                 // LLM drift profiles are created separately, so we will handle this in the create_llm_drift_profile method
-                let metruccs = if data.is_instance_of::<PyList>() {
+                let metrics = if data.is_instance_of::<PyList>() {
                     data.extract::<Vec<LLMMetric>>()?
                 } else {
                     let metric = data.extract::<LLMMetric>()?;
                     vec![metric]
                 };
-                drifter.create_drift_profile(config, metrics, workflow)
+                let profile = drifter.create_drift_profile(
+                    config.llm_config()?.read().unwrap().clone(),
+                    metrics,
+                    workflow,
+                )?;
+                Ok(DriftProfile::LLM(profile))
             }
         }
     }
@@ -151,6 +159,12 @@ impl Drifter {
             }
             Drifter::Custom(_) => {
                 // check if data is pylist. If it is, convert to Vec<CustomMetric>
+                Err(DriftError::NotImplemented)
+            }
+
+            Drifter::LLM(_) => {
+                // check if data is pylist. If it is, convert to Vec<CustomMetric>
+                // if not extract to CustomMetric and add to vec
                 Err(DriftError::NotImplemented)
             }
         }
@@ -194,25 +208,25 @@ impl PyDrifter {
             let drift_config = match drift_type {
                 DriftType::Spc => {
                     let config = obj.extract::<SpcDriftConfig>()?;
-                    DriftConfig::Spc(Arc::new(config))
+                    DriftConfig::Spc(Arc::new(config.into()))
                 }
                 DriftType::Psi => {
                     let config = obj.extract::<PsiDriftConfig>()?;
-                    DriftConfig::Psi(Arc::new(config))
+                    DriftConfig::Psi(Arc::new(config.into()))
                 }
                 DriftType::Custom => {
                     let config = obj.extract::<CustomMetricDriftConfig>()?;
-                    DriftConfig::Custom(Arc::new(config))
+                    DriftConfig::Custom(Arc::new(config.into()))
                 }
                 DriftType::LLM => {
                     let config = obj.extract::<LLMDriftConfig>()?;
-                    DriftConfig::LLM(Arc::new(config))
+                    DriftConfig::LLM(Arc::new(config.into()))
                 }
             };
             (drift_config, drift_type)
         } else {
             (
-                DriftConfig::Spc(Arc::new(SpcDriftConfig::default())),
+                DriftConfig::Spc(Arc::new(SpcDriftConfig::default().into())),
                 DriftType::Spc,
             )
         };

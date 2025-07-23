@@ -56,6 +56,8 @@ impl LLMRecordQueue {
                         record.response.clone(),
                         record.prompt.clone(),
                         record.context.clone(),
+                        record.created_at.clone(),
+                        record.uid.clone(),
                     ),
                 )) // Removed the semicolon here
             })

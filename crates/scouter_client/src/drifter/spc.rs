@@ -119,7 +119,7 @@ impl SpcDrifter {
 
         let profile = self
             .monitor
-            .create_2d_drift_profile(&features, &array, &drift_config)?;
+            .create_2d_drift_profile(&features, &array, drift_config)?;
 
         Ok(profile)
     }
@@ -211,9 +211,9 @@ impl SpcDrifter {
             features.extend(profile.features);
         }
 
+        let read_config = config.read().unwrap();
         if let Some(num_array) = num_array {
             let dtype = dtype.unwrap();
-            let read_config = config.read().unwrap();
             let drift_profile = if dtype == "float64" {
                 let array = convert_array_type::<f64>(num_array, &dtype)?;
                 self.create_numeric_drift_profile(array, num_features, &read_config)?
@@ -225,21 +225,13 @@ impl SpcDrifter {
         }
 
         // if config.features_to_monitor is empty, set it to all features
-        if config
-            .read()
-            .unwrap()
-            .alert_config
-            .features_to_monitor
-            .is_empty()
-        {
+        if read_config.alert_config.features_to_monitor.is_empty() {
             config.write().unwrap().alert_config.features_to_monitor =
                 features.keys().cloned().collect();
         }
 
         // Validate features_to_monitor
-        if let Some(missing_feature) = config
-            .read()
-            .unwrap()
+        if let Some(missing_feature) = read_config
             .alert_config
             .features_to_monitor
             .iter()

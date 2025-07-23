@@ -282,9 +282,11 @@ impl LLMDriftServerRecord {
         response: Value,
         prompt: Option<Value>,
         context: Value,
+        created_at: DateTime<Utc>,
+        uid: String,
     ) -> Self {
         Self {
-            created_at: Utc::now(),
+            created_at,
             space,
             name,
             version,
@@ -294,7 +296,7 @@ impl LLMDriftServerRecord {
             context,
             status: Status::Pending,
             id: 0, // This is a placeholder, as the ID will be set by the database
-            uid: create_uuid7(),
+            uid,
             updated_at: None,
             processing_started_at: None,
             processing_ended_at: None,

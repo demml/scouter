@@ -1,7 +1,7 @@
 use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
-use crate::sql::schema::LLMDriftTaskRequest;
-use crate::sql::schema::{BinnedMetricWrapper, LLMDriftServerSQLRecord};
+use crate::sql::schema::LLMRecordWrapper;
+use crate::sql::schema::{BinnedMetricWrapper, LLMDriftServerSQLRecord, LLMDriftTaskRequest};
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -10,6 +10,7 @@ use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::{DriftRequest, ServiceInfo};
+use scouter_types::LLMRecord;
 use scouter_types::{
     llm::{PaginationCursor, PaginationRequest, PaginationResponse},
     BinnedMetrics, LLMDriftServerRecord, RecordType,
@@ -432,12 +433,14 @@ pub trait LLMDriftSqlLogic {
     /// Retrieves the next pending LLM drift task from drift_records.
     async fn get_pending_llm_drift_task(
         pool: &Pool<Postgres>,
-    ) -> Result<Option<LLMDriftTaskRequest>, SqlError> {
+    ) -> Result<Option<LLMRecord>, SqlError> {
         let query = Queries::GetPendingLLMDriftTask.get_query();
-        sqlx::query_as(&query.sql)
+        let result: Option<LLMRecordWrapper> = sqlx::query_as(&query.sql)
             .fetch_optional(pool)
             .await
-            .map_err(SqlError::SqlxError)
+            .map_err(SqlError::SqlxError)?;
+
+        Ok(result.map(|wrapper| wrapper.0))
     }
 
     #[instrument(skip_all)]

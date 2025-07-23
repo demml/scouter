@@ -6,8 +6,8 @@ use scouter_drift::error::DriftError;
 use scouter_drift::{psi::PsiMonitor, CategoricalFeatureHelpers};
 use scouter_types::psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile};
 use std::collections::HashMap;
+use std::sync::{Arc, RwLock};
 use tracing::instrument;
-
 #[derive(Default)]
 pub struct PsiDrifter {
     monitor: PsiMonitor,
@@ -54,19 +54,24 @@ impl PsiDrifter {
         &mut self,
         array: Vec<Vec<String>>,
         features: Vec<String>,
-        mut drift_config: PsiDriftConfig,
+        drift_config: Arc<RwLock<PsiDriftConfig>>,
     ) -> Result<PsiDriftProfile, DriftError> {
         let feature_map = self.monitor.create_feature_map(&features, &array)?;
 
-        drift_config.update_feature_map(feature_map.clone());
+        drift_config
+            .write()
+            .unwrap()
+            .update_feature_map(feature_map.clone());
 
         let array = self
             .monitor
             .convert_strings_to_ndarray_f32(&features, &array, &feature_map)?;
 
-        let profile =
-            self.monitor
-                .create_2d_drift_profile(&features, &array.view(), &drift_config)?;
+        let profile = self.monitor.create_2d_drift_profile(
+            &features,
+            &array.view(),
+            &drift_config.read().unwrap(),
+        )?;
 
         Ok(profile)
     }
@@ -75,7 +80,7 @@ impl PsiDrifter {
         &mut self,
         array: PyReadonlyArray2<F>,
         features: Vec<String>,
-        drift_config: PsiDriftConfig,
+        drift_config: &PsiDriftConfig,
     ) -> Result<PsiDriftProfile, DriftError>
     where
         F: Float + Sync + FromPrimitive + Default + PartialOrd,
@@ -86,7 +91,7 @@ impl PsiDrifter {
 
         let profile = self
             .monitor
-            .create_2d_drift_profile(&features, &array, &drift_config)?;
+            .create_2d_drift_profile(&features, &array, drift_config)?;
 
         Ok(profile)
     }
@@ -94,14 +99,12 @@ impl PsiDrifter {
     pub fn create_drift_profile(
         &mut self,
         data: ConvertedData<'_>,
-        config: PsiDriftConfig,
+        config: Arc<RwLock<PsiDriftConfig>>,
     ) -> Result<PsiDriftProfile, DriftError> {
         let (num_features, num_array, dtype, string_features, string_array) = data;
 
-        let mut final_config = config.clone();
-
         // Validate categorical_features
-        if let Some(categorical_features) = final_config.categorical_features.as_ref() {
+        if let Some(categorical_features) = config.read().unwrap().categorical_features.as_ref() {
             // fail if the specified categorical features are not in the num_features or string_features
             if let Some(missing_feature) = categorical_features
                 .iter()
@@ -116,34 +119,32 @@ impl PsiDrifter {
         let mut features = HashMap::new();
 
         if let Some(string_array) = string_array {
-            let profile = self.create_string_drift_profile(
-                string_array,
-                string_features,
-                final_config.clone(),
-            )?;
-            final_config.feature_map = profile.config.feature_map.clone();
+            let profile =
+                self.create_string_drift_profile(string_array, string_features, config.clone())?;
             features.extend(profile.features);
         }
 
+        let read_config = config.read().unwrap();
         if let Some(num_array) = num_array {
             let dtype = dtype.unwrap();
             let drift_profile = if dtype == "float64" {
                 let array = convert_array_type::<f64>(num_array, &dtype)?;
-                self.create_numeric_drift_profile(array, num_features, final_config.clone())?
+                self.create_numeric_drift_profile(array, num_features, &read_config)?
             } else {
                 let array = convert_array_type::<f32>(num_array, &dtype)?;
-                self.create_numeric_drift_profile(array, num_features, final_config.clone())?
+                self.create_numeric_drift_profile(array, num_features, &read_config)?
             };
             features.extend(drift_profile.features);
         }
 
         // if config.features_to_monitor is empty, set it to all features
-        if final_config.alert_config.features_to_monitor.is_empty() {
-            final_config.alert_config.features_to_monitor = features.keys().cloned().collect();
+        if read_config.alert_config.features_to_monitor.is_empty() {
+            config.write().unwrap().alert_config.features_to_monitor =
+                features.keys().cloned().collect();
         }
 
         // Validate features_to_monitor
-        if let Some(missing_feature) = final_config
+        if let Some(missing_feature) = read_config
             .alert_config
             .features_to_monitor
             .iter()
@@ -154,7 +155,11 @@ impl PsiDrifter {
             ));
         }
 
-        Ok(PsiDriftProfile::new(features, final_config, None))
+        Ok(PsiDriftProfile::new(
+            features,
+            config.read().unwrap().clone(),
+            None,
+        ))
     }
 
     pub fn compute_drift(

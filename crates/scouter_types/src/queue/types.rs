@@ -2,6 +2,9 @@ use crate::error::TypeError;
 use crate::json_to_pyobject_value;
 use crate::util::pyobject_to_json;
 use crate::ProfileFuncs;
+use chrono::DateTime;
+use chrono::Utc;
+use potato_head::create_uuid7;
 use potato_head::Prompt;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PyString};
@@ -12,6 +15,7 @@ use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Display;
 use std::fmt::Formatter;
+
 #[pyclass]
 #[derive(Clone, Debug, Serialize)]
 pub enum EntityType {
@@ -361,6 +365,16 @@ impl Metrics {
 #[pyclass]
 #[derive(Clone, Serialize, Debug)]
 pub struct LLMRecord {
+    pub uid: String,
+
+    pub space: String,
+
+    pub name: String,
+
+    pub version: String,
+
+    pub created_at: DateTime<Utc>,
+
     pub input: Value,
 
     pub response: Value,
@@ -417,6 +431,11 @@ impl LLMRecord {
         };
 
         Ok(LLMRecord {
+            uid: create_uuid7(),
+            created_at: Utc::now(),
+            space: String::new(),
+            name: String::new(),
+            version: String::new(),
             input,
             response,
             context: context_val,
@@ -462,6 +481,11 @@ impl LLMRecord {
             context: context.unwrap_or(Value::Object(serde_json::Map::new())),
             prompt,
             entity_type: EntityType::LLM,
+            uid: create_uuid7(),
+            created_at: Utc::now(),
+            space: String::new(),
+            name: String::new(),
+            version: String::new(),
         }
     }
 

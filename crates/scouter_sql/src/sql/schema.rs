@@ -8,6 +8,7 @@ use scouter_types::{
     alert::Alert, get_utc_datetime, psi::FeatureBinProportionResult, BinnedMetric,
     BinnedMetricStats, RecordType,
 };
+use scouter_types::{EntityType, LLMRecord};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{postgres::PgRow, Error, FromRow, Row};
@@ -430,4 +431,24 @@ pub struct LLMDriftTaskRequest {
     pub response: Value,
     pub prompt: Value,
     pub context: Value,
+}
+
+pub struct LLMRecordWrapper(pub LLMRecord);
+
+impl<'r> FromRow<'r, PgRow> for LLMRecordWrapper {
+    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
+        let llm_record = LLMRecord {
+            uid: row.try_get("uid")?,
+            created_at: row.try_get("created_at")?,
+            space: row.try_get("space")?,
+            name: row.try_get("name")?,
+            version: row.try_get("version")?,
+            input: row.try_get("input")?,
+            response: row.try_get("response")?,
+            context: row.try_get("context")?,
+            prompt: row.try_get("prompt")?,
+            entity_type: EntityType::LLM,
+        };
+        Ok(Self(llm_record))
+    }
 }
