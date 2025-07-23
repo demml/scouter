@@ -10,6 +10,7 @@ from ..alert import (
     PsiAlertConfig,
     SpcAlertConfig,
 )
+from ..queue import LLMRecord
 from datetime import datetime
 from ..types import DataType, DriftType
 
@@ -1383,18 +1384,84 @@ class Drifter:
             - All metric names must match corresponding workflow task names
         """
 
+    @overload
     def compute_drift(
         self,
         data: Any,
-        drift_profile: Union[SpcDriftProfile, PsiDriftProfile, LLMDriftProfile],
+        drift_profile: SpcDriftProfile,
         data_type: Optional[DataType] = None,
-    ) -> Any:
-        """Create a drift profile from data.
+    ) -> SpcDriftMap:
+        """Create a drift map from data.
 
         Args:
             data:
                 Data to create a data profile from. Data can be a numpy array,
-                a polars dataframe, pandas dataframe or a list of LLMRecords.
+                a polars dataframe or a pandas dataframe.
+            drift_profile:
+                Drift profile to use to compute drift map
+            data_type:
+                Optional data type. Inferred from data if not provided.
+
+        Returns:
+            SpcDriftMap
+        """
+
+    @overload
+    def compute_drift(
+        self,
+        data: Any,
+        drift_profile: PsiDriftProfile,
+        data_type: Optional[DataType] = None,
+    ) -> PsiDriftMap:
+        """Create a drift map from data.
+
+        Args:
+            data:
+                Data to create a data profile from. Data can be a numpy array,
+                a polars dataframe or a pandas dataframe.
+            drift_profile:
+                Drift profile to use to compute drift map
+            data_type:
+                Optional data type. Inferred from data if not provided.
+
+        Returns:
+            PsiDriftMap
+        """
+
+    @overload
+    def compute_drift(
+        self,
+        data: Union[LLMRecord, List[LLMRecord]],
+        drift_profile: LLMDriftProfile,
+        data_type: Optional[DataType] = None,
+    ) -> LLMDriftMap:
+        """Create a drift map from data.
+
+        Args:
+            data:
+
+            drift_profile:
+                Drift profile to use to compute drift map
+            data_type:
+                Optional data type. Inferred from data if not provided.
+
+        Returns:
+            LLMDriftMap
+        """
+        ...
+
+    def compute_drift(  # type: ignore
+        self,
+        data: Any,
+        drift_profile: Union[SpcDriftProfile, PsiDriftProfile, LLMDriftProfile],
+        data_type: Optional[DataType] = None,
+    ) -> Union[SpcDriftMap, PsiDriftMap, LLMDriftMap]:
+        """Create a drift map from data.
+
+        Args:
+            data:
+                Data to create a data profile from. Data can be a numpy array,
+                a polars dataframe or a pandas dataframe.
             drift_profile:
                 Drift profile to use to compute drift map
             data_type:

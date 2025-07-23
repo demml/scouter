@@ -4,7 +4,14 @@ from tempfile import TemporaryDirectory
 import pytest
 from pydantic import BaseModel
 from scouter.alert import AlertThreshold
-from scouter.drift import LLMDriftConfig, LLMDriftProfile, LLMMetric
+from scouter.drift import (
+    LLMDriftConfig,
+    LLMDriftProfile,
+    LLMMetric,
+    Drifter,
+    LLMDriftMap,
+)
+from scouter.queue import LLMRecord
 from scouter.llm import Agent, Prompt, Score, Task, Workflow
 from scouter.mock import LLMTestServer
 
@@ -127,7 +134,9 @@ def test_llm_drift_profile_from_metrics_fail():
         )
 
         # Drift profile with no required parameters should raise an error
-        with pytest.raises(RuntimeError, match="LLM Metric prompts must contain one of"):
+        with pytest.raises(
+            RuntimeError, match="LLM Metric prompts must contain one of"
+        ):
             _profile = LLMDriftProfile(
                 config=LLMDriftConfig(),
                 metrics=[metric1],
@@ -183,7 +192,9 @@ def test_llm_drift_profile_from_workflow_fail():
             alert_threshold=AlertThreshold.Below,
         )
 
-        with pytest.raises(RuntimeError, match="LLM Metric prompts must contain one of"):
+        with pytest.raises(
+            RuntimeError, match="LLM Metric prompts must contain one of"
+        ):
             _profile = LLMDriftProfile(
                 config=LLMDriftConfig(),
                 workflow=workflow,
@@ -243,4 +254,38 @@ def test_llm_drift_profile_workflow_run_context():
             == '"What is the capital of France?" + "The capital of France is Paris."?'
         )
 
-        assert result.tasks.get("relevance").prompt.user_message[1].unwrap() == '"foo bar"'
+        assert (
+            result.tasks.get("relevance").prompt.user_message[1].unwrap() == '"foo bar"'
+        )
+
+
+def test_llm_drifter():
+    with LLMTestServer():
+        # this should bind the input and response context and return TaskOutput
+        eval_prompt = Prompt(
+            user_message="${input} + ${response}?",
+            system_message="You are a helpful assistant. Output a score between 1 and 5",
+            model="gpt-4o",
+            provider="openai",
+            response_format=Score,
+        )
+
+        profile = LLMDriftProfile(
+            config=LLMDriftConfig(),
+            metrics=[
+                LLMMetric(
+                    name="relevance",
+                    prompt=eval_prompt,
+                    value=5.0,
+                    alert_threshold=AlertThreshold.Below,
+                )
+            ],
+        )
+
+        record = LLMRecord(
+            input="What is the capital of France?",
+            response="The capital of France is Paris.",
+        )
+
+        drifter = Drifter()
+        results = drifter.compute_drift(record, profile)

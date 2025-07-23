@@ -15,7 +15,10 @@ pub use scouter_types::{
         CustomDriftProfile, CustomMetric, CustomMetricAlertCondition, CustomMetricAlertConfig,
         CustomMetricDriftConfig,
     },
-    llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftProfile, LLMMetric, LLMMetricAlertCondition},
+    llm::{
+        LLMAlertConfig, LLMDriftConfig, LLMDriftMap, LLMDriftProfile, LLMMetric,
+        LLMMetricAlertCondition,
+    },
     psi::{
         Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiChiSquareThreshold,
         PsiDriftConfig, PsiDriftMap, PsiDriftProfile, PsiFeatureDriftProfile, PsiFixedThreshold,
@@ -29,10 +32,10 @@ pub use scouter_types::{
     AlertDispatchType, AlertThreshold, BinnedMetric, BinnedMetricStats, BinnedMetrics,
     ConsoleDispatchConfig, CustomMetricServerRecord, DataType, DriftAlertRequest, DriftProfile,
     DriftRequest, DriftType, EntityType, Feature, FeatureMap, Features, GetProfileRequest,
-    LLMRecord, LatencyMetrics, Metric, Metrics, ObservabilityMetrics, OpsGenieDispatchConfig,
-    ProfileRequest, ProfileStatusRequest, PsiServerRecord, RecordType, RouteMetrics,
-    ScouterResponse, ScouterServerError, ServerRecord, ServerRecords, SlackDispatchConfig,
-    SpcServerRecord, TimeInterval, UpdateAlertResponse, UpdateAlertStatus,
+    LLMMetricRecord, LLMRecord, LatencyMetrics, Metric, Metrics, ObservabilityMetrics,
+    OpsGenieDispatchConfig, ProfileRequest, ProfileStatusRequest, PsiServerRecord, RecordType,
+    RouteMetrics, ScouterResponse, ScouterServerError, ServerRecord, ServerRecords,
+    SlackDispatchConfig, SpcServerRecord, TimeInterval, UpdateAlertResponse, UpdateAlertStatus,
 };
 
 pub use crate::http::{PyScouterClient, ScouterClient};
