@@ -38,7 +38,7 @@ def create_reformulation_evaluation_prompt():
             '  "reason": "<your explanation>"\n'
             "}\n\n"
             "Original Query:\n"
-            "${input}\n\n"
+            "${user_query}\n\n"
             "Reformulated Query:\n"
             "${response}\n\n"
             "Evaluation:"
@@ -99,7 +99,9 @@ if __name__ == "__main__":
     response = agent.execute_prompt(prompt=prompt.bind(user_query=user_query))
 
     profile = create_llm_drift_profile()
-    record = LLMRecord(input=user_query, response=response.result)
+    record = LLMRecord(
+        context={"user_query": user_query, "response": response.result},
+    )
 
     drifter = Drifter()
     results = drifter.compute_drift(record, profile)

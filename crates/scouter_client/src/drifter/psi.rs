@@ -104,15 +104,17 @@ impl PsiDrifter {
         let (num_features, num_array, dtype, string_features, string_array) = data;
 
         // Validate categorical_features
-        if let Some(categorical_features) = config.read().unwrap().categorical_features.as_ref() {
-            // fail if the specified categorical features are not in the num_features or string_features
-            if let Some(missing_feature) = categorical_features
-                .iter()
-                .find(|&key| !num_features.contains(key) && !string_features.contains(key))
-            {
-                return Err(DriftError::CategoricalFeatureMissingError(
-                    missing_feature.to_string(),
-                ));
+        {
+            let read_config = config.read().unwrap();
+            if let Some(categorical_features) = read_config.categorical_features.as_ref() {
+                if let Some(missing_feature) = categorical_features
+                    .iter()
+                    .find(|&key| !num_features.contains(key) && !string_features.contains(key))
+                {
+                    return Err(DriftError::CategoricalFeatureMissingError(
+                        missing_feature.to_string(),
+                    ));
+                }
             }
         }
 
@@ -124,42 +126,44 @@ impl PsiDrifter {
             features.extend(profile.features);
         }
 
-        let read_config = config.read().unwrap();
         if let Some(num_array) = num_array {
             let dtype = dtype.unwrap();
-            let drift_profile = if dtype == "float64" {
-                let array = convert_array_type::<f64>(num_array, &dtype)?;
-                self.create_numeric_drift_profile(array, num_features, &read_config)?
-            } else {
-                let array = convert_array_type::<f32>(num_array, &dtype)?;
-                self.create_numeric_drift_profile(array, num_features, &read_config)?
+            let drift_profile = {
+                let read_config = config.read().unwrap();
+                if dtype == "float64" {
+                    let array = convert_array_type::<f64>(num_array, &dtype)?;
+                    self.create_numeric_drift_profile(array, num_features, &read_config)?
+                } else {
+                    let array = convert_array_type::<f32>(num_array, &dtype)?;
+                    self.create_numeric_drift_profile(array, num_features, &read_config)?
+                }
             };
             features.extend(drift_profile.features);
         }
 
         // if config.features_to_monitor is empty, set it to all features
-        if read_config.alert_config.features_to_monitor.is_empty() {
-            config.write().unwrap().alert_config.features_to_monitor =
-                features.keys().cloned().collect();
-        }
-
-        // Validate features_to_monitor
-        if let Some(missing_feature) = read_config
-            .alert_config
-            .features_to_monitor
-            .iter()
-            .find(|&key| !features.contains_key(key))
         {
-            return Err(DriftError::FeatureToMonitorMissingError(
-                missing_feature.to_string(),
-            ));
+            let mut write_config = config.write().unwrap();
+            if write_config.alert_config.features_to_monitor.is_empty() {
+                write_config.alert_config.features_to_monitor = features.keys().cloned().collect();
+            }
+
+            // Validate features_to_monitor
+            if let Some(missing_feature) = write_config
+                .alert_config
+                .features_to_monitor
+                .iter()
+                .find(|&key| !features.contains_key(key))
+            {
+                return Err(DriftError::FeatureToMonitorMissingError(
+                    missing_feature.to_string(),
+                ));
+            }
         }
 
-        Ok(PsiDriftProfile::new(
-            features,
-            config.read().unwrap().clone(),
-            None,
-        ))
+        let config_clone = config.read().unwrap().clone();
+
+        Ok(PsiDriftProfile::new(features, config_clone, None))
     }
 
     pub fn compute_drift(

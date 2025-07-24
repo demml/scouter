@@ -211,41 +211,43 @@ impl SpcDrifter {
             features.extend(profile.features);
         }
 
-        let read_config = config.read().unwrap();
         if let Some(num_array) = num_array {
             let dtype = dtype.unwrap();
-            let drift_profile = if dtype == "float64" {
-                let array = convert_array_type::<f64>(num_array, &dtype)?;
-                self.create_numeric_drift_profile(array, num_features, &read_config)?
-            } else {
-                let array = convert_array_type::<f32>(num_array, &dtype)?;
-                self.create_numeric_drift_profile(array, num_features, &read_config)?
+            let drift_profile = {
+                let read_config = config.read().unwrap();
+                if dtype == "float64" {
+                    let array = convert_array_type::<f64>(num_array, &dtype)?;
+                    self.create_numeric_drift_profile(array, num_features, &read_config)?
+                } else {
+                    let array = convert_array_type::<f32>(num_array, &dtype)?;
+                    self.create_numeric_drift_profile(array, num_features, &read_config)?
+                }
             };
             features.extend(drift_profile.features);
         }
 
-        // if config.features_to_monitor is empty, set it to all features
-        if read_config.alert_config.features_to_monitor.is_empty() {
-            config.write().unwrap().alert_config.features_to_monitor =
-                features.keys().cloned().collect();
-        }
-
-        // Validate features_to_monitor
-        if let Some(missing_feature) = read_config
-            .alert_config
-            .features_to_monitor
-            .iter()
-            .find(|&key| !features.contains_key(key))
         {
-            return Err(DriftError::FeatureToMonitorMissingError(
-                missing_feature.to_string(),
-            ));
+            let mut write_config = config.write().unwrap();
+
+            if write_config.alert_config.features_to_monitor.is_empty() {
+                write_config.alert_config.features_to_monitor = features.keys().cloned().collect();
+            }
+
+            // Validate features_to_monitor
+            if let Some(missing_feature) = write_config
+                .alert_config
+                .features_to_monitor
+                .iter()
+                .find(|&key| !features.contains_key(key))
+            {
+                return Err(DriftError::FeatureToMonitorMissingError(
+                    missing_feature.to_string(),
+                ));
+            }
         }
 
-        Ok(SpcDriftProfile::new(
-            features,
-            config.read().unwrap().clone(),
-            None,
-        ))
+        let config_clone = config.read().unwrap().clone();
+
+        Ok(SpcDriftProfile::new(features, config_clone, None))
     }
 }

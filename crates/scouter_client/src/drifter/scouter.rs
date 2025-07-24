@@ -15,6 +15,7 @@ use scouter_types::{
     spc::SpcDriftConfig,
     DataType, DriftProfile, DriftType,
 };
+use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::RwLock;
 pub enum DriftMap {
@@ -26,8 +27,8 @@ pub enum DriftMap {
 pub enum DriftConfig {
     Spc(Arc<RwLock<SpcDriftConfig>>),
     Psi(Arc<RwLock<PsiDriftConfig>>),
-    LLM(Arc<RwLock<LLMDriftConfig>>),
-    Custom(Arc<RwLock<CustomMetricDriftConfig>>),
+    LLM(LLMDriftConfig),
+    Custom(CustomMetricDriftConfig),
 }
 
 impl DriftConfig {
@@ -45,14 +46,14 @@ impl DriftConfig {
         }
     }
 
-    pub fn custom_config(&self) -> Result<Arc<RwLock<CustomMetricDriftConfig>>, DriftError> {
+    pub fn custom_config(&self) -> Result<CustomMetricDriftConfig, DriftError> {
         match self {
             DriftConfig::Custom(cfg) => Ok(cfg.clone()),
             _ => Err(DriftError::InvalidConfigError),
         }
     }
 
-    pub fn llm_config(&self) -> Result<Arc<RwLock<LLMDriftConfig>>, DriftError> {
+    pub fn llm_config(&self) -> Result<LLMDriftConfig, DriftError> {
         match self {
             DriftConfig::LLM(cfg) => Ok(cfg.clone()),
             _ => Err(DriftError::InvalidConfigError),
@@ -65,6 +66,17 @@ pub enum Drifter {
     Psi(PsiDrifter),
     Custom(CustomDrifter),
     LLM(LLMDrifter),
+}
+
+impl Debug for Drifter {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Drifter::Spc(_) => write!(f, "SpcDrifter"),
+            Drifter::Psi(_) => write!(f, "PsiDrifter"),
+            Drifter::Custom(_) => write!(f, "CustomDrifter"),
+            Drifter::LLM(_) => write!(f, "LLMDrifter"),
+        }
+    }
 }
 
 impl Drifter {
@@ -108,11 +120,7 @@ impl Drifter {
                     vec![metric]
                 };
 
-                let profile = drifter.create_drift_profile(
-                    config.custom_config()?.read().unwrap().clone(),
-                    data,
-                    None,
-                )?;
+                let profile = drifter.create_drift_profile(config.custom_config()?, data, None)?;
                 Ok(DriftProfile::Custom(profile))
             }
             Drifter::LLM(drifter) => {
@@ -123,11 +131,8 @@ impl Drifter {
                     let metric = data.extract::<LLMMetric>()?;
                     vec![metric]
                 };
-                let profile = drifter.create_drift_profile(
-                    config.llm_config()?.read().unwrap().clone(),
-                    metrics,
-                    workflow,
-                )?;
+                let profile =
+                    drifter.create_drift_profile(config.llm_config()?, metrics, workflow)?;
                 Ok(DriftProfile::LLM(profile))
             }
         }
@@ -219,11 +224,11 @@ impl PyDrifter {
                 }
                 DriftType::Custom => {
                     let config = obj.extract::<CustomMetricDriftConfig>()?;
-                    DriftConfig::Custom(Arc::new(config.into()))
+                    DriftConfig::Custom(config)
                 }
                 DriftType::LLM => {
                     let config = obj.extract::<LLMDriftConfig>()?;
-                    DriftConfig::LLM(Arc::new(config.into()))
+                    DriftConfig::LLM(config)
                 }
             };
             (drift_config, drift_type)

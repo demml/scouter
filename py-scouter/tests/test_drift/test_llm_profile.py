@@ -128,7 +128,7 @@ def test_llm_drift_profile_from_metrics_fail():
         )
 
         # Drift profile with no required parameters should raise an error
-        with pytest.raises(RuntimeError, match="LLM Metric prompts must contain one of"):
+        with pytest.raises(RuntimeError, match="LLM Metric requires at least one bound parameter"):
             _profile = LLMDriftProfile(
                 config=LLMDriftConfig(),
                 metrics=[metric1],
@@ -184,7 +184,7 @@ def test_llm_drift_profile_from_workflow_fail():
             alert_threshold=AlertThreshold.Below,
         )
 
-        with pytest.raises(RuntimeError, match="LLM Metric prompts must contain one of"):
+        with pytest.raises(RuntimeError, match="LLM Metric requires at least one bound parameter"):
             _profile = LLMDriftProfile(
                 config=LLMDriftConfig(),
                 workflow=workflow,
@@ -271,8 +271,10 @@ def test_llm_drifter():
         )
 
         record = LLMRecord(
-            input="What is the capital of France?",
-            response="The capital of France is Paris.",
+            context={
+                "input": "What is the capital of France?",
+                "response": "The capital of France is Paris.",
+            },
         )
 
         drifter = Drifter()
