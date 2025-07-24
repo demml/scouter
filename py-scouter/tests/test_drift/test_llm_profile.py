@@ -4,15 +4,10 @@ from tempfile import TemporaryDirectory
 import pytest
 from pydantic import BaseModel
 from scouter.alert import AlertThreshold
-from scouter.drift import (
-    LLMDriftConfig,
-    LLMDriftProfile,
-    LLMMetric,
-    Drifter,
-)
-from scouter.queue import LLMRecord
+from scouter.drift import Drifter, LLMDriftConfig, LLMDriftProfile, LLMMetric
 from scouter.llm import Agent, Prompt, Score, Task, Workflow
 from scouter.mock import LLMTestServer
+from scouter.queue import LLMRecord
 
 
 class TaskOutput(BaseModel):
@@ -288,3 +283,7 @@ def test_llm_drifter():
 
         drifter = Drifter()
         results = drifter.compute_drift(record, profile)
+
+        assert len(results.records) == 1
+        assert results.records[0].metric == "relevance"
+        assert results.records[0].value == 5.0

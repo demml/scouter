@@ -1,4 +1,5 @@
 # pylint: disable=dangerous-default-value
+from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Protocol, Union, overload
 
@@ -11,7 +12,6 @@ from ..alert import (
     SpcAlertConfig,
 )
 from ..queue import LLMRecord
-from datetime import datetime
 from ..types import DataType, DriftType
 
 class FeatureMap:
@@ -1057,7 +1057,7 @@ class LLMDriftProfile:
         self,
         config: LLMDriftConfig,
         metrics: list[LLMMetric],
-        workflow: Optional[Workflow],
+        workflow: Optional[Workflow] = None,
     ):
         """Initialize a LLMDriftProfile for LLM evaluation and drift detection.
 
@@ -1448,7 +1448,6 @@ class Drifter:
         Returns:
             LLMDriftMap
         """
-        ...
 
     def compute_drift(  # type: ignore
         self,

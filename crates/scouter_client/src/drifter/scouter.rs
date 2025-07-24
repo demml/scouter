@@ -73,13 +73,7 @@ impl Drifter {
             DriftType::Spc => Ok(Drifter::Spc(SpcDrifter::new())),
             DriftType::Psi => Ok(Drifter::Psi(PsiDrifter::new())),
             DriftType::Custom => Ok(Drifter::Custom(CustomDrifter::new())),
-            _ => {
-                // For LLM, we will handle it separately in the create_llm_drift_profile method
-                // This is to avoid confusion with the other drifters
-                Err(DriftError::WrongMethodError(
-                    "LLMDrifter should be handled separately. Use create_llm_drift_profile instead.".to_string(),
-                ))
-            }
+            DriftType::LLM => Ok(Drifter::LLM(LLMDrifter::new())),
         }
     }
 

@@ -121,6 +121,7 @@ impl LLMEvaluator {
         };
 
         let workflow_result = profile.workflow.run(Some(merged_context)).await?;
+
         Self::get_final_task_results(workflow_result, profile, &record.uid)
     }
 }

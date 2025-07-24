@@ -22,14 +22,11 @@ impl LLMDrifter {
         Ok(profile)
     }
 
-    pub fn compute_drift_single(
+    pub async fn compute_drift_single(
         record: &LLMRecord,
         profile: &LLMDriftProfile,
     ) -> Result<Vec<LLMMetricRecord>, DriftError> {
-        let shared_runtime =
-            Arc::new(tokio::runtime::Runtime::new().map_err(DriftError::SetupTokioRuntimeError)?);
-        let metrics = shared_runtime
-            .block_on(async { LLMEvaluator::process_drift_record(record, profile).await })?;
+        let metrics = LLMEvaluator::process_drift_record(record, profile).await?;
         Ok(metrics)
     }
 
@@ -38,9 +35,12 @@ impl LLMDrifter {
         data: Vec<LLMRecord>,
         profile: &LLMDriftProfile,
     ) -> Result<Vec<LLMMetricRecord>, DriftError> {
+        let shared_runtime =
+            Arc::new(tokio::runtime::Runtime::new().map_err(DriftError::SetupTokioRuntimeError)?);
         let mut results = Vec::new();
         for record in data {
-            let metrics = Self::compute_drift_single(&record, profile)?;
+            let metrics = shared_runtime
+                .block_on(async move { Self::compute_drift_single(&record, profile).await })?;
             results.extend(metrics);
         }
         Ok(results)

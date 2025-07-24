@@ -5,11 +5,10 @@ SELECT
     name, 
     space, 
     version, 
-    input, 
-    response, 
     context, 
     prompt, 
     status, 
+    score,
     updated_at,
     processing_started_at,
     processing_ended_at
