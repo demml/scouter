@@ -33,19 +33,56 @@ The `LLMMetric` class represents a single metric for LLM drift detection.
 from scouter.llm import AlertThreshold, Prompt, Score
 from scouter.drift import LLMMetric
 
+reformulation_prompt = (
+    "You are an expert evaluator of search query reformulations. "
+    "Given the original user query and its reformulated version, your task is to assess how well the reformulation improves the query. "
+    "Consider the following criteria:\n"
+    "- Does the reformulation make the query more explicit and comprehensive?\n"
+    "- Are relevant synonyms, related concepts, or specific features added?\n"
+    "- Is the original intent preserved without changing the meaning?\n"
+    "- Is the reformulation clear and unambiguous?\n\n"
+    "Provide your evaluation as a JSON object with the following attributes:\n"
+    "- score: An integer from 1 (poor) to 5 (excellent) indicating the overall quality of the reformulation.\n"
+    "- reason: A brief explanation for your score.\n\n"
+    "Format your response as:\n"
+    "{\n"
+    '  "score": <integer 1-5>,\n'
+    '  "reason": "<your explanation>"\n'
+    "}\n\n"
+    "Original Query:\n"
+    "${user_query}\n\n"
+    "Reformulated Query:\n"
+    "${response}\n\n"
+    "Evaluation:"
+)
+
 metric = LLMMetric(
     name="accuracy",
     value=0.95,
     alert_threshold=AlertThreshold.Below,
     alert_threshold_value=0.9,
     prompt=Prompt(
-        user_message="Classify this text...", 
-        model="gpt-4o", 
+        user_message=reformulation_prompt,
+        model="gpt-4o",
         provider="openai",
         response_format=Score
     )
 )
 ```
+
+#### Prompt Requirements
+
+When defining prompts for LLM metrics, ensure they include the following:
+
+- **Input Parameters:**  
+    - Each prompt must include at least one named parameter. An error will be raised if the prompt does not include a parameter
+    (e.g., `${input}`, `${response}`, `${user_query}`) to allow Scouter to inject the relevant data during evaluation.
+    - Named parameters must follow the `${parameter_name}` format.
+
+- **Score Response Format:**
+    All evaluation prompts must use the `Score` response format. The prompt should instruct the model to return a JSON object matching the `Score` schema:
+      - `score`: An integer value (typically 1–5) representing the evaluation result.
+      - `reason`: A brief explanation for the score.
 
 ### 2. Create an LLM Drift Config
 
@@ -158,7 +195,7 @@ profile = LLMDriftProfile(
 )
 ```
 
-1. The `${input}` and `${response}` variables will be fed in by Scouter when you record a drift event. Only one of these variables is required, but both are recommended for better context.
+1. The `${input}` and `${response}` variables will be fed in by Scouter when you record a drift event. Evaluation prompts must include at least one named parameter. `${input}` and `${response}`. It could easily be `${user_query}` or similar, depending on your use case. The important part is that the first tasks in the workflow must include these parameters, so they can be evaluated against the model's output.
 2. Here we are creating a directed graph of tasks. The `relevance` and `coherence` tasks are the first tasks, and the `final_evaluation` task depends on them. The final task must return a `Score` type, which is used to extract the metric value on the Scouter server.
 3. The metric name must match the final task name in the workflow. The `value` is the baseline score for this metric, and the `alert_threshold` defines when an alert should be triggered based on the metric's value.
 

@@ -287,13 +287,16 @@ async fn test_data_archive_custom() {
     //assert response
     assert_eq!(response.status(), StatusCode::OK);
 
+    // 20 day old records
+    let long_term_records = helper.get_custom_drift_records(Some(20));
+
     // 10 day old records
-    let long_term_records = helper.get_custom_drift_records(Some(10));
+    let medium_term_records = helper.get_custom_drift_records(Some(10));
 
     // 0 day old records
     let short_term_records = helper.get_custom_drift_records(None);
 
-    for records in [short_term_records, long_term_records].iter() {
+    for records in [short_term_records, medium_term_records, long_term_records].iter() {
         let body = serde_json::to_string(records).unwrap();
         let request = Request::builder()
             .uri("/scouter/drift")
@@ -314,6 +317,8 @@ async fn test_data_archive_custom() {
     let record = archive_old_data(&helper.pool, &helper.config)
         .await
         .unwrap();
+
+    println!("Record: {:?}", record);
 
     assert!(!record.spc);
     assert!(!record.psi);
