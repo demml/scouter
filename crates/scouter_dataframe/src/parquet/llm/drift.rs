@@ -79,10 +79,9 @@ impl LLMDriftDataFrame {
             Field::new("space", DataType::Utf8, false),
             Field::new("name", DataType::Utf8, false),
             Field::new("version", DataType::Utf8, false),
-            Field::new("input", DataType::Utf8, false),
-            Field::new("response", DataType::Utf8, false),
             Field::new("context", DataType::Utf8, false),
             Field::new("prompt", DataType::Utf8, true),
+            Field::new("score", DataType::Utf8, true),
             Field::new(
                 "updated_at",
                 DataType::Timestamp(TimeUnit::Nanosecond, None),
@@ -125,17 +124,11 @@ impl LLMDriftDataFrame {
         let version_array =
             StringArray::from_iter_values(records.iter().map(|r| r.version.as_str()));
 
-        let input_array = StringArray::from_iter_values(
+        let score_array = StringArray::from_iter_values(
             records
                 .iter()
-                .map(|r| serde_json::to_string(&r.input).unwrap_or_else(|_| "{}".to_string())),
+                .map(|r| serde_json::to_string(&r.score).unwrap_or_else(|_| "{}".to_string())),
         );
-        let response_array = StringArray::from_iter_values(
-            records
-                .iter()
-                .map(|r| serde_json::to_string(&r.response).unwrap_or_else(|_| "{}".to_string())),
-        );
-
         let context_array = StringArray::from_iter_values(
             records
                 .iter()
@@ -176,10 +169,9 @@ impl LLMDriftDataFrame {
                 Arc::new(space_array),
                 Arc::new(name_array),
                 Arc::new(version_array),
-                Arc::new(input_array),
-                Arc::new(response_array),
                 Arc::new(context_array),
                 Arc::new(prompt_array),
+                Arc::new(score_array),
                 Arc::new(updated_at_array),
                 Arc::new(status_array),
                 Arc::new(processing_started_at_array),

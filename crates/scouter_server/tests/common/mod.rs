@@ -25,7 +25,6 @@ use scouter_types::{
     BoxedLLMDriftServerRecord, LLMDriftServerRecord, ServerRecord, ServerRecords, SpcServerRecord,
     Status,
 };
-use serde_json::Map;
 use serde_json::Value;
 use sqlx::{PgPool, Pool, Postgres};
 use std::env;
@@ -251,21 +250,24 @@ impl TestHelper {
 
         for i in 0..3 {
             for _ in 0..5 {
+                let context = serde_json::json!({
+                    "input": format!("input{i}"),
+                    "response": format!("output{i}"),
+                });
                 let record = LLMDriftServerRecord {
                     created_at: Utc::now() - chrono::Duration::days(offset),
                     space: SPACE.to_string(),
                     name: NAME.to_string(),
                     version: VERSION.to_string(),
                     prompt: Some(prompt.model_dump_value()),
-                    input: Value::String(format!("input{i}")),
-                    response: Value::String(format!("output{i}")),
-                    context: serde_json::Value::Object(Map::new()),
+                    context,
                     status: Status::Pending,
                     id: 0,
                     uid: "test-uid".to_string(),
                     updated_at: None,
                     processing_started_at: None,
                     processing_ended_at: None,
+                    score: Value::Null,
                 };
 
                 let boxed_record = BoxedLLMDriftServerRecord::new(record);

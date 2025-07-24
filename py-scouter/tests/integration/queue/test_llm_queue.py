@@ -1,5 +1,12 @@
 import pytest
 from scouter.queue import LLMRecord
+from pydantic import BaseModel
+import re
+
+
+class Context(BaseModel):
+    input: str
+    response: str
 
 
 def test_llm_record():
@@ -7,12 +14,14 @@ def test_llm_record():
     Test the LLMRecord class.
     """
     record = LLMRecord(
-        input="What is the capital of France?",
-        response="Paris is the capital of France.",
+        context={
+            "input": "What is the capital of France?",
+            "response": "Paris is the capital of France.",
+        },
     )
 
-    assert record.input == "What is the capital of France?"
-    assert record.response == "Paris is the capital of France."
+    assert record.context["input"] == "What is the capital of France?"
+    assert record.context["response"] == "Paris is the capital of France."
 
     # instantiate with list of messages
     system_prompt = {
@@ -24,18 +33,46 @@ def test_llm_record():
             "How does this scale in production?",
         ],
     }
-    messages = [{"role": "system", "content": system_prompt}]
-    record = LLMRecord(input=messages)
+
+    record = LLMRecord(
+        context={
+            "role": "system",
+            "content": system_prompt,
+        },
+    )
 
     # Test error - provide no input or response
     with pytest.raises(
-        RuntimeError,
-        match="Failed to supply either input or response for the llm record",
+        TypeError,
+        match=re.escape(
+            "LLMRecord.__new__() missing 1 required positional argument: 'context'"
+        ),
     ):
         LLMRecord()
 
     record = LLMRecord(
-        input=messages,
         context={"foo": "bar", "value": 1},
         prompt=system_prompt,
     )
+
+    # test with pydantic model
+    context = Context(
+        input="What is the capital of France?",
+        response="Paris is the capital of France.",
+    )
+    record = LLMRecord(
+        context=context,
+        prompt=system_prompt,
+    )
+
+    assert record.context["input"] == "What is the capital of France?"
+    assert record.context["response"] == "Paris is the capital of France."
+
+    # pass incorrect type for context
+    with pytest.raises(
+        RuntimeError,
+        match=re.escape(
+            "Invalid context type. Context must be a PyDict or a Pydantic BaseModel"
+        ),
+    ):
+        LLMRecord(context="This is a string, not a dict or pydantic model")

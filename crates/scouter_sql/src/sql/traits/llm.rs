@@ -42,8 +42,6 @@ pub trait LLMDriftSqlLogic {
             .bind(&record.space)
             .bind(&record.name)
             .bind(&record.version)
-            .bind(&record.input)
-            .bind(&record.response)
             .bind(&record.context)
             .bind(Json(&record.prompt))
             .execute(pool)
@@ -140,10 +138,9 @@ pub trait LLMDriftSqlLogic {
                     space: record.space,
                     name: record.name,
                     version: record.version,
-                    input: record.input,
-                    response: record.response,
                     prompt: record.prompt,
                     context: record.context,
+                    score: record.score,
                     status: Status::from_str(&record.status).unwrap_or(Status::Pending), // Default to Pending if parsing fails
                     id: record.id,                 // Ensure we include the ID
                     uid: record.uid,               // Include the UID
@@ -234,10 +231,9 @@ pub trait LLMDriftSqlLogic {
                 space: record.space,
                 name: record.name,
                 version: record.version,
-                input: record.input,
-                response: record.response,
                 prompt: record.prompt,
                 context: record.context,
+                score: record.score,
                 status: Status::from_str(&record.status).unwrap_or(Status::Pending),
                 id: record.id,                 // Ensure we include the ID
                 uid: record.uid,               // Include the UID
@@ -456,6 +452,7 @@ pub trait LLMDriftSqlLogic {
 
         let _query_result = sqlx::query(&query.sql)
             .bind(status.as_str())
+            .bind(record.score.clone())
             .bind(&record.uid)
             .execute(pool)
             .await

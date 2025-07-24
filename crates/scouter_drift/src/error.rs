@@ -96,6 +96,9 @@ pub enum DriftError {
 
     #[error("Failed to setup tokio runtime for computing LLM drift: {0}")]
     SetupTokioRuntimeError(#[source] io::Error),
+
+    #[error("Failed to process LLM drift record: {0}")]
+    LLMEvaluatorError(String),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for DriftError {

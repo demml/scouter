@@ -762,19 +762,22 @@ mod tests {
         let prompt = create_score_prompt(None);
 
         for j in 0..10 {
+            let context = serde_json::json!({
+                "input": input,
+                "response": output,
+            });
             let record = LLMDriftServerRecord {
                 created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                 space: SPACE.to_string(),
                 name: NAME.to_string(),
                 version: VERSION.to_string(),
-                input: Value::String(input.to_string()),
-                response: Value::String(output.to_string()),
                 prompt: Some(prompt.model_dump_value()),
-                context: Value::Object(serde_json::Map::new()),
+                context,
                 status: Status::Pending,
                 id: 0, // This will be set by the database
                 uid: "test".to_string(),
                 updated_at: None,
+                score: Value::Null,
                 processing_started_at: None,
                 processing_ended_at: None,
             };
@@ -806,7 +809,7 @@ mod tests {
         assert!(pending_tasks.is_some());
 
         // get pending task with space, name, version
-        let task_input = &pending_tasks.as_ref().unwrap().input;
+        let task_input = &pending_tasks.as_ref().unwrap().context["input"];
         assert_eq!(*task_input, "This is a test input".to_string());
 
         // update pending task
@@ -841,15 +844,18 @@ mod tests {
         let prompt = create_score_prompt(None);
 
         for j in 0..10 {
+            let context = serde_json::json!({
+                "input": input,
+                "response": output,
+            });
             let record = LLMDriftServerRecord {
                 created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
                 space: SPACE.to_string(),
                 name: NAME.to_string(),
                 version: VERSION.to_string(),
-                input: Value::String(input.to_string()),
-                response: Value::String(output.to_string()),
                 prompt: Some(prompt.model_dump_value()),
-                context: Value::Object(serde_json::Map::new()),
+                context,
+                score: Value::Null,
                 status: Status::Pending,
                 id: 0, // This will be set by the database
                 uid: "test".to_string(),

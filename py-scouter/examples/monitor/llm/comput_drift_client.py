@@ -1,11 +1,11 @@
 ### The following example shows how to compute drift from a list of LLM records using the `compute_drift` method in python
 ### You would typically let the server handle this, but this is to demonstrate the functionality.
 
-from scouter.llm import Prompt, Agent, Provider, Score
-from scouter.drift import LLMDriftProfile, LLMDriftConfig, LLMMetric, Drifter
-from scouter.queue import LLMRecord
 from scouter.alert import AlertThreshold
-from scouter.logging import RustyLogger, LoggingConfig, LogLevel
+from scouter.drift import Drifter, LLMDriftConfig, LLMDriftProfile, LLMMetric
+from scouter.llm import Agent, Prompt, Provider, Score
+from scouter.logging import LoggingConfig, LogLevel, RustyLogger
+from scouter.queue import LLMRecord
 
 RustyLogger.setup_logging(LoggingConfig(log_level=LogLevel.Debug))
 

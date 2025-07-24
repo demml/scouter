@@ -1,13 +1,9 @@
 use crate::error::RecordError;
-use crate::util::pyobject_to_json;
 use crate::ProfileFuncs;
 use crate::Status;
 use chrono::DateTime;
 use chrono::Utc;
-use potato_head::create_uuid7;
-use potato_head::Prompt;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
 use pyo3::IntoPyObjectExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -180,10 +176,6 @@ pub struct LLMDriftServerRecord {
 
     pub prompt: Option<Value>,
 
-    pub input: Value,
-
-    pub response: Value,
-
     pub context: Value,
 
     pub status: Status,
@@ -192,6 +184,8 @@ pub struct LLMDriftServerRecord {
 
     pub uid: String,
 
+    pub score: Value,
+
     pub updated_at: Option<DateTime<Utc>>,
     pub processing_started_at: Option<DateTime<Utc>>,
     pub processing_ended_at: Option<DateTime<Utc>>,
@@ -199,65 +193,6 @@ pub struct LLMDriftServerRecord {
 
 #[pymethods]
 impl LLMDriftServerRecord {
-    #[new]
-    #[pyo3(signature = (
-        space,
-        name,
-        version,
-        input,
-        response,
-        prompt= None,
-        context = None,
-    ))]
-
-    pub fn new(
-        space: String,
-        name: String,
-        version: String,
-        input: Bound<'_, PyAny>,
-        response: Bound<'_, PyAny>,
-        prompt: Option<Bound<'_, PyAny>>,
-        context: Option<Bound<'_, PyDict>>,
-    ) -> Result<Self, RecordError> {
-        // Check if pydict was provided, if not, create an empty Map
-        let context_val = context
-            .map(|c| pyobject_to_json(&c))
-            .unwrap_or(Ok(Value::Object(serde_json::Map::new())))?;
-
-        let input = pyobject_to_json(&input)?;
-        let response = pyobject_to_json(&response)?;
-
-        // if prompt is provided, check if it is a valid Prompt object
-        let prompt: Option<Value> = match prompt {
-            Some(p) => {
-                if p.is_instance_of::<Prompt>() {
-                    let prompt = p.extract::<Prompt>()?;
-                    Some(serde_json::to_value(prompt)?)
-                } else {
-                    Some(pyobject_to_json(&p)?)
-                }
-            }
-            None => None,
-        };
-
-        Ok(Self {
-            created_at: Utc::now(),
-            space,
-            name,
-            version,
-            input,
-            response,
-            prompt,
-            context: context_val,
-            status: Status::Pending,
-            id: 0, // This is a placeholder, as the ID will be set by the database
-            uid: create_uuid7(),
-            updated_at: None,
-            processing_started_at: None,
-            processing_ended_at: None,
-        })
-    }
-
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         ProfileFuncs::__str__(self)
@@ -279,25 +214,23 @@ impl LLMDriftServerRecord {
         space: String,
         name: String,
         version: String,
-        input: Value,
-        response: Value,
         prompt: Option<Value>,
         context: Value,
         created_at: DateTime<Utc>,
         uid: String,
+        score: Value,
     ) -> Self {
         Self {
             created_at,
             space,
             name,
             version,
-            input,
-            response,
             prompt,
             context,
             status: Status::Pending,
             id: 0, // This is a placeholder, as the ID will be set by the database
             uid,
+            score,
             updated_at: None,
             processing_started_at: None,
             processing_ended_at: None,

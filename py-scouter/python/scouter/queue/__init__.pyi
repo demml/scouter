@@ -4,7 +4,7 @@ import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from typing_extensions import TypeAlias
+from typing_extensions import Protocol, TypeAlias
 
 from ..client import HTTPConfig
 from ..llm import Prompt
@@ -691,22 +691,37 @@ class ScouterQueue:
     ) -> Union[KafkaConfig, RabbitMQConfig, RedisConfig, HTTPConfig, MockConfig]:
         """Return the transport configuration used by the queue"""
 
+class BaseModel(Protocol):
+    """Protocol for pydantic BaseModel to ensure compatibility with context"""
+
+    def model_dump(self) -> Dict[str, Any]:
+        """Dump the model as a dictionary"""
+        ...
+
+    def model_dump_json(self) -> str:
+        """Dump the model as a JSON string"""
+        ...
+
+    def __str__(self) -> str:
+        """String representation of the model"""
+        ...
+
 SerializedType: TypeAlias = Union[str, int, float, dict, list]
+Context: TypeAlias = Union[Dict[str, Any], BaseModel]
 
 class LLMRecord:
-    """LLM record containing input, response, context, and metadata.
+    """LLM record containing context tied to a Large Language Model interaction
+    that is used to evaluate drift in LLM responses.
 
-    Represents a single interaction with a Large Language Model, including
-    the input prompt, model response, contextual information, and associated
-    prompt configuration.
 
     Examples:
         >>> record = LLMRecord(
-        ...     input="What is the capital of France?",
-        ...     response="Paris is the capital of France.",
-        ...     context={"foo": "bar"}
+        ...     context={
+        ...         "input": "What is the capital of France?",
+        ...         "response": "Paris is the capital of France."
+        ...     },
         ... )
-        >>> print(record.input)
+        >>> print(record.context["input"])
         "What is the capital of France?"
     """
 
@@ -718,22 +733,16 @@ class LLMRecord:
 
     def __init__(
         self,
-        input: Optional[SerializedType] = None,
-        response: Optional[SerializedType] = None,
-        context: Optional[Dict[str, Any]] = None,
+        context: Context,
         prompt: Optional[Prompt | SerializedType] = None,
     ) -> None:
-        """Create a new LLM record.
+        """Creates a new LLM record to associate with an `LLMDriftProfile`.
+        The record is sent to the `Scouter` server via the `ScouterQueue` and is
+        then used to inject context into the evaluation prompts.
 
         Args:
-            input:
-                The input data sent to the LLM.
-                Can be any JSON-serializable type (e.g., str, int, float, dict, list).
-            response:
-                The response data from the LLM.
-                Can be any JSON-serializable type (e.g., str, int, float, dict, list).
             context:
-                Additional context information as a dictionary. During evaluation,
+                Additional context information as a dictionary or a pydantic BaseModel. During evaluation,
                 this will be merged with the input and response data and passed to the assigned
                 evaluation prompts. So if you're evaluation prompts expect additional context via
                 bound variables (e.g., `${foo}`), you can pass that here as key value pairs.
@@ -743,39 +752,13 @@ class LLMRecord:
                 a JSON-serializable type.
 
         Raises:
-            TypeError: If both input and response are None.
+            TypeError: If context is not a dict or a pydantic BaseModel.
 
-        Note:
-            At least one of input or response must be provided.
         """
         ...
 
     @property
-    def input(self) -> Any:
-        """Get the input data sent to the LLM.
-
-        Returns:
-            The input data as a Python object (deserialized from JSON).
-
-        Raises:
-            TypeError: If the stored JSON cannot be converted to a Python object.
-        """
-        ...
-
-    @property
-    def response(self) -> Any:
-        """Get the response data from the LLM.
-
-        Returns:
-            The response data as a Python object (deserialized from JSON).
-
-        Raises:
-            TypeError: If the stored JSON cannot be converted to a Python object.
-        """
-        ...
-
-    @property
-    def context(self) -> Any:
+    def context(self) -> Dict[str, Any]:
         """Get the contextual information.
 
         Returns:

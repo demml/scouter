@@ -1,12 +1,15 @@
 // Module for polling LLM drift records that are "pending" and need to be processed
 use crate::error::DriftError;
 use crate::llm::evaluator::LLMEvaluator;
+use potato_head::Score;
 use scouter_sql::sql::traits::{LLMDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::llm::LLMDriftProfile;
 use scouter_types::{DriftType, GetProfileRequest, LLMRecord, Status};
 use sqlx::{Pool, Postgres};
+use std::collections::HashMap;
 use tracing::{debug, error, info, instrument};
+
 pub struct LLMPoller {
     db_pool: Pool<Postgres>,
 }
@@ -23,24 +26,24 @@ impl LLMPoller {
         &mut self,
         record: &LLMRecord,
         profile: &LLMDriftProfile,
-    ) -> Result<bool, DriftError> {
+    ) -> Result<HashMap<String, Score>, DriftError> {
         debug!("Processing workflow");
 
         match LLMEvaluator::process_drift_record(record, profile).await {
-            Ok(metrics) => {
+            Ok((metrics, score_map)) => {
                 PostgresClient::insert_llm_metric_values_batch(&self.db_pool, &metrics)
                     .await
                     .inspect_err(|e| {
                         error!("Failed to insert LLM metric values: {:?}", e);
                     })?;
+
+                return Ok(score_map);
             }
             Err(e) => {
                 error!("Failed to process drift record: {:?}", e);
-                return Ok(false);
+                return Err(DriftError::LLMEvaluatorError(e.to_string()));
             }
         };
-
-        Ok(true)
     }
 
     #[instrument(skip_all)]
@@ -48,7 +51,7 @@ impl LLMPoller {
         // Get task from the database (query uses skip lock to pull task and update to processing)
         let task = PostgresClient::get_pending_llm_drift_record(&self.db_pool).await?;
 
-        let Some(task) = task else {
+        let Some(mut task) = task else {
             return Ok(false);
         };
 
@@ -80,26 +83,32 @@ impl LLMPoller {
             return Ok(false);
         };
 
-        let result = self.process_drift_record(&task, &llm_profile).await?;
-
-        // result will be false if the workflow execution failed
-        // in that case, we should update the task status to Failed
-        if !result {
-            // Update the task status to Failed
-            PostgresClient::update_llm_drift_record_status(&self.db_pool, &task, Status::Failed)
-                .await
-                .inspect_err(|e| {
-                    error!(
-                        "Failed to update LLM drift record status to Failed: {:?}",
-                        e
-                    );
+        match self.process_drift_record(&task, &llm_profile).await {
+            Ok(result) => {
+                task.score = serde_json::to_value(result).inspect_err(|e| {
+                    error!("Failed to serialize score map: {:?}", e);
                 })?;
-            return Ok(false);
-        }
 
-        // Update the run dates while still holding the lock
-        PostgresClient::update_llm_drift_record_status(&self.db_pool, &task, Status::Processed)
-            .await?;
+                PostgresClient::update_llm_drift_record_status(
+                    &self.db_pool,
+                    &task,
+                    Status::Processed,
+                )
+                .await?;
+            }
+            Err(e) => {
+                error!("Failed to process drift record: {:?}", e);
+
+                // Update the record status to error
+                PostgresClient::update_llm_drift_record_status(
+                    &self.db_pool,
+                    &task,
+                    Status::Failed,
+                )
+                .await?;
+                return Err(DriftError::LLMEvaluatorError(e.to_string()));
+            }
+        };
 
         Ok(true)
     }

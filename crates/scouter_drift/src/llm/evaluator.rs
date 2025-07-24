@@ -4,7 +4,7 @@ use potato_head::agents::provider::traits::ResponseLogProbs;
 use potato_head::{calculate_weighted_score, Score, StructuredOutput, TaskStatus, Workflow};
 use scouter_types::llm::LLMDriftProfile;
 use scouter_types::{LLMMetricRecord, LLMRecord};
-use serde_json::Value;
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tracing::{debug, error, instrument, warn};
@@ -21,7 +21,7 @@ impl LLMEvaluator {
         workflow: Arc<RwLock<Workflow>>,
         profile: &LLMDriftProfile,
         record_uid: &str,
-    ) -> Result<Vec<LLMMetricRecord>, DriftError> {
+    ) -> Result<(Vec<LLMMetricRecord>, HashMap<String, Score>), DriftError> {
         let workflow = workflow.read().unwrap();
         let task_list = &workflow.task_list;
         let execution_plan = workflow.execution_plan()?;
@@ -29,10 +29,11 @@ impl LLMEvaluator {
         let max_step = execution_plan.keys().max().copied().unwrap_or(0);
 
         if max_step == 0 {
-            return Ok(Vec::new());
+            return Ok((Vec::new(), HashMap::new()));
         }
 
         let mut final_results = Vec::new();
+        let mut score_map: HashMap<String, Score> = HashMap::new();
 
         if let Some(final_task_ids) = execution_plan.get(&max_step) {
             for task_id in final_task_ids {
@@ -88,40 +89,27 @@ impl LLMEvaluator {
                     space: profile.config.space.clone(),
                     name: profile.config.name.clone(),
                     version: profile.config.version.clone(),
-                    metric: task_id,
+                    metric: task_id.clone(),
                     value,
                 };
 
+                // Add the score to the score map
+                score_map.insert(task_id, score);
                 final_results.push(record);
             }
         }
 
-        Ok(final_results)
+        Ok((final_results, score_map))
     }
 
     #[instrument(skip_all)]
     pub async fn process_drift_record(
         record: &LLMRecord,
         profile: &LLMDriftProfile,
-    ) -> Result<Vec<LLMMetricRecord>, DriftError> {
+    ) -> Result<(Vec<LLMMetricRecord>, HashMap<String, Score>), DriftError> {
         debug!("Processing workflow");
 
-        let mut context = record.context.clone();
-        let merged_context = match &mut context {
-            Value::Object(ref mut map) => {
-                map.insert("input".to_string(), record.input.clone());
-                map.insert("response".to_string(), record.response.clone());
-                debug!("Successfully merged input and response into context");
-                context
-            }
-            _ => {
-                error!("Context is not a JSON object");
-                return Err(DriftError::InvalidContextFormat);
-            }
-        };
-
-        let workflow_result = profile.workflow.run(Some(merged_context)).await?;
-
+        let workflow_result = profile.workflow.run(Some(record.context.clone())).await?;
         Self::get_final_task_results(workflow_result, profile, &record.uid)
     }
 }

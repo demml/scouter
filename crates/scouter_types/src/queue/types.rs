@@ -1,6 +1,6 @@
 use crate::error::TypeError;
 use crate::json_to_pyobject_value;
-use crate::util::pyobject_to_json;
+use crate::util::{is_pydantic_model, pyobject_to_json};
 use crate::ProfileFuncs;
 use chrono::DateTime;
 use chrono::Utc;
@@ -375,11 +375,9 @@ pub struct LLMRecord {
 
     pub created_at: DateTime<Utc>,
 
-    pub input: Value,
-
-    pub response: Value,
-
     pub context: Value,
+
+    pub score: Value,
 
     pub prompt: Option<Value>,
 
@@ -391,32 +389,31 @@ pub struct LLMRecord {
 impl LLMRecord {
     #[new]
     #[pyo3(signature = (
-        input=None,
-        response=None,
-        context=None,
+        context,
         prompt=None,
     ))]
+
+    /// Creates a new LLMRecord instance.
+    /// The context is either a python dictionary or a pydantic basemodel.
     pub fn new(
-        input: Option<Bound<'_, PyAny>>,
-        response: Option<Bound<'_, PyAny>>,
-        context: Option<Bound<'_, PyDict>>,
+        py: Python<'_>,
+        context: Bound<'_, PyAny>,
         prompt: Option<Bound<'_, PyAny>>,
     ) -> Result<Self, TypeError> {
-        if input.is_none() && response.is_none() {
-            return Err(TypeError::MissingInputOrResponse);
-        }
-        let context_val = context
-            .map(|c| pyobject_to_json(&c))
-            .unwrap_or(Ok(Value::Object(serde_json::Map::new())))?;
+        // check if context is a PyDict or PyObject(Pydantic model)
+        let context_val = if context.is_instance_of::<PyDict>() {
+            pyobject_to_json(&context)?
+        } else {
+            if is_pydantic_model(py, &context)? {
+                // Dump pydantic model to dictionary
+                let model = context.call_method0("model_dump")?;
 
-        // Convert input and response to JSON values, default to empty string Value if None
-        let input = input
-            .map(|i| pyobject_to_json(&i))
-            .unwrap_or(Ok(Value::String(String::new())))?;
-
-        let response = response
-            .map(|r| pyobject_to_json(&r))
-            .unwrap_or(Ok(Value::String(String::new())))?;
+                // Serialize the dictionary to JSON
+                pyobject_to_json(&model)?
+            } else {
+                Err(TypeError::MustBeDictOrBaseModel)?
+            }
+        };
 
         let prompt: Option<Value> = match prompt {
             Some(p) => {
@@ -436,28 +433,11 @@ impl LLMRecord {
             space: String::new(),
             name: String::new(),
             version: String::new(),
-            input,
-            response,
             context: context_val,
+            score: Value::Null,
             prompt,
             entity_type: EntityType::LLM,
         })
-    }
-
-    #[getter]
-    pub fn input<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
-        Ok(json_to_pyobject_value(py, &self.input)?
-            .bind(py)
-            .clone()
-            .into_bound_py_any(py)?
-            .clone())
-    }
-
-    #[getter]
-    pub fn response<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
-        Ok(json_to_pyobject_value(py, &self.response)?
-            .into_bound_py_any(py)?
-            .clone())
     }
 
     #[getter]
@@ -469,15 +449,8 @@ impl LLMRecord {
 }
 
 impl LLMRecord {
-    pub fn new_rs(
-        input: Option<Value>,
-        response: Option<Value>,
-        context: Option<Value>,
-        prompt: Option<Value>,
-    ) -> Self {
+    pub fn new_rs(context: Option<Value>, prompt: Option<Value>) -> Self {
         LLMRecord {
-            input: input.unwrap_or_default(),
-            response: response.unwrap_or_default(),
             context: context.unwrap_or(Value::Object(serde_json::Map::new())),
             prompt,
             entity_type: EntityType::LLM,
@@ -486,6 +459,7 @@ impl LLMRecord {
             space: String::new(),
             name: String::new(),
             version: String::new(),
+            score: Value::Null,
         }
     }
 

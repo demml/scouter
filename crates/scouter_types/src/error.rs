@@ -101,6 +101,15 @@ pub enum TypeError {
 
     #[error("Failed to supply either input or response for the llm record")]
     MissingInputOrResponse,
+
+    #[error("Invalid context type. Context must be a PyDict or a Pydantic BaseModel")]
+    MustBeDictOrBaseModel,
+
+    #[error("Failed to check if the context is a Pydantic BaseModel. Error: {0}")]
+    FailedToCheckPydanticModel(String),
+
+    #[error("Failed to import pydantic module. Error: {0}")]
+    FailedToImportPydantic(String),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for TypeError {
@@ -231,8 +240,8 @@ pub enum ProfileError {
     #[error("No metrics provided for workflow validation")]
     EmptyMetricsList,
 
-    #[error("LLM Metric prompts must contain one of (or both) input and output bound parameters")]
-    MissingPromptParametersError(String),
+    #[error("LLM Metric requires at least one bound parameter")]
+    NeedAtLeastOneBoundParameterError(String),
 
     #[error(
         "Missing prompt in LLM Metric. If providing a list of metrics, prompt must be present"

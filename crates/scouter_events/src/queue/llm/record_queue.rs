@@ -52,12 +52,11 @@ impl LLMRecordQueue {
                         self.drift_profile.config.space.clone(),
                         self.drift_profile.config.name.clone(),
                         self.drift_profile.config.version.clone(),
-                        record.input.clone(),
-                        record.response.clone(),
                         record.prompt.clone(),
                         record.context.clone(),
                         record.created_at,
                         record.uid.clone(),
+                        record.score.clone(),
                     ),
                 )) // Removed the semicolon here
             })
@@ -127,7 +126,7 @@ mod tests {
 
         let mut record_batch = Vec::new();
         for _ in 0..1 {
-            let record = LLMRecord::new_rs(None, None, None, None);
+            let record = LLMRecord::new_rs(None, None);
             record_batch.push(record);
         }
 

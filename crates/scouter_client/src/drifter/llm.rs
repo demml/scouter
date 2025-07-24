@@ -26,7 +26,7 @@ impl LLMDrifter {
         record: &LLMRecord,
         profile: &LLMDriftProfile,
     ) -> Result<Vec<LLMMetricRecord>, DriftError> {
-        let metrics = LLMEvaluator::process_drift_record(record, profile).await?;
+        let (metrics, _) = LLMEvaluator::process_drift_record(record, profile).await?;
         Ok(metrics)
     }
 

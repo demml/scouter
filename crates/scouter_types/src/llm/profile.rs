@@ -23,8 +23,6 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{debug, error, instrument};
 
-const REQUIRED_PARAMS: &[&str] = &["input", "response"];
-
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct LLMDriftConfig {
@@ -155,13 +153,12 @@ impl LLMDriftConfig {
 /// # Errors
 /// Returns an error if the prompt lacks both "input" and "output" parameters.
 fn validate_prompt_parameters(prompt: &Prompt, id: &str) -> Result<(), ProfileError> {
-    let has_required_param = prompt
-        .parameters
-        .iter()
-        .any(|param| REQUIRED_PARAMS.contains(&param.as_str()));
+    let has_at_least_one_param = prompt.parameters.len() > 0;
 
-    if !has_required_param {
-        return Err(ProfileError::MissingPromptParametersError(id.to_string()));
+    if !has_at_least_one_param {
+        return Err(ProfileError::NeedAtLeastOneBoundParameterError(
+            id.to_string(),
+        ));
     }
 
     Ok(())

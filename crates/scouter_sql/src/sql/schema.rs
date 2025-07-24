@@ -337,13 +337,11 @@ pub struct LLMDriftServerSQLRecord {
 
     pub version: String,
 
-    pub input: Value,
-
-    pub response: Value,
-
     pub prompt: Option<Value>,
 
     pub context: Value,
+
+    pub score: Value,
 
     pub status: String,
 
@@ -364,10 +362,9 @@ impl LLMDriftServerSQLRecord {
             space: record.space.clone(),
             name: record.name.clone(),
             version: record.version.clone(),
-            input: record.input.clone(),
-            response: record.response.clone(),
             prompt: record.prompt.clone(),
             context: record.context.clone(),
+            score: record.score.clone(),
             status: record.status.to_string(),
             id: 0,               // This is a placeholder, as the ID will be set by the database
             uid: create_uuid7(), // This is also a placeholder, as the UID will be set by the database
@@ -386,9 +383,8 @@ impl From<LLMDriftServerSQLRecord> for LLMDriftServerRecord {
             space: sql_record.space,
             name: sql_record.name,
             version: sql_record.version,
-            input: sql_record.input,
-            response: sql_record.response,
             context: sql_record.context,
+            score: sql_record.score,
             prompt: sql_record.prompt,
             status: sql_record.status.parse().unwrap_or_default(), // Handle parsing appropriately
             processing_started_at: sql_record.processing_started_at,
@@ -430,10 +426,9 @@ impl<'r> FromRow<'r, PgRow> for LLMRecordWrapper {
             space: row.try_get("space")?,
             name: row.try_get("name")?,
             version: row.try_get("version")?,
-            input: row.try_get("input")?,
-            response: row.try_get("response")?,
             context: row.try_get("context")?,
             prompt: row.try_get("prompt")?,
+            score: row.try_get("score")?,
             entity_type: EntityType::LLM,
         };
         Ok(Self(llm_record))
