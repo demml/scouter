@@ -5,8 +5,6 @@ WITH selected_task AS (
         space, 
         name,
         version, 
-        input, 
-        response, 
         context, 
         prompt
     FROM scouter.llm_drift_record
