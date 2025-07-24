@@ -403,16 +403,14 @@ impl LLMRecord {
         // check if context is a PyDict or PyObject(Pydantic model)
         let context_val = if context.is_instance_of::<PyDict>() {
             pyobject_to_json(&context)?
-        } else {
-            if is_pydantic_model(py, &context)? {
-                // Dump pydantic model to dictionary
-                let model = context.call_method0("model_dump")?;
+        } else if is_pydantic_model(py, &context)? {
+            // Dump pydantic model to dictionary
+            let model = context.call_method0("model_dump")?;
 
-                // Serialize the dictionary to JSON
-                pyobject_to_json(&model)?
-            } else {
-                Err(TypeError::MustBeDictOrBaseModel)?
-            }
+            // Serialize the dictionary to JSON
+            pyobject_to_json(&model)?
+        } else {
+            Err(TypeError::MustBeDictOrBaseModel)?
         };
 
         let prompt: Option<Value> = match prompt {

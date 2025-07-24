@@ -126,7 +126,12 @@ mod tests {
 
         let mut record_batch = Vec::new();
         for _ in 0..1 {
-            let record = LLMRecord::new_rs(None, None);
+            let mut new_map = serde_json::Map::new();
+            // insert entry in map
+            new_map.insert("input".into(), serde_json::Value::String("test".into()));
+            let context = serde_json::Value::Object(new_map);
+
+            let record = LLMRecord::new_rs(Some(context), None);
             record_batch.push(record);
         }
 

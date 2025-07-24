@@ -16,6 +16,7 @@ use scouter_types::{
     BinnedMetrics, LLMDriftServerRecord, RecordType,
 };
 use scouter_types::{LLMMetricRecord, Status};
+use serde_json::Value;
 use sqlx::types::Json;
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::collections::HashMap;
@@ -140,7 +141,7 @@ pub trait LLMDriftSqlLogic {
                     version: record.version,
                     prompt: record.prompt,
                     context: record.context,
-                    score: record.score,
+                    score: record.score, // Handle optional score
                     status: Status::from_str(&record.status).unwrap_or(Status::Pending), // Default to Pending if parsing fails
                     id: record.id,                 // Ensure we include the ID
                     uid: record.uid,               // Include the UID
@@ -233,7 +234,7 @@ pub trait LLMDriftSqlLogic {
                 version: record.version,
                 prompt: record.prompt,
                 context: record.context,
-                score: record.score,
+                score: Value::Null, // Handle optional score
                 status: Status::from_str(&record.status).unwrap_or(Status::Pending),
                 id: record.id,                 // Ensure we include the ID
                 uid: record.uid,               // Include the UID

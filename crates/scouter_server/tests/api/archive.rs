@@ -308,8 +308,8 @@ async fn test_data_archive_custom() {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    // Sleep for 2 seconds to allow the http consumer time to process all server records sent above.
-    sleep(Duration::from_secs(2)).await;
+    // Sleep for 3 seconds to allow the http consumer time to process all server records sent above.
+    sleep(Duration::from_secs(3)).await;
 
     let record = archive_old_data(&helper.pool, &helper.config)
         .await
@@ -356,7 +356,7 @@ async fn test_data_archive_custom() {
     let results: BinnedMetrics = serde_json::from_slice(&val).unwrap();
 
     assert!(!results.metrics.is_empty());
-    assert_eq!(results.metrics["metric_1"].created_at.len(), 2);
+    assert_eq!(results.metrics["metric_0"].created_at.len(), 2);
     TestHelper::cleanup_storage()
 }
 
@@ -513,13 +513,16 @@ fn test_data_archive_llm_drift_metrics() {
     //assert response
     assert_eq!(response.status(), StatusCode::OK);
 
+    // 20 day old records
+    let long_term_records = helper.get_llm_drift_metrics(Some(20));
+
     // 10 day old records
-    let long_term_records = helper.get_llm_drift_metrics(Some(10));
+    let mid_term_records = helper.get_llm_drift_metrics(Some(10));
 
     // 0 day old records
     let short_term_records = helper.get_llm_drift_metrics(None);
 
-    for records in [short_term_records, long_term_records].iter() {
+    for records in [short_term_records, long_term_records, mid_term_records].iter() {
         let body = serde_json::to_string(records).unwrap();
         let request = Request::builder()
             .uri("/scouter/drift")
@@ -535,7 +538,7 @@ fn test_data_archive_llm_drift_metrics() {
     }
 
     // Sleep for 2 seconds to allow the http consumer time to process all server records sent above.
-    runtime.block_on(async { sleep(Duration::from_secs(2)).await });
+    runtime.block_on(async { sleep(Duration::from_secs(3)).await });
 
     let record = runtime.block_on(async {
         archive_old_data(&helper.pool, &helper.config)
@@ -567,7 +570,7 @@ fn test_data_archive_llm_drift_metrics() {
         version: VERSION.to_string(),
         max_data_points: 100,
         drift_type: DriftType::LLM,
-        begin_custom_datetime: Some(Utc::now() - chrono::Duration::days(15)),
+        begin_custom_datetime: Some(Utc::now() - chrono::Duration::days(30)),
         end_custom_datetime: Some(Utc::now()),
         ..Default::default()
     };
@@ -590,7 +593,7 @@ fn test_data_archive_llm_drift_metrics() {
 
     assert!(!results.metrics.is_empty());
     println!("Metrics: {:?}", results.metrics);
-    assert_eq!(results.metrics["metric1"].created_at.len(), 2);
+    assert_eq!(results.metrics["metric0"].created_at.len(), 3);
 
     mock.stop_server().unwrap();
     TestHelper::cleanup_storage();

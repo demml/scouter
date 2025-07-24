@@ -236,12 +236,14 @@ def create_kafka_llm_app(profile_path: Path) -> FastAPI:
 
         response = agent.execute_prompt(prompt=bound_prompt)
 
-        llm_record = LLMRecord(
-            input=bound_prompt.user_message[0].unwrap(),
-            response=response.result,
+        queue.insert(
+            LLMRecord(
+                context={
+                    "input": bound_prompt.user_message[0].unwrap(),
+                    "response": response.result,
+                },
+            )
         )
-
-        queue.insert(llm_record)
         return TestResponse(message="success")
 
     return app
@@ -269,7 +271,6 @@ def create_http_app(profile_path: Path) -> FastAPI:
 
     @app.post("/predict", response_model=TestResponse)
     async def predict(request: Request, payload: PredictRequest) -> TestResponse:
-        print(f"Received payload: {request.app.state}")
         request.app.state.queue["spc"].insert(payload.to_features())
         return TestResponse(message="success")
 

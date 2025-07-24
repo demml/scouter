@@ -153,7 +153,7 @@ impl LLMDriftConfig {
 /// # Errors
 /// Returns an error if the prompt lacks both "input" and "output" parameters.
 fn validate_prompt_parameters(prompt: &Prompt, id: &str) -> Result<(), ProfileError> {
-    let has_at_least_one_param = prompt.parameters.len() > 0;
+    let has_at_least_one_param = !prompt.parameters.is_empty();
 
     if !has_at_least_one_param {
         return Err(ProfileError::NeedAtLeastOneBoundParameterError(

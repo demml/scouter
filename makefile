@@ -24,7 +24,12 @@ test.sql:
 
 .PHONY: test.server
 test.server:
-	cargo test -p scouter-server --all-features -- --nocapture --test-threads=1 --skip test_storage_integration_cloud
+	cargo test -p scouter-server --all-features -- --nocapture --test-threads=1 --skip test_storage_integration_cloud --skip test_data_archive_llm
+
+.PHONY: test.server.archive.llm
+test.server.archive.llm:
+	cargo test -p scouter-server test_data_archive_llm --all-features -- --nocapture --test-threads=1
+
 
 .PHONY: test.server.cloud
 test.server.cloud: build.all_backends
@@ -35,7 +40,7 @@ test.drift.executor:
 	cargo test -p scouter-drift test_drift_executor --all-features -- --nocapture --test-threads=1
 
 .PHONY: test.needs_sql
-test.needs_sql: test.sql test.server test.drift.executor
+test.needs_sql: test.sql test.server test.server.archive.llm test.drift.executor
 
 #### Unit tests
 .PHONY: test.types

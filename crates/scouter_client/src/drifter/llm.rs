@@ -4,12 +4,21 @@ use scouter_types::llm::{LLMDriftConfig, LLMDriftProfile, LLMMetric};
 use scouter_types::{LLMMetricRecord, LLMRecord};
 use std::sync::Arc;
 
-#[derive(Default)]
-pub struct LLMDrifter {}
+pub struct LLMDrifter {
+    pub runtime: Arc<tokio::runtime::Runtime>,
+}
+
+impl Default for LLMDrifter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 
 impl LLMDrifter {
     pub fn new() -> Self {
-        Self {}
+        Self {
+            runtime: Arc::new(tokio::runtime::Runtime::new().unwrap()),
+        }
     }
 
     pub fn create_drift_profile(
@@ -35,14 +44,15 @@ impl LLMDrifter {
         data: Vec<LLMRecord>,
         profile: &LLMDriftProfile,
     ) -> Result<Vec<LLMMetricRecord>, DriftError> {
-        let shared_runtime =
-            Arc::new(tokio::runtime::Runtime::new().map_err(DriftError::SetupTokioRuntimeError)?);
-        let mut results = Vec::new();
-        for record in data {
-            let metrics = shared_runtime
-                .block_on(async move { Self::compute_drift_single(&record, profile).await })?;
-            results.extend(metrics);
-        }
+        let results = self.runtime.block_on(async move {
+            let mut results = Vec::new();
+            for record in data {
+                let metrics = Self::compute_drift_single(&record, profile).await?;
+                results.extend(metrics);
+            }
+            Ok::<_, DriftError>(results)
+        })?; // propagate error from block_on
+
         Ok(results)
     }
 }

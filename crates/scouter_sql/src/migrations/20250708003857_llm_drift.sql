@@ -39,7 +39,7 @@ CREATE TABLE IF NOT exists scouter.llm_drift_record (
     prompt jsonb,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     status text NOT NULL default 'pending', -- pending, processing, completed, failed
-    score jsonb,
+    score jsonb default '{}', -- Optional score for the LLM response
     processing_started_at TIMESTAMPTZ,
     processing_ended_at TIMESTAMPTZ,
     archived boolean default false,

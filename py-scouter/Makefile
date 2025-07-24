@@ -38,7 +38,7 @@ test.unit:
 		--benchmark-skip
 
 test.integration.api:
-	uv run pytest -s tests/integration/api/test_fastapi_llm.py
+	uv run pytest -s tests/integration/api
 
 test.integration.queue:
 	uv run pytest -s tests/integration/queue
