@@ -147,5 +147,34 @@ async fn test_profile_versions() {
 
     let results: RegisteredProfileResponse = serde_json::from_slice(&body).unwrap();
 
-    assert_eq!(results.version, "2.0.0");
+    assert_eq!(results.version, "1.0.0");
+
+    // do it again
+    let metrics = CustomMetric::new("mae", 10.0, AlertThreshold::Below, None).unwrap();
+    let alert_config = CustomMetricAlertConfig::default();
+    let config =
+        CustomMetricDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
+    let profile = CustomDriftProfile::new(config, vec![metrics]).unwrap();
+
+    let request = profile.create_profile_request().unwrap();
+    let body = serde_json::to_string(&request).unwrap();
+
+    let request = Request::builder()
+        .uri("/scouter/profile")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let response = helper.send_oneshot(request).await;
+
+    //assert response
+    assert_eq!(response.status(), StatusCode::OK);
+    // deserialise for RegisteredProfileResponse
+
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+
+    let results: RegisteredProfileResponse = serde_json::from_slice(&body).unwrap();
+
+    assert_eq!(results.version, "1.1.0");
 }
