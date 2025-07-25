@@ -577,7 +577,7 @@ mod tests {
         let args = profile.get_base_args();
         assert_eq!(args.name, "name");
         assert_eq!(args.space, "repo");
-        assert_eq!(args.version, "0.1.0");
+        assert_eq!(args.version, Some("0.1.0".to_string()));
         assert_eq!(args.schedule, "0 0 0 * * *");
 
         let value = profile.to_value();

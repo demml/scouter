@@ -5,11 +5,12 @@ use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::ProfileRequest;
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
-    ProfileFuncs, DEFAULT_VERSION, MISSING,
+    ProfileFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
 };
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use scouter_semver::VersionType;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -145,11 +146,10 @@ pub struct CustomDriftProfile {
 #[pymethods]
 impl CustomDriftProfile {
     #[new]
-    #[pyo3(signature = (config, metrics, scouter_version=None))]
+    #[pyo3(signature = (config, metrics))]
     pub fn new(
         mut config: CustomMetricDriftConfig,
         metrics: Vec<CustomMetric>,
-        scouter_version: Option<String>,
     ) -> Result<Self, ProfileError> {
         if metrics.is_empty() {
             return Err(TypeError::NoMetricsError.into());
@@ -159,7 +159,7 @@ impl CustomDriftProfile {
 
         let metric_vals = metrics.iter().map(|m| (m.name.clone(), m.value)).collect();
 
-        let scouter_version = scouter_version.unwrap_or(env!("CARGO_PKG_VERSION").to_string());
+        let scouter_version = env!("CARGO_PKG_VERSION").to_string();
 
         Ok(Self {
             config,
@@ -268,10 +268,22 @@ impl CustomDriftProfile {
 
     /// Create a profile request from the profile
     pub fn create_profile_request(&self) -> Result<ProfileRequest, TypeError> {
+        let version: Option<String> = if self.config.version == DEFAULT_VERSION {
+            None
+        } else {
+            Some(self.config.version.clone())
+        };
+
         Ok(ProfileRequest {
             space: self.config.space.clone(),
             profile: self.model_dump_json(),
             drift_type: self.config.drift_type.clone(),
+            version_request: VersionRequest {
+                version: version,
+                version_type: VersionType::Minor,
+                pre_tag: None,
+                build_tag: None,
+            },
         })
     }
 }
@@ -362,7 +374,7 @@ mod tests {
             CustomMetric::new("accuracy", 0.85, AlertThreshold::Below, None).unwrap(),
         ];
 
-        let profile = CustomDriftProfile::new(drift_config, custom_metrics, None).unwrap();
+        let profile = CustomDriftProfile::new(drift_config, custom_metrics).unwrap();
         let _: Value =
             serde_json::from_str(&profile.model_dump_json()).expect("Failed to parse actual JSON");
 

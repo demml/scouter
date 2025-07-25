@@ -6,6 +6,8 @@ use crate::sql::schema::VersionResult;
 use async_trait::async_trait;
 use chrono::Utc;
 use cron::Schedule;
+use scouter_semver::VersionArgs;
+use scouter_semver::VersionType;
 use scouter_semver::{VersionParser, VersionValidator};
 use scouter_types::{
     DriftProfile, DriftTaskInfo, GetProfileRequest, ProfileArgs, ProfileStatusRequest,
@@ -17,32 +19,6 @@ use std::result::Result::Ok;
 use std::str::FromStr;
 use tracing::{error, instrument};
 
-//
-//let versions = self
-//                .sql_client
-//                .get_versions(&self.table_name, space, name, version.clone())
-//                .await?;
-//
-//            // if no versions exist, return the default version
-//            if versions.is_empty() {
-//                return match &version {
-//                    Some(version_str) => Ok(VersionValidator::clean_version(version_str)?),
-//                    None => Ok(Version::new(0, 1, 0)),
-//                };
-//            }
-//
-//            let base_version = versions.first().unwrap().to_string();
-//
-//            let args = VersionArgs {
-//                version: base_version,
-//                version_type,
-//                pre: pre_tag,
-//                build: build_tag,
-//            };
-//
-//            Ok(VersionValidator::bump_version(&args)?)
-//
-/// Add bounds for version
 pub fn add_version_bounds(builder: &mut String, version: &str) -> Result<(), SqlError> {
     let version_bounds = VersionParser::get_version_to_search(version)?;
 
@@ -92,22 +68,23 @@ pub fn add_version_bounds(builder: &mut String, version: &str) -> Result<(), Sql
 pub trait ProfileSqlLogic {
     /// Get profile versions
     #[instrument(skip_all)]
-    async fn get_profile_versions(
+    async fn get_next_profile_version(
         pool: &Pool<Postgres>,
-        space: &str,
-        name: &str,
-        version: Option<String>,
-    ) -> Result<Vec<String>, SqlError> {
+        args: &ProfileArgs,
+        version_type: VersionType,
+        pre_tag: Option<String>,
+        build_tag: Option<String>,
+    ) -> Result<Version, SqlError> {
         let mut version_query = Queries::GetProfileVersions.get_query().sql;
 
-        if let Some(version) = version {
+        if let Some(version) = &args.version {
             add_version_bounds(&mut version_query, &version)?;
         }
         version_query.push_str(" ORDER BY created_at DESC LIMIT 20;");
 
         let cards: Vec<VersionResult> = sqlx::query_as(&version_query)
-            .bind(space)
-            .bind(name)
+            .bind(&args.space)
+            .bind(&args.name)
             .fetch_all(pool)
             .await?;
 
@@ -117,7 +94,25 @@ pub trait ProfileSqlLogic {
             .collect::<Result<Vec<Version>, SqlError>>()?;
 
         // sort semvers
-        Ok(VersionValidator::sort_semver_versions(versions, true)?)
+        let versions = VersionValidator::sort_semver_versions(versions, true)?;
+
+        if versions.is_empty() {
+            return match &args.version {
+                Some(version_str) => Ok(VersionValidator::clean_version(version_str)?),
+                None => Ok(Version::new(0, 1, 0)),
+            };
+        }
+
+        let base_version = versions.first().unwrap().to_string();
+
+        let args = VersionArgs {
+            version: base_version,
+            version_type,
+            pre: pre_tag,
+            build: build_tag,
+        };
+
+        Ok(VersionValidator::bump_version(&args)?)
     }
     /// Insert a drift profile into the database
     ///
@@ -132,12 +127,10 @@ pub trait ProfileSqlLogic {
     async fn insert_drift_profile(
         pool: &Pool<Postgres>,
         drift_profile: &DriftProfile,
+        base_args: &ProfileArgs,
+        version: &Version,
     ) -> Result<PgQueryResult, SqlError> {
-        // we first need to determine correct version
-        let base_args = drift_profile.get_base_args();
-
         let query = Queries::InsertDriftProfile.get_query();
-        let base_args = drift_profile.get_base_args();
         let current_time = Utc::now();
         let schedule = Schedule::from_str(&base_args.schedule)?;
         let next_run = match schedule.upcoming(Utc).take(1).next() {
@@ -147,15 +140,27 @@ pub trait ProfileSqlLogic {
             }
         };
 
+        // Need to convert version to postgres type
+        let major = version.major as i32;
+        let minor = version.minor as i32;
+        let patch = version.patch as i32;
+        let pre: Option<String> = version.pre.to_string().parse().ok();
+        let build: Option<String> = version.build.to_string().parse().ok();
+
         sqlx::query(&query.sql)
-            .bind(base_args.name)
-            .bind(base_args.space)
-            .bind(base_args.version)
-            .bind(base_args.scouter_version)
+            .bind(&base_args.space)
+            .bind(&base_args.name)
+            .bind(major)
+            .bind(minor)
+            .bind(patch)
+            .bind(pre)
+            .bind(build)
+            .bind(version.to_string())
+            .bind(&base_args.scouter_version)
             .bind(drift_profile.to_value())
             .bind(base_args.drift_type.to_string())
             .bind(false)
-            .bind(base_args.schedule)
+            .bind(&base_args.schedule)
             .bind(next_run)
             .bind(current_time)
             .execute(pool)

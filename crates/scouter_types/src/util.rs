@@ -16,7 +16,7 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 pub const MISSING: &str = "__missing__";
-pub const DEFAULT_VERSION: &str = "0.1.0";
+pub const DEFAULT_VERSION: &str = "0.0.0";
 
 pub enum FileName {
     SpcDriftMap,

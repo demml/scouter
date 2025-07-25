@@ -1,5 +1,6 @@
 use scouter_types::contracts::{
-    GetProfileRequest, ProfileRequest, ProfileStatusRequest, ScouterResponse, ScouterServerError,
+    GetProfileRequest, ProfileRequest, ProfileStatusRequest, RegisteredProfileResponse,
+    ScouterResponse, ScouterServerError,
 };
 
 use scouter_types::DriftProfile;
@@ -30,7 +31,7 @@ pub async fn insert_drift_profile(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
     Json(request): Json<ProfileRequest>,
-) -> Result<Json<ScouterResponse>, (StatusCode, Json<ScouterServerError>)> {
+) -> Result<Json<RegisteredProfileResponse>, (StatusCode, Json<ScouterServerError>)> {
     if !perms.has_write_permission(&request.space) {
         return Err((
             StatusCode::FORBIDDEN,
@@ -58,13 +59,39 @@ pub async fn insert_drift_profile(
         }
     };
 
-    match PostgresClient::insert_drift_profile(&data.db_pool, &body).await {
-        Ok(_) => Ok(Json(ScouterResponse {
+    // get versions
+    let base_args = body.get_base_args();
+
+    let version = match PostgresClient::get_next_profile_version(
+        &data.db_pool,
+        &base_args,
+        request.version_request.version_type,
+        request.version_request.pre_tag,
+        request.version_request.build_tag,
+    )
+    .await
+    {
+        Ok(version) => version,
+        Err(e) => {
+            error!("Failed to get next profile version: {:?}", e);
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::new(format!(
+                    "Failed to get next profile version: {e:?}",
+                ))),
+            ));
+        }
+    };
+
+    match PostgresClient::insert_drift_profile(&data.db_pool, &body, &base_args, &version).await {
+        Ok(_) => Ok(Json(RegisteredProfileResponse {
+            space: base_args.space,
+            name: base_args.name,
+            version: version.to_string(),
             status: "success".to_string(),
-            message: "Drift profile inserted successfully".to_string(),
         })),
         Err(e) => {
-            error!("Failed to insert monitor profile: {:?}", e);
+            error!("Failed to insert drift profile: {:?}", e);
 
             Err((
                 StatusCode::INTERNAL_SERVER_ERROR,

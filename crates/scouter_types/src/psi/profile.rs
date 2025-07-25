@@ -3,6 +3,7 @@ use crate::error::{ProfileError, TypeError};
 use crate::psi::alert::PsiAlertConfig;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::ProfileRequest;
+use crate::VersionRequest;
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, ProfileArgs, ProfileBaseArgs,
     ProfileFuncs, DEFAULT_VERSION, MISSING,
@@ -11,6 +12,7 @@ use chrono::Utc;
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use scouter_semver::VersionType;
 use serde::de::{self, MapAccess, Visitor};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -433,10 +435,22 @@ impl PsiDriftProfile {
 
     /// Create a profile request from the profile
     pub fn create_profile_request(&self) -> Result<ProfileRequest, TypeError> {
+        let version: Option<String> = if self.config.version == DEFAULT_VERSION {
+            None
+        } else {
+            Some(self.config.version.clone())
+        };
+
         Ok(ProfileRequest {
             space: self.config.space.clone(),
             profile: self.model_dump_json(),
             drift_type: self.config.drift_type.clone(),
+            version_request: VersionRequest {
+                version: version,
+                version_type: VersionType::Minor,
+                pre_tag: None,
+                build_tag: None,
+            },
         })
     }
 }

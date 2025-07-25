@@ -5318,6 +5318,7 @@ dependencies = [
  "potato-head",
  "pyo3",
  "rayon",
+ "scouter-semver",
  "serde",
  "serde_json",
  "statrs",

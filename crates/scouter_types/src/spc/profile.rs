@@ -12,6 +12,8 @@ use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
+use crate::{VersionRequest, DEFAULT_VERSION};
+use scouter_semver::VersionType;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -356,10 +358,22 @@ impl SpcDriftProfile {
 
     /// Create a profile request from the profile
     pub fn create_profile_request(&self) -> Result<ProfileRequest, TypeError> {
+        let version: Option<String> = if self.config.version == DEFAULT_VERSION {
+            None
+        } else {
+            Some(self.config.version.clone())
+        };
+
         Ok(ProfileRequest {
             space: self.config.space.clone(),
             profile: self.model_dump_json(),
             drift_type: self.config.drift_type.clone(),
+            version_request: VersionRequest {
+                version: version,
+                version_type: VersionType::Minor,
+                pre_tag: None,
+                build_tag: None,
+            },
         })
     }
 }

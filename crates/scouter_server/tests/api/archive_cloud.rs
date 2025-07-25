@@ -10,7 +10,7 @@ use http_body_util::BodyExt;
 use scouter_dataframe::parquet::dataframe::ParquetDataFrame;
 use scouter_drift::psi::PsiMonitor;
 use scouter_server::api::archive::archive_old_data;
-use scouter_types::contracts::{DriftRequest, ProfileRequest};
+use scouter_types::contracts::DriftRequest;
 use scouter_types::{
     psi::{BinnedPsiFeatureMetrics, PsiAlertConfig, PsiDriftConfig},
     DriftType, RecordType,
@@ -41,11 +41,7 @@ async fn test_storage_integration_cloud() {
         .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
         .unwrap();
 
-    let request = ProfileRequest {
-        space: profile.config.space.clone(),
-        profile: profile.model_dump_json(),
-        drift_type: DriftType::Psi,
-    };
+    let request = profile.create_profile_request().unwrap();
 
     let body = serde_json::to_string(&request).unwrap();
 
