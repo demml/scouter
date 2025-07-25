@@ -7,6 +7,7 @@ pub mod auth;
 pub mod database;
 pub mod events;
 pub mod http;
+pub mod llm;
 pub mod polling;
 pub mod storage;
 
@@ -15,6 +16,7 @@ pub use auth::AuthSettings;
 pub use database::DatabaseSettings;
 pub use events::{KafkaSettings, RabbitMQSettings, RedisSettings};
 pub use http::HTTPConfig;
+pub use llm::LLMSettings;
 pub use polling::PollingSettings;
 pub use storage::ObjectStorageSettings;
 
@@ -38,6 +40,7 @@ pub struct ScouterServerConfig {
     pub rabbitmq_settings: Option<RabbitMQSettings>,
     pub redis_settings: Option<RedisSettings>,
     pub http_consumer_settings: HttpConsumerSettings,
+    pub llm_settings: LLMSettings,
     pub auth_settings: AuthSettings,
     pub bootstrap_key: String,
     pub storage_settings: ObjectStorageSettings,
@@ -102,6 +105,8 @@ impl Default for ScouterServerConfig {
         let bootstrap_key =
             env::var("SCOUTER_BOOTSTRAP_KEY").unwrap_or_else(|_| generate_default_secret());
 
+        let llm_settings = LLMSettings::default();
+
         Self {
             polling_settings: polling,
             database_settings: database,
@@ -110,6 +115,7 @@ impl Default for ScouterServerConfig {
             redis_settings: redis,
             auth_settings,
             bootstrap_key,
+            llm_settings,
             http_consumer_settings,
             storage_settings: ObjectStorageSettings::default(),
         }
@@ -127,5 +133,9 @@ impl ScouterServerConfig {
 
     pub fn redis_enabled(&self) -> bool {
         self.redis_settings.is_some()
+    }
+
+    pub fn llm_enabled(&self) -> bool {
+        self.llm_settings.is_configured()
     }
 }

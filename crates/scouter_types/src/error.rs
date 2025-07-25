@@ -81,7 +81,12 @@ pub enum TypeError {
     PyError(String),
 
     #[error(
-        "Unsupported feature type. Supported types are float, integer and string. Received: {0}"
+        "Invalid prompt response type. Expect Score as the output type for the LLMMetric prompt"
+    )]
+    InvalidResponseType,
+
+    #[error(
+        "Unsupported feature type. Feature must be an integer, float or string. Received: {0}"
     )]
     UnsupportedFeatureTypeError(String),
 
@@ -90,6 +95,21 @@ pub enum TypeError {
 
     #[error("Unsupported metrics type. Metrics must be a list of Metric instances or a dictionary of key value pairs. Received: {0}")]
     UnsupportedMetricsTypeError(String),
+
+    #[error("Unsupported status. Status must be one of: All, Pending or Processed. Received: {0}")]
+    InvalidStatusError(String),
+
+    #[error("Failed to supply either input or response for the llm record")]
+    MissingInputOrResponse,
+
+    #[error("Invalid context type. Context must be a PyDict or a Pydantic BaseModel")]
+    MustBeDictOrBaseModel,
+
+    #[error("Failed to check if the context is a Pydantic BaseModel. Error: {0}")]
+    FailedToCheckPydanticModel(String),
+
+    #[error("Failed to import pydantic module. Error: {0}")]
+    FailedToImportPydantic(String),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for TypeError {
@@ -149,6 +169,9 @@ pub enum RecordError {
 
     #[error("{0}")]
     PyError(String),
+
+    #[error("Failed to supply either input or response for the llm record")]
+    MissingInputOrResponse,
 }
 
 impl From<RecordError> for PyErr {
@@ -198,6 +221,49 @@ pub enum ProfileError {
 
     #[error("{0}")]
     PyError(String),
+
+    #[error("Missing evaluation workflow")]
+    MissingWorkflowError,
+
+    #[error("Invalid argument for workflow. Argument must be a Workflow object")]
+    InvalidWorkflowType,
+
+    #[error(transparent)]
+    AgentError(#[from] potato_head::AgentError),
+
+    #[error(transparent)]
+    WorkflowError(#[from] potato_head::WorkflowError),
+
+    #[error("Invalid metric name found: {0}")]
+    InvalidMetricNameError(String),
+
+    #[error("No metrics provided for workflow validation")]
+    EmptyMetricsList,
+
+    #[error("LLM Metric requires at least one bound parameter")]
+    NeedAtLeastOneBoundParameterError(String),
+
+    #[error(
+        "Missing prompt in LLM Metric. If providing a list of metrics, prompt must be present"
+    )]
+    MissingPromptError(String),
+
+    #[error("No tasks found in the workflow when validating: {0}")]
+    NoTasksFoundError(String),
+
+    #[error(
+        "Invalid prompt response type. Expected Score as the output type for the LLMMetric prompt. Id: {0}"
+    )]
+    InvalidResponseType(String),
+
+    #[error("No metrics found for the output task: {0}")]
+    MetricNotFoundForOutputTask(String),
+
+    #[error("Metric not found in profile LLM metrics: {0}")]
+    MetricNotFound(String),
+
+    #[error(transparent)]
+    PotatoTypeError(#[from] potato_head::TypeError),
 }
 
 impl From<ProfileError> for PyErr {

@@ -1,6 +1,7 @@
 use scouter_types::ProfileFuncs;
 use serde::Serialize;
 
+// see: https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
 #[derive(Clone, Serialize)]
 pub struct KafkaSettings {
     pub brokers: String,

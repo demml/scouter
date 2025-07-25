@@ -5,9 +5,7 @@ use crate::sql::helper::get_binned_spc_drift_records_query;
 use crate::storage::ObjectStore;
 use arrow::array::AsArray;
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
-use arrow_array::array::{
-    Float64Array, ListArray, StringArray, StringViewArray, TimestampNanosecondArray,
-};
+use arrow_array::array::{Float64Array, StringArray, TimestampNanosecondArray};
 use arrow_array::RecordBatch;
 use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
@@ -136,40 +134,38 @@ fn process_spc_record_batch(
 ) -> Result<(), DataFrameError> {
     // Feature is the first column and is stringarray
     let feature_array = batch
-        .column(0)
-        .as_any()
-        .downcast_ref::<StringViewArray>()
-        .expect("Failed to downcast to StringViewArray");
+        .column_by_name("feature")
+        .ok_or_else(|| DataFrameError::MissingFieldError("feature"))?
+        .as_string_view_opt()
+        .ok_or_else(|| DataFrameError::DowncastError("feature"))?;
 
-    // The created_at and values columns are lists
+    // The created_at and values columns are lists<i32>
     let created_at_list = batch
-        .column(1)
-        .as_any()
-        .downcast_ref::<ListArray>()
-        .ok_or_else(|| DataFrameError::GetColumnError("created_at"))?;
+        .column_by_name("created_at")
+        .ok_or_else(|| DataFrameError::MissingFieldError("created_at"))?
+        .as_list_opt::<i32>()
+        .ok_or_else(|| DataFrameError::DowncastError("created_at"))?;
 
     let values_list = batch
-        .column(2)
-        .as_any()
-        .downcast_ref::<ListArray>()
-        .ok_or_else(|| DataFrameError::GetColumnError("values"))?;
+        .column_by_name("values")
+        .ok_or_else(|| DataFrameError::MissingFieldError("values"))?
+        .as_list_opt::<i32>()
+        .ok_or_else(|| DataFrameError::DowncastError("values"))?;
 
     for row in 0..batch.num_rows() {
         let feature_name = feature_array.value(row).to_string();
 
-        // Get the inner arrays for this row
-        let created_at_array = created_at_list.value(row);
-        let values_array = values_list.value(row);
-
         // Convert timestamps to DateTime<Utc>
-        let created_at = created_at_array
+        let created_at = created_at_list
+            .value(row)
             .as_primitive::<arrow::datatypes::TimestampNanosecondType>()
             .iter()
             .filter_map(|ts| ts.map(|t| Utc.timestamp_nanos(t)))
             .collect::<Vec<_>>();
 
         // Convert values to Vec<f64>
-        let values = values_array
+        let values = values_list
+            .value(row)
             .as_primitive::<arrow::datatypes::Float64Type>()
             .iter()
             .flatten()

@@ -6,6 +6,7 @@ pub mod error;
 pub mod custom;
 pub mod drift;
 pub mod http;
+pub mod llm;
 pub mod psi;
 pub mod queue;
 pub mod records;

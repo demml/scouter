@@ -18,6 +18,7 @@ RecordType = queue.RecordType
 Metric = queue.Metric
 Metrics = queue.Metrics
 EntityType = queue.EntityType
+LLMRecord = queue.LLMRecord
 
 
 __all__ = [
@@ -37,4 +38,5 @@ __all__ = [
     "Metric",
     "Metrics",
     "EntityType",
+    "LLMRecord",
 ]

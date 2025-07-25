@@ -1,7 +1,8 @@
 use crate::error::TypeError;
 use crate::{
-    dispatch::AlertDispatchType, AlertDispatchConfig, CommonCrons, DispatchAlertDescription,
-    OpsGenieDispatchConfig, ProfileFuncs, SlackDispatchConfig, ValidateAlertConfig,
+    dispatch::AlertDispatchType, AlertDispatchConfig, AlertThreshold, CommonCrons,
+    DispatchAlertDescription, OpsGenieDispatchConfig, ProfileFuncs, SlackDispatchConfig,
+    ValidateAlertConfig,
 };
 use core::fmt::Debug;
 use pyo3::prelude::*;
@@ -9,8 +10,6 @@ use pyo3::types::PyString;
 
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::fmt::Display;
-use std::fmt::Formatter;
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -63,41 +62,6 @@ impl CustomMetric {
     #[getter]
     pub fn class_id(&self) -> String {
         self.name.clone()
-    }
-}
-
-#[pyclass(eq)]
-#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
-pub enum AlertThreshold {
-    Below,
-    Above,
-    Outside,
-}
-
-impl Display for AlertThreshold {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{self:?}")
-    }
-}
-
-#[pymethods]
-impl AlertThreshold {
-    #[staticmethod]
-    pub fn from_value(value: &str) -> Option<Self> {
-        match value.to_lowercase().as_str() {
-            "below" => Some(AlertThreshold::Below),
-            "above" => Some(AlertThreshold::Above),
-            "outside" => Some(AlertThreshold::Outside),
-            _ => None,
-        }
-    }
-
-    pub fn __str__(&self) -> String {
-        match self {
-            AlertThreshold::Below => "Below".to_string(),
-            AlertThreshold::Above => "Above".to_string(),
-            AlertThreshold::Outside => "Outside".to_string(),
-        }
     }
 }
 

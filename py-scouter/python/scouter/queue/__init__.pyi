@@ -4,7 +4,10 @@ import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+from typing_extensions import Protocol, TypeAlias
+
 from ..client import HTTPConfig
+from ..llm import Prompt
 from ..logging import LogLevel
 from ..mock import MockConfig
 from ..observe import ObservabilityMetrics
@@ -601,24 +604,24 @@ class Metrics:
 class Queue:
     """Individual queue associated with a drift profile"""
 
-    def insert(self, entity: Union[Features, Metrics]) -> None:
+    def insert(self, entity: Union[Features, Metrics, LLMRecord]) -> None:
         """Insert a record into the queue
 
         Args:
             entity:
                 Entity to insert into the queue.
-                Can be an instance for Features or Metrics
+                Can be an instance for Features, Metrics, or LLMRecord.
 
         Example:
             ```python
             features = Features(
                 features=[
-                    Feature.int("feature_1", 1),
-                    Feature.float("feature_2", 2.0),
-                    Feature.string("feature_3", "value"),
+                    Feature("feature_1", 1),
+                    Feature("feature_2", 2.0),
+                    Feature("feature_3", "value"),
                 ]
             )
-            queue.insert(Features(features))
+            queue.insert(features)
             ```
         """
 
@@ -661,9 +664,9 @@ class ScouterQueue:
             queue["psi"].insert(
                 Features(
                     features=[
-                        Feature.int("feature_1", 1),
-                        Feature.float("feature_2", 2.0),
-                        Feature.string("feature_3", "value"),
+                        Feature("feature_1", 1),
+                        Feature("feature_2", 2.0),
+                        Feature("feature_3", "value"),
                     ]
                 )
             )
@@ -687,3 +690,81 @@ class ScouterQueue:
         self,
     ) -> Union[KafkaConfig, RabbitMQConfig, RedisConfig, HTTPConfig, MockConfig]:
         """Return the transport configuration used by the queue"""
+
+class BaseModel(Protocol):
+    """Protocol for pydantic BaseModel to ensure compatibility with context"""
+
+    def model_dump(self) -> Dict[str, Any]:
+        """Dump the model as a dictionary"""
+        ...
+
+    def model_dump_json(self) -> str:
+        """Dump the model as a JSON string"""
+        ...
+
+    def __str__(self) -> str:
+        """String representation of the model"""
+        ...
+
+SerializedType: TypeAlias = Union[str, int, float, dict, list]
+Context: TypeAlias = Union[Dict[str, Any], BaseModel]
+
+class LLMRecord:
+    """LLM record containing context tied to a Large Language Model interaction
+    that is used to evaluate drift in LLM responses.
+
+
+    Examples:
+        >>> record = LLMRecord(
+        ...     context={
+        ...         "input": "What is the capital of France?",
+        ...         "response": "Paris is the capital of France."
+        ...     },
+        ... )
+        >>> print(record.context["input"])
+        "What is the capital of France?"
+    """
+
+    prompt: Optional[Prompt]
+    """Optional prompt configuration associated with this record."""
+
+    entity_type: EntityType
+    """Type of entity, always EntityType.LLM for LLMRecord instances."""
+
+    def __init__(
+        self,
+        context: Context,
+        prompt: Optional[Prompt | SerializedType] = None,
+    ) -> None:
+        """Creates a new LLM record to associate with an `LLMDriftProfile`.
+        The record is sent to the `Scouter` server via the `ScouterQueue` and is
+        then used to inject context into the evaluation prompts.
+
+        Args:
+            context:
+                Additional context information as a dictionary or a pydantic BaseModel. During evaluation,
+                this will be merged with the input and response data and passed to the assigned
+                evaluation prompts. So if you're evaluation prompts expect additional context via
+                bound variables (e.g., `${foo}`), you can pass that here as key value pairs.
+                {"foo": "bar"}
+            prompt:
+                Optional prompt configuration associated with this record. Can be a Potatohead Prompt or
+                a JSON-serializable type.
+
+        Raises:
+            TypeError: If context is not a dict or a pydantic BaseModel.
+
+        """
+        ...
+
+    @property
+    def context(self) -> Dict[str, Any]:
+        """Get the contextual information.
+
+        Returns:
+            The context data as a Python object (deserialized from JSON).
+
+        Raises:
+            TypeError: If the stored JSON cannot be converted to a Python object.
+        """
+        ...

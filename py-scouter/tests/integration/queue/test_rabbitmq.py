@@ -14,7 +14,7 @@ from scouter import (  # type: ignore
 )
 from scouter.alert import AlertThreshold, CustomMetricAlertConfig
 from scouter.client import (
-    BinnedCustomMetrics,
+    BinnedMetrics,
     DriftAlertRequest,
     DriftRequest,
     ProfileStatusRequest,
@@ -84,7 +84,7 @@ def test_custom_monitor_pandas_rabbitmq(rabbitmq_scouter_server):
         drift_type=DriftType.Custom,
     )
 
-    binned_records: BinnedCustomMetrics = client.get_binned_drift(request)  # type: ignore
+    binned_records: BinnedMetrics = client.get_binned_drift(request)  # type: ignore
 
     assert len(binned_records.metrics["mae"].stats) > 0
 

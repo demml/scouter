@@ -106,8 +106,8 @@ impl RustScouterProducer {
                 }
             }
             TransportConfig::Http(config) => {
-                let producer = HTTPProducer::new(config).await?;
                 debug!("Creating HTTP producer");
+                let producer = HTTPProducer::new(config).await?;
                 ProducerEnum::HTTP(producer)
             }
             TransportConfig::Mock(config) => {

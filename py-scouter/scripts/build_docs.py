@@ -2,7 +2,7 @@ import os
 import shutil
 
 BASE_DIR = os.path.join(os.path.dirname(__file__), "../python/scouter")
-FOLDERS = ["queue", "alert", "client", "drift", "profile", "types"]
+FOLDERS = ["queue", "alert", "client", "drift", "profile", "types", "llm"]
 
 for folder in FOLDERS:
     folder_path = os.path.join(BASE_DIR, folder)

@@ -8,7 +8,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
 use pyo3::IntoPyObjectExt;
 use rayon::prelude::*;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::collections::{BTreeSet, HashMap};
 use std::fmt::{Display, Formatter};
@@ -26,6 +26,7 @@ pub enum FileName {
     CustomDriftProfile,
     DriftProfile,
     DataProfile,
+    LLMDriftProfile,
 }
 
 impl FileName {
@@ -38,6 +39,7 @@ impl FileName {
             FileName::CustomDriftProfile => "custom_drift_profile.json",
             FileName::DataProfile => "data_profile.json",
             FileName::DriftProfile => "drift_profile.json",
+            FileName::LLMDriftProfile => "llm_drift_profile.json",
         }
     }
 }
@@ -257,6 +259,28 @@ pub fn create_feature_map(
     })
 }
 
+/// Checks if python object is an instance of a Pydantic BaseModel
+/// # Arguments
+/// * `py` - Python interpreter instance
+/// * `obj` - Python object to check
+/// # Returns
+/// * `Ok(bool)` - `true` if the object is a Pydantic model
+/// * `Err(TypeError)` - if there was an error importing Pydantic or checking
+pub fn is_pydantic_model(py: Python, obj: &Bound<'_, PyAny>) -> Result<bool, TypeError> {
+    let pydantic = match py.import("pydantic") {
+        Ok(module) => module,
+        Err(e) => return Err(TypeError::FailedToImportPydantic(e.to_string())),
+    };
+    let basemodel = pydantic.getattr("BaseModel")?;
+
+    // check if context is a pydantic model
+    let is_basemodel = obj
+        .is_instance(&basemodel)
+        .map_err(|e| TypeError::FailedToCheckPydanticModel(e.to_string()))?;
+
+    Ok(is_basemodel)
+}
+
 #[derive(PartialEq, Debug)]
 pub struct ProfileArgs {
     pub name: String,
@@ -295,6 +319,7 @@ pub enum DataType {
     Numpy,
     Arrow,
     Unknown,
+    LLM,
 }
 
 impl Display for DataType {
@@ -305,6 +330,7 @@ impl Display for DataType {
             DataType::Numpy => write!(f, "numpy"),
             DataType::Arrow => write!(f, "arrow"),
             DataType::Unknown => write!(f, "unknown"),
+            DataType::LLM => write!(f, "llm"),
         }
     }
 }
@@ -316,6 +342,7 @@ impl DataType {
             "polars.dataframe.frame.DataFrame" => Ok(DataType::Polars),
             "numpy.ndarray" => Ok(DataType::Numpy),
             "pyarrow.lib.Table" => Ok(DataType::Arrow),
+            "scouter_drift.llm.LLMRecord" => Ok(DataType::LLM),
             _ => Err(TypeError::InvalidDataType),
         }
     }
@@ -323,6 +350,90 @@ impl DataType {
 
 pub fn get_utc_datetime() -> DateTime<Utc> {
     Utc::now()
+}
+
+#[pyclass(eq)]
+#[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
+pub enum AlertThreshold {
+    Below,
+    Above,
+    Outside,
+}
+
+impl Display for AlertThreshold {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self:?}")
+    }
+}
+
+#[pymethods]
+impl AlertThreshold {
+    #[staticmethod]
+    pub fn from_value(value: &str) -> Option<Self> {
+        match value.to_lowercase().as_str() {
+            "below" => Some(AlertThreshold::Below),
+            "above" => Some(AlertThreshold::Above),
+            "outside" => Some(AlertThreshold::Outside),
+            _ => None,
+        }
+    }
+
+    pub fn __str__(&self) -> String {
+        match self {
+            AlertThreshold::Below => "Below".to_string(),
+            AlertThreshold::Above => "Above".to_string(),
+            AlertThreshold::Outside => "Outside".to_string(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Deserialize, Serialize, PartialEq, Default)]
+pub enum Status {
+    #[default]
+    All,
+    Pending,
+    Processing,
+    Processed,
+    Failed,
+}
+
+impl Status {
+    pub fn as_str(&self) -> Option<&'static str> {
+        match self {
+            Status::All => None,
+            Status::Pending => Some("pending"),
+            Status::Processing => Some("processing"),
+            Status::Processed => Some("processed"),
+            Status::Failed => Some("failed"),
+        }
+    }
+}
+
+impl FromStr for Status {
+    type Err = TypeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+            "all" => Ok(Status::All),
+            "pending" => Ok(Status::Pending),
+            "processing" => Ok(Status::Processing),
+            "processed" => Ok(Status::Processed),
+            "failed" => Ok(Status::Failed),
+            _ => Err(TypeError::InvalidStatusError(s.to_string())),
+        }
+    }
+}
+
+impl Display for Status {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Status::All => write!(f, "all"),
+            Status::Pending => write!(f, "pending"),
+            Status::Processing => write!(f, "processing"),
+            Status::Processed => write!(f, "processed"),
+            Status::Failed => write!(f, "failed"),
+        }
+    }
 }
 
 #[cfg(test)]

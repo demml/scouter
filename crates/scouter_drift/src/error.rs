@@ -1,10 +1,11 @@
+use futures::io;
+use potato_head::error::WorkflowError;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::PyErr;
 use scouter_dispatch::error::DispatchError;
-use thiserror::Error;
-
 #[cfg(feature = "sql")]
 use scouter_sql::sql::error::SqlError;
+use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum DriftError {
@@ -35,6 +36,9 @@ pub enum DriftError {
     #[cfg(feature = "sql")]
     #[error(transparent)]
     SqlError(#[from] SqlError),
+
+    #[error(transparent)]
+    UtilError(#[from] potato_head::UtilError),
 
     #[error("SPC rule length is not 8")]
     SpcRuleLengthError,
@@ -74,6 +78,27 @@ pub enum DriftError {
 
     #[error("Categorical feature specified in drift config: {0}, not present in data")]
     CategoricalFeatureMissingError(String),
+
+    #[error("Failed to deserialize: {0}")]
+    SerdeJsonError(#[from] serde_json::Error),
+
+    #[error("Context is not a valid JSON object. Should be a Map<String, Value>")]
+    InvalidContextFormat,
+
+    #[error(transparent)]
+    WorkflowError(#[from] WorkflowError),
+
+    #[error("Incorrect method called: {0}")]
+    WrongMethodError(String),
+
+    #[error("Invalid content type. Expected a json string or value")]
+    InvalidContentTypeError,
+
+    #[error("Failed to setup tokio runtime for computing LLM drift: {0}")]
+    SetupTokioRuntimeError(#[source] io::Error),
+
+    #[error("Failed to process LLM drift record: {0}")]
+    LLMEvaluatorError(String),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for DriftError {

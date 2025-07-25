@@ -12,9 +12,12 @@ pub use scouter_types::{
     create_feature_map,
     cron::*,
     custom::{
-        AlertThreshold, BinnedCustomMetric, BinnedCustomMetricStats, BinnedCustomMetrics,
         CustomDriftProfile, CustomMetric, CustomMetricAlertCondition, CustomMetricAlertConfig,
         CustomMetricDriftConfig,
+    },
+    llm::{
+        LLMAlertConfig, LLMDriftConfig, LLMDriftMap, LLMDriftProfile, LLMMetric,
+        LLMMetricAlertCondition,
     },
     psi::{
         Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiChiSquareThreshold,
@@ -26,9 +29,10 @@ pub use scouter_types::{
         SpcDriftFeature, SpcDriftFeatures, SpcDriftProfile, SpcFeatureAlert, SpcFeatureAlerts,
         SpcFeatureDriftProfile,
     },
-    AlertDispatchType, ConsoleDispatchConfig, CustomMetricServerRecord, DataType,
-    DriftAlertRequest, DriftProfile, DriftRequest, DriftType, EntityType, Feature, FeatureMap,
-    Features, GetProfileRequest, LatencyMetrics, Metric, Metrics, ObservabilityMetrics,
+    AlertDispatchType, AlertThreshold, BinnedMetric, BinnedMetricStats, BinnedMetrics,
+    ConsoleDispatchConfig, CustomMetricServerRecord, DataType, DriftAlertRequest, DriftProfile,
+    DriftRequest, DriftType, EntityType, Feature, FeatureMap, Features, GetProfileRequest,
+    LLMMetricRecord, LLMRecord, LatencyMetrics, Metric, Metrics, ObservabilityMetrics,
     OpsGenieDispatchConfig, ProfileRequest, ProfileStatusRequest, PsiServerRecord, RecordType,
     RouteMetrics, ScouterResponse, ScouterServerError, ServerRecord, ServerRecords,
     SlackDispatchConfig, SpcServerRecord, TimeInterval, UpdateAlertResponse, UpdateAlertStatus,
@@ -46,8 +50,8 @@ pub use scouter_events::producer::{
     kafka::KafkaConfig, mock::MockConfig, rabbitmq::RabbitMQConfig, redis::RedisConfig,
 };
 pub use scouter_events::queue::{
-    custom::CustomMetricFeatureQueue, psi::PsiFeatureQueue, spc::SpcFeatureQueue, QueueBus,
-    ScouterQueue,
+    custom::CustomMetricFeatureQueue, llm::LLMRecordQueue, psi::PsiFeatureQueue,
+    spc::SpcFeatureQueue, QueueBus, ScouterQueue,
 };
 
 pub use scouter_observability::Observer;

@@ -85,3 +85,4 @@ py-scouter/python/scouter/client/_client.pyi
 py-scouter/python/scouter/profile/_profile.pyi
 py-scouter/python/scouter/types/_types.pyi
 py-scouter/python/scouter/drift/_drift.pyi
+py-scouter/python/scouter/llm/_llm.pyi

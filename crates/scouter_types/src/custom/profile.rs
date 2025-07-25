@@ -296,7 +296,7 @@ impl ProfileBaseArgs for CustomDriftProfile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::custom::alert::AlertThreshold;
+    use crate::AlertThreshold;
     use crate::{AlertDispatchConfig, OpsGenieDispatchConfig, SlackDispatchConfig};
 
     #[test]

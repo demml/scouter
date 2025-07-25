@@ -20,11 +20,16 @@ build.sql:
 	
 .PHONY: test.sql
 test.sql:
-	cargo test -p scouter-sql test_postgres -- --nocapture --test-threads=1
+	cargo test -p scouter-sql test_postgres --all-features -- --nocapture --test-threads=1
 
 .PHONY: test.server
 test.server:
-	cargo test -p scouter-server --all-features -- --nocapture --test-threads=1 --skip test_storage_integration_cloud
+	cargo test -p scouter-server --all-features -- --nocapture --test-threads=1 --skip test_storage_integration_cloud --skip test_data_archive_llm
+
+.PHONY: test.server.archive.llm
+test.server.archive.llm:
+	cargo test -p scouter-server test_data_archive_llm --all-features -- --nocapture --test-threads=1
+
 
 .PHONY: test.server.cloud
 test.server.cloud: build.all_backends
@@ -35,12 +40,17 @@ test.drift.executor:
 	cargo test -p scouter-drift test_drift_executor --all-features -- --nocapture --test-threads=1
 
 .PHONY: test.needs_sql
-test.needs_sql: test.sql test.server test.drift.executor
+test.needs_sql: test.sql test.server test.server.archive.llm test.drift.executor
 
 #### Unit tests
 .PHONY: test.types
 test.types:
-	cargo test -p scouter-types -- --nocapture --test-threads=1
+	cargo test -p scouter-types --all-features -- --nocapture --test-threads=1
+
+#### LLM profile tests
+.PHONY: test.llm
+test.llm:
+	cargo test -p scouter-types test_llm --all-features -- --nocapture --test-threads=1
 
 .PHONY: test.dispatch
 test.dispatch:
@@ -71,6 +81,10 @@ test.events: test.kafka_events test.rabbitmq_events
 .PHONY: test.dataframe
 test.dataframe:
 	cargo test -p scouter-dataframe -- --nocapture --test-threads=1
+
+.PHONY: test.agents
+test.agents:
+	cargo test -p scouter-llm --all-features -- --nocapture --test-threads=1
 
 .PHONY: test
 test: build.all_backends test.needs_sql test.unit build.shutdown

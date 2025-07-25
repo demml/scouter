@@ -1,17 +1,19 @@
 use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
-use crate::sql::schema::BinnedCustomMetricWrapper;
+use crate::sql::schema::BinnedMetricWrapper;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::multiunzip;
-use scouter_dataframe::parquet::{dataframe_to_custom_drift_metrics, ParquetDataFrame};
+use scouter_dataframe::parquet::BinnedMetricsExtractor;
+use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::{DriftRequest, ServiceInfo};
-use scouter_types::{custom::BinnedCustomMetrics, CustomMetricServerRecord, RecordType};
+use scouter_types::{BinnedMetrics, CustomMetricServerRecord, RecordType};
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::collections::HashMap;
 use tracing::{debug, instrument};
+
 #[async_trait]
 pub trait CustomMetricSqlLogic {
     async fn insert_custom_metric_values_batch(
@@ -92,18 +94,18 @@ pub trait CustomMetricSqlLogic {
     /// * `params` - The drift request parameters
     ///
     /// # Returns
-    /// * BinnedCustomMetrics
+    /// * BinnedMetrics
     #[instrument(skip_all)]
     async fn get_records(
         pool: &Pool<Postgres>,
         params: &DriftRequest,
         minutes: i32,
-    ) -> Result<BinnedCustomMetrics, SqlError> {
+    ) -> Result<BinnedMetrics, SqlError> {
         let bin = params.time_interval.to_minutes() as f64 / params.max_data_points as f64;
 
-        let query = Queries::GetBinnedCustomMetricValues.get_query();
+        let query = Queries::GetBinnedMetricValues.get_query();
 
-        let records: Vec<BinnedCustomMetricWrapper> = sqlx::query_as(&query.sql)
+        let records: Vec<BinnedMetricWrapper> = sqlx::query_as(&query.sql)
             .bind(bin)
             .bind(minutes)
             .bind(&params.name)
@@ -113,15 +115,15 @@ pub trait CustomMetricSqlLogic {
             .await
             .map_err(SqlError::SqlxError)?;
 
-        Ok(BinnedCustomMetrics::from_vec(
+        Ok(BinnedMetrics::from_vec(
             records.into_iter().map(|wrapper| wrapper.0).collect(),
         ))
     }
 
     /// Helper for merging custom drift records
     fn merge_feature_results(
-        results: BinnedCustomMetrics,
-        map: &mut BinnedCustomMetrics,
+        results: BinnedMetrics,
+        map: &mut BinnedMetrics,
     ) -> Result<(), SqlError> {
         for (name, metric) in results.metrics {
             let metric_clone = metric.clone();
@@ -155,7 +157,7 @@ pub trait CustomMetricSqlLogic {
         end: DateTime<Utc>,
         minutes: i32,
         storage_settings: &ObjectStorageSettings,
-    ) -> Result<BinnedCustomMetrics, SqlError> {
+    ) -> Result<BinnedMetrics, SqlError> {
         let path = format!("{}/{}/{}/custom", params.space, params.name, params.version);
         let bin = minutes as f64 / params.max_data_points as f64;
         let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::Custom)?
@@ -170,7 +172,7 @@ pub trait CustomMetricSqlLogic {
             )
             .await?;
 
-        Ok(dataframe_to_custom_drift_metrics(archived_df).await?)
+        Ok(BinnedMetricsExtractor::dataframe_to_binned_metrics(archived_df).await?)
     }
 
     // Queries the database for drift records based on a time window and aggregation
@@ -188,7 +190,7 @@ pub trait CustomMetricSqlLogic {
         params: &DriftRequest,
         retention_period: &i32,
         storage_settings: &ObjectStorageSettings,
-    ) -> Result<BinnedCustomMetrics, SqlError> {
+    ) -> Result<BinnedMetrics, SqlError> {
         debug!("Getting binned Custom drift records for {:?}", params);
 
         if !params.has_custom_interval() {
@@ -200,7 +202,7 @@ pub trait CustomMetricSqlLogic {
         debug!("Custom interval provided, using custom interval");
         let interval = params.clone().to_custom_interval().unwrap();
         let timestamps = split_custom_interval(interval.start, interval.end, retention_period)?;
-        let mut custom_metric_map = BinnedCustomMetrics::default();
+        let mut custom_metric_map = BinnedMetrics::default();
 
         // get data from postgres
         if let Some(minutes) = timestamps.current_minutes {

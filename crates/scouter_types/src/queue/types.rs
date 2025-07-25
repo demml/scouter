@@ -1,8 +1,16 @@
 use crate::error::TypeError;
+use crate::json_to_pyobject_value;
+use crate::util::{is_pydantic_model, pyobject_to_json};
 use crate::ProfileFuncs;
+use chrono::DateTime;
+use chrono::Utc;
+use potato_head::create_uuid7;
+use potato_head::Prompt;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PyString};
+use pyo3::IntoPyObjectExt;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Display;
@@ -13,6 +21,7 @@ use std::fmt::Formatter;
 pub enum EntityType {
     Feature,
     Metric,
+    LLM,
 }
 
 #[pyclass]
@@ -286,7 +295,11 @@ impl Metric {
                 value.get_type().name().unwrap()
             );
         };
-        Metric { name, value }
+        let lowercase_name = name.to_lowercase();
+        Metric {
+            name: lowercase_name,
+            value,
+        }
     }
 
     pub fn __str__(&self) -> String {
@@ -349,10 +362,115 @@ impl Metrics {
     }
 }
 
+#[pyclass]
+#[derive(Clone, Serialize, Debug)]
+pub struct LLMRecord {
+    pub uid: String,
+
+    pub space: String,
+
+    pub name: String,
+
+    pub version: String,
+
+    pub created_at: DateTime<Utc>,
+
+    pub context: Value,
+
+    pub score: Value,
+
+    pub prompt: Option<Value>,
+
+    #[pyo3(get)]
+    pub entity_type: EntityType,
+}
+
+#[pymethods]
+impl LLMRecord {
+    #[new]
+    #[pyo3(signature = (
+        context,
+        prompt=None,
+    ))]
+
+    /// Creates a new LLMRecord instance.
+    /// The context is either a python dictionary or a pydantic basemodel.
+    pub fn new(
+        py: Python<'_>,
+        context: Bound<'_, PyAny>,
+        prompt: Option<Bound<'_, PyAny>>,
+    ) -> Result<Self, TypeError> {
+        // check if context is a PyDict or PyObject(Pydantic model)
+        let context_val = if context.is_instance_of::<PyDict>() {
+            pyobject_to_json(&context)?
+        } else if is_pydantic_model(py, &context)? {
+            // Dump pydantic model to dictionary
+            let model = context.call_method0("model_dump")?;
+
+            // Serialize the dictionary to JSON
+            pyobject_to_json(&model)?
+        } else {
+            Err(TypeError::MustBeDictOrBaseModel)?
+        };
+
+        let prompt: Option<Value> = match prompt {
+            Some(p) => {
+                if p.is_instance_of::<Prompt>() {
+                    let prompt = p.extract::<Prompt>()?;
+                    Some(serde_json::to_value(prompt)?)
+                } else {
+                    Some(pyobject_to_json(&p)?)
+                }
+            }
+            None => None,
+        };
+
+        Ok(LLMRecord {
+            uid: create_uuid7(),
+            created_at: Utc::now(),
+            space: String::new(),
+            name: String::new(),
+            version: String::new(),
+            context: context_val,
+            score: Value::Null,
+            prompt,
+            entity_type: EntityType::LLM,
+        })
+    }
+
+    #[getter]
+    pub fn context<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
+        Ok(json_to_pyobject_value(py, &self.context)?
+            .into_bound_py_any(py)?
+            .clone())
+    }
+}
+
+impl LLMRecord {
+    pub fn new_rs(context: Option<Value>, prompt: Option<Value>) -> Self {
+        LLMRecord {
+            context: context.unwrap_or(Value::Object(serde_json::Map::new())),
+            prompt,
+            entity_type: EntityType::LLM,
+            uid: create_uuid7(),
+            created_at: Utc::now(),
+            space: String::new(),
+            name: String::new(),
+            version: String::new(),
+            score: Value::Null,
+        }
+    }
+
+    pub fn __str__(&self) -> String {
+        ProfileFuncs::__str__(self)
+    }
+}
+
 #[derive(Debug)]
 pub enum QueueItem {
     Features(Features),
     Metrics(Metrics),
+    LLM(Box<LLMRecord>),
 }
 
 impl QueueItem {
@@ -369,6 +487,11 @@ impl QueueItem {
                 let metrics = entity.extract::<Metrics>()?;
                 Ok(QueueItem::Metrics(metrics))
             }
+            EntityType::LLM => {
+                // LLM is not supported in this context
+                let llm = entity.extract::<LLMRecord>()?;
+                Ok(QueueItem::LLM(Box::new(llm)))
+            }
         }
     }
 }
@@ -376,6 +499,7 @@ impl QueueItem {
 pub trait QueueExt: Send + Sync {
     fn metrics(&self) -> &Vec<Metric>;
     fn features(&self) -> &Vec<Feature>;
+    fn llm_records(&self) -> Vec<&LLMRecord>;
 }
 
 impl QueueExt for Features {
@@ -389,6 +513,12 @@ impl QueueExt for Features {
     fn features(&self) -> &Vec<Feature> {
         &self.features
     }
+
+    fn llm_records(&self) -> Vec<&LLMRecord> {
+        // this is not a real implementation, just a placeholder
+        // to satisfy the trait bound
+        vec![]
+    }
 }
 
 impl QueueExt for Metrics {
@@ -401,5 +531,31 @@ impl QueueExt for Metrics {
         // to satisfy the trait bound
         static EMPTY: Vec<Feature> = Vec::new();
         &EMPTY
+    }
+
+    fn llm_records(&self) -> Vec<&LLMRecord> {
+        // this is not a real implementation, just a placeholder
+        // to satisfy the trait bound
+        vec![]
+    }
+}
+
+impl QueueExt for LLMRecord {
+    fn metrics(&self) -> &Vec<Metric> {
+        // this is not a real implementation, just a placeholder
+        // to satisfy the trait bound
+        static EMPTY: Vec<Metric> = Vec::new();
+        &EMPTY
+    }
+
+    fn features(&self) -> &Vec<Feature> {
+        // this is not a real implementation, just a placeholder
+        // to satisfy the trait bound
+        static EMPTY: Vec<Feature> = Vec::new();
+        &EMPTY
+    }
+
+    fn llm_records(&self) -> Vec<&LLMRecord> {
+        vec![self]
     }
 }

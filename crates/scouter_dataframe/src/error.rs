@@ -71,6 +71,9 @@ pub enum DataFrameError {
     #[error(transparent)]
     ArrowError(#[from] arrow::error::ArrowError),
 
-    #[error("Invalid record type provided")]
-    InvalidRecordTypeError,
+    #[error("Invalid record type provided: {0}")]
+    InvalidRecordTypeError(String),
+
+    #[error("Unsupported operation: {0}")]
+    UnsupportedOperation(String),
 }

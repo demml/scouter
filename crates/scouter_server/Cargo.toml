@@ -31,6 +31,7 @@ metrics = { workspace = true }
 metrics-exporter-prometheus = { workspace = true }
 mimalloc = { workspace = true }
 password-auth = { workspace = true }
+potato-head = { workspace = true }
 rand = { workspace = true }
 rusty-logging= { workspace = true }
 scouter-settings = { workspace = true }
@@ -64,6 +65,7 @@ kafka-vendored = ["scouter-events/kafka-vendored"]
 kafka = ["scouter-events/kafka"]
 rabbitmq = ["scouter-events/rabbitmq"]
 redis_events = ["scouter-events/redis_events"]
+mock = ["potato-head/mock"]
 
 [profile.release]
 lto = "fat"

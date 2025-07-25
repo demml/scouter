@@ -1,13 +1,16 @@
+use crate::sql::error::SqlError;
 use chrono::{DateTime, Utc};
+use potato_head::create_uuid7;
 use scouter_types::psi::DistributionData;
+use scouter_types::BoxedLLMDriftServerRecord;
+use scouter_types::LLMDriftServerRecord;
 use scouter_types::{
-    alert::Alert,
-    custom::{BinnedCustomMetric, BinnedCustomMetricStats},
-    get_utc_datetime,
-    psi::FeatureBinProportionResult,
-    RecordType,
+    alert::Alert, get_utc_datetime, psi::FeatureBinProportionResult, BinnedMetric,
+    BinnedMetricStats, RecordType,
 };
+use scouter_types::{EntityType, LLMRecord};
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use sqlx::{postgres::PgRow, Error, FromRow, Row};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -60,18 +63,18 @@ impl<'r> FromRow<'r, PgRow> for FeatureDistributionWrapper {
     }
 }
 
-pub struct BinnedCustomMetricWrapper(pub BinnedCustomMetric);
+pub struct BinnedMetricWrapper(pub BinnedMetric);
 
-impl<'r> FromRow<'r, PgRow> for BinnedCustomMetricWrapper {
+impl<'r> FromRow<'r, PgRow> for BinnedMetricWrapper {
     fn from_row(row: &'r PgRow) -> Result<Self, Error> {
         let stats_json: Vec<serde_json::Value> = row.try_get("stats")?;
 
-        let stats: Vec<BinnedCustomMetricStats> = stats_json
+        let stats: Vec<BinnedMetricStats> = stats_json
             .into_iter()
             .map(|value| serde_json::from_value(value).unwrap_or_default())
             .collect();
 
-        Ok(BinnedCustomMetricWrapper(BinnedCustomMetric {
+        Ok(BinnedMetricWrapper(BinnedMetric {
             metric: row.try_get("metric")?,
             created_at: row.try_get("created_at")?,
             stats,
@@ -320,4 +323,114 @@ pub struct UpdateAlertResult {
     pub id: i32,
     pub active: bool,
     pub updated_at: DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct LLMDriftServerSQLRecord {
+    pub uid: String,
+
+    pub created_at: chrono::DateTime<Utc>,
+
+    pub space: String,
+
+    pub name: String,
+
+    pub version: String,
+
+    pub prompt: Option<Value>,
+
+    pub context: Value,
+
+    pub score: Value,
+
+    pub status: String,
+
+    pub id: i64,
+
+    pub updated_at: Option<DateTime<Utc>>,
+
+    pub processing_started_at: Option<DateTime<Utc>>,
+
+    pub processing_ended_at: Option<DateTime<Utc>>,
+}
+
+impl LLMDriftServerSQLRecord {
+    /// Method use when server receives a record from the client
+    pub fn from_server_record(record: &LLMDriftServerRecord) -> Self {
+        LLMDriftServerSQLRecord {
+            created_at: record.created_at,
+            space: record.space.clone(),
+            name: record.name.clone(),
+            version: record.version.clone(),
+            prompt: record.prompt.clone(),
+            context: record.context.clone(),
+            score: record.score.clone(),
+            status: record.status.to_string(),
+            id: 0,               // This is a placeholder, as the ID will be set by the database
+            uid: create_uuid7(), // This is also a placeholder, as the UID will be set by the database
+            updated_at: None,
+            processing_started_at: None,
+            processing_ended_at: None,
+        }
+    }
+}
+
+impl From<LLMDriftServerSQLRecord> for LLMDriftServerRecord {
+    fn from(sql_record: LLMDriftServerSQLRecord) -> Self {
+        Self {
+            id: sql_record.id,
+            created_at: sql_record.created_at,
+            space: sql_record.space,
+            name: sql_record.name,
+            version: sql_record.version,
+            context: sql_record.context,
+            score: sql_record.score,
+            prompt: sql_record.prompt,
+            status: sql_record.status.parse().unwrap_or_default(), // Handle parsing appropriately
+            processing_started_at: sql_record.processing_started_at,
+            processing_ended_at: sql_record.processing_ended_at,
+            updated_at: sql_record.updated_at,
+            uid: sql_record.uid,
+        }
+    }
+}
+
+/// Converts a `PgRow` to a `BoxedLLMDriftServerRecord`
+/// Conversion is done by first converting the row to an `LLMDriftServerSQLRecord`
+/// and then converting that to an `LLMDriftServerRecord`.
+pub fn llm_drift_record_from_row(row: &PgRow) -> Result<BoxedLLMDriftServerRecord, SqlError> {
+    let sql_record = LLMDriftServerSQLRecord::from_row(row)?;
+    let record = LLMDriftServerRecord::from(sql_record);
+
+    Ok(BoxedLLMDriftServerRecord {
+        record: Box::new(record),
+    })
+}
+
+pub fn llm_drift_metric_from_row(row: &PgRow) -> Result<BoxedLLMDriftServerRecord, SqlError> {
+    let sql_record = LLMDriftServerSQLRecord::from_row(row)?;
+    let record = LLMDriftServerRecord::from(sql_record);
+
+    Ok(BoxedLLMDriftServerRecord {
+        record: Box::new(record),
+    })
+}
+
+pub struct LLMRecordWrapper(pub LLMRecord);
+
+impl<'r> FromRow<'r, PgRow> for LLMRecordWrapper {
+    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
+        let llm_record = LLMRecord {
+            uid: row.try_get("uid")?,
+            created_at: row.try_get("created_at")?,
+            space: row.try_get("space")?,
+            name: row.try_get("name")?,
+            version: row.try_get("version")?,
+            context: row.try_get("context")?,
+            prompt: row.try_get("prompt")?,
+            score: row.try_get("score")?,
+            entity_type: EntityType::LLM,
+        };
+        Ok(Self(llm_record))
+    }
 }

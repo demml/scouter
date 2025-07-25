@@ -1,14 +1,14 @@
 use crate::sql::traits::{
-    AlertSqlLogic, ArchiveSqlLogic, CustomMetricSqlLogic, ObservabilitySqlLogic, ProfileSqlLogic,
-    PsiSqlLogic, SpcSqlLogic, UserSqlLogic,
+    AlertSqlLogic, ArchiveSqlLogic, CustomMetricSqlLogic, LLMDriftSqlLogic, ObservabilitySqlLogic,
+    ProfileSqlLogic, PsiSqlLogic, SpcSqlLogic, UserSqlLogic,
 };
 
 use crate::sql::error::SqlError;
 use scouter_settings::DatabaseSettings;
-
 use scouter_types::{RecordType, ServerRecords, ToDriftRecords};
 
-use sqlx::{postgres::PgPoolOptions, Pool, Postgres};
+use sqlx::ConnectOptions;
+use sqlx::{postgres::PgConnectOptions, PgPool, Pool, Postgres};
 use std::result::Result::Ok;
 use tracing::{debug, error, info, instrument};
 
@@ -22,6 +22,7 @@ pub struct PostgresClient {}
 impl SpcSqlLogic for PostgresClient {}
 impl CustomMetricSqlLogic for PostgresClient {}
 impl PsiSqlLogic for PostgresClient {}
+impl LLMDriftSqlLogic for PostgresClient {}
 impl UserSqlLogic for PostgresClient {}
 impl ProfileSqlLogic for PostgresClient {}
 impl ObservabilitySqlLogic for PostgresClient {}
@@ -38,11 +39,13 @@ impl PostgresClient {
     pub async fn create_db_pool(
         database_settings: &DatabaseSettings,
     ) -> Result<Pool<Postgres>, SqlError> {
-        let pool = match PgPoolOptions::new()
-            .max_connections(database_settings.max_connections)
-            .connect(&database_settings.connection_uri)
-            .await
-        {
+        let mut opts: PgConnectOptions = database_settings.connection_uri.parse()?;
+
+        // Sqlx logs a lot of debug information by default, which can be overwhelming.
+        // TODO: In the future, we may want to make this configurable.
+        opts = opts.log_statements(log::LevelFilter::Off);
+
+        let pool = match PgPool::connect_with(opts).await {
             Ok(pool) => {
                 info!("✅ Successfully connected to database");
                 pool
@@ -84,7 +87,7 @@ impl MessageHandler {
         pool: &Pool<Postgres>,
         records: &ServerRecords,
     ) -> Result<(), SqlError> {
-        debug!("Inserting server records: {:?}", records);
+        debug!("Inserting server records: {:?}", records.record_type()?);
 
         match records.record_type()? {
             RecordType::Spc => {
@@ -128,6 +131,32 @@ impl MessageHandler {
                 }
             }
 
+            RecordType::LLMDrift => {
+                debug!("LLM Drift record count: {:?}", records.len());
+                let records = records.to_llm_drift_records()?;
+                for record in records.iter() {
+                    let _ = PostgresClient::insert_llm_drift_record(pool, record)
+                        .await
+                        .map_err(|e| {
+                            error!("Failed to insert LLM drift record: {:?}", e);
+                        });
+                }
+            }
+
+            RecordType::LLMMetric => {
+                debug!("LLM Metric record count: {:?}", records.len());
+                let llm_metric_records = records.to_llm_metric_records()?;
+
+                for chunk in llm_metric_records.chunks(Self::DEFAULT_BATCH_SIZE) {
+                    PostgresClient::insert_llm_metric_values_batch(pool, chunk)
+                        .await
+                        .map_err(|e| {
+                            error!("Failed to insert LLM metric records batch: {:?}", e);
+                            e
+                        })?;
+                }
+            }
+
             _ => {
                 error!(
                     "Unsupported record type for batch insert: {:?}",
@@ -150,11 +179,14 @@ mod tests {
     use super::*;
     use crate::sql::schema::User;
     use chrono::Utc;
+    use potato_head::create_score_prompt;
     use rand::Rng;
     use scouter_settings::ObjectStorageSettings;
+    use scouter_types::llm::PaginationRequest;
     use scouter_types::psi::{Bin, BinType, PsiDriftConfig, PsiFeatureDriftProfile};
     use scouter_types::spc::SpcDriftProfile;
     use scouter_types::*;
+    use serde_json::Value;
     use std::collections::BTreeMap;
 
     const SPACE: &str = "space";
@@ -182,8 +214,14 @@ mod tests {
             DELETE
             FROM scouter.psi_drift;
 
-             DELETE
+            DELETE
             FROM scouter.user;
+
+            DELETE
+            FROM scouter.llm_drift_record;
+
+            DELETE
+            FROM scouter.llm_drift;
             "#,
         )
         .fetch_all(pool)
@@ -713,5 +751,236 @@ mod tests {
 
         // delete
         PostgresClient::delete_user(&pool, "user").await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_postgres_llm_drift_record_insert_get() {
+        let pool = db_pool().await;
+
+        let input = "This is a test input";
+        let output = "This is a test response";
+        let prompt = create_score_prompt(None);
+
+        for j in 0..10 {
+            let context = serde_json::json!({
+                "input": input,
+                "response": output,
+            });
+            let record = LLMDriftServerRecord {
+                created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
+                space: SPACE.to_string(),
+                name: NAME.to_string(),
+                version: VERSION.to_string(),
+                prompt: Some(prompt.model_dump_value()),
+                context,
+                status: Status::Pending,
+                id: 0, // This will be set by the database
+                uid: "test".to_string(),
+                updated_at: None,
+                score: Value::Null,
+                processing_started_at: None,
+                processing_ended_at: None,
+            };
+
+            let result = PostgresClient::insert_llm_drift_record(&pool, &record)
+                .await
+                .unwrap();
+
+            assert_eq!(result.rows_affected(), 1);
+        }
+
+        let service_info = ServiceInfo {
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
+        };
+
+        let features = PostgresClient::get_llm_drift_records(&pool, &service_info, None, None)
+            .await
+            .unwrap();
+        assert_eq!(features.len(), 10);
+
+        // get pending task
+        let pending_tasks = PostgresClient::get_pending_llm_drift_record(&pool)
+            .await
+            .unwrap();
+
+        // assert not empty
+        assert!(pending_tasks.is_some());
+
+        // get pending task with space, name, version
+        let task_input = &pending_tasks.as_ref().unwrap().context["input"];
+        assert_eq!(*task_input, "This is a test input".to_string());
+
+        // update pending task
+        PostgresClient::update_llm_drift_record_status(
+            &pool,
+            &pending_tasks.unwrap(),
+            Status::Processed,
+        )
+        .await
+        .unwrap();
+
+        // query processed tasks
+        let processed_tasks = PostgresClient::get_llm_drift_records(
+            &pool,
+            &service_info,
+            None,
+            Some(Status::Processed),
+        )
+        .await
+        .unwrap();
+
+        // assert not empty
+        assert_eq!(processed_tasks.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_postgres_llm_drift_record_pagination() {
+        let pool = db_pool().await;
+
+        let input = "This is a test input";
+        let output = "This is a test response";
+        let prompt = create_score_prompt(None);
+
+        for j in 0..10 {
+            let context = serde_json::json!({
+                "input": input,
+                "response": output,
+            });
+            let record = LLMDriftServerRecord {
+                created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
+                space: SPACE.to_string(),
+                name: NAME.to_string(),
+                version: VERSION.to_string(),
+                prompt: Some(prompt.model_dump_value()),
+                context,
+                score: Value::Null,
+                status: Status::Pending,
+                id: 0, // This will be set by the database
+                uid: "test".to_string(),
+                updated_at: None,
+                processing_started_at: None,
+                processing_ended_at: None,
+            };
+
+            let result = PostgresClient::insert_llm_drift_record(&pool, &record)
+                .await
+                .unwrap();
+
+            assert_eq!(result.rows_affected(), 1);
+        }
+
+        let service_info = ServiceInfo {
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
+        };
+
+        // Get paginated records (1st page)
+        let pagination = PaginationRequest {
+            limit: 5,
+            cursor: None, // Start from the beginning
+        };
+
+        let paginated_features = PostgresClient::get_llm_drift_records_pagination(
+            &pool,
+            &service_info,
+            None,
+            pagination,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(paginated_features.items.len(), 5);
+        assert!(paginated_features.next_cursor.is_some());
+
+        // get id of the most recent record in the first page
+        let last_record = paginated_features.items.first().unwrap();
+
+        // Get paginated records (2nd page)
+        let next_cursor = paginated_features.next_cursor.unwrap();
+        let pagination = PaginationRequest {
+            limit: 5,
+            cursor: Some(next_cursor),
+        };
+
+        let paginated_features = PostgresClient::get_llm_drift_records_pagination(
+            &pool,
+            &service_info,
+            None,
+            pagination,
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(paginated_features.items.len(), 5);
+        assert!(paginated_features.next_cursor.is_none());
+
+        // get last record of the second page
+        let first_record = paginated_features.items.last().unwrap();
+
+        let diff = last_record.id - first_record.id + 1; // +1 because IDs are inclusive
+        assert!(diff == 10);
+    }
+
+    #[tokio::test]
+    async fn test_postgres_llm_metrics_insert_get() {
+        let pool = db_pool().await;
+
+        let timestamp = Utc::now();
+
+        for i in 0..2 {
+            let mut records = Vec::new();
+            for j in 0..25 {
+                let record = LLMMetricRecord {
+                    record_uid: format!("uid{i}{j}"),
+                    created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
+                    space: SPACE.to_string(),
+                    name: NAME.to_string(),
+                    version: VERSION.to_string(),
+                    metric: format!("metric{i}"),
+                    value: rand::rng().random_range(0..10) as f64,
+                };
+                records.push(record);
+            }
+            let result = PostgresClient::insert_llm_metric_values_batch(&pool, &records)
+                .await
+                .unwrap();
+            assert_eq!(result.rows_affected(), 25);
+        }
+
+        let metrics = PostgresClient::get_llm_metric_values(
+            &pool,
+            &ServiceInfo {
+                space: SPACE.to_string(),
+                name: NAME.to_string(),
+                version: VERSION.to_string(),
+            },
+            &timestamp,
+            &["metric1".to_string()],
+        )
+        .await
+        .unwrap();
+
+        assert_eq!(metrics.len(), 1);
+        let binned_records = PostgresClient::get_binned_llm_metric_values(
+            &pool,
+            &DriftRequest {
+                space: SPACE.to_string(),
+                name: NAME.to_string(),
+                version: VERSION.to_string(),
+                time_interval: TimeInterval::OneHour,
+                max_data_points: 1000,
+                drift_type: DriftType::LLM,
+                ..Default::default()
+            },
+            &DatabaseSettings::default().retention_period,
+            &ObjectStorageSettings::default(),
+        )
+        .await
+        .unwrap();
+        //
+        assert_eq!(binned_records.metrics.len(), 2);
     }
 }

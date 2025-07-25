@@ -14,7 +14,8 @@ use scouter_types::{
 };
 use std::collections::HashMap;
 use std::fmt::Debug;
-
+use std::sync::Arc;
+use std::sync::RwLock;
 #[derive(Default)]
 pub struct SpcDrifter {
     monitor: SpcMonitor,
@@ -71,7 +72,7 @@ impl SpcDrifter {
         &mut self,
         array: Vec<Vec<String>>,
         features: Vec<String>,
-        mut drift_config: SpcDriftConfig,
+        drift_config: Arc<RwLock<SpcDriftConfig>>,
     ) -> Result<SpcDriftProfile, DriftError> {
         let feature_map = match create_feature_map(&features, &array) {
             Ok(feature_map) => feature_map,
@@ -80,21 +81,27 @@ impl SpcDrifter {
             }
         };
 
-        drift_config.update_feature_map(feature_map.clone());
+        drift_config
+            .write()
+            .unwrap()
+            .update_feature_map(feature_map.clone());
 
         let array = self
             .monitor
             .convert_strings_to_ndarray_f32(&features, &array, &feature_map)?;
 
-        self.monitor
-            .create_2d_drift_profile(&features, &array.view(), &drift_config)
+        self.monitor.create_2d_drift_profile(
+            &features,
+            &array.view(),
+            &drift_config.read().unwrap(),
+        )
     }
 
     pub fn create_numeric_drift_profile<F>(
         &mut self,
         array: PyReadonlyArray2<F>,
         features: Vec<String>,
-        drift_config: SpcDriftConfig,
+        drift_config: &SpcDriftConfig,
     ) -> Result<SpcDriftProfile, DriftError>
     where
         F: Float
@@ -112,7 +119,7 @@ impl SpcDrifter {
 
         let profile = self
             .monitor
-            .create_2d_drift_profile(&features, &array, &drift_config)?;
+            .create_2d_drift_profile(&features, &array, drift_config)?;
 
         Ok(profile)
     }
@@ -192,53 +199,55 @@ impl SpcDrifter {
     pub fn create_drift_profile(
         &mut self,
         data: ConvertedData<'_>,
-        config: SpcDriftConfig,
+        config: Arc<RwLock<SpcDriftConfig>>,
     ) -> Result<SpcDriftProfile, DriftError> {
         let (num_features, num_array, dtype, string_features, string_array) = data;
 
         let mut features = HashMap::new();
-        let cfg = config.clone();
-        let mut final_config = cfg.clone();
 
         if let Some(string_array) = string_array {
-            let profile = self.create_string_drift_profile(
-                string_array,
-                string_features,
-                final_config.clone(),
-            )?;
-            final_config.feature_map = profile.config.feature_map.clone();
+            let profile =
+                self.create_string_drift_profile(string_array, string_features, config.clone())?;
             features.extend(profile.features);
         }
 
         if let Some(num_array) = num_array {
             let dtype = dtype.unwrap();
-            let drift_profile = if dtype == "float64" {
-                let array = convert_array_type::<f64>(num_array, &dtype)?;
-                self.create_numeric_drift_profile(array, num_features, final_config.clone())?
-            } else {
-                let array = convert_array_type::<f32>(num_array, &dtype)?;
-                self.create_numeric_drift_profile(array, num_features, final_config.clone())?
+            let drift_profile = {
+                let read_config = config.read().unwrap();
+                if dtype == "float64" {
+                    let array = convert_array_type::<f64>(num_array, &dtype)?;
+                    self.create_numeric_drift_profile(array, num_features, &read_config)?
+                } else {
+                    let array = convert_array_type::<f32>(num_array, &dtype)?;
+                    self.create_numeric_drift_profile(array, num_features, &read_config)?
+                }
             };
             features.extend(drift_profile.features);
         }
 
-        // if config.features_to_monitor is empty, set it to all features
-        if config.alert_config.features_to_monitor.is_empty() {
-            final_config.alert_config.features_to_monitor = features.keys().cloned().collect();
-        }
-
-        // Validate features_to_monitor
-        if let Some(missing_feature) = final_config
-            .alert_config
-            .features_to_monitor
-            .iter()
-            .find(|&key| !features.contains_key(key))
         {
-            return Err(DriftError::FeatureToMonitorMissingError(
-                missing_feature.to_string(),
-            ));
+            let mut write_config = config.write().unwrap();
+
+            if write_config.alert_config.features_to_monitor.is_empty() {
+                write_config.alert_config.features_to_monitor = features.keys().cloned().collect();
+            }
+
+            // Validate features_to_monitor
+            if let Some(missing_feature) = write_config
+                .alert_config
+                .features_to_monitor
+                .iter()
+                .find(|&key| !features.contains_key(key))
+            {
+                return Err(DriftError::FeatureToMonitorMissingError(
+                    missing_feature.to_string(),
+                ));
+            }
         }
 
-        Ok(SpcDriftProfile::new(features, final_config, None))
+        let config_clone = config.read().unwrap().clone();
+
+        Ok(SpcDriftProfile::new(features, config_clone, None))
     }
 }

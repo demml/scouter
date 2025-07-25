@@ -7,6 +7,7 @@ class ScouterTestServer:
         cleanup: bool = True,
         rabbit_mq: bool = False,
         kafka: bool = False,
+        openai: bool = False,
         base_path: Optional[Path] = None,
     ) -> None:
         """Instantiates the test server.
@@ -23,6 +24,8 @@ class ScouterTestServer:
                 Whether to use RabbitMQ as the transport. Defaults to False.
             kafka (bool, optional):
                 Whether to use Kafka as the transport. Defaults to False.
+            openai (bool, optional):
+                Whether to create a mock OpenAITest server. Defaults to False.
             base_path (Optional[Path], optional):
                 The base path for the server. Defaults to None. This is primarily
                 used for testing loading attributes from a pyproject.toml file.
@@ -56,4 +59,21 @@ class MockConfig:
 
         Args:
             **kwargs: Arbitrary keyword arguments to set as attributes.
+        """
+
+class LLMTestServer:
+    """
+    Mock server for OpenAI API.
+    This class is used to simulate the OpenAI API for testing purposes.
+    """
+
+    def __init__(self): ...
+    def __enter__(self):
+        """
+        Start the mock server.
+        """
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        """
+        Stop the mock server.
         """

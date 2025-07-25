@@ -1,14 +1,15 @@
 use std::fmt::Display;
 
-use crate::error::ContractError;
-use crate::CustomInterval;
-use crate::{DriftType, TimeInterval};
+use crate::error::{ContractError, TypeError};
+use crate::llm::PaginationRequest;
+use crate::{CustomInterval, Status};
+use crate::{DriftType, ProfileFuncs, TimeInterval};
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
 use serde::Deserialize;
 use serde::Serialize;
+use std::collections::BTreeMap;
 use tracing::error;
-
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetProfileRequest {
@@ -177,6 +178,13 @@ impl DriftAlertRequest {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ServiceInfo {
+    pub space: String,
+    pub name: String,
+    pub version: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LLMServiceInfo {
     pub space: String,
     pub name: String,
     pub version: String,
@@ -397,4 +405,92 @@ impl ScouterResponse {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UpdateAlertResponse {
     pub updated: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LLMDriftRecordPaginationRequest {
+    pub service_info: ServiceInfo,
+    pub status: Option<Status>,
+    pub pagination: PaginationRequest,
+}
+
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct BinnedMetricStats {
+    #[pyo3(get)]
+    pub avg: f64,
+
+    #[pyo3(get)]
+    pub lower_bound: f64,
+
+    #[pyo3(get)]
+    pub upper_bound: f64,
+}
+
+#[pymethods]
+impl BinnedMetricStats {
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct BinnedMetric {
+    #[pyo3(get)]
+    pub metric: String,
+
+    #[pyo3(get)]
+    pub created_at: Vec<DateTime<Utc>>,
+
+    #[pyo3(get)]
+    pub stats: Vec<BinnedMetricStats>,
+}
+
+#[pymethods]
+impl BinnedMetric {
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct BinnedMetrics {
+    #[pyo3(get)]
+    pub metrics: BTreeMap<String, BinnedMetric>,
+}
+
+#[pymethods]
+impl BinnedMetrics {
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        ProfileFuncs::__str__(self)
+    }
+
+    pub fn __getitem__<'py>(
+        &self,
+        py: Python<'py>,
+        key: &str,
+    ) -> Result<Option<Py<BinnedMetric>>, TypeError> {
+        match self.metrics.get(key) {
+            Some(metric) => {
+                let metric = Py::new(py, metric.clone())?;
+                Ok(Some(metric))
+            }
+            None => Ok(None),
+        }
+    }
+}
+
+impl BinnedMetrics {
+    pub fn from_vec(metrics: Vec<BinnedMetric>) -> Self {
+        let mapped: BTreeMap<String, BinnedMetric> = metrics
+            .into_iter()
+            .map(|metric| (metric.metric.clone(), metric))
+            .collect();
+        BinnedMetrics { metrics: mapped }
+    }
 }

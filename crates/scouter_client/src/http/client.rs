@@ -9,8 +9,8 @@ use scouter_types::http::{RequestType, Routes};
 
 use crate::http::HTTPClient;
 use scouter_types::{
-    alert::Alert, custom::BinnedCustomMetrics, psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures,
-    DriftProfile, DriftType, ProfileFuncs,
+    alert::Alert, psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures, BinnedMetrics, DriftProfile,
+    DriftType, ProfileFuncs,
 };
 use std::path::PathBuf;
 use tracing::{debug, error};
@@ -270,6 +270,9 @@ impl PyScouterClient {
             DriftType::Custom => {
                 PyScouterClient::get_custom_binned_drift(py, &self.client.client, drift_request)
             }
+            DriftType::LLM => {
+                PyScouterClient::get_llm_metric_binned_drift(py, &self.client.client, drift_request)
+            }
         }
     }
 
@@ -381,7 +384,33 @@ impl PyScouterClient {
 
         let body = response.bytes()?;
 
-        let results: BinnedCustomMetrics = serde_json::from_slice(&body)?;
+        let results: BinnedMetrics = serde_json::from_slice(&body)?;
+
+        Ok(results.into_bound_py_any(py).unwrap())
+    }
+
+    fn get_llm_metric_binned_drift<'py>(
+        py: Python<'py>,
+        client: &HTTPClient,
+        drift_request: DriftRequest,
+    ) -> Result<Bound<'py, PyAny>, ClientError> {
+        let query_string = serde_qs::to_string(&drift_request)?;
+
+        let response = client.request(
+            Routes::LLMDrift,
+            RequestType::Get,
+            None,
+            Some(query_string),
+            None,
+        )?;
+
+        if response.status().is_client_error() || response.status().is_server_error() {
+            return Err(ClientError::GetDriftDataError);
+        }
+
+        let body = response.bytes()?;
+
+        let results: BinnedMetrics = serde_json::from_slice(&body)?;
 
         Ok(results.into_bound_py_any(py).unwrap())
     }
