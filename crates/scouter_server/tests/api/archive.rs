@@ -318,8 +318,6 @@ async fn test_data_archive_custom() {
         .await
         .unwrap();
 
-    println!("Record: {:?}", record);
-
     assert!(!record.spc);
     assert!(!record.psi);
     assert!(record.custom);
@@ -597,7 +595,6 @@ fn test_data_archive_llm_drift_metrics() {
     let results: BinnedMetrics = serde_json::from_slice(&val).unwrap();
 
     assert!(!results.metrics.is_empty());
-    println!("Metrics: {:?}", results.metrics);
     assert_eq!(results.metrics["metric0"].created_at.len(), 3);
 
     mock.stop_server().unwrap();
