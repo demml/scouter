@@ -8,16 +8,20 @@ use scouter_types::llm::LLMDriftProfile;
 use scouter_types::{DriftType, GetProfileRequest, LLMRecord, Status};
 use sqlx::{Pool, Postgres};
 use std::collections::HashMap;
+use std::time::Duration;
+use tokio::time::sleep;
 use tracing::{debug, error, info, instrument};
 
 pub struct LLMPoller {
     db_pool: Pool<Postgres>,
+    max_retries: usize,
 }
 
 impl LLMPoller {
-    pub fn new(db_pool: &Pool<Postgres>) -> Self {
+    pub fn new(db_pool: &Pool<Postgres>, max_retries: usize) -> Self {
         LLMPoller {
             db_pool: db_pool.clone(),
+            max_retries,
         }
     }
 
@@ -82,33 +86,47 @@ impl LLMPoller {
             );
             return Ok(false);
         };
+        let mut retry_count = 0;
 
-        match self.process_drift_record(&task, &llm_profile).await {
-            Ok(result) => {
-                task.score = serde_json::to_value(result).inspect_err(|e| {
-                    error!("Failed to serialize score map: {:?}", e);
-                })?;
+        loop {
+            match self.process_drift_record(&task, &llm_profile).await {
+                Ok(result) => {
+                    task.score = serde_json::to_value(result).inspect_err(|e| {
+                        error!("Failed to serialize score map: {:?}", e);
+                    })?;
 
-                PostgresClient::update_llm_drift_record_status(
-                    &self.db_pool,
-                    &task,
-                    Status::Processed,
-                )
-                .await?;
+                    PostgresClient::update_llm_drift_record_status(
+                        &self.db_pool,
+                        &task,
+                        Status::Processed,
+                    )
+                    .await?;
+                    break;
+                }
+                Err(e) => {
+                    error!(
+                        "Failed to process drift record (attempt {}): {:?}",
+                        retry_count + 1,
+                        e
+                    );
+
+                    retry_count += 1;
+                    if retry_count >= self.max_retries {
+                        // Update the record status to error
+                        PostgresClient::update_llm_drift_record_status(
+                            &self.db_pool,
+                            &task,
+                            Status::Failed,
+                        )
+                        .await?;
+                        return Err(DriftError::LLMEvaluatorError(e.to_string()));
+                    } else {
+                        // Exponential backoff before retrying
+                        sleep(Duration::from_millis(100 * 2_u64.pow(retry_count as u32))).await;
+                    }
+                }
             }
-            Err(e) => {
-                error!("Failed to process drift record: {:?}", e);
-
-                // Update the record status to error
-                PostgresClient::update_llm_drift_record_status(
-                    &self.db_pool,
-                    &task,
-                    Status::Failed,
-                )
-                .await?;
-                return Err(DriftError::LLMEvaluatorError(e.to_string()));
-            }
-        };
+        }
 
         Ok(true)
     }

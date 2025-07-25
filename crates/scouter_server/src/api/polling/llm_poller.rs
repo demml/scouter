@@ -23,7 +23,7 @@ impl BackgroundLLMDriftManager {
 
         for id in 0..num_workers {
             let shutdown_rx = shutdown_rx.clone();
-            let llm_poller = LLMPoller::new(db_pool);
+            let llm_poller = LLMPoller::new(db_pool, poll_settings.max_retries);
             let worker_shutdown_rx = shutdown_rx.clone();
 
             workers.push(tokio::spawn(Self::start_worker(

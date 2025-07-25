@@ -2,6 +2,7 @@ from scouter.llm import Prompt, Score
 from scouter.drift import LLMDriftConfig, LLMDriftProfile, LLMMetric
 from scouter.alert import AlertThreshold
 from scouter.client import ScouterClient
+from pathlib import Path
 
 
 def create_reformulation_evaluation_prompt():
@@ -98,7 +99,12 @@ reformulation = LLMMetric(
 )
 
 profile = LLMDriftProfile(
-    config=LLMDriftConfig(space="scouter", name="llm_metrics", version="0.0.1"),
+    config=LLMDriftConfig(
+        space="scouter",
+        name="llm_metrics",
+        version="0.0.1",
+        sample_rate=1,
+    ),
     metrics=[relevance, reformulation],
 )
 
@@ -109,4 +115,4 @@ if __name__ == "__main__":
     client = ScouterClient()
     client.register_profile(profile=profile, set_active=True)
 
-    profile.save_to_json()
+    profile.save_to_json(Path("api/assets/llm_drift_profile.json"))

@@ -4,6 +4,7 @@ use serde::Serialize;
 pub struct PollingSettings {
     pub num_workers: usize,
     pub llm_workers: usize,
+    pub max_retries: usize,
 }
 
 impl Default for PollingSettings {
@@ -18,9 +19,15 @@ impl Default for PollingSettings {
             .parse::<usize>()
             .unwrap();
 
+        let max_retries = std::env::var("MAX_RETRIES")
+            .unwrap_or_else(|_| "3".to_string())
+            .parse::<usize>()
+            .unwrap();
+
         Self {
             num_workers,
             llm_workers,
+            max_retries,
         }
     }
 }

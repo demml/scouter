@@ -57,7 +57,7 @@ impl Default for GeminiSettings {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 pub struct LLMSettings {
     pub openai_settings: OpenAISettings,
     pub gemini_settings: GeminiSettings,
@@ -67,14 +67,5 @@ impl LLMSettings {
     /// Used by server to check if the LLM settings are configured.
     pub fn is_configured(&self) -> bool {
         self.openai_settings.is_configured() || self.gemini_settings.is_configured()
-    }
-}
-
-impl Default for LLMSettings {
-    fn default() -> Self {
-        Self {
-            openai_settings: OpenAISettings::default(),
-            gemini_settings: GeminiSettings::default(),
-        }
     }
 }

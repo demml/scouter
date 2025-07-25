@@ -12,12 +12,12 @@
       },
       "schedule": "0 0 0 * * *",
       "alert_conditions": {
-        "reformulation": {
-          "alert_threshold": "Above",
-          "alert_threshold_value": 2.0
-        },
         "relevance": {
           "alert_threshold": "Below",
+          "alert_threshold_value": 2.0
+        },
+        "reformulation": {
+          "alert_threshold": "Above",
           "alert_threshold_value": 2.0
         }
       }
@@ -36,8 +36,8 @@
             },
             "role": "user",
             "variables": [
-              "relevance_response",
-              "reformulated_query"
+              "reformulated_query",
+              "relevance_response"
             ]
           }
         ],
@@ -69,8 +69,8 @@
           "type": "object"
         },
         "parameters": [
-          "reformulated_query",
-          "relevance_response"
+          "relevance_response",
+          "reformulated_query"
         ],
         "response_type": "Score"
       },
@@ -136,10 +136,65 @@
   ],
   "scouter_version": "0.7.0",
   "workflow": {
-    "id": "01983f2f-174c-7081-b199-27d6fea937cc",
+    "id": "0198412b-ce52-76d1-b0ce-a1033ba2b7fc",
     "name": "llm_drift_workflow",
     "task_list": {
       "tasks": {
+        "relevance": {
+          "id": "relevance",
+          "prompt": {
+            "user_message": [
+              {
+                "content": {
+                  "Str": "You are an expert evaluator of LLM responses. Given the original user query and the LLM's response, your task is to assess how relevant the response is to the query. Consider the following criteria:\n- Does the response directly address the user's question or request?\n- Is the information provided accurate and appropriate for the query?\n- Are any parts of the response off-topic or unrelated?\n- Is the response complete and does it avoid unnecessary information?\n\nProvide your evaluation as a JSON object with the following attributes:\n- score: An integer from 1 (irrelevant) to 5 (highly relevant) indicating the overall relevance of the response.\n- reason: A brief explanation for your score.\n\nFormat your response as:\n{\n  \"score\": <integer 1-5>,\n  \"reason\": \"<your explanation>\"\n}\n\nOriginal Query:\n${reformulated_query}\n\nLLM Response:\n${relevance_response}\n\nEvaluation:"
+                },
+                "role": "user",
+                "variables": [
+                  "reformulated_query",
+                  "relevance_response"
+                ]
+              }
+            ],
+            "system_message": [],
+            "model_settings": {
+              "model": "gemini-2.5-flash-lite-preview-06-17",
+              "provider": "gemini"
+            },
+            "version": "0.2.3",
+            "response_json_schema": {
+              "$schema": "https://json-schema.org/draft/2020-12/schema",
+              "additionalProperties": false,
+              "properties": {
+                "reason": {
+                  "type": "string"
+                },
+                "score": {
+                  "format": "int64",
+                  "maximum": 5,
+                  "minimum": 1,
+                  "type": "integer"
+                }
+              },
+              "required": [
+                "score",
+                "reason"
+              ],
+              "title": "Score",
+              "type": "object"
+            },
+            "parameters": [
+              "relevance_response",
+              "reformulated_query"
+            ],
+            "response_type": "Score"
+          },
+          "dependencies": [],
+          "status": "Pending",
+          "agent_id": "0198412b-cee7-7a92-b767-33f16f0f60dc",
+          "result": null,
+          "max_retries": 3,
+          "retry_count": 0
+        },
         "reformulation": {
           "id": "reformulation",
           "prompt": {
@@ -190,75 +245,20 @@
           },
           "dependencies": [],
           "status": "Pending",
-          "agent_id": "01983f2f-17d4-7f73-a3d8-2f65a9a40d58",
-          "result": null,
-          "max_retries": 3,
-          "retry_count": 0
-        },
-        "relevance": {
-          "id": "relevance",
-          "prompt": {
-            "user_message": [
-              {
-                "content": {
-                  "Str": "You are an expert evaluator of LLM responses. Given the original user query and the LLM's response, your task is to assess how relevant the response is to the query. Consider the following criteria:\n- Does the response directly address the user's question or request?\n- Is the information provided accurate and appropriate for the query?\n- Are any parts of the response off-topic or unrelated?\n- Is the response complete and does it avoid unnecessary information?\n\nProvide your evaluation as a JSON object with the following attributes:\n- score: An integer from 1 (irrelevant) to 5 (highly relevant) indicating the overall relevance of the response.\n- reason: A brief explanation for your score.\n\nFormat your response as:\n{\n  \"score\": <integer 1-5>,\n  \"reason\": \"<your explanation>\"\n}\n\nOriginal Query:\n${reformulated_query}\n\nLLM Response:\n${relevance_response}\n\nEvaluation:"
-                },
-                "role": "user",
-                "variables": [
-                  "relevance_response",
-                  "reformulated_query"
-                ]
-              }
-            ],
-            "system_message": [],
-            "model_settings": {
-              "model": "gemini-2.5-flash-lite-preview-06-17",
-              "provider": "gemini"
-            },
-            "version": "0.2.3",
-            "response_json_schema": {
-              "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "additionalProperties": false,
-              "properties": {
-                "reason": {
-                  "type": "string"
-                },
-                "score": {
-                  "format": "int64",
-                  "maximum": 5,
-                  "minimum": 1,
-                  "type": "integer"
-                }
-              },
-              "required": [
-                "score",
-                "reason"
-              ],
-              "title": "Score",
-              "type": "object"
-            },
-            "parameters": [
-              "reformulated_query",
-              "relevance_response"
-            ],
-            "response_type": "Score"
-          },
-          "dependencies": [],
-          "status": "Pending",
-          "agent_id": "01983f2f-17d4-7f73-a3d8-2f65a9a40d58",
+          "agent_id": "0198412b-cee7-7a92-b767-33f16f0f60dc",
           "result": null,
           "max_retries": 3,
           "retry_count": 0
         }
       },
       "execution_order": [
-        "reformulation",
-        "relevance"
+        "relevance",
+        "reformulation"
       ]
     },
     "agents": {
-      "01983f2f-17d4-7f73-a3d8-2f65a9a40d58": {
-        "id": "01983f2f-17d4-7f73-a3d8-2f65a9a40d58",
+      "0198412b-cee7-7a92-b767-33f16f0f60dc": {
+        "id": "0198412b-cee7-7a92-b767-33f16f0f60dc",
         "provider": "Gemini",
         "system_message": []
       }
