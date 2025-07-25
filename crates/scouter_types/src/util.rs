@@ -285,7 +285,7 @@ pub fn is_pydantic_model(py: Python, obj: &Bound<'_, PyAny>) -> Result<bool, Typ
 pub struct ProfileArgs {
     pub name: String,
     pub space: String,
-    pub version: String,
+    pub version: Option<String>,
     pub schedule: String,
     pub scouter_version: String,
     pub drift_type: DriftType,

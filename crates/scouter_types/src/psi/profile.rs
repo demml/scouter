@@ -504,7 +504,7 @@ impl ProfileBaseArgs for PsiDriftProfile {
         ProfileArgs {
             name: self.config.name.clone(),
             space: self.config.space.clone(),
-            version: self.config.version.clone(),
+            version: Some(self.config.version.clone()),
             schedule: self.config.alert_config.schedule.clone(),
             scouter_version: self.scouter_version.clone(),
             drift_type: self.config.drift_type.clone(),

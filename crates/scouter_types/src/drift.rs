@@ -266,6 +266,15 @@ impl DriftProfile {
         let profile_value: Value = serde_json::from_str(&profile).unwrap();
         DriftProfile::from_value(profile_value)
     }
+
+    pub fn version(&self) -> Option<String> {
+        match self {
+            DriftProfile::Spc(profile) => Some(profile.config.version.clone()),
+            DriftProfile::Psi(profile) => Some(profile.config.version.clone()),
+            DriftProfile::Custom(profile) => Some(profile.config.version.clone()),
+            DriftProfile::LLM(profile) => Some(profile.config.version.clone()),
+        }
+    }
 }
 
 impl Default for DriftProfile {

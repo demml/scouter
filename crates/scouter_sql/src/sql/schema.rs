@@ -9,6 +9,7 @@ use scouter_types::{
     BinnedMetricStats, RecordType,
 };
 use scouter_types::{EntityType, LLMRecord};
+use semver::{BuildMetadata, Prerelease, Version};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use sqlx::{postgres::PgRow, Error, FromRow, Row};
@@ -432,5 +433,33 @@ impl<'r> FromRow<'r, PgRow> for LLMRecordWrapper {
             entity_type: EntityType::LLM,
         };
         Ok(Self(llm_record))
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
+pub struct VersionResult {
+    pub created_at: DateTime<Utc>,
+    pub name: String,
+    pub space: String,
+    pub major: i32,
+    pub minor: i32,
+    pub patch: i32,
+    pub pre_tag: Option<String>,
+    pub build_tag: Option<String>,
+}
+
+impl VersionResult {
+    pub fn to_version(&self) -> Result<Version, SqlError> {
+        let mut version = Version::new(self.major as u64, self.minor as u64, self.patch as u64);
+
+        if self.pre_tag.is_some() {
+            version.pre = Prerelease::new(self.pre_tag.as_ref().unwrap())?;
+        }
+
+        if self.build_tag.is_some() {
+            version.build = BuildMetadata::new(self.build_tag.as_ref().unwrap())?;
+        }
+
+        Ok(version)
     }
 }
