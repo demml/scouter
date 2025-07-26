@@ -6,10 +6,12 @@ use crate::{CustomInterval, Status};
 use crate::{DriftType, ProfileFuncs, TimeInterval};
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
+use scouter_semver::VersionType;
 use serde::Deserialize;
 use serde::Serialize;
 use std::collections::BTreeMap;
 use tracing::error;
+
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetProfileRequest {
@@ -100,12 +102,21 @@ impl DriftRequest {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct VersionRequest {
+    pub version: Option<String>,
+    pub version_type: VersionType,
+    pub pre_tag: Option<String>,
+    pub build_tag: Option<String>,
+}
+
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProfileRequest {
     pub space: String,
     pub drift_type: DriftType,
     pub profile: String,
+    pub version_request: VersionRequest,
 }
 
 #[pyclass]
@@ -400,6 +411,14 @@ impl ScouterResponse {
     pub fn new(status: String, message: String) -> Self {
         ScouterResponse { status, message }
     }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RegisteredProfileResponse {
+    pub space: String,
+    pub name: String,
+    pub version: String,
+    pub status: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

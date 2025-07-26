@@ -248,6 +248,6 @@ impl SpcDrifter {
 
         let config_clone = config.read().unwrap().clone();
 
-        Ok(SpcDriftProfile::new(features, config_clone, None))
+        Ok(SpcDriftProfile::new(features, config_clone))
     }
 }

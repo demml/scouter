@@ -13,9 +13,7 @@ use scouter_types::DriftType;
 
 use http_body_util::BodyExt;
 use scouter_drift::psi::PsiMonitor;
-use scouter_types::contracts::{
-    DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
-};
+use scouter_types::contracts::{DriftRequest, GetProfileRequest, ProfileStatusRequest};
 use scouter_types::custom::{
     CustomDriftProfile, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig,
 };
@@ -47,11 +45,7 @@ async fn test_create_spc_profile() {
         .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
         .unwrap();
 
-    let request = ProfileRequest {
-        space: profile.config.space.clone(),
-        profile: profile.model_dump_json(),
-        drift_type: DriftType::Spc,
-    };
+    let request = profile.create_profile_request().unwrap();
 
     let body = serde_json::to_string(&request).unwrap();
 
@@ -72,11 +66,7 @@ async fn test_create_spc_profile() {
 
     assert_eq!(profile.config.sample_size, 100);
 
-    let request = ProfileRequest {
-        space: profile.config.space.clone(),
-        profile: profile.model_dump_json(),
-        drift_type: DriftType::Spc,
-    };
+    let request = profile.create_profile_request().unwrap();
 
     let body = serde_json::to_string(&request).unwrap();
 
@@ -212,11 +202,7 @@ async fn test_psi_server_records() {
         .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
         .unwrap();
 
-    let request = ProfileRequest {
-        space: profile.config.space.clone(),
-        profile: profile.model_dump_json(),
-        drift_type: DriftType::Psi,
-    };
+    let request = profile.create_profile_request().unwrap();
 
     let body = serde_json::to_string(&request).unwrap();
 
@@ -294,13 +280,9 @@ async fn test_custom_server_records() {
     let alert_threshold = AlertThreshold::Above;
     let metric1 = CustomMetric::new("metric1", 1.0, alert_threshold.clone(), None).unwrap();
     let metric2 = CustomMetric::new("metric2", 1.0, alert_threshold, None).unwrap();
-    let profile = CustomDriftProfile::new(config, vec![metric1, metric2], None).unwrap();
+    let profile = CustomDriftProfile::new(config, vec![metric1, metric2]).unwrap();
 
-    let request = ProfileRequest {
-        space: profile.config.space.clone(),
-        profile: profile.model_dump_json(),
-        drift_type: DriftType::Custom,
-    };
+    let request = profile.create_profile_request().unwrap();
 
     let body = serde_json::to_string(&request).unwrap();
     let request = Request::builder()
@@ -376,11 +358,7 @@ fn test_llm_server_records() {
 
     let profile = TestHelper::create_llm_drift_profile();
 
-    let request = ProfileRequest {
-        space: profile.config.space.clone(),
-        profile: profile.model_dump_json(),
-        drift_type: DriftType::LLM,
-    };
+    let request = profile.create_profile_request().unwrap();
 
     let body = serde_json::to_string(&request).unwrap();
     let request = Request::builder()

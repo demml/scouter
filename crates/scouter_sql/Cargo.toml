@@ -15,6 +15,7 @@ description = "Sql library to use with scouter-server"
 scouter-dataframe = { workspace = true }
 scouter-settings = { workspace = true }
 scouter-types = { workspace = true }
+scouter-semver =  { workspace = true }
 anyhow = {workspace = true}
 async-trait = { workspace = true }
 chrono = { workspace = true, features = ["serde", "clock"] }
@@ -23,6 +24,7 @@ itertools = { workspace = true }
 log = { workspace = true }
 potato-head = { workspace = true}
 serde = { workspace = true, features = ["derive"] }
+semver = { workspace = true }
 serde_json = { workspace = true }
 sqlx = { workspace = true }
 thiserror = { workspace = true }

@@ -12,6 +12,7 @@ license = "MIT"
 description = "Client and server contract for scouter"
 
 [dependencies]
+scouter-semver = { workspace = true }
 chrono = { workspace = true }
 colored_json = { workspace = true }
 cron = { workspace = true }

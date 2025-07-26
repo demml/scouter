@@ -163,7 +163,7 @@ impl PsiDrifter {
 
         let config_clone = config.read().unwrap().clone();
 
-        Ok(PsiDriftProfile::new(features, config_clone, None))
+        Ok(PsiDriftProfile::new(features, config_clone))
     }
 
     pub fn compute_drift(

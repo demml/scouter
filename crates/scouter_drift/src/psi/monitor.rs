@@ -211,7 +211,6 @@ impl PsiMonitor {
         Ok(PsiDriftProfile::new(
             psi_feature_drift_profiles,
             drift_config.clone(),
-            None,
         ))
     }
 
