@@ -143,6 +143,24 @@ pub struct CustomDriftProfile {
     pub scouter_version: String,
 }
 
+impl Default for CustomDriftProfile {
+    fn default() -> Self {
+        Self {
+            config: CustomMetricDriftConfig::new(
+                MISSING,
+                MISSING,
+                DEFAULT_VERSION,
+                25,
+                CustomMetricAlertConfig::default(),
+                None,
+            )
+            .unwrap(),
+            metrics: HashMap::new(),
+            scouter_version: scouter_version(),
+        }
+    }
+}
+
 #[pymethods]
 impl CustomDriftProfile {
     #[new]

@@ -74,7 +74,7 @@ pub struct SpcFeatureDriftProfile {
 /// * `alert_rule` - The alerting rule to use for monitoring
 ///
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct SpcDriftConfig {
     #[pyo3(get, set)]
     pub sample_size: usize,
@@ -101,6 +101,21 @@ pub struct SpcDriftConfig {
     #[pyo3(get, set)]
     #[serde(default = "default_drift_type")]
     pub drift_type: DriftType,
+}
+
+impl Default for SpcDriftConfig {
+    fn default() -> Self {
+        Self {
+            sample_size: 25,
+            sample: true,
+            space: MISSING.to_string(),
+            name: MISSING.to_string(),
+            version: DEFAULT_VERSION.to_string(),
+            alert_config: SpcAlertConfig::default(),
+            feature_map: FeatureMap::default(),
+            drift_type: DriftType::Spc,
+        }
+    }
 }
 
 fn default_drift_type() -> DriftType {

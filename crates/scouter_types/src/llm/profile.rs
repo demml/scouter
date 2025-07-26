@@ -2,8 +2,8 @@ use crate::error::{ProfileError, TypeError};
 use crate::llm::alert::LLMAlertConfig;
 use crate::llm::alert::LLMMetric;
 use crate::util::{json_to_pyobject, pyobject_to_json};
-use crate::LLMMetricRecord;
 use crate::ProfileRequest;
+use crate::{scouter_version, LLMMetricRecord};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
     ProfileFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
@@ -472,7 +472,7 @@ impl LLMDriftProfile {
         Ok(Self {
             config,
             metrics,
-            scouter_version: env!("CARGO_PKG_VERSION").to_string(),
+            scouter_version: scouter_version(),
             workflow,
         })
     }
@@ -506,7 +506,7 @@ impl LLMDriftProfile {
         Ok(Self {
             config,
             metrics,
-            scouter_version: env!("CARGO_PKG_VERSION").to_string(),
+            scouter_version: scouter_version(),
             workflow,
         })
     }

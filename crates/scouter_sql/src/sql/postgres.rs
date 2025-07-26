@@ -254,6 +254,9 @@ mod tests {
             None,
         )
         .await
+        .inspect_err(|e| {
+            println!("Error getting next profile version: {:?}", e);
+        })
         .unwrap();
 
         let result = PostgresClient::insert_drift_profile(&pool, &profile, &base_args, &version)
@@ -425,6 +428,7 @@ mod tests {
 
         let mut spc_profile = SpcDriftProfile::default();
         let profile = DriftProfile::Spc(spc_profile.clone());
+
         let result = insert_profile_to_db(&pool, &profile).await;
         assert_eq!(result.rows_affected(), 1);
 

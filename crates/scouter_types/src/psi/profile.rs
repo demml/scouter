@@ -560,7 +560,7 @@ mod tests {
         .unwrap();
         assert_eq!(drift_config.name, "__missing__");
         assert_eq!(drift_config.space, "__missing__");
-        assert_eq!(drift_config.version, "0.1.0");
+        assert_eq!(drift_config.version, "0.0.0");
         assert_eq!(drift_config.alert_config, PsiAlertConfig::default());
 
         // update
