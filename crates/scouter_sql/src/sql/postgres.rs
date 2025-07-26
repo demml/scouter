@@ -256,7 +256,7 @@ mod tests {
         .await
         .unwrap();
 
-        let result = PostgresClient::insert_drift_profile(&pool, &profile, &base_args, version)
+        let result = PostgresClient::insert_drift_profile(&pool, &profile, &base_args, &version)
             .await
             .unwrap();
 
