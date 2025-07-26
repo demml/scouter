@@ -571,7 +571,6 @@ mod tests {
                 version: VERSION.to_string(),
                 ..Default::default()
             },
-            None,
         ));
         let _ = insert_profile_to_db(&pool, &profile).await;
 

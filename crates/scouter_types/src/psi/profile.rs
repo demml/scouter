@@ -1,7 +1,7 @@
 #![allow(clippy::useless_conversion)]
 use crate::error::{ProfileError, TypeError};
 use crate::psi::alert::PsiAlertConfig;
-use crate::util::{json_to_pyobject, pyobject_to_json};
+use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version};
 use crate::ProfileRequest;
 use crate::VersionRequest;
 use crate::{
@@ -347,16 +347,11 @@ pub struct PsiDriftProfile {
 }
 
 impl PsiDriftProfile {
-    pub fn new(
-        features: HashMap<String, PsiFeatureDriftProfile>,
-        config: PsiDriftConfig,
-        scouter_version: Option<String>,
-    ) -> Self {
-        let scouter_version = scouter_version.unwrap_or(env!("CARGO_PKG_VERSION").to_string());
+    pub fn new(features: HashMap<String, PsiFeatureDriftProfile>, config: PsiDriftConfig) -> Self {
         Self {
             features,
             config,
-            scouter_version,
+            scouter_version: scouter_version(),
         }
     }
 }

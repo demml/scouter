@@ -1,7 +1,7 @@
 #![allow(clippy::useless_conversion)]
 use crate::custom::alert::{CustomMetric, CustomMetricAlertConfig};
 use crate::error::{ProfileError, TypeError};
-use crate::util::{json_to_pyobject, pyobject_to_json};
+use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version};
 use crate::ProfileRequest;
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
@@ -159,12 +159,10 @@ impl CustomDriftProfile {
 
         let metric_vals = metrics.iter().map(|m| (m.name.clone(), m.value)).collect();
 
-        let scouter_version = env!("CARGO_PKG_VERSION").to_string();
-
         Ok(Self {
             config,
             metrics: metric_vals,
-            scouter_version,
+            scouter_version: scouter_version(),
         })
     }
 

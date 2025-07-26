@@ -156,11 +156,7 @@ impl SpcMonitor {
             );
         }
 
-        Ok(SpcDriftProfile::new(
-            feat_profile,
-            drift_config.clone(),
-            None,
-        ))
+        Ok(SpcDriftProfile::new(feat_profile, drift_config.clone()))
     }
 
     /// Create a 2D monitor profile

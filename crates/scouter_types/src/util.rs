@@ -18,6 +18,10 @@ use std::str::FromStr;
 pub const MISSING: &str = "__missing__";
 pub const DEFAULT_VERSION: &str = "0.0.0";
 
+pub fn scouter_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
+
 pub enum FileName {
     SpcDriftMap,
     SpcDriftProfile,

@@ -1,7 +1,7 @@
 #![allow(clippy::useless_conversion)]
 use crate::error::{ProfileError, TypeError};
 use crate::spc::alert::SpcAlertConfig;
-use crate::util::{json_to_pyobject, pyobject_to_json};
+use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, ProfileArgs, ProfileBaseArgs,
     ProfileFuncs, ProfileRequest, MISSING,
@@ -257,16 +257,11 @@ pub struct SpcDriftProfile {
 }
 
 impl SpcDriftProfile {
-    pub fn new(
-        features: HashMap<String, SpcFeatureDriftProfile>,
-        config: SpcDriftConfig,
-        scouter_version: Option<String>,
-    ) -> Self {
-        let scouter_version = scouter_version.unwrap_or(env!("CARGO_PKG_VERSION").to_string());
+    pub fn new(features: HashMap<String, SpcFeatureDriftProfile>, config: SpcDriftConfig) -> Self {
         Self {
             features,
             config,
-            scouter_version,
+            scouter_version: scouter_version(),
         }
     }
 }
