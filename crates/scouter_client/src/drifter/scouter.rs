@@ -120,7 +120,7 @@ impl Drifter {
                     vec![metric]
                 };
 
-                let profile = drifter.create_drift_profile(config.custom_config()?, data, None)?;
+                let profile = drifter.create_drift_profile(config.custom_config()?, data)?;
                 Ok(DriftProfile::Custom(profile))
             }
             Drifter::LLM(drifter) => {

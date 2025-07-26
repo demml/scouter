@@ -13,12 +13,7 @@ impl CustomDrifter {
         &mut self,
         config: CustomMetricDriftConfig,
         comparison_metrics: Vec<CustomMetric>,
-        scouter_version: Option<String>,
     ) -> Result<CustomDriftProfile, DriftError> {
-        Ok(CustomDriftProfile::new(
-            config,
-            comparison_metrics,
-            scouter_version,
-        )?)
+        Ok(CustomDriftProfile::new(config, comparison_metrics)?)
     }
 }
