@@ -110,6 +110,17 @@ pub struct VersionRequest {
     pub build_tag: Option<String>,
 }
 
+impl Default for VersionRequest {
+    fn default() -> Self {
+        VersionRequest {
+            version: None,
+            version_type: VersionType::Minor,
+            pre_tag: None,
+            build_tag: None,
+        }
+    }
+}
+
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProfileRequest {
