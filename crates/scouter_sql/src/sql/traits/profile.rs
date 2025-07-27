@@ -78,7 +78,7 @@ pub trait ProfileSqlLogic {
         let mut version_query = Queries::GetProfileVersions.get_query().sql;
 
         if let Some(version) = &args.version {
-            add_version_bounds(&mut version_query, &version)?;
+            add_version_bounds(&mut version_query, version)?;
         }
         version_query.push_str(" ORDER BY created_at DESC LIMIT 20;");
 

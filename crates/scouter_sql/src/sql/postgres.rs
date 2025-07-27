@@ -254,12 +254,9 @@ mod tests {
             None,
         )
         .await
-        .inspect_err(|e| {
-            println!("Error getting next profile version: {:?}", e);
-        })
         .unwrap();
 
-        let result = PostgresClient::insert_drift_profile(&pool, &profile, &base_args, &version)
+        let result = PostgresClient::insert_drift_profile(pool, profile, &base_args, &version)
             .await
             .unwrap();
 
@@ -576,7 +573,7 @@ mod tests {
                 ..Default::default()
             },
         ));
-        let _ = insert_profile_to_db(&pool, &profile).await;
+        let _ = insert_profile_to_db(&pool, profile).await;
 
         for feature in 0..num_features {
             for bin in 0..=num_bins {

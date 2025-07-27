@@ -295,7 +295,7 @@ impl CustomDriftProfile {
             profile: self.model_dump_json(),
             drift_type: self.config.drift_type.clone(),
             version_request: VersionRequest {
-                version: version,
+                version,
                 version_type: VersionType::Minor,
                 pre_tag: None,
                 build_tag: None,
