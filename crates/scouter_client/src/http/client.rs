@@ -6,6 +6,7 @@ use scouter_types::contracts::{
     DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
 };
 use scouter_types::http::{RequestType, Routes};
+use scouter_types::RegisteredProfileResponse;
 
 use crate::http::HTTPClient;
 use scouter_types::{
@@ -30,7 +31,10 @@ impl ScouterClient {
     }
 
     /// Insert a profile into the scouter server
-    pub fn insert_profile(&self, request: &ProfileRequest) -> Result<bool, ClientError> {
+    pub fn insert_profile(
+        &self,
+        request: &ProfileRequest,
+    ) -> Result<RegisteredProfileResponse, ClientError> {
         let response = self.client.request(
             Routes::Profile,
             RequestType::Post,
@@ -40,7 +44,11 @@ impl ScouterClient {
         )?;
 
         if response.status().is_success() {
-            Ok(true)
+            let body = response.bytes()?;
+            let profile_response: RegisteredProfileResponse = serde_json::from_slice(&body)?;
+
+            debug!("Profile inserted successfully: {:?}", profile_response);
+            Ok(profile_response)
         } else {
             Err(ClientError::InsertProfileError)
         }
@@ -193,7 +201,17 @@ impl PyScouterClient {
             .call_method0("create_profile_request")?
             .extract::<ProfileRequest>()?;
 
-        self.client.insert_profile(&request)?;
+        let profile_response = self.client.insert_profile(&request)?;
+
+        // update config args
+        profile.call_method1(
+            "update_config_args",
+            (
+                Some(profile_response.space),
+                Some(profile_response.name),
+                Some(profile_response.version),
+            ),
+        )?;
 
         debug!("Profile inserted successfully");
         if set_active {

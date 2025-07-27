@@ -124,7 +124,7 @@ mod tests {
         )
         .unwrap();
         let profile =
-            CustomDriftProfile::new(custom_config, vec![metric1, metric2, metric3], None).unwrap();
+            CustomDriftProfile::new(custom_config, vec![metric1, metric2, metric3]).unwrap();
         let feature_queue = CustomMetricFeatureQueue::new(profile);
 
         assert_eq!(feature_queue.empty_queue.len(), 3);

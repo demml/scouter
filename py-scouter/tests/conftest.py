@@ -1,4 +1,5 @@
 import shutil
+import uuid
 from typing import Generator, TypeVar
 
 import numpy as np
@@ -98,8 +99,8 @@ def cat_feature_names() -> YieldFixture[list[str]]:
 @pytest.fixture(scope="function")
 def drift_config() -> YieldFixture[SpcDriftConfig]:
     config = SpcDriftConfig(
-        name="test",
-        space="test",
+        name=uuid.uuid4().hex,
+        space=uuid.uuid4().hex,
     )
     yield config
 

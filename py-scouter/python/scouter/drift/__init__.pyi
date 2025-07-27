@@ -766,7 +766,6 @@ class CustomDriftProfile:
         self,
         config: CustomMetricDriftConfig,
         metrics: list[CustomMetric],
-        scouter_version: Optional[str] = None,
     ):
         """Initialize a CustomDriftProfile instance.
 
@@ -775,8 +774,6 @@ class CustomDriftProfile:
                 The configuration for custom metric drift detection.
             metrics (list[CustomMetric]):
                 A list of CustomMetric objects representing the metrics to be monitored.
-            scouter_version (Optional[str]):
-                The version of Scouter used to create this DriftProfile.
 
         Example:
             config = CustomMetricDriftConfig(...)

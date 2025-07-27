@@ -1,13 +1,15 @@
 # pylint: disable=invalid-name
 from contextlib import asynccontextmanager
-from scouter.logging import LoggingConfig, LogLevel, RustyLogger
-from scouter.llm import Prompt, Agent
-from scouter.queue import ScouterQueue, Queue, LLMRecord
-from scouter.client import HTTPConfig
-from fastapi import FastAPI, Request
-from .models import Answer, Question
-from .assets.prompts import prompt_state
 from pathlib import Path
+
+from fastapi import FastAPI, Request
+from scouter.client import HTTPConfig
+from scouter.llm import Agent, Prompt
+from scouter.logging import LoggingConfig, LogLevel, RustyLogger
+from scouter.queue import LLMRecord, Queue, ScouterQueue
+
+from .assets.prompts import prompt_state
+from .models import Answer, Question
 
 logger = RustyLogger.get_logger(
     LoggingConfig(log_level=LogLevel.Debug),

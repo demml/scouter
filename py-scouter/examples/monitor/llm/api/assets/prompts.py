@@ -1,5 +1,5 @@
-from scouter.llm import Prompt, Agent, Provider, ModelSettings
 from pydantic import BaseModel, ConfigDict
+from scouter.llm import Agent, ModelSettings, Prompt, Provider
 
 # take user input and reformulate it into a question for the LLM
 reformulation_template = """

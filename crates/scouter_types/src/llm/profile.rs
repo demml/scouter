@@ -2,11 +2,11 @@ use crate::error::{ProfileError, TypeError};
 use crate::llm::alert::LLMAlertConfig;
 use crate::llm::alert::LLMMetric;
 use crate::util::{json_to_pyobject, pyobject_to_json};
-use crate::LLMMetricRecord;
 use crate::ProfileRequest;
+use crate::{scouter_version, LLMMetricRecord};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
-    ProfileFuncs, DEFAULT_VERSION, MISSING,
+    ProfileFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
 };
 use core::fmt::Debug;
 use potato_head::prompt::ResponseType;
@@ -15,6 +15,7 @@ use potato_head::{Agent, Prompt};
 use potato_head::{Provider, Workflow};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use scouter_semver::VersionType;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::hash_map::Entry;
@@ -404,10 +405,22 @@ impl LLMDriftProfile {
 
     /// Create a profile request from the profile
     pub fn create_profile_request(&self) -> Result<ProfileRequest, TypeError> {
+        let version: Option<String> = if self.config.version == DEFAULT_VERSION {
+            None
+        } else {
+            Some(self.config.version.clone())
+        };
+
         Ok(ProfileRequest {
             space: self.config.space.clone(),
             profile: self.model_dump_json(),
             drift_type: self.config.drift_type.clone(),
+            version_request: VersionRequest {
+                version,
+                version_type: VersionType::Minor,
+                pre_tag: None,
+                build_tag: None,
+            },
         })
     }
 }
@@ -459,7 +472,7 @@ impl LLMDriftProfile {
         Ok(Self {
             config,
             metrics,
-            scouter_version: env!("CARGO_PKG_VERSION").to_string(),
+            scouter_version: scouter_version(),
             workflow,
         })
     }
@@ -493,7 +506,7 @@ impl LLMDriftProfile {
         Ok(Self {
             config,
             metrics,
-            scouter_version: env!("CARGO_PKG_VERSION").to_string(),
+            scouter_version: scouter_version(),
             workflow,
         })
     }
@@ -551,7 +564,7 @@ impl ProfileBaseArgs for LLMDriftProfile {
         ProfileArgs {
             name: self.config.name.clone(),
             space: self.config.space.clone(),
-            version: self.config.version.clone(),
+            version: Some(self.config.version.clone()),
             schedule: self.config.alert_config.schedule.clone(),
             scouter_version: self.scouter_version.clone(),
             drift_type: self.config.drift_type.clone(),

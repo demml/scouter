@@ -16,7 +16,11 @@ use std::path::PathBuf;
 use std::str::FromStr;
 
 pub const MISSING: &str = "__missing__";
-pub const DEFAULT_VERSION: &str = "0.1.0";
+pub const DEFAULT_VERSION: &str = "0.0.0";
+
+pub fn scouter_version() -> String {
+    env!("CARGO_PKG_VERSION").to_string()
+}
 
 pub enum FileName {
     SpcDriftMap,
@@ -285,7 +289,7 @@ pub fn is_pydantic_model(py: Python, obj: &Bound<'_, PyAny>) -> Result<bool, Typ
 pub struct ProfileArgs {
     pub name: String,
     pub space: String,
-    pub version: String,
+    pub version: Option<String>,
     pub schedule: String,
     pub scouter_version: String,
     pub drift_type: DriftType,

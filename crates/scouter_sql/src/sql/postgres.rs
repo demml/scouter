@@ -181,12 +181,14 @@ mod tests {
     use chrono::Utc;
     use potato_head::create_score_prompt;
     use rand::Rng;
+    use scouter_semver::VersionType;
     use scouter_settings::ObjectStorageSettings;
     use scouter_types::llm::PaginationRequest;
     use scouter_types::psi::{Bin, BinType, PsiDriftConfig, PsiFeatureDriftProfile};
     use scouter_types::spc::SpcDriftProfile;
     use scouter_types::*;
     use serde_json::Value;
+    use sqlx::postgres::PgQueryResult;
     use std::collections::BTreeMap;
 
     const SPACE: &str = "space";
@@ -237,6 +239,28 @@ mod tests {
         cleanup(&pool).await;
 
         pool
+    }
+
+    pub async fn insert_profile_to_db(
+        pool: &Pool<Postgres>,
+        profile: &DriftProfile,
+    ) -> PgQueryResult {
+        let base_args = profile.get_base_args();
+        let version = PostgresClient::get_next_profile_version(
+            pool,
+            &base_args,
+            VersionType::Minor,
+            None,
+            None,
+        )
+        .await
+        .unwrap();
+
+        let result = PostgresClient::insert_drift_profile(pool, profile, &base_args, &version)
+            .await
+            .unwrap();
+
+        result
     }
 
     #[tokio::test]
@@ -400,12 +424,9 @@ mod tests {
         let pool = db_pool().await;
 
         let mut spc_profile = SpcDriftProfile::default();
+        let profile = DriftProfile::Spc(spc_profile.clone());
 
-        let result =
-            PostgresClient::insert_drift_profile(&pool, &DriftProfile::Spc(spc_profile.clone()))
-                .await
-                .unwrap();
-
+        let result = insert_profile_to_db(&pool, &profile).await;
         assert_eq!(result.rows_affected(), 1);
 
         spc_profile.scouter_version = "test".to_string();
@@ -543,21 +564,16 @@ mod tests {
             })
             .collect();
 
-        let _ = PostgresClient::insert_drift_profile(
-            &pool,
-            &DriftProfile::Psi(psi::PsiDriftProfile::new(
-                features,
-                PsiDriftConfig {
-                    space: SPACE.to_string(),
-                    name: NAME.to_string(),
-                    version: VERSION.to_string(),
-                    ..Default::default()
-                },
-                None,
-            )),
-        )
-        .await
-        .unwrap();
+        let profile = &DriftProfile::Psi(psi::PsiDriftProfile::new(
+            features,
+            PsiDriftConfig {
+                space: SPACE.to_string(),
+                name: NAME.to_string(),
+                version: VERSION.to_string(),
+                ..Default::default()
+            },
+        ));
+        let _ = insert_profile_to_db(&pool, profile).await;
 
         for feature in 0..num_features {
             for bin in 0..=num_bins {

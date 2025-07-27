@@ -17,6 +17,12 @@ pub enum SqlError {
     #[error("Invalid record type: {0}")]
     InvalidRecordTypeError(String),
 
+    #[error(transparent)]
+    SemverError(#[from] semver::Error),
+
+    #[error(transparent)]
+    VersionError(#[from] scouter_semver::error::VersionError),
+
     #[error("Begin datetime must be before end datetime")]
     InvalidDateRangeError,
 

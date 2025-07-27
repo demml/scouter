@@ -252,7 +252,7 @@ mod tests {
         )
         .unwrap();
 
-        let profile = CustomDriftProfile::new(drift_config, custom_metrics, None).unwrap();
+        let profile = CustomDriftProfile::new(drift_config, custom_metrics).unwrap();
 
         CustomDrifter::new(profile)
     }
