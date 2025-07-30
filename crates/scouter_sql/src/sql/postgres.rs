@@ -800,6 +800,7 @@ mod tests {
                 score: Value::Null,
                 processing_started_at: None,
                 processing_ended_at: None,
+                processing_duration: None,
             };
 
             let result = PostgresClient::insert_llm_drift_record(&pool, &record)
@@ -882,6 +883,7 @@ mod tests {
                 updated_at: None,
                 processing_started_at: None,
                 processing_ended_at: None,
+                processing_duration: None,
             };
 
             let result = PostgresClient::insert_llm_drift_record(&pool, &record)

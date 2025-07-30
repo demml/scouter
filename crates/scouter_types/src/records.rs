@@ -189,6 +189,7 @@ pub struct LLMDriftServerRecord {
     pub updated_at: Option<DateTime<Utc>>,
     pub processing_started_at: Option<DateTime<Utc>>,
     pub processing_ended_at: Option<DateTime<Utc>>,
+    pub processing_duration: Option<i64>, // Interval in seconds for the drift calculation
 }
 
 #[pymethods]
@@ -234,6 +235,7 @@ impl LLMDriftServerRecord {
             updated_at: None,
             processing_started_at: None,
             processing_ended_at: None,
+            processing_duration: None,
         }
     }
 }

@@ -16,11 +16,9 @@ use scouter_types::{
     BinnedMetrics, LLMDriftServerRecord, RecordType,
 };
 use scouter_types::{LLMMetricRecord, Status};
-use serde_json::Value;
 use sqlx::types::Json;
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::collections::HashMap;
-use std::str::FromStr;
 use tracing::error;
 use tracing::{debug, instrument};
 
@@ -133,23 +131,7 @@ pub trait LLMDriftSqlLogic {
 
         Ok(records
             .into_iter()
-            .map({
-                |record| LLMDriftServerRecord {
-                    created_at: record.created_at,
-                    space: record.space,
-                    name: record.name,
-                    version: record.version,
-                    prompt: record.prompt,
-                    context: record.context,
-                    score: record.score, // Handle optional score
-                    status: Status::from_str(&record.status).unwrap_or(Status::Pending), // Default to Pending if parsing fails
-                    id: record.id,                 // Ensure we include the ID
-                    uid: record.uid,               // Include the UID
-                    updated_at: record.updated_at, // Include the updated_at field
-                    processing_started_at: record.processing_started_at, // Include the processing_started_at field
-                    processing_ended_at: record.processing_ended_at, // Include the processing_ended_at
-                }
-            })
+            .map(LLMDriftServerRecord::from)
             .collect())
     }
 
@@ -227,21 +209,7 @@ pub trait LLMDriftSqlLogic {
 
         let items = records
             .into_iter()
-            .map(|record| LLMDriftServerRecord {
-                created_at: record.created_at,
-                space: record.space,
-                name: record.name,
-                version: record.version,
-                prompt: record.prompt,
-                context: record.context,
-                score: Value::Null, // Handle optional score
-                status: Status::from_str(&record.status).unwrap_or(Status::Pending),
-                id: record.id,                 // Ensure we include the ID
-                uid: record.uid,               // Include the UID
-                updated_at: record.updated_at, // Include the updated_at field
-                processing_started_at: record.processing_started_at, // Include the processing_started_at field
-                processing_ended_at: record.processing_ended_at, // Include the processing_ended_at
-            })
+            .map(LLMDriftServerRecord::from)
             .collect();
 
         Ok(PaginationResponse {
