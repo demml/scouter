@@ -455,7 +455,7 @@ fn test_llm_server_records() {
     let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
 
     let records: PaginationResponse<LLMDriftServerRecord> = serde_json::from_slice(&val).unwrap();
-    assert!(records.items.len() > 0);
+    assert!(!records.items.is_empty());
     assert!(records.has_more);
 
     mock.stop_server().unwrap();
