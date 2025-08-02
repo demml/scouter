@@ -34,9 +34,9 @@ pub use scouter_types::{
     DriftRequest, DriftType, EntityType, Feature, FeatureMap, Features, GetProfileRequest,
     LLMMetricRecord, LLMRecord, LatencyMetrics, Metric, Metrics, ObservabilityMetrics,
     OpsGenieDispatchConfig, ProfileRequest, ProfileStatusRequest, PsiServerRecord, RecordType,
-    RouteMetrics, ScouterResponse, ScouterServerError, ServerRecord, ServerRecords,
-    SlackDispatchConfig, SpcServerRecord, TimeInterval, UpdateAlertResponse, UpdateAlertStatus,
-    VersionRequest,
+    RegisteredProfileResponse, RouteMetrics, ScouterResponse, ScouterServerError, ServerRecord,
+    ServerRecords, SlackDispatchConfig, SpcServerRecord, TimeInterval, UpdateAlertResponse,
+    UpdateAlertStatus, VersionRequest,
 };
 
 pub use crate::http::{PyScouterClient, ScouterClient};
