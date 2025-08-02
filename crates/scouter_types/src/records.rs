@@ -187,8 +187,12 @@ pub struct LLMDriftServerRecord {
     pub score: Value,
 
     pub updated_at: Option<DateTime<Utc>>,
+
     pub processing_started_at: Option<DateTime<Utc>>,
+
     pub processing_ended_at: Option<DateTime<Utc>>,
+
+    pub processing_duration: Option<i32>,
 }
 
 #[pymethods]
@@ -234,6 +238,7 @@ impl LLMDriftServerRecord {
             updated_at: None,
             processing_started_at: None,
             processing_ended_at: None,
+            processing_duration: None,
         }
     }
 }

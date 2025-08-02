@@ -353,6 +353,8 @@ pub struct LLMDriftServerSQLRecord {
     pub processing_started_at: Option<DateTime<Utc>>,
 
     pub processing_ended_at: Option<DateTime<Utc>>,
+
+    pub processing_duration: Option<i32>,
 }
 
 impl LLMDriftServerSQLRecord {
@@ -372,6 +374,7 @@ impl LLMDriftServerSQLRecord {
             updated_at: None,
             processing_started_at: None,
             processing_ended_at: None,
+            processing_duration: None, // This will be set when the record is processed
         }
     }
 }
@@ -390,6 +393,7 @@ impl From<LLMDriftServerSQLRecord> for LLMDriftServerRecord {
             status: sql_record.status.parse().unwrap_or_default(), // Handle parsing appropriately
             processing_started_at: sql_record.processing_started_at,
             processing_ended_at: sql_record.processing_ended_at,
+            processing_duration: sql_record.processing_duration,
             updated_at: sql_record.updated_at,
             uid: sql_record.uid,
         }

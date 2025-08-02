@@ -209,6 +209,7 @@ mod tests {
                     updated_at: None,
                     processing_started_at: None,
                     processing_ended_at: None,
+                    processing_duration: None,
                 };
 
                 let boxed_record = BoxedLLMDriftServerRecord::new(record);

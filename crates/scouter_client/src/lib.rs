@@ -17,7 +17,7 @@ pub use scouter_types::{
     },
     llm::{
         LLMAlertConfig, LLMDriftConfig, LLMDriftMap, LLMDriftProfile, LLMMetric,
-        LLMMetricAlertCondition,
+        LLMMetricAlertCondition, PaginationCursor, PaginationResponse,
     },
     psi::{
         Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiChiSquareThreshold,
@@ -32,11 +32,11 @@ pub use scouter_types::{
     AlertDispatchType, AlertThreshold, BinnedMetric, BinnedMetricStats, BinnedMetrics,
     ConsoleDispatchConfig, CustomMetricServerRecord, DataType, DriftAlertRequest, DriftProfile,
     DriftRequest, DriftType, EntityType, Feature, FeatureMap, Features, GetProfileRequest,
-    LLMMetricRecord, LLMRecord, LatencyMetrics, Metric, Metrics, ObservabilityMetrics,
-    OpsGenieDispatchConfig, ProfileRequest, ProfileStatusRequest, PsiServerRecord, RecordType,
-    RouteMetrics, ScouterResponse, ScouterServerError, ServerRecord, ServerRecords,
-    SlackDispatchConfig, SpcServerRecord, TimeInterval, UpdateAlertResponse, UpdateAlertStatus,
-    VersionRequest,
+    LLMDriftRecordPaginationRequest, LLMDriftServerRecord, LLMMetricRecord, LLMRecord,
+    LatencyMetrics, Metric, Metrics, ObservabilityMetrics, OpsGenieDispatchConfig, ProfileRequest,
+    ProfileStatusRequest, PsiServerRecord, RecordType, RegisteredProfileResponse, RouteMetrics,
+    ScouterResponse, ScouterServerError, ServerRecord, ServerRecords, SlackDispatchConfig,
+    SpcServerRecord, TimeInterval, UpdateAlertResponse, UpdateAlertStatus, VersionRequest,
 };
 
 pub use crate::http::{PyScouterClient, ScouterClient};

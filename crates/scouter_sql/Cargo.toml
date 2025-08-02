@@ -21,7 +21,6 @@ async-trait = { workspace = true }
 chrono = { workspace = true, features = ["serde", "clock"] }
 cron = { workspace = true }
 itertools = { workspace = true }
-log = { workspace = true }
 potato-head = { workspace = true}
 serde = { workspace = true, features = ["derive"] }
 semver = { workspace = true }

@@ -268,6 +268,7 @@ impl TestHelper {
                     processing_started_at: None,
                     processing_ended_at: None,
                     score: Value::Null,
+                    processing_duration: None,
                 };
 
                 let boxed_record = BoxedLLMDriftServerRecord::new(record);

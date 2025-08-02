@@ -4,7 +4,7 @@ use crate::parquet::traits::ParquetFrame;
 use crate::parquet::types::BinnedTableName;
 use crate::storage::ObjectStore;
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
-use arrow_array::array::{StringArray, TimestampNanosecondArray};
+use arrow_array::array::{Int32Array, StringArray, TimestampNanosecondArray};
 use arrow_array::RecordBatch;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -98,6 +98,7 @@ impl LLMDriftDataFrame {
                 DataType::Timestamp(TimeUnit::Nanosecond, None),
                 true,
             ),
+            Field::new("processing_duration", DataType::Int32, true),
         ]));
 
         let object_store = ObjectStore::new(storage_settings)?;
@@ -160,6 +161,10 @@ impl LLMDriftDataFrame {
                     .and_then(|dt| dt.timestamp_nanos_opt())
             }));
 
+        // Calculate processing duration in seconds
+        let processing_duration_array =
+            Int32Array::from_iter(records.iter().map(|r| r.processing_duration));
+
         let batch = RecordBatch::try_new(
             self.schema.clone(),
             vec![
@@ -176,6 +181,7 @@ impl LLMDriftDataFrame {
                 Arc::new(status_array),
                 Arc::new(processing_started_at_array),
                 Arc::new(processing_ended_at_array),
+                Arc::new(processing_duration_array),
             ],
         )?;
 
