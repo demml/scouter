@@ -17,10 +17,15 @@ use scouter_types::contracts::{DriftRequest, GetProfileRequest, ProfileStatusReq
 use scouter_types::custom::{
     CustomDriftProfile, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig,
 };
+use scouter_types::llm::PaginationRequest;
+use scouter_types::llm::PaginationResponse;
 use scouter_types::psi::BinnedPsiFeatureMetrics;
 use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
 use scouter_types::spc::SpcDriftFeatures;
-use scouter_types::{AlertThreshold, BinnedMetrics, TimeInterval};
+use scouter_types::{
+    AlertThreshold, BinnedMetrics, LLMDriftRecordPaginationRequest, LLMDriftServerRecord,
+    ServiceInfo, TimeInterval,
+};
 use tokio::time::sleep;
 
 #[tokio::test]
@@ -424,6 +429,35 @@ fn test_llm_server_records() {
 
     assert!(!results.metrics.is_empty());
 
+    // get drift records by page
+    let request = LLMDriftRecordPaginationRequest {
+        service_info: ServiceInfo {
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
+        },
+        status: None,
+        pagination: PaginationRequest {
+            limit: 10,
+            cursor: None,
+        },
+    };
+
+    let body = serde_json::to_string(&request).unwrap();
+
+    let request = Request::builder()
+        .uri("/scouter/drift/llm/records")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+    let response = runtime.block_on(async { helper.send_oneshot(request).await });
+    let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
+
+    let records: PaginationResponse<LLMDriftServerRecord> = serde_json::from_slice(&val).unwrap();
+    assert!(records.items.len() > 0);
+    assert!(records.has_more);
+
     mock.stop_server().unwrap();
-    //TestHelper::cleanup_storage();
+    TestHelper::cleanup_storage();
 }

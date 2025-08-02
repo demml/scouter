@@ -182,8 +182,8 @@ pub async fn get_custom_drift(
 #[instrument(skip_all)]
 pub async fn get_llm_drift_records(
     State(data): State<Arc<AppState>>,
-    Query(params): Query<LLMDriftRecordPaginationRequest>,
     Extension(perms): Extension<UserPermissions>,
+    Json(params): Json<LLMDriftRecordPaginationRequest>,
 ) -> Result<Json<PaginationResponse<LLMDriftServerRecord>>, (StatusCode, Json<ScouterServerError>)>
 {
     // validate time window
@@ -289,7 +289,7 @@ pub async fn get_drift_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
             .route(&format!("{prefix}/drift/llm"), get(get_llm_drift_metrics))
             .route(
                 &format!("{prefix}/drift/llm/records"),
-                get(get_llm_drift_records),
+                post(get_llm_drift_records),
             )
     }));
 
