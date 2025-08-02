@@ -42,7 +42,7 @@ CREATE TABLE IF NOT exists scouter.llm_drift_record (
     score jsonb default '{}', -- Optional score for the LLM response
     processing_started_at TIMESTAMPTZ,
     processing_ended_at TIMESTAMPTZ,
-    processing_duration INTERVAL,
+    processing_duration INTEGER,
     archived boolean default false,
     PRIMARY KEY (id, created_at),
     UNIQUE (created_at, name, space, version)

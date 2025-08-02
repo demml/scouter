@@ -90,10 +90,6 @@ jobs:
         working-directory: ./py-scouter
         run: make setup.project
 
-      - name: Install dependencies
-        working-directory: ./py-scouter
-        run: make setup.project
-
       - name: Lints
         working-directory: ./py-scouter
         run: make lints.ci

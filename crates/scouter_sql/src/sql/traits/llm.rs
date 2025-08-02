@@ -425,7 +425,9 @@ pub trait LLMDriftSqlLogic {
             .bind(&record.uid)
             .execute(pool)
             .await
-            .map_err(SqlError::SqlxError)?;
+            .inspect_err(|e| {
+                error!("Failed to update LLM drift record status: {:?}", e);
+            })?;
 
         Ok(())
     }
