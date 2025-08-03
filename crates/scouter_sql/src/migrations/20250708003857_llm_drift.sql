@@ -29,7 +29,7 @@ UPDATE scouter.part_config SET retention = '60 days' WHERE parent_table = 'scout
 -- Background job will process these records based on defined drift profiles and insert
 -- metrics into the llm_drift table.
 CREATE TABLE IF NOT exists scouter.llm_drift_record (
-    id BIGSERIAL,
+    id BIGINT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     uid text DEFAULT gen_random_uuid(),
     name text not null,
@@ -44,7 +44,7 @@ CREATE TABLE IF NOT exists scouter.llm_drift_record (
     processing_ended_at TIMESTAMPTZ,
     processing_duration INTEGER,
     archived boolean default false,
-    PRIMARY KEY (id, created_at),
+    PRIMARY KEY (uid, created_at),
     UNIQUE (created_at, name, space, version)
 )
 PARTITION BY RANGE (created_at);
