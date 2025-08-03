@@ -838,6 +838,7 @@ mod tests {
             &pool,
             &pending_tasks.unwrap(),
             Status::Processed,
+            Some(1),
         )
         .await
         .unwrap();

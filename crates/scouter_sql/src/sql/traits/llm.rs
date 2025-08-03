@@ -416,12 +416,14 @@ pub trait LLMDriftSqlLogic {
         pool: &Pool<Postgres>,
         record: &LLMRecord,
         status: Status,
+        workflow_duration: Option<i32>, // Duration in seconds
     ) -> Result<(), SqlError> {
         let query = Queries::UpdateLLMDriftTask.get_query();
 
         let _query_result = sqlx::query(&query.sql)
             .bind(status.as_str())
             .bind(record.score.clone())
+            .bind(workflow_duration)
             .bind(&record.uid)
             .execute(pool)
             .await
