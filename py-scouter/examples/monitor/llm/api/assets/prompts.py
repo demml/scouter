@@ -45,20 +45,20 @@ class PromptState(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     reformulated_prompt: Prompt = Prompt(
-        user_message=reformulation_template,
+        message=reformulation_template,
         provider="gemini",
         model="gemini-2.5-flash-lite-preview-06-17",
         model_settings=ModelSettings(max_tokens=1024),
     )
     response_prompt: Prompt = Prompt(
-        user_message=response_template,
+        message=response_template,
         provider="gemini",
         model="gemini-2.5-flash-lite-preview-06-17",
         model_settings=ModelSettings(max_tokens=1024, temperature=0.1),
     )
     agent: Agent = Agent(
         provider=Provider.Gemini,
-        system_message="You are an expert in software development and debugging.",
+        system_instruction="You are an expert in software development and debugging.",
     )
 
 

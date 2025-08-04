@@ -21,7 +21,7 @@ def create_reformulation_evaluation_prompt():
         >>> prompt = create_reformulation_evaluation_prompt()
     """
     return Prompt(
-        user_message=(
+        message=(
             "You are an expert evaluator of search query reformulations. "
             "Given the original user query and its reformulated version, your task is to assess how well the reformulation improves the query. "
             "Consider the following criteria:\n"
@@ -52,7 +52,7 @@ def create_reformulation_evaluation_prompt():
 def create_query_reformulation_prompt():
     """Builds a prompt for query reformulation tasks."""
     return Prompt(
-        user_message=(
+        message=(
             "You are an expert at query reformulation. Your task is to take a user's original search query "
             "and rewrite it to be more feature-rich and keyword-dense, so it better aligns with the user's intent "
             "and improves search results.\n\n"

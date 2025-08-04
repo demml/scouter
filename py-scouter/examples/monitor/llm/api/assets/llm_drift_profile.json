@@ -29,7 +29,7 @@
       "name": "relevance",
       "value": 5.0,
       "prompt": {
-        "user_message": [
+        "message": [
           {
             "content": {
               "Str": "You are an expert evaluator of LLM responses. Given the original user query and the LLM's response, your task is to assess how relevant the response is to the query. Consider the following criteria:\n- Does the response directly address the user's question or request?\n- Is the information provided accurate and appropriate for the query?\n- Are any parts of the response off-topic or unrelated?\n- Is the response complete and does it avoid unnecessary information?\n\nProvide your evaluation as a JSON object with the following attributes:\n- score: An integer from 1 (irrelevant) to 5 (highly relevant) indicating the overall relevance of the response.\n- reason: A brief explanation for your score.\n\nFormat your response as:\n{\n  \"score\": <integer 1-5>,\n  \"reason\": \"<your explanation>\"\n}\n\nOriginal Query:\n${reformulated_query}\n\nLLM Response:\n${relevance_response}\n\nEvaluation:"
@@ -41,7 +41,7 @@
             ]
           }
         ],
-        "system_message": [],
+        "system_instruction": [],
         "model_settings": {
           "model": "gemini-2.5-flash-lite-preview-06-17",
           "provider": "gemini"
@@ -83,7 +83,7 @@
       "name": "reformulation",
       "value": 5.0,
       "prompt": {
-        "user_message": [
+        "message": [
           {
             "content": {
               "Str": "You are an expert evaluator of search query reformulations. Given the original user query and its reformulated version, your task is to assess how well the reformulation improves the query. Consider the following criteria:\n- Does the reformulation make the query more explicit and comprehensive?\n- Are relevant synonyms, related concepts, or specific features added?\n- Is the original intent preserved without changing the meaning?\n- Is the reformulation clear and unambiguous?\n\nProvide your evaluation as a JSON object with the following attributes:\n- score: An integer from 1 (poor) to 5 (excellent) indicating the overall quality of the reformulation.\n- reason: A brief explanation for your score.\n\nFormat your response as:\n{\n  \"score\": <integer 1-5>,\n  \"reason\": \"<your explanation>\"\n}\n\nOriginal Query:\n${user_input}\n\nReformulated Query:\n${reformulated_query}\n\nEvaluation:"
@@ -95,7 +95,7 @@
             ]
           }
         ],
-        "system_message": [],
+        "system_instruction": [],
         "model_settings": {
           "model": "gemini-2.5-flash-lite-preview-06-17",
           "provider": "gemini"
@@ -143,7 +143,7 @@
         "relevance": {
           "id": "relevance",
           "prompt": {
-            "user_message": [
+            "message": [
               {
                 "content": {
                   "Str": "You are an expert evaluator of LLM responses. Given the original user query and the LLM's response, your task is to assess how relevant the response is to the query. Consider the following criteria:\n- Does the response directly address the user's question or request?\n- Is the information provided accurate and appropriate for the query?\n- Are any parts of the response off-topic or unrelated?\n- Is the response complete and does it avoid unnecessary information?\n\nProvide your evaluation as a JSON object with the following attributes:\n- score: An integer from 1 (irrelevant) to 5 (highly relevant) indicating the overall relevance of the response.\n- reason: A brief explanation for your score.\n\nFormat your response as:\n{\n  \"score\": <integer 1-5>,\n  \"reason\": \"<your explanation>\"\n}\n\nOriginal Query:\n${reformulated_query}\n\nLLM Response:\n${relevance_response}\n\nEvaluation:"
@@ -155,7 +155,7 @@
                 ]
               }
             ],
-            "system_message": [],
+            "system_instruction": [],
             "model_settings": {
               "model": "gemini-2.5-flash-lite-preview-06-17",
               "provider": "gemini"
@@ -198,7 +198,7 @@
         "reformulation": {
           "id": "reformulation",
           "prompt": {
-            "user_message": [
+            "message": [
               {
                 "content": {
                   "Str": "You are an expert evaluator of search query reformulations. Given the original user query and its reformulated version, your task is to assess how well the reformulation improves the query. Consider the following criteria:\n- Does the reformulation make the query more explicit and comprehensive?\n- Are relevant synonyms, related concepts, or specific features added?\n- Is the original intent preserved without changing the meaning?\n- Is the reformulation clear and unambiguous?\n\nProvide your evaluation as a JSON object with the following attributes:\n- score: An integer from 1 (poor) to 5 (excellent) indicating the overall quality of the reformulation.\n- reason: A brief explanation for your score.\n\nFormat your response as:\n{\n  \"score\": <integer 1-5>,\n  \"reason\": \"<your explanation>\"\n}\n\nOriginal Query:\n${user_input}\n\nReformulated Query:\n${reformulated_query}\n\nEvaluation:"
@@ -210,7 +210,7 @@
                 ]
               }
             ],
-            "system_message": [],
+            "system_instruction": [],
             "model_settings": {
               "model": "gemini-2.5-flash-lite-preview-06-17",
               "provider": "gemini"
@@ -260,7 +260,7 @@
       "0198412b-cee7-7a92-b767-33f16f0f60dc": {
         "id": "0198412b-cee7-7a92-b767-33f16f0f60dc",
         "provider": "Gemini",
-        "system_message": []
+        "system_instruction": []
       }
     }
   }

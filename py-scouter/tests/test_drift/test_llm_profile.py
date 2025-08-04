@@ -17,8 +17,8 @@ class TaskOutput(BaseModel):
 def test_llm_drift_profile_from_metrics():
     with LLMTestServer():
         prompt = Prompt(
-            user_message="${input} + ${response}?",
-            system_message="You are a helpful assistant.",
+            message="${input} + ${response}?",
+            system_instruction="You are a helpful assistant.",
             model="gpt-4o",
             provider="openai",
             response_format=Score,
@@ -46,15 +46,15 @@ def test_llm_drift_profile_from_metrics():
 def test_llm_drift_profile_from_workflow():
     with LLMTestServer():
         start_prompt = Prompt(
-            user_message="${input} + ${response}?",
-            system_message="You are a helpful assistant.",
+            message="${input} + ${response}?",
+            system_instruction="You are a helpful assistant.",
             model="gpt-4o",
             provider="openai",
         )
 
         end_prompt = Prompt(
-            user_message="Foo bar",
-            system_message="You are a helpful assistant.",
+            message="Foo bar",
+            system_instruction="You are a helpful assistant.",
             model="gpt-4o",
             provider="openai",
             response_format=Score,
@@ -108,8 +108,8 @@ def test_llm_drift_profile_from_workflow():
 def test_llm_drift_profile_from_metrics_fail():
     with LLMTestServer():
         prompt = Prompt(
-            user_message="foo bar",
-            system_message="You are a helpful assistant.",
+            message="foo bar",
+            system_instruction="You are a helpful assistant.",
             model="gpt-4o",
             provider="openai",
             response_format=Score,
@@ -128,7 +128,9 @@ def test_llm_drift_profile_from_metrics_fail():
         )
 
         # Drift profile with no required parameters should raise an error
-        with pytest.raises(RuntimeError, match="LLM Metric requires at least one bound parameter"):
+        with pytest.raises(
+            RuntimeError, match="LLM Metric requires at least one bound parameter"
+        ):
             _profile = LLMDriftProfile(
                 config=LLMDriftConfig(),
                 metrics=[metric1],
@@ -145,15 +147,15 @@ def test_llm_drift_profile_from_metrics_fail():
 def test_llm_drift_profile_from_workflow_fail():
     with LLMTestServer():
         start_prompt = Prompt(
-            user_message="Foo bar",
-            system_message="You are a helpful assistant.",
+            message="Foo bar",
+            system_instruction="You are a helpful assistant.",
             model="gpt-4o",
             provider="openai",
         )
 
         end_prompt = Prompt(
-            user_message="Foo bar",
-            system_message="You are a helpful assistant.",
+            message="Foo bar",
+            system_instruction="You are a helpful assistant.",
             model="gpt-4o",
             provider="openai",
             response_format=Score,
@@ -184,7 +186,9 @@ def test_llm_drift_profile_from_workflow_fail():
             alert_threshold=AlertThreshold.Below,
         )
 
-        with pytest.raises(RuntimeError, match="LLM Metric requires at least one bound parameter"):
+        with pytest.raises(
+            RuntimeError, match="LLM Metric requires at least one bound parameter"
+        ):
             _profile = LLMDriftProfile(
                 config=LLMDriftConfig(),
                 workflow=workflow,
@@ -196,8 +200,8 @@ def test_llm_drift_profile_workflow_run_context():
     with LLMTestServer():
         # this should bind the input and response context and return TaskOutput
         start_prompt = Prompt(
-            user_message="${input} + ${response}?",
-            system_message="You are a helpful assistant.",
+            message="${input} + ${response}?",
+            system_instruction="You are a helpful assistant.",
             model="gpt-4o",
             provider="openai",
             response_format=TaskOutput,
@@ -205,8 +209,8 @@ def test_llm_drift_profile_workflow_run_context():
 
         # this should bind the task_output context and return Score
         end_prompt = Prompt(
-            user_message="${task_output}",
-            system_message="You are a helpful assistant.",
+            message="${task_output}",
+            system_instruction="You are a helpful assistant.",
             model="gpt-4o",
             provider="openai",
             response_format=Score,
@@ -240,19 +244,19 @@ def test_llm_drift_profile_workflow_run_context():
         )
 
         assert (
-            result.tasks.get("start_task").prompt.user_message[0].unwrap()
+            result.tasks.get("start_task").prompt.message[0].unwrap()
             == '"What is the capital of France?" + "The capital of France is Paris."?'
         )
 
-        assert result.tasks.get("relevance").prompt.user_message[1].unwrap() == '"foo bar"'
+        assert result.tasks.get("relevance").prompt.message[1].unwrap() == '"foo bar"'
 
 
 def test_llm_drifter():
     with LLMTestServer():
         # this should bind the input and response context and return TaskOutput
         eval_prompt = Prompt(
-            user_message="${input} + ${response}?",
-            system_message="You are a helpful assistant. Output a score between 1 and 5",
+            message="${input} + ${response}?",
+            system_instruction="You are a helpful assistant. Output a score between 1 and 5",
             model="gpt-4o",
             provider="openai",
             response_format=Score,
