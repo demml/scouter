@@ -2,6 +2,10 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.8.0] - 2025-08-05
+
+- Refactoring for `opsml` compatibility
+
 ## [0.7.0] - 2025-07-27
 
 ### 🐛 Bug Fixes
