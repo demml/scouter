@@ -8,6 +8,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tracing::{debug, error, instrument, warn};
+
+pub type LLMEvalResult = (Vec<LLMMetricRecord>, HashMap<String, Score>, Option<i32>); // Vec<LLMMetricRecord>, ScoreMap, WorkflowDuration
+
 pub struct LLMEvaluator {}
 
 impl LLMEvaluator {
@@ -21,7 +24,7 @@ impl LLMEvaluator {
         workflow: Arc<RwLock<Workflow>>,
         profile: &LLMDriftProfile,
         record_uid: &str,
-    ) -> Result<(Vec<LLMMetricRecord>, HashMap<String, Score>), DriftError> {
+    ) -> Result<LLMEvalResult, DriftError> {
         let workflow = workflow.read().unwrap();
         let task_list = &workflow.task_list;
         let execution_plan = workflow.execution_plan()?;
@@ -29,11 +32,12 @@ impl LLMEvaluator {
         let max_step = execution_plan.keys().max().copied().unwrap_or(0);
 
         if max_step == 0 {
-            return Ok((Vec::new(), HashMap::new()));
+            return Ok((Vec::new(), HashMap::new(), None));
         }
 
         let mut final_results = Vec::new();
         let mut score_map: HashMap<String, Score> = HashMap::new();
+        let workflow_duration = workflow.total_duration();
 
         if let Some(final_task_ids) = execution_plan.get(&max_step) {
             for task_id in final_task_ids {
@@ -99,14 +103,14 @@ impl LLMEvaluator {
             }
         }
 
-        Ok((final_results, score_map))
+        Ok((final_results, score_map, Some(workflow_duration)))
     }
 
     #[instrument(skip_all)]
     pub async fn process_drift_record(
         record: &LLMRecord,
         profile: &LLMDriftProfile,
-    ) -> Result<(Vec<LLMMetricRecord>, HashMap<String, Score>), DriftError> {
+    ) -> Result<LLMEvalResult, DriftError> {
         debug!("Processing workflow");
 
         let workflow_result = profile.workflow.run(Some(record.context.clone())).await?;

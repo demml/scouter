@@ -8,7 +8,7 @@ use scouter_settings::DatabaseSettings;
 use scouter_types::{RecordType, ServerRecords, ToDriftRecords};
 
 use sqlx::ConnectOptions;
-use sqlx::{postgres::PgConnectOptions, PgPool, Pool, Postgres};
+use sqlx::{postgres::PgConnectOptions, Pool, Postgres};
 use std::result::Result::Ok;
 use tracing::{debug, error, info, instrument};
 
@@ -42,10 +42,14 @@ impl PostgresClient {
         let mut opts: PgConnectOptions = database_settings.connection_uri.parse()?;
 
         // Sqlx logs a lot of debug information by default, which can be overwhelming.
-        // TODO: In the future, we may want to make this configurable.
-        opts = opts.log_statements(log::LevelFilter::Off);
 
-        let pool = match PgPool::connect_with(opts).await {
+        opts = opts.log_statements(tracing::log::LevelFilter::Off);
+
+        let pool = match sqlx::postgres::PgPoolOptions::new()
+            .max_connections(database_settings.max_connections)
+            .connect_with(opts)
+            .await
+        {
             Ok(pool) => {
                 info!("✅ Successfully connected to database");
                 pool
@@ -796,6 +800,7 @@ mod tests {
                 score: Value::Null,
                 processing_started_at: None,
                 processing_ended_at: None,
+                processing_duration: None,
             };
 
             let result = PostgresClient::insert_llm_drift_record(&pool, &record)
@@ -833,6 +838,7 @@ mod tests {
             &pool,
             &pending_tasks.unwrap(),
             Status::Processed,
+            Some(1),
         )
         .await
         .unwrap();
@@ -878,6 +884,7 @@ mod tests {
                 updated_at: None,
                 processing_started_at: None,
                 processing_ended_at: None,
+                processing_duration: None,
             };
 
             let result = PostgresClient::insert_llm_drift_record(&pool, &record)

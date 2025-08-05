@@ -285,6 +285,9 @@ pub struct LLMDriftProfile {
     pub scouter_version: String,
 
     pub workflow: Workflow,
+
+    #[pyo3(get)]
+    pub metric_names: Vec<String>,
 }
 #[pymethods]
 impl LLMDriftProfile {
@@ -441,6 +444,7 @@ impl LLMDriftProfile {
         // Build a workflow from metrics
         let mut workflow = Workflow::new("llm_drift_workflow");
         let mut agents = HashMap::new();
+        let mut metric_names = Vec::new();
 
         // Create agents. We don't want to duplicate, so we check if the agent already exists.
         // if it doesn't, we create it.
@@ -465,6 +469,7 @@ impl LLMDriftProfile {
             let task = Task::new(&agent.id, prompt.clone(), &metric.name, None, None);
             validate_prompt_parameters(prompt, &metric.name)?;
             workflow.add_task(task)?;
+            metric_names.push(metric.name.clone());
         }
 
         config.alert_config.set_alert_conditions(&metrics);
@@ -474,6 +479,7 @@ impl LLMDriftProfile {
             metrics,
             scouter_version: scouter_version(),
             workflow,
+            metric_names,
         })
     }
 
@@ -503,11 +509,14 @@ impl LLMDriftProfile {
 
         config.alert_config.set_alert_conditions(&metrics);
 
+        let metric_names = metrics.iter().map(|m| m.name.clone()).collect();
+
         Ok(Self {
             config,
             metrics,
             scouter_version: scouter_version(),
             workflow,
+            metric_names,
         })
     }
 

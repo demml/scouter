@@ -38,7 +38,7 @@ impl PsiQueue {
         let last_publish: Arc<RwLock<DateTime<Utc>>> = Arc::new(RwLock::new(Utc::now()));
         let producer = RustScouterProducer::new(config).await?;
 
-        debug!("Creating PSI Queue");
+        debug!("Creating PSI Queue with capacity: {}", PSI_MAX_QUEUE_SIZE);
 
         let (stop_tx, stop_rx) = watch::channel(());
 

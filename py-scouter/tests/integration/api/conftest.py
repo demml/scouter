@@ -33,7 +33,7 @@ logger = RustyLogger.get_logger(
 
 
 def create_coherence_evaluation_prompt() -> Prompt:
-    user_message = dedent(
+    message = dedent(
         """
         You will be given a text passage to evaluate for coherence.
 
@@ -69,7 +69,7 @@ def create_coherence_evaluation_prompt() -> Prompt:
     ).strip()
 
     return Prompt(
-        user_message=user_message,
+        message=message,
         model="gpt-4o",
         provider="openai",
         response_format=Score,
@@ -200,12 +200,12 @@ def create_kafka_llm_app(profile_path: Path) -> FastAPI:
         logger.info("Starting up FastAPI app")
 
         app.state.agent = Agent(
-            system_message="You are a helpful assistant",
+            system_instruction="You are a helpful assistant",
             provider=Provider.OpenAI,
         )
 
         app.state.prompt = Prompt(
-            user_message="Answer the following question and provide a response with a score and reason: ${question}",
+            message="Answer the following question and provide a response with a score and reason: ${question}",
             model="gpt-4o",
             provider="openai",
             response_format=Score,
@@ -239,7 +239,7 @@ def create_kafka_llm_app(profile_path: Path) -> FastAPI:
         queue.insert(
             LLMRecord(
                 context={
-                    "input": bound_prompt.user_message[0].unwrap(),
+                    "input": bound_prompt.message[0].unwrap(),
                     "response": response.result,
                 },
             )

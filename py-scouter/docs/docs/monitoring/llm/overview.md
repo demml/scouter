@@ -62,7 +62,7 @@ metric = LLMMetric(
     alert_threshold=AlertThreshold.Below,
     alert_threshold_value=2.0,  # Alert if score is below 3 or less (5.0 - 2.0)
     prompt=Prompt(
-        user_message=reformulation_prompt,
+        message=reformulation_prompt,
         model="gpt-4o",
         provider="openai",
         response_format=Score
@@ -127,36 +127,36 @@ from scouter.drift import LLMDriftConfig, LLMMetric
 
 # Relevance prompt
 relevance_prompt = Prompt(
-    user_message=(
+    message=(
         "Given the following input and response, rate the relevance of the response to the input on a scale of 1 to 5.\n\n"
         "Input: ${input}\n" # (1)
         "Response: ${response}\n\n"
         "Provide a brief reason for your rating."
     ),
-    system_message="You are a helpful assistant that evaluates relevance.",
+    system_instruction="You are a helpful assistant that evaluates relevance.",
     response_format=Score
 )
 
 # Coherence prompt
 coherence_prompt = Prompt(
-    user_message=(
+    message=(
         "Given the following response, rate its coherence and logical consistency on a scale of 1 to 5.\n\n"
         "Response: ${response}\n\n"
         "Provide a brief reason for your rating."
     ),
-    system_message="You are a helpful assistant that evaluates coherence.",
+    system_instruction="You are a helpful assistant that evaluates coherence.",
     response_format=Score
 )
 
 final_eval_prompt = Prompt(
-    user_message=(
+    message=(
         "Given the previous relevance and coherence scores for a model response, "
         "determine if the response should PASS or FAIL quality control.\n\n"
         "If both scores are 4 or higher, return a score of 1 and reason 'Pass'. "
         "If either score is below 4, return a score of 0 and reason 'Fail'.\n\n"
         "Respond with a JSON object matching the Score schema."
     ),
-    system_message="You are a strict evaluator that only passes high-quality responses.",
+    system_instruction="You are a strict evaluator that only passes high-quality responses.",
     response_format=Score
 )
 

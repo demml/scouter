@@ -30,18 +30,18 @@ impl LLMPoller {
         &mut self,
         record: &LLMRecord,
         profile: &LLMDriftProfile,
-    ) -> Result<HashMap<String, Score>, DriftError> {
+    ) -> Result<(HashMap<String, Score>, Option<i32>), DriftError> {
         debug!("Processing workflow");
 
         match LLMEvaluator::process_drift_record(record, profile).await {
-            Ok((metrics, score_map)) => {
+            Ok((metrics, score_map, workflow_duration)) => {
                 PostgresClient::insert_llm_metric_values_batch(&self.db_pool, &metrics)
                     .await
                     .inspect_err(|e| {
                         error!("Failed to insert LLM metric values: {:?}", e);
                     })?;
 
-                return Ok(score_map);
+                return Ok((score_map, workflow_duration));
             }
             Err(e) => {
                 error!("Failed to process drift record: {:?}", e);
@@ -90,7 +90,7 @@ impl LLMPoller {
 
         loop {
             match self.process_drift_record(&task, &llm_profile).await {
-                Ok(result) => {
+                Ok((result, workflow_duration)) => {
                     task.score = serde_json::to_value(result).inspect_err(|e| {
                         error!("Failed to serialize score map: {:?}", e);
                     })?;
@@ -99,6 +99,7 @@ impl LLMPoller {
                         &self.db_pool,
                         &task,
                         Status::Processed,
+                        workflow_duration,
                     )
                     .await?;
                     break;
@@ -117,6 +118,7 @@ impl LLMPoller {
                             &self.db_pool,
                             &task,
                             Status::Failed,
+                            None,
                         )
                         .await?;
                         return Err(DriftError::LLMEvaluatorError(e.to_string()));
