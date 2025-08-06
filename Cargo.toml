@@ -68,7 +68,7 @@ num-traits = "0.*"
 object_store = { version = "0.*", features = ["aws", "azure", "gcp" ] }
 parquet = { version = ">=55.*", features = ["arrow"] }
 password-auth = "1.*"
-potato-head = { git = "https://github.com/demml/potatohead.git", branch = "main" }
+potato-head = "0.3.2"
 pyo3 = { version = ">=0.*, <1.0.0", features = ["chrono", "anyhow", "extension-module"] }
 rand = "0.9.*"
 rayon = "1.*"
