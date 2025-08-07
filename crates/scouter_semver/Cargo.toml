@@ -3,6 +3,8 @@ name = "scouter-semver"
 version = { workspace = true }
 edition = { workspace = true }
 repository = { workspace = true }
+license = "MIT"
+description = "Scouter semver logic"
 
 [lib]
 doctest = false
