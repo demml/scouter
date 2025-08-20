@@ -5,7 +5,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
 use tokio::sync::oneshot;
-use tracing::{debug, instrument};
+use tracing::{debug, error, instrument};
 
 #[derive(Debug)]
 pub enum Event {
@@ -84,19 +84,24 @@ impl QueueBus {
 
 impl QueueBus {
     /// Check if the bus is initialized
+    #[instrument(skip_all, name = "queuebus_init")]
     pub fn init(&self, id: &str) -> Result<(), EventError> {
         std::thread::sleep(std::time::Duration::from_millis(20));
         let mut attempts = 0;
+        debug!("Initializing QueueBus with id: {:?}", id);
+
         while !self.is_initialized() {
-            debug!("QueueBus is not initialized, waiting...");
             if attempts >= 100 {
+                error!(
+                    "Failed to initialize QueueBus after 100 attempts for id: {:?}",
+                    id
+                );
                 return Err(EventError::InitializationError);
             }
             attempts += 1;
-            std::thread::sleep(std::time::Duration::from_millis(10));
+            std::thread::sleep(std::time::Duration::from_millis(100));
 
             let event = Event::Init;
-            debug!("Initializing QueueBus with id: {:?}", id);
             self.publish(event)?;
         }
         Ok(())

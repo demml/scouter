@@ -249,6 +249,10 @@ impl ScouterQueue {
         self.transport_config.to_py(py)
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.queues.is_empty()
+    }
+
     /// Triggers a global shutdown for all queues
     ///
     /// # Example
@@ -270,6 +274,7 @@ impl ScouterQueue {
         }
 
         self.queues.clear();
+        debug!("All queues have been shutdown and cleared");
 
         Ok(())
     }
