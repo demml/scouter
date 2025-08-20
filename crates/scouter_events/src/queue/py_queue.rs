@@ -133,7 +133,6 @@ async fn handle_queue_events(
     config: TransportConfig,
     id: String,
     queue_runtime: Arc<tokio::runtime::Runtime>,
-    completion_tx: oneshot::Sender<()>,
     initialized: Arc<RwLock<bool>>,
 ) -> Result<(), EventError> {
     let mut queue = match QueueNum::new(drift_profile, config.clone(), queue_runtime).await {
@@ -174,7 +173,6 @@ async fn handle_queue_events(
             _ = &mut shutdown_rx => {
                 debug!("Shutdown signal received for queue {}", id);
                 queue.flush().await?;
-                completion_tx.send(()).map_err(|_| EventError::SignalCompletionError)?;
                 break;
             }
         }
@@ -186,7 +184,6 @@ async fn handle_queue_events(
 pub struct ScouterQueue {
     queues: HashMap<String, Py<QueueBus>>,
     _shared_runtime: Arc<tokio::runtime::Runtime>,
-    completion_rxs: HashMap<String, oneshot::Receiver<()>>,
     transport_config: TransportConfig,
 }
 
@@ -272,16 +269,6 @@ impl ScouterQueue {
                 .map_err(PyEventError::ShutdownQueueError)?;
         }
 
-        self._shared_runtime.block_on(async {
-            for (id, completion_rx) in self.completion_rxs.drain() {
-                completion_rx
-                    .await
-                    .map_err(EventError::ShutdownReceiverError)?;
-                debug!("Queue {} initialized successfully", id);
-            }
-            Ok::<_, PyEventError>(())
-        })?;
-
         self.queues.clear();
 
         Ok(())
@@ -317,7 +304,6 @@ impl ScouterQueue {
     ) -> Result<Self, PyEventError> {
         debug!("Creating ScouterQueue from path");
         let mut queues = HashMap::new();
-        let mut completion_rxs = HashMap::new();
 
         // assert transport config is not None
         if transport_config.is_none() {
@@ -335,9 +321,6 @@ impl ScouterQueue {
 
             // create startup channels to ensure queues are initialized before use
             //let (startup_tx, startup_rx) = oneshot::channel();
-
-            // create completion channels to ensure queues are flushed before shutdown
-            let (completion_tx, completion_rx) = oneshot::channel();
             let (bus, rx, shutdown_rx) = QueueBus::new();
 
             let queue_runtime = shared_runtime.clone();
@@ -355,7 +338,6 @@ impl ScouterQueue {
                     cloned_config,
                     id_clone,
                     queue_runtime,
-                    completion_tx,
                     initialized,
                 )
                 .await
@@ -372,14 +354,12 @@ impl ScouterQueue {
 
             let queue = Py::new(py, bus)?;
             queues.insert(id.clone(), queue);
-            completion_rxs.insert(id, completion_rx);
         }
 
         Ok(ScouterQueue {
             queues,
             // need to keep the runtime alive for the life of ScouterQueue
             _shared_runtime: shared_runtime,
-            completion_rxs,
             transport_config: config,
         })
     }
