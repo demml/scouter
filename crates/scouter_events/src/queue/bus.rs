@@ -84,7 +84,7 @@ impl QueueBus {
 
 impl QueueBus {
     /// Check if the bus is initialized
-    pub fn init(&self) -> Result<(), EventError> {
+    pub fn init(&self, id: &str) -> Result<(), EventError> {
         std::thread::sleep(std::time::Duration::from_millis(20));
         let mut attempts = 0;
         while !self.is_initialized() {
@@ -96,7 +96,7 @@ impl QueueBus {
             std::thread::sleep(std::time::Duration::from_millis(10));
 
             let event = Event::Init;
-            debug!("Initializing QueueBus");
+            debug!("Initializing QueueBus with id: {:?}", id);
             self.publish(event)?;
         }
         Ok(())

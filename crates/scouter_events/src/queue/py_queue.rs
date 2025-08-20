@@ -350,7 +350,7 @@ impl ScouterQueue {
             // Check bus initialization.
             // This will send an init event to ensure the spawned loop is working.
             // If loop is running, loop will set the initialized flag to true
-            bus.init()?;
+            bus.init(&id)?;
 
             let queue = Py::new(py, bus)?;
             queues.insert(id.clone(), queue);
