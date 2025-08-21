@@ -33,14 +33,12 @@ pub struct LLMQueue {
     last_publish: Arc<RwLock<DateTime<Utc>>>,
     capacity: usize,
     sample_rate_percentage: f64,
-    pub running: Arc<RwLock<bool>>,
 }
 
 impl LLMQueue {
     pub async fn new(
         drift_profile: LLMDriftProfile,
         config: TransportConfig,
-        running: Arc<RwLock<bool>>,
     ) -> Result<Self, EventError> {
         let sample_rate = drift_profile.config.sample_rate;
 
@@ -63,7 +61,6 @@ impl LLMQueue {
             last_publish,
             capacity: sample_rate,
             sample_rate_percentage,
-            running,
         };
 
         Ok(llm_queue)

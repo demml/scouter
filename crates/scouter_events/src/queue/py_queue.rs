@@ -60,8 +60,7 @@ impl QueueNum {
                 Ok(QueueNum::Custom(queue))
             }
             DriftProfile::LLM(llm_profile) => {
-                let queue =
-                    LLMQueue::new(llm_profile, transport_config, queue_running.clone()).await?;
+                let queue = LLMQueue::new(llm_profile, transport_config).await?;
                 Ok(QueueNum::LLM(queue))
             }
         }
@@ -139,15 +138,6 @@ impl QueueNum {
             QueueNum::LLM(queue) => queue.flush().await,
         }
     }
-
-    pub fn running(&self) -> Arc<RwLock<bool>> {
-        match self {
-            QueueNum::Spc(queue) => queue.running.clone(),
-            QueueNum::Psi(queue) => queue.running.clone(),
-            QueueNum::Custom(queue) => queue.running.clone(),
-            QueueNum::LLM(queue) => queue.running.clone(),
-        }
-    }
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -202,8 +192,6 @@ async fn handle_queue_events(
                         queue.flush().await?;
                         running = false;
 
-                        let mut events_running = events_running.write().unwrap();
-                        *events_running = false;
                     }
                 }
             }
