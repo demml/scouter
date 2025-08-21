@@ -1,6 +1,6 @@
 #![allow(clippy::useless_conversion)]
 use crate::error::{EventError, PyEventError};
-use crate::queue::bus::{Event, QueueBus};
+use crate::queue::bus::{Event, EventLoops, QueueBus};
 use crate::queue::custom::CustomQueue;
 use crate::queue::llm::LLMQueue;
 use crate::queue::psi::PsiQueue;
@@ -16,6 +16,8 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
 use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::task::JoinHandle;
+use tokio::time::Duration;
 use tracing::{debug, error, info, instrument};
 pub enum QueueNum {
     Spc(SpcQueue),
@@ -30,11 +32,11 @@ impl QueueNum {
         drift_profile: DriftProfile,
         queue_running: Arc<RwLock<bool>>,
         runtime: Arc<runtime::Runtime>,
+        background_loop: Arc<RwLock<Option<JoinHandle<()>>>>,
     ) -> Result<Self, EventError> {
         match drift_profile {
             DriftProfile::Spc(spc_profile) => {
-                let queue =
-                    SpcQueue::new(spc_profile, transport_config, queue_running.clone()).await?;
+                let queue = SpcQueue::new(spc_profile, transport_config).await?;
                 Ok(QueueNum::Spc(queue))
             }
             DriftProfile::Psi(psi_profile) => {
@@ -42,7 +44,7 @@ impl QueueNum {
                     psi_profile,
                     transport_config,
                     runtime,
-                    queue_running.clone(),
+                    background_loop.clone(),
                 )
                 .await?;
                 Ok(QueueNum::Psi(queue))
@@ -52,7 +54,7 @@ impl QueueNum {
                     custom_profile,
                     transport_config,
                     runtime,
-                    queue_running.clone(),
+                    background_loop.clone(),
                 )
                 .await?;
                 Ok(QueueNum::Custom(queue))
@@ -154,13 +156,12 @@ async fn handle_queue_events(
     transport_config: TransportConfig,
     drift_profile: DriftProfile,
     runtime: Arc<runtime::Runtime>,
-    queue_running: Arc<RwLock<bool>>,
     id: String,
 ) -> Result<(), EventError> {
     let mut queue = match QueueNum::new(
         transport_config,
         drift_profile,
-        queue_running.clone(),
+        queue_event_loops.clone(),
         runtime,
     )
     .await
@@ -191,10 +192,18 @@ async fn handle_queue_events(
                             }
                         }
                     },
+                    Event::Start => {
+                        debug!("Start event received for queue {}", id);
+                        let mut events_running = events_running.write().unwrap();
+                        *events_running = true;
+                    },
                     Event::Stop => {
                         debug!("Stop event received for queue {}", id);
                         queue.flush().await?;
                         running = false;
+
+                        let mut events_running = events_running.write().unwrap();
+                        *events_running = false;
                     }
                 }
             }
@@ -214,7 +223,7 @@ pub struct ScouterQueue {
     queues: HashMap<String, Py<QueueBus>>,
     _shared_runtime: Arc<tokio::runtime::Runtime>,
     transport_config: TransportConfig,
-    queue_states: HashMap<String, Arc<RwLock<bool>>>,
+    queue_event_loops: HashMap<String, Arc<RwLock<EventLoops>>>,
 }
 
 #[pymethods]
@@ -298,12 +307,31 @@ impl ScouterQueue {
     ///
     /// ```
     pub fn shutdown(&mut self, py: Python) -> Result<(), PyEventError> {
+        debug!("Starting ScouterQueue shutdown");
+
         // trigger shutdown for all queues
-        for queue in self.queues.values() {
+        for (id, queue) in &self.queues {
             let bound = queue.bind(py);
+            debug!("Sending shutdown signal to queue: {}", id);
             bound
                 .call_method0("shutdown")
                 .map_err(PyEventError::ShutdownQueueError)?;
+        }
+
+        // Step 2: Wait for all background tasks to complete
+        let max_wait_time = Duration::from_secs(10);
+        let start_time = std::time::Instant::now();
+        let check_interval = Duration::from_millis(50);
+
+        while start_time.elapsed() < max_wait_time {
+            let all_stopped = self.check_all_queues_stopped(py);
+
+            if all_stopped {
+                info!("All queues have stopped successfully");
+                break;
+            }
+
+            std::thread::sleep(check_interval);
         }
 
         self.queues.clear();
@@ -334,6 +362,22 @@ impl ScouterQueue {
         debug!("All queues have been shutdown and cleared");
 
         Ok(())
+    }
+
+    fn check_all_queues_stopped(&self, py: Python) -> bool {
+        for queue in self.queues.values() {
+            let bound = queue.bind(py);
+
+            // Check if the queue's running flag is false
+            if let Ok(running) = bound.getattr("running") {
+                if let Ok(is_running) = running.extract::<bool>() {
+                    if is_running {
+                        return false;
+                    }
+                }
+            }
+        }
+        true
     }
 }
 
@@ -389,7 +433,6 @@ impl ScouterQueue {
 
             // spawn a new thread for each queue
             let id_clone = id.clone();
-            queue_states.insert(id.clone(), queue_running.clone());
 
             // Just spawn the task without waiting for initialization
             shared_runtime.spawn(async move {

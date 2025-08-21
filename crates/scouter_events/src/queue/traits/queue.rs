@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime::Runtime;
 use tokio::sync::watch;
+use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
 
 use tracing::{debug, error, info, info_span, Instrument};
@@ -38,8 +39,7 @@ pub trait BackgroundTask {
         mut stop_rx: watch::Receiver<()>,
         queue_capacity: usize,
         label: &'static str,
-        running: Arc<RwLock<bool>>,
-    ) -> Result<(), EventError> {
+    ) -> Result<JoinHandle<()>, EventError> {
         let future = async move {
             loop {
                 tokio::select! {
@@ -84,20 +84,38 @@ pub trait BackgroundTask {
                         }
                     },
                     _ = stop_rx.changed() => {
+
+                        // Stop the background task and publish remaining records
+                        let mut final_batch = Vec::new();
+                        while let Some(item) = data_queue.pop() {
+                            final_batch.push(item);
+                        }
+
+                        if !final_batch.is_empty() {
+                            debug!("Processing final batch of {} items in {}", final_batch.len(), label);
+                            if let Ok(records) = processor.create_drift_records_from_batch(final_batch) {
+                                if let Err(e) = producer.publish(records).await {
+                                    error!("Failed to publish final batch in {}: {}", label, e);
+                                } else {
+                                    debug!("Successfully published final batch in {}", label);
+                                }
+                            }
+                        }
+
                         info!("Stopping background task");
                         if let Err(e) = producer.flush().await {
                             error!("Failed to flush producer: {}", e);
                         }
-                        *running.write().unwrap() = false;
                         break;
                     }
                 }
             }
+            debug!("Background task finished");
         };
 
         let span = info_span!("background_task", task = %label);
-        runtime.spawn(future.instrument(span));
-        Ok(())
+        let handle = runtime.spawn(future.instrument(span));
+        Ok(handle)
     }
 }
 

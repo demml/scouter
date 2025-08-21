@@ -12,6 +12,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
 use tokio::sync::watch;
+use tokio::task::JoinHandle;
 use tracing::debug;
 
 const PSI_MAX_QUEUE_SIZE: usize = 1000;
@@ -23,7 +24,7 @@ pub struct PsiQueue {
     last_publish: Arc<RwLock<DateTime<Utc>>>,
     stop_tx: Option<watch::Sender<()>>,
     capacity: usize,
-    pub running: Arc<RwLock<bool>>,
+    background_loop: Arc<RwLock<Option<JoinHandle<()>>>>,
 }
 
 impl PsiQueue {
@@ -31,7 +32,7 @@ impl PsiQueue {
         drift_profile: PsiDriftProfile,
         config: TransportConfig,
         runtime: Arc<runtime::Runtime>,
-        running: Arc<RwLock<bool>>,
+        background_loop: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
     ) -> Result<Self, EventError> {
         // ArrayQueue size is based on the max PSI queue size
 
@@ -51,11 +52,14 @@ impl PsiQueue {
             last_publish,
             stop_tx: Some(stop_tx),
             capacity: PSI_MAX_QUEUE_SIZE,
-            running,
+            background_loop,
         };
 
         debug!("Starting Background Task");
-        psi_queue.start_background_worker(queue, feature_queue, stop_rx, runtime)?;
+        let handle = psi_queue.start_background_worker(queue, feature_queue, stop_rx, runtime)?;
+
+        // update background loop
+        psi_queue.background_loop.write().unwrap().replace(handle);
 
         Ok(psi_queue)
     }
@@ -66,7 +70,7 @@ impl PsiQueue {
         feature_queue: Arc<PsiFeatureQueue>,
         stop_rx: watch::Receiver<()>,
         rt: Arc<tokio::runtime::Runtime>,
-    ) -> Result<(), EventError> {
+    ) -> Result<JoinHandle<()>, EventError> {
         self.start_background_task(
             metrics_queue,
             feature_queue,
@@ -76,7 +80,6 @@ impl PsiQueue {
             stop_rx,
             PSI_MAX_QUEUE_SIZE,
             "Psi Background Polling",
-            self.running.clone(),
         )
     }
 }
@@ -117,8 +120,7 @@ impl QueueMethods for PsiQueue {
         if let Some(stop_tx) = self.stop_tx.take() {
             let _ = stop_tx.send(());
         }
-        self.producer.flush().await?;
-        *self.running.write().unwrap() = false;
+
         Ok(())
     }
 }
