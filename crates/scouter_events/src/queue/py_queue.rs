@@ -32,6 +32,7 @@ impl QueueNum {
         drift_profile: DriftProfile,
         runtime: Arc<runtime::Runtime>,
         background_loop: Arc<RwLock<Option<JoinHandle<()>>>>,
+        background_loop_running: Arc<RwLock<bool>>,
     ) -> Result<Self, EventError> {
         match drift_profile {
             DriftProfile::Spc(spc_profile) => {
@@ -44,6 +45,7 @@ impl QueueNum {
                     transport_config,
                     runtime,
                     background_loop.clone(),
+                    background_loop_running.clone(),
                 )
                 .await?;
                 Ok(QueueNum::Psi(queue))
@@ -54,6 +56,7 @@ impl QueueNum {
                     transport_config,
                     runtime,
                     background_loop.clone(),
+                    background_loop_running.clone(),
                 )
                 .await?;
                 Ok(QueueNum::Custom(queue))
@@ -180,7 +183,8 @@ async fn handle_queue_events(
                     },
                     Event::Start => {
                         debug!("Start event received for queue {}", id);
-
+                        let mut events_running = events_running.write().unwrap();
+                        *events_running = true;
                     },
                     Event::Stop => {
                         debug!("Stop event received for queue {}", id);
