@@ -11,6 +11,7 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime::Runtime;
+use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
@@ -22,6 +23,10 @@ pub trait FeatureQueue: Send + Sync {
         &self,
         batch: Vec<T>,
     ) -> Result<ServerRecords, FeatureQueueError>;
+}
+
+pub enum BackgroundEvent {
+    Start,
 }
 
 pub trait BackgroundTask {
@@ -39,10 +44,20 @@ pub trait BackgroundTask {
         mut stop_rx: watch::Receiver<()>,
         queue_capacity: usize,
         label: &'static str,
+        mut rx: UnboundedReceiver<BackgroundEvent>,
+        background_loop_running: Arc<RwLock<bool>>,
     ) -> Result<JoinHandle<()>, EventError> {
         let future = async move {
             loop {
                 tokio::select! {
+                    Some(event) = rx.recv() => {
+                        match event {
+                            BackgroundEvent::Start => {
+                                debug!("Starting background task: {}", label);
+                                *background_loop_running.write().unwrap() = true;
+                            }
+                        }
+                    }
                     _ = sleep(Duration::from_secs(2)) => {
                         let now = Utc::now();
 

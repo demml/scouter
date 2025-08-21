@@ -17,8 +17,10 @@ pub enum Event {
 pub struct EventLoops {
     // track the loop that receives events
     pub event_loop: Arc<RwLock<Option<JoinHandle<()>>>>,
+    pub event_loop_running: Arc<RwLock<bool>>,
     // track the loop that processes background tasks (only applies to psi and custom)
     pub background_loop: Arc<RwLock<Option<JoinHandle<()>>>>,
+    pub background_loop_running: Arc<RwLock<bool>>,
 }
 
 /// QueueBus is an mpsc bus that allows for publishing events to subscribers.
@@ -28,6 +30,7 @@ pub struct EventLoops {
 pub struct QueueBus {
     tx: UnboundedSender<Event>,
     pub event_loops: Arc<RwLock<EventLoops>>,
+    pub running: Arc<RwLock<bool>>,
 }
 
 impl QueueBus {
@@ -37,10 +40,20 @@ impl QueueBus {
         let (tx, rx) = mpsc::unbounded_channel();
         let event_loops = Arc::new(RwLock::new(EventLoops {
             event_loop: Arc::new(RwLock::new(None)),
+            event_loop_running: Arc::new(RwLock::new(false)),
             background_loop: Arc::new(RwLock::new(None)),
+            background_loop_running: Arc::new(RwLock::new(false)),
         }));
+        let running = Arc::new(RwLock::new(false));
 
-        (Self { tx, event_loops }, rx)
+        (
+            Self {
+                tx,
+                event_loops,
+                running,
+            },
+            rx,
+        )
     }
 
     #[instrument(skip_all)]
@@ -69,6 +82,14 @@ impl QueueBus {
     pub fn shutdown(&mut self) -> Result<(), PyEventError> {
         // Signal shutdown
         let event = Event::Stop;
+        self.publish(event)?;
+        Ok(())
+    }
+
+    #[instrument(skip_all)]
+    pub fn start(&mut self) -> Result<(), PyEventError> {
+        // Signal start
+        let event = Event::Start;
         self.publish(event)?;
         Ok(())
     }

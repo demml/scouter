@@ -1,8 +1,8 @@
 use crate::error::EventError;
 use crate::producer::RustScouterProducer;
 use crate::queue::custom::feature_queue::CustomMetricFeatureQueue;
-use crate::queue::traits::BackgroundTask;
-use crate::queue::traits::QueueMethods;
+use crate::queue::traits::queue::BackgroundEvent;
+use crate::queue::traits::{BackgroundTask, QueueMethods};
 use crate::queue::types::TransportConfig;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -12,10 +12,10 @@ use scouter_types::Metrics;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
+use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tracing::debug;
-
 /// The following code is a custom queue implementation for handling custom metrics.
 /// It consists of a `CustomQueue` struct that manages a queue of metrics and a background task
 ///
@@ -45,6 +45,7 @@ impl CustomQueue {
         config: TransportConfig,
         runtime: Arc<runtime::Runtime>,
         background_loop: Arc<RwLock<Option<JoinHandle<()>>>>,
+        background_loop_running: Arc<RwLock<bool>>,
     ) -> Result<Self, EventError> {
         let sample_size = drift_profile.config.sample_size;
 
@@ -88,6 +89,7 @@ impl CustomQueue {
         feature_queue: Arc<CustomMetricFeatureQueue>,
         stop_rx: watch::Receiver<()>,
         rt: Arc<tokio::runtime::Runtime>,
+        mut rx: UnboundedReceiver<BackgroundEvent>,
     ) -> Result<JoinHandle<()>, EventError> {
         self.start_background_task(
             metrics_queue,
@@ -143,6 +145,7 @@ impl QueueMethods for CustomQueue {
         if let Some(stop_tx) = self.stop_tx.take() {
             let _ = stop_tx.send(());
         }
+        self.producer.flush().await?;
 
         // take the background handle
         let background_handle = {
@@ -154,6 +157,7 @@ impl QueueMethods for CustomQueue {
         if let Some(handle) = background_handle {
             let _ = handle.await?;
         }
+        debug!("Custom Background Task finished");
         Ok(())
     }
 }

@@ -1,9 +1,10 @@
+use crate::queue::traits::queue::BackgroundEvent;
 use futures::io;
 use pyo3::PyErr;
-use thiserror::Error;
 
 #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
 use rdkafka::error::KafkaError;
+use thiserror::Error;
 
 use crate::queue::bus::Event;
 
@@ -112,6 +113,9 @@ pub enum EventError {
 
     #[error(transparent)]
     SendEntityError(#[from] tokio::sync::mpsc::error::SendError<Event>),
+
+    #[error(transparent)]
+    SendBackgroundEventError(#[from] tokio::sync::mpsc::error::SendError<BackgroundEvent>),
 
     #[error("Failed to push to queue. Queue is full")]
     QueuePushError,

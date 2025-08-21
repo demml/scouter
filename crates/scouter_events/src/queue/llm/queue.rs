@@ -115,7 +115,6 @@ impl QueueMethods for LLMQueue {
         // publish any remaining drift records
         self.try_publish(self.queue()).await?;
         self.producer.flush().await?;
-        *self.running.write().unwrap() = false;
         Ok(())
     }
 }

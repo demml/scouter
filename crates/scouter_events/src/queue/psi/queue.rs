@@ -1,6 +1,7 @@
 use crate::error::EventError;
 use crate::producer::RustScouterProducer;
 use crate::queue::psi::feature_queue::PsiFeatureQueue;
+use crate::queue::traits::queue::BackgroundEvent;
 use crate::queue::traits::{BackgroundTask, QueueMethods};
 use crate::queue::types::TransportConfig;
 use async_trait::async_trait;
@@ -11,10 +12,11 @@ use scouter_types::Features;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
+use tokio::sync::mpsc;
+use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tracing::debug;
-
 const PSI_MAX_QUEUE_SIZE: usize = 1000;
 
 pub struct PsiQueue {
@@ -33,6 +35,7 @@ impl PsiQueue {
         config: TransportConfig,
         runtime: Arc<runtime::Runtime>,
         background_loop: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
+        background_loop_running: Arc<RwLock<bool>>,
     ) -> Result<Self, EventError> {
         // ArrayQueue size is based on the max PSI queue size
 
@@ -44,6 +47,7 @@ impl PsiQueue {
         debug!("Creating PSI Queue with capacity: {}", PSI_MAX_QUEUE_SIZE);
 
         let (stop_tx, stop_rx) = watch::channel(());
+        let (event_tx, event_rx) = mpsc::unbounded_channel();
 
         let psi_queue = PsiQueue {
             queue: queue.clone(),
@@ -56,12 +60,40 @@ impl PsiQueue {
         };
 
         debug!("Starting Background Task");
-        let handle = psi_queue.start_background_worker(queue, feature_queue, stop_rx, runtime)?;
+        let handle = psi_queue.start_background_worker(
+            queue,
+            feature_queue,
+            stop_rx,
+            runtime,
+            background_loop_running.clone(),
+            event_rx,
+        )?;
 
         // update background loop
         psi_queue.background_loop.write().unwrap().replace(handle);
 
+        // wait for the background task to be ready
+        psi_queue
+            .wait_for_background_task(event_tx, background_loop_running)
+            .await?;
+
         Ok(psi_queue)
+    }
+
+    /// Waits for the background task to be ready
+    async fn wait_for_background_task(
+        &self,
+        event_tx: mpsc::UnboundedSender<BackgroundEvent>,
+        background_loop_running: Arc<RwLock<bool>>,
+    ) -> Result<(), EventError> {
+        event_tx.send(BackgroundEvent::Start)?;
+
+        // wait for the background_loop_running to be true
+        while !*background_loop_running.read().unwrap() {
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+
+        Ok(())
     }
 
     fn start_background_worker(
@@ -70,6 +102,8 @@ impl PsiQueue {
         feature_queue: Arc<PsiFeatureQueue>,
         stop_rx: watch::Receiver<()>,
         rt: Arc<tokio::runtime::Runtime>,
+        background_loop_running: Arc<RwLock<bool>>,
+        event_rx: UnboundedReceiver<BackgroundEvent>,
     ) -> Result<JoinHandle<()>, EventError> {
         self.start_background_task(
             metrics_queue,
@@ -80,6 +114,8 @@ impl PsiQueue {
             stop_rx,
             PSI_MAX_QUEUE_SIZE,
             "Psi Background Polling",
+            event_rx,
+            background_loop_running,
         )
     }
 }
@@ -121,6 +157,8 @@ impl QueueMethods for PsiQueue {
             let _ = stop_tx.send(());
         }
 
+        self.producer.flush().await?;
+
         // take the background handle
         let background_handle = {
             let mut guard = self.background_loop.write().unwrap();
@@ -131,6 +169,8 @@ impl QueueMethods for PsiQueue {
         if let Some(handle) = background_handle {
             let _ = handle.await?;
         }
+
+        debug!("PSI Background Task finished");
 
         Ok(())
     }

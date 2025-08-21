@@ -30,7 +30,6 @@ impl QueueNum {
     pub async fn new(
         transport_config: TransportConfig,
         drift_profile: DriftProfile,
-        queue_running: Arc<RwLock<bool>>,
         runtime: Arc<runtime::Runtime>,
         background_loop: Arc<RwLock<Option<JoinHandle<()>>>>,
     ) -> Result<Self, EventError> {
@@ -147,20 +146,17 @@ async fn handle_queue_events(
     drift_profile: DriftProfile,
     runtime: Arc<runtime::Runtime>,
     id: String,
+    background_loop: Arc<RwLock<Option<JoinHandle<()>>>>,
 ) -> Result<(), EventError> {
     let mut queue = match QueueNum::new(
         transport_config,
         drift_profile,
-        queue_event_loops.clone(),
         runtime,
+        background_loop.clone(),
     )
     .await
     {
-        Ok(q) => {
-            // set running to true
-            *queue_running.write().unwrap() = true;
-            q
-        }
+        Ok(q) => q,
         Err(e) => {
             error!("Failed to initialize queue {}: {}", id, e);
             return Err(e);
@@ -184,8 +180,7 @@ async fn handle_queue_events(
                     },
                     Event::Start => {
                         debug!("Start event received for queue {}", id);
-                        let mut events_running = events_running.write().unwrap();
-                        *events_running = true;
+
                     },
                     Event::Stop => {
                         debug!("Stop event received for queue {}", id);
