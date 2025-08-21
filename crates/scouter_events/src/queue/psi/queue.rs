@@ -121,6 +121,17 @@ impl QueueMethods for PsiQueue {
             let _ = stop_tx.send(());
         }
 
+        // take the background handle
+        let background_handle = {
+            let mut guard = self.background_loop.write().unwrap();
+            guard.take()
+        };
+
+        // await the background task to finish
+        if let Some(handle) = background_handle {
+            let _ = handle.await?;
+        }
+
         Ok(())
     }
 }

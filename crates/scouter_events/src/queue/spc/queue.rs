@@ -70,7 +70,6 @@ impl QueueMethods for SpcQueue {
 
     async fn flush(&mut self) -> Result<(), EventError> {
         self.producer.flush().await?;
-        *self.running.write().unwrap() = false;
         Ok(())
     }
 }

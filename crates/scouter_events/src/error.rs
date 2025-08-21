@@ -157,6 +157,9 @@ pub enum EventError {
 
     #[error("Failed to initialize QueueBus")]
     InitializationError,
+
+    #[error(transparent)]
+    JoinError(#[from] tokio::task::JoinError),
 }
 
 #[derive(Error, Debug)]
