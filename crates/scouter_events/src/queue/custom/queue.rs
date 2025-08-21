@@ -12,6 +12,7 @@ use scouter_types::Metrics;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
+use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
@@ -59,6 +60,7 @@ impl CustomQueue {
         let producer = RustScouterProducer::new(config).await?;
 
         let (stop_tx, stop_rx) = watch::channel(());
+        let (event_tx, event_rx) = mpsc::unbounded_channel();
 
         let custom_queue = CustomQueue {
             queue: metrics_queue.clone(),
@@ -71,14 +73,24 @@ impl CustomQueue {
         };
 
         debug!("Starting Background Task");
-        let handle =
-            custom_queue.start_background_worker(metrics_queue, feature_queue, stop_rx, runtime)?;
+        let handle = custom_queue.start_background_worker(
+            metrics_queue,
+            feature_queue,
+            stop_rx,
+            runtime,
+            background_loop_running.clone(),
+            event_rx,
+        )?;
 
         custom_queue
             .background_loop
             .write()
             .unwrap()
             .replace(handle);
+
+        custom_queue
+            .wait_for_background_task(event_tx, background_loop_running)
+            .await?;
 
         Ok(custom_queue)
     }
@@ -89,7 +101,8 @@ impl CustomQueue {
         feature_queue: Arc<CustomMetricFeatureQueue>,
         stop_rx: watch::Receiver<()>,
         rt: Arc<tokio::runtime::Runtime>,
-        mut rx: UnboundedReceiver<BackgroundEvent>,
+        background_loop_running: Arc<RwLock<bool>>,
+        event_rx: UnboundedReceiver<BackgroundEvent>,
     ) -> Result<JoinHandle<()>, EventError> {
         self.start_background_task(
             metrics_queue,
@@ -100,6 +113,8 @@ impl CustomQueue {
             stop_rx,
             self.capacity,
             "Custom Background Polling",
+            event_rx,
+            background_loop_running,
         )
     }
 }

@@ -11,11 +11,11 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime::Runtime;
+use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
-
 use tracing::{debug, error, info, info_span, Instrument};
 
 pub trait FeatureQueue: Send + Sync {
@@ -236,5 +236,20 @@ pub trait QueueMethods {
         }
 
         Err(EventError::QueuePushRetryError)
+    }
+
+    async fn wait_for_background_task(
+        &self,
+        event_tx: mpsc::UnboundedSender<BackgroundEvent>,
+        background_loop_running: Arc<RwLock<bool>>,
+    ) -> Result<(), EventError> {
+        event_tx.send(BackgroundEvent::Start)?;
+
+        // wait for the background_loop_running to be true
+        while !*background_loop_running.read().unwrap() {
+            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        }
+
+        Ok(())
     }
 }

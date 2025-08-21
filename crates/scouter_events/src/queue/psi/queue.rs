@@ -80,22 +80,6 @@ impl PsiQueue {
         Ok(psi_queue)
     }
 
-    /// Waits for the background task to be ready
-    async fn wait_for_background_task(
-        &self,
-        event_tx: mpsc::UnboundedSender<BackgroundEvent>,
-        background_loop_running: Arc<RwLock<bool>>,
-    ) -> Result<(), EventError> {
-        event_tx.send(BackgroundEvent::Start)?;
-
-        // wait for the background_loop_running to be true
-        while !*background_loop_running.read().unwrap() {
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
-        }
-
-        Ok(())
-    }
-
     fn start_background_worker(
         &self,
         metrics_queue: Arc<ArrayQueue<Features>>,
