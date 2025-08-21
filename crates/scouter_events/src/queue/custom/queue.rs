@@ -35,6 +35,7 @@ pub struct CustomQueue {
     last_publish: Arc<RwLock<DateTime<Utc>>>,
     stop_tx: Option<watch::Sender<()>>,
     capacity: usize,
+    pub running: Arc<RwLock<bool>>,
 }
 
 impl CustomQueue {
@@ -42,6 +43,7 @@ impl CustomQueue {
         drift_profile: CustomDriftProfile,
         config: TransportConfig,
         runtime: Arc<runtime::Runtime>,
+        running: Arc<RwLock<bool>>,
     ) -> Result<Self, EventError> {
         let sample_size = drift_profile.config.sample_size;
 
@@ -62,8 +64,8 @@ impl CustomQueue {
             producer,
             last_publish,
             stop_tx: Some(stop_tx),
-
             capacity: sample_size,
+            running,
         };
 
         debug!("Starting Background Task");
@@ -88,6 +90,7 @@ impl CustomQueue {
             stop_rx,
             self.capacity,
             "Custom Background Polling",
+            self.running.clone(),
         )
     }
 }
@@ -133,6 +136,8 @@ impl QueueMethods for CustomQueue {
         if let Some(stop_tx) = self.stop_tx.take() {
             let _ = stop_tx.send(());
         }
-        self.producer.flush().await
+        self.producer.flush().await?;
+        *self.running.write().unwrap() = false;
+        Ok(())
     }
 }

@@ -38,6 +38,7 @@ pub trait BackgroundTask {
         mut stop_rx: watch::Receiver<()>,
         queue_capacity: usize,
         label: &'static str,
+        running: Arc<RwLock<bool>>,
     ) -> Result<(), EventError> {
         let future = async move {
             loop {
@@ -87,6 +88,7 @@ pub trait BackgroundTask {
                         if let Err(e) = producer.flush().await {
                             error!("Failed to flush producer: {}", e);
                         }
+                        *running.write().unwrap() = false;
                         break;
                     }
                 }

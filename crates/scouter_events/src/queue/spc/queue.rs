@@ -16,12 +16,14 @@ pub struct SpcQueue {
     producer: RustScouterProducer,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
     capacity: usize,
+    pub running: Arc<RwLock<bool>>,
 }
 
 impl SpcQueue {
     pub async fn new(
         drift_profile: SpcDriftProfile,
         config: TransportConfig,
+        running: Arc<RwLock<bool>>,
     ) -> Result<Self, EventError> {
         let sample_size = drift_profile.config.sample_size;
         let queue = Arc::new(ArrayQueue::new(sample_size * 2)); // Add extra space for buffer
@@ -35,6 +37,7 @@ impl SpcQueue {
             producer,
             last_publish,
             capacity: sample_size,
+            running,
         })
     }
 }
@@ -69,6 +72,8 @@ impl QueueMethods for SpcQueue {
     }
 
     async fn flush(&mut self) -> Result<(), EventError> {
-        self.producer.flush().await
+        self.producer.flush().await?;
+        *self.running.write().unwrap() = false;
+        Ok(())
     }
 }

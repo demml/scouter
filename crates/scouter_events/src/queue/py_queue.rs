@@ -13,37 +13,53 @@ use scouter_types::{Features, Metrics};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::RwLock;
+use tokio::runtime;
 use tokio::sync::mpsc::UnboundedReceiver;
-use tracing::{debug, error, instrument};
-
+use tracing::{debug, error, info, instrument};
 pub enum QueueNum {
     Spc(SpcQueue),
     Psi(PsiQueue),
     Custom(CustomQueue),
     LLM(LLMQueue),
 }
-
+// need to add queue running lock to each and return it to the queue bus
 impl QueueNum {
     pub async fn new(
+        transport_config: TransportConfig,
         drift_profile: DriftProfile,
-        config: TransportConfig,
-        queue_runtime: Arc<tokio::runtime::Runtime>,
+        queue_running: Arc<RwLock<bool>>,
+        runtime: Arc<runtime::Runtime>,
     ) -> Result<Self, EventError> {
         match drift_profile {
             DriftProfile::Spc(spc_profile) => {
-                let queue = SpcQueue::new(spc_profile, config).await?;
+                let queue =
+                    SpcQueue::new(spc_profile, transport_config, queue_running.clone()).await?;
                 Ok(QueueNum::Spc(queue))
             }
             DriftProfile::Psi(psi_profile) => {
-                let queue = PsiQueue::new(psi_profile, config, queue_runtime).await?;
+                let queue = PsiQueue::new(
+                    psi_profile,
+                    transport_config,
+                    runtime,
+                    queue_running.clone(),
+                )
+                .await?;
                 Ok(QueueNum::Psi(queue))
             }
             DriftProfile::Custom(custom_profile) => {
-                let queue = CustomQueue::new(custom_profile, config, queue_runtime).await?;
+                let queue = CustomQueue::new(
+                    custom_profile,
+                    transport_config,
+                    runtime,
+                    queue_running.clone(),
+                )
+                .await?;
                 Ok(QueueNum::Custom(queue))
             }
             DriftProfile::LLM(llm_profile) => {
-                let queue = LLMQueue::new(llm_profile, config).await?;
+                let queue =
+                    LLMQueue::new(llm_profile, transport_config, queue_running.clone()).await?;
                 Ok(QueueNum::LLM(queue))
             }
         }
@@ -121,23 +137,45 @@ impl QueueNum {
             QueueNum::LLM(queue) => queue.flush().await,
         }
     }
+
+    pub fn running(&self) -> Arc<RwLock<bool>> {
+        match self {
+            QueueNum::Spc(queue) => queue.running.clone(),
+            QueueNum::Psi(queue) => queue.running.clone(),
+            QueueNum::Custom(queue) => queue.running.clone(),
+            QueueNum::LLM(queue) => queue.running.clone(),
+        }
+    }
 }
 
 #[allow(clippy::too_many_arguments)]
 async fn handle_queue_events(
     mut rx: UnboundedReceiver<Event>,
+    transport_config: TransportConfig,
     drift_profile: DriftProfile,
-    config: TransportConfig,
+    runtime: Arc<runtime::Runtime>,
+    queue_running: Arc<RwLock<bool>>,
     id: String,
-    queue_runtime: Arc<tokio::runtime::Runtime>,
 ) -> Result<(), EventError> {
-    let mut queue = match QueueNum::new(drift_profile, config.clone(), queue_runtime).await {
-        Ok(q) => q,
+    let mut queue = match QueueNum::new(
+        transport_config,
+        drift_profile,
+        queue_running.clone(),
+        runtime,
+    )
+    .await
+    {
+        Ok(q) => {
+            // set running to true
+            *queue_running.write().unwrap() = true;
+            q
+        }
         Err(e) => {
             error!("Failed to initialize queue {}: {}", id, e);
             return Err(e);
         }
     };
+
     let mut running = true;
     while running {
         tokio::select! {
@@ -176,6 +214,7 @@ pub struct ScouterQueue {
     queues: HashMap<String, Py<QueueBus>>,
     _shared_runtime: Arc<tokio::runtime::Runtime>,
     transport_config: TransportConfig,
+    queue_states: HashMap<String, Arc<RwLock<bool>>>,
 }
 
 #[pymethods]
@@ -245,6 +284,9 @@ impl ScouterQueue {
     }
 
     /// Triggers a global shutdown for all queues
+    /// 1. This will call shutdown for all queues
+    /// 2. The queues will be cleared from the hashmap
+    /// 3. A loop will be run to ensure all background tasks have been shut down
     ///
     /// # Example
     ///
@@ -267,12 +309,30 @@ impl ScouterQueue {
         self.queues.clear();
         debug!("All queues have been shutdown and cleared");
 
-        // assert self.queues.is_empty()
-        if self.queues.is_empty() {
-            Ok(())
-        } else {
-            Err(PyEventError::PendingEventsError)
+        if !self.queues.is_empty() {
+            return Err(PyEventError::PendingEventsError);
         }
+
+        let mut queues_stopped = false;
+        let max_retries = 10;
+        let mut retries = 0;
+
+        while !queues_stopped {
+            let all_stopped = self.all_queues_stopped();
+            if all_stopped {
+                info!("All queues have stopped successfully");
+                queues_stopped = true;
+            } else {
+                retries += 1;
+                if retries > max_retries {
+                    error!("Queues did not stop in time");
+                    break;
+                }
+                std::thread::sleep(std::time::Duration::from_millis(100));
+            }
+        }
+
+        Ok(())
     }
 }
 
@@ -305,6 +365,7 @@ impl ScouterQueue {
     ) -> Result<Self, PyEventError> {
         debug!("Creating ScouterQueue from path");
         let mut queues = HashMap::new();
+        let mut queue_states = HashMap::new();
 
         // assert transport config is not None
         if transport_config.is_none() {
@@ -319,23 +380,32 @@ impl ScouterQueue {
         for (id, profile_path) in path {
             let cloned_config = config.clone();
             let drift_profile = DriftProfile::from_profile_path(profile_path)?;
+            let queue_running = Arc::new(RwLock::new(false));
 
             // create startup channels to ensure queues are initialized before use
-            //let (startup_tx, startup_rx) = oneshot::channel();
             let (bus, rx) = QueueBus::new();
-
-            let queue_runtime = shared_runtime.clone();
+            let clone_runtime = shared_runtime.clone();
 
             // spawn a new thread for each queue
             let id_clone = id.clone();
+            queue_states.insert(id.clone(), queue_running.clone());
 
             // Just spawn the task without waiting for initialization
             shared_runtime.spawn(async move {
-                match handle_queue_events(rx, drift_profile, cloned_config, id_clone, queue_runtime)
-                    .await
+                match handle_queue_events(
+                    rx,
+                    cloned_config,
+                    drift_profile,
+                    clone_runtime,
+                    queue_running.clone(),
+                    id_clone,
+                )
+                .await
                 {
-                    Ok(_) => debug!("Queue handler started successfully"),
-                    Err(e) => error!("Queue handler exited with error: {}", e),
+                    Ok(running) => running,
+                    Err(e) => {
+                        error!("Queue initialization failed: {}", e);
+                    }
                 }
             });
 
@@ -348,6 +418,20 @@ impl ScouterQueue {
             // need to keep the runtime alive for the life of ScouterQueue
             _shared_runtime: shared_runtime,
             transport_config: config,
+            queue_states,
         })
+    }
+
+    pub fn is_queue_running(&self, id: &str) -> bool {
+        if let Some(queue) = self.queue_states.get(id) {
+            return *queue.read().unwrap();
+        }
+        false
+    }
+
+    pub fn all_queues_stopped(&self) -> bool {
+        self.queue_states
+            .keys()
+            .all(|id| !self.is_queue_running(id))
     }
 }

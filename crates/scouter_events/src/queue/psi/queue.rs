@@ -23,6 +23,7 @@ pub struct PsiQueue {
     last_publish: Arc<RwLock<DateTime<Utc>>>,
     stop_tx: Option<watch::Sender<()>>,
     capacity: usize,
+    pub running: Arc<RwLock<bool>>,
 }
 
 impl PsiQueue {
@@ -30,6 +31,7 @@ impl PsiQueue {
         drift_profile: PsiDriftProfile,
         config: TransportConfig,
         runtime: Arc<runtime::Runtime>,
+        running: Arc<RwLock<bool>>,
     ) -> Result<Self, EventError> {
         // ArrayQueue size is based on the max PSI queue size
 
@@ -49,6 +51,7 @@ impl PsiQueue {
             last_publish,
             stop_tx: Some(stop_tx),
             capacity: PSI_MAX_QUEUE_SIZE,
+            running,
         };
 
         debug!("Starting Background Task");
@@ -73,6 +76,7 @@ impl PsiQueue {
             stop_rx,
             PSI_MAX_QUEUE_SIZE,
             "Psi Background Polling",
+            self.running.clone(),
         )
     }
 }
@@ -113,7 +117,9 @@ impl QueueMethods for PsiQueue {
         if let Some(stop_tx) = self.stop_tx.take() {
             let _ = stop_tx.send(());
         }
-        self.producer.flush().await
+        self.producer.flush().await?;
+        *self.running.write().unwrap() = false;
+        Ok(())
     }
 }
 
