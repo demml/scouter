@@ -307,14 +307,13 @@ impl ScouterQueue {
         }
 
         self.queues.clear();
-        debug!("All queues have been shutdown and cleared");
 
         if !self.queues.is_empty() {
             return Err(PyEventError::PendingEventsError);
         }
 
         let mut queues_stopped = false;
-        let max_retries = 10;
+        let max_retries = 100;
         let mut retries = 0;
 
         while !queues_stopped {
@@ -331,6 +330,8 @@ impl ScouterQueue {
                 std::thread::sleep(std::time::Duration::from_millis(100));
             }
         }
+
+        debug!("All queues have been shutdown and cleared");
 
         Ok(())
     }
@@ -430,8 +431,10 @@ impl ScouterQueue {
     }
 
     pub fn all_queues_stopped(&self) -> bool {
-        self.queue_states
-            .keys()
-            .all(|id| !self.is_queue_running(id))
+        self.queue_states.keys().all(|id| {
+            let running = self.is_queue_running(id);
+            info!("queue {} is running: {}", id, running);
+            !running
+        })
     }
 }
