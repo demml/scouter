@@ -127,7 +127,7 @@ impl QueueMethods for PsiQueue {
             guard.take()
         };
 
-        // await the background task to finish
+        // await the background task to finish (may need to add an abort in here later)
         if let Some(handle) = background_handle {
             let _ = handle.await?;
         }

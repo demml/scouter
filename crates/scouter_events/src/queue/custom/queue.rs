@@ -13,6 +13,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
 use tokio::sync::watch;
+use tokio::task::JoinHandle;
 use tracing::debug;
 
 /// The following code is a custom queue implementation for handling custom metrics.
@@ -35,7 +36,7 @@ pub struct CustomQueue {
     last_publish: Arc<RwLock<DateTime<Utc>>>,
     stop_tx: Option<watch::Sender<()>>,
     capacity: usize,
-    pub running: Arc<RwLock<bool>>,
+    pub background_loop: Arc<RwLock<Option<JoinHandle<()>>>>,
 }
 
 impl CustomQueue {
@@ -43,7 +44,7 @@ impl CustomQueue {
         drift_profile: CustomDriftProfile,
         config: TransportConfig,
         runtime: Arc<runtime::Runtime>,
-        running: Arc<RwLock<bool>>,
+        background_loop: Arc<RwLock<Option<JoinHandle<()>>>>,
     ) -> Result<Self, EventError> {
         let sample_size = drift_profile.config.sample_size;
 
@@ -65,11 +66,18 @@ impl CustomQueue {
             last_publish,
             stop_tx: Some(stop_tx),
             capacity: sample_size,
-            running,
+            background_loop,
         };
 
         debug!("Starting Background Task");
-        custom_queue.start_background_worker(metrics_queue, feature_queue, stop_rx, runtime)?;
+        let handle =
+            custom_queue.start_background_worker(metrics_queue, feature_queue, stop_rx, runtime)?;
+
+        custom_queue
+            .background_loop
+            .write()
+            .unwrap()
+            .replace(handle);
 
         Ok(custom_queue)
     }
@@ -80,7 +88,7 @@ impl CustomQueue {
         feature_queue: Arc<CustomMetricFeatureQueue>,
         stop_rx: watch::Receiver<()>,
         rt: Arc<tokio::runtime::Runtime>,
-    ) -> Result<(), EventError> {
+    ) -> Result<JoinHandle<()>, EventError> {
         self.start_background_task(
             metrics_queue,
             feature_queue,
@@ -90,7 +98,6 @@ impl CustomQueue {
             stop_rx,
             self.capacity,
             "Custom Background Polling",
-            self.running.clone(),
         )
     }
 }
@@ -136,8 +143,17 @@ impl QueueMethods for CustomQueue {
         if let Some(stop_tx) = self.stop_tx.take() {
             let _ = stop_tx.send(());
         }
-        self.producer.flush().await?;
-        *self.running.write().unwrap() = false;
+
+        // take the background handle
+        let background_handle = {
+            let mut guard = self.background_loop.write().unwrap();
+            guard.take()
+        };
+
+        // await the background task to finish (may need to add an abort in here later)
+        if let Some(handle) = background_handle {
+            let _ = handle.await?;
+        }
         Ok(())
     }
 }
