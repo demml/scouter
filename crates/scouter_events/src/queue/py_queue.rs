@@ -150,12 +150,14 @@ async fn handle_queue_events(
     runtime: Arc<runtime::Runtime>,
     id: String,
     background_loop: Arc<RwLock<Option<JoinHandle<()>>>>,
+    background_loop_running: Arc<RwLock<bool>>,
 ) -> Result<(), EventError> {
     let mut queue = match QueueNum::new(
         transport_config,
         drift_profile,
         runtime,
         background_loop.clone(),
+        background_loop_running.clone(),
     )
     .await
     {
