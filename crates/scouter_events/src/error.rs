@@ -187,6 +187,9 @@ pub enum PyEventError {
 
     #[error("Failed to convert TransportConfig type to py object: {0}")]
     ConvertToPyError(#[source] pyo3::PyErr),
+
+    #[error("Failed to clear all queues. Pending events exist")]
+    PendingEventsError,
 }
 impl From<PyEventError> for PyErr {
     fn from(err: PyEventError) -> PyErr {

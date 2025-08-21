@@ -267,7 +267,12 @@ impl ScouterQueue {
         self.queues.clear();
         debug!("All queues have been shutdown and cleared");
 
-        Ok(())
+        // assert self.queues.is_empty()
+        if self.queues.is_empty() {
+            Ok(())
+        } else {
+            Err(PyEventError::PendingEventsError)
+        }
     }
 }
 
