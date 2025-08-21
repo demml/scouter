@@ -164,6 +164,9 @@ pub enum EventError {
 
     #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
+
+    #[error("Event loop failed to start")]
+    EventLoopFailedToStartError,
 }
 
 #[derive(Error, Debug)]

@@ -1,5 +1,6 @@
 use crate::error::EventError;
 use crate::producer::RustScouterProducer;
+use crate::queue::bus::EventLoops;
 use crate::queue::psi::feature_queue::PsiFeatureQueue;
 use crate::queue::traits::queue::BackgroundEvent;
 use crate::queue::traits::{BackgroundTask, QueueMethods};
@@ -12,7 +13,6 @@ use scouter_types::Features;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
-use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
@@ -27,6 +27,7 @@ pub struct PsiQueue {
     stop_tx: Option<watch::Sender<()>>,
     capacity: usize,
     background_loop: Arc<RwLock<Option<JoinHandle<()>>>>,
+    background_loop_running: Arc<RwLock<bool>>,
 }
 
 impl PsiQueue {
@@ -34,8 +35,8 @@ impl PsiQueue {
         drift_profile: PsiDriftProfile,
         config: TransportConfig,
         runtime: Arc<runtime::Runtime>,
-        background_loop: Arc<RwLock<Option<tokio::task::JoinHandle<()>>>>,
-        background_loop_running: Arc<RwLock<bool>>,
+        event_loops: Arc<EventLoops>,
+        background_event_rx: UnboundedReceiver<BackgroundEvent>,
     ) -> Result<Self, EventError> {
         // ArrayQueue size is based on the max PSI queue size
 
@@ -47,7 +48,6 @@ impl PsiQueue {
         debug!("Creating PSI Queue with capacity: {}", PSI_MAX_QUEUE_SIZE);
 
         let (stop_tx, stop_rx) = watch::channel(());
-        let (event_tx, event_rx) = mpsc::unbounded_channel();
 
         let psi_queue = PsiQueue {
             queue: queue.clone(),
@@ -56,7 +56,8 @@ impl PsiQueue {
             last_publish,
             stop_tx: Some(stop_tx),
             capacity: PSI_MAX_QUEUE_SIZE,
-            background_loop,
+            background_loop: event_loops.background_loop.clone(),
+            background_loop_running: event_loops.background_loop_running.clone(),
         };
 
         debug!("Starting Background Task");
@@ -65,8 +66,8 @@ impl PsiQueue {
             feature_queue,
             stop_rx,
             runtime,
-            background_loop_running.clone(),
-            event_rx,
+            event_loops.background_loop_running.clone(),
+            background_event_rx,
         )?;
 
         // update background loop
@@ -74,7 +75,10 @@ impl PsiQueue {
 
         // wait for the background task to be ready
         psi_queue
-            .wait_for_background_task(event_tx, background_loop_running)
+            .wait_for_background_task(
+                event_loops.background_tx.clone(),
+                event_loops.background_loop_running.clone(),
+            )
             .await?;
 
         Ok(psi_queue)
@@ -137,6 +141,8 @@ impl QueueMethods for PsiQueue {
     async fn flush(&mut self) -> Result<(), EventError> {
         // publish any remaining drift records
         self.try_publish(self.queue()).await?;
+
+        // stop the background worker
         if let Some(stop_tx) = self.stop_tx.take() {
             let _ = stop_tx.send(());
         }
@@ -152,6 +158,8 @@ impl QueueMethods for PsiQueue {
         // await the background task to finish (may need to add an abort in here later)
         if let Some(handle) = background_handle {
             let _ = handle.await?;
+            let mut background_loop_running = self.background_loop_running.write().unwrap();
+            *background_loop_running = false;
         }
 
         debug!("PSI Background Task finished");

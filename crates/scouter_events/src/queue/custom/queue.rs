@@ -1,5 +1,6 @@
 use crate::error::EventError;
 use crate::producer::RustScouterProducer;
+use crate::queue::bus::EventLoops;
 use crate::queue::custom::feature_queue::CustomMetricFeatureQueue;
 use crate::queue::traits::queue::BackgroundEvent;
 use crate::queue::traits::{BackgroundTask, QueueMethods};
@@ -12,7 +13,6 @@ use scouter_types::Metrics;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
-use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
@@ -38,6 +38,7 @@ pub struct CustomQueue {
     stop_tx: Option<watch::Sender<()>>,
     capacity: usize,
     pub background_loop: Arc<RwLock<Option<JoinHandle<()>>>>,
+    pub background_loop_running: Arc<RwLock<bool>>,
 }
 
 impl CustomQueue {
@@ -45,8 +46,8 @@ impl CustomQueue {
         drift_profile: CustomDriftProfile,
         config: TransportConfig,
         runtime: Arc<runtime::Runtime>,
-        background_loop: Arc<RwLock<Option<JoinHandle<()>>>>,
-        background_loop_running: Arc<RwLock<bool>>,
+        event_loops: Arc<EventLoops>,
+        background_event_rx: UnboundedReceiver<BackgroundEvent>,
     ) -> Result<Self, EventError> {
         let sample_size = drift_profile.config.sample_size;
 
@@ -60,7 +61,6 @@ impl CustomQueue {
         let producer = RustScouterProducer::new(config).await?;
 
         let (stop_tx, stop_rx) = watch::channel(());
-        let (event_tx, event_rx) = mpsc::unbounded_channel();
 
         let custom_queue = CustomQueue {
             queue: metrics_queue.clone(),
@@ -69,7 +69,8 @@ impl CustomQueue {
             last_publish,
             stop_tx: Some(stop_tx),
             capacity: sample_size,
-            background_loop,
+            background_loop: event_loops.background_loop.clone(),
+            background_loop_running: event_loops.background_loop_running.clone(),
         };
 
         debug!("Starting Background Task");
@@ -78,8 +79,8 @@ impl CustomQueue {
             feature_queue,
             stop_rx,
             runtime,
-            background_loop_running.clone(),
-            event_rx,
+            event_loops.background_loop_running.clone(),
+            background_event_rx,
         )?;
 
         custom_queue
@@ -89,7 +90,10 @@ impl CustomQueue {
             .replace(handle);
 
         custom_queue
-            .wait_for_background_task(event_tx, background_loop_running)
+            .wait_for_background_task(
+                event_loops.background_tx.clone(),
+                event_loops.background_loop_running.clone(),
+            )
             .await?;
 
         Ok(custom_queue)
@@ -171,6 +175,8 @@ impl QueueMethods for CustomQueue {
         // await the background task to finish (may need to add an abort in here later)
         if let Some(handle) = background_handle {
             let _ = handle.await?;
+            let mut background_loop_running = self.background_loop_running.write().unwrap();
+            *background_loop_running = false;
         }
         debug!("Custom Background Task finished");
         Ok(())
