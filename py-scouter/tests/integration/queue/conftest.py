@@ -3,7 +3,12 @@ from typing import Iterator
 from unittest import mock
 
 import pytest
+from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.mock import MockConfig
+
+logger = RustyLogger.get_logger(
+    LoggingConfig(log_level=LogLevel.Debug),
+)
 
 
 @dataclass
