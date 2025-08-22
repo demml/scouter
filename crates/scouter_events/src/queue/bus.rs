@@ -102,13 +102,23 @@ impl QueueBus {
         let (event_tx, event_rx) = mpsc::unbounded_channel();
         let (background_tx, background_rx) = mpsc::unbounded_channel();
 
-        let event_loops = Arc::new(EventLoops {
-            event_loop: Arc::new(RwLock::new(None)),
-            event_loop_running: Arc::new(RwLock::new(false)),
-            event_tx,
-            background_loop: Arc::new(RwLock::new(None)),
-            background_loop_running: Arc::new(RwLock::new(false)),
+        // get background loop
+        let background_loop = Arc::new(RwLock::new(BackgroundLoop {
+            background_loop: None,
+            background_loop_running: false,
             background_tx,
+        }));
+
+        // get event loop
+        let event_loop = Arc::new(RwLock::new(EventLoop {
+            event_loop: None,
+            event_loop_running: false,
+            event_tx,
+        }));
+
+        let event_loops = Arc::new(EventLoops {
+            event_loop,
+            background_loop,
         });
 
         (Self { event_loops }, event_rx, background_rx)
@@ -116,7 +126,13 @@ impl QueueBus {
 
     #[instrument(skip_all)]
     pub fn publish(&self, event: Event) -> Result<(), EventError> {
-        Ok(self.event_loops.event_tx.send(event)?)
+        Ok(self
+            .event_loops
+            .event_loop
+            .read()
+            .unwrap()
+            .event_tx
+            .send(event)?)
     }
 }
 
@@ -138,17 +154,13 @@ impl QueueBus {
     /// This will send a messages to the background queue, which will trigger a flush on the queue
     #[instrument(skip_all)]
     pub fn shutdown(&self) -> Result<(), PyEventError> {
-        // Signal shutdown
-        let event = Event::Stop;
-        self.publish(event)?;
+        self.publish(Event::Stop)?;
         Ok(())
     }
 
     #[instrument(skip_all)]
     pub fn start(&self) -> Result<(), PyEventError> {
-        // Signal start
-        let event = Event::Start;
-        self.publish(event)?;
+        self.publish(Event::Start)?;
         Ok(())
     }
 }
