@@ -219,7 +219,7 @@ pub struct ScouterQueue {
     queues: HashMap<String, Py<QueueBus>>,
     _shared_runtime: Arc<tokio::runtime::Runtime>,
     transport_config: TransportConfig,
-    queue_event_loops: HashMap<String, Arc<EventLoops>>,
+    pub queue_event_loops: HashMap<String, Arc<EventLoops>>,
 }
 
 #[pymethods]
