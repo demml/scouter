@@ -26,8 +26,7 @@ pub struct PsiQueue {
     last_publish: Arc<RwLock<DateTime<Utc>>>,
     stop_tx: Option<watch::Sender<()>>,
     capacity: usize,
-    background_loop: Arc<RwLock<Option<JoinHandle<()>>>>,
-    background_loop_running: Arc<RwLock<bool>>,
+    event_loops: EventLoops,
 }
 
 impl PsiQueue {
@@ -35,7 +34,7 @@ impl PsiQueue {
         drift_profile: PsiDriftProfile,
         config: TransportConfig,
         runtime: Arc<runtime::Runtime>,
-        event_loops: Arc<EventLoops>,
+        event_loops: EventLoops,
         background_event_rx: UnboundedReceiver<BackgroundEvent>,
     ) -> Result<Self, EventError> {
         // ArrayQueue size is based on the max PSI queue size
@@ -56,8 +55,7 @@ impl PsiQueue {
             last_publish,
             stop_tx: Some(stop_tx),
             capacity: PSI_MAX_QUEUE_SIZE,
-            background_loop: event_loops.background_loop.clone(),
-            background_loop_running: event_loops.background_loop_running.clone(),
+            event_loops,
         };
 
         debug!("Starting Background Task");
@@ -90,8 +88,7 @@ impl PsiQueue {
         feature_queue: Arc<PsiFeatureQueue>,
         stop_rx: watch::Receiver<()>,
         rt: Arc<tokio::runtime::Runtime>,
-        background_loop_running: Arc<RwLock<bool>>,
-        event_rx: UnboundedReceiver<BackgroundEvent>,
+        background_rx: UnboundedReceiver<BackgroundEvent>,
     ) -> Result<JoinHandle<()>, EventError> {
         self.start_background_task(
             metrics_queue,
@@ -103,7 +100,6 @@ impl PsiQueue {
             PSI_MAX_QUEUE_SIZE,
             "Psi Background Polling",
             event_rx,
-            background_loop_running,
         )
     }
 }

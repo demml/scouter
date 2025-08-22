@@ -29,7 +29,7 @@ impl QueueNum {
         transport_config: TransportConfig,
         drift_profile: DriftProfile,
         runtime: Arc<runtime::Runtime>,
-        event_loops: Arc<EventLoops>,
+        event_loops: EventLoops,
         background_event_rx: UnboundedReceiver<BackgroundEvent>,
     ) -> Result<Self, EventError> {
         match drift_profile {
@@ -42,7 +42,7 @@ impl QueueNum {
                     psi_profile,
                     transport_config,
                     runtime,
-                    event_loops.clone(),
+                    event_loops,
                     background_event_rx,
                 )
                 .await?;
@@ -147,7 +147,7 @@ async fn handle_queue_events(
     drift_profile: DriftProfile,
     runtime: Arc<runtime::Runtime>,
     id: String,
-    event_loops: Arc<EventLoops>,
+    event_loops: EventLoops,
     background_rx: UnboundedReceiver<BackgroundEvent>,
 ) -> Result<(), EventError> {
     // This will create the specific queue based on the transport config and drift profile
@@ -189,7 +189,7 @@ async fn handle_queue_events(
                     },
                     Event::Start => {
                         debug!("Start event received for queue {}", id);
-                        event_loops.start_event_loops();
+                        event_loops.wr
                     },
                     Event::Stop => {
                         debug!("Stop event received for queue {}", id);

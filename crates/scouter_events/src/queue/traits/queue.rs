@@ -2,6 +2,7 @@
 
 use crate::error::{EventError, FeatureQueueError};
 use crate::producer::RustScouterProducer;
+use crate::queue::bus::EventLoops;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
@@ -44,17 +45,17 @@ pub trait BackgroundTask {
         mut stop_rx: watch::Receiver<()>,
         queue_capacity: usize,
         label: &'static str,
-        mut rx: UnboundedReceiver<BackgroundEvent>,
-        background_loop_running: Arc<RwLock<bool>>,
+        mut background_rx: UnboundedReceiver<BackgroundEvent>,
+        event_loops: EventLoops,
     ) -> Result<JoinHandle<()>, EventError> {
         let future = async move {
             loop {
                 tokio::select! {
-                    Some(event) = rx.recv() => {
+                    Some(event) = background_rx.recv() => {
                         match event {
                             BackgroundEvent::Start => {
                                 debug!("Starting background task: {}", label);
-                                *background_loop_running.write().unwrap() = true;
+                                event_loops.set_background_loop_running(true);
                             }
                         }
                     }
