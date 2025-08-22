@@ -17,33 +17,49 @@ pub enum Event {
     Stop,
 }
 
+#[derive(Debug)]
+pub struct EventLoop {
+    pub event_loop: Option<JoinHandle<()>>,
+    pub event_loop_running: bool,
+    pub event_tx: UnboundedSender<Event>,
+}
+
+#[derive(Debug)]
+pub struct BackgroundLoop {
+    pub background_loop: Option<JoinHandle<()>>,
+    pub background_loop_running: bool,
+    pub background_tx: UnboundedSender<BackgroundEvent>,
+}
+
 #[derive(Debug, Clone)]
 pub struct EventLoops {
     // track the loop that receives events
-    pub event_loop: Arc<RwLock<Option<JoinHandle<()>>>>,
-    pub event_loop_running: Arc<RwLock<bool>>,
-    pub event_tx: UnboundedSender<Event>,
+    pub event_loop: Arc<RwLock<EventLoop>>,
 
     // track the loop that processes background tasks (only applies to psi and custom)
-    pub background_loop: Arc<RwLock<Option<JoinHandle<()>>>>,
-    pub background_loop_running: Arc<RwLock<bool>>,
-    pub background_tx: UnboundedSender<BackgroundEvent>,
+    pub background_loop: Arc<RwLock<BackgroundLoop>>,
 }
 
 impl EventLoops {
     pub fn is_event_loop_running(&self) -> bool {
-        *self.event_loop_running.read().unwrap()
+        self.event_loop.read().unwrap().event_loop_running
     }
 
     pub fn is_background_loop_running(&self) -> bool {
-        *self.background_loop_running.read().unwrap()
+        self.background_loop.read().unwrap().background_loop_running
     }
 
     pub fn running(&self) -> bool {
         let event_running = self.is_event_loop_running();
 
         // if background loop has some, check if running, if no handle, default to true
-        let background_running = if self.background_loop.read().unwrap().is_some() {
+        let background_running = if self
+            .background_loop
+            .read()
+            .unwrap()
+            .background_loop
+            .is_some()
+        {
             self.is_background_loop_running()
         } else {
             true
@@ -51,18 +67,18 @@ impl EventLoops {
         event_running && background_running
     }
 
-    pub fn shutdown_event_loops(&self) {
-        let mut event_loop_running = self.event_loop_running.write().unwrap();
-        *event_loop_running = false;
+    pub fn set_event_loop_running(&self, running: bool) {
+        let mut event_loop = self.event_loop.write().unwrap();
+        event_loop.event_loop_running = running;
     }
 
-    pub fn start_event_loops(&self) {
-        let mut event_loop_running = self.event_loop_running.write().unwrap();
-        *event_loop_running = true;
+    pub fn set_background_loop_running(&self, running: bool) {
+        let mut background_loop = self.background_loop.write().unwrap();
+        background_loop.background_loop_running = running;
     }
 
     pub fn shutdown(&self) -> Result<(), EventError> {
-        self.event_tx.send(Event::Stop)?;
+        self.event_loop.read().unwrap().event_tx.send(Event::Stop)?;
         Ok(())
     }
 }
