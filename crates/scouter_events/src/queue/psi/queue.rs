@@ -2,7 +2,7 @@ use crate::error::EventError;
 use crate::producer::RustScouterProducer;
 use crate::queue::bus::EventLoops;
 use crate::queue::psi::feature_queue::PsiFeatureQueue;
-use crate::queue::traits::queue::BackgroundEvent;
+use crate::queue::traits::queue::{wait_for_background_task, BackgroundEvent};
 use crate::queue::traits::{BackgroundTask, QueueMethods};
 use crate::queue::types::TransportConfig;
 use async_trait::async_trait;
@@ -35,7 +35,7 @@ impl PsiQueue {
         config: TransportConfig,
         runtime: Arc<runtime::Runtime>,
         event_loops: EventLoops,
-        background_event_rx: UnboundedReceiver<BackgroundEvent>,
+        background_rx: UnboundedReceiver<BackgroundEvent>,
     ) -> Result<Self, EventError> {
         // ArrayQueue size is based on the max PSI queue size
 
@@ -48,14 +48,14 @@ impl PsiQueue {
 
         let (stop_tx, stop_rx) = watch::channel(());
 
-        let psi_queue = PsiQueue {
+        let mut psi_queue = PsiQueue {
             queue: queue.clone(),
             feature_queue: feature_queue.clone(),
             producer,
             last_publish,
             stop_tx: Some(stop_tx),
             capacity: PSI_MAX_QUEUE_SIZE,
-            event_loops,
+            event_loops: event_loops.clone(),
         };
 
         debug!("Starting Background Task");
@@ -64,20 +64,14 @@ impl PsiQueue {
             feature_queue,
             stop_rx,
             runtime,
-            event_loops.background_loop_running.clone(),
-            background_event_rx,
+            background_rx,
         )?;
 
-        // update background loop
-        psi_queue.background_loop.write().unwrap().replace(handle);
+        // update event loop
+        psi_queue.event_loops.add_background_handle(handle);
 
         // wait for the background task to be ready
-        psi_queue
-            .wait_for_background_task(
-                event_loops.background_tx.clone(),
-                event_loops.background_loop_running.clone(),
-            )
-            .await?;
+        wait_for_background_task(&event_loops).await?;
 
         Ok(psi_queue)
     }
@@ -99,7 +93,8 @@ impl PsiQueue {
             stop_rx,
             PSI_MAX_QUEUE_SIZE,
             "Psi Background Polling",
-            event_rx,
+            background_rx,
+            self.event_loops.clone(),
         )
     }
 }

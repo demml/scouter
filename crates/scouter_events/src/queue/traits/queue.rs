@@ -12,7 +12,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime::Runtime;
-use tokio::sync::mpsc;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
@@ -238,19 +237,39 @@ pub trait QueueMethods {
 
         Err(EventError::QueuePushRetryError)
     }
+}
 
-    async fn wait_for_background_task(
-        &self,
-        event_tx: mpsc::UnboundedSender<BackgroundEvent>,
-        background_loop_running: Arc<RwLock<bool>>,
-    ) -> Result<(), EventError> {
-        event_tx.send(BackgroundEvent::Start)?;
-
-        // wait for the background_loop_running to be true
-        while !*background_loop_running.read().unwrap() {
-            tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+pub async fn wait_for_background_task(event_loops: &EventLoops) -> Result<(), EventError> {
+    // Signal confirm start
+    let mut max_retries = 20;
+    while max_retries > 0 {
+        if event_loops
+            .background_loop
+            .read()
+            .unwrap()
+            .background_loop_running
+        {
+            debug!("Background loop started successfully");
+            return Ok(());
         }
-
-        Ok(())
+        max_retries -= 1;
+        std::thread::sleep(Duration::from_millis(100));
     }
+    error!("Background loop failed to start");
+    Err(EventError::BackgroundLoopFailedToStartError)
+}
+
+pub async fn wait_for_event_task(event_loops: &EventLoops) -> Result<(), EventError> {
+    // Signal confirm start
+    let mut max_retries = 20;
+    while max_retries > 0 {
+        if event_loops.event_loop.read().unwrap().event_loop_running {
+            debug!("Event loop started successfully");
+            return Ok(());
+        }
+        max_retries -= 1;
+        std::thread::sleep(Duration::from_millis(100));
+    }
+    error!("Event loop failed to start");
+    Err(EventError::EventLoopFailedToStartError)
 }

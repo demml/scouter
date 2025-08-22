@@ -41,6 +41,17 @@ pub struct EventLoops {
 }
 
 impl EventLoops {
+    pub fn add_event_handle(&mut self, handle: JoinHandle<()>) {
+        self.event_loop.write().unwrap().event_loop.replace(handle);
+    }
+
+    pub fn add_background_handle(&mut self, handle: JoinHandle<()>) {
+        self.background_loop
+            .write()
+            .unwrap()
+            .background_loop
+            .replace(handle);
+    }
     pub fn is_event_loop_running(&self) -> bool {
         self.event_loop.read().unwrap().event_loop_running
     }
@@ -79,6 +90,88 @@ impl EventLoops {
 
     pub fn shutdown(&self) -> Result<(), EventError> {
         self.event_loop.read().unwrap().event_tx.send(Event::Stop)?;
+        Ok(())
+    }
+
+    fn abort_background_loop(&self) -> Result<(), EventError> {
+        let background_handle = {
+            let guard = self.background_loop.write().unwrap().background_loop.take();
+            guard
+        };
+
+        if let Some(handle) = background_handle {
+            handle.abort();
+            debug!("Background loop handle aborted");
+        }
+
+        Ok(())
+    }
+
+    fn abort_event_loop(&self) -> Result<(), EventError> {
+        let event_handle = {
+            let guard = self.event_loop.write().unwrap().event_loop.take();
+            guard
+        };
+
+        if let Some(handle) = event_handle {
+            handle.abort();
+            debug!("Event loop handle aborted");
+        }
+
+        Ok(())
+    }
+
+    pub async fn shutdown_background_task(&self) -> Result<(), EventError> {
+        // signal should have already been sent. wait for the background task to finish
+        let mut max_retries = 50;
+        while self.background_loop.read().unwrap().background_loop_running {
+            std::thread::sleep(Duration::from_millis(100));
+            max_retries -= 1;
+            if max_retries == 0 {
+                error!("Timed out waiting for background loop to stop. Aborting the thread");
+                self.abort_background_loop()?;
+                return Ok(());
+            }
+        }
+
+        let background_handle = {
+            let guard = self.background_loop.write().unwrap().background_loop.take();
+            guard
+        };
+
+        if let Some(handle) = background_handle {
+            handle.await?;
+            debug!("Background loop handle awaited");
+        }
+
+        // await background task completion
+        Ok(())
+    }
+
+    pub async fn shutdown_event_task(&self) -> Result<(), EventError> {
+        // signal should have already been sent. wait for the event task to finish
+        let mut max_retries = 50;
+        while self.event_loop.read().unwrap().event_loop_running {
+            std::thread::sleep(Duration::from_millis(100));
+            max_retries -= 1;
+            if max_retries == 0 {
+                error!("Timed out waiting for event loop to stop. Aborting the thread");
+                self.abort_event_loop()?;
+                return Ok(());
+            }
+        }
+
+        let event_handle = {
+            let guard = self.event_loop.write().unwrap().event_loop.take();
+            guard
+        };
+
+        if let Some(handle) = event_handle {
+            handle.await?;
+            debug!("Event loop handle awaited");
+        }
+
+        // await background task completion
         Ok(())
     }
 }

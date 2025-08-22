@@ -167,6 +167,9 @@ pub enum EventError {
 
     #[error("Event loop failed to start")]
     EventLoopFailedToStartError,
+
+    #[error("Background loop failed to start")]
+    BackgroundLoopFailedToStartError,
 }
 
 #[derive(Error, Debug)]
