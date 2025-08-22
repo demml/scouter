@@ -81,7 +81,7 @@ impl CustomQueue {
         )?;
 
         custom_queue.event_loops.add_event_handle(handle);
-
+        custom_queue.event_loops.start_background_task()?;
         wait_for_event_task(&event_loops).await?;
 
         Ok(custom_queue)

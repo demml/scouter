@@ -41,6 +41,22 @@ pub struct EventLoops {
 }
 
 impl EventLoops {
+    pub fn start_background_task(&self) -> Result<(), EventError> {
+        Ok(self
+            .background_loop
+            .read()
+            .map_err(|_| EventError::BackgroundTxMissingError)?
+            .background_tx
+            .send(BackgroundEvent::Start)?)
+    }
+    pub fn start_event_task(&self) -> Result<(), EventError> {
+        Ok(self
+            .event_loop
+            .read()
+            .map_err(|_| EventError::EventTxMissingError)?
+            .event_tx
+            .send(Event::Start)?)
+    }
     pub fn add_event_handle(&mut self, handle: JoinHandle<()>) {
         self.event_loop.write().unwrap().event_loop.replace(handle);
     }

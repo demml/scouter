@@ -71,6 +71,7 @@ impl PsiQueue {
         psi_queue.event_loops.add_background_handle(handle);
 
         // wait for the background task to be ready
+        psi_queue.event_loops.start_background_task()?;
         wait_for_background_task(&event_loops).await?;
 
         Ok(psi_queue)

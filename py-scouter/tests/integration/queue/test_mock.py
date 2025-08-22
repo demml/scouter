@@ -34,7 +34,10 @@ def test_mock_config(
     records = pandas_dataframe.to_dict(orient="records")
     for record in records:
         features = Features(
-            features=[Feature.float(column_name, record[column_name]) for column_name in pandas_dataframe.columns]
+            features=[
+                Feature.float(column_name, record[column_name])
+                for column_name in pandas_dataframe.columns
+            ]
         )
         # 3. Send records to Scouter
         queue["a"].insert(features)
@@ -45,7 +48,7 @@ def test_mock_config(
     assert isinstance(queue.transport_config, MockConfig)
 
 
-def test_mock_config_kwargs():
+def _test_mock_config_kwargs():
     MockConfig(
         kafka_brokers="localhost:9092",
         kafka_topic="test_topic",

@@ -170,6 +170,15 @@ pub enum EventError {
 
     #[error("Background loop failed to start")]
     BackgroundLoopFailedToStartError,
+
+    #[error("Event loop read error")]
+    EventLoopReadError,
+
+    #[error("Missing background tx channel")]
+    BackgroundTxMissingError,
+
+    #[error("Missing event tx channel")]
+    EventTxMissingError,
 }
 
 #[derive(Error, Debug)]
