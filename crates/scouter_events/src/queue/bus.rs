@@ -88,11 +88,6 @@ impl EventLoops {
         background_loop.background_loop_running = running;
     }
 
-    pub fn shutdown(&self) -> Result<(), EventError> {
-        self.event_loop.read().unwrap().event_tx.send(Event::Stop)?;
-        Ok(())
-    }
-
     fn abort_background_loop(&self) -> Result<(), EventError> {
         let background_handle = {
             let guard = self.background_loop.write().unwrap().background_loop.take();
@@ -148,8 +143,42 @@ impl EventLoops {
         Ok(())
     }
 
-    pub async fn shutdown_event_task(&self) -> Result<(), EventError> {
-        // signal should have already been sent. wait for the event task to finish
+    pub fn wait_for_background_task_to_stop(&self) -> Result<(), EventError> {
+        debug!("Waiting for background task to stop");
+        //if background task is some wait for the
+        if self
+            .background_loop
+            .read()
+            .unwrap()
+            .background_loop
+            .is_some()
+        {
+            let mut max_retries = 50;
+            while self.background_loop.read().unwrap().background_loop_running {
+                std::thread::sleep(Duration::from_millis(100));
+                max_retries -= 1;
+                if max_retries == 0 {
+                    error!("Timed out waiting for background loop to stop. Aborting the thread");
+                    self.abort_background_loop()?;
+                    return Ok(());
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    /// Shutdown the event task
+    /// This needs to be sync to work with exposed python func, so choosing to abort the thread here
+    /// vs await
+    #[instrument(skip_all)]
+    pub fn shutdown_event_task(&self) -> Result<(), EventError> {
+        // send stop signal to event loop - this will also trigger a background task shutdown if present
+        self.event_loop.read().unwrap().event_tx.send(Event::Stop)?;
+
+        // Background should be existed before event
+        self.wait_for_background_task_to_stop()?;
+
         let mut max_retries = 50;
         while self.event_loop.read().unwrap().event_loop_running {
             std::thread::sleep(Duration::from_millis(100));
@@ -161,15 +190,7 @@ impl EventLoops {
             }
         }
 
-        let event_handle = {
-            let guard = self.event_loop.write().unwrap().event_loop.take();
-            guard
-        };
-
-        if let Some(handle) = event_handle {
-            handle.await?;
-            debug!("Event loop handle awaited");
-        }
+        self.abort_event_loop()?;
 
         // await background task completion
         Ok(())
@@ -181,7 +202,7 @@ impl EventLoops {
 /// Primary way to publish non-blocking events to background queues with ScouterQueue
 #[pyclass(name = "Queue")]
 pub struct QueueBus {
-    pub event_loops: Arc<EventLoops>,
+    pub event_loops: EventLoops,
 }
 
 impl QueueBus {
@@ -209,10 +230,10 @@ impl QueueBus {
             event_tx,
         }));
 
-        let event_loops = Arc::new(EventLoops {
+        let event_loops = EventLoops {
             event_loop,
             background_loop,
-        });
+        };
 
         (Self { event_loops }, event_rx, background_rx)
     }

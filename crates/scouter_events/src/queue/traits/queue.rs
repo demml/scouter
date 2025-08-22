@@ -121,6 +121,7 @@ pub trait BackgroundTask {
                         if let Err(e) = producer.flush().await {
                             error!("Failed to flush producer: {}", e);
                         }
+                        event_loops.set_background_loop_running(false);
                         break;
                     }
                 }

@@ -53,7 +53,7 @@ impl QueueNum {
                     custom_profile,
                     transport_config,
                     runtime,
-                    event_loops.clone(),
+                    event_loops,
                     background_event_rx,
                 )
                 .await?;
@@ -189,12 +189,12 @@ async fn handle_queue_events(
                     },
                     Event::Start => {
                         debug!("Start event received for queue {}", id);
-                        event_loops.wr
+                        event_loops.set_event_loop_running(true);
                     },
                     Event::Stop => {
                         debug!("Stop event received for queue {}", id);
                         queue.flush().await?;
-                        event_loops.shutdown_event_loops();
+                        event_loops.set_event_loop_running(false);
                         break;
 
                     }
@@ -206,7 +206,7 @@ async fn handle_queue_events(
 
                 // this flush should also clean up any remaining background tasks (psi, and custom)
                 queue.flush().await?;
-                event_loops.shutdown_event_loops();
+                event_loops.set_event_loop_running(false);
                 break;
             }
         }
@@ -219,7 +219,7 @@ pub struct ScouterQueue {
     queues: HashMap<String, Py<QueueBus>>,
     _shared_runtime: Arc<tokio::runtime::Runtime>,
     transport_config: TransportConfig,
-    pub queue_event_loops: HashMap<String, Arc<EventLoops>>,
+    pub queue_event_loops: Arc<HashMap<String, EventLoops>>,
 }
 
 #[pymethods]
@@ -304,15 +304,10 @@ impl ScouterQueue {
     pub fn shutdown(&mut self) -> Result<(), PyEventError> {
         debug!("Starting ScouterQueue shutdown");
 
-        for (alias, event_loop) in &self.queue_event_loops {
+        for (alias, event_loop) in self.queue_event_loops.iter() {
             debug!("Shutting down queue: {}", alias);
             // shutdown the queue
-            event_loop.shutdown()?;
-
-            // wait for event and background cleanup
-            while event_loop.running() {
-                std::thread::sleep(std::time::Duration::from_millis(100));
-            }
+            event_loop.shutdown_event_task()?;
         }
 
         // clear the queues
@@ -416,7 +411,7 @@ impl ScouterQueue {
             // need to keep the runtime alive for the life of ScouterQueue
             _shared_runtime: shared_runtime,
             transport_config: config,
-            queue_event_loops,
+            queue_event_loops: Arc::new(queue_event_loops),
         })
     }
 

@@ -99,6 +99,14 @@ impl PsiQueue {
     }
 }
 
+/// Psi requires a background timed-task as a secondary processing mechanism
+/// i.e. Its possible that queue insertion is slow, and so we need a background
+/// task to process the queue at a regular interval
+impl BackgroundTask for PsiQueue {
+    type DataItem = Features;
+    type Processor = PsiFeatureQueue;
+}
+
 #[async_trait]
 /// Implementing primary methods
 impl QueueMethods for PsiQueue {
@@ -140,29 +148,10 @@ impl QueueMethods for PsiQueue {
 
         self.producer.flush().await?;
 
-        // take the background handle
-        let background_handle = {
-            let mut guard = self.background_loop.write().unwrap();
-            guard.take()
-        };
-
-        // await the background task to finish (may need to add an abort in here later)
-        if let Some(handle) = background_handle {
-            let _ = handle.await?;
-            let mut background_loop_running = self.background_loop_running.write().unwrap();
-            *background_loop_running = false;
-        }
+        self.event_loops.shutdown_background_task().await?;
 
         debug!("PSI Background Task finished");
 
         Ok(())
     }
-}
-
-/// Psi requires a background timed-task as a secondary processing mechanism
-/// i.e. Its possible that queue insertion is slow, and so we need a background
-/// task to process the queue at a regular interval
-impl BackgroundTask for PsiQueue {
-    type DataItem = Features;
-    type Processor = PsiFeatureQueue;
 }
