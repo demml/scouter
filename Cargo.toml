@@ -89,6 +89,7 @@ time = "0.*"
 tokio = { version = "1.*", features = ["rt", "rt-multi-thread", "macros", "signal"] }
 tokio-stream = { version = "0.*", features = ["sync"] }
 tower-http = { version = "0.*", features = ["cors"] }
+tokio-util = "0.*"
 tracing = "0.*"
 tracing-subscriber = {version = "0.*", features = ["json", "time"]}
 url = "2.*"
