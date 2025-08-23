@@ -130,7 +130,7 @@ pub trait QueueMethods {
     fn last_publish(&self) -> Arc<RwLock<DateTime<Utc>>>;
     fn should_process(&self, current_count: usize) -> bool;
 
-    fn update_last_publish(&self) -> Result<(), EventError> {
+    fn update_last_publish(&mut self) -> Result<(), EventError> {
         if let Ok(mut last_publish) = self.last_publish().write() {
             *last_publish = Utc::now();
         }
@@ -149,6 +149,7 @@ pub trait QueueMethods {
     /// Insert an item into the queue
     async fn insert(&mut self, item: Self::ItemType) -> Result<(), EventError> {
         debug!("Inserting item into queue: {:?}", item);
+
         self.insert_with_backpressure(item).await?;
 
         let queue = self.queue();
@@ -156,13 +157,15 @@ pub trait QueueMethods {
         // Check if we need to process the queue
         // queues have a buffer in case of overflow, so we need to check if we are over the capacity, which is smaller
         if queue.len() >= self.capacity() {
-            debug!(
+            info!(
                 "Queue reached capacity, processing queue, current count: {}, current_capacity: {}",
                 queue.len(),
                 self.capacity()
             );
-            self.try_publish(queue).await?;
+            self.try_publish(queue.clone()).await?;
         }
+
+        info!("Current queue length: {}", queue.len());
 
         Ok(())
     }

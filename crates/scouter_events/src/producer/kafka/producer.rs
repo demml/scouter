@@ -46,7 +46,7 @@ pub mod kafka_producer {
                     }
                 }
             }
-
+            info!("Published {} records to Kafka", message.len());
             Ok(())
         }
 
