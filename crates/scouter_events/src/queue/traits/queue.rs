@@ -25,8 +25,10 @@ pub trait FeatureQueue: Send + Sync {
     ) -> Result<ServerRecords, FeatureQueueError>;
 }
 
+#[derive(Debug)]
 pub enum BackgroundEvent {
     Start,
+    Stop,
 }
 
 async fn process_batch<D, P>(
@@ -84,7 +86,7 @@ pub trait BackgroundTask: Send + Sync + 'static {
         producer: Arc<Mutex<RustScouterProducer>>,
         last_publish: Arc<RwLock<DateTime<Utc>>>,
         runtime: Arc<Runtime>,
-        mut stop_rx: watch::Receiver<()>,
+        mut stop_rx: watch::Receiver<BackgroundEvent>,
         queue_capacity: usize,
         label: &'static str,
         event_loops: EventLoops,

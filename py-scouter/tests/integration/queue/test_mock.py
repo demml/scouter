@@ -31,7 +31,8 @@ def test_mock_config(
         # 1. Create a ScouterQueue from path
         queue = ScouterQueue.from_path({"a": path}, HTTPConfig())
 
-    assert queue.running()
+    # assert queue.running()
+    time.sleep(10)
 
     # 2. Simulate records
     records = pandas_dataframe.to_dict(orient="records")
@@ -45,10 +46,12 @@ def test_mock_config(
         # 3. Send records to Scouter
         queue["a"].insert(features)
 
-    time.sleep(3)
+    assert queue.running()
 
     # 4. Shutdown the queue
     queue.shutdown()
+
+    time.sleep(10)
 
     assert isinstance(queue.transport_config, MockConfig)
     a

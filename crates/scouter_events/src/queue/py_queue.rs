@@ -9,6 +9,7 @@ use crate::queue::psi::PsiQueue;
 use crate::queue::spc::SpcQueue;
 use crate::queue::traits::queue::wait_for_background_task;
 use crate::queue::traits::queue::wait_for_event_task;
+use crate::queue::traits::queue::BackgroundEvent;
 use crate::queue::traits::queue::QueueMethods;
 use crate::queue::types::TransportConfig;
 use pyo3::prelude::*;
@@ -167,7 +168,7 @@ async fn spawn_queue_event_handler(
     runtime: Arc<runtime::Runtime>,
     id: String,
     mut event_loops: EventLoops,
-    mut stop_rx: watch::Receiver<()>,
+    mut stop_rx: watch::Receiver<BackgroundEvent>,
 ) -> Result<(), EventError> {
     // This will create the specific queue based on the transport config and drift profile
     // Available queues:
@@ -330,6 +331,15 @@ impl ScouterQueue {
 
         Ok(())
     }
+
+    /// Checks if all queues are running.
+    /// This will check if every queue's event loop and background loop are running.
+    pub fn running(&self) -> bool {
+        // check "running" for all queue_event_loops
+        self.queue_event_loops
+            .iter()
+            .all(|(_, event_loops)| event_loops.running())
+    }
 }
 
 impl ScouterQueue {
@@ -381,7 +391,7 @@ impl ScouterQueue {
             // create startup channels to ensure queues are initialized before use
             let bus = QueueBus::new(event_loops.clone());
             queue_event_loops.insert(id.clone(), event_loops.clone());
-            let (event_stop_tx, event_stop_rx) = watch::channel(());
+            let (event_stop_tx, event_stop_rx) = watch::channel(BackgroundEvent::Start);
 
             // queue args
             let clone_runtime = shared_runtime.clone();
@@ -429,14 +439,5 @@ impl ScouterQueue {
             transport_config: config,
             queue_event_loops: Arc::new(queue_event_loops),
         })
-    }
-
-    /// Checks if all queues are running.
-    /// This will check if every queue's event loop and background loop are running.
-    pub fn running(&self) -> bool {
-        // check "running" for all queue_event_loops
-        self.queue_event_loops
-            .iter()
-            .all(|(_, event_loops)| event_loops.running())
     }
 }

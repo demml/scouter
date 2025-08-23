@@ -2,6 +2,7 @@ use crate::error::EventError;
 use crate::producer::RustScouterProducer;
 use crate::queue::bus::EventLoops;
 use crate::queue::psi::feature_queue::PsiFeatureQueue;
+use crate::queue::traits::queue::BackgroundEvent;
 use crate::queue::traits::{BackgroundTask, QueueMethods};
 use crate::queue::types::TransportConfig;
 use async_trait::async_trait;
@@ -39,7 +40,7 @@ impl PsiQueue {
         let last_publish: Arc<RwLock<DateTime<Utc>>> = Arc::new(RwLock::new(Utc::now()));
         let producer = Arc::new(Mutex::new(RustScouterProducer::new(config).await?));
 
-        let (stop_tx, stop_rx) = watch::channel(());
+        let (stop_tx, stop_rx) = watch::channel(BackgroundEvent::Start);
 
         let psi_queue = PsiQueue {
             queue: queue.clone(),
@@ -111,6 +112,8 @@ impl QueueMethods for PsiQueue {
     }
 
     async fn flush(&mut self) -> Result<(), EventError> {
+        self.event_loops.send_background_stop();
+
         // publish any remaining drift records
         self.try_publish(self.queue()).await?;
 

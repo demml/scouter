@@ -2,6 +2,7 @@ use crate::error::EventError;
 use crate::producer::RustScouterProducer;
 use crate::queue::bus::EventLoops;
 use crate::queue::custom::feature_queue::CustomMetricFeatureQueue;
+use crate::queue::traits::queue::BackgroundEvent;
 use crate::queue::traits::{BackgroundTask, QueueMethods};
 use crate::queue::types::TransportConfig;
 use async_trait::async_trait;
@@ -54,7 +55,7 @@ impl CustomQueue {
         debug!("Creating Producer");
         let producer = Arc::new(Mutex::new(RustScouterProducer::new(config).await?));
 
-        let (stop_tx, stop_rx) = watch::channel(());
+        let (stop_tx, stop_rx) = watch::channel(BackgroundEvent::Start);
 
         let custom_queue = CustomQueue {
             queue: metrics_queue.clone(),
