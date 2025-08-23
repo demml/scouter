@@ -14,7 +14,7 @@ use std::os::unix::thread;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
-use tokio::sync::watch;
+use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
 use tracing::debug;
 const PSI_MAX_QUEUE_SIZE: usize = 1000;
@@ -22,9 +22,8 @@ const PSI_MAX_QUEUE_SIZE: usize = 1000;
 pub struct PsiQueue {
     queue: Arc<ArrayQueue<Features>>,
     feature_queue: Arc<PsiFeatureQueue>,
-    producer: RustScouterProducer,
+    producer: Arc<Mutex<RustScouterProducer>>,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
-    stop_tx: Option<watch::Sender<()>>,
     capacity: usize,
     event_loops: EventLoops,
 }
@@ -41,7 +40,7 @@ impl PsiQueue {
         let queue = Arc::new(ArrayQueue::new(PSI_MAX_QUEUE_SIZE * 2));
         let feature_queue = Arc::new(PsiFeatureQueue::new(drift_profile));
         let last_publish: Arc<RwLock<DateTime<Utc>>> = Arc::new(RwLock::new(Utc::now()));
-        let producer = RustScouterProducer::new(config).await?;
+        let producer = Arc::new(Mutex::new(RustScouterProducer::new(config).await?));
 
         let (stop_tx, stop_rx) = watch::channel(());
 
@@ -50,7 +49,6 @@ impl PsiQueue {
             feature_queue: feature_queue.clone(),
             producer,
             last_publish,
-            stop_tx: Some(stop_tx),
             capacity: PSI_MAX_QUEUE_SIZE,
             event_loops: event_loops.clone(),
         };
@@ -69,6 +67,7 @@ impl PsiQueue {
 
         // update event loop
         event_loops.add_background_handle(handle);
+        event_loops.add_background_stop_tx(stop_tx);
 
         //check if running
 
@@ -119,7 +118,10 @@ impl QueueMethods for PsiQueue {
     async fn flush(&mut self) -> Result<(), EventError> {
         // publish any remaining drift records
         self.try_publish(self.queue()).await?;
-        self.producer.flush().await?;
+        let producer = self.producer.lock().await;
+        producer.flush().await?;
+
+        self.event_loops.shutdown_event_task().await?;
         self.event_loops.shutdown_background_task().await?;
 
         debug!("PSI Background Task finished");

@@ -12,7 +12,6 @@ use crate::queue::traits::queue::wait_for_event_task;
 use crate::queue::traits::queue::QueueMethods;
 use crate::queue::types::TransportConfig;
 use pyo3::prelude::*;
-use scouter_drift::custom::drift;
 use scouter_types::{DriftProfile, LLMRecord, QueueItem};
 use scouter_types::{Features, Metrics};
 use std::collections::HashMap;
@@ -21,7 +20,8 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
 use tokio::sync::mpsc::UnboundedReceiver;
-use tracing::{debug, error, info, instrument};
+use tokio::sync::watch;
+use tracing::{debug, error, instrument};
 
 fn create_event_loops() -> (EventLoops, UnboundedReceiver<Event>) {
     let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel();
@@ -165,6 +165,7 @@ async fn spawn_queue_event_handler(
     runtime: Arc<runtime::Runtime>,
     id: String,
     mut event_loops: EventLoops,
+    mut stop_rx: watch::Receiver<()>,
 ) -> Result<(), EventError> {
     // This will create the specific queue based on the transport config and drift profile
     // Available queues:
@@ -182,6 +183,8 @@ async fn spawn_queue_event_handler(
             }
         };
 
+    event_loops.set_event_loop_running(true);
+
     loop {
         tokio::select! {
             Some(event) = event_rx.recv() => {
@@ -195,24 +198,20 @@ async fn spawn_queue_event_handler(
                                 error!("Error inserting entity into queue {}: {}", id, e);
                             }
                         }
-                    },
-                    Event::Start => {
-                        debug!("Start event received for queue {}", id);
-                        event_loops.set_event_loop_running(true);
-                    },
-                    Event::Stop => {
-                        debug!("Stop event received for queue {}", id);
-                        queue.flush().await?;
-                        event_loops.set_event_loop_running(false);
-                        break;
-
                     }
+
                 }
+            }
+
+            _ = stop_rx.changed() => {
+                debug!("Stop signal received for queue {}", id);
+                queue.flush().await?;
+                event_loops.set_event_loop_running(false);
+                break;
             }
 
             else => {
                 debug!("Event channel closed for queue {}, shutting down", id);
-
                 // this flush should also clean up any remaining background tasks (psi, and custom)
                 queue.flush().await?;
                 event_loops.set_event_loop_running(false);

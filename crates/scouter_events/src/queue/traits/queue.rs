@@ -13,7 +13,6 @@ use std::sync::Arc;
 use std::sync::RwLock;
 
 use tokio::runtime::Runtime;
-use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
@@ -28,7 +27,6 @@ pub trait FeatureQueue: Send + Sync {
 
 pub enum BackgroundEvent {
     Start,
-    Stop,
 }
 
 async fn process_batch<D, P>(
@@ -90,7 +88,6 @@ pub trait BackgroundTask: Send + Sync + 'static {
         queue_capacity: usize,
         label: &'static str,
         event_loops: EventLoops,
-        mut background_rx: UnboundedReceiver<BackgroundEvent>,
     ) -> Result<JoinHandle<()>, EventError> {
         let future = async move {
             debug!("Starting background task: {}", label);
@@ -103,22 +100,8 @@ pub trait BackgroundTask: Send + Sync + 'static {
             sleep(Duration::from_millis(10)).await;
             loop {
                 tokio::select! {
-                    Some(event) = background_rx.recv() => {
-                        match event {
-                            BackgroundEvent::Start => {
-                                debug!("Background task {} received start event", label);
-                            }
-                            BackgroundEvent::Stop => {
-                                debug!("Background task {} received stop event", label);
-                                break;
-                            }
-                        }
-                    }
                     _ = sleep(Duration::from_secs(1)) => {
                         debug!("Waking up background task: {}", label);
-                        if !event_loops.is_background_loop_running() {
-                            continue;
-                        }
 
                         let now = Utc::now();
 
@@ -143,18 +126,23 @@ pub trait BackgroundTask: Send + Sync + 'static {
                             ).await;
 
                         }
-                    },
+                    }
                     _ = stop_rx.changed() => {
                         info!("Stop signal received, shutting down background task: {}", label);
                         // Stop the background task and publish remaining records
                         process_batch(
-                                None,
-                                data_queue.clone(),
-                                last_publish.clone(),
-                                processor.clone(),
-                                producer.clone(),
-                                Utc::now(),
-                            ).await;
+                            None,
+                            data_queue.clone(),
+                            last_publish.clone(),
+                            processor.clone(),
+                            producer.clone(),
+                            Utc::now(),
+                        ).await;
+                        event_loops.set_background_loop_running(false);
+                        break;
+                    }
+                    else =>  {
+                        info!("Stop signal received, shutting down background task: {}", label);
                         event_loops.set_background_loop_running(false);
                         break;
                     }
@@ -178,7 +166,7 @@ pub trait QueueMethods {
 
     /// These all need to be implemented in the concrete queue type
     fn capacity(&self) -> usize;
-    fn get_producer(&mut self) -> &mut RustScouterProducer;
+    fn get_producer(&mut self) -> Arc<Mutex<RustScouterProducer>>;
     fn queue(&self) -> Arc<ArrayQueue<Self::ItemType>>;
     fn feature_queue(&self) -> Arc<Self::FeatureQueue>;
     fn last_publish(&self) -> Arc<RwLock<DateTime<Utc>>>;
@@ -301,7 +289,6 @@ pub fn wait_for_event_task(event_loops: &EventLoops) -> Result<(), EventError> {
 
     let mut max_retries = 20;
     while max_retries > 0 {
-        event_loops.start_event_task()?;
         if event_loops.is_event_loop_running() {
             debug!("Event loop started successfully");
             return Ok(());

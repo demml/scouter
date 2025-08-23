@@ -6,27 +6,27 @@ use scouter_types::QueueItem;
 use std::sync::RwLock;
 use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
+use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, instrument};
-
 #[derive(Debug)]
 pub enum Event {
-    Start,
     Task(QueueItem),
-    Stop,
 }
 
 #[derive(Debug)]
 pub struct EventLoop {
-    pub event_loop: Option<JoinHandle<()>>,
-    pub event_loop_running: bool,
+    pub handle: Option<JoinHandle<()>>,
+    pub loop_running: bool,
+    pub stop_tx: Option<watch::Sender<()>>,
     pub event_tx: UnboundedSender<Event>,
 }
 
 #[derive(Debug)]
 pub struct BackgroundLoop {
-    pub background_loop: Option<JoinHandle<()>>,
-    pub background_loop_running: bool,
+    pub handle: Option<JoinHandle<()>>,
+    pub loop_running: bool,
+    pub stop_tx: Option<watch::Sender<()>>,
 }
 
 #[derive(Debug, Clone)]
@@ -39,60 +39,49 @@ pub struct EventLoops {
 }
 
 impl EventLoops {
-    //pub fn start_background_task(&self) -> Result<(), EventError> {
-    //    Ok(self
-    //        .background_loop
-    //        .read()
-    //        .map_err(|_| EventError::BackgroundTxMissingError)?
-    //        .background_tx
-    //        .send(BackgroundEvent::Start)?)
-    //}
-    pub fn start_event_task(&self) -> Result<(), EventError> {
-        Ok(self
-            .event_loop
-            .read()
-            .map_err(|_| EventError::EventTxMissingError)?
-            .event_tx
-            .send(Event::Start)?)
+    pub fn add_background_stop_tx(&mut self, tx: watch::Sender<()>) {
+        self.background_loop.write().unwrap().stop_tx = Some(tx);
     }
+    pub fn send_background_stop(&self) {
+        let stop_tx = &self.background_loop.read().unwrap().stop_tx;
+        if let Some(stop_tx) = stop_tx {
+            let _ = stop_tx.send(());
+        }
+    }
+    pub fn send_event_stop(&self) {
+        let stop_tx = &self.event_loop.read().unwrap().stop_tx;
+        if let Some(stop_tx) = stop_tx {
+            let _ = stop_tx.send(());
+        }
+    }
+    pub fn add_event_stop_tx(&mut self, tx: watch::Sender<()>) {
+        self.event_loop.write().unwrap().stop_tx = Some(tx);
+    }
+
     pub fn add_event_handle(&mut self, handle: JoinHandle<()>) {
-        self.event_loop.write().unwrap().event_loop.replace(handle);
+        self.event_loop.write().unwrap().handle.replace(handle);
     }
 
     pub fn add_background_handle(&mut self, handle: JoinHandle<()>) {
-        self.background_loop
-            .write()
-            .unwrap()
-            .background_loop
-            .replace(handle);
+        self.background_loop.write().unwrap().handle.replace(handle);
     }
     pub fn is_event_loop_running(&self) -> bool {
-        self.event_loop.read().unwrap().event_loop_running
+        self.event_loop.read().unwrap().loop_running
     }
 
     pub fn has_background_handle(&self) -> bool {
-        self.background_loop
-            .read()
-            .unwrap()
-            .background_loop
-            .is_some()
+        self.background_loop.read().unwrap().handle.is_some()
     }
 
     pub fn is_background_loop_running(&self) -> bool {
-        self.background_loop.read().unwrap().background_loop_running
+        self.background_loop.read().unwrap().loop_running
     }
 
     pub fn running(&self) -> bool {
         let event_running = self.is_event_loop_running();
 
         // if background loop has some, check if running, if no handle, default to true
-        let has_background_handle = {
-            self.background_loop
-                .read()
-                .unwrap()
-                .background_loop
-                .is_some()
-        };
+        let has_background_handle = { self.background_loop.read().unwrap().handle.is_some() };
 
         let background_running = if has_background_handle {
             self.is_background_loop_running()
@@ -104,17 +93,17 @@ impl EventLoops {
 
     pub fn set_event_loop_running(&self, running: bool) {
         let mut event_loop = self.event_loop.write().unwrap();
-        event_loop.event_loop_running = running;
+        event_loop.loop_running = running;
     }
 
     pub fn set_background_loop_running(&self, running: bool) {
         let mut background_loop = self.background_loop.write().unwrap();
-        background_loop.background_loop_running = running;
+        background_loop.loop_running = running;
     }
 
     fn abort_background_loop(&self) -> Result<(), EventError> {
         let background_handle = {
-            let guard = self.background_loop.write().unwrap().background_loop.take();
+            let guard = self.background_loop.write().unwrap().handle.take();
             guard
         };
 
@@ -128,7 +117,7 @@ impl EventLoops {
 
     fn abort_event_loop(&self) -> Result<(), EventError> {
         let event_handle = {
-            let guard = self.event_loop.write().unwrap().event_loop.take();
+            let guard = self.event_loop.write().unwrap().handle.take();
             guard
         };
 
@@ -154,7 +143,7 @@ impl EventLoops {
         }
 
         let background_handle = {
-            let guard = self.background_loop.write().unwrap().background_loop.take();
+            let guard = self.background_loop.write().unwrap().handle.take();
             guard
         };
 
@@ -193,13 +182,13 @@ impl EventLoops {
     #[instrument(skip_all)]
     pub fn shutdown_event_task(&self) -> Result<(), EventError> {
         // send stop signal to event loop - this will also trigger a background task shutdown if present
-        self.event_loop.read().unwrap().event_tx.send(Event::Stop)?;
+        self.send_event_stop();
 
         // Background should be existed before event
         self.wait_for_background_task_to_stop()?;
 
         let mut max_retries = 50;
-        while self.event_loop.read().unwrap().event_loop_running {
+        while self.event_loop.read().unwrap().loop_running {
             std::thread::sleep(Duration::from_millis(100));
             max_retries -= 1;
             if max_retries == 0 {
@@ -222,14 +211,17 @@ impl EventLoops {
             r#"AppEventState:
                 Background loop running: {}
                 Background handle exists: {:?}
+                Background stop tx exists: {:?}
                 Event loop running: {}
+                Event handle exists: {:?}
                 Event tx exists: {:?}
-                Event handle exists: {:?}"#,
-            background_guard.background_loop_running,
-            background_guard.background_loop,
-            event_guard.event_loop_running,
-            event_guard.event_tx,
-            event_guard.event_loop
+            "#,
+            background_guard.loop_running,
+            background_guard.handle,
+            background_guard.stop_tx,
+            event_guard.loop_running,
+            event_guard.handle,
+            event_guard.stop_tx,
         );
     }
 }
@@ -277,16 +269,10 @@ impl QueueBus {
     }
 
     /// Shutdown the bus
-    /// This will send a messages to the background queue, which will trigger a flush on the queue
+    /// This will send a messages to the event and background queue, which will trigger a flush on the queue
     #[instrument(skip_all)]
     pub fn shutdown(&self) -> Result<(), PyEventError> {
-        self.publish(Event::Stop)?;
-        Ok(())
-    }
-
-    #[instrument(skip_all)]
-    pub fn start(&self) -> Result<(), PyEventError> {
-        self.publish(Event::Start)?;
+        self.event_loops.shutdown_event_task()?;
         Ok(())
     }
 }

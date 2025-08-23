@@ -45,6 +45,7 @@ impl CustomQueue {
         config: TransportConfig,
         runtime: Arc<runtime::Runtime>,
         event_loops: &mut EventLoops,
+        background_rx: UnboundedReceiver<BackgroundEvent>,
     ) -> Result<Self, EventError> {
         let sample_size = drift_profile.config.sample_size;
 
@@ -107,8 +108,8 @@ impl QueueMethods for CustomQueue {
         self.capacity
     }
 
-    fn get_producer(&mut self) -> &mut RustScouterProducer {
-        &mut self.producer
+    fn get_producer(&mut self) -> Arc<Mutex<RustScouterProducer>> {
+        self.producer.clone()
     }
 
     fn queue(&self) -> Arc<ArrayQueue<Self::ItemType>> {
