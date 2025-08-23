@@ -11,11 +11,11 @@ use scouter_types::ServerRecords;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::RwLock;
-
 use tokio::runtime::Runtime;
-use tokio::sync::{watch, Mutex};
+use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, info_span, Instrument};
 
 pub trait FeatureQueue: Send + Sync {
@@ -86,10 +86,10 @@ pub trait BackgroundTask: Send + Sync + 'static {
         producer: Arc<Mutex<RustScouterProducer>>,
         last_publish: Arc<RwLock<DateTime<Utc>>>,
         runtime: Arc<Runtime>,
-        mut stop_rx: watch::Receiver<BackgroundEvent>,
         queue_capacity: usize,
         label: &'static str,
         event_loops: EventLoops,
+        cancellation_token: CancellationToken,
     ) -> Result<JoinHandle<()>, EventError> {
         let future = async move {
             debug!("Starting background task: {}", label);
@@ -129,17 +129,8 @@ pub trait BackgroundTask: Send + Sync + 'static {
 
                         }
                     }
-                    _ = stop_rx.changed() => {
+                    _ = cancellation_token.cancelled()  => {
                         info!("Stop signal received, shutting down background task: {}", label);
-                        // Stop the background task and publish remaining records
-                        process_batch(
-                            None,
-                            data_queue.clone(),
-                            last_publish.clone(),
-                            processor.clone(),
-                            producer.clone(),
-                            Utc::now(),
-                        ).await;
                         event_loops.set_background_loop_running(false);
                         break;
                     }
