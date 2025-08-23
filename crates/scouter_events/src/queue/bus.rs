@@ -1,14 +1,9 @@
 use std::sync::Arc;
 
-use crate::{
-    error::{EventError, PyEventError},
-    queue::traits::queue::BackgroundEvent,
-};
+use crate::error::{EventError, PyEventError};
 use pyo3::prelude::*;
 use scouter_types::QueueItem;
 use std::sync::RwLock;
-use std::time::Duration;
-use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tokio::{sync::mpsc::UnboundedSender, task::AbortHandle};
 use tokio_util::sync::CancellationToken;
