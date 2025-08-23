@@ -165,8 +165,6 @@ pub trait QueueMethods {
             self.try_publish(queue.clone()).await?;
         }
 
-        info!("Current queue length: {}", queue.len());
-
         Ok(())
     }
 

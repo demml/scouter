@@ -192,7 +192,17 @@ async fn spawn_queue_event_handler(
                             }
                         }
                     }
-
+                    Event::Flush => {
+                        debug!("Flush event received for queue {}", id);
+                        match queue.flush().await {
+                            Ok(_) => {
+                                debug!("Successfully flushed queue {}", id);
+                            }
+                            Err(e) => {
+                                error!("Error flushing queue {}: {}", id, e);
+                            }
+                        }
+                    }
                 }
             }
 

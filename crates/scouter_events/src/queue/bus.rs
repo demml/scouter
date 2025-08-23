@@ -9,9 +9,11 @@ use tokio::time::Duration;
 use tokio::{sync::mpsc::UnboundedSender, task::AbortHandle};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, instrument, warn};
+
 #[derive(Debug)]
 pub enum Event {
     Task(QueueItem),
+    Flush,
 }
 
 #[derive(Debug)]
@@ -66,7 +68,11 @@ impl EventState {
         self.event_loop.write().unwrap().cancel_token = Some(token);
     }
 
-    pub fn cancel_event_task(&self) {
+    fn flush_event_task(&self) -> Result<(), EventError> {
+        Ok(self.event_tx.send(Event::Flush)?)
+    }
+
+    fn cancel_event_task(&self) {
         let cancel_token = &self.event_loop.read().unwrap().cancel_token;
         if let Some(cancel_token) = cancel_token {
             debug!("Cancelling event task");
@@ -142,10 +148,16 @@ impl EventState {
     /// This is intended to be called when shutting down and after
     /// the associated queue has been flushed
     fn shutdown_event_task(&self) -> Result<(), EventError> {
+        self.flush_event_task()?;
+
+        debug!("Waiting 250 ms to allow time for flush before cancelling event task");
+        std::thread::sleep(Duration::from_millis(250));
+
         self.cancel_event_task();
 
         // wait 500 ms to allow time for flush before aborting thread
-        std::thread::sleep(Duration::from_millis(500));
+        debug!("Waiting 250 ms to allow time for flush before aborting event task");
+        std::thread::sleep(Duration::from_millis(250));
 
         // abort the event loop
         let event_handle = {

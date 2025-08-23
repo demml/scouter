@@ -37,10 +37,7 @@ def test_spc_monitor_pandas_kafka(
 
     for record in records:
         features = Features(
-            features=[
-                Feature.float(column_name, record[column_name])
-                for column_name in pandas_dataframe.columns
-            ]
+            features=[Feature.float(column_name, record[column_name]) for column_name in pandas_dataframe.columns]
         )
         queue["a"].insert(features)
 
@@ -57,8 +54,5 @@ def test_spc_monitor_pandas_kafka(
             drift_type=DriftType.Spc,
         )
     )
-
-    print(len(records))
-    print(binned_records)
 
     assert len(binned_records.features["feature_0"].values) > 0

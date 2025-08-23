@@ -15,7 +15,7 @@ use crate::queue::types::TransportConfig;
 
 use crate::error::EventError;
 use scouter_types::ServerRecords;
-use tracing::{debug, info};
+use tracing::debug;
 
 #[derive(Clone)]
 pub enum ProducerEnum {
@@ -121,7 +121,7 @@ impl RustScouterProducer {
     }
 
     pub async fn publish(&mut self, message: ServerRecords) -> Result<(), EventError> {
-        info!("message length: {}", message.len());
+        debug!("message length: {}", message.len());
         self.producer.publish(message).await
     }
 
