@@ -166,13 +166,13 @@ pub enum EventError {
     JoinError(#[from] tokio::task::JoinError),
 
     #[error("Event loop failed to start")]
-    EventLoopFailedToStartError,
+    EventStateFailedToStartError,
 
     #[error("Background loop failed to start")]
     BackgroundLoopFailedToStartError,
 
     #[error("Event loop read error")]
-    EventLoopReadError,
+    EventStateReadError,
 
     #[error("Missing background tx channel")]
     BackgroundTxMissingError,

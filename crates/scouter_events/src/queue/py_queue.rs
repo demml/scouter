@@ -1,8 +1,7 @@
 #![allow(clippy::useless_conversion)]
 use crate::error::{EventError, PyEventError};
-use crate::queue::bus::BackgroundLoop;
-use crate::queue::bus::EventLoop;
-use crate::queue::bus::{Event, EventLoops, QueueBus};
+use crate::queue::bus::Loop;
+use crate::queue::bus::{Event, EventState, QueueBus};
 use crate::queue::custom::CustomQueue;
 use crate::queue::llm::LLMQueue;
 use crate::queue::psi::PsiQueue;
@@ -22,32 +21,25 @@ use std::sync::RwLock;
 use tokio::runtime;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::watch;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, instrument};
 
-fn create_event_loops() -> (EventLoops, UnboundedReceiver<Event>) {
+fn create_event_state() -> (EventState, UnboundedReceiver<Event>) {
     let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel();
 
     // get background loop
-    let background_loop = Arc::new(RwLock::new(BackgroundLoop {
-        handle: None,
-        loop_running: false,
-        stop_tx: None,
-    }));
+    let background_loop = Arc::new(RwLock::new(Loop::new()));
 
     // get event loop
-    let event_loop = Arc::new(RwLock::new(EventLoop {
-        handle: None,
-        loop_running: false,
-        stop_tx: None,
-        event_tx,
-    }));
+    let event_loop = Arc::new(RwLock::new(Loop::new()));
 
-    let event_loops = EventLoops {
+    let event_state = EventState {
         event_loop,
         background_loop,
+        event_tx,
     };
 
-    (event_loops, event_rx)
+    (event_state, event_rx)
 }
 pub enum QueueNum {
     Spc(SpcQueue),
@@ -61,7 +53,7 @@ impl QueueNum {
         transport_config: TransportConfig,
         drift_profile: DriftProfile,
         runtime: Arc<runtime::Runtime>,
-        event_loops: &mut EventLoops,
+        event_state: &mut EventState,
     ) -> Result<Self, EventError> {
         match drift_profile {
             DriftProfile::Spc(spc_profile) => {
@@ -70,12 +62,12 @@ impl QueueNum {
             }
             DriftProfile::Psi(psi_profile) => {
                 let queue =
-                    PsiQueue::new(psi_profile, transport_config, runtime, event_loops).await?;
+                    PsiQueue::new(psi_profile, transport_config, runtime, event_state).await?;
                 Ok(QueueNum::Psi(queue))
             }
             DriftProfile::Custom(custom_profile) => {
                 let queue =
-                    CustomQueue::new(custom_profile, transport_config, runtime, event_loops)
+                    CustomQueue::new(custom_profile, transport_config, runtime, event_state)
                         .await?;
                 Ok(QueueNum::Custom(queue))
             }
@@ -167,8 +159,8 @@ async fn spawn_queue_event_handler(
     drift_profile: DriftProfile,
     runtime: Arc<runtime::Runtime>,
     id: String,
-    mut event_loops: EventLoops,
-    mut stop_rx: watch::Receiver<BackgroundEvent>,
+    mut event_state: EventState,
+    cancellation_token: CancellationToken,
 ) -> Result<(), EventError> {
     // This will create the specific queue based on the transport config and drift profile
     // Available queues:
@@ -178,7 +170,7 @@ async fn spawn_queue_event_handler(
     // - LLM
     // event loops are used to monitor the background tasks of both custom and PSI queues
     let mut queue =
-        match QueueNum::new(transport_config, drift_profile, runtime, &mut event_loops).await {
+        match QueueNum::new(transport_config, drift_profile, runtime, &mut event_state).await {
             Ok(q) => q,
             Err(e) => {
                 error!("Failed to initialize queue {}: {}", id, e);
@@ -186,7 +178,7 @@ async fn spawn_queue_event_handler(
             }
         };
 
-    event_loops.set_event_loop_running(true);
+    event_state.set_event_loop_running(true);
 
     loop {
         tokio::select! {
@@ -206,18 +198,15 @@ async fn spawn_queue_event_handler(
                 }
             }
 
-            _ = stop_rx.changed() => {
+            _ = cancellation_token.cancelled() => {
                 debug!("Stop signal received for queue {}", id);
-                queue.flush().await?;
-                event_loops.set_event_loop_running(false);
+                event_state.set_event_loop_running(false);
                 break;
             }
 
             else => {
                 debug!("Event channel closed for queue {}, shutting down", id);
-                // this flush should also clean up any remaining background tasks (psi, and custom)
-                queue.flush().await?;
-                event_loops.set_event_loop_running(false);
+                event_state.set_event_loop_running(false);
                 break;
             }
         }
@@ -230,7 +219,7 @@ pub struct ScouterQueue {
     queues: HashMap<String, Py<QueueBus>>,
     _shared_runtime: Arc<tokio::runtime::Runtime>,
     transport_config: TransportConfig,
-    pub queue_event_loops: Arc<HashMap<String, EventLoops>>,
+    pub queue_state: Arc<HashMap<String, EventState>>,
 }
 
 #[pymethods]
@@ -315,10 +304,11 @@ impl ScouterQueue {
     pub fn shutdown(&mut self) -> Result<(), PyEventError> {
         debug!("Starting ScouterQueue shutdown");
 
-        for (alias, event_loop) in self.queue_event_loops.iter() {
+        for (alias, event_state) in self.queue_state.iter() {
             debug!("Shutting down queue: {}", alias);
+            // Flush first
             // shutdown the queue
-            event_loop.shutdown_event_task()?;
+            event_state.shutdown_tasks()?;
         }
 
         // clear the queues
@@ -330,15 +320,6 @@ impl ScouterQueue {
         debug!("All queues have been shutdown and cleared");
 
         Ok(())
-    }
-
-    /// Checks if all queues are running.
-    /// This will check if every queue's event loop and background loop are running.
-    pub fn running(&self) -> bool {
-        // check "running" for all queue_event_loops
-        self.queue_event_loops
-            .iter()
-            .all(|(_, event_loops)| event_loops.running())
     }
 }
 
@@ -371,7 +352,7 @@ impl ScouterQueue {
     ) -> Result<Self, PyEventError> {
         debug!("Creating ScouterQueue from path");
         let mut queues = HashMap::new();
-        let mut queue_event_loops = HashMap::new();
+        let mut queue_event_state = HashMap::new();
 
         // assert transport config is not None
         if transport_config.is_none() {
@@ -386,17 +367,17 @@ impl ScouterQueue {
         for (id, profile_path) in path {
             let cloned_config = config.clone();
             let drift_profile = DriftProfile::from_profile_path(profile_path)?;
-            let (mut event_loops, event_rx) = create_event_loops();
+            let (mut event_state, event_rx) = create_event_state();
 
             // create startup channels to ensure queues are initialized before use
-            let bus = QueueBus::new(event_loops.clone());
-            queue_event_loops.insert(id.clone(), event_loops.clone());
-            let (event_stop_tx, event_stop_rx) = watch::channel(BackgroundEvent::Start);
+            let bus = QueueBus::new(event_state.clone());
+            queue_event_state.insert(id.clone(), event_state.clone());
+            let cancellation_token = CancellationToken::new();
 
             // queue args
             let clone_runtime = shared_runtime.clone();
             let id_clone = id.clone();
-            let cloned_event_loops = event_loops.clone();
+            let cloned_event_state = event_state.clone();
 
             // Spawn the task without waiting for initialization
             let handle = shared_runtime.spawn(async move {
@@ -406,8 +387,8 @@ impl ScouterQueue {
                     drift_profile,
                     clone_runtime,
                     id_clone,
-                    cloned_event_loops,
-                    event_stop_rx,
+                    cloned_event_state,
+                    cancellation_token.clone(),
                 )
                 .await
                 {
@@ -419,14 +400,14 @@ impl ScouterQueue {
             });
 
             // add handle and stop tx to event loops for management
-            event_loops.add_event_handle(handle);
-            event_loops.add_event_stop_tx(event_stop_tx);
+            event_state.add_event_handle(handle);
+            event_state.add_event_stop_tx(event_stop_tx);
 
             std::thread::sleep(std::time::Duration::from_millis(100));
 
             // wait for background task and event task to signal startup
-            wait_for_background_task(&event_loops)?;
-            wait_for_event_task(&event_loops)?;
+            wait_for_background_task(&event_state)?;
+            wait_for_event_task(&event_state)?;
 
             let queue = Py::new(py, bus)?;
             queues.insert(id.clone(), queue);
@@ -437,7 +418,7 @@ impl ScouterQueue {
             // need to keep the runtime alive for the life of ScouterQueue
             _shared_runtime: shared_runtime,
             transport_config: config,
-            queue_event_loops: Arc::new(queue_event_loops),
+            queue_event_state: Arc::new(queue_event_state),
         })
     }
 }

@@ -1,8 +1,7 @@
 use crate::error::EventError;
 use crate::producer::RustScouterProducer;
-use crate::queue::bus::EventLoops;
+use crate::queue::bus::EventState;
 use crate::queue::custom::feature_queue::CustomMetricFeatureQueue;
-use crate::queue::traits::queue::BackgroundEvent;
 use crate::queue::traits::{BackgroundTask, QueueMethods};
 use crate::queue::types::TransportConfig;
 use async_trait::async_trait;
@@ -13,7 +12,8 @@ use scouter_types::Metrics;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
-use tokio::sync::{watch, Mutex};
+use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 use tracing::debug;
 /// The following code is a custom queue implementation for handling custom metrics.
 /// It consists of a `CustomQueue` struct that manages a queue of metrics and a background task
@@ -34,7 +34,7 @@ pub struct CustomQueue {
     producer: Arc<Mutex<RustScouterProducer>>,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
     capacity: usize,
-    event_loops: EventLoops,
+    event_state: EventState,
 }
 
 impl CustomQueue {
@@ -42,7 +42,7 @@ impl CustomQueue {
         drift_profile: CustomDriftProfile,
         config: TransportConfig,
         runtime: Arc<runtime::Runtime>,
-        event_loops: &mut EventLoops,
+        event_state: &mut EventState,
     ) -> Result<Self, EventError> {
         let sample_size = drift_profile.config.sample_size;
 
@@ -54,8 +54,7 @@ impl CustomQueue {
 
         debug!("Creating Producer");
         let producer = Arc::new(Mutex::new(RustScouterProducer::new(config).await?));
-
-        let (stop_tx, stop_rx) = watch::channel(BackgroundEvent::Start);
+        let cancellation_token = CancellationToken::new();
 
         let custom_queue = CustomQueue {
             queue: metrics_queue.clone(),
@@ -63,7 +62,7 @@ impl CustomQueue {
             producer,
             last_publish,
             capacity: sample_size,
-            event_loops: event_loops.clone(),
+            event_state: event_state.clone(),
         };
 
         debug!("Starting Background Task");
@@ -73,14 +72,14 @@ impl CustomQueue {
             custom_queue.producer.clone(),
             custom_queue.last_publish.clone(),
             runtime.clone(),
-            stop_rx,
             custom_queue.capacity,
             "Custom Background Polling",
-            event_loops.clone(),
+            event_state.clone(),
+            cancellation_token.clone(),
         )?;
 
-        event_loops.add_event_handle(handle);
-        event_loops.add_event_stop_tx(stop_tx);
+        event_state.add_background_abort_handle(handle);
+        event_state.add_background_cancellation_token(cancellation_token);
 
         Ok(custom_queue)
     }
@@ -131,9 +130,6 @@ impl QueueMethods for CustomQueue {
         let producer = self.producer.lock().await;
         producer.flush().await?;
 
-        self.event_loops.shutdown_background_task().await?;
-
-        debug!("Custom Background Task finished");
         Ok(())
     }
 }

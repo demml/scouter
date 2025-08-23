@@ -20,8 +20,18 @@ pub struct Loop {
     pub cancel_token: Option<CancellationToken>,
 }
 
+impl Loop {
+    pub fn new() -> Self {
+        Self {
+            abort_handle: None,
+            loop_running: false,
+            cancel_token: None,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
-pub struct EventLoops {
+pub struct EventState {
     // track the loop that receives events
     pub event_loop: Arc<RwLock<Loop>>,
 
@@ -32,7 +42,11 @@ pub struct EventLoops {
     pub event_tx: UnboundedSender<Event>,
 }
 
-impl EventLoops {
+impl EventState {
+    pub fn add_background_cancellation_token(&mut self, token: CancellationToken) {
+        self.background_loop.write().unwrap().cancel_token = Some(token);
+    }
+
     pub fn cancel_background_task(&self) {
         let cancel_token = &self.background_loop.read().unwrap().cancel_token;
         if let Some(cancel_token) = cancel_token {
@@ -40,15 +54,19 @@ impl EventLoops {
         }
     }
 
+    pub fn add_event_cancellation_token(&mut self, token: CancellationToken) {
+        self.event_state.write().unwrap().cancel_token = Some(token);
+    }
+
     pub fn cancel_event_task(&self) {
-        let cancel_token = &self.event_loop.read().unwrap().cancel_token;
+        let cancel_token = &self.event_state.read().unwrap().cancel_token;
         if let Some(cancel_token) = cancel_token {
             cancel_token.cancel();
         }
     }
 
     pub fn add_event_abort_handle(&mut self, handle: JoinHandle<()>) {
-        self.event_loop
+        self.event_state
             .write()
             .unwrap()
             .abort_handle
@@ -64,7 +82,7 @@ impl EventLoops {
     }
 
     pub fn is_event_loop_running(&self) -> bool {
-        self.event_loop.read().unwrap().loop_running
+        self.event_state.read().unwrap().loop_running
     }
 
     pub fn has_background_handle(&self) -> bool {
@@ -76,7 +94,7 @@ impl EventLoops {
     }
 
     pub fn set_event_loop_running(&self, running: bool) {
-        let mut event_loop = self.event_loop.write().unwrap();
+        let mut event_loop = self.event_state.write().unwrap();
         event_loop.loop_running = running;
     }
 
@@ -119,7 +137,7 @@ impl EventLoops {
 
         // abort the event loop
         let event_handle = {
-            let guard = self.event_loop.write().unwrap().abort_handle.take();
+            let guard = self.event_state.write().unwrap().abort_handle.take();
             guard
         };
 
@@ -144,20 +162,20 @@ impl EventLoops {
 /// Primary way to publish non-blocking events to background queues with ScouterQueue
 #[pyclass(name = "Queue")]
 pub struct QueueBus {
-    pub event_loops: EventLoops,
+    pub event_state: EventState,
 }
 
 impl QueueBus {
     #[instrument(skip_all)]
-    pub fn new(event_loops: EventLoops) -> Self {
+    pub fn new(event_state: EventState) -> Self {
         debug!("Creating unbounded QueueBus");
 
-        Self { event_loops }
+        Self { event_state }
     }
 
     #[instrument(skip_all)]
     pub fn publish(&self, event: Event) -> Result<(), EventError> {
-        Ok(self.event_loops.event_tx.send(event)?)
+        Ok(self.event_state.event_tx.send(event)?)
     }
 }
 
@@ -179,7 +197,7 @@ impl QueueBus {
     /// This will send a messages to the event and background queue, which will trigger a flush on the queue
     #[instrument(skip_all)]
     pub fn shutdown(&self) -> Result<(), PyEventError> {
-        self.event_loops.shutdown_event_task()?;
+        self.event_states.shutdown_event_task()?;
         Ok(())
     }
 }
