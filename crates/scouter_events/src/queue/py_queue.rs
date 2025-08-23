@@ -1,22 +1,51 @@
 #![allow(clippy::useless_conversion)]
 use crate::error::{EventError, PyEventError};
+use crate::queue::bus::BackgroundLoop;
+use crate::queue::bus::EventLoop;
 use crate::queue::bus::{Event, EventLoops, QueueBus};
 use crate::queue::custom::CustomQueue;
 use crate::queue::llm::LLMQueue;
 use crate::queue::psi::PsiQueue;
 use crate::queue::spc::SpcQueue;
-use crate::queue::traits::queue::BackgroundEvent;
+use crate::queue::traits::queue::wait_for_background_task;
+use crate::queue::traits::queue::wait_for_event_task;
 use crate::queue::traits::queue::QueueMethods;
 use crate::queue::types::TransportConfig;
 use pyo3::prelude::*;
+use scouter_drift::custom::drift;
 use scouter_types::{DriftProfile, LLMRecord, QueueItem};
 use scouter_types::{Features, Metrics};
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::sync::RwLock;
 use tokio::runtime;
 use tokio::sync::mpsc::UnboundedReceiver;
-use tracing::{debug, error, instrument};
+use tracing::{debug, error, info, instrument};
+
+fn create_event_loops() -> (EventLoops, UnboundedReceiver<Event>) {
+    let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel();
+
+    // get background loop
+    let background_loop = Arc::new(RwLock::new(BackgroundLoop {
+        background_loop: None,
+        background_loop_running: false,
+    }));
+
+    // get event loop
+    let event_loop = Arc::new(RwLock::new(EventLoop {
+        event_loop: None,
+        event_loop_running: false,
+        event_tx,
+    }));
+
+    let event_loops = EventLoops {
+        event_loop,
+        background_loop,
+    };
+
+    (event_loops, event_rx)
+}
 pub enum QueueNum {
     Spc(SpcQueue),
     Psi(PsiQueue),
@@ -29,8 +58,7 @@ impl QueueNum {
         transport_config: TransportConfig,
         drift_profile: DriftProfile,
         runtime: Arc<runtime::Runtime>,
-        event_loops: EventLoops,
-        background_event_rx: UnboundedReceiver<BackgroundEvent>,
+        event_loops: &mut EventLoops,
     ) -> Result<Self, EventError> {
         match drift_profile {
             DriftProfile::Spc(spc_profile) => {
@@ -38,25 +66,14 @@ impl QueueNum {
                 Ok(QueueNum::Spc(queue))
             }
             DriftProfile::Psi(psi_profile) => {
-                let queue = PsiQueue::new(
-                    psi_profile,
-                    transport_config,
-                    runtime,
-                    event_loops,
-                    background_event_rx,
-                )
-                .await?;
+                let queue =
+                    PsiQueue::new(psi_profile, transport_config, runtime, event_loops).await?;
                 Ok(QueueNum::Psi(queue))
             }
             DriftProfile::Custom(custom_profile) => {
-                let queue = CustomQueue::new(
-                    custom_profile,
-                    transport_config,
-                    runtime,
-                    event_loops,
-                    background_event_rx,
-                )
-                .await?;
+                let queue =
+                    CustomQueue::new(custom_profile, transport_config, runtime, event_loops)
+                        .await?;
                 Ok(QueueNum::Custom(queue))
             }
             DriftProfile::LLM(llm_profile) => {
@@ -141,14 +158,13 @@ impl QueueNum {
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn handle_queue_events(
+async fn spawn_queue_event_handler(
     mut event_rx: UnboundedReceiver<Event>,
     transport_config: TransportConfig,
     drift_profile: DriftProfile,
     runtime: Arc<runtime::Runtime>,
     id: String,
-    event_loops: EventLoops,
-    background_rx: UnboundedReceiver<BackgroundEvent>,
+    mut event_loops: EventLoops,
 ) -> Result<(), EventError> {
     // This will create the specific queue based on the transport config and drift profile
     // Available queues:
@@ -157,21 +173,14 @@ async fn handle_queue_events(
     // - Custom - will also create a background task
     // - LLM
     // event loops are used to monitor the background tasks of both custom and PSI queues
-    let mut queue = match QueueNum::new(
-        transport_config,
-        drift_profile,
-        runtime,
-        event_loops.clone(),
-        background_rx,
-    )
-    .await
-    {
-        Ok(q) => q,
-        Err(e) => {
-            error!("Failed to initialize queue {}: {}", id, e);
-            return Err(e);
-        }
-    };
+    let mut queue =
+        match QueueNum::new(transport_config, drift_profile, runtime, &mut event_loops).await {
+            Ok(q) => q,
+            Err(e) => {
+                error!("Failed to initialize queue {}: {}", id, e);
+                return Err(e);
+            }
+        };
 
     loop {
         tokio::select! {
@@ -366,26 +375,28 @@ impl ScouterQueue {
         for (id, profile_path) in path {
             let cloned_config = config.clone();
             let drift_profile = DriftProfile::from_profile_path(profile_path)?;
+            let (mut event_loops, event_rx) = create_event_loops();
 
             // create startup channels to ensure queues are initialized before use
-            let (bus, event_rx, background_rx) = QueueBus::new();
-            let event_loops = bus.event_loops.clone();
+            let bus = QueueBus::new(event_loops.clone());
             queue_event_loops.insert(id.clone(), event_loops.clone());
 
+            // queue args
             let clone_runtime = shared_runtime.clone();
-            // spawn a new thread for each queue
             let id_clone = id.clone();
+            let cloned_event_loops = event_loops.clone();
 
-            // Just spawn the task without waiting for initialization
-            shared_runtime.spawn(async move {
-                match handle_queue_events(
+            //panic!("CHECKPOINT 1: Starting from_path_rs");
+
+            // Spawn the task without waiting for initialization
+            let handle = shared_runtime.spawn(async move {
+                match spawn_queue_event_handler(
                     event_rx,
                     cloned_config,
                     drift_profile,
                     clone_runtime,
                     id_clone,
-                    event_loops.clone(),
-                    background_rx,
+                    cloned_event_loops,
                 )
                 .await
                 {
@@ -396,11 +407,11 @@ impl ScouterQueue {
                 }
             });
 
-            // send start event
-            bus.start()?;
+            event_loops.add_event_handle(handle);
+            std::thread::sleep(std::time::Duration::from_millis(100));
 
-            // Confirm event loop has started (waits for a maximum of 1 second)
-            bus.confirm_start()?;
+            wait_for_background_task(&event_loops)?;
+            wait_for_event_task(&event_loops)?;
 
             let queue = Py::new(py, bus)?;
             queues.insert(id.clone(), queue);

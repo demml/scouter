@@ -2,7 +2,7 @@ use crate::error::EventError;
 use crate::producer::RustScouterProducer;
 use crate::queue::bus::EventLoops;
 use crate::queue::psi::feature_queue::PsiFeatureQueue;
-use crate::queue::traits::queue::{wait_for_background_task, BackgroundEvent};
+use crate::queue::traits::queue::wait_for_background_task;
 use crate::queue::traits::{BackgroundTask, QueueMethods};
 use crate::queue::types::TransportConfig;
 use async_trait::async_trait;
@@ -10,10 +10,10 @@ use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
 use scouter_types::psi::PsiDriftProfile;
 use scouter_types::Features;
+use std::os::unix::thread;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
-use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tracing::debug;
@@ -34,8 +34,7 @@ impl PsiQueue {
         drift_profile: PsiDriftProfile,
         config: TransportConfig,
         runtime: Arc<runtime::Runtime>,
-        event_loops: EventLoops,
-        background_rx: UnboundedReceiver<BackgroundEvent>,
+        event_loops: &mut EventLoops,
     ) -> Result<Self, EventError> {
         // ArrayQueue size is based on the max PSI queue size
 
@@ -44,11 +43,9 @@ impl PsiQueue {
         let last_publish: Arc<RwLock<DateTime<Utc>>> = Arc::new(RwLock::new(Utc::now()));
         let producer = RustScouterProducer::new(config).await?;
 
-        debug!("Creating PSI Queue with capacity: {}", PSI_MAX_QUEUE_SIZE);
-
         let (stop_tx, stop_rx) = watch::channel(());
 
-        let mut psi_queue = PsiQueue {
+        let psi_queue = PsiQueue {
             queue: queue.clone(),
             feature_queue: feature_queue.clone(),
             producer,
@@ -58,45 +55,26 @@ impl PsiQueue {
             event_loops: event_loops.clone(),
         };
 
-        debug!("Starting Background Task");
-        let handle = psi_queue.start_background_worker(
+        let handle = psi_queue.start_background_task(
             queue,
             feature_queue,
-            stop_rx,
-            runtime,
-            background_rx,
-        )?;
-
-        // update event loop
-        psi_queue.event_loops.add_background_handle(handle);
-
-        // wait for the background task to be ready
-        psi_queue.event_loops.start_background_task()?;
-        wait_for_background_task(&event_loops).await?;
-
-        Ok(psi_queue)
-    }
-
-    fn start_background_worker(
-        &self,
-        metrics_queue: Arc<ArrayQueue<Features>>,
-        feature_queue: Arc<PsiFeatureQueue>,
-        stop_rx: watch::Receiver<()>,
-        rt: Arc<tokio::runtime::Runtime>,
-        background_rx: UnboundedReceiver<BackgroundEvent>,
-    ) -> Result<JoinHandle<()>, EventError> {
-        self.start_background_task(
-            metrics_queue,
-            feature_queue,
-            self.producer.clone(),
-            self.last_publish.clone(),
-            rt.clone(),
+            psi_queue.producer.clone(),
+            psi_queue.last_publish.clone(),
+            runtime.clone(),
             stop_rx,
             PSI_MAX_QUEUE_SIZE,
             "Psi Background Polling",
-            background_rx,
-            self.event_loops.clone(),
-        )
+            event_loops.clone(),
+        )?;
+
+        // update event loop
+        event_loops.add_background_handle(handle);
+
+        //check if running
+
+        debug!("Created PSI Queue with capacity: {}", PSI_MAX_QUEUE_SIZE);
+
+        Ok(psi_queue)
     }
 }
 

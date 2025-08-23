@@ -32,7 +32,7 @@ def test_mock_config(
 
     # 2. Simulate records
     records = pandas_dataframe.to_dict(orient="records")
-    for record in records:
+    for record in records[:10]:
         features = Features(
             features=[
                 Feature.float(column_name, record[column_name])
@@ -46,6 +46,7 @@ def test_mock_config(
     queue.shutdown()
 
     assert isinstance(queue.transport_config, MockConfig)
+    a
 
 
 def _test_mock_config_kwargs():

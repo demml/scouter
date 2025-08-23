@@ -179,6 +179,9 @@ pub enum EventError {
 
     #[error("Missing event tx channel")]
     EventTxMissingError,
+
+    #[error("Failed to acquire read lock: {0}")]
+    ReadLockError(String),
 }
 
 #[derive(Error, Debug)]

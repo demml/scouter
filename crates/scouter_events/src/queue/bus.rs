@@ -1,12 +1,11 @@
 use std::sync::Arc;
 
 use crate::error::{EventError, PyEventError};
-use crate::queue::traits::queue::BackgroundEvent;
 use pyo3::prelude::*;
 use scouter_types::QueueItem;
 use std::sync::RwLock;
 use std::time::Duration;
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
+use tokio::sync::mpsc::UnboundedSender;
 use tokio::task::JoinHandle;
 use tracing::{debug, error, instrument};
 
@@ -28,7 +27,6 @@ pub struct EventLoop {
 pub struct BackgroundLoop {
     pub background_loop: Option<JoinHandle<()>>,
     pub background_loop_running: bool,
-    pub background_tx: UnboundedSender<BackgroundEvent>,
 }
 
 #[derive(Debug, Clone)]
@@ -41,14 +39,14 @@ pub struct EventLoops {
 }
 
 impl EventLoops {
-    pub fn start_background_task(&self) -> Result<(), EventError> {
-        Ok(self
-            .background_loop
-            .read()
-            .map_err(|_| EventError::BackgroundTxMissingError)?
-            .background_tx
-            .send(BackgroundEvent::Start)?)
-    }
+    //pub fn start_background_task(&self) -> Result<(), EventError> {
+    //    Ok(self
+    //        .background_loop
+    //        .read()
+    //        .map_err(|_| EventError::BackgroundTxMissingError)?
+    //        .background_tx
+    //        .send(BackgroundEvent::Start)?)
+    //}
     pub fn start_event_task(&self) -> Result<(), EventError> {
         Ok(self
             .event_loop
@@ -72,6 +70,14 @@ impl EventLoops {
         self.event_loop.read().unwrap().event_loop_running
     }
 
+    pub fn has_background_handle(&self) -> bool {
+        self.background_loop
+            .read()
+            .unwrap()
+            .background_loop
+            .is_some()
+    }
+
     pub fn is_background_loop_running(&self) -> bool {
         self.background_loop.read().unwrap().background_loop_running
     }
@@ -80,13 +86,15 @@ impl EventLoops {
         let event_running = self.is_event_loop_running();
 
         // if background loop has some, check if running, if no handle, default to true
-        let background_running = if self
-            .background_loop
-            .read()
-            .unwrap()
-            .background_loop
-            .is_some()
-        {
+        let has_background_handle = {
+            self.background_loop
+                .read()
+                .unwrap()
+                .background_loop
+                .is_some()
+        };
+
+        let background_running = if has_background_handle {
             self.is_background_loop_running()
         } else {
             true
@@ -135,7 +143,7 @@ impl EventLoops {
     pub async fn shutdown_background_task(&self) -> Result<(), EventError> {
         // signal should have already been sent. wait for the background task to finish
         let mut max_retries = 50;
-        while self.background_loop.read().unwrap().background_loop_running {
+        while self.is_background_loop_running() {
             std::thread::sleep(Duration::from_millis(100));
             max_retries -= 1;
             if max_retries == 0 {
@@ -162,15 +170,10 @@ impl EventLoops {
     pub fn wait_for_background_task_to_stop(&self) -> Result<(), EventError> {
         debug!("Waiting for background task to stop");
         //if background task is some wait for the
-        if self
-            .background_loop
-            .read()
-            .unwrap()
-            .background_loop
-            .is_some()
-        {
+        let has_background_handle = self.has_background_handle();
+        if has_background_handle {
             let mut max_retries = 50;
-            while self.background_loop.read().unwrap().background_loop_running {
+            while self.is_background_loop_running() {
                 std::thread::sleep(Duration::from_millis(100));
                 max_retries -= 1;
                 if max_retries == 0 {
@@ -211,6 +214,24 @@ impl EventLoops {
         // await background task completion
         Ok(())
     }
+
+    pub fn debug_state(&self) {
+        let background_guard = self.background_loop.read().unwrap();
+        let event_guard = self.event_loop.read().unwrap();
+        debug!(
+            r#"AppEventState:
+                Background loop running: {}
+                Background handle exists: {:?}
+                Event loop running: {}
+                Event tx exists: {:?}
+                Event handle exists: {:?}"#,
+            background_guard.background_loop_running,
+            background_guard.background_loop,
+            event_guard.event_loop_running,
+            event_guard.event_tx,
+            event_guard.event_loop
+        );
+    }
 }
 
 /// QueueBus is an mpsc bus that allows for publishing events to subscribers.
@@ -223,35 +244,10 @@ pub struct QueueBus {
 
 impl QueueBus {
     #[instrument(skip_all)]
-    pub fn new() -> (
-        Self,
-        UnboundedReceiver<Event>,
-        UnboundedReceiver<BackgroundEvent>,
-    ) {
+    pub fn new(event_loops: EventLoops) -> Self {
         debug!("Creating unbounded QueueBus");
-        let (event_tx, event_rx) = mpsc::unbounded_channel();
-        let (background_tx, background_rx) = mpsc::unbounded_channel();
 
-        // get background loop
-        let background_loop = Arc::new(RwLock::new(BackgroundLoop {
-            background_loop: None,
-            background_loop_running: false,
-            background_tx,
-        }));
-
-        // get event loop
-        let event_loop = Arc::new(RwLock::new(EventLoop {
-            event_loop: None,
-            event_loop_running: false,
-            event_tx,
-        }));
-
-        let event_loops = EventLoops {
-            event_loop,
-            background_loop,
-        };
-
-        (Self { event_loops }, event_rx, background_rx)
+        Self { event_loops }
     }
 
     #[instrument(skip_all)]
@@ -292,22 +288,5 @@ impl QueueBus {
     pub fn start(&self) -> Result<(), PyEventError> {
         self.publish(Event::Start)?;
         Ok(())
-    }
-}
-
-impl QueueBus {
-    pub fn confirm_start(&self) -> Result<(), EventError> {
-        // Signal confirm start
-        let mut max_retries = 20;
-        while max_retries > 0 {
-            if self.event_loops.is_event_loop_running() {
-                debug!("Event loop started successfully");
-                return Ok(());
-            }
-            max_retries -= 1;
-            std::thread::sleep(Duration::from_millis(100));
-        }
-        error!("Event loop failed to start");
-        Err(EventError::EventLoopFailedToStartError)
     }
 }

@@ -2,7 +2,7 @@ use crate::error::EventError;
 use crate::producer::RustScouterProducer;
 use crate::queue::bus::EventLoops;
 use crate::queue::custom::feature_queue::CustomMetricFeatureQueue;
-use crate::queue::traits::queue::{wait_for_event_task, BackgroundEvent};
+use crate::queue::traits::queue::wait_for_background_task;
 use crate::queue::traits::{BackgroundTask, QueueMethods};
 use crate::queue::types::TransportConfig;
 use async_trait::async_trait;
@@ -13,7 +13,6 @@ use scouter_types::Metrics;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
-use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tracing::debug;
@@ -45,8 +44,7 @@ impl CustomQueue {
         drift_profile: CustomDriftProfile,
         config: TransportConfig,
         runtime: Arc<runtime::Runtime>,
-        event_loops: EventLoops,
-        background_rx: UnboundedReceiver<BackgroundEvent>,
+        event_loops: &mut EventLoops,
     ) -> Result<Self, EventError> {
         let sample_size = drift_profile.config.sample_size;
 
@@ -61,7 +59,7 @@ impl CustomQueue {
 
         let (stop_tx, stop_rx) = watch::channel(());
 
-        let mut custom_queue = CustomQueue {
+        let custom_queue = CustomQueue {
             queue: metrics_queue.clone(),
             feature_queue: feature_queue.clone(),
             producer,
@@ -72,41 +70,22 @@ impl CustomQueue {
         };
 
         debug!("Starting Background Task");
-        let handle = custom_queue.start_background_worker(
+        let handle = custom_queue.start_background_task(
             metrics_queue,
             feature_queue,
+            custom_queue.producer.clone(),
+            custom_queue.last_publish.clone(),
+            runtime.clone(),
             stop_rx,
-            runtime,
-            background_rx,
+            custom_queue.capacity,
+            "Custom Background Polling",
+            event_loops.clone(),
         )?;
 
-        custom_queue.event_loops.add_event_handle(handle);
-        custom_queue.event_loops.start_background_task()?;
-        wait_for_event_task(&event_loops).await?;
+        event_loops.add_event_handle(handle);
+        //wait_for_background_task(event_loops)?;
 
         Ok(custom_queue)
-    }
-
-    fn start_background_worker(
-        &self,
-        metrics_queue: Arc<ArrayQueue<Metrics>>,
-        feature_queue: Arc<CustomMetricFeatureQueue>,
-        stop_rx: watch::Receiver<()>,
-        rt: Arc<tokio::runtime::Runtime>,
-        background_rx: UnboundedReceiver<BackgroundEvent>,
-    ) -> Result<JoinHandle<()>, EventError> {
-        self.start_background_task(
-            metrics_queue,
-            feature_queue,
-            self.producer.clone(),
-            self.last_publish.clone(),
-            rt.clone(),
-            stop_rx,
-            self.capacity,
-            "Custom Background Polling",
-            background_rx,
-            self.event_loops.clone(),
-        )
     }
 }
 

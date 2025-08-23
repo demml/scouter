@@ -12,7 +12,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime::Runtime;
-use tokio::sync::mpsc::UnboundedReceiver;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
@@ -44,21 +43,31 @@ pub trait BackgroundTask {
         mut stop_rx: watch::Receiver<()>,
         queue_capacity: usize,
         label: &'static str,
-        mut background_rx: UnboundedReceiver<BackgroundEvent>,
         event_loops: EventLoops,
     ) -> Result<JoinHandle<()>, EventError> {
         let future = async move {
+            debug!("Starting background task: {}", label);
+
+            // Check if stop signal was already sent before we start
+            if stop_rx.has_changed().unwrap_or(false) {
+                error!("Stop signal already received before task start: {}", label);
+                return;
+            }
+
+            // Set running state immediately
+            event_loops.set_background_loop_running(true);
+            debug!("Background task {} set to running", label);
+
+            // Small delay to ensure state is propagated
+            sleep(Duration::from_millis(10)).await;
             loop {
                 tokio::select! {
-                    Some(event) = background_rx.recv() => {
-                        match event {
-                            BackgroundEvent::Start => {
-                                debug!("Starting background task: {}", label);
-                                event_loops.set_background_loop_running(true);
-                            }
+                    _ = sleep(Duration::from_secs(1)) => {
+                        debug!("Waking up background task: {}", label);
+                        if !event_loops.is_background_loop_running() {
+                            continue;
                         }
-                    }
-                    _ = sleep(Duration::from_secs(2)) => {
+
                         let now = Utc::now();
 
                         // Scope the read guard to drop it before the future is sent
@@ -99,7 +108,7 @@ pub trait BackgroundTask {
                         }
                     },
                     _ = stop_rx.changed() => {
-
+                        info!("Stop signal received, shutting down background task: {}", label);
                         // Stop the background task and publish remaining records
                         let mut final_batch = Vec::new();
                         while let Some(item) = data_queue.pop() {
@@ -117,7 +126,6 @@ pub trait BackgroundTask {
                             }
                         }
 
-                        info!("Stopping background task");
                         if let Err(e) = producer.flush().await {
                             error!("Failed to flush producer: {}", e);
                         }
@@ -130,7 +138,7 @@ pub trait BackgroundTask {
         };
 
         let span = info_span!("background_task", task = %label);
-        let handle = runtime.spawn(future.instrument(span));
+        let handle = runtime.spawn(async move { future.instrument(span).await });
         Ok(handle)
     }
 }
@@ -240,36 +248,38 @@ pub trait QueueMethods {
     }
 }
 
-pub async fn wait_for_background_task(event_loops: &EventLoops) -> Result<(), EventError> {
+pub fn wait_for_background_task(event_loops: &EventLoops) -> Result<(), EventError> {
     // Signal confirm start
-    let mut max_retries = 20;
-    while max_retries > 0 {
-        if event_loops
-            .background_loop
-            .read()
-            .unwrap()
-            .background_loop_running
-        {
-            debug!("Background loop started successfully");
-            return Ok(());
+    if event_loops.has_background_handle() {
+        let mut max_retries = 20;
+        while max_retries > 0 {
+            if event_loops.is_background_loop_running() {
+                debug!("Background loop started successfully");
+                return Ok(());
+            }
+            max_retries -= 1;
+            std::thread::sleep(Duration::from_millis(200));
         }
-        max_retries -= 1;
-        std::thread::sleep(Duration::from_millis(100));
+        error!("Background loop failed to start");
+        Err(EventError::BackgroundLoopFailedToStartError)
+    } else {
+        debug!("No background handle to wait for");
+        Ok(())
     }
-    error!("Background loop failed to start");
-    Err(EventError::BackgroundLoopFailedToStartError)
 }
 
-pub async fn wait_for_event_task(event_loops: &EventLoops) -> Result<(), EventError> {
+pub fn wait_for_event_task(event_loops: &EventLoops) -> Result<(), EventError> {
     // Signal confirm start
+
     let mut max_retries = 20;
     while max_retries > 0 {
-        if event_loops.event_loop.read().unwrap().event_loop_running {
+        event_loops.start_event_task()?;
+        if event_loops.is_event_loop_running() {
             debug!("Event loop started successfully");
             return Ok(());
         }
         max_retries -= 1;
-        std::thread::sleep(Duration::from_millis(100));
+        std::thread::sleep(Duration::from_millis(200));
     }
     error!("Event loop failed to start");
     Err(EventError::EventLoopFailedToStartError)
