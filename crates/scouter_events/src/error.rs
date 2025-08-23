@@ -1,4 +1,3 @@
-use crate::queue::traits::queue::BackgroundEvent;
 use futures::io;
 use pyo3::PyErr;
 
@@ -113,9 +112,6 @@ pub enum EventError {
 
     #[error(transparent)]
     SendEntityError(#[from] tokio::sync::mpsc::error::SendError<Event>),
-
-    #[error(transparent)]
-    SendBackgroundEventError(#[from] tokio::sync::mpsc::error::SendError<BackgroundEvent>),
 
     #[error("Failed to push to queue. Queue is full")]
     QueuePushError,

@@ -5,6 +5,7 @@ use pyo3::prelude::*;
 use scouter_types::QueueItem;
 use std::sync::RwLock;
 use tokio::task::JoinHandle;
+use tokio::time::Duration;
 use tokio::{sync::mpsc::UnboundedSender, task::AbortHandle};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, instrument, warn};
@@ -30,6 +31,12 @@ impl Loop {
     }
 }
 
+impl Default for Loop {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct EventState {
     // track the loop that receives events
@@ -50,23 +57,25 @@ impl EventState {
     pub fn cancel_background_task(&self) {
         let cancel_token = &self.background_loop.read().unwrap().cancel_token;
         if let Some(cancel_token) = cancel_token {
+            debug!("Cancelling background task");
             cancel_token.cancel();
         }
     }
 
     pub fn add_event_cancellation_token(&mut self, token: CancellationToken) {
-        self.event_state.write().unwrap().cancel_token = Some(token);
+        self.event_loop.write().unwrap().cancel_token = Some(token);
     }
 
     pub fn cancel_event_task(&self) {
-        let cancel_token = &self.event_state.read().unwrap().cancel_token;
+        let cancel_token = &self.event_loop.read().unwrap().cancel_token;
         if let Some(cancel_token) = cancel_token {
+            debug!("Cancelling event task");
             cancel_token.cancel();
         }
     }
 
     pub fn add_event_abort_handle(&mut self, handle: JoinHandle<()>) {
-        self.event_state
+        self.event_loop
             .write()
             .unwrap()
             .abort_handle
@@ -82,7 +91,7 @@ impl EventState {
     }
 
     pub fn is_event_loop_running(&self) -> bool {
-        self.event_state.read().unwrap().loop_running
+        self.event_loop.read().unwrap().loop_running
     }
 
     pub fn has_background_handle(&self) -> bool {
@@ -94,7 +103,7 @@ impl EventState {
     }
 
     pub fn set_event_loop_running(&self, running: bool) {
-        let mut event_loop = self.event_state.write().unwrap();
+        let mut event_loop = self.event_loop.write().unwrap();
         event_loop.loop_running = running;
     }
 
@@ -120,7 +129,7 @@ impl EventState {
 
         if let Some(handle) = background_handle {
             handle.abort();
-            debug!("Background loop handle aborted");
+            debug!("Background loop handle shut down");
         }
 
         Ok(())
@@ -135,15 +144,18 @@ impl EventState {
     fn shutdown_event_task(&self) -> Result<(), EventError> {
         self.cancel_event_task();
 
+        // wait 500 ms to allow time for flush before aborting thread
+        std::thread::sleep(Duration::from_millis(500));
+
         // abort the event loop
         let event_handle = {
-            let guard = self.event_state.write().unwrap().abort_handle.take();
+            let guard = self.event_loop.write().unwrap().abort_handle.take();
             guard
         };
 
         if let Some(handle) = event_handle {
             handle.abort();
-            debug!("Event loop handle aborted");
+            debug!("Event loop handle shut down");
         }
 
         Ok(())
@@ -151,8 +163,8 @@ impl EventState {
 
     /// Shuts down all async tasks
     pub fn shutdown_tasks(&self) -> Result<(), EventError> {
-        self.shutdown_event_task()?;
         self.shutdown_background_task()?;
+        self.shutdown_event_task()?;
         Ok(())
     }
 }
@@ -190,14 +202,6 @@ impl QueueBus {
         debug!("Inserting event into QueueBus: {:?}", entity);
         let event = Event::Task(entity);
         self.publish(event)?;
-        Ok(())
-    }
-
-    /// Shutdown the bus
-    /// This will send a messages to the event and background queue, which will trigger a flush on the queue
-    #[instrument(skip_all)]
-    pub fn shutdown(&self) -> Result<(), PyEventError> {
-        self.event_states.shutdown_event_task()?;
         Ok(())
     }
 }

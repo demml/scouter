@@ -12,7 +12,6 @@ use scouter_types::Features;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
-use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 
@@ -21,10 +20,9 @@ const PSI_MAX_QUEUE_SIZE: usize = 1000;
 pub struct PsiQueue {
     queue: Arc<ArrayQueue<Features>>,
     feature_queue: Arc<PsiFeatureQueue>,
-    producer: Arc<Mutex<RustScouterProducer>>,
+    producer: RustScouterProducer,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
     capacity: usize,
-    event_state: EventState,
 }
 
 impl PsiQueue {
@@ -39,7 +37,7 @@ impl PsiQueue {
         let queue = Arc::new(ArrayQueue::new(PSI_MAX_QUEUE_SIZE * 2));
         let feature_queue = Arc::new(PsiFeatureQueue::new(drift_profile));
         let last_publish: Arc<RwLock<DateTime<Utc>>> = Arc::new(RwLock::new(Utc::now()));
-        let producer = Arc::new(Mutex::new(RustScouterProducer::new(config).await?));
+        let producer = RustScouterProducer::new(config).await?;
         let cancellation_token = CancellationToken::new();
 
         let psi_queue = PsiQueue {
@@ -48,7 +46,6 @@ impl PsiQueue {
             producer,
             last_publish,
             capacity: PSI_MAX_QUEUE_SIZE,
-            event_state: event_state.clone(),
         };
 
         let handle = psi_queue.start_background_task(
@@ -90,8 +87,8 @@ impl QueueMethods for PsiQueue {
         self.capacity
     }
 
-    fn get_producer(&mut self) -> Arc<Mutex<RustScouterProducer>> {
-        self.producer.clone()
+    fn get_producer(&mut self) -> &mut RustScouterProducer {
+        &mut self.producer
     }
 
     fn queue(&self) -> Arc<ArrayQueue<Self::ItemType>> {
@@ -113,9 +110,7 @@ impl QueueMethods for PsiQueue {
     async fn flush(&mut self) -> Result<(), EventError> {
         // publish any remaining drift records
         self.try_publish(self.queue()).await?;
-
-        let producer = self.producer.lock().await;
-        producer.flush().await?;
+        self.producer.flush().await?;
 
         Ok(())
     }

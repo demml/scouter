@@ -12,7 +12,6 @@ use scouter_types::Metrics;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
-use tokio::sync::Mutex;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 /// The following code is a custom queue implementation for handling custom metrics.
@@ -31,10 +30,9 @@ use tracing::debug;
 pub struct CustomQueue {
     queue: Arc<ArrayQueue<Metrics>>,
     feature_queue: Arc<CustomMetricFeatureQueue>,
-    producer: Arc<Mutex<RustScouterProducer>>,
+    producer: RustScouterProducer,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
     capacity: usize,
-    event_state: EventState,
 }
 
 impl CustomQueue {
@@ -53,7 +51,7 @@ impl CustomQueue {
         let last_publish = Arc::new(RwLock::new(Utc::now()));
 
         debug!("Creating Producer");
-        let producer = Arc::new(Mutex::new(RustScouterProducer::new(config).await?));
+        let producer = RustScouterProducer::new(config).await?;
         let cancellation_token = CancellationToken::new();
 
         let custom_queue = CustomQueue {
@@ -62,7 +60,6 @@ impl CustomQueue {
             producer,
             last_publish,
             capacity: sample_size,
-            event_state: event_state.clone(),
         };
 
         debug!("Starting Background Task");
@@ -103,8 +100,8 @@ impl QueueMethods for CustomQueue {
         self.capacity
     }
 
-    fn get_producer(&mut self) -> Arc<Mutex<RustScouterProducer>> {
-        self.producer.clone()
+    fn get_producer(&mut self) -> &mut RustScouterProducer {
+        &mut self.producer
     }
 
     fn queue(&self) -> Arc<ArrayQueue<Self::ItemType>> {
@@ -126,9 +123,7 @@ impl QueueMethods for CustomQueue {
     async fn flush(&mut self) -> Result<(), EventError> {
         // publish any remaining drift records
         self.try_publish(self.queue()).await?;
-
-        let producer = self.producer.lock().await;
-        producer.flush().await?;
+        self.producer.flush().await?;
 
         Ok(())
     }

@@ -10,11 +10,11 @@ use scouter_types::spc::SpcDriftProfile;
 use scouter_types::Features;
 use std::sync::Arc;
 use std::sync::RwLock;
-use tokio::sync::Mutex;
+
 pub struct SpcQueue {
     queue: Arc<ArrayQueue<Features>>,
     feature_queue: Arc<SpcFeatureQueue>,
-    producer: Arc<Mutex<RustScouterProducer>>,
+    producer: RustScouterProducer,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
     capacity: usize,
 }
@@ -28,7 +28,7 @@ impl SpcQueue {
         let queue = Arc::new(ArrayQueue::new(sample_size * 2)); // Add extra space for buffer
         let feature_queue = Arc::new(SpcFeatureQueue::new(drift_profile));
         let last_publish: Arc<RwLock<DateTime<Utc>>> = Arc::new(RwLock::new(Utc::now()));
-        let producer = Arc::new(Mutex::new(RustScouterProducer::new(config).await?));
+        let producer = RustScouterProducer::new(config).await?;
 
         Ok(SpcQueue {
             queue,
@@ -49,8 +49,8 @@ impl QueueMethods for SpcQueue {
         self.capacity
     }
 
-    fn get_producer(&mut self) -> Arc<Mutex<RustScouterProducer>> {
-        self.producer.clone()
+    fn get_producer(&mut self) -> &mut RustScouterProducer {
+        &mut self.producer
     }
 
     fn queue(&self) -> Arc<ArrayQueue<Self::ItemType>> {
@@ -70,8 +70,7 @@ impl QueueMethods for SpcQueue {
     }
 
     async fn flush(&mut self) -> Result<(), EventError> {
-        let producer = self.producer.lock().await;
-        producer.flush().await?;
+        self.producer.flush().await?;
         Ok(())
     }
 }

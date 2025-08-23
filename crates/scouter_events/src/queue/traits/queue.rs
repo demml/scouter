@@ -2,7 +2,7 @@
 
 use crate::error::{EventError, FeatureQueueError};
 use crate::producer::RustScouterProducer;
-use crate::queue::bus::EventStates;
+use crate::queue::bus::EventState;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
@@ -12,7 +12,6 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime::Runtime;
-use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
 use tokio_util::sync::CancellationToken;
@@ -25,55 +24,6 @@ pub trait FeatureQueue: Send + Sync {
     ) -> Result<ServerRecords, FeatureQueueError>;
 }
 
-#[derive(Debug)]
-pub enum BackgroundEvent {
-    Start,
-    Stop,
-}
-
-async fn process_batch<D, P>(
-    queue_capacity: Option<usize>,
-    data_queue: Arc<ArrayQueue<D>>,
-    last_publish: Arc<RwLock<DateTime<Utc>>>,
-    processor: Arc<P>,
-    producer: Arc<Mutex<RustScouterProducer>>,
-    now: DateTime<Utc>,
-) where
-    D: QueueExt + Send + Sync + 'static,
-    P: FeatureQueue + Send + Sync + 'static,
-{
-    let mut batch = if let Some(capacity) = queue_capacity {
-        Vec::with_capacity(capacity)
-    } else {
-        Vec::new()
-    };
-    while let Some(item) = data_queue.pop() {
-        batch.push(item);
-    }
-
-    // Always update last_publish time, regardless of batch processing result
-    if let Ok(mut guard) = last_publish.write() {
-        *guard = now;
-    }
-
-    if !batch.is_empty() {
-        match processor.create_drift_records_from_batch(batch) {
-            Ok(records) => {
-                // acquire lock producer mutex
-                let mut producer = producer.lock().await;
-
-                // publish
-                if let Err(e) = producer.publish(records).await {
-                    error!("Failed to publish records: {}", e);
-                } else {
-                    info!("Successfully published records");
-                }
-            }
-            Err(e) => error!("Failed to create drift records: {}", e),
-        }
-    }
-}
-
 pub trait BackgroundTask: Send + Sync + 'static {
     type DataItem: QueueExt + Send + Sync + 'static;
     type Processor: FeatureQueue + Send + Sync + 'static;
@@ -83,12 +33,12 @@ pub trait BackgroundTask: Send + Sync + 'static {
         &self,
         data_queue: Arc<ArrayQueue<Self::DataItem>>,
         processor: Arc<Self::Processor>,
-        producer: Arc<Mutex<RustScouterProducer>>,
+        mut producer: RustScouterProducer,
         last_publish: Arc<RwLock<DateTime<Utc>>>,
         runtime: Arc<Runtime>,
         queue_capacity: usize,
         label: &'static str,
-        event_state: EventStates,
+        event_state: EventState,
         cancellation_token: CancellationToken,
     ) -> Result<JoinHandle<()>, EventError> {
         let future = async move {
@@ -102,7 +52,7 @@ pub trait BackgroundTask: Send + Sync + 'static {
             sleep(Duration::from_millis(10)).await;
             loop {
                 tokio::select! {
-                    _ = sleep(Duration::from_secs(1)) => {
+                    _ = sleep(Duration::from_secs(2)) => {
                         debug!("Waking up background task: {}", label);
 
                         let now = Utc::now();
@@ -117,15 +67,30 @@ pub trait BackgroundTask: Send + Sync + 'static {
                         };
 
                         if should_process {
-                            debug!("Processing queued data");
-                            process_batch(
-                                Some(queue_capacity),
-                                data_queue.clone(),
-                                last_publish.clone(),
-                                processor.clone(),
-                                producer.clone(),
-                                now,
-                            ).await;
+                            let mut batch = Vec::with_capacity(queue_capacity);
+                            while let Some(item) = data_queue.pop() {
+                                batch.push(item);
+                            }
+
+                            // Always update last_publish time, regardless of batch processing result
+                            if let Ok(mut guard) = last_publish.write() {
+                                *guard = now;
+                            }
+
+                            if !batch.is_empty() {
+                                match processor.create_drift_records_from_batch(batch) {
+                                    Ok(records) => {
+
+                                        // publish
+                                        if let Err(e) = producer.publish(records).await {
+                                            error!("Failed to publish records: {}", e);
+                                        } else {
+                                            info!("Successfully published records");
+                                        }
+                                    }
+                                    Err(e) => error!("Failed to create drift records: {}", e),
+                                }
+                            }
 
                         }
                     }
@@ -159,13 +124,13 @@ pub trait QueueMethods {
 
     /// These all need to be implemented in the concrete queue type
     fn capacity(&self) -> usize;
-    fn get_producer(&mut self) -> Arc<Mutex<RustScouterProducer>>;
+    fn get_producer(&mut self) -> &mut RustScouterProducer;
     fn queue(&self) -> Arc<ArrayQueue<Self::ItemType>>;
     fn feature_queue(&self) -> Arc<Self::FeatureQueue>;
     fn last_publish(&self) -> Arc<RwLock<DateTime<Utc>>>;
     fn should_process(&self, current_count: usize) -> bool;
 
-    fn update_last_publish(&mut self) -> Result<(), EventError> {
+    fn update_last_publish(&self) -> Result<(), EventError> {
         if let Ok(mut last_publish) = self.last_publish().write() {
             *last_publish = Utc::now();
         }
@@ -178,7 +143,6 @@ pub trait QueueMethods {
     /// to be called in a blocking manner
     async fn publish(&mut self, records: ServerRecords) -> Result<(), EventError> {
         let producer = self.get_producer();
-        let mut producer = producer.lock().await;
         producer.publish(records).await
     }
 
@@ -236,7 +200,7 @@ pub trait QueueMethods {
     async fn insert_with_backpressure(&mut self, item: Self::ItemType) -> Result<(), EventError> {
         let queue = self.queue();
         let max_retries = 3;
-        let mut current_retry = 0;
+        let mut current_retry: u32 = 0;
 
         while current_retry < max_retries {
             match queue.push(item.clone()) {
@@ -257,7 +221,7 @@ pub trait QueueMethods {
 }
 
 /// Waits for the background loop to start
-pub fn wait_for_background_task(event_state: &EventStates) -> Result<(), EventError> {
+pub fn wait_for_background_task(event_state: &EventState) -> Result<(), EventError> {
     // Signal confirm start
     if event_state.has_background_handle() {
         let mut max_retries = 20;
@@ -278,7 +242,7 @@ pub fn wait_for_background_task(event_state: &EventStates) -> Result<(), EventEr
 }
 
 /// Waits for the event task to start
-pub fn wait_for_event_task(event_state: &EventStates) -> Result<(), EventError> {
+pub fn wait_for_event_task(event_state: &EventState) -> Result<(), EventError> {
     // Signal confirm start
 
     let mut max_retries = 20;

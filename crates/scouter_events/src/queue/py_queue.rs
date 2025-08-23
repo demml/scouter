@@ -8,7 +8,6 @@ use crate::queue::psi::PsiQueue;
 use crate::queue::spc::SpcQueue;
 use crate::queue::traits::queue::wait_for_background_task;
 use crate::queue::traits::queue::wait_for_event_task;
-use crate::queue::traits::queue::BackgroundEvent;
 use crate::queue::traits::queue::QueueMethods;
 use crate::queue::types::TransportConfig;
 use pyo3::prelude::*;
@@ -20,7 +19,6 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
 use tokio::sync::mpsc::UnboundedReceiver;
-use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, instrument};
 
@@ -179,7 +177,7 @@ async fn spawn_queue_event_handler(
         };
 
     event_state.set_event_loop_running(true);
-
+    debug!("Event loop for queue {} set to running", id);
     loop {
         tokio::select! {
             Some(event) = event_rx.recv() => {
@@ -200,12 +198,28 @@ async fn spawn_queue_event_handler(
 
             _ = cancellation_token.cancelled() => {
                 debug!("Stop signal received for queue {}", id);
+                match queue.flush().await {
+                    Ok(_) => {
+                        debug!("Successfully flushed queue {}", id);
+                    }
+                    Err(e) => {
+                        error!("Error flushing queue {}: {}", id, e);
+                    }
+                }
                 event_state.set_event_loop_running(false);
                 break;
             }
 
             else => {
                 debug!("Event channel closed for queue {}, shutting down", id);
+                match queue.flush().await {
+                    Ok(_) => {
+                        debug!("Successfully flushed queue {}", id);
+                    }
+                    Err(e) => {
+                        error!("Error flushing queue {}: {}", id, e);
+                    }
+                }
                 event_state.set_event_loop_running(false);
                 break;
             }
@@ -352,7 +366,7 @@ impl ScouterQueue {
     ) -> Result<Self, PyEventError> {
         debug!("Creating ScouterQueue from path");
         let mut queues = HashMap::new();
-        let mut queue_event_state = HashMap::new();
+        let mut queue_state = HashMap::new();
 
         // assert transport config is not None
         if transport_config.is_none() {
@@ -371,8 +385,9 @@ impl ScouterQueue {
 
             // create startup channels to ensure queues are initialized before use
             let bus = QueueBus::new(event_state.clone());
-            queue_event_state.insert(id.clone(), event_state.clone());
+            queue_state.insert(id.clone(), event_state.clone());
             let cancellation_token = CancellationToken::new();
+            let cloned_cancellation_token = cancellation_token.clone();
 
             // queue args
             let clone_runtime = shared_runtime.clone();
@@ -388,7 +403,7 @@ impl ScouterQueue {
                     clone_runtime,
                     id_clone,
                     cloned_event_state,
-                    cancellation_token.clone(),
+                    cloned_cancellation_token,
                 )
                 .await
                 {
@@ -400,8 +415,8 @@ impl ScouterQueue {
             });
 
             // add handle and stop tx to event loops for management
-            event_state.add_event_handle(handle);
-            event_state.add_event_stop_tx(event_stop_tx);
+            event_state.add_event_abort_handle(handle);
+            event_state.add_event_cancellation_token(cancellation_token);
 
             std::thread::sleep(std::time::Duration::from_millis(100));
 
@@ -418,7 +433,7 @@ impl ScouterQueue {
             // need to keep the runtime alive for the life of ScouterQueue
             _shared_runtime: shared_runtime,
             transport_config: config,
-            queue_event_state: Arc::new(queue_event_state),
+            queue_state: Arc::new(queue_state),
         })
     }
 }

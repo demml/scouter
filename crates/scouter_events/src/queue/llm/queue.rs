@@ -11,7 +11,6 @@ use scouter_types::llm::LLMDriftProfile;
 use scouter_types::LLMRecord;
 use std::sync::Arc;
 use std::sync::RwLock;
-use tokio::sync::Mutex;
 use tracing::debug;
 
 /// The following code is a custom queue implementation for handling custom metrics.
@@ -30,7 +29,7 @@ use tracing::debug;
 pub struct LLMQueue {
     queue: Arc<ArrayQueue<LLMRecord>>,
     record_queue: Arc<LLMRecordQueue>,
-    producer: Arc<Mutex<RustScouterProducer>>,
+    producer: RustScouterProducer,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
     capacity: usize,
     sample_rate_percentage: f64,
@@ -53,7 +52,7 @@ impl LLMQueue {
         let last_publish = Arc::new(RwLock::new(Utc::now()));
 
         debug!("Creating Producer");
-        let producer = Arc::new(Mutex::new(RustScouterProducer::new(config).await?));
+        let producer = RustScouterProducer::new(config).await?;
 
         let llm_queue = LLMQueue {
             queue,
@@ -92,8 +91,8 @@ impl QueueMethods for LLMQueue {
         self.capacity
     }
 
-    fn get_producer(&mut self) -> Arc<Mutex<RustScouterProducer>> {
-        self.producer.clone()
+    fn get_producer(&mut self) -> &mut RustScouterProducer {
+        &mut self.producer
     }
 
     fn queue(&self) -> Arc<ArrayQueue<Self::ItemType>> {
@@ -116,8 +115,7 @@ impl QueueMethods for LLMQueue {
         // publish any remaining drift records
         self.try_publish(self.queue()).await?;
 
-        let producer = self.producer.lock().await;
-        producer.flush().await?;
+        self.producer.flush().await?;
         Ok(())
     }
 }
