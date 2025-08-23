@@ -13,7 +13,7 @@ use scouter_types::Metrics;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
-use tokio::sync::watch;
+use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
 use tracing::debug;
 /// The following code is a custom queue implementation for handling custom metrics.
@@ -32,7 +32,7 @@ use tracing::debug;
 pub struct CustomQueue {
     queue: Arc<ArrayQueue<Metrics>>,
     feature_queue: Arc<CustomMetricFeatureQueue>,
-    producer: RustScouterProducer,
+    producer: Arc<Mutex<RustScouterProducer>>,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
     stop_tx: Option<watch::Sender<()>>,
     capacity: usize,
@@ -55,7 +55,7 @@ impl CustomQueue {
         let last_publish = Arc::new(RwLock::new(Utc::now()));
 
         debug!("Creating Producer");
-        let producer = RustScouterProducer::new(config).await?;
+        let producer = Arc::new(Mutex::new(RustScouterProducer::new(config).await?));
 
         let (stop_tx, stop_rx) = watch::channel(());
 

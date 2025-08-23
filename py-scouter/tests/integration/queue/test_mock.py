@@ -30,6 +30,8 @@ def test_mock_config(
         # 1. Create a ScouterQueue from path
         queue = ScouterQueue.from_path({"a": path}, HTTPConfig())
 
+    assert queue.running()
+
     # 2. Simulate records
     records = pandas_dataframe.to_dict(orient="records")
     for record in records[:10]:

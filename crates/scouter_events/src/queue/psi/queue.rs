@@ -119,14 +119,7 @@ impl QueueMethods for PsiQueue {
     async fn flush(&mut self) -> Result<(), EventError> {
         // publish any remaining drift records
         self.try_publish(self.queue()).await?;
-
-        // stop the background worker
-        if let Some(stop_tx) = self.stop_tx.take() {
-            let _ = stop_tx.send(());
-        }
-
         self.producer.flush().await?;
-
         self.event_loops.shutdown_background_task().await?;
 
         debug!("PSI Background Task finished");

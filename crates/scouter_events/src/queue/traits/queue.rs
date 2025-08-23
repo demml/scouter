@@ -11,8 +11,10 @@ use scouter_types::ServerRecords;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::RwLock;
+
 use tokio::runtime::Runtime;
-use tokio::sync::watch;
+use tokio::sync::mpsc::UnboundedReceiver;
+use tokio::sync::{watch, Mutex};
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
 use tracing::{debug, error, info, info_span, Instrument};
@@ -26,9 +28,53 @@ pub trait FeatureQueue: Send + Sync {
 
 pub enum BackgroundEvent {
     Start,
+    Stop,
 }
 
-pub trait BackgroundTask {
+async fn process_batch<D, P>(
+    queue_capacity: Option<usize>,
+    data_queue: Arc<ArrayQueue<D>>,
+    last_publish: Arc<RwLock<DateTime<Utc>>>,
+    processor: Arc<P>,
+    producer: Arc<Mutex<RustScouterProducer>>,
+    now: DateTime<Utc>,
+) where
+    D: QueueExt + Send + Sync + 'static,
+    P: FeatureQueue + Send + Sync + 'static,
+{
+    let mut batch = if let Some(capacity) = queue_capacity {
+        Vec::with_capacity(capacity)
+    } else {
+        Vec::new()
+    };
+    while let Some(item) = data_queue.pop() {
+        batch.push(item);
+    }
+
+    // Always update last_publish time, regardless of batch processing result
+    if let Ok(mut guard) = last_publish.write() {
+        *guard = now;
+    }
+
+    if !batch.is_empty() {
+        match processor.create_drift_records_from_batch(batch) {
+            Ok(records) => {
+                // acquire lock producer mutex
+                let mut producer = producer.lock().await;
+
+                // publish
+                if let Err(e) = producer.publish(records).await {
+                    error!("Failed to publish records: {}", e);
+                } else {
+                    info!("Successfully published records");
+                }
+            }
+            Err(e) => error!("Failed to create drift records: {}", e),
+        }
+    }
+}
+
+pub trait BackgroundTask: Send + Sync + 'static {
     type DataItem: QueueExt + Send + Sync + 'static;
     type Processor: FeatureQueue + Send + Sync + 'static;
 
@@ -37,22 +83,17 @@ pub trait BackgroundTask {
         &self,
         data_queue: Arc<ArrayQueue<Self::DataItem>>,
         processor: Arc<Self::Processor>,
-        mut producer: RustScouterProducer,
+        producer: Arc<Mutex<RustScouterProducer>>,
         last_publish: Arc<RwLock<DateTime<Utc>>>,
         runtime: Arc<Runtime>,
         mut stop_rx: watch::Receiver<()>,
         queue_capacity: usize,
         label: &'static str,
         event_loops: EventLoops,
+        mut background_rx: UnboundedReceiver<BackgroundEvent>,
     ) -> Result<JoinHandle<()>, EventError> {
         let future = async move {
             debug!("Starting background task: {}", label);
-
-            // Check if stop signal was already sent before we start
-            if stop_rx.has_changed().unwrap_or(false) {
-                error!("Stop signal already received before task start: {}", label);
-                return;
-            }
 
             // Set running state immediately
             event_loops.set_background_loop_running(true);
@@ -62,6 +103,17 @@ pub trait BackgroundTask {
             sleep(Duration::from_millis(10)).await;
             loop {
                 tokio::select! {
+                    Some(event) = background_rx.recv() => {
+                        match event {
+                            BackgroundEvent::Start => {
+                                debug!("Background task {} received start event", label);
+                            }
+                            BackgroundEvent::Stop => {
+                                debug!("Background task {} received stop event", label);
+                                break;
+                            }
+                        }
+                    }
                     _ = sleep(Duration::from_secs(1)) => {
                         debug!("Waking up background task: {}", label);
                         if !event_loops.is_background_loop_running() {
@@ -81,54 +133,28 @@ pub trait BackgroundTask {
 
                         if should_process {
                             debug!("Processing queued data");
-
-                            let mut batch = Vec::with_capacity(queue_capacity);
-                            while let Some(item) = data_queue.pop() {
-                                batch.push(item);
-                            }
-
-                             // Always update last_publish time, regardless of batch processing result
-                             if let Ok(mut guard) = last_publish.write() {
-                                *guard = now;
-                            }
-
-                            if !batch.is_empty() {
-                                match processor.create_drift_records_from_batch(batch) {
-                                    Ok(records) => {
-                                        if let Err(e) = producer.publish(records).await {
-                                            error!("Failed to publish records: {}", e);
-                                        } else {
-                                            info!("Successfully published records");
-                                        }
-                                    }
-                                    Err(e) => error!("Failed to create drift records: {}", e),
-                                }
-                            }
+                            process_batch(
+                                Some(queue_capacity),
+                                data_queue.clone(),
+                                last_publish.clone(),
+                                processor.clone(),
+                                producer.clone(),
+                                now,
+                            ).await;
 
                         }
                     },
                     _ = stop_rx.changed() => {
                         info!("Stop signal received, shutting down background task: {}", label);
                         // Stop the background task and publish remaining records
-                        let mut final_batch = Vec::new();
-                        while let Some(item) = data_queue.pop() {
-                            final_batch.push(item);
-                        }
-
-                        if !final_batch.is_empty() {
-                            debug!("Processing final batch of {} items in {}", final_batch.len(), label);
-                            if let Ok(records) = processor.create_drift_records_from_batch(final_batch) {
-                                if let Err(e) = producer.publish(records).await {
-                                    error!("Failed to publish final batch in {}: {}", label, e);
-                                } else {
-                                    debug!("Successfully published final batch in {}", label);
-                                }
-                            }
-                        }
-
-                        if let Err(e) = producer.flush().await {
-                            error!("Failed to flush producer: {}", e);
-                        }
+                        process_batch(
+                                None,
+                                data_queue.clone(),
+                                last_publish.clone(),
+                                processor.clone(),
+                                producer.clone(),
+                                Utc::now(),
+                            ).await;
                         event_loops.set_background_loop_running(false);
                         break;
                     }
@@ -248,6 +274,7 @@ pub trait QueueMethods {
     }
 }
 
+/// Waits for the background loop to start
 pub fn wait_for_background_task(event_loops: &EventLoops) -> Result<(), EventError> {
     // Signal confirm start
     if event_loops.has_background_handle() {
@@ -268,6 +295,7 @@ pub fn wait_for_background_task(event_loops: &EventLoops) -> Result<(), EventErr
     }
 }
 
+/// Waits for the event task to start
 pub fn wait_for_event_task(event_loops: &EventLoops) -> Result<(), EventError> {
     // Signal confirm start
 
