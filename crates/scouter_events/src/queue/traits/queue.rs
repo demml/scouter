@@ -184,7 +184,8 @@ pub trait QueueMethods {
     /// Remember - everything flows down from python, so the async producers need
     /// to be called in a blocking manner
     async fn publish(&mut self, records: ServerRecords) -> Result<(), EventError> {
-        let producer = self.get_producer().lock().await;
+        let producer = self.get_producer();
+        let mut producer = producer.lock().await;
         producer.publish(records).await
     }
 

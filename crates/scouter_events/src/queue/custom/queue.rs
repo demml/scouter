@@ -2,7 +2,6 @@ use crate::error::EventError;
 use crate::producer::RustScouterProducer;
 use crate::queue::bus::EventLoops;
 use crate::queue::custom::feature_queue::CustomMetricFeatureQueue;
-use crate::queue::traits::queue::wait_for_background_task;
 use crate::queue::traits::{BackgroundTask, QueueMethods};
 use crate::queue::types::TransportConfig;
 use async_trait::async_trait;
@@ -14,7 +13,6 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
 use tokio::sync::{watch, Mutex};
-use tokio::task::JoinHandle;
 use tracing::debug;
 /// The following code is a custom queue implementation for handling custom metrics.
 /// It consists of a `CustomQueue` struct that manages a queue of metrics and a background task
@@ -34,7 +32,6 @@ pub struct CustomQueue {
     feature_queue: Arc<CustomMetricFeatureQueue>,
     producer: Arc<Mutex<RustScouterProducer>>,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
-    stop_tx: Option<watch::Sender<()>>,
     capacity: usize,
     event_loops: EventLoops,
 }
@@ -45,7 +42,6 @@ impl CustomQueue {
         config: TransportConfig,
         runtime: Arc<runtime::Runtime>,
         event_loops: &mut EventLoops,
-        background_rx: UnboundedReceiver<BackgroundEvent>,
     ) -> Result<Self, EventError> {
         let sample_size = drift_profile.config.sample_size;
 
@@ -65,7 +61,6 @@ impl CustomQueue {
             feature_queue: feature_queue.clone(),
             producer,
             last_publish,
-            stop_tx: Some(stop_tx),
             capacity: sample_size,
             event_loops: event_loops.clone(),
         };
@@ -84,7 +79,7 @@ impl CustomQueue {
         )?;
 
         event_loops.add_event_handle(handle);
-        //wait_for_background_task(event_loops)?;
+        event_loops.add_event_stop_tx(stop_tx);
 
         Ok(custom_queue)
     }
@@ -131,10 +126,9 @@ impl QueueMethods for CustomQueue {
     async fn flush(&mut self) -> Result<(), EventError> {
         // publish any remaining drift records
         self.try_publish(self.queue()).await?;
-        if let Some(stop_tx) = self.stop_tx.take() {
-            let _ = stop_tx.send(());
-        }
-        self.producer.flush().await?;
+
+        let producer = self.producer.lock().await;
+        producer.flush().await?;
 
         self.event_loops.shutdown_background_task().await?;
 

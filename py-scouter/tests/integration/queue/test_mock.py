@@ -7,6 +7,7 @@ from scouter.client import HTTPConfig, ScouterClient
 from scouter.drift import Drifter, PsiDriftConfig
 from scouter.mock import MockConfig
 from scouter.queue import Feature, Features, ScouterQueue
+import time
 
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"
 
@@ -43,6 +44,8 @@ def test_mock_config(
         )
         # 3. Send records to Scouter
         queue["a"].insert(features)
+
+    time.sleep(3)
 
     # 4. Shutdown the queue
     queue.shutdown()

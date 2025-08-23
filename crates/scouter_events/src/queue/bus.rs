@@ -8,7 +8,7 @@ use std::time::Duration;
 use tokio::sync::mpsc::UnboundedSender;
 use tokio::sync::watch;
 use tokio::task::JoinHandle;
-use tracing::{debug, error, instrument};
+use tracing::{debug, instrument, warn};
 #[derive(Debug)]
 pub enum Event {
     Task(QueueItem),
@@ -131,12 +131,14 @@ impl EventLoops {
 
     pub async fn shutdown_background_task(&self) -> Result<(), EventError> {
         // signal should have already been sent. wait for the background task to finish
+        self.send_background_stop();
+
         let mut max_retries = 50;
         while self.is_background_loop_running() {
             std::thread::sleep(Duration::from_millis(100));
             max_retries -= 1;
             if max_retries == 0 {
-                error!("Timed out waiting for background loop to stop. Aborting the thread");
+                warn!("Timed out waiting for background loop to stop. Aborting the thread");
                 self.abort_background_loop()?;
                 return Ok(());
             }
@@ -156,24 +158,13 @@ impl EventLoops {
         Ok(())
     }
 
-    pub fn wait_for_background_task_to_stop(&self) -> Result<(), EventError> {
-        debug!("Waiting for background task to stop");
-        //if background task is some wait for the
+    fn wait_for_background_task_to_stop(&self) {
         let has_background_handle = self.has_background_handle();
         if has_background_handle {
-            let mut max_retries = 50;
             while self.is_background_loop_running() {
                 std::thread::sleep(Duration::from_millis(100));
-                max_retries -= 1;
-                if max_retries == 0 {
-                    error!("Timed out waiting for background loop to stop. Aborting the thread");
-                    self.abort_background_loop()?;
-                    return Ok(());
-                }
             }
         }
-
-        Ok(())
     }
 
     /// Shutdown the event task
@@ -184,15 +175,15 @@ impl EventLoops {
         // send stop signal to event loop - this will also trigger a background task shutdown if present
         self.send_event_stop();
 
-        // Background should be existed before event
-        self.wait_for_background_task_to_stop()?;
+        // Stop event triggers a queue flush, which stops the background task
+        self.wait_for_background_task_to_stop();
 
         let mut max_retries = 50;
         while self.event_loop.read().unwrap().loop_running {
             std::thread::sleep(Duration::from_millis(100));
             max_retries -= 1;
             if max_retries == 0 {
-                error!("Timed out waiting for event loop to stop. Aborting the thread");
+                warn!("Timed out waiting for event loop to stop. Aborting the thread");
                 self.abort_event_loop()?;
                 return Ok(());
             }

@@ -28,14 +28,16 @@ fn create_event_loops() -> (EventLoops, UnboundedReceiver<Event>) {
 
     // get background loop
     let background_loop = Arc::new(RwLock::new(BackgroundLoop {
-        background_loop: None,
-        background_loop_running: false,
+        handle: None,
+        loop_running: false,
+        stop_tx: None,
     }));
 
     // get event loop
     let event_loop = Arc::new(RwLock::new(EventLoop {
-        event_loop: None,
-        event_loop_running: false,
+        handle: None,
+        loop_running: false,
+        stop_tx: None,
         event_tx,
     }));
 
@@ -379,13 +381,12 @@ impl ScouterQueue {
             // create startup channels to ensure queues are initialized before use
             let bus = QueueBus::new(event_loops.clone());
             queue_event_loops.insert(id.clone(), event_loops.clone());
+            let (event_stop_tx, event_stop_rx) = watch::channel(());
 
             // queue args
             let clone_runtime = shared_runtime.clone();
             let id_clone = id.clone();
             let cloned_event_loops = event_loops.clone();
-
-            //panic!("CHECKPOINT 1: Starting from_path_rs");
 
             // Spawn the task without waiting for initialization
             let handle = shared_runtime.spawn(async move {
@@ -396,6 +397,7 @@ impl ScouterQueue {
                     clone_runtime,
                     id_clone,
                     cloned_event_loops,
+                    event_stop_rx,
                 )
                 .await
                 {
@@ -406,9 +408,13 @@ impl ScouterQueue {
                 }
             });
 
+            // add handle and stop tx to event loops for management
             event_loops.add_event_handle(handle);
+            event_loops.add_event_stop_tx(event_stop_tx);
+
             std::thread::sleep(std::time::Duration::from_millis(100));
 
+            // wait for background task and event task to signal startup
             wait_for_background_task(&event_loops)?;
             wait_for_event_task(&event_loops)?;
 

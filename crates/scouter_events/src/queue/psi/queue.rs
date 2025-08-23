@@ -2,7 +2,6 @@ use crate::error::EventError;
 use crate::producer::RustScouterProducer;
 use crate::queue::bus::EventLoops;
 use crate::queue::psi::feature_queue::PsiFeatureQueue;
-use crate::queue::traits::queue::wait_for_background_task;
 use crate::queue::traits::{BackgroundTask, QueueMethods};
 use crate::queue::types::TransportConfig;
 use async_trait::async_trait;
@@ -10,12 +9,10 @@ use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
 use scouter_types::psi::PsiDriftProfile;
 use scouter_types::Features;
-use std::os::unix::thread;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
 use tokio::sync::{watch, Mutex};
-use tokio::task::JoinHandle;
 use tracing::debug;
 const PSI_MAX_QUEUE_SIZE: usize = 1000;
 
@@ -69,8 +66,6 @@ impl PsiQueue {
         event_loops.add_background_handle(handle);
         event_loops.add_background_stop_tx(stop_tx);
 
-        //check if running
-
         debug!("Created PSI Queue with capacity: {}", PSI_MAX_QUEUE_SIZE);
 
         Ok(psi_queue)
@@ -95,8 +90,8 @@ impl QueueMethods for PsiQueue {
         self.capacity
     }
 
-    fn get_producer(&mut self) -> &mut RustScouterProducer {
-        &mut self.producer
+    fn get_producer(&mut self) -> Arc<Mutex<RustScouterProducer>> {
+        self.producer.clone()
     }
 
     fn queue(&self) -> Arc<ArrayQueue<Self::ItemType>> {
@@ -118,10 +113,10 @@ impl QueueMethods for PsiQueue {
     async fn flush(&mut self) -> Result<(), EventError> {
         // publish any remaining drift records
         self.try_publish(self.queue()).await?;
+
         let producer = self.producer.lock().await;
         producer.flush().await?;
 
-        self.event_loops.shutdown_event_task().await?;
         self.event_loops.shutdown_background_task().await?;
 
         debug!("PSI Background Task finished");
