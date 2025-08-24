@@ -1,6 +1,6 @@
 use crate::error::EventError;
 use crate::producer::RustScouterProducer;
-use crate::queue::bus::EventState;
+use crate::queue::bus::TaskState;
 use crate::queue::psi::feature_queue::PsiFeatureQueue;
 use crate::queue::traits::{BackgroundTask, QueueMethods};
 use crate::queue::types::TransportConfig;
@@ -30,7 +30,7 @@ impl PsiQueue {
         drift_profile: PsiDriftProfile,
         config: TransportConfig,
         runtime: Arc<runtime::Runtime>,
-        event_state: &mut EventState,
+        task_state: &mut TaskState,
     ) -> Result<Self, EventError> {
         // ArrayQueue size is based on the max PSI queue size
 
@@ -56,12 +56,12 @@ impl PsiQueue {
             runtime.clone(),
             PSI_MAX_QUEUE_SIZE,
             "Psi Background Polling",
-            event_state.clone(),
+            task_state.clone(),
             cancellation_token.clone(),
         )?;
 
-        event_state.add_background_abort_handle(handle);
-        event_state.add_background_cancellation_token(cancellation_token);
+        task_state.add_background_abort_handle(handle);
+        task_state.add_background_cancellation_token(cancellation_token);
 
         debug!("Created PSI Queue with capacity: {}", PSI_MAX_QUEUE_SIZE);
 

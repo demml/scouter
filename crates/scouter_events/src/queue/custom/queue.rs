@@ -1,6 +1,6 @@
 use crate::error::EventError;
 use crate::producer::RustScouterProducer;
-use crate::queue::bus::EventState;
+use crate::queue::bus::TaskState;
 use crate::queue::custom::feature_queue::CustomMetricFeatureQueue;
 use crate::queue::traits::{BackgroundTask, QueueMethods};
 use crate::queue::types::TransportConfig;
@@ -40,7 +40,7 @@ impl CustomQueue {
         drift_profile: CustomDriftProfile,
         config: TransportConfig,
         runtime: Arc<runtime::Runtime>,
-        event_state: &mut EventState,
+        task_state: &mut TaskState,
     ) -> Result<Self, EventError> {
         let sample_size = drift_profile.config.sample_size;
 
@@ -71,12 +71,12 @@ impl CustomQueue {
             runtime.clone(),
             custom_queue.capacity,
             "Custom Background Polling",
-            event_state.clone(),
+            task_state.clone(),
             cancellation_token.clone(),
         )?;
 
-        event_state.add_background_abort_handle(handle);
-        event_state.add_background_cancellation_token(cancellation_token);
+        task_state.add_background_abort_handle(handle);
+        task_state.add_background_cancellation_token(cancellation_token);
 
         Ok(custom_queue)
     }

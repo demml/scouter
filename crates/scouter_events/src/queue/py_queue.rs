@@ -1,7 +1,7 @@
 #![allow(clippy::useless_conversion)]
 use crate::error::{EventError, PyEventError};
-use crate::queue::bus::Loop;
-use crate::queue::bus::{Event, EventState, QueueBus};
+use crate::queue::bus::Task;
+use crate::queue::bus::{Event, QueueBus, TaskState};
 use crate::queue::custom::CustomQueue;
 use crate::queue::llm::LLMQueue;
 use crate::queue::psi::PsiQueue;
@@ -22,18 +22,18 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, instrument};
 
-fn create_event_state() -> (EventState, UnboundedReceiver<Event>) {
+fn create_event_state() -> (TaskState, UnboundedReceiver<Event>) {
     let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel();
 
     // get background loop
-    let background_loop = Arc::new(RwLock::new(Loop::new()));
+    let background_task = Arc::new(RwLock::new(Task::new()));
 
     // get event loop
-    let event_loop = Arc::new(RwLock::new(Loop::new()));
+    let event_task = Arc::new(RwLock::new(Task::new()));
 
-    let event_state = EventState {
-        event_loop,
-        background_loop,
+    let event_state = TaskState {
+        event_task,
+        background_task,
         event_tx,
     };
 
@@ -51,7 +51,7 @@ impl QueueNum {
         transport_config: TransportConfig,
         drift_profile: DriftProfile,
         runtime: Arc<runtime::Runtime>,
-        event_state: &mut EventState,
+        event_state: &mut TaskState,
     ) -> Result<Self, EventError> {
         match drift_profile {
             DriftProfile::Spc(spc_profile) => {
@@ -157,7 +157,7 @@ async fn spawn_queue_event_handler(
     drift_profile: DriftProfile,
     runtime: Arc<runtime::Runtime>,
     id: String,
-    mut event_state: EventState,
+    mut event_state: TaskState,
     cancellation_token: CancellationToken,
 ) -> Result<(), EventError> {
     // This will create the specific queue based on the transport config and drift profile
@@ -176,7 +176,7 @@ async fn spawn_queue_event_handler(
             }
         };
 
-    event_state.set_event_loop_running(true);
+    event_state.set_event_running(true);
     debug!("Event loop for queue {} set to running", id);
     loop {
         tokio::select! {
@@ -216,7 +216,7 @@ async fn spawn_queue_event_handler(
                         error!("Error flushing queue {}: {}", id, e);
                     }
                 }
-                event_state.set_event_loop_running(false);
+                event_state.set_event_running(false);
                 break;
             }
 
@@ -230,7 +230,7 @@ async fn spawn_queue_event_handler(
                         error!("Error flushing queue {}: {}", id, e);
                     }
                 }
-                event_state.set_event_loop_running(false);
+                event_state.set_event_running(false);
                 break;
             }
         }
@@ -243,7 +243,7 @@ pub struct ScouterQueue {
     queues: HashMap<String, Py<QueueBus>>,
     _shared_runtime: Arc<tokio::runtime::Runtime>,
     transport_config: TransportConfig,
-    pub queue_state: Arc<HashMap<String, EventState>>,
+    pub queue_state: Arc<HashMap<String, TaskState>>,
 }
 
 #[pymethods]

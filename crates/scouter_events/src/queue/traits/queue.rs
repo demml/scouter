@@ -2,7 +2,7 @@
 
 use crate::error::{EventError, FeatureQueueError};
 use crate::producer::RustScouterProducer;
-use crate::queue::bus::EventState;
+use crate::queue::bus::TaskState;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
@@ -38,14 +38,14 @@ pub trait BackgroundTask: Send + Sync + 'static {
         runtime: Arc<Runtime>,
         queue_capacity: usize,
         label: &'static str,
-        event_state: EventState,
+        task_state: TaskState,
         cancellation_token: CancellationToken,
     ) -> Result<JoinHandle<()>, EventError> {
         let future = async move {
             debug!("Starting background task: {}", label);
 
             // Set running state immediately
-            event_state.set_background_loop_running(true);
+            task_state.set_background_running(true);
             debug!("Background task {} set to running", label);
 
             // Small delay to ensure state is propagated
@@ -96,12 +96,12 @@ pub trait BackgroundTask: Send + Sync + 'static {
                     }
                     _ = cancellation_token.cancelled()  => {
                         info!("Stop signal received, shutting down background task: {}", label);
-                        event_state.set_background_loop_running(false);
+                        task_state.set_background_running(false);
                         break;
                     }
                     else =>  {
                         info!("Stop signal received, shutting down background task: {}", label);
-                        event_state.set_background_loop_running(false);
+                        task_state.set_background_running(false);
                         break;
                     }
                 }
@@ -222,20 +222,20 @@ pub trait QueueMethods {
 }
 
 /// Waits for the background loop to start
-pub fn wait_for_background_task(event_state: &EventState) -> Result<(), EventError> {
+pub fn wait_for_background_task(task_state: &TaskState) -> Result<(), EventError> {
     // Signal confirm start
-    if event_state.has_background_handle() {
+    if task_state.has_background_handle() {
         let mut max_retries = 20;
         while max_retries > 0 {
-            if event_state.is_background_loop_running() {
+            if task_state.is_background_running() {
                 debug!("Background loop started successfully");
                 return Ok(());
             }
             max_retries -= 1;
             std::thread::sleep(Duration::from_millis(200));
         }
-        error!("Background loop failed to start");
-        Err(EventError::BackgroundLoopFailedToStartError)
+        error!("Background task failed to start");
+        Err(EventError::BackgroundTaskFailedToStartError)
     } else {
         debug!("No background handle to wait for");
         Ok(())
@@ -243,18 +243,18 @@ pub fn wait_for_background_task(event_state: &EventState) -> Result<(), EventErr
 }
 
 /// Waits for the event task to start
-pub fn wait_for_event_task(event_state: &EventState) -> Result<(), EventError> {
+pub fn wait_for_event_task(task_state: &TaskState) -> Result<(), EventError> {
     // Signal confirm start
 
     let mut max_retries = 20;
     while max_retries > 0 {
-        if event_state.is_event_loop_running() {
-            debug!("Event loop started successfully");
+        if task_state.is_event_running() {
+            debug!("Event task started successfully");
             return Ok(());
         }
         max_retries -= 1;
         std::thread::sleep(Duration::from_millis(200));
     }
-    error!("Event loop failed to start");
-    Err(EventError::EventStateFailedToStartError)
+    error!("Event task failed to start");
+    Err(EventError::EventTaskFailedToStartError)
 }

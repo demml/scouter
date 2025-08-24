@@ -17,47 +17,47 @@ pub enum Event {
 }
 
 #[derive(Debug)]
-pub struct Loop {
+pub struct Task {
     pub abort_handle: Option<AbortHandle>,
-    pub loop_running: bool,
+    pub running: bool,
     pub cancel_token: Option<CancellationToken>,
 }
 
-impl Loop {
+impl Task {
     pub fn new() -> Self {
         Self {
             abort_handle: None,
-            loop_running: false,
+            running: false,
             cancel_token: None,
         }
     }
 }
 
-impl Default for Loop {
+impl Default for Task {
     fn default() -> Self {
         Self::new()
     }
 }
 
 #[derive(Debug, Clone)]
-pub struct EventState {
-    // track the loop that receives events
-    pub event_loop: Arc<RwLock<Loop>>,
+pub struct TaskState {
+    // track the task that receives events
+    pub event_task: Arc<RwLock<Task>>,
 
-    // track the loop that processes background tasks (only applies to psi and custom)
-    pub background_loop: Arc<RwLock<Loop>>,
+    // track the task that processes background tasks (only applies to psi and custom)
+    pub background_task: Arc<RwLock<Task>>,
 
-    // channel to send events to the event loop
+    // channel to send events to the event task
     pub event_tx: UnboundedSender<Event>,
 }
 
-impl EventState {
+impl TaskState {
     pub fn add_background_cancellation_token(&mut self, token: CancellationToken) {
-        self.background_loop.write().unwrap().cancel_token = Some(token);
+        self.background_task.write().unwrap().cancel_token = Some(token);
     }
 
     pub fn cancel_background_task(&self) {
-        let cancel_token = &self.background_loop.read().unwrap().cancel_token;
+        let cancel_token = &self.background_task.read().unwrap().cancel_token;
         if let Some(cancel_token) = cancel_token {
             debug!("Cancelling background task");
             cancel_token.cancel();
@@ -65,7 +65,7 @@ impl EventState {
     }
 
     pub fn add_event_cancellation_token(&mut self, token: CancellationToken) {
-        self.event_loop.write().unwrap().cancel_token = Some(token);
+        self.event_task.write().unwrap().cancel_token = Some(token);
     }
 
     fn flush_event_task(&self) -> Result<(), EventError> {
@@ -73,7 +73,7 @@ impl EventState {
     }
 
     fn cancel_event_task(&self) {
-        let cancel_token = &self.event_loop.read().unwrap().cancel_token;
+        let cancel_token = &self.event_task.read().unwrap().cancel_token;
         if let Some(cancel_token) = cancel_token {
             debug!("Cancelling event task");
             cancel_token.cancel();
@@ -81,7 +81,7 @@ impl EventState {
     }
 
     pub fn add_event_abort_handle(&mut self, handle: JoinHandle<()>) {
-        self.event_loop
+        self.event_task
             .write()
             .unwrap()
             .abort_handle
@@ -89,36 +89,36 @@ impl EventState {
     }
 
     pub fn add_background_abort_handle(&mut self, handle: JoinHandle<()>) {
-        self.background_loop
+        self.background_task
             .write()
             .unwrap()
             .abort_handle
             .replace(handle.abort_handle());
     }
 
-    pub fn is_event_loop_running(&self) -> bool {
-        self.event_loop.read().unwrap().loop_running
+    pub fn is_event_running(&self) -> bool {
+        self.event_task.read().unwrap().running
     }
 
     pub fn has_background_handle(&self) -> bool {
-        self.background_loop.read().unwrap().abort_handle.is_some()
+        self.background_task.read().unwrap().abort_handle.is_some()
     }
 
-    pub fn is_background_loop_running(&self) -> bool {
-        self.background_loop.read().unwrap().loop_running
+    pub fn is_background_running(&self) -> bool {
+        self.background_task.read().unwrap().running
     }
 
-    pub fn set_event_loop_running(&self, running: bool) {
-        let mut event_loop = self.event_loop.write().unwrap();
-        event_loop.loop_running = running;
+    pub fn set_event_running(&self, running: bool) {
+        let mut event_task = self.event_task.write().unwrap();
+        event_task.running = running;
     }
 
-    pub fn set_background_loop_running(&self, running: bool) {
-        let mut background_loop = self.background_loop.write().unwrap();
-        background_loop.loop_running = running;
+    pub fn set_background_running(&self, running: bool) {
+        let mut background_task = self.background_task.write().unwrap();
+        background_task.running = running;
     }
 
-    /// Aborts the background loop.
+    /// Aborts the background task.
     /// This will:
     ///     (1) Send the cancel signal to the background task via the CancellationToken
     ///     (2) Abort the background task's JoinHandle
@@ -127,21 +127,21 @@ impl EventState {
     fn shutdown_background_task(&self) -> Result<(), EventError> {
         self.cancel_background_task();
 
-        // abort the background loop
+        // abort the background task
         let background_handle = {
-            let guard = self.background_loop.write().unwrap().abort_handle.take();
+            let guard = self.background_task.write().unwrap().abort_handle.take();
             guard
         };
 
         if let Some(handle) = background_handle {
             handle.abort();
-            debug!("Background loop handle shut down");
+            debug!("Background task handle shut down");
         }
 
         Ok(())
     }
 
-    /// Aborts the background loop.
+    /// Aborts the background task.
     /// This will:
     ///     (1) Send the cancel signal to the event task via the CancellationToken
     ///     (2) Abort the event task's JoinHandle
@@ -159,15 +159,15 @@ impl EventState {
         debug!("Waiting 250 ms to allow time for flush before aborting event task");
         std::thread::sleep(Duration::from_millis(250));
 
-        // abort the event loop
+        // abort the event task
         let event_handle = {
-            let guard = self.event_loop.write().unwrap().abort_handle.take();
+            let guard = self.event_task.write().unwrap().abort_handle.take();
             guard
         };
 
         if let Some(handle) = event_handle {
             handle.abort();
-            debug!("Event loop handle shut down");
+            debug!("Event task handle shut down");
         }
 
         Ok(())
@@ -186,20 +186,20 @@ impl EventState {
 /// Primary way to publish non-blocking events to background queues with ScouterQueue
 #[pyclass(name = "Queue")]
 pub struct QueueBus {
-    pub event_state: EventState,
+    pub task_state: TaskState,
 }
 
 impl QueueBus {
     #[instrument(skip_all)]
-    pub fn new(event_state: EventState) -> Self {
+    pub fn new(task_state: TaskState) -> Self {
         debug!("Creating unbounded QueueBus");
 
-        Self { event_state }
+        Self { task_state }
     }
 
     #[instrument(skip_all)]
     pub fn publish(&self, event: Event) -> Result<(), EventError> {
-        Ok(self.event_state.event_tx.send(event)?)
+        Ok(self.task_state.event_tx.send(event)?)
     }
 }
 
