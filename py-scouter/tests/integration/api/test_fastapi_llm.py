@@ -37,8 +37,10 @@ def test_llm_api_kafka(kafka_scouter_openai_server):
             )
             assert response.status_code == 200
             time.sleep(0.5)
+        time.sleep(5)
+        client.wait_shutdown()
 
-    time.sleep(5)
+    time.sleep(10)
 
     request = DriftRequest(
         name=profile.config.name,

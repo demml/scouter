@@ -157,7 +157,7 @@ pub trait QueueMethods {
         // Check if we need to process the queue
         // queues have a buffer in case of overflow, so we need to check if we are over the capacity, which is smaller
         if queue.len() >= self.capacity() {
-            info!(
+            debug!(
                 "Queue reached capacity, processing queue, current count: {}, current_capacity: {}",
                 queue.len(),
                 self.capacity()
