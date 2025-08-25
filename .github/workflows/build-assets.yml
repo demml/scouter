@@ -313,7 +313,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.RELEASE_PLZ_TOKEN }}
         run: |
-          for i in $(find dist -type f -print)
-          do
-            gh release upload ${{ secrets.GITHUB_TOKEN }} $i
+          for file in $(find dist -type f -not -path "*/\.*"); do
+            echo "Uploading $file to release"
+            gh release upload ${{ github.event.release.tag_name }} "$file" --clobber
           done
