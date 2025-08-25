@@ -428,11 +428,11 @@ impl ScouterQueue {
             event_state.add_event_abort_handle(handle);
             event_state.add_event_cancellation_token(cancellation_token);
 
-            std::thread::sleep(std::time::Duration::from_millis(100));
+            std::thread::sleep(std::time::Duration::from_millis(1000));
 
             // wait for background task and event task to signal startup
-            wait_for_background_task(&event_state)?;
-            wait_for_event_task(&event_state)?;
+            //wait_for_background_task(&event_state)?;
+            //wait_for_event_task(&event_state)?;
 
             let queue = Py::new(py, bus)?;
             queues.insert(id.clone(), queue);
