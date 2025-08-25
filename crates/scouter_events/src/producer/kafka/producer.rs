@@ -15,7 +15,7 @@ pub mod kafka_producer {
 
     use std::collections::HashMap;
     use std::time::Duration;
-    use tracing::info;
+    use tracing::{debug, info};
 
     #[derive(Clone)]
     pub struct KafkaProducer {
@@ -46,7 +46,7 @@ pub mod kafka_producer {
                     }
                 }
             }
-
+            debug!("Published {} records to Kafka", message.len());
             Ok(())
         }
 

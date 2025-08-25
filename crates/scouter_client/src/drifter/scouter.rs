@@ -210,8 +210,7 @@ impl PyDrifter {
     ) -> Result<Bound<'py, PyAny>, DriftError> {
         // if config is None, then we need to create a default config
 
-        let (config_helper, drift_type) = if config.is_some() {
-            let obj = config.unwrap();
+        let (config_helper, drift_type) = if let Some(obj) = config {
             let drift_type = obj.getattr("drift_type")?.extract::<DriftType>()?;
             let drift_config = match drift_type {
                 DriftType::Spc => {

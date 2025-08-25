@@ -9,7 +9,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.8.0"
+version = "0.9.0"
 authors = [
       "Thorrester <support@demmlai.com>",
       "russellkemmit <support@demmlai.com>",
@@ -20,19 +20,19 @@ repository = "https://github.com/demml/scouter"
 
 
 [workspace.dependencies]
-scouter-auth = { path = "crates/scouter_auth", version = "0.8.0" }
-scouter-client = { path = "crates/scouter_client", version = "0.8.0" }
-scouter-dispatch = { path = "crates/scouter_dispatch", version = "0.8.0" }
-scouter-drift = { path = "crates/scouter_drift", version = "0.8.0", default-features = false }
-scouter-events = { path = "crates/scouter_events", version = "0.8.0", default-features = false }
-scouter-observability = { path = "crates/scouter_observability", version = "0.8.0" }
-scouter-profile = { path = "crates/scouter_profile", version = "0.8.0" }
-scouter-server = { path = "crates/scouter_server", version = "0.8.0" }
-scouter-semver = { path = "crates/scouter_semver", version = "0.8.0" }
-scouter-settings = { path = "crates/scouter_settings", version = "0.8.0" }
-scouter-dataframe = { path = "crates/scouter_dataframe", version = "0.8.0" }
-scouter-sql = { path = "crates/scouter_sql", version = "0.8.0" }
-scouter-types = { path = "crates/scouter_types", version = "0.8.0" }
+scouter-auth = { path = "crates/scouter_auth", version = "0.9.0" }
+scouter-client = { path = "crates/scouter_client", version = "0.9.0" }
+scouter-dispatch = { path = "crates/scouter_dispatch", version = "0.9.0" }
+scouter-drift = { path = "crates/scouter_drift", version = "0.9.0", default-features = false }
+scouter-events = { path = "crates/scouter_events", version = "0.9.0", default-features = false }
+scouter-observability = { path = "crates/scouter_observability", version = "0.9.0" }
+scouter-profile = { path = "crates/scouter_profile", version = "0.9.0" }
+scouter-server = { path = "crates/scouter_server", version = "0.9.0" }
+scouter-semver = { path = "crates/scouter_semver", version = "0.9.0" }
+scouter-settings = { path = "crates/scouter_settings", version = "0.9.0" }
+scouter-dataframe = { path = "crates/scouter_dataframe", version = "0.9.0" }
+scouter-sql = { path = "crates/scouter_sql", version = "0.9.0" }
+scouter-types = { path = "crates/scouter_types", version = "0.9.0" }
 scouter-mocks = { path = "crates/scouter_mocks" }
 
 anyhow = "1.*"
@@ -89,6 +89,7 @@ time = "0.*"
 tokio = { version = "1.*", features = ["rt", "rt-multi-thread", "macros", "signal"] }
 tokio-stream = { version = "0.*", features = ["sync"] }
 tower-http = { version = "0.*", features = ["cors"] }
+tokio-util = "0.*"
 tracing = "0.*"
 tracing-subscriber = {version = "0.*", features = ["json", "time"]}
 url = "2.*"

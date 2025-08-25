@@ -10,6 +10,7 @@ use scouter_types::spc::SpcDriftProfile;
 use scouter_types::Features;
 use std::sync::Arc;
 use std::sync::RwLock;
+
 pub struct SpcQueue {
     queue: Arc<ArrayQueue<Features>>,
     feature_queue: Arc<SpcFeatureQueue>,
@@ -69,6 +70,7 @@ impl QueueMethods for SpcQueue {
     }
 
     async fn flush(&mut self) -> Result<(), EventError> {
-        self.producer.flush().await
+        self.producer.flush().await?;
+        Ok(())
     }
 }

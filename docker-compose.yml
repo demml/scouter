@@ -99,6 +99,7 @@ services:
     image: confluentinc/cp-kafka:7.9.1
     depends_on:
       - kafka
+      - kafka-ui
     entrypoint: ["/bin/sh", "-c"]
     command: |
       "

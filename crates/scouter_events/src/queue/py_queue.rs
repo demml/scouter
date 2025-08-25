@@ -1,10 +1,13 @@
 #![allow(clippy::useless_conversion)]
 use crate::error::{EventError, PyEventError};
-use crate::queue::bus::{Event, QueueBus};
+use crate::queue::bus::Task;
+use crate::queue::bus::{Event, QueueBus, TaskState};
 use crate::queue::custom::CustomQueue;
 use crate::queue::llm::LLMQueue;
 use crate::queue::psi::PsiQueue;
 use crate::queue::spc::SpcQueue;
+use crate::queue::traits::queue::wait_for_background_task;
+use crate::queue::traits::queue::wait_for_event_task;
 use crate::queue::traits::queue::QueueMethods;
 use crate::queue::types::TransportConfig;
 use pyo3::prelude::*;
@@ -14,38 +17,73 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::RwLock;
+use tokio::runtime;
 use tokio::sync::mpsc::UnboundedReceiver;
-use tokio::sync::oneshot;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, instrument};
 
+fn create_event_state(id: String) -> (TaskState, UnboundedReceiver<Event>) {
+    let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel();
+
+    // get background loop
+    let background_task = Arc::new(RwLock::new(Task::new()));
+
+    // get event loop
+    let event_task = Arc::new(RwLock::new(Task::new()));
+
+    let event_state = TaskState {
+        event_task,
+        background_task,
+        event_tx,
+        id,
+    };
+
+    (event_state, event_rx)
+}
 pub enum QueueNum {
     Spc(SpcQueue),
     Psi(PsiQueue),
     Custom(CustomQueue),
     LLM(LLMQueue),
 }
-
+// need to add queue running lock to each and return it to the queue bus
 impl QueueNum {
     pub async fn new(
+        transport_config: TransportConfig,
         drift_profile: DriftProfile,
-        config: TransportConfig,
-        queue_runtime: Arc<tokio::runtime::Runtime>,
+        runtime: Arc<runtime::Runtime>,
+        task_state: &mut TaskState,
     ) -> Result<Self, EventError> {
+        let identifier = drift_profile.identifier();
         match drift_profile {
             DriftProfile::Spc(spc_profile) => {
-                let queue = SpcQueue::new(spc_profile, config).await?;
+                let queue = SpcQueue::new(spc_profile, transport_config).await?;
                 Ok(QueueNum::Spc(queue))
             }
             DriftProfile::Psi(psi_profile) => {
-                let queue = PsiQueue::new(psi_profile, config, queue_runtime).await?;
+                let queue = PsiQueue::new(
+                    psi_profile,
+                    transport_config,
+                    runtime,
+                    task_state,
+                    identifier,
+                )
+                .await?;
                 Ok(QueueNum::Psi(queue))
             }
             DriftProfile::Custom(custom_profile) => {
-                let queue = CustomQueue::new(custom_profile, config, queue_runtime).await?;
+                let queue = CustomQueue::new(
+                    custom_profile,
+                    transport_config,
+                    runtime,
+                    task_state,
+                    identifier,
+                )
+                .await?;
                 Ok(QueueNum::Custom(queue))
             }
             DriftProfile::LLM(llm_profile) => {
-                let queue = LLMQueue::new(llm_profile, config).await?;
+                let queue = LLMQueue::new(llm_profile, transport_config).await?;
                 Ok(QueueNum::LLM(queue))
             }
         }
@@ -126,26 +164,36 @@ impl QueueNum {
 }
 
 #[allow(clippy::too_many_arguments)]
-async fn handle_queue_events(
-    mut rx: UnboundedReceiver<Event>,
-    mut shutdown_rx: oneshot::Receiver<()>,
+async fn spawn_queue_event_handler(
+    mut event_rx: UnboundedReceiver<Event>,
+    transport_config: TransportConfig,
     drift_profile: DriftProfile,
-    config: TransportConfig,
+    runtime: Arc<runtime::Runtime>,
     id: String,
-    queue_runtime: Arc<tokio::runtime::Runtime>,
-    completion_tx: oneshot::Sender<()>,
-    initialized: Arc<RwLock<bool>>,
+    mut task_state: TaskState,
+    cancellation_token: CancellationToken,
 ) -> Result<(), EventError> {
-    let mut queue = match QueueNum::new(drift_profile, config.clone(), queue_runtime).await {
-        Ok(q) => q,
-        Err(e) => {
-            error!("Failed to initialize queue {}: {}", id, e);
-            return Err(e);
-        }
-    };
+    // This will create the specific queue based on the transport config and drift profile
+    // Available queues:
+    // - PSI - will also create a background task
+    // - SPC
+    // - Custom - will also create a background task
+    // - LLM
+    // event loops are used to monitor the background tasks of both custom and PSI queues
+    let mut queue =
+        match QueueNum::new(transport_config, drift_profile, runtime, &mut task_state).await {
+            Ok(q) => q,
+            Err(e) => {
+                error!("Failed to initialize queue {}: {}", id, e);
+                return Err(e);
+            }
+        };
+
+    task_state.set_event_running(true);
+    debug!("Event loop for queue {} set to running", id);
     loop {
         tokio::select! {
-            Some(event) = rx.recv() => {
+            Some(event) = event_rx.recv() => {
                 match event {
                     Event::Task(entity) => {
                         match queue.insert(entity).await {
@@ -157,24 +205,45 @@ async fn handle_queue_events(
                             }
                         }
                     }
-                    Event::Init => {
-                        debug!("Received Init event for queue {}", id);
-                        match initialized.write() {
-                            Ok(mut init) => {
-                                *init = true;
-                                debug!("Queue {} initialized successfully", id);
+                    Event::Flush => {
+                        debug!("Flush event received for queue {}", id);
+                        match queue.flush().await {
+                            Ok(_) => {
+                                debug!("Successfully flushed queue {}", id);
                             }
                             Err(e) => {
-                                error!("Failed to write to initialized lock for queue {}: {}", id, e);
+                                error!("Error flushing queue {}: {}", id, e);
                             }
                         }
                     }
                 }
             }
-            _ = &mut shutdown_rx => {
-                debug!("Shutdown signal received for queue {}", id);
-                queue.flush().await?;
-                completion_tx.send(()).map_err(|_| EventError::SignalCompletionError)?;
+
+            _ = cancellation_token.cancelled() => {
+                debug!("Stop signal received for queue {}", id);
+                match queue.flush().await {
+                    Ok(_) => {
+                        debug!("Successfully flushed queue {}", id);
+                    }
+                    Err(e) => {
+                        error!("Error flushing queue {}: {}", id, e);
+                    }
+                }
+                task_state.set_event_running(false);
+                break;
+            }
+
+            else => {
+                debug!("Event channel closed for queue {}, shutting down", id);
+                match queue.flush().await {
+                    Ok(_) => {
+                        debug!("Successfully flushed queue {}", id);
+                    }
+                    Err(e) => {
+                        error!("Error flushing queue {}: {}", id, e);
+                    }
+                }
+                task_state.set_event_running(false);
                 break;
             }
         }
@@ -182,12 +251,13 @@ async fn handle_queue_events(
     Ok(())
 }
 
+// need to add version here
 #[pyclass]
 pub struct ScouterQueue {
     queues: HashMap<String, Py<QueueBus>>,
     _shared_runtime: Arc<tokio::runtime::Runtime>,
-    completion_rxs: HashMap<String, oneshot::Receiver<()>>,
     transport_config: TransportConfig,
+    pub queue_state: Arc<HashMap<String, TaskState>>,
 }
 
 #[pymethods]
@@ -219,8 +289,7 @@ impl ScouterQueue {
         // create a tokio runtime to run the background tasks
         let shared_runtime =
             Arc::new(tokio::runtime::Runtime::new().map_err(EventError::SetupTokioRuntimeError)?);
-
-        ScouterQueue::from_path_rs(py, path, transport_config, shared_runtime)
+        ScouterQueue::from_path_rs(py, path, transport_config, shared_runtime, false)
     }
 
     /// Get a queue by its alias
@@ -252,7 +321,14 @@ impl ScouterQueue {
         self.transport_config.to_py(py)
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.queues.is_empty()
+    }
+
     /// Triggers a global shutdown for all queues
+    /// 1. This will call shutdown for all queues
+    /// 2. The queues will be cleared from the hashmap
+    /// 3. A loop will be run to ensure all background tasks have been shut down
     ///
     /// # Example
     ///
@@ -263,26 +339,23 @@ impl ScouterQueue {
     /// scouter_queues.shutdown()
     ///
     /// ```
-    pub fn shutdown(&mut self, py: Python) -> Result<(), PyEventError> {
-        // trigger shutdown for all queues
-        for queue in self.queues.values() {
-            let bound = queue.bind(py);
-            bound
-                .call_method0("shutdown")
-                .map_err(PyEventError::ShutdownQueueError)?;
+    pub fn shutdown(&mut self) -> Result<(), PyEventError> {
+        debug!("Starting ScouterQueue shutdown");
+
+        for (alias, event_state) in self.queue_state.iter() {
+            debug!("Shutting down queue: {}", alias);
+            // Flush first
+            // shutdown the queue
+            event_state.shutdown_tasks()?;
         }
 
-        self._shared_runtime.block_on(async {
-            for (id, completion_rx) in self.completion_rxs.drain() {
-                completion_rx
-                    .await
-                    .map_err(EventError::ShutdownReceiverError)?;
-                debug!("Queue {} initialized successfully", id);
-            }
-            Ok::<_, PyEventError>(())
-        })?;
-
+        // clear the queues
         self.queues.clear();
+        if !self.queues.is_empty() {
+            return Err(PyEventError::PendingEventsError);
+        }
+
+        debug!("All queues have been shutdown and cleared");
 
         Ok(())
     }
@@ -314,10 +387,11 @@ impl ScouterQueue {
         path: HashMap<String, PathBuf>,
         transport_config: &Bound<'_, PyAny>,
         shared_runtime: Arc<tokio::runtime::Runtime>,
+        wait_for_startup: bool,
     ) -> Result<Self, PyEventError> {
         debug!("Creating ScouterQueue from path");
         let mut queues = HashMap::new();
-        let mut completion_rxs = HashMap::new();
+        let mut queue_state = HashMap::new();
 
         // assert transport config is not None
         if transport_config.is_none() {
@@ -333,54 +407,62 @@ impl ScouterQueue {
             let cloned_config = config.clone();
             let drift_profile = DriftProfile::from_profile_path(profile_path)?;
 
+            let (mut event_state, event_rx) = create_event_state(id.clone());
+
             // create startup channels to ensure queues are initialized before use
-            //let (startup_tx, startup_rx) = oneshot::channel();
+            let bus = QueueBus::new(event_state.clone(), drift_profile.identifier());
+            queue_state.insert(id.clone(), event_state.clone());
+            let cancellation_token = CancellationToken::new();
+            let cloned_cancellation_token = cancellation_token.clone();
 
-            // create completion channels to ensure queues are flushed before shutdown
-            let (completion_tx, completion_rx) = oneshot::channel();
-            let (bus, rx, shutdown_rx) = QueueBus::new();
-
-            let queue_runtime = shared_runtime.clone();
-
-            // spawn a new thread for each queue
+            // queue args
+            let clone_runtime = shared_runtime.clone();
             let id_clone = id.clone();
-            let initialized = bus.initialized.clone();
+            let cloned_event_state = event_state.clone();
 
-            // Just spawn the task without waiting for initialization
-            shared_runtime.spawn(async move {
-                match handle_queue_events(
-                    rx,
-                    shutdown_rx,
-                    drift_profile,
+            // Spawn the task without waiting for initialization
+            let handle = shared_runtime.spawn(async move {
+                match spawn_queue_event_handler(
+                    event_rx,
                     cloned_config,
+                    drift_profile,
+                    clone_runtime,
                     id_clone,
-                    queue_runtime,
-                    completion_tx,
-                    initialized,
+                    cloned_event_state,
+                    cloned_cancellation_token,
                 )
                 .await
                 {
-                    Ok(_) => debug!("Queue handler started successfully"),
-                    Err(e) => error!("Queue handler exited with error: {}", e),
+                    Ok(running) => running,
+                    Err(e) => {
+                        error!("Queue initialization failed: {}", e);
+                    }
                 }
             });
 
-            // Check bus initialization.
-            // This will send an init event to ensure the spawned loop is working.
-            // If loop is running, loop will set the initialized flag to true
-            bus.init()?;
+            // add handle and stop tx to event loops for management
+            event_state.add_event_abort_handle(handle);
+            event_state.add_event_cancellation_token(cancellation_token);
+
+            std::thread::sleep(std::time::Duration::from_millis(1000));
+
+            // wait for background task and event task to signal startup
+            if wait_for_startup {
+                debug!("Waiting for queue {} to signal startup", id);
+                wait_for_background_task(&event_state)?;
+                wait_for_event_task(&event_state)?;
+            }
 
             let queue = Py::new(py, bus)?;
             queues.insert(id.clone(), queue);
-            completion_rxs.insert(id, completion_rx);
         }
 
         Ok(ScouterQueue {
             queues,
             // need to keep the runtime alive for the life of ScouterQueue
             _shared_runtime: shared_runtime,
-            completion_rxs,
             transport_config: config,
+            queue_state: Arc::new(queue_state),
         })
     }
 }

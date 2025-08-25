@@ -41,8 +41,8 @@ def test_spc_monitor_pandas_kafka(
         )
         queue["a"].insert(features)
 
+    time.sleep(15)
     queue.shutdown()
-    time.sleep(10)
 
     binned_records: BinnedSpcFeatureMetrics = client.get_binned_drift(
         DriftRequest(

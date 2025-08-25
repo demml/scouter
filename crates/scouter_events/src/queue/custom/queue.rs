@@ -1,8 +1,8 @@
 use crate::error::EventError;
 use crate::producer::RustScouterProducer;
+use crate::queue::bus::TaskState;
 use crate::queue::custom::feature_queue::CustomMetricFeatureQueue;
-use crate::queue::traits::BackgroundTask;
-use crate::queue::traits::QueueMethods;
+use crate::queue::traits::{BackgroundTask, QueueMethods};
 use crate::queue::types::TransportConfig;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -12,8 +12,7 @@ use scouter_types::Metrics;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
-use tokio::sync::watch;
-use tracing::debug;
+use tokio_util::sync::CancellationToken;
 
 /// The following code is a custom queue implementation for handling custom metrics.
 /// It consists of a `CustomQueue` struct that manages a queue of metrics and a background task
@@ -33,7 +32,6 @@ pub struct CustomQueue {
     feature_queue: Arc<CustomMetricFeatureQueue>,
     producer: RustScouterProducer,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
-    stop_tx: Option<watch::Sender<()>>,
     capacity: usize,
 }
 
@@ -42,56 +40,48 @@ impl CustomQueue {
         drift_profile: CustomDriftProfile,
         config: TransportConfig,
         runtime: Arc<runtime::Runtime>,
+        task_state: &mut TaskState,
+        identifier: String,
     ) -> Result<Self, EventError> {
         let sample_size = drift_profile.config.sample_size;
 
-        debug!("Creating Custom Metric Queue");
         // ArrayQueue size is based on sample size
         let metrics_queue = Arc::new(ArrayQueue::new(sample_size * 2));
         let feature_queue = Arc::new(CustomMetricFeatureQueue::new(drift_profile));
         let last_publish = Arc::new(RwLock::new(Utc::now()));
 
-        debug!("Creating Producer");
         let producer = RustScouterProducer::new(config).await?;
-
-        let (stop_tx, stop_rx) = watch::channel(());
+        let cancellation_token = CancellationToken::new();
 
         let custom_queue = CustomQueue {
             queue: metrics_queue.clone(),
             feature_queue: feature_queue.clone(),
             producer,
             last_publish,
-            stop_tx: Some(stop_tx),
-
             capacity: sample_size,
         };
+        let handle = custom_queue.start_background_task(
+            metrics_queue,
+            feature_queue,
+            custom_queue.producer.clone(),
+            custom_queue.last_publish.clone(),
+            runtime.clone(),
+            custom_queue.capacity,
+            identifier,
+            task_state.clone(),
+            cancellation_token.clone(),
+        )?;
 
-        debug!("Starting Background Task");
-        custom_queue.start_background_worker(metrics_queue, feature_queue, stop_rx, runtime)?;
+        task_state.add_background_abort_handle(handle);
+        task_state.add_background_cancellation_token(cancellation_token);
 
         Ok(custom_queue)
     }
-
-    fn start_background_worker(
-        &self,
-        metrics_queue: Arc<ArrayQueue<Metrics>>,
-        feature_queue: Arc<CustomMetricFeatureQueue>,
-        stop_rx: watch::Receiver<()>,
-        rt: Arc<tokio::runtime::Runtime>,
-    ) -> Result<(), EventError> {
-        self.start_background_task(
-            metrics_queue,
-            feature_queue,
-            self.producer.clone(),
-            self.last_publish.clone(),
-            rt.clone(),
-            stop_rx,
-            self.capacity,
-            "Custom Background Polling",
-        )
-    }
 }
 
+/// Custom requires a background timed-task as a secondary processing mechanism
+/// i.e. Its possible that queue insertion is slow, and so we need a background
+/// task to process the queue at a regular interval
 impl BackgroundTask for CustomQueue {
     type DataItem = Metrics;
     type Processor = CustomMetricFeatureQueue;
@@ -130,9 +120,8 @@ impl QueueMethods for CustomQueue {
     async fn flush(&mut self) -> Result<(), EventError> {
         // publish any remaining drift records
         self.try_publish(self.queue()).await?;
-        if let Some(stop_tx) = self.stop_tx.take() {
-            let _ = stop_tx.send(());
-        }
-        self.producer.flush().await
+        self.producer.flush().await?;
+
+        Ok(())
     }
 }

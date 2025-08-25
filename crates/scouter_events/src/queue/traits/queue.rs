@@ -2,6 +2,7 @@
 
 use crate::error::{EventError, FeatureQueueError};
 use crate::producer::RustScouterProducer;
+use crate::queue::bus::TaskState;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
@@ -11,9 +12,9 @@ use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime::Runtime;
-use tokio::sync::watch;
+use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
-
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, info_span, Instrument};
 
 pub trait FeatureQueue: Send + Sync {
@@ -23,7 +24,7 @@ pub trait FeatureQueue: Send + Sync {
     ) -> Result<ServerRecords, FeatureQueueError>;
 }
 
-pub trait BackgroundTask {
+pub trait BackgroundTask: Send + Sync + 'static {
     type DataItem: QueueExt + Send + Sync + 'static;
     type Processor: FeatureQueue + Send + Sync + 'static;
 
@@ -35,14 +36,27 @@ pub trait BackgroundTask {
         mut producer: RustScouterProducer,
         last_publish: Arc<RwLock<DateTime<Utc>>>,
         runtime: Arc<Runtime>,
-        mut stop_rx: watch::Receiver<()>,
         queue_capacity: usize,
-        label: &'static str,
-    ) -> Result<(), EventError> {
+        identifier: String,
+        task_state: TaskState,
+        cancellation_token: CancellationToken,
+    ) -> Result<JoinHandle<()>, EventError> {
+        let span = info_span!("background_task", task = %identifier);
+
         let future = async move {
+            debug!("Starting background task");
+
+            // Set running state immediately
+            task_state.set_background_running(true);
+            debug!("Background task set to running");
+
+            // Small delay to ensure state is propagated
+            sleep(Duration::from_millis(10)).await;
             loop {
                 tokio::select! {
                     _ = sleep(Duration::from_secs(2)) => {
+                        debug!("Waking up background task");
+
                         let now = Utc::now();
 
                         // Scope the read guard to drop it before the future is sent
@@ -55,21 +69,21 @@ pub trait BackgroundTask {
                         };
 
                         if should_process {
-                            debug!("Processing queued data");
-
                             let mut batch = Vec::with_capacity(queue_capacity);
                             while let Some(item) = data_queue.pop() {
                                 batch.push(item);
                             }
 
-                             // Always update last_publish time, regardless of batch processing result
-                             if let Ok(mut guard) = last_publish.write() {
+                            // Always update last_publish time, regardless of batch processing result
+                            if let Ok(mut guard) = last_publish.write() {
                                 *guard = now;
                             }
 
                             if !batch.is_empty() {
                                 match processor.create_drift_records_from_batch(batch) {
                                     Ok(records) => {
+
+                                        // publish
                                         if let Err(e) = producer.publish(records).await {
                                             error!("Failed to publish records: {}", e);
                                         } else {
@@ -81,21 +95,24 @@ pub trait BackgroundTask {
                             }
 
                         }
-                    },
-                    _ = stop_rx.changed() => {
-                        info!("Stopping background task");
-                        if let Err(e) = producer.flush().await {
-                            error!("Failed to flush producer: {}", e);
-                        }
+                    }
+                    _ = cancellation_token.cancelled()  => {
+                        info!("Stop signal received, shutting down background task");
+                        task_state.set_background_running(false);
+                        break;
+                    }
+                    else =>  {
+                        info!("Stop signal received, shutting down background task");
+                        task_state.set_background_running(false);
                         break;
                     }
                 }
             }
+            debug!("Background task finished");
         };
 
-        let span = info_span!("background_task", task = %label);
-        runtime.spawn(future.instrument(span));
-        Ok(())
+        let handle = runtime.spawn(async move { future.instrument(span).await });
+        Ok(handle)
     }
 }
 
@@ -133,6 +150,7 @@ pub trait QueueMethods {
     /// Insert an item into the queue
     async fn insert(&mut self, item: Self::ItemType) -> Result<(), EventError> {
         debug!("Inserting item into queue: {:?}", item);
+
         self.insert_with_backpressure(item).await?;
 
         let queue = self.queue();
@@ -145,7 +163,7 @@ pub trait QueueMethods {
                 queue.len(),
                 self.capacity()
             );
-            self.try_publish(queue).await?;
+            self.try_publish(queue.clone()).await?;
         }
 
         Ok(())
@@ -184,7 +202,7 @@ pub trait QueueMethods {
     async fn insert_with_backpressure(&mut self, item: Self::ItemType) -> Result<(), EventError> {
         let queue = self.queue();
         let max_retries = 3;
-        let mut current_retry = 0;
+        let mut current_retry: u32 = 0;
 
         while current_retry < max_retries {
             match queue.push(item.clone()) {
@@ -202,4 +220,42 @@ pub trait QueueMethods {
 
         Err(EventError::QueuePushRetryError)
     }
+}
+
+/// Waits for the background loop to start
+pub fn wait_for_background_task(task_state: &TaskState) -> Result<(), EventError> {
+    // Signal confirm start
+    if task_state.has_background_handle() {
+        let mut max_retries = 50;
+        while max_retries > 0 {
+            if task_state.is_background_running() {
+                debug!("Background loop started successfully");
+                return Ok(());
+            }
+            max_retries -= 1;
+            std::thread::sleep(Duration::from_millis(200));
+        }
+        error!("Background task failed to start");
+        Err(EventError::BackgroundTaskFailedToStartError)
+    } else {
+        debug!("No background handle to wait for");
+        Ok(())
+    }
+}
+
+/// Waits for the event task to start
+pub fn wait_for_event_task(task_state: &TaskState) -> Result<(), EventError> {
+    // Signal confirm start
+
+    let mut max_retries = 50;
+    while max_retries > 0 {
+        if task_state.is_event_running() {
+            debug!("Event task started successfully");
+            return Ok(());
+        }
+        max_retries -= 1;
+        std::thread::sleep(Duration::from_millis(200));
+    }
+    error!("Event task failed to start");
+    Err(EventError::EventTaskFailedToStartError)
 }

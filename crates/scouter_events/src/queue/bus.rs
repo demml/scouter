@@ -1,16 +1,197 @@
+use std::sync::Arc;
+
 use crate::error::{EventError, PyEventError};
 use pyo3::prelude::*;
 use scouter_types::QueueItem;
-use std::sync::Arc;
 use std::sync::RwLock;
-use tokio::sync::mpsc::{self, UnboundedReceiver, UnboundedSender};
-use tokio::sync::oneshot;
-use tracing::{debug, instrument};
+use tokio::task::JoinHandle;
+use tokio::time::Duration;
+use tokio::{sync::mpsc::UnboundedSender, task::AbortHandle};
+use tokio_util::sync::CancellationToken;
+use tracing::{debug, instrument, warn};
 
 #[derive(Debug)]
 pub enum Event {
     Task(QueueItem),
-    Init,
+    Flush,
+}
+
+#[derive(Debug)]
+pub struct Task {
+    pub abort_handle: Option<AbortHandle>,
+    pub running: bool,
+    pub cancel_token: Option<CancellationToken>,
+}
+
+impl Task {
+    pub fn new() -> Self {
+        Self {
+            abort_handle: None,
+            running: false,
+            cancel_token: None,
+        }
+    }
+}
+
+impl Default for Task {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct TaskState {
+    // track the task that receives events
+    pub event_task: Arc<RwLock<Task>>,
+
+    // track the task that processes background tasks (only applies to psi and custom)
+    pub background_task: Arc<RwLock<Task>>,
+
+    // channel to send events to the event task
+    pub event_tx: UnboundedSender<Event>,
+
+    pub id: String,
+}
+
+impl TaskState {
+    pub fn add_background_cancellation_token(&mut self, token: CancellationToken) {
+        self.background_task.write().unwrap().cancel_token = Some(token);
+    }
+
+    pub fn cancel_background_task(&self) {
+        let cancel_token = &self.background_task.read().unwrap().cancel_token;
+        if let Some(cancel_token) = cancel_token {
+            debug!("Cancelling background task");
+            cancel_token.cancel();
+        }
+    }
+
+    pub fn add_event_cancellation_token(&mut self, token: CancellationToken) {
+        self.event_task.write().unwrap().cancel_token = Some(token);
+    }
+
+    fn flush_event_task(&self) -> Result<(), EventError> {
+        Ok(self.event_tx.send(Event::Flush)?)
+    }
+
+    fn cancel_event_task(&self) {
+        let cancel_token = &self.event_task.read().unwrap().cancel_token;
+        if let Some(cancel_token) = cancel_token {
+            debug!("Cancelling event task");
+            cancel_token.cancel();
+        }
+    }
+
+    pub fn add_event_abort_handle(&mut self, handle: JoinHandle<()>) {
+        self.event_task
+            .write()
+            .unwrap()
+            .abort_handle
+            .replace(handle.abort_handle());
+    }
+
+    pub fn add_background_abort_handle(&mut self, handle: JoinHandle<()>) {
+        self.background_task
+            .write()
+            .unwrap()
+            .abort_handle
+            .replace(handle.abort_handle());
+    }
+
+    pub fn is_event_running(&self) -> bool {
+        self.event_task.read().unwrap().running
+    }
+
+    pub fn has_background_handle(&self) -> bool {
+        self.background_task.read().unwrap().abort_handle.is_some()
+    }
+
+    pub fn is_background_running(&self) -> bool {
+        self.background_task.read().unwrap().running
+    }
+
+    pub fn set_event_running(&self, running: bool) {
+        let mut event_task = self.event_task.write().unwrap();
+        event_task.running = running;
+    }
+
+    pub fn set_background_running(&self, running: bool) {
+        let mut background_task = self.background_task.write().unwrap();
+        background_task.running = running;
+    }
+
+    /// Aborts the background task.
+    /// This will:
+    ///     (1) Send the cancel signal to the background task via the CancellationToken
+    ///     (2) Abort the background task's JoinHandle
+    /// This is intended to be called when shutting down and after
+    /// the associated queue has been flushed
+    fn shutdown_background_task(&self) -> Result<(), EventError> {
+        // check if handle
+        self.cancel_background_task();
+
+        // abort the background task
+        let background_handle = {
+            let guard = self.background_task.write().unwrap().abort_handle.take();
+            guard
+        };
+
+        if let Some(handle) = background_handle {
+            handle.abort();
+            debug!("Background task handle shut down");
+        }
+
+        Ok(())
+    }
+
+    /// Aborts the background task.
+    /// This will:
+    ///     (1) Send the cancel signal to the event task via the CancellationToken
+    ///     (2) Abort the event task's JoinHandle
+    /// This is intended to be called when shutting down and after
+    /// the associated queue has been flushed
+    fn shutdown_event_task(&self) -> Result<(), EventError> {
+        match self.flush_event_task() {
+            Ok(_) => debug!("Event task flush signal sent"),
+            Err(e) => {
+                let error_msg = e.to_string();
+                if error_msg.contains("channel closed") {
+                    debug!("Channel already closed for event task: {}", self.id);
+                } else {
+                    warn!("Failed to send flush signal to event task: {}", e);
+                }
+            }
+        }
+
+        debug!("Waiting 250 ms to allow time for flush before cancelling event task");
+        std::thread::sleep(Duration::from_millis(250));
+
+        self.cancel_event_task();
+
+        // wait 250 ms to allow time for flush before aborting thread
+        debug!("Waiting 250 ms to allow time for flush before aborting event task");
+        std::thread::sleep(Duration::from_millis(250));
+
+        // abort the event task
+        let event_handle = {
+            let guard = self.event_task.write().unwrap().abort_handle.take();
+            guard
+        };
+
+        if let Some(handle) = event_handle {
+            handle.abort();
+            debug!("Event task handle shut down");
+        }
+
+        Ok(())
+    }
+
+    /// Shuts down all async tasks
+    pub fn shutdown_tasks(&self) -> Result<(), EventError> {
+        self.shutdown_background_task()?;
+        self.shutdown_event_task()?;
+        Ok(())
+    }
 }
 
 /// QueueBus is an mpsc bus that allows for publishing events to subscribers.
@@ -18,42 +199,26 @@ pub enum Event {
 /// Primary way to publish non-blocking events to background queues with ScouterQueue
 #[pyclass(name = "Queue")]
 pub struct QueueBus {
-    tx: UnboundedSender<Event>,
-    shutdown_tx: Option<oneshot::Sender<()>>,
-    pub initialized: Arc<RwLock<bool>>,
+    pub task_state: TaskState,
+
+    #[pyo3(get)]
+    pub identifier: String,
 }
 
 impl QueueBus {
     #[instrument(skip_all)]
-    pub fn new() -> (Self, UnboundedReceiver<Event>, oneshot::Receiver<()>) {
+    pub fn new(task_state: TaskState, identifier: String) -> Self {
         debug!("Creating unbounded QueueBus");
-        let (tx, rx) = mpsc::unbounded_channel();
-        let (shutdown_tx, shutdown_rx) = oneshot::channel();
-        let initialized = Arc::new(RwLock::new(false));
 
-        (
-            Self {
-                tx,
-                shutdown_tx: Some(shutdown_tx),
-                initialized,
-            },
-            rx,
-            shutdown_rx,
-        )
+        Self {
+            task_state,
+            identifier,
+        }
     }
 
     #[instrument(skip_all)]
     pub fn publish(&self, event: Event) -> Result<(), EventError> {
-        Ok(self.tx.send(event)?)
-    }
-
-    pub fn is_initialized(&self) -> bool {
-        // Check if the bus is initialized
-        if let Ok(initialized) = self.initialized.read() {
-            *initialized
-        } else {
-            false
-        }
+        Ok(self.task_state.event_tx.send(event)?)
     }
 }
 
@@ -63,42 +228,11 @@ impl QueueBus {
     ///
     /// # Arguments
     /// * `event` - The event to publish
-    pub fn insert(&mut self, entity: &Bound<'_, PyAny>) -> Result<(), PyEventError> {
+    pub fn insert(&self, entity: &Bound<'_, PyAny>) -> Result<(), PyEventError> {
         let entity = QueueItem::from_py_entity(entity)?;
         debug!("Inserting event into QueueBus: {:?}", entity);
         let event = Event::Task(entity);
         self.publish(event)?;
-        Ok(())
-    }
-
-    /// Shutdown the bus
-    /// This will send a messages to the background queue, which will trigger a flush on the queue
-    #[instrument(skip_all)]
-    pub fn shutdown(&mut self) {
-        // Signal shutdown
-        if let Some(shutdown_tx) = self.shutdown_tx.take() {
-            let _ = shutdown_tx.send(());
-        }
-    }
-}
-
-impl QueueBus {
-    /// Check if the bus is initialized
-    pub fn init(&self) -> Result<(), EventError> {
-        std::thread::sleep(std::time::Duration::from_millis(20));
-        let mut attempts = 0;
-        while !self.is_initialized() {
-            debug!("QueueBus is not initialized, waiting...");
-            if attempts >= 100 {
-                return Err(EventError::InitializationError);
-            }
-            attempts += 1;
-            std::thread::sleep(std::time::Duration::from_millis(10));
-
-            let event = Event::Init;
-            debug!("Initializing QueueBus");
-            self.publish(event)?;
-        }
         Ok(())
     }
 }

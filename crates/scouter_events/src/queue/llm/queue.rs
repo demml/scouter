@@ -51,7 +51,6 @@ impl LLMQueue {
         let record_queue = Arc::new(LLMRecordQueue::new(drift_profile));
         let last_publish = Arc::new(RwLock::new(Utc::now()));
 
-        debug!("Creating Producer");
         let producer = RustScouterProducer::new(config).await?;
 
         let llm_queue = LLMQueue {
@@ -114,6 +113,8 @@ impl QueueMethods for LLMQueue {
     async fn flush(&mut self) -> Result<(), EventError> {
         // publish any remaining drift records
         self.try_publish(self.queue()).await?;
-        self.producer.flush().await
+
+        self.producer.flush().await?;
+        Ok(())
     }
 }
