@@ -49,6 +49,8 @@ pub struct TaskState {
 
     // channel to send events to the event task
     pub event_tx: UnboundedSender<Event>,
+
+    pub id: String,
 }
 
 impl TaskState {
@@ -151,7 +153,14 @@ impl TaskState {
     fn shutdown_event_task(&self) -> Result<(), EventError> {
         match self.flush_event_task() {
             Ok(_) => debug!("Event task flush signal sent"),
-            Err(e) => warn!("Failed to send flush signal to event task: {}", e),
+            Err(e) => {
+                let error_msg = e.to_string();
+                if error_msg.contains("channel closed") {
+                    debug!("Channel already closed for event task: {}", self.id);
+                } else {
+                    warn!("Failed to send flush signal to event task: {}", e);
+                }
+            }
         }
 
         debug!("Waiting 250 ms to allow time for flush before cancelling event task");
@@ -191,14 +200,20 @@ impl TaskState {
 #[pyclass(name = "Queue")]
 pub struct QueueBus {
     pub task_state: TaskState,
+
+    #[pyo3(get)]
+    pub identifier: String,
 }
 
 impl QueueBus {
     #[instrument(skip_all)]
-    pub fn new(task_state: TaskState) -> Self {
+    pub fn new(task_state: TaskState, identifier: String) -> Self {
         debug!("Creating unbounded QueueBus");
 
-        Self { task_state }
+        Self {
+            task_state,
+            identifier,
+        }
     }
 
     #[instrument(skip_all)]

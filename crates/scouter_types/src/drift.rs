@@ -275,6 +275,35 @@ impl DriftProfile {
             DriftProfile::LLM(profile) => Some(profile.config.version.clone()),
         }
     }
+
+    pub fn identifier(&self) -> String {
+        match self {
+            DriftProfile::Spc(profile) => {
+                format!(
+                    "{}{}/v{}",
+                    profile.config.space, profile.config.name, profile.config.version
+                )
+            }
+            DriftProfile::Psi(profile) => {
+                format!(
+                    "{}{}/v{}",
+                    profile.config.space, profile.config.name, profile.config.version
+                )
+            }
+            DriftProfile::Custom(profile) => {
+                format!(
+                    "{}{}/v{}",
+                    profile.config.space, profile.config.name, profile.config.version
+                )
+            }
+            DriftProfile::LLM(profile) => {
+                format!(
+                    "{}{}/v{}",
+                    profile.config.space, profile.config.name, profile.config.version
+                )
+            }
+        }
+    }
 }
 
 impl Default for DriftProfile {

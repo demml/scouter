@@ -22,7 +22,7 @@ use tokio::sync::mpsc::UnboundedReceiver;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, instrument};
 
-fn create_event_state() -> (TaskState, UnboundedReceiver<Event>) {
+fn create_event_state(id: String) -> (TaskState, UnboundedReceiver<Event>) {
     let (event_tx, event_rx) = tokio::sync::mpsc::unbounded_channel();
 
     // get background loop
@@ -35,6 +35,7 @@ fn create_event_state() -> (TaskState, UnboundedReceiver<Event>) {
         event_task,
         background_task,
         event_tx,
+        id,
     };
 
     (event_state, event_rx)
@@ -238,6 +239,7 @@ async fn spawn_queue_event_handler(
     Ok(())
 }
 
+// need to add version here
 #[pyclass]
 pub struct ScouterQueue {
     queues: HashMap<String, Py<QueueBus>>,
@@ -275,7 +277,7 @@ impl ScouterQueue {
         // create a tokio runtime to run the background tasks
         let shared_runtime =
             Arc::new(tokio::runtime::Runtime::new().map_err(EventError::SetupTokioRuntimeError)?);
-        ScouterQueue::from_path_rs(py, path, transport_config, shared_runtime)
+        ScouterQueue::from_path_rs(py, path, transport_config, shared_runtime, false)
     }
 
     /// Get a queue by its alias
@@ -373,6 +375,7 @@ impl ScouterQueue {
         path: HashMap<String, PathBuf>,
         transport_config: &Bound<'_, PyAny>,
         shared_runtime: Arc<tokio::runtime::Runtime>,
+        wait_for_startup: bool,
     ) -> Result<Self, PyEventError> {
         debug!("Creating ScouterQueue from path");
         let mut queues = HashMap::new();
@@ -391,10 +394,11 @@ impl ScouterQueue {
         for (id, profile_path) in path {
             let cloned_config = config.clone();
             let drift_profile = DriftProfile::from_profile_path(profile_path)?;
-            let (mut event_state, event_rx) = create_event_state();
+
+            let (mut event_state, event_rx) = create_event_state(id.clone());
 
             // create startup channels to ensure queues are initialized before use
-            let bus = QueueBus::new(event_state.clone());
+            let bus = QueueBus::new(event_state.clone(), drift_profile.identifier());
             queue_state.insert(id.clone(), event_state.clone());
             let cancellation_token = CancellationToken::new();
             let cloned_cancellation_token = cancellation_token.clone();
@@ -431,8 +435,11 @@ impl ScouterQueue {
             std::thread::sleep(std::time::Duration::from_millis(1000));
 
             // wait for background task and event task to signal startup
-            //wait_for_background_task(&event_state)?;
-            //wait_for_event_task(&event_state)?;
+            if wait_for_startup {
+                debug!("Waiting for queue {} to signal startup", id);
+                wait_for_background_task(&event_state)?;
+                wait_for_event_task(&event_state)?;
+            }
 
             let queue = Py::new(py, bus)?;
             queues.insert(id.clone(), queue);
