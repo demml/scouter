@@ -225,7 +225,7 @@ pub trait QueueMethods {
 pub fn wait_for_background_task(task_state: &TaskState) -> Result<(), EventError> {
     // Signal confirm start
     if task_state.has_background_handle() {
-        let mut max_retries = 20;
+        let mut max_retries = 50;
         while max_retries > 0 {
             if task_state.is_background_running() {
                 debug!("Background loop started successfully");
@@ -246,7 +246,7 @@ pub fn wait_for_background_task(task_state: &TaskState) -> Result<(), EventError
 pub fn wait_for_event_task(task_state: &TaskState) -> Result<(), EventError> {
     // Signal confirm start
 
-    let mut max_retries = 20;
+    let mut max_retries = 50;
     while max_retries > 0 {
         if task_state.is_event_running() {
             debug!("Event task started successfully");
