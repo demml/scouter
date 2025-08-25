@@ -125,6 +125,7 @@ impl TaskState {
     /// This is intended to be called when shutting down and after
     /// the associated queue has been flushed
     fn shutdown_background_task(&self) -> Result<(), EventError> {
+        // check if handle
         self.cancel_background_task();
 
         // abort the background task
@@ -148,7 +149,10 @@ impl TaskState {
     /// This is intended to be called when shutting down and after
     /// the associated queue has been flushed
     fn shutdown_event_task(&self) -> Result<(), EventError> {
-        self.flush_event_task()?;
+        match self.flush_event_task() {
+            Ok(_) => debug!("Event task flush signal sent"),
+            Err(e) => warn!("Failed to send flush signal to event task: {}", e),
+        }
 
         debug!("Waiting 250 ms to allow time for flush before cancelling event task");
         std::thread::sleep(Duration::from_millis(250));
