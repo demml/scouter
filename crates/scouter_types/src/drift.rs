@@ -280,25 +280,25 @@ impl DriftProfile {
         match self {
             DriftProfile::Spc(profile) => {
                 format!(
-                    "{}/{}/v{}",
+                    "{}/{}/v{}/spc",
                     profile.config.space, profile.config.name, profile.config.version
                 )
             }
             DriftProfile::Psi(profile) => {
                 format!(
-                    "{}/{}/v{}",
+                    "{}/{}/v{}/psi",
                     profile.config.space, profile.config.name, profile.config.version
                 )
             }
             DriftProfile::Custom(profile) => {
                 format!(
-                    "{}/{}/v{}",
+                    "{}/{}/v{}/custom",
                     profile.config.space, profile.config.name, profile.config.version
                 )
             }
             DriftProfile::LLM(profile) => {
                 format!(
-                    "{}/{}/v{}",
+                    "{}/{}/v{}/llm",
                     profile.config.space, profile.config.name, profile.config.version
                 )
             }

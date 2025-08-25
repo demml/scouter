@@ -168,7 +168,7 @@ impl TaskState {
 
         self.cancel_event_task();
 
-        // wait 500 ms to allow time for flush before aborting thread
+        // wait 250 ms to allow time for flush before aborting thread
         debug!("Waiting 250 ms to allow time for flush before aborting event task");
         std::thread::sleep(Duration::from_millis(250));
 
