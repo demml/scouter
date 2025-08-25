@@ -31,6 +31,7 @@ impl PsiQueue {
         config: TransportConfig,
         runtime: Arc<runtime::Runtime>,
         task_state: &mut TaskState,
+        identifier: String,
     ) -> Result<Self, EventError> {
         // ArrayQueue size is based on the max PSI queue size
 
@@ -55,7 +56,7 @@ impl PsiQueue {
             psi_queue.last_publish.clone(),
             runtime.clone(),
             PSI_MAX_QUEUE_SIZE,
-            "Psi Background Polling",
+            identifier,
             task_state.clone(),
             cancellation_token.clone(),
         )?;

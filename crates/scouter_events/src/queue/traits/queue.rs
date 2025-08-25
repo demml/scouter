@@ -37,23 +37,25 @@ pub trait BackgroundTask: Send + Sync + 'static {
         last_publish: Arc<RwLock<DateTime<Utc>>>,
         runtime: Arc<Runtime>,
         queue_capacity: usize,
-        label: &'static str,
+        identifier: String,
         task_state: TaskState,
         cancellation_token: CancellationToken,
     ) -> Result<JoinHandle<()>, EventError> {
+        let span = info_span!("background_task", task = %identifier);
+
         let future = async move {
-            debug!("Starting background task: {}", label);
+            debug!("Starting background task");
 
             // Set running state immediately
             task_state.set_background_running(true);
-            debug!("Background task {} set to running", label);
+            debug!("Background task set to running");
 
             // Small delay to ensure state is propagated
             sleep(Duration::from_millis(10)).await;
             loop {
                 tokio::select! {
                     _ = sleep(Duration::from_secs(2)) => {
-                        debug!("Waking up background task: {}", label);
+                        debug!("Waking up background task");
 
                         let now = Utc::now();
 
@@ -95,12 +97,12 @@ pub trait BackgroundTask: Send + Sync + 'static {
                         }
                     }
                     _ = cancellation_token.cancelled()  => {
-                        info!("Stop signal received, shutting down background task: {}", label);
+                        info!("Stop signal received, shutting down background task");
                         task_state.set_background_running(false);
                         break;
                     }
                     else =>  {
-                        info!("Stop signal received, shutting down background task: {}", label);
+                        info!("Stop signal received, shutting down background task");
                         task_state.set_background_running(false);
                         break;
                     }
@@ -109,7 +111,6 @@ pub trait BackgroundTask: Send + Sync + 'static {
             debug!("Background task finished");
         };
 
-        let span = info_span!("background_task", task = %label);
         let handle = runtime.spawn(async move { future.instrument(span).await });
         Ok(handle)
     }

@@ -13,7 +13,7 @@ use std::sync::Arc;
 use std::sync::RwLock;
 use tokio::runtime;
 use tokio_util::sync::CancellationToken;
-use tracing::debug;
+
 /// The following code is a custom queue implementation for handling custom metrics.
 /// It consists of a `CustomQueue` struct that manages a queue of metrics and a background task
 ///
@@ -41,16 +41,15 @@ impl CustomQueue {
         config: TransportConfig,
         runtime: Arc<runtime::Runtime>,
         task_state: &mut TaskState,
+        identifier: String,
     ) -> Result<Self, EventError> {
         let sample_size = drift_profile.config.sample_size;
 
-        debug!("Creating Custom Metric Queue");
         // ArrayQueue size is based on sample size
         let metrics_queue = Arc::new(ArrayQueue::new(sample_size * 2));
         let feature_queue = Arc::new(CustomMetricFeatureQueue::new(drift_profile));
         let last_publish = Arc::new(RwLock::new(Utc::now()));
 
-        debug!("Creating Producer");
         let producer = RustScouterProducer::new(config).await?;
         let cancellation_token = CancellationToken::new();
 
@@ -61,8 +60,6 @@ impl CustomQueue {
             last_publish,
             capacity: sample_size,
         };
-
-        debug!("Starting Background Task");
         let handle = custom_queue.start_background_task(
             metrics_queue,
             feature_queue,
@@ -70,7 +67,7 @@ impl CustomQueue {
             custom_queue.last_publish.clone(),
             runtime.clone(),
             custom_queue.capacity,
-            "Custom Background Polling",
+            identifier,
             task_state.clone(),
             cancellation_token.clone(),
         )?;

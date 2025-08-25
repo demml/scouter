@@ -30,8 +30,6 @@ impl SpcQueue {
         let last_publish: Arc<RwLock<DateTime<Utc>>> = Arc::new(RwLock::new(Utc::now()));
         let producer = RustScouterProducer::new(config).await?;
 
-        println!("Created SPC Queue with capacity: {}", sample_size);
-
         Ok(SpcQueue {
             queue,
             feature_queue,

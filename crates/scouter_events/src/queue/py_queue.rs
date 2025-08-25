@@ -52,22 +52,34 @@ impl QueueNum {
         transport_config: TransportConfig,
         drift_profile: DriftProfile,
         runtime: Arc<runtime::Runtime>,
-        event_state: &mut TaskState,
+        task_state: &mut TaskState,
     ) -> Result<Self, EventError> {
+        let identifier = drift_profile.identifier();
         match drift_profile {
             DriftProfile::Spc(spc_profile) => {
                 let queue = SpcQueue::new(spc_profile, transport_config).await?;
                 Ok(QueueNum::Spc(queue))
             }
             DriftProfile::Psi(psi_profile) => {
-                let queue =
-                    PsiQueue::new(psi_profile, transport_config, runtime, event_state).await?;
+                let queue = PsiQueue::new(
+                    psi_profile,
+                    transport_config,
+                    runtime,
+                    task_state,
+                    identifier,
+                )
+                .await?;
                 Ok(QueueNum::Psi(queue))
             }
             DriftProfile::Custom(custom_profile) => {
-                let queue =
-                    CustomQueue::new(custom_profile, transport_config, runtime, event_state)
-                        .await?;
+                let queue = CustomQueue::new(
+                    custom_profile,
+                    transport_config,
+                    runtime,
+                    task_state,
+                    identifier,
+                )
+                .await?;
                 Ok(QueueNum::Custom(queue))
             }
             DriftProfile::LLM(llm_profile) => {
@@ -158,7 +170,7 @@ async fn spawn_queue_event_handler(
     drift_profile: DriftProfile,
     runtime: Arc<runtime::Runtime>,
     id: String,
-    mut event_state: TaskState,
+    mut task_state: TaskState,
     cancellation_token: CancellationToken,
 ) -> Result<(), EventError> {
     // This will create the specific queue based on the transport config and drift profile
@@ -169,7 +181,7 @@ async fn spawn_queue_event_handler(
     // - LLM
     // event loops are used to monitor the background tasks of both custom and PSI queues
     let mut queue =
-        match QueueNum::new(transport_config, drift_profile, runtime, &mut event_state).await {
+        match QueueNum::new(transport_config, drift_profile, runtime, &mut task_state).await {
             Ok(q) => q,
             Err(e) => {
                 error!("Failed to initialize queue {}: {}", id, e);
@@ -177,7 +189,7 @@ async fn spawn_queue_event_handler(
             }
         };
 
-    event_state.set_event_running(true);
+    task_state.set_event_running(true);
     debug!("Event loop for queue {} set to running", id);
     loop {
         tokio::select! {
@@ -217,7 +229,7 @@ async fn spawn_queue_event_handler(
                         error!("Error flushing queue {}: {}", id, e);
                     }
                 }
-                event_state.set_event_running(false);
+                task_state.set_event_running(false);
                 break;
             }
 
@@ -231,7 +243,7 @@ async fn spawn_queue_event_handler(
                         error!("Error flushing queue {}: {}", id, e);
                     }
                 }
-                event_state.set_event_running(false);
+                task_state.set_event_running(false);
                 break;
             }
         }

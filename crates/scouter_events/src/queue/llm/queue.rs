@@ -51,7 +51,6 @@ impl LLMQueue {
         let record_queue = Arc::new(LLMRecordQueue::new(drift_profile));
         let last_publish = Arc::new(RwLock::new(Utc::now()));
 
-        debug!("Creating Producer");
         let producer = RustScouterProducer::new(config).await?;
 
         let llm_queue = LLMQueue {
