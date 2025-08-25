@@ -2,6 +2,20 @@
 
 All notable changes to this project will be documented in this file.
 
+## [0.9.0] - 2025-08-25
+
+### 🐛 Bug Fixes
+
+- Fix identifier
+
+### 🚜 Refactor
+
+- Refactor `ScouterQueue` logic for better spawned task management
+
+### 🧪 Testing
+
+- Test event changes
+
 ## [0.8.0] - 2025-08-05
 
 - Refactoring for `opsml` compatibility
