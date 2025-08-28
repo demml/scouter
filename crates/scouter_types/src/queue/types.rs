@@ -235,7 +235,9 @@ impl Features {
                 .downcast::<PyDict>()
                 .unwrap()
                 .iter()
-                .map(|(key, value)| Feature::new(key.extract().unwrap(), value.clone()).unwrap())
+                .map(|(key, value)| {
+                    Feature::new(&key.extract::<String>().unwrap(), value.clone()).unwrap()
+                })
                 .collect()
         } else {
             Err(TypeError::UnsupportedFeaturesTypeError(

@@ -10,6 +10,7 @@ on:
 
 permissions:
   contents: write
+
 jobs:
   PublishDocs:
     runs-on: ubuntu-latest
