@@ -12,6 +12,7 @@ permissions:
 
 env:
   RUSTFLAGS: -C debuginfo=0 # Do not produce debug symbols to keep memory usage down
+  PYTHON_VERSION: "3.9"
 
 jobs:
   rust-lints-test:
@@ -202,30 +203,36 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [x86_64, x86]
-        manylinux: [auto]
+        include:
+          - target: x86_64-unknown-linux-gnu
+            manylinux: auto
+          - target: aarch64-unknown-linux-gnu
+            manylinux: "2_28"
 
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: set up python
+      - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.12"
+          python-version: ${{ env.PYTHON_VERSION }}
 
-      - run: pip install -U twine 'black>=22.3.0,<23' typing_extensions
+      - run: pip install -U twine
+
+      - name: Set OPENSSL_DIR environment variable
+        run: echo "OPENSSL_DIR=/usr" >> $GITHUB_ENV
 
       - name: build wheels
         uses: PyO3/maturin-action@v1
-
         with:
           target: ${{ matrix.target }}
           manylinux: ${{ matrix.manylinux }}
-          args: --release --out dist --interpreter 3.12
+          args: --release --out dist
           rust-toolchain: stable
           docker-options: -e CI
           working-directory: ./py-scouter
+
           # See: https://github.com/sfackler/rust-openssl/issues/2036#issuecomment-1724324145
           before-script-linux: |
             # If we're running on rhel centos, install needed packages.
@@ -242,6 +249,8 @@ jobs:
                 apt update -y && apt-get install -y libssl-dev openssl pkg-config
             fi
 
+            # Install bindgen CLI
+            cargo install --force --locked bindgen-cli
 
             # Determine architecture (x86_64 or x86)
             ARCH=$(uname -m)
@@ -280,7 +289,7 @@ jobs:
 
   test-build-rust-binaries:
     needs: [rust-lints-test]
-    name: build - ${{ matrix.target }}
+    name: build - ${{ matrix.target }} - server
     strategy:
       fail-fast: false
       matrix:
