@@ -12,6 +12,7 @@ env:
 
 jobs:
   aws-test:
+    environment: aws-production
     permissions:
       id-token: write
       contents: read
@@ -48,6 +49,7 @@ jobs:
           RUST_BACKTRACE: 1
 
   gcs-test:
+    environment: gcs-production
     permissions:
       id-token: write
       contents: read
@@ -77,6 +79,7 @@ jobs:
           RUST_BACKTRACE: 1
 
   azure-test:
+    environment: azure-production
     needs: gcs-test
     permissions:
       id-token: write

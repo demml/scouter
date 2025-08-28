@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-  pull_request:
 
   release:
     types: [published]
@@ -16,7 +15,6 @@ env:
   PACKAGE_NAME: scouter
   RUSTFLAGS: -C debuginfo=0
   PYTHON_VERSION: "3.9"
-  PYTHON_VERSION_WIN_ARM64: "3.11" # taken from polars
   CARGO_INCREMENTAL: 0
   CARGO_NET_RETRY: 10
   CARGO_TERM_COLOR: always
@@ -289,7 +287,7 @@ jobs:
   python-release:
     if: github.event_name == 'release'
     name: Release-Python
-    environment: pypi
+    environment: release
     runs-on: ubuntu-latest
     needs: [test-builds-os]
     steps:
@@ -319,10 +317,10 @@ jobs:
         run: twine upload dist/*
         env:
           TWINE_USERNAME: __token__
-          TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
   rust-release:
     if: github.event_name == 'release'
-    environment: crates.io
+    environment: release
     name: Release-Rust
     runs-on: ubuntu-latest
     needs: [test-builds-os]
