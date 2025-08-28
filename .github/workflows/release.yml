@@ -216,29 +216,71 @@ jobs:
         if: matrix.os == 'windows-11-arm'
         shell: pwsh
         run: |
-          Write-Output "Python location: ${{ env.PYTHON_LOCATION }}"
+          # Use the correct environment variable name
+          $pythonPath = $env:pythonLocation
+          Write-Output "Python location: $pythonPath"
 
           # Check for python3.lib
-          $libsDir = "${{ env.PYTHON_LOCATION }}\libs"
+          $libsDir = "$pythonPath\libs"
           $python3Lib = "$libsDir\python3.lib"
+
+          Write-Output "Checking libs directory: $libsDir"
+
+          # Create libs directory if it doesn't exist
+          if (-not (Test-Path $libsDir)) {
+            Write-Output "Creating libs directory..."
+            New-Item -ItemType Directory -Path $libsDir -Force
+          }
 
           if (-not (Test-Path $python3Lib)) {
             Write-Output "python3.lib not found, attempting to fix..."
             
-            # Look for versioned lib (e.g., python311.lib)
-            $versionedLib = Get-ChildItem $libsDir -Filter "python*.lib" -ErrorAction SilentlyContinue | Select-Object -First 1
+            # Look for versioned lib (e.g., python311.lib) in the Python installation
+            $versionedLib = Get-ChildItem "$pythonPath" -Recurse -Filter "python*.lib" -ErrorAction SilentlyContinue | Select-Object -First 1
             
             if ($versionedLib) {
               Copy-Item $versionedLib.FullName $python3Lib
               Write-Output "Created python3.lib from $($versionedLib.Name)"
             } else {
-              Write-Output "No Python library files found - this may cause build failures"
+              # Try to find the library in the standard location
+              $stdLibDir = "$pythonPath\libs"
+              $possibleLibs = Get-ChildItem $stdLibDir -Filter "python*.lib" -ErrorAction SilentlyContinue
+              
+              if ($possibleLibs) {
+                $mainLib = $possibleLibs | Select-Object -First 1
+                Copy-Item $mainLib.FullName $python3Lib
+                Write-Output "Created python3.lib from $($mainLib.Name)"
+              } else {
+                Write-Output "No Python library files found - checking Python installation..."
+                
+                # List contents of Python directory for debugging
+                Write-Output "Contents of Python directory:"
+                Get-ChildItem $pythonPath -Recurse -Filter "*.lib" -ErrorAction SilentlyContinue | ForEach-Object { Write-Output $_.FullName }
+                
+                # Try to create a symbolic link to the versioned library
+                $pythonVersion = $env:PYTHON_VERSION_WIN_ARM64.Replace(".", "")
+                $versionedLibName = "python$pythonVersion.lib"
+                $versionedLibPath = "$libsDir\$versionedLibName"
+                
+                if (Test-Path $versionedLibPath) {
+                  Copy-Item $versionedLibPath $python3Lib
+                  Write-Output "Created python3.lib from $versionedLibName"
+                } else {
+                  Write-Output "Warning: Could not find any Python library files"
+                }
+              }
             }
+          } else {
+            Write-Output "python3.lib already exists"
           }
 
-          # Set PyO3 environment variables
-          echo "PYO3_PYTHON=${{ env.PYTHON_LOCATION }}\python.exe" >> $env:GITHUB_ENV
-          echo "PYTHON_SYS_EXECUTABLE=${{ env.PYTHON_LOCATION }}\python.exe" >> $env:GITHUB_ENV
+          # Verify the final state
+          Write-Output "Final libs directory contents:"
+          Get-ChildItem $libsDir -ErrorAction SilentlyContinue | ForEach-Object { Write-Output $_.Name }
+
+          # Set PyO3 environment variables using the correct Python path
+          echo "PYO3_PYTHON=$pythonPath\python.exe" >> $env:GITHUB_ENV
+          echo "PYTHON_SYS_EXECUTABLE=$pythonPath\python.exe" >> $env:GITHUB_ENV
 
       - run: pip install -U twine
 
