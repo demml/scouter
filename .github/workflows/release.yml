@@ -196,7 +196,7 @@ jobs:
             architecture: aarch64
             target: aarch64-pc-windows-msvc
 
-    runs-on: windows-latest
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
