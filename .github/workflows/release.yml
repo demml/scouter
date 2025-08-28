@@ -147,7 +147,7 @@ jobs:
             target: x86_64-apple-darwin
           - os: macos-15
             architecture: aarch64
-            target: aarch64-apple-darwin64
+            target: aarch64-apple-darwin
 
     runs-on: ${{ matrix.os}}
     steps:
