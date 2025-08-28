@@ -192,105 +192,16 @@ jobs:
           - os: windows-latest
             architecture: x86-64
             target: x86_64-pc-windows-msvc
-          - os: windows-11-arm # Changed from windows-11-arm
-            architecture: aarch64
-            target: aarch64-pc-windows-msvc
 
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up Python
+        if: matrix.os != 'windows-11-arm'
         uses: actions/setup-python@v5
         with:
-          python-version: ${{ matrix.architecture == 'aarch64' && env.PYTHON_VERSION_WIN_ARM64 || env.PYTHON_VERSION }}
-          architecture: ${{ matrix.architecture == 'aarch64' && 'x64' || 'x64' }}
-
-      - name: Fix Python environment (ARM64 Windows)
-        if: matrix.architecture == 'aarch64'
-        shell: pwsh
-        run: |
-          # Use the correct environment variable name
-          $pythonPath = $env:pythonLocation
-          Write-Output "Python location: $pythonPath"
-          Write-Output "Python version: $(python --version)"
-          Write-Output "Python architecture: $(python -c 'import platform; print(platform.architecture())')"
-
-          # Check for python3.lib
-          $libsDir = "$pythonPath\libs"
-          $python3Lib = "$libsDir\python3.lib"
-
-          Write-Output "Checking libs directory: $libsDir"
-
-          # Create libs directory if it doesn't exist
-          if (-not (Test-Path $libsDir)) {
-            Write-Output "Creating libs directory..."
-            New-Item -ItemType Directory -Path $libsDir -Force
-          }
-
-          # Look for existing Python library files
-          $allLibs = Get-ChildItem "$pythonPath" -Recurse -Filter "*.lib" -ErrorAction SilentlyContinue
-          Write-Output "Found library files:"
-          $allLibs | ForEach-Object { Write-Output "  $($_.FullName)" }
-
-          if (-not (Test-Path $python3Lib)) {
-            Write-Output "python3.lib not found, attempting to fix..."
-            
-            # Look for versioned lib (e.g., python311.lib)
-            $versionedLib = $allLibs | Where-Object { $_.Name -match "python\d+\.lib" } | Select-Object -First 1
-            
-            if ($versionedLib) {
-              Copy-Item $versionedLib.FullName $python3Lib
-              Write-Output "Created python3.lib from $($versionedLib.Name)"
-            } else {
-              Write-Output "Warning: Could not find any Python library files"
-              # Create a minimal import library as fallback
-              $pythonVersion = $env:PYTHON_VERSION_WIN_ARM64.Replace(".", "")
-              $importLib = "$libsDir\python$pythonVersion.lib"
-              if (-not (Test-Path $importLib)) {
-                Write-Output "Creating minimal import library..."
-                # This is a last resort - create an empty file
-                New-Item -ItemType File -Path $python3Lib -Force
-                New-Item -ItemType File -Path $importLib -Force
-              } else {
-                Copy-Item $importLib $python3Lib
-              }
-            }
-          } else {
-            Write-Output "python3.lib already exists"
-          }
-
-          # Verify the final state
-          Write-Output "Final libs directory contents:"
-          Get-ChildItem $libsDir -ErrorAction SilentlyContinue | ForEach-Object { Write-Output "  $($_.Name)" }
-
-          # Set comprehensive environment variables for PyO3 and the linker
-          echo "PYO3_PYTHON=$pythonPath\python.exe" >> $env:GITHUB_ENV
-          echo "PYTHON_SYS_EXECUTABLE=$pythonPath\python.exe" >> $env:GITHUB_ENV
-          echo "PYTHONHOME=$pythonPath" >> $env:GITHUB_ENV
-
-          # Tell the Windows linker where to find Python libraries
-          $currentLib = $env:LIB
-          if ($currentLib) {
-            echo "LIB=$libsDir;$currentLib" >> $env:GITHUB_ENV
-          } else {
-            echo "LIB=$libsDir" >> $env:GITHUB_ENV
-          }
-
-          $currentLibPath = $env:LIBPATH
-          if ($currentLibPath) {
-            echo "LIBPATH=$libsDir;$currentLibPath" >> $env:GITHUB_ENV
-          } else {
-            echo "LIBPATH=$libsDir" >> $env:GITHUB_ENV
-          }
-
-          # Set Rust-specific linker flags
-          $currentRustFlags = $env:RUSTFLAGS
-          if ($currentRustFlags) {
-            echo "RUSTFLAGS=$currentRustFlags -L $libsDir" >> $env:GITHUB_ENV
-          } else {
-            echo "RUSTFLAGS=-L $libsDir" >> $env:GITHUB_ENV
-          }
+          python-version: ${{ env.PYTHON_VERSION }}
 
       - run: pip install -U twine
 
@@ -299,11 +210,9 @@ jobs:
         with:
           command: build
           target: ${{ matrix.target }}
-          args: --release --out dist --find-interpreter
+          args: --release --out dist
           rust-toolchain: stable
           working-directory: ./py-scouter
-        env:
-          PYO3_CROSS_LIB_DIR: ${{ matrix.architecture == 'aarch64' && format('{0}\libs', env.pythonLocation) || '' }}
 
       - name: Check dist
         working-directory: ./py-scouter
