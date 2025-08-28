@@ -212,6 +212,34 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION_WIN_ARM64 }}
 
+      - name: Fix Python environment (ARM64 Windows)
+        if: matrix.os == 'windows-11-arm'
+        shell: pwsh
+        run: |
+          Write-Output "Python location: ${{ env.PYTHON_LOCATION }}"
+
+          # Check for python3.lib
+          $libsDir = "${{ env.PYTHON_LOCATION }}\libs"
+          $python3Lib = "$libsDir\python3.lib"
+
+          if (-not (Test-Path $python3Lib)) {
+            Write-Output "python3.lib not found, attempting to fix..."
+            
+            # Look for versioned lib (e.g., python311.lib)
+            $versionedLib = Get-ChildItem $libsDir -Filter "python*.lib" -ErrorAction SilentlyContinue | Select-Object -First 1
+            
+            if ($versionedLib) {
+              Copy-Item $versionedLib.FullName $python3Lib
+              Write-Output "Created python3.lib from $($versionedLib.Name)"
+            } else {
+              Write-Output "No Python library files found - this may cause build failures"
+            }
+          }
+
+          # Set PyO3 environment variables
+          echo "PYO3_PYTHON=${{ env.PYTHON_LOCATION }}\python.exe" >> $env:GITHUB_ENV
+          echo "PYTHON_SYS_EXECUTABLE=${{ env.PYTHON_LOCATION }}\python.exe" >> $env:GITHUB_ENV
+
       - run: pip install -U twine
 
       - name: Build wheel
