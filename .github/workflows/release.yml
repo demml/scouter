@@ -278,9 +278,38 @@ jobs:
           Write-Output "Final libs directory contents:"
           Get-ChildItem $libsDir -ErrorAction SilentlyContinue | ForEach-Object { Write-Output $_.Name }
 
-          # Set PyO3 environment variables using the correct Python path
+          # Set comprehensive environment variables for PyO3 and the linker
           echo "PYO3_PYTHON=$pythonPath\python.exe" >> $env:GITHUB_ENV
           echo "PYTHON_SYS_EXECUTABLE=$pythonPath\python.exe" >> $env:GITHUB_ENV
+          echo "PYTHONHOME=$pythonPath" >> $env:GITHUB_ENV
+
+          # Tell the Windows linker where to find Python libraries
+          $currentLib = $env:LIB
+          if ($currentLib) {
+            echo "LIB=$libsDir;$currentLib" >> $env:GITHUB_ENV
+          } else {
+            echo "LIB=$libsDir" >> $env:GITHUB_ENV
+          }
+
+          $currentLibPath = $env:LIBPATH
+          if ($currentLibPath) {
+            echo "LIBPATH=$libsDir;$currentLibPath" >> $env:GITHUB_ENV
+          } else {
+            echo "LIBPATH=$libsDir" >> $env:GITHUB_ENV
+          }
+
+          # Set Rust-specific linker flags
+          $currentRustFlags = $env:RUSTFLAGS
+          if ($currentRustFlags) {
+            echo "RUSTFLAGS=$currentRustFlags -L $libsDir" >> $env:GITHUB_ENV
+          } else {
+            echo "RUSTFLAGS=-L $libsDir" >> $env:GITHUB_ENV
+          }
+
+          Write-Output "Set environment variables:"
+          Write-Output "LIB=$libsDir;$currentLib"
+          Write-Output "LIBPATH=$libsDir;$currentLibPath" 
+          Write-Output "RUSTFLAGS=$currentRustFlags -L $libsDir"
 
       - run: pip install -U twine
 
