@@ -26,5 +26,9 @@ for folder in FOLDERS:
     if folder == "llm":
         for subfolder in LLM_SUBFOLDERS:
             process_folder(os.path.join(folder, subfolder))
+
+        # Process the main llm folder
+        process_folder(folder)
+
     else:
         process_folder(folder)
