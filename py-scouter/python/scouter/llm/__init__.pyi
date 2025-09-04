@@ -306,7 +306,7 @@ class Prompt:
         model: str,
         provider: Provider | str,
         system_instruction: Optional[str | List[str]] = None,
-        model_settings: Optional[ModelSettings] = None,
+        model_settings: Optional[ModelSettings | GeminiSettings | OpenAIChatSettings] = None,
         response_format: Optional[Any] = None,
     ) -> None:
         """Prompt for interacting with an LLM API.
