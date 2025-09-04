@@ -1,3 +1,4 @@
+# pylint: disable=redefined-builtin
 from typing import Any, Dict, List, Optional
 
 class AudioParam:
@@ -291,8 +292,6 @@ class OpenAIChatSettings:
             extra_body (Optional[Any]):
                 Additional request body parameters
         """
-        ...
 
     def __str__(self) -> str:
         """Return string representation of the settings."""
-        ...

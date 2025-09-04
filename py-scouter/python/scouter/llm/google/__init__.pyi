@@ -144,7 +144,6 @@ class GenerationConfig:
             enable_affective_dialog (Optional[bool]):
                 Whether to enable emotional dialog features
         """
-        ...
 
     def __str__(self) -> str: ...
 

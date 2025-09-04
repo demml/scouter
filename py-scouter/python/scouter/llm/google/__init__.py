@@ -1,25 +1,26 @@
 # type: ignore
-from .. import google
+# pylint: disable=no-name-in-module
+from ...scouter import llm
 
-Modality = google.Modality
-ThinkingConfig = google.ThinkingConfig
-MediaResolution = google.MediaResolution
-SpeechConfig = google.SpeechConfig
-PrebuiltVoiceConfig = google.PrebuiltVoiceConfig
-VoiceConfigMode = google.VoiceConfigMode
-VoiceConfig = google.VoiceConfig
-GenerationConfig = google.GenerationConfig
-HarmCategory = google.HarmCategory
-HarmBlockThreshold = google.HarmBlockThreshold
-HarmBlockMethod = google.HarmBlockMethod
-SafetySetting = google.SafetySetting
-ToolConfig = google.ToolConfig
-FunctionCallingConfig = google.FunctionCallingConfig
-RetrievalConfig = google.RetrievalConfig
-LatLng = google.LatLng
-ModelArmorConfig = google.ModelArmorConfig
-Mode = google.Mode
-GeminiSettings = google.GeminiSettings
+Modality = llm.google.Modality
+ThinkingConfig = llm.google.ThinkingConfig
+MediaResolution = llm.google.MediaResolution
+SpeechConfig = llm.google.SpeechConfig
+PrebuiltVoiceConfig = llm.google.PrebuiltVoiceConfig
+VoiceConfigMode = llm.google.VoiceConfigMode
+VoiceConfig = llm.google.VoiceConfig
+GenerationConfig = llm.google.GenerationConfig
+HarmCategory = llm.google.HarmCategory
+HarmBlockThreshold = llm.google.HarmBlockThreshold
+HarmBlockMethod = llm.google.HarmBlockMethod
+SafetySetting = llm.google.SafetySetting
+ToolConfig = llm.google.ToolConfig
+FunctionCallingConfig = llm.google.FunctionCallingConfig
+RetrievalConfig = llm.google.RetrievalConfig
+LatLng = llm.google.LatLng
+ModelArmorConfig = llm.google.ModelArmorConfig
+Mode = llm.google.Mode
+GeminiSettings = llm.google.GeminiSettings
 
 __all__ = [
     "Modality",

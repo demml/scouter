@@ -501,8 +501,9 @@ class AgentResponse:
 
     @property
     def result(self) -> Any:
-        """The result of the agent response. This can be a Pydantic BaseModel class or a supported potato_head response type such as `Score`.
-        If neither is provided, the response json will be returned as a dictionary.
+        """The result of the agent response. This can be a Pydantic BaseModel class or
+        a supported potato_head response type such as `Score`. If neither is provided,
+        the response json will be returned as a dictionary.
         """
 
     @property
@@ -732,7 +733,7 @@ class Workflow:
     def run(
         self,
         global_context: Optional[Dict[str, Any]] = None,
-    ) -> WorkflowResult:
+    ) -> "WorkflowResult":
         """Run the workflow. This will execute all tasks in the workflow and return when all tasks are complete.
 
         Args:

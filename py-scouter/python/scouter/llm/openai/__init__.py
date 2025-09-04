@@ -1,30 +1,31 @@
 # type: ignore
-from .. import openai
+# pylint: disable=no-name-in-module
+from ...scouter import llm
 
-AudioParam = openai.AudioParam
-ContentPart = openai.ContentPart
-Content = openai.Content
-Prediction = openai.Prediction
-StreamOptions = openai.StreamOptions
-ToolChoiceMode = openai.ToolChoiceMode
-FunctionChoice = openai.FunctionChoice
-FunctionToolChoice = openai.FunctionToolChoice
-CustomChoice = openai.CustomChoice
-CustomToolChoice = openai.CustomToolChoice
-ToolDefinition = openai.ToolDefinition
-AllowedToolsMode = openai.AllowedToolsMode
-AllowedTools = openai.AllowedTools
-ToolChoice = openai.ToolChoice
-FunctionDefinition = openai.FunctionDefinition
-FunctionTool = openai.FunctionTool
-TextFormat = openai.TextFormat
-Grammar = openai.Grammar
-GrammarFormat = openai.GrammarFormat
-CustomToolFormat = openai.CustomToolFormat
-CustomDefinition = openai.CustomDefinition
-CustomTool = openai.CustomTool
-Tool = openai.Tool
-OpenAIChatSettings = openai.OpenAIChatSettings
+AudioParam = llm.openai.AudioParam
+ContentPart = llm.openai.ContentPart
+Content = llm.openai.Content
+Prediction = llm.openai.Prediction
+StreamOptions = llm.openai.StreamOptions
+ToolChoiceMode = llm.openai.ToolChoiceMode
+FunctionChoice = llm.openai.FunctionChoice
+FunctionToolChoice = llm.openai.FunctionToolChoice
+CustomChoice = llm.openai.CustomChoice
+CustomToolChoice = llm.openai.CustomToolChoice
+ToolDefinition = llm.openai.ToolDefinition
+AllowedToolsMode = llm.openai.AllowedToolsMode
+AllowedTools = llm.openai.AllowedTools
+ToolChoice = llm.openai.ToolChoice
+FunctionDefinition = llm.openai.FunctionDefinition
+FunctionTool = llm.openai.FunctionTool
+TextFormat = llm.openai.TextFormat
+Grammar = llm.openai.Grammar
+GrammarFormat = llm.openai.GrammarFormat
+CustomToolFormat = llm.openai.CustomToolFormat
+CustomDefinition = llm.openai.CustomDefinition
+CustomTool = llm.openai.CustomTool
+Tool = llm.openai.Tool
+OpenAIChatSettings = llm.openai.OpenAIChatSettings
 
 __all__ = [
     "AudioParam",
