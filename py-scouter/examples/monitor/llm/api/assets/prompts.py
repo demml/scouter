@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict
-from scouter.llm import Agent, ModelSettings, Prompt, Provider
+from scouter.llm import Agent, Prompt, Provider
+from scouter.llm.google import GeminiSettings, GenerationConfig, ThinkingConfig
 
 # take user input and reformulate it into a question for the LLM
 reformulation_template = """
@@ -48,13 +49,20 @@ class PromptState(BaseModel):
         message=reformulation_template,
         provider="gemini",
         model="gemini-2.5-flash-lite-preview-06-17",
-        model_settings=ModelSettings(max_tokens=1024),
+        model_settings=GeminiSettings(
+            generation_config=GenerationConfig(
+                max_output_tokens=1024,
+                thinking_config=ThinkingConfig(thinking_budget=0),
+            ),
+        ),
     )
     response_prompt: Prompt = Prompt(
         message=response_template,
         provider="gemini",
         model="gemini-2.5-flash-lite-preview-06-17",
-        model_settings=ModelSettings(max_tokens=1024, temperature=0.1),
+        model_settings=GeminiSettings(
+            generation_config=GenerationConfig(max_output_tokens=1024, temperature=0.2),
+        ),
     )
     agent: Agent = Agent(
         provider=Provider.Gemini,

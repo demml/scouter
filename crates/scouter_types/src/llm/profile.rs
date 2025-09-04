@@ -10,9 +10,10 @@ use crate::{
 };
 use core::fmt::Debug;
 use potato_head::prompt::ResponseType;
+
 use potato_head::Task;
+use potato_head::Workflow;
 use potato_head::{Agent, Prompt};
-use potato_head::{Provider, Workflow};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use scouter_semver::VersionType;
@@ -455,7 +456,7 @@ impl LLMDriftProfile {
                 .as_ref()
                 .ok_or_else(|| ProfileError::MissingPromptError(metric.name.clone()))?;
 
-            let provider = Provider::from_string(&prompt.model_settings.provider)?;
+            let provider = prompt.model_settings.provider();
 
             let agent = match agents.entry(provider) {
                 Entry::Occupied(entry) => entry.into_mut(),
@@ -615,6 +616,7 @@ mod tests {
     use crate::{AlertDispatchConfig, OpsGenieDispatchConfig, SlackDispatchConfig};
     use potato_head::create_score_prompt;
     use potato_head::prompt::ResponseType;
+    use potato_head::Provider;
 
     use potato_head::{LLMTestServer, Message, PromptContent};
 
@@ -624,8 +626,8 @@ mod tests {
         let system_content = PromptContent::Str("You are a helpful assistant.".to_string());
         Prompt::new_rs(
             vec![Message::new_rs(user_content)],
-            Some("gpt-4o"),
-            Some("openai"),
+            "gpt-4o",
+            Provider::OpenAI,
             vec![Message::new_rs(system_content)],
             None,
             None,
