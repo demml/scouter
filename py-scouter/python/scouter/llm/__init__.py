@@ -2,6 +2,7 @@
 # pylint: disable=no-name-in-module
 
 from .. import llm  # noqa: F401
+from . import evaluate  # noqa: F401
 from . import google  # noqa: F401
 from . import openai  # noqa: F401
 
@@ -56,4 +57,5 @@ __all__ = [
     "Score",
     "google",
     "openai",
+    "evaluate",
 ]
