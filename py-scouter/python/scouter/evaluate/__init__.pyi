@@ -1,7 +1,20 @@
 # type: ignore
+# pylint: disable=redefined-builtin
 from typing import Any, Dict, Iterator, List, Optional, Protocol, TypeAlias, Union
 
 from ..llm import Prompt, Score
+
+class BaseModel(Protocol):
+    """Protocol for pydantic BaseModel to ensure compatibility with context"""
+
+    def model_dump(self) -> Dict[str, Any]:
+        """Dump the model as a dictionary"""
+
+    def model_dump_json(self) -> str:
+        """Dump the model as a JSON string"""
+
+    def __str__(self) -> str:
+        """String representation of the model"""
 
 SerializedType: TypeAlias = Union[str, int, float, dict, list]
 Context: TypeAlias = Union[Dict[str, Any], BaseModel]
@@ -19,7 +32,6 @@ class EvalResult:
         """
         Get the score for a specific task
         """
-        ...
 
     def to_dataframe(self, polars: bool = False) -> Any:
         """Converts the evaluation results to a pandas DataFrame
@@ -34,11 +46,9 @@ class LLMEvalResults:
 
     def __getitem__(self, key: str) -> float:
         """Get the value` of the metric by name. A RuntimeError will be raised if the metric does not exist."""
-        ...
 
     def __iter__(self) -> Iterator[EvalResult]:
         """Get an iterator over the metric names and values."""
-        ...
 
 class LLMEvalMetric:
     """Defines an LLM eval metric to use when evaluating LLMs"""
@@ -61,21 +71,6 @@ class LLMEvalMetric:
         """
         String representation of the LLMEvalMetric
         """
-
-class BaseModel(Protocol):
-    """Protocol for pydantic BaseModel to ensure compatibility with context"""
-
-    def model_dump(self) -> Dict[str, Any]:
-        """Dump the model as a dictionary"""
-        ...
-
-    def model_dump_json(self) -> str:
-        """Dump the model as a JSON string"""
-        ...
-
-    def __str__(self) -> str:
-        """String representation of the model"""
-        ...
 
 class LLMEvalRecord:
     """LLM record containing context tied to a Large Language Model interaction
@@ -118,7 +113,6 @@ class LLMEvalRecord:
             TypeError: If context is not a dict or a pydantic BaseModel.
 
         """
-        ...
 
     @property
     def context(self) -> Dict[str, Any]:
@@ -126,11 +120,7 @@ class LLMEvalRecord:
 
         Returns:
             The context data as a Python object (deserialized from JSON).
-
-        Raises:
-            TypeError: If the stored JSON cannot be converted to a Python object.
         """
-        ...
 
 def evaluate_llm(
     records: List[LLMEvalRecord],

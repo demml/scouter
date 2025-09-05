@@ -1,6 +1,7 @@
 pub mod alert;
 pub mod client;
 pub mod drift;
+pub mod evaluate;
 pub mod llm;
 pub mod logging;
 pub mod mock;
@@ -25,6 +26,7 @@ fn scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_wrapped(wrap_pymodule!(observe::observe))?;
     m.add_wrapped(wrap_pymodule!(mock::mock))?;
     m.add_wrapped(wrap_pymodule!(llm::llm))?;
+    m.add_wrapped(wrap_pymodule!(evaluate::evaluate))?;
 
     Ok(())
 }

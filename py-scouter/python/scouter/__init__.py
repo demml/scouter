@@ -5,6 +5,7 @@ from .scouter import (  # noqa
     alert,
     client,
     drift,
+    evaluate,
     llm,
     logging,
     mock,

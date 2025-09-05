@@ -1,6 +1,6 @@
 import pandas as pd
 import polars as pl
-from scouter.llm.evaluate import LLMEvalMetric, LLMEvalRecord, evaluate_llm
+from scouter.evaluate import LLMEvalMetric, LLMEvalRecord, evaluate_llm
 from scouter.mock import LLMTestServer
 
 
