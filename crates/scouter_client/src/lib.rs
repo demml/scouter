@@ -15,6 +15,7 @@ pub use scouter_types::{
         CustomDriftProfile, CustomMetric, CustomMetricAlertCondition, CustomMetricAlertConfig,
         CustomMetricDriftConfig,
     },
+    eval::LLMEvalMetric,
     llm::{
         LLMAlertConfig, LLMDriftConfig, LLMDriftMap, LLMDriftProfile, LLMMetric,
         LLMMetricAlertCondition, PaginationCursor, PaginationResponse,
@@ -68,3 +69,5 @@ pub use scouter_drift::error::DriftError;
 pub use scouter_events::error::EventError;
 pub use scouter_profile::error::DataProfileError;
 pub use scouter_types::error::{ContractError, ProfileError, RecordError, TypeError, UtilError};
+
+pub use scouter_evaluate::llm::{evaluate_llm, EvalResult, LLMEvalRecord, LLMEvalResults};

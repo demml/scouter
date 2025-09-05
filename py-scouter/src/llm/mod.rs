@@ -4,6 +4,7 @@ use ::potato_head::{
     PyAgentResponse, PyTask, PyWorkflow, Score, Task, TaskEvent, TaskList, TaskStatus, Usage,
     WorkflowResult,
 };
+pub mod evaluate;
 pub mod google;
 pub mod openai;
 use pyo3::prelude::*;
