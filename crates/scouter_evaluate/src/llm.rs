@@ -357,8 +357,6 @@ pub fn evaluate_llm(
 
     // Need a runtime to run the async function
     let runtime = tokio::runtime::Runtime::new()?;
-
-    // Use the workflow's runtime to execute the async function
     let results = runtime.block_on(async { async_evaluate_llm(workflow, records).await })?;
 
     Ok(results)
