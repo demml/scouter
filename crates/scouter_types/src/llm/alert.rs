@@ -1,7 +1,7 @@
 use crate::error::TypeError;
 use crate::{
     dispatch::AlertDispatchType, AlertDispatchConfig, AlertThreshold, CommonCrons,
-    DispatchAlertDescription, OpsGenieDispatchConfig, ProfileFuncs, SlackDispatchConfig,
+    DispatchAlertDescription, OpsGenieDispatchConfig, PyHelperFuncs, SlackDispatchConfig,
     ValidateAlertConfig,
 };
 use core::fmt::Debug;
@@ -58,7 +58,7 @@ impl LLMMetric {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     #[getter]
@@ -96,7 +96,7 @@ impl LLMMetricAlertCondition {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 

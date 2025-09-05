@@ -48,9 +48,9 @@ impl FileName {
     }
 }
 
-pub struct ProfileFuncs {}
+pub struct PyHelperFuncs {}
 
-impl ProfileFuncs {
+impl PyHelperFuncs {
     pub fn __str__<T: Serialize>(object: T) -> String {
         match ColoredFormatter::with_styler(
             PrettyFormatter::default(),

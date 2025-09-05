@@ -7,7 +7,7 @@ use numpy::{IntoPyArray, PyArray2};
 use pyo3::prelude::*;
 use scouter_types::error::UtilError;
 
-use scouter_types::{FileName, ProfileFuncs};
+use scouter_types::{FileName, PyHelperFuncs};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::PathBuf;
@@ -63,12 +63,12 @@ pub struct SpcDriftMap {
 impl SpcDriftMap {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
 
     #[staticmethod]
@@ -79,7 +79,7 @@ impl SpcDriftMap {
 
     #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, UtilError> {
-        ProfileFuncs::save_to_json(self, path, FileName::SpcDriftMap.to_str())
+        PyHelperFuncs::save_to_json(self, path, FileName::SpcDriftMap.to_str())
     }
 
     #[allow(clippy::type_complexity)]

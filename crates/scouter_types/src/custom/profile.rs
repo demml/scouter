@@ -5,7 +5,7 @@ use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version};
 use crate::ProfileRequest;
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
-    ProfileFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
+    PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
 };
 use core::fmt::Debug;
 use pyo3::prelude::*;
@@ -93,12 +93,12 @@ impl CustomMetricDriftConfig {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -186,12 +186,12 @@ impl CustomDriftProfile {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
 
     pub fn model_dump(&self, py: Python) -> Result<Py<PyDict>, ProfileError> {
@@ -212,7 +212,7 @@ impl CustomDriftProfile {
     // Convert python dict into a drift profile
     #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ProfileError> {
-        Ok(ProfileFuncs::save_to_json(
+        Ok(PyHelperFuncs::save_to_json(
             self,
             path,
             FileName::CustomDriftProfile.to_str(),

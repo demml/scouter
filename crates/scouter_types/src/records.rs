@@ -1,5 +1,5 @@
 use crate::error::RecordError;
-use crate::ProfileFuncs;
+use crate::PyHelperFuncs;
 use crate::Status;
 use chrono::DateTime;
 use chrono::Utc;
@@ -73,7 +73,7 @@ impl SpcServerRecord {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn get_record_type(&self) -> RecordType {
@@ -82,7 +82,7 @@ impl SpcServerRecord {
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
 
     pub fn to_dict(&self) -> HashMap<String, String> {
@@ -146,7 +146,7 @@ impl PsiServerRecord {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn get_record_type(&self) -> RecordType {
@@ -155,7 +155,7 @@ impl PsiServerRecord {
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
 }
 
@@ -199,7 +199,7 @@ pub struct LLMDriftServerRecord {
 impl LLMDriftServerRecord {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn get_record_type(&self) -> RecordType {
@@ -208,7 +208,7 @@ impl LLMDriftServerRecord {
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
 }
 
@@ -286,7 +286,7 @@ pub struct LLMMetricRecord {
 impl LLMMetricRecord {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 
@@ -328,12 +328,12 @@ impl CustomMetricServerRecord {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
 
     pub fn get_record_type(&self) -> RecordType {
@@ -419,12 +419,12 @@ pub struct ObservabilityMetrics {
 impl ObservabilityMetrics {
     pub fn model_dump_json(&self) -> String {
         // serialize records to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn get_record_type(&self) -> RecordType {
@@ -541,12 +541,12 @@ impl ServerRecords {
     }
     pub fn model_dump_json(&self) -> String {
         // serialize records to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 

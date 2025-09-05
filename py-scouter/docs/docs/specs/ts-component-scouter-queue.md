@@ -141,7 +141,7 @@ impl Feature {
     }
 
     pub fn __str__(&self) -> String {
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 
@@ -176,7 +176,7 @@ impl Metric {
     }
 
     pub fn __str__(&self) -> String {
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 

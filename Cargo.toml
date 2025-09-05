@@ -24,6 +24,7 @@ scouter-auth = { path = "crates/scouter_auth", version = "0.11.0" }
 scouter-client = { path = "crates/scouter_client", version = "0.11.0" }
 scouter-dispatch = { path = "crates/scouter_dispatch", version = "0.11.0" }
 scouter-drift = { path = "crates/scouter_drift", version = "0.11.0", default-features = false }
+scouter-evaluate = { path = "crates/scouter_evaluate", version = "0.11.0" }
 scouter-events = { path = "crates/scouter_events", version = "0.11.0", default-features = false }
 scouter-observability = { path = "crates/scouter_observability", version = "0.11.0" }
 scouter-profile = { path = "crates/scouter_profile", version = "0.11.0" }

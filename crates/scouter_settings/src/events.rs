@@ -1,4 +1,4 @@
-use scouter_types::ProfileFuncs;
+use scouter_types::PyHelperFuncs;
 use serde::Serialize;
 
 // see: https://github.com/confluentinc/librdkafka/blob/master/CONFIGURATION.md
@@ -19,7 +19,7 @@ pub struct KafkaSettings {
 impl KafkaSettings {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 
@@ -97,7 +97,7 @@ pub struct RabbitMQSettings {
 impl RabbitMQSettings {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 
@@ -142,7 +142,7 @@ pub struct RedisSettings {
 impl RedisSettings {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 

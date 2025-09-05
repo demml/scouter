@@ -1,7 +1,7 @@
 use crate::error::TypeError;
 use crate::{
     dispatch::AlertDispatchType, AlertDispatchConfig, AlertThreshold, CommonCrons,
-    DispatchAlertDescription, OpsGenieDispatchConfig, ProfileFuncs, SlackDispatchConfig,
+    DispatchAlertDescription, OpsGenieDispatchConfig, PyHelperFuncs, SlackDispatchConfig,
     ValidateAlertConfig,
 };
 use core::fmt::Debug;
@@ -46,7 +46,7 @@ impl CustomMetric {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     #[getter]
@@ -89,7 +89,7 @@ impl CustomMetricAlertCondition {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 

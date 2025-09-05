@@ -1,7 +1,7 @@
 use crate::error::TypeError;
 use crate::{
     dispatch::AlertDispatchType, AlertDispatchConfig, CommonCrons, DispatchAlertDescription,
-    OpsGenieDispatchConfig, ProfileFuncs, SlackDispatchConfig, ValidateAlertConfig,
+    OpsGenieDispatchConfig, PyHelperFuncs, SlackDispatchConfig, ValidateAlertConfig,
 };
 use core::fmt::Debug;
 use pyo3::prelude::*;
@@ -206,7 +206,7 @@ impl SpcAlert {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 
