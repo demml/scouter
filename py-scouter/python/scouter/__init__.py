@@ -1,7 +1,8 @@
-# type: ignore
+"""Scouter: ML monitoring and drift detection library."""
+
 # pylint: disable=no-name-in-module
 
-from .scouter import (  # noqa
+from .scouter import (  # type: ignore
     alert,
     client,
     drift,
@@ -12,6 +13,7 @@ from .scouter import (  # noqa
     observe,
     profile,
     queue,
+    test,
     types,
 )
 from .version import __version__
@@ -20,8 +22,13 @@ from .version import __version__
 Drifter = drift.Drifter
 SpcDriftConfig = drift.SpcDriftConfig
 SpcDriftProfile = drift.SpcDriftProfile
+SpcFeatureDriftProfile = drift.SpcFeatureDriftProfile
+SpcFeatureDrift = drift.SpcFeatureDrift
+SpcDriftMap = drift.SpcDriftMap
 PsiDriftConfig = drift.PsiDriftConfig
 PsiDriftProfile = drift.PsiDriftProfile
+PsiDriftMap = drift.PsiDriftMap
+FeatureMap = drift.FeatureMap
 CustomMetric = drift.CustomMetric
 CustomDriftProfile = drift.CustomDriftProfile
 CustomMetricDriftConfig = drift.CustomMetricDriftConfig
@@ -30,11 +37,11 @@ LLMDriftConfig = drift.LLMDriftConfig
 LLMDriftProfile = drift.LLMDriftProfile
 
 
-# Profile imports
+# Profile imports - direct from Rust extension
 DataProfiler = profile.DataProfiler
 DataProfile = profile.DataProfile
 
-# Queue imports
+# Queue imports - direct from Rust extension
 ScouterQueue = queue.ScouterQueue
 Queue = queue.Queue
 KafkaConfig = queue.KafkaConfig
@@ -45,37 +52,48 @@ Features = queue.Features
 Metric = queue.Metric
 Metrics = queue.Metrics
 
-# Type imports
+# Type imports - direct from Rust extension
 CommonCrons = types.CommonCrons
 
-# Alert imports
+# Alert imports - direct from Rust extension
 PsiAlertConfig = alert.PsiAlertConfig
 SpcAlertConfig = alert.SpcAlertConfig
 CustomMetricAlertConfig = alert.CustomMetricAlertConfig
 
-# Client
+# Client imports - direct from Rust extension
 HTTPConfig = client.HTTPConfig
 ScouterClient = client.ScouterClient
 
+# Evaluate imports
+EvalResult = evaluate.EvalResult
+LLMEvalMetric = evaluate.LLMEvalMetric
+LLMEvalResults = evaluate.LLMEvalResults
+LLMEvalRecord = evaluate.LLMEvalRecord
+evaluate_llm = evaluate.evaluate_llm
 
 __all__ = [
     "__version__",
-    # Drift
+    # Drift - from Python wrappers
     "Drifter",
     "SpcDriftConfig",
     "SpcDriftProfile",
     "PsiDriftConfig",
     "PsiDriftProfile",
+    "PsiDriftMap",
     "CustomMetric",
     "CustomDriftProfile",
     "CustomMetricDriftConfig",
     "LLMMetric",
     "LLMDriftConfig",
     "LLMDriftProfile",
-    # Profile
+    "FeatureMap",
+    "SpcFeatureDriftProfile",
+    "SpcFeatureDrift",
+    "SpcDriftMap",
+    # Profile - from Rust extension
     "DataProfiler",
     "DataProfile",
-    # Queue
+    # Queue - from Rust extension
     "ScouterQueue",
     "Queue",
     "KafkaConfig",
@@ -85,13 +103,32 @@ __all__ = [
     "Features",
     "Metric",
     "Metrics",
-    # Type
+    # Types - from Rust extension
     "CommonCrons",
-    # Alert
+    # Alert - from Rust extension
     "PsiAlertConfig",
     "SpcAlertConfig",
     "CustomMetricAlertConfig",
-    # Client
+    # Client - from Rust extension
     "HTTPConfig",
     "ScouterClient",
+    # Evaluate - from Python wrappers
+    "EvalResult",
+    "LLMEvalMetric",
+    "LLMEvalResults",
+    "LLMEvalRecord",
+    "evaluate_llm",
+    # Submodules - for advanced usage
+    "alert",
+    "client",
+    "llm",
+    "logging",
+    "mock",
+    "observe",
+    "profile",
+    "queue",
+    "types",
+    "drift",
+    "evaluate",
+    "test",
 ]

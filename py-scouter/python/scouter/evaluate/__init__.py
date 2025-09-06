@@ -1,5 +1,4 @@
 # type: ignore
-# pylint: disable=no-name-in-module
 from .. import evaluate
 
 EvalResult = evaluate.EvalResult

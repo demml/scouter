@@ -1,5 +1,5 @@
 # type: ignore
-# pylint: disable=no-name-in-module
+# pylint: disable-all
 from ...scouter import llm
 
 Modality = llm.google.Modality

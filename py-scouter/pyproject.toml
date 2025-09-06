@@ -98,9 +98,8 @@ omit = [
 
 [tool.mypy]
 # platform configuration
-python_version = "3.9"
+python_version = "3.10"
 platform = "linux"
-mypy_path = "stubs"
 ignore_missing_imports = true
 plugins = [
     "numpy.typing.mypy_plugin",
@@ -108,6 +107,7 @@ plugins = [
 exclude = [
     "python/scouter/utils/comparison/*",
 ]
+files = ["python/scouter", "tests", "examples"]
 
 [build-system]
 requires = ["maturin>=1.4,<2.0"]

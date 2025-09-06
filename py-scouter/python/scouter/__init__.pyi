@@ -12,6 +12,13 @@ from .drift import (
     SpcDriftConfig,
     SpcDriftProfile,
 )
+from .evaluate import (
+    EvalResult,
+    LLMEvalMetric,
+    LLMEvalRecord,
+    LLMEvalResults,
+    evaluate_llm,
+)
 from .profile import DataProfile, DataProfiler
 from .queue import (
     Feature,
@@ -58,4 +65,10 @@ __all__ = [
     # Client
     "HTTPConfig",
     "ScouterClient",
+    # Evaluate
+    "EvalResult",
+    "LLMEvalMetric",
+    "LLMEvalResults",
+    "LLMEvalRecord",
+    "evaluate_llm",
 ]
