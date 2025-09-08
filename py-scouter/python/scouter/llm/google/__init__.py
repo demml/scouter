@@ -21,6 +21,8 @@ LatLng = llm.google.LatLng
 ModelArmorConfig = llm.google.ModelArmorConfig
 Mode = llm.google.Mode
 GeminiSettings = llm.google.GeminiSettings
+GeminiEmbeddingConfig = llm.google.GeminiEmbeddingConfig
+GeminiEmbeddingResponse = llm.google.GeminiEmbeddingResponse
 
 __all__ = [
     "Modality",
