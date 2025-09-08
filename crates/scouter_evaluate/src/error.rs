@@ -31,6 +31,9 @@ pub enum EvaluationError {
 
     #[error(transparent)]
     TypeError(#[from] scouter_types::error::TypeError),
+
+    #[error("Invalid embedder type. Expected an instance of Embedder")]
+    InvalidEmbedderType,
 }
 
 impl From<EvaluationError> for PyErr {

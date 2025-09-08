@@ -70,4 +70,7 @@ pub use scouter_events::error::EventError;
 pub use scouter_profile::error::DataProfileError;
 pub use scouter_types::error::{ContractError, ProfileError, RecordError, TypeError, UtilError};
 
-pub use scouter_evaluate::llm::{evaluate_llm, EvalResult, LLMEvalRecord, LLMEvalResults};
+pub use scouter_evaluate::{
+    llm::evaluate_llm,
+    types::{EvalResult, LLMEvalRecord, LLMEvalResults},
+};

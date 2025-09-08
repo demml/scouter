@@ -69,7 +69,7 @@ num-traits = "0.*"
 object_store = { version = "0.*", features = ["aws", "azure", "gcp" ] }
 parquet = { version = ">=55.*", features = ["arrow"] }
 password-auth = "1.*"
-potato-head = "0.4.0"
+potato-head = { git = "https://github.com/demml/potatohead", branch = "refactor/embedder" }
 pyo3 = { version = ">=0.*, <1.0.0", features = ["abi3-py39", "chrono", "anyhow", "extension-module"] }
 rand = "0.9.*"
 rayon = "1.*"
@@ -80,6 +80,7 @@ semver = "1.*"
 serde = { version = "1.*", features = ["derive"] }
 serde_json = "1.*"
 serde_qs = "0.*"
+simsimd = "6.5.*"
 sqlx = { version = "0.*", features = [ "runtime-tokio", "tls-native-tls", "postgres", "chrono", "json"] }
 strum = "0.*"
 strum_macros = "0.*"
