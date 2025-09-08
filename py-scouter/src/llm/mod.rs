@@ -1,8 +1,8 @@
 use ::potato_head::{
     prompt::settings::ModelSettings, AudioUrl, BinaryContent, ChatResponse, CompletionTokenDetails,
     DocumentUrl, EventDetails, ImageUrl, Message, Prompt, PromptTokenDetails, Provider, PyAgent,
-    PyAgentResponse, PyEmbedder, PyTask, PyWorkflow, Pyembedder, Score, Task, TaskEvent, TaskList,
-    TaskStatus, Usage, WorkflowResult,
+    PyAgentResponse, PyEmbedder, PyTask, PyWorkflow, Score, Task, TaskEvent, TaskList, TaskStatus,
+    Usage, WorkflowResult,
 };
 pub mod google;
 pub mod openai;

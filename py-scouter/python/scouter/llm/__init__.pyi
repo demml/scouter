@@ -4,8 +4,8 @@ import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional, Sequence
 
-from .google import GeminiSettings
-from .openai import OpenAIChatSettings
+from .google import GeminiEmbeddingConfig, GeminiEmbeddingResponse, GeminiSettings
+from .openai import OpenAIChatSettings, OpenAIEmbeddingConfig, OpenAIEmbeddingResponse
 
 class PromptTokenDetails:
     """Details about the prompt tokens used in a request."""
@@ -904,3 +904,40 @@ class Score:
         """
 
     def __str__(self): ...
+
+class Embedder:
+    """Class for creating embeddings."""
+
+    def __init__(
+        self,
+        provider: Provider | str,
+        config: Optional[OpenAIEmbeddingConfig | GeminiEmbeddingConfig] = None,
+    ) -> None:
+        """Create an Embedder object.
+
+        Args:
+            provider (Provider | str):
+                The provider to use for the embedder. This can be a Provider enum or a string
+                representing the provider.
+            config (Optional[OpenAIEmbeddingConfig | GeminiEmbeddingConfig]):
+                The configuration to use for the embedder. This can be a Pydantic BaseModel class
+                representing the configuration for the provider. If no config is provided,
+                defaults to OpenAI provider configuration.
+        """
+
+    def embed(
+        self,
+        input: str,
+    ) -> OpenAIEmbeddingResponse | GeminiEmbeddingResponse:
+        """Create embeddings for a single input.
+
+        Args:
+            input (str):
+                The input to create embeddings for.
+
+        Returns:
+            OpenAIEmbeddingResponse | GeminiEmbeddingResponse:
+                The response from the embedder after creating the embeddings.
+                Returns OpenAIEmbeddingResponse if initialized with OpenAIEmbeddingConfig or no config.
+                Returns GeminiEmbeddingResponse if initialized with GeminiEmbeddingConfig.
+        """

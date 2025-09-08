@@ -64,7 +64,6 @@ HTTPConfig = client.HTTPConfig
 ScouterClient = client.ScouterClient
 
 # Evaluate imports
-EvalResult = evaluate.EvalResult
 LLMEvalMetric = evaluate.LLMEvalMetric
 LLMEvalResults = evaluate.LLMEvalResults
 LLMEvalRecord = evaluate.LLMEvalRecord

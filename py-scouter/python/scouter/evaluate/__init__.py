@@ -1,16 +1,20 @@
 # type: ignore
 from .. import evaluate
 
-EvalResult = evaluate.EvalResult
+LLMEvalTaskResult = evaluate.LLMEvalTaskResult
+Embedding = evaluate.Embedding
+MetricResult = evaluate.MetricResult
 LLMEvalMetric = evaluate.LLMEvalMetric
 LLMEvalResults = evaluate.LLMEvalResults
 LLMEvalRecord = evaluate.LLMEvalRecord
 evaluate_llm = evaluate.evaluate_llm
 
 __all__ = [
-    "EvalResult",
+    "LLMEvalTaskResult",
     "LLMEvalMetric",
     "LLMEvalResults",
     "LLMEvalRecord",
     "evaluate_llm",
+    "Embedding",
+    "MetricResult",
 ]

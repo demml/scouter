@@ -1,4 +1,5 @@
 use crate::error::EvaluationError;
+use crate::types::LLMEvalTaskResult;
 use crate::types::{LLMEvalRecord, LLMEvalResults};
 use crate::util::{
     collect_evaluation_results, spawn_evaluation_tasks_with_embeddings,
@@ -12,6 +13,7 @@ use scouter_types::eval::LLMEvalMetric;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Arc;
+use tokio::task::JoinSet;
 use tracing::{debug, instrument};
 
 /// Main orchestration function that decides which execution path to take
@@ -29,25 +31,27 @@ async fn async_evaluate_llm(
 ) -> Result<LLMEvalResults, EvaluationError> {
     debug!("Starting LLM evaluation for {} records", records.len());
 
-    let join_set = match (embedder, embedding_targets) {
-        (Some(embedder), Some(targets)) => {
-            debug!("Using embedding-enabled evaluation path");
-            spawn_evaluation_tasks_with_embeddings(workflow, records, embedder, Arc::new(targets))
+    let join_set: JoinSet<(String, Option<LLMEvalTaskResult>)> =
+        match (embedder, &embedding_targets) {
+            (Some(embedder), Some(targets)) => {
+                debug!("Using embedding-enabled evaluation path");
+                spawn_evaluation_tasks_with_embeddings(
+                    workflow,
+                    records,
+                    embedder,
+                    Arc::new(targets.clone()),
+                )
                 .await
-        }
-        _ => {
-            debug!("Using standard evaluation path");
-            spawn_evaluation_tasks_without_embeddings(workflow, records).await
-        }
-    };
+            }
+            _ => {
+                debug!("Using standard evaluation path");
 
-    let results = collect_evaluation_results(join_set).await?;
+                // this will return a list of VecEval
+                spawn_evaluation_tasks_without_embeddings(workflow, records).await
+            }
+        };
 
-    debug!(
-        "Completed LLM evaluation with {} successful and {} failed results",
-        results.results.len(),
-        results.errors.len()
-    );
+    let results = collect_evaluation_results(join_set, embedding_targets).await?;
 
     Ok(results)
 }

@@ -1,8 +1,8 @@
 # type: ignore
 # pylint: disable=redefined-builtin
-from typing import Any, Dict, Iterator, List, Optional, Protocol, TypeAlias, Union
+from typing import Any, Dict, List, Optional, Protocol, TypeAlias, Union
 
-from ..llm import Prompt, Score
+from ..llm import Embedder, Prompt, Score
 
 class BaseModel(Protocol):
     """Protocol for pydantic BaseModel to ensure compatibility with context"""
@@ -19,36 +19,54 @@ class BaseModel(Protocol):
 SerializedType: TypeAlias = Union[str, int, float, dict, list]
 Context: TypeAlias = Union[Dict[str, Any], BaseModel]
 
-class EvalResult:
+class MetricResult:
+    @property
+    def task(self) -> str:
+        """Get the task name"""
+
+    @property
+    def score(self) -> float:
+        """Get the score"""
+
+    @property
+    def reason(self) -> str:
+        """Get the reason for the score"""
+
+class Embedding:
+    @property
+    def field(self) -> str:
+        """Get the field name"""
+
+    def values(self) -> List[float]:
+        """Get the embedding values"""
+
+    def mean(self) -> float:
+        """Get the mean of the embedding values"""
+
+class LLMEvalTaskResult:
     """Eval Result for a specific evaluation"""
 
     @property
-    def error(self) -> Optional[str]: ...
-    @property
-    def tasks(self) -> Dict[str, Score]: ...
-    @property
-    def id(self) -> str: ...
-    def __getitem__(self, key: str) -> Score:
-        """
-        Get the score for a specific task
-        """
+    def id(self) -> str:
+        """Get the record id associated with this result"""
 
-    def to_dataframe(self, polars: bool = False) -> Any:
-        """Converts the evaluation results to a pandas DataFrame
+    def metrics(self) -> List[MetricResult]:
+        """Get the list of metrics"""
 
-        Args:
-            polars (bool):
-                Whether to convert to a Polars DataFrame.
-        """
+    def embedding(self) -> List[Embedding]:
+        """Get embeddings of embedding targets"""
+
+    def __getitem__(self, key: str) -> MetricResult:
+        """Get the `MetricResult` for a specific task. A RuntimeError will be raised if the task does not exist."""
 
 class LLMEvalResults:
     """Defines the results of an LLM eval metric"""
 
-    def __getitem__(self, key: str) -> float:
-        """Get the value` of the metric by name. A RuntimeError will be raised if the metric does not exist."""
+    def __getitem__(self, key: str) -> LLMEvalTaskResult:
+        """Get the task results for a specific record ID. A RuntimeError will be raised if the record ID does not exist."""
 
-    def __iter__(self) -> Iterator[EvalResult]:
-        """Get an iterator over the metric names and values."""
+    def __str__(self):
+        """String representation of the LLMEvalResults"""
 
 class LLMEvalMetric:
     """Defines an LLM eval metric to use when evaluating LLMs"""
@@ -125,6 +143,8 @@ class LLMEvalRecord:
 def evaluate_llm(
     records: List[LLMEvalRecord],
     metrics: List[LLMEvalMetric],
+    embedder: Optional[Embedder] = None,
+    embedding_targets: Optional[List[str]] = None,
 ) -> LLMEvalResults:
     """
     Evaluate LLM responses using the provided evaluation metrics.
@@ -134,6 +154,12 @@ def evaluate_llm(
             List of LLM evaluation records to evaluate.
         metrics (List[LLMEvalMetric]):
             List of LLMEvalMetric instances to use for evaluation.
+        embedder (Optional[Embedder]):
+            Optional Embedder instance to use for generating embeddings for similarity-based metrics.
+            If not provided, no embeddings will be generated.
+        embedding_targets (Optional[List[str]]):
+            Optional list of context keys to generate embeddings for. If not provided, embeddings will
+            be generated for all string fields in the record context.
 
     Returns:
         LLMEvalResults

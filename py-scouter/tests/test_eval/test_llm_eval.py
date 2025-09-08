@@ -1,10 +1,12 @@
 import pandas as pd
 import polars as pl
 from scouter.evaluate import LLMEvalMetric, LLMEvalRecord, evaluate_llm  # type: ignore
+from scouter.llm import Embedder, Provider  # type: ignore
+from scouter.llm.openai import OpenAIEmbeddingConfig  # type: ignore
 from scouter.mock import LLMTestServer
 
 
-def test_llm_eval_no_embedding(
+def _test_llm_eval_no_embedding(
     reformulation_evaluation_prompt, relevancy_evaluation_prompt
 ) -> None:
     with LLMTestServer():
@@ -47,6 +49,14 @@ def test_llm_eval_embedding(
 ) -> None:
     with LLMTestServer():
         records = []
+
+        embedder = Embedder(
+            Provider.OpenAI,
+            config=OpenAIEmbeddingConfig(
+                model="text-embedding-3-small",
+                dimensions=512,
+            ),
+        )
         for i in range(10):
             record = LLMEvalRecord(
                 context={"user_query": "my query", "response": "my response"},
@@ -65,11 +75,12 @@ def test_llm_eval_embedding(
         results = evaluate_llm(
             records=records,
             metrics=[reformulation_metric, relevancy_metric],
+            embedder=embedder,
+            embedding_targets=["user_query"],
         )
 
-        for result in results:
-            assert result["reformulation"].score > 0
-            assert result["relevancy"].score > 0
+        assert results["test_id_1"]["reformulation"].score > 0
+        assert results["test_id_1"]["relevancy"].score > 0
 
         result_df: pd.DataFrame = results.to_dataframe()
 
@@ -78,3 +89,5 @@ def test_llm_eval_embedding(
         result_polars_df: pl.DataFrame = results.to_dataframe(polars=True)
 
         assert isinstance(result_polars_df, pl.DataFrame)
+
+        assert result_df.shape[0] == 20  # 10 records x 2 metrics
