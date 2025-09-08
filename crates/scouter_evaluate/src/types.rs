@@ -106,6 +106,26 @@ impl LLMEvalResults {
     pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
     }
+
+    /// Get tasks for a specific record ID
+    pub fn __getitem__(&self, key: &str) -> Result<EvalResult, EvaluationError> {
+        match self.results.get(key) {
+            Some(value) => Ok(value.clone()),
+            None => Err(EvaluationError::MissingKeyError(key.to_string())),
+        }
+    }
+
+    pub fn __iter__(slf: PyRef<'_, Self>) -> Result<Py<EvalResultIter>, EvaluationError> {
+        let iter = EvalResultIter {
+            inner: slf
+                .results
+                .values()
+                .cloned()
+                .collect::<Vec<_>>()
+                .into_iter(),
+        };
+        Ok(Py::new(slf.py(), iter)?)
+    }
 }
 
 impl LLMEvalResults {

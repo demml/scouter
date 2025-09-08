@@ -27,6 +27,8 @@ def test_llm_eval(reformulation_evaluation_prompt, relevancy_evaluation_prompt) 
             metrics=[reformulation_metric, relevancy_metric],
         )
 
+        print(results)
+
         for result in results:
             assert result["reformulation"].score > 0
             assert result["relevancy"].score > 0
