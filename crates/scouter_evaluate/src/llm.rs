@@ -118,6 +118,7 @@ fn parse_embedder(
 /// * `py`: The Python interpreter instance.
 /// * `data`: A list of data samples to evaluate.
 /// * `metrics`: A list of evaluation metrics to use.
+#[pyo3(signature = (records, metrics, embedder=None, embedding_targets=None))]
 pub fn evaluate_llm(
     records: Vec<LLMEvalRecord>,
     metrics: Vec<LLMEvalMetric>,
