@@ -126,6 +126,33 @@ impl LLMEvalResults {
         };
         Ok(Py::new(slf.py(), iter)?)
     }
+
+    #[pyo3(signature = (polars=false))]
+    pub fn to_dataframe<'py>(
+        &self,
+        py: Python<'py>,
+        polars: bool,
+    ) -> Result<Bound<'py, PyAny>, EvaluationError> {
+        let mut records = Vec::new();
+        // columns: id, task name, score, reason, error
+
+        for value in self.results.values() {
+            let eval_list = value.to_list(py)?;
+            // Flatten the list of dictionaries into a single vector
+            records.extend(eval_list);
+        }
+
+        if polars {
+            let polars = py.import("polars")?.getattr("DataFrame")?;
+            let df = polars.call1((records,))?;
+            Ok(df)
+        } else {
+            let pandas = py.import("pandas")?.getattr("DataFrame")?;
+            let df = pandas.call_method1("from_records", (records,))?;
+
+            Ok(df)
+        }
+    }
 }
 
 impl LLMEvalResults {

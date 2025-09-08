@@ -121,12 +121,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "android-tzdata"
-version = "0.1.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e999941b234f3131b00bc13c22d06e8c5ff726d1b6318ac7eb276997bbb4fef0"
-
-[[package]]
 name = "android_system_properties"
 version = "0.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -866,7 +860,7 @@ dependencies = [
 [[package]]
 name = "baked-potato"
 version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#b3b3d9b6891108be2b896b9f566b32f9157de3aa"
+source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#9dc4f0f03b8b806fa8b5727d509c867538bf3fd2"
 dependencies = [
  "mockito",
  "potato-agent",
@@ -1116,17 +1110,16 @@ checksum = "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724"
 
 [[package]]
 name = "chrono"
-version = "0.4.41"
+version = "0.4.42"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c469d952047f47f91b68d1cba3f10d63c11d73e4636f24f08daf0278abf01c4d"
+checksum = "145052bdd345b87320e369255277e3fb5152762ad123a901ef5c262dd38fe8d2"
 dependencies = [
- "android-tzdata",
  "iana-time-zone",
  "js-sys",
  "num-traits",
  "serde",
  "wasm-bindgen",
- "windows-link 0.1.3",
+ "windows-link 0.2.0",
 ]
 
 [[package]]
@@ -1285,15 +1278,15 @@ dependencies = [
 
 [[package]]
 name = "console"
-version = "0.16.0"
+version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e09ced7ebbccb63b4c65413d821f2e00ce54c5ca4514ddc6b3c892fdbcbc69d"
+checksum = "b430743a6eb14e9764d4260d4c0d8123087d504eeb9c48f2b2a5e810dd369df4"
 dependencies = [
  "encode_unicode",
  "libc",
  "once_cell",
  "unicode-width",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.0",
 ]
 
 [[package]]
@@ -3015,7 +3008,7 @@ version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70a646d946d06bedbbc4cac4c218acf4bbf2d87757a784857025f4d447e4e1cd"
 dependencies = [
- "console 0.16.0",
+ "console 0.16.1",
  "portable-atomic",
  "unicode-width",
  "unit-prefix",
@@ -4277,7 +4270,7 @@ dependencies = [
 [[package]]
 name = "potato-agent"
 version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#b3b3d9b6891108be2b896b9f566b32f9157de3aa"
+source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#9dc4f0f03b8b806fa8b5727d509c867538bf3fd2"
 dependencies = [
  "base64",
  "potato-prompt",
@@ -4295,7 +4288,7 @@ dependencies = [
 [[package]]
 name = "potato-head"
 version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#b3b3d9b6891108be2b896b9f566b32f9157de3aa"
+source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#9dc4f0f03b8b806fa8b5727d509c867538bf3fd2"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -4308,7 +4301,7 @@ dependencies = [
 [[package]]
 name = "potato-prompt"
 version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#b3b3d9b6891108be2b896b9f566b32f9157de3aa"
+source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#9dc4f0f03b8b806fa8b5727d509c867538bf3fd2"
 dependencies = [
  "mime_guess",
  "potato-type",
@@ -4325,7 +4318,7 @@ dependencies = [
 [[package]]
 name = "potato-type"
 version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#b3b3d9b6891108be2b896b9f566b32f9157de3aa"
+source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#9dc4f0f03b8b806fa8b5727d509c867538bf3fd2"
 dependencies = [
  "potato-util",
  "pyo3",
@@ -4339,7 +4332,7 @@ dependencies = [
 [[package]]
 name = "potato-util"
 version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#b3b3d9b6891108be2b896b9f566b32f9157de3aa"
+source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#9dc4f0f03b8b806fa8b5727d509c867538bf3fd2"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -4354,7 +4347,7 @@ dependencies = [
 [[package]]
 name = "potato-workflow"
 version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#b3b3d9b6891108be2b896b9f566b32f9157de3aa"
+source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#9dc4f0f03b8b806fa8b5727d509c867538bf3fd2"
 dependencies = [
  "chrono",
  "potato-agent",
@@ -5051,7 +5044,7 @@ dependencies = [
  "openssl-probe",
  "rustls-pki-types",
  "schannel",
- "security-framework 3.3.0",
+ "security-framework 3.4.0",
 ]
 
 [[package]]
@@ -5549,9 +5542,9 @@ dependencies = [
 
 [[package]]
 name = "security-framework"
-version = "3.3.0"
+version = "3.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "80fb1d92c5028aa318b4b8bd7302a5bfcf48be96a37fc6fc790f806b0004ee0c"
+checksum = "60b369d18893388b345804dc0007963c99b7d665ae71d275812d828c6f089640"
 dependencies = [
  "bitflags 2.9.4",
  "core-foundation 0.10.1",
@@ -5562,9 +5555,9 @@ dependencies = [
 
 [[package]]
 name = "security-framework-sys"
-version = "2.14.0"
+version = "2.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49db231d56a190491cb4aeda9527f1ad45345af50b0851622a7adb8c03b01c32"
+checksum = "cc1f0cbffaac4852523ce30d8bd3c5cdc873501d96ff467ca09b6767bb8cd5c0"
 dependencies = [
  "core-foundation-sys",
  "libc",
