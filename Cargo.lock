@@ -5457,6 +5457,7 @@ dependencies = [
  "linfa",
  "linfa-clustering",
  "ndarray 0.15.6",
+ "num-traits",
  "potato-head",
  "pyo3",
  "scouter-types",

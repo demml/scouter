@@ -1,5 +1,5 @@
 use crate::error::EvaluationError;
-use crate::util::parse_embedder;
+use crate::util::{compute_mean, parse_embedder};
 use ndarray::Array2;
 use potato_head::{create_uuid7, Embedder, PyHelperFuncs, Score};
 use pyo3::prelude::*;
@@ -8,7 +8,7 @@ use pyo3::IntoPyObjectExt;
 use scouter_types::{is_pydantic_model, json_to_pyobject_value, pyobject_to_json};
 use serde::Serialize;
 use serde_json::Value;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 #[derive(Debug, Clone, Serialize)]
 #[pyclass]
@@ -50,35 +50,26 @@ impl Embedding {
     pub fn new(field: String, value: Vec<f32>) -> Self {
         Self { field, value }
     }
-
-    pub fn mean(&self) -> f32 {
-        if self.value.is_empty() {
-            0.0
-        } else {
-            let sum: f32 = self.value.iter().sum();
-            sum / self.value.len() as f32
-        }
-    }
 }
 
 pub fn llm_tasks_to_records<'py>(
     py: Python<'py>,
     records: &mut Vec<Bound<'py, PyDict>>,
-    task: &LLMEvalTaskResult,
+    task_result: &LLMEvalTaskResult,
     embedding_targets: &Arc<Vec<String>>,
 ) -> Result<(), EvaluationError> {
-    for metric in &task.metrics {
+    for (task_name, score) in &task_result.metrics {
         let dict = PyDict::new(py);
-        dict.set_item("id", &task.id)?;
-        dict.set_item("task", metric.task.clone())?;
-        dict.set_item("score", metric.score())?;
-        dict.set_item("reason", metric.reason())?;
+        dict.set_item("id", &task_result.id)?;
+        dict.set_item("task", task_name.clone())?;
+        dict.set_item("score", score.score)?;
+        dict.set_item("reason", score.reason.clone())?;
 
         // Iterate over embeddings if embedding targets are provided
         if !embedding_targets.is_empty() {
             for target in embedding_targets.iter() {
-                if let Some(embedding) = task.embedding.iter().find(|e| &e.field == target) {
-                    dict.set_item(target, embedding.mean())?;
+                if let Some(embedding) = task_result.embedding.get(target) {
+                    dict.set_item(target, compute_mean(embedding).unwrap_or(-1.0))?;
                 } else {
                     dict.set_item(target, None::<f32>)?;
                 }
@@ -146,19 +137,21 @@ impl LLMEvalResults {
         }
     }
 
-    pub fn to_array(&self) -> Result<Array2<f64>, EvaluationError> {
+    pub fn to_array(&self, num_metrics: usize) -> Result<Array2<f32>, EvaluationError> {
         let mut data = Vec::new();
+        let n_cols = num_metrics;
+
         for task in self.results.values() {
+            // need to
             let row = task
                 .metrics
                 .iter()
-                .map(|metric| metric.score.score as f64)
-                .collect::<Vec<f64>>();
+                .map(|(_task_id, score)| score.score as f32)
+                .collect::<Vec<f32>>();
             data.extend(row);
         }
 
         let n_rows = self.results.len();
-        let n_cols = 2;
 
         let array = Array2::from_shape_vec((n_rows, n_cols), data).unwrap();
 
@@ -173,9 +166,9 @@ pub struct LLMEvalTaskResult {
     #[pyo3(get)]
     pub id: String,
     #[pyo3(get)]
-    pub metrics: Vec<MetricResult>,
+    pub metrics: BTreeMap<String, Score>,
     #[pyo3(get)]
-    pub embedding: Vec<Embedding>,
+    pub embedding: BTreeMap<String, Vec<f32>>,
 }
 
 #[pymethods]
@@ -183,17 +176,14 @@ impl LLMEvalTaskResult {
     pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
     }
-
-    pub fn __getitem__(&self, key: &str) -> Result<MetricResult, EvaluationError> {
-        match self.metrics.iter().find(|m| m.task == key) {
-            Some(value) => Ok(value.clone()),
-            None => Err(EvaluationError::MissingKeyError(key.to_string())),
-        }
-    }
 }
 
 impl LLMEvalTaskResult {
-    pub fn new(id: String, metrics: Vec<MetricResult>, embedding: Vec<Embedding>) -> Self {
+    pub fn new(
+        id: String,
+        metrics: BTreeMap<String, Score>,
+        embedding: BTreeMap<String, Vec<f32>>,
+    ) -> Self {
         Self {
             id,
             metrics,

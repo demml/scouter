@@ -2,18 +2,21 @@ use crate::error::EvaluationError;
 use crate::types::{Embedding, LLMEvalRecord, LLMEvalResults, LLMEvalTaskResult, MetricResult};
 use linfa::traits::*;
 use linfa_clustering::{Dbscan, DbscanParams};
+use ndarray::Array2;
+use num_traits::FromPrimitive;
 use potato_head::{
     Embedder, PyEmbedder, Score, StructuredOutput, TaskStatus, Workflow, WorkflowError,
 };
 use pyo3::prelude::*;
+use std::collections::BTreeMap;
 use std::sync::{Arc, RwLock};
 use tokio::task::JoinSet;
 use tracing::{error, warn};
 /// Process a workflow result and extract scores from completed tasks
 pub fn process_workflow_result(
     workflow_result: Arc<RwLock<Workflow>>,
-) -> Result<Vec<MetricResult>, EvaluationError> {
-    let mut metrics = Vec::new();
+) -> Result<BTreeMap<String, Score>, EvaluationError> {
+    let mut metrics = BTreeMap::new();
 
     let workflow = workflow_result
         .read()
@@ -27,10 +30,7 @@ pub fn process_workflow_result(
             if let Some(content) = result.content() {
                 match Score::model_validate_json_str(&content) {
                     Ok(score) => {
-                        metrics.push(MetricResult {
-                            task: task.id.clone(),
-                            score,
-                        });
+                        metrics.insert(task.id.clone(), score);
                     }
                     Err(e) => {
                         error!("Failed to validate score for task {}: {:?}", task.id, e);
@@ -41,8 +41,6 @@ pub fn process_workflow_result(
         }
     }
 
-    // ensure consistent ordering by task name
-    metrics.sort_by(|a, b| a.task.cmp(&b.task));
     Ok(metrics)
 }
 
@@ -72,7 +70,7 @@ pub async fn spawn_evaluation_tasks_without_embeddings(
                     match process_workflow_result(workflow_result) {
                         Ok(metrics) => (
                             record_id.clone(),
-                            Some(LLMEvalTaskResult::new(record_id, metrics, vec![])),
+                            Some(LLMEvalTaskResult::new(record_id, metrics, BTreeMap::new())),
                         ),
                         Err(error) => {
                             error!(
@@ -172,8 +170,8 @@ pub async fn generate_embeddings_for_record(
     record: &LLMEvalRecord,
     embedder: &Arc<Embedder>,
     embedding_targets: &[String],
-) -> Vec<Embedding> {
-    let mut embeddings = Vec::new();
+) -> BTreeMap<String, Vec<f32>> {
+    let mut embeddings = BTreeMap::new();
 
     for target in embedding_targets {
         let texts = record
@@ -186,7 +184,8 @@ pub async fn generate_embeddings_for_record(
             match embedder.embed(texts).await {
                 Ok(embedding_response) => match embedding_response.values() {
                     Ok(values) => {
-                        embeddings.push(Embedding::new(target.clone(), values.to_vec()));
+                        // move ownership of values into Embedding struct
+                        embeddings.insert(target.clone(), values.to_vec());
                     }
                     Err(e) => {
                         error!(
@@ -261,10 +260,27 @@ pub fn parse_embedder(
     Ok(embedder_arc)
 }
 
-//pub fn cluster() {
-//    let min_points = 3;
-//    let clusters = Dbscan::params(min_points)
-//        .tolerance(1e-2)
-//        .transform(&observations)
-//        .unwrap();
-//}
+/// Calculate the mean of for a slice of f32 values
+/// There's no need for a generic implementation here, as we only need f32 for embeddings
+pub fn compute_mean(vec: &[f32]) -> Option<f32> {
+    match vec.len() {
+        0 => None,
+        _ => {
+            let sum = vec.iter().sum::<f32>();
+            let length = f32::from_usize(vec.len())?;
+
+            Some(sum / length)
+        }
+    }
+}
+
+/// Function to run clustering on a set of observations
+pub fn cluster(data: &Array2<f32>) {
+    let min_points = 3;
+    let clusters = Dbscan::params(min_points)
+        .tolerance(1e-2)
+        .transform(data)
+        .unwrap();
+
+    println!("Found clusters: {:?}", clusters);
+}

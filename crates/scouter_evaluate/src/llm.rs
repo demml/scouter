@@ -2,9 +2,10 @@ use crate::error::EvaluationError;
 use crate::types::{EvaluationConfig, LLMEvalTaskResult};
 use crate::types::{LLMEvalRecord, LLMEvalResults};
 use crate::util::{
-    collect_evaluation_results, spawn_evaluation_tasks_with_embeddings,
+    cluster, collect_evaluation_results, spawn_evaluation_tasks_with_embeddings,
     spawn_evaluation_tasks_without_embeddings,
 };
+use core::num;
 use potato_head::{Agent, Provider, Task, Workflow, WorkflowError};
 use pyo3::prelude::*;
 use scouter_types::eval::LLMEvalMetric;
@@ -101,6 +102,7 @@ pub fn evaluate_llm(
     metrics: Vec<LLMEvalMetric>,
     config: Option<EvaluationConfig>,
 ) -> Result<LLMEvalResults, EvaluationError> {
+    let num_metrics = metrics.len();
     let workflow = workflow_from_eval_metrics(metrics, "LLM Evaluation")?;
     let runtime = tokio::runtime::Runtime::new()?;
 
@@ -109,9 +111,11 @@ pub fn evaluate_llm(
     let results =
         runtime.block_on(async { async_evaluate_llm(workflow, records, config).await })?;
 
-    let array = results.to_array()?;
+    let array = results.to_array(num_metrics)?;
 
     println!("Array: {:?}", array);
+
+    cluster(&array);
 
     Ok(results)
 }
