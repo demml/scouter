@@ -2,7 +2,7 @@
 # pylint: disable=redefined-builtin
 from typing import Any, Dict, List, Optional, Protocol, TypeAlias, Union
 
-from ..llm import Embedder, Prompt
+from ..llm import Embedder, Prompt, Score
 
 class BaseModel(Protocol):
     """Protocol for pydantic BaseModel to ensure compatibility with context"""
@@ -50,14 +50,13 @@ class LLMEvalTaskResult:
     def id(self) -> str:
         """Get the record id associated with this result"""
 
-    def metrics(self) -> List[MetricResult]:
+    @property
+    def metrics(self) -> Dict[str, Score]:
         """Get the list of metrics"""
 
-    def embedding(self) -> List[Embedding]:
+    @property
+    def embedding(self) -> Dict[str, List[float]]:
         """Get embeddings of embedding targets"""
-
-    def __getitem__(self, key: str) -> MetricResult:
-        """Get the `MetricResult` for a specific task. A RuntimeError will be raised if the task does not exist."""
 
 class LLMEvalResults:
     """Defines the results of an LLM eval metric"""
@@ -67,6 +66,19 @@ class LLMEvalResults:
 
     def __str__(self):
         """String representation of the LLMEvalResults"""
+
+    def to_dataframe(self, polars: bool = False) -> Any:
+        """
+        Convert the results to a Pandas or Polars DataFrame.
+
+        Args:
+            polars (bool):
+                Whether to return a Polars DataFrame. If False, a Pandas DataFrame will be returned.
+
+        Returns:
+            DataFrame:
+                A Pandas or Polars DataFrame containing the results.
+        """
 
 class LLMEvalMetric:
     """Defines an LLM eval metric to use when evaluating LLMs"""

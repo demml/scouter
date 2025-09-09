@@ -911,19 +911,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "55248b47b0caf0546f7988906588779981c43bb1bc9d0c44087278f80cdb44ba"
 
 [[package]]
-name = "bhtsne"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ed2b75685f61d5d102a61ad716bba1c796f24650089ed999d63b274467554da"
-dependencies = [
- "csv",
- "num-traits",
- "pdqselect",
- "rand 0.8.5",
- "rand_distr",
-]
-
-[[package]]
 name = "bigdecimal"
 version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3446,19 +3433,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "linfa-tsne"
-version = "0.7.1"
-source = "git+https://github.com/demml/linfa?branch=deps%2Fndarray#61bcdde23737e9cb05ca0692480fa9845bab0ded"
-dependencies = [
- "bhtsne",
- "linfa",
- "ndarray",
- "ndarray-rand",
- "pdqselect",
- "thiserror 2.0.16",
-]
-
-[[package]]
 name = "linux-raw-sys"
 version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4245,12 +4219,6 @@ dependencies = [
  "digest",
  "hmac",
 ]
-
-[[package]]
-name = "pdqselect"
-version = "0.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ec91767ecc0a0bbe558ce8c9da33c068066c57ecc8bb8477ef8c1ad3ef77c27"
 
 [[package]]
 name = "pem"
@@ -5484,7 +5452,6 @@ dependencies = [
  "linfa",
  "linfa-clustering",
  "linfa-reduction",
- "linfa-tsne",
  "ndarray",
  "num-traits",
  "potato-head",

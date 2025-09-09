@@ -59,7 +59,6 @@ jsonwebtoken = "9.*"
 linfa = {git = "https://github.com/demml/linfa", branch = "deps/ndarray"}
 linfa-clustering = {git = "https://github.com/demml/linfa", branch = "deps/ndarray"}
 linfa-reduction = {git = "https://github.com/demml/linfa", branch = "deps/ndarray"}
-linfa-tsne = {git = "https://github.com/demml/linfa", branch = "deps/ndarray"}
 metrics = { version = "0.*", default-features = false }
 metrics-exporter-prometheus = { version = "0.*", default-features = false }
 mimalloc = { version = "*", features = ["secure"] }

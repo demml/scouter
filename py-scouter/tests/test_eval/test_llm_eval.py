@@ -11,7 +11,7 @@ from scouter.llm.openai import OpenAIEmbeddingConfig  # type: ignore
 from scouter.mock import LLMTestServer
 
 
-def _test_llm_eval_no_embedding(
+def test_llm_eval_no_embedding(
     reformulation_evaluation_prompt, relevancy_evaluation_prompt
 ) -> None:
     with LLMTestServer():
@@ -36,9 +36,10 @@ def _test_llm_eval_no_embedding(
             metrics=[reformulation_metric, relevancy_metric],
         )
 
-        for result in results:
-            assert result["reformulation"].score > 0
-            assert result["relevancy"].score > 0
+        metrics = results["test_id_1"].metrics
+
+        assert metrics["reformulation"].score > 0
+        assert metrics["relevancy"].score > 0
 
         result_df: pd.DataFrame = results.to_dataframe()
 
@@ -84,11 +85,13 @@ def test_llm_eval_embedding(
                 embedder=embedder,
                 embedding_targets=["user_query", "response"],
                 compute_similarity=True,
+                cluster=True,
             ),
         )
+        metrics = results["test_id_1"].metrics
 
-        assert results["test_id_1"]["reformulation"].score > 0
-        assert results["test_id_1"]["relevancy"].score > 0
+        assert metrics["reformulation"].score > 0
+        assert metrics["relevancy"].score > 0
 
         result_df: pd.DataFrame = results.to_dataframe()
 
@@ -98,5 +101,4 @@ def test_llm_eval_embedding(
 
         assert isinstance(result_polars_df, pl.DataFrame)
 
-        assert result_df.shape[0] == 20  # 10 records x 2 metrics
-        a
+        assert result_df.shape[0] == 100  # 10 records x 2 metrics

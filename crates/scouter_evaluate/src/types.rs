@@ -1,6 +1,5 @@
 use crate::error::EvaluationError;
 use crate::util::{cluster, compute_mean, parse_embedder, post_process, reduce_dimensions};
-use ndarray::Array1;
 use ndarray::Array2;
 use potato_head::{create_uuid7, Embedder, PyHelperFuncs, Score};
 use pyo3::prelude::*;
@@ -99,8 +98,7 @@ pub fn array_to_dict<'py>(
 
     // add cluster column if available
     if array.clusters.len() == array.data.nrows() {
-        let cluster_data: Vec<Option<usize>> = array.clusters.iter().cloned().collect();
-        pydict.set_item("cluster", cluster_data)?;
+        pydict.set_item("cluster", array.clusters.clone())?;
     }
     Ok(pydict)
 }
@@ -168,13 +166,21 @@ impl LLMEvalResults {
 }
 
 impl LLMEvalResults {
+    /// Finalize the results by performing post-processing steps which includes:
+    /// - Post-processing embeddings (if any)
+    /// - Building the array dataset (if not already built)
+    /// - Performing clustering and dimensionality reduction (if enabled) for visualization
+    /// # Arguments
+    /// * `config` - The evaluation configuration that dictates post-processing behavior
+    /// # Returns
+    /// * `Result<(), EvaluationError>` - Returns Ok(()) if successful, otherwise returns
     pub fn finalize(&mut self, config: &Arc<EvaluationConfig>) -> Result<(), EvaluationError> {
-        // Step 1: Post-process embeddings if needed
+        // Post-process embeddings if needed
         if !config.embedding_targets.is_empty() {
             post_process(self, config);
         }
 
-        // Step 2: Build array dataset for clustering/dimensionality reduction
+        // Build array dataset for clustering/dimensionality reduction
         if config.cluster {
             self.build_array_dataset()?;
             self.perform_clustering_and_reduction()?;
@@ -183,6 +189,7 @@ impl LLMEvalResults {
         Ok(())
     }
 
+    /// Build an NDArray dataset from the result tasks
     fn build_array_dataset(&mut self) -> Result<(), EvaluationError> {
         if self.array_dataset.is_none() {
             self.array_dataset = Some(ArrayDataset::from_results(self)?);
@@ -201,7 +208,14 @@ impl LLMEvalResults {
         }
 
         // Cluster the data
-        dataset.clusters = cluster(&dataset.data)?;
+        let clusters = cluster(&dataset.data)?;
+        dataset.clusters = clusters
+            .iter()
+            .map(|&a| match a {
+                Some(v) => v as i32,
+                None => -1,
+            })
+            .collect();
 
         // Reduce dimensions if we have enough data
         let reduced = reduce_dimensions(&dataset.data, &dataset.clusters)?;
@@ -209,9 +223,8 @@ impl LLMEvalResults {
         if reduced.ncols() >= 2 {
             let x = reduced.column(0).to_vec();
             let y = reduced.column(1).to_vec();
-            let clusters = dataset.clusters.iter().cloned().collect();
 
-            self.cluster_data = Some(ClusterData::new(x, y, clusters));
+            self.cluster_data = Some(ClusterData::new(x, y, dataset.clusters.clone()));
         }
 
         Ok(())
@@ -226,11 +239,11 @@ pub struct ClusterData {
     #[pyo3(get)]
     pub y: Vec<f64>,
     #[pyo3(get)]
-    pub clusters: Vec<Option<usize>>,
+    pub clusters: Vec<i32>,
 }
 
 impl ClusterData {
-    pub fn new(x: Vec<f64>, y: Vec<f64>, clusters: Vec<Option<usize>>) -> Self {
+    pub fn new(x: Vec<f64>, y: Vec<f64>, clusters: Vec<i32>) -> Self {
         ClusterData { x, y, clusters }
     }
 }
@@ -240,7 +253,7 @@ pub struct ArrayDataset {
     pub data: Array2<f64>,
     pub feature_names: Vec<String>,
     pub idx_map: HashMap<usize, String>,
-    pub clusters: Array1<Option<usize>>,
+    pub clusters: Vec<i32>,
 }
 
 impl ArrayDataset {
@@ -249,10 +262,13 @@ impl ArrayDataset {
             data: Array2::zeros((0, 0)),
             feature_names: Vec::new(),
             idx_map: HashMap::new(),
-            clusters: Array1::from(vec![]),
+            clusters: vec![],
         }
     }
 
+    /// Build feature names from the results keys
+    /// This is used when constructing a dataframe from the results and when writing records
+    /// to the server
     fn build_feature_names(results: &LLMEvalResults) -> Result<Vec<String>, EvaluationError> {
         let first_task = results
             .results
@@ -311,7 +327,7 @@ impl ArrayDataset {
             data: array,
             feature_names,
             idx_map,
-            clusters: Array1::from(vec![None; n_rows]),
+            clusters: vec![],
         })
     }
 }
