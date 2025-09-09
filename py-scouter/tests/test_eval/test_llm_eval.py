@@ -11,9 +11,7 @@ from scouter.llm.openai import OpenAIEmbeddingConfig  # type: ignore
 from scouter.mock import LLMTestServer
 
 
-def test_llm_eval_no_embedding(
-    reformulation_evaluation_prompt, relevancy_evaluation_prompt
-) -> None:
+def test_llm_eval_no_embedding(reformulation_evaluation_prompt, relevancy_evaluation_prompt) -> None:
     with LLMTestServer():
         records = []
         for i in range(10):
@@ -50,9 +48,7 @@ def test_llm_eval_no_embedding(
         assert isinstance(result_polars_df, pl.DataFrame)
 
 
-def test_llm_eval_embedding(
-    reformulation_evaluation_prompt, relevancy_evaluation_prompt
-) -> None:
+def test_llm_eval_embedding(reformulation_evaluation_prompt, relevancy_evaluation_prompt) -> None:
     with LLMTestServer():
         records = []
 
@@ -86,6 +82,7 @@ def test_llm_eval_embedding(
                 embedding_targets=["user_query", "response"],
                 compute_similarity=True,
                 cluster=True,
+                compute_histograms=True,
             ),
         )
         metrics = results["test_id_1"].metrics

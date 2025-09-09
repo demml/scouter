@@ -13,6 +13,82 @@ use rayon::prelude::*;
 use std::cmp::Ord;
 use std::collections::{BTreeMap, HashMap, HashSet};
 use tracing::{debug, error, warn};
+
+/// Compute the histogram and bins from a 2D matrix.
+///
+/// # Arguments
+///
+/// * `array` - A 2D array of values.
+///
+/// # Returns
+///
+pub fn compute_bins<F>(
+    array: &ArrayView1<F>,
+    bin_size: &usize,
+) -> Result<Vec<f64>, DataProfileError>
+where
+    F: Float + Num + core::ops::Sub,
+    f64: From<F>,
+{
+    // find the min and max of the data
+
+    let max: f64 = array.max()?.to_owned().into();
+    let min: f64 = array.min()?.to_owned().into();
+
+    // create a vector of bins
+    let mut bins = Vec::<f64>::with_capacity(*bin_size);
+
+    // compute the bin width
+    let bin_width = (max - min) / *bin_size as f64;
+
+    // create the bins
+    for i in 0..*bin_size {
+        bins.push(min + bin_width * i as f64);
+    }
+
+    // return the bins
+    Ok(bins)
+}
+
+pub fn compute_bin_counts<F>(
+    array: &ArrayView1<F>,
+    bins: &[f64],
+) -> Result<Vec<i32>, DataProfileError>
+where
+    F: Num + ndarray_stats::MaybeNan + std::marker::Send + Sync + Clone + Copy + num_traits::Float,
+    f64: From<F>,
+{
+    // create a vector of size bins
+    let mut bin_counts = vec![0; bins.len()];
+    let max_bin = bins.last().ok_or(DataProfileError::MaxBinError)?;
+
+    array.for_each(|datum| {
+        let val: f64 = datum.to_owned().into();
+
+        // iterate over the bins
+        for (i, bin) in bins.iter().enumerate() {
+            if bin != max_bin {
+                // check if datum is between bin and next bin
+                if &val >= bin && val < bins[i + 1] {
+                    bin_counts[i] += 1;
+                    break;
+                }
+                continue;
+            } else if bin == max_bin {
+                if &val > bin {
+                    bin_counts[i] += 1;
+                    break;
+                }
+                continue;
+            } else {
+                continue;
+            }
+        }
+    });
+
+    Ok(bin_counts)
+}
+
 pub struct NumProfiler {}
 
 impl NumProfiler {
@@ -161,89 +237,6 @@ impl NumProfiler {
         Ok(unique)
     }
 
-    /// Compute the histogram and bins from a 2D matrix.
-    ///
-    /// # Arguments
-    ///
-    /// * `array` - A 2D array of values.
-    ///
-    /// # Returns
-    ///
-    pub fn compute_bins<F>(
-        &self,
-        array: &ArrayView1<F>,
-        bin_size: &usize,
-    ) -> Result<Vec<f64>, DataProfileError>
-    where
-        F: Float + Num + core::ops::Sub,
-        f64: From<F>,
-    {
-        // find the min and max of the data
-
-        let max: f64 = array.max()?.to_owned().into();
-        let min: f64 = array.min()?.to_owned().into();
-
-        // create a vector of bins
-        let mut bins = Vec::<f64>::with_capacity(*bin_size);
-
-        // compute the bin width
-        let bin_width = (max - min) / *bin_size as f64;
-
-        // create the bins
-        for i in 0..*bin_size {
-            bins.push(min + bin_width * i as f64);
-        }
-
-        // return the bins
-        Ok(bins)
-    }
-
-    pub fn compute_bin_counts<F>(
-        &self,
-        array: &ArrayView1<F>,
-        bins: &[f64],
-    ) -> Result<Vec<i32>, DataProfileError>
-    where
-        F: Num
-            + ndarray_stats::MaybeNan
-            + std::marker::Send
-            + Sync
-            + Clone
-            + Copy
-            + num_traits::Float,
-        f64: From<F>,
-    {
-        // create a vector of size bins
-        let mut bin_counts = vec![0; bins.len()];
-        let max_bin = bins.last().ok_or(DataProfileError::MaxBinError)?;
-
-        array.for_each(|datum| {
-            let val: f64 = datum.to_owned().into();
-
-            // iterate over the bins
-            for (i, bin) in bins.iter().enumerate() {
-                if bin != max_bin {
-                    // check if datum is between bin and next bin
-                    if &val >= bin && val < bins[i + 1] {
-                        bin_counts[i] += 1;
-                        break;
-                    }
-                    continue;
-                } else if bin == max_bin {
-                    if &val > bin {
-                        bin_counts[i] += 1;
-                        break;
-                    }
-                    continue;
-                } else {
-                    continue;
-                }
-            }
-        });
-
-        Ok(bin_counts)
-    }
-
     pub fn compute_histogram<F>(
         &self,
         array: &ArrayView2<F>,
@@ -278,7 +271,7 @@ impl NumProfiler {
                     return Ok((features[idx].clone(), Histogram::default()));
                 }
 
-                let bins = self.compute_bins(&column, bin_size).map_err(|e| {
+                let bins = compute_bins(&column, bin_size).inspect_err(|e| {
                     error!(
                         error = %e,
                         feature = %features.get(idx).unwrap_or(&"Unknown".to_string()),
@@ -286,15 +279,13 @@ impl NumProfiler {
                         bin_size = bin_size,
                         "Failed to compute bins"
                     );
-                    e
                 })?;
-                let bin_counts = self.compute_bin_counts(&column, &bins).map_err(|e| {
+                let bin_counts = compute_bin_counts(&column, &bins).inspect_err(|e| {
                     error!(
                         error = %e,
                         feature = %features.get(idx).unwrap_or(&"Unknown".to_string()),
                         "Failed to compute bin counts"
                     );
-                    e
                 })?;
 
                 // Create histogram for this feature

@@ -880,7 +880,7 @@ dependencies = [
 [[package]]
 name = "baked-potato"
 version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#439cb1c18236770847a291f2f3ac2cee786a8c1a"
+source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#1f01d75ffdc5ec2cf79e4f268da05e464aba333b"
 dependencies = [
  "mockito",
  "potato-agent",
@@ -2638,7 +2638,7 @@ dependencies = [
  "js-sys",
  "libc",
  "r-efi",
- "wasi 0.14.4+wasi-0.2.4",
+ "wasi 0.14.5+wasi-0.2.4",
  "wasm-bindgen",
 ]
 
@@ -4415,7 +4415,7 @@ dependencies = [
 [[package]]
 name = "potato-agent"
 version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#439cb1c18236770847a291f2f3ac2cee786a8c1a"
+source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#1f01d75ffdc5ec2cf79e4f268da05e464aba333b"
 dependencies = [
  "base64",
  "potato-prompt",
@@ -4433,7 +4433,7 @@ dependencies = [
 [[package]]
 name = "potato-head"
 version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#439cb1c18236770847a291f2f3ac2cee786a8c1a"
+source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#1f01d75ffdc5ec2cf79e4f268da05e464aba333b"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -4446,7 +4446,7 @@ dependencies = [
 [[package]]
 name = "potato-prompt"
 version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#439cb1c18236770847a291f2f3ac2cee786a8c1a"
+source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#1f01d75ffdc5ec2cf79e4f268da05e464aba333b"
 dependencies = [
  "mime_guess",
  "potato-type",
@@ -4463,7 +4463,7 @@ dependencies = [
 [[package]]
 name = "potato-type"
 version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#439cb1c18236770847a291f2f3ac2cee786a8c1a"
+source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#1f01d75ffdc5ec2cf79e4f268da05e464aba333b"
 dependencies = [
  "potato-util",
  "pyo3",
@@ -4477,7 +4477,7 @@ dependencies = [
 [[package]]
 name = "potato-util"
 version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#439cb1c18236770847a291f2f3ac2cee786a8c1a"
+source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#1f01d75ffdc5ec2cf79e4f268da05e464aba333b"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -4492,7 +4492,7 @@ dependencies = [
 [[package]]
 name = "potato-workflow"
 version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#439cb1c18236770847a291f2f3ac2cee786a8c1a"
+source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#1f01d75ffdc5ec2cf79e4f268da05e464aba333b"
 dependencies = [
  "chrono",
  "potato-agent",
@@ -5457,6 +5457,7 @@ dependencies = [
  "potato-head",
  "pyo3",
  "rayon",
+ "scouter-profile",
  "scouter-types",
  "serde",
  "serde_json",
@@ -6914,9 +6915,18 @@ checksum = "ccf3ec651a847eb01de73ccad15eb7d99f80485de043efb2f370cd654f4ea44b"
 
 [[package]]
 name = "wasi"
-version = "0.14.4+wasi-0.2.4"
+version = "0.14.5+wasi-0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "88a5f4a424faf49c3c2c344f166f0662341d470ea185e939657aaff130f0ec4a"
+checksum = "a4494f6290a82f5fe584817a676a34b9d6763e8d9d18204009fb31dceca98fd4"
+dependencies = [
+ "wasip2",
+]
+
+[[package]]
+name = "wasip2"
+version = "1.0.0+wasi-0.2.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03fa2761397e5bd52002cd7e73110c71af2109aca4e521a9f40473fe685b0a24"
 dependencies = [
  "wit-bindgen",
 ]

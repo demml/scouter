@@ -9,6 +9,7 @@ description = "LLM Evaluation logic for Scouter"
 doctest = false
 
 [dependencies]
+scouter-profile = { workspace = true }
 scouter-types = { workspace = true }
 itertools = { workspace = true }
 ndarray = { workspace = true }

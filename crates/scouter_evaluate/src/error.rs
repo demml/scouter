@@ -46,6 +46,9 @@ pub enum EvaluationError {
 
     #[error(transparent)]
     ShapeError(#[from] ndarray::ShapeError),
+
+    #[error(transparent)]
+    DataProfileError(#[from] scouter_profile::error::DataProfileError),
 }
 
 impl From<EvaluationError> for PyErr {

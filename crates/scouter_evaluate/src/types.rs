@@ -5,6 +5,7 @@ use potato_head::{create_uuid7, Embedder, PyHelperFuncs, Score};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use pyo3::IntoPyObjectExt;
+use scouter_profile::{Histogram, NumProfiler};
 use scouter_types::{is_pydantic_model, json_to_pyobject_value, pyobject_to_json};
 use serde::Serialize;
 use serde_json::Value;
@@ -111,6 +112,7 @@ pub struct LLMEvalResults {
     pub errored_tasks: Vec<String>,
     pub array_dataset: Option<ArrayDataset>,
     pub cluster_data: Option<ClusterData>,
+    pub histograms: Option<HashMap<String, Histogram>>,
 }
 
 #[pymethods]
@@ -177,6 +179,23 @@ impl LLMEvalResults {
         // Post-process embeddings if needed
         if !config.embedding_targets.is_empty() {
             post_process(self, config);
+        }
+
+        if config.compute_histograms {
+            self.build_array_dataset()?;
+
+            // Compute histograms for all numeric fields
+            if let Some(array_dataset) = &self.array_dataset {
+                let profiler = NumProfiler::new();
+                let histograms = profiler.compute_histogram(
+                    &array_dataset.data.view(),
+                    &array_dataset.feature_names,
+                    &10,
+                    false,
+                )?;
+
+                self.histograms = Some(histograms);
+            }
         }
 
         // Build array dataset for clustering/dimensionality reduction
@@ -344,6 +363,7 @@ impl LLMEvalResults {
             errored_tasks: Vec::new(),
             array_dataset: None,
             cluster_data: None,
+            histograms: None,
         }
     }
 }
