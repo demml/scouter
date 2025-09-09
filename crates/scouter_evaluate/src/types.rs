@@ -1,5 +1,6 @@
 use crate::error::EvaluationError;
-use crate::util::{compute_mean, parse_embedder};
+use crate::util::{cluster, compute_mean, parse_embedder, post_process, reduce_dimensions};
+use ndarray::Array1;
 use ndarray::Array2;
 use potato_head::{create_uuid7, Embedder, PyHelperFuncs, Score};
 use pyo3::prelude::*;
@@ -10,6 +11,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
+
 #[derive(Debug, Clone, Serialize)]
 #[pyclass]
 pub struct MetricResult {
@@ -56,7 +58,6 @@ pub fn llm_tasks_to_records<'py>(
     py: Python<'py>,
     records: &mut Vec<Bound<'py, PyDict>>,
     task_result: &LLMEvalTaskResult,
-    embedding_targets: &Arc<Vec<String>>,
 ) -> Result<(), EvaluationError> {
     for (task_name, score) in &task_result.metrics {
         let dict = PyDict::new(py);
@@ -66,36 +67,56 @@ pub fn llm_tasks_to_records<'py>(
         dict.set_item("reason", score.reason.clone())?;
 
         // Iterate over embeddings if embedding targets are provided
-        if !embedding_targets.is_empty() {
-            for target in embedding_targets.iter() {
-                if let Some(embedding) = task_result.embedding.get(target) {
-                    dict.set_item(target, compute_mean(embedding).unwrap_or(-1.0))?;
-                } else {
-                    dict.set_item(target, None::<f32>)?;
-                }
+        if !task_result.embedding.is_empty() {
+            for (target, values) in task_result.embedding.iter() {
+                dict.set_item(target, compute_mean(values).unwrap_or(-1.0))?;
             }
         }
+
         records.push(dict);
     }
 
     Ok(())
 }
 
+pub fn array_to_dict<'py>(
+    py: Python<'py>,
+    array: &ArrayDataset,
+) -> Result<Bound<'py, PyDict>, EvaluationError> {
+    let pydict = PyDict::new(py);
+
+    // set task ids
+    pydict.set_item(
+        "task",
+        array.idx_map.values().cloned().collect::<Vec<String>>(),
+    )?;
+
+    // set feature columns
+    for (i, feature) in array.feature_names.iter().enumerate() {
+        let column_data: Vec<f64> = array.data.column(i).to_vec();
+        pydict.set_item(feature, column_data)?;
+    }
+
+    // add cluster column if available
+    if array.clusters.len() == array.data.nrows() {
+        let cluster_data: Vec<Option<usize>> = array.clusters.iter().cloned().collect();
+        pydict.set_item("cluster", cluster_data)?;
+    }
+    Ok(pydict)
+}
+
 /// Enhanced results collection that captures both successes and failures
-#[derive(Debug, Serialize)]
+#[derive(Debug)]
 #[pyclass]
 pub struct LLMEvalResults {
     pub results: HashMap<String, LLMEvalTaskResult>,
     pub errored_tasks: Vec<String>,
-    pub embedding_targets: Arc<Vec<String>>,
+    pub array_dataset: Option<ArrayDataset>,
+    pub cluster_data: Option<ClusterData>,
 }
 
 #[pymethods]
 impl LLMEvalResults {
-    pub fn __str__(&self) -> String {
-        PyHelperFuncs::__str__(self)
-    }
-
     /// Get tasks for a specific record ID
     pub fn __getitem__(&self, key: &str) -> Result<LLMEvalTaskResult, EvaluationError> {
         match self.results.get(key) {
@@ -106,56 +127,209 @@ impl LLMEvalResults {
 
     #[pyo3(signature = (polars=false))]
     pub fn to_dataframe<'py>(
-        &self,
+        &mut self,
         py: Python<'py>,
         polars: bool,
     ) -> Result<Bound<'py, PyAny>, EvaluationError> {
-        let mut records = Vec::new();
-
-        for task in self.results.values() {
-            llm_tasks_to_records(py, &mut records, task, &self.embedding_targets)?;
+        if self.array_dataset.is_none() {
+            self.build_array_dataset()?;
         }
+
+        let dataset = self.array_dataset.as_ref().unwrap();
+        let records = array_to_dict(py, dataset)?;
+
+        let module = if polars { "polars" } else { "pandas" };
+        let method = if polars { "DataFrame" } else { "DataFrame" };
+
+        let df_module = py.import(module)?;
+        let df_class = df_module.getattr(method)?;
+
         if polars {
-            let polars = py.import("polars")?.getattr("DataFrame")?;
-            let df = polars.call1((records,))?;
-            Ok(df)
+            Ok(df_class.call1((records,))?)
         } else {
-            let pandas = py.import("pandas")?.getattr("DataFrame")?;
-            let df = pandas.call_method1("from_records", (records,))?;
-
-            Ok(df)
+            Ok(df_class.call_method1("from_dict", (records,))?)
         }
+    }
+
+    #[getter]
+    pub fn cluster_data(&self) -> Option<ClusterData> {
+        self.cluster_data.clone()
+    }
+
+    #[getter]
+    pub fn successful_count(&self) -> usize {
+        self.results.len()
+    }
+
+    #[getter]
+    pub fn failed_count(&self) -> usize {
+        self.errored_tasks.len()
     }
 }
 
 impl LLMEvalResults {
-    pub fn new(embedding_targets: Arc<Vec<String>>) -> Self {
+    pub fn finalize(&mut self, config: &Arc<EvaluationConfig>) -> Result<(), EvaluationError> {
+        // Step 1: Post-process embeddings if needed
+        if !config.embedding_targets.is_empty() {
+            post_process(self, config);
+        }
+
+        // Step 2: Build array dataset for clustering/dimensionality reduction
+        if config.cluster {
+            self.build_array_dataset()?;
+            self.perform_clustering_and_reduction()?;
+        }
+
+        Ok(())
+    }
+
+    fn build_array_dataset(&mut self) -> Result<(), EvaluationError> {
+        if self.array_dataset.is_none() {
+            self.array_dataset = Some(ArrayDataset::from_results(self)?);
+        }
+        Ok(())
+    }
+
+    /// Perform clustering and dimensionality reduction on the dataset
+    fn perform_clustering_and_reduction(&mut self) -> Result<(), EvaluationError> {
+        let dataset = self.array_dataset.as_mut().unwrap();
+
+        // Skip if insufficient data
+        if dataset.data.nrows() < 5 {
+            tracing::warn!("Insufficient data for clustering (need at least 5 points)");
+            return Ok(());
+        }
+
+        // Cluster the data
+        dataset.clusters = cluster(&dataset.data)?;
+
+        // Reduce dimensions if we have enough data
+        let reduced = reduce_dimensions(&dataset.data, &dataset.clusters)?;
+
+        if reduced.ncols() >= 2 {
+            let x = reduced.column(0).to_vec();
+            let y = reduced.column(1).to_vec();
+            let clusters = dataset.clusters.iter().cloned().collect();
+
+            self.cluster_data = Some(ClusterData::new(x, y, clusters));
+        }
+
+        Ok(())
+    }
+}
+
+#[derive(Debug, Clone)]
+#[pyclass]
+pub struct ClusterData {
+    #[pyo3(get)]
+    pub x: Vec<f64>,
+    #[pyo3(get)]
+    pub y: Vec<f64>,
+    #[pyo3(get)]
+    pub clusters: Vec<Option<usize>>,
+}
+
+impl ClusterData {
+    pub fn new(x: Vec<f64>, y: Vec<f64>, clusters: Vec<Option<usize>>) -> Self {
+        ClusterData { x, y, clusters }
+    }
+}
+
+#[derive(Debug)]
+pub struct ArrayDataset {
+    pub data: Array2<f64>,
+    pub feature_names: Vec<String>,
+    pub idx_map: HashMap<usize, String>,
+    pub clusters: Array1<Option<usize>>,
+}
+
+impl ArrayDataset {
+    pub fn new() -> Self {
         Self {
-            results: HashMap::new(),
-            errored_tasks: Vec::new(),
-            embedding_targets,
+            data: Array2::zeros((0, 0)),
+            feature_names: Vec::new(),
+            idx_map: HashMap::new(),
+            clusters: Array1::from(vec![]),
         }
     }
 
-    pub fn to_array(&self, num_metrics: usize) -> Result<Array2<f32>, EvaluationError> {
-        let mut data = Vec::new();
-        let n_cols = num_metrics;
+    fn build_feature_names(results: &LLMEvalResults) -> Result<Vec<String>, EvaluationError> {
+        let first_task = results
+            .results
+            .values()
+            .next()
+            .ok_or(EvaluationError::NoResultsFound)?;
 
-        for task in self.results.values() {
-            // need to
-            let row = task
-                .metrics
+        let mut names = Vec::new();
+
+        // BTreeMap iteration is already sorted
+        names.extend(first_task.metrics.keys().cloned());
+        names.extend(first_task.mean_embeddings.keys().cloned());
+        names.extend(first_task.similarity_scores.keys().cloned());
+
+        Ok(names)
+    }
+
+    fn from_results(results: &LLMEvalResults) -> Result<Self, EvaluationError> {
+        if results.results.is_empty() {
+            return Ok(Self::new());
+        }
+
+        let feature_names = Self::build_feature_names(results)?;
+        let n_rows = results.results.len();
+        let n_cols = feature_names.len();
+
+        let mut data = Vec::with_capacity(n_rows * n_cols);
+        let mut idx_map = HashMap::new();
+
+        // Build data matrix efficiently
+        for (i, task) in results.results.values().enumerate() {
+            idx_map.insert(i, task.id.clone());
+
+            // Collect all values in correct order (metrics, embeddings, similarities)
+            let row: Vec<f64> = feature_names
                 .iter()
-                .map(|(_task_id, score)| score.score as f32)
-                .collect::<Vec<f32>>();
+                .map(|name| {
+                    if let Some(score) = task.metrics.get(name) {
+                        score.score as f64
+                    } else if let Some(&mean) = task.mean_embeddings.get(name) {
+                        mean
+                    } else if let Some(&sim) = task.similarity_scores.get(name) {
+                        sim
+                    } else {
+                        0.0 // Default for missing values
+                    }
+                })
+                .collect();
+
             data.extend(row);
         }
 
-        let n_rows = self.results.len();
+        let array = Array2::from_shape_vec((n_rows, n_cols), data)?;
 
-        let array = Array2::from_shape_vec((n_rows, n_cols), data).unwrap();
+        Ok(Self {
+            data: array,
+            feature_names,
+            idx_map,
+            clusters: Array1::from(vec![None; n_rows]),
+        })
+    }
+}
 
-        Ok(array)
+impl LLMEvalResults {
+    pub fn new() -> Self {
+        Self {
+            results: HashMap::new(),
+            errored_tasks: Vec::new(),
+            array_dataset: None,
+            cluster_data: None,
+        }
+    }
+}
+
+impl Default for LLMEvalResults {
+    fn default() -> Self {
+        Self::new()
     }
 }
 
@@ -165,10 +339,18 @@ impl LLMEvalResults {
 pub struct LLMEvalTaskResult {
     #[pyo3(get)]
     pub id: String,
+
     #[pyo3(get)]
     pub metrics: BTreeMap<String, Score>,
+
     #[pyo3(get)]
     pub embedding: BTreeMap<String, Vec<f32>>,
+
+    #[pyo3(get)]
+    pub mean_embeddings: BTreeMap<String, f64>,
+
+    #[pyo3(get)]
+    pub similarity_scores: BTreeMap<String, f64>,
 }
 
 #[pymethods]
@@ -188,6 +370,8 @@ impl LLMEvalTaskResult {
             id,
             metrics,
             embedding,
+            mean_embeddings: BTreeMap::new(),
+            similarity_scores: BTreeMap::new(),
         }
     }
 }
@@ -250,7 +434,7 @@ pub struct EvaluationConfig {
     pub embedder: Option<Arc<Embedder>>,
 
     // fields in the record to generate embeddings for
-    pub embedding_targets: Arc<Vec<String>>,
+    pub embedding_targets: Vec<String>,
 
     // this will compute similarities for all combinations of embeddings in the targets
     // e.g. if you have targets ["a", "b"], it will compute similarity between a-b
@@ -283,9 +467,13 @@ impl EvaluationConfig {
 
         Ok(Self {
             embedder,
-            embedding_targets: Arc::new(embedding_targets),
+            embedding_targets,
             compute_similarity,
             cluster,
         })
+    }
+
+    pub fn needs_post_processing(&self) -> bool {
+        !self.embedding_targets.is_empty() || self.cluster
     }
 }

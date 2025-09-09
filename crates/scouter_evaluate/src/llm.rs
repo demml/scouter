@@ -2,15 +2,15 @@ use crate::error::EvaluationError;
 use crate::types::{EvaluationConfig, LLMEvalTaskResult};
 use crate::types::{LLMEvalRecord, LLMEvalResults};
 use crate::util::{
-    cluster, collect_evaluation_results, spawn_evaluation_tasks_with_embeddings,
+    collect_evaluation_results, spawn_evaluation_tasks_with_embeddings,
     spawn_evaluation_tasks_without_embeddings,
 };
-use core::num;
 use potato_head::{Agent, Provider, Task, Workflow, WorkflowError};
 use pyo3::prelude::*;
 use scouter_types::eval::LLMEvalMetric;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
+use std::sync::Arc;
 use tokio::task::JoinSet;
 use tracing::{debug, instrument};
 
@@ -24,31 +24,28 @@ use tracing::{debug, instrument};
 async fn async_evaluate_llm(
     workflow: Workflow,
     records: Vec<LLMEvalRecord>,
-    config: EvaluationConfig,
+    config: &Arc<EvaluationConfig>,
 ) -> Result<LLMEvalResults, EvaluationError> {
     debug!("Starting LLM evaluation for {} records", records.len());
 
-    let join_set: JoinSet<(String, Option<LLMEvalTaskResult>)> =
-        match (config.embedder, config.embedding_targets.is_empty()) {
-            (Some(embedder), false) => {
-                debug!("Using embedding-enabled evaluation path");
-                spawn_evaluation_tasks_with_embeddings(
-                    workflow,
-                    records,
-                    embedder,
-                    config.embedding_targets.clone(),
-                )
+    let join_set: JoinSet<(String, Option<LLMEvalTaskResult>)> = match (
+        config.embedder.as_ref(),
+        config.embedding_targets.is_empty(),
+    ) {
+        (Some(embedder), false) => {
+            debug!("Using embedding-enabled evaluation path");
+            spawn_evaluation_tasks_with_embeddings(workflow, records, Arc::clone(embedder), config)
                 .await
-            }
-            _ => {
-                debug!("Using standard evaluation path");
+        }
+        _ => {
+            debug!("Using standard evaluation path");
 
-                // this will return a list of VecEval
-                spawn_evaluation_tasks_without_embeddings(workflow, records).await
-            }
-        };
+            // this will return a list of VecEval
+            spawn_evaluation_tasks_without_embeddings(workflow, records).await
+        }
+    };
 
-    let results = collect_evaluation_results(join_set, config.embedding_targets).await?;
+    let results = collect_evaluation_results(join_set).await?;
 
     Ok(results)
 }
@@ -102,20 +99,18 @@ pub fn evaluate_llm(
     metrics: Vec<LLMEvalMetric>,
     config: Option<EvaluationConfig>,
 ) -> Result<LLMEvalResults, EvaluationError> {
-    let num_metrics = metrics.len();
     let workflow = workflow_from_eval_metrics(metrics, "LLM Evaluation")?;
+    let config = Arc::new(config.unwrap_or_default());
+
+    // Create runtime and execute evaluation pipeline
     let runtime = tokio::runtime::Runtime::new()?;
+    let mut results =
+        runtime.block_on(async { async_evaluate_llm(workflow, records, &config).await })?;
 
-    let config = config.unwrap_or_default();
-
-    let results =
-        runtime.block_on(async { async_evaluate_llm(workflow, records, config).await })?;
-
-    let array = results.to_array(num_metrics)?;
-
-    println!("Array: {:?}", array);
-
-    cluster(&array);
+    // Only run post-processing if needed
+    if config.needs_post_processing() {
+        results.finalize(&config)?;
+    }
 
     Ok(results)
 }

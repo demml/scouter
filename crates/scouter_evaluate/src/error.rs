@@ -34,6 +34,18 @@ pub enum EvaluationError {
 
     #[error("Invalid embedder type. Expected an instance of Embedder")]
     InvalidEmbedderType,
+
+    #[error("No results found in evaluation results")]
+    NoResultsFound,
+
+    #[error(transparent)]
+    ClusteringError(#[from] linfa_clustering::DbscanParamsError),
+
+    #[error(transparent)]
+    ReductionError(#[from] linfa_reduction::ReductionError),
+
+    #[error(transparent)]
+    ShapeError(#[from] ndarray::ShapeError),
 }
 
 impl From<EvaluationError> for PyErr {

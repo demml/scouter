@@ -1,11 +1,11 @@
 import pandas as pd
 import polars as pl
-from scouter.evaluate import (
+from scouter.evaluate import (  # type: ignore
+    EvaluationConfig,
     LLMEvalMetric,
     LLMEvalRecord,
     evaluate_llm,
-    EvaluationConfig,
-)  # type: ignore
+)
 from scouter.llm import Embedder, Provider  # type: ignore
 from scouter.llm.openai import OpenAIEmbeddingConfig  # type: ignore
 from scouter.mock import LLMTestServer
@@ -62,7 +62,7 @@ def test_llm_eval_embedding(
                 dimensions=512,
             ),
         )
-        for i in range(10):
+        for i in range(100):
             record = LLMEvalRecord(
                 context={"user_query": "my query", "response": "my response"},
                 id=f"test_id_{i}",
@@ -82,7 +82,8 @@ def test_llm_eval_embedding(
             metrics=[reformulation_metric, relevancy_metric],
             config=EvaluationConfig(
                 embedder=embedder,
-                embedding_targets=["user_query"],
+                embedding_targets=["user_query", "response"],
+                compute_similarity=True,
             ),
         )
 
