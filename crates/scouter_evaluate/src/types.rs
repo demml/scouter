@@ -137,10 +137,9 @@ impl LLMEvalResults {
         let records = array_to_dict(py, dataset)?;
 
         let module = if polars { "polars" } else { "pandas" };
-        let method = if polars { "DataFrame" } else { "DataFrame" };
 
         let df_module = py.import(module)?;
-        let df_class = df_module.getattr(method)?;
+        let df_class = df_module.getattr("DataFrame")?;
 
         if polars {
             Ok(df_class.call1((records,))?)
@@ -254,6 +253,12 @@ pub struct ArrayDataset {
     pub feature_names: Vec<String>,
     pub idx_map: HashMap<usize, String>,
     pub clusters: Vec<i32>,
+}
+
+impl Default for ArrayDataset {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ArrayDataset {

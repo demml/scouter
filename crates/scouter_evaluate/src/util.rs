@@ -338,7 +338,7 @@ pub fn post_process(results: &mut LLMEvalResults, config: &Arc<EvaluationConfig>
 /// * `cluster_ids` - The cluster IDs for each data point.
 pub fn reduce_dimensions(
     data: &Array2<f64>,
-    cluster_ids: &Vec<i32>,
+    cluster_ids: &[i32],
 ) -> Result<Array2<f64>, EvaluationError> {
     let ds = Dataset::new(
         data.clone(),
