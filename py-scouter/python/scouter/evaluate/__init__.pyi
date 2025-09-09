@@ -2,7 +2,7 @@
 # pylint: disable=redefined-builtin
 from typing import Any, Dict, List, Optional, Protocol, TypeAlias, Union
 
-from ..llm import Embedder, Prompt, Score
+from ..llm import Embedder, Prompt
 
 class BaseModel(Protocol):
     """Protocol for pydantic BaseModel to ensure compatibility with context"""
@@ -143,8 +143,7 @@ class LLMEvalRecord:
 def evaluate_llm(
     records: List[LLMEvalRecord],
     metrics: List[LLMEvalMetric],
-    embedder: Optional[Embedder] = None,
-    embedding_targets: Optional[List[str]] = None,
+    config: Optional[EvaluationConfig] = None,
 ) -> LLMEvalResults:
     """
     Evaluate LLM responses using the provided evaluation metrics.
@@ -154,13 +153,35 @@ def evaluate_llm(
             List of LLM evaluation records to evaluate.
         metrics (List[LLMEvalMetric]):
             List of LLMEvalMetric instances to use for evaluation.
-        embedder (Optional[Embedder]):
-            Optional Embedder instance to use for generating embeddings for similarity-based metrics.
-            If not provided, no embeddings will be generated.
-        embedding_targets (Optional[List[str]]):
-            Optional list of context keys to generate embeddings for. If not provided, embeddings will
-            be generated for all string fields in the record context.
+        config (Optional[EvaluationConfig]):
+            Optional EvaluationConfig instance to configure evaluation options.
 
     Returns:
         LLMEvalResults
     """
+
+class EvaluationConfig:
+    """Configuration options for LLM evaluation."""
+
+    def __init__(
+        self,
+        embedder: Optional[Embedder] = None,
+        embedding_targets: Optional[List[str]] = None,
+        compute_similarity: bool = False,
+        cluster: bool = False,
+    ):
+        """
+        Initialize the EvaluationConfig with optional parameters.
+
+        Args:
+            embedder (Optional[Embedder]):
+                Optional Embedder instance to use for generating embeddings for similarity-based metrics.
+                If not provided, no embeddings will be generated.
+            embedding_targets (Optional[List[str]]):
+                Optional list of context keys to generate embeddings for. If not provided, embeddings will
+                be generated for all string fields in the record context.
+            compute_similarity (bool):
+                Whether to compute similarity between embeddings. Default is False.
+            cluster (bool):
+                Whether to perform clustering on the embeddings. Default is False.
+        """

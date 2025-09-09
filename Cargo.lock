@@ -187,6 +187,15 @@ checksum = "b0674a1ddeecb70197781e945de4b3b8ffb61fa939a5597bcf48503737663100"
 
 [[package]]
 name = "approx"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f2a05fd1bd10b2527e20a2cd32d8873d115b8b39fe219ee25f42a8aca6ba278"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
+name = "approx"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cab112f0a86d568ea0e627cc1d6be74a1e9cd55214684db5561995f6dad897c6"
@@ -430,7 +439,7 @@ dependencies = [
  "arrow-schema 55.2.0",
  "chrono",
  "half",
- "indexmap",
+ "indexmap 2.11.0",
  "lexical-core",
  "memchr",
  "num",
@@ -860,7 +869,7 @@ dependencies = [
 [[package]]
 name = "baked-potato"
 version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#9dc4f0f03b8b806fa8b5727d509c867538bf3fd2"
+source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#5d26b00af85d9d8e68ed4339e8a839b93432cdbd"
 dependencies = [
  "mockito",
  "potato-agent",
@@ -1626,7 +1635,7 @@ dependencies = [
  "half",
  "hashbrown 0.14.5",
  "hex",
- "indexmap",
+ "indexmap 2.11.0",
  "libc",
  "log",
  "object_store",
@@ -1808,7 +1817,7 @@ dependencies = [
  "datafusion-functions-aggregate-common",
  "datafusion-functions-window-common",
  "datafusion-physical-expr-common",
- "indexmap",
+ "indexmap 2.11.0",
  "paste",
  "recursive",
  "serde_json",
@@ -1823,7 +1832,7 @@ checksum = "9d5c267104849d5fa6d81cf5ba88f35ecd58727729c5eb84066c25227b644ae2"
 dependencies = [
  "arrow",
  "datafusion-common",
- "indexmap",
+ "indexmap 2.11.0",
  "itertools 0.14.0",
  "paste",
 ]
@@ -1980,7 +1989,7 @@ dependencies = [
  "datafusion-expr",
  "datafusion-expr-common",
  "datafusion-physical-expr",
- "indexmap",
+ "indexmap 2.11.0",
  "itertools 0.14.0",
  "log",
  "recursive",
@@ -2003,7 +2012,7 @@ dependencies = [
  "datafusion-physical-expr-common",
  "half",
  "hashbrown 0.14.5",
- "indexmap",
+ "indexmap 2.11.0",
  "itertools 0.14.0",
  "log",
  "paste",
@@ -2066,7 +2075,7 @@ dependencies = [
  "futures",
  "half",
  "hashbrown 0.14.5",
- "indexmap",
+ "indexmap 2.11.0",
  "itertools 0.14.0",
  "log",
  "parking_lot",
@@ -2126,7 +2135,7 @@ dependencies = [
  "bigdecimal",
  "datafusion-common",
  "datafusion-expr",
- "indexmap",
+ "indexmap 2.11.0",
  "log",
  "recursive",
  "regex",
@@ -2645,7 +2654,7 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "http",
- "indexmap",
+ "indexmap 2.11.0",
  "slab",
  "tokio",
  "tokio-util",
@@ -2662,6 +2671,12 @@ dependencies = [
  "crunchy",
  "num-traits",
 ]
+
+[[package]]
+name = "hashbrown"
+version = "0.12.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
 
 [[package]]
 name = "hashbrown"
@@ -2994,6 +3009,16 @@ dependencies = [
 
 [[package]]
 name = "indexmap"
+version = "1.9.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bd070e393353796e801d209ad339e89596eb4c8d430d18ede6a1cced8fafbd99"
+dependencies = [
+ "autocfg",
+ "hashbrown 0.12.3",
+]
+
+[[package]]
+name = "indexmap"
 version = "2.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f2481980430f9f78649238835720ddccc57e52df14ffce1c6f37391d61b563e9"
@@ -3092,6 +3117,15 @@ checksum = "7943c866cc5cd64cbc25b2e01621d07fa8eb2a1a23160ee81ce38704e97b8ecf"
 
 [[package]]
 name = "itertools"
+version = "0.10.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b0fd2260e829bddf4cb6ea802289de2f86d6a7a690192fbe91b3f46e0f2c8473"
+dependencies = [
+ "either",
+]
+
+[[package]]
+name = "itertools"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "413ee7dfc52ee1a4949ceeb7dbc8a33f2d6c088194d9f922fb8318faf1f01186"
@@ -3147,6 +3181,16 @@ dependencies = [
  "serde",
  "serde_json",
  "simple_asn1",
+]
+
+[[package]]
+name = "kdtree"
+version = "0.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f0a0e9f770b65bac9aad00f97a67ab5c5319effed07f6da385da3c2115e47ba"
+dependencies = [
+ "num-traits",
+ "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -3315,6 +3359,66 @@ dependencies = [
 ]
 
 [[package]]
+name = "linfa"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56f9097edc7c89d03d526efbacf6d90914e3a8fa53bd56c2d1489e3a90819370"
+dependencies = [
+ "approx 0.4.0",
+ "ndarray 0.15.6",
+ "num-traits",
+ "rand 0.8.5",
+ "sprs",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "linfa-clustering"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be0bc52d5e4da397609cd0e6007efc6bd278158d1803673bd936c374f27513c5"
+dependencies = [
+ "linfa",
+ "linfa-linalg",
+ "linfa-nn",
+ "ndarray 0.15.6",
+ "ndarray-rand 0.14.0",
+ "ndarray-stats 0.5.1",
+ "noisy_float",
+ "num-traits",
+ "rand_xoshiro 0.6.0",
+ "space",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "linfa-linalg"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56e7562b41c8876d3367897067013bb2884cc78e6893f092ecd26b305176ac82"
+dependencies = [
+ "ndarray 0.15.6",
+ "num-traits",
+ "thiserror 1.0.69",
+]
+
+[[package]]
+name = "linfa-nn"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b31aeb1beadf239210aa6bc142d95aba626b729da707e2a38e7e953ad2775653"
+dependencies = [
+ "kdtree",
+ "linfa",
+ "ndarray 0.15.6",
+ "ndarray-stats 0.5.1",
+ "noisy_float",
+ "num-traits",
+ "order-stat",
+ "thiserror 1.0.69",
+]
+
+[[package]]
 name = "linux-raw-sys"
 version = "0.3.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3432,7 +3536,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2b166dea96003ee2531cf14833efedced545751d800f03535801d833313f8c15"
 dependencies = [
  "base64",
- "indexmap",
+ "indexmap 2.11.0",
  "metrics",
  "metrics-util",
  "quanta",
@@ -3451,7 +3555,7 @@ dependencies = [
  "metrics",
  "quanta",
  "rand 0.9.2",
- "rand_xoshiro",
+ "rand_xoshiro 0.7.0",
  "sketches-ddsketch",
 ]
 
@@ -3536,7 +3640,7 @@ version = "0.33.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "26aecdf64b707efd1310e3544d709c5c0ac61c13756046aaaba41be5c4f66a3b"
 dependencies = [
- "approx",
+ "approx 0.5.1",
  "matrixmultiply",
  "num-complex",
  "num-rational",
@@ -3575,6 +3679,21 @@ dependencies = [
 
 [[package]]
 name = "ndarray"
+version = "0.15.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "adb12d4e967ec485a5f71c6311fe28158e9d6f4bc4a447b474184d0f91a8fa32"
+dependencies = [
+ "approx 0.4.0",
+ "matrixmultiply",
+ "num-complex",
+ "num-integer",
+ "num-traits",
+ "rawpointer",
+ "rayon",
+]
+
+[[package]]
+name = "ndarray"
 version = "0.16.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "882ed72dce9365842bf196bdeedf5055305f11fc8c03dee7bb0194a6cad34841"
@@ -3591,13 +3710,39 @@ dependencies = [
 
 [[package]]
 name = "ndarray-rand"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "65608f937acc725f5b164dcf40f4f0bc5d67dc268ab8a649d3002606718c4588"
+dependencies = [
+ "ndarray 0.15.6",
+ "rand 0.8.5",
+ "rand_distr",
+]
+
+[[package]]
+name = "ndarray-rand"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f093b3db6fd194718dcdeea6bd8c829417deae904e3fcc7732dabcd4416d25d8"
 dependencies = [
- "ndarray",
+ "ndarray 0.16.1",
  "rand 0.8.5",
  "rand_distr",
+]
+
+[[package]]
+name = "ndarray-stats"
+version = "0.5.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "af5a8477ac96877b5bd1fd67e0c28736c12943aba24eda92b127e036b0c8f400"
+dependencies = [
+ "indexmap 1.9.3",
+ "itertools 0.10.5",
+ "ndarray 0.15.6",
+ "noisy_float",
+ "num-integer",
+ "num-traits",
+ "rand 0.8.5",
 ]
 
 [[package]]
@@ -3606,9 +3751,9 @@ version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "17ebbe97acce52d06aebed4cd4a87c0941f4b2519b59b82b4feb5bd0ce003dfd"
 dependencies = [
- "indexmap",
+ "indexmap 2.11.0",
  "itertools 0.13.0",
- "ndarray",
+ "ndarray 0.16.1",
  "noisy_float",
  "num-integer",
  "num-traits",
@@ -3769,7 +3914,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "29f1dee9aa8d3f6f8e8b9af3803006101bb3653866ef056d530d53ae68587191"
 dependencies = [
  "libc",
- "ndarray",
+ "ndarray 0.16.1",
  "num-complex",
  "num-integer",
  "num-traits",
@@ -3899,6 +4044,12 @@ dependencies = [
  "pkg-config",
  "vcpkg",
 ]
+
+[[package]]
+name = "order-stat"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "efa535d5117d3661134dbf1719b6f0ffe06f2375843b13935db186cd094105eb"
 
 [[package]]
 name = "ordered-float"
@@ -4108,7 +4259,7 @@ checksum = "54acf3a685220b533e437e264e4d932cfbdc4cc7ec0cd232ed73c08d03b8a7ca"
 dependencies = [
  "fixedbitset",
  "hashbrown 0.15.5",
- "indexmap",
+ "indexmap 2.11.0",
  "serde",
 ]
 
@@ -4270,7 +4421,7 @@ dependencies = [
 [[package]]
 name = "potato-agent"
 version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#9dc4f0f03b8b806fa8b5727d509c867538bf3fd2"
+source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#5d26b00af85d9d8e68ed4339e8a839b93432cdbd"
 dependencies = [
  "base64",
  "potato-prompt",
@@ -4288,7 +4439,7 @@ dependencies = [
 [[package]]
 name = "potato-head"
 version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#9dc4f0f03b8b806fa8b5727d509c867538bf3fd2"
+source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#5d26b00af85d9d8e68ed4339e8a839b93432cdbd"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -4301,7 +4452,7 @@ dependencies = [
 [[package]]
 name = "potato-prompt"
 version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#9dc4f0f03b8b806fa8b5727d509c867538bf3fd2"
+source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#5d26b00af85d9d8e68ed4339e8a839b93432cdbd"
 dependencies = [
  "mime_guess",
  "potato-type",
@@ -4318,7 +4469,7 @@ dependencies = [
 [[package]]
 name = "potato-type"
 version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#9dc4f0f03b8b806fa8b5727d509c867538bf3fd2"
+source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#5d26b00af85d9d8e68ed4339e8a839b93432cdbd"
 dependencies = [
  "potato-util",
  "pyo3",
@@ -4332,7 +4483,7 @@ dependencies = [
 [[package]]
 name = "potato-util"
 version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#9dc4f0f03b8b806fa8b5727d509c867538bf3fd2"
+source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#5d26b00af85d9d8e68ed4339e8a839b93432cdbd"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -4347,7 +4498,7 @@ dependencies = [
 [[package]]
 name = "potato-workflow"
 version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#9dc4f0f03b8b806fa8b5727d509c867538bf3fd2"
+source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#5d26b00af85d9d8e68ed4339e8a839b93432cdbd"
 dependencies = [
  "chrono",
  "potato-agent",
@@ -4417,7 +4568,7 @@ dependencies = [
 name = "py-scouter"
 version = "0.11.0"
 dependencies = [
- "ndarray-stats",
+ "ndarray-stats 0.6.0",
  "num-traits",
  "numpy",
  "potato-head",
@@ -4661,6 +4812,15 @@ checksum = "32cb0b9bc82b0a0876c2dd994a7e7a2683d3e7390ca40e6886785ef0c7e3ee31"
 dependencies = [
  "num-traits",
  "rand 0.8.5",
+]
+
+[[package]]
+name = "rand_xoshiro"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6f97cdb2a36ed4183de61b2f824cc45c9f1037f28afe0a322e9fff4c108b5aaa"
+dependencies = [
+ "rand_core 0.6.4",
 ]
 
 [[package]]
@@ -5193,8 +5353,8 @@ name = "scouter-client"
 version = "0.11.0"
 dependencies = [
  "chrono",
- "ndarray",
- "ndarray-stats",
+ "ndarray 0.16.1",
+ "ndarray-stats 0.6.0",
  "noisy_float",
  "num-traits",
  "numpy",
@@ -5261,15 +5421,15 @@ dependencies = [
 name = "scouter-drift"
 version = "0.11.0"
 dependencies = [
- "approx",
+ "approx 0.5.1",
  "chrono",
  "cron",
  "futures",
  "indicatif",
  "itertools 0.14.0",
- "ndarray",
- "ndarray-rand",
- "ndarray-stats",
+ "ndarray 0.16.1",
+ "ndarray-rand 0.15.0",
+ "ndarray-stats 0.6.0",
  "noisy_float",
  "num-traits",
  "numpy",
@@ -5294,6 +5454,9 @@ dependencies = [
 name = "scouter-evaluate"
 version = "0.11.0"
 dependencies = [
+ "linfa",
+ "linfa-clustering",
+ "ndarray 0.15.6",
  "potato-head",
  "pyo3",
  "scouter-types",
@@ -5316,8 +5479,8 @@ dependencies = [
  "futures-util",
  "lapin",
  "metrics",
- "ndarray",
- "ndarray-rand",
+ "ndarray 0.16.1",
+ "ndarray-rand 0.15.0",
  "potato-head",
  "pyo3",
  "rand 0.9.2",
@@ -5362,8 +5525,8 @@ name = "scouter-observability"
 version = "0.11.0"
 dependencies = [
  "itertools 0.14.0",
- "ndarray",
- "ndarray-stats",
+ "ndarray 0.16.1",
+ "ndarray-stats 0.6.0",
  "noisy_float",
  "pyo3",
  "rand 0.8.5",
@@ -5378,13 +5541,13 @@ dependencies = [
 name = "scouter-profile"
 version = "0.11.0"
 dependencies = [
- "approx",
+ "approx 0.5.1",
  "chrono",
  "indicatif",
  "itertools 0.14.0",
- "ndarray",
- "ndarray-rand",
- "ndarray-stats",
+ "ndarray 0.16.1",
+ "ndarray-rand 0.15.0",
+ "ndarray-stats 0.6.0",
  "noisy_float",
  "num-traits",
  "numpy",
@@ -5413,7 +5576,7 @@ name = "scouter-server"
 version = "0.11.0"
 dependencies = [
  "anyhow",
- "approx",
+ "approx 0.5.1",
  "axum",
  "axum-extra",
  "chrono",
@@ -5424,8 +5587,8 @@ dependencies = [
  "metrics-exporter-prometheus",
  "mimalloc",
  "mockito",
- "ndarray",
- "ndarray-rand",
+ "ndarray 0.16.1",
+ "ndarray-rand 0.15.0",
  "object_store",
  "password-auth",
  "potato-head",
@@ -5497,7 +5660,7 @@ dependencies = [
 name = "scouter-types"
 version = "0.11.0"
 dependencies = [
- "approx",
+ "approx 0.5.1",
  "chrono",
  "colored_json",
  "cron",
@@ -5728,7 +5891,7 @@ version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c99284beb21666094ba2b75bbceda012e610f5479dfcc2d6e2426f53197ffd95"
 dependencies = [
- "approx",
+ "approx 0.5.1",
  "num-complex",
  "num-traits",
  "paste",
@@ -5813,6 +5976,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "space"
+version = "0.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e990cc6cb89a82d70fe722cd7811dbce48a72bbfaebd623e58f142b6db28428f"
+
+[[package]]
 name = "spin"
 version = "0.9.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5829,6 +5998,18 @@ checksum = "d91ed6c858b01f942cd56b37a94b3e0a1798290327d1236e4d9cf4eaca44d29d"
 dependencies = [
  "base64ct",
  "der",
+]
+
+[[package]]
+name = "sprs"
+version = "0.11.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "88bab60b0a18fb9b3e0c26e92796b3c3a278bf5fa4880f5ad5cc3bdfb843d0b1"
+dependencies = [
+ "ndarray 0.15.6",
+ "num-complex",
+ "num-traits",
+ "smallvec",
 ]
 
 [[package]]
@@ -5907,7 +6088,7 @@ dependencies = [
  "futures-util",
  "hashbrown 0.15.5",
  "hashlink",
- "indexmap",
+ "indexmap 2.11.0",
  "log",
  "memchr",
  "native-tls",
@@ -6099,7 +6280,7 @@ version = "0.18.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2a3fe7c28c6512e766b0874335db33c94ad7b8f9054228ae1c2abd47ce7d335e"
 dependencies = [
- "approx",
+ "approx 0.5.1",
  "nalgebra",
  "num-traits",
  "rand 0.8.5",
@@ -6420,7 +6601,7 @@ version = "0.22.27"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "41fe8c660ae4257887cf66394862d21dbca4a6ddd26f04a3560410406a2f819a"
 dependencies = [
- "indexmap",
+ "indexmap 2.11.0",
  "toml_datetime",
  "winnow 0.7.13",
 ]

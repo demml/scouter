@@ -8,6 +8,7 @@ LLMEvalMetric = evaluate.LLMEvalMetric
 LLMEvalResults = evaluate.LLMEvalResults
 LLMEvalRecord = evaluate.LLMEvalRecord
 evaluate_llm = evaluate.evaluate_llm
+EvaluationConfig = evaluate.EvaluationConfig
 
 __all__ = [
     "LLMEvalTaskResult",
@@ -17,4 +18,5 @@ __all__ = [
     "evaluate_llm",
     "Embedding",
     "MetricResult",
+    "EvaluationConfig",
 ]

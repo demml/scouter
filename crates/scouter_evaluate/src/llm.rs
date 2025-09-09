@@ -1,18 +1,15 @@
 use crate::error::EvaluationError;
-use crate::types::LLMEvalTaskResult;
+use crate::types::{EvaluationConfig, LLMEvalTaskResult};
 use crate::types::{LLMEvalRecord, LLMEvalResults};
 use crate::util::{
     collect_evaluation_results, spawn_evaluation_tasks_with_embeddings,
     spawn_evaluation_tasks_without_embeddings,
 };
-use potato_head::agents::embed::PyEmbedder;
-use potato_head::Embedder;
 use potato_head::{Agent, Provider, Task, Workflow, WorkflowError};
 use pyo3::prelude::*;
 use scouter_types::eval::LLMEvalMetric;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
-use std::sync::Arc;
 use tokio::task::JoinSet;
 use tracing::{debug, instrument};
 
@@ -26,20 +23,19 @@ use tracing::{debug, instrument};
 async fn async_evaluate_llm(
     workflow: Workflow,
     records: Vec<LLMEvalRecord>,
-    embedder: Option<Arc<Embedder>>,
-    embedding_targets: Option<Vec<String>>,
+    config: EvaluationConfig,
 ) -> Result<LLMEvalResults, EvaluationError> {
     debug!("Starting LLM evaluation for {} records", records.len());
 
     let join_set: JoinSet<(String, Option<LLMEvalTaskResult>)> =
-        match (embedder, &embedding_targets) {
-            (Some(embedder), Some(targets)) => {
+        match (config.embedder, config.embedding_targets.is_empty()) {
+            (Some(embedder), false) => {
                 debug!("Using embedding-enabled evaluation path");
                 spawn_evaluation_tasks_with_embeddings(
                     workflow,
                     records,
                     embedder,
-                    Arc::new(targets.clone()),
+                    config.embedding_targets.clone(),
                 )
                 .await
             }
@@ -51,7 +47,7 @@ async fn async_evaluate_llm(
             }
         };
 
-    let results = collect_evaluation_results(join_set, embedding_targets).await?;
+    let results = collect_evaluation_results(join_set, config.embedding_targets).await?;
 
     Ok(results)
 }
@@ -89,29 +85,6 @@ pub fn workflow_from_eval_metrics(
     Ok(workflow)
 }
 
-/// Helper function for extracting embedder and runtime from optional PyEmbedder
-fn parse_embedder(
-    embedder: Option<&Bound<'_, PyAny>>,
-) -> Result<(Option<Arc<Embedder>>, Arc<tokio::runtime::Runtime>), EvaluationError> {
-    // Extract embedder and runtime if PyEmbedder is provided
-    let (embedder_arc, runtime) = if let Some(embedder_bound) = embedder {
-        if embedder_bound.is_instance_of::<PyEmbedder>() {
-            let py_embedder = embedder_bound.extract::<PyEmbedder>()?;
-            let embedder_arc = Some(py_embedder.embedder.clone());
-            let runtime = py_embedder.runtime.clone();
-            (embedder_arc, runtime)
-        } else {
-            // embedder provided but not a PyEmbedder instance
-            return Err(EvaluationError::InvalidEmbedderType);
-        }
-    } else {
-        // No embedder provided, create new runtime
-        let runtime = Arc::new(tokio::runtime::Runtime::new()?);
-        (None, runtime)
-    };
-    Ok((embedder_arc, runtime))
-}
-
 #[pyfunction]
 /// Function for evaluating LLM response and generating metrics.
 /// The primary use case for evaluate_llm is to take a list of data samples, which often contain inputs and outputs
@@ -122,21 +95,23 @@ fn parse_embedder(
 /// * `py`: The Python interpreter instance.
 /// * `data`: A list of data samples to evaluate.
 /// * `metrics`: A list of evaluation metrics to use.
-#[pyo3(signature = (records, metrics, embedder=None, embedding_targets=None))]
+#[pyo3(signature = (records, metrics, config=None))]
 pub fn evaluate_llm(
     records: Vec<LLMEvalRecord>,
     metrics: Vec<LLMEvalMetric>,
-    embedder: Option<&Bound<'_, PyAny>>,
-    embedding_targets: Option<Vec<String>>,
+    config: Option<EvaluationConfig>,
 ) -> Result<LLMEvalResults, EvaluationError> {
     let workflow = workflow_from_eval_metrics(metrics, "LLM Evaluation")?;
+    let runtime = tokio::runtime::Runtime::new()?;
 
-    // Extract embedder and runtime if PyEmbedder is provided
-    let (embedder_arc, runtime) = parse_embedder(embedder)?;
+    let config = config.unwrap_or_default();
 
-    let results = runtime.block_on(async {
-        async_evaluate_llm(workflow, records, embedder_arc, embedding_targets).await
-    })?;
+    let results =
+        runtime.block_on(async { async_evaluate_llm(workflow, records, config).await })?;
+
+    let array = results.to_array()?;
+
+    println!("Array: {:?}", array);
 
     Ok(results)
 }

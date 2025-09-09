@@ -1,12 +1,11 @@
 use crate::error::EvaluationError;
-use crate::types::Embedding;
-use crate::types::LLMEvalRecord;
-use crate::types::LLMEvalResults;
-use crate::types::LLMEvalTaskResult;
-use crate::types::MetricResult;
-use potato_head::StructuredOutput;
-use potato_head::{Embedder, Workflow};
-use potato_head::{Score, TaskStatus, WorkflowError};
+use crate::types::{Embedding, LLMEvalRecord, LLMEvalResults, LLMEvalTaskResult, MetricResult};
+use linfa::traits::*;
+use linfa_clustering::{Dbscan, DbscanParams};
+use potato_head::{
+    Embedder, PyEmbedder, Score, StructuredOutput, TaskStatus, Workflow, WorkflowError,
+};
+use pyo3::prelude::*;
 use std::sync::{Arc, RwLock};
 use tokio::task::JoinSet;
 use tracing::{error, warn};
@@ -212,7 +211,7 @@ pub async fn generate_embeddings_for_record(
 /// Enhanced result collection with proper error handling
 pub async fn collect_evaluation_results(
     mut join_set: JoinSet<(String, Option<LLMEvalTaskResult>)>,
-    embedding_targets: Option<Vec<String>>,
+    embedding_targets: Arc<Vec<String>>,
 ) -> Result<LLMEvalResults, EvaluationError> {
     let mut eval_results = LLMEvalResults::new(embedding_targets);
 
@@ -235,3 +234,35 @@ pub async fn collect_evaluation_results(
 
     Ok(eval_results)
 }
+
+/// Helper function for extracting embedder and runtime from optional PyEmbedder
+/// # Arguments
+/// * `embedder` - Optional reference to a PyEmbedder instance.
+/// # Returns
+/// An optional Arc-wrapped Embedder instance if provided, otherwise None.
+pub fn parse_embedder(
+    embedder: Option<&Bound<'_, PyAny>>,
+) -> Result<Option<Arc<Embedder>>, EvaluationError> {
+    // Extract embedder and runtime if PyEmbedder is provided
+    let embedder_arc = if let Some(embedder_bound) = embedder {
+        if embedder_bound.is_instance_of::<PyEmbedder>() {
+            let py_embedder = embedder_bound.extract::<PyEmbedder>()?;
+            let embedder_arc = Some(py_embedder.embedder.clone());
+            embedder_arc
+        } else {
+            // embedder provided but not a PyEmbedder instance
+            return Err(EvaluationError::InvalidEmbedderType);
+        }
+    } else {
+        None
+    };
+    Ok(embedder_arc)
+}
+
+//pub fn cluster() {
+//    let min_points = 3;
+//    let clusters = Dbscan::params(min_points)
+//        .tolerance(1e-2)
+//        .transform(&observations)
+//        .unwrap();
+//}

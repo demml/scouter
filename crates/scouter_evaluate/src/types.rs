@@ -1,6 +1,7 @@
 use crate::error::EvaluationError;
-use potato_head::Score;
-use potato_head::{create_uuid7, PyHelperFuncs};
+use crate::util::parse_embedder;
+use ndarray::Array2;
+use potato_head::{create_uuid7, Embedder, PyHelperFuncs, Score};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use pyo3::IntoPyObjectExt;
@@ -8,7 +9,7 @@ use scouter_types::{is_pydantic_model, json_to_pyobject_value, pyobject_to_json}
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
-
+use std::sync::Arc;
 #[derive(Debug, Clone, Serialize)]
 #[pyclass]
 pub struct MetricResult {
@@ -64,7 +65,7 @@ pub fn llm_tasks_to_records<'py>(
     py: Python<'py>,
     records: &mut Vec<Bound<'py, PyDict>>,
     task: &LLMEvalTaskResult,
-    embedding_targets: &Option<Vec<String>>,
+    embedding_targets: &Arc<Vec<String>>,
 ) -> Result<(), EvaluationError> {
     for metric in &task.metrics {
         let dict = PyDict::new(py);
@@ -74,8 +75,8 @@ pub fn llm_tasks_to_records<'py>(
         dict.set_item("reason", metric.reason())?;
 
         // Iterate over embeddings if embedding targets are provided
-        if let Some(embedding_targets) = &embedding_targets {
-            for target in embedding_targets {
+        if !embedding_targets.is_empty() {
+            for target in embedding_targets.iter() {
                 if let Some(embedding) = task.embedding.iter().find(|e| &e.field == target) {
                     dict.set_item(target, embedding.mean())?;
                 } else {
@@ -95,7 +96,7 @@ pub fn llm_tasks_to_records<'py>(
 pub struct LLMEvalResults {
     pub results: HashMap<String, LLMEvalTaskResult>,
     pub errored_tasks: Vec<String>,
-    pub embedding_targets: Option<Vec<String>>,
+    pub embedding_targets: Arc<Vec<String>>,
 }
 
 #[pymethods]
@@ -137,12 +138,31 @@ impl LLMEvalResults {
 }
 
 impl LLMEvalResults {
-    pub fn new(embedding_targets: Option<Vec<String>>) -> Self {
+    pub fn new(embedding_targets: Arc<Vec<String>>) -> Self {
         Self {
             results: HashMap::new(),
             errored_tasks: Vec::new(),
             embedding_targets,
         }
+    }
+
+    pub fn to_array(&self) -> Result<Array2<f64>, EvaluationError> {
+        let mut data = Vec::new();
+        for task in self.results.values() {
+            let row = task
+                .metrics
+                .iter()
+                .map(|metric| metric.score.score as f64)
+                .collect::<Vec<f64>>();
+            data.extend(row);
+        }
+
+        let n_rows = self.results.len();
+        let n_cols = 2;
+
+        let array = Array2::from_shape_vec((n_rows, n_cols), data).unwrap();
+
+        Ok(array)
     }
 }
 
@@ -230,5 +250,52 @@ impl LLMEvalRecord {
         Ok(json_to_pyobject_value(py, &self.context)?
             .into_bound_py_any(py)?
             .clone())
+    }
+}
+
+#[derive(Debug, Clone, Default)]
+#[pyclass]
+pub struct EvaluationConfig {
+    // optional embedder for embedding-based evaluations
+    pub embedder: Option<Arc<Embedder>>,
+
+    // fields in the record to generate embeddings for
+    pub embedding_targets: Arc<Vec<String>>,
+
+    // this will compute similarities for all combinations of embeddings in the targets
+    // e.g. if you have targets ["a", "b"], it will compute similarity between a-b
+    pub compute_similarity: bool,
+
+    // whether to run clustering for all scores, embeddings and similarities (if available)
+    pub cluster: bool,
+}
+
+#[pymethods]
+impl EvaluationConfig {
+    #[new]
+    #[pyo3(signature = (embedder=None, embedding_targets=None, compute_similarity=false, cluster=false))]
+    /// Creates a new EvaluationConfig instance.
+    /// # Arguments
+    /// * `embedder` - Optional reference to a PyEmbedder instance.
+    /// * `embedding_targets` - Optional list of fields in the record to generate embeddings for.
+    /// * `compute_similarity` - Whether to compute similarities between embeddings.
+    /// * `cluster` - Whether to run clustering for all scores, embeddings and similarities (if available).
+    /// # Returns
+    /// A new EvaluationConfig instance.
+    fn new(
+        embedder: Option<&Bound<'_, PyAny>>,
+        embedding_targets: Option<Vec<String>>,
+        compute_similarity: bool,
+        cluster: bool,
+    ) -> Result<Self, EvaluationError> {
+        let embedder = parse_embedder(embedder)?;
+        let embedding_targets = embedding_targets.unwrap_or_default();
+
+        Ok(Self {
+            embedder,
+            embedding_targets: Arc::new(embedding_targets),
+            compute_similarity,
+            cluster,
+        })
     }
 }

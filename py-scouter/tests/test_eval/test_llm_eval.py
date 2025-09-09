@@ -1,6 +1,11 @@
 import pandas as pd
 import polars as pl
-from scouter.evaluate import LLMEvalMetric, LLMEvalRecord, evaluate_llm  # type: ignore
+from scouter.evaluate import (
+    LLMEvalMetric,
+    LLMEvalRecord,
+    evaluate_llm,
+    EvaluationConfig,
+)  # type: ignore
 from scouter.llm import Embedder, Provider  # type: ignore
 from scouter.llm.openai import OpenAIEmbeddingConfig  # type: ignore
 from scouter.mock import LLMTestServer
@@ -75,8 +80,10 @@ def test_llm_eval_embedding(
         results = evaluate_llm(
             records=records,
             metrics=[reformulation_metric, relevancy_metric],
-            embedder=embedder,
-            embedding_targets=["user_query"],
+            config=EvaluationConfig(
+                embedder=embedder,
+                embedding_targets=["user_query"],
+            ),
         )
 
         assert results["test_id_1"]["reformulation"].score > 0
@@ -91,3 +98,4 @@ def test_llm_eval_embedding(
         assert isinstance(result_polars_df, pl.DataFrame)
 
         assert result_df.shape[0] == 20  # 10 records x 2 metrics
+        a
