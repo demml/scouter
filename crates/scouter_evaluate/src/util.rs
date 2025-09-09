@@ -41,6 +41,8 @@ pub fn process_workflow_result(
         }
     }
 
+    // ensure consistent ordering by task name
+    metrics.sort_by(|a, b| a.task.cmp(&b.task));
     Ok(metrics)
 }
 
