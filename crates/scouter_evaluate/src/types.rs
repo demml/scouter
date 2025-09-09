@@ -463,18 +463,22 @@ pub struct EvaluationConfig {
 
     // whether to run clustering for all scores, embeddings and similarities (if available)
     pub cluster: bool,
+
+    // whether to compute histograms for all scores, embeddings and similarities (if available)
+    pub compute_histograms: bool,
 }
 
 #[pymethods]
 impl EvaluationConfig {
     #[new]
-    #[pyo3(signature = (embedder=None, embedding_targets=None, compute_similarity=false, cluster=false))]
+    #[pyo3(signature = (embedder=None, embedding_targets=None, compute_similarity=false, cluster=false, compute_histograms=false))]
     /// Creates a new EvaluationConfig instance.
     /// # Arguments
     /// * `embedder` - Optional reference to a PyEmbedder instance.
     /// * `embedding_targets` - Optional list of fields in the record to generate embeddings for.
     /// * `compute_similarity` - Whether to compute similarities between embeddings.
     /// * `cluster` - Whether to run clustering for all scores, embeddings and similarities (if available).
+    /// * `compute_histograms` - Whether to compute histograms for all scores, embeddings and similarities (if available).
     /// # Returns
     /// A new EvaluationConfig instance.
     fn new(
@@ -482,6 +486,7 @@ impl EvaluationConfig {
         embedding_targets: Option<Vec<String>>,
         compute_similarity: bool,
         cluster: bool,
+        compute_histograms: bool,
     ) -> Result<Self, EvaluationError> {
         let embedder = parse_embedder(embedder)?;
         let embedding_targets = embedding_targets.unwrap_or_default();
@@ -491,6 +496,7 @@ impl EvaluationConfig {
             embedding_targets,
             compute_similarity,
             cluster,
+            compute_histograms,
         })
     }
 
