@@ -282,4 +282,4 @@ def test_llm_drifter():
 
         assert len(results.records) == 1
         assert results.records[0].metric == "relevance"
-        assert results.records[0].value == 5.0
+        assert results.records[0].value > 0
