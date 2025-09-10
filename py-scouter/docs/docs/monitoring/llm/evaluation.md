@@ -195,9 +195,16 @@ As you can see from the above example, the overall flow for evaluating an LLM us
   <br>
 </h1>
 
-#### Step 4: Evaluation Configuration
+#### Step 3: Evaluation Configuration
 
 By default, the above `evaulate_llm` function will execute without any additional configuration. It will extract the defined metric prompts, bind the context variables from each record, and execute the prompts against the defined LLM provider and model and then extract the scores. However, if you want a more robust evaluation, we recommend you provide an `EvaluationConfig` configured to your needs.
+
+EvaluationConfig allows you to customize the evaluation process in several ways:
+
+- Specify which fields from the `LLMEvalRecord` context should be embedded. These embedding will be used to calculate means and similarity scores.
+- Indicate whether you want to compute similarity scores between the embedded fields.
+- Enable clustering to identify patterns in the evaluation results.
+- Enable histogram computations to generate histograms for all numerical fields.
 
 ```python
 from scouter.evaluate import EvaluationConfig
@@ -222,7 +229,31 @@ results = evaluate_llm(
         embedding_targets=["user_query", "answer"], #(3)
         compute_similarity=True, #(4)
         cluster=True, #(5)
-        compute_histograms=True, #(5)
+        compute_histograms=True, #(6)
     ),
 )
 ```
+
+1. Create an `Embedder` instance to generate embeddings for the evaluation records. This is useful for similarity computations and clustering. Here, we are using OpenAI's embedding model.
+2. Pass an `EvaluationConfig` instance to the `evaluate_llm` function to customize the evaluation process.
+3. Specify which fields from the `LLMEvalRecord` context should be embedded. In this case, we are embedding both the `user_query` and `answer`. These embedding will be used to calculate means and similarity scores.
+4. Indicate that we want to compute similarity scores between the embedded fields.
+5. If clustering is enabled, Scouter will execute a dbscan with all numerical values (scores, similarity scores, embeddings etc.) to identify clusters of similar records. This can help identify patterns in the evaluation results
+6. Enable histogram computations to generate histograms for all numerical fields
+
+#### Step 4: Analyzing the Results
+
+The results object (`LLMEvalResults`) returned from the `evaluate_llm` function contains a wealth of information about the evaluation. You can access individual record results, overall metrics, and any errors that occurred during the evaluation process.
+
+```python
+
+# Assess individual record results
+results = evaluate_llm(...)
+
+
+record1_metrics = results["record_1"].metric
+print(f"Record 1 Reformulation Quality Score: {record1_metrics['reformulation_quality'].score}")
+print(f"Record 1 Reformulation Quality Reason: {record1_metrics['reformulation_quality'].reason}")
+
+print(f"Record 1 Answer Relevance Score: {record1_metrics['answer_relevance'].score}")
+print(f"Record 1 Answer Relevance Reason: {record1_metrics['answer_relevance'].reason}")
