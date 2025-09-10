@@ -17,8 +17,8 @@ from scouter.client import ScouterClient
 from scouter.drift import (
     Drifter,
     LLMDriftConfig,
-    LLMDriftProfile,
     LLMDriftMetric,
+    LLMDriftProfile,
     SpcDriftConfig,
     SpcDriftProfile,
 )
