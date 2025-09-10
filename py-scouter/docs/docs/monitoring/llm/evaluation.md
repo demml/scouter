@@ -55,7 +55,7 @@ Now say you want to evaluate how well the prompt reformulates user queries into 
 Note: The `LLMEvalMetric` differs from the `LLMDriftMetric` in that the `LLMDriftMetric` is used when setting up real-time LLM monitoring and requires more configuration and setup. For offline evaluations, the `LLMEvalMetric` is simpler to use and requires less configuration. It requires only a name and eval prompt.
 
 ```python
-from scouter.llm import Prompt
+from scouter.llm import Prompt, Score
 from scouter.evaluate import LLMEvalMetric
 
 reformulation_eval_prompt = Prompt(
