@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 use scouter_drift::{error::DriftError, LLMEvaluator};
-use scouter_types::llm::{LLMDriftConfig, LLMDriftProfile, LLMMetric};
+use scouter_types::llm::{LLMDriftConfig, LLMDriftMetric, LLMDriftProfile};
 use scouter_types::{LLMMetricRecord, LLMRecord};
 pub struct LLMDrifter {
     pub runtime: tokio::runtime::Runtime,
@@ -21,7 +21,7 @@ impl LLMDrifter {
     pub fn create_drift_profile(
         &mut self,
         config: LLMDriftConfig,
-        metrics: Vec<LLMMetric>,
+        metrics: Vec<LLMDriftMetric>,
         workflow: Option<Bound<'_, PyAny>>,
     ) -> Result<LLMDriftProfile, DriftError> {
         let profile = LLMDriftProfile::new(config, metrics, workflow)?;

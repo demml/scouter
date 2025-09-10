@@ -1,6 +1,6 @@
 use crate::error::{ProfileError, TypeError};
 use crate::llm::alert::LLMAlertConfig;
-use crate::llm::alert::LLMMetric;
+use crate::llm::alert::LLMDriftMetric;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::ProfileRequest;
 use crate::{scouter_version, LLMMetricRecord};
@@ -222,7 +222,7 @@ fn validate_first_tasks(
 fn validate_last_tasks(
     workflow: &Workflow,
     execution_order: &HashMap<i32, std::collections::HashSet<String>>,
-    metrics: &[LLMMetric],
+    metrics: &[LLMDriftMetric],
 ) -> Result<(), ProfileError> {
     let last_step = execution_order.len() as i32;
     let last_tasks = execution_order
@@ -261,7 +261,7 @@ fn validate_last_tasks(
 ///
 /// # Errors
 /// Returns various ProfileError types based on validation failures.
-fn validate_workflow(workflow: &Workflow, metrics: &[LLMMetric]) -> Result<(), ProfileError> {
+fn validate_workflow(workflow: &Workflow, metrics: &[LLMDriftMetric]) -> Result<(), ProfileError> {
     let execution_order = workflow.execution_plan()?;
 
     // Validate first tasks have required parameters
@@ -280,7 +280,7 @@ pub struct LLMDriftProfile {
     pub config: LLMDriftConfig,
 
     #[pyo3(get)]
-    pub metrics: Vec<LLMMetric>,
+    pub metrics: Vec<LLMDriftMetric>,
 
     #[pyo3(get)]
     pub scouter_version: String,
@@ -302,7 +302,7 @@ impl LLMDriftProfile {
     ///  2. If a user provides a workflow, It will be parsed and validated using `from_workflow` method.
     ///     - The user must also provide a list of metrics that will be used to evaluate the output of the workflow.
     ///     - The metric names must correspond to the final task names in the workflow
-    /// In addition, baseline metrics and threshold will be extracted from the LLMMetric.
+    /// In addition, baseline metrics and threshold will be extracted from the LLMDriftMetric.
     /// # Arguments
     /// * `config` - LLMDriftConfig - The configuration for the LLM drift profile
     /// * `metrics` - Option<Bound<'_, PyList>> - Optional list of metrics that will be used to evaluate the LLM
@@ -316,7 +316,7 @@ impl LLMDriftProfile {
     #[instrument(skip_all)]
     pub fn new(
         config: LLMDriftConfig,
-        metrics: Vec<LLMMetric>,
+        metrics: Vec<LLMDriftMetric>,
         workflow: Option<Bound<'_, PyAny>>,
     ) -> Result<Self, ProfileError> {
         match workflow {
@@ -434,13 +434,13 @@ impl LLMDriftProfile {
     ///
     /// # Arguments
     /// * `config` - LLMDriftConfig - The configuration for the LLM
-    /// * `metrics` - Vec<LLMMetric> - The metrics that will be used to evaluate the LLM
+    /// * `metrics` - Vec<LLMDriftMetric> - The metrics that will be used to evaluate the LLM
     /// * `scouter_version` - Option<String> - The version of scouter that the profile is created with.
     /// # Returns
     /// * `Result<Self, ProfileError>` - The LLMDriftProfile
     pub fn from_metrics(
         mut config: LLMDriftConfig,
-        metrics: Vec<LLMMetric>,
+        metrics: Vec<LLMDriftMetric>,
     ) -> Result<Self, ProfileError> {
         // Build a workflow from metrics
         let mut workflow = Workflow::new("llm_drift_workflow");
@@ -496,7 +496,7 @@ impl LLMDriftProfile {
     /// # Arguments
     /// * `config` - LLMDriftConfig - The configuration for the LLM
     /// * `workflow` - Workflow - The workflow that will be used to evaluate the L
-    /// * `metrics` - Vec<LLMMetric> - The metrics that will be used to evaluate the LLM
+    /// * `metrics` - Vec<LLMDriftMetric> - The metrics that will be used to evaluate the LLM
     /// * `scouter_version` - Option<String> - The version of scouter that the profile is created with.
     ///
     /// # Returns
@@ -504,7 +504,7 @@ impl LLMDriftProfile {
     pub fn from_workflow(
         mut config: LLMDriftConfig,
         workflow: Workflow,
-        metrics: Vec<LLMMetric>,
+        metrics: Vec<LLMDriftMetric>,
     ) -> Result<Self, ProfileError> {
         validate_workflow(&workflow, &metrics)?;
 
@@ -686,7 +686,7 @@ mod tests {
         mock.start_server().unwrap();
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
-        let metric1 = LLMMetric::new(
+        let metric1 = LLMDriftMetric::new(
             "metric1",
             5.0,
             AlertThreshold::Above,
@@ -694,7 +694,7 @@ mod tests {
             Some(prompt.clone()),
         )
         .unwrap();
-        let metric2 = LLMMetric::new(
+        let metric2 = LLMDriftMetric::new(
             "metric2",
             3.0,
             AlertThreshold::Below,
@@ -773,8 +773,10 @@ mod tests {
             ))
             .unwrap();
 
-        let metric1 = LLMMetric::new("task2", 3.0, AlertThreshold::Below, Some(1.0), None).unwrap();
-        let metric2 = LLMMetric::new("task3", 4.0, AlertThreshold::Above, Some(2.0), None).unwrap();
+        let metric1 =
+            LLMDriftMetric::new("task2", 3.0, AlertThreshold::Below, Some(1.0), None).unwrap();
+        let metric2 =
+            LLMDriftMetric::new("task3", 4.0, AlertThreshold::Above, Some(2.0), None).unwrap();
 
         let llm_metrics = vec![metric1, metric2];
 

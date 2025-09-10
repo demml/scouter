@@ -18,7 +18,7 @@ from scouter.drift import (
     Drifter,
     LLMDriftConfig,
     LLMDriftProfile,
-    LLMMetric,
+    LLMDriftMetric,
     SpcDriftConfig,
     SpcDriftProfile,
 )
@@ -129,7 +129,7 @@ def create_and_register_llm_drift_profile(
     )
 
     metrics = [
-        LLMMetric(
+        LLMDriftMetric(
             name="coherence",
             value=5,
             alert_threshold=AlertThreshold.Below,

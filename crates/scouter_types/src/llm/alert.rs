@@ -14,7 +14,7 @@ use std::collections::HashMap;
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct LLMMetric {
+pub struct LLMDriftMetric {
     #[pyo3(get, set)]
     pub name: String,
 
@@ -29,7 +29,7 @@ pub struct LLMMetric {
 }
 
 #[pymethods]
-impl LLMMetric {
+impl LLMDriftMetric {
     #[new]
     #[pyo3(signature = (name, value, alert_threshold, alert_threshold_value=None, prompt=None))]
     pub fn new(
@@ -113,7 +113,7 @@ pub struct LLMAlertConfig {
 }
 
 impl LLMAlertConfig {
-    pub fn set_alert_conditions(&mut self, metrics: &[LLMMetric]) {
+    pub fn set_alert_conditions(&mut self, metrics: &[LLMDriftMetric]) {
         self.alert_conditions = Some(
             metrics
                 .iter()
@@ -281,7 +281,7 @@ mod tests {
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
         let llm_metrics = vec![
-            LLMMetric::new(
+            LLMDriftMetric::new(
                 "mae",
                 12.4,
                 AlertThreshold::Above,
@@ -289,7 +289,7 @@ mod tests {
                 Some(prompt.clone()),
             )
             .unwrap(),
-            LLMMetric::new(
+            LLMDriftMetric::new(
                 "accuracy",
                 0.85,
                 AlertThreshold::Below,

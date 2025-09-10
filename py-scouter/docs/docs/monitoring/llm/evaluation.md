@@ -52,5 +52,47 @@ end
 
 Now say you want to evaluate how well the prompt reformulates user queries into reformulated queries. In this scenario, imagine you already have a dataset of user queries and their reformulated queries that used the prompt above. Now, to evaluate the prompt, you would create a list of `LLMEvalRecords` containing the `user_query` and `reformulated_query` context as well as an `LLMEvalMetric` that defines how you want to evaluate the prompt using an `LLM as a judge` workflow.
 
+Note: The `LLMEvalMetric` differs from the `LLMDriftMetric` in that the `LLMDriftMetric` is used when setting up real-time LLM monitoring and requires more configuration and setup. For offline evaluations, the `LLMEvalMetric` is simpler to use and requires less configuration. It requires only a name and eval prompt.
+
 ```python
+from scouter.llm import Prompt
+from scouter.evaluate import LLMEvalMetric
+
+reformulation_eval_prompt = Prompt(
+    message=(
+        "You are an expert evaluator of search query relevance. \n"
+        "You will be given a user query and its reformulated version. \n"
+        "You task is to assess how relevant the reformulated query is to the information needs of the user. \n"
+        "Consider the following criteria:\n"
+        "- Does the query contain relevant keywords and concepts?\n"
+        "- Is the query clear and unambiguous?\n"
+        "- Does the query adequately express the user's intent?\n\n"
+        "Provide your evaluation as a JSON object with the following attributes:\n"
+        "- score: An integer from 1 (poor) to 5 (excellent) indicating the overall reformulation score.\n"
+        "- reason: A brief explanation for your score.\n\n"
+        "Format your response as:\n"
+        "{\n"
+        '  "score": <integer 1-5>,\n'
+        '  "reason": "<your explanation>"\n'
+        "}\n\n"
+        "User Query:\n"
+        "${user_query}\n\n" #(1)
+        "Reformulated Query:\n"
+        "${reformulated_query}\n\n" #(2)
+        "Evaluation:"
+    ),
+    model="gemini-2.5-flash-lite-preview-06-17",
+    provider="gemini",
+    response_format=Score, #(3)
+)
+
+eval_metric = LLMEvalMetric(
+    name="reformulation_quality",
+    prompt=reformulation_eval_prompt,
+)
 ```
+
+1. `${user_query}` is a bound parameter that will be populated from the `LLMEvalRecord` context
+2. `${reformulated_query}` is a bound parameter that will be populated from the `LLMEvalRecord` context
+3. `LLMEvalMetrics` currently require all prompts to return a `Score` object. This is critical as the score object allows us to extract a numerical score for evaluation.
+

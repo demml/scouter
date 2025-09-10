@@ -81,7 +81,7 @@ pub enum TypeError {
     PyError(String),
 
     #[error(
-        "Invalid prompt response type. Expect Score as the output type for the LLMMetric prompt"
+        "Invalid prompt response type. Expect Score as the output type for the LLMDriftMetric prompt"
     )]
     InvalidResponseType,
 
@@ -252,7 +252,7 @@ pub enum ProfileError {
     NoTasksFoundError(String),
 
     #[error(
-        "Invalid prompt response type. Expected Score as the output type for the LLMMetric prompt. Id: {0}"
+        "Invalid prompt response type. Expected Score as the output type for the LLMDriftMetric prompt. Id: {0}"
     )]
     InvalidResponseType(String),
 

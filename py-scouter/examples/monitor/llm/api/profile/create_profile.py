@@ -2,7 +2,7 @@ from pathlib import Path
 
 from scouter.alert import AlertThreshold
 from scouter.client import ScouterClient
-from scouter.drift import LLMDriftConfig, LLMDriftProfile, LLMMetric
+from scouter.drift import LLMDriftConfig, LLMDriftProfile, LLMDriftMetric
 from scouter.llm import Prompt, Score
 
 
@@ -84,14 +84,14 @@ def create_relevance_evaluation_prompt() -> Prompt:
     )
 
 
-relevance = LLMMetric(
+relevance = LLMDriftMetric(
     name="relevance",
     prompt=create_relevance_evaluation_prompt(),
     value=5.0,
     alert_threshold_value=2.0,
     alert_threshold=AlertThreshold.Below,
 )
-reformulation = LLMMetric(
+reformulation = LLMDriftMetric(
     name="reformulation",
     prompt=create_reformulation_evaluation_prompt(),
     value=5.0,

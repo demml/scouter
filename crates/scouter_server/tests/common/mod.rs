@@ -18,7 +18,7 @@ use scouter_settings::{DatabaseSettings, ScouterServerConfig};
 use scouter_sql::PostgresClient;
 use scouter_types::JwtToken;
 use scouter_types::{
-    llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftProfile, LLMMetric},
+    llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile},
     AlertThreshold, CustomMetricServerRecord, LLMMetricRecord, PsiServerRecord,
 };
 use scouter_types::{
@@ -308,7 +308,7 @@ impl TestHelper {
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
         let _alert_threshold = AlertThreshold::Above;
-        let metric1 = LLMMetric::new(
+        let metric1 = LLMDriftMetric::new(
             "metric1",
             5.0,
             AlertThreshold::Above,
@@ -317,7 +317,7 @@ impl TestHelper {
         )
         .unwrap();
 
-        let metric2 = LLMMetric::new(
+        let metric2 = LLMDriftMetric::new(
             "metric2",
             3.0,
             AlertThreshold::Below,
