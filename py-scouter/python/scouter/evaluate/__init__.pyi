@@ -3,6 +3,7 @@
 from typing import Any, Dict, List, Optional, Protocol, TypeAlias, Union
 
 from ..llm import Embedder, Prompt, Score
+from ..profile import Histogram
 
 class BaseModel(Protocol):
     """Protocol for pydantic BaseModel to ensure compatibility with context"""
@@ -55,6 +56,26 @@ class LLMEvalResults:
             DataFrame:
                 A Pandas or Polars DataFrame containing the results.
         """
+
+    def model_dump_json(self) -> str:
+        """Dump the results as a JSON string"""
+
+    @staticmethod
+    def model_validate_json(json_string: str) -> "LLMEvalResults":
+        """Validate and create an LLMEvalResults instance from a JSON string
+
+        Args:
+            json_string (str):
+                JSON string to validate and create the LLMEvalResults instance from.
+        """
+
+    @property
+    def errored_tasks(self) -> List[str]:
+        """Get a list of record IDs that had errors during evaluation"""
+
+    @property
+    def histograms(self) -> Optional[Dict[str, Histogram]]:
+        """Get histograms for all calculated features (metrics, embeddings, similarities)"""
 
 class LLMEvalMetric:
     """Defines an LLM eval metric to use when evaluating LLMs"""
