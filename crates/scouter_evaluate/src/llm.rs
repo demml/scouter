@@ -108,6 +108,7 @@ pub fn evaluate_llm(
         runtime.block_on(async { async_evaluate_llm(workflow, records, &config).await })?;
 
     // Only run post-processing if needed
+    // Post processing includes calculating embedding means, similarities, clustering, and histograms
     if config.needs_post_processing() {
         results.finalize(&config)?;
     }
