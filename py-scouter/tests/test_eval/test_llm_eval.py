@@ -5,13 +5,16 @@ from scouter.evaluate import (  # type: ignore
     LLMEvalMetric,
     LLMEvalRecord,
     evaluate_llm,
+    LLMEvalResults,
 )
 from scouter.llm import Embedder, Provider  # type: ignore
 from scouter.llm.openai import OpenAIEmbeddingConfig  # type: ignore
 from scouter.mock import LLMTestServer
 
 
-def test_llm_eval_no_embedding(reformulation_evaluation_prompt, relevancy_evaluation_prompt) -> None:
+def test_llm_eval_no_embedding(
+    reformulation_evaluation_prompt, relevancy_evaluation_prompt
+) -> None:
     with LLMTestServer():
         records = []
         for i in range(10):
@@ -48,7 +51,9 @@ def test_llm_eval_no_embedding(reformulation_evaluation_prompt, relevancy_evalua
         assert isinstance(result_polars_df, pl.DataFrame)
 
 
-def test_llm_eval_embedding(reformulation_evaluation_prompt, relevancy_evaluation_prompt) -> None:
+def test_llm_eval_embedding(
+    reformulation_evaluation_prompt, relevancy_evaluation_prompt
+) -> None:
     with LLMTestServer():
         records = []
 
@@ -99,3 +104,10 @@ def test_llm_eval_embedding(reformulation_evaluation_prompt, relevancy_evaluatio
         assert isinstance(result_polars_df, pl.DataFrame)
 
         assert result_df.shape[0] == 100  # 10 records x 2 metrics
+
+        # test model_dump_json and model_validate_json
+        json_str = results.model_dump_json()
+        assert isinstance(json_str, str)
+
+        validated_results = results.model_validate_json(json_str)
+        assert isinstance(validated_results, LLMEvalResults)
