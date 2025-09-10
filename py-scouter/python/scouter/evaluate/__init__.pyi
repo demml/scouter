@@ -19,30 +19,6 @@ class BaseModel(Protocol):
 SerializedType: TypeAlias = Union[str, int, float, dict, list]
 Context: TypeAlias = Union[Dict[str, Any], BaseModel]
 
-class MetricResult:
-    @property
-    def task(self) -> str:
-        """Get the task name"""
-
-    @property
-    def score(self) -> float:
-        """Get the score"""
-
-    @property
-    def reason(self) -> str:
-        """Get the reason for the score"""
-
-class Embedding:
-    @property
-    def field(self) -> str:
-        """Get the field name"""
-
-    def values(self) -> List[float]:
-        """Get the embedding values"""
-
-    def mean(self) -> float:
-        """Get the mean of the embedding values"""
-
 class LLMEvalTaskResult:
     """Eval Result for a specific evaluation"""
 
@@ -181,6 +157,7 @@ class EvaluationConfig:
         embedding_targets: Optional[List[str]] = None,
         compute_similarity: bool = False,
         cluster: bool = False,
+        compute_histograms: bool = False,
     ):
         """
         Initialize the EvaluationConfig with optional parameters.
@@ -196,4 +173,7 @@ class EvaluationConfig:
                 Whether to compute similarity between embeddings. Default is False.
             cluster (bool):
                 Whether to perform clustering on the embeddings. Default is False.
+            compute_histograms (bool):
+                Whether to compute histograms for all calculated features (metrics, embeddings, similarities).
+                Default is False.
         """
