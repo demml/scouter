@@ -72,7 +72,5 @@ pub use scouter_types::error::{ContractError, ProfileError, RecordError, TypeErr
 
 pub use scouter_evaluate::{
     llm::evaluate_llm,
-    types::{
-        Embedding, EvaluationConfig, LLMEvalRecord, LLMEvalResults, LLMEvalTaskResult, MetricResult,
-    },
+    types::{EvaluationConfig, LLMEvalRecord, LLMEvalResults, LLMEvalTaskResult},
 };

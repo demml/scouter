@@ -879,8 +879,9 @@ dependencies = [
 
 [[package]]
 name = "baked-potato"
-version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#1f01d75ffdc5ec2cf79e4f268da05e464aba333b"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e87c60d413209ea7c9edfa428fb7cf7c6b526e7b21e4410f9559ee4dd56d0619"
 dependencies = [
  "mockito",
  "potato-agent",
@@ -4414,8 +4415,9 @@ dependencies = [
 
 [[package]]
 name = "potato-agent"
-version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#1f01d75ffdc5ec2cf79e4f268da05e464aba333b"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1a91e97d032bd7c6fd25415cd56134a3f92469289b60c62b3d69dd15e85952f6"
 dependencies = [
  "base64",
  "potato-prompt",
@@ -4432,8 +4434,9 @@ dependencies = [
 
 [[package]]
 name = "potato-head"
-version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#1f01d75ffdc5ec2cf79e4f268da05e464aba333b"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ef7615075f2a2e2a79800a05c8629a2d11cb3ea90ef1924a5d0aaca355c9a25"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -4445,8 +4448,9 @@ dependencies = [
 
 [[package]]
 name = "potato-prompt"
-version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#1f01d75ffdc5ec2cf79e4f268da05e464aba333b"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42be5260a35ed0932d837859225fb27edf99d7af62057525ff4905f8553e09df"
 dependencies = [
  "mime_guess",
  "potato-type",
@@ -4462,8 +4466,9 @@ dependencies = [
 
 [[package]]
 name = "potato-type"
-version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#1f01d75ffdc5ec2cf79e4f268da05e464aba333b"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1199fd6ccbe0f543ada5077327442c2843937b7384f95d10bf2b61fe75446277"
 dependencies = [
  "potato-util",
  "pyo3",
@@ -4476,8 +4481,9 @@ dependencies = [
 
 [[package]]
 name = "potato-util"
-version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#1f01d75ffdc5ec2cf79e4f268da05e464aba333b"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "345da66dcc938cd17de78a7fd1a6e09fdc4038d4e037d2adf5b7372715058a4d"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -4491,8 +4497,9 @@ dependencies = [
 
 [[package]]
 name = "potato-workflow"
-version = "0.5.0"
-source = "git+https://github.com/demml/potatohead?branch=refactor%2Fembedder#1f01d75ffdc5ec2cf79e4f268da05e464aba333b"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2b487d4b094ec8db55d782b427a14d05aed940e1e9655e9393b9e2a2a14600c6"
 dependencies = [
  "chrono",
  "potato-agent",

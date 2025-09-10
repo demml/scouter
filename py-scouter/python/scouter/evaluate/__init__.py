@@ -2,8 +2,6 @@
 from .. import evaluate
 
 LLMEvalTaskResult = evaluate.LLMEvalTaskResult
-Embedding = evaluate.Embedding
-MetricResult = evaluate.MetricResult
 LLMEvalMetric = evaluate.LLMEvalMetric
 LLMEvalResults = evaluate.LLMEvalResults
 LLMEvalRecord = evaluate.LLMEvalRecord

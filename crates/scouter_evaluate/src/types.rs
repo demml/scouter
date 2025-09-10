@@ -1,5 +1,5 @@
 use crate::error::EvaluationError;
-use crate::util::{cluster, compute_mean, parse_embedder, post_process, reduce_dimensions};
+use crate::util::{cluster, parse_embedder, post_process, reduce_dimensions};
 use ndarray::Array2;
 use potato_head::{create_uuid7, Embedder, PyHelperFuncs, Score};
 use pyo3::prelude::*;
@@ -11,73 +11,6 @@ use serde::Serialize;
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
-
-#[derive(Debug, Clone, Serialize)]
-#[pyclass]
-pub struct MetricResult {
-    #[pyo3(get)]
-    pub task: String,
-
-    pub score: Score,
-}
-
-#[pymethods]
-impl MetricResult {
-    pub fn __str__(&self) -> String {
-        PyHelperFuncs::__str__(self)
-    }
-
-    #[getter]
-    pub fn score(&self) -> i64 {
-        self.score.score
-    }
-
-    #[getter]
-    pub fn reason(&self) -> &str {
-        &self.score.reason
-    }
-}
-
-#[derive(Debug, Clone, Serialize)]
-#[pyclass]
-pub struct Embedding {
-    #[pyo3(get)]
-    pub field: String,
-
-    #[pyo3(get)]
-    pub value: Vec<f32>,
-}
-
-impl Embedding {
-    pub fn new(field: String, value: Vec<f32>) -> Self {
-        Self { field, value }
-    }
-}
-
-pub fn llm_tasks_to_records<'py>(
-    py: Python<'py>,
-    records: &mut Vec<Bound<'py, PyDict>>,
-    task_result: &LLMEvalTaskResult,
-) -> Result<(), EvaluationError> {
-    for (task_name, score) in &task_result.metrics {
-        let dict = PyDict::new(py);
-        dict.set_item("id", &task_result.id)?;
-        dict.set_item("task", task_name.clone())?;
-        dict.set_item("score", score.score)?;
-        dict.set_item("reason", score.reason.clone())?;
-
-        // Iterate over embeddings if embedding targets are provided
-        if !task_result.embedding.is_empty() {
-            for (target, values) in task_result.embedding.iter() {
-                dict.set_item(target, compute_mean(values).unwrap_or(-1.0))?;
-            }
-        }
-
-        records.push(dict);
-    }
-
-    Ok(())
-}
 
 pub fn array_to_dict<'py>(
     py: Python<'py>,
