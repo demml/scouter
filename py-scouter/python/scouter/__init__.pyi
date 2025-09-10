@@ -13,7 +13,6 @@ from .drift import (
     SpcDriftProfile,
 )
 from .evaluate import (
-    EvalResult,
     LLMEvalMetric,
     LLMEvalRecord,
     LLMEvalResults,
@@ -66,7 +65,6 @@ __all__ = [
     "HTTPConfig",
     "ScouterClient",
     # Evaluate
-    "EvalResult",
     "LLMEvalMetric",
     "LLMEvalResults",
     "LLMEvalRecord",

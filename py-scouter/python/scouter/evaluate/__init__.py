@@ -14,7 +14,5 @@ __all__ = [
     "LLMEvalResults",
     "LLMEvalRecord",
     "evaluate_llm",
-    "Embedding",
-    "MetricResult",
     "EvaluationConfig",
 ]

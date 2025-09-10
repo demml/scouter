@@ -111,7 +111,6 @@ __all__ = [
     "HTTPConfig",
     "ScouterClient",
     # Evaluate - from Python wrappers
-    "EvalResult",
     "LLMEvalMetric",
     "LLMEvalResults",
     "LLMEvalRecord",
@@ -128,5 +127,4 @@ __all__ = [
     "types",
     "drift",
     "evaluate",
-    "test",
 ]
