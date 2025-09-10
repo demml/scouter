@@ -6,15 +6,18 @@ In addition to real-time or online monitoring of LLMs, Scouter provides you with
 
 To run and LLM evaluation, you will first need to obtain your evaluation data and construct a list of `LLMEvalRecord` instances. Each `LLMEvalRecord` represents a single evaluation instance, containing the metadata you wish to evaluate. Note, we have left this intentionally flexible so that you can evaluate any type of metadata you wish.
 
-### Example: Creating Evaluation Records
+### Example: Evaluating a Prompt for Query Reformulation
 
-Let's say you have a use case where you want to evaluate how well a prompt reformulates user search queries. The prompt used for this task is shown below and does the following things:
+#### Step 1: Example Workflow Setup
+
+Let's say you have a use case where you want to evaluate how well a prompt reformulates user search queries and how relevant the answers are to the original user query. The prompts used for this task are shown below and does the following things:
 
 - Takes a bound parameter `${user_query}` which is the original user search query.
 - Reformulates the query to be more feature-rich and keyword-dense, while preserving the original
+- Takes the `${reformulated_query}` and injects it into an answer prompt to get an answer.
 
 ```python
-Prompt(
+reformulation_prompt = Prompt(
     message=(
         "You are an expert at query reformulation. Your task is to take a user's original search query "
         "and rewrite it to be more feature-rich and keyword-dense, so it better aligns with the user's intent "
@@ -37,26 +40,40 @@ Prompt(
         ),
     ),
 )
+
+answer_prompt = Prompt(
+    message=("You are a helpful assistant that can answer any question!" 
+             "Please provide an answer to the following user query.\n\n"
+             "Question:\n"
+             "${reformulated_query}\n\n"
+             "Answer:"
+            ),
+    model="gemini-2.5-flash-lite",
+    provider="gemini",
+)
 ```
 The overall flow for using the prompt would look like the following:
 
 ```mermaid
 flowchart TD
-subgraph A["Process Flow"]
+subgraph A["Question Answer Agent"]
     direction LR
     User_Query --> Reformulation_Prompt
     Reformulation_Prompt --> Reformulated_Query
-    Reformulated_Query --> Downstream_Process
+    Reformulated_Query --> Answer_Prompt
+    Answer_Prompt --> Answer
 end
 ```
 
-Now say you want to evaluate how well the prompt reformulates user queries into reformulated queries. In this scenario, imagine you already have a dataset of user queries and their reformulated queries that used the prompt above. Now, to evaluate the prompt, you would create a list of `LLMEvalRecords` containing the `user_query` and `reformulated_query` context as well as an `LLMEvalMetric` that defines how you want to evaluate the prompt using an `LLM as a judge` workflow.
+#### Step 2: Create an `LLMEvalMetric` to Evaluate the Prompt
+
+Now say you want to (1) evaluate how well the prompt reformulates user queries into better-structured queries and (2) how relevant the provided answer is to the user input. In this scenario, imagine you already have a dataset of user queries, their reformulated queries and the returned answers (this could be from an experiment you ran in production). Now, to evaluate the prompts and Agent, you would create a list of `LLMEvalRecords` containing the `user_query`, `reformulated_query` and `answer` context as well as an `LLMEvalMetric` that defines how you want to evaluate the prompt using an `LLM as a judge` workflow.
 
 Note: The `LLMEvalMetric` differs from the `LLMDriftMetric` in that the `LLMDriftMetric` is used when setting up real-time LLM monitoring and requires more configuration and setup. For offline evaluations, the `LLMEvalMetric` is simpler to use and requires less configuration. It requires only a name and eval prompt.
 
 ```python
 from scouter.llm import Prompt, Score
-from scouter.evaluate import LLMEvalMetric
+from scouter.evaluate import LLMEvalMetric, LLMEvalRecord, evaluate_llm
 
 reformulation_eval_prompt = Prompt(
     message=(
@@ -86,9 +103,77 @@ reformulation_eval_prompt = Prompt(
     response_format=Score, #(3)
 )
 
-eval_metric = LLMEvalMetric(
-    name="reformulation_quality",
-    prompt=reformulation_eval_prompt,
+asnwer_eval_prompt = Prompt(
+    message=(
+        "You are an expert evaluator of answer relevance. \n"
+        "You will be given a user query and an answer generated from a reformulated version of that query. \n"
+        "Your task is to assess how relevant and accurate the answer is in addressing the user's original information needs. \n"
+        "Consider the following criteria:\n"
+        "- Does the answer directly address the user's query?\n"
+        "- Is the information provided accurate and reliable?\n"
+        "- Is the answer clear, concise, and well-structured?\n\n"
+        "Provide your evaluation as a JSON object with the following attributes:\n"
+        "- score: An integer from 1 (poor) to 5 (excellent) indicating the overall answer quality score.\n"
+        "- reason: A brief explanation for your score.\n\n"
+        "Format your response as:\n"
+        "{\n"
+        '  "score": <integer 1-5>,\n'
+        '  "reason": "<your explanation>"\n'
+        "}\n\n"
+        "User Query:\n"
+        "${user_query}\n\n" #(1)
+        "Answer:\n"
+        "${answer}\n\n" #(2)
+        "Evaluation:"
+    ),
+    model="gemini-2.5-flash-lite-preview-06-17",
+    provider="gemini",
+    response_format=Score, #(3)
+)
+
+eval_metrics = [
+    LLMEvalMetric(
+        name="reformulation_quality",
+        prompt=reformulation_eval_prompt,
+    ),
+    LLMEvalMetric(
+        name="answer_relevance",
+        prompt=answer_eval_prompt,
+    )
+]
+
+flight_record = LLMEvalRecord(
+    context={
+        "user_query": "cheap flights to Europe next month",
+        "reformulated_query": "affordable airfare to Europe next month",
+        "answer": "I found several options for cheap flights to Europe next month."
+    },
+    id="record_1",
+)
+
+technical_record = LLMEvalRecord(
+    context={
+        "user_query": "why won't my laptop turn on",
+        "reformulated_query": "laptop computer won't boot power issues troubleshooting steps hardware failure battery power supply diagnostic repair",
+        "answer": "If your laptop won't turn on, try these troubleshooting steps: 1) Check power connections - ensure the charger is plugged in securely and the power outlet works. 2) Remove the battery (if removable) and hold the power button for 30 seconds, then reconnect and try again. 3) Look for LED indicators on the laptop or charger. 4) Try a different power adapter if available. 5) Check for physical damage to ports or cables. 6) If these steps don't work, the issue may be hardware-related (motherboard, RAM, or hard drive failure) requiring professional repair"
+    },
+    id="record_2",
+)
+
+cooking_record = LLMEvalRecord(
+    context={
+        "user_query": "easy dinner recipes with chicken",
+        "reformulated_query": "simple quick chicken dinner recipes healthy family-friendly weeknight meals",
+        "answer": "Here are some easy chicken dinner recipes: 1) Baked Lemon Garlic Chicken - Marinate chicken breasts in lemon juice, garlic, olive oil, and herbs, then bake until cooked through. 2) One-Pan Chicken and Veggies - Sauté chicken pieces with mixed vegetables in a skillet with olive oil and your favorite seasonings. 3) Chicken Stir-Fry - Cook sliced chicken with colorful veggies in a wok or large pan, adding soy sauce and ginger for flavor. 4) Chicken Tacos - Season shredded chicken with taco seasoning and serve in tortillas with your favorite toppings. 5) Chicken Alfredo Pasta - Toss cooked pasta with grilled chicken and a creamy Alfredo sauce for a quick and satisfying meal."
+    },
+    id="record_3",
+)
+
+records = [flight_record, technical_record, cooking_record]
+
+results = evaluate_llm(
+    records=records,
+    metrics=eval_metrics,
 )
 ```
 
@@ -96,3 +181,48 @@ eval_metric = LLMEvalMetric(
 2. `${reformulated_query}` is a bound parameter that will be populated from the `LLMEvalRecord` context
 3. `LLMEvalMetrics` currently require all prompts to return a `Score` object. This is critical as the score object allows us to extract a numerical score for evaluation.
 
+##### Eval Metric Flow
+
+As you can see from the above example, the overall flow for evaluating an LLM using `LLMEvalMetric` is as follows:
+
+1. Define the evaluation metrics using `LLMEvalMetric`, providing the necessary prompts for each metric.
+2. Create `LLMEvalRecord` instances for each record you want to evaluate, populating the context with the relevant information that will be injected into the prompts.
+3. Call the `evaluate_llm` function with the records and metrics to obtain the evaluation results.
+
+<h1 align="center">
+  <br>
+  <img src="../../../images/llm-metric-flow.png"  width="700"alt="llm metric flow"/>
+  <br>
+</h1>
+
+#### Step 4: Evaluation Configuration
+
+By default, the above `evaulate_llm` function will execute without any additional configuration. It will extract the defined metric prompts, bind the context variables from each record, and execute the prompts against the defined LLM provider and model and then extract the scores. However, if you want a more robust evaluation, we recommend you provide an `EvaluationConfig` configured to your needs.
+
+```python
+from scouter.evaluate import EvaluationConfig
+from scouter.llm.openai import OpenAIEmbeddingConfig
+from scouter.llm import Embedder, Provider
+
+#(previous code)...
+
+embedder = Embedder( #(1)
+    Provider.OpenAI,
+    config=OpenAIEmbeddingConfig(
+        model="text-embedding-3-small",
+        dimensions=512,
+    ),
+)
+
+results = evaluate_llm(
+    records=records,
+    metrics=eval_metrics,
+    config=EvaluationConfig( #(2)
+        embedder=embedder,
+        embedding_targets=["user_query", "answer"], #(3)
+        compute_similarity=True, #(4)
+        cluster=True, #(5)
+        compute_histograms=True, #(5)
+    ),
+)
+```
