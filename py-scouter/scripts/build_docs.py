@@ -2,7 +2,7 @@ import os
 import shutil
 
 BASE_DIR = os.path.join(os.path.dirname(__file__), "../python/scouter")
-FOLDERS = ["queue", "alert", "client", "drift", "profile", "types", "llm"]
+FOLDERS = ["queue", "alert", "client", "drift", "profile", "types", "llm", "evaluate"]
 
 LLM_SUBFOLDERS = ["google", "openai"]
 

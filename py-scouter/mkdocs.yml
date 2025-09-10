@@ -71,6 +71,7 @@ nav:
           - Overview: "docs/monitoring/custom/quickstart.md"
       - LLM:
           - Overview: "docs/monitoring/llm/overview.md"
+          - Evaluation: "docs/monitoring/llm/evaluation.md"
       - Get to the Queue!:
           - Inference: "docs/monitoring/inference.md"
   - Profiling:

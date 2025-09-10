@@ -38,5 +38,19 @@ Prompt(
     ),
 )
 ```
+The overall flow for using the prompt would look like the following:
 
-This prompt is a reformulation prompt th
+```mermaid
+flowchart TD
+subgraph A["Process Flow"]
+    direction LR
+    User_Query --> Reformulation_Prompt
+    Reformulation_Prompt --> Reformulated_Query
+    Reformulated_Query --> Downstream_Process
+end
+```
+
+Now say you want to evaluate how well the prompt reformulates user queries into reformulated queries. In this scenario, imagine you already have a dataset of user queries and their reformulated queries that used the prompt above. Now, to evaluate the prompt, you would create a list of `LLMEvalRecords` containing the `user_query` and `reformulated_query` context as well as an `LLMEvalMetric` that defines how you want to evaluate the prompt using an `LLM as a judge` workflow.
+
+```python
+```
