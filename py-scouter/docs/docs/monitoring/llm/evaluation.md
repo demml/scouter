@@ -257,3 +257,16 @@ print(f"Record 1 Reformulation Quality Reason: {record1_metrics['reformulation_q
 
 print(f"Record 1 Answer Relevance Score: {record1_metrics['answer_relevance'].score}")
 print(f"Record 1 Answer Relevance Reason: {record1_metrics['answer_relevance'].reason}")
+
+# Create a dataframe for easier analysis
+df = results.to_dataframe() # pandas
+print(df.head())
+
+df = results.to_dataframe(polars=True) # polars
+print(df.head())
+
+# Access histograms
+histograms = results.histograms
+for field, histogram in histograms.items():
+    print(f"Histogram for {field}: {histogram}")
+```

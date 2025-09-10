@@ -85,7 +85,11 @@ nav:
       - Client: "docs/api/client.md"
       - Drift: "docs/api/drift.md"
       - Profile: "docs/api/profile.md"
-      - LLM: "docs/api/llm.md"
+      - Evaluate: "docs/api/evaluate.md"
+      - LLM:
+          - LLM: "docs/api/llm/llm.md"
+          - OpenAI: "docs/api/llm/openai.md"
+          - Google: "docs/api/llm/google.md"
       - Queue: "docs/api/queue.md"
       - Types: "docs/api/types.md"
 
