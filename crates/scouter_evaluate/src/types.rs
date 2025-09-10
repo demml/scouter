@@ -38,14 +38,16 @@ pub fn array_to_dict<'py>(
 }
 
 /// Enhanced results collection that captures both successes and failures
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 #[pyclass]
 pub struct LLMEvalResults {
     pub results: HashMap<String, LLMEvalTaskResult>,
     pub errored_tasks: Vec<String>,
-    pub array_dataset: Option<ArrayDataset>,
     pub cluster_data: Option<ClusterData>,
     pub histograms: Option<HashMap<String, Histogram>>,
+
+    #[serde(skip)]
+    pub array_dataset: Option<ArrayDataset>,
 }
 
 #[pymethods]
@@ -56,6 +58,10 @@ impl LLMEvalResults {
             Some(value) => Ok(value.clone()),
             None => Err(EvaluationError::MissingKeyError(key.to_string())),
         }
+    }
+
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
     }
 
     #[pyo3(signature = (polars=false))]
@@ -182,7 +188,7 @@ impl LLMEvalResults {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 #[pyclass]
 pub struct ClusterData {
     #[pyo3(get)]
