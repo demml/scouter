@@ -7,7 +7,7 @@ use pyo3::types::PyDict;
 use pyo3::IntoPyObjectExt;
 use scouter_profile::{Histogram, NumProfiler};
 use scouter_types::{is_pydantic_model, json_to_pyobject_value, pyobject_to_json};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
@@ -38,12 +38,17 @@ pub fn array_to_dict<'py>(
 }
 
 /// Enhanced results collection that captures both successes and failures
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 #[pyclass]
 pub struct LLMEvalResults {
     pub results: HashMap<String, LLMEvalTaskResult>,
+
+    #[pyo3(get)]
     pub errored_tasks: Vec<String>,
+
     pub cluster_data: Option<ClusterData>,
+
+    #[pyo3(get)]
     pub histograms: Option<HashMap<String, Histogram>>,
 
     #[serde(skip)]
@@ -62,6 +67,17 @@ impl LLMEvalResults {
 
     pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
+    }
+
+    pub fn model_dump_json(&self) -> String {
+        // serialize the struct to a string
+        PyHelperFuncs::__json__(self)
+    }
+
+    #[staticmethod]
+    pub fn model_validate_json(json_string: String) -> Result<LLMEvalResults, EvaluationError> {
+        // deserialize the string to a struct
+        Ok(serde_json::from_str(&json_string)?)
     }
 
     #[pyo3(signature = (polars=false))]
@@ -188,7 +204,7 @@ impl LLMEvalResults {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[pyclass]
 pub struct ClusterData {
     #[pyo3(get)]
@@ -314,7 +330,7 @@ impl Default for LLMEvalResults {
 }
 
 /// Struct for collecting results from LLM evaluation tasks.
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[pyclass]
 pub struct LLMEvalTaskResult {
     #[pyo3(get)]

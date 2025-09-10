@@ -49,6 +49,9 @@ pub enum EvaluationError {
 
     #[error(transparent)]
     DataProfileError(#[from] scouter_profile::error::DataProfileError),
+
+    #[error(transparent)]
+    SerdeError(#[from] serde_json::Error),
 }
 
 impl From<EvaluationError> for PyErr {
