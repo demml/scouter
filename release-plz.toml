@@ -53,3 +53,6 @@ publish = true
 name = "scouter-client"
 publish = true
 
+name = "scouter-state"
+publish = true
+

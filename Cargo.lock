@@ -5748,6 +5748,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "scouter-state"
+version = "0.11.0"
+dependencies = [
+ "thiserror 2.0.16",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "scouter-types"
 version = "0.11.0"
 dependencies = [

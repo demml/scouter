@@ -32,6 +32,7 @@ scouter-server = { path = "crates/scouter_server", version = "0.11.0" }
 scouter-semver = { path = "crates/scouter_semver", version = "0.11.0" }
 scouter-settings = { path = "crates/scouter_settings", version = "0.11.0" }
 scouter-dataframe = { path = "crates/scouter_dataframe", version = "0.11.0" }
+scouter-state = { path = "crates/scouter_state", version = "0.11.0" }
 scouter-sql = { path = "crates/scouter_sql", version = "0.11.0" }
 scouter-types = { path = "crates/scouter_types", version = "0.11.0" }
 scouter-mocks = { path = "crates/scouter_mocks" }
