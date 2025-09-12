@@ -51,7 +51,7 @@ async fn async_evaluate_llm(
 }
 
 /// Builds a workflow from a list of LLMEvalMetric objects
-pub fn workflow_from_eval_metrics(
+pub async fn workflow_from_eval_metrics(
     eval_metrics: Vec<LLMEvalMetric>,
     name: &str,
 ) -> Result<Workflow, EvaluationError> {
@@ -69,6 +69,7 @@ pub fn workflow_from_eval_metrics(
             Entry::Occupied(entry) => entry.into_mut(),
             Entry::Vacant(entry) => {
                 let agent = Agent::from_model_settings(&metric.prompt.model_settings)
+                    .await
                     .map_err(|e| WorkflowError::Error(format!("Failed to create agent: {}", e)))?;
                 workflow.add_agent(&agent);
                 entry.insert(agent)
@@ -99,13 +100,14 @@ pub fn evaluate_llm(
     metrics: Vec<LLMEvalMetric>,
     config: Option<EvaluationConfig>,
 ) -> Result<LLMEvalResults, EvaluationError> {
-    let workflow = workflow_from_eval_metrics(metrics, "LLM Evaluation")?;
+    let runtime = tokio::runtime::Runtime::new()?;
     let config = Arc::new(config.unwrap_or_default());
 
     // Create runtime and execute evaluation pipeline
-    let runtime = tokio::runtime::Runtime::new()?;
-    let mut results =
-        runtime.block_on(async { async_evaluate_llm(workflow, records, &config).await })?;
+    let mut results = runtime.block_on(async {
+        let workflow = workflow_from_eval_metrics(metrics, "LLM Evaluation").await?;
+        async_evaluate_llm(workflow, records, &config).await
+    })?;
 
     // Only run post-processing if needed
     // Post processing includes calculating embedding means, similarities, clustering, and histograms
