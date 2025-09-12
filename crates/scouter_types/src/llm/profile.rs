@@ -461,7 +461,10 @@ impl LLMDriftProfile {
             let agent = match agents.entry(provider) {
                 Entry::Occupied(entry) => entry.into_mut(),
                 Entry::Vacant(entry) => {
-                    let agent = Agent::from_model_settings(&prompt.model_settings)?;
+                    let runtime = tokio::runtime::Runtime::new()?;
+                    let agent = runtime.block_on(async {
+                        Agent::from_model_settings(&prompt.model_settings).await
+                    })?;
                     workflow.add_agent(&agent);
                     entry.insert(agent)
                 }
@@ -731,6 +734,7 @@ mod tests {
     fn test_llm_drift_profile_workflow() {
         let mut mock = LLMTestServer::new();
         mock.start_server().unwrap();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
 
         let mut workflow = Workflow::new("My eval Workflow");
 
@@ -738,7 +742,10 @@ mod tests {
         let final_prompt1 = create_score_prompt(None);
         let final_prompt2 = create_score_prompt(None);
 
-        let agent1 = Agent::new(Provider::OpenAI, None).unwrap();
+        let agent1 = runtime
+            .block_on(async { Agent::new(Provider::OpenAI, None).await })
+            .unwrap();
+
         workflow.add_agent(&agent1);
 
         // First task with parameters
