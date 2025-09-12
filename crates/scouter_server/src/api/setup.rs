@@ -45,7 +45,7 @@ pub struct ScouterSetupComponents {
 
 impl ScouterSetupComponents {
     pub async fn new() -> AnyhowResult<Self> {
-        let config = Arc::new(ScouterServerConfig::default());
+        let config = Arc::new(ScouterServerConfig::new().await);
 
         // start logging
         let logging = Self::setup_logging().await;

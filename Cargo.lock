@@ -880,7 +880,7 @@ dependencies = [
 [[package]]
 name = "baked-potato"
 version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#ddd9715c745444229d968031be0b0deea36a292d"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#2b4b19b6271bd568dd48a95b349cbcc4938c51f2"
 dependencies = [
  "mockito",
  "potato-agent",
@@ -1108,9 +1108,9 @@ dependencies = [
 
 [[package]]
 name = "cc"
-version = "1.2.36"
+version = "1.2.37"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5252b3d2648e5eedbc1a6f501e3c795e07025c1e93bbf8bbdd6eef7f447a6d54"
+checksum = "65193589c6404eb80b450d618eaf9a2cafaaafd57ecce47370519ef674a7bd44"
 dependencies = [
  "find-msvc-tools",
  "jobserver",
@@ -1268,9 +1268,9 @@ dependencies = [
 
 [[package]]
 name = "comfy-table"
-version = "7.2.0"
+version = "7.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "3f8e18d0dca9578507f13f9803add0df13362b02c501c1c17734f0dbb52eaf0b"
+checksum = "b03b7db8e0b4b2fdad6c551e634134e99ec000e5c8c3b6856c65e8bbaded7a3b"
 dependencies = [
  "unicode-segmentation",
  "unicode-width",
@@ -2856,9 +2856,9 @@ checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 
 [[package]]
 name = "humantime"
-version = "2.2.0"
+version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b112acc8b3adf4b107a8ec20977da0273a8c386765a3ec0229bd500a1443f9f"
+checksum = "135b12329e5e3ce057a9f972339ea52bc954fe1e9358ef27f95e89716fbc5424"
 
 [[package]]
 name = "hyper"
@@ -2943,9 +2943,9 @@ dependencies = [
 
 [[package]]
 name = "iana-time-zone"
-version = "0.1.63"
+version = "0.1.64"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b0c919e5debc312ad217002b8048a17b7d83f80703865bbfcfebb0458b0b27d8"
+checksum = "33e57f83510bb73707521ebaffa789ec8caf86f9657cad665b092b581d40e9fb"
 dependencies = [
  "android_system_properties",
  "core-foundation-sys",
@@ -4474,7 +4474,7 @@ dependencies = [
 [[package]]
 name = "potato-agent"
 version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#ddd9715c745444229d968031be0b0deea36a292d"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#2b4b19b6271bd568dd48a95b349cbcc4938c51f2"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -4496,7 +4496,7 @@ dependencies = [
 [[package]]
 name = "potato-head"
 version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#ddd9715c745444229d968031be0b0deea36a292d"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#2b4b19b6271bd568dd48a95b349cbcc4938c51f2"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -4510,7 +4510,7 @@ dependencies = [
 [[package]]
 name = "potato-prompt"
 version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#ddd9715c745444229d968031be0b0deea36a292d"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#2b4b19b6271bd568dd48a95b349cbcc4938c51f2"
 dependencies = [
  "mime_guess",
  "potato-type",
@@ -4527,7 +4527,7 @@ dependencies = [
 [[package]]
 name = "potato-provider"
 version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#ddd9715c745444229d968031be0b0deea36a292d"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#2b4b19b6271bd568dd48a95b349cbcc4938c51f2"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -4548,7 +4548,7 @@ dependencies = [
 [[package]]
 name = "potato-type"
 version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#ddd9715c745444229d968031be0b0deea36a292d"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#2b4b19b6271bd568dd48a95b349cbcc4938c51f2"
 dependencies = [
  "potato-util",
  "pyo3",
@@ -4562,7 +4562,7 @@ dependencies = [
 [[package]]
 name = "potato-util"
 version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#ddd9715c745444229d968031be0b0deea36a292d"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#2b4b19b6271bd568dd48a95b349cbcc4938c51f2"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -4577,7 +4577,7 @@ dependencies = [
 [[package]]
 name = "potato-workflow"
 version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#ddd9715c745444229d968031be0b0deea36a292d"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#2b4b19b6271bd568dd48a95b349cbcc4938c51f2"
 dependencies = [
  "chrono",
  "potato-agent",
@@ -5313,9 +5313,9 @@ dependencies = [
 
 [[package]]
 name = "rustls-webpki"
-version = "0.103.4"
+version = "0.103.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a17884ae0c1b773f1ccd2bd4a8c72f16da897310a98b0e84bf349ad5ead92fc"
+checksum = "b5a37813727b78798e53c2bec3f5e8fe12a6d6f8389bf9ca7802add4c9905ad8"
 dependencies = [
  "ring",
  "rustls-pki-types",
@@ -6890,9 +6890,9 @@ checksum = "5c1cb5db39152898a79168971543b1cb5020dff7fe43c8dc468b0885f5e29df5"
 
 [[package]]
 name = "unicode-ident"
-version = "1.0.18"
+version = "1.0.19"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5a5f39404a5da50712a4c1eecf25e90dd62b613502b7e925fd4e4d19b5c96512"
+checksum = "f63a545481291138910575129486daeaf8ac54aee4387fe7906919f7830c7d9d"
 
 [[package]]
 name = "unicode-normalization"
@@ -7220,13 +7220,13 @@ checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
 
 [[package]]
 name = "windows-core"
-version = "0.61.2"
+version = "0.62.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c0fdd3ddb90610c7638aa2b3a3ab2904fb9e5cdbecc643ddb3647212781c4ae3"
+checksum = "57fe7168f7de578d2d8a05b07fd61870d2e73b4020e9f49aa00da8471723497c"
 dependencies = [
  "windows-implement",
  "windows-interface",
- "windows-link 0.1.3",
+ "windows-link 0.2.0",
  "windows-result",
  "windows-strings",
 ]
@@ -7267,20 +7267,20 @@ checksum = "45e46c0661abb7180e7b9c281db115305d49ca1709ab8242adf09666d2173c65"
 
 [[package]]
 name = "windows-result"
-version = "0.3.4"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56f42bd332cc6c8eac5af113fc0c1fd6a8fd2aa08a0119358686e5160d0586c6"
+checksum = "7084dcc306f89883455a206237404d3eaf961e5bd7e0f312f7c91f57eb44167f"
 dependencies = [
- "windows-link 0.1.3",
+ "windows-link 0.2.0",
 ]
 
 [[package]]
 name = "windows-strings"
-version = "0.4.2"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "56e6c93f3a0c3b36176cb1327a4958a0353d5d166c2a35cb268ace15e91d3b57"
+checksum = "7218c655a553b0bed4426cf54b20d7ba363ef543b52d515b3e48d7fd55318dda"
 dependencies = [
- "windows-link 0.1.3",
+ "windows-link 0.2.0",
 ]
 
 [[package]]

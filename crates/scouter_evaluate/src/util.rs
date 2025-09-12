@@ -7,7 +7,8 @@ use linfa_reduction::Pca;
 use ndarray::{Array1, Array2};
 use num_traits::FromPrimitive;
 use potato_head::{
-    Embedder, PyEmbedder, Score, StructuredOutput, TaskStatus, Workflow, WorkflowError,
+    Embedder, EmbeddingInput, PyEmbedder, Score, StructuredOutput, TaskStatus, Workflow,
+    WorkflowError,
 };
 use pyo3::prelude::*;
 use rayon::prelude::*;
@@ -185,7 +186,7 @@ pub async fn generate_embeddings_for_record(
             .map(|s| vec![s.to_string()]);
 
         if let Some(texts) = texts {
-            match embedder.embed(texts).await {
+            match embedder.embed(EmbeddingInput::Texts(texts)).await {
                 Ok(embedding_response) => match embedding_response.values() {
                     Ok(values) => {
                         // move ownership of values into Embedding struct

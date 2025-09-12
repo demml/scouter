@@ -446,6 +446,7 @@ impl LLMDriftProfile {
         let mut workflow = Workflow::new("llm_drift_workflow");
         let mut agents = HashMap::new();
         let mut metric_names = Vec::new();
+        let runtime = tokio::runtime::Runtime::new()?;
 
         // Create agents. We don't want to duplicate, so we check if the agent already exists.
         // if it doesn't, we create it.
@@ -461,7 +462,6 @@ impl LLMDriftProfile {
             let agent = match agents.entry(provider) {
                 Entry::Occupied(entry) => entry.into_mut(),
                 Entry::Vacant(entry) => {
-                    let runtime = tokio::runtime::Runtime::new()?;
                     let agent = runtime.block_on(async {
                         Agent::from_model_settings(&prompt.model_settings).await
                     })?;

@@ -77,7 +77,7 @@ impl TestHelper {
         std::env::set_var("RABBITMQ_ADDR", "amqp://guest:guest@127.0.0.1:5672/%2f");
         std::env::set_var("REDIS_ADDR", "redis://127.0.0.1:6379");
 
-        let config = ScouterServerConfig::default();
+        let config = ScouterServerConfig::new().await;
 
         let db_pool = PostgresClient::create_db_pool(&config.database_settings)
             .await

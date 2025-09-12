@@ -61,8 +61,8 @@ impl ScouterServerConfig {
     }
 }
 
-impl Default for ScouterServerConfig {
-    fn default() -> Self {
+impl ScouterServerConfig {
+    pub async fn new() -> Self {
         let polling = PollingSettings::default();
         let database = DatabaseSettings::default();
         let kafka = if env::var("KAFKA_BROKERS").is_ok() {
@@ -105,7 +105,7 @@ impl Default for ScouterServerConfig {
         let bootstrap_key =
             env::var("SCOUTER_BOOTSTRAP_KEY").unwrap_or_else(|_| generate_default_secret());
 
-        let llm_settings = LLMSettings::default();
+        let llm_settings = LLMSettings::new().await;
 
         Self {
             polling_settings: polling,
