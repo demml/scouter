@@ -93,15 +93,19 @@ jobs:
             # Install bindgen CLI
             cargo install --force --locked bindgen-cli
 
-            # Determine architecture (x86_64 or x86)
+            # Determine architecture
             ARCH=$(uname -m)
-
             echo "Detected architecture: $ARCH"
 
             # Download the correct CMake version based on the architecture
             if [[ "$ARCH" == "x86_64" ]]; then
                 echo "Downloading CMake for x86_64 architecture"
                 curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-x86_64.sh -o cmake.sh
+                chmod +x cmake.sh
+                ./cmake.sh --skip-license --prefix=/usr/local
+            elif [[ "$ARCH" == "aarch64" ]]; then
+                echo "Downloading CMake for aarch64 architecture"
+                curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-aarch64.sh -o cmake.sh
                 chmod +x cmake.sh
                 ./cmake.sh --skip-license --prefix=/usr/local
             elif [[ "$ARCH" == "i686" ]]; then
@@ -119,6 +123,18 @@ jobs:
             fi
 
             cmake --version
+
+            # Set environment variables to help with simsimd compilation on ARM
+            if [[ "$ARCH" == "aarch64" ]]; then
+                export SIMSIMD_DISABLE_SVE=1
+                export SIMSIMD_TARGET_SVE=0
+                export SIMSIMD_TARGET_SVE2=0
+                export SIMSIMD_TARGET_SVE_F16=0
+                export SIMSIMD_TARGET_SVE_BF16=0
+                export SIMSIMD_TARGET_SVE_I8=0
+                export CFLAGS="-march=armv8-a"
+                export CXXFLAGS="-march=armv8-a"
+            fi
 
       - name: Check dist
         working-directory: ./py-scouter
