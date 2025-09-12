@@ -10,13 +10,13 @@ use crate::{
 };
 use core::fmt::Debug;
 use potato_head::prompt::ResponseType;
-
 use potato_head::Task;
 use potato_head::Workflow;
 use potato_head::{Agent, Prompt};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use scouter_semver::VersionType;
+use scouter_state::app_state;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::hash_map::Entry;
@@ -446,7 +446,7 @@ impl LLMDriftProfile {
         let mut workflow = Workflow::new("llm_drift_workflow");
         let mut agents = HashMap::new();
         let mut metric_names = Vec::new();
-        let runtime = tokio::runtime::Runtime::new()?;
+        let runtime = app_state().start_runtime();
 
         // Create agents. We don't want to duplicate, so we check if the agent already exists.
         // if it doesn't, we create it.
