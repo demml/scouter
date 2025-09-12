@@ -1,11 +1,13 @@
 use pyo3::prelude::*;
 use scouter_drift::{error::DriftError, LLMEvaluator};
+use scouter_state::app_state;
 use scouter_types::llm::{LLMDriftConfig, LLMDriftMetric, LLMDriftProfile};
 use scouter_types::{LLMMetricRecord, LLMRecord};
+use std::sync::Arc;
 
 /// Using "ClientLLMDrifter" to avoid confusion with the server-side LLMDrifter
 pub struct ClientLLMDrifter {
-    pub runtime: tokio::runtime::Runtime,
+    pub runtime: Arc<tokio::runtime::Runtime>,
 }
 
 impl Default for ClientLLMDrifter {
@@ -16,7 +18,7 @@ impl Default for ClientLLMDrifter {
 
 impl ClientLLMDrifter {
     pub fn new() -> Self {
-        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let runtime = app_state().start_runtime();
         Self { runtime }
     }
 
