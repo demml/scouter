@@ -29,6 +29,7 @@ serde_json = { workspace = true }
 scouter-drift = { workspace = true }
 scouter-settings = { workspace = true }
 scouter-sql = { workspace = true, optional = true }
+scouter-state = { workspace = true }
 scouter-types = { workspace = true }
 sqlx = { workspace = true, optional = true }
 time = { workspace = true }

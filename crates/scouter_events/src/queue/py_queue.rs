@@ -11,6 +11,7 @@ use crate::queue::traits::queue::wait_for_event_task;
 use crate::queue::traits::queue::QueueMethods;
 use crate::queue::types::TransportConfig;
 use pyo3::prelude::*;
+use scouter_state::app_state;
 use scouter_types::{DriftProfile, LLMRecord, QueueItem};
 use scouter_types::{Features, Metrics};
 use std::collections::HashMap;
@@ -287,8 +288,7 @@ impl ScouterQueue {
         transport_config: &Bound<'_, PyAny>,
     ) -> Result<Self, PyEventError> {
         // create a tokio runtime to run the background tasks
-        let shared_runtime =
-            Arc::new(tokio::runtime::Runtime::new().map_err(EventError::SetupTokioRuntimeError)?);
+        let shared_runtime = app_state().start_runtime();
         ScouterQueue::from_path_rs(py, path, transport_config, shared_runtime, false)
     }
 
