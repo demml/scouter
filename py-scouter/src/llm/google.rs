@@ -5,7 +5,8 @@ use potato_head::google_types::{
         ModelArmorConfig, PrebuiltVoiceConfig, RetrievalConfig, SafetySetting, SpeechConfig,
         ThinkingConfig, ToolConfig, VoiceConfig, VoiceConfigMode,
     },
-    GeminiEmbeddingConfig, GeminiEmbeddingResponse,
+    predict::{PredictRequest, PredictResponse},
+    EmbeddingTaskType, GeminiEmbeddingConfig, GeminiEmbeddingResponse,
 };
 use pyo3::prelude::*;
 
@@ -32,5 +33,8 @@ pub fn google(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<GeminiSettings>()?;
     m.add_class::<GeminiEmbeddingConfig>()?;
     m.add_class::<GeminiEmbeddingResponse>()?;
+    m.add_class::<PredictRequest>()?;
+    m.add_class::<PredictResponse>()?;
+    m.add_class::<EmbeddingTaskType>()?;
     Ok(())
 }

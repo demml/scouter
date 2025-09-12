@@ -880,12 +880,12 @@ dependencies = [
 [[package]]
 name = "baked-potato"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e87c60d413209ea7c9edfa428fb7cf7c6b526e7b21e4410f9559ee4dd56d0619"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#ddd9715c745444229d968031be0b0deea36a292d"
 dependencies = [
  "mockito",
  "potato-agent",
  "potato-prompt",
+ "potato-provider",
  "potato-type",
  "potato-util",
  "potato-workflow",
@@ -2293,6 +2293,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "34aa73646ffb006b8f5147f3dc182bd4bcb190227ce861fc4a4844bf8e3cb2c0"
 
 [[package]]
+name = "encoding_rs"
+version = "0.8.35"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75030f3c4f45dafd7586dd6780965a8c7e8e285a5ecb86713e63a79c5b2766f3"
+dependencies = [
+ "cfg-if",
+]
+
+[[package]]
 name = "equivalent"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2607,6 +2616,39 @@ dependencies = [
 ]
 
 [[package]]
+name = "gcloud-auth"
+version = "1.1.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ce5aa2c8f36c2be2c352fcf62b221d92fab43fbdc6e8a379eec7354d6e77e1b4"
+dependencies = [
+ "async-trait",
+ "base64",
+ "gcloud-metadata",
+ "home",
+ "jsonwebtoken",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.16",
+ "time",
+ "token-source",
+ "tokio",
+ "tracing",
+ "urlencoding",
+]
+
+[[package]]
+name = "gcloud-metadata"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "61f706788c1b58712c513e4d403234707fd255f49caa89d1c930197418b5fb2c"
+dependencies = [
+ "reqwest",
+ "thiserror 2.0.16",
+ "tokio",
+]
+
+[[package]]
 name = "generic-array"
 version = "0.14.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2857,6 +2899,22 @@ dependencies = [
  "tokio-rustls",
  "tower-service",
  "webpki-roots",
+]
+
+[[package]]
+name = "hyper-tls"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "70206fc6890eaca9fde8a0bf71caa2ddfc9fe045ac9e5c70df101a7dbde866e0"
+dependencies = [
+ "bytes",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "native-tls",
+ "tokio",
+ "tokio-native-tls",
+ "tower-service",
 ]
 
 [[package]]
@@ -4416,11 +4474,13 @@ dependencies = [
 [[package]]
 name = "potato-agent"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a91e97d032bd7c6fd25415cd56134a3f92469289b60c62b3d69dd15e85952f6"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#ddd9715c745444229d968031be0b0deea36a292d"
 dependencies = [
  "base64",
+ "gcloud-auth",
+ "http",
  "potato-prompt",
+ "potato-provider",
  "potato-type",
  "potato-util",
  "pyo3",
@@ -4428,6 +4488,7 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 2.0.16",
+ "token-source",
  "tokio",
  "tracing",
 ]
@@ -4435,12 +4496,12 @@ dependencies = [
 [[package]]
 name = "potato-head"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4ef7615075f2a2e2a79800a05c8629a2d11cb3ea90ef1924a5d0aaca355c9a25"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#ddd9715c745444229d968031be0b0deea36a292d"
 dependencies = [
  "baked-potato",
  "potato-agent",
  "potato-prompt",
+ "potato-provider",
  "potato-type",
  "potato-util",
  "potato-workflow",
@@ -4449,8 +4510,7 @@ dependencies = [
 [[package]]
 name = "potato-prompt"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42be5260a35ed0932d837859225fb27edf99d7af62057525ff4905f8553e09df"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#ddd9715c745444229d968031be0b0deea36a292d"
 dependencies = [
  "mime_guess",
  "potato-type",
@@ -4465,10 +4525,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "potato-provider"
+version = "0.6.0"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#ddd9715c745444229d968031be0b0deea36a292d"
+dependencies = [
+ "base64",
+ "gcloud-auth",
+ "http",
+ "potato-prompt",
+ "potato-type",
+ "potato-util",
+ "pyo3",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.16",
+ "token-source",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "potato-type"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1199fd6ccbe0f543ada5077327442c2843937b7384f95d10bf2b61fe75446277"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#ddd9715c745444229d968031be0b0deea36a292d"
 dependencies = [
  "potato-util",
  "pyo3",
@@ -4482,8 +4562,7 @@ dependencies = [
 [[package]]
 name = "potato-util"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "345da66dcc938cd17de78a7fd1a6e09fdc4038d4e037d2adf5b7372715058a4d"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#ddd9715c745444229d968031be0b0deea36a292d"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -4498,12 +4577,12 @@ dependencies = [
 [[package]]
 name = "potato-workflow"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2b487d4b094ec8db55d782b427a14d05aed940e1e9655e9393b9e2a2a14600c6"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#ddd9715c745444229d968031be0b0deea36a292d"
 dependencies = [
  "chrono",
  "potato-agent",
  "potato-prompt",
+ "potato-provider",
  "potato-type",
  "potato-util",
  "pyo3",
@@ -5028,6 +5107,7 @@ checksum = "d429f34c8092b2d42c7c93cec323bb4adeb7c67698f70839adec842ec10c7ceb"
 dependencies = [
  "base64",
  "bytes",
+ "encoding_rs",
  "futures-channel",
  "futures-core",
  "futures-util",
@@ -5037,10 +5117,13 @@ dependencies = [
  "http-body-util",
  "hyper",
  "hyper-rustls",
+ "hyper-tls",
  "hyper-util",
  "js-sys",
  "log",
+ "mime",
  "mime_guess",
+ "native-tls",
  "percent-encoding",
  "pin-project-lite",
  "quinn",
@@ -5052,6 +5135,7 @@ dependencies = [
  "serde_urlencoded",
  "sync_wrapper",
  "tokio",
+ "tokio-native-tls",
  "tokio-rustls",
  "tokio-util",
  "tower",
@@ -6543,6 +6627,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1f3ccbac311fea05f86f61904b462b55fb3df8837a366dfc601a0161d0532f20"
 
 [[package]]
+name = "token-source"
+version = "1.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "75746ae15bef509f21039a652383104424208fdae172a964a8930858b9a78412"
+dependencies = [
+ "async-trait",
+]
+
+[[package]]
 name = "tokio"
 version = "1.47.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6571,6 +6664,16 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn",
+]
+
+[[package]]
+name = "tokio-native-tls"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbae76ab933c85776efabc971569dd6119c580d8f5d448769dec1764bf796ef2"
+dependencies = [
+ "native-tls",
+ "tokio",
 ]
 
 [[package]]
@@ -6847,6 +6950,12 @@ dependencies = [
  "percent-encoding",
  "serde",
 ]
+
+[[package]]
+name = "urlencoding"
+version = "2.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "daf8dba3b7eb870caf1ddeed7bc9d2a049f3cfdfae7cb521b087cc33ae4c49da"
 
 [[package]]
 name = "utf8_iter"
