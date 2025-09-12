@@ -2,17 +2,19 @@ use pyo3::prelude::*;
 use scouter_drift::{error::DriftError, LLMEvaluator};
 use scouter_types::llm::{LLMDriftConfig, LLMDriftMetric, LLMDriftProfile};
 use scouter_types::{LLMMetricRecord, LLMRecord};
-pub struct LLMDrifter {
+
+/// Using "ClientLLMDrifter" to avoid confusion with the server-side LLMDrifter
+pub struct ClientLLMDrifter {
     pub runtime: tokio::runtime::Runtime,
 }
 
-impl Default for LLMDrifter {
+impl Default for ClientLLMDrifter {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl LLMDrifter {
+impl ClientLLMDrifter {
     pub fn new() -> Self {
         let runtime = tokio::runtime::Runtime::new().unwrap();
         Self { runtime }

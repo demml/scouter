@@ -1,5 +1,7 @@
 use crate::data_utils::DataConverterEnum;
-use crate::drifter::{custom::CustomDrifter, llm::LLMDrifter, psi::PsiDrifter, spc::SpcDrifter};
+use crate::drifter::{
+    custom::CustomDrifter, llm::ClientLLMDrifter, psi::PsiDrifter, spc::SpcDrifter,
+};
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use pyo3::IntoPyObjectExt;
@@ -65,7 +67,7 @@ pub enum Drifter {
     Spc(SpcDrifter),
     Psi(PsiDrifter),
     Custom(CustomDrifter),
-    LLM(LLMDrifter),
+    LLM(ClientLLMDrifter),
 }
 
 impl Debug for Drifter {
@@ -85,7 +87,7 @@ impl Drifter {
             DriftType::Spc => Ok(Drifter::Spc(SpcDrifter::new())),
             DriftType::Psi => Ok(Drifter::Psi(PsiDrifter::new())),
             DriftType::Custom => Ok(Drifter::Custom(CustomDrifter::new())),
-            DriftType::LLM => Ok(Drifter::LLM(LLMDrifter::new())),
+            DriftType::LLM => Ok(Drifter::LLM(ClientLLMDrifter::new())),
         }
     }
 
