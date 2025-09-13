@@ -39,7 +39,7 @@ jobs:
           path: ./py-scouter/dist
           retention-days: 1
 
-  build-ubuntu:
+  build-linux:
     name: build - ubuntu - ${{ matrix.manylinux }} - ${{ matrix.target }}
     strategy:
       fail-fast: false
@@ -47,8 +47,6 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             manylinux: auto
-          - target: aarch64-unknown-linux-gnu
-            manylinux: "2_28"
 
     runs-on: ubuntu-latest
     steps:
@@ -93,19 +91,15 @@ jobs:
             # Install bindgen CLI
             cargo install --force --locked bindgen-cli
 
-            # Determine architecture
+            # Determine architecture (x86_64 or x86)
             ARCH=$(uname -m)
+
             echo "Detected architecture: $ARCH"
 
             # Download the correct CMake version based on the architecture
             if [[ "$ARCH" == "x86_64" ]]; then
                 echo "Downloading CMake for x86_64 architecture"
                 curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-x86_64.sh -o cmake.sh
-                chmod +x cmake.sh
-                ./cmake.sh --skip-license --prefix=/usr/local
-            elif [[ "$ARCH" == "aarch64" ]]; then
-                echo "Downloading CMake for aarch64 architecture"
-                curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-aarch64.sh -o cmake.sh
                 chmod +x cmake.sh
                 ./cmake.sh --skip-license --prefix=/usr/local
             elif [[ "$ARCH" == "i686" ]]; then
@@ -124,18 +118,6 @@ jobs:
 
             cmake --version
 
-            # Set environment variables to help with simsimd compilation on ARM
-            if [[ "$ARCH" == "aarch64" ]]; then
-                export SIMSIMD_DISABLE_SVE=1
-                export SIMSIMD_TARGET_SVE=0
-                export SIMSIMD_TARGET_SVE2=0
-                export SIMSIMD_TARGET_SVE_F16=0
-                export SIMSIMD_TARGET_SVE_BF16=0
-                export SIMSIMD_TARGET_SVE_I8=0
-                export CFLAGS="-march=armv8-a"
-                export CXXFLAGS="-march=armv8-a"
-            fi
-
       - name: Check dist
         working-directory: ./py-scouter
         run: ls -lh dist/
@@ -143,6 +125,69 @@ jobs:
       - name: Check wheel
         working-directory: ./py-scouter
         run: twine check --strict dist/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pypi_files_ubuntu_${{ matrix.target }}
+          path: ./py-scouter/dist
+          retention-days: 1
+
+  build-linux-arm:
+    name: build - linux-arm64
+    runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-unknown-linux-gnu
+            manylinux: 2_28
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install maturin
+        run: pip install maturin
+
+      - name: Build wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.target }}
+          manylinux: ${ matrix.manylinux }
+          args: --release --out dist
+          rust-toolchain: stable
+          docker-options: -e CI -e SIMSIMD_DISABLE_SVE=1 -e SIMSIMD_TARGET_SVE=0 -e SIMSIMD_TARGET_SVE2=0
+          working-directory: ./py-scouter
+          before-script-linux: |
+            # Install required packages
+            if command -v yum &> /dev/null; then
+                yum update -y && yum install -y perl-core openssl openssl-devel pkgconfig libatomic
+            else
+                apt update -y && apt-get install -y libssl-dev openssl pkg-config
+            fi
+
+            # Set environment variables for simsimd on ARM64
+            export SIMSIMD_DISABLE_SVE=1
+            export SIMSIMD_TARGET_SVE=0
+            export SIMSIMD_TARGET_SVE2=0
+            export SIMSIMD_TARGET_SVE_F16=0
+            export SIMSIMD_TARGET_SVE_BF16=0
+            export SIMSIMD_TARGET_SVE_I8=0
+            export CFLAGS="-march=armv8-a"
+            export CXXFLAGS="-march=armv8-a"
+
+      - name: Check wheel
+        working-directory: ./py-scouter
+        run: |
+          pip install twine
+          twine check --strict dist/*
 
       - uses: actions/upload-artifact@v4
         with:
@@ -243,7 +288,8 @@ jobs:
           retention-days: 1
 
   inspect-pypi-assets:
-    needs: [build-ubuntu, build-macos, build-windows, build-sdist]
+    needs:
+      [build-linux-arm, build-linux, build-macos, build-windows, build-sdist]
     runs-on: ubuntu-latest
 
     steps:
@@ -264,7 +310,8 @@ jobs:
 
   test-builds-os:
     name: test build on ${{ matrix.os }}
-    needs: [build-ubuntu, build-macos, build-windows, build-sdist]
+    needs:
+      [build-linux-arm, build-linux, build-macos, build-windows, build-sdist]
 
     strategy:
       fail-fast: false
