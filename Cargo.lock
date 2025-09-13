@@ -880,7 +880,7 @@ dependencies = [
 [[package]]
 name = "baked-potato"
 version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#2b4b19b6271bd568dd48a95b349cbcc4938c51f2"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#65aeb93f74b64ed1b03c44ae9b4e9360678e4545"
 dependencies = [
  "mockito",
  "potato-agent",
@@ -4474,7 +4474,7 @@ dependencies = [
 [[package]]
 name = "potato-agent"
 version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#2b4b19b6271bd568dd48a95b349cbcc4938c51f2"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#65aeb93f74b64ed1b03c44ae9b4e9360678e4545"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -4496,7 +4496,7 @@ dependencies = [
 [[package]]
 name = "potato-head"
 version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#2b4b19b6271bd568dd48a95b349cbcc4938c51f2"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#65aeb93f74b64ed1b03c44ae9b4e9360678e4545"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -4510,7 +4510,7 @@ dependencies = [
 [[package]]
 name = "potato-prompt"
 version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#2b4b19b6271bd568dd48a95b349cbcc4938c51f2"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#65aeb93f74b64ed1b03c44ae9b4e9360678e4545"
 dependencies = [
  "mime_guess",
  "potato-type",
@@ -4527,7 +4527,7 @@ dependencies = [
 [[package]]
 name = "potato-provider"
 version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#2b4b19b6271bd568dd48a95b349cbcc4938c51f2"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#65aeb93f74b64ed1b03c44ae9b4e9360678e4545"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -4548,7 +4548,7 @@ dependencies = [
 [[package]]
 name = "potato-type"
 version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#2b4b19b6271bd568dd48a95b349cbcc4938c51f2"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#65aeb93f74b64ed1b03c44ae9b4e9360678e4545"
 dependencies = [
  "potato-util",
  "pyo3",
@@ -4562,7 +4562,7 @@ dependencies = [
 [[package]]
 name = "potato-util"
 version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#2b4b19b6271bd568dd48a95b349cbcc4938c51f2"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#65aeb93f74b64ed1b03c44ae9b4e9360678e4545"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -4577,7 +4577,7 @@ dependencies = [
 [[package]]
 name = "potato-workflow"
 version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#2b4b19b6271bd568dd48a95b349cbcc4938c51f2"
+source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#65aeb93f74b64ed1b03c44ae9b4e9360678e4545"
 dependencies = [
  "chrono",
  "potato-agent",
