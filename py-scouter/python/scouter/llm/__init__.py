@@ -28,6 +28,7 @@ TaskStatus = llm.TaskStatus
 Usage = llm.Usage
 Workflow = llm.Workflow
 WorkflowResult = llm.WorkflowResult
+Embedder = llm.Embedder
 
 
 __all__ = [
@@ -56,4 +57,5 @@ __all__ = [
     "Score",
     "google",
     "openai",
+    "Embedder",
 ]

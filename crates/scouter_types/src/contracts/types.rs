@@ -3,7 +3,7 @@ use std::fmt::Display;
 use crate::error::{ContractError, TypeError};
 use crate::llm::PaginationRequest;
 use crate::{CustomInterval, Status};
-use crate::{DriftType, ProfileFuncs, TimeInterval};
+use crate::{DriftType, PyHelperFuncs, TimeInterval};
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
 use scouter_semver::VersionType;
@@ -461,7 +461,7 @@ pub struct BinnedMetricStats {
 impl BinnedMetricStats {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 
@@ -482,7 +482,7 @@ pub struct BinnedMetric {
 impl BinnedMetric {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 
@@ -497,7 +497,7 @@ pub struct BinnedMetrics {
 impl BinnedMetrics {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn __getitem__<'py>(

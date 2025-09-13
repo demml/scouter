@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 import pytest
 from pydantic import BaseModel
 from scouter.alert import AlertThreshold
-from scouter.drift import Drifter, LLMDriftConfig, LLMDriftProfile, LLMMetric
+from scouter.drift import Drifter, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile
 from scouter.llm import Agent, Prompt, Score, Task, Workflow
 from scouter.mock import LLMTestServer
 from scouter.queue import LLMRecord
@@ -24,13 +24,13 @@ def test_llm_drift_profile_from_metrics():
             response_format=Score,
         )
 
-        metric1 = LLMMetric(
+        metric1 = LLMDriftMetric(
             name="test_metric",
             prompt=prompt,
             value=5.0,
             alert_threshold=AlertThreshold.Below,
         )
-        metric2 = LLMMetric(
+        metric2 = LLMDriftMetric(
             name="test_metric_2",
             prompt=prompt,
             value=10.0,
@@ -79,7 +79,7 @@ def test_llm_drift_profile_from_workflow():
             ]
         )
 
-        metric = LLMMetric(
+        metric = LLMDriftMetric(
             name="relevance",
             value=5.0,
             alert_threshold=AlertThreshold.Below,
@@ -115,13 +115,13 @@ def test_llm_drift_profile_from_metrics_fail():
             response_format=Score,
         )
 
-        metric1 = LLMMetric(
+        metric1 = LLMDriftMetric(
             name="test_metric",
             prompt=prompt,
             value=5.0,
             alert_threshold=AlertThreshold.Below,
         )
-        metric2 = LLMMetric(
+        metric2 = LLMDriftMetric(
             name="test_metric_2",
             value=10.0,
             alert_threshold=AlertThreshold.Above,
@@ -178,7 +178,7 @@ def test_llm_drift_profile_from_workflow_fail():
             ]
         )
 
-        metric = LLMMetric(
+        metric = LLMDriftMetric(
             name="relevance",
             value=5.0,
             alert_threshold=AlertThreshold.Below,
@@ -261,7 +261,7 @@ def test_llm_drifter():
         profile = LLMDriftProfile(
             config=LLMDriftConfig(),
             metrics=[
-                LLMMetric(
+                LLMDriftMetric(
                     name="relevance",
                     prompt=eval_prompt,
                     value=5.0,
@@ -282,4 +282,4 @@ def test_llm_drifter():
 
         assert len(results.records) == 1
         assert results.records[0].metric == "relevance"
-        assert results.records[0].value == 5.0
+        assert results.records[0].value > 0

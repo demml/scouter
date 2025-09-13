@@ -64,14 +64,15 @@ impl LLMPoller {
             task.space, task.name, task.version
         );
 
-        // get profile
+        // get get/load profile and reset agents
         let request = GetProfileRequest {
             space: task.space.clone(),
             name: task.name.clone(),
             version: task.version.clone(),
             drift_type: DriftType::LLM,
         };
-        let llm_profile = if let Some(profile) =
+
+        let mut llm_profile = if let Some(profile) =
             PostgresClient::get_drift_profile(&self.db_pool, &request).await?
         {
             let llm_profile: LLMDriftProfile =
@@ -87,6 +88,10 @@ impl LLMPoller {
             return Ok(false);
         };
         let mut retry_count = 0;
+
+        llm_profile.workflow.reset_agents().await.inspect_err(|e| {
+            error!("Failed to reset agents: {:?}", e);
+        })?;
 
         loop {
             match self.process_drift_record(&task, &llm_profile).await {

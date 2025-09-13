@@ -7,7 +7,7 @@ LLM Drift Profiles in Scouter provide a robust and flexible way to monitor the p
 An **LLM Drift Profile** encapsulates:
 
 - The configuration for drift monitoring (LLMDriftConfig)
-- The metrics to evaluate (LLMMetric)
+- The metrics to evaluate (LLMDriftMetric)
 - Optionally, a custom workflow (Workflow) for advanced scenarios
 
 This profile can be used to monitor LLMs for changes in output quality, relevance, or any other custom metric you define.
@@ -16,7 +16,7 @@ This profile can be used to monitor LLMs for changes in output quality, relevanc
 
 ### 1. Define LLM Metrics
 
-The `LLMMetric` class represents a single metric for LLM drift detection.
+The `LLMDriftMetric` class represents a single metric for LLM drift detection.
 
 **Arguments:**
 
@@ -31,7 +31,7 @@ The `LLMMetric` class represents a single metric for LLM drift detection.
 **Example:**
 ```python
 from scouter.llm import AlertThreshold, Prompt, Score
-from scouter.drift import LLMMetric
+from scouter.drift import LLMDriftMetric
 
 reformulation_prompt = (
     "You are an expert evaluator of search query reformulations. "
@@ -56,7 +56,7 @@ reformulation_prompt = (
     "Evaluation:"
 )
 
-metric = LLMMetric(
+metric = LLMDriftMetric(
     name="reformulation",
     value=5.0,
     alert_threshold=AlertThreshold.Below,
@@ -123,7 +123,7 @@ For advanced scenarios, you can provide a custom `Workflow` to evaluate complex 
 **Example:**
 ```python
 from scouter.llm import Workflow, Task, Score, Agent, Prompt
-from scouter.drift import LLMDriftConfig, LLMMetric
+from scouter.drift import LLMDriftConfig, LLMDriftMetric
 
 # Relevance prompt
 relevance_prompt = Prompt(
@@ -185,7 +185,7 @@ workflow.add_tasks( # (2)
     ]
 )
 
-metric = LLMMetric( # (3)
+metric = LLMDriftMetric( # (3)
     name="final_evaluation",
     value=1,
     alert_threshold=AlertThreshold.Below,
@@ -212,7 +212,7 @@ Use the `LLMDriftProfile` class to create a drift profile by combining your conf
 | Argument    | Type                | Required | Description                                         |
 |-------------|---------------------|----------|-----------------------------------------------------|
 | `config`    | `LLMDriftConfig`    | Yes      | Drift configuration                                 |
-| `metrics`   | `List[LLMMetric]`   | Yes      | List of metrics to monitor                          |
+| `metrics`   | `List[LLMDriftMetric]`   | Yes      | List of metrics to monitor                          |
 | `workflow`  | `Workflow`, optional| No       | Custom workflow for advanced evaluation (optional)  |
 
 
@@ -292,7 +292,7 @@ Scouter is designed to evaluate LLM metrics asynchronously on the server, ensuri
    The server injects the `context` from the `LLMRecord` into the prompts defined in the workflow. It then runs the workflow according to your configuration.
 
 4. **Metric Extraction:**  
-   After executing the workflow, the server extracts the `Score` object from the relevant tasks as defined by your `LLMMetric`s.
+   After executing the workflow, the server extracts the `Score` object from the relevant tasks as defined by your `LLMDriftMetric`s.
 
 5. **Result Storage & Alerting:**  
    The results are stored in the llm metric table. The system then periodically polls these results based on your alerting schedule. If a score falls below the defined threshold, Scouter triggers an alert and sends it to your configured alerting channel.

@@ -11,7 +11,7 @@ use scouter_types::RegisteredProfileResponse;
 use crate::http::HTTPClient;
 use scouter_types::{
     alert::Alert, psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures, BinnedMetrics, DriftProfile,
-    DriftType, ProfileFuncs,
+    DriftType, PyHelperFuncs,
 };
 use std::path::PathBuf;
 use tracing::{debug, error};
@@ -317,7 +317,7 @@ impl PyScouterClient {
 
         let profile = self.client.get_drift_profile(request)?;
 
-        ProfileFuncs::save_to_json(profile, path.clone(), &filename)?;
+        PyHelperFuncs::save_to_json(profile, path.clone(), &filename)?;
 
         Ok(path.map_or(filename, |p| p.to_string_lossy().to_string()))
     }

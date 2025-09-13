@@ -1,7 +1,7 @@
 use crate::error::TypeError;
 use crate::json_to_pyobject_value;
 use crate::util::{is_pydantic_model, pyobject_to_json};
-use crate::ProfileFuncs;
+use crate::PyHelperFuncs;
 use chrono::DateTime;
 use chrono::Utc;
 use potato_head::create_uuid7;
@@ -34,7 +34,7 @@ pub struct IntFeature {
 #[pymethods]
 impl IntFeature {
     pub fn __str__(&self) -> String {
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 
@@ -54,7 +54,7 @@ pub struct FloatFeature {
 #[pymethods]
 impl FloatFeature {
     pub fn __str__(&self) -> String {
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 
@@ -68,7 +68,7 @@ pub struct StringFeature {
 #[pymethods]
 impl StringFeature {
     pub fn __str__(&self) -> String {
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 
@@ -157,7 +157,7 @@ impl Feature {
     }
 
     pub fn __str__(&self) -> String {
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 
@@ -251,7 +251,7 @@ impl Features {
     }
 
     pub fn __str__(&self) -> String {
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 
@@ -272,7 +272,7 @@ pub struct FeatureMap {
 impl FeatureMap {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 
@@ -305,7 +305,7 @@ impl Metric {
     }
 
     pub fn __str__(&self) -> String {
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 
@@ -354,7 +354,7 @@ impl Metrics {
         })
     }
     pub fn __str__(&self) -> String {
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 
@@ -464,7 +464,7 @@ impl LLMRecord {
     }
 
     pub fn __str__(&self) -> String {
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 

@@ -1,12 +1,12 @@
 use crate::error::{ProfileError, TypeError};
 use crate::llm::alert::LLMAlertConfig;
-use crate::llm::alert::LLMMetric;
+use crate::llm::alert::LLMDriftMetric;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::ProfileRequest;
 use crate::{scouter_version, LLMMetricRecord};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
-    ProfileFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
+    PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
 };
 use core::fmt::Debug;
 use potato_head::prompt::ResponseType;
@@ -102,12 +102,12 @@ impl LLMDriftConfig {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -222,7 +222,7 @@ fn validate_first_tasks(
 fn validate_last_tasks(
     workflow: &Workflow,
     execution_order: &HashMap<i32, std::collections::HashSet<String>>,
-    metrics: &[LLMMetric],
+    metrics: &[LLMDriftMetric],
 ) -> Result<(), ProfileError> {
     let last_step = execution_order.len() as i32;
     let last_tasks = execution_order
@@ -261,7 +261,7 @@ fn validate_last_tasks(
 ///
 /// # Errors
 /// Returns various ProfileError types based on validation failures.
-fn validate_workflow(workflow: &Workflow, metrics: &[LLMMetric]) -> Result<(), ProfileError> {
+fn validate_workflow(workflow: &Workflow, metrics: &[LLMDriftMetric]) -> Result<(), ProfileError> {
     let execution_order = workflow.execution_plan()?;
 
     // Validate first tasks have required parameters
@@ -280,7 +280,7 @@ pub struct LLMDriftProfile {
     pub config: LLMDriftConfig,
 
     #[pyo3(get)]
-    pub metrics: Vec<LLMMetric>,
+    pub metrics: Vec<LLMDriftMetric>,
 
     #[pyo3(get)]
     pub scouter_version: String,
@@ -302,7 +302,7 @@ impl LLMDriftProfile {
     ///  2. If a user provides a workflow, It will be parsed and validated using `from_workflow` method.
     ///     - The user must also provide a list of metrics that will be used to evaluate the output of the workflow.
     ///     - The metric names must correspond to the final task names in the workflow
-    /// In addition, baseline metrics and threshold will be extracted from the LLMMetric.
+    /// In addition, baseline metrics and threshold will be extracted from the LLMDriftMetric.
     /// # Arguments
     /// * `config` - LLMDriftConfig - The configuration for the LLM drift profile
     /// * `metrics` - Option<Bound<'_, PyList>> - Optional list of metrics that will be used to evaluate the LLM
@@ -316,7 +316,7 @@ impl LLMDriftProfile {
     #[instrument(skip_all)]
     pub fn new(
         config: LLMDriftConfig,
-        metrics: Vec<LLMMetric>,
+        metrics: Vec<LLMDriftMetric>,
         workflow: Option<Bound<'_, PyAny>>,
     ) -> Result<Self, ProfileError> {
         match workflow {
@@ -341,12 +341,12 @@ impl LLMDriftProfile {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
 
     pub fn model_dump(&self, py: Python) -> Result<Py<PyDict>, ProfileError> {
@@ -366,7 +366,7 @@ impl LLMDriftProfile {
 
     #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ProfileError> {
-        Ok(ProfileFuncs::save_to_json(
+        Ok(PyHelperFuncs::save_to_json(
             self,
             path,
             FileName::LLMDriftProfile.to_str(),
@@ -434,18 +434,19 @@ impl LLMDriftProfile {
     ///
     /// # Arguments
     /// * `config` - LLMDriftConfig - The configuration for the LLM
-    /// * `metrics` - Vec<LLMMetric> - The metrics that will be used to evaluate the LLM
+    /// * `metrics` - Vec<LLMDriftMetric> - The metrics that will be used to evaluate the LLM
     /// * `scouter_version` - Option<String> - The version of scouter that the profile is created with.
     /// # Returns
     /// * `Result<Self, ProfileError>` - The LLMDriftProfile
     pub fn from_metrics(
         mut config: LLMDriftConfig,
-        metrics: Vec<LLMMetric>,
+        metrics: Vec<LLMDriftMetric>,
     ) -> Result<Self, ProfileError> {
         // Build a workflow from metrics
         let mut workflow = Workflow::new("llm_drift_workflow");
         let mut agents = HashMap::new();
         let mut metric_names = Vec::new();
+        let runtime = tokio::runtime::Runtime::new()?;
 
         // Create agents. We don't want to duplicate, so we check if the agent already exists.
         // if it doesn't, we create it.
@@ -461,7 +462,9 @@ impl LLMDriftProfile {
             let agent = match agents.entry(provider) {
                 Entry::Occupied(entry) => entry.into_mut(),
                 Entry::Vacant(entry) => {
-                    let agent = Agent::from_model_settings(&prompt.model_settings)?;
+                    let agent = runtime.block_on(async {
+                        Agent::from_model_settings(&prompt.model_settings).await
+                    })?;
                     workflow.add_agent(&agent);
                     entry.insert(agent)
                 }
@@ -496,7 +499,7 @@ impl LLMDriftProfile {
     /// # Arguments
     /// * `config` - LLMDriftConfig - The configuration for the LLM
     /// * `workflow` - Workflow - The workflow that will be used to evaluate the L
-    /// * `metrics` - Vec<LLMMetric> - The metrics that will be used to evaluate the LLM
+    /// * `metrics` - Vec<LLMDriftMetric> - The metrics that will be used to evaluate the LLM
     /// * `scouter_version` - Option<String> - The version of scouter that the profile is created with.
     ///
     /// # Returns
@@ -504,7 +507,7 @@ impl LLMDriftProfile {
     pub fn from_workflow(
         mut config: LLMDriftConfig,
         workflow: Workflow,
-        metrics: Vec<LLMMetric>,
+        metrics: Vec<LLMDriftMetric>,
     ) -> Result<Self, ProfileError> {
         validate_workflow(&workflow, &metrics)?;
 
@@ -602,7 +605,7 @@ impl LLMDriftMap {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 
@@ -686,7 +689,7 @@ mod tests {
         mock.start_server().unwrap();
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
-        let metric1 = LLMMetric::new(
+        let metric1 = LLMDriftMetric::new(
             "metric1",
             5.0,
             AlertThreshold::Above,
@@ -694,7 +697,7 @@ mod tests {
             Some(prompt.clone()),
         )
         .unwrap();
-        let metric2 = LLMMetric::new(
+        let metric2 = LLMDriftMetric::new(
             "metric2",
             3.0,
             AlertThreshold::Below,
@@ -731,6 +734,7 @@ mod tests {
     fn test_llm_drift_profile_workflow() {
         let mut mock = LLMTestServer::new();
         mock.start_server().unwrap();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
 
         let mut workflow = Workflow::new("My eval Workflow");
 
@@ -738,7 +742,10 @@ mod tests {
         let final_prompt1 = create_score_prompt(None);
         let final_prompt2 = create_score_prompt(None);
 
-        let agent1 = Agent::new(Provider::OpenAI, None).unwrap();
+        let agent1 = runtime
+            .block_on(async { Agent::new(Provider::OpenAI, None).await })
+            .unwrap();
+
         workflow.add_agent(&agent1);
 
         // First task with parameters
@@ -773,8 +780,10 @@ mod tests {
             ))
             .unwrap();
 
-        let metric1 = LLMMetric::new("task2", 3.0, AlertThreshold::Below, Some(1.0), None).unwrap();
-        let metric2 = LLMMetric::new("task3", 4.0, AlertThreshold::Above, Some(2.0), None).unwrap();
+        let metric1 =
+            LLMDriftMetric::new("task2", 3.0, AlertThreshold::Below, Some(1.0), None).unwrap();
+        let metric2 =
+            LLMDriftMetric::new("task3", 4.0, AlertThreshold::Above, Some(2.0), None).unwrap();
 
         let llm_metrics = vec![metric1, metric2];
 

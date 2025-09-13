@@ -24,12 +24,12 @@ pyo3 = {workspace = true }
 strum = { workspace = true }
 strum_macros = { workspace = true }
 thiserror = { workspace = true }
-tokio = { workspace = true, optional = true }
+tokio = { workspace = true}
 tracing = { workspace = true }
 statrs = { workspace = true }
 
 [features]
-mock = ["potato-head/mock", "tokio"]
+mock = ["potato-head/mock"]
 
 [dev-dependencies]
 tempfile = { workspace = true }

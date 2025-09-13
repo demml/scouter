@@ -1,5 +1,5 @@
 # type: ignore
-# pylint: disable=no-name-in-module
+# pylint: disable-all
 from ...scouter import llm
 
 AudioParam = llm.openai.AudioParam
@@ -26,6 +26,8 @@ CustomDefinition = llm.openai.CustomDefinition
 CustomTool = llm.openai.CustomTool
 Tool = llm.openai.Tool
 OpenAIChatSettings = llm.openai.OpenAIChatSettings
+OpenAIEmbeddingConfig = llm.openai.OpenAIEmbeddingConfig
+OpenAIEmbeddingResponse = llm.openai.OpenAIEmbeddingResponse
 
 __all__ = [
     "AudioParam",
@@ -52,4 +54,6 @@ __all__ = [
     "CustomTool",
     "Tool",
     "OpenAIChatSettings",
+    "OpenAIEmbeddingConfig",
+    "OpenAIEmbeddingResponse",
 ]

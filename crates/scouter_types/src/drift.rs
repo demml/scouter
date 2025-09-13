@@ -5,7 +5,7 @@ use crate::psi::PsiDriftProfile;
 use crate::spc::SpcDriftProfile;
 use crate::util::ProfileBaseArgs;
 use crate::{AlertDispatchConfig, ProfileArgs};
-use crate::{FileName, ProfileFuncs};
+use crate::{FileName, PyHelperFuncs};
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use serde::{Deserialize, Serialize};
@@ -242,7 +242,7 @@ impl DriftProfile {
     }
 
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ProfileError> {
-        Ok(ProfileFuncs::save_to_json(
+        Ok(PyHelperFuncs::save_to_json(
             self,
             path,
             FileName::DriftProfile.to_str(),

@@ -12,7 +12,7 @@ use scouter_drift::spc::SpcMonitor;
 use scouter_server::api::archive::archive_old_data;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::custom::CustomMetricAlertConfig;
-use scouter_types::llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftProfile, LLMMetric};
+use scouter_types::llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile};
 use scouter_types::{
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
     psi::{BinnedPsiFeatureMetrics, PsiAlertConfig, PsiDriftConfig},
@@ -363,7 +363,7 @@ fn test_data_archive_llm_drift_record() {
     let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
     let _alert_threshold = AlertThreshold::Above;
-    let metric1 = LLMMetric::new(
+    let metric1 = LLMDriftMetric::new(
         "metric1",
         5.0,
         AlertThreshold::Above,
@@ -371,7 +371,7 @@ fn test_data_archive_llm_drift_record() {
         Some(prompt.clone()),
     )
     .unwrap();
-    let metric2 = LLMMetric::new(
+    let metric2 = LLMDriftMetric::new(
         "metric2",
         3.0,
         AlertThreshold::Below,
@@ -461,7 +461,7 @@ fn test_data_archive_llm_drift_metrics() {
     let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
     let _alert_threshold = AlertThreshold::Above;
-    let metric1 = LLMMetric::new(
+    let metric1 = LLMDriftMetric::new(
         "metric1",
         5.0,
         AlertThreshold::Above,
@@ -469,7 +469,7 @@ fn test_data_archive_llm_drift_metrics() {
         Some(prompt.clone()),
     )
     .unwrap();
-    let metric2 = LLMMetric::new(
+    let metric2 = LLMDriftMetric::new(
         "metric2",
         3.0,
         AlertThreshold::Below,

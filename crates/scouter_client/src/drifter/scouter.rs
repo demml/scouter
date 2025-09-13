@@ -5,7 +5,7 @@ use pyo3::types::PyList;
 use pyo3::IntoPyObjectExt;
 use scouter_drift::error::DriftError;
 use scouter_drift::spc::SpcDriftMap;
-use scouter_types::llm::{LLMDriftMap, LLMMetric};
+use scouter_types::llm::{LLMDriftMap, LLMDriftMetric};
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::LLMRecord;
 use scouter_types::{
@@ -126,9 +126,9 @@ impl Drifter {
             Drifter::LLM(drifter) => {
                 // LLM drift profiles are created separately, so we will handle this in the create_llm_drift_profile method
                 let metrics = if data.is_instance_of::<PyList>() {
-                    data.extract::<Vec<LLMMetric>>()?
+                    data.extract::<Vec<LLMDriftMetric>>()?
                 } else {
-                    let metric = data.extract::<LLMMetric>()?;
+                    let metric = data.extract::<LLMDriftMetric>()?;
                     vec![metric]
                 };
                 let profile =
@@ -193,9 +193,9 @@ impl PyDrifter {
     /// This method is used to create a drift profile based on the data and config provided
     /// It will automatically infer the data type if not provided
     /// If the config is not provided, it will create a default config based on the drift type
-    /// The data can be a numpy array, pandas dataframe, or pyarrow table, Vec<CustomMetric>, or Vec<LLMMetric>
+    /// The data can be a numpy array, pandas dataframe, or pyarrow table, Vec<CustomMetric>, or Vec<LLMDriftMetric>
     /// ## Arguments:
-    /// - `data`: The data to create the drift profile from. This can be a numpy array, pandas dataframe, pyarrow table, Vec<CustomMetric>, or Vec<LLMMetric>.
+    /// - `data`: The data to create the drift profile from. This can be a numpy array, pandas dataframe, pyarrow table, Vec<CustomMetric>, or Vec<LLMDriftMetric>.
     /// - `config`: The configuration for the drift profile. This is optional and if not provided, a default configuration will be created based on the drift type.
     /// - `data_type`: The type of the data. This is optional and if not provided, it will be inferred from the data class name.
     /// - `workflow`: An optional workflow to be used with the drift profile. This is only applicable for LLM drift profiles.
@@ -273,7 +273,7 @@ impl PyDrifter {
         &mut self,
         py: Python<'py>,
         config: LLMDriftConfig,
-        metrics: Vec<LLMMetric>,
+        metrics: Vec<LLMDriftMetric>,
         workflow: Option<Bound<'py, PyAny>>,
     ) -> Result<Bound<'py, PyAny>, DriftError> {
         let profile = LLMDriftProfile::new(config, metrics, workflow)?;

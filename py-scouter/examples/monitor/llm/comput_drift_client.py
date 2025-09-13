@@ -2,7 +2,7 @@
 ### You would typically let the server handle this, but this is to demonstrate the functionality.
 
 from scouter.alert import AlertThreshold
-from scouter.drift import Drifter, LLMDriftConfig, LLMDriftProfile, LLMMetric
+from scouter.drift import Drifter, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile
 from scouter.llm import Agent, Prompt, Provider, Score
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.queue import LLMRecord
@@ -77,7 +77,7 @@ def create_llm_drift_profile() -> LLMDriftProfile:
     profile = LLMDriftProfile(
         config=LLMDriftConfig(),
         metrics=[
-            LLMMetric(
+            LLMDriftMetric(
                 name="reformulation_quality",
                 prompt=eval_prompt,
                 value=3.0,

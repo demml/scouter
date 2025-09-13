@@ -6,7 +6,7 @@ use crate::ProfileRequest;
 use crate::VersionRequest;
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, ProfileArgs, ProfileBaseArgs,
-    ProfileFuncs, DEFAULT_VERSION, MISSING,
+    PyHelperFuncs, DEFAULT_VERSION, MISSING,
 };
 use chrono::Utc;
 use core::fmt::Debug;
@@ -109,12 +109,12 @@ impl PsiDriftConfig {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -360,12 +360,12 @@ impl PsiDriftProfile {
 impl PsiDriftProfile {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
     // TODO dry this out
     #[allow(clippy::useless_conversion)]
@@ -408,7 +408,7 @@ impl PsiDriftProfile {
     // Convert python dict into a drift profile
     #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ProfileError> {
-        Ok(ProfileFuncs::save_to_json(
+        Ok(PyHelperFuncs::save_to_json(
             self,
             path,
             FileName::PsiDriftProfile.to_str(),
@@ -482,12 +482,12 @@ impl PsiDriftMap {
 impl PsiDriftMap {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
 
     #[staticmethod]
@@ -498,7 +498,7 @@ impl PsiDriftMap {
 
     #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ProfileError> {
-        Ok(ProfileFuncs::save_to_json(
+        Ok(PyHelperFuncs::save_to_json(
             self,
             path,
             FileName::PsiDriftMap.to_str(),

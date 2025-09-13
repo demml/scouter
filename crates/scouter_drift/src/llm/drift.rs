@@ -244,11 +244,11 @@ impl LLMDrifter {
 mod tests {
     use super::*;
     use potato_head::{create_score_prompt, LLMTestServer};
-    use scouter_types::llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftProfile, LLMMetric};
+    use scouter_types::llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile};
 
     fn get_test_drifter() -> LLMDrifter {
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
-        let metric1 = LLMMetric::new(
+        let metric1 = LLMDriftMetric::new(
             "coherence",
             5.0,
             AlertThreshold::Below,
@@ -257,7 +257,7 @@ mod tests {
         )
         .unwrap();
 
-        let metric2 = LLMMetric::new(
+        let metric2 = LLMDriftMetric::new(
             "relevancy",
             5.0,
             AlertThreshold::Below,

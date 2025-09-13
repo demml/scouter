@@ -1,4 +1,4 @@
-use crate::util::ProfileFuncs;
+use crate::util::PyHelperFuncs;
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -24,7 +24,7 @@ pub struct BinnedPsiMetric {
 impl BinnedPsiMetric {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 
@@ -39,7 +39,7 @@ pub struct BinnedPsiFeatureMetrics {
 impl BinnedPsiFeatureMetrics {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 
