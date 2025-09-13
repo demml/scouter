@@ -197,7 +197,7 @@ jobs:
         if: always()
         run: make build.shutdown
 
-  test-py-build:
+  test-py-build-linux:
     #needs: [test-os]
     name: build - ubuntu - ${{ matrix.manylinux }} - ${{ matrix.target }}
     strategy:
@@ -206,8 +206,8 @@ jobs:
         include:
           - target: x86_64-unknown-linux-gnu
             manylinux: auto
-          - target: aarch64-unknown-linux-gnu
-            manylinux: "2_28"
+          #- target: aarch64-unknown-linux-gnu
+          #  manylinux: "2_28"
 
     runs-on: ubuntu-latest
     steps:
@@ -230,8 +230,10 @@ jobs:
           manylinux: ${{ matrix.manylinux }}
           args: --release --out dist
           rust-toolchain: stable
-          docker-options: -e CI -e SIMSIMD_DISABLE_SVE=1 -e SIMSIMD_TARGET_SVE=0 -e SIMSIMD_TARGET_SVE2=0 -e SIMSIMD_TARGET_SVE_F16=0 -e SIMSIMD_TARGET_SVE_BF16=0 -e SIMSIMD_TARGET_SVE_I8=0 -e SIMSIMD_TARGET_NEON_F16=0 -e SIMSIMD_TARGET_NEON_BF16=0
+          docker-options: -e CI
           working-directory: ./py-scouter
+
+          # See: https://github.com/sfackler/rust-openssl/issues/2036#issuecomment-1724324145
           before-script-linux: |
             # If we're running on rhel centos, install needed packages.
             if command -v yum &> /dev/null; then
@@ -261,11 +263,6 @@ jobs:
                 curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-x86_64.sh -o cmake.sh
                 chmod +x cmake.sh
                 ./cmake.sh --skip-license --prefix=/usr/local
-            elif [[ "$ARCH" == "aarch64" ]]; then
-                echo "Downloading CMake for aarch64 architecture"
-                curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-aarch64.sh -o cmake.sh
-                chmod +x cmake.sh
-                ./cmake.sh --skip-license --prefix=/usr/local
             elif [[ "$ARCH" == "i686" ]]; then
                 echo "Downloading CMake for x86 architecture"
                 curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4.tar.gz -o cmake.tar.gz
@@ -282,30 +279,6 @@ jobs:
 
             cmake --version
 
-            # Set environment variables to help with simsimd compilation on ARM
-            if [[ "$ARCH" == "aarch64" ]]; then
-                echo "Setting up ARM64 build environment"
-                # Set SIMSIMD environment variables
-                export SIMSIMD_DISABLE_SVE=1
-                export SIMSIMD_TARGET_SVE=0
-                export SIMSIMD_TARGET_SVE2=0
-                export SIMSIMD_TARGET_SVE_F16=0
-                export SIMSIMD_TARGET_SVE_BF16=0
-                export SIMSIMD_TARGET_SVE_I8=0
-                export SIMSIMD_TARGET_NEON_F16=0
-                export SIMSIMD_TARGET_NEON_BF16=0
-                # Use conservative ARM flags
-                export CFLAGS="-march=armv8-a -DSIMSIMD_DISABLE_SVE=1"
-                export CXXFLAGS="-march=armv8-a -DSIMSIMD_DISABLE_SVE=1"
-                export CC_aarch64_unknown_linux_gnu=aarch64-unknown-linux-gnu-gcc
-                export CXX_aarch64_unknown_linux_gnu=aarch64-unknown-linux-gnu-g++
-                
-                echo "Environment variables set:"
-                echo "SIMSIMD_DISABLE_SVE=$SIMSIMD_DISABLE_SVE"
-                echo "CFLAGS=$CFLAGS"
-                echo "CXXFLAGS=$CXXFLAGS"
-            fi
-
       - name: Check dist
         working-directory: ./py-scouter
         run: ls -lh dist/
@@ -314,8 +287,8 @@ jobs:
         working-directory: ./py-scouter
         run: twine check --strict dist/*
 
-  test-py-build-arm-native:
-    name: build - linux-arm64 - native
+  test-py-build-linux-arm64:
+    name: build - linux-arm64
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v4
@@ -343,16 +316,31 @@ jobs:
         run: pip install maturin
 
       - name: Build wheel
-        working-directory: ./py-scouter
-        run: |
-          export SIMSIMD_DISABLE_SVE=1
-          export SIMSIMD_TARGET_SVE=0
-          export SIMSIMD_TARGET_SVE2=0
-          maturin build --release --out dist
-        env:
-          SIMSIMD_DISABLE_SVE: "1"
-          SIMSIMD_TARGET_SVE: "0"
-          SIMSIMD_TARGET_SVE2: "0"
+        uses: PyO3/maturin-action@v1
+        with:
+          target: aarch64-unknown-linux-gnu
+          manylinux: "2_28"
+          args: --release --out dist
+          rust-toolchain: stable
+          docker-options: -e CI -e SIMSIMD_DISABLE_SVE=1 -e SIMSIMD_TARGET_SVE=0 -e SIMSIMD_TARGET_SVE2=0
+          working-directory: ./py-scouter
+          before-script-linux: |
+            # Install required packages
+            if command -v yum &> /dev/null; then
+                yum update -y && yum install -y perl-core openssl openssl-devel pkgconfig libatomic
+            else
+                apt update -y && apt-get install -y libssl-dev openssl pkg-config
+            fi
+
+            # Set environment variables for simsimd on ARM64
+            export SIMSIMD_DISABLE_SVE=1
+            export SIMSIMD_TARGET_SVE=0
+            export SIMSIMD_TARGET_SVE2=0
+            export SIMSIMD_TARGET_SVE_F16=0
+            export SIMSIMD_TARGET_SVE_BF16=0
+            export SIMSIMD_TARGET_SVE_I8=0
+            export CFLAGS="-march=armv8-a"
+            export CXXFLAGS="-march=armv8-a"
 
       - name: Check wheel
         working-directory: ./py-scouter
