@@ -53,6 +53,7 @@ publish = true
 name = "scouter-client"
 publish = true
 
+[[package]]
 name = "scouter-state"
 publish = true
 
