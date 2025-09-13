@@ -230,10 +230,8 @@ jobs:
           manylinux: ${{ matrix.manylinux }}
           args: --release --out dist
           rust-toolchain: stable
-          docker-options: -e CI
+          docker-options: -e CI -e SIMSIMD_DISABLE_SVE=1 -e SIMSIMD_TARGET_SVE=0 -e SIMSIMD_TARGET_SVE2=0 -e SIMSIMD_TARGET_SVE_F16=0 -e SIMSIMD_TARGET_SVE_BF16=0 -e SIMSIMD_TARGET_SVE_I8=0 -e SIMSIMD_TARGET_NEON_F16=0 -e SIMSIMD_TARGET_NEON_BF16=0
           working-directory: ./py-scouter
-
-          # See: https://github.com/sfackler/rust-openssl/issues/2036#issuecomment-1724324145
           before-script-linux: |
             # If we're running on rhel centos, install needed packages.
             if command -v yum &> /dev/null; then
@@ -286,14 +284,26 @@ jobs:
 
             # Set environment variables to help with simsimd compilation on ARM
             if [[ "$ARCH" == "aarch64" ]]; then
+                echo "Setting up ARM64 build environment"
+                # Set SIMSIMD environment variables
                 export SIMSIMD_DISABLE_SVE=1
                 export SIMSIMD_TARGET_SVE=0
                 export SIMSIMD_TARGET_SVE2=0
                 export SIMSIMD_TARGET_SVE_F16=0
                 export SIMSIMD_TARGET_SVE_BF16=0
                 export SIMSIMD_TARGET_SVE_I8=0
-                export CFLAGS="-march=armv8-a"
-                export CXXFLAGS="-march=armv8-a"
+                export SIMSIMD_TARGET_NEON_F16=0
+                export SIMSIMD_TARGET_NEON_BF16=0
+                # Use conservative ARM flags
+                export CFLAGS="-march=armv8-a -DSIMSIMD_DISABLE_SVE=1"
+                export CXXFLAGS="-march=armv8-a -DSIMSIMD_DISABLE_SVE=1"
+                export CC_aarch64_unknown_linux_gnu=aarch64-unknown-linux-gnu-gcc
+                export CXX_aarch64_unknown_linux_gnu=aarch64-unknown-linux-gnu-g++
+                
+                echo "Environment variables set:"
+                echo "SIMSIMD_DISABLE_SVE=$SIMSIMD_DISABLE_SVE"
+                echo "CFLAGS=$CFLAGS"
+                echo "CXXFLAGS=$CXXFLAGS"
             fi
 
       - name: Check dist
@@ -303,6 +313,52 @@ jobs:
       - name: Check wheel
         working-directory: ./py-scouter
         run: twine check --strict dist/*
+
+  test-py-build-arm-native:
+    name: build - linux-arm64 - native
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Docker CE
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ca-certificates curl gnupg lsb-release
+          sudo mkdir -p /etc/apt/keyrings
+          curl -fsSL https://download.docker.com/linux/ubuntu/gpg | sudo gpg --dearmor -o /etc/apt/keyrings/docker.gpg
+          echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(lsb_release -cs) stable" | sudo tee /etc/apt/sources.list.d/docker.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y docker-ce docker-ce-cli containerd.io
+          sudo systemctl start docker
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install maturin
+        run: pip install maturin
+
+      - name: Build wheel
+        working-directory: ./py-scouter
+        run: |
+          export SIMSIMD_DISABLE_SVE=1
+          export SIMSIMD_TARGET_SVE=0
+          export SIMSIMD_TARGET_SVE2=0
+          maturin build --release --out dist
+        env:
+          SIMSIMD_DISABLE_SVE: "1"
+          SIMSIMD_TARGET_SVE: "0"
+          SIMSIMD_TARGET_SVE2: "0"
+
+      - name: Check wheel
+        working-directory: ./py-scouter
+        run: |
+          pip install twine
+          twine check --strict dist/*
 
   test-build-rust-binaries:
     needs: [rust-lints-test]
