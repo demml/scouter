@@ -246,7 +246,7 @@ mod tests {
     use potato_head::{create_score_prompt, LLMTestServer};
     use scouter_types::llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile};
 
-    fn get_test_drifter() -> LLMDrifter {
+    async fn get_test_drifter() -> LLMDrifter {
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
         let metric1 = LLMDriftMetric::new(
             "coherence",
@@ -270,7 +270,9 @@ mod tests {
         let drift_config =
             LLMDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
-        let profile = LLMDriftProfile::from_metrics(drift_config, vec![metric1, metric2]).unwrap();
+        let profile = LLMDriftProfile::from_metrics(drift_config, vec![metric1, metric2])
+            .await
+            .unwrap();
 
         LLMDrifter::new(profile)
     }
@@ -327,16 +329,16 @@ mod tests {
         mock.start_server().unwrap();
         let runtime = tokio::runtime::Runtime::new().unwrap();
 
-        let drifter = get_test_drifter();
-
         let mut metric_map = HashMap::new();
         // mse had an initial value of 12.02 when the profile was generated
         metric_map.insert("coherence".to_string(), 4.0);
         // accuracy had an initial 0.75 when the profile was generated
         metric_map.insert("relevancy".to_string(), 4.5);
 
-        let alerts = runtime
-            .block_on(async { drifter.generate_alerts(&metric_map).await.unwrap().unwrap() });
+        let alerts = runtime.block_on(async {
+            let drifter = get_test_drifter().await;
+            drifter.generate_alerts(&metric_map).await.unwrap().unwrap()
+        });
 
         assert_eq!(alerts.len(), 2);
         mock.stop_server().unwrap();

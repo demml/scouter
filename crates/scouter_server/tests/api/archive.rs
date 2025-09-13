@@ -380,7 +380,9 @@ fn test_data_archive_llm_drift_record() {
     )
     .unwrap();
     let llm_metrics = vec![metric1, metric2];
-    let profile = LLMDriftProfile::from_metrics(config, llm_metrics).unwrap();
+    let profile = runtime
+        .block_on(async { LLMDriftProfile::from_metrics(config, llm_metrics).await })
+        .unwrap();
 
     let request = profile.create_profile_request().unwrap();
 
@@ -478,7 +480,9 @@ fn test_data_archive_llm_drift_metrics() {
     )
     .unwrap();
     let llm_metrics = vec![metric1, metric2];
-    let profile = LLMDriftProfile::from_metrics(config, llm_metrics).unwrap();
+    let profile = runtime
+        .block_on(async { LLMDriftProfile::from_metrics(config, llm_metrics).await })
+        .unwrap();
 
     let request = profile.create_profile_request().unwrap();
 

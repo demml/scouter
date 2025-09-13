@@ -360,8 +360,7 @@ fn test_llm_server_records() {
     mock.start_server().unwrap();
 
     let helper = runtime.block_on(async { TestHelper::new(false, false).await.unwrap() });
-
-    let profile = TestHelper::create_llm_drift_profile();
+    let profile = runtime.block_on(async { TestHelper::create_llm_drift_profile().await });
 
     let request = profile.create_profile_request().unwrap();
 

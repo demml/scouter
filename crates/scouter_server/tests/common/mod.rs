@@ -302,7 +302,7 @@ impl TestHelper {
         ServerRecords::new(records)
     }
 
-    pub fn create_llm_drift_profile() -> LLMDriftProfile {
+    pub async fn create_llm_drift_profile() -> LLMDriftProfile {
         let alert_config = LLMAlertConfig::default();
         let config = LLMDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
@@ -326,7 +326,9 @@ impl TestHelper {
         )
         .unwrap();
         let llm_metrics = vec![metric1, metric2];
-        LLMDriftProfile::from_metrics(config, llm_metrics).unwrap()
+        LLMDriftProfile::from_metrics(config, llm_metrics)
+            .await
+            .unwrap()
     }
 
     pub async fn insert_alerts(&self) -> Result<(), anyhow::Error> {

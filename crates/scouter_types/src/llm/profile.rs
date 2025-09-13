@@ -334,7 +334,7 @@ impl LLMDriftProfile {
                 if metrics.is_empty() {
                     return Err(ProfileError::EmptyMetricsList);
                 }
-                Self::from_metrics(config, metrics)
+                app_state().block_on(async { Self::from_metrics(config, metrics).await })
             }
         }
     }
@@ -438,7 +438,7 @@ impl LLMDriftProfile {
     /// * `scouter_version` - Option<String> - The version of scouter that the profile is created with.
     /// # Returns
     /// * `Result<Self, ProfileError>` - The LLMDriftProfile
-    pub fn from_metrics(
+    pub async fn from_metrics(
         mut config: LLMDriftConfig,
         metrics: Vec<LLMDriftMetric>,
     ) -> Result<Self, ProfileError> {
@@ -446,7 +446,6 @@ impl LLMDriftProfile {
         let mut workflow = Workflow::new("llm_drift_workflow");
         let mut agents = HashMap::new();
         let mut metric_names = Vec::new();
-        let runtime = app_state().start_runtime();
 
         // Create agents. We don't want to duplicate, so we check if the agent already exists.
         // if it doesn't, we create it.
@@ -462,9 +461,7 @@ impl LLMDriftProfile {
             let agent = match agents.entry(provider) {
                 Entry::Occupied(entry) => entry.into_mut(),
                 Entry::Vacant(entry) => {
-                    let agent = runtime.block_on(async {
-                        Agent::from_model_settings(&prompt.model_settings).await
-                    })?;
+                    let agent = Agent::from_model_settings(&prompt.model_settings).await?;
                     workflow.add_agent(&agent);
                     entry.insert(agent)
                 }
@@ -569,6 +566,34 @@ impl LLMDriftProfile {
             .find(|m| m.name == metric_name)
             .map(|m| m.value)
             .ok_or_else(|| ProfileError::MetricNotFound(metric_name.to_string()))
+    }
+
+    /// Same as py new method, but allows for passing a runtime for async operations.
+    /// This is used in Opsml, so that the Opsml global runtime can be used.
+    pub fn new_with_runtime(
+        config: LLMDriftConfig,
+        metrics: Vec<LLMDriftMetric>,
+        workflow: Option<Bound<'_, PyAny>>,
+        runtime: Arc<tokio::runtime::Runtime>,
+    ) -> Result<Self, ProfileError> {
+        match workflow {
+            Some(py_workflow) => {
+                // Extract and validate workflow from Python object
+                let workflow = Self::extract_workflow(&py_workflow).map_err(|e| {
+                    error!("Failed to extract workflow: {}", e);
+                    e
+                })?;
+                validate_workflow(&workflow, &metrics)?;
+                Self::from_workflow(config, workflow, metrics)
+            }
+            None => {
+                // Ensure metrics are provided when no workflow specified
+                if metrics.is_empty() {
+                    return Err(ProfileError::EmptyMetricsList);
+                }
+                runtime.block_on(async { Self::from_metrics(config, metrics).await })
+            }
+        }
     }
 }
 
@@ -684,7 +709,7 @@ mod tests {
 
     #[test]
     fn test_llm_drift_profile_metric() {
-        let _runtime = tokio::runtime::Runtime::new().unwrap();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
         let mut mock = LLMTestServer::new();
         mock.start_server().unwrap();
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
@@ -720,7 +745,9 @@ mod tests {
         let drift_config =
             LLMDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
-        let profile = LLMDriftProfile::from_metrics(drift_config, llm_metrics).unwrap();
+        let profile = runtime
+            .block_on(async { LLMDriftProfile::from_metrics(drift_config, llm_metrics).await })
+            .unwrap();
         let _: Value =
             serde_json::from_str(&profile.model_dump_json()).expect("Failed to parse actual JSON");
 
