@@ -7,6 +7,7 @@ use crate::util::{
 };
 use potato_head::{Agent, Provider, Task, Workflow, WorkflowError};
 use pyo3::prelude::*;
+use scouter_state::app_state;
 use scouter_types::eval::LLMEvalMetric;
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
@@ -100,7 +101,7 @@ pub fn evaluate_llm(
     metrics: Vec<LLMEvalMetric>,
     config: Option<EvaluationConfig>,
 ) -> Result<LLMEvalResults, EvaluationError> {
-    let runtime = tokio::runtime::Runtime::new()?;
+    let runtime = app_state().start_runtime();
     let config = Arc::new(config.unwrap_or_default());
 
     // Create runtime and execute evaluation pipeline

@@ -1,5 +1,7 @@
 use crate::data_utils::DataConverterEnum;
-use crate::drifter::{custom::CustomDrifter, llm::LLMDrifter, psi::PsiDrifter, spc::SpcDrifter};
+use crate::drifter::{
+    custom::CustomDrifter, llm::ClientLLMDrifter, psi::PsiDrifter, spc::SpcDrifter,
+};
 use pyo3::prelude::*;
 use pyo3::types::PyList;
 use pyo3::IntoPyObjectExt;
@@ -18,6 +20,7 @@ use scouter_types::{
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::RwLock;
+
 pub enum DriftMap {
     Spc(SpcDriftMap),
     Psi(PsiDriftMap),
@@ -65,7 +68,7 @@ pub enum Drifter {
     Spc(SpcDrifter),
     Psi(PsiDrifter),
     Custom(CustomDrifter),
-    LLM(LLMDrifter),
+    LLM(ClientLLMDrifter),
 }
 
 impl Debug for Drifter {
@@ -85,7 +88,7 @@ impl Drifter {
             DriftType::Spc => Ok(Drifter::Spc(SpcDrifter::new())),
             DriftType::Psi => Ok(Drifter::Psi(PsiDrifter::new())),
             DriftType::Custom => Ok(Drifter::Custom(CustomDrifter::new())),
-            DriftType::LLM => Ok(Drifter::LLM(LLMDrifter::new())),
+            DriftType::LLM => Ok(Drifter::LLM(ClientLLMDrifter::new())),
         }
     }
 
@@ -343,5 +346,21 @@ impl PyDrifter {
             DriftMap::Psi(map) => Ok(map.into_bound_py_any(py)?),
             DriftMap::LLM(map) => Ok(map.into_bound_py_any(py)?),
         }
+    }
+}
+
+impl PyDrifter {
+    /// Reproduction of `create_llm_drift_profile` but allows for passing a runtime
+    /// This is used in opsml to allow passing the Opsml runtime
+    pub fn create_llm_drift_profile_with_runtime<'py>(
+        &mut self,
+        py: Python<'py>,
+        config: LLMDriftConfig,
+        metrics: Vec<LLMDriftMetric>,
+        workflow: Option<Bound<'py, PyAny>>,
+        runtime: Arc<tokio::runtime::Runtime>,
+    ) -> Result<Bound<'py, PyAny>, DriftError> {
+        let profile = LLMDriftProfile::new_with_runtime(config, metrics, workflow, runtime)?;
+        Ok(profile.into_bound_py_any(py)?)
     }
 }

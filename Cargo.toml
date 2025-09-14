@@ -9,7 +9,7 @@ default-members = [
 ]
 
 [workspace.package]
-version = "0.11.0"
+version = "0.12.0"
 authors = [
       "Thorrester <support@demmlai.com>",
       "russellkemmit <support@demmlai.com>",
@@ -20,20 +20,21 @@ repository = "https://github.com/demml/scouter"
 
 
 [workspace.dependencies]
-scouter-auth = { path = "crates/scouter_auth", version = "0.11.0" }
-scouter-client = { path = "crates/scouter_client", version = "0.11.0" }
-scouter-dispatch = { path = "crates/scouter_dispatch", version = "0.11.0" }
-scouter-drift = { path = "crates/scouter_drift", version = "0.11.0", default-features = false }
-scouter-evaluate = { path = "crates/scouter_evaluate", version = "0.11.0" }
-scouter-events = { path = "crates/scouter_events", version = "0.11.0", default-features = false }
-scouter-observability = { path = "crates/scouter_observability", version = "0.11.0" }
-scouter-profile = { path = "crates/scouter_profile", version = "0.11.0" }
-scouter-server = { path = "crates/scouter_server", version = "0.11.0" }
-scouter-semver = { path = "crates/scouter_semver", version = "0.11.0" }
-scouter-settings = { path = "crates/scouter_settings", version = "0.11.0" }
-scouter-dataframe = { path = "crates/scouter_dataframe", version = "0.11.0" }
-scouter-sql = { path = "crates/scouter_sql", version = "0.11.0" }
-scouter-types = { path = "crates/scouter_types", version = "0.11.0" }
+scouter-auth = { path = "crates/scouter_auth", version = "0.12.0" }
+scouter-client = { path = "crates/scouter_client", version = "0.12.0" }
+scouter-dispatch = { path = "crates/scouter_dispatch", version = "0.12.0" }
+scouter-drift = { path = "crates/scouter_drift", version = "0.12.0", default-features = false }
+scouter-evaluate = { path = "crates/scouter_evaluate", version = "0.12.0" }
+scouter-events = { path = "crates/scouter_events", version = "0.12.0", default-features = false }
+scouter-observability = { path = "crates/scouter_observability", version = "0.12.0" }
+scouter-profile = { path = "crates/scouter_profile", version = "0.12.0" }
+scouter-server = { path = "crates/scouter_server", version = "0.12.0" }
+scouter-semver = { path = "crates/scouter_semver", version = "0.12.0" }
+scouter-settings = { path = "crates/scouter_settings", version = "0.12.0" }
+scouter-dataframe = { path = "crates/scouter_dataframe", version = "0.12.0" }
+scouter-state = { path = "crates/scouter_state", version = "0.12.0" }
+scouter-sql = { path = "crates/scouter_sql", version = "0.12.0" }
+scouter-types = { path = "crates/scouter_types", version = "0.12.0" }
 scouter-mocks = { path = "crates/scouter_mocks" }
 
 anyhow = "1.*"
@@ -72,7 +73,7 @@ num-traits = "0.*"
 object_store = { version = "0.*", features = ["aws", "azure", "gcp" ] }
 parquet = { version = ">=55.*", features = ["arrow"] }
 password-auth = "1.*"
-potato-head = { git = "https://github.com/demml/potatohead", branch = "25/vertex-sdk" }
+potato-head = { git = "https://github.com/demml/potatohead", branch = "main" }
 pyo3 = { version = ">=0.*, <1.0.0", features = ["abi3-py39", "chrono", "anyhow", "extension-module"] }
 rand = "0.9.*"
 rayon = "1.*"

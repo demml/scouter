@@ -1,0 +1,22 @@
+[package]
+name = "scouter-state"
+version = { workspace = true }
+edition = { workspace = true }
+repository = { workspace = true }
+
+authors = [
+  "Steven Forrester <sjforrester32@gmail.com>"
+]
+
+license = "MIT"
+description = "Holds global state for managing python and rust interop"
+
+[dependencies]
+thiserror = { workspace = true }
+tokio = { workspace = true}
+tracing = { workspace = true }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true

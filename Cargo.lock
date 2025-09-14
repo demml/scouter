@@ -879,8 +879,8 @@ dependencies = [
 
 [[package]]
 name = "baked-potato"
-version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#65aeb93f74b64ed1b03c44ae9b4e9360678e4545"
+version = "0.7.0"
+source = "git+https://github.com/demml/potatohead?branch=main#7ff3b0957021cee1fc9f1fbf680ded3ff1f0e60f"
 dependencies = [
  "mockito",
  "potato-agent",
@@ -4473,8 +4473,8 @@ dependencies = [
 
 [[package]]
 name = "potato-agent"
-version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#65aeb93f74b64ed1b03c44ae9b4e9360678e4545"
+version = "0.7.0"
+source = "git+https://github.com/demml/potatohead?branch=main#7ff3b0957021cee1fc9f1fbf680ded3ff1f0e60f"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -4495,8 +4495,8 @@ dependencies = [
 
 [[package]]
 name = "potato-head"
-version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#65aeb93f74b64ed1b03c44ae9b4e9360678e4545"
+version = "0.7.0"
+source = "git+https://github.com/demml/potatohead?branch=main#7ff3b0957021cee1fc9f1fbf680ded3ff1f0e60f"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -4509,8 +4509,8 @@ dependencies = [
 
 [[package]]
 name = "potato-prompt"
-version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#65aeb93f74b64ed1b03c44ae9b4e9360678e4545"
+version = "0.7.0"
+source = "git+https://github.com/demml/potatohead?branch=main#7ff3b0957021cee1fc9f1fbf680ded3ff1f0e60f"
 dependencies = [
  "mime_guess",
  "potato-type",
@@ -4526,8 +4526,8 @@ dependencies = [
 
 [[package]]
 name = "potato-provider"
-version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#65aeb93f74b64ed1b03c44ae9b4e9360678e4545"
+version = "0.7.0"
+source = "git+https://github.com/demml/potatohead?branch=main#7ff3b0957021cee1fc9f1fbf680ded3ff1f0e60f"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -4547,8 +4547,8 @@ dependencies = [
 
 [[package]]
 name = "potato-type"
-version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#65aeb93f74b64ed1b03c44ae9b4e9360678e4545"
+version = "0.7.0"
+source = "git+https://github.com/demml/potatohead?branch=main#7ff3b0957021cee1fc9f1fbf680ded3ff1f0e60f"
 dependencies = [
  "potato-util",
  "pyo3",
@@ -4561,8 +4561,8 @@ dependencies = [
 
 [[package]]
 name = "potato-util"
-version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#65aeb93f74b64ed1b03c44ae9b4e9360678e4545"
+version = "0.7.0"
+source = "git+https://github.com/demml/potatohead?branch=main#7ff3b0957021cee1fc9f1fbf680ded3ff1f0e60f"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -4576,8 +4576,8 @@ dependencies = [
 
 [[package]]
 name = "potato-workflow"
-version = "0.6.0"
-source = "git+https://github.com/demml/potatohead?branch=25%2Fvertex-sdk#65aeb93f74b64ed1b03c44ae9b4e9360678e4545"
+version = "0.7.0"
+source = "git+https://github.com/demml/potatohead?branch=main#7ff3b0957021cee1fc9f1fbf680ded3ff1f0e60f"
 dependencies = [
  "chrono",
  "potato-agent",
@@ -4646,7 +4646,7 @@ dependencies = [
 
 [[package]]
 name = "py-scouter"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "ndarray-stats",
  "num-traits",
@@ -5422,7 +5422,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scouter-auth"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "jsonwebtoken",
  "password-auth",
@@ -5435,7 +5435,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-client"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "chrono",
  "ndarray",
@@ -5452,6 +5452,7 @@ dependencies = [
  "scouter-observability",
  "scouter-profile",
  "scouter-settings",
+ "scouter-state",
  "scouter-types",
  "serde",
  "serde_json",
@@ -5463,7 +5464,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-dataframe"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "arrow",
  "arrow-array 55.2.0",
@@ -5488,7 +5489,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-dispatch"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "futures",
  "mockito",
@@ -5504,7 +5505,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-drift"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "approx 0.5.1",
  "chrono",
@@ -5537,7 +5538,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-evaluate"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "itertools 0.14.0",
  "linfa",
@@ -5549,6 +5550,7 @@ dependencies = [
  "pyo3",
  "rayon",
  "scouter-profile",
+ "scouter-state",
  "scouter-types",
  "serde",
  "serde_json",
@@ -5560,7 +5562,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-events"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -5582,6 +5584,7 @@ dependencies = [
  "scouter-drift",
  "scouter-settings",
  "scouter-sql",
+ "scouter-state",
  "scouter-types",
  "serde",
  "serde_json",
@@ -5597,7 +5600,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-mocks"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "mockito",
  "potato-head",
@@ -5613,7 +5616,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-observability"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "itertools 0.14.0",
  "ndarray",
@@ -5630,7 +5633,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-profile"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "approx 0.5.1",
  "chrono",
@@ -5654,7 +5657,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-semver"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "pyo3",
  "semver",
@@ -5664,7 +5667,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-server"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "anyhow",
  "approx 0.5.1",
@@ -5711,7 +5714,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-settings"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "base64",
  "potato-head",
@@ -5723,7 +5726,7 @@ dependencies = [
 
 [[package]]
 name = "scouter-sql"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5748,8 +5751,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "scouter-state"
+version = "0.12.0"
+dependencies = [
+ "thiserror 2.0.16",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "scouter-types"
-version = "0.11.0"
+version = "0.12.0"
 dependencies = [
  "approx 0.5.1",
  "chrono",
@@ -5759,6 +5771,7 @@ dependencies = [
  "pyo3",
  "rayon",
  "scouter-semver",
+ "scouter-state",
  "serde",
  "serde_json",
  "statrs",
@@ -5834,18 +5847,28 @@ checksum = "1bc711410fbe7399f390ca1c3b60ad0f53f80e95c5eb935e52268a0e2cd49acc"
 
 [[package]]
 name = "serde"
-version = "1.0.219"
+version = "1.0.220"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5f0e2c6ed6606019b4e29e69dbaba95b11854410e5347d525002456dbbb786b6"
+checksum = "ceecad4c782e936ac90ecfd6b56532322e3262b14320abf30ce89a92ffdbfe22"
+dependencies = [
+ "serde_core",
+ "serde_derive",
+]
+
+[[package]]
+name = "serde_core"
+version = "1.0.220"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ddba47394f3b862d6ff6efdbd26ca4673e3566a307880a0ffb98f274bbe0ec32"
 dependencies = [
  "serde_derive",
 ]
 
 [[package]]
 name = "serde_derive"
-version = "1.0.219"
+version = "1.0.220"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5b0276cf7f2c73365f7157c8123c21cd9a50fbbd844757af28ca1f5925fc2a00"
+checksum = "60e1f3b1761e96def5ec6d04a6e7421c0404fa3cf5c0155f1e2848fae3d8cc08"
 dependencies = [
  "proc-macro2",
  "quote",

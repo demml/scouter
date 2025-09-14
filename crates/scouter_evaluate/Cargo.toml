@@ -10,6 +10,7 @@ doctest = false
 
 [dependencies]
 scouter-profile = { workspace = true }
+scouter-state = { workspace = true }
 scouter-types = { workspace = true }
 itertools = { workspace = true }
 ndarray = { workspace = true }

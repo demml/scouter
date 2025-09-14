@@ -90,7 +90,7 @@ mod tests {
     use scouter_types::llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile};
     use scouter_types::AlertThreshold;
 
-    fn get_test_drift_profile() -> LLMDriftProfile {
+    async fn get_test_drift_profile() -> LLMDriftProfile {
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
         let metric1 = LLMDriftMetric::new(
             "coherence",
@@ -114,12 +114,15 @@ mod tests {
         let drift_config =
             LLMDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
-        LLMDriftProfile::from_metrics(drift_config, vec![metric1, metric2]).unwrap()
+        LLMDriftProfile::from_metrics(drift_config, vec![metric1, metric2])
+            .await
+            .unwrap()
     }
 
     #[test]
     fn test_feature_queue_llm_insert_record() {
-        let drift_profile = get_test_drift_profile();
+        let runtime = tokio::runtime::Runtime::new().unwrap();
+        let drift_profile = runtime.block_on(async { get_test_drift_profile().await });
         let feature_queue = LLMRecordQueue::new(drift_profile);
 
         assert_eq!(feature_queue.empty_queue.len(), 0);
