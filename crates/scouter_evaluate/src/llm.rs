@@ -22,7 +22,7 @@ use tracing::{debug, instrument};
 /// * `embedder`: Optional embedder for embedding-based evaluations.
 /// * `embedding_targets`: Optional list of fields to embed.
 #[instrument(skip_all)]
-async fn async_evaluate_llm(
+pub async fn async_evaluate_llm(
     workflow: Workflow,
     records: Vec<LLMEvalRecord>,
     config: &Arc<EvaluationConfig>,
