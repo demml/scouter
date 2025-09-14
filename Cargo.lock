@@ -880,7 +880,8 @@ dependencies = [
 [[package]]
 name = "baked-potato"
 version = "0.7.0"
-source = "git+https://github.com/demml/potatohead?branch=main#7ff3b0957021cee1fc9f1fbf680ded3ff1f0e60f"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "84f8debbc7ab9b5605a5dbed0769adace5d6918f4ea3a47bb8b3670e59d430e2"
 dependencies = [
  "mockito",
  "potato-agent",
@@ -4474,7 +4475,8 @@ dependencies = [
 [[package]]
 name = "potato-agent"
 version = "0.7.0"
-source = "git+https://github.com/demml/potatohead?branch=main#7ff3b0957021cee1fc9f1fbf680ded3ff1f0e60f"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8ec0479f03fbd488c86c0e29238caea592d1a294ca50aae5577a950185e04ebd"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -4496,7 +4498,8 @@ dependencies = [
 [[package]]
 name = "potato-head"
 version = "0.7.0"
-source = "git+https://github.com/demml/potatohead?branch=main#7ff3b0957021cee1fc9f1fbf680ded3ff1f0e60f"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0768395ac96dbc674c154f3233b4ff986ec08cbc5375e3de2dff12d93b7a993"
 dependencies = [
  "baked-potato",
  "potato-agent",
@@ -4510,7 +4513,8 @@ dependencies = [
 [[package]]
 name = "potato-prompt"
 version = "0.7.0"
-source = "git+https://github.com/demml/potatohead?branch=main#7ff3b0957021cee1fc9f1fbf680ded3ff1f0e60f"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ebecac512ef8450828a36d92bb8d3c0eb6ea97578707b913d3a640470cf32574"
 dependencies = [
  "mime_guess",
  "potato-type",
@@ -4527,7 +4531,8 @@ dependencies = [
 [[package]]
 name = "potato-provider"
 version = "0.7.0"
-source = "git+https://github.com/demml/potatohead?branch=main#7ff3b0957021cee1fc9f1fbf680ded3ff1f0e60f"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "17e9b220c4a61ca172c42853ab2be1f5dd1fa981fe8e8eb236005f25ff9bdcf0"
 dependencies = [
  "base64",
  "gcloud-auth",
@@ -4548,7 +4553,8 @@ dependencies = [
 [[package]]
 name = "potato-type"
 version = "0.7.0"
-source = "git+https://github.com/demml/potatohead?branch=main#7ff3b0957021cee1fc9f1fbf680ded3ff1f0e60f"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "40285867c76843b353903beb159014e06bba85b8efe9fd7764b82d5afef66bee"
 dependencies = [
  "potato-util",
  "pyo3",
@@ -4562,7 +4568,8 @@ dependencies = [
 [[package]]
 name = "potato-util"
 version = "0.7.0"
-source = "git+https://github.com/demml/potatohead?branch=main#7ff3b0957021cee1fc9f1fbf680ded3ff1f0e60f"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "988b0268aeebfe43513c8956982fb1a9945e679f0398f5cdc2e53122b6855709"
 dependencies = [
  "colored_json",
  "pyo3",
@@ -4577,7 +4584,8 @@ dependencies = [
 [[package]]
 name = "potato-workflow"
 version = "0.7.0"
-source = "git+https://github.com/demml/potatohead?branch=main#7ff3b0957021cee1fc9f1fbf680ded3ff1f0e60f"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e0b0df4103844c3b59f07b1238b18c65ac1ca1b37f0e995922c7ac9ef0be3313"
 dependencies = [
  "chrono",
  "potato-agent",
