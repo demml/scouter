@@ -1,4 +1,6 @@
 # type: ignore
+# pylint: disable=no-name-in-module
+
 from .. import drift
 
 FeatureMap = drift.FeatureMap
