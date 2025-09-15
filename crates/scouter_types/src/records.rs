@@ -480,7 +480,7 @@ impl ServerRecord {
     }
 
     #[getter]
-    pub fn record(&self, py: Python) -> Result<PyObject, RecordError> {
+    pub fn record(&self, py: Python) -> Result<Py<PyAny>, RecordError> {
         match self {
             ServerRecord::Spc(record) => Ok(record.clone().into_py_any(py)?),
             ServerRecord::Psi(record) => Ok(record.clone().into_py_any(py)?),
