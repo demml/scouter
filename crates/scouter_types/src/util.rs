@@ -157,7 +157,7 @@ pub fn json_to_pyobject(py: Python, value: &Value, dict: &Bound<'_, PyDict>) -> 
     Ok(())
 }
 
-pub fn json_to_pyobject_value(py: Python, value: &Value) -> PyResult<PyObject> {
+pub fn json_to_pyobject_value(py: Python, value: &Value) -> PyResult<Py<PyAny>> {
     Ok(match value {
         Value::Null => py.None(),
         Value::Bool(b) => b.into_py_any(py).unwrap(),
