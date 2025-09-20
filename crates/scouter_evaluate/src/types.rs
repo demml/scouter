@@ -340,6 +340,7 @@ pub struct LLMEvalTaskResult {
     pub metrics: BTreeMap<String, Score>,
 
     #[pyo3(get)]
+    #[serde(skip)]
     pub embedding: BTreeMap<String, Vec<f32>>,
 
     #[pyo3(get)]
