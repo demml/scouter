@@ -148,7 +148,6 @@ impl LLMEvalResults {
                     &10,
                     false,
                 )?;
-
                 self.histograms = Some(histograms);
             }
         }
@@ -197,7 +196,12 @@ impl LLMEvalResults {
             let x = reduced.column(0).to_vec();
             let y = reduced.column(1).to_vec();
 
-            self.cluster_data = Some(ClusterData::new(x, y, dataset.clusters.clone()));
+            self.cluster_data = Some(ClusterData::new(
+                x,
+                y,
+                dataset.clusters.clone(),
+                dataset.idx_map.clone(),
+            ));
         }
 
         Ok(())
@@ -213,11 +217,22 @@ pub struct ClusterData {
     pub y: Vec<f64>,
     #[pyo3(get)]
     pub clusters: Vec<i32>,
+    pub idx_map: HashMap<usize, String>,
 }
 
 impl ClusterData {
-    pub fn new(x: Vec<f64>, y: Vec<f64>, clusters: Vec<i32>) -> Self {
-        ClusterData { x, y, clusters }
+    pub fn new(
+        x: Vec<f64>,
+        y: Vec<f64>,
+        clusters: Vec<i32>,
+        idx_map: HashMap<usize, String>,
+    ) -> Self {
+        ClusterData {
+            x,
+            y,
+            clusters,
+            idx_map,
+        }
     }
 }
 
