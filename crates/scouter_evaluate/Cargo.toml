@@ -21,6 +21,7 @@ linfa = { workspace = true }
 linfa-clustering = { workspace = true }
 linfa-reduction = { workspace = true }
 rayon = { workspace = true }
+regex = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
 simsimd = { workspace = true }

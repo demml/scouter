@@ -12,11 +12,15 @@ use potato_head::{
 };
 use pyo3::prelude::*;
 use rayon::prelude::*;
+use regex::Regex;
+use serde_json::Value;
 use simsimd::SpatialSimilarity;
 use std::collections::BTreeMap;
+use std::sync::OnceLock;
 use std::sync::{Arc, RwLock};
 use tokio::task::JoinSet;
 use tracing::{error, warn};
+
 /// Process a workflow result and extract scores from completed tasks
 pub fn process_workflow_result(
     workflow_result: Arc<RwLock<Workflow>>,
@@ -354,4 +358,114 @@ pub fn reduce_dimensions(
 
     let prediction = embedding.predict(&ds);
     Ok(prediction)
+}
+
+pub struct FieldEvaluator;
+
+/// Utility for extracting field values from JSON-like structures
+/// Supports: "field", "field.subfield", "field[0]", "field[0].subfield"
+impl FieldEvaluator {
+    pub fn extract_field_value(json: &Value, field_path: &str) -> Result<Value, EvaluationError> {
+        let path_segments = Self::parse_field_path(field_path)?;
+        let mut current_value = json;
+
+        for segment in path_segments {
+            current_value = match segment {
+                PathSegment::Field(field_name) => current_value
+                    .get(&field_name)
+                    .ok_or_else(|| EvaluationError::FieldNotFound(field_name))?,
+                PathSegment::Index(index) => current_value
+                    .get(index)
+                    .ok_or_else(|| EvaluationError::IndexNotFound(index))?,
+            };
+        }
+
+        Ok(current_value.clone())
+    }
+
+    fn parse_field_path(path: &str) -> Result<Vec<PathSegment>, EvaluationError> {
+        static PATH_REGEX: OnceLock<Regex> = OnceLock::new();
+        let regex = PATH_REGEX.get_or_init(|| {
+            // Match field names or array indices, handling dots as separators
+            Regex::new(r"[a-zA-Z_][a-zA-Z0-9_]*|\[[0-9]+\]").unwrap()
+        });
+
+        let mut segments = Vec::new();
+
+        for capture in regex.find_iter(path) {
+            let segment_str = capture.as_str();
+
+            if segment_str.starts_with('[') && segment_str.ends_with(']') {
+                // Array index: [0], [1], etc.
+                let index_str = &segment_str[1..segment_str.len() - 1];
+                let index: usize = index_str
+                    .parse()
+                    .map_err(|_| EvaluationError::InvalidArrayIndex(index_str.to_string()))?;
+                segments.push(PathSegment::Index(index));
+            } else {
+                // Field name: field, subfield, etc.
+                segments.push(PathSegment::Field(segment_str.to_string()));
+            }
+        }
+
+        if segments.is_empty() {
+            return Err(EvaluationError::EmptyFieldPath);
+        }
+
+        Ok(segments)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+enum PathSegment {
+    Field(String),
+    Index(usize),
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    // Test data matching your StructuredTaskOutput example
+    fn get_test_json() -> Value {
+        json!({
+            "tasks": ["task1", "task2", "task3"],
+            "status": "in_progress",
+            "metadata": {
+                "created_by": "user_123",
+                "priority": "high",
+                "tags": ["urgent", "backend"],
+                "nested": {
+                    "deep": {
+                        "value": "found_it"
+                    }
+                }
+            },
+            "counts": {
+                "total": 42,
+                "completed": 15
+            },
+            "empty_array": [],
+            "single_item": ["only_one"]
+        })
+    }
+
+    #[test]
+    fn test_parse_field_path_simple_field() {
+        let segments = FieldEvaluator::parse_field_path("status").unwrap();
+        assert_eq!(segments, vec![PathSegment::Field("status".to_string())]);
+    }
+
+    #[test]
+    fn test_parse_field_path_nested_field() {
+        let segments = FieldEvaluator::parse_field_path("metadata.created_by").unwrap();
+        assert_eq!(
+            segments,
+            vec![
+                PathSegment::Field("metadata".to_string()),
+                PathSegment::Field("created_by".to_string())
+            ]
+        );
+    }
 }

@@ -5553,6 +5553,7 @@ dependencies = [
  "potato-head",
  "pyo3",
  "rayon",
+ "regex",
  "scouter-profile",
  "scouter-state",
  "scouter-types",

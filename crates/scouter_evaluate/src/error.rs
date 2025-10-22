@@ -11,9 +11,6 @@ pub enum EvaluationError {
     #[error(transparent)]
     WorkflowError(#[from] potato_head::WorkflowError),
 
-    #[error(transparent)]
-    PyErr(#[from] pyo3::PyErr),
-
     #[error("{0}")]
     DowncastError(String),
 
@@ -52,6 +49,21 @@ pub enum EvaluationError {
 
     #[error(transparent)]
     SerdeError(#[from] serde_json::Error),
+
+    #[error("Field '{0}' not found")]
+    FieldNotFound(String),
+
+    #[error("Index '{0}' not found")]
+    IndexNotFound(usize),
+
+    #[error("Invalid array index: {0}")]
+    InvalidArrayIndex(String),
+
+    #[error("Empty field path provided")]
+    EmptyFieldPath,
+
+    #[error("{0}")]
+    PyError(String),
 }
 
 impl From<EvaluationError> for PyErr {
@@ -65,5 +77,11 @@ impl From<EvaluationError> for PyErr {
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for EvaluationError {
     fn from(err: pyo3::DowncastError) -> Self {
         EvaluationError::DowncastError(err.to_string())
+    }
+}
+
+impl From<PyErr> for EvaluationError {
+    fn from(err: PyErr) -> EvaluationError {
+        EvaluationError::PyError(err.to_string())
     }
 }
