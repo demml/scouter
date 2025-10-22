@@ -56,6 +56,10 @@ test.llm:
 test.dispatch:
 	cargo test -p scouter-dispatch -- --nocapture --test-threads=1
 
+.PHONY: test.evaluate
+test.evaluate:
+	cargo test -p scouter-evaluate -- --nocapture --test-threads=1
+
 .PHONY: test.drift
 test.drift:
 	cargo test -p scouter-drift --all-features -- --nocapture --test-threads=1 --skip test_drift_executor

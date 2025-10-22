@@ -21,6 +21,8 @@ use std::sync::{Arc, RwLock};
 use tokio::task::JoinSet;
 use tracing::{error, warn};
 
+const REGEX_FIELD_PARSE_PATTERN: &str = r"[a-zA-Z_][a-zA-Z0-9_]*|\[[0-9]+\]";
+
 /// Process a workflow result and extract scores from completed tasks
 pub fn process_workflow_result(
     workflow_result: Arc<RwLock<Workflow>>,
@@ -386,8 +388,8 @@ impl FieldEvaluator {
     fn parse_field_path(path: &str) -> Result<Vec<PathSegment>, EvaluationError> {
         static PATH_REGEX: OnceLock<Regex> = OnceLock::new();
         let regex = PATH_REGEX.get_or_init(|| {
-            // Match field names or array indices, handling dots as separators
-            Regex::new(r"[a-zA-Z_][a-zA-Z0-9_]*|\[[0-9]+\]").unwrap()
+            Regex::new(REGEX_FIELD_PARSE_PATTERN)
+                .expect("Invalid regex pattern in REGEX_FIELD_PARSE_PATTERN")
         });
 
         let mut segments = Vec::new();
@@ -467,5 +469,258 @@ mod tests {
                 PathSegment::Field("created_by".to_string())
             ]
         );
+    }
+
+    #[test]
+    fn test_parse_field_path_array_index() {
+        let segments = FieldEvaluator::parse_field_path("tasks[0]").unwrap();
+        assert_eq!(
+            segments,
+            vec![
+                PathSegment::Field("tasks".to_string()),
+                PathSegment::Index(0)
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_field_path_complex() {
+        let segments = FieldEvaluator::parse_field_path("metadata.tags[1]").unwrap();
+        assert_eq!(
+            segments,
+            vec![
+                PathSegment::Field("metadata".to_string()),
+                PathSegment::Field("tags".to_string()),
+                PathSegment::Index(1)
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_field_path_deep_nested() {
+        let segments = FieldEvaluator::parse_field_path("metadata.nested.deep.value").unwrap();
+        assert_eq!(
+            segments,
+            vec![
+                PathSegment::Field("metadata".to_string()),
+                PathSegment::Field("nested".to_string()),
+                PathSegment::Field("deep".to_string()),
+                PathSegment::Field("value".to_string())
+            ]
+        );
+    }
+
+    #[test]
+    fn test_parse_field_path_underscore_field() {
+        let segments = FieldEvaluator::parse_field_path("created_by").unwrap();
+        assert_eq!(segments, vec![PathSegment::Field("created_by".to_string())]);
+    }
+
+    #[test]
+    fn test_parse_field_path_empty_string() {
+        let result = FieldEvaluator::parse_field_path("");
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("Empty field path"));
+    }
+
+    #[test]
+    fn test_extract_simple_field() {
+        let json = get_test_json();
+        let result = FieldEvaluator::extract_field_value(&json, "status").unwrap();
+        assert_eq!(result, json!("in_progress"));
+    }
+
+    #[test]
+    fn test_extract_array_field() {
+        let json = get_test_json();
+        let result = FieldEvaluator::extract_field_value(&json, "tasks").unwrap();
+        assert_eq!(result, json!(["task1", "task2", "task3"]));
+    }
+
+    #[test]
+    fn test_extract_array_element() {
+        let json = get_test_json();
+        let result = FieldEvaluator::extract_field_value(&json, "tasks[0]").unwrap();
+        assert_eq!(result, json!("task1"));
+
+        let result = FieldEvaluator::extract_field_value(&json, "tasks[2]").unwrap();
+        assert_eq!(result, json!("task3"));
+    }
+
+    #[test]
+    fn test_extract_nested_field() {
+        let json = get_test_json();
+        let result = FieldEvaluator::extract_field_value(&json, "metadata.created_by").unwrap();
+        assert_eq!(result, json!("user_123"));
+
+        let result = FieldEvaluator::extract_field_value(&json, "metadata.priority").unwrap();
+        assert_eq!(result, json!("high"));
+    }
+
+    #[test]
+    fn test_extract_nested_array_element() {
+        let json = get_test_json();
+        let result = FieldEvaluator::extract_field_value(&json, "metadata.tags[0]").unwrap();
+        assert_eq!(result, json!("urgent"));
+
+        let result = FieldEvaluator::extract_field_value(&json, "metadata.tags[1]").unwrap();
+        assert_eq!(result, json!("backend"));
+    }
+
+    #[test]
+    fn test_extract_deep_nested_field() {
+        let json = get_test_json();
+        let result =
+            FieldEvaluator::extract_field_value(&json, "metadata.nested.deep.value").unwrap();
+        assert_eq!(result, json!("found_it"));
+    }
+
+    #[test]
+    fn test_extract_numeric_field() {
+        let json = get_test_json();
+        let result = FieldEvaluator::extract_field_value(&json, "counts.total").unwrap();
+        assert_eq!(result, json!(42));
+
+        let result = FieldEvaluator::extract_field_value(&json, "counts.completed").unwrap();
+        assert_eq!(result, json!(15));
+    }
+
+    #[test]
+    fn test_extract_empty_array() {
+        let json = get_test_json();
+        let result = FieldEvaluator::extract_field_value(&json, "empty_array").unwrap();
+        assert_eq!(result, json!([]));
+    }
+
+    #[test]
+    fn test_extract_single_item_array() {
+        let json = get_test_json();
+        let result = FieldEvaluator::extract_field_value(&json, "single_item[0]").unwrap();
+        assert_eq!(result, json!("only_one"));
+    }
+
+    #[test]
+    fn test_extract_nonexistent_field() {
+        let json = get_test_json();
+        let result = FieldEvaluator::extract_field_value(&json, "nonexistent");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Field 'nonexistent' not found"));
+    }
+
+    #[test]
+    fn test_extract_nonexistent_nested_field() {
+        let json = get_test_json();
+        let result = FieldEvaluator::extract_field_value(&json, "metadata.nonexistent");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Field 'nonexistent' not found"));
+    }
+
+    #[test]
+    fn test_extract_array_index_out_of_bounds() {
+        let json = get_test_json();
+        let result = FieldEvaluator::extract_field_value(&json, "tasks[99]");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Index 99 not found"));
+    }
+
+    #[test]
+    fn test_extract_array_index_on_non_array() {
+        let json = get_test_json();
+        let result = FieldEvaluator::extract_field_value(&json, "status[0]");
+        assert!(result.is_err());
+        assert!(result
+            .unwrap_err()
+            .to_string()
+            .contains("Index 0 not found"));
+    }
+
+    #[test]
+    fn test_extract_field_on_array_element() {
+        let json = json!({
+            "users": [
+                {"name": "Alice", "age": 30},
+                {"name": "Bob", "age": 25}
+            ]
+        });
+
+        let result = FieldEvaluator::extract_field_value(&json, "users[0].name").unwrap();
+        assert_eq!(result, json!("Alice"));
+
+        let result = FieldEvaluator::extract_field_value(&json, "users[1].age").unwrap();
+        assert_eq!(result, json!(25));
+    }
+
+    #[test]
+    fn test_structured_task_output_scenarios() {
+        // Test scenarios based on your StructuredTaskOutput example
+        let json = json!({
+            "tasks": ["setup_database", "create_api", "write_tests"],
+            "status": "in_progress"
+        });
+
+        // Test extracting the tasks array
+        let tasks = FieldEvaluator::extract_field_value(&json, "tasks").unwrap();
+        assert!(tasks.is_array());
+        assert_eq!(tasks.as_array().unwrap().len(), 3);
+
+        // Test extracting individual task items
+        let first_task = FieldEvaluator::extract_field_value(&json, "tasks[0]").unwrap();
+        assert_eq!(first_task, json!("setup_database"));
+
+        // Test extracting status
+        let status = FieldEvaluator::extract_field_value(&json, "status").unwrap();
+        assert_eq!(status, json!("in_progress"));
+    }
+
+    #[test]
+    fn test_real_world_llm_response_structure() {
+        // Test with a more complex LLM response structure
+        let json = json!({
+            "analysis": {
+                "sentiment": "positive",
+                "confidence": 0.85,
+                "keywords": ["innovation", "growth", "success"]
+            },
+            "recommendations": [
+                {
+                    "action": "increase_investment",
+                    "priority": "high",
+                    "estimated_impact": 0.75
+                },
+                {
+                    "action": "expand_team",
+                    "priority": "medium",
+                    "estimated_impact": 0.60
+                }
+            ],
+            "summary": "Overall positive outlook with strong growth potential"
+        });
+
+        // Test nested object extraction
+        let sentiment = FieldEvaluator::extract_field_value(&json, "analysis.sentiment").unwrap();
+        assert_eq!(sentiment, json!("positive"));
+
+        // Test array of objects
+        let first_action =
+            FieldEvaluator::extract_field_value(&json, "recommendations[0].action").unwrap();
+        assert_eq!(first_action, json!("increase_investment"));
+
+        // Test numeric extraction
+        let confidence = FieldEvaluator::extract_field_value(&json, "analysis.confidence").unwrap();
+        assert_eq!(confidence, json!(0.85));
+
+        // Test array element extraction
+        let first_keyword =
+            FieldEvaluator::extract_field_value(&json, "analysis.keywords[0]").unwrap();
+        assert_eq!(first_keyword, json!("innovation"));
     }
 }

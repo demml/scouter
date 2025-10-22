@@ -17,6 +17,9 @@ pub enum EvaluationError {
     #[error(transparent)]
     JoinError(#[from] tokio::task::JoinError),
 
+    #[error(transparent)]
+    RegexError(#[from] regex::Error),
+
     #[error("Missing key: {0}")]
     MissingKeyError(String),
 
@@ -53,7 +56,7 @@ pub enum EvaluationError {
     #[error("Field '{0}' not found")]
     FieldNotFound(String),
 
-    #[error("Index '{0}' not found")]
+    #[error("Index {0} not found")]
     IndexNotFound(usize),
 
     #[error("Invalid array index: {0}")]
