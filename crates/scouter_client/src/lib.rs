@@ -72,6 +72,6 @@ pub use scouter_types::error::{ContractError, ProfileError, RecordError, TypeErr
 
 pub use scouter_evaluate::{
     error::EvaluationError,
-    llm::{async_evaluate_llm, evaluate_llm, workflow_from_eval_metrics},
+    evaluate::{async_evaluate_llm, evaluate_llm, workflow_from_eval_metrics},
     types::{EvaluationConfig, LLMEvalRecord, LLMEvalResults, LLMEvalTaskResult},
 };

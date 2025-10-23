@@ -6,12 +6,6 @@ use potato_head::Prompt;
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, PartialEq)]
-enum PathSegment {
-    Field(String),
-    Index(usize),
-}
-
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum ComparisonOperator {
@@ -54,7 +48,7 @@ impl AssertionValue {
 }
 
 /// Converts a PyAny value to an AssertionValue
-fn assertion_value_from_py(value: &Bound<'_, PyAny>) -> Result<AssertionValue, TypeError> {
+pub fn assertion_value_from_py(value: &Bound<'_, PyAny>) -> Result<AssertionValue, TypeError> {
     if let Ok(s) = value.extract::<String>() {
         Ok(AssertionValue::String(s))
     } else if let Ok(i) = value.extract::<i64>() {
@@ -114,8 +108,10 @@ pub struct LLMJudgeTask {
     #[pyo3(get)]
     pub prompt: Prompt,
 
+    #[pyo3(get)]
     pub expected_value: AssertionValue,
 
+    #[pyo3(get)]
     pub comparison: ComparisonOperator,
 }
 

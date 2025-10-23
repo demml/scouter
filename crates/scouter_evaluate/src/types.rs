@@ -495,3 +495,75 @@ impl EvaluationConfig {
         !self.embedding_targets.is_empty() || self.cluster
     }
 }
+
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum ComparisonOperator {
+    Equal,
+    NotEqual,
+    GreaterThan,
+    GreaterThanOrEqual,
+    LessThan,
+    LessThanOrEqual,
+    Contains,
+    NotContains,
+    StartsWith,
+    EndsWith,
+    Matches,
+    HasLength,
+}
+
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum AssertionValue {
+    String(String),
+    Number(f64),
+    Integer(i64),
+    Boolean(bool),
+    List(Vec<AssertionValue>),
+    Null(),
+}
+
+impl AssertionValue {
+    pub fn to_actual(self, comparison: &ComparisonOperator) -> AssertionValue {
+        match comparison {
+            ComparisonOperator::HasLength => match self {
+                AssertionValue::List(arr) => AssertionValue::Integer(arr.len() as i64),
+                AssertionValue::String(s) => AssertionValue::Integer(s.chars().count() as i64),
+                _ => self,
+            },
+            _ => self,
+        }
+    }
+}
+
+/// Converts a PyAny value to an AssertionValue
+pub fn assertion_value_from_py(
+    value: &Bound<'_, PyAny>,
+) -> Result<AssertionValue, EvaluationError> {
+    if let Ok(s) = value.extract::<String>() {
+        Ok(AssertionValue::String(s))
+    } else if let Ok(i) = value.extract::<i64>() {
+        Ok(AssertionValue::Integer(i))
+    } else if let Ok(f) = value.extract::<f64>() {
+        Ok(AssertionValue::Number(f))
+    } else if let Ok(b) = value.extract::<bool>() {
+        Ok(AssertionValue::Boolean(b))
+    } else if let Ok(list) = value.extract::<Vec<Bound<'_, PyAny>>>() {
+        let converted_list: Result<Vec<_>, _> = list
+            .iter()
+            .map(|item| assertion_value_from_py(item))
+            .collect();
+        Ok(AssertionValue::List(converted_list?))
+    } else {
+        Err(EvaluationError::InvalidAssertionValueType)
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+pub enum EvaluationTaskType {
+    FieldAssertion,
+    LLMJudge,
+    HumanValidation,
+}

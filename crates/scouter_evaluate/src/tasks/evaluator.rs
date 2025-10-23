@@ -1,8 +1,10 @@
 use crate::error::EvaluationError;
+use crate::tasks::assertion::{AssertionResult, AssertionTasks, FieldAssertionTask};
+use crate::types::{
+    assertion_value_from_py, AssertionValue, ComparisonOperator, EvaluationTaskType,
+};
 use pyo3::prelude::*;
-
 use regex::Regex;
-use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::OnceLock;
 
@@ -71,124 +73,6 @@ enum PathSegment {
 }
 
 #[pyclass]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum ComparisonOperator {
-    Equal,
-    NotEqual,
-    GreaterThan,
-    GreaterThanOrEqual,
-    LessThan,
-    LessThanOrEqual,
-    Contains,
-    NotContains,
-    StartsWith,
-    EndsWith,
-    Matches,
-    HasLength,
-}
-
-#[pyclass]
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
-pub enum AssertionValue {
-    String(String),
-    Number(f64),
-    Integer(i64),
-    Boolean(bool),
-    List(Vec<AssertionValue>),
-    Null(),
-}
-
-impl AssertionValue {
-    pub fn to_actual(self, comparison: &ComparisonOperator) -> AssertionValue {
-        match comparison {
-            ComparisonOperator::HasLength => match self {
-                AssertionValue::List(arr) => AssertionValue::Integer(arr.len() as i64),
-                AssertionValue::String(s) => AssertionValue::Integer(s.chars().count() as i64),
-                _ => self,
-            },
-            _ => self,
-        }
-    }
-}
-
-/// Converts a PyAny value to an AssertionValue
-fn assertion_value_from_py(value: &Bound<'_, PyAny>) -> Result<AssertionValue, EvaluationError> {
-    if let Ok(s) = value.extract::<String>() {
-        Ok(AssertionValue::String(s))
-    } else if let Ok(i) = value.extract::<i64>() {
-        Ok(AssertionValue::Integer(i))
-    } else if let Ok(f) = value.extract::<f64>() {
-        Ok(AssertionValue::Number(f))
-    } else if let Ok(b) = value.extract::<bool>() {
-        Ok(AssertionValue::Boolean(b))
-    } else if let Ok(list) = value.extract::<Vec<Bound<'_, PyAny>>>() {
-        let converted_list: Result<Vec<_>, _> = list
-            .iter()
-            .map(|item| assertion_value_from_py(item))
-            .collect();
-        Ok(AssertionValue::List(converted_list?))
-    } else {
-        Err(EvaluationError::InvalidAssertionValueType)
-    }
-}
-
-#[pyclass]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct FieldAssertion {
-    #[pyo3(get, set)]
-    pub field_path: String,
-
-    #[pyo3(get, set)]
-    pub operator: ComparisonOperator,
-
-    #[pyo3(get, set)]
-    pub expected_value: AssertionValue,
-
-    pub description: Option<String>,
-}
-
-#[pymethods]
-impl FieldAssertion {
-    pub fn description(&mut self, desc: String) {
-        self.description = Some(desc);
-    }
-
-    #[getter]
-    pub fn get_description(&self) -> Option<String> {
-        self.description.clone()
-    }
-}
-
-#[pyclass]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AssertionResult {
-    #[pyo3(get)]
-    pub passed: bool,
-
-    #[pyo3(get)]
-    pub field_path: String,
-
-    #[pyo3(get)]
-    pub expected: String,
-
-    #[pyo3(get)]
-    pub actual: String,
-
-    #[pyo3(get)]
-    pub message: String,
-}
-
-#[pyclass]
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AssertionSuite {
-    #[pyo3(get, set)]
-    pub name: String,
-
-    #[pyo3(get, set)]
-    pub assertions: Vec<FieldAssertion>,
-}
-
-#[pyclass]
 #[derive(Debug, Clone)]
 pub struct AssertionEvaluator;
 
@@ -204,31 +88,21 @@ impl AssertionEvaluator {
     /// * `json_output`: The JSON string output from the LLM
     /// * `assertion_suite`: The suite of assertions to evaluate
     /// Returns a list of AssertionResult objects
-    #[pyo3(signature = (json_output, assertion_suite))]
-    pub fn evaluate_suite(
+    #[pyo3(signature = (json_output, assertion_tasks))]
+    pub fn evaluate_tasks(
         &self,
         json_output: &str,
-        assertion_suite: &AssertionSuite,
+        assertion_tasks: &AssertionTasks,
     ) -> Result<Vec<AssertionResult>, EvaluationError> {
         let json_value: Value = serde_json::from_str(json_output)?;
 
-        let results = assertion_suite
-            .assertions
+        let results = assertion_tasks
+            .tasks
             .iter()
             .map(|assertion| self.evaluate_assertion(&json_value, assertion))
             .collect::<Result<Vec<_>, _>>()?;
 
         Ok(results)
-    }
-
-    #[pyo3(signature = (json_output, assertion))]
-    pub fn evaluate_single(
-        &self,
-        json_output: &str,
-        assertion: &FieldAssertion,
-    ) -> Result<AssertionResult, EvaluationError> {
-        let json_value: Value = serde_json::from_str(json_output)?;
-        self.evaluate_assertion(&json_value, assertion)
     }
 }
 
@@ -236,14 +110,14 @@ impl AssertionEvaluator {
     /// Evaluates a single assertion against the provided JSON value
     /// # Arguments
     /// * `json_value`: The JSON value to evaluate against
-    /// * `assertion`: The FieldAssertion to evaluate
+    /// * `assertion`: The FieldAssertionTask to evaluate
     /// Returns an AssertionResult indicating pass/fail and details
     /// # Errors
     /// Returns EvaluationError if field extraction or comparison fails
     pub fn evaluate_assertion(
         &self,
         json_value: &Value,
-        assertion: &FieldAssertion,
+        assertion: &FieldAssertionTask,
     ) -> Result<AssertionResult, EvaluationError> {
         // Extract the actual value from the JSON
         let actual_value = FieldEvaluator::extract_field_value(json_value, &assertion.field_path)?;
@@ -433,7 +307,7 @@ impl Field {
     /// * `comparison`: The comparison operator to use
     /// * `value`: The expected value for the assertion
     /// * `description`: Optional description for the assertion
-    /// Returns a FieldAssertion object
+    /// Returns a FieldAssertionTask object
     /// # Errors
     /// Returns EvaluationError if the expected value cannot be converted
     pub fn assert(
@@ -441,12 +315,13 @@ impl Field {
         comparison: ComparisonOperator,
         value: &Bound<'_, PyAny>,
         description: Option<String>,
-    ) -> Result<FieldAssertion, EvaluationError> {
-        Ok(FieldAssertion {
+    ) -> Result<FieldAssertionTask, EvaluationError> {
+        Ok(FieldAssertionTask {
             field_path: self.field_path.clone(),
             operator: comparison,
             expected_value: assertion_value_from_py(value)?,
             description,
+            task_type: EvaluationTaskType::FieldAssertion,
         })
     }
 }
@@ -480,64 +355,70 @@ mod tests {
         })
     }
 
-    fn priority_assertion() -> FieldAssertion {
-        FieldAssertion {
+    fn priority_assertion() -> FieldAssertionTask {
+        FieldAssertionTask {
             field_path: "metadata.priority".to_string(),
             operator: ComparisonOperator::Equal,
             expected_value: AssertionValue::String("high".to_string()),
             description: Some("Check if priority is high".to_string()),
+            task_type: EvaluationTaskType::FieldAssertion,
         }
     }
 
-    fn match_assertion() -> FieldAssertion {
-        FieldAssertion {
+    fn match_assertion() -> FieldAssertionTask {
+        FieldAssertionTask {
             field_path: "status".to_string(),
             operator: ComparisonOperator::Matches,
             expected_value: AssertionValue::String(r"^in_.*$".to_string()),
             description: Some("Status should start with 'in_'".to_string()),
+            task_type: EvaluationTaskType::FieldAssertion,
         }
     }
 
-    fn length_assertion() -> FieldAssertion {
-        FieldAssertion {
+    fn length_assertion() -> FieldAssertionTask {
+        FieldAssertionTask {
             field_path: "tasks".to_string(),
             operator: ComparisonOperator::HasLength,
             expected_value: AssertionValue::Integer(3),
             description: Some("There should be 3 tasks".to_string()),
+            task_type: EvaluationTaskType::FieldAssertion,
         }
     }
 
-    fn length_assertion_greater() -> FieldAssertion {
-        FieldAssertion {
+    fn length_assertion_greater() -> FieldAssertionTask {
+        FieldAssertionTask {
             field_path: "tasks".to_string(),
             operator: ComparisonOperator::GreaterThanOrEqual,
             expected_value: AssertionValue::Integer(2),
             description: Some("There should be more than 2 tasks".to_string()),
+            task_type: EvaluationTaskType::FieldAssertion,
         }
     }
 
-    fn length_assertion_less() -> FieldAssertion {
-        FieldAssertion {
+    fn length_assertion_less() -> FieldAssertionTask {
+        FieldAssertionTask {
             field_path: "tasks".to_string(),
             operator: ComparisonOperator::LessThanOrEqual,
             expected_value: AssertionValue::Integer(5),
             description: Some("There should be less than 5 tasks".to_string()),
+            task_type: EvaluationTaskType::FieldAssertion,
         }
     }
 
-    fn contains_assertion() -> FieldAssertion {
-        FieldAssertion {
+    fn contains_assertion() -> FieldAssertionTask {
+        FieldAssertionTask {
             field_path: "metadata.tags".to_string(),
             operator: ComparisonOperator::Contains,
             expected_value: AssertionValue::String("backend".to_string()),
             description: Some("Tags should contain 'backend'".to_string()),
+            task_type: EvaluationTaskType::FieldAssertion,
         }
     }
 
-    fn get_test_assertion_suite() -> AssertionSuite {
-        AssertionSuite {
+    fn get_test_assertion_suite() -> AssertionTasks {
+        AssertionTasks {
             name: "Test Suite".to_string(),
-            assertions: vec![
+            tasks: vec![
                 priority_assertion(),
                 match_assertion(),
                 length_assertion(),
@@ -825,7 +706,7 @@ mod tests {
         let assertions = &get_test_assertion_suite();
         let evaluator = AssertionEvaluator::new();
         let result = evaluator
-            .evaluate_suite(&serde_json::to_string(&json).unwrap(), assertions)
+            .evaluate_tasks(&serde_json::to_string(&json).unwrap(), assertions)
             .unwrap();
         for res in result {
             assert!(res.passed, "Assertion failed: {}", res.message);
