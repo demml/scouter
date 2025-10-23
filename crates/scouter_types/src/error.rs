@@ -110,6 +110,12 @@ pub enum TypeError {
 
     #[error("Failed to import pydantic module. Error: {0}")]
     FailedToImportPydantic(String),
+
+    #[error("Invalid assertion value type")]
+    InvalidAssertionValueType,
+
+    #[error("No response json schema found in LLM prompt. LLMJudgeTask requires a response json schema to be defined.")]
+    EmptyJsonResponseSchema,
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for TypeError {
