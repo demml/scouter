@@ -110,6 +110,28 @@ impl AssertionValue {
         }
     }
 }
+
+/// Converts a PyAny value to an AssertionValue
+fn assertion_value_from_py(value: &Bound<'_, PyAny>) -> Result<AssertionValue, EvaluationError> {
+    if let Ok(s) = value.extract::<String>() {
+        Ok(AssertionValue::String(s))
+    } else if let Ok(i) = value.extract::<i64>() {
+        Ok(AssertionValue::Integer(i))
+    } else if let Ok(f) = value.extract::<f64>() {
+        Ok(AssertionValue::Number(f))
+    } else if let Ok(b) = value.extract::<bool>() {
+        Ok(AssertionValue::Boolean(b))
+    } else if let Ok(list) = value.extract::<Vec<Bound<'_, PyAny>>>() {
+        let converted_list: Result<Vec<_>, _> = list
+            .iter()
+            .map(|item| assertion_value_from_py(item))
+            .collect();
+        Ok(AssertionValue::List(converted_list?))
+    } else {
+        Err(EvaluationError::InvalidAssertionValueType)
+    }
+}
+
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FieldAssertion {
@@ -122,8 +144,19 @@ pub struct FieldAssertion {
     #[pyo3(get, set)]
     pub expected_value: AssertionValue,
 
-    #[pyo3(get, set)]
     pub description: Option<String>,
+}
+
+#[pymethods]
+impl FieldAssertion {
+    pub fn description(&mut self, desc: String) {
+        self.description = Some(desc);
+    }
+
+    #[getter]
+    pub fn get_description(&self) -> Option<String> {
+        self.description.clone()
+    }
 }
 
 #[pyclass]
@@ -377,7 +410,13 @@ impl AssertionEvaluator {
             Value::Bool(b) => Ok(AssertionValue::Boolean(*b)),
             Value::Array(arr) => match comparator {
                 // need to account for comparisons that checks length
-                ComparisonOperator::HasLength => Ok(AssertionValue::Integer(arr.len() as i64)),
+                ComparisonOperator::HasLength
+                | ComparisonOperator::LessThan
+                | ComparisonOperator::LessThanOrEqual
+                | ComparisonOperator::GreaterThan
+                | ComparisonOperator::GreaterThanOrEqual => {
+                    Ok(AssertionValue::Integer(arr.len() as i64))
+                }
                 _ => {
                     let converted: Result<Vec<_>, _> = arr
                         .iter()
@@ -389,6 +428,42 @@ impl AssertionEvaluator {
             Value::Null => Ok(AssertionValue::Null()),
             Value::Object(_) => Err(EvaluationError::CannotConvertObjectToAssertionValue),
         }
+    }
+}
+
+#[pyclass]
+#[derive(Debug)]
+pub struct Field {
+    pub field_path: String,
+}
+
+#[pymethods]
+impl Field {
+    #[new]
+    pub fn new(field_path: String) -> Self {
+        Self { field_path }
+    }
+
+    /// General assertion method for creating a field-specific assertion
+    /// # Arguments
+    /// * `comparison`: The comparison operator to use
+    /// * `value`: The expected value for the assertion
+    /// * `description`: Optional description for the assertion
+    /// Returns a FieldAssertion object
+    /// # Errors
+    /// Returns EvaluationError if the expected value cannot be converted
+    pub fn assert(
+        &self,
+        comparison: ComparisonOperator,
+        value: &Bound<'_, PyAny>,
+        description: Option<String>,
+    ) -> Result<FieldAssertion, EvaluationError> {
+        Ok(FieldAssertion {
+            field_path: self.field_path.clone(),
+            operator: comparison,
+            expected_value: assertion_value_from_py(value)?,
+            description,
+        })
     }
 }
 

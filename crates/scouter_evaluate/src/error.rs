@@ -1,4 +1,3 @@
-use potato_head::agents::error;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::PyErr;
 use thiserror::Error;
@@ -95,6 +94,9 @@ pub enum EvaluationError {
 
     #[error("Expected value for length must be an integer")]
     ExpectedLengthMustBeInteger,
+
+    #[error("Invalid assertion value type")]
+    InvalidAssertionValueType,
 }
 
 impl From<EvaluationError> for PyErr {
