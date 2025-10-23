@@ -283,7 +283,8 @@ impl AssertionEvaluator {
         expected: &AssertionValue,
     ) -> Result<bool, EvaluationError> {
         match operator {
-            ComparisonOperator::HasLength => self.check_length(actual, expected),
+            // actual has already been converted to length
+            ComparisonOperator::HasLength => Ok(actual == expected),
             ComparisonOperator::Equal => Ok(actual == expected),
             ComparisonOperator::NotEqual => Ok(actual != expected),
             ComparisonOperator::GreaterThan => self.compare_numeric(actual, expected, |a, b| a > b),
@@ -299,23 +300,6 @@ impl AssertionEvaluator {
             ComparisonOperator::StartsWith => self.check_starts_with(actual, expected),
             ComparisonOperator::EndsWith => self.check_ends_with(actual, expected),
             ComparisonOperator::Matches => self.check_regex_match(actual, expected),
-        }
-    }
-
-    fn check_length(
-        &self,
-        actual_value: &AssertionValue,
-        expected_value: &AssertionValue,
-    ) -> Result<bool, EvaluationError> {
-        let actual_length = match actual_value {
-            AssertionValue::List(list) => list.len(),
-            AssertionValue::String(s) => s.len(),
-            _ => return Err(EvaluationError::CannotGetLengthOfObject),
-        };
-
-        match expected_value {
-            AssertionValue::Integer(expected_len) => Ok(actual_length == *expected_len as usize),
-            _ => Err(EvaluationError::ExpectedLengthMustBeInteger),
         }
     }
 
@@ -494,6 +478,74 @@ mod tests {
             "empty_array": [],
             "single_item": ["only_one"]
         })
+    }
+
+    fn priority_assertion() -> FieldAssertion {
+        FieldAssertion {
+            field_path: "metadata.priority".to_string(),
+            operator: ComparisonOperator::Equal,
+            expected_value: AssertionValue::String("high".to_string()),
+            description: Some("Check if priority is high".to_string()),
+        }
+    }
+
+    fn match_assertion() -> FieldAssertion {
+        FieldAssertion {
+            field_path: "status".to_string(),
+            operator: ComparisonOperator::Matches,
+            expected_value: AssertionValue::String(r"^in_.*$".to_string()),
+            description: Some("Status should start with 'in_'".to_string()),
+        }
+    }
+
+    fn length_assertion() -> FieldAssertion {
+        FieldAssertion {
+            field_path: "tasks".to_string(),
+            operator: ComparisonOperator::HasLength,
+            expected_value: AssertionValue::Integer(3),
+            description: Some("There should be 3 tasks".to_string()),
+        }
+    }
+
+    fn length_assertion_greater() -> FieldAssertion {
+        FieldAssertion {
+            field_path: "tasks".to_string(),
+            operator: ComparisonOperator::GreaterThanOrEqual,
+            expected_value: AssertionValue::Integer(2),
+            description: Some("There should be more than 2 tasks".to_string()),
+        }
+    }
+
+    fn length_assertion_less() -> FieldAssertion {
+        FieldAssertion {
+            field_path: "tasks".to_string(),
+            operator: ComparisonOperator::LessThanOrEqual,
+            expected_value: AssertionValue::Integer(5),
+            description: Some("There should be less than 5 tasks".to_string()),
+        }
+    }
+
+    fn contains_assertion() -> FieldAssertion {
+        FieldAssertion {
+            field_path: "metadata.tags".to_string(),
+            operator: ComparisonOperator::Contains,
+            expected_value: AssertionValue::String("backend".to_string()),
+            description: Some("Tags should contain 'backend'".to_string()),
+        }
+    }
+
+    fn get_test_assertion_suite() -> AssertionSuite {
+        AssertionSuite {
+            name: "Test Suite".to_string(),
+            assertions: vec![
+                priority_assertion(),
+                match_assertion(),
+                length_assertion(),
+                length_assertion_greater(),
+                length_assertion_less(),
+                contains_assertion(),
+            ],
+        }
     }
 
     #[test]
@@ -765,5 +817,18 @@ mod tests {
         let first_keyword =
             FieldEvaluator::extract_field_value(&json, "analysis.keywords[0]").unwrap();
         assert_eq!(first_keyword, json!("innovation"));
+    }
+
+    #[test]
+    fn test_field_assertions() {
+        let json = get_test_json();
+        let assertions = &get_test_assertion_suite();
+        let evaluator = AssertionEvaluator::new();
+        let result = evaluator
+            .evaluate_suite(&serde_json::to_string(&json).unwrap(), assertions)
+            .unwrap();
+        for res in result {
+            assert!(res.passed, "Assertion failed: {}", res.message);
+        }
     }
 }
