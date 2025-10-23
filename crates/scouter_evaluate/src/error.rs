@@ -1,3 +1,4 @@
+use potato_head::agents::error;
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::PyErr;
 use thiserror::Error;
@@ -67,6 +68,33 @@ pub enum EvaluationError {
 
     #[error("{0}")]
     PyError(String),
+
+    #[error("Cannot compare non-numeric values")]
+    CannotCompareNonNumericValues,
+
+    #[error("Contains operation requires string or list")]
+    InvalidContainsOperation,
+
+    #[error("StartsWith operation requires strings")]
+    InvalidStartsWithOperation,
+
+    #[error("EndsWith operation requires strings")]
+    InvalidEndsWithOperation,
+
+    #[error("Regex match requires strings")]
+    InvalidRegexOperation,
+
+    #[error("Invalid number format")]
+    InvalidNumberFormat,
+
+    #[error("Cannot convert object to AssertionValue")]
+    CannotConvertObjectToAssertionValue,
+
+    #[error("Cannot get length of object")]
+    CannotGetLengthOfObject,
+
+    #[error("Expected value for length must be an integer")]
+    ExpectedLengthMustBeInteger,
 }
 
 impl From<EvaluationError> for PyErr {

@@ -1,3 +1,4 @@
+pub mod assertion;
 pub mod error;
 pub mod llm;
 pub mod types;
