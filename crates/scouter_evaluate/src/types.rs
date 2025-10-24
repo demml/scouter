@@ -11,6 +11,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
+use chrono::Utc;
 
 pub fn array_to_dict<'py>(
     py: Python<'py>,
@@ -390,32 +391,57 @@ impl LLMEvalTaskResult {
 
 #[pyclass]
 #[derive(Clone, Debug)]
-pub struct LLMEvalRecord {
+pub struct EvaluationRecord {
+    pub name: String,
+
+     // this is the parent request id for the application
+    pub request_id: String,
+
+    // this is the unique id for this record
     pub id: String,
-    pub context: Value,
+
+    // inputs provided to the LLM
+    pub inputs: Value, 
+
+    // expected output for the LLM
+    pub ground_truth: Option<Value>, 
+
+    // metadata associated with this record
+    pub metadata: BTreeMap<String, String>,
+
+    pub timestamp: chrono::DateTime<Utc>,
 }
 
 #[pymethods]
-impl LLMEvalRecord {
+impl EvaluationRecord {
     #[new]
     #[pyo3(signature = (
-        context,
-        id=None
+        name, 
+        inputs,
+        request_id = None,
+        id = None,
+        ground_truth = None,
+        metadata = None,
+   
     ))]
 
     /// Creates a new LLMRecord instance.
     /// The context is either a python dictionary or a pydantic basemodel.
     pub fn new(
         py: Python<'_>,
-        context: Bound<'_, PyAny>,
+        name: String,
+        inputs: Bound<'_, PyAny>,
+        request_id: Option<String>,
         id: Option<String>,
+        ground_truth: Option<Bound<'_, PyAny>>,
+        metadata: Option<Bound<'_, PyDict>>,
     ) -> Result<Self, EvaluationError> {
-        // check if context is a PyDict or PyObject(Pydantic model)
-        let context_val = if context.is_instance_of::<PyDict>() {
-            pyobject_to_json(&context)?
-        } else if is_pydantic_model(py, &context)? {
+        // check if inputs is a PyDict or PyObject(Pydantic model)
+        let inputs_val = if inputs.is_instance_of::<PyDict>() {
+            pyobject_to_json(&inputs)?
+        } else if is_pydantic_model(py, &inputs)? {
             // Dump pydantic model to dictionary
-            let model = context.call_method0("model_dump")?;
+            let model = inputs.call_method0("model_dump")?;
 
             // Serialize the dictionary to JSON
             pyobject_to_json(&model)?
@@ -424,16 +450,43 @@ impl LLMEvalRecord {
         };
 
         let id = id.unwrap_or_else(create_uuid7);
+        let request_id = request_id.unwrap_or_else(create_uuid7);
 
-        Ok(LLMEvalRecord {
+        let ground_truth_val = match ground_truth {
+            Some(gt) => {
+                Some(pyobject_to_json(&gt)?)
+            }
+            None => None,
+        };
+
+        let metadata = match metadata {
+            Some(md) => {
+                let mut map = BTreeMap::new();
+                for (key, value) in md.iter() {
+                    let key_str: String = key.extract()?;
+                    let value_str: String = value.extract()?;
+                    map.insert(key_str, value_str);
+                }
+                map
+            }
+            None => BTreeMap::new(),
+        };
+
+       
+        Ok(EvaluationRecord {
+            name,
+            inputs: inputs_val,
+            request_id,
             id,
-            context: context_val,
+            ground_truth: ground_truth_val,
+            metadata,
+            timestamp: Utc::now(),
         })
     }
 
     #[getter]
-    pub fn context<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, EvaluationError> {
-        Ok(json_to_pyobject_value(py, &self.context)?
+    pub fn inputs<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, EvaluationError> {
+        Ok(json_to_pyobject_value(py, &self.inputs)?
             .into_bound_py_any(py)?
             .clone())
     }

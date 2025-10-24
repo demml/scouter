@@ -1,4 +1,6 @@
 use crate::error::EvaluationError;
+use crate::tasks::assertion::FieldAssertionTask;
+use crate::tasks::judge::LLMJudgeTask;
 use crate::types::{EvaluationConfig, LLMEvalTaskResult};
 use crate::types::{LLMEvalRecord, LLMEvalResults};
 use crate::util::{
@@ -9,11 +11,45 @@ use potato_head::{Agent, Provider, Task, Workflow, WorkflowError};
 use pyo3::prelude::*;
 use scouter_state::app_state;
 use scouter_types::eval::LLMEvalMetric;
+use serde::{Deserialize, Serialize};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::task::JoinSet;
 use tracing::{debug, instrument};
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum EvaluationTaskNum {
+    Assertion(FieldAssertionTask),
+    Judge(LLMJudgeTask),
+}
+
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct EvaluationTasks {
+    tasks: Vec<EvaluationTaskNum>,
+}
+
+#[pymethods]
+impl EvaluationTasks {
+    #[new]
+    pub fn new(tasks: Vec<Bound<'_, PyAny>>) -> Result<Self, EvaluationError> {
+        let eval_tasks: Result<Vec<EvaluationTaskNum>, EvaluationError> = tasks
+            .iter()
+            .map(|item| {
+                if let Ok(assertion_task) = item.extract::<FieldAssertionTask>() {
+                    Ok(EvaluationTaskNum::Assertion(assertion_task))
+                } else if let Ok(judge_task) = item.extract::<LLMJudgeTask>() {
+                    Ok(EvaluationTaskNum::Judge(judge_task))
+                } else {
+                    Err(EvaluationError::InvalidTaskType)
+                }
+            })
+            .collect();
+
+        Ok(Self { tasks: eval_tasks? })
+    }
+}
 
 /// Main orchestration function that decides which execution path to take
 /// # Arguments

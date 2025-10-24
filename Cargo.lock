@@ -5544,6 +5544,7 @@ dependencies = [
 name = "scouter-evaluate"
 version = "0.12.0"
 dependencies = [
+ "chrono",
  "itertools 0.14.0",
  "linfa",
  "linfa-clustering",

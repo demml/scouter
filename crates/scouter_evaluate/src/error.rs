@@ -97,6 +97,9 @@ pub enum EvaluationError {
 
     #[error("Invalid assertion value type")]
     InvalidAssertionValueType,
+
+    #[error("Invalid task type for evaluation")]
+    InvalidTaskType,
 }
 
 impl From<EvaluationError> for PyErr {
