@@ -11,6 +11,7 @@ use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PyString};
 use pyo3::IntoPyObjectExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Display;
@@ -367,24 +368,42 @@ impl Metrics {
 #[pyclass]
 #[derive(Clone, Serialize, Debug)]
 pub struct LLMRecord {
+    // DriftProfile uid
     pub uid: String,
 
+    // DriftProfile space
     pub space: String,
 
+    // DriftProfile name
     pub name: String,
 
+    // DriftProfile version
     pub version: String,
 
     pub created_at: DateTime<Utc>,
 
-    pub context: Value,
-
-    pub score: Value,
-
     pub prompt: Option<Value>,
+
+    // inputs provided to the LLM
+    pub inputs: Value,
+
+    // outputs from the LLM
+    pub outputs: Value,
+
+    // expected output for the LLM
+    pub ground_truth: Option<Value>,
+
+    // metadata associated with this record
+    pub metadata: BTreeMap<String, String>,
 
     #[pyo3(get)]
     pub entity_type: EntityType,
+
+    // this is the parent request id for the application
+    pub request_id: String,
+
+    // this is the unique id for this record
+    pub id: String,
 }
 
 #[pymethods]
