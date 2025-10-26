@@ -273,7 +273,8 @@ pub fn create_feature_map(
 pub fn is_pydantic_model(py: Python, obj: &Bound<'_, PyAny>) -> Result<bool, TypeError> {
     let pydantic = match py.import("pydantic") {
         Ok(module) => module,
-        Err(e) => return Err(TypeError::FailedToImportPydantic(e.to_string())),
+        // soft fail if pydantic is not installed
+        Err(_) => return Ok(false),
     };
     let basemodel = pydantic.getattr("BaseModel")?;
 

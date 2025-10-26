@@ -1,10 +1,15 @@
-use crate::error::TypeError;
-use crate::PyHelperFuncs;
+use crate::queue::types::EntityType;
+use crate::{error::TypeError, is_pydantic_model};
+use crate::{json_to_pyobject_value, pyobject_to_json, PyHelperFuncs};
+use chrono::{DateTime, Utc};
 use core::fmt::Debug;
 use potato_head::prompt::ResponseType;
-use potato_head::Prompt;
+use potato_head::{create_uuid7, Prompt};
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
+use std::collections::BTreeMap;
 
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -141,6 +146,197 @@ impl LLMJudgeTask {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
+        PyHelperFuncs::__str__(self)
+    }
+}
+
+/// Converts a PyAny object to a serde_json::Value
+/// This will first check if the object is a pydantic model and call model_dump if so
+/// This is primarily used as a helper in instances when like LLMRecords that accept either dicts or pydantic models
+/// # Arguments
+/// * `py`: The Python GIL token
+/// * `obj`: The PyAny object to convert
+/// # Returns
+/// A serde_json::Value representation of the object
+fn convert_to_json(py: Python<'_>, obj: &Bound<'_, PyAny>) -> Result<Value, TypeError> {
+    let is_pydantic = is_pydantic_model(py, obj)?;
+
+    let value = if is_pydantic {
+        let model = obj.call_method0("model_dump")?;
+        pyobject_to_json(&model)?
+    } else {
+        pyobject_to_json(obj)?
+    };
+
+    Ok(value)
+}
+
+fn extract_value_from_py(
+    py: Python<'_>,
+    obj: Option<&Bound<'_, PyAny>>,
+) -> Result<Value, TypeError> {
+    match obj {
+        Some(o) => Ok(convert_to_json(py, o)?),
+        None => Ok(Value::Null),
+    }
+}
+
+fn pydict_to_btreemap(dict: &Bound<'_, PyDict>) -> Result<BTreeMap<String, String>, TypeError> {
+    let mut map = BTreeMap::new();
+    for (key, value) in dict.iter() {
+        let key_str: String = key.extract()?;
+        let value_str: String = value.extract()?;
+        map.insert(key_str, value_str);
+    }
+    Ok(map)
+}
+#[pyclass]
+#[derive(Clone, Serialize, Debug)]
+pub struct LLMRecord {
+    // DriftProfile uid
+    pub uid: String,
+
+    // DriftProfile space
+    pub space: String,
+
+    // DriftProfile name
+    pub name: String,
+
+    // DriftProfile version
+    pub version: String,
+
+    // Time the record is created
+    pub created_at: DateTime<Utc>,
+
+    pub prompt: Value,
+
+    // inputs provided to the LLM
+    pub inputs: Value,
+
+    // outputs from the LLM
+    pub outputs: Value,
+
+    // expected output for the LLM
+    pub ground_truth: Option<Value>,
+
+    // metadata associated with this record
+    pub metadata: BTreeMap<String, String>,
+
+    #[pyo3(get)]
+    pub entity_type: EntityType,
+
+    // this is the parent request id for the application
+    pub request_id: String,
+
+    // this is the unique id for this record
+    pub id: String,
+}
+
+#[pymethods]
+impl LLMRecord {
+    #[new]
+    #[pyo3(signature = (
+        inputs=None,
+        outputs=None,
+        prompt=None,
+        metadata=None,
+        request_id=None,
+        id=None,
+    ))]
+
+    /// Creates a new LLMRecord instance.
+    /// The context is either a python dictionary or a pydantic basemodel.
+    pub fn new(
+        py: Python<'_>,
+        inputs: Option<Bound<'_, PyAny>>,
+        outputs: Option<Bound<'_, PyAny>>,
+        prompt: Option<Bound<'_, PyAny>>,
+        metadata: Option<Bound<'_, PyDict>>,
+        request_id: Option<String>,
+        id: Option<String>,
+    ) -> Result<Self, TypeError> {
+        // if inputs is None, set Value::Null
+        let inputs_val: Value = extract_value_from_py(py, inputs.as_ref())?;
+        let outputs_val: Value = extract_value_from_py(py, outputs.as_ref())?;
+
+        // if inputs and outputs are both Null, raise an error
+        if inputs_val == Value::Null && outputs_val == Value::Null {
+            return Err(TypeError::EmptyInputsAndOutputs);
+        }
+        // if prompt is None, set Value::Null
+        let prompt: Value = match prompt {
+            Some(p) => {
+                if p.is_instance_of::<Prompt>() {
+                    let prompt = p.extract::<Prompt>()?;
+                    serde_json::to_value(prompt)?
+                } else {
+                    pyobject_to_json(&p)?
+                }
+            }
+            None => Value::Null,
+        };
+
+        // if metadata is None, set to empty BTreeMap
+        let metadata_val: BTreeMap<String, String> = match metadata {
+            Some(m) => pydict_to_btreemap(&m)?,
+            None => BTreeMap::new(),
+        };
+
+        // if request_id is None, set to new uuid7
+        let request_id = match request_id {
+            Some(rid) => rid,
+            None => create_uuid7(),
+        };
+
+        // if id is None, set to new uuid7
+        let id = match id {
+            Some(i) => i,
+            None => create_uuid7(),
+        };
+
+        Ok(LLMRecord {
+            uid: create_uuid7(),
+            created_at: Utc::now(),
+            space: String::new(),
+            name: String::new(),
+            version: String::new(),
+            inputs: inputs_val,
+            outputs: outputs_val,
+            ground_truth: None,
+            metadata: metadata_val,
+            prompt,
+            entity_type: EntityType::LLM,
+            request_id,
+            id,
+        })
+    }
+
+    #[getter]
+    pub fn inputs<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
+        Ok(json_to_pyobject_value(py, &self.inputs)?.bind(py).clone())
+    }
+}
+
+impl LLMRecord {
+    pub fn new_rs(inputs: Option<Value>, prompt: Option<Value>) -> Self {
+        LLMRecord {
+            inputs: inputs.unwrap_or(Value::Object(serde_json::Map::new())),
+            outputs: Value::Null,
+            entity_type: EntityType::LLM,
+            uid: create_uuid7(),
+            created_at: Utc::now(),
+            space: String::new(),
+            name: String::new(),
+            version: String::new(),
+            ground_truth: None,
+            metadata: BTreeMap::new(),
+            prompt: prompt.unwrap_or(Value::Null),
+            request_id: create_uuid7(),
+            id: create_uuid7(),
+        }
+    }
+
+    pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
     }
 }

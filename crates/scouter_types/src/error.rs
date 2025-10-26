@@ -116,6 +116,9 @@ pub enum TypeError {
 
     #[error("No response json schema found in LLM prompt. LLMJudgeTask requires a response json schema to be defined.")]
     EmptyJsonResponseSchema,
+
+    #[error("LLMRecord must have at least one of inputs or outputs supplied")]
+    EmptyInputsAndOutputs,
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for TypeError {
