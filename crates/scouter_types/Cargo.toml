@@ -28,9 +28,11 @@ thiserror = { workspace = true }
 tokio = { workspace = true}
 tracing = { workspace = true }
 statrs = { workspace = true }
+sqlx = { workspace = true, optional = true }
 
 [features]
 mock = ["potato-head/mock"]
+server = ["sqlx"]
 
 [dev-dependencies]
 tempfile = { workspace = true }

@@ -5780,6 +5780,7 @@ dependencies = [
  "scouter-state",
  "serde",
  "serde_json",
+ "sqlx",
  "statrs",
  "strum",
  "strum_macros",

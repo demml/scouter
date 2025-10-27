@@ -191,7 +191,7 @@ fn pydict_to_btreemap(dict: &Bound<'_, PyDict>) -> Result<BTreeMap<String, Strin
     Ok(map)
 }
 #[pyclass]
-#[derive(Clone, Serialize, Debug)]
+#[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct LLMEventRecord {
     pub uid: String,
 

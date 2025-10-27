@@ -10,7 +10,7 @@ use std::fmt::Display;
 use std::fmt::Formatter;
 
 #[pyclass]
-#[derive(Clone, Debug, Serialize)]
+#[derive(Clone, Debug, Serialize, Deserialize)]
 pub enum EntityType {
     Feature,
     Metric,
