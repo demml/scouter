@@ -1,18 +1,9 @@
 use crate::error::TypeError;
 use crate::eval::LLMEventRecord;
-use crate::json_to_pyobject_value;
-use crate::util::{is_pydantic_model, pyobject_to_json};
 use crate::PyHelperFuncs;
-use chrono::DateTime;
-use chrono::Utc;
-use potato_head::create_uuid7;
-use potato_head::Prompt;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PyString};
-use pyo3::IntoPyObjectExt;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use std::collections::BTreeMap;
 use std::collections::HashMap;
 use std::fmt;
 use std::fmt::Display;
