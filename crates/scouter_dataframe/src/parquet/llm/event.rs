@@ -12,22 +12,22 @@ use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
 
-use scouter_types::{LLMDriftServerRecord, ServerRecords, StorageType, ToDriftRecords};
+use scouter_types::{LLMEventRecord, ServerRecords, StorageType, ToDriftRecords};
 use std::sync::Arc;
 
-pub struct LLMDriftDataFrame {
+pub struct LLMEventDataFrame {
     schema: Arc<Schema>,
     pub object_store: ObjectStore,
 }
 
 #[async_trait]
-impl ParquetFrame for LLMDriftDataFrame {
+impl ParquetFrame for LLMEventDataFrame {
     fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
-        LLMDriftDataFrame::new(storage_settings)
+        LLMEventDataFrame::new(storage_settings)
     }
 
     async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError> {
-        let records = records.to_llm_drift_records()?;
+        let records = records.to_llm_event_records()?;
         let batch = self.build_batch(records)?;
 
         let ctx = self.object_store.get_session()?;
@@ -62,11 +62,11 @@ impl ParquetFrame for LLMDriftDataFrame {
     }
 
     fn table_name(&self) -> String {
-        BinnedTableName::LLMDrift.to_string()
+        BinnedTableName::LLMEvent.to_string()
     }
 }
 
-impl LLMDriftDataFrame {
+impl LLMEventDataFrame {
     pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
         let schema = Arc::new(Schema::new(vec![
             Field::new("id", DataType::Int64, false),

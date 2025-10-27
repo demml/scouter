@@ -1,6 +1,6 @@
 use crate::error::DataFrameError;
 use crate::parquet::custom::CustomMetricDataFrame;
-use crate::parquet::llm::{LLMDriftDataFrame, LLMMetricDataFrame};
+use crate::parquet::llm::{LLMEventDataFrame, LLMMetricDataFrame};
 use crate::parquet::psi::PsiDataFrame;
 use crate::parquet::spc::SpcDataFrame;
 use crate::parquet::traits::ParquetFrame;
@@ -16,7 +16,7 @@ pub enum ParquetDataFrame {
     Psi(PsiDataFrame),
     Spc(SpcDataFrame),
     LLMMetric(LLMMetricDataFrame),
-    LLMDrift(LLMDriftDataFrame),
+    LLMEvent(LLMEventDataFrame),
 }
 
 impl ParquetDataFrame {
@@ -33,7 +33,7 @@ impl ParquetDataFrame {
             RecordType::LLMMetric => Ok(ParquetDataFrame::LLMMetric(LLMMetricDataFrame::new(
                 storage_settings,
             )?)),
-            RecordType::LLMDrift => Ok(ParquetDataFrame::LLMDrift(LLMDriftDataFrame::new(
+            RecordType::LLMEvent => Ok(ParquetDataFrame::LLMEvent(LLMEventDataFrame::new(
                 storage_settings,
             )?)),
 
@@ -158,6 +158,8 @@ impl ParquetDataFrame {
 #[cfg(test)]
 mod tests {
 
+    use std::collections::BTreeMap;
+
     use super::*;
     use crate::parquet::psi::dataframe_to_psi_drift_features;
     use crate::parquet::spc::dataframe_to_spc_drift_features;
@@ -167,12 +169,12 @@ mod tests {
     use potato_head::create_score_prompt;
     use rand::Rng;
     use scouter_settings::ObjectStorageSettings;
+    use scouter_types::eval::LLMEventRecord;
     use scouter_types::{
-        BoxedLLMDriftServerRecord, CustomMetricServerRecord, LLMDriftServerRecord, LLMMetricRecord,
-        PsiServerRecord, ServerRecord, ServerRecords, SpcServerRecord, Status,
+        BoxedLLMEventRecord, CustomMetricServerRecord, LLMMetricRecord, PsiServerRecord,
+        ServerRecord, ServerRecords, SpcServerRecord, Status,
     };
     use serde_json::Map;
-    use serde_json::Value;
 
     fn cleanup() {
         let storage_settings = ObjectStorageSettings::default();
@@ -187,7 +189,7 @@ mod tests {
     async fn test_write_llm_drift_record_dataframe_local() {
         cleanup();
         let storage_settings = ObjectStorageSettings::default();
-        let df = ParquetDataFrame::new(&storage_settings, &RecordType::LLMDrift).unwrap();
+        let df = ParquetDataFrame::new(&storage_settings, &RecordType::LLMEvent).unwrap();
         let mut batch = Vec::new();
 
         let prompt = create_score_prompt(None);
@@ -195,16 +197,22 @@ mod tests {
         // create records
         for i in 0..3 {
             for _ in 0..50 {
-                let record = LLMDriftServerRecord {
+                let record = LLMEventRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
                     space: "test".to_string(),
                     name: "test".to_string(),
                     version: "1.0".to_string(),
-                    prompt: Some(prompt.model_dump_value()),
-                    context: serde_json::Value::Object(Map::new()),
-                    score: Value::Null,
+                    prompt: prompt.model_dump_value(),
+                    inputs: serde_json::Value::Object(Map::new()),
+                    outputs: serde_json::Value::Object(Map::new()),
                     status: Status::Pending,
-                    id: 0,
+                    ground_truth: None,
+                    metadata: BTreeMap::new(),
+                    entity_type: scouter_types::EntityType::LLM,
+                    trace_id: format!("trace_id_{i}"),
+                    span_id: format!("span_id_{i}"),
+                    span_name: Some("span_name".to_string()),
+                    parent_span_name: None,
                     uid: "test-uid".to_string(),
                     updated_at: None,
                     processing_started_at: None,
@@ -212,13 +220,13 @@ mod tests {
                     processing_duration: None,
                 };
 
-                let boxed_record = BoxedLLMDriftServerRecord::new(record);
-                batch.push(ServerRecord::LLMDrift(boxed_record));
+                let boxed_record = BoxedLLMEventRecord::new(record);
+                batch.push(ServerRecord::LLMEvent(boxed_record));
             }
         }
 
         let records = ServerRecords::new(batch);
-        let rpath = "llm_drift";
+        let rpath = "llm_event";
         df.write_parquet(rpath, records.clone()).await.unwrap();
 
         // get canonical path

@@ -18,6 +18,7 @@ pub use alert::*;
 pub use archive::*;
 pub use contracts::types::*;
 pub use drift::*;
+pub use eval::LLMEventRecord;
 pub use http::*;
 pub use queue::types::*;
 pub use records::*;

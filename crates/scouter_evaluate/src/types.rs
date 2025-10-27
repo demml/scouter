@@ -389,28 +389,6 @@ impl LLMEvalTaskResult {
     }
 }
 
-#[pyclass]
-#[derive(Clone, Debug)]
-pub struct EvaluationRecord {
-    pub name: String,
-
-     // this is the parent request id for the application
-    pub request_id: String,
-
-    // this is the unique id for this record
-    pub id: String,
-
-    // inputs provided to the LLM
-    pub inputs: Value, 
-
-    // expected output for the LLM
-    pub ground_truth: Option<Value>, 
-
-    // metadata associated with this record
-    pub metadata: BTreeMap<String, String>,
-
-    pub timestamp: chrono::DateTime<Utc>,
-}
 
 #[pymethods]
 impl EvaluationRecord {

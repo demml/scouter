@@ -535,7 +535,7 @@ pub trait ToDriftRecords {
     fn to_observability_drift_records(&self) -> Result<Vec<ObservabilityMetrics>, RecordError>;
     fn to_psi_drift_records(&self) -> Result<Vec<PsiServerRecord>, RecordError>;
     fn to_custom_metric_drift_records(&self) -> Result<Vec<CustomMetricServerRecord>, RecordError>;
-    fn to_llm_drift_records(&self) -> Result<Vec<LLMEventRecord>, RecordError>;
+    fn to_llm_event_records(&self) -> Result<Vec<LLMEventRecord>, RecordError>;
     fn to_llm_metric_records(&self) -> Result<Vec<LLMMetricRecord>, RecordError>;
 }
 impl ToDriftRecords for ServerRecords {
@@ -567,7 +567,7 @@ impl ToDriftRecords for ServerRecords {
         })
     }
 
-    fn to_llm_drift_records(&self) -> Result<Vec<LLMEventRecord>, RecordError> {
+    fn to_llm_event_records(&self) -> Result<Vec<LLMEventRecord>, RecordError> {
         extract_records(self, |record| match record {
             ServerRecord::LLMEvent(inner) => Some(*inner.record.clone()),
             _ => None,

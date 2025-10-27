@@ -1,6 +1,6 @@
 use crate::queue::types::EntityType;
 use crate::{error::TypeError, is_pydantic_model};
-use crate::{json_to_pyobject_value, pyobject_to_json, PyHelperFuncs};
+use crate::{json_to_pyobject_value, pyobject_to_json, PyHelperFuncs, Status};
 use chrono::{DateTime, Utc};
 use core::fmt::Debug;
 use potato_head::prompt::ResponseType;
@@ -231,6 +231,8 @@ pub struct LLMEventRecord {
     pub processing_ended_at: Option<DateTime<Utc>>,
 
     pub processing_duration: Option<i32>,
+
+    pub status: Status,
 }
 
 #[pymethods]
@@ -327,6 +329,7 @@ impl LLMEventRecord {
             processing_started_at: None,
             processing_ended_at: None,
             processing_duration: None,
+            status: Status::Pending,
         })
     }
 
@@ -370,6 +373,7 @@ impl LLMEventRecord {
             processing_started_at: None,
             processing_ended_at: None,
             processing_duration: None,
+            status: Status::Pending,
         }
     }
 

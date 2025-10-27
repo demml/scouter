@@ -5,7 +5,7 @@ pub enum BinnedTableName {
     Psi,
     Spc,
     LLMMetric,
-    LLMDrift,
+    LLMEvent,
 }
 
 impl Display for BinnedTableName {
@@ -15,7 +15,7 @@ impl Display for BinnedTableName {
             BinnedTableName::Psi => write!(f, "binned_psi"),
             BinnedTableName::Spc => write!(f, "binned_spc"),
             BinnedTableName::LLMMetric => write!(f, "binned_llm_metric"),
-            BinnedTableName::LLMDrift => write!(f, "binned_llm_drift"),
+            BinnedTableName::LLMEvent => write!(f, "binned_llm_event"),
         }
     }
 }
