@@ -17,6 +17,26 @@ pub enum EntityType {
     LLM,
 }
 
+impl Display for EntityType {
+    fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        match self {
+            EntityType::Feature => write!(f, "feature"),
+            EntityType::Metric => write!(f, "metric"),
+            EntityType::LLM => write!(f, "llm"),
+        }
+    }
+}
+
+impl EntityType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            EntityType::Feature => "feature",
+            EntityType::Metric => "metric",
+            EntityType::LLM => "llm",
+        }
+    }
+}
+
 #[pyclass]
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct IntFeature {

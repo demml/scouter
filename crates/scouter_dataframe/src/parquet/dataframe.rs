@@ -63,7 +63,7 @@ impl ParquetDataFrame {
             ParquetDataFrame::Psi(df) => df.write_parquet(rpath, records).await,
             ParquetDataFrame::Spc(df) => df.write_parquet(rpath, records).await,
             ParquetDataFrame::LLMMetric(df) => df.write_parquet(rpath, records).await,
-            ParquetDataFrame::LLMDrift(df) => df.write_parquet(rpath, records).await,
+            ParquetDataFrame::LLMEvent(df) => df.write_parquet(rpath, records).await,
         }
     }
 
@@ -73,7 +73,7 @@ impl ParquetDataFrame {
             ParquetDataFrame::Psi(df) => df.storage_root(),
             ParquetDataFrame::Spc(df) => df.storage_root(),
             ParquetDataFrame::LLMMetric(df) => df.storage_root(),
-            ParquetDataFrame::LLMDrift(df) => df.storage_root(),
+            ParquetDataFrame::LLMEvent(df) => df.storage_root(),
         }
     }
 
@@ -84,7 +84,7 @@ impl ParquetDataFrame {
             ParquetDataFrame::Psi(df) => df.object_store.clone(),
             ParquetDataFrame::Spc(df) => df.object_store.clone(),
             ParquetDataFrame::LLMMetric(df) => df.object_store.clone(),
-            ParquetDataFrame::LLMDrift(df) => df.object_store.clone(),
+            ParquetDataFrame::LLMEvent(df) => df.object_store.clone(),
         }
     }
 
@@ -129,8 +129,8 @@ impl ParquetDataFrame {
                 df.get_binned_metrics(read_path, bin, start_time, end_time, space, name, version)
                     .await
             }
-            ParquetDataFrame::LLMDrift(_) => Err(DataFrameError::UnsupportedOperation(
-                "LLMDrift does not support binned metrics".to_string(),
+            ParquetDataFrame::LLMEvent(_) => Err(DataFrameError::UnsupportedOperation(
+                "LLMEvent does not support binned metrics".to_string(),
             )),
         }
     }
@@ -146,7 +146,7 @@ impl ParquetDataFrame {
             ParquetDataFrame::LLMMetric(df) => {
                 df.object_store.storage_settings.storage_type.clone()
             }
-            ParquetDataFrame::LLMDrift(df) => df.object_store.storage_settings.storage_type.clone(),
+            ParquetDataFrame::LLMEvent(df) => df.object_store.storage_settings.storage_type.clone(),
         }
     }
 
@@ -211,13 +211,15 @@ mod tests {
                     entity_type: scouter_types::EntityType::LLM,
                     trace_id: format!("trace_id_{i}"),
                     span_id: format!("span_id_{i}"),
-                    span_name: Some("span_name".to_string()),
+                    span_name: "span_name".to_string(),
                     parent_span_name: None,
                     uid: "test-uid".to_string(),
                     updated_at: None,
                     processing_started_at: None,
                     processing_ended_at: None,
                     processing_duration: None,
+                    id: 0,
+                    duration_ms: None,
                 };
 
                 let boxed_record = BoxedLLMEventRecord::new(record);

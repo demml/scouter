@@ -79,9 +79,16 @@ impl LLMEventDataFrame {
             Field::new("space", DataType::Utf8, false),
             Field::new("name", DataType::Utf8, false),
             Field::new("version", DataType::Utf8, false),
-            Field::new("context", DataType::Utf8, false),
-            Field::new("prompt", DataType::Utf8, true),
-            Field::new("score", DataType::Utf8, true),
+            Field::new("trace_id", DataType::Utf8, false),
+            Field::new("parent_span_name", DataType::Utf8, true),
+            Field::new("span_id", DataType::Utf8, false),
+            Field::new("span_name", DataType::Utf8, false),
+            Field::new("inputs", DataType::Utf8, false),
+            Field::new("outputs", DataType::Utf8, false),
+            Field::new("ground_truth", DataType::Utf8, true),
+            Field::new("metadata", DataType::Utf8, false),
+            Field::new("entity_type", DataType::Utf8, false),
+            Field::new("duration_ms", DataType::Int32, true),
             Field::new(
                 "updated_at",
                 DataType::Timestamp(TimeUnit::Nanosecond, None),
@@ -103,16 +110,13 @@ impl LLMEventDataFrame {
 
         let object_store = ObjectStore::new(storage_settings)?;
 
-        Ok(LLMDriftDataFrame {
+        Ok(LLMEventDataFrame {
             schema,
             object_store,
         })
     }
 
-    fn build_batch(
-        &self,
-        records: Vec<LLMDriftServerRecord>,
-    ) -> Result<RecordBatch, DataFrameError> {
+    fn build_batch(&self, records: Vec<LLMEventRecord>) -> Result<RecordBatch, DataFrameError> {
         let id_array = arrow_array::Int64Array::from_iter_values(records.iter().map(|r| r.id));
         let created_at_array = TimestampNanosecondArray::from_iter_values(
             records
@@ -125,29 +129,50 @@ impl LLMEventDataFrame {
         let version_array =
             StringArray::from_iter_values(records.iter().map(|r| r.version.as_str()));
 
-        let score_array = StringArray::from_iter_values(
+        let inputs_array = StringArray::from_iter_values(
             records
                 .iter()
-                .map(|r| serde_json::to_string(&r.score).unwrap_or_else(|_| "{}".to_string())),
+                .map(|r| serde_json::to_string(&r.inputs).unwrap_or_else(|_| "{}".to_string())),
         );
-        let context_array = StringArray::from_iter_values(
+        let outputs_array = StringArray::from_iter_values(
             records
                 .iter()
-                .map(|r| serde_json::to_string(&r.context).unwrap_or_else(|_| "{}".to_string())),
+                .map(|r| serde_json::to_string(&r.outputs).unwrap_or_else(|_| "{}".to_string())),
         );
 
-        let prompt_array = StringArray::from_iter(records.iter().map(|r| {
-            r.prompt
+        let ground_truth_array = StringArray::from_iter(records.iter().map(|r| {
+            r.ground_truth
                 .as_ref()
-                .map(|p| serde_json::to_string(p).unwrap_or_else(|_| "{}".to_string()))
+                .map(|s| serde_json::to_string(s).unwrap_or_else(|_| "{}".to_string()))
         }));
+
+        let metadata = StringArray::from_iter_values(
+            records
+                .iter()
+                .map(|r| serde_json::to_string(&r.metadata).unwrap_or_else(|_| "{}".to_string())),
+        );
+
+        let entity_type_array =
+            StringArray::from_iter_values(records.iter().map(|r| r.entity_type.as_str()));
+
+        let trace_id_array =
+            StringArray::from_iter_values(records.iter().map(|r| r.trace_id.as_str()));
+
+        let span_id_array =
+            StringArray::from_iter_values(records.iter().map(|r| r.span_id.as_str()));
+        let span_name_array =
+            StringArray::from_iter_values(records.iter().map(|r| r.span_name.as_str()));
+
+        let parent_span_name_array = StringArray::from_iter(
+            records
+                .iter()
+                .map(|r| r.parent_span_name.as_ref().map(|s| s.as_str())),
+        );
         let updated_at_array = TimestampNanosecondArray::from_iter(
             records
                 .iter()
                 .map(|r| r.updated_at.and_then(|dt| dt.timestamp_nanos_opt())),
         );
-        let status_array =
-            StringArray::from_iter_values(records.iter().map(|r| r.status.to_string()));
 
         let processing_started_at_array =
             TimestampNanosecondArray::from_iter(records.iter().map(|r| {
@@ -165,6 +190,11 @@ impl LLMEventDataFrame {
         let processing_duration_array =
             Int32Array::from_iter(records.iter().map(|r| r.processing_duration));
 
+        let status_array =
+            StringArray::from_iter_values(records.iter().map(|r| r.status.to_string()));
+
+        let duration_ms_array = Int32Array::from_iter(records.iter().map(|r| r.duration_ms));
+
         let batch = RecordBatch::try_new(
             self.schema.clone(),
             vec![
@@ -174,14 +204,21 @@ impl LLMEventDataFrame {
                 Arc::new(space_array),
                 Arc::new(name_array),
                 Arc::new(version_array),
-                Arc::new(context_array),
-                Arc::new(prompt_array),
-                Arc::new(score_array),
+                Arc::new(inputs_array),
+                Arc::new(outputs_array),
+                Arc::new(ground_truth_array),
+                Arc::new(metadata),
+                Arc::new(entity_type_array),
+                Arc::new(trace_id_array),
+                Arc::new(span_id_array),
+                Arc::new(span_name_array),
+                Arc::new(parent_span_name_array),
                 Arc::new(updated_at_array),
-                Arc::new(status_array),
                 Arc::new(processing_started_at_array),
                 Arc::new(processing_ended_at_array),
                 Arc::new(processing_duration_array),
+                Arc::new(status_array),
+                Arc::new(duration_ms_array),
             ],
         )?;
 

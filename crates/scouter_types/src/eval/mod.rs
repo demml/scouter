@@ -193,6 +193,8 @@ fn pydict_to_btreemap(dict: &Bound<'_, PyDict>) -> Result<BTreeMap<String, Strin
 #[pyclass]
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub struct LLMEventRecord {
+    pub id: i64,
+
     pub uid: String,
 
     pub space: String,
@@ -216,13 +218,13 @@ pub struct LLMEventRecord {
     #[pyo3(get)]
     pub entity_type: EntityType,
 
-    pub trace_id: String,
+    pub root_id: String,
 
-    pub span_id: String,
+    pub event_id: String,
 
-    pub span_name: Option<String>,
+    pub event_name: String,
 
-    pub parent_span_name: Option<String>,
+    pub parent_event_name: Option<String>,
 
     pub updated_at: Option<DateTime<Utc>>,
 
@@ -233,19 +235,21 @@ pub struct LLMEventRecord {
     pub processing_duration: Option<i32>,
 
     pub status: Status,
+
+    pub duration_ms: Option<i32>,
 }
 
 #[pymethods]
 impl LLMEventRecord {
     #[new]
     #[pyo3(signature = (
+        event_name,
         inputs=None,
         outputs=None,
         prompt=None,
         metadata=None,
-        trace_id=None,
-        span_name=None,
-        parent_span_name=None,
+        root_id=None,
+        parent_event=None,
     ))]
 
     /// Creates a new LLMRecord instance.
@@ -256,19 +260,19 @@ impl LLMEventRecord {
     /// pydantic model, etc.)
     /// * `prompt`: The prompt sent to the LLM
     /// * `metadata`: Optional metadata as a Python dictionary
-    /// * `trace_id`: Optional trace ID for tracing
-    /// * `parent_span_id`: Optional parent span ID for tracing
-    /// * `span_id`: Optional span ID for tracing
+    /// * `root_id`: Optional root ID for tracing
+    /// * `parent_event_name`: Optional parent event name for tracing
+    /// * `event_id`: Optional event ID for tracing
     ///
     pub fn new(
         py: Python<'_>,
+        event_name: String,
         inputs: Option<Bound<'_, PyAny>>,
         outputs: Option<Bound<'_, PyAny>>,
         prompt: Option<Bound<'_, PyAny>>,
         metadata: Option<Bound<'_, PyDict>>,
-        trace_id: Option<String>,
-        span_name: Option<String>,
-        parent_span_name: Option<String>,
+        root_id: Option<String>,
+        parent_event: Option<String>,
     ) -> Result<Self, TypeError> {
         // if inputs is None, set Value::Null
         let inputs_val: Value = extract_value_from_py(py, inputs.as_ref())?;
@@ -297,19 +301,14 @@ impl LLMEventRecord {
             None => BTreeMap::new(),
         };
 
-        // if trace_id is None, set to new uuid7
-        let trace_id = match trace_id {
+        // if root_id is None, set to new uuid7
+        let root_id = match root_id {
             Some(rid) => rid,
             None => create_uuid7(),
         };
 
-        // if parent_span_name is None, set to new uuid7
-        let parent_span_name = match parent_span_name {
-            Some(rid) => Some(rid),
-            None => None,
-        };
-
         Ok(LLMEventRecord {
+            id: 0, // this is a placeholder, the DB will set this
             uid: create_uuid7(),
             created_at: Utc::now(),
             space: String::new(),
@@ -321,15 +320,16 @@ impl LLMEventRecord {
             metadata: metadata_val,
             prompt,
             entity_type: EntityType::LLM,
-            trace_id,
-            span_id: create_uuid7(),
-            parent_span_name,
-            span_name,
+            root_id,
+            event_id: create_uuid7(),
+            parent_event_name: parent_event,
+            event_name,
             updated_at: None,
             processing_started_at: None,
             processing_ended_at: None,
             processing_duration: None,
             status: Status::Pending,
+            duration_ms: None,
         })
     }
 
@@ -345,15 +345,16 @@ impl LLMEventRecord {
         name: String,
         version: String,
         uid: String,
+        event_name: String,
         inputs: Option<Value>,
         outputs: Option<Value>,
         metadata: Option<BTreeMap<String, String>>,
         prompt: Option<Value>,
-        trace_id: Option<String>,
-        span_name: Option<String>,
-        parent_span_name: Option<String>,
+        root_id: Option<String>,
+        parent_event: Option<String>,
     ) -> Self {
         LLMEventRecord {
+            id: 0,
             space,
             name,
             version,
@@ -365,15 +366,16 @@ impl LLMEventRecord {
             prompt: prompt.unwrap_or(Value::Null),
             ground_truth: None,
             metadata: metadata.unwrap_or(BTreeMap::new()),
-            trace_id: trace_id.unwrap_or(create_uuid7()),
-            span_id: create_uuid7(),
-            span_name,
-            parent_span_name,
+            root_id: root_id.unwrap_or(create_uuid7()),
+            event_id: create_uuid7(),
+            event_name,
+            parent_event_name: parent_event,
             updated_at: None,
             processing_started_at: None,
             processing_ended_at: None,
             processing_duration: None,
             status: Status::Pending,
+            duration_ms: None,
         }
     }
 
