@@ -223,6 +223,14 @@ pub struct LLMEventRecord {
     pub span_name: Option<String>,
 
     pub parent_span_name: Option<String>,
+
+    pub updated_at: Option<DateTime<Utc>>,
+
+    pub processing_started_at: Option<DateTime<Utc>>,
+
+    pub processing_ended_at: Option<DateTime<Utc>>,
+
+    pub processing_duration: Option<i32>,
 }
 
 #[pymethods]
@@ -315,6 +323,10 @@ impl LLMEventRecord {
             span_id: create_uuid7(),
             parent_span_name,
             span_name,
+            updated_at: None,
+            processing_started_at: None,
+            processing_ended_at: None,
+            processing_duration: None,
         })
     }
 
@@ -325,23 +337,39 @@ impl LLMEventRecord {
 }
 
 impl LLMEventRecord {
-    pub fn new_rs(inputs: Option<Value>, prompt: Option<Value>) -> Self {
+    pub fn new_rs(
+        space: String,
+        name: String,
+        version: String,
+        uid: String,
+        inputs: Option<Value>,
+        outputs: Option<Value>,
+        metadata: Option<BTreeMap<String, String>>,
+        prompt: Option<Value>,
+        trace_id: Option<String>,
+        span_name: Option<String>,
+        parent_span_name: Option<String>,
+    ) -> Self {
         LLMEventRecord {
-            inputs: inputs.unwrap_or(Value::Object(serde_json::Map::new())),
-            outputs: Value::Null,
+            space,
+            name,
+            version,
+            uid,
+            inputs: inputs.unwrap_or(Value::Null),
+            outputs: outputs.unwrap_or(Value::Null),
             entity_type: EntityType::LLM,
-            uid: create_uuid7(),
             created_at: Utc::now(),
-            space: String::new(),
-            name: String::new(),
-            version: String::new(),
-            ground_truth: None,
-            metadata: BTreeMap::new(),
             prompt: prompt.unwrap_or(Value::Null),
-            trace_id: create_uuid7(),
-            parent_span_name: None,
-            span_name: None,
+            ground_truth: None,
+            metadata: metadata.unwrap_or(BTreeMap::new()),
+            trace_id: trace_id.unwrap_or(create_uuid7()),
             span_id: create_uuid7(),
+            span_name,
+            parent_span_name,
+            updated_at: None,
+            processing_started_at: None,
+            processing_ended_at: None,
+            processing_duration: None,
         }
     }
 
