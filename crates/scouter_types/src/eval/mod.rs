@@ -192,68 +192,73 @@ fn pydict_to_btreemap(dict: &Bound<'_, PyDict>) -> Result<BTreeMap<String, Strin
 }
 #[pyclass]
 #[derive(Clone, Serialize, Debug)]
-pub struct LLMRecord {
-    // DriftProfile uid
+pub struct LLMEventRecord {
     pub uid: String,
 
-    // DriftProfile space
     pub space: String,
 
-    // DriftProfile name
     pub name: String,
 
-    // DriftProfile version
     pub version: String,
 
-    // Time the record is created
     pub created_at: DateTime<Utc>,
 
     pub prompt: Value,
 
-    // inputs provided to the LLM
     pub inputs: Value,
 
-    // outputs from the LLM
     pub outputs: Value,
 
-    // expected output for the LLM
     pub ground_truth: Option<Value>,
 
-    // metadata associated with this record
     pub metadata: BTreeMap<String, String>,
 
     #[pyo3(get)]
     pub entity_type: EntityType,
 
-    // this is the parent request id for the application
-    pub request_id: String,
+    pub trace_id: String,
 
-    // this is the unique id for this record
-    pub id: String,
+    pub span_id: String,
+
+    pub span_name: Option<String>,
+
+    pub parent_span_name: Option<String>,
 }
 
 #[pymethods]
-impl LLMRecord {
+impl LLMEventRecord {
     #[new]
     #[pyo3(signature = (
         inputs=None,
         outputs=None,
         prompt=None,
         metadata=None,
-        request_id=None,
-        id=None,
+        trace_id=None,
+        span_name=None,
+        parent_span_name=None,
     ))]
 
     /// Creates a new LLMRecord instance.
-    /// The context is either a python dictionary or a pydantic basemodel.
+    /// # Arguments
+    /// * `inputs`: The inputs to the LLM as a Python object (dict,
+    /// pydantic model, etc.)
+    /// * `outputs`: The outputs from the LLM as a Python object (dict,
+    /// pydantic model, etc.)
+    /// * `prompt`: The prompt sent to the LLM
+    /// * `metadata`: Optional metadata as a Python dictionary
+    /// * `trace_id`: Optional trace ID for tracing
+    /// * `parent_span_id`: Optional parent span ID for tracing
+    /// * `span_id`: Optional span ID for tracing
+    ///
     pub fn new(
         py: Python<'_>,
         inputs: Option<Bound<'_, PyAny>>,
         outputs: Option<Bound<'_, PyAny>>,
         prompt: Option<Bound<'_, PyAny>>,
         metadata: Option<Bound<'_, PyDict>>,
-        request_id: Option<String>,
-        id: Option<String>,
+        trace_id: Option<String>,
+        span_name: Option<String>,
+        parent_span_name: Option<String>,
     ) -> Result<Self, TypeError> {
         // if inputs is None, set Value::Null
         let inputs_val: Value = extract_value_from_py(py, inputs.as_ref())?;
@@ -282,19 +287,19 @@ impl LLMRecord {
             None => BTreeMap::new(),
         };
 
-        // if request_id is None, set to new uuid7
-        let request_id = match request_id {
+        // if trace_id is None, set to new uuid7
+        let trace_id = match trace_id {
             Some(rid) => rid,
             None => create_uuid7(),
         };
 
-        // if id is None, set to new uuid7
-        let id = match id {
-            Some(i) => i,
-            None => create_uuid7(),
+        // if parent_span_name is None, set to new uuid7
+        let parent_span_name = match parent_span_name {
+            Some(rid) => Some(rid),
+            None => None,
         };
 
-        Ok(LLMRecord {
+        Ok(LLMEventRecord {
             uid: create_uuid7(),
             created_at: Utc::now(),
             space: String::new(),
@@ -306,8 +311,10 @@ impl LLMRecord {
             metadata: metadata_val,
             prompt,
             entity_type: EntityType::LLM,
-            request_id,
-            id,
+            trace_id,
+            span_id: create_uuid7(),
+            parent_span_name,
+            span_name,
         })
     }
 
@@ -317,9 +324,9 @@ impl LLMRecord {
     }
 }
 
-impl LLMRecord {
+impl LLMEventRecord {
     pub fn new_rs(inputs: Option<Value>, prompt: Option<Value>) -> Self {
-        LLMRecord {
+        LLMEventRecord {
             inputs: inputs.unwrap_or(Value::Object(serde_json::Map::new())),
             outputs: Value::Null,
             entity_type: EntityType::LLM,
@@ -331,8 +338,10 @@ impl LLMRecord {
             ground_truth: None,
             metadata: BTreeMap::new(),
             prompt: prompt.unwrap_or(Value::Null),
-            request_id: create_uuid7(),
-            id: create_uuid7(),
+            trace_id: create_uuid7(),
+            parent_span_name: None,
+            span_name: None,
+            span_id: create_uuid7(),
         }
     }
 

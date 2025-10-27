@@ -68,3 +68,5 @@ SELECT scouter.create_parent(
 );
 UPDATE scouter.part_config SET retention = '60 days' WHERE parent_table = 'scouter.llm_drift_record';
 
+
+

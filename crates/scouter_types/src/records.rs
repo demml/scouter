@@ -174,13 +174,17 @@ pub struct LLMDriftServerRecord {
     #[pyo3(get)]
     pub version: String,
 
-    pub prompt: Option<Value>,
+    pub prompt: Value,
 
-    pub context: Value,
+    pub inputs: Value,
+
+    pub outputs: Value,
 
     pub status: Status,
 
-    pub id: i64,
+    pub request_id: String,
+
+    pub id: String,
 
     pub uid: String,
 
