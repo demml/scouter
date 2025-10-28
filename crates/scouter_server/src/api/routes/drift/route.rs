@@ -11,11 +11,11 @@ use scouter_auth::permission::UserPermissions;
 use scouter_drift::psi::PsiDrifter;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::sql::traits::{
-    CustomMetricSqlLogic, LLMDriftSqlLogic, ProfileSqlLogic, SpcSqlLogic,
+    CustomMetricSqlLogic, GenAIDriftSqlLogic, ProfileSqlLogic, SpcSqlLogic,
 };
 use scouter_sql::PostgresClient;
 use scouter_types::{
-    llm::PaginationResponse,
+    genai::PaginationResponse,
     psi::{BinnedPsiFeatureMetrics, PsiDriftProfile},
     spc::SpcDriftFeatures,
     BinnedMetrics, DriftType, LLMDriftRecordPaginationRequest, LLMDriftServerRecord, ServerRecords,

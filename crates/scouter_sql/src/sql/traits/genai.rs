@@ -10,7 +10,7 @@ use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::{DriftRequest, ServiceInfo};
-use scouter_types::LLMEventRecord;
+use scouter_types::EventRecord;
 use scouter_types::{
     genai::{PaginationCursor, PaginationRequest, PaginationResponse},
     BinnedMetrics, RecordType,
@@ -23,7 +23,7 @@ use tracing::error;
 use tracing::{debug, instrument};
 
 #[async_trait]
-pub trait LLMDriftSqlLogic {
+pub trait GenAIDriftSqlLogic {
     /// Inserts an LLM drift record into the database.
     /// # Arguments
     /// * `pool` - The database connection pool
@@ -32,7 +32,7 @@ pub trait LLMDriftSqlLogic {
     /// * A result containing the query result or an error
     async fn insert_genai_event_record(
         pool: &Pool<Postgres>,
-        record: &LLMEventRecord,
+        record: &EventRecord,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertGenAIEventRecord.get_query();
 
@@ -102,12 +102,12 @@ pub trait LLMDriftSqlLogic {
             .map_err(SqlError::SqlxError)
     }
 
-    async fn get_llm_drift_records(
+    async fn get_genai_event_records(
         pool: &Pool<Postgres>,
         service_info: &ServiceInfo,
         limit_datetime: Option<&DateTime<Utc>>,
         status: Option<Status>,
-    ) -> Result<Vec<LLMDriftServerRecord>, SqlError> {
+    ) -> Result<Vec, SqlError> {
         let mut query_string = Queries::GetLLMDriftRecords.get_query().sql;
 
         let mut bind_count = 3;

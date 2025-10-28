@@ -1,5 +1,5 @@
 use crate::sql::traits::{
-    AlertSqlLogic, ArchiveSqlLogic, CustomMetricSqlLogic, LLMDriftSqlLogic, ObservabilitySqlLogic,
+    AlertSqlLogic, ArchiveSqlLogic, CustomMetricSqlLogic,GenAIDriftSqlLogic, ObservabilitySqlLogic,
     ProfileSqlLogic, PsiSqlLogic, SpcSqlLogic, UserSqlLogic,
 };
 
@@ -22,7 +22,7 @@ pub struct PostgresClient {}
 impl SpcSqlLogic for PostgresClient {}
 impl CustomMetricSqlLogic for PostgresClient {}
 impl PsiSqlLogic for PostgresClient {}
-impl LLMDriftSqlLogic for PostgresClient {}
+implGenAIDriftSqlLogic for PostgresClient {}
 impl UserSqlLogic for PostgresClient {}
 impl ProfileSqlLogic for PostgresClient {}
 impl ObservabilitySqlLogic for PostgresClient {}

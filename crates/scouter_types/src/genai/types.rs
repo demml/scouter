@@ -31,7 +31,7 @@ pub struct PaginationResponse<T> {
 
 #[pyclass]
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct LLMEventRecord {
+pub struct EventRecord {
     pub id: i64,
 
     pub uid: String,
@@ -79,7 +79,7 @@ pub struct LLMEventRecord {
 }
 
 #[pymethods]
-impl LLMEventRecord {
+impl EventRecord {
     #[new]
     #[pyo3(signature = (
         event_name,
@@ -146,7 +146,7 @@ impl LLMEventRecord {
             None => create_uuid7(),
         };
 
-        Ok(LLMEventRecord {
+        Ok(EventRecord {
             id: 0, // this is a placeholder, the DB will set this
             uid: create_uuid7(),
             created_at: Utc::now(),
@@ -178,7 +178,7 @@ impl LLMEventRecord {
     }
 }
 
-impl LLMEventRecord {
+impl EventRecord {
     pub fn new_rs(
         space: String,
         name: String,
@@ -192,7 +192,7 @@ impl LLMEventRecord {
         root_id: Option<String>,
         parent_event: Option<String>,
     ) -> Self {
-        LLMEventRecord {
+        EventRecord {
             id: 0,
             space,
             name,

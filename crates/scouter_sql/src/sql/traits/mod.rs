@@ -1,7 +1,7 @@
 pub mod alert;
 pub mod archive;
 pub mod custom;
-pub mod llm;
+pub mod genai;
 pub mod observability;
 pub mod profile;
 pub mod psi;
@@ -11,7 +11,7 @@ pub mod user;
 pub use alert::AlertSqlLogic;
 pub use archive::ArchiveSqlLogic;
 pub use custom::CustomMetricSqlLogic;
-pub use llm::LLMDriftSqlLogic;
+pub use genai::GenAIDriftSqlLogic;
 pub use observability::ObservabilitySqlLogic;
 pub use profile::ProfileSqlLogic;
 pub use psi::PsiSqlLogic;

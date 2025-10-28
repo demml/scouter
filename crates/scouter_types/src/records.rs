@@ -1,5 +1,5 @@
 use crate::error::RecordError;
-use crate::genai::LLMEventRecord;
+use crate::genai::EventRecord;
 use crate::PyHelperFuncs;
 use chrono::DateTime;
 use chrono::Utc;
@@ -18,8 +18,8 @@ pub enum RecordType {
     Psi,
     Observability,
     Custom,
-    LLMEvent,
-    LLMMetric,
+    GenAIEvent,
+    GenAIMetric,
 }
 
 impl Display for RecordType {
@@ -29,8 +29,8 @@ impl Display for RecordType {
             RecordType::Psi => write!(f, "psi"),
             RecordType::Observability => write!(f, "observability"),
             RecordType::Custom => write!(f, "custom"),
-            RecordType::LLMEvent => write!(f, "llm_event"),
-            RecordType::LLMMetric => write!(f, "llm_metric"),
+            RecordType::GenAIEvent => write!(f, "genai_event"),
+            RecordType::GenAIMetric => write!(f, "genai_metric"),
         }
     }
 }
@@ -161,12 +161,12 @@ impl PsiServerRecord {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct BoxedLLMEventRecord {
-    pub record: Box<LLMEventRecord>,
+pub struct BoxedGenAIEventRecord {
+    pub record: Box<EventRecord>,
 }
 
-impl BoxedLLMEventRecord {
-    pub fn new(record: LLMEventRecord) -> Self {
+impl BoxedGenAIEventRecord {
+    pub fn new(record: EventRecord) -> Self {
         Self {
             record: Box::new(record),
         }
@@ -175,7 +175,7 @@ impl BoxedLLMEventRecord {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct LLMMetricRecord {
+pub struct GenAIMetricRecord {
     #[pyo3(get)]
     pub record_uid: String,
 
@@ -199,7 +199,7 @@ pub struct LLMMetricRecord {
 }
 
 #[pymethods]
-impl LLMMetricRecord {
+impl GenAIMetricRecord {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
         PyHelperFuncs::__str__(self)
@@ -355,8 +355,8 @@ pub enum ServerRecord {
     Psi(PsiServerRecord),
     Custom(CustomMetricServerRecord),
     Observability(ObservabilityMetrics),
-    LLMEvent(BoxedLLMEventRecord),
-    LLMMetric(LLMMetricRecord),
+    GenAIEvent(BoxedGenAIEventRecord),
+    GenAIMetric(GenAIMetricRecord),
 }
 
 #[pymethods]
@@ -384,10 +384,10 @@ impl ServerRecord {
                 let observability_record = record.extract::<ObservabilityMetrics>()?;
                 Ok(ServerRecord::Observability(observability_record))
             }
-            RecordType::LLMEvent => {
-                let llm_event_record = record.extract::<LLMEventRecord>()?;
-                Ok(ServerRecord::LLMEvent(BoxedLLMEventRecord::new(
-                    llm_event_record,
+            RecordType::GenAIEvent => {
+                let genai_event_record = record.extract::<EventRecord>()?;
+                Ok(ServerRecord::GenAIEvent(BoxedGenAIEventRecord::new(
+                    genai_event_record,
                 )))
             }
 
@@ -402,8 +402,8 @@ impl ServerRecord {
             ServerRecord::Psi(record) => Ok(record.clone().into_py_any(py)?),
             ServerRecord::Custom(record) => Ok(record.clone().into_py_any(py)?),
             ServerRecord::Observability(record) => Ok(record.clone().into_py_any(py)?),
-            ServerRecord::LLMEvent(record) => Ok(record.record.clone().into_py_any(py)?),
-            ServerRecord::LLMMetric(record) => Ok(record.clone().into_py_any(py)?),
+            ServerRecord::GenAIEvent(record) => Ok(record.record.clone().into_py_any(py)?),
+            ServerRecord::GenAIMetric(record) => Ok(record.clone().into_py_any(py)?),
         }
     }
 
@@ -413,8 +413,8 @@ impl ServerRecord {
             ServerRecord::Psi(record) => record.space.clone(),
             ServerRecord::Custom(record) => record.space.clone(),
             ServerRecord::Observability(record) => record.space.clone(),
-            ServerRecord::LLMEvent(record) => record.record.space.clone(),
-            ServerRecord::LLMMetric(record) => record.space.clone(),
+            ServerRecord::GenAIEvent(record) => record.record.space.clone(),
+            ServerRecord::GenAIMetric(record) => record.space.clone(),
         }
     }
 
@@ -425,8 +425,8 @@ impl ServerRecord {
             ServerRecord::Psi(record) => record.__str__(),
             ServerRecord::Custom(record) => record.__str__(),
             ServerRecord::Observability(record) => record.__str__(),
-            ServerRecord::LLMEvent(record) => record.record.__str__(),
-            ServerRecord::LLMMetric(record) => record.__str__(),
+            ServerRecord::GenAIEvent(record) => record.record.__str__(),
+            ServerRecord::GenAIMetric(record) => record.__str__(),
         }
     }
 
@@ -436,8 +436,8 @@ impl ServerRecord {
             ServerRecord::Psi(_) => RecordType::Psi,
             ServerRecord::Custom(_) => RecordType::Custom,
             ServerRecord::Observability(_) => RecordType::Observability,
-            ServerRecord::LLMEvent(_) => RecordType::LLMEvent,
-            ServerRecord::LLMMetric(_) => RecordType::LLMMetric,
+            ServerRecord::GenAIEvent(_) => RecordType::GenAIEvent,
+            ServerRecord::GenAIMetric(_) => RecordType::GenAIMetric,
         }
     }
 }
@@ -569,14 +569,14 @@ impl ToDriftRecords for ServerRecords {
 
     fn to_llm_event_records(&self) -> Result<Vec<LLMEventRecord>, RecordError> {
         extract_records(self, |record| match record {
-            ServerRecord::LLMEvent(inner) => Some(*inner.record.clone()),
+            ServerRecord::GenAIEvent(inner) => Some(*inner.record.clone()),
             _ => None,
         })
     }
 
     fn to_llm_metric_records(&self) -> Result<Vec<LLMMetricRecord>, RecordError> {
         extract_records(self, |record| match record {
-            ServerRecord::LLMMetric(inner) => Some(inner.clone()),
+            ServerRecord::GenAIMetric(inner) => Some(inner.clone()),
             _ => None,
         })
     }
