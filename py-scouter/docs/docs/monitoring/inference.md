@@ -104,7 +104,7 @@ As you can see in the above example, the `ScouterQueue` expects either a `Featur
 |---------|----------------|-----------------------|
 | `Features` | Used for PSI and SPC monitoring, where you are monitoring 'features' | `PsiDriftProfile`, `SpcDriftProfile` |
 | `Metrics` | Used for custom metrics that you want to monitor | `CustomMetricProfile` |
-| `LLMRecord` | Used for LLM monitoring, where you are monitoring the performance of LLM services | `LLMDriftProfile` |
+| `LLMRecord` | Used for LLM monitoring, where you are monitoring the performance of LLM services | `GenAIDriftProfile` |
 
 ### How to create `Features`, `Metrics` and `LLMRecord` objects?
 

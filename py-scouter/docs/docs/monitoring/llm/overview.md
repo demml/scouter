@@ -191,7 +191,7 @@ metric = LLMDriftMetric( # (3)
     alert_threshold=AlertThreshold.Below,
 )
 
-profile = LLMDriftProfile(
+profile = GenAIDriftProfile(
     config=GenAIDriftConfig(),
     workflow=workflow,
     metrics=[metric],
@@ -205,7 +205,7 @@ profile = LLMDriftProfile(
 
 ### 4. Create the LLM Drift Profile
 
-Use the `LLMDriftProfile` class to create a drift profile by combining your config, metrics, and (optionally) workflow.
+Use the `GenAIDriftProfile` class to create a drift profile by combining your config, metrics, and (optionally) workflow.
 
 **Arguments:**
 
@@ -218,9 +218,9 @@ Use the `LLMDriftProfile` class to create a drift profile by combining your conf
 
 **Example (metrics only):**
 ```python
-from scouter.llm import LLMDriftProfile
+from scouter.llm import GenAIDriftProfile
 
-profile = LLMDriftProfile(
+profile = GenAIDriftProfile(
     config=config,
     metrics=[metric]
 )

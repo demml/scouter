@@ -2,7 +2,7 @@
 use crate::error::DriftError;
 use potato_head::ResponseLogProbs;
 use potato_head::{calculate_weighted_score, Score, StructuredOutput, TaskStatus, Workflow};
-use scouter_types::genai::LLMDriftProfile;
+use scouter_types::genai::GenAIDriftProfile;
 use scouter_types::{LLMMetricRecord, LLMRecord};
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -22,7 +22,7 @@ impl LLMEvaluator {
     /// # Returns a HashMap where the keys are task IDs and the values are AgentResponse objects.
     pub fn get_final_task_results(
         workflow: Arc<RwLock<Workflow>>,
-        profile: &LLMDriftProfile,
+        profile: &GenAIDriftProfile,
         record_uid: &str,
     ) -> Result<LLMEvalResult, DriftError> {
         let workflow = workflow.read().unwrap();
@@ -109,7 +109,7 @@ impl LLMEvaluator {
     #[instrument(skip_all)]
     pub async fn process_drift_record(
         record: &LLMRecord,
-        profile: &LLMDriftProfile,
+        profile: &GenAIDriftProfile,
     ) -> Result<LLMEvalResult, DriftError> {
         debug!("Processing workflow");
 

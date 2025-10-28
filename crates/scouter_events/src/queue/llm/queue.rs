@@ -7,7 +7,7 @@ use crate::queue::types::TransportConfig;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
-use scouter_types::genai::LLMDriftProfile;
+use scouter_types::genai::GenAIDriftProfile;
 use scouter_types::LLMRecord;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -37,7 +37,7 @@ pub struct LLMQueue {
 
 impl LLMQueue {
     pub async fn new(
-        drift_profile: LLMDriftProfile,
+        drift_profile: GenAIDriftProfile,
         config: TransportConfig,
     ) -> Result<Self, EventError> {
         let sample_rate = drift_profile.config.sample_rate;

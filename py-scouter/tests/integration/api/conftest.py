@@ -18,7 +18,7 @@ from scouter.drift import (
     Drifter,
     GenAIDriftConfig,
     LLMDriftMetric,
-    LLMDriftProfile,
+    GenAIDriftProfile,
     SpcDriftConfig,
     SpcDriftProfile,
 )
@@ -118,7 +118,7 @@ def create_and_register_drift_profile(
 def create_and_register_llm_drift_profile(
     client: ScouterClient,
     name: str,
-) -> LLMDriftProfile:
+) -> GenAIDriftProfile:
     # create drift config (usually associated with a model name, space name, version)
     config = GenAIDriftConfig(
         space="scouter",

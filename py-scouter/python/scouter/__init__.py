@@ -33,7 +33,7 @@ CustomDriftProfile = drift.CustomDriftProfile
 CustomMetricDriftConfig = drift.CustomMetricDriftConfig
 LLMDriftMetric = drift.LLMDriftMetric
 GenAIDriftConfig = drift.GenAIDriftConfig
-LLMDriftProfile = drift.LLMDriftProfile
+GenAIDriftProfile = drift.GenAIDriftProfile
 
 
 # Profile imports - direct from Rust extension
@@ -83,7 +83,7 @@ __all__ = [
     "CustomMetricDriftConfig",
     "LLMDriftMetric",
     "GenAIDriftConfig",
-    "LLMDriftProfile",
+    "GenAIDriftProfile",
     "FeatureMap",
     "SpcFeatureDriftProfile",
     "SpcFeatureDrift",

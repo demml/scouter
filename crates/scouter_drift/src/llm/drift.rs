@@ -4,7 +4,7 @@ use scouter_dispatch::AlertDispatcher;
 use scouter_sql::sql::traits::LLMDriftSqlLogic;
 use scouter_sql::PostgresClient;
 use scouter_types::contracts::ServiceInfo;
-use scouter_types::{custom::ComparisonMetricAlert, genai::LLMDriftProfile, AlertThreshold};
+use scouter_types::{custom::ComparisonMetricAlert, genai::GenAIDriftProfile, AlertThreshold};
 use sqlx::{Pool, Postgres};
 use std::collections::{BTreeMap, HashMap};
 use tracing::error;
@@ -12,11 +12,11 @@ use tracing::info;
 
 pub struct LLMDrifter {
     service_info: ServiceInfo,
-    profile: LLMDriftProfile,
+    profile: GenAIDriftProfile,
 }
 
 impl LLMDrifter {
-    pub fn new(profile: LLMDriftProfile) -> Self {
+    pub fn new(profile: GenAIDriftProfile) -> Self {
         Self {
             service_info: ServiceInfo {
                 name: profile.config.name.clone(),
@@ -244,7 +244,7 @@ impl LLMDrifter {
 mod tests {
     use super::*;
     use potato_head::{create_score_prompt, LLMTestServer};
-    use scouter_types::genai::{LLMAlertConfig, GenAIDriftConfig, LLMDriftMetric, LLMDriftProfile};
+    use scouter_types::genai::{LLMAlertConfig, GenAIDriftConfig, LLMDriftMetric, GenAIDriftProfile};
 
     async fn get_test_drifter() -> LLMDrifter {
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
@@ -270,7 +270,7 @@ mod tests {
         let drift_config =
             GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
-        let profile = LLMDriftProfile::from_metrics(drift_config, vec![metric1, metric2])
+        let profile = GenAIDriftProfile::from_metrics(drift_config, vec![metric1, metric2])
             .await
             .unwrap();
 

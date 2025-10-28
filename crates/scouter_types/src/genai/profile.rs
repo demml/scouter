@@ -294,7 +294,7 @@ pub struct GenAIDriftProfile {
 impl GenAIDriftProfile {
     #[new]
     #[pyo3(signature = (config, metrics, workflow=None))]
-    /// Create a new LLMDriftProfile
+    /// Create a new GenAIDriftProfile
     /// LLM evaluations are run asynchronously on the scouter server.
     ///
     /// # Logic flow:
@@ -309,7 +309,7 @@ impl GenAIDriftProfile {
     /// * `workflow` - Option<Bound<'_, PyAny>> - Optional workflow to use for the LLM drift profile
     ///
     /// # Returns
-    /// * `Result<Self, ProfileError>` - The LLMDriftProfile
+    /// * `Result<Self, ProfileError>` - The GenAIDriftProfile
     ///
     /// # Errors
     /// * `ProfileError::MissingWorkflowError` - If the workflow is
@@ -369,12 +369,12 @@ impl GenAIDriftProfile {
         Ok(PyHelperFuncs::save_to_json(
             self,
             path,
-            FileName::LLMDriftProfile.to_str(),
+            FileName::GenAIDriftProfile.to_str(),
         )?)
     }
 
     #[staticmethod]
-    pub fn model_validate(data: &Bound<'_, PyDict>) -> LLMDriftProfile {
+    pub fn model_validate(data: &Bound<'_, PyDict>) -> GenAIDriftProfile {
         let json_value = pyobject_to_json(data).unwrap();
 
         let string = serde_json::to_string(&json_value).unwrap();
@@ -382,13 +382,13 @@ impl GenAIDriftProfile {
     }
 
     #[staticmethod]
-    pub fn model_validate_json(json_string: String) -> LLMDriftProfile {
+    pub fn model_validate_json(json_string: String) -> GenAIDriftProfile {
         // deserialize the string to a struct
         serde_json::from_str(&json_string).expect("Failed to load prompt drift profile")
     }
 
     #[staticmethod]
-    pub fn from_file(path: PathBuf) -> Result<LLMDriftProfile, ProfileError> {
+    pub fn from_file(path: PathBuf) -> Result<GenAIDriftProfile, ProfileError> {
         let file = std::fs::read_to_string(&path)?;
 
         Ok(serde_json::from_str(&file)?)
@@ -429,15 +429,15 @@ impl GenAIDriftProfile {
     }
 }
 
-impl LLMDriftProfile {
-    /// Creates an LLMDriftProfile from a configuration and a list of metrics.
+impl GenAIDriftProfile {
+    /// Creates an GenAIDriftProfile from a configuration and a list of metrics.
     ///
     /// # Arguments
     /// * `config` - GenAIDriftConfig - The configuration for the LLM
     /// * `metrics` - Vec<LLMDriftMetric> - The metrics that will be used to evaluate the LLM
     /// * `scouter_version` - Option<String> - The version of scouter that the profile is created with.
     /// # Returns
-    /// * `Result<Self, ProfileError>` - The LLMDriftProfile
+    /// * `Result<Self, ProfileError>` - The GenAIDriftProfile
     pub async fn from_metrics(
         mut config: GenAIDriftConfig,
         metrics: Vec<LLMDriftMetric>,
@@ -484,7 +484,7 @@ impl LLMDriftProfile {
         })
     }
 
-    /// Creates an LLMDriftProfile from a workflow and a list of metrics.
+    /// Creates an GenAIDriftProfile from a workflow and a list of metrics.
     /// This is useful when the workflow is already defined and you want to create a profile from it.
     /// This is also for more advanced use cases where the workflow may need to execute many dependent tasks.
     /// Because of this, there are a few requirements:
@@ -500,7 +500,7 @@ impl LLMDriftProfile {
     /// * `scouter_version` - Option<String> - The version of scouter that the profile is created with.
     ///
     /// # Returns
-    /// * `Result<Self, ProfileError>` - The LLMDriftProfile
+    /// * `Result<Self, ProfileError>` - The GenAIDriftProfile
     pub fn from_workflow(
         mut config: GenAIDriftConfig,
         workflow: Workflow,
@@ -597,7 +597,7 @@ impl LLMDriftProfile {
     }
 }
 
-impl ProfileBaseArgs for LLMDriftProfile {
+impl ProfileBaseArgs for GenAIDriftProfile {
     fn get_base_args(&self) -> ProfileArgs {
         ProfileArgs {
             name: self.config.name.clone(),
@@ -746,7 +746,7 @@ mod tests {
             GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
         let profile = runtime
-            .block_on(async { LLMDriftProfile::from_metrics(drift_config, llm_metrics).await })
+            .block_on(async { GenAIDriftProfile::from_metrics(drift_config, llm_metrics).await })
             .unwrap();
         let _: Value =
             serde_json::from_str(&profile.model_dump_json()).expect("Failed to parse actual JSON");
@@ -826,7 +826,8 @@ mod tests {
         let drift_config =
             GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
-        let profile = LLMDriftProfile::from_workflow(drift_config, workflow, llm_metrics).unwrap();
+        let profile =
+            GenAIDriftProfile::from_workflow(drift_config, workflow, llm_metrics).unwrap();
 
         let _: Value =
             serde_json::from_str(&profile.model_dump_json()).expect("Failed to parse actual JSON");

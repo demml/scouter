@@ -12,7 +12,7 @@ use scouter_drift::spc::SpcMonitor;
 use scouter_server::api::archive::archive_old_data;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::custom::CustomMetricAlertConfig;
-use scouter_types::genai::{LLMAlertConfig, GenAIDriftConfig, LLMDriftMetric, LLMDriftProfile};
+use scouter_types::genai::{LLMAlertConfig, GenAIDriftConfig, LLMDriftMetric, GenAIDriftProfile};
 use scouter_types::{
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
     psi::{BinnedPsiFeatureMetrics, PsiAlertConfig, PsiDriftConfig},
@@ -381,7 +381,7 @@ fn test_data_archive_llm_drift_record() {
     .unwrap();
     let llm_metrics = vec![metric1, metric2];
     let profile = runtime
-        .block_on(async { LLMDriftProfile::from_metrics(config, llm_metrics).await })
+        .block_on(async { GenAIDriftProfile::from_metrics(config, llm_metrics).await })
         .unwrap();
 
     let request = profile.create_profile_request().unwrap();
@@ -481,7 +481,7 @@ fn test_data_archive_llm_drift_metrics() {
     .unwrap();
     let llm_metrics = vec![metric1, metric2];
     let profile = runtime
-        .block_on(async { LLMDriftProfile::from_metrics(config, llm_metrics).await })
+        .block_on(async { GenAIDriftProfile::from_metrics(config, llm_metrics).await })
         .unwrap();
 
     let request = profile.create_profile_request().unwrap();

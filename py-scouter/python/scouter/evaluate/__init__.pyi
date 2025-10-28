@@ -121,7 +121,7 @@ class LLMEvalRecord:
         context: Context,
         id: Optional[str] = None,
     ) -> None:
-        """Creates a new LLM record to associate with an `LLMDriftProfile`.
+        """Creates a new LLM record to associate with an `GenAIDriftProfile`.
         The record is sent to the `Scouter` server via the `ScouterQueue` and is
         then used to inject context into the evaluation prompts.
 

@@ -1,6 +1,6 @@
 use crate::custom::CustomDriftProfile;
 use crate::error::ProfileError;
-use crate::genai::profile::LLMDriftProfile;
+use crate::genai::profile::GenAIDriftProfile;
 use crate::psi::PsiDriftProfile;
 use crate::spc::SpcDriftProfile;
 use crate::util::ProfileBaseArgs;
@@ -205,7 +205,7 @@ impl DriftProfile {
                 Ok(DriftProfile::Custom(profile))
             }
             DriftType::LLM => {
-                let profile = profile.extract::<LLMDriftProfile>()?;
+                let profile = profile.extract::<GenAIDriftProfile>()?;
                 Ok(DriftProfile::GenAI(profile))
             }
         }
@@ -225,7 +225,7 @@ impl DriftProfile {
         }
     }
 
-    pub fn get_llm_profile(&self) -> Result<&LLMDriftProfile, ProfileError> {
+    pub fn get_llm_profile(&self) -> Result<&GenAIDriftProfile, ProfileError> {
         match self {
             DriftProfile::GenAI(profile) => Ok(profile),
             _ => Err(ProfileError::InvalidDriftTypeError),

@@ -1049,14 +1049,14 @@ class GenAIDriftConfig:
                 LLM alert configuration
         """
 
-class LLMDriftProfile:
+class GenAIDriftProfile:
     def __init__(
         self,
         config: GenAIDriftConfig,
         metrics: list[LLMDriftMetric],
         workflow: Optional[Workflow] = None,
     ):
-        """Initialize a LLMDriftProfile for LLM evaluation and drift detection.
+        """Initialize a GenAIDriftProfile for LLM evaluation and drift detection.
 
         LLM evaluations are run asynchronously on the scouter server.
 
@@ -1082,7 +1082,7 @@ class LLMDriftProfile:
                 type configuration.
 
         Returns:
-            LLMDriftProfile: Configured profile ready for LLM drift monitoring.
+            GenAIDriftProfile: Configured profile ready for LLM drift monitoring.
 
         Raises:
             ProfileError: If workflow validation fails, metrics are empty when no
@@ -1096,13 +1096,13 @@ class LLMDriftProfile:
             ...     LLMDriftMetric("accuracy", 0.95, AlertThreshold.Above, 0.1, prompt),
             ...     LLMDriftMetric("relevance", 0.85, AlertThreshold.Below, 0.2, prompt2)
             ... ]
-            >>> profile = LLMDriftProfile(config, metrics)
+            >>> profile = GenAIDriftProfile(config, metrics)
 
             Advanced usage with custom workflow:
 
             >>> workflow = create_custom_workflow()  # Your custom workflow
             >>> metrics = [LLMDriftMetric("final_task", 0.9, AlertThreshold.Above)]
-            >>> profile = LLMDriftProfile(config, metrics, workflow)
+            >>> profile = GenAIDriftProfile(config, metrics, workflow)
 
         Note:
             - When using custom workflows, ensure final tasks have Score response types
@@ -1123,7 +1123,7 @@ class LLMDriftProfile:
         """Return scouter version used to create DriftProfile"""
 
     def __str__(self) -> str:
-        """String representation of LLMDriftProfile"""
+        """String representation of GenAIDriftProfile"""
 
     def model_dump_json(self) -> str:
         """Return json representation of drift profile"""
@@ -1142,7 +1142,7 @@ class LLMDriftProfile:
         """
 
     @staticmethod
-    def model_validate(data: Dict[str, Any]) -> "LLMDriftProfile":
+    def model_validate(data: Dict[str, Any]) -> "GenAIDriftProfile":
         """Load drift profile from dictionary
 
         Args:
@@ -1151,7 +1151,7 @@ class LLMDriftProfile:
         """
 
     @staticmethod
-    def model_validate_json(json_string: str) -> "LLMDriftProfile":
+    def model_validate_json(json_string: str) -> "GenAIDriftProfile":
         """Load drift profile from json
 
         Args:
@@ -1160,14 +1160,14 @@ class LLMDriftProfile:
         """
 
     @staticmethod
-    def from_file(path: Path) -> "LLMDriftProfile":
+    def from_file(path: Path) -> "GenAIDriftProfile":
         """Load drift profile from file
 
         Args:
             path: Path to the json file
 
         Returns:
-            LLMDriftProfile
+            GenAIDriftProfile
         """
 
     def update_config_args(
@@ -1326,8 +1326,8 @@ class Drifter:
         config: GenAIDriftConfig,
         metrics: List[LLMDriftMetric],
         workflow: Optional[Workflow] = None,
-    ) -> LLMDriftProfile:
-        """Initialize a LLMDriftProfile for LLM evaluation and drift detection.
+    ) -> GenAIDriftProfile:
+        """Initialize a GenAIDriftProfile for LLM evaluation and drift detection.
 
         LLM evaluations are run asynchronously on the scouter server.
 
@@ -1353,7 +1353,7 @@ class Drifter:
                 type configuration.
 
         Returns:
-            LLMDriftProfile: Configured profile ready for LLM drift monitoring.
+            GenAIDriftProfile: Configured profile ready for LLM drift monitoring.
 
         Raises:
             ProfileError: If workflow validation fails, metrics are empty when no
@@ -1429,7 +1429,7 @@ class Drifter:
     def compute_drift(
         self,
         data: Union[LLMRecord, List[LLMRecord]],
-        drift_profile: LLMDriftProfile,
+        drift_profile: GenAIDriftProfile,
         data_type: Optional[DataType] = None,
     ) -> LLMDriftMap:
         """Create a drift map from data.
@@ -1449,7 +1449,7 @@ class Drifter:
     def compute_drift(  # type: ignore
         self,
         data: Any,
-        drift_profile: Union[SpcDriftProfile, PsiDriftProfile, LLMDriftProfile],
+        drift_profile: Union[SpcDriftProfile, PsiDriftProfile, GenAIDriftProfile],
         data_type: Optional[DataType] = None,
     ) -> Union[SpcDriftMap, PsiDriftMap, LLMDriftMap]:
         """Create a drift map from data.

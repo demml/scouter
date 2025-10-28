@@ -2,7 +2,7 @@
 ### You would typically let the server handle this, but this is to demonstrate the functionality.
 
 from scouter.alert import AlertThreshold
-from scouter.drift import Drifter, GenAIDriftConfig, LLMDriftMetric, LLMDriftProfile
+from scouter.drift import Drifter, GenAIDriftConfig, LLMDriftMetric, GenAIDriftProfile
 from scouter.llm import Agent, Prompt, Provider, Score
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.queue import LLMRecord
@@ -71,10 +71,10 @@ def create_query_reformulation_prompt():
     )
 
 
-def create_llm_drift_profile() -> LLMDriftProfile:
+def create_llm_drift_profile() -> GenAIDriftProfile:
     """Helper function to create a LLM drift profile for query reformulation tasks."""
     eval_prompt = create_reformulation_evaluation_prompt()
-    profile = LLMDriftProfile(
+    profile = GenAIDriftProfile(
         config=GenAIDriftConfig(),
         metrics=[
             LLMDriftMetric(

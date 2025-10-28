@@ -225,7 +225,9 @@ class ServerRecord:
     @property
     def record(
         self,
-    ) -> Union[SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics]:
+    ) -> Union[
+        SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics
+    ]:
         """Return the drift server record."""
 
 class ServerRecords:
@@ -740,7 +742,7 @@ class LLMRecord:
         context: Context,
         prompt: Optional[Prompt | SerializedType] = None,
     ) -> None:
-        """Creates a new LLM record to associate with an `LLMDriftProfile`.
+        """Creates a new LLM record to associate with an `GenAIDriftProfile`.
         The record is sent to the `Scouter` server via the `ScouterQueue` and is
         then used to inject context into the evaluation prompts.
 

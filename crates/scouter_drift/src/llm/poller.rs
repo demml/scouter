@@ -4,7 +4,7 @@ use crate::llm::evaluator::LLMEvaluator;
 use potato_head::Score;
 use scouter_sql::sql::traits::{LLMDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
-use scouter_types::llm::LLMDriftProfile;
+use scouter_types::genai::GenAIDriftProfile;
 use scouter_types::{DriftType, GetProfileRequest, LLMRecord, Status};
 use sqlx::{Pool, Postgres};
 use std::collections::HashMap;
@@ -29,7 +29,7 @@ impl LLMPoller {
     pub async fn process_drift_record(
         &mut self,
         record: &LLMRecord,
-        profile: &LLMDriftProfile,
+        profile: &GenAIDriftProfile,
     ) -> Result<(HashMap<String, Score>, Option<i32>), DriftError> {
         debug!("Processing workflow");
 
@@ -75,7 +75,7 @@ impl LLMPoller {
         let mut llm_profile = if let Some(profile) =
             PostgresClient::get_drift_profile(&self.db_pool, &request).await?
         {
-            let llm_profile: LLMDriftProfile =
+            let llm_profile: GenAIDriftProfile =
                 serde_json::from_value(profile).inspect_err(|e| {
                     error!("Failed to deserialize LLM drift profile: {:?}", e);
                 })?;

@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 use scouter_drift::{error::DriftError, LLMEvaluator};
 use scouter_state::app_state;
-use scouter_types::genai::{GenAIDriftConfig, LLMDriftMetric, LLMDriftProfile};
+use scouter_types::genai::{GenAIDriftConfig, LLMDriftMetric, GenAIDriftProfile};
 use scouter_types::{LLMMetricRecord, LLMRecord};
 use std::sync::Arc;
 
@@ -27,14 +27,14 @@ impl ClientLLMDrifter {
         config: GenAIDriftConfig,
         metrics: Vec<LLMDriftMetric>,
         workflow: Option<Bound<'_, PyAny>>,
-    ) -> Result<LLMDriftProfile, DriftError> {
-        let profile = LLMDriftProfile::new(config, metrics, workflow)?;
+    ) -> Result<GenAIDriftProfile, DriftError> {
+        let profile = GenAIDriftProfile::new(config, metrics, workflow)?;
         Ok(profile)
     }
 
     pub async fn compute_drift_single(
         record: &LLMRecord,
-        profile: &LLMDriftProfile,
+        profile: &GenAIDriftProfile,
     ) -> Result<Vec<LLMMetricRecord>, DriftError> {
         let (metrics, _score, _workflow_duration) =
             LLMEvaluator::process_drift_record(record, profile).await?;
@@ -44,7 +44,7 @@ impl ClientLLMDrifter {
     pub fn compute_drift(
         &mut self,
         data: Vec<LLMRecord>,
-        profile: &LLMDriftProfile,
+        profile: &GenAIDriftProfile,
     ) -> Result<Vec<LLMMetricRecord>, DriftError> {
         let results = self.runtime.block_on(async move {
             let mut results = Vec::new();

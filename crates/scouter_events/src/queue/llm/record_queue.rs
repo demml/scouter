@@ -4,15 +4,15 @@ use core::result::Result::Ok;
 use scouter_types::BoxedLLMDriftServerRecord;
 use scouter_types::LLMRecord;
 use scouter_types::QueueExt;
-use scouter_types::{genai::LLMDriftProfile, LLMDriftServerRecord, ServerRecord, ServerRecords};
+use scouter_types::{genai::GenAIDriftProfile, LLMDriftServerRecord, ServerRecord, ServerRecords};
 use tracing::instrument;
 pub struct LLMRecordQueue {
-    drift_profile: LLMDriftProfile,
+    drift_profile: GenAIDriftProfile,
     empty_queue: Vec<LLMRecord>,
 }
 
 impl LLMRecordQueue {
-    pub fn new(drift_profile: LLMDriftProfile) -> Self {
+    pub fn new(drift_profile: GenAIDriftProfile) -> Self {
         LLMRecordQueue {
             drift_profile,
             empty_queue: Vec::new(),
@@ -87,10 +87,10 @@ mod tests {
 
     use super::*;
     use potato_head::create_score_prompt;
-    use scouter_types::genai::{LLMAlertConfig, GenAIDriftConfig, LLMDriftMetric, LLMDriftProfile};
+    use scouter_types::genai::{LLMAlertConfig, GenAIDriftConfig, LLMDriftMetric, GenAIDriftProfile};
     use scouter_types::AlertThreshold;
 
-    async fn get_test_drift_profile() -> LLMDriftProfile {
+    async fn get_test_drift_profile() -> GenAIDriftProfile {
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
         let metric1 = LLMDriftMetric::new(
             "coherence",
@@ -114,7 +114,7 @@ mod tests {
         let drift_config =
             GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
-        LLMDriftProfile::from_metrics(drift_config, vec![metric1, metric2])
+        GenAIDriftProfile::from_metrics(drift_config, vec![metric1, metric2])
             .await
             .unwrap()
     }
