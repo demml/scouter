@@ -7,7 +7,7 @@ use crate::queue::types::TransportConfig;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
-use scouter_types::llm::LLMDriftProfile;
+use scouter_types::genai::LLMDriftProfile;
 use scouter_types::LLMRecord;
 use std::sync::Arc;
 use std::sync::RwLock;

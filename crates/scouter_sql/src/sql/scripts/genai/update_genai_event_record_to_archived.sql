@@ -1,4 +1,4 @@
-UPDATE scouter.llm_drift_record
+UPDATE scouter.llm_event_record
 SET 
     archived = true,
     updated_at = CURRENT_TIMESTAMP

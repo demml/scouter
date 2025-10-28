@@ -187,7 +187,7 @@ mod tests {
     use rand::Rng;
     use scouter_semver::VersionType;
     use scouter_settings::ObjectStorageSettings;
-    use scouter_types::llm::PaginationRequest;
+    use scouter_types::genai::PaginationRequest;
     use scouter_types::psi::{Bin, BinType, PsiDriftConfig, PsiFeatureDriftProfile};
     use scouter_types::spc::SpcDriftProfile;
     use scouter_types::*;

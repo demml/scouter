@@ -40,16 +40,17 @@ const GET_CUSTOM_DATA_FOR_ARCHIVE: &str =
 const UPDATE_CUSTOM_ENTITIES: &str = include_str!("scripts/custom/update_data_to_archived.sql");
 
 // llm
-const GET_LLM_METRIC_VALUES: &str = include_str!("scripts/llm/get_llm_metric_values.sql");
-const GET_BINNED_LLM_METRIC_VALUES: &str = include_str!("scripts/llm/binned_llm_metric_values.sql");
-const INSERT_LLM_METRIC_VALUES_BATCH: &str =
-    include_str!("scripts/llm/insert_llm_metric_values.sql");
-const INSERT_LLM_DRIFT_RECORD: &str = include_str!("scripts/llm/insert_llm_drift_record.sql");
+const GET_GENAI_METRIC_VALUES: &str = include_str!("scripts/genai/get_genai_metric_values.sql");
+const GET_BINNED_GENAI_METRIC_VALUES: &str =
+    include_str!("scripts/genai/binned_genai_metric_values.sql");
+const INSERT_GENAI_METRIC_VALUES_BATCH: &str =
+    include_str!("scripts/genai/insert_genai_metric_values.sql");
+const INSERT_GENAI_EVENT_RECORD: &str = include_str!("scripts/genai/insert_genai_event_record.sql");
 
-const GET_LLM_DRIFT_RECORDS: &str = include_str!("scripts/llm/get_llm_drift_records.sql");
-const UPDATE_LLM_DRIFT_TASK: &str = include_str!("scripts/llm/update_llm_drift_record.sql");
-const GET_LLM_DRIFT_RECORD_ENTITIES: &str =
-    include_str!("scripts/llm/get_llm_drift_record_entities_for_archive.sql");
+const GET_GENAI_DRIFT_RECORDS: &str = include_str!("scripts/genai/get_genai_drift_records.sql");
+const UPDATE_GENAI_DRIFT_TASK: &str = include_str!("scripts/genai/update_genai_drift_record.sql");
+const GET_GENAI_DRIFT_RECORD_ENTITIES: &str =
+    include_str!("scripts/genai/get_genai_drift_record_entities_for_archive.sql");
 const GET_LLM_METRIC_ENTITIES: &str =
     include_str!("scripts/llm/get_llm_metric_entities_for_archive.sql");
 const GET_LLM_DRIFT_RECORD_DATA_FOR_ARCHIVE: &str =
@@ -149,22 +150,22 @@ pub enum Queries {
     DeleteUser,
     UpdateAlertStatus,
 
-    // llm
-    GetLLMMetricValues,
-    GetLLMDriftRecords,
+    // genai
+    GetGenAIMetricValues,
+    GetGenAIEventRecords,
     GetBinnedMetrics,
-    InsertLLMMetricValuesBatch,
-    InsertLLMDriftRecord,
-    GetPendingLLMDriftTask,
-    UpdateLLMDriftTask,
+    InsertGenAIMetricValuesBatch,
+    InsertGenAIEventRecord,
+    GetPendingGenAIDriftTask,
+    UpdateGenAIDriftTask,
 
-    GetLLMDriftRecordEntitiesForArchive,
-    GetLLMMetricEntitiesForArchive,
-    GetLLMDriftRecordDataForArchive,
-    GetLLMMetricDataForArchive,
+    GetGenAIDriftRecordEntitiesForArchive,
+    GetGenAIMetricEntitiesForArchive,
+    GetGenAIDriftRecordDataForArchive,
+    GetGenAIMetricDataForArchive,
 
-    UpdateLLMMetricEntities,
-    UpdateLLMDriftEntities,
+    UpdateGenAIMetricEntities,
+    UpdateGenAIDriftEntities,
 
     // profile
     GetProfileVersions,
@@ -219,30 +220,34 @@ impl Queries {
             Queries::UpdateAlertStatus => SqlQuery::new(UPDATE_ALERT_STATUS),
 
             //llm
-            Queries::GetLLMMetricValues => SqlQuery::new(GET_LLM_METRIC_VALUES),
-            Queries::GetBinnedMetrics => SqlQuery::new(GET_BINNED_LLM_METRIC_VALUES),
-            Queries::InsertLLMMetricValuesBatch => SqlQuery::new(INSERT_LLM_METRIC_VALUES_BATCH),
-            Queries::InsertLLMDriftRecord => SqlQuery::new(INSERT_LLM_DRIFT_RECORD),
+            Queries::GetGenAIMetricValues => SqlQuery::new(GET_GENAI_METRIC_VALUES),
+            Queries::GetBinnedMetrics => SqlQuery::new(GET_BINNED_GENAI_METRIC_VALUES),
+            Queries::InsertGenAIMetricValuesBatch => {
+                SqlQuery::new(INSERT_GENAI_METRIC_VALUES_BATCH)
+            }
+            Queries::InsertGenAIEventRecord => SqlQuery::new(INSERT_GENAI_EVENT_RECORD),
 
-            Queries::GetLLMDriftRecords => SqlQuery::new(GET_LLM_DRIFT_RECORDS),
-            Queries::GetPendingLLMDriftTask => SqlQuery::new(GET_PENDING_LLM_DRIFT_TASK),
-            Queries::GetLLMDriftRecordEntitiesForArchive => {
-                SqlQuery::new(GET_LLM_DRIFT_RECORD_ENTITIES)
+            Queries::GetGenAIEventRecords => SqlQuery::new(GET_GENAI_DRIFT_RECORDS),
+            Queries::GetPendingGenAIDriftTask => SqlQuery::new(GET_PENDING_GENAI_DRIFT_TASK),
+            Queries::GetGenAIDriftRecordEntitiesForArchive => {
+                SqlQuery::new(GET_GENAI_DRIFT_RECORD_ENTITIES)
             }
-            Queries::GetLLMMetricEntitiesForArchive => SqlQuery::new(GET_LLM_METRIC_ENTITIES),
-            Queries::GetLLMDriftRecordDataForArchive => {
-                SqlQuery::new(GET_LLM_DRIFT_RECORD_DATA_FOR_ARCHIVE)
+            Queries::GetGenAIMetricEntitiesForArchive => SqlQuery::new(GET_GENAI_METRIC_ENTITIES),
+            Queries::GetGenAIDriftRecordDataForArchive => {
+                SqlQuery::new(GET_GENAI_DRIFT_RECORD_DATA_FOR_ARCHIVE)
             }
-            Queries::GetLLMMetricDataForArchive => SqlQuery::new(GET_LLM_METRIC_DATA_FOR_ARCHIVE),
-            Queries::UpdateLLMMetricEntities => SqlQuery::new(UPDATE_LLM_METRIC_ENTITIES),
-            Queries::UpdateLLMDriftEntities => SqlQuery::new(UPDATE_LLM_DRIFT_ENTITIES),
+            Queries::GetGenAIMetricDataForArchive => {
+                SqlQuery::new(GET_GENAI_METRIC_DATA_FOR_ARCHIVE)
+            }
+            Queries::UpdateGenAIMetricEntities => SqlQuery::new(UPDATE_GENAI_METRIC_ENTITIES),
+            Queries::UpdateGenAIDriftEntities => SqlQuery::new(UPDATE_GENAI_DRIFT_ENTITIES),
 
             Queries::InsertCustomMetricValuesBatch => {
                 SqlQuery::new(INSERT_CUSTOM_METRIC_VALUES_BATCH)
             }
             Queries::InsertSpcDriftRecordBatch => SqlQuery::new(INSERT_SPC_DRIFT_RECORD_BATCH),
             Queries::InsertBinCountsBatch => SqlQuery::new(INSERT_BIN_COUNTS_BATCH),
-            Queries::UpdateLLMDriftTask => SqlQuery::new(UPDATE_LLM_DRIFT_TASK),
+            Queries::UpdateGenAIDriftTask => SqlQuery::new(UPDATE_GENAI_DRIFT_TASK),
         }
     }
 }

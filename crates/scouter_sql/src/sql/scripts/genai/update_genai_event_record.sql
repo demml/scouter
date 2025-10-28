@@ -1,4 +1,4 @@
-UPDATE scouter.llm_drift_record
+UPDATE scouter.llm_event_record
 SET status       = $1,
     score        = $2,
     processing_ended_at = CURRENT_TIMESTAMP,

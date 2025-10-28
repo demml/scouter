@@ -10,10 +10,10 @@ use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::{DriftRequest, ServiceInfo};
-use scouter_types::LLMRecord;
+use scouter_types::LLMEventRecord;
 use scouter_types::{
-    llm::{PaginationCursor, PaginationRequest, PaginationResponse},
-    BinnedMetrics, LLMDriftServerRecord, RecordType,
+    genai::{PaginationCursor, PaginationRequest, PaginationResponse},
+    BinnedMetrics, RecordType,
 };
 use scouter_types::{LLMMetricRecord, Status};
 use sqlx::types::Json;
@@ -30,27 +30,36 @@ pub trait LLMDriftSqlLogic {
     /// * `record` - The LLM drift record to insert
     /// # Returns
     /// * A result containing the query result or an error
-    async fn insert_llm_drift_record(
+    async fn insert_genai_event_record(
         pool: &Pool<Postgres>,
-        record: &LLMDriftServerRecord,
+        record: &LLMEventRecord,
     ) -> Result<PgQueryResult, SqlError> {
-        let query = Queries::InsertLLMDriftRecord.get_query();
+        let query = Queries::InsertGenAIEventRecord.get_query();
 
         sqlx::query(&query.sql)
             .bind(record.created_at)
             .bind(&record.space)
             .bind(&record.name)
             .bind(&record.version)
-            .bind(&record.context)
             .bind(Json(&record.prompt))
+            .bind(Json(&record.inputs))
+            .bind(Json(&record.outputs))
+            .bind(record.ground_truth.as_ref().map(|gt| Json(gt)))
+            .bind(Json(&record.metadata))
+            .bind(&record.entity_type.as_str())
+            .bind(&record.root_id)
+            .bind(&record.event_id)
+            .bind(&record.event_name)
+            .bind(&record.parent_event_name)
+            .bind(&record.duration_ms)
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)
     }
 
-    /// Inserts a batch of LLM metric values into the database.
-    /// This is the output from processing/evaluating the LLM drift records.
-    async fn insert_llm_metric_values_batch(
+    /// Inserts a batch of GenAI metric values into the database.
+    /// This is the output from processing/evaluating the GenAI drift records.
+    async fn insert_genai_metric_values_batch(
         pool: &Pool<Postgres>,
         records: &[LLMMetricRecord],
     ) -> Result<PgQueryResult, SqlError> {
@@ -58,7 +67,7 @@ pub trait LLMDriftSqlLogic {
             return Err(SqlError::EmptyBatchError);
         }
 
-        let query = Queries::InsertLLMMetricValuesBatch.get_query();
+        let query = Queries::InsertGenAIMetricValuesBatch.get_query();
 
         let (created_ats, record_uids, names, spaces, versions, metrics, values): (
             Vec<DateTime<Utc>>,
