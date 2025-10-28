@@ -1,6 +1,6 @@
 use crate::error::{ProfileError, TypeError};
-use crate::llm::alert::LLMAlertConfig;
-use crate::llm::alert::LLMDriftMetric;
+use crate::genai::alert::LLMAlertConfig;
+use crate::genai::alert::LLMDriftMetric;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::ProfileRequest;
 use crate::{scouter_version, LLMMetricRecord};

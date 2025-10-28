@@ -1,5 +1,5 @@
 use crate::error::RecordError;
-use crate::eval::LLMEventRecord;
+use crate::genai::LLMEventRecord;
 use crate::PyHelperFuncs;
 use chrono::DateTime;
 use chrono::Utc;

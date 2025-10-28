@@ -1,7 +1,7 @@
 use std::fmt::Display;
 
 use crate::error::{ContractError, TypeError};
-use crate::llm::PaginationRequest;
+use crate::genai::PaginationRequest;
 use crate::{CustomInterval, Status};
 use crate::{DriftType, PyHelperFuncs, TimeInterval};
 use chrono::{DateTime, Utc};

@@ -1,5 +1,5 @@
 use crate::error::TypeError;
-use crate::eval::LLMEventRecord;
+use crate::genai::LLMEventRecord;
 use crate::PyHelperFuncs;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PyString};

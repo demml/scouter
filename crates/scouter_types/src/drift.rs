@@ -1,6 +1,6 @@
 use crate::custom::CustomDriftProfile;
 use crate::error::ProfileError;
-use crate::llm::profile::LLMDriftProfile;
+use crate::genai::profile::LLMDriftProfile;
 use crate::psi::PsiDriftProfile;
 use crate::spc::SpcDriftProfile;
 use crate::util::ProfileBaseArgs;
