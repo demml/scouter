@@ -535,8 +535,8 @@ pub trait ToDriftRecords {
     fn to_observability_drift_records(&self) -> Result<Vec<ObservabilityMetrics>, RecordError>;
     fn to_psi_drift_records(&self) -> Result<Vec<PsiServerRecord>, RecordError>;
     fn to_custom_metric_drift_records(&self) -> Result<Vec<CustomMetricServerRecord>, RecordError>;
-    fn to_llm_event_records(&self) -> Result<Vec<LLMEventRecord>, RecordError>;
-    fn to_llm_metric_records(&self) -> Result<Vec<LLMMetricRecord>, RecordError>;
+    fn to_genai_event_records(&self) -> Result<Vec<EventRecord>, RecordError>;
+    fn to_genai_metric_records(&self) -> Result<Vec<GenAIMetricRecord>, RecordError>;
 }
 impl ToDriftRecords for ServerRecords {
     fn to_spc_drift_records(&self) -> Result<Vec<SpcServerRecord>, RecordError> {
@@ -567,14 +567,14 @@ impl ToDriftRecords for ServerRecords {
         })
     }
 
-    fn to_llm_event_records(&self) -> Result<Vec<LLMEventRecord>, RecordError> {
+    fn to_genai_event_records(&self) -> Result<Vec<EventRecord>, RecordError> {
         extract_records(self, |record| match record {
             ServerRecord::GenAIEvent(inner) => Some(*inner.record.clone()),
             _ => None,
         })
     }
 
-    fn to_llm_metric_records(&self) -> Result<Vec<LLMMetricRecord>, RecordError> {
+    fn to_genai_metric_records(&self) -> Result<Vec<GenAIMetricRecord>, RecordError> {
         extract_records(self, |record| match record {
             ServerRecord::GenAIMetric(inner) => Some(inner.clone()),
             _ => None,
