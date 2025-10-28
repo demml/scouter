@@ -1,6 +1,6 @@
 use crate::error::DataFrameError;
 use crate::parquet::custom::CustomMetricDataFrame;
-use crate::parquet::llm::{LLMEventDataFrame, LLMMetricDataFrame};
+use crate::parquet::genai::{GenAIEventDataFrame, GenAIMetricDataFrame};
 use crate::parquet::psi::PsiDataFrame;
 use crate::parquet::spc::SpcDataFrame;
 use crate::parquet::traits::ParquetFrame;
@@ -15,8 +15,8 @@ pub enum ParquetDataFrame {
     CustomMetric(CustomMetricDataFrame),
     Psi(PsiDataFrame),
     Spc(SpcDataFrame),
-    LLMMetric(LLMMetricDataFrame),
-    LLMEvent(LLMEventDataFrame),
+    GenAIMetric(GenAIMetricDataFrame),
+    GenAIEvent(GenAIEventDataFrame),
 }
 
 impl ParquetDataFrame {
@@ -30,10 +30,10 @@ impl ParquetDataFrame {
             )?)),
             RecordType::Psi => Ok(ParquetDataFrame::Psi(PsiDataFrame::new(storage_settings)?)),
             RecordType::Spc => Ok(ParquetDataFrame::Spc(SpcDataFrame::new(storage_settings)?)),
-            RecordType::LLMMetric => Ok(ParquetDataFrame::LLMMetric(LLMMetricDataFrame::new(
-                storage_settings,
-            )?)),
-            RecordType::LLMEvent => Ok(ParquetDataFrame::LLMEvent(LLMEventDataFrame::new(
+            RecordType::GenAIMetric => Ok(ParquetDataFrame::GenAIMetric(
+                GenAIMetricDataFrame::new(storage_settings)?,
+            )),
+            RecordType::GenAIEvent => Ok(ParquetDataFrame::GenAIEvent(GenAIEventDataFrame::new(
                 storage_settings,
             )?)),
 
@@ -62,8 +62,8 @@ impl ParquetDataFrame {
             ParquetDataFrame::CustomMetric(df) => df.write_parquet(rpath, records).await,
             ParquetDataFrame::Psi(df) => df.write_parquet(rpath, records).await,
             ParquetDataFrame::Spc(df) => df.write_parquet(rpath, records).await,
-            ParquetDataFrame::LLMMetric(df) => df.write_parquet(rpath, records).await,
-            ParquetDataFrame::LLMEvent(df) => df.write_parquet(rpath, records).await,
+            ParquetDataFrame::GenAIMetric(df) => df.write_parquet(rpath, records).await,
+            ParquetDataFrame::GenAIEvent(df) => df.write_parquet(rpath, records).await,
         }
     }
 
@@ -72,8 +72,8 @@ impl ParquetDataFrame {
             ParquetDataFrame::CustomMetric(df) => df.storage_root(),
             ParquetDataFrame::Psi(df) => df.storage_root(),
             ParquetDataFrame::Spc(df) => df.storage_root(),
-            ParquetDataFrame::LLMMetric(df) => df.storage_root(),
-            ParquetDataFrame::LLMEvent(df) => df.storage_root(),
+            ParquetDataFrame::GenAIMetric(df) => df.storage_root(),
+            ParquetDataFrame::GenAIEvent(df) => df.storage_root(),
         }
     }
 
@@ -83,8 +83,8 @@ impl ParquetDataFrame {
             ParquetDataFrame::CustomMetric(df) => df.object_store.clone(),
             ParquetDataFrame::Psi(df) => df.object_store.clone(),
             ParquetDataFrame::Spc(df) => df.object_store.clone(),
-            ParquetDataFrame::LLMMetric(df) => df.object_store.clone(),
-            ParquetDataFrame::LLMEvent(df) => df.object_store.clone(),
+            ParquetDataFrame::GenAIMetric(df) => df.object_store.clone(),
+            ParquetDataFrame::GenAIEvent(df) => df.object_store.clone(),
         }
     }
 
@@ -125,11 +125,11 @@ impl ParquetDataFrame {
                     .await
             }
 
-            ParquetDataFrame::LLMMetric(df) => {
+            ParquetDataFrame::GenAIMetric(df) => {
                 df.get_binned_metrics(read_path, bin, start_time, end_time, space, name, version)
                     .await
             }
-            ParquetDataFrame::LLMEvent(_) => Err(DataFrameError::UnsupportedOperation(
+            ParquetDataFrame::GenAIEvent(_) => Err(DataFrameError::UnsupportedOperation(
                 "LLMEvent does not support binned metrics".to_string(),
             )),
         }
@@ -143,10 +143,12 @@ impl ParquetDataFrame {
             }
             ParquetDataFrame::Psi(df) => df.object_store.storage_settings.storage_type.clone(),
             ParquetDataFrame::Spc(df) => df.object_store.storage_settings.storage_type.clone(),
-            ParquetDataFrame::LLMMetric(df) => {
+            ParquetDataFrame::GenAIMetric(df) => {
                 df.object_store.storage_settings.storage_type.clone()
             }
-            ParquetDataFrame::LLMEvent(df) => df.object_store.storage_settings.storage_type.clone(),
+            ParquetDataFrame::GenAIEvent(df) => {
+                df.object_store.storage_settings.storage_type.clone()
+            }
         }
     }
 
@@ -169,9 +171,9 @@ mod tests {
     use potato_head::create_score_prompt;
     use rand::Rng;
     use scouter_settings::ObjectStorageSettings;
-    use scouter_types::eval::LLMEventRecord;
+    use scouter_types::GenAIEventRecord;
     use scouter_types::{
-        BoxedLLMEventRecord, CustomMetricServerRecord, LLMMetricRecord, PsiServerRecord,
+        BoxedGenAIEventRecord, CustomMetricServerRecord, GenAIMetricRecord, PsiServerRecord,
         ServerRecord, ServerRecords, SpcServerRecord, Status,
     };
     use serde_json::Map;
@@ -189,7 +191,7 @@ mod tests {
     async fn test_write_llm_drift_record_dataframe_local() {
         cleanup();
         let storage_settings = ObjectStorageSettings::default();
-        let df = ParquetDataFrame::new(&storage_settings, &RecordType::LLMEvent).unwrap();
+        let df = ParquetDataFrame::new(&storage_settings, &RecordType::GenAIEvent).unwrap();
         let mut batch = Vec::new();
 
         let prompt = create_score_prompt(None);
@@ -197,7 +199,7 @@ mod tests {
         // create records
         for i in 0..3 {
             for _ in 0..50 {
-                let record = LLMEventRecord {
+                let record = GenAIEventRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
                     space: "test".to_string(),
                     name: "test".to_string(),
@@ -208,7 +210,7 @@ mod tests {
                     status: Status::Pending,
                     ground_truth: None,
                     metadata: BTreeMap::new(),
-                    entity_type: scouter_types::EntityType::LLM,
+                    entity_type: scouter_types::EntityType::GenAI,
                     root_id: format!("trace_id_{i}"),
                     event_id: format!("span_id_{i}"),
                     event_name: "span_name".to_string(),
@@ -222,8 +224,8 @@ mod tests {
                     duration_ms: None,
                 };
 
-                let boxed_record = BoxedLLMEventRecord::new(record);
-                batch.push(ServerRecord::LLMEvent(boxed_record));
+                let boxed_record = BoxedGenAIEventRecord::new(record);
+                batch.push(ServerRecord::GenAIEvent(boxed_record));
             }
         }
 
@@ -260,7 +262,7 @@ mod tests {
     async fn test_write_llm_drift_metric_dataframe_local() {
         cleanup();
         let storage_settings = ObjectStorageSettings::default();
-        let df = ParquetDataFrame::new(&storage_settings, &RecordType::LLMMetric).unwrap();
+        let df = ParquetDataFrame::new(&storage_settings, &RecordType::GenAIMetric).unwrap();
         let mut batch = Vec::new();
         let start_utc = Utc::now();
         let end_utc_for_test = start_utc + chrono::Duration::hours(3);
@@ -268,7 +270,7 @@ mod tests {
         // create records
         for i in 0..3 {
             for j in 0..50 {
-                let record = ServerRecord::LLMMetric(LLMMetricRecord {
+                let record = ServerRecord::GenAIMetric(GenAIMetricRecord {
                     record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::hours(i),
                     name: "test".to_string(),
@@ -295,7 +297,7 @@ mod tests {
         assert_eq!(files.len(), 3);
 
         // attempt to read the file
-        let new_df = ParquetDataFrame::new(&storage_settings, &RecordType::LLMMetric).unwrap();
+        let new_df = ParquetDataFrame::new(&storage_settings, &RecordType::GenAIMetric).unwrap();
 
         let read_df = new_df
             .get_binned_metrics(

@@ -64,7 +64,7 @@ GROUP BY metric;"#,
     )
 }
 
-pub fn get_binned_llm_metric_values_query(
+pub fn get_binned_genai_metric_values_query(
     bin: &f64,
     start_time: &DateTime<Utc>,
     end_time: &DateTime<Utc>,

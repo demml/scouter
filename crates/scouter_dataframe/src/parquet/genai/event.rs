@@ -12,22 +12,22 @@ use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
 
-use scouter_types::{LLMEventRecord, ServerRecords, StorageType, ToDriftRecords};
+use scouter_types::{GenAIEventRecord, ServerRecords, StorageType, ToDriftRecords};
 use std::sync::Arc;
 
-pub struct LLMEventDataFrame {
+pub struct GenAIEventDataFrame {
     schema: Arc<Schema>,
     pub object_store: ObjectStore,
 }
 
 #[async_trait]
-impl ParquetFrame for LLMEventDataFrame {
+impl ParquetFrame for GenAIEventDataFrame {
     fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
-        LLMEventDataFrame::new(storage_settings)
+        GenAIEventDataFrame::new(storage_settings)
     }
 
     async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError> {
-        let records = records.to_llm_event_records()?;
+        let records = records.to_genai_event_records()?;
         let batch = self.build_batch(records)?;
 
         let ctx = self.object_store.get_session()?;
@@ -62,11 +62,11 @@ impl ParquetFrame for LLMEventDataFrame {
     }
 
     fn table_name(&self) -> String {
-        BinnedTableName::LLMEvent.to_string()
+        BinnedTableName::GenAIEvent.to_string()
     }
 }
 
-impl LLMEventDataFrame {
+impl GenAIEventDataFrame {
     pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
         let schema = Arc::new(Schema::new(vec![
             Field::new("id", DataType::Int64, false),
@@ -110,13 +110,13 @@ impl LLMEventDataFrame {
 
         let object_store = ObjectStore::new(storage_settings)?;
 
-        Ok(LLMEventDataFrame {
+        Ok(GenAIEventDataFrame {
             schema,
             object_store,
         })
     }
 
-    fn build_batch(&self, records: Vec<LLMEventRecord>) -> Result<RecordBatch, DataFrameError> {
+    fn build_batch(&self, records: Vec<GenAIEventRecord>) -> Result<RecordBatch, DataFrameError> {
         let id_array = arrow_array::Int64Array::from_iter_values(records.iter().map(|r| r.id));
         let created_at_array = TimestampNanosecondArray::from_iter_values(
             records

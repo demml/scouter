@@ -1,4 +1,4 @@
 pub mod metric;
-pub use metric::LLMMetricDataFrame;
+pub use metric::GenAIMetricDataFrame;
 pub mod event;
-pub use event::LLMEventDataFrame;
+pub use event::GenAIEventDataFrame;

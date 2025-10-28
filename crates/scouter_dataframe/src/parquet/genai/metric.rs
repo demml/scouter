@@ -1,7 +1,7 @@
 use crate::error::DataFrameError;
 use crate::parquet::traits::ParquetFrame;
 use crate::parquet::types::BinnedTableName;
-use crate::sql::helper::get_binned_llm_metric_values_query;
+use crate::sql::helper::get_binned_genai_metric_values_query;
 use crate::storage::ObjectStore;
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow_array::array::{Float64Array, StringArray, TimestampNanosecondArray};
@@ -11,22 +11,22 @@ use chrono::{DateTime, Utc};
 use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::{LLMMetricRecord, ServerRecords, StorageType, ToDriftRecords};
+use scouter_types::{GenAIMetricRecord, ServerRecords, StorageType, ToDriftRecords};
 use std::sync::Arc;
 
-pub struct LLMMetricDataFrame {
+pub struct GenAIMetricDataFrame {
     schema: Arc<Schema>,
     pub object_store: ObjectStore,
 }
 
 #[async_trait]
-impl ParquetFrame for LLMMetricDataFrame {
+impl ParquetFrame for GenAIMetricDataFrame {
     fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
-        LLMMetricDataFrame::new(storage_settings)
+        GenAIMetricDataFrame::new(storage_settings)
     }
 
     async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError> {
-        let records = records.to_llm_metric_records()?;
+        let records = records.to_genai_metric_records()?;
         let batch = self.build_batch(records)?;
 
         let ctx = self.object_store.get_session()?;
@@ -57,15 +57,15 @@ impl ParquetFrame for LLMMetricDataFrame {
         name: &str,
         version: &str,
     ) -> String {
-        get_binned_llm_metric_values_query(bin, start_time, end_time, space, name, version)
+        get_binned_genai_metric_values_query(bin, start_time, end_time, space, name, version)
     }
 
     fn table_name(&self) -> String {
-        BinnedTableName::LLMMetric.to_string()
+        BinnedTableName::GenAIMetric.to_string()
     }
 }
 
-impl LLMMetricDataFrame {
+impl GenAIMetricDataFrame {
     pub fn new(storage_settings: &ObjectStorageSettings) -> Result<Self, DataFrameError> {
         let schema = Arc::new(Schema::new(vec![
             Field::new(
@@ -83,13 +83,13 @@ impl LLMMetricDataFrame {
 
         let object_store = ObjectStore::new(storage_settings)?;
 
-        Ok(LLMMetricDataFrame {
+        Ok(GenAIMetricDataFrame {
             schema,
             object_store,
         })
     }
 
-    fn build_batch(&self, records: Vec<LLMMetricRecord>) -> Result<RecordBatch, DataFrameError> {
+    fn build_batch(&self, records: Vec<GenAIMetricRecord>) -> Result<RecordBatch, DataFrameError> {
         let created_at_array = TimestampNanosecondArray::from_iter_values(
             records
                 .iter()
