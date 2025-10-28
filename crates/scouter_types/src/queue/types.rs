@@ -1,5 +1,5 @@
 use crate::error::TypeError;
-use crate::genai::LLMEventRecord;
+use crate::genai::GenAIEventRecord;
 use crate::PyHelperFuncs;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyFloat, PyInt, PyList, PyString};
@@ -14,7 +14,7 @@ use std::fmt::Formatter;
 pub enum EntityType {
     Feature,
     Metric,
-    LLM,
+    GenAI,
 }
 
 impl Display for EntityType {
@@ -22,7 +22,7 @@ impl Display for EntityType {
         match self {
             EntityType::Feature => write!(f, "feature"),
             EntityType::Metric => write!(f, "metric"),
-            EntityType::LLM => write!(f, "llm"),
+            EntityType::GenAI => write!(f, "genai"),
         }
     }
 }
@@ -32,7 +32,7 @@ impl EntityType {
         match self {
             EntityType::Feature => "feature",
             EntityType::Metric => "metric",
-            EntityType::LLM => "llm",
+            EntityType::GenAI => "genai",
         }
     }
 }
@@ -381,7 +381,7 @@ impl Metrics {
 pub enum QueueItem {
     Features(Features),
     Metrics(Metrics),
-    LLM(Box<LLMEventRecord>),
+    GenAI(Box<GenAIEventRecord>),
 }
 
 impl QueueItem {
@@ -398,10 +398,10 @@ impl QueueItem {
                 let metrics = entity.extract::<Metrics>()?;
                 Ok(QueueItem::Metrics(metrics))
             }
-            EntityType::LLM => {
-                // LLM is not supported in this context
-                let llm = entity.extract::<LLMEventRecord>()?;
-                Ok(QueueItem::LLM(Box::new(llm)))
+            EntityType::GenAI => {
+                // GenAI is not supported in this context
+                let genai = entity.extract::<GenAIEventRecord>()?;
+                Ok(QueueItem::GenAI(Box::new(genai)))
             }
         }
     }
@@ -410,7 +410,7 @@ impl QueueItem {
 pub trait QueueExt: Send + Sync {
     fn metrics(&self) -> &Vec<Metric>;
     fn features(&self) -> &Vec<Feature>;
-    fn llm_records(&self) -> Vec<&LLMEventRecord>;
+    fn genai_records(&self) -> Vec<&GenAIEventRecord>;
 }
 
 impl QueueExt for Features {
@@ -425,7 +425,7 @@ impl QueueExt for Features {
         &self.features
     }
 
-    fn llm_records(&self) -> Vec<&LLMEventRecord> {
+    fn genai_records(&self) -> Vec<&GenAIEventRecord> {
         // this is not a real implementation, just a placeholder
         // to satisfy the trait bound
         vec![]
@@ -444,14 +444,14 @@ impl QueueExt for Metrics {
         &EMPTY
     }
 
-    fn llm_records(&self) -> Vec<&LLMEventRecord> {
+    fn genai_records(&self) -> Vec<&GenAIEventRecord> {
         // this is not a real implementation, just a placeholder
         // to satisfy the trait bound
         vec![]
     }
 }
 
-impl QueueExt for LLMEventRecord {
+impl QueueExt for GenAIEventRecord {
     fn metrics(&self) -> &Vec<Metric> {
         // this is not a real implementation, just a placeholder
         // to satisfy the trait bound
@@ -466,7 +466,7 @@ impl QueueExt for LLMEventRecord {
         &EMPTY
     }
 
-    fn llm_records(&self) -> Vec<&LLMEventRecord> {
+    fn genai_records(&self) -> Vec<&GenAIEventRecord> {
         vec![self]
     }
 }

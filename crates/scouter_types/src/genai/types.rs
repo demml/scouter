@@ -31,7 +31,7 @@ pub struct PaginationResponse<T> {
 
 #[pyclass]
 #[derive(Clone, Serialize, Deserialize, Debug)]
-pub struct EventRecord {
+pub struct GenAIEventRecord {
     pub id: i64,
 
     pub uid: String,
@@ -79,7 +79,7 @@ pub struct EventRecord {
 }
 
 #[pymethods]
-impl EventRecord {
+impl GenAIEventRecord {
     #[new]
     #[pyo3(signature = (
         event_name,
@@ -146,7 +146,7 @@ impl EventRecord {
             None => create_uuid7(),
         };
 
-        Ok(EventRecord {
+        Ok(GenAIEventRecord {
             id: 0, // this is a placeholder, the DB will set this
             uid: create_uuid7(),
             created_at: Utc::now(),
@@ -158,7 +158,7 @@ impl EventRecord {
             ground_truth: None,
             metadata: metadata_val,
             prompt,
-            entity_type: EntityType::LLM,
+            entity_type: EntityType::GenAI,
             root_id,
             event_id: create_uuid7(),
             parent_event_name: parent_event,
@@ -178,7 +178,7 @@ impl EventRecord {
     }
 }
 
-impl EventRecord {
+impl GenAIEventRecord {
     pub fn new_rs(
         space: String,
         name: String,
@@ -192,7 +192,7 @@ impl EventRecord {
         root_id: Option<String>,
         parent_event: Option<String>,
     ) -> Self {
-        EventRecord {
+        GenAIEventRecord {
             id: 0,
             space,
             name,
@@ -200,7 +200,7 @@ impl EventRecord {
             uid,
             inputs: inputs.unwrap_or(Value::Null),
             outputs: outputs.unwrap_or(Value::Null),
-            entity_type: EntityType::LLM,
+            entity_type: EntityType::GenAI,
             created_at: Utc::now(),
             prompt: prompt.unwrap_or(Value::Null),
             ground_truth: None,

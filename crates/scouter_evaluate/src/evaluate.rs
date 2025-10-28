@@ -10,7 +10,7 @@ use crate::util::{
 use potato_head::{Agent, Provider, Task, Workflow, WorkflowError};
 use pyo3::prelude::*;
 use scouter_state::app_state;
-use scouter_types::eval::LLMEvalMetric;
+use scouter_types::genai::eval::LLMEvalMetric;
 use serde::{Deserialize, Serialize};
 use std::collections::hash_map::Entry;
 use std::collections::HashMap;

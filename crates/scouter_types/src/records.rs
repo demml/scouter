@@ -1,5 +1,5 @@
 use crate::error::RecordError;
-use crate::genai::EventRecord;
+use crate::genai::GenAIEventRecord;
 use crate::PyHelperFuncs;
 use chrono::DateTime;
 use chrono::Utc;
@@ -162,11 +162,11 @@ impl PsiServerRecord {
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct BoxedGenAIEventRecord {
-    pub record: Box<EventRecord>,
+    pub record: Box<GenAIEventRecord>,
 }
 
 impl BoxedGenAIEventRecord {
-    pub fn new(record: EventRecord) -> Self {
+    pub fn new(record: GenAIEventRecord) -> Self {
         Self {
             record: Box::new(record),
         }
@@ -385,7 +385,7 @@ impl ServerRecord {
                 Ok(ServerRecord::Observability(observability_record))
             }
             RecordType::GenAIEvent => {
-                let genai_event_record = record.extract::<EventRecord>()?;
+                let genai_event_record = record.extract::<GenAIEventRecord>()?;
                 Ok(ServerRecord::GenAIEvent(BoxedGenAIEventRecord::new(
                     genai_event_record,
                 )))
@@ -535,7 +535,7 @@ pub trait ToDriftRecords {
     fn to_observability_drift_records(&self) -> Result<Vec<ObservabilityMetrics>, RecordError>;
     fn to_psi_drift_records(&self) -> Result<Vec<PsiServerRecord>, RecordError>;
     fn to_custom_metric_drift_records(&self) -> Result<Vec<CustomMetricServerRecord>, RecordError>;
-    fn to_genai_event_records(&self) -> Result<Vec<EventRecord>, RecordError>;
+    fn to_genai_event_records(&self) -> Result<Vec<GenAIEventRecord>, RecordError>;
     fn to_genai_metric_records(&self) -> Result<Vec<GenAIMetricRecord>, RecordError>;
 }
 impl ToDriftRecords for ServerRecords {
@@ -567,7 +567,7 @@ impl ToDriftRecords for ServerRecords {
         })
     }
 
-    fn to_genai_event_records(&self) -> Result<Vec<EventRecord>, RecordError> {
+    fn to_genai_event_records(&self) -> Result<Vec<GenAIEventRecord>, RecordError> {
         extract_records(self, |record| match record {
             ServerRecord::GenAIEvent(inner) => Some(*inner.record.clone()),
             _ => None,
