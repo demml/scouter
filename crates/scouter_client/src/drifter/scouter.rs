@@ -7,12 +7,12 @@ use pyo3::types::PyList;
 use pyo3::IntoPyObjectExt;
 use scouter_drift::error::DriftError;
 use scouter_drift::spc::SpcDriftMap;
-use scouter_types::llm::{LLMDriftMap, LLMDriftMetric};
+use scouter_types::genai::{LLMDriftMap, LLMDriftMetric};
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::LLMRecord;
 use scouter_types::{
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
-    llm::{LLMDriftConfig, LLMDriftProfile},
+    genai::{LLMDriftConfig, LLMDriftProfile},
     psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile},
     spc::SpcDriftConfig,
     DataType, DriftProfile, DriftType,
@@ -136,7 +136,7 @@ impl Drifter {
                 };
                 let profile =
                     drifter.create_drift_profile(config.llm_config()?, metrics, workflow)?;
-                Ok(DriftProfile::LLM(profile))
+                Ok(DriftProfile::GenAI(profile))
             }
         }
     }
@@ -265,7 +265,7 @@ impl PyDrifter {
             DriftProfile::Spc(profile) => Ok(profile.into_bound_py_any(py)?),
             DriftProfile::Psi(profile) => Ok(profile.into_bound_py_any(py)?),
             DriftProfile::Custom(profile) => Ok(profile.into_bound_py_any(py)?),
-            DriftProfile::LLM(profile) => Ok(profile.into_bound_py_any(py)?),
+            DriftProfile::GenAI(profile) => Ok(profile.into_bound_py_any(py)?),
         }
     }
 
@@ -311,7 +311,7 @@ impl PyDrifter {
             }
             DriftType::LLM => {
                 let profile = drift_profile.extract::<LLMDriftProfile>()?;
-                DriftProfile::LLM(profile)
+                DriftProfile::GenAI(profile)
             }
         };
 

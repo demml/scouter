@@ -69,7 +69,9 @@ pub mod drift_executor {
                 DriftProfile::Custom(profile) => {
                     Drifter::CustomDrifter(CustomDrifter::new(profile.clone()))
                 }
-                DriftProfile::LLM(profile) => Drifter::LLMDrifter(LLMDrifter::new(profile.clone())),
+                DriftProfile::GenAI(profile) => {
+                    Drifter::LLMDrifter(LLMDrifter::new(profile.clone()))
+                }
             }
         }
     }

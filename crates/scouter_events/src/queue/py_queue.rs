@@ -83,7 +83,7 @@ impl QueueNum {
                 .await?;
                 Ok(QueueNum::Custom(queue))
             }
-            DriftProfile::LLM(llm_profile) => {
+            DriftProfile::GenAI(llm_profile) => {
                 let queue = LLMQueue::new(llm_profile, transport_config).await?;
                 Ok(QueueNum::LLM(queue))
             }

@@ -21,7 +21,7 @@ pub enum DriftType {
     Spc,
     Psi,
     Custom,
-    LLM,
+    GenAI,
 }
 
 #[pymethods]
@@ -32,7 +32,7 @@ impl DriftType {
             "spc" => Some(DriftType::Spc),
             "psi" => Some(DriftType::Psi),
             "custom" => Some(DriftType::Custom),
-            "llm" => Some(DriftType::LLM),
+            "genai" => Some(DriftType::GenAI),
             _ => None,
         }
     }
@@ -43,7 +43,7 @@ impl DriftType {
             DriftType::Spc => "Spc",
             DriftType::Psi => "Psi",
             DriftType::Custom => "Custom",
-            DriftType::LLM => "LLM",
+            DriftType::GenAI => "GenAI",
         }
     }
 }
@@ -56,7 +56,7 @@ impl FromStr for DriftType {
             "spc" => Ok(DriftType::Spc),
             "psi" => Ok(DriftType::Psi),
             "custom" => Ok(DriftType::Custom),
-            "llm" => Ok(DriftType::LLM),
+            "genai" => Ok(DriftType::GenAI),
             _ => Err(ProfileError::InvalidDriftTypeError),
         }
     }
@@ -68,7 +68,7 @@ impl Display for DriftType {
             DriftType::Spc => write!(f, "Spc"),
             DriftType::Psi => write!(f, "Psi"),
             DriftType::Custom => write!(f, "Custom"),
-            DriftType::LLM => write!(f, "LLM"),
+            DriftType::GenAI => write!(f, "GenAI"),
         }
     }
 }
@@ -86,7 +86,7 @@ pub enum DriftProfile {
     Spc(SpcDriftProfile),
     Psi(PsiDriftProfile),
     Custom(CustomDriftProfile),
-    LLM(LLMDriftProfile),
+    GenAI(GenAIDriftProfile),
 }
 
 #[pymethods]
@@ -97,7 +97,7 @@ impl DriftProfile {
             DriftProfile::Spc(profile) => Ok(profile.clone().into_bound_py_any(py)?),
             DriftProfile::Psi(profile) => Ok(profile.clone().into_bound_py_any(py)?),
             DriftProfile::Custom(profile) => Ok(profile.clone().into_bound_py_any(py)?),
-            DriftProfile::LLM(profile) => Ok(profile.clone().into_bound_py_any(py)?),
+            DriftProfile::GenAI(profile) => Ok(profile.clone().into_bound_py_any(py)?),
         }
     }
 }
@@ -128,9 +128,9 @@ impl DriftProfile {
                 let profile = serde_json::from_str(&profile)?;
                 Ok(DriftProfile::Custom(profile))
             }
-            DriftType::LLM => {
+            DriftType::GenAI => {
                 let profile = serde_json::from_str(&profile)?;
-                Ok(DriftProfile::LLM(profile))
+                Ok(DriftProfile::GenAI(profile))
             }
         }
     }
@@ -141,7 +141,7 @@ impl DriftProfile {
             DriftProfile::Spc(profile) => profile.get_base_args(),
             DriftProfile::Psi(profile) => profile.get_base_args(),
             DriftProfile::Custom(profile) => profile.get_base_args(),
-            DriftProfile::LLM(profile) => profile.get_base_args(),
+            DriftProfile::GenAI(profile) => profile.get_base_args(),
         }
     }
 
@@ -150,7 +150,7 @@ impl DriftProfile {
             DriftProfile::Spc(profile) => profile.to_value(),
             DriftProfile::Psi(profile) => profile.to_value(),
             DriftProfile::Custom(profile) => profile.to_value(),
-            DriftProfile::LLM(profile) => profile.to_value(),
+            DriftProfile::GenAI(profile) => profile.to_value(),
         }
     }
 
@@ -182,7 +182,7 @@ impl DriftProfile {
             }
             DriftType::LLM => {
                 let profile = serde_json::from_value(body)?;
-                Ok(DriftProfile::LLM(profile))
+                Ok(DriftProfile::GenAI(profile))
             }
         }
     }
@@ -206,7 +206,7 @@ impl DriftProfile {
             }
             DriftType::LLM => {
                 let profile = profile.extract::<LLMDriftProfile>()?;
-                Ok(DriftProfile::LLM(profile))
+                Ok(DriftProfile::GenAI(profile))
             }
         }
     }
@@ -227,7 +227,7 @@ impl DriftProfile {
 
     pub fn get_llm_profile(&self) -> Result<&LLMDriftProfile, ProfileError> {
         match self {
-            DriftProfile::LLM(profile) => Ok(profile),
+            DriftProfile::GenAI(profile) => Ok(profile),
             _ => Err(ProfileError::InvalidDriftTypeError),
         }
     }
@@ -237,7 +237,7 @@ impl DriftProfile {
             DriftProfile::Spc(_) => DriftType::Spc,
             DriftProfile::Psi(_) => DriftType::Psi,
             DriftProfile::Custom(_) => DriftType::Custom,
-            DriftProfile::LLM(_) => DriftType::LLM,
+            DriftProfile::GenAI(_) => DriftType::LLM,
         }
     }
 
@@ -272,7 +272,7 @@ impl DriftProfile {
             DriftProfile::Spc(profile) => Some(profile.config.version.clone()),
             DriftProfile::Psi(profile) => Some(profile.config.version.clone()),
             DriftProfile::Custom(profile) => Some(profile.config.version.clone()),
-            DriftProfile::LLM(profile) => Some(profile.config.version.clone()),
+            DriftProfile::GenAI(profile) => Some(profile.config.version.clone()),
         }
     }
 
@@ -296,7 +296,7 @@ impl DriftProfile {
                     profile.config.space, profile.config.name, profile.config.version
                 )
             }
-            DriftProfile::LLM(profile) => {
+            DriftProfile::GenAI(profile) => {
                 format!(
                     "{}/{}/v{}/llm",
                     profile.config.space, profile.config.name, profile.config.version

@@ -3,7 +3,7 @@ use crate::genai::alert::LLMAlertConfig;
 use crate::genai::alert::LLMDriftMetric;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::ProfileRequest;
-use crate::{scouter_version, LLMMetricRecord};
+use crate::{scouter_version, GenAIMetricRecord};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
     PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
@@ -27,7 +27,7 @@ use tracing::{debug, error, instrument};
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct LLMDriftConfig {
+pub struct GenAIDriftConfig {
     #[pyo3(get, set)]
     pub sample_rate: usize,
 
@@ -41,7 +41,7 @@ pub struct LLMDriftConfig {
     pub version: String,
 
     #[pyo3(get, set)]
-    pub alert_config: LLMAlertConfig,
+    pub alert_config: GenAIAlertConfig,
 
     #[pyo3(get, set)]
     #[serde(default = "default_drift_type")]
