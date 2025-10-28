@@ -995,7 +995,7 @@ mod tests {
                 version: VERSION.to_string(),
                 time_interval: TimeInterval::OneHour,
                 max_data_points: 1000,
-                drift_type: DriftType::LLM,
+                drift_type: DriftType::GenAI,
                 ..Default::default()
             },
             &DatabaseSettings::default().retention_period,

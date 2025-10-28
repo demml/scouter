@@ -7,7 +7,7 @@ use pyo3::types::PyList;
 use pyo3::IntoPyObjectExt;
 use scouter_drift::error::DriftError;
 use scouter_drift::spc::SpcDriftMap;
-use scouter_types::genai::{LLMDriftMap, LLMDriftMetric};
+use scouter_types::genai::{GenAIDriftMap, LLMDriftMetric};
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::LLMRecord;
 use scouter_types::{
@@ -24,7 +24,7 @@ use std::sync::RwLock;
 pub enum DriftMap {
     Spc(SpcDriftMap),
     Psi(PsiDriftMap),
-    LLM(LLMDriftMap),
+    LLM(GenAIDriftMap),
 }
 
 pub enum DriftConfig {
@@ -88,7 +88,7 @@ impl Drifter {
             DriftType::Spc => Ok(Drifter::Spc(SpcDrifter::new())),
             DriftType::Psi => Ok(Drifter::Psi(PsiDrifter::new())),
             DriftType::Custom => Ok(Drifter::Custom(CustomDrifter::new())),
-            DriftType::LLM => Ok(Drifter::LLM(ClientLLMDrifter::new())),
+            DriftType::GenAI => Ok(Drifter::LLM(ClientLLMDrifter::new())),
         }
     }
 
@@ -176,7 +176,7 @@ impl Drifter {
                 };
                 let records = drifter.compute_drift(data, profile.get_llm_profile()?)?;
 
-                Ok(DriftMap::LLM(LLMDriftMap { records }))
+                Ok(DriftMap::LLM(GenAIDriftMap { records }))
             }
         }
     }
@@ -228,7 +228,7 @@ impl PyDrifter {
                     let config = obj.extract::<CustomMetricDriftConfig>()?;
                     DriftConfig::Custom(config)
                 }
-                DriftType::LLM => {
+                DriftType::GenAI => {
                     let config = obj.extract::<GenAIDriftConfig>()?;
                     DriftConfig::LLM(config)
                 }
@@ -309,7 +309,7 @@ impl PyDrifter {
                 let profile = drift_profile.extract::<CustomDriftProfile>()?;
                 DriftProfile::Custom(profile)
             }
-            DriftType::LLM => {
+            DriftType::GenAI => {
                 let profile = drift_profile.extract::<GenAIDriftProfile>()?;
                 DriftProfile::GenAI(profile)
             }
@@ -322,7 +322,7 @@ impl PyDrifter {
         let data_type = match data_type {
             Some(data_type) => data_type,
             None => {
-                if drift_type == DriftType::LLM {
+                if drift_type == DriftType::GenAI {
                     // For LLM, we will handle it separately in the create_llm_drift_profile method
                     &DataType::LLM
                 } else {

@@ -87,7 +87,7 @@ mod tests {
 
     use super::*;
     use potato_head::create_score_prompt;
-    use scouter_types::genai::{LLMAlertConfig, GenAIDriftConfig, LLMDriftMetric, GenAIDriftProfile};
+    use scouter_types::genai::{GenAIAlertConfig, GenAIDriftConfig, LLMDriftMetric, GenAIDriftProfile};
     use scouter_types::AlertThreshold;
 
     async fn get_test_drift_profile() -> GenAIDriftProfile {
@@ -110,7 +110,7 @@ mod tests {
         )
         .unwrap();
 
-        let alert_config = LLMAlertConfig::default();
+        let alert_config = GenAIAlertConfig::default();
         let drift_config =
             GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 

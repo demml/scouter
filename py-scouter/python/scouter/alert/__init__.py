@@ -19,7 +19,7 @@ PsiNormalThreshold = alert.PsiNormalThreshold
 PsiChiSquareThreshold = alert.PsiChiSquareThreshold
 PsiFixedThreshold = alert.PsiFixedThreshold
 LLMMetricAlertCondition = alert.LLMMetricAlertCondition
-LLMAlertConfig = alert.LLMAlertConfig
+GenAIAlertConfig = alert.GenAIAlertConfig
 
 
 __all__ = [
@@ -41,5 +41,5 @@ __all__ = [
     "PsiChiSquareThreshold",
     "PsiFixedThreshold",
     "LLMMetricAlertCondition",
-    "LLMAlertConfig",
+    "GenAIAlertConfig",
 ]

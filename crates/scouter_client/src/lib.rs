@@ -17,7 +17,7 @@ pub use scouter_types::{
     },
     eval::LLMEvalMetric,
     llm::{
-        GenAIDriftConfig, GenAIDriftProfile, LLMAlertConfig, LLMDriftMap, LLMDriftMetric,
+        GenAIAlertConfig, GenAIDriftConfig, GenAIDriftMap, GenAIDriftProfile, LLMDriftMetric,
         LLMMetricAlertCondition, PaginationCursor, PaginationResponse,
     },
     psi::{

@@ -180,7 +180,7 @@ impl DriftProfile {
                 let profile = serde_json::from_value(body)?;
                 Ok(DriftProfile::Custom(profile))
             }
-            DriftType::LLM => {
+            DriftType::GenAI => {
                 let profile = serde_json::from_value(body)?;
                 Ok(DriftProfile::GenAI(profile))
             }
@@ -204,7 +204,7 @@ impl DriftProfile {
                 let profile = profile.extract::<CustomDriftProfile>()?;
                 Ok(DriftProfile::Custom(profile))
             }
-            DriftType::LLM => {
+            DriftType::GenAI => {
                 let profile = profile.extract::<GenAIDriftProfile>()?;
                 Ok(DriftProfile::GenAI(profile))
             }
@@ -237,7 +237,7 @@ impl DriftProfile {
             DriftProfile::Spc(_) => DriftType::Spc,
             DriftProfile::Psi(_) => DriftType::Psi,
             DriftProfile::Custom(_) => DriftType::Custom,
-            DriftProfile::GenAI(_) => DriftType::LLM,
+            DriftProfile::GenAI(_) => DriftType::GenAI,
         }
     }
 

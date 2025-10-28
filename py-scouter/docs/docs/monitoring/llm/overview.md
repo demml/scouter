@@ -96,7 +96,7 @@ The `GenAIDriftConfig` class defines the configuration for drift monitoring.
 | `name`         | `str`            | No       | Model name (default: `"__missing__"`)         |
 | `version`      | `str`            | No       | Model version (default: `"0.1.0"`)            |
 | `sample_rate`  | `int`            | No       | Sample rate for drift detection (default: 5 (1 out of 5))  |
-| `alert_config` | `LLMAlertConfig` | No       | Alert configuration                           |
+| `alert_config` | `GenAIAlertConfig` | No       | Alert configuration                           |
 
 **Example:**
 ```python

@@ -69,7 +69,7 @@ impl LLMPoller {
             space: task.space.clone(),
             name: task.name.clone(),
             version: task.version.clone(),
-            drift_type: DriftType::LLM,
+            drift_type: DriftType::GenAI,
         };
 
         let mut llm_profile = if let Some(profile) =

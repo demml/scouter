@@ -288,7 +288,7 @@ impl PyScouterClient {
             DriftType::Custom => {
                 PyScouterClient::get_custom_binned_drift(py, &self.client.client, drift_request)
             }
-            DriftType::LLM => {
+            DriftType::GenAI => {
                 PyScouterClient::get_llm_metric_binned_drift(py, &self.client.client, drift_request)
             }
         }

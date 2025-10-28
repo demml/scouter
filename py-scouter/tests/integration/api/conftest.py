@@ -12,7 +12,7 @@ from scouter import (  # type: ignore[attr-defined]
     Queue,
     ScouterQueue,
 )
-from scouter.alert import AlertThreshold, LLMAlertConfig, SpcAlertConfig
+from scouter.alert import AlertThreshold, GenAIAlertConfig, SpcAlertConfig
 from scouter.client import ScouterClient
 from scouter.drift import (
     Drifter,
@@ -125,7 +125,7 @@ def create_and_register_llm_drift_profile(
         name=name,
         version="0.1.0",
         sample_rate=1,
-        alert_config=LLMAlertConfig(),
+        alert_config=GenAIAlertConfig(),
     )
 
     metrics = [

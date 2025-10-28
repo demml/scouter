@@ -7,7 +7,7 @@ from ..alert import (
     AlertThreshold,
     CustomMetricAlertCondition,
     CustomMetricAlertConfig,
-    LLMAlertConfig,
+    GenAIAlertConfig,
     PsiAlertConfig,
     SpcAlertConfig,
 )
@@ -600,7 +600,7 @@ class PsiDriftMap:
 
         """
 
-class LLMDriftMap:
+class GenAIDriftMap:
     @property
     def records(self) -> List[LLMMetricRecord]:
         """Return the list of LLM records."""
@@ -964,7 +964,7 @@ class GenAIDriftConfig:
         name: str = "__missing__",
         version: str = "0.1.0",
         sample_rate: int = 5,
-        alert_config: LLMAlertConfig = LLMAlertConfig(),
+        alert_config: GenAIAlertConfig = GenAIAlertConfig(),
     ):
         """Initialize drift config
         Args:
@@ -1009,11 +1009,11 @@ class GenAIDriftConfig:
         """Drift type"""
 
     @property
-    def alert_config(self) -> LLMAlertConfig:
+    def alert_config(self) -> GenAIAlertConfig:
         """get alert_config"""
 
     @alert_config.setter
-    def alert_config(self, alert_config: LLMAlertConfig) -> None:
+    def alert_config(self, alert_config: GenAIAlertConfig) -> None:
         """Set alert_config"""
 
     @staticmethod
@@ -1035,7 +1035,7 @@ class GenAIDriftConfig:
         space: Optional[str] = None,
         name: Optional[str] = None,
         version: Optional[str] = None,
-        alert_config: Optional[LLMAlertConfig] = None,
+        alert_config: Optional[GenAIAlertConfig] = None,
     ) -> None:
         """Inplace operation that updates config args
         Args:
@@ -1176,7 +1176,7 @@ class GenAIDriftProfile:
         name: Optional[str] = None,
         version: Optional[str] = None,
         sample_size: Optional[int] = None,
-        alert_config: Optional[LLMAlertConfig] = None,
+        alert_config: Optional[GenAIAlertConfig] = None,
     ) -> None:
         """Inplace operation that updates config args
 
@@ -1431,7 +1431,7 @@ class Drifter:
         data: Union[LLMRecord, List[LLMRecord]],
         drift_profile: GenAIDriftProfile,
         data_type: Optional[DataType] = None,
-    ) -> LLMDriftMap:
+    ) -> GenAIDriftMap:
         """Create a drift map from data.
 
         Args:
@@ -1443,7 +1443,7 @@ class Drifter:
                 Optional data type. Inferred from data if not provided.
 
         Returns:
-            LLMDriftMap
+            GenAIDriftMap
         """
 
     def compute_drift(  # type: ignore
@@ -1451,7 +1451,7 @@ class Drifter:
         data: Any,
         drift_profile: Union[SpcDriftProfile, PsiDriftProfile, GenAIDriftProfile],
         data_type: Optional[DataType] = None,
-    ) -> Union[SpcDriftMap, PsiDriftMap, LLMDriftMap]:
+    ) -> Union[SpcDriftMap, PsiDriftMap, GenAIDriftMap]:
         """Create a drift map from data.
 
         Args:
@@ -1464,5 +1464,5 @@ class Drifter:
                 Optional data type. Inferred from data if not provided.
 
         Returns:
-            SpcDriftMap, PsiDriftMap or LLMDriftMap
+            SpcDriftMap, PsiDriftMap or GenAIDriftMap
         """

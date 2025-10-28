@@ -17,8 +17,8 @@ use scouter_types::contracts::{DriftRequest, GetProfileRequest, ProfileStatusReq
 use scouter_types::custom::{
     CustomDriftProfile, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig,
 };
-use scouter_types::llm::PaginationRequest;
-use scouter_types::llm::PaginationResponse;
+use scouter_types::genai::PaginationRequest;
+use scouter_types::genai::PaginationResponse;
 use scouter_types::psi::BinnedPsiFeatureMetrics;
 use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
 use scouter_types::spc::SpcDriftFeatures;
@@ -403,7 +403,7 @@ fn test_llm_server_records() {
         version: VERSION.to_string(),
         time_interval: TimeInterval::FiveMinutes,
         max_data_points: 100,
-        drift_type: DriftType::LLM,
+        drift_type: DriftType::GenAI,
         ..Default::default()
     };
 

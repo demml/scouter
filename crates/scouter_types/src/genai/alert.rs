@@ -102,7 +102,7 @@ impl LLMMetricAlertCondition {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct LLMAlertConfig {
+pub struct GenAIAlertConfig {
     pub dispatch_config: AlertDispatchConfig,
 
     #[pyo3(get, set)]
@@ -112,7 +112,7 @@ pub struct LLMAlertConfig {
     pub alert_conditions: Option<HashMap<String, LLMMetricAlertCondition>>,
 }
 
-impl LLMAlertConfig {
+impl GenAIAlertConfig {
     pub fn set_alert_conditions(&mut self, metrics: &[LLMDriftMetric]) {
         self.alert_conditions = Some(
             metrics
@@ -123,10 +123,10 @@ impl LLMAlertConfig {
     }
 }
 
-impl ValidateAlertConfig for LLMAlertConfig {}
+impl ValidateAlertConfig for GenAIAlertConfig {}
 
 #[pymethods]
-impl LLMAlertConfig {
+impl GenAIAlertConfig {
     #[new]
     #[pyo3(signature = (schedule=None, dispatch_config=None))]
     pub fn new(
@@ -179,8 +179,8 @@ impl LLMAlertConfig {
     }
 }
 
-impl Default for LLMAlertConfig {
-    fn default() -> LLMAlertConfig {
+impl Default for GenAIAlertConfig {
+    fn default() -> GenAIAlertConfig {
         Self {
             dispatch_config: AlertDispatchConfig::default(),
             schedule: CommonCrons::EveryDay.cron(),
@@ -271,7 +271,7 @@ mod tests {
             priority: "P5".to_string(),
         });
         let schedule = "0 0 * * * *".to_string();
-        let mut alert_config = LLMAlertConfig {
+        let mut alert_config = GenAIAlertConfig {
             dispatch_config,
             schedule,
             ..Default::default()

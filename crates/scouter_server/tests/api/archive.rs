@@ -12,7 +12,7 @@ use scouter_drift::spc::SpcMonitor;
 use scouter_server::api::archive::archive_old_data;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::custom::CustomMetricAlertConfig;
-use scouter_types::genai::{LLMAlertConfig, GenAIDriftConfig, LLMDriftMetric, GenAIDriftProfile};
+use scouter_types::genai::{GenAIAlertConfig, GenAIDriftConfig, GenAIDriftProfile, LLMDriftMetric};
 use scouter_types::{
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
     psi::{BinnedPsiFeatureMetrics, PsiAlertConfig, PsiDriftConfig},
@@ -358,7 +358,7 @@ fn test_data_archive_llm_drift_record() {
 
     let helper = runtime.block_on(async { TestHelper::new(false, false).await.unwrap() });
 
-    let alert_config = LLMAlertConfig::default();
+    let alert_config = GenAIAlertConfig::default();
     let config = GenAIDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
     let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
@@ -458,7 +458,7 @@ fn test_data_archive_llm_drift_metrics() {
 
     let helper = runtime.block_on(async { TestHelper::new(false, false).await.unwrap() });
 
-    let alert_config = LLMAlertConfig::default();
+    let alert_config = GenAIAlertConfig::default();
     let config = GenAIDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
     let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
@@ -555,7 +555,7 @@ fn test_data_archive_llm_drift_metrics() {
         name: NAME.to_string(),
         version: VERSION.to_string(),
         max_data_points: 100,
-        drift_type: DriftType::LLM,
+        drift_type: DriftType::GenAI,
         begin_custom_datetime: Some(Utc::now() - chrono::Duration::days(30)),
         end_custom_datetime: Some(Utc::now()),
         ..Default::default()

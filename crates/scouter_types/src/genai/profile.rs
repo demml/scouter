@@ -1,5 +1,5 @@
 use crate::error::{ProfileError, TypeError};
-use crate::genai::alert::LLMAlertConfig;
+use crate::genai::alert::GenAIAlertConfig;
 use crate::genai::alert::LLMDriftMetric;
 use crate::util::{json_to_pyobject, pyobject_to_json};
 use crate::ProfileRequest;
@@ -67,13 +67,13 @@ impl DispatchDriftConfig for GenAIDriftConfig {
 #[allow(clippy::too_many_arguments)]
 impl GenAIDriftConfig {
     #[new]
-    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, sample_rate=5, alert_config=LLMAlertConfig::default(), config_path=None))]
+    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, sample_rate=5, alert_config=GenAIAlertConfig::default(), config_path=None))]
     pub fn new(
         space: &str,
         name: &str,
         version: &str,
         sample_rate: usize,
-        alert_config: LLMAlertConfig,
+        alert_config: GenAIAlertConfig,
         config_path: Option<PathBuf>,
     ) -> Result<Self, ProfileError> {
         if let Some(config_path) = config_path {
@@ -87,7 +87,7 @@ impl GenAIDriftConfig {
             name: name.to_string(),
             version: version.to_string(),
             alert_config,
-            drift_type: DriftType::LLM,
+            drift_type: DriftType::GenAI,
         })
     }
 
@@ -117,7 +117,7 @@ impl GenAIDriftConfig {
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
-        alert_config: Option<LLMAlertConfig>,
+        alert_config: Option<GenAIAlertConfig>,
     ) -> Result<(), TypeError> {
         if name.is_some() {
             self.name = name.ok_or(TypeError::MissingNameError)?;
@@ -401,7 +401,7 @@ impl GenAIDriftProfile {
         space: Option<String>,
         name: Option<String>,
         version: Option<String>,
-        alert_config: Option<LLMAlertConfig>,
+        alert_config: Option<GenAIAlertConfig>,
     ) -> Result<(), TypeError> {
         self.config
             .update_config_args(space, name, version, alert_config)
@@ -616,15 +616,15 @@ impl ProfileBaseArgs for GenAIDriftProfile {
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct LLMDriftMap {
+pub struct GenAIDriftMap {
     #[pyo3(get)]
-    pub records: Vec<LLMMetricRecord>,
+    pub records: Vec<GenAIMetricRecord>,
 }
 
 #[pymethods]
-impl LLMDriftMap {
+impl GenAIDriftMap {
     #[new]
-    pub fn new(records: Vec<LLMMetricRecord>) -> Self {
+    pub fn new(records: Vec<GenAIMetricRecord>) -> Self {
         Self { records }
     }
 
@@ -671,7 +671,7 @@ mod tests {
             MISSING,
             "0.1.0",
             25,
-            LLMAlertConfig::default(),
+            GenAIAlertConfig::default(),
             None,
         )
         .unwrap();
@@ -686,7 +686,7 @@ mod tests {
         let test_slack_dispatch_config = SlackDispatchConfig {
             channel: "test-channel".to_string(),
         };
-        let new_alert_config = LLMAlertConfig {
+        let new_alert_config = GenAIAlertConfig {
             schedule: "0 0 * * * *".to_string(),
             dispatch_config: AlertDispatchConfig::Slack(test_slack_dispatch_config.clone()),
             ..Default::default()
@@ -733,7 +733,7 @@ mod tests {
 
         let llm_metrics = vec![metric1, metric2];
 
-        let alert_config = LLMAlertConfig {
+        let alert_config = GenAIAlertConfig {
             schedule: "0 0 * * * *".to_string(),
             dispatch_config: AlertDispatchConfig::OpsGenie(OpsGenieDispatchConfig {
                 team: "test-team".to_string(),
@@ -814,7 +814,7 @@ mod tests {
 
         let llm_metrics = vec![metric1, metric2];
 
-        let alert_config = LLMAlertConfig {
+        let alert_config = GenAIAlertConfig {
             schedule: "0 0 * * * *".to_string(),
             dispatch_config: AlertDispatchConfig::OpsGenie(OpsGenieDispatchConfig {
                 team: "test-team".to_string(),
