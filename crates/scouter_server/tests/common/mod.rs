@@ -18,7 +18,7 @@ use scouter_settings::{DatabaseSettings, ScouterServerConfig};
 use scouter_sql::PostgresClient;
 use scouter_types::JwtToken;
 use scouter_types::{
-    llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile},
+    genai::{GenAIDriftConfig, LLMAlertConfig, LLMDriftMetric, LLMDriftProfile},
     AlertThreshold, CustomMetricServerRecord, LLMMetricRecord, PsiServerRecord,
 };
 use scouter_types::{
@@ -304,7 +304,7 @@ impl TestHelper {
 
     pub async fn create_llm_drift_profile() -> LLMDriftProfile {
         let alert_config = LLMAlertConfig::default();
-        let config = LLMDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
+        let config = GenAIDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
         let _alert_threshold = AlertThreshold::Above;

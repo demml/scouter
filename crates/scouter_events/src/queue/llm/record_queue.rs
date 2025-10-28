@@ -4,7 +4,7 @@ use core::result::Result::Ok;
 use scouter_types::BoxedLLMDriftServerRecord;
 use scouter_types::LLMRecord;
 use scouter_types::QueueExt;
-use scouter_types::{llm::LLMDriftProfile, LLMDriftServerRecord, ServerRecord, ServerRecords};
+use scouter_types::{genai::LLMDriftProfile, LLMDriftServerRecord, ServerRecord, ServerRecords};
 use tracing::instrument;
 pub struct LLMRecordQueue {
     drift_profile: LLMDriftProfile,
@@ -87,7 +87,7 @@ mod tests {
 
     use super::*;
     use potato_head::create_score_prompt;
-    use scouter_types::llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile};
+    use scouter_types::genai::{LLMAlertConfig, GenAIDriftConfig, LLMDriftMetric, LLMDriftProfile};
     use scouter_types::AlertThreshold;
 
     async fn get_test_drift_profile() -> LLMDriftProfile {
@@ -112,7 +112,7 @@ mod tests {
 
         let alert_config = LLMAlertConfig::default();
         let drift_config =
-            LLMDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
+            GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
         LLMDriftProfile::from_metrics(drift_config, vec![metric1, metric2])
             .await

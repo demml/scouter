@@ -32,7 +32,7 @@ CustomMetric = drift.CustomMetric
 CustomDriftProfile = drift.CustomDriftProfile
 CustomMetricDriftConfig = drift.CustomMetricDriftConfig
 LLMDriftMetric = drift.LLMDriftMetric
-LLMDriftConfig = drift.LLMDriftConfig
+GenAIDriftConfig = drift.GenAIDriftConfig
 LLMDriftProfile = drift.LLMDriftProfile
 
 
@@ -82,7 +82,7 @@ __all__ = [
     "CustomDriftProfile",
     "CustomMetricDriftConfig",
     "LLMDriftMetric",
-    "LLMDriftConfig",
+    "GenAIDriftConfig",
     "LLMDriftProfile",
     "FeatureMap",
     "SpcFeatureDriftProfile",

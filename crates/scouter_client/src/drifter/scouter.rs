@@ -12,7 +12,7 @@ use scouter_types::spc::SpcDriftProfile;
 use scouter_types::LLMRecord;
 use scouter_types::{
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
-    genai::{LLMDriftConfig, LLMDriftProfile},
+    genai::{GenAIDriftConfig, LLMDriftProfile},
     psi::{PsiDriftConfig, PsiDriftMap, PsiDriftProfile},
     spc::SpcDriftConfig,
     DataType, DriftProfile, DriftType,
@@ -30,7 +30,7 @@ pub enum DriftMap {
 pub enum DriftConfig {
     Spc(Arc<RwLock<SpcDriftConfig>>),
     Psi(Arc<RwLock<PsiDriftConfig>>),
-    LLM(LLMDriftConfig),
+    LLM(GenAIDriftConfig),
     Custom(CustomMetricDriftConfig),
 }
 
@@ -56,7 +56,7 @@ impl DriftConfig {
         }
     }
 
-    pub fn llm_config(&self) -> Result<LLMDriftConfig, DriftError> {
+    pub fn llm_config(&self) -> Result<GenAIDriftConfig, DriftError> {
         match self {
             DriftConfig::LLM(cfg) => Ok(cfg.clone()),
             _ => Err(DriftError::InvalidConfigError),
@@ -229,7 +229,7 @@ impl PyDrifter {
                     DriftConfig::Custom(config)
                 }
                 DriftType::LLM => {
-                    let config = obj.extract::<LLMDriftConfig>()?;
+                    let config = obj.extract::<GenAIDriftConfig>()?;
                     DriftConfig::LLM(config)
                 }
             };
@@ -275,7 +275,7 @@ impl PyDrifter {
     pub fn create_llm_drift_profile<'py>(
         &mut self,
         py: Python<'py>,
-        config: LLMDriftConfig,
+        config: GenAIDriftConfig,
         metrics: Vec<LLMDriftMetric>,
         workflow: Option<Bound<'py, PyAny>>,
     ) -> Result<Bound<'py, PyAny>, DriftError> {
@@ -355,7 +355,7 @@ impl PyDrifter {
     pub fn create_llm_drift_profile_with_runtime<'py>(
         &mut self,
         py: Python<'py>,
-        config: LLMDriftConfig,
+        config: GenAIDriftConfig,
         metrics: Vec<LLMDriftMetric>,
         workflow: Option<Bound<'py, PyAny>>,
         runtime: Arc<tokio::runtime::Runtime>,

@@ -4,7 +4,7 @@ from tempfile import TemporaryDirectory
 import pytest
 from pydantic import BaseModel
 from scouter.alert import AlertThreshold
-from scouter.drift import Drifter, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile
+from scouter.drift import Drifter, GenAIDriftConfig, LLMDriftMetric, LLMDriftProfile
 from scouter.llm import Agent, Prompt, Score, Task, Workflow
 from scouter.mock import LLMTestServer
 from scouter.queue import LLMRecord
@@ -38,7 +38,7 @@ def test_llm_drift_profile_from_metrics():
         )
 
         _profile = LLMDriftProfile(
-            config=LLMDriftConfig(),
+            config=GenAIDriftConfig(),
             metrics=[metric1, metric2],
         )
 
@@ -86,7 +86,7 @@ def test_llm_drift_profile_from_workflow():
         )
 
         profile = LLMDriftProfile(
-            config=LLMDriftConfig(),
+            config=GenAIDriftConfig(),
             workflow=workflow,
             metrics=[metric],
         )
@@ -128,16 +128,18 @@ def test_llm_drift_profile_from_metrics_fail():
         )
 
         # Drift profile with no required parameters should raise an error
-        with pytest.raises(RuntimeError, match="LLM Metric requires at least one bound parameter"):
+        with pytest.raises(
+            RuntimeError, match="LLM Metric requires at least one bound parameter"
+        ):
             _profile = LLMDriftProfile(
-                config=LLMDriftConfig(),
+                config=GenAIDriftConfig(),
                 metrics=[metric1],
             )
 
         # Drift profile with metric without prompt should raise an error
         with pytest.raises(RuntimeError, match="Missing prompt in LLM Metric"):
             _profile = LLMDriftProfile(
-                config=LLMDriftConfig(),
+                config=GenAIDriftConfig(),
                 metrics=[metric2],
             )
 
@@ -184,9 +186,11 @@ def test_llm_drift_profile_from_workflow_fail():
             alert_threshold=AlertThreshold.Below,
         )
 
-        with pytest.raises(RuntimeError, match="LLM Metric requires at least one bound parameter"):
+        with pytest.raises(
+            RuntimeError, match="LLM Metric requires at least one bound parameter"
+        ):
             _profile = LLMDriftProfile(
-                config=LLMDriftConfig(),
+                config=GenAIDriftConfig(),
                 workflow=workflow,
                 metrics=[metric],
             )
@@ -259,7 +263,7 @@ def test_llm_drifter():
         )
 
         profile = LLMDriftProfile(
-            config=LLMDriftConfig(),
+            config=GenAIDriftConfig(),
             metrics=[
                 LLMDriftMetric(
                     name="relevance",

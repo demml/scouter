@@ -12,7 +12,7 @@ use scouter_drift::spc::SpcMonitor;
 use scouter_server::api::archive::archive_old_data;
 use scouter_types::contracts::DriftRequest;
 use scouter_types::custom::CustomMetricAlertConfig;
-use scouter_types::llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile};
+use scouter_types::genai::{LLMAlertConfig, GenAIDriftConfig, LLMDriftMetric, LLMDriftProfile};
 use scouter_types::{
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
     psi::{BinnedPsiFeatureMetrics, PsiAlertConfig, PsiDriftConfig},
@@ -359,7 +359,7 @@ fn test_data_archive_llm_drift_record() {
     let helper = runtime.block_on(async { TestHelper::new(false, false).await.unwrap() });
 
     let alert_config = LLMAlertConfig::default();
-    let config = LLMDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
+    let config = GenAIDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
     let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
     let _alert_threshold = AlertThreshold::Above;
@@ -459,7 +459,7 @@ fn test_data_archive_llm_drift_metrics() {
     let helper = runtime.block_on(async { TestHelper::new(false, false).await.unwrap() });
 
     let alert_config = LLMAlertConfig::default();
-    let config = LLMDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
+    let config = GenAIDriftConfig::new(SPACE, NAME, VERSION, 25, alert_config, None).unwrap();
     let prompt = create_score_prompt(Some(vec!["input".to_string()]));
 
     let _alert_threshold = AlertThreshold::Above;

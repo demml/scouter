@@ -2,7 +2,7 @@ from pathlib import Path
 
 from scouter.alert import AlertThreshold
 from scouter.client import ScouterClient
-from scouter.drift import LLMDriftConfig, LLMDriftMetric, LLMDriftProfile
+from scouter.drift import GenAIDriftConfig, LLMDriftMetric, LLMDriftProfile
 from scouter.llm import Prompt, Score
 
 
@@ -100,7 +100,7 @@ reformulation = LLMDriftMetric(
 )
 
 profile = LLMDriftProfile(
-    config=LLMDriftConfig(
+    config=GenAIDriftConfig(
         space="scouter",
         name="llm_metrics",
         version="0.0.1",

@@ -49,10 +49,10 @@ pub struct GenAIDriftConfig {
 }
 
 fn default_drift_type() -> DriftType {
-    DriftType::LLM
+    DriftType::GenAI
 }
 
-impl DispatchDriftConfig for LLMDriftConfig {
+impl DispatchDriftConfig for GenAIDriftConfig {
     fn get_drift_args(&self) -> DriftArgs {
         DriftArgs {
             name: self.name.clone(),
@@ -65,7 +65,7 @@ impl DispatchDriftConfig for LLMDriftConfig {
 
 #[pymethods]
 #[allow(clippy::too_many_arguments)]
-impl LLMDriftConfig {
+impl GenAIDriftConfig {
     #[new]
     #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, sample_rate=5, alert_config=LLMAlertConfig::default(), config_path=None))]
     pub fn new(
@@ -77,7 +77,7 @@ impl LLMDriftConfig {
         config_path: Option<PathBuf>,
     ) -> Result<Self, ProfileError> {
         if let Some(config_path) = config_path {
-            let config = LLMDriftConfig::load_from_json_file(config_path)?;
+            let config = GenAIDriftConfig::load_from_json_file(config_path)?;
             return Ok(config);
         }
 
@@ -92,7 +92,7 @@ impl LLMDriftConfig {
     }
 
     #[staticmethod]
-    pub fn load_from_json_file(path: PathBuf) -> Result<LLMDriftConfig, ProfileError> {
+    pub fn load_from_json_file(path: PathBuf) -> Result<GenAIDriftConfig, ProfileError> {
         // deserialize the string to a struct
 
         let file = std::fs::read_to_string(&path)?;
@@ -275,9 +275,9 @@ fn validate_workflow(workflow: &Workflow, metrics: &[LLMDriftMetric]) -> Result<
 
 #[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-pub struct LLMDriftProfile {
+pub struct GenAIDriftProfile {
     #[pyo3(get)]
-    pub config: LLMDriftConfig,
+    pub config: GenAIDriftConfig,
 
     #[pyo3(get)]
     pub metrics: Vec<LLMDriftMetric>,
@@ -291,7 +291,7 @@ pub struct LLMDriftProfile {
     pub metric_names: Vec<String>,
 }
 #[pymethods]
-impl LLMDriftProfile {
+impl GenAIDriftProfile {
     #[new]
     #[pyo3(signature = (config, metrics, workflow=None))]
     /// Create a new LLMDriftProfile
@@ -304,7 +304,7 @@ impl LLMDriftProfile {
     ///     - The metric names must correspond to the final task names in the workflow
     /// In addition, baseline metrics and threshold will be extracted from the LLMDriftMetric.
     /// # Arguments
-    /// * `config` - LLMDriftConfig - The configuration for the LLM drift profile
+    /// * `config` - GenAIDriftConfig - The configuration for the LLM drift profile
     /// * `metrics` - Option<Bound<'_, PyList>> - Optional list of metrics that will be used to evaluate the LLM
     /// * `workflow` - Option<Bound<'_, PyAny>> - Optional workflow to use for the LLM drift profile
     ///
@@ -315,7 +315,7 @@ impl LLMDriftProfile {
     /// * `ProfileError::MissingWorkflowError` - If the workflow is
     #[instrument(skip_all)]
     pub fn new(
-        config: LLMDriftConfig,
+        config: GenAIDriftConfig,
         metrics: Vec<LLMDriftMetric>,
         workflow: Option<Bound<'_, PyAny>>,
     ) -> Result<Self, ProfileError> {
@@ -433,13 +433,13 @@ impl LLMDriftProfile {
     /// Creates an LLMDriftProfile from a configuration and a list of metrics.
     ///
     /// # Arguments
-    /// * `config` - LLMDriftConfig - The configuration for the LLM
+    /// * `config` - GenAIDriftConfig - The configuration for the LLM
     /// * `metrics` - Vec<LLMDriftMetric> - The metrics that will be used to evaluate the LLM
     /// * `scouter_version` - Option<String> - The version of scouter that the profile is created with.
     /// # Returns
     /// * `Result<Self, ProfileError>` - The LLMDriftProfile
     pub async fn from_metrics(
-        mut config: LLMDriftConfig,
+        mut config: GenAIDriftConfig,
         metrics: Vec<LLMDriftMetric>,
     ) -> Result<Self, ProfileError> {
         // Build a workflow from metrics
@@ -494,7 +494,7 @@ impl LLMDriftProfile {
     ///    - The metric names must correspond to the final task names in the workflow.
     ///
     /// # Arguments
-    /// * `config` - LLMDriftConfig - The configuration for the LLM
+    /// * `config` - GenAIDriftConfig - The configuration for the LLM
     /// * `workflow` - Workflow - The workflow that will be used to evaluate the L
     /// * `metrics` - Vec<LLMDriftMetric> - The metrics that will be used to evaluate the LLM
     /// * `scouter_version` - Option<String> - The version of scouter that the profile is created with.
@@ -502,7 +502,7 @@ impl LLMDriftProfile {
     /// # Returns
     /// * `Result<Self, ProfileError>` - The LLMDriftProfile
     pub fn from_workflow(
-        mut config: LLMDriftConfig,
+        mut config: GenAIDriftConfig,
         workflow: Workflow,
         metrics: Vec<LLMDriftMetric>,
     ) -> Result<Self, ProfileError> {
@@ -571,7 +571,7 @@ impl LLMDriftProfile {
     /// Same as py new method, but allows for passing a runtime for async operations.
     /// This is used in Opsml, so that the Opsml global runtime can be used.
     pub fn new_with_runtime(
-        config: LLMDriftConfig,
+        config: GenAIDriftConfig,
         metrics: Vec<LLMDriftMetric>,
         workflow: Option<Bound<'_, PyAny>>,
         runtime: Arc<tokio::runtime::Runtime>,
@@ -666,7 +666,7 @@ mod tests {
 
     #[test]
     fn test_llm_drift_config() {
-        let mut drift_config = LLMDriftConfig::new(
+        let mut drift_config = GenAIDriftConfig::new(
             MISSING,
             MISSING,
             "0.1.0",
@@ -743,7 +743,7 @@ mod tests {
         };
 
         let drift_config =
-            LLMDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
+            GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
         let profile = runtime
             .block_on(async { LLMDriftProfile::from_metrics(drift_config, llm_metrics).await })
@@ -824,7 +824,7 @@ mod tests {
         };
 
         let drift_config =
-            LLMDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
+            GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
         let profile = LLMDriftProfile::from_workflow(drift_config, workflow, llm_metrics).unwrap();
 

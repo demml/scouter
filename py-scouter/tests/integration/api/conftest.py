@@ -16,7 +16,7 @@ from scouter.alert import AlertThreshold, LLMAlertConfig, SpcAlertConfig
 from scouter.client import ScouterClient
 from scouter.drift import (
     Drifter,
-    LLMDriftConfig,
+    GenAIDriftConfig,
     LLMDriftMetric,
     LLMDriftProfile,
     SpcDriftConfig,
@@ -120,7 +120,7 @@ def create_and_register_llm_drift_profile(
     name: str,
 ) -> LLMDriftProfile:
     # create drift config (usually associated with a model name, space name, version)
-    config = LLMDriftConfig(
+    config = GenAIDriftConfig(
         space="scouter",
         name=name,
         version="0.1.0",

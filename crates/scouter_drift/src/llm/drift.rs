@@ -4,7 +4,7 @@ use scouter_dispatch::AlertDispatcher;
 use scouter_sql::sql::traits::LLMDriftSqlLogic;
 use scouter_sql::PostgresClient;
 use scouter_types::contracts::ServiceInfo;
-use scouter_types::{custom::ComparisonMetricAlert, llm::LLMDriftProfile, AlertThreshold};
+use scouter_types::{custom::ComparisonMetricAlert, genai::LLMDriftProfile, AlertThreshold};
 use sqlx::{Pool, Postgres};
 use std::collections::{BTreeMap, HashMap};
 use tracing::error;
@@ -244,7 +244,7 @@ impl LLMDrifter {
 mod tests {
     use super::*;
     use potato_head::{create_score_prompt, LLMTestServer};
-    use scouter_types::llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile};
+    use scouter_types::genai::{LLMAlertConfig, GenAIDriftConfig, LLMDriftMetric, LLMDriftProfile};
 
     async fn get_test_drifter() -> LLMDrifter {
         let prompt = create_score_prompt(Some(vec!["input".to_string()]));
@@ -268,7 +268,7 @@ mod tests {
 
         let alert_config = LLMAlertConfig::default();
         let drift_config =
-            LLMDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
+            GenAIDriftConfig::new("scouter", "ML", "0.1.0", 25, alert_config, None).unwrap();
 
         let profile = LLMDriftProfile::from_metrics(drift_config, vec![metric1, metric2])
             .await

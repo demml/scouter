@@ -16,7 +16,7 @@ CustomMetricDriftConfig = drift.CustomMetricDriftConfig
 CustomMetric = drift.CustomMetric
 CustomDriftProfile = drift.CustomDriftProfile
 LLMDriftMetric = drift.LLMDriftMetric
-LLMDriftConfig = drift.LLMDriftConfig
+GenAIDriftConfig = drift.GenAIDriftConfig
 LLMDriftProfile = drift.LLMDriftProfile
 Drifter = drift.Drifter
 
@@ -34,7 +34,7 @@ __all__ = [
     "CustomMetric",
     "CustomDriftProfile",
     "LLMDriftMetric",
-    "LLMDriftConfig",
+    "GenAIDriftConfig",
     "LLMDriftProfile",
     "Drifter",
 ]

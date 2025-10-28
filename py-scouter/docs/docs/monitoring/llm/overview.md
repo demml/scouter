@@ -6,7 +6,7 @@ LLM Drift Profiles in Scouter provide a robust and flexible way to monitor the p
 
 An **LLM Drift Profile** encapsulates:
 
-- The configuration for drift monitoring (LLMDriftConfig)
+- The configuration for drift monitoring (GenAIDriftConfig)
 - The metrics to evaluate (LLMDriftMetric)
 - Optionally, a custom workflow (Workflow) for advanced scenarios
 
@@ -86,7 +86,7 @@ When defining prompts for LLM metrics, ensure they include the following:
 
 ### 2. Create an LLM Drift Config
 
-The `LLMDriftConfig` class defines the configuration for drift monitoring.
+The `GenAIDriftConfig` class defines the configuration for drift monitoring.
 
 **Arguments:**
 
@@ -100,9 +100,9 @@ The `LLMDriftConfig` class defines the configuration for drift monitoring.
 
 **Example:**
 ```python
-from scouter.llm import LLMDriftConfig
+from scouter.llm import GenAIDriftConfig
 
-config = LLMDriftConfig(
+config = GenAIDriftConfig(
     space="my_space",
     name="my_model",
     version="1.0.0",
@@ -123,7 +123,7 @@ For advanced scenarios, you can provide a custom `Workflow` to evaluate complex 
 **Example:**
 ```python
 from scouter.llm import Workflow, Task, Score, Agent, Prompt
-from scouter.drift import LLMDriftConfig, LLMDriftMetric
+from scouter.drift import GenAIDriftConfig, LLMDriftMetric
 
 # Relevance prompt
 relevance_prompt = Prompt(
@@ -192,7 +192,7 @@ metric = LLMDriftMetric( # (3)
 )
 
 profile = LLMDriftProfile(
-    config=LLMDriftConfig(),
+    config=GenAIDriftConfig(),
     workflow=workflow,
     metrics=[metric],
 )
@@ -211,7 +211,7 @@ Use the `LLMDriftProfile` class to create a drift profile by combining your conf
 
 | Argument    | Type                | Required | Description                                         |
 |-------------|---------------------|----------|-----------------------------------------------------|
-| `config`    | `LLMDriftConfig`    | Yes      | Drift configuration                                 |
+| `config`    | `GenAIDriftConfig`    | Yes      | Drift configuration                                 |
 | `metrics`   | `List[LLMDriftMetric]`   | Yes      | List of metrics to monitor                          |
 | `workflow`  | `Workflow`, optional| No       | Custom workflow for advanced evaluation (optional)  |
 

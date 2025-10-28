@@ -1,7 +1,7 @@
 use pyo3::prelude::*;
 use scouter_drift::{error::DriftError, LLMEvaluator};
 use scouter_state::app_state;
-use scouter_types::llm::{LLMDriftConfig, LLMDriftMetric, LLMDriftProfile};
+use scouter_types::genai::{GenAIDriftConfig, LLMDriftMetric, LLMDriftProfile};
 use scouter_types::{LLMMetricRecord, LLMRecord};
 use std::sync::Arc;
 
@@ -24,7 +24,7 @@ impl ClientLLMDrifter {
 
     pub fn create_drift_profile(
         &mut self,
-        config: LLMDriftConfig,
+        config: GenAIDriftConfig,
         metrics: Vec<LLMDriftMetric>,
         workflow: Option<Bound<'_, PyAny>>,
     ) -> Result<LLMDriftProfile, DriftError> {

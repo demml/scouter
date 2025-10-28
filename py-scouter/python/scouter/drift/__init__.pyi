@@ -957,7 +957,7 @@ class LLMMetricRecord:
     def __str__(self) -> str:
         """Return the string representation of the record"""
 
-class LLMDriftConfig:
+class GenAIDriftConfig:
     def __init__(
         self,
         space: str = "__missing__",
@@ -1017,7 +1017,7 @@ class LLMDriftConfig:
         """Set alert_config"""
 
     @staticmethod
-    def load_from_json_file(path: Path) -> "LLMDriftConfig":
+    def load_from_json_file(path: Path) -> "GenAIDriftConfig":
         """Load config from json file
         Args:
             path:
@@ -1052,7 +1052,7 @@ class LLMDriftConfig:
 class LLMDriftProfile:
     def __init__(
         self,
-        config: LLMDriftConfig,
+        config: GenAIDriftConfig,
         metrics: list[LLMDriftMetric],
         workflow: Optional[Workflow] = None,
     ):
@@ -1070,7 +1070,7 @@ class LLMDriftProfile:
         Baseline metrics and thresholds will be extracted from the LLMDriftMetric objects.
 
         Args:
-            config (LLMDriftConfig):
+            config (GenAIDriftConfig):
                 The configuration for the LLM drift profile containing space, name,
                 version, and alert settings.
             metrics (list[LLMDriftMetric]):
@@ -1091,7 +1091,7 @@ class LLMDriftProfile:
         Examples:
             Basic usage with metrics only:
 
-            >>> config = LLMDriftConfig("my_space", "my_model", "1.0")
+            >>> config = GenAIDriftConfig("my_space", "my_model", "1.0")
             >>> metrics = [
             ...     LLMDriftMetric("accuracy", 0.95, AlertThreshold.Above, 0.1, prompt),
             ...     LLMDriftMetric("relevance", 0.85, AlertThreshold.Below, 0.2, prompt2)
@@ -1111,7 +1111,7 @@ class LLMDriftProfile:
         """
 
     @property
-    def config(self) -> LLMDriftConfig:
+    def config(self) -> GenAIDriftConfig:
         """Return the drift config"""
 
     @property
@@ -1297,7 +1297,9 @@ class Drifter:
     def create_drift_profile(  # type: ignore
         self,
         data: Any,
-        config: Optional[Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]] = None,
+        config: Optional[
+            Union[SpcDriftConfig, PsiDriftConfig, CustomMetricDriftConfig]
+        ] = None,
         data_type: Optional[DataType] = None,
     ) -> Union[SpcDriftProfile, PsiDriftProfile, CustomDriftProfile]:
         """Create a drift profile from data.
@@ -1321,7 +1323,7 @@ class Drifter:
 
     def create_llm_drift_profile(
         self,
-        config: LLMDriftConfig,
+        config: GenAIDriftConfig,
         metrics: List[LLMDriftMetric],
         workflow: Optional[Workflow] = None,
     ) -> LLMDriftProfile:
@@ -1339,7 +1341,7 @@ class Drifter:
         Baseline metrics and thresholds will be extracted from the LLMDriftMetric objects.
 
         Args:
-            config (LLMDriftConfig):
+            config (GenAIDriftConfig):
                 The configuration for the LLM drift profile containing space, name,
                 version, and alert settings.
             metrics (list[LLMDriftMetric]):
@@ -1360,7 +1362,7 @@ class Drifter:
         Examples:
             Basic usage with metrics only:
 
-            >>> config = LLMDriftConfig("my_space", "my_model", "1.0")
+            >>> config = GenAIDriftConfig("my_space", "my_model", "1.0")
             >>> metrics = [
             ...     LLMDriftMetric("accuracy", 0.95, AlertThreshold.Above, 0.1, prompt),
             ...     LLMDriftMetric("relevance", 0.85, AlertThreshold.Below, 0.2, prompt2)
