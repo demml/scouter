@@ -1,5 +1,6 @@
 use crate::error::EvaluationError;
 use crate::util::{cluster, parse_embedder, post_process, reduce_dimensions};
+use chrono::Utc;
 use ndarray::Array2;
 use potato_head::{create_uuid7, Embedder, PyHelperFuncs, Score};
 use pyo3::prelude::*;
@@ -11,7 +12,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
-use chrono::Utc;
 
 pub fn array_to_dict<'py>(
     py: Python<'py>,
@@ -389,37 +389,34 @@ impl LLMEvalTaskResult {
     }
 }
 
+#[pyclass]
+#[derive(Clone, Debug)]
+pub struct LLMEvalRecord {
+    pub id: String,
+    pub context: Value,
+}
 
 #[pymethods]
-impl EvaluationRecord {
+impl LLMEvalRecord {
     #[new]
     #[pyo3(signature = (
-        name, 
-        inputs,
-        request_id = None,
-        id = None,
-        ground_truth = None,
-        metadata = None,
-   
+        context,
+        id=None
     ))]
 
     /// Creates a new LLMRecord instance.
     /// The context is either a python dictionary or a pydantic basemodel.
     pub fn new(
         py: Python<'_>,
-        name: String,
-        inputs: Bound<'_, PyAny>,
-        request_id: Option<String>,
+        context: Bound<'_, PyAny>,
         id: Option<String>,
-        ground_truth: Option<Bound<'_, PyAny>>,
-        metadata: Option<Bound<'_, PyDict>>,
     ) -> Result<Self, EvaluationError> {
-        // check if inputs is a PyDict or PyObject(Pydantic model)
-        let inputs_val = if inputs.is_instance_of::<PyDict>() {
-            pyobject_to_json(&inputs)?
-        } else if is_pydantic_model(py, &inputs)? {
+        // check if context is a PyDict or PyObject(Pydantic model)
+        let context_val = if context.is_instance_of::<PyDict>() {
+            pyobject_to_json(&context)?
+        } else if is_pydantic_model(py, &context)? {
             // Dump pydantic model to dictionary
-            let model = inputs.call_method0("model_dump")?;
+            let model = context.call_method0("model_dump")?;
 
             // Serialize the dictionary to JSON
             pyobject_to_json(&model)?
@@ -428,43 +425,16 @@ impl EvaluationRecord {
         };
 
         let id = id.unwrap_or_else(create_uuid7);
-        let request_id = request_id.unwrap_or_else(create_uuid7);
 
-        let ground_truth_val = match ground_truth {
-            Some(gt) => {
-                Some(pyobject_to_json(&gt)?)
-            }
-            None => None,
-        };
-
-        let metadata = match metadata {
-            Some(md) => {
-                let mut map = BTreeMap::new();
-                for (key, value) in md.iter() {
-                    let key_str: String = key.extract()?;
-                    let value_str: String = value.extract()?;
-                    map.insert(key_str, value_str);
-                }
-                map
-            }
-            None => BTreeMap::new(),
-        };
-
-       
-        Ok(EvaluationRecord {
-            name,
-            inputs: inputs_val,
-            request_id,
+        Ok(LLMEvalRecord {
             id,
-            ground_truth: ground_truth_val,
-            metadata,
-            timestamp: Utc::now(),
+            context: context_val,
         })
     }
 
     #[getter]
-    pub fn inputs<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, EvaluationError> {
-        Ok(json_to_pyobject_value(py, &self.inputs)?
+    pub fn context<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, EvaluationError> {
+        Ok(json_to_pyobject_value(py, &self.context)?
             .into_bound_py_any(py)?
             .clone())
     }

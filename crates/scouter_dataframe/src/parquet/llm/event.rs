@@ -79,22 +79,20 @@ impl LLMEventDataFrame {
             Field::new("space", DataType::Utf8, false),
             Field::new("name", DataType::Utf8, false),
             Field::new("version", DataType::Utf8, false),
-            Field::new("trace_id", DataType::Utf8, false),
-            Field::new("parent_span_name", DataType::Utf8, true),
-            Field::new("span_id", DataType::Utf8, false),
-            Field::new("span_name", DataType::Utf8, false),
             Field::new("inputs", DataType::Utf8, false),
             Field::new("outputs", DataType::Utf8, false),
             Field::new("ground_truth", DataType::Utf8, true),
             Field::new("metadata", DataType::Utf8, false),
             Field::new("entity_type", DataType::Utf8, false),
-            Field::new("duration_ms", DataType::Int32, true),
+            Field::new("root_id", DataType::Utf8, false),
+            Field::new("event_id", DataType::Utf8, false),
+            Field::new("event_name", DataType::Utf8, false),
+            Field::new("parent_event_name", DataType::Utf8, true),
             Field::new(
                 "updated_at",
                 DataType::Timestamp(TimeUnit::Nanosecond, None),
                 true,
             ),
-            Field::new("status", DataType::Utf8, false),
             Field::new(
                 "processing_started_at",
                 DataType::Timestamp(TimeUnit::Nanosecond, None),
@@ -106,6 +104,8 @@ impl LLMEventDataFrame {
                 true,
             ),
             Field::new("processing_duration", DataType::Int32, true),
+            Field::new("status", DataType::Utf8, false),
+            Field::new("duration_ms", DataType::Int32, true),
         ]));
 
         let object_store = ObjectStore::new(storage_settings)?;
@@ -155,18 +155,18 @@ impl LLMEventDataFrame {
         let entity_type_array =
             StringArray::from_iter_values(records.iter().map(|r| r.entity_type.as_str()));
 
-        let trace_id_array =
-            StringArray::from_iter_values(records.iter().map(|r| r.trace_id.as_str()));
+        let root_id_array =
+            StringArray::from_iter_values(records.iter().map(|r| r.root_id.as_str()));
 
-        let span_id_array =
-            StringArray::from_iter_values(records.iter().map(|r| r.span_id.as_str()));
-        let span_name_array =
-            StringArray::from_iter_values(records.iter().map(|r| r.span_name.as_str()));
+        let event_id_array =
+            StringArray::from_iter_values(records.iter().map(|r| r.event_id.as_str()));
+        let event_name_array =
+            StringArray::from_iter_values(records.iter().map(|r| r.event_name.as_str()));
 
-        let parent_span_name_array = StringArray::from_iter(
+        let parent_event_name_array = StringArray::from_iter(
             records
                 .iter()
-                .map(|r| r.parent_span_name.as_ref().map(|s| s.as_str())),
+                .map(|r| r.parent_event_name.as_ref().map(|s| s.as_str())),
         );
         let updated_at_array = TimestampNanosecondArray::from_iter(
             records
@@ -209,10 +209,10 @@ impl LLMEventDataFrame {
                 Arc::new(ground_truth_array),
                 Arc::new(metadata),
                 Arc::new(entity_type_array),
-                Arc::new(trace_id_array),
-                Arc::new(span_id_array),
-                Arc::new(span_name_array),
-                Arc::new(parent_span_name_array),
+                Arc::new(root_id_array),
+                Arc::new(event_id_array),
+                Arc::new(event_name_array),
+                Arc::new(parent_event_name_array),
                 Arc::new(updated_at_array),
                 Arc::new(processing_started_at_array),
                 Arc::new(processing_ended_at_array),

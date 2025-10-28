@@ -132,7 +132,7 @@ pub async fn workflow_from_eval_metrics(
 /// * `data`: A list of data samples to evaluate.
 /// * `metrics`: A list of evaluation metrics to use.
 #[pyo3(signature = (records, metrics, config=None))]
-pub fn evaluate_llm(
+pub fn evaluate(
     records: Vec<LLMEvalRecord>,
     metrics: Vec<LLMEvalMetric>,
     config: Option<EvaluationConfig>,
@@ -148,9 +148,9 @@ pub fn evaluate_llm(
 
     // Only run post-processing if needed
     // Post processing includes calculating embedding means, similarities, clustering, and histograms
-    if config.needs_post_processing() {
-        results.finalize(&config)?;
-    }
+    //if config.needs_post_processing() {
+    //results.finalize(&config)?;
+    //}
 
     Ok(results)
 }
