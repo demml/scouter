@@ -12,6 +12,13 @@ use serde::Serialize;
 use std::collections::BTreeMap;
 use tracing::error;
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ListProfilesRequest {
+    pub space: String,
+    pub name: String,
+    pub version: String,
+}
+
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct GetProfileRequest {
@@ -128,6 +135,12 @@ pub struct ProfileRequest {
     pub drift_type: DriftType,
     pub profile: String,
     pub version_request: VersionRequest,
+
+    #[serde(default)]
+    pub active: bool,
+
+    #[serde(default)]
+    pub deactivate_others: bool,
 }
 
 #[pyclass]

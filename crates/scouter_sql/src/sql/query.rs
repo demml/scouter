@@ -78,6 +78,7 @@ const UPDATE_DRIFT_PROFILE: &str = include_str!("scripts/profile/update_drift_pr
 const DEACTIVATE_DRIFT_PROFILES: &str =
     include_str!("scripts/profile/deactivate_drift_profiles.sql");
 const GET_PROFILE_VERSIONS: &str = include_str!("scripts/profile/get_profile_versions.sql");
+const LIST_DRIFT_PROFILES: &str = include_str!("scripts/profile/list_drift_profiles.sql");
 
 // alert
 const INSERT_DRIFT_ALERT: &str = include_str!("scripts/alert/insert_drift_alert.sql");
@@ -168,6 +169,7 @@ pub enum Queries {
 
     // profile
     GetProfileVersions,
+    ListDriftProfiles,
 }
 
 impl Queries {
@@ -209,6 +211,7 @@ impl Queries {
             Queries::UpdateCustomEntities => SqlQuery::new(UPDATE_CUSTOM_ENTITIES),
             Queries::UpdateSpcEntities => SqlQuery::new(UPDATE_SPC_ENTITIES),
             Queries::GetProfileVersions => SqlQuery::new(GET_PROFILE_VERSIONS),
+            Queries::ListDriftProfiles => SqlQuery::new(LIST_DRIFT_PROFILES),
 
             Queries::InsertUser => SqlQuery::new(INSERT_USER),
             Queries::GetUser => SqlQuery::new(GET_USER),

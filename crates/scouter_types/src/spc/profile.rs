@@ -384,6 +384,7 @@ impl SpcDriftProfile {
                 pre_tag: None,
                 build_tag: None,
             },
+            active: false,
         })
     }
 }

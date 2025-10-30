@@ -3,7 +3,7 @@ use scouter_types::contracts::{
     ScouterResponse, ScouterServerError,
 };
 
-use scouter_types::DriftProfile;
+use scouter_types::{DriftProfile, ListProfilesRequest};
 
 use axum::{
     extract::{Query, State},
@@ -193,6 +193,64 @@ pub async fn get_profile(
         }
         Err(e) => {
             error!("Failed to query drift profile: {:?}", e);
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::query_profile_error(e)),
+            ));
+        }
+    };
+
+    match DriftProfile::from_value(profile_value) {
+        Ok(profile) => Ok(Json(profile)),
+        Err(e) => {
+            error!("Failed to parse drift profile: {:?}", e);
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::new(format!(
+                    "Failed to parse drift profile: {e:?}",
+                ))),
+            ))
+        }
+    }
+}
+
+/// Retrieve a drift profile from the database
+///
+/// # Arguments
+///
+/// * `data` - Arc<AppState> - Application state
+/// * `params` - Query<ServiceInfo> - Query parameters
+///
+/// # Returns
+///
+/// * `Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)>` - Result of the request
+#[instrument(skip_all)]
+pub async fn list_profiles(
+    State(data): State<Arc<AppState>>,
+    Query(params): Query<ListProfilesRequest>,
+    Extension(perms): Extension<UserPermissions>,
+) -> Result<Json<DriftProfile>, (StatusCode, Json<ScouterServerError>)> {
+    if !perms.has_read_permission(&params.space) {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(ScouterServerError::permission_denied()),
+        ));
+    }
+
+    let profile_value = match PostgresClient::list_drift_profiles(&data.db_pool, &params).await {
+        Ok(profiles) => {
+            if profiles.is_empty() {
+                return Err((
+                    StatusCode::NOT_FOUND,
+                    Json(ScouterServerError::new(
+                        "No drift profiles found".to_string(),
+                    )),
+                ));
+            }
+            profiles
+        }
+        Err(e) => {
+            error!("Failed to query drift profiles: {:?}", e);
             return Err((
                 StatusCode::INTERNAL_SERVER_ERROR,
                 Json(ScouterServerError::query_profile_error(e)),

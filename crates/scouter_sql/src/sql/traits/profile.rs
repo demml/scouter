@@ -10,7 +10,8 @@ use scouter_semver::VersionArgs;
 use scouter_semver::VersionType;
 use scouter_semver::{VersionParser, VersionValidator};
 use scouter_types::{
-    DriftProfile, DriftTaskInfo, GetProfileRequest, ProfileArgs, ProfileStatusRequest,
+    DriftProfile, DriftTaskInfo, GetProfileRequest, ListProfilesRequest, ProfileArgs,
+    ProfileStatusRequest,
 };
 use semver::Version;
 use serde_json::Value;
@@ -234,6 +235,32 @@ pub trait ProfileSqlLogic {
             .fetch_optional(pool)
             .await
             .map_err(SqlError::SqlxError)
+    }
+
+    async fn list_drift_profiles(
+        pool: &Pool<Postgres>,
+        args: &ListProfilesRequest,
+    ) -> Result<Vec<DriftProfile>, SqlError> {
+        let mut profile_query = Queries::ListDriftProfiles.get_query().sql;
+
+        if let Some(version) = &args.version {
+            add_version_bounds(&mut profile_query, version)?;
+        }
+        profile_query.push_str(" ORDER BY created_at DESC;");
+
+        let records: Vec<(Value,)> = sqlx::query_as(&profile_query)
+            .bind(&args.space)
+            .bind(&args.name)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError)?;
+
+        let profiles = records
+            .into_iter()
+            .map(|r| DriftProfile::from_value(r.0.clone()))
+            .collect::<Result<Vec<DriftProfile>, SqlError>>()?;
+
+        Ok(profiles)
     }
 
     /// Update the drift profile run dates in the database
