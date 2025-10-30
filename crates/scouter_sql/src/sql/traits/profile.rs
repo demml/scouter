@@ -132,7 +132,7 @@ pub trait ProfileSqlLogic {
         version: &Version,
         active: &bool,
         deactivate_others: &bool,
-    ) -> Result<(), SqlError> {
+    ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertDriftProfile.get_query();
         let current_time = Utc::now();
         let schedule = Schedule::from_str(&base_args.schedule)?;
@@ -150,7 +150,7 @@ pub trait ProfileSqlLogic {
         let pre: Option<String> = version.pre.to_string().parse().ok();
         let build: Option<String> = version.build.to_string().parse().ok();
 
-        let _ = sqlx::query(&query.sql)
+        let result = sqlx::query(&query.sql)
             .bind(&base_args.space)
             .bind(&base_args.name)
             .bind(major)
@@ -184,14 +184,14 @@ pub trait ProfileSqlLogic {
                 .map_err(SqlError::SqlxError);
 
             match query_result {
-                Ok(_) => Ok(()),
+                Ok(_) => Ok(result), // return original result
                 Err(e) => {
                     error!("Failed to deactivate other drift profiles: {:?}", e);
                     Err(e)
                 }
             }
         } else {
-            Ok(())
+            Ok(result)
         }
     }
 

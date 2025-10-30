@@ -248,6 +248,8 @@ mod tests {
     pub async fn insert_profile_to_db(
         pool: &Pool<Postgres>,
         profile: &DriftProfile,
+        active: bool,
+        deactivate_others: bool,
     ) -> PgQueryResult {
         let base_args = profile.get_base_args();
         let version = PostgresClient::get_next_profile_version(
@@ -260,9 +262,16 @@ mod tests {
         .await
         .unwrap();
 
-        let result = PostgresClient::insert_drift_profile(pool, profile, &base_args, &version)
-            .await
-            .unwrap();
+        let result = PostgresClient::insert_drift_profile(
+            pool,
+            profile,
+            &base_args,
+            &version,
+            &active,
+            &deactivate_others,
+        )
+        .await
+        .unwrap();
 
         result
     }
@@ -430,7 +439,7 @@ mod tests {
         let mut spc_profile = SpcDriftProfile::default();
         let profile = DriftProfile::Spc(spc_profile.clone());
 
-        let result = insert_profile_to_db(&pool, &profile).await;
+        let result = insert_profile_to_db(&pool, &profile, false, false).await;
         assert_eq!(result.rows_affected(), 1);
 
         spc_profile.scouter_version = "test".to_string();
@@ -577,7 +586,7 @@ mod tests {
                 ..Default::default()
             },
         ));
-        let _ = insert_profile_to_db(&pool, profile).await;
+        let _ = insert_profile_to_db(&pool, profile, false, false).await;
 
         for feature in 0..num_features {
             for bin in 0..=num_bins {
