@@ -2,7 +2,7 @@ use scouter_types::contracts::{
     GetProfileRequest, ProfileRequest, ProfileStatusRequest, RegisteredProfileResponse,
     ScouterResponse, ScouterServerError,
 };
-
+use scouter_types::ListedProfile;
 use scouter_types::{DriftProfile, ListProfilesRequest};
 
 use axum::{
