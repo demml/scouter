@@ -10,8 +10,8 @@ use scouter_semver::VersionArgs;
 use scouter_semver::VersionType;
 use scouter_semver::{VersionParser, VersionValidator};
 use scouter_types::{
-    DriftProfile, DriftTaskInfo, GetProfileRequest, ListProfilesRequest, ProfileArgs,
-    ProfileStatusRequest,
+    DriftProfile, DriftTaskInfo, GetProfileRequest, ListProfilesRequest, ListedProfile,
+    ProfileArgs, ProfileStatusRequest,
 };
 use semver::Version;
 use serde_json::Value;
@@ -130,7 +130,9 @@ pub trait ProfileSqlLogic {
         drift_profile: &DriftProfile,
         base_args: &ProfileArgs,
         version: &Version,
-    ) -> Result<PgQueryResult, SqlError> {
+        active: &bool,
+        deactivate_others: &bool,
+    ) -> Result<(), SqlError> {
         let query = Queries::InsertDriftProfile.get_query();
         let current_time = Utc::now();
         let schedule = Schedule::from_str(&base_args.schedule)?;
@@ -148,7 +150,7 @@ pub trait ProfileSqlLogic {
         let pre: Option<String> = version.pre.to_string().parse().ok();
         let build: Option<String> = version.build.to_string().parse().ok();
 
-        sqlx::query(&query.sql)
+        let _ = sqlx::query(&query.sql)
             .bind(&base_args.space)
             .bind(&base_args.name)
             .bind(major)
@@ -160,13 +162,37 @@ pub trait ProfileSqlLogic {
             .bind(&base_args.scouter_version)
             .bind(drift_profile.to_value())
             .bind(base_args.drift_type.to_string())
-            .bind(false)
+            .bind(active)
             .bind(&base_args.schedule)
             .bind(next_run)
             .bind(current_time)
             .execute(pool)
             .await
-            .map_err(SqlError::SqlxError)
+            .map_err(SqlError::SqlxError)?;
+
+        // Only want to deactivate other profiles if this one is active and deactivate_others is true
+        if *active && *deactivate_others {
+            let query = Queries::DeactivateDriftProfiles.get_query();
+
+            let query_result = sqlx::query(&query.sql)
+                .bind(&base_args.name)
+                .bind(&base_args.space)
+                .bind(&base_args.version)
+                .bind(base_args.drift_type.to_string())
+                .execute(pool)
+                .await
+                .map_err(SqlError::SqlxError);
+
+            match query_result {
+                Ok(_) => Ok(()),
+                Err(e) => {
+                    error!("Failed to deactivate other drift profiles: {:?}", e);
+                    Err(e)
+                }
+            }
+        } else {
+            Ok(())
+        }
     }
 
     /// Update a drift profile in the database
@@ -240,27 +266,28 @@ pub trait ProfileSqlLogic {
     async fn list_drift_profiles(
         pool: &Pool<Postgres>,
         args: &ListProfilesRequest,
-    ) -> Result<Vec<DriftProfile>, SqlError> {
-        let mut profile_query = Queries::ListDriftProfiles.get_query().sql;
+    ) -> Result<Vec<ListedProfile>, SqlError> {
+        let profile_query = Queries::ListDriftProfiles.get_query().sql;
 
-        if let Some(version) = &args.version {
-            add_version_bounds(&mut profile_query, version)?;
-        }
-        profile_query.push_str(" ORDER BY created_at DESC;");
-
-        let records: Vec<(Value,)> = sqlx::query_as(&profile_query)
+        let records: Vec<(bool, Value)> = sqlx::query_as(&profile_query)
             .bind(&args.space)
             .bind(&args.name)
+            .bind(&args.version)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError)?;
 
-        let profiles = records
+        let listed_profiles: Vec<ListedProfile> = records
             .into_iter()
-            .map(|r| DriftProfile::from_value(r.0.clone()))
-            .collect::<Result<Vec<DriftProfile>, SqlError>>()?;
+            .map(|(active, value)| -> Result<ListedProfile, SqlError> {
+                Ok(ListedProfile {
+                    profile: DriftProfile::from_value(value)?,
+                    active,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
 
-        Ok(profiles)
+        Ok(listed_profiles)
     }
 
     /// Update the drift profile run dates in the database

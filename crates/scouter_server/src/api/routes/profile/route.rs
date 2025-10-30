@@ -83,7 +83,16 @@ pub async fn insert_drift_profile(
         }
     };
 
-    match PostgresClient::insert_drift_profile(&data.db_pool, &body, &base_args, &version).await {
+    match PostgresClient::insert_drift_profile(
+        &data.db_pool,
+        &body,
+        &base_args,
+        &version,
+        &request.active,
+        &request.deactivate_others,
+    )
+    .await
+    {
         Ok(_) => Ok(Json(RegisteredProfileResponse {
             space: base_args.space,
             name: base_args.name,
@@ -229,7 +238,7 @@ pub async fn list_profiles(
     State(data): State<Arc<AppState>>,
     Query(params): Query<ListProfilesRequest>,
     Extension(perms): Extension<UserPermissions>,
-) -> Result<Json<DriftProfile>, (StatusCode, Json<ScouterServerError>)> {
+) -> Result<Json<Vec<ListedProfile>>, (StatusCode, Json<ScouterServerError>)> {
     if !perms.has_read_permission(&params.space) {
         return Err((
             StatusCode::FORBIDDEN,
@@ -258,18 +267,7 @@ pub async fn list_profiles(
         }
     };
 
-    match DriftProfile::from_value(profile_value) {
-        Ok(profile) => Ok(Json(profile)),
-        Err(e) => {
-            error!("Failed to parse drift profile: {:?}", e);
-            Err((
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::new(format!(
-                    "Failed to parse drift profile: {e:?}",
-                ))),
-            ))
-        }
-    }
+    Ok(Json(profile_value))
 }
 /// Update drift profile status
 ///

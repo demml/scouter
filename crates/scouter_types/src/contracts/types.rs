@@ -2,7 +2,7 @@ use std::fmt::Display;
 
 use crate::error::{ContractError, TypeError};
 use crate::llm::PaginationRequest;
-use crate::{CustomInterval, Status};
+use crate::{CustomInterval, DriftProfile, Status};
 use crate::{DriftType, PyHelperFuncs, TimeInterval};
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
@@ -17,6 +17,11 @@ pub struct ListProfilesRequest {
     pub space: String,
     pub name: String,
     pub version: String,
+}
+
+pub struct ListedProfile {
+    pub profile: DriftProfile,
+    pub active: bool,
 }
 
 #[pyclass]
