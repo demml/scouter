@@ -98,6 +98,7 @@ pub async fn insert_drift_profile(
             name: base_args.name,
             version: version.to_string(),
             status: "success".to_string(),
+            active: request.active,
         })),
         Err(e) => {
             error!("Failed to insert drift profile: {:?}", e);
@@ -234,19 +235,20 @@ pub async fn get_profile(
 ///
 /// * `Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)>` - Result of the request
 #[instrument(skip_all)]
+#[axum::debug_handler]
 pub async fn list_profiles(
     State(data): State<Arc<AppState>>,
-    Query(params): Query<ListProfilesRequest>,
     Extension(perms): Extension<UserPermissions>,
+    Json(request): Json<ListProfilesRequest>,
 ) -> Result<Json<Vec<ListedProfile>>, (StatusCode, Json<ScouterServerError>)> {
-    if !perms.has_read_permission(&params.space) {
+    if !perms.has_read_permission(&request.space) {
         return Err((
             StatusCode::FORBIDDEN,
             Json(ScouterServerError::permission_denied()),
         ));
     }
 
-    let profile_value = match PostgresClient::list_drift_profiles(&data.db_pool, &params).await {
+    let profile_value = match PostgresClient::list_drift_profiles(&data.db_pool, &request).await {
         Ok(profiles) => {
             if profiles.is_empty() {
                 return Err((
@@ -331,6 +333,7 @@ pub async fn get_profile_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
                 &format!("{prefix}/profile/status"),
                 put(update_drift_profile_status),
             )
+            .route(&format!("{prefix}/profiles"), post(list_profiles))
     }));
 
     match result {

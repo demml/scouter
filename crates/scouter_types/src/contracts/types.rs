@@ -19,6 +19,7 @@ pub struct ListProfilesRequest {
     pub version: String,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ListedProfile {
     pub profile: DriftProfile,
     pub active: bool,
@@ -448,6 +449,7 @@ pub struct RegisteredProfileResponse {
     pub name: String,
     pub version: String,
     pub status: String,
+    pub active: bool,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
