@@ -1,0 +1,27 @@
+[package]
+name = "scouter-tracing"
+version = { workspace = true }
+edition = { workspace = true }
+repository = { workspace = true }
+
+authors = [
+  "Steven Forrester <sjforrester32@gmail.com>"
+]
+
+license = "MIT"
+description = "Helper crate for tracing instrumentation"
+
+[dependencies]
+opentelemetry = { workspace = true }
+opentelemetry-stdout = { workspace = true }
+opentelemetry_sdk = { workspace = true }
+opentelemetry-otlp = { workspace = true }
+pyo3 = { workspace = true }
+thiserror = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true
