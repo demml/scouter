@@ -189,7 +189,7 @@ pub fn json_to_pyobject_value(py: Python, value: &Value) -> PyResult<Py<PyAny>> 
     })
 }
 
-pub fn pyobject_to_json(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
+pub fn pyobject_to_json(obj: &Bound<'_, PyAny>) -> Result<Value, TypeError> {
     if obj.is_instance_of::<PyDict>() {
         let dict = obj.downcast::<PyDict>()?;
         let mut map = serde_json::Map::new();
@@ -221,7 +221,7 @@ pub fn pyobject_to_json(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
     } else if obj.is_none() {
         Ok(Value::Null)
     } else {
-        Err(PyRuntimeError::new_err("Unsupported type"))
+        Err(TypeError::UnsupportedPyObjectType)
     }
 }
 
@@ -270,11 +270,13 @@ pub fn create_feature_map(
 /// # Returns
 /// * `Ok(bool)` - `true` if the object is a Pydantic model
 /// * `Err(TypeError)` - if there was an error importing Pydantic or checking
-pub fn is_pydantic_model(py: Python, obj: &Bound<'_, PyAny>) -> Result<bool, TypeError> {
+pub fn is_pydantic_basemodel(py: Python, obj: &Bound<'_, PyAny>) -> Result<bool, TypeError> {
     let pydantic = match py.import("pydantic") {
         Ok(module) => module,
-        Err(e) => return Err(TypeError::FailedToImportPydantic(e.to_string())),
+        // return false if pydantic cannot be imported
+        Err(_) => return Ok(false),
     };
+
     let basemodel = pydantic.getattr("BaseModel")?;
 
     // check if context is a pydantic model
@@ -283,6 +285,17 @@ pub fn is_pydantic_model(py: Python, obj: &Bound<'_, PyAny>) -> Result<bool, Typ
         .map_err(|e| TypeError::FailedToCheckPydanticModel(e.to_string()))?;
 
     Ok(is_basemodel)
+}
+
+pub fn is_pydict(obj: &Bound<'_, PyAny>) -> bool {
+    obj.is_instance_of::<PyDict>()
+}
+
+/// Helper for converting a pydantic model to a pyobject (pydict)
+/// we are keeping the type as Bound<'py, PyAny> so that is is compatible with pyobject_to_json
+pub fn pydantic_to_value<'py>(obj: &Bound<'py, PyAny>) -> Result<Value, TypeError> {
+    let dict = obj.call_method0("dict")?;
+    pyobject_to_json(&dict)
 }
 
 #[derive(PartialEq, Debug)]

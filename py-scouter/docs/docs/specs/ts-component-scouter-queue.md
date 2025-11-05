@@ -232,7 +232,7 @@ impl LLMRecord {
         // check if context is a PyDict or PyObject(Pydantic model)
         let context_val = if context.is_instance_of::<PyDict>() {
             pyobject_to_json(&context)?
-        } else if is_pydantic_model(py, &context)? {
+        } else if is_pydantic_basemodel(py, &context)? {
             // Dump pydantic model to dictionary
             let model = context.call_method0("model_dump")?;
 

@@ -6,7 +6,7 @@ use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use pyo3::IntoPyObjectExt;
 use scouter_profile::{Histogram, NumProfiler};
-use scouter_types::{is_pydantic_model, json_to_pyobject_value, pyobject_to_json};
+use scouter_types::{is_pydantic_basemodel, json_to_pyobject_value, pyobject_to_json};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::{BTreeMap, HashMap};
@@ -413,7 +413,7 @@ impl LLMEvalRecord {
         // check if context is a PyDict or PyObject(Pydantic model)
         let context_val = if context.is_instance_of::<PyDict>() {
             pyobject_to_json(&context)?
-        } else if is_pydantic_model(py, &context)? {
+        } else if is_pydantic_basemodel(py, &context)? {
             // Dump pydantic model to dictionary
             let model = context.call_method0("model_dump")?;
 

@@ -14,6 +14,7 @@ from .scouter import (  # type: ignore
     profile,
     queue,
     types,
+    tracing,
 )
 from .version import __version__
 
@@ -127,4 +128,5 @@ __all__ = [
     "types",
     "drift",
     "evaluate",
+    "tracing",
 ]

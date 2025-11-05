@@ -14,7 +14,19 @@ pub enum TraceError {
     SpanError(String),
 
     #[error("OpenTelemetry error: {0}")]
-    OpenTelemetryError(#[from] opentelemetry_otlp::ExporterBuildError),
+    OTelBuilderError(#[from] opentelemetry_otlp::ExporterBuildError),
+
+    #[error("No active span found")]
+    NoActiveSpan,
+
+    #[error("Poison error occurred")]
+    PoisonError(String),
+
+    #[error(transparent)]
+    OTelSdkError(#[from] opentelemetry_sdk::error::OTelSdkError),
+
+    #[error(transparent)]
+    TypeError(#[from] scouter_types::error::TypeError),
 }
 
 impl From<TraceError> for PyErr {

@@ -16,7 +16,11 @@ opentelemetry = { workspace = true }
 opentelemetry-stdout = { workspace = true }
 opentelemetry_sdk = { workspace = true }
 opentelemetry-otlp = { workspace = true }
+potato-head = { workspace = true }
 pyo3 = { workspace = true }
+pyo3-async-runtimes = { workspace = true }
+scouter-types = { workspace = true }
+serde_json = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }

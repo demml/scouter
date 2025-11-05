@@ -110,6 +110,9 @@ pub enum TypeError {
 
     #[error("Failed to import pydantic module. Error: {0}")]
     FailedToImportPydantic(String),
+
+    #[error("Unsupported Python object type for conversion")]
+    UnsupportedPyObjectType,
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for TypeError {

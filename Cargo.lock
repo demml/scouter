@@ -4801,6 +4801,7 @@ dependencies = [
  "scouter-client",
  "scouter-mocks",
  "scouter-server",
+ "scouter-tracing",
  "thiserror 2.0.17",
  "time",
  "tokio",
@@ -4826,6 +4827,19 @@ dependencies = [
  "pyo3-macros",
  "serde",
  "unindent",
+]
+
+[[package]]
+name = "pyo3-async-runtimes"
+version = "0.26.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6ee6d4cb3e8d5b925f5cdb38da183e0ff18122eb2048d4041c9e7034d026e23"
+dependencies = [
+ "futures",
+ "once_cell",
+ "pin-project-lite",
+ "pyo3",
+ "tokio",
 ]
 
 [[package]]
@@ -5909,7 +5923,11 @@ dependencies = [
  "opentelemetry-otlp",
  "opentelemetry-stdout",
  "opentelemetry_sdk",
+ "potato-head",
  "pyo3",
+ "pyo3-async-runtimes",
+ "scouter-types",
+ "serde_json",
  "thiserror 2.0.17",
  "tokio",
  "tracing",
