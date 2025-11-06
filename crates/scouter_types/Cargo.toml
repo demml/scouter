@@ -18,6 +18,7 @@ chrono = { workspace = true }
 colored_json = { workspace = true }
 cron = { workspace = true }
 opentelemetry_sdk = { workspace = true }
+opentelemetry-proto = { workspace = true }
 rayon = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }

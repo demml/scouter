@@ -1,9 +1,11 @@
 use crate::error::RecordError;
+use crate::traits::RecordExt;
 use crate::PyHelperFuncs;
 use crate::Status;
 use chrono::DateTime;
 use chrono::Utc;
-use opentelemetry_sdk::trace::SpanData;
+
+use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use serde::{Deserialize, Serialize};
@@ -11,6 +13,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
+use tracing::span::Record;
 
 #[pyclass(eq)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
@@ -488,12 +491,15 @@ pub struct TraceBaggageRecord {
     pub version: String,
 }
 
-#[pyclass]
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct TraceServerRecord {
-    trace: TraceRecord,
-    span: TraceSpanRecord,
-    baggage: TraceBaggageRecord,
+    request: ExportTraceServiceRequest,
+}
+
+impl RecordExt for TraceServerRecord {
+    fn record_type(&self) -> Result<RecordType, RecordError> {
+        Ok(RecordType::Trace)
+    }
 }
 
 #[pyclass]
@@ -505,7 +511,6 @@ pub enum ServerRecord {
     Observability(ObservabilityMetrics),
     LLMDrift(BoxedLLMDriftServerRecord),
     LLMMetric(LLMMetricRecord),
-    Trace(TraceServerRecord),
 }
 
 #[pymethods]
@@ -553,7 +558,6 @@ impl ServerRecord {
             ServerRecord::Observability(record) => Ok(record.clone().into_py_any(py)?),
             ServerRecord::LLMDrift(record) => Ok(record.record.clone().into_py_any(py)?),
             ServerRecord::LLMMetric(record) => Ok(record.clone().into_py_any(py)?),
-            _ => Err(RecordError::InvalidDriftTypeError),
         }
     }
 
@@ -565,7 +569,6 @@ impl ServerRecord {
             ServerRecord::Observability(record) => record.space.clone(),
             ServerRecord::LLMDrift(record) => record.record.space.clone(),
             ServerRecord::LLMMetric(record) => record.space.clone(),
-            _ => "__missing__".to_string(),
         }
     }
 
@@ -578,7 +581,6 @@ impl ServerRecord {
             ServerRecord::Observability(record) => record.__str__(),
             ServerRecord::LLMDrift(record) => record.record.__str__(),
             ServerRecord::LLMMetric(record) => record.__str__(),
-            _ => "__missing__".to_string(),
         }
     }
 
@@ -590,7 +592,6 @@ impl ServerRecord {
             ServerRecord::Observability(_) => RecordType::Observability,
             ServerRecord::LLMDrift(_) => RecordType::LLMDrift,
             ServerRecord::LLMMetric(_) => RecordType::LLMMetric,
-            ServerRecord::Trace(_) => RecordType::Trace,
         }
     }
 }
@@ -620,14 +621,6 @@ impl ServerRecords {
 }
 
 impl ServerRecords {
-    pub fn record_type(&self) -> Result<RecordType, RecordError> {
-        if let Some(first) = self.records.first() {
-            Ok(first.get_record_type())
-        } else {
-            Err(RecordError::EmptyServerRecordsError)
-        }
-    }
-
     // Helper function to load records from bytes. Used by scouter-server consumers
     //
     // # Arguments
@@ -679,6 +672,16 @@ impl ServerRecords {
         match self.records.first() {
             Some(record) => record.space(),
             None => "__missing__".to_string(),
+        }
+    }
+}
+
+impl RecordExt for ServerRecords {
+    fn record_type(&self) -> Result<RecordType, RecordError> {
+        if let Some(first) = self.records.first() {
+            Ok(first.get_record_type())
+        } else {
+            Err(RecordError::EmptyServerRecordsError)
         }
     }
 }
