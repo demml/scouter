@@ -32,7 +32,7 @@ use scouter_events::consumer::redis::RedisConsumerManager;
 
 use scouter_events::consumer::http::consumer::HttpConsumerManager;
 use scouter_settings::events::HttpConsumerSettings;
-use scouter_types::ServerRecords;
+use scouter_types::MessageRecord;
 
 use crate::api::task_manager::TaskManager;
 
@@ -40,7 +40,7 @@ pub struct ScouterSetupComponents {
     pub server_config: Arc<ScouterServerConfig>,
     pub db_pool: Pool<Postgres>,
     pub task_manager: TaskManager,
-    pub http_consumer_tx: Sender<ServerRecords>,
+    pub http_consumer_tx: Sender<MessageRecord>,
 }
 
 impl ScouterSetupComponents {
