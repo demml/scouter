@@ -5972,6 +5972,7 @@ dependencies = [
 name = "scouter-tracing"
 version = "0.12.0"
 dependencies = [
+ "chrono",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry-proto",
@@ -5981,6 +5982,7 @@ dependencies = [
  "pyo3",
  "pyo3-async-runtimes",
  "scouter-types",
+ "serde",
  "serde_json",
  "thiserror 2.0.17",
  "tokio",

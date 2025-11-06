@@ -6,7 +6,7 @@ use opentelemetry_sdk::{
     trace::{SpanData, SpanExporter},
 };
 
-use crate::error::TraceError;
+use crate::{error::TraceError, types::TraceServerRecord};
 
 #[derive(Debug)]
 pub struct ScouterSpanExporter {}
@@ -17,9 +17,9 @@ impl SpanExporter for ScouterSpanExporter {
         let resource_spans =
             group_spans_by_resource_and_scope(batch, &ResourceAttributesWithSchema::default());
         let req = ExportTraceServiceRequest { resource_spans };
-        serde_json::to_string_pretty(&req)
-        Ok(())`
-    }`
+        let export_record = TraceServerRecord { request: req };
+        Ok(())
+    }
 
     fn shutdown(&mut self) -> OTelSdkResult {
         // Clean up resources if necessary
