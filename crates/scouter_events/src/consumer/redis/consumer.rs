@@ -8,7 +8,7 @@ pub mod redis_consumer {
     use redis::{Msg, RedisResult};
     use scouter_settings::RedisSettings;
     use scouter_sql::MessageHandler;
-    use scouter_types::{MessageRecord, ServerRecords};
+    use scouter_types::MessageRecord;
     use sqlx::{Pool, Postgres};
     use tokio::sync::watch;
     use tokio::task::JoinHandle;
