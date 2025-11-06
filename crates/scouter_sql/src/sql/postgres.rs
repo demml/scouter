@@ -7,7 +7,6 @@ use crate::sql::error::SqlError;
 use scouter_settings::DatabaseSettings;
 use scouter_types::{RecordType, ServerRecords, ToDriftRecords};
 
-use scouter_types::traits::RecordExt;
 use sqlx::ConnectOptions;
 use sqlx::{postgres::PgConnectOptions, Pool, Postgres};
 use std::result::Result::Ok;

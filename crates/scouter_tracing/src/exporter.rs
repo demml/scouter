@@ -9,7 +9,9 @@ use opentelemetry_sdk::{
 use scouter_types::records::{MessageRecord, TraceServerRecord};
 
 #[derive(Debug)]
-pub struct ScouterSpanExporter {}
+pub struct ScouterSpanExporter {
+    pub space: String,
+}
 
 impl SpanExporter for ScouterSpanExporter {
     async fn export(&self, batch: Vec<SpanData>) -> OTelSdkResult {
@@ -17,7 +19,10 @@ impl SpanExporter for ScouterSpanExporter {
         let resource_spans =
             group_spans_by_resource_and_scope(batch, &ResourceAttributesWithSchema::default());
         let req = ExportTraceServiceRequest { resource_spans };
-        let message_record = MessageRecord::TraceServerRecord(TraceServerRecord { request: req });
+        let message_record = MessageRecord::TraceServerRecord(TraceServerRecord {
+            request: req,
+            space: self.space.clone(),
+        });
         Ok(())
     }
 

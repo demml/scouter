@@ -1,5 +1,4 @@
 use crate::error::RecordError;
-use crate::traits::RecordExt;
 use crate::PyHelperFuncs;
 use crate::Status;
 use chrono::DateTime;
@@ -557,6 +556,13 @@ impl ServerRecords {
 }
 
 impl ServerRecords {
+    pub fn record_type(&self) -> Result<RecordType, RecordError> {
+        if let Some(first) = self.records.first() {
+            Ok(first.get_record_type())
+        } else {
+            Err(RecordError::EmptyServerRecordsError)
+        }
+    }
     // Helper function to load records from bytes. Used by scouter-server consumers
     //
     // # Arguments
@@ -608,16 +614,6 @@ impl ServerRecords {
         match self.records.first() {
             Some(record) => record.space(),
             None => "__missing__".to_string(),
-        }
-    }
-}
-
-impl RecordExt for ServerRecords {
-    fn record_type(&self) -> Result<RecordType, RecordError> {
-        if let Some(first) = self.records.first() {
-            Ok(first.get_record_type())
-        } else {
-            Err(RecordError::EmptyServerRecordsError)
         }
     }
 }
@@ -745,12 +741,6 @@ pub struct TraceBaggageRecord {
 pub struct TraceServerRecord {
     pub space: String,
     pub request: ExportTraceServiceRequest,
-}
-
-impl RecordExt for TraceServerRecord {
-    fn record_type(&self) -> Result<RecordType, RecordError> {
-        Ok(RecordType::Trace)
-    }
 }
 
 pub enum MessageType {
