@@ -2,19 +2,18 @@
 pub mod rabbitmq_consumer {
     use crate::error::EventError;
     use futures::StreamExt;
-    use metrics::counter;
-    use scouter_settings::RabbitMQSettings;
-    use scouter_sql::MessageHandler;
-    use scouter_types::ServerRecords;
-    use sqlx::{Pool, Postgres};
-    use tokio::sync::watch;
-    use tokio::task::JoinHandle;
-    use tracing::{error, info, instrument};
-
     use lapin::{
         message::Delivery, options::*, types::FieldTable, Connection, ConnectionProperties,
         Consumer,
     };
+    use metrics::counter;
+    use scouter_settings::RabbitMQSettings;
+    use scouter_sql::MessageHandler;
+    use scouter_types::MessageRecord;
+    use sqlx::{Pool, Postgres};
+    use tokio::sync::watch;
+    use tokio::task::JoinHandle;
+    use tracing::{error, info, instrument};
 
     const MAX_MESSAGE_SIZE: usize = 10 * 1024 * 1024; // 10MB
 
@@ -69,11 +68,29 @@ pub mod rabbitmq_consumer {
         // Process messages. If processing fails, log the error, record metrics, and continue
         match process_message(&msg.data).await {
             Ok(Some(records)) => {
-                if let Err(e) = MessageHandler::insert_server_records(db_pool, &records).await {
-                    error!("Worker {}: Failed to insert drift record: {:?}", id, e);
+                let result = match &records {
+                    MessageRecord::ServerRecords(server_records) => {
+                        MessageHandler::insert_server_records(&db_pool, server_records).await
+                    }
+                    MessageRecord::TraceServerRecord(trace_record) => {
+                        println!("TraceServerRecord received: {:?}", trace_record);
+                        Ok(())
+                        //MessageHandler::insert_trace_server_record(&db_pool, trace_record).await
+                    }
+                };
+
+                if let Err(e) = result {
+                    error!("Worker {}: Failed to insert record: {:?}", id, e);
                     counter!("db_insert_errors").increment(1);
                 } else {
-                    counter!("records_inserted").increment(records.records.len() as u64);
+                    match &records {
+                        MessageRecord::ServerRecords(server_records) => {
+                            counter!("records_inserted").increment(server_records.len() as u64);
+                        }
+                        MessageRecord::TraceServerRecord(_) => {
+                            counter!("records_inserted").increment(1);
+                        }
+                    }
                     counter!("messages_processed").increment(1);
 
                     // Acknowledge the message. If acknowledgment fails, log the error
@@ -130,15 +147,15 @@ pub mod rabbitmq_consumer {
         Ok(consumer)
     }
 
-    pub async fn process_message(message: &[u8]) -> Result<Option<ServerRecords>, EventError> {
-        let records: ServerRecords = match serde_json::from_slice::<ServerRecords>(message) {
-            Ok(records) => records,
+    pub async fn process_message(message: &[u8]) -> Result<Option<MessageRecord>, EventError> {
+        let record: MessageRecord = match serde_json::from_slice::<MessageRecord>(message) {
+            Ok(record) => record,
             Err(e) => {
                 error!("Failed to deserialize message: {:?}", e);
                 return Ok(None);
             }
         };
 
-        Ok(Some(records))
+        Ok(Some(record))
     }
 }
