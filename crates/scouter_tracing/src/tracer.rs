@@ -8,20 +8,24 @@
 use crate::error::TraceError;
 use opentelemetry::baggage::BaggageExt;
 use opentelemetry::trace::Tracer as OTelTracer;
+use opentelemetry::Context;
 use opentelemetry::{
     global::{self, BoxedSpan, BoxedTracer},
     trace::{Span, SpanContext, SpanKind, Status, TraceContextExt},
     Context as OtelContext, KeyValue,
 };
 use opentelemetry_otlp::{Protocol, WithExportConfig};
+use opentelemetry_sdk::error::OTelSdkResult;
 use opentelemetry_sdk::trace::SdkTracerProvider;
+use opentelemetry_sdk::trace::SpanProcessor;
 use opentelemetry_sdk::{trace::Sampler, Resource};
 use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
-use scouter_types::{is_pydantic_basemodel, pydantic_to_value, pyobject_to_json};
+use scouter_types::{is_pydantic_basemodel, pydantic_to_value, pyobject_to_json, BAGGAGE_PREFIX};
 use serde_json::Value;
 use std::sync::{Arc, RwLock};
+use std::time::Duration;
 use std::{collections::HashMap, sync::OnceLock};
 
 /// Global static instance of the tracer provider.
@@ -32,6 +36,27 @@ static CONTEXT_STORE: OnceLock<ContextStore> = OnceLock::new();
 
 /// Global static instance of the context variable for async context propagation. Caching the import for speed
 static CONTEXT_VAR: OnceLock<Py<PyAny>> = OnceLock::new();
+
+// This is taken from the opentelemetry examples for adding baggage to spans
+#[derive(Debug)]
+struct EnrichWithBaggageSpanProcessor;
+impl SpanProcessor for EnrichWithBaggageSpanProcessor {
+    fn force_flush(&self) -> OTelSdkResult {
+        Ok(())
+    }
+
+    fn shutdown_with_timeout(&self, _timeout: Duration) -> OTelSdkResult {
+        Ok(())
+    }
+
+    fn on_start(&self, span: &mut opentelemetry_sdk::trace::Span, cx: &Context) {
+        for (kk, vv) in cx.baggage().iter() {
+            span.set_attribute(KeyValue::new(kk.clone(), vv.0.clone()));
+        }
+    }
+
+    fn on_end(&self, _span: opentelemetry_sdk::trace::SpanData) {}
+}
 
 /// Global initialization function for the tracer.
 /// This sets up the tracer provider with the specified service name, endpoint, and sampling ratio.
@@ -64,6 +89,7 @@ pub fn init_tracer(name: Option<String>, endpoint: Option<String>, sample_ratio:
                     .expect("Failed to create OTLP exporter");
 
                 opentelemetry_sdk::trace::SdkTracerProvider::builder()
+                    .with_span_processor(EnrichWithBaggageSpanProcessor)
                     .with_batch_exporter(otlp_exporter)
                     .with_sampler(sampler)
                     .with_resource(resource)
@@ -73,6 +99,7 @@ pub fn init_tracer(name: Option<String>, endpoint: Option<String>, sample_ratio:
                 let stdout_exporter = opentelemetry_stdout::SpanExporter::default();
 
                 opentelemetry_sdk::trace::SdkTracerProvider::builder()
+                    .with_span_processor(EnrichWithBaggageSpanProcessor)
                     .with_simple_exporter(stdout_exporter)
                     .with_sampler(sampler)
                     .with_resource(resource)
@@ -366,7 +393,10 @@ impl BaseTracer {
         let parent_ctx = if let Some(baggage_items) = baggage {
             let keyvals: Vec<KeyValue> = baggage_items
                 .into_iter()
-                .map(|(k, v)| KeyValue::new(k, v))
+                .map(|(k, v)| {
+                    let baggage_key = format!("{}.{}", BAGGAGE_PREFIX, k);
+                    KeyValue::new(baggage_key, v)
+                })
                 .collect();
             parent_ctx.with_baggage(keyvals)
         } else {

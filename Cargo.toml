@@ -54,6 +54,7 @@ datafusion = { version = "49.*", features = ["parquet"] }
 futures-util = { version = "0.*" }
 flume = "0.11.*"
 futures = "0.*"
+hex = "0.*"
 include_dir = "0.*"
 indicatif = "0.*"
 itertools = "0.*"
@@ -75,7 +76,7 @@ object_store = { version = "0.*", features = ["aws", "azure", "gcp" ] }
 opentelemetry = { version = "0.*" }
 opentelemetry-stdout = "0.*"
 opentelemetry_sdk = { version = "0.*", features = ["trace"] }
-opentelemetry-proto = "0.*"
+opentelemetry-proto = { version = "0.*" }
 opentelemetry-otlp = { version = "0.*" }
 parquet = { version = ">=55.*", features = ["arrow"] }
 password-auth = "1.*"
