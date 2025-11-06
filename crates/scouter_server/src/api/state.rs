@@ -1,7 +1,7 @@
 use flume::Sender;
 use scouter_auth::auth::AuthManager;
 use scouter_settings::ScouterServerConfig;
-use scouter_types::{MessageRecord, ServerRecords};
+use scouter_types::MessageRecord;
 use sqlx::{Pool, Postgres};
 use std::sync::Arc;
 
