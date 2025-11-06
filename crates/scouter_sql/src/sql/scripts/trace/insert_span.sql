@@ -16,5 +16,60 @@ INSERT INTO scouter.spans (
     attributes, 
     events, 
     links
-) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-ON CONFLICT (span_id, trace_id, created_at) DO NOTHING
+)
+SELECT 
+    span_id, 
+    trace_id, 
+    parent_span_id, 
+    space, 
+    name, 
+    version, 
+    scope,
+    span_name, 
+    span_kind, 
+    start_time, 
+    end_time, 
+    duration_ms, 
+    status_code, 
+    status_message, 
+    attributes, 
+    events, 
+    links
+FROM UNNEST(
+    $1::text[],        -- span_id
+    $2::text[],        -- trace_id
+    $3::text[],        -- parent_span_id (nullable)
+    $4::text[],        -- space
+    $5::text[],        -- name
+    $6::text[],        -- version
+    $7::text[],        -- scope
+    $8::text[],        -- span_name
+    $9::text[],        -- span_kind
+    $10::timestamptz[], -- start_time
+    $11::timestamptz[], -- end_time
+    $12::bigint[],     -- duration_ms
+    $13::text[],       -- status_code
+    $14::text[],       -- status_message
+    $15::jsonb[],      -- attributes
+    $16::jsonb[],      -- events
+    $17::jsonb[]       -- links
+) AS s(
+    span_id, 
+    trace_id, 
+    parent_span_id, 
+    space, 
+    name, 
+    version, 
+    scope,
+    span_name, 
+    span_kind, 
+    start_time, 
+    end_time, 
+    duration_ms, 
+    status_code, 
+    status_message, 
+    attributes, 
+    events, 
+    links
+)
+ON CONFLICT (span_id, trace_id, created_at) DO NOTHING;

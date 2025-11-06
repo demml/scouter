@@ -25,7 +25,7 @@ SELECT
     duration_ms, 
     status, 
     root_span_id, 
-    1 as span_count,  -- Each row represents 1 span
+    1 as span_count,
     attributes
 FROM UNNEST(
     $1::text[],        -- trace_id
