@@ -3,6 +3,7 @@ use crate::PyHelperFuncs;
 use crate::Status;
 use chrono::DateTime;
 use chrono::Utc;
+use opentelemetry_sdk::trace::SpanData;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use serde::{Deserialize, Serialize};
@@ -10,6 +11,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
+
 #[pyclass(eq)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub enum RecordType {
@@ -430,6 +432,43 @@ impl ObservabilityMetrics {
     pub fn get_record_type(&self) -> RecordType {
         RecordType::Observability
     }
+}
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct TraceRecord {
+    pub trace_id: String,
+    pub space: String,
+    pub name: String,
+    pub version: String,
+    pub drift_type: String,
+    pub service_name: String,
+    pub trace_state: String,
+    pub start_time: chrono::DateTime<Utc>,
+    pub end_time: chrono::DateTime<Utc>,
+    pub duration_ms: i64,
+    pub status: String,
+    pub root_span_id: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct TraceSpanRecord {
+    pub span_id: String,
+    pub trace_id: String,
+    pub parent_span_id: String,
+    pub space: String,
+    pub name: String,
+    pub version: String,
+    pub drift_type: String,
+    pub service_name: String,
+    pub operation_name: String,
+    pub span_kind: String,
+    pub start_time: chrono::DateTime<Utc>,
+    pub end_time: chrono::DateTime<Utc>,
+    pub duration_ms: i64,
+    pub status_code: String,
+    pub status_message: String,
+    pub attributes: Value,
+    pub events: Value,
+    pub links: Value,
 }
 
 #[pyclass]

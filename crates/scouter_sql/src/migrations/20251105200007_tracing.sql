@@ -12,7 +12,6 @@ CREATE TABLE IF NOT EXISTS scouter.traces (
     
     -- Trace metadata
     service_name TEXT NOT NULL,
-    operation_name TEXT,
     trace_state TEXT,
     
     -- Timing information
@@ -20,18 +19,13 @@ CREATE TABLE IF NOT EXISTS scouter.traces (
     end_time TIMESTAMPTZ,
     duration_ms BIGINT,
     
-    -- Status and flags
-    status TEXT NOT NULL DEFAULT 'ok', -- ok, error, timeout
+    status TEXT NOT NULL DEFAULT 'ok',
     root_span_id TEXT,
     span_count INTEGER DEFAULT 0,
-    
-    -- Resource attributes (store as JSONB for flexibility)
-    resource_attributes JSONB DEFAULT '{}',
-    
-    -- Indexing and cleanup
+
     archived BOOLEAN DEFAULT FALSE,
     
-    PRIMARY KEY (trace_id, created_at),
+    PRIMARY KEY (trace_id, service_name),
     UNIQUE (created_at, trace_id, space, name, version)
 ) PARTITION BY RANGE (created_at);
 
@@ -50,9 +44,9 @@ CREATE TABLE IF NOT EXISTS scouter.spans (
     drift_type TEXT,
     
     -- Span core data
+    service_name TEXT NOT NULL,
     operation_name TEXT NOT NULL,
     span_kind TEXT NOT NULL DEFAULT 'internal', -- server, client, producer, consumer, internal
-    service_name TEXT NOT NULL,
     
     -- Timing
     start_time TIMESTAMPTZ NOT NULL,
@@ -67,6 +61,7 @@ CREATE TABLE IF NOT EXISTS scouter.spans (
     attributes JSONB DEFAULT '{}',
     events JSONB DEFAULT '[]',
     links JSONB DEFAULT '[]',
+    instrumentation_scope JSONB DEFAULT '{}',
     
     -- Cleanup
     archived BOOLEAN DEFAULT FALSE,
