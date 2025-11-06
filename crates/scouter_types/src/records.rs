@@ -743,6 +743,7 @@ pub struct TraceBaggageRecord {
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct TraceServerRecord {
+    pub space: String,
     pub request: ExportTraceServiceRequest,
 }
 
@@ -769,6 +770,13 @@ impl MessageRecord {
         match self {
             MessageRecord::ServerRecords(_) => MessageType::Server,
             MessageRecord::TraceServerRecord(_) => MessageType::Trace,
+        }
+    }
+
+    pub fn space(&self) -> String {
+        match self {
+            MessageRecord::ServerRecords(records) => records.space(),
+            MessageRecord::TraceServerRecord(records) => records.space.clone(),
         }
     }
 }

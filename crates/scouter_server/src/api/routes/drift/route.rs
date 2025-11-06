@@ -18,7 +18,7 @@ use scouter_types::{
     llm::PaginationResponse,
     psi::{BinnedPsiFeatureMetrics, PsiDriftProfile},
     spc::SpcDriftFeatures,
-    BinnedMetrics, DriftType, LLMDriftRecordPaginationRequest, LLMDriftServerRecord, ServerRecords,
+    BinnedMetrics, DriftType, LLMDriftRecordPaginationRequest, LLMDriftServerRecord, MessageRecord,
 };
 use scouter_types::{DriftRequest, GetProfileRequest, ScouterResponse, ScouterServerError};
 use sqlx::{Pool, Postgres};
@@ -256,7 +256,7 @@ pub async fn get_llm_drift_metrics(
 pub async fn insert_drift(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
-    Json(body): Json<ServerRecords>,
+    Json(body): Json<MessageRecord>,
 ) -> Result<Json<ScouterResponse>, (StatusCode, Json<ScouterServerError>)> {
     if !perms.has_write_permission(&body.space()) {
         return Err((
