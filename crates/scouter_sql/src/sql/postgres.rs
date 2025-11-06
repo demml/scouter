@@ -7,13 +7,11 @@ use crate::sql::error::SqlError;
 use scouter_settings::DatabaseSettings;
 use scouter_types::{RecordType, ServerRecords, ToDriftRecords};
 
+use scouter_types::traits::RecordExt;
 use sqlx::ConnectOptions;
 use sqlx::{postgres::PgConnectOptions, Pool, Postgres};
 use std::result::Result::Ok;
 use tracing::{debug, error, info, instrument};
-
-// TODO: Explore refactoring and breaking this out into multiple client types (i.e., spc, psi, etc.)
-// Postgres client is one of the lowest-level abstractions so it may not be worth it, as it could make server logic annoying. Worth exploring though.
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
