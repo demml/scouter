@@ -1,91 +1,67 @@
 -- Tables for traces, spans, and baggage in Scouter tracing module
 CREATE TABLE IF NOT EXISTS scouter.traces (
-    trace_id TEXT NOT NULL,
+    -- non-injected fields
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    
-    -- Scouter entity correlation fields
+
+    trace_id TEXT NOT NULL,
     space TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
-    drift_type TEXT,
-    
-    -- Trace metadata
-    service_name TEXT NOT NULL,
+    scope TEXT NOT NULL,
     trace_state TEXT,
-    
-    -- Timing information
     start_time TIMESTAMPTZ NOT NULL,
     end_time TIMESTAMPTZ,
     duration_ms BIGINT,
-    
     status TEXT NOT NULL DEFAULT 'ok',
     root_span_id TEXT,
     span_count INTEGER DEFAULT 0,
-
+    attributes JSONB DEFAULT '[]', -- top-level attributes from first span
     archived BOOLEAN DEFAULT FALSE,
     
-    PRIMARY KEY (trace_id, service_name),
-    UNIQUE (created_at, trace_id, space, name, version)
+    PRIMARY KEY (trace_id, scope),
+    UNIQUE (trace_id, space, name, version)
 ) PARTITION BY RANGE (created_at);
 
 -- Spans table - stores individual span data
 CREATE TABLE IF NOT EXISTS scouter.spans (
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     span_id TEXT NOT NULL,
     trace_id TEXT NOT NULL,
     parent_span_id TEXT,
-    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    updated_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    
-    -- Scouter entity correlation (denormalized for performance)
     space TEXT NOT NULL,
     name TEXT NOT NULL, 
     version TEXT NOT NULL,
-    drift_type TEXT,
-    
-    -- Span core data
-    service_name TEXT NOT NULL,
-    operation_name TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    span_name TEXT NOT NULL,
     span_kind TEXT NOT NULL DEFAULT 'internal', -- server, client, producer, consumer, internal
-    
-    -- Timing
     start_time TIMESTAMPTZ NOT NULL,
     end_time TIMESTAMPTZ,
     duration_ms BIGINT,
-    
-    -- Status and error handling
     status_code TEXT NOT NULL DEFAULT 'ok',
     status_message TEXT,
-    
-    -- Attributes and events
-    attributes JSONB DEFAULT '{}',
+    attributes JSONB DEFAULT '[]',
     events JSONB DEFAULT '[]',
     links JSONB DEFAULT '[]',
-    instrumentation_scope JSONB DEFAULT '{}',
-    
-    -- Cleanup
     archived BOOLEAN DEFAULT FALSE,
     
-    PRIMARY KEY (span_id, trace_id, created_at),
-    UNIQUE (created_at, trace_id, span_id, space, name, version)
-) PARTITION BY RANGE (created_at);
+    PRIMARY KEY (trace_id, span_id),
+    UNIQUE (created_at, trace_id, span_id, space, name, version),
+    FOREIGN KEY (trace_id, space, name, version) 
+        REFERENCES scouter.traces (trace_id, space, name, version)
+) PARTITION BY RANGE (created_at);;
 
--- Baggage table - stores baggage key-value pairs
 CREATE TABLE IF NOT EXISTS scouter.trace_baggage (
-    trace_id TEXT NOT NULL,
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    
-    -- Baggage data
-    service_name TEXT NOT NULL,
+    trace_id TEXT NOT NULL,
+    scope TEXT NOT NULL,
     key TEXT NOT NULL,
     value TEXT NOT NULL,
-    metadata JSONB DEFAULT '{}',
-    
     space TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
-
-    PRIMARY KEY (trace_id, service_name, key),
+    PRIMARY KEY (created_at, trace_id, scope, key),
     UNIQUE (created_at, trace_id, key, space, name, version)
 ) PARTITION BY RANGE (created_at);
 
@@ -93,8 +69,12 @@ CREATE TABLE IF NOT EXISTS scouter.trace_baggage (
 CREATE INDEX idx_traces_entity_lookup 
 ON scouter.traces (space, name, version, created_at DESC);
 
-CREATE INDEX idx_traces_service_time 
-ON scouter.traces (service_name, start_time DESC);
+CREATE INDEX idx_traces_start_time 
+ON scouter.traces (start_time DESC, space, name, version);
+
+CREATE INDEX idx_traces_service_extracted 
+ON scouter.traces USING BTREE ((attributes->>'service.name'), start_time DESC)
+WHERE attributes ? 'service.name';
 
 CREATE INDEX idx_traces_status_time 
 ON scouter.traces (status, created_at DESC) 
@@ -104,31 +84,73 @@ CREATE INDEX idx_traces_duration_analysis
 ON scouter.traces (space, name, version, duration_ms DESC) 
 WHERE duration_ms IS NOT NULL;
 
+CREATE INDEX idx_traces_time_covering 
+ON scouter.traces (created_at DESC, space, name, version) 
+INCLUDE (trace_id, start_time, end_time, duration_ms, status, span_count);
+
+CREATE INDEX idx_traces_entity_covering 
+ON scouter.traces (space, name, version, created_at DESC) 
+INCLUDE (trace_id, start_time, end_time, duration_ms, status, span_count);
+
 CREATE INDEX idx_spans_trace_hierarchy 
 ON scouter.spans (trace_id, parent_span_id, start_time);
 
 CREATE INDEX idx_spans_entity_lookup 
 ON scouter.spans (space, name, version, created_at DESC);
 
+CREATE INDEX idx_spans_time_trace 
+ON scouter.spans (created_at DESC, trace_id);
+
 CREATE INDEX idx_spans_operation_performance 
-ON scouter.spans (operation_name, span_kind, duration_ms DESC) 
+ON scouter.spans (span_name, span_kind, duration_ms DESC) 
 WHERE duration_ms IS NOT NULL;
 
 CREATE INDEX idx_spans_error_analysis 
 ON scouter.spans (space, name, version, status_code, created_at DESC) 
 WHERE status_code != 'ok';
 
-CREATE INDEX idx_spans_attributes 
-ON scouter.spans USING GIN (attributes);
+CREATE INDEX idx_spans_parent_child 
+ON scouter.spans (parent_span_id, span_id) 
+WHERE parent_span_id IS NOT NULL;
 
-CREATE INDEX idx_spans_events 
-ON scouter.spans USING GIN (events);
+CREATE INDEX idx_spans_service_name 
+ON scouter.spans USING BTREE ((attributes->>'service.name'))
+WHERE attributes ? 'service.name';
+
+CREATE INDEX idx_spans_scouter_name 
+ON scouter.spans USING BTREE ((attributes->>'scouter'))
+WHERE attributes ? 'scouter';
+
+CREATE INDEX idx_spans_attributes_path_ops 
+ON scouter.spans USING GIN (attributes jsonb_path_ops);
+
+CREATE INDEX idx_spans_events_path_ops 
+ON scouter.spans USING GIN (events jsonb_path_ops);
+
+-- Scouter-specific attributes index (partial index for efficiency)
+CREATE INDEX idx_spans_scouter_attributes 
+ON scouter.spans USING GIN (attributes jsonb_path_ops)
+WHERE EXISTS (
+    SELECT 1 FROM jsonb_object_keys(attributes) 
+    WHERE jsonb_object_keys LIKE 'scouter.%'
+);
+
+CREATE INDEX idx_spans_scouter_events 
+ON scouter.spans USING GIN (events jsonb_path_ops)
+WHERE EXISTS (
+    SELECT 1 FROM jsonb_array_elements(events) AS event
+    WHERE event->>'name' LIKE 'scouter.%'
+);
 
 CREATE INDEX idx_baggage_entity_lookup 
 ON scouter.trace_baggage (space, name, version, created_at DESC);
 
 CREATE INDEX idx_baggage_key_lookup 
 ON scouter.trace_baggage (key, created_at DESC);
+
+CREATE INDEX idx_baggage_trace_scope 
+ON scouter.trace_baggage (trace_id, scope, created_at DESC);
+
 
 -- Partitioning configuration
 SELECT scouter.create_parent(
@@ -153,53 +175,261 @@ SELECT scouter.create_parent(
 UPDATE scouter.part_config SET retention = '30 days' 
 WHERE parent_table IN ('scouter.traces', 'scouter.spans', 'scouter.trace_baggage');
 
--- Materialized views for common analytical queries
-CREATE MATERIALIZED VIEW scouter.trace_analytics_daily AS
+CREATE MATERIALIZED VIEW scouter.trace_summary AS
 SELECT 
-    DATE_TRUNC('day', created_at) as day,
-    space,
-    name, 
-    version,
-    service_name,
-    COUNT(*) as trace_count,
-    AVG(duration_ms) as avg_duration_ms,
-    PERCENTILE_CONT(0.50) WITHIN GROUP (ORDER BY duration_ms) as p50_duration_ms,
-    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_duration_ms,
-    PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY duration_ms) as p99_duration_ms,
-    COUNT(*) FILTER (WHERE status = 'error') as error_count,
-    COUNT(*) FILTER (WHERE status = 'error') * 100.0 / COUNT(*) as error_rate_percent
-FROM scouter.traces 
-WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
-    AND duration_ms IS NOT NULL
-GROUP BY 1, 2, 3, 4, 5;
+    t.trace_id,
+    t.space,
+    t.name,
+    t.version,
+    t.scope,
+    t.start_time,
+    t.end_time,
+    t.duration_ms,
+    t.status,
+    t.span_count,
+    t.created_at,
+ 
+    COALESCE(
+        root_span.attributes->>'service.name',
+        root_span.attributes->>'scouter.service.name',
+        t.space || '.' || t.name
+    ) as service_name,
 
-CREATE UNIQUE INDEX idx_trace_analytics_daily_unique 
-ON scouter.trace_analytics_daily (day, space, name, version, service_name);
+    root_span.span_name as root_operation,
+    root_span.span_kind as root_span_kind,
 
--- Refresh materialized view daily
-SELECT cron.schedule('refresh-trace-analytics', '0 1 * * *', 
-    $$REFRESH MATERIALIZED VIEW CONCURRENTLY scouter.trace_analytics_daily$$);
+    CASE WHEN t.status != 'ok' THEN true ELSE false END as has_errors,
+    COALESCE(error_spans.error_count, 0) as error_count,
 
--- Additional view for span performance analysis
-CREATE MATERIALIZED VIEW scouter.span_performance_daily AS
-SELECT 
-    DATE_TRUNC('day', created_at) as day,
-    space,
-    name,
-    version, 
-    operation_name,
-    span_kind,
-    COUNT(*) as span_count,
-    AVG(duration_ms) as avg_duration_ms,
-    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_ms) as p95_duration_ms,
-    COUNT(*) FILTER (WHERE status_code = 'error') as error_count
-FROM scouter.spans
-WHERE created_at >= CURRENT_DATE - INTERVAL '30 days'
-    AND duration_ms IS NOT NULL
-GROUP BY 1, 2, 3, 4, 5, 6;
+    span_stats.avg_span_duration,
+    span_stats.max_span_duration,
 
-CREATE UNIQUE INDEX idx_span_performance_daily_unique 
-ON scouter.span_performance_daily (day, space, name, version, operation_name, span_kind);
+FROM scouter.traces t
+LEFT JOIN scouter.spans root_span ON (
+    t.trace_id = root_span.trace_id 
+    AND t.root_span_id = root_span.span_id
+)
+LEFT JOIN (
+    SELECT 
+        trace_id,
+        COUNT(*) as error_count
+    FROM scouter.spans 
+    WHERE status_code != 'ok'
+    GROUP BY trace_id
+) error_spans ON t.trace_id = error_spans.trace_id
+LEFT JOIN (
+    SELECT 
+        trace_id,
+        AVG(duration_ms) as avg_span_duration,
+        MAX(duration_ms) as max_span_duration
+    FROM scouter.spans 
+    WHERE duration_ms IS NOT NULL
+    GROUP BY trace_id
+) span_stats ON t.trace_id = span_stats.trace_id
+WHERE t.created_at >= NOW() - INTERVAL '7 days';
 
-SELECT cron.schedule('refresh-span-performance', '0 1 * * *',
-    $$REFRESH MATERIALIZED VIEW CONCURRENTLY scouter.span_performance_daily$$);
+
+CREATE UNIQUE INDEX idx_trace_summary_unique 
+ON scouter.trace_summary (trace_id, scope);
+
+CREATE INDEX idx_trace_summary_recent 
+ON scouter.trace_summary (space, name, version, created_at DESC);
+
+CREATE INDEX idx_trace_summary_service_time 
+ON scouter.trace_summary (service_name, start_time DESC);
+
+
+SELECT cron.schedule('refresh-trace-summary', '*/5 * * * *', 
+    $$REFRESH MATERIALIZED VIEW CONCURRENTLY scouter.trace_summary$$);
+
+
+CREATE OR REPLACE FUNCTION scouter.get_trace_metrics(
+    p_space TEXT DEFAULT NULL,
+    p_name TEXT DEFAULT NULL,
+    p_version TEXT DEFAULT NULL,
+    p_start_time TIMESTAMPTZ DEFAULT NOW() - INTERVAL '1 hour',
+    p_end_time TIMESTAMPTZ DEFAULT NOW(),
+    p_bucket_interval INTERVAL DEFAULT '5 minutes'
+)
+RETURNS TABLE (
+    bucket_start TIMESTAMPTZ,
+    trace_count BIGINT,
+    avg_duration_ms NUMERIC,
+    p50_duration_ms BIGINT,
+    p95_duration_ms BIGINT,
+    p99_duration_ms BIGINT,
+    error_rate NUMERIC
+)
+LANGUAGE SQL
+STABLE
+AS $$
+    SELECT 
+        date_trunc(EXTRACT(EPOCH FROM p_bucket_interval)::text || ' seconds', ts.start_time) as bucket_start,
+        COUNT(*) as trace_count,
+        ROUND(AVG(ts.duration_ms), 2) as avg_duration_ms,
+        PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ts.duration_ms) as p50_duration_ms,
+        PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ts.duration_ms) as p95_duration_ms,
+        PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY ts.duration_ms) as p99_duration_ms,
+        ROUND(
+            COUNT(*) FILTER (WHERE ts.has_errors = true) * 100.0 / COUNT(*), 
+            2
+        ) as error_rate
+    FROM scouter.trace_summary ts
+    WHERE 
+        (p_space IS NULL OR ts.space = p_space)
+        AND (p_name IS NULL OR ts.name = p_name)
+        AND (p_version IS NULL OR ts.version = p_version)
+        AND ts.start_time >= p_start_time
+        AND ts.start_time <= p_end_time
+    GROUP BY bucket_start
+    ORDER BY bucket_start DESC;
+$$;
+
+CREATE OR REPLACE FUNCTION scouter.get_traces_paginated(
+    p_space TEXT DEFAULT NULL,
+    p_name TEXT DEFAULT NULL,
+    p_version TEXT DEFAULT NULL,
+    p_service_name TEXT DEFAULT NULL,
+    p_has_errors BOOLEAN DEFAULT NULL,
+    p_status TEXT DEFAULT NULL,
+    p_start_time TIMESTAMPTZ DEFAULT NOW() - INTERVAL '24 hours',
+    p_end_time TIMESTAMPTZ DEFAULT NOW(),
+    p_limit INTEGER DEFAULT 50,
+    p_cursor_created_at TIMESTAMPTZ DEFAULT NULL,
+    p_cursor_trace_id TEXT DEFAULT NULL
+)
+RETURNS TABLE (
+    trace_id TEXT,
+    space TEXT,
+    name TEXT,
+    version TEXT,
+    scope TEXT,
+    service_name TEXT,
+    root_operation TEXT,
+    start_time TIMESTAMPTZ,
+    end_time TIMESTAMPTZ,
+    duration_ms BIGINT,
+    status TEXT,
+    span_count INTEGER,
+    has_errors BOOLEAN,
+    error_count BIGINT,
+    created_at TIMESTAMPTZ
+)
+LANGUAGE SQL
+STABLE
+AS $$
+    SELECT 
+        ts.trace_id,
+        ts.space,
+        ts.name,
+        ts.version,
+        ts.scope,
+        ts.service_name,
+        ts.root_operation,
+        ts.start_time,
+        ts.end_time,
+        ts.duration_ms,
+        ts.status,
+        ts.span_count,
+        ts.has_errors,
+        ts.error_count,
+        ts.created_at
+    FROM scouter.trace_summary ts
+    WHERE 
+        -- Entity filtering (your main parameters)
+        (p_space IS NULL OR ts.space = p_space)
+        AND (p_name IS NULL OR ts.name = p_name)
+        AND (p_version IS NULL OR ts.version = p_version)
+        -- Additional filtering
+        AND (p_service_name IS NULL OR ts.service_name = p_service_name)
+        AND (p_has_errors IS NULL OR ts.has_errors = p_has_errors)
+        AND (p_status IS NULL OR ts.status = p_status)
+        -- Time range filtering
+        AND ts.start_time >= p_start_time
+        AND ts.start_time <= p_end_time
+        -- Cursor-based pagination (efficient for large datasets)
+        AND (
+            p_cursor_created_at IS NULL OR 
+            ts.created_at < p_cursor_created_at OR
+            (ts.created_at = p_cursor_created_at AND ts.trace_id < p_cursor_trace_id)
+        )
+    ORDER BY ts.created_at DESC, ts.trace_id DESC
+    LIMIT p_limit;
+$$;
+
+CREATE OR REPLACE FUNCTION scouter.get_trace_spans(p_trace_id TEXT)
+RETURNS TABLE (
+    trace_id TEXT,
+    span_id TEXT,
+    parent_span_id TEXT,
+    span_name TEXT,
+    span_kind TEXT,
+    start_time TIMESTAMPTZ,
+    end_time TIMESTAMPTZ,
+    duration_ms BIGINT,
+    status_code TEXT,
+    status_message TEXT,
+    attributes JSONB,
+    events JSONB,
+    links JSONB,
+    depth INTEGER,
+    path TEXT[],
+    root_span_id TEXT,
+    span_order INTEGER
+)
+LANGUAGE SQL
+STABLE
+AS $$
+    WITH RECURSIVE span_tree AS (
+        -- Root spans (no parent)
+        SELECT 
+            s.trace_id,
+            s.span_id,
+            s.parent_span_id,
+            s.span_name,
+            s.span_kind,
+            s.start_time,
+            s.end_time,
+            s.duration_ms,
+            s.status_code,
+            s.status_message,
+            s.attributes,
+            s.events,
+            s.links,
+            0 as depth,
+            ARRAY[s.span_id] as path,
+            s.span_id as root_span_id
+        FROM scouter.spans s
+        WHERE s.trace_id = p_trace_id 
+          AND s.parent_span_id IS NULL
+        
+        UNION ALL
+        
+        -- Child spans
+        SELECT 
+            s.trace_id,
+            s.span_id,
+            s.parent_span_id,
+            s.span_name,
+            s.span_kind,
+            s.start_time,
+            s.end_time,
+            s.duration_ms,
+            s.status_code,
+            s.status_message,
+            s.attributes,
+            s.events,
+            s.links,
+            st.depth + 1,
+            st.path || s.span_id,
+            st.root_span_id
+        FROM scouter.spans s
+        INNER JOIN span_tree st ON s.parent_span_id = st.span_id
+        WHERE s.trace_id = p_trace_id AND st.depth < 20
+    )
+    SELECT 
+        *,
+        ROW_NUMBER() OVER (ORDER BY path) as span_order
+    FROM span_tree
+    ORDER BY path;
+$$;
