@@ -76,6 +76,7 @@ CREATE TABLE IF NOT EXISTS scouter.trace_baggage (
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
     
     -- Baggage data
+    service_name TEXT NOT NULL,
     key TEXT NOT NULL,
     value TEXT NOT NULL,
     metadata JSONB DEFAULT '{}',
@@ -83,8 +84,8 @@ CREATE TABLE IF NOT EXISTS scouter.trace_baggage (
     space TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
-    
-    PRIMARY KEY (trace_id, key, created_at),
+
+    PRIMARY KEY (trace_id, service_name, key),
     UNIQUE (created_at, trace_id, key, space, name, version)
 ) PARTITION BY RANGE (created_at);
 
@@ -102,9 +103,6 @@ WHERE status != 'ok';
 CREATE INDEX idx_traces_duration_analysis 
 ON scouter.traces (space, name, version, duration_ms DESC) 
 WHERE duration_ms IS NOT NULL;
-
-CREATE INDEX idx_traces_resource_attributes 
-ON scouter.traces USING GIN (resource_attributes);
 
 CREATE INDEX idx_spans_trace_hierarchy 
 ON scouter.spans (trace_id, parent_span_id, start_time);

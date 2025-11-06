@@ -22,6 +22,7 @@ pub enum RecordType {
     Custom,
     LLMDrift,
     LLMMetric,
+    Trace,
 }
 
 impl Display for RecordType {
@@ -33,6 +34,7 @@ impl Display for RecordType {
             RecordType::Custom => write!(f, "custom"),
             RecordType::LLMDrift => write!(f, "llm_drift"),
             RecordType::LLMMetric => write!(f, "llm_metric"),
+            RecordType::Trace => write!(f, "trace"),
         }
     }
 }
@@ -433,6 +435,8 @@ impl ObservabilityMetrics {
         RecordType::Observability
     }
 }
+
+#[pyclass]
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct TraceRecord {
     pub trace_id: String,
@@ -449,6 +453,7 @@ pub struct TraceRecord {
     pub root_span_id: String,
 }
 
+#[pyclass]
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct TraceSpanRecord {
     pub span_id: String,
@@ -472,6 +477,26 @@ pub struct TraceSpanRecord {
 }
 
 #[pyclass]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct TraceBaggageRecord {
+    pub trace_id: String,
+    pub service_name: String,
+    pub key: String,
+    pub value: String,
+    pub space: String,
+    pub name: String,
+    pub version: String,
+}
+
+#[pyclass]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
+pub struct TraceServerRecord {
+    trace: TraceRecord,
+    span: TraceSpanRecord,
+    baggage: TraceBaggageRecord,
+}
+
+#[pyclass]
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub enum ServerRecord {
     Spc(SpcServerRecord),
@@ -480,6 +505,7 @@ pub enum ServerRecord {
     Observability(ObservabilityMetrics),
     LLMDrift(BoxedLLMDriftServerRecord),
     LLMMetric(LLMMetricRecord),
+    Trace(TraceServerRecord),
 }
 
 #[pymethods]
@@ -527,6 +553,7 @@ impl ServerRecord {
             ServerRecord::Observability(record) => Ok(record.clone().into_py_any(py)?),
             ServerRecord::LLMDrift(record) => Ok(record.record.clone().into_py_any(py)?),
             ServerRecord::LLMMetric(record) => Ok(record.clone().into_py_any(py)?),
+            _ => Err(RecordError::InvalidDriftTypeError),
         }
     }
 
@@ -538,6 +565,7 @@ impl ServerRecord {
             ServerRecord::Observability(record) => record.space.clone(),
             ServerRecord::LLMDrift(record) => record.record.space.clone(),
             ServerRecord::LLMMetric(record) => record.space.clone(),
+            _ => "__missing__".to_string(),
         }
     }
 
@@ -550,6 +578,7 @@ impl ServerRecord {
             ServerRecord::Observability(record) => record.__str__(),
             ServerRecord::LLMDrift(record) => record.record.__str__(),
             ServerRecord::LLMMetric(record) => record.__str__(),
+            _ => "__missing__".to_string(),
         }
     }
 
@@ -561,6 +590,7 @@ impl ServerRecord {
             ServerRecord::Observability(_) => RecordType::Observability,
             ServerRecord::LLMDrift(_) => RecordType::LLMDrift,
             ServerRecord::LLMMetric(_) => RecordType::LLMMetric,
+            ServerRecord::Trace(_) => RecordType::Trace,
         }
     }
 }
