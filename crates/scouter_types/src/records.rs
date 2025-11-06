@@ -3,8 +3,8 @@ use crate::PyHelperFuncs;
 use crate::Status;
 use chrono::DateTime;
 use chrono::Utc;
-use opentelemetry_proto::tonic::collector::trace;
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
+use opentelemetry_proto::tonic::common::v1::any_value::Value as ProtoAnyValue;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind;
 use opentelemetry_proto::tonic::trace::v1::Span;
 use pyo3::prelude::*;
@@ -14,8 +14,6 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
-use tracing::span;
-use tracing::warn;
 
 pub static BAGGAGE_PREFIX: &str = "baggage";
 
@@ -851,6 +849,70 @@ impl TraceServerRecord {
         }
     }
 
+    pub fn convert_to_baggage_records(
+        span: &Span,
+        scope_name: &str,
+        space: &String,
+        name: &String,
+        version: &String,
+    ) -> Vec<TraceBaggageRecord> {
+        let baggage_kvs: Vec<(String, String)> = span
+            .attributes
+            .iter()
+            .filter_map(|attr| {
+                // Only process attributes with baggage prefix
+                if attr.key.starts_with(BAGGAGE_PREFIX) {
+                    // Strip prefix from key, fallback to original key if stripping fails
+                    let clean_key = attr
+                        .key
+                        .strip_prefix(BAGGAGE_PREFIX)
+                        .and_then(|stripped| {
+                            // Remove leading separator if present (e.g., "baggage." -> "")
+                            stripped.strip_prefix('.').or(Some(stripped))
+                        })
+                        .filter(|s| !s.is_empty()) // Ensure we don't have empty keys
+                        .unwrap_or(&attr.key)
+                        .to_string();
+
+                    // Handle different value types from OpenTelemetry KeyValue
+                    let value_string = match &attr.value {
+                        Some(any_value) => {
+                            // Convert AnyValue to string representation
+                            match &any_value.value {
+                                Some(ProtoAnyValue::StringValue(s)) => s.clone(),
+                                Some(ProtoAnyValue::IntValue(i)) => i.to_string(),
+                                Some(ProtoAnyValue::DoubleValue(d)) => d.to_string(),
+                                Some(ProtoAnyValue::BoolValue(b)) => b.to_string(),
+                                Some(ProtoAnyValue::BytesValue(bytes)) => {
+                                    String::from_utf8_lossy(bytes).to_string()
+                                }
+                                _ => format!("{:?}", any_value), // Fallback for complex types
+                            }
+                        }
+                        None => String::new(), // Handle missing values gracefully
+                    };
+
+                    Some((clean_key, value_string))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        baggage_kvs
+            .into_iter()
+            .map(|(key, value)| TraceBaggageRecord {
+                trace_id: hex::encode(&span.trace_id),
+                scope: scope_name.to_string(),
+                space: space.clone(),
+                name: name.clone(),
+                version: version.clone(),
+                key,
+                value,
+            })
+            .collect()
+    }
+
     /// Convert to TraceRecord
     pub fn convert_to_span_record(
         &self,
@@ -899,7 +961,7 @@ impl TraceServerRecord {
         }
     }
 
-    pub fn to_records(&self) {
+    pub fn to_records(&self) -> TraceRecords {
         let resource_spans = &self.request.resource_spans;
 
         // Pre-calculate capacity to avoid reallocations
@@ -961,9 +1023,16 @@ impl TraceServerRecord {
                         end_time,
                         duration_ms,
                     ));
+
+                    // BaggageRecords for insert
+                    baggage_records.extend(Self::convert_to_baggage_records(
+                        span, scope_name, space, name, version,
+                    ));
                 }
             }
         }
+
+        (trace_records, span_records, baggage_records)
     }
 }
 
