@@ -8,7 +8,7 @@ pub mod redis_consumer {
     use redis::{Msg, RedisResult};
     use scouter_settings::RedisSettings;
     use scouter_sql::MessageHandler;
-    use scouter_types::ServerRecords;
+    use scouter_types::{MessageRecord, ServerRecords};
     use sqlx::{Pool, Postgres};
     use tokio::sync::watch;
     use tokio::task::JoinHandle;
@@ -135,11 +135,29 @@ pub mod redis_consumer {
         // Process messages. If processing fails, log the error, record metrics, and continue
         match process_message(&payload).await {
             Ok(Some(records)) => {
-                if let Err(e) = MessageHandler::insert_server_records(db_pool, &records).await {
-                    error!("Worker {}: Failed to insert drift record: {:?}", id, e);
+                let result = match &records {
+                    MessageRecord::ServerRecords(records) => {
+                        MessageHandler::insert_server_records(&db_pool, &records).await
+                    }
+                    MessageRecord::TraceServerRecord(trace_record) => {
+                        println!("TraceServerRecord received: {:?}", trace_record);
+                        Ok(())
+                        //MessageHandler::insert_trace_server_record(&db_pool, &trace_record).await
+                    }
+                };
+
+                if let Err(e) = result {
+                    error!("Worker {}: Failed to insert record: {:?}", id, e);
                     counter!("db_insert_errors").increment(1);
                 } else {
-                    counter!("records_inserted").increment(records.records.len() as u64);
+                    match &records {
+                        MessageRecord::ServerRecords(server_records) => {
+                            counter!("records_inserted").increment(server_records.len() as u64);
+                        }
+                        MessageRecord::TraceServerRecord(_) => {
+                            counter!("records_inserted").increment(1);
+                        }
+                    }
                     counter!("messages_processed").increment(1);
                 }
             }
@@ -154,8 +172,8 @@ pub mod redis_consumer {
     }
 
     /// Extract the server records from the message
-    pub async fn process_message(message: &str) -> Result<Option<ServerRecords>, EventError> {
-        let records: ServerRecords = match serde_json::from_str::<ServerRecords>(message) {
+    pub async fn process_message(message: &str) -> Result<Option<MessageRecord>, EventError> {
+        let records: MessageRecord = match serde_json::from_str::<MessageRecord>(message) {
             Ok(records) => records,
             Err(e) => {
                 error!("Failed to deserialize message: {:?}", e);
