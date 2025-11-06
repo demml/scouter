@@ -11,6 +11,8 @@ use scouter_types::records::{MessageRecord, TraceServerRecord};
 #[derive(Debug)]
 pub struct ScouterSpanExporter {
     pub space: String,
+    pub name: String,
+    pub version: String,
 }
 
 impl SpanExporter for ScouterSpanExporter {
@@ -22,6 +24,8 @@ impl SpanExporter for ScouterSpanExporter {
         let message_record = MessageRecord::TraceServerRecord(TraceServerRecord {
             request: req,
             space: self.space.clone(),
+            name: self.name.clone(),
+            version: self.version.clone(),
         });
         Ok(())
     }

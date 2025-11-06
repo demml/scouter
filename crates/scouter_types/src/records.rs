@@ -862,15 +862,11 @@ impl TraceServerRecord {
             .filter_map(|attr| {
                 // Only process attributes with baggage prefix
                 if attr.key.starts_with(BAGGAGE_PREFIX) {
-                    // Strip prefix from key, fallback to original key if stripping fails
                     let clean_key = attr
                         .key
                         .strip_prefix(BAGGAGE_PREFIX)
-                        .and_then(|stripped| {
-                            // Remove leading separator if present (e.g., "baggage." -> "")
-                            stripped.strip_prefix('.').or(Some(stripped))
-                        })
-                        .filter(|s| !s.is_empty()) // Ensure we don't have empty keys
+                        .and_then(|stripped| stripped.strip_prefix('.').or(Some(stripped)))
+                        .filter(|s| !s.is_empty())
                         .unwrap_or(&attr.key)
                         .to_string();
 
