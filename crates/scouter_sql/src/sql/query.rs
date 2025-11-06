@@ -97,6 +97,11 @@ const GET_USERS: &str = include_str!("scripts/user/get_users.sql");
 const LAST_ADMIN: &str = include_str!("scripts/user/last_admin.sql");
 const DELETE_USER: &str = include_str!("scripts/user/delete_user.sql");
 
+// trace
+const UPSERT_TRACE: &str = include_str!("scripts/trace/upsert_trace.sql");
+const INSERT_TRACE_SPAN: &str = include_str!("scripts/trace/insert_span.sql");
+const INSERT_TRACE_BAGGAGE: &str = include_str!("scripts/trace/insert_baggage.sql");
+
 #[allow(dead_code)]
 pub enum Queries {
     GetSpcFeatures,
@@ -170,6 +175,11 @@ pub enum Queries {
     // profile
     GetProfileVersions,
     ListDriftProfiles,
+
+    //trace
+    UpsertTrace,
+    InsertTraceSpan,
+    InsertTraceBaggage,
 }
 
 impl Queries {
@@ -246,6 +256,10 @@ impl Queries {
             Queries::InsertSpcDriftRecordBatch => SqlQuery::new(INSERT_SPC_DRIFT_RECORD_BATCH),
             Queries::InsertBinCountsBatch => SqlQuery::new(INSERT_BIN_COUNTS_BATCH),
             Queries::UpdateLLMDriftTask => SqlQuery::new(UPDATE_LLM_DRIFT_TASK),
+            // trace
+            Queries::UpsertTrace => SqlQuery::new(UPSERT_TRACE),
+            Queries::InsertTraceSpan => SqlQuery::new(INSERT_TRACE_SPAN),
+            Queries::InsertTraceBaggage => SqlQuery::new(INSERT_TRACE_BAGGAGE),
         }
     }
 }

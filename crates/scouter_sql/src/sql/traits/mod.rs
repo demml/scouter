@@ -6,6 +6,7 @@ pub mod observability;
 pub mod profile;
 pub mod psi;
 pub mod spc;
+pub mod trace;
 pub mod user;
 
 pub use alert::AlertSqlLogic;
