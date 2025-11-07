@@ -6,5 +6,30 @@ INSERT INTO scouter.trace_baggage (
     space, 
     name, 
     version
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7)
-    ON CONFLICT (trace_id, scope, key) DO NOTHING
+)
+SELECT 
+    trace_id, 
+    scope,
+    key,
+    value, 
+    space, 
+    name, 
+    version
+FROM UNNEST(
+    $1::text[], -- trace_id
+    $2::text[], -- scope
+    $3::text[], -- key
+    $4::text[], -- value
+    $5::text[], -- space
+    $6::text[], -- name
+    $7::text[]  -- version
+) AS b(
+    trace_id, 
+    scope,
+    key,
+    value, 
+    space, 
+    name, 
+    version
+)
+ON CONFLICT (trace_id, scope, key) DO NOTHING;

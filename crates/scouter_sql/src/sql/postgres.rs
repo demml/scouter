@@ -225,6 +225,25 @@ mod tests {
 
             DELETE
             FROM scouter.llm_drift;
+
+            DELETE
+            FROM scouter.traces;
+
+            DELETE
+            FROM scouter.spans;
+
+            DELETE
+            FROM scouter.trace_baggage;
+
+            # delete view
+            DROP VIEW IF EXISTS scouter.trace_summary
+
+            # delete function
+            DROP FUNCTION IF EXISTS scouter.get_trace_metrics
+
+            DROP FUNCTION IF EXISTS scouter.get_traces_paginated
+
+            DROP FUNCTION IF EXISTS scouter.get_trace_spans
             "#,
         )
         .fetch_all(pool)

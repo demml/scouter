@@ -1,15 +1,10 @@
-use crate::sql::query::Queries;
-use crate::sql::schema::{AlertWrapper, UpdateAlertResult};
-
-use scouter_types::contracts::{DriftAlertRequest, UpdateAlertStatus};
-
 use crate::sql::error::SqlError;
-use scouter_types::alert::Alert;
+use crate::sql::query::Queries;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::multiunzip;
-use scouter_types::{TraceRecord, TraceSpanRecord};
+use scouter_types::{TraceBaggageRecord, TraceRecord, TraceSpanRecord};
 use sqlx::{postgres::PgQueryResult, Pool, Postgres};
 use std::result::Result::Ok;
 
@@ -160,6 +155,51 @@ pub trait TraceSqlLogic {
             .bind(attributes)
             .bind(events)
             .bind(links)
+            .execute(pool)
+            .await?;
+
+        Ok(query_result)
+    }
+
+    /// Attempts to insert multiple trace baggage records into the database in a batch.
+    ///
+    /// # Arguments
+    /// * `pool` - The database connection pool
+    /// * `baggage` - The trace baggage records to insert
+    async fn insert_baggage_batch(
+        pool: &Pool<Postgres>,
+        baggage: &Vec<TraceBaggageRecord>,
+    ) -> Result<PgQueryResult, SqlError> {
+        let query = Queries::InsertTraceBaggage.get_query();
+
+        let (trace_id, scope, key, value, space, name, version): (
+            Vec<&str>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<&str>,
+            Vec<&str>,
+        ) = multiunzip(baggage.iter().map(|b| {
+            (
+                b.trace_id.as_str(),
+                b.scope.as_str(),
+                b.key.as_str(),
+                b.value.as_str(),
+                b.space.as_str(),
+                b.name.as_str(),
+                b.version.as_str(),
+            )
+        }));
+
+        let query_result = sqlx::query(&query.sql)
+            .bind(trace_id)
+            .bind(scope)
+            .bind(key)
+            .bind(value)
+            .bind(space)
+            .bind(name)
+            .bind(version)
             .execute(pool)
             .await?;
 
