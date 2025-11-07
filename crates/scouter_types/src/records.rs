@@ -15,7 +15,8 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
 
-pub static BAGGAGE_PREFIX: &str = "baggage";
+pub const BAGGAGE_PREFIX: &str = "baggage";
+pub const TRACE_START_TIME_KEY: &str = "scouter.trace.start_time";
 
 #[pyclass(eq)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
@@ -694,6 +695,7 @@ fn extract_records<T>(
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct TraceRecord {
+    pub created_at: DateTime<Utc>,
     pub trace_id: String,
     pub space: String,
     pub name: String,
@@ -831,6 +833,7 @@ impl TraceServerRecord {
         duration_ms: i64,
     ) -> TraceRecord {
         TraceRecord {
+            created_at: self.get_trace_start_time_attribute(span, &start_time),
             trace_id: hex::encode(&span.trace_id),
             space: space.clone(),
             name: name.clone(),
@@ -848,6 +851,30 @@ impl TraceServerRecord {
             root_span_id: hex::encode(&span.span_id),
             attributes: scope_attributes.clone(),
         }
+    }
+
+    /// Filter and extract trace start time attribute from span attributes
+    /// This is a global scouter attribute that indicates the trace start time and is set across all spans
+    pub fn get_trace_start_time_attribute(
+        &self,
+        span: &Span,
+        start_time: &DateTime<Utc>,
+    ) -> DateTime<Utc> {
+        for attr in &span.attributes {
+            if attr.key == TRACE_START_TIME_KEY {
+                if let Some(value) = &attr.value {
+                    if let Some(ProtoAnyValue::StringValue(s)) = &value.value {
+                        if let Ok(dt) = s.parse::<chrono::DateTime<chrono::Utc>>() {
+                            return dt;
+                        }
+                    }
+                }
+            }
+        }
+        tracing::warn!(
+            "Trace start time attribute not found or invalid, falling back to span start_time"
+        );
+        start_time.clone()
     }
 
     pub fn convert_to_baggage_records(
