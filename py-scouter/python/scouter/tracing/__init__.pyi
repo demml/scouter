@@ -153,6 +153,10 @@ class ActiveSpan:
         """
         ...
 
+    def __enter__(self) -> "ActiveSpan":
+        """Enter the span context."""
+        ...
+
     def __exit__(
         self,
         exc_type: Optional[type],

@@ -2,11 +2,21 @@
 
 import asyncio
 import functools
-from typing import Any, Callable, Optional, TypeVar, ParamSpec, cast, Awaitable
+from typing import (
+    Any,
+    Callable,
+    Optional,
+    TypeVar,
+    ParamSpec,
+    cast,
+    Awaitable,
+    Generator,
+    AsyncGenerator,
+)
 from contextvars import ContextVar
 from .. import tracing
 import inspect
-from typing import Dict
+
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -84,21 +94,7 @@ def set_current_span(span: Optional[tracing.ActiveSpan]) -> None:
 
 
 class Tracer(tracing.BaseTracer):
-    """
-    Extended tracer with decorator support.
-
-    This class extends the Rust BaseTracer to provide Python-friendly
-    decorator functionality for tracing spans.
-
-    Examples:
-        >>> from scouter.tracing import init_tracer, get_tracer
-        >>> init_tracer(name="my-service")
-        >>> tracer = get_tracer("my-service")
-        >>>
-        >>> @tracer.span("operation_name")
-        ... def my_function():
-        ...     return "result"
-    """
+    """Extended tracer with decorator support for all function types."""
 
     def span(
         self,
@@ -108,32 +104,114 @@ class Tracer(tracing.BaseTracer):
         attributes: Optional[dict[str, str]] = None,
         baggage: Optional[dict[str, str]] = None,
         max_length: int = 1000,
+        capture_streaming: bool = True,
+        max_stream_items: int = 100,
     ) -> Callable[[Callable[P, R]], Callable[P, R]]:
         """Decorator to trace function execution with OpenTelemetry spans.
 
         Args:
-            name (Optional[str]):
-                The name of the span. If None, defaults to the function's
-                module and qualified name.
-            kind (Optional[str]):
-                The kind of span (e.g., "SERVER", "CLIENT").
-            attributes (Optional[dict[str, str]]):
-                Additional attributes to set on the span.
-            baggage (Optional[dict[str, str]]):
-                Baggage items to attach to the span.
+            name (str):
+                The name of the span
+            kind (str):
+                The kind of span (e.g., "SERVER", "CLIENT")
+            attributes (dict[str, str]):
+                Additional attributes to set on the span
+            baggage (dict[str, str]):
+                Baggage items to attach to the span
             max_length (int):
-                Maximum length for serialized function inputs.
+                Maximum length for serialized function inputs
+            capture_streaming (bool):
+                Whether to capture yielded values from generators
+            max_stream_items (int):
+                Maximum number of stream items to capture
         """
 
         def decorator(func: Callable[P, R]) -> Callable[P, R]:
-            span_name = name
-            if span_name is None:
-                span_name = f"{func.__module__}.{func.__qualname__}"
+            span_name = name or f"{func.__module__}.{func.__qualname__}"
 
             is_async = asyncio.iscoroutinefunction(func)
+            is_async_generator = is_async and inspect.isasyncgenfunction(func)
+            is_generator = inspect.isgeneratorfunction(func)
 
-            if is_async:
+            if is_async_generator:
 
+                @functools.wraps(func)
+                async def async_generator_wrapper(
+                    *args: P.args, **kwargs: P.kwargs
+                ) -> Any:
+                    async with self.start_as_current_span(
+                        span_name,
+                        kind=kind,
+                        attributes=attributes,
+                        baggage=baggage,
+                    ) as span:
+                        set_current_span(span)
+
+                        try:
+                            self._set_function_attributes(span, func)
+                            _capture_function_inputs(
+                                span, func, args, kwargs, max_length
+                            )
+
+                            span.set_attribute("function.type", "async_generator")
+                            span.set_attribute("streaming", True)
+
+                            async_gen_func = cast(
+                                Callable[P, AsyncGenerator[Any, None]], func
+                            )
+                            generator = async_gen_func(*args, **kwargs)
+
+                            async for item in generator:
+                                yield item
+
+                        except Exception as e:
+                            span.set_attribute("error.type", type(e).__name__)
+
+                            raise
+                        finally:
+                            set_current_span(None)
+
+                return cast(Callable[P, R], async_generator_wrapper)
+
+            elif is_generator:
+
+                @functools.wraps(func)
+                def generator_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
+                    with self.start_as_current_span(
+                        span_name,
+                        kind=kind,
+                        attributes=attributes,
+                        baggage=baggage,
+                    ) as span:
+                        set_current_span(span)
+
+                        try:
+                            self._set_function_attributes(span, func)
+                            _capture_function_inputs(
+                                span, func, args, kwargs, max_length
+                            )
+                            span.set_attribute("function.type", "generator")
+                            span.set_attribute("streaming", "true")
+
+                            gen_func = cast(
+                                Callable[P, Generator[Any, None, None]], func
+                            )
+                            generator = gen_func(*args, **kwargs)
+                            for item in generator:
+                                yield item
+
+                            # need to record outputs after generator is exhausted?
+
+                        except Exception as e:
+                            span.set_attribute("error.type", type(e).__name__)
+                            raise
+                        finally:
+                            set_current_span(None)
+
+                return cast(Callable[P, R], generator_wrapper)
+
+            elif is_async:
+                # ...existing async function wrapper...
                 @functools.wraps(func)
                 async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
                     async with self.start_as_current_span(
@@ -145,27 +223,15 @@ class Tracer(tracing.BaseTracer):
                         set_current_span(span)
 
                         try:
-                            span.set_attribute("function.name", func.__name__)
-                            span.set_attribute("function.module", func.__module__)
-                            span.set_attribute("function.qualname", func.__qualname__)
-
+                            self._set_function_attributes(span, func)
                             _capture_function_inputs(
-                                span,
-                                func,
-                                args,
-                                kwargs,
-                                max_length,
+                                span, func, args, kwargs, max_length
                             )
 
                             async_func = cast(Callable[P, Awaitable[Any]], func)
                             result = await async_func(*args, **kwargs)
 
-                            _capture_function_outputs(
-                                span,
-                                result,
-                                max_length,
-                            )
-
+                            _capture_function_outputs(span, result, max_length)
                             return result
                         except Exception as e:
                             span.set_attribute("error.type", type(e).__name__)
@@ -188,25 +254,13 @@ class Tracer(tracing.BaseTracer):
                         set_current_span(span)
 
                         try:
-                            span.set_attribute("function.name", func.__name__)
-                            span.set_attribute("function.module", func.__module__)
-                            span.set_attribute("function.qualname", func.__qualname__)
-
+                            self._set_function_attributes(span, func)
                             _capture_function_inputs(
-                                span,
-                                func,
-                                args,
-                                kwargs,
-                                max_length,
+                                span, func, args, kwargs, max_length
                             )
 
                             result = func(*args, **kwargs)
-
-                            _capture_function_outputs(
-                                span,
-                                result,
-                                max_length,
-                            )
+                            _capture_function_outputs(span, result, max_length)
                             return result
                         except Exception as e:
                             span.set_attribute("error.type", type(e).__name__)
@@ -217,6 +271,14 @@ class Tracer(tracing.BaseTracer):
                 return cast(Callable[P, R], sync_wrapper)
 
         return decorator
+
+    def _set_function_attributes(
+        self, span: tracing.ActiveSpan, func: Callable
+    ) -> None:
+        """Helper to set common function attributes."""
+        span.set_attribute("function.name", func.__name__)
+        span.set_attribute("function.module", func.__module__)
+        span.set_attribute("function.qualname", func.__qualname__)
 
 
 def get_tracer(name: str) -> Tracer:
