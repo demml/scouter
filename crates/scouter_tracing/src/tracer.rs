@@ -23,7 +23,10 @@ use opentelemetry_sdk::{trace::Sampler, Resource};
 use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
-use scouter_types::{is_pydantic_basemodel, pydantic_to_value, pyobject_to_json, BAGGAGE_PREFIX};
+use scouter_types::{
+    is_pydantic_basemodel, pydantic_to_value, pyobject_to_json, BAGGAGE_PREFIX,
+    TRACE_START_TIME_KEY,
+};
 use serde_json::Value;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -37,8 +40,6 @@ static CONTEXT_STORE: OnceLock<ContextStore> = OnceLock::new();
 
 /// Global static instance of the context variable for async context propagation. Caching the import for speed
 static CONTEXT_VAR: OnceLock<Py<PyAny>> = OnceLock::new();
-
-const TRACE_START_TIME_KEY: &str = "scouter.trace.start_time";
 
 // Add trace metadata store
 static TRACE_METADATA_STORE: OnceLock<TraceMetadataStore> = OnceLock::new();
