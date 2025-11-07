@@ -1,3 +1,4 @@
+use opentelemetry::baggage;
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use opentelemetry_proto::transform::common::tonic::ResourceAttributesWithSchema;
 use opentelemetry_proto::transform::trace::tonic::group_spans_by_resource_and_scope;
@@ -21,12 +22,16 @@ impl SpanExporter for ScouterSpanExporter {
         let resource_spans =
             group_spans_by_resource_and_scope(batch, &ResourceAttributesWithSchema::default());
         let req = ExportTraceServiceRequest { resource_spans };
-        let message_record = MessageRecord::TraceServerRecord(TraceServerRecord {
+        let record = TraceServerRecord {
             request: req,
             space: self.space.clone(),
             name: self.name.clone(),
             version: self.version.clone(),
-        });
+        };
+        //let message_record = MessageRecord::TraceServerRecord(record);
+
+        let (traces, span, baggage) = record.to_records();
+
         Ok(())
     }
 

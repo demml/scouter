@@ -5998,6 +5998,7 @@ dependencies = [
  "colored_json",
  "cron",
  "hex",
+ "opentelemetry",
  "opentelemetry-proto",
  "potato-head",
  "pyo3",

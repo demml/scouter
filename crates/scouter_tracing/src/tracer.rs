@@ -6,6 +6,7 @@
 // This data can then be pulled inside of OpsML's UI for trace correlation and analysis.
 
 use crate::error::TraceError;
+use crate::exporter::ScouterSpanExporter;
 use chrono::{DateTime, Utc};
 use opentelemetry::baggage::BaggageExt;
 use opentelemetry::trace::Tracer as OTelTracer;
@@ -22,10 +23,11 @@ use opentelemetry_sdk::trace::SpanProcessor;
 use opentelemetry_sdk::{trace::Sampler, Resource};
 use potato_head::create_uuid7;
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 use pyo3::IntoPyObjectExt;
 use scouter_types::{
-    is_pydantic_basemodel, pydantic_to_value, pyobject_to_json, BAGGAGE_PREFIX,
-    TRACE_START_TIME_KEY,
+    is_pydantic_basemodel, pydantic_to_value, pydict_to_otel_keyvalue, pyobject_to_json,
+    pyobject_to_tracing_json, BAGGAGE_PREFIX, TRACE_START_TIME_KEY,
 };
 use serde_json::Value;
 use std::sync::{Arc, RwLock};
@@ -176,6 +178,12 @@ pub fn init_tracer(name: Option<String>, endpoint: Option<String>, sample_ratio:
             .map(Sampler::TraceIdRatioBased)
             .unwrap_or(Sampler::AlwaysOn);
 
+        let scouter_export = ScouterSpanExporter {
+            space: "default".to_string(),
+            name: name.clone(),
+            version: "1.0.0".to_string(),
+        };
+
         let provider = match endpoint {
             Some(endpoint_url) => {
                 let otlp_exporter = opentelemetry_otlp::SpanExporter::builder()
@@ -188,6 +196,7 @@ pub fn init_tracer(name: Option<String>, endpoint: Option<String>, sample_ratio:
                 opentelemetry_sdk::trace::SdkTracerProvider::builder()
                     .with_span_processor(EnrichSpanWithBaggageProcessor)
                     .with_batch_exporter(otlp_exporter)
+                    .with_batch_exporter(scouter_export)
                     .with_sampler(sampler)
                     .with_resource(resource)
                     .build()
@@ -198,6 +207,7 @@ pub fn init_tracer(name: Option<String>, endpoint: Option<String>, sample_ratio:
                 opentelemetry_sdk::trace::SdkTracerProvider::builder()
                     .with_span_processor(EnrichSpanWithBaggageProcessor)
                     .with_simple_exporter(stdout_exporter)
+                    .with_simple_exporter(scouter_export)
                     .with_sampler(sampler)
                     .with_resource(resource)
                     .build()
@@ -312,6 +322,38 @@ impl ActiveSpan {
         self.context_id.clone()
     }
 
+    #[pyo3(signature = (input, max_length=1000))]
+    fn set_input(&mut self, input: &Bound<'_, PyAny>, max_length: usize) -> Result<(), TraceError> {
+        if let Some(ref mut span) = self.span {
+            let value = pyobject_to_tracing_json(input, &max_length)?;
+
+            println!("Setting span input: {:?}", value);
+
+            span.set_attribute(KeyValue::new(
+                "scouter.tracing.inputs",
+                serde_json::to_string(&value)?,
+            ));
+        }
+        Ok(())
+    }
+
+    #[pyo3(signature = (output, max_length=1000))]
+    fn set_output(
+        &mut self,
+        output: &Bound<'_, PyAny>,
+        max_length: usize,
+    ) -> Result<(), TraceError> {
+        if let Some(ref mut span) = self.span {
+            let value = pyobject_to_tracing_json(output, &max_length)?;
+
+            span.set_attribute(KeyValue::new(
+                "scouter.tracing.outputs",
+                serde_json::to_string(&value)?,
+            ));
+        }
+        Ok(())
+    }
+
     /// Set an attribute on the span
     /// # Arguments
     /// * `key` - The attribute key
@@ -331,13 +373,29 @@ impl ActiveSpan {
         &mut self,
         py: Python,
         name: String,
-        attributes: Bound<'_, PyAny>,
-    ) -> PyResult<()> {
+        attributes: Option<Bound<'_, PyAny>>,
+    ) -> Result<(), TraceError> {
         if let Some(ref mut span) = self.span {
-            let attributes_val = attributes_to_value(py, &attributes)?;
-            let otel_val =
-                opentelemetry::Value::from(serde_json::to_string(&attributes_val).unwrap());
-            span.add_event(name, vec![KeyValue::new("attributes", otel_val)]);
+            let pairs: Vec<KeyValue> = if let Some(attrs) = attributes {
+                if is_pydantic_basemodel(py, &attrs)? {
+                    let dumped = attrs.call_method0("model_dump")?;
+                    let dict = dumped
+                        .downcast::<PyDict>()
+                        .map_err(|e| TraceError::DowncastError(e.to_string()))?;
+                    pydict_to_otel_keyvalue(dict)?
+                } else if attrs.is_instance_of::<PyDict>() {
+                    let dict = attrs
+                        .downcast::<PyDict>()
+                        .map_err(|e| TraceError::DowncastError(e.to_string()))?;
+                    pydict_to_otel_keyvalue(dict)?
+                } else {
+                    return Err(TraceError::EventMustBeDict);
+                }
+            } else {
+                vec![]
+            };
+
+            span.add_event(name, pairs);
         }
         Ok(())
     }
@@ -588,13 +646,6 @@ impl BaseTracer {
 #[pyfunction]
 pub fn get_current_span_context(py: Python) -> PyResult<Option<String>> {
     get_current_context_id(py)
-}
-
-fn attributes_to_value(py: Python, obj: &Bound<'_, PyAny>) -> Result<Value, TraceError> {
-    if is_pydantic_basemodel(py, obj)? {
-        return Ok(pydantic_to_value(obj)?);
-    }
-    Ok(pyobject_to_json(obj)?)
 }
 
 /// Helper function to force flush the tracer provider

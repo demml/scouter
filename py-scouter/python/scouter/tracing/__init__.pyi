@@ -128,8 +128,29 @@ class ActiveSpan:
         """
         ...
 
-    def __enter__(self) -> "ActiveSpan":
-        """Enter the span context."""
+    def set_input(self, input: Any, max_length: int = 1000) -> None:
+        """Set the input for the active span.
+
+        Args:
+            input (Any):
+                The input to set. Can be any serializable primitive type (str, int, float, bool, list, dict),
+                or a pydantic `BaseModel`.
+            max_length (int):
+                The maximum length for a given string input. Defaults to 1000.
+        """
+        ...
+
+    def set_output(self, output: Any, max_length: int = 1000) -> None:
+        """Set the output for the active span.
+
+        Args:
+            output (Any):
+                The output to set. Can be any serializable primitive type (str, int, float, bool, list, dict),
+                or a pydantic `BaseModel`.
+            max_length (int):
+                The maximum length for a given string output. Defaults to 1000.
+
+        """
         ...
 
     def __exit__(

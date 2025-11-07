@@ -27,6 +27,21 @@ pub enum TraceError {
 
     #[error(transparent)]
     TypeError(#[from] scouter_types::error::TypeError),
+
+    #[error("Event must be a dictionary or a Pydantic BaseModel")]
+    EventMustBeDict,
+
+    #[error("Failed to downcast Python object: {0}")]
+    DowncastError(String),
+
+    #[error(transparent)]
+    SerdeError(#[from] serde_json::Error),
+}
+
+impl<'a> From<pyo3::DowncastError<'a, 'a>> for TraceError {
+    fn from(err: pyo3::DowncastError) -> Self {
+        TraceError::DowncastError(err.to_string())
+    }
 }
 
 impl From<TraceError> for PyErr {

@@ -113,6 +113,9 @@ pub enum TypeError {
 
     #[error("Unsupported Python object type for conversion")]
     UnsupportedPyObjectType,
+
+    #[error("Invalid dictionary key type. Dictionary keys must be strings, int, float or bool")]
+    InvalidDictKeyType,
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for TypeError {

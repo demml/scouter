@@ -23,6 +23,34 @@ CREATE TABLE IF NOT EXISTS scouter.traces (
     UNIQUE (created_at, trace_id, space, name, version)
 ) PARTITION BY RANGE (created_at);
 
+
+-- Trace indexes
+CREATE INDEX idx_traces_entity_lookup 
+ON scouter.traces (space, name, version, created_at DESC);
+
+CREATE INDEX idx_traces_created_at 
+ON scouter.traces (created_at DESC, space, name, version);
+
+CREATE INDEX idx_traces_service_extracted 
+ON scouter.traces USING BTREE ((attributes->>'service.name'), created_at DESC)
+WHERE attributes ? 'service.name';
+
+CREATE INDEX idx_traces_status_time 
+ON scouter.traces (status, created_at DESC) 
+WHERE status != 'ok';
+
+CREATE INDEX idx_traces_duration_analysis 
+ON scouter.traces (space, name, version, duration_ms DESC) 
+WHERE duration_ms IS NOT NULL;
+
+CREATE INDEX idx_traces_time_covering 
+ON scouter.traces (created_at DESC, space, name, version) 
+INCLUDE (trace_id, start_time, end_time, duration_ms, status, span_count);
+
+CREATE INDEX idx_traces_entity_covering 
+ON scouter.traces (space, name, version, created_at DESC) 
+INCLUDE (trace_id, start_time, end_time, duration_ms, status, span_count);
+
 -- Spans table - stores individual span data
 CREATE TABLE IF NOT EXISTS scouter.spans (
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
@@ -47,50 +75,12 @@ CREATE TABLE IF NOT EXISTS scouter.spans (
     archived BOOLEAN DEFAULT FALSE,
     
     PRIMARY KEY (created_at, trace_id, span_id),
-    FOREIGN KEY (trace_id, scope, space, name, version) 
-        REFERENCES scouter.traces (trace_id, scope, space, name, version)
+    FOREIGN KEY (created_at, trace_id, scope) 
+        REFERENCES scouter.traces (created_at, trace_id, scope)
 ) PARTITION BY RANGE (created_at);
 
-CREATE TABLE IF NOT EXISTS scouter.trace_baggage (
-    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
-    trace_id TEXT NOT NULL,
-    scope TEXT NOT NULL,
-    key TEXT NOT NULL,
-    value TEXT NOT NULL,
-    space TEXT NOT NULL,
-    name TEXT NOT NULL,
-    version TEXT NOT NULL,
-    PRIMARY KEY (created_at, trace_id, scope, key),
-    UNIQUE (created_at, trace_id, key, space, name, version)
-) PARTITION BY RANGE (created_at);
 
--- Performance indexes for traces table
-CREATE INDEX idx_traces_entity_lookup 
-ON scouter.traces (space, name, version, created_at DESC);
-
-CREATE INDEX idx_traces_start_time 
-ON scouter.traces (start_time DESC, space, name, version);
-
-CREATE INDEX idx_traces_service_extracted 
-ON scouter.traces USING BTREE ((attributes->>'service.name'), start_time DESC)
-WHERE attributes ? 'service.name';
-
-CREATE INDEX idx_traces_status_time 
-ON scouter.traces (status, created_at DESC) 
-WHERE status != 'ok';
-
-CREATE INDEX idx_traces_duration_analysis 
-ON scouter.traces (space, name, version, duration_ms DESC) 
-WHERE duration_ms IS NOT NULL;
-
-CREATE INDEX idx_traces_time_covering 
-ON scouter.traces (created_at DESC, space, name, version) 
-INCLUDE (trace_id, start_time, end_time, duration_ms, status, span_count);
-
-CREATE INDEX idx_traces_entity_covering 
-ON scouter.traces (space, name, version, created_at DESC) 
-INCLUDE (trace_id, start_time, end_time, duration_ms, status, span_count);
-
+-- span indexes
 CREATE INDEX idx_spans_trace_hierarchy 
 ON scouter.spans (trace_id, parent_span_id, start_time);
 
@@ -129,17 +119,28 @@ ON scouter.spans USING GIN (events jsonb_path_ops);
 -- Scouter-specific attributes index (partial index for efficiency)
 CREATE INDEX idx_spans_scouter_attributes 
 ON scouter.spans USING GIN (attributes jsonb_path_ops)
-WHERE EXISTS (
-    SELECT 1 FROM jsonb_object_keys(attributes) 
-    WHERE jsonb_object_keys LIKE 'scouter.%'
-);
+WHERE attributes::text ~ '"scouter\.[^"]*":';
 
+-- Index for spans with scouter-prefixed event names  
 CREATE INDEX idx_spans_scouter_events 
 ON scouter.spans USING GIN (events jsonb_path_ops)
-WHERE EXISTS (
-    SELECT 1 FROM jsonb_array_elements(events) AS event
-    WHERE event->>'name' LIKE 'scouter.%'
-);
+WHERE events::text ~ '"name"\s*:\s*"scouter\.';
+
+
+CREATE TABLE IF NOT EXISTS scouter.trace_baggage (
+    created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
+    trace_id TEXT NOT NULL,
+    scope TEXT NOT NULL,
+    key TEXT NOT NULL,
+    value TEXT NOT NULL,
+    space TEXT NOT NULL,
+    name TEXT NOT NULL,
+    version TEXT NOT NULL,
+    PRIMARY KEY (created_at, trace_id, scope, key),
+    UNIQUE (created_at, trace_id, key, space, name, version)
+) PARTITION BY RANGE (created_at);
+
+
 
 CREATE INDEX idx_baggage_entity_lookup 
 ON scouter.trace_baggage (space, name, version, created_at DESC);

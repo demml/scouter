@@ -5,6 +5,8 @@ import functools
 from typing import Any, Callable, Optional, TypeVar, ParamSpec, cast, Awaitable
 from contextvars import ContextVar
 from .. import tracing
+import inspect
+from typing import Dict
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -13,6 +15,46 @@ R = TypeVar("R")
 _current_span: ContextVar[Optional[tracing.ActiveSpan]] = ContextVar(
     "_current_active_span", default=None
 )
+
+
+def _capture_function_inputs(
+    span: tracing.ActiveSpan,
+    func: Callable,
+    args: tuple,
+    kwargs: dict,
+    max_length: int = 1000,
+) -> None:
+    """
+    Capture function inputs as a simple dictionary mapping parameter names to values.
+    """
+    try:
+        sig = inspect.signature(func)
+        bound_args = sig.bind(*args, **kwargs)
+        bound_args.apply_defaults()
+        span.set_input(bound_args.arguments, max_length=max_length)
+
+    except Exception as e:
+        span.add_event(
+            "scouter.error.input_capture_error",
+            {"error": str(e)},
+        )
+
+
+def _capture_function_outputs(
+    span: tracing.ActiveSpan,
+    output: Any,
+    max_length: int = 1000,
+) -> None:
+    """
+    Capture function outputs as a simple dictionary mapping parameter names to values.
+    """
+    try:
+        span.set_output(output, max_length=max_length)
+    except Exception as e:
+        span.add_event(
+            "scouter.error.output_capture_error",
+            {"error": str(e)},
+        )
 
 
 def get_current_span() -> Optional[tracing.ActiveSpan]:
@@ -65,8 +107,23 @@ class Tracer(tracing.BaseTracer):
         kind: Optional[str] = None,
         attributes: Optional[dict[str, str]] = None,
         baggage: Optional[dict[str, str]] = None,
+        max_length: int = 1000,
     ) -> Callable[[Callable[P, R]], Callable[P, R]]:
-        """Decorator to trace function execution with OpenTelemetry spans."""
+        """Decorator to trace function execution with OpenTelemetry spans.
+
+        Args:
+            name (Optional[str]):
+                The name of the span. If None, defaults to the function's
+                module and qualified name.
+            kind (Optional[str]):
+                The kind of span (e.g., "SERVER", "CLIENT").
+            attributes (Optional[dict[str, str]]):
+                Additional attributes to set on the span.
+            baggage (Optional[dict[str, str]]):
+                Baggage items to attach to the span.
+            max_length (int):
+                Maximum length for serialized function inputs.
+        """
 
         def decorator(func: Callable[P, R]) -> Callable[P, R]:
             span_name = name
@@ -92,8 +149,23 @@ class Tracer(tracing.BaseTracer):
                             span.set_attribute("function.module", func.__module__)
                             span.set_attribute("function.qualname", func.__qualname__)
 
+                            _capture_function_inputs(
+                                span,
+                                func,
+                                args,
+                                kwargs,
+                                max_length,
+                            )
+
                             async_func = cast(Callable[P, Awaitable[Any]], func)
                             result = await async_func(*args, **kwargs)
+
+                            _capture_function_outputs(
+                                span,
+                                result,
+                                max_length,
+                            )
+
                             return result
                         except Exception as e:
                             span.set_attribute("error.type", type(e).__name__)
@@ -120,7 +192,21 @@ class Tracer(tracing.BaseTracer):
                             span.set_attribute("function.module", func.__module__)
                             span.set_attribute("function.qualname", func.__qualname__)
 
+                            _capture_function_inputs(
+                                span,
+                                func,
+                                args,
+                                kwargs,
+                                max_length,
+                            )
+
                             result = func(*args, **kwargs)
+
+                            _capture_function_outputs(
+                                span,
+                                result,
+                                max_length,
+                            )
                             return result
                         except Exception as e:
                             span.set_attribute("error.type", type(e).__name__)
