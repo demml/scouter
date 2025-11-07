@@ -6,6 +6,7 @@
 // This data can then be pulled inside of OpsML's UI for trace correlation and analysis.
 
 use crate::error::TraceError;
+use chrono::{DateTime, Utc};
 use opentelemetry::baggage::BaggageExt;
 use opentelemetry::trace::Tracer as OTelTracer;
 use opentelemetry::Context;
@@ -37,10 +38,105 @@ static CONTEXT_STORE: OnceLock<ContextStore> = OnceLock::new();
 /// Global static instance of the context variable for async context propagation. Caching the import for speed
 static CONTEXT_VAR: OnceLock<Py<PyAny>> = OnceLock::new();
 
+const TRACE_START_TIME_KEY: &str = "scouter.trace.start_time";
+
+// Add trace metadata store
+static TRACE_METADATA_STORE: OnceLock<TraceMetadataStore> = OnceLock::new();
+
+#[derive(Clone)]
+struct TraceMetadata {
+    start_time: DateTime<Utc>,
+    span_count: u32,
+}
+
+#[derive(Clone)]
+struct TraceMetadataStore {
+    inner: Arc<RwLock<HashMap<String, TraceMetadata>>>,
+}
+
+impl TraceMetadataStore {
+    fn new() -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    fn set_trace_start(
+        &self,
+        trace_id: String,
+        start_time: DateTime<Utc>,
+    ) -> Result<(), TraceError> {
+        self.inner
+            .write()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?
+            .insert(
+                trace_id.clone(),
+                TraceMetadata {
+                    start_time,
+                    span_count: 0,
+                },
+            );
+        Ok(())
+    }
+
+    fn get_trace_metadata(&self, trace_id: &str) -> Result<Option<TraceMetadata>, TraceError> {
+        Ok(self
+            .inner
+            .read()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?
+            .get(trace_id)
+            .cloned())
+    }
+
+    fn remove_trace(&self, trace_id: &str) -> Result<(), TraceError> {
+        self.inner
+            .write()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?
+            .remove(trace_id);
+        Ok(())
+    }
+
+    fn increment_span_count(&self, trace_id: &str) -> Result<(), TraceError> {
+        if let Some(mut metadata) = self.get_trace_metadata(trace_id)? {
+            metadata.span_count += 1;
+            self.inner
+                .write()
+                .map_err(|e| TraceError::PoisonError(e.to_string()))?
+                .insert(trace_id.to_string(), metadata);
+        }
+        Ok(())
+    }
+
+    /// Decrements the span count for the given trace ID. If the span count reaches zero, the trace metadata is removed.
+    fn decrement_span_count(&self, trace_id: &str) -> Result<(), TraceError> {
+        if let Some(mut metadata) = self.get_trace_metadata(trace_id)? {
+            if metadata.span_count > 0 {
+                metadata.span_count -= 1;
+            }
+
+            if metadata.span_count == 0 {
+                self.remove_trace(trace_id)?;
+            } else {
+                self.inner
+                    .write()
+                    .map_err(|e| TraceError::PoisonError(e.to_string()))?
+                    .insert(trace_id.to_string(), metadata);
+            }
+        }
+
+        Ok(())
+    }
+}
+
+fn get_trace_metadata_store() -> &'static TraceMetadataStore {
+    TRACE_METADATA_STORE.get_or_init(TraceMetadataStore::new)
+}
+
 // This is taken from the opentelemetry examples for adding baggage to spans
 #[derive(Debug)]
-struct EnrichWithBaggageSpanProcessor;
-impl SpanProcessor for EnrichWithBaggageSpanProcessor {
+struct EnrichSpanWithBaggageProcessor;
+
+impl SpanProcessor for EnrichSpanWithBaggageProcessor {
     fn force_flush(&self) -> OTelSdkResult {
         Ok(())
     }
@@ -89,7 +185,7 @@ pub fn init_tracer(name: Option<String>, endpoint: Option<String>, sample_ratio:
                     .expect("Failed to create OTLP exporter");
 
                 opentelemetry_sdk::trace::SdkTracerProvider::builder()
-                    .with_span_processor(EnrichWithBaggageSpanProcessor)
+                    .with_span_processor(EnrichSpanWithBaggageProcessor)
                     .with_batch_exporter(otlp_exporter)
                     .with_sampler(sampler)
                     .with_resource(resource)
@@ -99,7 +195,7 @@ pub fn init_tracer(name: Option<String>, endpoint: Option<String>, sample_ratio:
                 let stdout_exporter = opentelemetry_stdout::SpanExporter::default();
 
                 opentelemetry_sdk::trace::SdkTracerProvider::builder()
-                    .with_span_processor(EnrichWithBaggageSpanProcessor)
+                    .with_span_processor(EnrichSpanWithBaggageProcessor)
                     .with_simple_exporter(stdout_exporter)
                     .with_sampler(sampler)
                     .with_resource(resource)
@@ -279,7 +375,6 @@ impl ActiveSpan {
         exc_tb: Option<Py<PyAny>>,
     ) -> Result<bool, TraceError> {
         if let Some(mut span) = self.span.take() {
-            span.set_status(Status::Ok);
             if let Some(exc_type) = exc_type {
                 span.set_status(Status::error("Exception occurred"));
                 span.set_attribute(KeyValue::new("exception.type", exc_type.to_string()));
@@ -293,6 +388,11 @@ impl ActiveSpan {
                 }
             }
             span.end();
+
+            // decrement span count
+            let trace_id = span.span_context().trace_id().to_string();
+            let store = get_trace_metadata_store();
+            store.decrement_span_count(&trace_id)?;
         }
 
         if let Some(token) = self.context_token.take() {
@@ -340,6 +440,46 @@ pub struct BaseTracer {
     tracer: BoxedTracer,
 }
 
+impl BaseTracer {
+    fn set_start_time(&self, span: &mut BoxedSpan) {
+        let trace_id = span.span_context().trace_id().to_string();
+        let trace_metadata_store = get_trace_metadata_store();
+
+        let start_time = match trace_metadata_store.get_trace_metadata(&trace_id) {
+            Ok(Some(metadata)) => {
+                // Use existing trace start time
+                metadata.start_time
+            }
+            Ok(None) => {
+                // Create new trace metadata with current time
+                let current_time = Utc::now();
+                if let Err(e) = trace_metadata_store.set_trace_start(trace_id, current_time) {
+                    tracing::warn!("Failed to set trace start time: {}", e);
+                }
+                current_time
+            }
+            Err(e) => {
+                tracing::warn!("Failed to get trace metadata: {}", e);
+                Utc::now()
+            }
+        };
+
+        span.set_attribute(KeyValue::new(TRACE_START_TIME_KEY, start_time.to_rfc3339()));
+    }
+
+    fn increment_span_count(&self, trace_id: &str) -> Result<(), TraceError> {
+        let trace_metadata_store = get_trace_metadata_store();
+        trace_metadata_store.increment_span_count(trace_id)
+    }
+
+    fn setup_trace_metadata(&self, span: &mut BoxedSpan) -> Result<(), TraceError> {
+        let trace_id = span.span_context().trace_id().to_string();
+        self.set_start_time(span);
+        self.increment_span_count(&trace_id)?;
+        Ok(())
+    }
+}
+
 #[pymethods]
 impl BaseTracer {
     #[new]
@@ -370,7 +510,8 @@ impl BaseTracer {
         // Get parent context if available
         let parent_id = parent_context_id.or_else(|| get_current_context_id(py).ok().flatten());
 
-        let parent_ctx = if let Some(parent_id) = parent_id {
+        // Build the base context first
+        let base_ctx = if let Some(parent_id) = parent_id {
             if let Some(parent_span_ctx) = get_context_store().get(&parent_id)? {
                 OtelContext::current().with_remote_span_context(parent_span_ctx)
             } else {
@@ -389,37 +530,43 @@ impl BaseTracer {
             Some("internal") | _ => SpanKind::Internal,
         };
 
-        // Context is not copy, so we can't use map_or
-        let parent_ctx = if let Some(baggage_items) = baggage {
+        // Need to update the context with baggage items
+        let final_ctx = if let Some(baggage_items) = baggage {
             let keyvals: Vec<KeyValue> = baggage_items
                 .into_iter()
                 .map(|(k, v)| {
-                    let baggage_key = format!("{}.{}", BAGGAGE_PREFIX, k);
+                    let baggage_key = if k == TRACE_START_TIME_KEY {
+                        k // Don't prefix system keys
+                    } else {
+                        format!("{}.{}", BAGGAGE_PREFIX, k)
+                    };
                     KeyValue::new(baggage_key, v)
                 })
                 .collect();
-            parent_ctx.with_baggage(keyvals)
+
+            base_ctx.with_baggage(keyvals)
         } else {
-            parent_ctx
+            base_ctx
         };
 
-        // Create span with parent context
+        // Create span with the final context (this consumes final_ctx)
         let mut span = self
             .tracer
             .span_builder(name.clone())
             .with_kind(span_kind)
-            .start_with_context(&self.tracer, &parent_ctx);
+            .start_with_context(&self.tracer, &final_ctx);
 
-        // Add attributes
+        // Add custom attributes
         if let Some(attrs) = attributes {
             for (key, value) in attrs {
                 span.set_attribute(KeyValue::new(key, value));
             }
         }
 
-        // Generate unique context ID and store
+        // Generate unique context ID and store span context
         let context_id = format!("span_{}", create_uuid7());
         let span_context = span.span_context().clone();
+        Self::setup_trace_metadata(&self, &mut span)?;
         get_context_store().set(context_id.clone(), span_context)?;
 
         Ok(ActiveSpan {

@@ -38,7 +38,7 @@ SELECT
     events, 
     links
 FROM UNNEST(
-    $1::text[],        -- created_at
+    $1::timestamptz[],  -- created_at
     $2::text[],        -- span_id
     $3::text[],        -- trace_id
     $4::text[],        -- parent_span_id (nullable)

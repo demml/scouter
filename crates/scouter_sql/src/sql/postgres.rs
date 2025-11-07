@@ -197,14 +197,14 @@ mod tests {
     const NAME: &str = "name";
     const VERSION: &str = "1.0.0";
 
-    pub async fn insert_alerts(&self) -> Result<(), anyhow::Error> {
-        // Run the SQL script to populate the database
-        let script = std::fs::read_to_string("tests/script/populate_trace.sql").unwrap();
+    //pub async fn insert_alerts() -> Result<(), anyhow::Error> {
+    //    // Run the SQL script to populate the database
+    //    let script = std::fs::read_to_string("tests/script/populate_trace.sql").unwrap();
 
-        sqlx::query(&script).execute(&self.pool).await.unwrap();
+    //    sqlx::query(&script).execute(&self.pool).await.unwrap();
 
-        Ok(())
-    }
+    //    Ok(())
+    //}
 
     pub async fn cleanup(pool: &Pool<Postgres>) {
         sqlx::raw_sql(

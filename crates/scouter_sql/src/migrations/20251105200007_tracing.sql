@@ -49,8 +49,8 @@ CREATE TABLE IF NOT EXISTS scouter.spans (
     
     PRIMARY KEY (created_at, trace_id, span_id),
     UNIQUE (created_at, trace_id, span_id),
-    FOREIGN KEY (created_at, trace_id, space, name, version) 
-        REFERENCES scouter.traces (created_at, trace_id, space, name, version)
+    FOREIGN KEY (trace_id, scope, space, name, version) 
+        REFERENCES scouter.traces (trace_id, scope, space, name, version)
 ) PARTITION BY RANGE (created_at);
 
 CREATE TABLE IF NOT EXISTS scouter.trace_baggage (
