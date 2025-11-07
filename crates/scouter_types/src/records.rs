@@ -710,6 +710,7 @@ pub struct TraceRecord {
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct TraceSpanRecord {
+    pub created_at: chrono::DateTime<Utc>,
     pub span_id: String,
     pub trace_id: String,
     pub parent_span_id: Option<String>,
@@ -929,6 +930,7 @@ impl TraceServerRecord {
             .unwrap_or(Some(hex::encode(&span.parent_span_id)));
 
         TraceSpanRecord {
+            created_at: start_time.clone(),
             trace_id: hex::encode(&span.trace_id),
             span_id: hex::encode(&span.span_id),
             parent_span_id,

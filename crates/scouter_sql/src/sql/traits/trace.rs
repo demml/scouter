@@ -97,7 +97,8 @@ pub trait TraceSqlLogic {
         let capacity = spans.len();
 
         // we are pre-allocating here instead of using multiunzip because multiunzip has
-        // a max limit of 12 tuples (we have 17 fields)
+        // a max limit of 12 tuples (we have 18 fields)
+        let mut created_at = Vec::with_capacity(capacity);
         let mut span_id = Vec::with_capacity(capacity);
         let mut trace_id = Vec::with_capacity(capacity);
         let mut parent_span_id = Vec::with_capacity(capacity);
@@ -118,6 +119,7 @@ pub trait TraceSqlLogic {
 
         // Single iteration for maximum efficiency
         for span in spans {
+            created_at.push(span.created_at);
             span_id.push(span.span_id.as_str());
             trace_id.push(span.trace_id.as_str());
             parent_span_id.push(span.parent_span_id.as_ref().map(|s| s.as_str()));
@@ -138,6 +140,7 @@ pub trait TraceSqlLogic {
         }
 
         let query_result = sqlx::query(&query.sql)
+            .bind(created_at)
             .bind(span_id)
             .bind(trace_id)
             .bind(parent_span_id)

@@ -1,4 +1,5 @@
 INSERT INTO scouter.spans (
+    created_at,
     span_id, 
     trace_id, 
     parent_span_id, 
@@ -18,6 +19,7 @@ INSERT INTO scouter.spans (
     links
 )
 SELECT 
+    created_at,
     span_id, 
     trace_id, 
     parent_span_id, 
@@ -36,24 +38,26 @@ SELECT
     events, 
     links
 FROM UNNEST(
-    $1::text[],        -- span_id
-    $2::text[],        -- trace_id
-    $3::text[],        -- parent_span_id (nullable)
-    $4::text[],        -- space
-    $5::text[],        -- name
-    $6::text[],        -- version
-    $7::text[],        -- scope
-    $8::text[],        -- span_name
-    $9::text[],        -- span_kind
-    $10::timestamptz[], -- start_time
-    $11::timestamptz[], -- end_time
-    $12::bigint[],     -- duration_ms
-    $13::text[],       -- status_code
-    $14::text[],       -- status_message
-    $15::jsonb[],      -- attributes
-    $16::jsonb[],      -- events
-    $17::jsonb[]       -- links
+    $1::text[],        -- created_at
+    $2::text[],        -- span_id
+    $3::text[],        -- trace_id
+    $4::text[],        -- parent_span_id (nullable)
+    $5::text[],        -- space
+    $6::text[],        -- name
+    $7::text[],        -- version
+    $8::text[],        -- scope
+    $9::text[],        -- span_name
+    $10::text[],      -- span_kind
+    $11::timestamptz[], -- start_time
+    $12::timestamptz[], -- end_time
+    $13::bigint[],     -- duration_ms
+    $14::text[],       -- status_code
+    $15::text[],       -- status_message
+    $16::jsonb[],      -- attributes
+    $18::jsonb[],      -- events
+    $18::jsonb[]       -- links
 ) AS s(
+    created_at,
     span_id, 
     trace_id, 
     parent_span_id, 
