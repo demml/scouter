@@ -20,7 +20,6 @@ CREATE TABLE IF NOT EXISTS scouter.traces (
     archived BOOLEAN DEFAULT FALSE,
     
     PRIMARY KEY (created_at, trace_id, scope),
-    UNIQUE (trace_id, scope),
     UNIQUE (created_at, trace_id, space, name, version)
 ) PARTITION BY RANGE (created_at);
 
@@ -48,7 +47,6 @@ CREATE TABLE IF NOT EXISTS scouter.spans (
     archived BOOLEAN DEFAULT FALSE,
     
     PRIMARY KEY (created_at, trace_id, span_id),
-    UNIQUE (created_at, trace_id, span_id),
     FOREIGN KEY (trace_id, scope, space, name, version) 
         REFERENCES scouter.traces (trace_id, scope, space, name, version)
 ) PARTITION BY RANGE (created_at);
@@ -63,7 +61,6 @@ CREATE TABLE IF NOT EXISTS scouter.trace_baggage (
     name TEXT NOT NULL,
     version TEXT NOT NULL,
     PRIMARY KEY (created_at, trace_id, scope, key),
-    UNIQUE (trace_id, scope, key),
     UNIQUE (created_at, trace_id, key, space, name, version)
 ) PARTITION BY RANGE (created_at);
 

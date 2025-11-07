@@ -21,51 +21,42 @@ pub trait TraceSqlLogic {
         traces: &Vec<TraceRecord>,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::UpsertTrace.get_query();
+        let capacity = traces.len();
 
-        let (
-            trace_id,
-            space,
-            name,
-            version,
-            scope,
-            trace_state,
-            start_time,
-            end_time,
-            duration_ms,
-            status,
-            root_span_id,
-            attributes,
-        ): (
-            Vec<&str>,
-            Vec<&str>,
-            Vec<&str>,
-            Vec<&str>,
-            Vec<&str>,
-            Vec<&str>,
-            Vec<DateTime<Utc>>,
-            Vec<DateTime<Utc>>,
-            Vec<i64>,
-            Vec<&str>,
-            Vec<&str>,
-            Vec<Option<serde_json::Value>>,
-        ) = multiunzip(traces.iter().map(|r| {
-            (
-                r.trace_id.as_str(),
-                r.space.as_str(),
-                r.name.as_str(),
-                r.version.as_str(),
-                r.scope.as_str(),
-                r.trace_state.as_str(),
-                r.start_time,
-                r.end_time,
-                r.duration_ms,
-                r.status.as_str(),
-                r.root_span_id.as_str(),
-                r.attributes.clone(),
-            )
-        }));
+        // Pre-allocate vectors for each field for batch efficiency
+        let mut created_at = Vec::with_capacity(capacity);
+        let mut trace_id = Vec::with_capacity(capacity);
+        let mut space = Vec::with_capacity(capacity);
+        let mut name = Vec::with_capacity(capacity);
+        let mut version = Vec::with_capacity(capacity);
+        let mut scope = Vec::with_capacity(capacity);
+        let mut trace_state = Vec::with_capacity(capacity);
+        let mut start_time = Vec::with_capacity(capacity);
+        let mut end_time = Vec::with_capacity(capacity);
+        let mut duration_ms = Vec::with_capacity(capacity);
+        let mut status = Vec::with_capacity(capacity);
+        let mut root_span_id = Vec::with_capacity(capacity);
+        let mut attributes = Vec::with_capacity(capacity);
+
+        // Single-pass extraction for performance
+        for r in traces {
+            created_at.push(r.created_at);
+            trace_id.push(r.trace_id.as_str());
+            space.push(r.space.as_str());
+            name.push(r.name.as_str());
+            version.push(r.version.as_str());
+            scope.push(r.scope.as_str());
+            trace_state.push(r.trace_state.as_str());
+            start_time.push(r.start_time);
+            end_time.push(r.end_time);
+            duration_ms.push(r.duration_ms);
+            status.push(r.status.as_str());
+            root_span_id.push(r.root_span_id.as_str());
+            attributes.push(r.attributes.clone());
+        }
 
         let query_result = sqlx::query(&query.sql)
+            .bind(created_at)
             .bind(trace_id)
             .bind(space)
             .bind(name)
@@ -175,7 +166,8 @@ pub trait TraceSqlLogic {
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertTraceBaggage.get_query();
 
-        let (trace_id, scope, key, value, space, name, version): (
+        let (created_at, trace_id, scope, key, value, space, name, version): (
+            Vec<DateTime<Utc>>,
             Vec<&str>,
             Vec<&str>,
             Vec<&str>,
@@ -185,6 +177,7 @@ pub trait TraceSqlLogic {
             Vec<&str>,
         ) = multiunzip(baggage.iter().map(|b| {
             (
+                b.created_at,
                 b.trace_id.as_str(),
                 b.scope.as_str(),
                 b.key.as_str(),
@@ -196,6 +189,7 @@ pub trait TraceSqlLogic {
         }));
 
         let query_result = sqlx::query(&query.sql)
+            .bind(created_at)
             .bind(trace_id)
             .bind(scope)
             .bind(key)

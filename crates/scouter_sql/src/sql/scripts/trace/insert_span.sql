@@ -76,4 +76,4 @@ FROM UNNEST(
     events, 
     links
 )
-ON CONFLICT (created_at, span_id, trace_id) DO NOTHING;
+ON CONFLICT (created_at, trace_id, span_id) DO NOTHING;

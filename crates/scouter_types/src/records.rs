@@ -734,6 +734,7 @@ pub struct TraceSpanRecord {
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct TraceBaggageRecord {
+    pub created_at: DateTime<Utc>,
     pub trace_id: String,
     pub scope: String,
     pub key: String,
@@ -833,7 +834,7 @@ impl TraceServerRecord {
         duration_ms: i64,
     ) -> TraceRecord {
         TraceRecord {
-            created_at: self.get_trace_start_time_attribute(span, &start_time),
+            created_at: Self::get_trace_start_time_attribute(span, &start_time),
             trace_id: hex::encode(&span.trace_id),
             space: space.clone(),
             name: name.clone(),
@@ -856,7 +857,6 @@ impl TraceServerRecord {
     /// Filter and extract trace start time attribute from span attributes
     /// This is a global scouter attribute that indicates the trace start time and is set across all spans
     pub fn get_trace_start_time_attribute(
-        &self,
         span: &Span,
         start_time: &DateTime<Utc>,
     ) -> DateTime<Utc> {
@@ -926,6 +926,7 @@ impl TraceServerRecord {
         baggage_kvs
             .into_iter()
             .map(|(key, value)| TraceBaggageRecord {
+                created_at: Self::get_trace_start_time_attribute(span, &Utc::now()),
                 trace_id: hex::encode(&span.trace_id),
                 scope: scope_name.to_string(),
                 space: space.clone(),

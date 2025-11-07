@@ -1,4 +1,5 @@
 INSERT INTO scouter.traces (
+    created_at,
     trace_id, 
     space, 
     name, 
@@ -14,6 +15,7 @@ INSERT INTO scouter.traces (
     attributes
 )
 SELECT 
+    created_at,
     trace_id, 
     space, 
     name, 
@@ -28,19 +30,21 @@ SELECT
     1 as span_count,
     attributes
 FROM UNNEST(
-    $1::text[],        -- trace_id
-    $2::text[],        -- space
-    $3::text[],        -- name
-    $4::text[],        -- version
-    $5::text[],        -- scope
-    $6::text[],        -- trace_state
-    $7::timestamptz[], -- start_time
-    $8::timestamptz[], -- end_time
-    $9::bigint[],      -- duration_ms
-    $10::text[],       -- status
-    $11::text[],       -- root_span_id
-    $12::jsonb[]       -- attributes
+    $1::timestamptz[],  -- created_at
+    $2::text[],        -- trace_id
+    $3::text[],        -- space
+    $4::text[],        -- name
+    $5::text[],        -- version
+    $6::text[],        -- scope
+    $7::text[],        -- trace_state
+    $8::timestamptz[], -- start_time
+    $9::timestamptz[], -- end_time
+    $10::bigint[],      -- duration_ms
+    $11::text[],       -- status
+    $12::text[],       -- root_span_id
+    $13::jsonb[]       -- attributes
 ) AS t(
+        created_at,
         trace_id, 
         space, 
         name, 
@@ -54,7 +58,7 @@ FROM UNNEST(
         root_span_id, 
         attributes
     )
-ON CONFLICT (trace_id, scope) DO UPDATE SET
+ON CONFLICT (created_at, trace_id, scope) DO UPDATE SET
     end_time = EXCLUDED.end_time,
     duration_ms = EXCLUDED.duration_ms,
     status = EXCLUDED.status,
