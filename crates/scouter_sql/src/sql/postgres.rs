@@ -1,6 +1,6 @@
 use crate::sql::traits::{
     AlertSqlLogic, ArchiveSqlLogic, CustomMetricSqlLogic, LLMDriftSqlLogic, ObservabilitySqlLogic,
-    ProfileSqlLogic, PsiSqlLogic, SpcSqlLogic, UserSqlLogic,
+    ProfileSqlLogic, PsiSqlLogic, SpcSqlLogic, TraceSqlLogic, UserSqlLogic,
 };
 
 use crate::sql::error::SqlError;
@@ -25,6 +25,7 @@ impl ProfileSqlLogic for PostgresClient {}
 impl ObservabilitySqlLogic for PostgresClient {}
 impl AlertSqlLogic for PostgresClient {}
 impl ArchiveSqlLogic for PostgresClient {}
+impl TraceSqlLogic for PostgresClient {}
 
 impl PostgresClient {
     /// Setup the application with the given database pool.
@@ -195,6 +196,15 @@ mod tests {
     const SPACE: &str = "space";
     const NAME: &str = "name";
     const VERSION: &str = "1.0.0";
+
+    pub async fn insert_alerts(&self) -> Result<(), anyhow::Error> {
+        // Run the SQL script to populate the database
+        let script = std::fs::read_to_string("tests/script/populate_trace.sql").unwrap();
+
+        sqlx::query(&script).execute(&self.pool).await.unwrap();
+
+        Ok(())
+    }
 
     pub async fn cleanup(pool: &Pool<Postgres>) {
         sqlx::raw_sql(
@@ -1030,5 +1040,10 @@ mod tests {
         .unwrap();
         //
         assert_eq!(binned_records.metrics.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_postgres_tracing() {
+        let pool = db_pool().await;
     }
 }

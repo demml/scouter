@@ -17,4 +17,5 @@ pub use observability::ObservabilitySqlLogic;
 pub use profile::ProfileSqlLogic;
 pub use psi::PsiSqlLogic;
 pub use spc::SpcSqlLogic;
+pub use trace::TraceSqlLogic;
 pub use user::UserSqlLogic;

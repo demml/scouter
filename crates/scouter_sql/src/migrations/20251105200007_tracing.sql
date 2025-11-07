@@ -19,8 +19,9 @@ CREATE TABLE IF NOT EXISTS scouter.traces (
     attributes JSONB DEFAULT '[]', -- top-level attributes from first span
     archived BOOLEAN DEFAULT FALSE,
     
-    PRIMARY KEY (trace_id, scope),
-    UNIQUE (trace_id, space, name, version)
+    PRIMARY KEY (created_at, trace_id, scope),
+    UNIQUE (trace_id, scope),
+    UNIQUE (created_at, trace_id, space, name, version)
 ) PARTITION BY RANGE (created_at);
 
 -- Spans table - stores individual span data
@@ -46,11 +47,11 @@ CREATE TABLE IF NOT EXISTS scouter.spans (
     links JSONB DEFAULT '[]',
     archived BOOLEAN DEFAULT FALSE,
     
-    PRIMARY KEY (trace_id, span_id),
-    UNIQUE (created_at, trace_id, span_id, space, name, version),
-    FOREIGN KEY (trace_id, space, name, version) 
-        REFERENCES scouter.traces (trace_id, space, name, version)
-) PARTITION BY RANGE (created_at);;
+    PRIMARY KEY (created_at, trace_id, span_id),
+    UNIQUE (created_at, trace_id, span_id),
+    FOREIGN KEY (created_at, trace_id, space, name, version) 
+        REFERENCES scouter.traces (created_at, trace_id, space, name, version)
+) PARTITION BY RANGE (created_at);
 
 CREATE TABLE IF NOT EXISTS scouter.trace_baggage (
     created_at TIMESTAMPTZ DEFAULT NOW() NOT NULL,
@@ -62,6 +63,7 @@ CREATE TABLE IF NOT EXISTS scouter.trace_baggage (
     name TEXT NOT NULL,
     version TEXT NOT NULL,
     PRIMARY KEY (created_at, trace_id, scope, key),
+    UNIQUE (trace_id, scope, key),
     UNIQUE (created_at, trace_id, key, space, name, version)
 ) PARTITION BY RANGE (created_at);
 
