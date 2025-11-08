@@ -7,6 +7,7 @@
 
 use crate::error::TraceError;
 use crate::exporter::ScouterSpanExporter;
+use crate::utils::{capture_function_inputs, set_function_attributes};
 use chrono::{DateTime, Utc};
 use opentelemetry::baggage::BaggageExt;
 use opentelemetry::trace::Tracer as OTelTracer;
@@ -307,36 +308,6 @@ fn reset_current_context(py: Python, token: &Py<PyAny>) -> PyResult<()> {
     Ok(())
 }
 
-/// Set function attributes on the span
-/// # Arguments
-/// * `func` - The Python function object
-/// * `span` - The ActiveSpan to set attributes on
-/// Returns Result<(), TraceError>
-fn set_function_attributes(
-    func: &Bound<'_, PyAny>,
-    span: &mut ActiveSpan,
-) -> Result<(), TraceError> {
-    let function_name = match func.getattr("__name__") {
-        Ok(name) => name.extract::<String>()?,
-        Err(_) => "<unknown>".to_string(),
-    };
-
-    let func_module = match func.getattr("__module__") {
-        Ok(module) => module.extract::<String>()?,
-        Err(_) => "<unknown>".to_string(),
-    };
-
-    let func_qualname = match func.getattr("__qualname__") {
-        Ok(qualname) => qualname.extract::<String>()?,
-        Err(_) => "<unknown>".to_string(),
-    };
-
-    span.set_attribute("function.name".to_string(), function_name)?;
-    span.set_attribute("function.module".to_string(), func_module)?;
-    span.set_attribute("function.qualname".to_string(), func_qualname)?;
-    Ok(())
-}
-
 /// ActiveSpan where all the magic happens
 /// The active Span attempts to maintain compatibility with the OpenTelemetry Span API
 #[pyclass]
@@ -389,7 +360,7 @@ impl ActiveSpan {
     /// # Arguments
     /// * `key` - The attribute key
     /// * `value` - The attribute value
-    fn set_attribute(&mut self, key: String, value: String) -> PyResult<()> {
+    pub fn set_attribute(&mut self, key: String, value: String) -> PyResult<()> {
         if let Some(ref mut span) = self.span {
             span.set_attribute(KeyValue::new(key, value));
         }
@@ -666,7 +637,7 @@ impl BaseTracer {
         })
     }
 
-    #[pyo3(signature = (func, name, kind=None, attributes=None, baggage=None, parent_context_id=None, *py_args, **py_kwargs))]
+    #[pyo3(signature = (func, name, kind=None, attributes=None, baggage=None, parent_context_id=None, max_length=1000, *py_args, **py_kwargs))]
     fn start_decorated_as_current_span(
         &self,
         py: Python<'_>,
@@ -676,13 +647,18 @@ impl BaseTracer {
         attributes: Option<HashMap<String, String>>,
         baggage: Option<HashMap<String, String>>,
         parent_context_id: Option<String>,
+        max_length: usize,
         py_args: &Bound<'_, PyTuple>,
         py_kwargs: Option<&Bound<'_, PyDict>>,
     ) -> Result<ActiveSpan, TraceError> {
-        let span =
+        let mut span =
             self.start_as_current_span(py, name, kind, attributes, baggage, parent_context_id)?;
 
-        // Capture function inputs
+        set_function_attributes(func, &mut span)?;
+        let bound_args = capture_function_inputs(py, func, py_args, py_kwargs)?;
+        span.set_input(&bound_args, max_length)?;
+
+        Ok(span)
     }
 }
 

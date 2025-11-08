@@ -1,4 +1,5 @@
 use crate::error::TraceError;
+use crate::tracer::ActiveSpan;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule, PyTuple};
 use std::sync::OnceLock;
@@ -7,6 +8,34 @@ use std::sync::OnceLock;
 static PY_IMPORTS: OnceLock<HelperImports> = OnceLock::new();
 const ASYNCIO_MODULE: &str = "asyncio";
 const INSPECT_MODULE: &str = "inspect";
+
+pub enum FunctionType {
+    Async,
+    AsyncGenerator,
+    SyncGenerator,
+    Sync,
+}
+
+impl FunctionType {
+    pub fn as_str(&self) -> &str {
+        match self {
+            FunctionType::Async => "async",
+            FunctionType::AsyncGenerator => "async_generator",
+            FunctionType::SyncGenerator => "sync_generator",
+            FunctionType::Sync => "sync",
+        }
+    }
+
+    pub fn from_str(s: &str) -> Self {
+        match s {
+            "async" => FunctionType::Async,
+            "async_generator" => FunctionType::AsyncGenerator,
+            "sync_generator" => FunctionType::SyncGenerator,
+            "sync" => FunctionType::Sync,
+            _ => FunctionType::Sync,
+        }
+    }
+}
 
 pub struct HelperImports {
     pub asyncio: Py<PyModule>,
@@ -61,6 +90,13 @@ pub fn get_function_type(
     Ok((is_async, is_async_gen, is_gen))
 }
 
+/// Capture function inputs by binding args and kwargs to the function signature
+/// # Arguments
+/// * `py` - The Python GIL token
+/// * `func` - The Python function object
+/// * `py_args` - The positional arguments passed to the function
+/// * `py_kwargs` - The keyword arguments passed to the function
+/// Returns Result with Bound arguments or TraceError
 pub fn capture_function_inputs<'py>(
     py: Python<'py>,
     func: &Bound<'py, PyAny>,
@@ -71,4 +107,34 @@ pub fn capture_function_inputs<'py>(
     let bound_args = sig.call_method1("bind", (py_args, py_kwargs))?;
     bound_args.call_method0("apply_defaults")?;
     Ok(bound_args)
+}
+
+/// Set function attributes on the span
+/// # Arguments
+/// * `func` - The Python function object
+/// * `span` - The ActiveSpan to set attributes on
+/// Returns Result<(), TraceError>
+pub fn set_function_attributes(
+    func: &Bound<'_, PyAny>,
+    span: &mut ActiveSpan,
+) -> Result<(), TraceError> {
+    let function_name = match func.getattr("__name__") {
+        Ok(name) => name.extract::<String>()?,
+        Err(_) => "<unknown>".to_string(),
+    };
+
+    let func_module = match func.getattr("__module__") {
+        Ok(module) => module.extract::<String>()?,
+        Err(_) => "<unknown>".to_string(),
+    };
+
+    let func_qualname = match func.getattr("__qualname__") {
+        Ok(qualname) => qualname.extract::<String>()?,
+        Err(_) => "<unknown>".to_string(),
+    };
+
+    span.set_attribute("function.name".to_string(), function_name)?;
+    span.set_attribute("function.module".to_string(), func_module)?;
+    span.set_attribute("function.qualname".to_string(), func_qualname)?;
+    Ok(())
 }
