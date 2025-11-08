@@ -101,11 +101,11 @@ class Tracer(tracing.BaseTracer):
         name: Optional[str] = None,
         *,
         kind: Optional[str] = None,
+        label: Optional[str] = None,
         attributes: Optional[dict[str, str]] = None,
         baggage: Optional[dict[str, str]] = None,
         max_length: int = 1000,
-        capture_streaming: bool = True,
-        max_stream_items: int = 100,
+        capture_last_stream_item: bool = False,
     ) -> Callable[[Callable[P, R]], Callable[P, R]]:
         """Decorator to trace function execution with OpenTelemetry spans.
 
@@ -114,16 +114,16 @@ class Tracer(tracing.BaseTracer):
                 The name of the span
             kind (str):
                 The kind of span (e.g., "SERVER", "CLIENT")
+            label (str):
+                The label of the span
             attributes (dict[str, str]):
                 Additional attributes to set on the span
             baggage (dict[str, str]):
                 Baggage items to attach to the span
             max_length (int):
                 Maximum length for serialized function inputs
-            capture_streaming (bool):
-                Whether to capture yielded values from generators
-            max_stream_items (int):
-                Maximum number of stream items to capture
+            capture_last_stream_item (bool):
+                Whether to capture only the last item from streaming functions
         """
 
         def decorator(func: Callable[P, R]) -> Callable[P, R]:
@@ -161,9 +161,18 @@ class Tracer(tracing.BaseTracer):
                             )
                             generator = async_gen_func(*args, **kwargs)
 
+                            outputs = []
                             async for item in generator:
+                                outputs.append(item)
                                 yield item
 
+                            if capture_last_stream_item and outputs:
+                                _capture_function_outputs(span, outputs[-1], max_length)
+
+                            else:
+                                _capture_function_outputs(
+                                    span, "".join(outputs), max_length
+                                )
                         except Exception as e:
                             span.set_attribute("error.type", type(e).__name__)
 
@@ -197,10 +206,14 @@ class Tracer(tracing.BaseTracer):
                                 Callable[P, Generator[Any, None, None]], func
                             )
                             generator = gen_func(*args, **kwargs)
+                            results = []
+
                             for item in generator:
+                                results.append(item)
                                 yield item
 
-                            # need to record outputs after generator is exhausted?
+                            # need to record outputs after generator is exhausted
+                            span.set_attribute("function.output", results)
 
                         except Exception as e:
                             span.set_attribute("error.type", type(e).__name__)
@@ -211,7 +224,7 @@ class Tracer(tracing.BaseTracer):
                 return cast(Callable[P, R], generator_wrapper)
 
             elif is_async:
-                # ...existing async function wrapper...
+
                 @functools.wraps(func)
                 async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
                     async with self.start_as_current_span(
