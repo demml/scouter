@@ -17,13 +17,14 @@ use opentelemetry::{
     Context as OtelContext, KeyValue,
 };
 use opentelemetry_otlp::{Protocol, WithExportConfig};
+use opentelemetry_proto::tonic::trace::v1::span;
 use opentelemetry_sdk::error::OTelSdkResult;
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_sdk::trace::SpanProcessor;
 use opentelemetry_sdk::{trace::Sampler, Resource};
 use potato_head::create_uuid7;
 use pyo3::prelude::*;
-use pyo3::types::PyDict;
+use pyo3::types::{PyDict, PyTuple};
 use pyo3::IntoPyObjectExt;
 use scouter_types::{
     is_pydantic_basemodel, pydantic_to_value, pydict_to_otel_keyvalue, pyobject_to_json,
@@ -303,6 +304,36 @@ fn set_current_context_id(py: Python<'_>, context_id: String) -> PyResult<Py<PyA
 fn reset_current_context(py: Python, token: &Py<PyAny>) -> PyResult<()> {
     let context_var = get_context_var(py)?;
     context_var.bind(py).call_method1("reset", (token,))?;
+    Ok(())
+}
+
+/// Set function attributes on the span
+/// # Arguments
+/// * `func` - The Python function object
+/// * `span` - The ActiveSpan to set attributes on
+/// Returns Result<(), TraceError>
+fn set_function_attributes(
+    func: &Bound<'_, PyAny>,
+    span: &mut ActiveSpan,
+) -> Result<(), TraceError> {
+    let function_name = match func.getattr("__name__") {
+        Ok(name) => name.extract::<String>()?,
+        Err(_) => "<unknown>".to_string(),
+    };
+
+    let func_module = match func.getattr("__module__") {
+        Ok(module) => module.extract::<String>()?,
+        Err(_) => "<unknown>".to_string(),
+    };
+
+    let func_qualname = match func.getattr("__qualname__") {
+        Ok(qualname) => qualname.extract::<String>()?,
+        Err(_) => "<unknown>".to_string(),
+    };
+
+    span.set_attribute("function.name".to_string(), function_name)?;
+    span.set_attribute("function.module".to_string(), func_module)?;
+    span.set_attribute("function.qualname".to_string(), func_qualname)?;
     Ok(())
 }
 
@@ -633,6 +664,25 @@ impl BaseTracer {
             span: Some(span),
             context_token: None,
         })
+    }
+
+    #[pyo3(signature = (func, name, kind=None, attributes=None, baggage=None, parent_context_id=None, *py_args, **py_kwargs))]
+    fn start_decorated_as_current_span(
+        &self,
+        py: Python<'_>,
+        func: &Bound<'_, PyAny>,
+        name: String,
+        kind: Option<String>,
+        attributes: Option<HashMap<String, String>>,
+        baggage: Option<HashMap<String, String>>,
+        parent_context_id: Option<String>,
+        py_args: &Bound<'_, PyTuple>,
+        py_kwargs: Option<&Bound<'_, PyDict>>,
+    ) -> Result<ActiveSpan, TraceError> {
+        let span =
+            self.start_as_current_span(py, name, kind, attributes, baggage, parent_context_id)?;
+
+        // Capture function inputs
     }
 }
 
