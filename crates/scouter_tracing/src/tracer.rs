@@ -343,14 +343,14 @@ impl ActiveSpan {
         output: &Bound<'_, PyAny>,
         max_length: usize,
     ) -> Result<(), TraceError> {
-        if let Some(ref mut span) = self.span {
-            let value = pyobject_to_tracing_json(output, &max_length)?;
+        let value = pyobject_to_tracing_json(output, &max_length)?;
+        self.span.set_attribute(KeyValue::new(
 
-            span.set_attribute(KeyValue::new(
+         
                 "scouter.tracing.outputs",
                 serde_json::to_string(&value)?,
             ));
-        }
+     
         Ok(())
     }
 
@@ -359,9 +359,9 @@ impl ActiveSpan {
     /// * `key` - The attribute key
     /// * `value` - The attribute value
     pub fn set_attribute(&mut self, key: String, value: String) -> PyResult<()> {
-        if let Some(ref mut span) = self.span {
-            span.set_attribute(KeyValue::new(key, value));
-        }
+        
+            self.span.set_attribute(KeyValue::new(key, value));
+    
         Ok(())
     }
 
@@ -375,28 +375,28 @@ impl ActiveSpan {
         name: String,
         attributes: Option<Bound<'_, PyAny>>,
     ) -> Result<(), TraceError> {
-        if let Some(ref mut span) = self.span {
-            let pairs: Vec<KeyValue> = if let Some(attrs) = attributes {
-                if is_pydantic_basemodel(py, &attrs)? {
-                    let dumped = attrs.call_method0("model_dump")?;
-                    let dict = dumped
-                        .downcast::<PyDict>()
-                        .map_err(|e| TraceError::DowncastError(e.to_string()))?;
-                    pydict_to_otel_keyvalue(dict)?
-                } else if attrs.is_instance_of::<PyDict>() {
-                    let dict = attrs
-                        .downcast::<PyDict>()
-                        .map_err(|e| TraceError::DowncastError(e.to_string()))?;
-                    pydict_to_otel_keyvalue(dict)?
-                } else {
-                    return Err(TraceError::EventMustBeDict);
-                }
+      
+        let pairs: Vec<KeyValue> = if let Some(attrs) = attributes {
+            if is_pydantic_basemodel(py, &attrs)? {
+                let dumped = attrs.call_method0("model_dump")?;
+                let dict = dumped
+                    .downcast::<PyDict>()
+                    .map_err(|e| TraceError::DowncastError(e.to_string()))?;
+                pydict_to_otel_keyvalue(dict)?
+            } else if attrs.is_instance_of::<PyDict>() {
+                let dict = attrs
+                    .downcast::<PyDict>()
+                    .map_err(|e| TraceError::DowncastError(e.to_string()))?;
+                pydict_to_otel_keyvalue(dict)?
             } else {
-                vec![]
-            };
+                return Err(TraceError::EventMustBeDict);
+            }
+        } else {
+            vec![]
+        };
 
-            span.add_event(name, pairs);
-        }
+        self.span.add_event(name, pairs);
+ 
         Ok(())
     }
 
@@ -405,14 +405,14 @@ impl ActiveSpan {
     /// * `status` - The status string ("ok", "error", or "unset")
     /// * `description` - Optional description for the status (tyically used with error)
     fn set_status(&mut self, status: String, description: Option<String>) -> PyResult<()> {
-        if let Some(ref mut span) = self.span {
-            let otel_status = match status.to_lowercase().as_str() {
-                "ok" => Status::Ok,
-                "error" => Status::error(description.unwrap_or_default()),
-                _ => Status::Unset,
-            };
-            span.set_status(otel_status);
-        }
+    
+        let otel_status = match status.to_lowercase().as_str() {
+            "ok" => Status::Ok,
+            "error" => Status::error(description.unwrap_or_default()),
+            _ => Status::Unset,
+        };
+        self.span.set_status(otel_status);
+    
         Ok(())
     }
 
@@ -433,26 +433,26 @@ impl ActiveSpan {
         exc_val: Option<Py<PyAny>>,
         exc_tb: Option<Py<PyAny>>,
     ) -> Result<bool, TraceError> {
-        if let Some(mut span) = self.span.take() {
+      
             if let Some(exc_type) = exc_type {
-                span.set_status(Status::error("Exception occurred"));
-                span.set_attribute(KeyValue::new("exception.type", exc_type.to_string()));
+                self.span.set_status(Status::error("Exception occurred"));
+                self.span.set_attribute(KeyValue::new("exception.type", exc_type.to_string()));
 
                 if let Some(exc_val) = exc_val {
-                    span.set_attribute(KeyValue::new("exception.value", exc_val.to_string()));
+                    self.span.set_attribute(KeyValue::new("exception.value", exc_val.to_string()));
                 }
 
                 if let Some(exc_tb) = exc_tb {
-                    span.set_attribute(KeyValue::new("exception.traceback", exc_tb.to_string()));
+                    self.span.set_attribute(KeyValue::new("exception.traceback", exc_tb.to_string()));
                 }
             }
-            span.end();
+            self.span.end();
 
             // decrement span count
-            let trace_id = span.span_context().trace_id().to_string();
+            let trace_id = self.span.span_context().trace_id().to_string();
             let store = get_trace_metadata_store();
             store.decrement_span_count(&trace_id)?;
-        }
+    
 
         if let Some(token) = self.context_token.take() {
             reset_current_context(py, &token)?;
@@ -495,9 +495,9 @@ impl ActiveSpan {
 
 impl ActiveSpan {
     pub fn set_attribute_static(&mut self, key: &'static str, value: String) {
-        if let Some(ref mut span) = self.span {
-            span.set_attribute(KeyValue::new(key, value));
-        }
+        
+            self.span.set_attribute(KeyValue::new(key, value));
+        
     }
 }
 
