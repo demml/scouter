@@ -1,24 +1,25 @@
 // This file contains the core implementation logic for tracing within Scouter.
-// The goal is not to re-invent the wheel here as the opentelemetry-rust crate provides a solid foundation for tracing.
-// The use case we're aiming to address is users who save models, drift profiles, llm events and what to correlate them via traces/spans.
+// The goal is not to re-invent the wheel here as the opentelemetry-rust crate provides a solid implementation for tracing.
+// The use case we're aiming to address is users who save models, drift profiles, llm events and want to correlate them via traces/spans.
 // The only way to do that in our system is to reproduce a tracer and have it be OTEL compatible so that traces are produced
 // to a collector as normal, but also produced to the Scouter backend with the relevant metadata.
 // This data can then be pulled inside of OpsML's UI for trace correlation and analysis.
 
 use crate::error::TraceError;
 use crate::exporter::ScouterSpanExporter;
-use crate::utils::{capture_function_inputs, set_function_attributes, FunctionType};
+use crate::utils::{
+    FunctionType, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_OUTPUT, SERVICE_NAME, SpanKind, capture_function_inputs, get_context_store, get_context_var, get_current_context_id, set_function_attributes, set_function_type_attribute
+};
 use chrono::{DateTime, Utc};
 use opentelemetry::baggage::BaggageExt;
 use opentelemetry::trace::Tracer as OTelTracer;
 use opentelemetry::Context;
 use opentelemetry::{
     global::{self, BoxedSpan, BoxedTracer},
-    trace::{Span, SpanContext, SpanKind, Status, TraceContextExt},
+    trace::{Span,  SpanKind as OTelSpanKind, Status, TraceContextExt},
     Context as OtelContext, KeyValue,
 };
 use opentelemetry_otlp::{Protocol, WithExportConfig};
-use opentelemetry_proto::tonic::trace::v1::span;
 use opentelemetry_sdk::error::OTelSdkResult;
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_sdk::trace::SpanProcessor;
@@ -28,22 +29,16 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use pyo3::IntoPyObjectExt;
 use scouter_types::{
-    is_pydantic_basemodel, pydantic_to_value, pydict_to_otel_keyvalue, pyobject_to_json,
+    is_pydantic_basemodel, pydict_to_otel_keyvalue,
     pyobject_to_tracing_json, BAGGAGE_PREFIX, TRACE_START_TIME_KEY,
 };
-use serde_json::Value;
+
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
 use std::{collections::HashMap, sync::OnceLock};
 
 /// Global static instance of the tracer provider.
 static TRACER_PROVIDER: OnceLock<SdkTracerProvider> = OnceLock::new();
-
-/// Global static instance of the context store.
-static CONTEXT_STORE: OnceLock<ContextStore> = OnceLock::new();
-
-/// Global static instance of the context variable for async context propagation. Caching the import for speed
-static CONTEXT_VAR: OnceLock<Py<PyAny>> = OnceLock::new();
 
 // Add trace metadata store
 static TRACE_METADATA_STORE: OnceLock<TraceMetadataStore> = OnceLock::new();
@@ -173,7 +168,7 @@ pub fn init_tracer(name: Option<String>, endpoint: Option<String>, sample_ratio:
 
     TRACER_PROVIDER.get_or_init(|| {
         let resource = Resource::builder()
-            .with_attributes(vec![KeyValue::new("service.name", name.clone())])
+            .with_attributes(vec![KeyValue::new(SERVICE_NAME, name.clone())])
             .build();
 
         let sampler = sample_ratio
@@ -221,78 +216,8 @@ pub fn init_tracer(name: Option<String>, endpoint: Option<String>, sample_ratio:
     });
 }
 
-/// Global Context Store to hold SpanContexts associated with context IDs.
-#[derive(Clone)]
-struct ContextStore {
-    inner: Arc<RwLock<HashMap<String, SpanContext>>>,
-}
 
-impl ContextStore {
-    fn new() -> Self {
-        Self {
-            inner: Arc::new(RwLock::new(HashMap::new())),
-        }
-    }
 
-    fn set(&self, key: String, ctx: SpanContext) -> Result<(), TraceError> {
-        self.inner
-            .write()
-            .map_err(|e| TraceError::PoisonError(e.to_string()))?
-            .insert(key, ctx);
-        Ok(())
-    }
-
-    fn get(&self, key: &str) -> Result<Option<SpanContext>, TraceError> {
-        Ok(self
-            .inner
-            .read()
-            .map_err(|e| TraceError::PoisonError(e.to_string()))?
-            .get(key)
-            .cloned())
-    }
-
-    fn remove(&self, key: &str) -> Result<(), TraceError> {
-        self.inner
-            .write()
-            .map_err(|e| TraceError::PoisonError(e.to_string()))?
-            .remove(key);
-        Ok(())
-    }
-}
-
-fn get_context_store() -> &'static ContextStore {
-    CONTEXT_STORE.get_or_init(ContextStore::new)
-}
-
-/// Initialize the context variable for storing the current span context ID.
-/// This is important for async context propagation in python.
-fn init_context_var(py: Python<'_>) -> PyResult<Py<PyAny>> {
-    let contextvars = py.import("contextvars")?;
-    let context_var = contextvars
-        .call_method1("ContextVar", ("_otel_current_span",))?
-        .unbind();
-    Ok(context_var)
-}
-
-fn get_context_var(py: Python<'_>) -> PyResult<&Py<PyAny>> {
-    Ok(CONTEXT_VAR.get_or_init(|| init_context_var(py).expect("Failed to initialize context var")))
-}
-
-fn get_current_context_id(py: Python<'_>) -> PyResult<Option<String>> {
-    let context_var = get_context_var(py)?;
-
-    // Try to get the current value, returns None if not set
-    match context_var.bind(py).call_method0("get") {
-        Ok(val) => {
-            if val.is_none() {
-                Ok(None)
-            } else {
-                Ok(Some(val.extract::<String>()?))
-            }
-        }
-        Err(_) => Ok(None),
-    }
-}
 
 fn set_current_context_id(py: Python<'_>, context_id: String) -> PyResult<Py<PyAny>> {
     let context_var = get_context_var(py)?;
@@ -328,9 +253,8 @@ impl ActiveSpan {
     fn set_input(&mut self, input: &Bound<'_, PyAny>, max_length: usize) -> Result<(), TraceError> {
         
         let value = pyobject_to_tracing_json(input, &max_length)?;
-        println!("Setting span input: {:?}", value);
         self.span.set_attribute(KeyValue::new(
-            "scouter.tracing.inputs",
+            SCOUTER_TRACING_INPUT,
             serde_json::to_string(&value)?,
         ));
         
@@ -345,12 +269,10 @@ impl ActiveSpan {
     ) -> Result<(), TraceError> {
         let value = pyobject_to_tracing_json(output, &max_length)?;
         self.span.set_attribute(KeyValue::new(
-
-         
-                "scouter.tracing.outputs",
-                serde_json::to_string(&value)?,
-            ));
-     
+            SCOUTER_TRACING_OUTPUT,
+            serde_json::to_string(&value)?,
+        ));
+    
         Ok(())
     }
 
@@ -564,12 +486,13 @@ impl BaseTracer {
     /// * `attributes` - Optional attributes as a dictionary
     /// * `baggage` - Optional baggage items as a dictionary
     /// * `parent_context_id` - Optional parent context ID to link the span to (this is automatically set if not provided)
-    #[pyo3(signature = (name, kind=None, attributes=None, baggage=None, parent_context_id=None))]
+    #[pyo3(signature = (name, kind=SpanKind::Internal, label=None, attributes=None, baggage=None, parent_context_id=None))]
     fn start_as_current_span(
         &self,
         py: Python<'_>,
         name: String,
-        kind: Option<String>,
+        kind: SpanKind,
+        label: Option<String>,
         attributes: Option<HashMap<String, String>>,
         baggage: Option<HashMap<String, String>>,
         parent_context_id: Option<String>,
@@ -588,14 +511,7 @@ impl BaseTracer {
             OtelContext::current()
         };
 
-        // Determine span kind
-        let span_kind = match kind.as_deref() {
-            Some("server") => SpanKind::Server,
-            Some("client") => SpanKind::Client,
-            Some("producer") => SpanKind::Producer,
-            Some("consumer") => SpanKind::Consumer,
-            Some("internal") | _ => SpanKind::Internal,
-        };
+        
 
         // Need to update the context with baggage items
         let final_ctx = if let Some(baggage_items) = baggage {
@@ -620,7 +536,7 @@ impl BaseTracer {
         let mut span = self
             .tracer
             .span_builder(name.clone())
-            .with_kind(span_kind)
+            .with_kind(kind.to_otel_span_kind())
             .start_with_context(&self.tracer, &final_ctx);
 
         // Add custom attributes
@@ -673,8 +589,11 @@ impl BaseTracer {
             self.start_as_current_span(py, name, kind, attributes, baggage, parent_context_id)?;
 
         set_function_attributes(func, &mut span)?;
+        set_function_type_attribute(&func_type, &mut span)?;
         let bound_args = capture_function_inputs(py, func, py_args, py_kwargs)?;
+
         span.set_input(&bound_args, max_length)?;
+
 
         
 

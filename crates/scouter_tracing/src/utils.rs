@@ -1,22 +1,35 @@
 use crate::error::TraceError;
 use crate::tracer::ActiveSpan;
+use opentelemetry::trace::SpanContext;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule, PyTuple};
+use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::OnceLock;
+use std::sync::{Arc, RwLock};
+
+/// Global static instance of the context store.
+static CONTEXT_STORE: OnceLock<ContextStore> = OnceLock::new();
+
+/// Global static instance of the context variable for async context propagation. Caching the import for speed
+static CONTEXT_VAR: OnceLock<Py<PyAny>> = OnceLock::new();
 
 // Quick access to commonly used Python modules
 static PY_IMPORTS: OnceLock<HelperImports> = OnceLock::new();
 const ASYNCIO_MODULE: &'static str = "asyncio";
 const INSPECT_MODULE: &'static str = "inspect";
+const CONTEXTVARS_MODULE: &'static str = "contextvars";
 
 // common attribute keys
-const FUNCTION_TYPE: &'static str = "function.type";
-const FUNCTION_STREAMING: &'static str = "function.streaming";
-const FUNCTION_NAME: &'static str = "function.name";
-const FUNCTION_MODULE: &'static str = "function.module";
-const FUNCTION_QUALNAME: &'static str = "function.qualname";
-const SCOUTER_TRACING: &'static str = "scouter.tracing";
+pub const FUNCTION_TYPE: &'static str = "function.type";
+pub const FUNCTION_STREAMING: &'static str = "function.streaming";
+pub const FUNCTION_NAME: &'static str = "function.name";
+pub const FUNCTION_MODULE: &'static str = "function.module";
+pub const FUNCTION_QUALNAME: &'static str = "function.qualname";
+pub const SCOUTER_TRACING_INPUT: &'static str = "scouter.tracing.input";
+pub const SCOUTER_TRACING_OUTPUT: &'static str = "scouter.tracing.output";
+pub const SCOUTER_TRACING_LABEL: &'static str = "scouter.tracing.label";
+pub const SERVICE_NAME: &'static str = "service.name";
 
 #[pyclass(eq)]
 #[derive(PartialEq, Clone, Debug)]
@@ -161,7 +174,7 @@ pub fn set_function_attributes(
     Ok(())
 }
 
-pub fn set_function_type_attribute(
+pub(crate) fn set_function_type_attribute(
     func_type: &FunctionType,
     span: &mut ActiveSpan,
 ) -> Result<(), TraceError> {
@@ -170,8 +183,112 @@ pub fn set_function_type_attribute(
     } else {
         span.set_attribute_static(FUNCTION_STREAMING, "false".to_string());
     }
-
     span.set_attribute_static(FUNCTION_TYPE, func_type.as_str().to_string());
 
     Ok(())
+}
+
+/// Global Context Store to hold SpanContexts associated with context IDs.
+#[derive(Clone)]
+pub(crate) struct ContextStore {
+    inner: Arc<RwLock<HashMap<String, SpanContext>>>,
+}
+
+impl ContextStore {
+    fn new() -> Self {
+        Self {
+            inner: Arc::new(RwLock::new(HashMap::new())),
+        }
+    }
+
+    pub(crate) fn set(&self, key: String, ctx: SpanContext) -> Result<(), TraceError> {
+        self.inner
+            .write()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?
+            .insert(key, ctx);
+        Ok(())
+    }
+
+    pub(crate) fn get(&self, key: &str) -> Result<Option<SpanContext>, TraceError> {
+        Ok(self
+            .inner
+            .read()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?
+            .get(key)
+            .cloned())
+    }
+
+    pub(crate) fn remove(&self, key: &str) -> Result<(), TraceError> {
+        self.inner
+            .write()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?
+            .remove(key);
+        Ok(())
+    }
+}
+
+pub(crate) fn get_context_store() -> &'static ContextStore {
+    CONTEXT_STORE.get_or_init(ContextStore::new)
+}
+
+/// Initialize the context variable for storing the current span context ID.
+/// This is important for async context propagation in python.
+fn init_context_var(py: Python<'_>) -> PyResult<Py<PyAny>> {
+    let contextvars = py.import(CONTEXTVARS_MODULE)?;
+    let context_var = contextvars
+        .call_method1("ContextVar", ("_otel_current_span",))?
+        .unbind();
+    Ok(context_var)
+}
+
+pub(crate) fn get_context_var(py: Python<'_>) -> PyResult<&Py<PyAny>> {
+    Ok(CONTEXT_VAR.get_or_init(|| init_context_var(py).expect("Failed to initialize context var")))
+}
+
+pub(crate) fn get_current_context_id(py: Python<'_>) -> PyResult<Option<String>> {
+    // Try to get the current value, returns None if not set
+    match get_context_var(py)?.bind(py).call_method0("get") {
+        Ok(val) => {
+            if val.is_none() {
+                Ok(None)
+            } else {
+                Ok(Some(val.extract::<String>()?))
+            }
+        }
+        Err(_) => Ok(None),
+    }
+}
+
+#[pyclass(eq)]
+#[derive(PartialEq, Clone, Debug)]
+pub enum SpanKind {
+    Client,
+    Server,
+    Producer,
+    Consumer,
+    Internal,
+}
+
+impl Display for SpanKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            SpanKind::Client => write!(f, "client"),
+            SpanKind::Server => write!(f, "server"),
+            SpanKind::Producer => write!(f, "producer"),
+            SpanKind::Consumer => write!(f, "consumer"),
+            SpanKind::Internal => write!(f, "internal"),
+        }
+    }
+}
+
+impl SpanKind {
+    pub fn to_otel_span_kind(&self) -> opentelemetry::trace::SpanKind {
+        match self {
+            SpanKind::Client => opentelemetry::trace::SpanKind::Client,
+            SpanKind::Server => opentelemetry::trace::SpanKind::Server,
+            SpanKind::Producer => opentelemetry::trace::SpanKind::Producer,
+            SpanKind::Consumer => opentelemetry::trace::SpanKind::Consumer,
+            SpanKind::Internal => opentelemetry::trace::SpanKind::Internal,
+        }
+    }
 }
