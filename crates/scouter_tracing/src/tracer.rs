@@ -7,7 +7,7 @@
 
 use crate::error::TraceError;
 use crate::exporter::ScouterSpanExporter;
-use crate::utils::{capture_function_inputs, set_function_attributes};
+use crate::utils::{capture_function_inputs, set_function_attributes, FunctionType};
 use chrono::{DateTime, Utc};
 use opentelemetry::baggage::BaggageExt;
 use opentelemetry::trace::Tracer as OTelTracer;
@@ -313,7 +313,7 @@ fn reset_current_context(py: Python, token: &Py<PyAny>) -> PyResult<()> {
 #[pyclass]
 pub struct ActiveSpan {
     context_id: String,
-    span: Option<BoxedSpan>,
+    span: BoxedSpan,
     context_token: Option<Py<PyAny>>,
 }
 
@@ -326,16 +326,14 @@ impl ActiveSpan {
 
     #[pyo3(signature = (input, max_length=1000))]
     fn set_input(&mut self, input: &Bound<'_, PyAny>, max_length: usize) -> Result<(), TraceError> {
-        if let Some(ref mut span) = self.span {
-            let value = pyobject_to_tracing_json(input, &max_length)?;
-
-            println!("Setting span input: {:?}", value);
-
-            span.set_attribute(KeyValue::new(
-                "scouter.tracing.inputs",
-                serde_json::to_string(&value)?,
-            ));
-        }
+        
+        let value = pyobject_to_tracing_json(input, &max_length)?;
+        println!("Setting span input: {:?}", value);
+        self.span.set_attribute(KeyValue::new(
+            "scouter.tracing.inputs",
+            serde_json::to_string(&value)?,
+        ));
+        
         Ok(())
     }
 
@@ -495,6 +493,14 @@ impl ActiveSpan {
     }
 }
 
+impl ActiveSpan {
+    pub fn set_attribute_static(&mut self, key: &'static str, value: String) {
+        if let Some(ref mut span) = self.span {
+            span.set_attribute(KeyValue::new(key, value));
+        }
+    }
+}
+
 /// The main Tracer class
 #[pyclass(subclass)]
 pub struct BaseTracer {
@@ -632,12 +638,23 @@ impl BaseTracer {
 
         Ok(ActiveSpan {
             context_id,
-            span: Some(span),
+            span,
             context_token: None,
         })
     }
 
-    #[pyo3(signature = (func, name, kind=None, attributes=None, baggage=None, parent_context_id=None, max_length=1000, *py_args, **py_kwargs))]
+    #[pyo3(signature = (
+        func, 
+        name, 
+        kind=None, 
+        attributes=None, 
+        baggage=None, 
+        parent_context_id=None, 
+        max_length=1000, 
+        func_type=FunctionType::Sync, 
+        *py_args, 
+        **py_kwargs
+    ))]
     fn start_decorated_as_current_span(
         &self,
         py: Python<'_>,
@@ -648,6 +665,7 @@ impl BaseTracer {
         baggage: Option<HashMap<String, String>>,
         parent_context_id: Option<String>,
         max_length: usize,
+        func_type: FunctionType,
         py_args: &Bound<'_, PyTuple>,
         py_kwargs: Option<&Bound<'_, PyDict>>,
     ) -> Result<ActiveSpan, TraceError> {
@@ -657,6 +675,8 @@ impl BaseTracer {
         set_function_attributes(func, &mut span)?;
         let bound_args = capture_function_inputs(py, func, py_args, py_kwargs)?;
         span.set_input(&bound_args, max_length)?;
+
+        
 
         Ok(span)
     }

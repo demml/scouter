@@ -2,18 +2,40 @@ use crate::error::TraceError;
 use crate::tracer::ActiveSpan;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule, PyTuple};
+use std::fmt::Display;
 use std::sync::OnceLock;
 
 // Quick access to commonly used Python modules
 static PY_IMPORTS: OnceLock<HelperImports> = OnceLock::new();
-const ASYNCIO_MODULE: &str = "asyncio";
-const INSPECT_MODULE: &str = "inspect";
+const ASYNCIO_MODULE: &'static str = "asyncio";
+const INSPECT_MODULE: &'static str = "inspect";
 
+// common attribute keys
+const FUNCTION_TYPE: &'static str = "function.type";
+const FUNCTION_STREAMING: &'static str = "function.streaming";
+const FUNCTION_NAME: &'static str = "function.name";
+const FUNCTION_MODULE: &'static str = "function.module";
+const FUNCTION_QUALNAME: &'static str = "function.qualname";
+const SCOUTER_TRACING: &'static str = "scouter.tracing";
+
+#[pyclass(eq)]
+#[derive(PartialEq, Clone, Debug)]
 pub enum FunctionType {
     Async,
     AsyncGenerator,
     SyncGenerator,
     Sync,
+}
+
+impl Display for FunctionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            FunctionType::Async => write!(f, "async"),
+            FunctionType::AsyncGenerator => write!(f, "async_generator"),
+            FunctionType::SyncGenerator => write!(f, "sync_generator"),
+            FunctionType::Sync => write!(f, "sync"),
+        }
+    }
 }
 
 impl FunctionType {
@@ -133,8 +155,23 @@ pub fn set_function_attributes(
         Err(_) => "<unknown>".to_string(),
     };
 
-    span.set_attribute("function.name".to_string(), function_name)?;
-    span.set_attribute("function.module".to_string(), func_module)?;
-    span.set_attribute("function.qualname".to_string(), func_qualname)?;
+    span.set_attribute_rs(FUNCTION_NAME, function_name);
+    span.set_attribute_rs(FUNCTION_MODULE, func_module);
+    span.set_attribute_rs(FUNCTION_QUALNAME, func_qualname);
+    Ok(())
+}
+
+pub fn set_function_type_attribute(
+    func_type: &FunctionType,
+    span: &mut ActiveSpan,
+) -> Result<(), TraceError> {
+    if func_type == &FunctionType::AsyncGenerator || func_type == &FunctionType::SyncGenerator {
+        span.set_attribute_static(FUNCTION_STREAMING, "true".to_string())?;
+    } else {
+        span.set_attribute_static(FUNCTION_STREAMING, "false".to_string())?;
+    }
+
+    span.set_attribute_static(FUNCTION_TYPE, func_type.as_str().to_string())?;
+
     Ok(())
 }
