@@ -27,6 +27,7 @@ _current_span: ContextVar[Optional[tracing.ActiveSpan]] = ContextVar(
 )
 
 
+# get rid of
 def _capture_function_inputs(
     span: tracing.ActiveSpan,
     func: Callable,
@@ -106,6 +107,7 @@ class Tracer(tracing.BaseTracer):
         baggage: Optional[dict[str, str]] = None,
         max_length: int = 1000,
         capture_last_stream_item: bool = False,
+        join_stream_items: bool = False,
     ) -> Callable[[Callable[P, R]], Callable[P, R]]:
         """Decorator to trace function execution with OpenTelemetry spans.
 
@@ -113,7 +115,7 @@ class Tracer(tracing.BaseTracer):
             name (str):
                 The name of the span
             kind (str):
-                The kind of span (e.g., "SERVER", "CLIENT")
+                The kind of span (e.g., "SERVER", "CLIENT"). Default is "CLIENT".
             label (str):
                 The label of the span
             attributes (dict[str, str]):
@@ -124,11 +126,14 @@ class Tracer(tracing.BaseTracer):
                 Maximum length for serialized function inputs
             capture_last_stream_item (bool):
                 Whether to capture only the last item from streaming functions
+            join_stream_items (bool):
+                Whether to join all stream items into a single string for output
         """
 
         def decorator(func: Callable[P, R]) -> Callable[P, R]:
             span_name = name or f"{func.__module__}.{func.__qualname__}"
 
+            # this is now a rust
             is_async = asyncio.iscoroutinefunction(func)
             is_async_generator = is_async and inspect.isasyncgenfunction(func)
             is_generator = inspect.isgeneratorfunction(func)
@@ -169,10 +174,15 @@ class Tracer(tracing.BaseTracer):
                             if capture_last_stream_item and outputs:
                                 _capture_function_outputs(span, outputs[-1], max_length)
 
-                            else:
+                            elif join_stream_items:
                                 _capture_function_outputs(
                                     span, "".join(outputs), max_length
                                 )
+
+                            #
+                            else:
+                                _capture_function_outputs(span, outputs, max_length)
+
                         except Exception as e:
                             span.set_attribute("error.type", type(e).__name__)
 
@@ -305,10 +315,14 @@ def get_tracer(name: str) -> Tracer:
 
 
 init_tracer = tracing.init_tracer
+SpanKind = tracing.SpanKind
+FunctionType = tracing.FunctionType
 
 __all__ = [
     "Tracer",
     "init_tracer",
     "get_tracer",
     "get_current_span",
+    "SpanKind",
+    "FunctionType",
 ]

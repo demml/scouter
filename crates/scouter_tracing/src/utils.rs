@@ -35,10 +35,10 @@ pub enum FunctionType {
 impl Display for FunctionType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            FunctionType::Async => write!(f, "async"),
-            FunctionType::AsyncGenerator => write!(f, "async_generator"),
-            FunctionType::SyncGenerator => write!(f, "sync_generator"),
-            FunctionType::Sync => write!(f, "sync"),
+            FunctionType::Async => write!(f, "Async"),
+            FunctionType::AsyncGenerator => write!(f, "AsyncGenerator"),
+            FunctionType::SyncGenerator => write!(f, "SyncGenerator"),
+            FunctionType::Sync => write!(f, "Sync"),
         }
     }
 }
@@ -46,10 +46,10 @@ impl Display for FunctionType {
 impl FunctionType {
     pub fn as_str(&self) -> &str {
         match self {
-            FunctionType::Async => "async",
-            FunctionType::AsyncGenerator => "async_generator",
-            FunctionType::SyncGenerator => "sync_generator",
-            FunctionType::Sync => "sync",
+            FunctionType::Async => "Async",
+            FunctionType::AsyncGenerator => "AsyncGenerator",
+            FunctionType::SyncGenerator => "SyncGenerator",
+            FunctionType::Sync => "Sync",
         }
     }
 

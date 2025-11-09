@@ -8,6 +8,23 @@ from typing import Any, Callable, Optional, TypeVar, ParamSpec
 P = ParamSpec("P")
 R = TypeVar("R")
 
+class SpanKind:
+    """Enumeration of span kinds."""
+
+    Internal = "Internal"
+    Server = "Server"
+    Client = "Client"
+    Producer = "Producer"
+    Consumer = "Consumer"
+
+class FunctionType:
+    """Enumeration of function types."""
+
+    Sync = "Sync"
+    Async = "Async"
+    Generator = "Generator"
+    AsyncGenerator = "AsyncGenerator"
+
 def get_current_span() -> Optional[ActiveSpan]:
     """
     Get the currently active span.
