@@ -3,6 +3,9 @@ use crate::tracer::ActiveSpan;
 use opentelemetry::trace::SpanContext;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule, PyTuple};
+use scouter_types::records::{
+    FUNCTION_MODULE, FUNCTION_NAME, FUNCTION_QUALNAME, FUNCTION_STREAMING, FUNCTION_TYPE,
+};
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::OnceLock;
@@ -19,17 +22,6 @@ static PY_IMPORTS: OnceLock<HelperImports> = OnceLock::new();
 const ASYNCIO_MODULE: &'static str = "asyncio";
 const INSPECT_MODULE: &'static str = "inspect";
 const CONTEXTVARS_MODULE: &'static str = "contextvars";
-
-// common attribute keys
-pub const FUNCTION_TYPE: &'static str = "function.type";
-pub const FUNCTION_STREAMING: &'static str = "function.streaming";
-pub const FUNCTION_NAME: &'static str = "function.name";
-pub const FUNCTION_MODULE: &'static str = "function.module";
-pub const FUNCTION_QUALNAME: &'static str = "function.qualname";
-pub const SCOUTER_TRACING_INPUT: &'static str = "scouter.tracing.input";
-pub const SCOUTER_TRACING_OUTPUT: &'static str = "scouter.tracing.output";
-pub const SCOUTER_TRACING_LABEL: &'static str = "scouter.tracing.label";
-pub const SERVICE_NAME: &'static str = "service.name";
 
 #[pyclass(eq)]
 #[derive(PartialEq, Clone, Debug)]

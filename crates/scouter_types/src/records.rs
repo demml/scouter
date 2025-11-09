@@ -15,8 +15,18 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
 
+pub const FUNCTION_TYPE: &'static str = "function.type";
+pub const FUNCTION_STREAMING: &'static str = "function.streaming";
+pub const FUNCTION_NAME: &'static str = "function.name";
+pub const FUNCTION_MODULE: &'static str = "function.module";
+pub const FUNCTION_QUALNAME: &'static str = "function.qualname";
+pub const SCOUTER_TRACING_INPUT: &'static str = "scouter.tracing.input";
+pub const SCOUTER_TRACING_OUTPUT: &'static str = "scouter.tracing.output";
+pub const SCOUTER_TRACING_LABEL: &'static str = "scouter.tracing.label";
+pub const SERVICE_NAME: &'static str = "service.name";
+pub const SCOUTER_TAG_PREFIX: &str = "scouter.tracing.tag";
 pub const BAGGAGE_PREFIX: &str = "baggage";
-pub const TRACE_START_TIME_KEY: &str = "scouter.trace.start_time";
+pub const TRACE_START_TIME_KEY: &str = "scouter.tracing.start_time";
 
 #[pyclass(eq)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]

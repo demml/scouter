@@ -8,15 +8,17 @@
 use crate::error::TraceError;
 use crate::exporter::ScouterSpanExporter;
 use crate::utils::{
-    FunctionType, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_OUTPUT, SERVICE_NAME, SpanKind, capture_function_inputs, get_context_store, get_context_var, get_current_context_id, set_function_attributes, set_function_type_attribute
+    FunctionType, SpanKind, capture_function_inputs, get_context_store, get_context_var, get_current_context_id, set_function_attributes, set_function_type_attribute
 };
+use scouter_types::records::{SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT, SERVICE_NAME,
+ BAGGAGE_PREFIX,  TRACE_START_TIME_KEY};
 use chrono::{DateTime, Utc};
 use opentelemetry::baggage::BaggageExt;
 use opentelemetry::trace::Tracer as OTelTracer;
 use opentelemetry::Context;
 use opentelemetry::{
     global::{self, BoxedSpan, BoxedTracer},
-    trace::{Span,  SpanKind as OTelSpanKind, Status, TraceContextExt},
+    trace::{Span,  Status, TraceContextExt},
     Context as OtelContext, KeyValue,
 };
 use opentelemetry_otlp::{Protocol, WithExportConfig};
@@ -29,8 +31,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use pyo3::IntoPyObjectExt;
 use scouter_types::{
-    is_pydantic_basemodel, pydict_to_otel_keyvalue,
-    pyobject_to_tracing_json, BAGGAGE_PREFIX, TRACE_START_TIME_KEY,
+    is_pydantic_basemodel, pydict_to_otel_keyvalue, pyobject_to_tracing_json
 };
 
 use std::sync::{Arc, RwLock};
@@ -486,7 +487,7 @@ impl BaseTracer {
     /// * `attributes` - Optional attributes as a dictionary
     /// * `baggage` - Optional baggage items as a dictionary
     /// * `parent_context_id` - Optional parent context ID to link the span to (this is automatically set if not provided)
-    #[pyo3(signature = (name, kind=SpanKind::Internal, label=None, attributes=None, baggage=None, parent_context_id=None))]
+    #[pyo3(signature = (name, kind=SpanKind::Internal, label=None, attributes=None, baggage=None, tags=None, parent_context_id=None))]
     fn start_as_current_span(
         &self,
         py: Python<'_>,
@@ -495,6 +496,7 @@ impl BaseTracer {
         label: Option<String>,
         attributes: Option<HashMap<String, String>>,
         baggage: Option<HashMap<String, String>>,
+        tags: Option<HashMap<String, String>>,
         parent_context_id: Option<String>,
     ) -> Result<ActiveSpan, TraceError> {
         // Get parent context if available
@@ -515,6 +517,17 @@ impl BaseTracer {
 
         // Need to update the context with baggage items
         let final_ctx = if let Some(baggage_items) = baggage {
+            // if tags are provided, add them to baggage as well
+            // these will be extracted when inserting into db
+            let baggage_items = if let Some(tags) = tags {
+                // need to add scouter.tag.<key> = <value> to baggage
+                baggage_items.into_iter().chain(tags.into_iter().map(|(k, v)| {
+                    (format!("{}.{}", SCOUTER_TAG_PREFIX, k), v)
+                })).collect()
+            } else {
+                baggage_items
+            };
+
             let keyvals: Vec<KeyValue> = baggage_items
                 .into_iter()
                 .map(|(k, v)| {
@@ -546,6 +559,13 @@ impl BaseTracer {
             }
         }
 
+        // set label if provided
+        if let Some(label) = label {
+            span.set_attribute(KeyValue::new(SCOUTER_TRACING_LABEL, label));
+        }
+
+        // if tags and 
+
         // Generate unique context ID and store span context
         let context_id = format!("span_{}", create_uuid7());
         let span_context = span.span_context().clone();
@@ -562,9 +582,11 @@ impl BaseTracer {
     #[pyo3(signature = (
         func, 
         name, 
-        kind=None, 
+        kind=SpanKind::Internal, 
+        label=None,
         attributes=None, 
         baggage=None, 
+        tags=None,
         parent_context_id=None, 
         max_length=1000, 
         func_type=FunctionType::Sync, 
@@ -576,9 +598,11 @@ impl BaseTracer {
         py: Python<'_>,
         func: &Bound<'_, PyAny>,
         name: String,
-        kind: Option<String>,
+        kind: SpanKind,
+        label: Option<String>,
         attributes: Option<HashMap<String, String>>,
         baggage: Option<HashMap<String, String>>,
+         tags: Option<HashMap<String, String>>,
         parent_context_id: Option<String>,
         max_length: usize,
         func_type: FunctionType,
@@ -586,12 +610,11 @@ impl BaseTracer {
         py_kwargs: Option<&Bound<'_, PyDict>>,
     ) -> Result<ActiveSpan, TraceError> {
         let mut span =
-            self.start_as_current_span(py, name, kind, attributes, baggage, parent_context_id)?;
+            self.start_as_current_span(py, name, kind, label, attributes, baggage, tags, parent_context_id)?;
 
         set_function_attributes(func, &mut span)?;
         set_function_type_attribute(&func_type, &mut span)?;
         let bound_args = capture_function_inputs(py, func, py_args, py_kwargs)?;
-
         span.set_input(&bound_args, max_length)?;
 
 
