@@ -8,7 +8,7 @@
 use crate::error::TraceError;
 use crate::exporter::ScouterSpanExporter;
 use crate::utils::{
-    FunctionType, SpanKind, capture_function_inputs, get_context_store, get_context_var, get_current_context_id, set_function_attributes, set_function_type_attribute
+    FunctionType, SpanKind, capture_function_arguments, get_context_store, get_context_var, get_current_context_id, set_current_span, ActiveSpanInner, set_function_attributes, set_function_type_attribute
 };
 use scouter_types::records::{SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT, SERVICE_NAME,
  BAGGAGE_PREFIX,  TRACE_START_TIME_KEY};
@@ -33,6 +33,8 @@ use pyo3::IntoPyObjectExt;
 use scouter_types::{
     is_pydantic_basemodel, pydict_to_otel_keyvalue, pyobject_to_tracing_json
 };
+use std::sync::RwLockWriteGuard;
+use std::sync::LockResult;
 
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -238,54 +240,53 @@ fn reset_current_context(py: Python, token: &Py<PyAny>) -> PyResult<()> {
 /// The active Span attempts to maintain compatibility with the OpenTelemetry Span API
 #[pyclass]
 pub struct ActiveSpan {
-    context_id: String,
-    span: BoxedSpan,
-    context_token: Option<Py<PyAny>>,
+    //context_id: String,
+    //span: BoxedSpan,
+    //context_token: Option<Py<PyAny>>,
+    inner: Arc<RwLock<ActiveSpanInner>>,
 }
 
 #[pymethods]
 impl ActiveSpan {
     #[getter]
-    fn context_id(&self) -> String {
-        self.context_id.clone()
+    fn context_id(&self) -> Result<String, TraceError> {
+        Ok(self.inner.read().map_err(|e| TraceError::PoisonError(e.to_string()))?.context_id.clone())
     }
 
+    /// Set the input attribute on the span
+    /// # Arguments
+    /// * `input` - The input value (any Python object, but is often a dict)
+    /// * `max_length` - Maximum length of the serialized input (default: 1000)
     #[pyo3(signature = (input, max_length=1000))]
-    fn set_input(&mut self, input: &Bound<'_, PyAny>, max_length: usize) -> Result<(), TraceError> {
-        
+    fn set_input(&self, input: &Bound<'_, PyAny>, max_length: usize) -> Result<(), TraceError> {
         let value = pyobject_to_tracing_json(input, &max_length)?;
-        self.span.set_attribute(KeyValue::new(
-            SCOUTER_TRACING_INPUT,
-            serde_json::to_string(&value)?,
-        ));
-        
-        Ok(())
+        self.with_inner_mut(|inner| {
+            inner.span.set_attribute(KeyValue::new(
+                SCOUTER_TRACING_INPUT,
+                serde_json::to_string(&value).unwrap(),
+            ))
+        })
     }
 
     #[pyo3(signature = (output, max_length=1000))]
-    fn set_output(
-        &mut self,
-        output: &Bound<'_, PyAny>,
-        max_length: usize,
-    ) -> Result<(), TraceError> {
+    fn set_output(&self, output: &Bound<'_, PyAny>, max_length: usize) -> Result<(), TraceError> {
         let value = pyobject_to_tracing_json(output, &max_length)?;
-        self.span.set_attribute(KeyValue::new(
-            SCOUTER_TRACING_OUTPUT,
-            serde_json::to_string(&value)?,
-        ));
-    
-        Ok(())
+        self.with_inner_mut(|inner| {
+            inner.span.set_attribute(KeyValue::new(
+                SCOUTER_TRACING_OUTPUT,
+                serde_json::to_string(&value).unwrap(),
+            ))
+        })
     }
 
     /// Set an attribute on the span
     /// # Arguments
     /// * `key` - The attribute key
     /// * `value` - The attribute value
-    pub fn set_attribute(&mut self, key: String, value: String) -> PyResult<()> {
-        
-            self.span.set_attribute(KeyValue::new(key, value));
-    
-        Ok(())
+    pub fn set_attribute(&self, key: String, value: String) -> Result<(), TraceError> {
+        self.with_inner_mut(|inner| {
+            inner.span.set_attribute(KeyValue::new(key, value))
+        })
     }
 
     /// Add an event to the span
@@ -293,12 +294,11 @@ impl ActiveSpan {
     /// * `name` - The event name
     /// * `attributes` - The event attributes as a dictionary or pydantic BaseModel
     fn add_event(
-        &mut self,
+        &self,
         py: Python,
         name: String,
         attributes: Option<Bound<'_, PyAny>>,
     ) -> Result<(), TraceError> {
-      
         let pairs: Vec<KeyValue> = if let Some(attrs) = attributes {
             if is_pydantic_basemodel(py, &attrs)? {
                 let dumped = attrs.call_method0("model_dump")?;
@@ -318,37 +318,34 @@ impl ActiveSpan {
             vec![]
         };
 
-        self.span.add_event(name, pairs);
- 
-        Ok(())
+        self.with_inner_mut(|inner| {
+            inner.span.add_event(name, pairs)
+        })
     }
 
     /// Set the status of the span
     /// # Arguments
     /// * `status` - The status string ("ok", "error", or "unset")
     /// * `description` - Optional description for the status (tyically used with error)
-    fn set_status(&mut self, status: String, description: Option<String>) -> PyResult<()> {
-    
+    fn set_status(&self, status: String, description: Option<String>) -> Result<(), TraceError> {
         let otel_status = match status.to_lowercase().as_str() {
             "ok" => Status::Ok,
             "error" => Status::error(description.unwrap_or_default()),
             _ => Status::Unset,
         };
-        self.span.set_status(otel_status);
-    
-        Ok(())
+        
+        self.with_inner_mut(|inner| {
+            inner.span.set_status(otel_status)
+        })
     }
 
     /// Sync context manager enter
-    fn __enter__<'py>(mut slf: PyRefMut<'py, Self>) -> PyResult<PyRefMut<'py, Self>> {
-        let py = slf.py();
-        let token = set_current_context_id(py, slf.context_id.clone())?;
-        slf.context_token = Some(token);
+    fn __enter__<'py>(slf: PyRef<'py, Self>) -> PyResult<PyRef<'py, Self>> {
         Ok(slf)
     }
 
     /// Sync context manager exit
-    #[pyo3(signature = (exc_type=None, exc_val=None, exc_tb=None))]
+     #[pyo3(signature = (exc_type=None, exc_val=None, exc_tb=None))]
     fn __exit__(
         &mut self,
         py: Python<'_>,
@@ -356,43 +353,53 @@ impl ActiveSpan {
         exc_val: Option<Py<PyAny>>,
         exc_tb: Option<Py<PyAny>>,
     ) -> Result<bool, TraceError> {
-      
+
+        let (context_id, trace_id, context_token) = {
+            let mut inner = self.inner.write()
+                .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+            
+            // Handle exceptions and end span
             if let Some(exc_type) = exc_type {
-                self.span.set_status(Status::error("Exception occurred"));
-                self.span.set_attribute(KeyValue::new("exception.type", exc_type.to_string()));
+                inner.span.set_status(Status::error("Exception occurred"));
+                inner.span.set_attribute(KeyValue::new("exception.type", exc_type.to_string()));
 
                 if let Some(exc_val) = exc_val {
-                    self.span.set_attribute(KeyValue::new("exception.value", exc_val.to_string()));
+                    inner.span.set_attribute(KeyValue::new("exception.value", exc_val.to_string()));
                 }
 
                 if let Some(exc_tb) = exc_tb {
-                    self.span.set_attribute(KeyValue::new("exception.traceback", exc_tb.to_string()));
+                    inner.span.set_attribute(KeyValue::new("exception.traceback", exc_tb.to_string()));
                 }
             }
-            self.span.end();
+            
+            inner.span.end();
+            
+            // Extract values before dropping the lock
+            let context_id = inner.context_id.clone();
+            let trace_id = inner.span.span_context().trace_id().to_string();
+            let context_token = inner.context_token.take();
+            
+            (context_id, trace_id, context_token)
+        }; // Lock is dropped here
 
-            // decrement span count
-            let trace_id = self.span.span_context().trace_id().to_string();
-            let store = get_trace_metadata_store();
-            store.decrement_span_count(&trace_id)?;
-    
+        // Now do operations that don't need the lock
+        let store = get_trace_metadata_store();
+        store.decrement_span_count(&trace_id)?;
 
-        if let Some(token) = self.context_token.take() {
+        if let Some(token) = context_token {
             reset_current_context(py, &token)?;
         }
 
-        get_context_store().remove(&self.context_id)?;
+        get_context_store().remove(&context_id)?;
         Ok(false)
     }
 
     /// Async context manager enter
     fn __aenter__<'py>(
-        mut slf: PyRefMut<'py, Self>,
+        slf: PyRef<'py, Self>,
         py: Python<'py>,
     ) -> PyResult<Bound<'py, PyAny>> {
-        let context_id = slf.context_id.clone();
-        let token = set_current_context_id(py, context_id)?;
-        slf.context_token = Some(token);
+      
         let slf_py: Py<PyAny> = slf.into_py_any(py)?;
 
         // We need to return a Future that resolves to slf_py (__aenter__ is expected to return an awaitable)
@@ -417,10 +424,27 @@ impl ActiveSpan {
 }
 
 impl ActiveSpan {
-    pub fn set_attribute_static(&mut self, key: &'static str, value: String) {
-        
-            self.span.set_attribute(KeyValue::new(key, value));
-        
+    pub fn set_attribute_static(&mut self, key: &'static str, value: String) -> Result<(), TraceError> {
+        self.inner.write().map_err(|e| TraceError::PoisonError(e.to_string()))?.span.set_attribute(KeyValue::new(key, value));
+        Ok(())
+    }
+
+    fn with_inner_mut<F, R>(&self, f: F) -> Result<R, TraceError>
+    where
+        F: FnOnce(&mut ActiveSpanInner) -> R,
+    {
+        let mut inner = self.inner.write()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+        Ok(f(&mut *inner))
+    }
+
+    fn with_inner<F, R>(&self, f: F) -> Result<R, TraceError>
+    where
+        F: FnOnce(&ActiveSpanInner) -> R,
+    {
+        let inner = self.inner.read()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+        Ok(f(&*inner))
     }
 }
 
@@ -513,7 +537,6 @@ impl BaseTracer {
             OtelContext::current()
         };
 
-        
 
         // Need to update the context with baggage items
         let final_ctx = if let Some(baggage_items) = baggage {
@@ -572,10 +595,19 @@ impl BaseTracer {
         Self::setup_trace_metadata(&self, &mut span)?;
         get_context_store().set(context_id.clone(), span_context)?;
 
-        Ok(ActiveSpan {
+        let inner = Arc::new(RwLock::new(ActiveSpanInner {
             context_id,
             span,
             context_token: None,
+        }));
+
+        // set as current span
+        let py_span = Py::new(py, ActiveSpan { inner: inner.clone() })?;
+        let token = set_current_span(py, py_span.bind(py).clone())?;
+        inner.write().map_err(|e| TraceError::PoisonError(e.to_string()))?.context_token = Some(token);
+
+        Ok(ActiveSpan {
+            inner,
         })
     }
 
@@ -593,10 +625,10 @@ impl BaseTracer {
         *py_args, 
         **py_kwargs
     ))]
-    fn start_decorated_as_current_span(
+    fn start_decorated_as_current_span<'py>(
         &self,
-        py: Python<'_>,
-        func: &Bound<'_, PyAny>,
+        py: Python<'py>,
+        func: &Bound<'py, PyAny>,
         name: String,
         kind: SpanKind,
         label: Option<String>,
@@ -608,19 +640,17 @@ impl BaseTracer {
         func_type: FunctionType,
         py_args: &Bound<'_, PyTuple>,
         py_kwargs: Option<&Bound<'_, PyDict>>,
-    ) -> Result<ActiveSpan, TraceError> {
+    ) -> Result<Bound<'py, ActiveSpan>, TraceError> {
         let mut span =
             self.start_as_current_span(py, name, kind, label, attributes, baggage, tags, parent_context_id)?;
 
         set_function_attributes(func, &mut span)?;
         set_function_type_attribute(&func_type, &mut span)?;
-        let bound_args = capture_function_inputs(py, func, py_args, py_kwargs)?;
+        let bound_args = capture_function_arguments(py, func, py_args, py_kwargs)?;
         span.set_input(&bound_args, max_length)?;
+        let py_span = Py::new(py, span)?;
 
-
-        
-
-        Ok(span)
+        Ok(py_span.bind(py).clone())
     }
 }
 

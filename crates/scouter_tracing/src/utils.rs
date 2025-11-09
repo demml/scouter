@@ -1,5 +1,6 @@
 use crate::error::TraceError;
 use crate::tracer::ActiveSpan;
+use opentelemetry::global::BoxedSpan;
 use opentelemetry::trace::SpanContext;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule, PyTuple};
@@ -15,7 +16,7 @@ use std::sync::{Arc, RwLock};
 static CONTEXT_STORE: OnceLock<ContextStore> = OnceLock::new();
 
 /// Global static instance of the context variable for async context propagation. Caching the import for speed
-static CONTEXT_VAR: OnceLock<Py<PyAny>> = OnceLock::new();
+static OTEL_CONTEXT_VAR: OnceLock<Py<PyAny>> = OnceLock::new();
 
 // Quick access to commonly used Python modules
 static PY_IMPORTS: OnceLock<HelperImports> = OnceLock::new();
@@ -124,7 +125,7 @@ pub fn get_function_type(
 /// * `py_args` - The positional arguments passed to the function
 /// * `py_kwargs` - The keyword arguments passed to the function
 /// Returns Result with Bound arguments or TraceError
-pub fn capture_function_inputs<'py>(
+pub(crate) fn capture_function_arguments<'py>(
     py: Python<'py>,
     func: &Bound<'py, PyAny>,
     py_args: &Bound<'py, PyTuple>,
@@ -234,7 +235,14 @@ fn init_context_var(py: Python<'_>) -> PyResult<Py<PyAny>> {
 }
 
 pub(crate) fn get_context_var(py: Python<'_>) -> PyResult<&Py<PyAny>> {
-    Ok(CONTEXT_VAR.get_or_init(|| init_context_var(py).expect("Failed to initialize context var")))
+    Ok(OTEL_CONTEXT_VAR
+        .get_or_init(|| init_context_var(py).expect("Failed to initialize context var")))
+}
+
+pub(crate) fn set_current_span(py: Python<'_>, obj: Bound<'_, ActiveSpan>) -> PyResult<Py<PyAny>> {
+    let context_var = get_context_var(py)?;
+    let token = context_var.bind(py).call_method1("set", (obj,))?;
+    Ok(token.unbind())
 }
 
 pub(crate) fn get_current_context_id(py: Python<'_>) -> PyResult<Option<String>> {
@@ -283,4 +291,10 @@ impl SpanKind {
             SpanKind::Internal => opentelemetry::trace::SpanKind::Internal,
         }
     }
+}
+
+pub(crate) struct ActiveSpanInner {
+    pub context_id: String,
+    pub span: BoxedSpan,
+    pub context_token: Option<Py<PyAny>>,
 }
