@@ -14,7 +14,7 @@ use scouter_types::records::{SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_
  BAGGAGE_PREFIX,  TRACE_START_TIME_KEY};
 use chrono::{DateTime, Utc};
 use opentelemetry::baggage::BaggageExt;
-use opentelemetry::trace::{SpanContext, Tracer as OTelTracer};
+use opentelemetry::trace::{Tracer as OTelTracer};
 use opentelemetry::Context;
 use opentelemetry::{
     global::{self, BoxedSpan, BoxedTracer},
@@ -33,8 +33,6 @@ use pyo3::IntoPyObjectExt;
 use scouter_types::{
     is_pydantic_basemodel, pydict_to_otel_keyvalue, pyobject_to_tracing_json
 };
-use std::sync::RwLockWriteGuard;
-use std::sync::LockResult;
 
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
