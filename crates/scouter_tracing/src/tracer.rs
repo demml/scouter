@@ -236,7 +236,7 @@ pub struct ActiveSpan {
 impl ActiveSpan {
     #[getter]
     fn context_id(&self) -> Result<String, TraceError> {
-        Ok(self.with_inner(|inner| inner.context_id.clone())?)
+        self.with_inner(|inner| inner.context_id.clone())
     }
 
     /// Set the input attribute on the span
@@ -429,7 +429,7 @@ impl ActiveSpan {
             .inner
             .write()
             .map_err(|e| TraceError::PoisonError(e.to_string()))?;
-        Ok(f(&mut *inner))
+        Ok(f(&mut inner))
     }
 
     fn with_inner<F, R>(&self, f: F) -> Result<R, TraceError>
@@ -440,7 +440,7 @@ impl ActiveSpan {
             .inner
             .read()
             .map_err(|e| TraceError::PoisonError(e.to_string()))?;
-        Ok(f(&*inner))
+        Ok(f(&inner))
     }
 }
 
@@ -510,6 +510,7 @@ impl BaseTracer {
     /// * `tags` - Optional tags to prefix baggage items with as a dictionary
     /// * `parent_context_id` - Optional parent context ID to link the span to (this is automatically set if not provided)
     #[pyo3(signature = (name, kind=SpanKind::Internal, label=None, attributes=None, baggage=None, tags=None, parent_context_id=None))]
+    #[allow(clippy::too_many_arguments)]
     fn start_as_current_span(
         &self,
         py: Python<'_>,
@@ -598,6 +599,7 @@ impl BaseTracer {
         func_type=FunctionType::Sync,
         func_kwargs=None
     ))]
+    #[allow(clippy::too_many_arguments)]
     fn start_decorated_as_current_span<'py>(
         &self,
         py: Python<'py>,

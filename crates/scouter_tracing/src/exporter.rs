@@ -1,4 +1,3 @@
-use opentelemetry::baggage;
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use opentelemetry_proto::transform::common::tonic::ResourceAttributesWithSchema;
 use opentelemetry_proto::transform::trace::tonic::group_spans_by_resource_and_scope;
@@ -7,7 +6,7 @@ use opentelemetry_sdk::{
     trace::{SpanData, SpanExporter},
 };
 
-use scouter_types::records::{MessageRecord, TraceServerRecord};
+use scouter_types::records::TraceServerRecord;
 
 #[derive(Debug)]
 pub struct ScouterSpanExporter {
@@ -30,7 +29,7 @@ impl SpanExporter for ScouterSpanExporter {
         };
         //let message_record = MessageRecord::TraceServerRecord(record);
 
-        let (traces, span, baggage) = record.to_records();
+        let (_traces, _span, _baggage) = record.to_records();
 
         Ok(())
     }

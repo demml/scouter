@@ -20,9 +20,9 @@ static OTEL_CONTEXT_VAR: OnceLock<Py<PyAny>> = OnceLock::new();
 
 // Quick access to commonly used Python modules
 static PY_IMPORTS: OnceLock<HelperImports> = OnceLock::new();
-const ASYNCIO_MODULE: &'static str = "asyncio";
-const INSPECT_MODULE: &'static str = "inspect";
-const CONTEXTVARS_MODULE: &'static str = "contextvars";
+const ASYNCIO_MODULE: &str = "asyncio";
+const INSPECT_MODULE: &str = "inspect";
+const CONTEXTVARS_MODULE: &str = "contextvars";
 
 #[pyclass(eq)]
 #[derive(PartialEq, Clone, Debug)]
