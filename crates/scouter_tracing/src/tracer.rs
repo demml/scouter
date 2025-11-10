@@ -6,7 +6,8 @@
 // This data can then be pulled inside of OpsML's UI for trace correlation and analysis.
 
 use crate::error::TraceError;
-use crate::exporter::ScouterSpanExporter;
+use crate::exporter::scouter::ScouterSpanExporter;
+use crate::exporter::SpanExporterNum;
 use crate::utils::{
     capture_function_arguments, get_context_store, get_context_var, get_current_active_span,
     get_current_context_id, set_current_span, set_function_attributes, set_function_type_attribute,
@@ -15,17 +16,13 @@ use crate::utils::{
 use chrono::{DateTime, Utc};
 use opentelemetry::baggage::BaggageExt;
 use opentelemetry::trace::Tracer as OTelTracer;
-use opentelemetry::Context;
 use opentelemetry::{
     global::{self, BoxedSpan, BoxedTracer},
     trace::{Span, Status, TraceContextExt},
     Context as OtelContext, KeyValue,
 };
-use opentelemetry_otlp::{Protocol, WithExportConfig};
-use opentelemetry_sdk::error::OTelSdkResult;
 use opentelemetry_sdk::trace::SdkTracerProvider;
-use opentelemetry_sdk::trace::SpanProcessor;
-use opentelemetry_sdk::{trace::Sampler, Resource};
+use opentelemetry_sdk::Resource;
 use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
@@ -37,7 +34,6 @@ use scouter_types::records::{
 use scouter_types::{is_pydantic_basemodel, pydict_to_otel_keyvalue, pyobject_to_tracing_json};
 
 use std::sync::{Arc, RwLock};
-use std::time::Duration;
 use std::{collections::HashMap, sync::OnceLock};
 
 /// Global static instance of the tracer provider.
@@ -135,28 +131,6 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
     TRACE_METADATA_STORE.get_or_init(TraceMetadataStore::new)
 }
 
-// This is taken from the opentelemetry examples for adding baggage to spans
-#[derive(Debug)]
-struct EnrichSpanWithBaggageProcessor;
-
-impl SpanProcessor for EnrichSpanWithBaggageProcessor {
-    fn force_flush(&self) -> OTelSdkResult {
-        Ok(())
-    }
-
-    fn shutdown_with_timeout(&self, _timeout: Duration) -> OTelSdkResult {
-        Ok(())
-    }
-
-    fn on_start(&self, span: &mut opentelemetry_sdk::trace::Span, cx: &Context) {
-        for (kk, vv) in cx.baggage().iter() {
-            span.set_attribute(KeyValue::new(kk.clone(), vv.0.clone()));
-        }
-    }
-
-    fn on_end(&self, _span: opentelemetry_sdk::trace::SpanData) {}
-}
-
 /// Global initialization function for the tracer.
 /// This sets up the tracer provider with the specified service name, endpoint, and sampling ratio.
 /// If no endpoint is provided, spans will be exported to stdout for debugging purposes.
@@ -165,8 +139,8 @@ impl SpanProcessor for EnrichSpanWithBaggageProcessor {
 /// * `endpoint` - Optional OTLP endpoint URL for exporting spans.
 /// * `sample_ratio` - Optional sampling ratio between 0.0 and 1.0. Defaults to always sampling.
 #[pyfunction]
-#[pyo3(signature = (name=None, endpoint=None, sample_ratio=None))]
-pub fn init_tracer(name: Option<String>, endpoint: Option<String>, sample_ratio: Option<f64>) {
+#[pyo3(signature = (name=None, exporter=None))]
+pub fn init_tracer(name: Option<String>, exporter: Option<&Bound<'_, PyAny>>) {
     let name = name.unwrap_or_else(|| "scouter_service".to_string());
 
     TRACER_PROVIDER.get_or_init(|| {
@@ -174,45 +148,21 @@ pub fn init_tracer(name: Option<String>, endpoint: Option<String>, sample_ratio:
             .with_attributes(vec![KeyValue::new(SERVICE_NAME, name.clone())])
             .build();
 
-        let sampler = sample_ratio
-            .map(Sampler::TraceIdRatioBased)
-            .unwrap_or(Sampler::AlwaysOn);
-
         let scouter_export = ScouterSpanExporter {
             space: "default".to_string(),
             name: name.clone(),
             version: "1.0.0".to_string(),
         };
 
-        let provider = match endpoint {
-            Some(endpoint_url) => {
-                let otlp_exporter = opentelemetry_otlp::SpanExporter::builder()
-                    .with_http()
-                    .with_endpoint(endpoint_url)
-                    .with_protocol(Protocol::HttpBinary)
-                    .build()
-                    .expect("Failed to create OTLP exporter");
-
-                opentelemetry_sdk::trace::SdkTracerProvider::builder()
-                    .with_span_processor(EnrichSpanWithBaggageProcessor)
-                    .with_batch_exporter(otlp_exporter)
-                    .with_batch_exporter(scouter_export)
-                    .with_sampler(sampler)
-                    .with_resource(resource)
-                    .build()
-            }
-            None => {
-                let stdout_exporter = opentelemetry_stdout::SpanExporter::default();
-
-                opentelemetry_sdk::trace::SdkTracerProvider::builder()
-                    .with_span_processor(EnrichSpanWithBaggageProcessor)
-                    .with_simple_exporter(stdout_exporter)
-                    .with_simple_exporter(scouter_export)
-                    .with_sampler(sampler)
-                    .with_resource(resource)
-                    .build()
-            }
+        let span_exporter = if let Some(exporter) = exporter {
+            SpanExporterNum::from_pyobject(exporter).expect("failed to convert exporter")
+        } else {
+            SpanExporterNum::default()
         };
+
+        let provider = span_exporter
+            .build_provider(resource, scouter_export)
+            .expect("failed to build tracer provider");
 
         global::set_tracer_provider(provider.clone());
         provider

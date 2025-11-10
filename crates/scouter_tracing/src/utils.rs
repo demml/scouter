@@ -2,15 +2,18 @@ use crate::error::TraceError;
 use crate::tracer::ActiveSpan;
 use opentelemetry::global::BoxedSpan;
 use opentelemetry::trace::SpanContext;
+use opentelemetry_otlp::ExportConfig as OtlpExportConfig;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule, PyTuple};
 use scouter_types::records::{
     FUNCTION_MODULE, FUNCTION_NAME, FUNCTION_QUALNAME, FUNCTION_STREAMING, FUNCTION_TYPE,
 };
+use scouter_types::CompressionType;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::OnceLock;
 use std::sync::{Arc, RwLock};
+use std::time::Duration;
 
 /// Global static instance of the context store.
 static CONTEXT_STORE: OnceLock<ContextStore> = OnceLock::new();
@@ -342,8 +345,9 @@ pub(crate) struct ActiveSpanInner {
 }
 
 #[pyclass(eq)]
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone, Debug, Default)]
 pub enum Protocol {
+    #[default]
     HttpBinary,
     HttpJson,
 }
@@ -353,6 +357,63 @@ impl Protocol {
         match self {
             Protocol::HttpBinary => opentelemetry_otlp::Protocol::HttpBinary,
             Protocol::HttpJson => opentelemetry_otlp::Protocol::HttpJson,
+        }
+    }
+}
+
+#[derive(Debug)]
+#[pyclass]
+pub struct ExportConfig {
+    #[pyo3(get)]
+    pub endpoint: Option<String>,
+    #[pyo3(get)]
+    pub protocol: Protocol,
+    #[pyo3(get)]
+    pub timeout: Option<u64>,
+}
+
+#[pymethods]
+impl ExportConfig {
+    #[new]
+    pub fn new(endpoint: Option<String>, protocol: Protocol, timeout: Option<u64>) -> Self {
+        ExportConfig {
+            endpoint,
+            protocol,
+            timeout,
+        }
+    }
+}
+
+impl ExportConfig {
+    pub fn to_otel_config(&self) -> OtlpExportConfig {
+        let timeout = self.timeout.map(Duration::from_secs);
+        OtlpExportConfig {
+            endpoint: self.endpoint.clone(),
+            protocol: self.protocol.to_otel_protocol(),
+            timeout,
+        }
+    }
+}
+
+#[derive(Debug)]
+#[pyclass]
+pub struct HttpConfig {
+    #[pyo3(get)]
+    pub headers: Option<HashMap<String, String>>,
+    #[pyo3(get)]
+    pub compression: Option<CompressionType>,
+}
+
+#[pymethods]
+impl HttpConfig {
+    #[new]
+    pub fn new(
+        headers: Option<HashMap<String, String>>,
+        compression: Option<CompressionType>,
+    ) -> Self {
+        HttpConfig {
+            headers,
+            compression,
         }
     }
 }
