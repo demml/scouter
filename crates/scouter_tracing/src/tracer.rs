@@ -699,7 +699,7 @@ impl BaseTracer {
 
     fn set_context_id(&self, span: &mut BoxedSpan) -> Result<String, TraceError> {
         let context_id = format!("span_{}", create_uuid7());
-        Self::setup_trace_metadata(&self, span)?;
+        Self::setup_trace_metadata(self, span)?;
         get_context_store().set(context_id.clone(), span.span_context().clone())?;
         Ok(context_id)
     }

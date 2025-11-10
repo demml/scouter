@@ -36,6 +36,9 @@ pub enum TraceError {
 
     #[error(transparent)]
     SerdeError(#[from] serde_json::Error),
+
+    #[error("Invalid function type: {0}")]
+    InvalidFunctionType(String),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for TraceError {

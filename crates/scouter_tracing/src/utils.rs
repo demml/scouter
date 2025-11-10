@@ -53,14 +53,17 @@ impl FunctionType {
             FunctionType::Sync => "Sync",
         }
     }
+}
 
-    pub fn from_str(s: &str) -> Self {
+impl std::str::FromStr for FunctionType {
+    type Err = TraceError;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "async" => FunctionType::Async,
-            "async_generator" => FunctionType::AsyncGenerator,
-            "sync_generator" => FunctionType::SyncGenerator,
-            "sync" => FunctionType::Sync,
-            _ => FunctionType::Sync,
+            "Async" => Ok(FunctionType::Async),
+            "AsyncGenerator" => Ok(FunctionType::AsyncGenerator),
+            "SyncGenerator" => Ok(FunctionType::SyncGenerator),
+            "Sync" => Ok(FunctionType::Sync),
+            _ => Err(TraceError::InvalidFunctionType(s.to_string())),
         }
     }
 }
@@ -139,7 +142,8 @@ pub fn get_function_type(
 /// * `func` - The Python function object
 /// * `args` - The positional arguments passed to the function
 /// * `kwargs` - The keyword arguments passed to the function
-/// Returns Result with Bound arguments or TraceError
+/// # Returns
+/// Result with Bound arguments or TraceError
 pub(crate) fn capture_function_arguments<'py>(
     py: Python<'py>,
     func: &Bound<'py, PyAny>,
@@ -156,7 +160,8 @@ pub(crate) fn capture_function_arguments<'py>(
 /// # Arguments
 /// * `func` - The Python function object
 /// * `span` - The ActiveSpan to set attributes on
-/// Returns Result<(), TraceError>
+/// # Returns
+/// Result<(), TraceError>
 pub fn set_function_attributes(
     func: &Bound<'_, PyAny>,
     span: &mut ActiveSpan,
