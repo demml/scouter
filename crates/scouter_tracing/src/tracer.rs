@@ -669,11 +669,11 @@ impl BaseTracer {
 }
 
 /// Get a tracer instance
-//#[pyfunction]
-//#[pyo3(signature = (name))]
-//pub fn get_tracer(name: String) -> BaseTracer {
-//    BaseTracer::new(name)
-//}
+#[pyfunction]
+#[pyo3(signature = (name))]
+pub fn get_tracer(name: String) -> BaseTracer {
+    BaseTracer::new(name)
+}
 
 #[pyfunction]
 pub fn get_current_span_context(py: Python) -> PyResult<Option<String>> {
