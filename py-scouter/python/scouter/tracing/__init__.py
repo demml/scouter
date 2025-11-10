@@ -22,7 +22,6 @@ R = TypeVar("R")
 init_tracer = tracing.init_tracer
 SpanKind = tracing.SpanKind
 FunctionType = tracing.FunctionType
-get_tracer = tracing.get_tracer
 get_function_type = tracing.get_function_type
 
 
@@ -80,7 +79,7 @@ class Tracer(tracing.BaseTracer):
 
     def span(
         self,
-        name: str,
+        name: Optional[str] = None,
         kind: SpanKind = SpanKind.Internal,
         label: Optional[str] = None,
         attributes: Optional[dict[str, str]] = None,
@@ -126,15 +125,17 @@ class Tracer(tracing.BaseTracer):
         # is a little bit of a pain when dealing with async
         def decorator(func: Callable[P, R]) -> Callable[P, R]:
             span_name = name or f"{func.__module__}.{func.__qualname__}"
-
             function_type = get_function_type(func)
             if function_type == FunctionType.AsyncGenerator:
 
                 @functools.wraps(func)
-                async def async_generator_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
+                async def async_generator_wrapper(
+                    *args: P.args, **kwargs: P.kwargs
+                ) -> Any:
                     async with self._start_decorated_as_current_span(
-                        func,
-                        span_name,
+                        name=span_name,
+                        func=func,
+                        func_args=args,
                         kind=kind,
                         label=label,
                         attributes=attributes,
@@ -143,11 +144,12 @@ class Tracer(tracing.BaseTracer):
                         parent_context_id=parent_context_id,
                         max_length=max_length,
                         func_type=function_type,
-                        args=args,
-                        kwargs=kwargs,
+                        func_kwargs=kwargs,
                     ) as span:
                         try:
-                            async_gen_func = cast(Callable[P, AsyncGenerator[Any, None]], func)
+                            async_gen_func = cast(
+                                Callable[P, AsyncGenerator[Any, None]], func
+                            )
                             generator = async_gen_func(*args, **kwargs)
 
                             outputs = []
@@ -174,8 +176,9 @@ class Tracer(tracing.BaseTracer):
                 @functools.wraps(func)
                 def generator_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
                     with self._start_decorated_as_current_span(
-                        func,
-                        span_name,
+                        name=span_name,
+                        func=func,
+                        func_args=args,
                         kind=kind,
                         label=label,
                         attributes=attributes,
@@ -184,11 +187,12 @@ class Tracer(tracing.BaseTracer):
                         parent_context_id=parent_context_id,
                         max_length=max_length,
                         func_type=function_type,
-                        args=args,
-                        kwargs=kwargs,
+                        func_kwargs=kwargs,
                     ) as span:
                         try:
-                            gen_func = cast(Callable[P, Generator[Any, None, None]], func)
+                            gen_func = cast(
+                                Callable[P, Generator[Any, None, None]], func
+                            )
                             generator = gen_func(*args, **kwargs)
                             results = []
 
@@ -215,8 +219,9 @@ class Tracer(tracing.BaseTracer):
                 @functools.wraps(func)
                 async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
                     async with self._start_decorated_as_current_span(
-                        func,
-                        span_name,
+                        name=span_name,
+                        func=func,
+                        func_args=args,
                         kind=kind,
                         label=label,
                         attributes=attributes,
@@ -225,8 +230,7 @@ class Tracer(tracing.BaseTracer):
                         parent_context_id=parent_context_id,
                         max_length=max_length,
                         func_type=function_type,
-                        args=args,
-                        kwargs=kwargs,
+                        func_kwargs=kwargs,
                     ) as span:
                         try:
                             async_func = cast(Callable[P, Awaitable[Any]], func)
@@ -246,8 +250,9 @@ class Tracer(tracing.BaseTracer):
                 @functools.wraps(func)
                 def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
                     with self._start_decorated_as_current_span(
-                        func,
-                        span_name,
+                        name=span_name,
+                        func=func,
+                        func_args=args,
                         kind=kind,
                         label=label,
                         attributes=attributes,
@@ -256,8 +261,7 @@ class Tracer(tracing.BaseTracer):
                         parent_context_id=parent_context_id,
                         max_length=max_length,
                         func_type=function_type,
-                        args=args,
-                        kwargs=kwargs,
+                        func_kwargs=kwargs,
                     ) as span:
                         try:
                             result = func(*args, **kwargs)
@@ -270,6 +274,16 @@ class Tracer(tracing.BaseTracer):
                 return cast(Callable[P, R], sync_wrapper)
 
         return decorator
+
+
+def get_tracer(name: str) -> Tracer:
+    """Get a Tracer instance by name.
+
+    Args:
+        name (str):
+            The name of the tracer/service.
+    """
+    return Tracer(name)
 
 
 __all__ = [

@@ -246,6 +246,7 @@ impl ActiveSpan {
     #[pyo3(signature = (input, max_length=1000))]
     fn set_input(&self, input: &Bound<'_, PyAny>, max_length: usize) -> Result<(), TraceError> {
         let value = pyobject_to_tracing_json(input, &max_length)?;
+
         self.with_inner_mut(|inner| {
             inner.span.set_attribute(KeyValue::new(
                 SCOUTER_TRACING_INPUT,
@@ -584,9 +585,10 @@ impl BaseTracer {
     /// * `max_length` - Maximum length of the serialized input (default: 1000)
     /// * `func_type` - Function type (sync or async)
     #[pyo3(name="_start_decorated_as_current_span", signature = (
-        func, 
-        name, 
-        kind=SpanKind::Internal, 
+        name,
+        func,
+        func_args,
+        kind=SpanKind::Internal,
         label=None,
         attributes=None,
         baggage=None,
@@ -594,14 +596,14 @@ impl BaseTracer {
         parent_context_id=None,
         max_length=1000,
         func_type=FunctionType::Sync,
-        *args, 
-        **kwargs
+        func_kwargs=None
     ))]
     fn start_decorated_as_current_span<'py>(
         &self,
         py: Python<'py>,
-        func: &Bound<'py, PyAny>,
         name: String,
+        func: &Bound<'py, PyAny>,
+        func_args: &Bound<'_, PyTuple>,
         kind: SpanKind,
         label: Option<String>,
         attributes: Option<HashMap<String, String>>,
@@ -610,8 +612,7 @@ impl BaseTracer {
         parent_context_id: Option<String>,
         max_length: usize,
         func_type: FunctionType,
-        args: &Bound<'_, PyTuple>,
-        kwargs: Option<&Bound<'_, PyDict>>,
+        func_kwargs: Option<&Bound<'_, PyDict>>,
     ) -> Result<ActiveSpan, TraceError> {
         let mut span = self.start_as_current_span(
             py,
@@ -625,9 +626,13 @@ impl BaseTracer {
         )?;
 
         set_function_attributes(func, &mut span)?;
+
         set_function_type_attribute(&func_type, &mut span)?;
-        let bound_args = capture_function_arguments(py, func, args, kwargs)?;
-        span.set_input(&bound_args, max_length)?;
+
+        span.set_input(
+            &capture_function_arguments(py, func, func_args, func_kwargs)?,
+            max_length,
+        )?;
 
         Ok(span)
     }
@@ -699,18 +704,6 @@ impl BaseTracer {
         Ok(context_id)
     }
 }
-
-/// Get a tracer instance
-#[pyfunction]
-#[pyo3(signature = (name))]
-pub fn get_tracer(name: String) -> BaseTracer {
-    BaseTracer::new(name)
-}
-
-//#[pyfunction]
-//pub fn get_current_span_context(py: Python) -> PyResult<Option<String>> {
-//    get_current_context_id(py)
-//}
 
 /// Helper function to force flush the tracer provider
 #[pyfunction]

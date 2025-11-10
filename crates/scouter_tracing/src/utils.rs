@@ -140,10 +140,14 @@ pub(crate) fn capture_function_arguments<'py>(
     args: &Bound<'py, PyTuple>,
     kwargs: Option<&Bound<'py, PyDict>>,
 ) -> Result<Bound<'py, PyAny>, TraceError> {
+    println!("Capturing function arguments for function: {:?}", func);
+    println!("Positional args: {:?}", args);
+    println!("Keyword args: {:?}", kwargs);
+
     let sig = py_inspect(py).call_method1("signature", (func,))?;
-    let bound_args = sig.call_method1("bind", (args, kwargs))?;
+    let bound_args = sig.call_method("bind", args, kwargs)?;
     bound_args.call_method0("apply_defaults")?;
-    Ok(bound_args)
+    Ok(bound_args.getattr("arguments")?)
 }
 
 /// Set function attributes on the span
@@ -173,6 +177,7 @@ pub fn set_function_attributes(
     span.set_attribute_static(FUNCTION_NAME, function_name)?;
     span.set_attribute_static(FUNCTION_MODULE, func_module)?;
     span.set_attribute_static(FUNCTION_QUALNAME, func_qualname)?;
+
     Ok(())
 }
 

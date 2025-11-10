@@ -104,8 +104,9 @@ class Tracer(BaseTracer):
 
     def _start_decorated_as_current_span(
         self,
-        func: Callable[..., Any],
         name: str,
+        func: Callable[..., Any],
+        func_args: tuple[Any, ...],
         kind: SpanKind = SpanKind.Internal,
         label: Optional[str] = None,
         attributes: Optional[dict[str, str]] = None,
@@ -114,16 +115,17 @@ class Tracer(BaseTracer):
         parent_context_id: Optional[str] = None,
         max_length: int = 1000,
         func_type: FunctionType = FunctionType.Sync,
-        *args,
-        **kwargs,
+        func_kwargs: Optional[dict[str, Any]] = None,
     ) -> ActiveSpan:
         """Context manager to start a new span as the current span for decorated functions.
 
         Args:
-            func (Callable[..., Any]):
-                The function being decorated.
             name (str):
                 The name of the span.
+            func (Callable[..., Any]):
+                The function being decorated.
+            func_args (tuple[Any, ...]):
+                The positional arguments passed to the function.
             kind (SpanKind):
                 The kind of span (e.g., Internal, Server, Client).
             label (Optional[str]):
@@ -140,6 +142,8 @@ class Tracer(BaseTracer):
                 The maximum length for string inputs/outputs. Defaults to 1000.
             func_type (FunctionType):
                 The type of function being decorated (Sync, Async, Generator, AsyncGenerator).
+            func_kwargs (Optional[dict[str, Any]]):
+                The keyword arguments passed to the function.
         Returns:
             ActiveSpan:
                 The active span context manager.
@@ -287,10 +291,10 @@ class BaseTracer:
     def start_as_current_span(
         self,
         name: str,
-        *,
-        kind: Optional[str] = None,
+        kind: Optional[SpanKind] = SpanKind.Internal,
         attributes: Optional[dict[str, str]] = None,
         baggage: Optional[dict[str, str]] = None,
+        tags: Optional[dict[str, str]] = None,
         parent_context_id: Optional[str] = None,
     ) -> ActiveSpan:
         """Context manager to start a new span as the current span.
@@ -298,12 +302,14 @@ class BaseTracer:
         Args:
             name (str):
                 The name of the span.
-            kind (Optional[str]):
+            kind (Optional[SpanKind]):
                 The kind of span (e.g., "SERVER", "CLIENT").
             attributes (Optional[dict[str, str]]):
                 Optional attributes to set on the span.
             baggage (Optional[dict[str, str]]):
                 Optional baggage items to attach to the span.
+            tags (Optional[dict[str, str]]):
+                Optional tags to set on the span and trace.
             parent_context_id (Optional[str]):
                 Optional parent span context ID.
         Returns:
