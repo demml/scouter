@@ -161,9 +161,9 @@ pub fn set_function_attributes(
         Err(_) => "<unknown>".to_string(),
     };
 
-    span.set_attribute_static(FUNCTION_NAME, function_name);
-    span.set_attribute_static(FUNCTION_MODULE, func_module);
-    span.set_attribute_static(FUNCTION_QUALNAME, func_qualname);
+    span.set_attribute_static(FUNCTION_NAME, function_name)?;
+    span.set_attribute_static(FUNCTION_MODULE, func_module)?;
+    span.set_attribute_static(FUNCTION_QUALNAME, func_qualname)?;
     Ok(())
 }
 
@@ -172,11 +172,11 @@ pub(crate) fn set_function_type_attribute(
     span: &mut ActiveSpan,
 ) -> Result<(), TraceError> {
     if func_type == &FunctionType::AsyncGenerator || func_type == &FunctionType::SyncGenerator {
-        span.set_attribute_static(FUNCTION_STREAMING, "true".to_string());
+        span.set_attribute_static(FUNCTION_STREAMING, "true".to_string())?;
     } else {
-        span.set_attribute_static(FUNCTION_STREAMING, "false".to_string());
+        span.set_attribute_static(FUNCTION_STREAMING, "false".to_string())?;
     }
-    span.set_attribute_static(FUNCTION_TYPE, func_type.as_str().to_string());
+    span.set_attribute_static(FUNCTION_TYPE, func_type.as_str().to_string())?;
 
     Ok(())
 }
@@ -226,6 +226,7 @@ pub(crate) fn get_context_store() -> &'static ContextStore {
 
 /// Initialize the context variable for storing the current span context ID.
 /// This is important for async context propagation in python.
+/// This will be used to store Py<ActiveSpan> objects.
 fn init_context_var(py: Python<'_>) -> PyResult<Py<PyAny>> {
     let contextvars = py.import(CONTEXTVARS_MODULE)?;
     let context_var = contextvars
@@ -245,6 +246,8 @@ pub(crate) fn set_current_span(py: Python<'_>, obj: Bound<'_, ActiveSpan>) -> Py
     Ok(token.unbind())
 }
 
+/// Get the current context ID from the context variable.
+/// Returns None if no current context is set.
 pub(crate) fn get_current_context_id(py: Python<'_>) -> PyResult<Option<String>> {
     // Try to get the current value, returns None if not set
     match get_context_var(py)?.bind(py).call_method0("get") {
@@ -252,6 +255,9 @@ pub(crate) fn get_current_context_id(py: Python<'_>) -> PyResult<Option<String>>
             if val.is_none() {
                 Ok(None)
             } else {
+                // this will be the Py<ActiveSpan> object,
+                // so we need to call context_id method to get the string
+                let val = val.getattr("context_id")?;
                 Ok(Some(val.extract::<String>()?))
             }
         }

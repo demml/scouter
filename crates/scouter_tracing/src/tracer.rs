@@ -602,10 +602,8 @@ impl BaseTracer {
         }));
 
         // set as current span
-        let py_span = Py::new(py, ActiveSpan { inner: inner.clone() })?;
-        let token = set_current_span(py, py_span.bind(py).clone())?;
-        inner.write().map_err(|e| TraceError::PoisonError(e.to_string()))?.context_token = Some(token);
-
+        self.set_current_span(py, &inner)?;
+        
         Ok(ActiveSpan {
             inner,
         })
@@ -651,6 +649,15 @@ impl BaseTracer {
         let py_span = Py::new(py, span)?;
 
         Ok(py_span.bind(py).clone())
+    }
+}
+
+impl BaseTracer {
+    fn set_current_span(&self, py: Python<'_>, inner: &Arc<RwLock<ActiveSpanInner>>) -> Result<(), TraceError> {
+        let py_span = Py::new(py, ActiveSpan { inner: inner.clone() })?;
+        let token = set_current_span(py, py_span.bind(py).clone())?;
+        inner.write().map_err(|e| TraceError::PoisonError(e.to_string()))?.context_token = Some(token);
+        Ok(())
     }
 }
 
