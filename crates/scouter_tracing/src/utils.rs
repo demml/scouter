@@ -265,6 +265,21 @@ pub(crate) fn get_current_context_id(py: Python<'_>) -> PyResult<Option<String>>
     }
 }
 
+/// Get the current active span from the context variable.
+/// Returns TraceError::NoActiveSpan if no active span is set.
+pub(crate) fn get_current_active_span(py: Python<'_>) -> Result<Bound<'_, PyAny>, TraceError> {
+    match get_context_var(py)?.bind(py).call_method0("get") {
+        Ok(val) => {
+            if val.is_none() {
+                Err(TraceError::NoActiveSpan)
+            } else {
+                Ok(val)
+            }
+        }
+        Err(_) => Err(TraceError::NoActiveSpan),
+    }
+}
+
 #[pyclass(eq)]
 #[derive(PartialEq, Clone, Debug)]
 pub enum SpanKind {

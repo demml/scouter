@@ -8,7 +8,7 @@
 use crate::error::TraceError;
 use crate::exporter::ScouterSpanExporter;
 use crate::utils::{
-    FunctionType, SpanKind, capture_function_arguments, get_context_store, get_context_var, get_current_context_id, set_current_span, ActiveSpanInner, set_function_attributes, set_function_type_attribute
+    ActiveSpanInner, FunctionType, SpanKind, capture_function_arguments, get_context_store, get_context_var, get_current_active_span, get_current_context_id, set_current_span, set_function_attributes, set_function_type_attribute
 };
 use scouter_types::records::{SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT, SERVICE_NAME,
  BAGGAGE_PREFIX,  TRACE_START_TIME_KEY};
@@ -492,8 +492,10 @@ impl BaseTracer {
     /// * `name` - The name of the span
     /// * `kind` - Optional kind of the span ("server", "client", "
     /// producer", "consumer", "internal")
+    /// * `label` - Optional label for the span
     /// * `attributes` - Optional attributes as a dictionary
     /// * `baggage` - Optional baggage items as a dictionary
+    /// * `tags` - Optional tags to prefix baggage items with as a dictionary
     /// * `parent_context_id` - Optional parent context ID to link the span to (this is automatically set if not provided)
     #[pyo3(signature = (name, kind=SpanKind::Internal, label=None, attributes=None, baggage=None, tags=None, parent_context_id=None))]
     fn start_as_current_span(
@@ -560,6 +562,20 @@ impl BaseTracer {
         })
     }
 
+    /// Special method that is used as a decorator to start a span around a function call
+    /// This captures the function arguments and sets them as span attributes
+    /// # Arguments
+    /// * `func` - The function to be decorated
+    /// * `name` - The name of the span
+    /// * `kind` - Optional kind of the span ("server", "client", "
+    /// producer", "consumer", "internal")
+    /// * `label` - Optional label for the span
+    /// * `attributes` - Optional attributes as a dictionary
+    /// * `baggage` - Optional baggage items as a dictionary
+    /// * `tags` - Optional tags to prefix baggage items with as a dictionary
+    /// * `parent_context_id` - Optional parent context ID to link the span to (this is automatically set if not provided)
+    /// * `max_length` - Maximum length of the serialized input (default: 1000)
+    /// * `func_type` - Function type (sync or async)
     #[pyo3(signature = (
         func, 
         name, 
@@ -600,6 +616,13 @@ impl BaseTracer {
 
         Ok(span)
      
+    }
+
+    /// Get the current active span from context
+    #[getter]
+    pub fn current_span<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TraceError> {
+        let span = get_current_active_span(py)?;
+        Ok(span)
     }
 }
 
