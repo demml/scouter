@@ -3,10 +3,22 @@
 """Tracing utilities for Scouter using OpenTelemetry."""
 
 from types import TracebackType
-from typing import Any, Callable, Optional, TypeVar, ParamSpec
+from typing import Any, Callable, Optional, ParamSpec, TypeVar
 
 P = ParamSpec("P")
 R = TypeVar("R")
+
+def get_function_type(func: Callable[..., Any]) -> FunctionType:
+    """Determine the function type (sync, async, generator, async generator).
+
+    Args:
+        func (Callable[..., Any]):
+            The function to analyze.
+    Returns:
+        FunctionType:
+            The determined function type.
+    """
+    ...
 
 class SpanKind:
     """Enumeration of span kinds."""
@@ -131,6 +143,17 @@ class Tracer(BaseTracer):
         Returns:
             ActiveSpan:
                 The active span context manager.
+        """
+        ...
+
+    @property
+    def current_span(self) -> ActiveSpan:
+        """Get the current active span, if any.
+        This will return an Error if no span is active.
+
+        Returns:
+            ActiveSpan:
+                The current active span.
         """
         ...
 

@@ -1,6 +1,6 @@
 use pyo3::prelude::*;
 use scouter_tracing::tracer::*;
-use scouter_tracing::utils::{FunctionType, SpanKind};
+use scouter_tracing::utils::{get_function_type, FunctionType, SpanKind};
 
 #[pymodule]
 pub fn tracing(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -11,6 +11,6 @@ pub fn tracing(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(init_tracer, m)?)?;
     m.add_function(wrap_pyfunction!(get_tracer, m)?)?;
     m.add_function(wrap_pyfunction!(force_flush, m)?)?;
-    //m.add_function(wrap_pyfunction!(get_tracer, m)?)?;
+    m.add_function(wrap_pyfunction!(get_function_type, m)?)?;
     Ok(())
 }

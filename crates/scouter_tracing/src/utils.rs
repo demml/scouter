@@ -101,7 +101,7 @@ fn py_inspect(py: Python<'_>) -> &Bound<'_, PyModule> {
 pub fn get_function_type(
     py: Python<'_>,
     func: &Bound<'_, PyAny>,
-) -> Result<(bool, bool, bool), TraceError> {
+) -> Result<FunctionType, TraceError> {
     // check if the function is a coroutine function from asyncio
     let is_async = py_asyncio(py)
         .call_method1("iscoroutinefunction", (func,))?
@@ -115,7 +115,16 @@ pub fn get_function_type(
     let is_gen = py_inspect(py)
         .call_method1("isgeneratorfunction", (func,))?
         .extract::<bool>()?;
-    Ok((is_async, is_async_gen, is_gen))
+
+    Ok(if is_async && !is_async_gen {
+        FunctionType::Async
+    } else if is_async_gen {
+        FunctionType::AsyncGenerator
+    } else if is_gen {
+        FunctionType::SyncGenerator
+    } else {
+        FunctionType::Sync
+    })
 }
 
 /// Capture function inputs by binding args and kwargs to the function signature

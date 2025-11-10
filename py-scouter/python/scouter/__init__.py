@@ -13,8 +13,8 @@ from .scouter import (  # type: ignore
     observe,
     profile,
     queue,
-    types,
     tracing,
+    types,
 )
 from .version import __version__
 

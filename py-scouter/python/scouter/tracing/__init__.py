@@ -1,22 +1,19 @@
 # type: ignore
-
-import asyncio
 import functools
 from typing import (
     Any,
-    Callable,
-    Optional,
-    TypeVar,
-    ParamSpec,
-    cast,
-    Awaitable,
-    Generator,
     AsyncGenerator,
+    Awaitable,
+    Callable,
+    Generator,
+    List,
+    Optional,
+    ParamSpec,
+    TypeVar,
+    cast,
 )
-from contextvars import ContextVar
-from .. import tracing
-import inspect
 
+from .. import tracing
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -26,6 +23,7 @@ init_tracer = tracing.init_tracer
 SpanKind = tracing.SpanKind
 FunctionType = tracing.FunctionType
 get_tracer = tracing.get_tracer
+get_function_type = tracing.get_function_type
 
 
 # _current_span: ContextVar[Optional[tracing.ActiveSpan]] = ContextVar(
@@ -59,6 +57,24 @@ get_tracer = tracing.get_tracer
 #    _current_span.set(span)
 
 
+def set_output(
+    span: tracing.ActiveSpan,
+    outputs: List[Any],
+    max_length: int,
+    capture_last_stream_item: bool = False,
+    join_stream_items: bool = False,
+) -> None:
+    """Helper to set output attribute on span with length check."""
+    if capture_last_stream_item and outputs:
+        span.set_output(outputs[-1], max_length)
+
+    elif join_stream_items:
+        span.set_output("".join(outputs), max_length)
+
+    else:
+        span.set_output(outputs, max_length)
+
+
 class Tracer(tracing.BaseTracer):
     """Extended tracer with decorator support for all function types."""
 
@@ -72,7 +88,6 @@ class Tracer(tracing.BaseTracer):
         tags: Optional[dict[str, str]] = None,
         parent_context_id: Optional[str] = None,
         max_length: int = 1000,
-        func_type: FunctionType = FunctionType.Sync,
         capture_last_stream_item: bool = False,
         join_stream_items: bool = False,
         *args,
@@ -107,40 +122,32 @@ class Tracer(tracing.BaseTracer):
             Callable[[Callable[P, R]], Callable[P, R]]:
         """
 
+        # I'd prefere this entire decorator to be rust, but creating this type of decorator in rust
+        # is a little bit of a pain when dealing with async
         def decorator(func: Callable[P, R]) -> Callable[P, R]:
             span_name = name or f"{func.__module__}.{func.__qualname__}"
 
-            # this is now a rust
-            is_async = asyncio.iscoroutinefunction(func)
-            is_async_generator = is_async and inspect.isasyncgenfunction(func)
-            is_generator = inspect.isgeneratorfunction(func)
-
-            if is_async_generator:
+            function_type = get_function_type(func)
+            if function_type == FunctionType.AsyncGenerator:
 
                 @functools.wraps(func)
-                async def async_generator_wrapper(
-                    *args: P.args, **kwargs: P.kwargs
-                ) -> Any:
-                    async with self.start_as_current_span(
+                async def async_generator_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
+                    async with self._start_decorated_as_current_span(
+                        func,
                         span_name,
                         kind=kind,
+                        label=label,
                         attributes=attributes,
                         baggage=baggage,
+                        tags=tags,
+                        parent_context_id=parent_context_id,
+                        max_length=max_length,
+                        func_type=function_type,
+                        args=args,
+                        kwargs=kwargs,
                     ) as span:
-                        set_current_span(span)
-
                         try:
-                            self._set_function_attributes(span, func)
-                            _capture_function_inputs(
-                                span, func, args, kwargs, max_length
-                            )
-
-                            span.set_attribute("function.type", "async_generator")
-                            span.set_attribute("streaming", True)
-
-                            async_gen_func = cast(
-                                Callable[P, AsyncGenerator[Any, None]], func
-                            )
+                            async_gen_func = cast(Callable[P, AsyncGenerator[Any, None]], func)
                             generator = async_gen_func(*args, **kwargs)
 
                             outputs = []
@@ -148,50 +155,40 @@ class Tracer(tracing.BaseTracer):
                                 outputs.append(item)
                                 yield item
 
-                            if capture_last_stream_item and outputs:
-                                _capture_function_outputs(span, outputs[-1], max_length)
-
-                            elif join_stream_items:
-                                _capture_function_outputs(
-                                    span, "".join(outputs), max_length
-                                )
-
-                            #
-                            else:
-                                _capture_function_outputs(span, outputs, max_length)
+                            set_output(
+                                span,
+                                outputs,
+                                max_length,
+                                capture_last_stream_item,
+                                join_stream_items,
+                            )
 
                         except Exception as e:
                             span.set_attribute("error.type", type(e).__name__)
-
                             raise
-                        finally:
-                            set_current_span(None)
 
                 return cast(Callable[P, R], async_generator_wrapper)
 
-            elif is_generator:
+            elif function_type == FunctionType.SyncGenerator:
 
                 @functools.wraps(func)
                 def generator_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
-                    with self.start_as_current_span(
+                    with self._start_decorated_as_current_span(
+                        func,
                         span_name,
                         kind=kind,
+                        label=label,
                         attributes=attributes,
                         baggage=baggage,
+                        tags=tags,
+                        parent_context_id=parent_context_id,
+                        max_length=max_length,
+                        func_type=function_type,
+                        args=args,
+                        kwargs=kwargs,
                     ) as span:
-                        set_current_span(span)
-
                         try:
-                            self._set_function_attributes(span, func)
-                            _capture_function_inputs(
-                                span, func, args, kwargs, max_length
-                            )
-                            span.set_attribute("function.type", "generator")
-                            span.set_attribute("streaming", "true")
-
-                            gen_func = cast(
-                                Callable[P, Generator[Any, None, None]], func
-                            )
+                            gen_func = cast(Callable[P, Generator[Any, None, None]], func)
                             generator = gen_func(*args, **kwargs)
                             results = []
 
@@ -199,45 +196,48 @@ class Tracer(tracing.BaseTracer):
                                 results.append(item)
                                 yield item
 
-                            # need to record outputs after generator is exhausted
-                            span.set_attribute("function.output", results)
+                            set_output(
+                                span,
+                                results,
+                                max_length,
+                                capture_last_stream_item,
+                                join_stream_items,
+                            )
 
                         except Exception as e:
                             span.set_attribute("error.type", type(e).__name__)
                             raise
-                        finally:
-                            set_current_span(None)
 
                 return cast(Callable[P, R], generator_wrapper)
 
-            elif is_async:
+            elif function_type == FunctionType.Async:
 
                 @functools.wraps(func)
                 async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
-                    async with self.start_as_current_span(
+                    async with self._start_decorated_as_current_span(
+                        func,
                         span_name,
                         kind=kind,
+                        label=label,
                         attributes=attributes,
                         baggage=baggage,
+                        tags=tags,
+                        parent_context_id=parent_context_id,
+                        max_length=max_length,
+                        func_type=function_type,
+                        args=args,
+                        kwargs=kwargs,
                     ) as span:
-                        set_current_span(span)
-
                         try:
-                            self._set_function_attributes(span, func)
-                            _capture_function_inputs(
-                                span, func, args, kwargs, max_length
-                            )
-
                             async_func = cast(Callable[P, Awaitable[Any]], func)
                             result = await async_func(*args, **kwargs)
 
-                            _capture_function_outputs(span, result, max_length)
+                            span.set_output(result, max_length)
                             return result
+
                         except Exception as e:
                             span.set_attribute("error.type", type(e).__name__)
                             raise
-                        finally:
-                            set_current_span(None)
 
                 return cast(Callable[P, R], async_wrapper)
 
@@ -245,47 +245,37 @@ class Tracer(tracing.BaseTracer):
 
                 @functools.wraps(func)
                 def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-                    with self.start_as_current_span(
+                    with self._start_decorated_as_current_span(
+                        func,
                         span_name,
                         kind=kind,
+                        label=label,
                         attributes=attributes,
                         baggage=baggage,
+                        tags=tags,
+                        parent_context_id=parent_context_id,
+                        max_length=max_length,
+                        func_type=function_type,
+                        args=args,
+                        kwargs=kwargs,
                     ) as span:
-                        set_current_span(span)
-
                         try:
-                            self._set_function_attributes(span, func)
-                            _capture_function_inputs(
-                                span, func, args, kwargs, max_length
-                            )
-
                             result = func(*args, **kwargs)
-                            _capture_function_outputs(span, result, max_length)
+                            span.set_output(result, max_length)
                             return result
                         except Exception as e:
                             span.set_attribute("error.type", type(e).__name__)
                             raise
-                        finally:
-                            set_current_span(None)
 
                 return cast(Callable[P, R], sync_wrapper)
 
         return decorator
-
-    def _set_function_attributes(
-        self, span: tracing.ActiveSpan, func: Callable
-    ) -> None:
-        """Helper to set common function attributes."""
-        span.set_attribute("function.name", func.__name__)
-        span.set_attribute("function.module", func.__module__)
-        span.set_attribute("function.qualname", func.__qualname__)
 
 
 __all__ = [
     "Tracer",
     "init_tracer",
     "get_tracer",
-    "get_current_span",
     "SpanKind",
     "FunctionType",
 ]
