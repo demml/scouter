@@ -831,14 +831,15 @@ impl TraceServerRecord {
     }
 
     /// Convert to TraceRecord
+    #[allow(clippy::too_many_arguments)]
     pub fn convert_to_trace_record(
         &self,
         span: &Span,
         scope_name: &str,
         scope_attributes: Option<Value>,
-        space: &String,
-        name: &String,
-        version: &String,
+        space: &str,
+        name: &str,
+        version: &str,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         duration_ms: i64,
@@ -846,9 +847,9 @@ impl TraceServerRecord {
         TraceRecord {
             created_at: Self::get_trace_start_time_attribute(span, &start_time),
             trace_id: hex::encode(&span.trace_id),
-            space: space.clone(),
-            name: name.clone(),
-            version: version.clone(),
+            space: space.to_owned(),
+            name: name.to_owned(),
+            version: version.to_owned(),
             scope: scope_name.to_string(),
             trace_state: span.trace_state.clone(),
             start_time,
@@ -884,15 +885,15 @@ impl TraceServerRecord {
         tracing::warn!(
             "Trace start time attribute not found or invalid, falling back to span start_time"
         );
-        start_time.clone()
+        *start_time
     }
 
     pub fn convert_to_baggage_records(
         span: &Span,
         scope_name: &str,
-        space: &String,
-        name: &String,
-        version: &String,
+        space: &str,
+        name: &str,
+        version: &str,
     ) -> Vec<TraceBaggageRecord> {
         let baggage_kvs: Vec<(String, String)> = span
             .attributes
@@ -939,9 +940,9 @@ impl TraceServerRecord {
                 created_at: Self::get_trace_start_time_attribute(span, &Utc::now()),
                 trace_id: hex::encode(&span.trace_id),
                 scope: scope_name.to_string(),
-                space: space.clone(),
-                name: name.clone(),
-                version: version.clone(),
+                space: space.to_owned(),
+                name: name.to_owned(),
+                version: version.to_owned(),
                 key,
                 value,
             })
@@ -949,35 +950,36 @@ impl TraceServerRecord {
     }
 
     /// Convert to TraceRecord
+    #[allow(clippy::too_many_arguments)]
     pub fn convert_to_span_record(
         &self,
         span: &Span,
         scope_name: &str,
-        space: &String,
-        name: &String,
-        version: &String,
+        space: &str,
+        name: &str,
+        version: &str,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         duration_ms: i64,
     ) -> TraceSpanRecord {
         // get parent span id (can be empty)
-        let parent_span_id = span
-            .parent_span_id
-            .is_empty()
-            .then(|| None)
-            .unwrap_or(Some(hex::encode(&span.parent_span_id)));
+        let parent_span_id = if !span.parent_span_id.is_empty() {
+            Some(hex::encode(&span.parent_span_id))
+        } else {
+            None
+        };
 
         TraceSpanRecord {
-            created_at: start_time.clone(),
+            created_at: start_time,
             trace_id: hex::encode(&span.trace_id),
             span_id: hex::encode(&span.span_id),
             parent_span_id,
             start_time,
             end_time,
             duration_ms,
-            space: space.clone(),
-            name: name.clone(),
-            version: version.clone(),
+            space: space.to_owned(),
+            name: name.to_owned(),
+            version: version.to_owned(),
             scope: scope_name.to_string(),
             span_name: span.name.clone(),
             span_kind: Self::span_kind_to_string(span.kind),
@@ -990,7 +992,7 @@ impl TraceServerRecord {
                 .status
                 .as_ref()
                 .map(|s| s.message.clone())
-                .unwrap_or_else(|| "".to_string()),
+                .unwrap_or_default(),
             attributes: serde_json::to_value(&span.attributes).unwrap_or(Value::Null),
             events: serde_json::to_value(&span.events).unwrap_or(Value::Null),
             links: serde_json::to_value(&span.links).unwrap_or(Value::Null),
