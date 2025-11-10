@@ -558,7 +558,7 @@ impl BaseTracer {
             span.set_attribute(KeyValue::new(SCOUTER_TRACING_LABEL, label));
         }
 
-        let context_id = Self::set_context_id(&self, &mut span)?;
+        let context_id = Self::set_context_id(self, &mut span)?;
         let inner = Arc::new(RwLock::new(ActiveSpanInner {
             context_id,
             span,

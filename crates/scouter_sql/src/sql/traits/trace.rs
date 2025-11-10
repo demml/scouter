@@ -113,7 +113,7 @@ pub trait TraceSqlLogic {
             created_at.push(span.created_at);
             span_id.push(span.span_id.as_str());
             trace_id.push(span.trace_id.as_str());
-            parent_span_id.push(span.parent_span_id.as_ref().map(|s| s.as_str()));
+            parent_span_id.push(span.parent_span_id.as_deref());
             space.push(span.space.as_str());
             name.push(span.name.as_str());
             version.push(span.version.as_str());
@@ -162,7 +162,7 @@ pub trait TraceSqlLogic {
     /// * `baggage` - The trace baggage records to insert
     async fn insert_baggage_batch(
         pool: &Pool<Postgres>,
-        baggage: &Vec<TraceBaggageRecord>,
+        baggage: &[TraceBaggageRecord],
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertTraceBaggage.get_query();
 
