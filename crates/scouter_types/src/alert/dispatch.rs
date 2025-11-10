@@ -128,7 +128,7 @@ pub enum TransportType {
 }
 
 #[pyclass(eq)]
-#[derive(PartialEq, Clone, Debug)]
+#[derive(PartialEq, Clone, Debug, Serialize)]
 pub enum CompressionType {
     None,
     Gzip,

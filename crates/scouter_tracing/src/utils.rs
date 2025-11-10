@@ -9,6 +9,7 @@ use scouter_types::records::{
     FUNCTION_MODULE, FUNCTION_NAME, FUNCTION_QUALNAME, FUNCTION_STREAMING, FUNCTION_TYPE,
 };
 use scouter_types::CompressionType;
+use serde::Serialize;
 use std::collections::HashMap;
 use std::fmt::Display;
 use std::sync::OnceLock;
@@ -345,7 +346,7 @@ pub(crate) struct ActiveSpanInner {
 }
 
 #[pyclass(eq)]
-#[derive(PartialEq, Clone, Debug, Default)]
+#[derive(PartialEq, Clone, Debug, Default, Serialize)]
 pub enum Protocol {
     #[default]
     HttpBinary,

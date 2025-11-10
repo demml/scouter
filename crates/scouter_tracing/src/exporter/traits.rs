@@ -13,7 +13,7 @@ pub trait SpanExporterBuilder {
     fn sample_ratio(&self) -> Option<f64>;
 
     /// Whether to use simple or batch exporter
-    fn use_simple_exporter(&self) -> bool;
+    fn batch_export(&self) -> bool;
 
     /// Build the actual span exporter - this is non-consuming
     fn build_exporter(&self) -> Result<Self::Exporter, TraceError>;
@@ -40,7 +40,7 @@ pub trait SpanExporterBuilder {
         Self: Sized,
     {
         let exporter = self.build_exporter()?;
-        let use_simple = self.use_simple_exporter();
+        let use_simple = self.batch_export();
         let sampler = self.to_sampler();
 
         let mut builder = opentelemetry_sdk::trace::SdkTracerProvider::builder()

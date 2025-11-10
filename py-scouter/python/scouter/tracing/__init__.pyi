@@ -316,3 +316,30 @@ class BaseTracer:
             ActiveSpan:
         """
         ...
+
+class StdoutSpanExporter:
+    """Exporter that outputs spans to standard output (stdout)."""
+
+    def __init__(
+        self,
+        batch_export: bool = False,
+        sample_ratio: Optional[float] = None,
+    ) -> None:
+        """Initialize the StdoutSpanExporter.
+
+        Args:
+            batch_export (bool):
+                Whether to use batch exporting. Defaults to False.
+            sample_ratio (Optional[float]):
+                The sampling ratio for traces. If None, defaults to always sample.
+        """
+
+    @property
+    def batch_export(self) -> bool:
+        """Get whether batch exporting is enabled."""
+        ...
+
+    @property
+    def sample_ratio(self) -> Optional[float]:
+        """Get the sampling ratio."""
+        ...

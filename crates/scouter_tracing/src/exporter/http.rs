@@ -8,29 +8,41 @@ use opentelemetry_otlp::SpanExporter as OtlpSpanExporter;
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_otlp::WithHttpConfig;
 use pyo3::prelude::*;
+use scouter_types::{CompressionType, PyHelperFuncs};
+use serde::Serialize;
 use std::time::Duration;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize)]
 #[pyclass]
 pub struct HttpSpanExporter {
     #[pyo3(get)]
     pub sample_ratio: Option<f64>,
+
     #[pyo3(get)]
-    pub use_simple_exporter: bool,
-    // Store configuration, not the built exporter
+    pub batch_export: bool,
+
+    #[pyo3(get)]
     endpoint: Option<String>,
+
+    #[pyo3(get)]
     protocol: Protocol,
+
+    #[pyo3(get)]
     timeout: Option<u64>,
+
+    #[pyo3(get)]
     headers: Option<HashMap<String, String>>,
-    compression: Option<opentelemetry_otlp::Compression>,
+
+    #[pyo3(get)]
+    compression: Option<CompressionType>,
 }
 
 #[pymethods]
 impl HttpSpanExporter {
     #[new]
-    #[pyo3(signature = (use_simple_exporter=false, export_config=None, http_config=None, sample_ratio=None))]
+    #[pyo3(signature = (batch_export=true, export_config=None, http_config=None, sample_ratio=None))]
     pub fn new(
-        use_simple_exporter: bool,
+        batch_export: bool,
         export_config: Option<&ExportConfig>,
         http_config: Option<&HttpConfig>,
         sample_ratio: Option<f64>,
@@ -48,7 +60,7 @@ impl HttpSpanExporter {
         let headers = http_config.and_then(|cfg| cfg.headers.clone());
         let compression = if let Some(http_config) = http_config {
             if let Some(compression) = &http_config.compression {
-                Some(compression.to_otel_compression()?)
+                Some(compression.clone())
             } else {
                 None
             }
@@ -57,7 +69,7 @@ impl HttpSpanExporter {
         };
 
         Ok(Self {
-            use_simple_exporter,
+            batch_export,
             sample_ratio,
             endpoint,
             protocol,
@@ -65,6 +77,10 @@ impl HttpSpanExporter {
             headers,
             compression,
         })
+    }
+
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
     }
 }
 
@@ -75,8 +91,8 @@ impl SpanExporterBuilder for HttpSpanExporter {
         self.sample_ratio
     }
 
-    fn use_simple_exporter(&self) -> bool {
-        self.use_simple_exporter
+    fn batch_export(&self) -> bool {
+        self.batch_export
     }
 
     fn build_exporter(&self) -> Result<Self::Exporter, TraceError> {
@@ -96,8 +112,8 @@ impl SpanExporterBuilder for HttpSpanExporter {
             exporter = exporter.with_headers(headers.clone());
         }
 
-        if let Some(compression) = self.compression {
-            exporter = exporter.with_compression(compression);
+        if let Some(compression) = &self.compression {
+            exporter = exporter.with_compression(compression.to_otel_compression()?);
         }
 
         Ok(exporter.build()?)
