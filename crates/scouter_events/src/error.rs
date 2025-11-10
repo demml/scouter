@@ -188,9 +188,6 @@ pub enum PyEventError {
     #[error(transparent)]
     PyErr(#[from] pyo3::PyErr),
 
-    #[error("Invalid compressions type")]
-    InvalidCompressionTypeError,
-
     #[error(transparent)]
     TypeError(#[from] scouter_types::error::TypeError),
 

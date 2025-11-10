@@ -1,8 +1,9 @@
 use crate::drift::DriftArgs;
+use crate::error::TypeError;
 use pyo3::{prelude::*, IntoPyObjectExt};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-
+use std::str::FromStr;
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct ConsoleDispatchConfig {
@@ -124,4 +125,42 @@ pub enum TransportType {
     Http,
     Redis,
     Mock,
+}
+
+#[pyclass(eq)]
+#[derive(PartialEq, Clone, Debug)]
+pub enum CompressionType {
+    None,
+    Gzip,
+    Snappy,
+    Lz4,
+    Zstd,
+}
+
+impl FromStr for CompressionType {
+    type Err = TypeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "none" => Ok(CompressionType::None),
+            "gzip" => Ok(CompressionType::Gzip),
+            "snappy" => Ok(CompressionType::Snappy),
+            "lz4" => Ok(CompressionType::Lz4),
+            "zstd" => Ok(CompressionType::Zstd),
+            _ => Err(TypeError::InvalidCompressionTypeError),
+        }
+    }
+}
+
+// impl display
+impl std::fmt::Display for CompressionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CompressionType::None => write!(f, "none"),
+            CompressionType::Gzip => write!(f, "gzip"),
+            CompressionType::Snappy => write!(f, "snappy"),
+            CompressionType::Lz4 => write!(f, "lz4"),
+            CompressionType::Zstd => write!(f, "zstd"),
+        }
+    }
 }

@@ -340,3 +340,19 @@ pub(crate) struct ActiveSpanInner {
     pub span: BoxedSpan,
     pub context_token: Option<Py<PyAny>>,
 }
+
+#[pyclass(eq)]
+#[derive(PartialEq, Clone, Debug)]
+pub enum Protocol {
+    HttpBinary,
+    HttpJson,
+}
+
+impl Protocol {
+    pub fn to_otel_protocol(&self) -> opentelemetry_otlp::Protocol {
+        match self {
+            Protocol::HttpBinary => opentelemetry_otlp::Protocol::HttpBinary,
+            Protocol::HttpJson => opentelemetry_otlp::Protocol::HttpJson,
+        }
+    }
+}
