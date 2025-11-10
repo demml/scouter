@@ -250,7 +250,7 @@ pub struct ActiveSpan {
 impl ActiveSpan {
     #[getter]
     fn context_id(&self) -> Result<String, TraceError> {
-        Ok(self.inner.read().map_err(|e| TraceError::PoisonError(e.to_string()))?.context_id.clone())
+        Ok(self.with_inner(|inner| inner.context_id.clone())?)
     }
 
     /// Set the input attribute on the span
