@@ -14,7 +14,7 @@ use scouter_types::records::{SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_
  BAGGAGE_PREFIX,  TRACE_START_TIME_KEY};
 use chrono::{DateTime, Utc};
 use opentelemetry::baggage::BaggageExt;
-use opentelemetry::trace::Tracer as OTelTracer;
+use opentelemetry::trace::{SpanContext, Tracer as OTelTracer};
 use opentelemetry::Context;
 use opentelemetry::{
     global::{self, BoxedSpan, BoxedTracer},
@@ -527,46 +527,18 @@ impl BaseTracer {
         let parent_id = parent_context_id.or_else(|| get_current_context_id(py).ok().flatten());
 
         // Build the base context first
-        let base_ctx = if let Some(parent_id) = parent_id {
-            if let Some(parent_span_ctx) = get_context_store().get(&parent_id)? {
-                OtelContext::current().with_remote_span_context(parent_span_ctx)
-            } else {
-                OtelContext::current()
-            }
-        } else {
-            OtelContext::current()
-        };
-
+        let base_ctx = parent_id
+            .and_then(|id| get_context_store().get(&id).ok().flatten())
+            .map(|parent_span_ctx| OtelContext::current().with_remote_span_context(parent_span_ctx))
+            .unwrap_or_else(OtelContext::current);
 
         // Need to update the context with baggage items
-        let final_ctx = if let Some(baggage_items) = baggage {
-            // if tags are provided, add them to baggage as well
-            // these will be extracted when inserting into db
-            let baggage_items = if let Some(tags) = tags {
-                // need to add scouter.tag.<key> = <value> to baggage
-                baggage_items.into_iter().chain(tags.into_iter().map(|(k, v)| {
-                    (format!("{}.{}", SCOUTER_TAG_PREFIX, k), v)
-                })).collect()
-            } else {
-                baggage_items
-            };
-
-            let keyvals: Vec<KeyValue> = baggage_items
-                .into_iter()
-                .map(|(k, v)| {
-                    let baggage_key = if k == TRACE_START_TIME_KEY {
-                        k // Don't prefix system keys
-                    } else {
-                        format!("{}.{}", BAGGAGE_PREFIX, k)
-                    };
-                    KeyValue::new(baggage_key, v)
-                })
-                .collect();
-
-            base_ctx.with_baggage(keyvals)
-        } else {
-            base_ctx
-        };
+        let final_ctx = baggage
+            .map(|baggage_items| {
+                let keyvals = Self::create_baggage_items(baggage_items, tags);
+                base_ctx.with_baggage(keyvals)
+            })
+            .unwrap_or(base_ctx);
 
         // Create span with the final context (this consumes final_ctx)
         let mut span = self
@@ -574,6 +546,8 @@ impl BaseTracer {
             .span_builder(name.clone())
             .with_kind(kind.to_otel_span_kind())
             .start_with_context(&self.tracer, &final_ctx);
+
+        
 
         // Add custom attributes
         if let Some(attrs) = attributes {
@@ -587,14 +561,7 @@ impl BaseTracer {
             span.set_attribute(KeyValue::new(SCOUTER_TRACING_LABEL, label));
         }
 
-        // if tags and 
-
-        // Generate unique context ID and store span context
-        let context_id = format!("span_{}", create_uuid7());
-        let span_context = span.span_context().clone();
-        Self::setup_trace_metadata(&self, &mut span)?;
-        get_context_store().set(context_id.clone(), span_context)?;
-
+        let context_id = Self::set_context_id(&self, &mut span)?;
         let inner = Arc::new(RwLock::new(ActiveSpanInner {
             context_id,
             span,
@@ -658,6 +625,39 @@ impl BaseTracer {
         let token = set_current_span(py, py_span.bind(py).clone())?;
         inner.write().map_err(|e| TraceError::PoisonError(e.to_string()))?.context_token = Some(token);
         Ok(())
+    }
+
+    fn create_baggage_items(baggage: HashMap<String, String>, tags: Option<HashMap<String, String>>) -> Vec<KeyValue> {
+        let baggage_items = if let Some(tags) = tags {
+                // need to add scouter.tag.<key> = <value> to baggage
+                baggage.into_iter().chain(tags.into_iter().map(|(k, v)| {
+                    (format!("{}.{}", SCOUTER_TAG_PREFIX, k), v)
+                })).collect()
+            } else {
+                baggage
+            };
+
+        let keyvals: Vec<KeyValue> = baggage_items
+            .into_iter()
+            .map(|(k, v)| {
+                let baggage_key = if k == TRACE_START_TIME_KEY {
+                    k // Don't prefix system keys
+                } else {
+                    format!("{}.{}", BAGGAGE_PREFIX, k)
+                };
+                KeyValue::new(baggage_key, v)
+            })
+            .collect();
+
+        keyvals
+    }
+
+    fn set_context_id(&self, span: &mut BoxedSpan) -> Result<String, TraceError> {
+        let context_id = format!("span_{}", create_uuid7());
+        Self::setup_trace_metadata(&self, span)?;
+        get_context_store().set(context_id.clone(), span.span_context().clone())?;
+        Ok(context_id)
+
     }
 }
 
