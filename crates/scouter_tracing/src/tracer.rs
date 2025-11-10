@@ -219,17 +219,6 @@ pub fn init_tracer(name: Option<String>, endpoint: Option<String>, sample_ratio:
     });
 }
 
-
-
-
-fn set_current_context_id(py: Python<'_>, context_id: String) -> PyResult<Py<PyAny>> {
-    let context_var = get_context_var(py)?;
-    Ok(context_var
-        .bind(py)
-        .call_method1("set", (context_id,))?
-        .unbind())
-}
-
 fn reset_current_context(py: Python, token: &Py<PyAny>) -> PyResult<()> {
     let context_var = get_context_var(py)?;
     context_var.bind(py).call_method1("reset", (token,))?;
@@ -240,9 +229,6 @@ fn reset_current_context(py: Python, token: &Py<PyAny>) -> PyResult<()> {
 /// The active Span attempts to maintain compatibility with the OpenTelemetry Span API
 #[pyclass]
 pub struct ActiveSpan {
-    //context_id: String,
-    //span: BoxedSpan,
-    //context_token: Option<Py<PyAny>>,
     inner: Arc<RwLock<ActiveSpanInner>>,
 }
 
@@ -605,7 +591,7 @@ impl BaseTracer {
         func_type: FunctionType,
         py_args: &Bound<'_, PyTuple>,
         py_kwargs: Option<&Bound<'_, PyDict>>,
-    ) -> Result<Bound<'py, ActiveSpan>, TraceError> {
+    ) -> Result<ActiveSpan, TraceError> {
         let mut span =
             self.start_as_current_span(py, name, kind, label, attributes, baggage, tags, parent_context_id)?;
 
@@ -613,9 +599,9 @@ impl BaseTracer {
         set_function_type_attribute(&func_type, &mut span)?;
         let bound_args = capture_function_arguments(py, func, py_args, py_kwargs)?;
         span.set_input(&bound_args, max_length)?;
-        let py_span = Py::new(py, span)?;
 
-        Ok(py_span.bind(py).clone())
+        Ok(span)
+     
     }
 }
 
