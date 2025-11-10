@@ -8,17 +8,17 @@
 use crate::error::TraceError;
 use crate::exporter::ScouterSpanExporter;
 use crate::utils::{
-    ActiveSpanInner, FunctionType, SpanKind, capture_function_arguments, get_context_store, get_context_var, get_current_active_span, get_current_context_id, set_current_span, set_function_attributes, set_function_type_attribute
+    capture_function_arguments, get_context_store, get_context_var, get_current_active_span,
+    get_current_context_id, set_current_span, set_function_attributes, set_function_type_attribute,
+    ActiveSpanInner, FunctionType, SpanKind,
 };
-use scouter_types::records::{SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT, SERVICE_NAME,
- BAGGAGE_PREFIX,  TRACE_START_TIME_KEY};
 use chrono::{DateTime, Utc};
 use opentelemetry::baggage::BaggageExt;
-use opentelemetry::trace::{Tracer as OTelTracer};
+use opentelemetry::trace::Tracer as OTelTracer;
 use opentelemetry::Context;
 use opentelemetry::{
     global::{self, BoxedSpan, BoxedTracer},
-    trace::{Span,  Status, TraceContextExt},
+    trace::{Span, Status, TraceContextExt},
     Context as OtelContext, KeyValue,
 };
 use opentelemetry_otlp::{Protocol, WithExportConfig};
@@ -30,9 +30,11 @@ use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use pyo3::IntoPyObjectExt;
-use scouter_types::{
-    is_pydantic_basemodel, pydict_to_otel_keyvalue, pyobject_to_tracing_json
+use scouter_types::records::{
+    BAGGAGE_PREFIX, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL,
+    SCOUTER_TRACING_OUTPUT, SERVICE_NAME, TRACE_START_TIME_KEY,
 };
+use scouter_types::{is_pydantic_basemodel, pydict_to_otel_keyvalue, pyobject_to_tracing_json};
 
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
@@ -268,9 +270,7 @@ impl ActiveSpan {
     /// * `key` - The attribute key
     /// * `value` - The attribute value
     pub fn set_attribute(&self, key: String, value: String) -> Result<(), TraceError> {
-        self.with_inner_mut(|inner| {
-            inner.span.set_attribute(KeyValue::new(key, value))
-        })
+        self.with_inner_mut(|inner| inner.span.set_attribute(KeyValue::new(key, value)))
     }
 
     /// Add an event to the span
@@ -302,9 +302,7 @@ impl ActiveSpan {
             vec![]
         };
 
-        self.with_inner_mut(|inner| {
-            inner.span.add_event(name, pairs)
-        })
+        self.with_inner_mut(|inner| inner.span.add_event(name, pairs))
     }
 
     /// Set the status of the span
@@ -317,10 +315,8 @@ impl ActiveSpan {
             "error" => Status::error(description.unwrap_or_default()),
             _ => Status::Unset,
         };
-        
-        self.with_inner_mut(|inner| {
-            inner.span.set_status(otel_status)
-        })
+
+        self.with_inner_mut(|inner| inner.span.set_status(otel_status))
     }
 
     /// Sync context manager enter
@@ -329,7 +325,7 @@ impl ActiveSpan {
     }
 
     /// Sync context manager exit
-     #[pyo3(signature = (exc_type=None, exc_val=None, exc_tb=None))]
+    #[pyo3(signature = (exc_type=None, exc_val=None, exc_tb=None))]
     fn __exit__(
         &mut self,
         py: Python<'_>,
@@ -337,32 +333,39 @@ impl ActiveSpan {
         exc_val: Option<Py<PyAny>>,
         exc_tb: Option<Py<PyAny>>,
     ) -> Result<bool, TraceError> {
-
         let (context_id, trace_id, context_token) = {
-            let mut inner = self.inner.write()
+            let mut inner = self
+                .inner
+                .write()
                 .map_err(|e| TraceError::PoisonError(e.to_string()))?;
-            
+
             // Handle exceptions and end span
             if let Some(exc_type) = exc_type {
                 inner.span.set_status(Status::error("Exception occurred"));
-                inner.span.set_attribute(KeyValue::new("exception.type", exc_type.to_string()));
+                inner
+                    .span
+                    .set_attribute(KeyValue::new("exception.type", exc_type.to_string()));
 
                 if let Some(exc_val) = exc_val {
-                    inner.span.set_attribute(KeyValue::new("exception.value", exc_val.to_string()));
+                    inner
+                        .span
+                        .set_attribute(KeyValue::new("exception.value", exc_val.to_string()));
                 }
 
                 if let Some(exc_tb) = exc_tb {
-                    inner.span.set_attribute(KeyValue::new("exception.traceback", exc_tb.to_string()));
+                    inner
+                        .span
+                        .set_attribute(KeyValue::new("exception.traceback", exc_tb.to_string()));
                 }
             }
-            
+
             inner.span.end();
-            
+
             // Extract values before dropping the lock
             let context_id = inner.context_id.clone();
             let trace_id = inner.span.span_context().trace_id().to_string();
             let context_token = inner.context_token.take();
-            
+
             (context_id, trace_id, context_token)
         }; // Lock is dropped here
 
@@ -379,11 +382,7 @@ impl ActiveSpan {
     }
 
     /// Async context manager enter
-    fn __aenter__<'py>(
-        slf: PyRef<'py, Self>,
-        py: Python<'py>,
-    ) -> PyResult<Bound<'py, PyAny>> {
-      
+    fn __aenter__<'py>(slf: PyRef<'py, Self>, py: Python<'py>) -> PyResult<Bound<'py, PyAny>> {
         let slf_py: Py<PyAny> = slf.into_py_any(py)?;
 
         // We need to return a Future that resolves to slf_py (__aenter__ is expected to return an awaitable)
@@ -408,8 +407,16 @@ impl ActiveSpan {
 }
 
 impl ActiveSpan {
-    pub fn set_attribute_static(&mut self, key: &'static str, value: String) -> Result<(), TraceError> {
-        self.inner.write().map_err(|e| TraceError::PoisonError(e.to_string()))?.span.set_attribute(KeyValue::new(key, value));
+    pub fn set_attribute_static(
+        &mut self,
+        key: &'static str,
+        value: String,
+    ) -> Result<(), TraceError> {
+        self.inner
+            .write()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?
+            .span
+            .set_attribute(KeyValue::new(key, value));
         Ok(())
     }
 
@@ -417,7 +424,9 @@ impl ActiveSpan {
     where
         F: FnOnce(&mut ActiveSpanInner) -> R,
     {
-        let mut inner = self.inner.write()
+        let mut inner = self
+            .inner
+            .write()
             .map_err(|e| TraceError::PoisonError(e.to_string()))?;
         Ok(f(&mut *inner))
     }
@@ -426,7 +435,9 @@ impl ActiveSpan {
     where
         F: FnOnce(&ActiveSpanInner) -> R,
     {
-        let inner = self.inner.read()
+        let inner = self
+            .inner
+            .read()
             .map_err(|e| TraceError::PoisonError(e.to_string()))?;
         Ok(f(&*inner))
     }
@@ -533,8 +544,6 @@ impl BaseTracer {
             .with_kind(kind.to_otel_span_kind())
             .start_with_context(&self.tracer, &final_ctx);
 
-        
-
         // Add custom attributes
         if let Some(attrs) = attributes {
             for (key, value) in attrs {
@@ -556,10 +565,8 @@ impl BaseTracer {
 
         // set as current span
         self.set_current_span(py, &inner)?;
-        
-        Ok(ActiveSpan {
-            inner,
-        })
+
+        Ok(ActiveSpan { inner })
     }
 
     /// Special method that is used as a decorator to start a span around a function call
@@ -581,12 +588,12 @@ impl BaseTracer {
         name, 
         kind=SpanKind::Internal, 
         label=None,
-        attributes=None, 
-        baggage=None, 
+        attributes=None,
+        baggage=None,
         tags=None,
-        parent_context_id=None, 
-        max_length=1000, 
-        func_type=FunctionType::Sync, 
+        parent_context_id=None,
+        max_length=1000,
+        func_type=FunctionType::Sync,
         *args, 
         **kwargs
     ))]
@@ -606,8 +613,16 @@ impl BaseTracer {
         args: &Bound<'_, PyTuple>,
         kwargs: Option<&Bound<'_, PyDict>>,
     ) -> Result<ActiveSpan, TraceError> {
-        let mut span =
-            self.start_as_current_span(py, name, kind, label, attributes, baggage, tags, parent_context_id)?;
+        let mut span = self.start_as_current_span(
+            py,
+            name,
+            kind,
+            label,
+            attributes,
+            baggage,
+            tags,
+            parent_context_id,
+        )?;
 
         set_function_attributes(func, &mut span)?;
         set_function_type_attribute(&func_type, &mut span)?;
@@ -615,7 +630,6 @@ impl BaseTracer {
         span.set_input(&bound_args, max_length)?;
 
         Ok(span)
-     
     }
 
     /// Get the current active span from context
@@ -627,22 +641,41 @@ impl BaseTracer {
 }
 
 impl BaseTracer {
-    fn set_current_span(&self, py: Python<'_>, inner: &Arc<RwLock<ActiveSpanInner>>) -> Result<(), TraceError> {
-        let py_span = Py::new(py, ActiveSpan { inner: inner.clone() })?;
+    fn set_current_span(
+        &self,
+        py: Python<'_>,
+        inner: &Arc<RwLock<ActiveSpanInner>>,
+    ) -> Result<(), TraceError> {
+        let py_span = Py::new(
+            py,
+            ActiveSpan {
+                inner: inner.clone(),
+            },
+        )?;
         let token = set_current_span(py, py_span.bind(py).clone())?;
-        inner.write().map_err(|e| TraceError::PoisonError(e.to_string()))?.context_token = Some(token);
+        inner
+            .write()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?
+            .context_token = Some(token);
         Ok(())
     }
 
-    fn create_baggage_items(baggage: HashMap<String, String>, tags: Option<HashMap<String, String>>) -> Vec<KeyValue> {
+    fn create_baggage_items(
+        baggage: HashMap<String, String>,
+        tags: Option<HashMap<String, String>>,
+    ) -> Vec<KeyValue> {
         let baggage_items = if let Some(tags) = tags {
-                // need to add scouter.tag.<key> = <value> to baggage
-                baggage.into_iter().chain(tags.into_iter().map(|(k, v)| {
-                    (format!("{}.{}", SCOUTER_TAG_PREFIX, k), v)
-                })).collect()
-            } else {
-                baggage
-            };
+            // need to add scouter.tag.<key> = <value> to baggage
+            baggage
+                .into_iter()
+                .chain(
+                    tags.into_iter()
+                        .map(|(k, v)| (format!("{}.{}", SCOUTER_TAG_PREFIX, k), v)),
+                )
+                .collect()
+        } else {
+            baggage
+        };
 
         let keyvals: Vec<KeyValue> = baggage_items
             .into_iter()
@@ -664,7 +697,6 @@ impl BaseTracer {
         Self::setup_trace_metadata(&self, span)?;
         get_context_store().set(context_id.clone(), span.span_context().clone())?;
         Ok(context_id)
-
     }
 }
 
