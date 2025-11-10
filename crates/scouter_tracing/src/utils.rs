@@ -102,29 +102,35 @@ pub fn get_function_type(
     py: Python<'_>,
     func: &Bound<'_, PyAny>,
 ) -> Result<FunctionType, TraceError> {
-    // check if the function is a coroutine function from asyncio
-    let is_async = py_asyncio(py)
-        .call_method1("iscoroutinefunction", (func,))?
+    // Check for async generator first (most specific)
+    let is_async_gen = py_inspect(py)
+        .call_method1("isasyncgenfunction", (func,))?
         .extract::<bool>()?;
 
-    let is_async_gen = is_async
-        && py_inspect(py)
-            .call_method1("isasyncgenfunction", (func,))?
-            .extract::<bool>()?;
+    if is_async_gen {
+        return Ok(FunctionType::AsyncGenerator);
+    }
 
+    // Check for sync generator
     let is_gen = py_inspect(py)
         .call_method1("isgeneratorfunction", (func,))?
         .extract::<bool>()?;
 
-    Ok(if is_async && !is_async_gen {
-        FunctionType::Async
-    } else if is_async_gen {
-        FunctionType::AsyncGenerator
-    } else if is_gen {
-        FunctionType::SyncGenerator
-    } else {
-        FunctionType::Sync
-    })
+    if is_gen {
+        return Ok(FunctionType::SyncGenerator);
+    }
+
+    // Check for regular async function
+    let is_async = py_asyncio(py)
+        .call_method1("iscoroutinefunction", (func,))?
+        .extract::<bool>()?;
+
+    if is_async {
+        return Ok(FunctionType::Async);
+    }
+
+    // Default to sync
+    Ok(FunctionType::Sync)
 }
 
 /// Capture function inputs by binding args and kwargs to the function signature

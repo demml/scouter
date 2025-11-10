@@ -56,7 +56,7 @@ class Tracer(BaseTracer):
 
     def span(
         self,
-        name: str,
+        name: Optional[str] = None,
         kind: SpanKind = SpanKind.Internal,
         label: Optional[str] = None,
         attributes: Optional[dict[str, str]] = None,
@@ -73,8 +73,8 @@ class Tracer(BaseTracer):
         """Decorator to trace function execution with OpenTelemetry spans.
 
         Args:
-            name (str):
-                The name of the span.
+            name (Optional[str]):
+                The name of the span. If None, defaults to the function name.
             kind (SpanKind):
                 The kind of span (e.g., Internal, Server, Client).
             label (Optional[str]):
@@ -104,7 +104,7 @@ class Tracer(BaseTracer):
 
     def _start_decorated_as_current_span(
         self,
-        name: str,
+        name: Optional[str],
         func: Callable[..., Any],
         func_args: tuple[Any, ...],
         kind: SpanKind = SpanKind.Internal,
@@ -120,8 +120,8 @@ class Tracer(BaseTracer):
         """Context manager to start a new span as the current span for decorated functions.
 
         Args:
-            name (str):
-                The name of the span.
+            name (Optional[str]):
+                The name of the span. If None, defaults to the function name.
             func (Callable[..., Any]):
                 The function being decorated.
             func_args (tuple[Any, ...]):

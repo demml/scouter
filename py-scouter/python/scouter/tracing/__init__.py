@@ -25,37 +25,6 @@ FunctionType = tracing.FunctionType
 get_function_type = tracing.get_function_type
 
 
-# _current_span: ContextVar[Optional[tracing.ActiveSpan]] = ContextVar(
-#    "_current_active_span", default=None
-# )
-
-
-# def get_current_span() -> Optional[tracing.ActiveSpan]:
-#    """
-#    Get the currently active span.
-#
-#    This is a helper function to retrieve the currently active span when using the
-#    tracing decorator.
-#
-#    Returns:
-#        The currently active ActiveSpan, or None if no span is active.
-#
-#    Example:
-#        >>> @tracer.span("my_operation")
-#        ... def my_function():
-#        ...     span = get_current_span()
-#        ...     if span:
-#        ...         span.set_attribute("custom_key", "custom_value")
-#        ...         span.add_event("custom_event", {"detail": "some detail"})
-#    """
-#    return _current_span.get()
-#
-
-# def set_current_span(span: Optional[tracing.ActiveSpan]) -> None:
-#    """Set the current active span (internal use)."""
-#    _current_span.set(span)
-
-
 def set_output(
     span: tracing.ActiveSpan,
     outputs: List[Any],
@@ -64,6 +33,8 @@ def set_output(
     join_stream_items: bool = False,
 ) -> None:
     """Helper to set output attribute on span with length check."""
+
+    print(f"Outputs: {outputs}")
     if capture_last_stream_item and outputs:
         span.set_output(outputs[-1], max_length)
 
@@ -95,8 +66,8 @@ class Tracer(tracing.BaseTracer):
         """Decorator to trace function execution with OpenTelemetry spans.
 
         Args:
-            name (str):
-                The name of the span
+            name (Optional[str]):
+                The name of the span. If None, defaults to the function name.
             kind (SpanKind):
                 The kind of span (default: Internal)
             label (Optional[str]):
@@ -126,12 +97,12 @@ class Tracer(tracing.BaseTracer):
         def decorator(func: Callable[P, R]) -> Callable[P, R]:
             span_name = name or f"{func.__module__}.{func.__qualname__}"
             function_type = get_function_type(func)
+
+            print(f"Decorating function '{span_name}' of type '{function_type}'")
             if function_type == FunctionType.AsyncGenerator:
 
                 @functools.wraps(func)
-                async def async_generator_wrapper(
-                    *args: P.args, **kwargs: P.kwargs
-                ) -> Any:
+                async def async_generator_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
                     async with self._start_decorated_as_current_span(
                         name=span_name,
                         func=func,
@@ -147,9 +118,7 @@ class Tracer(tracing.BaseTracer):
                         func_kwargs=kwargs,
                     ) as span:
                         try:
-                            async_gen_func = cast(
-                                Callable[P, AsyncGenerator[Any, None]], func
-                            )
+                            async_gen_func = cast(Callable[P, AsyncGenerator[Any, None]], func)
                             generator = async_gen_func(*args, **kwargs)
 
                             outputs = []
@@ -190,9 +159,7 @@ class Tracer(tracing.BaseTracer):
                         func_kwargs=kwargs,
                     ) as span:
                         try:
-                            gen_func = cast(
-                                Callable[P, Generator[Any, None, None]], func
-                            )
+                            gen_func = cast(Callable[P, Generator[Any, None, None]], func)
                             generator = gen_func(*args, **kwargs)
                             results = []
 
