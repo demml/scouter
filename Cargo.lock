@@ -5998,6 +5998,7 @@ dependencies = [
  "cron",
  "hex",
  "opentelemetry",
+ "opentelemetry-otlp",
  "opentelemetry-proto",
  "potato-head",
  "pyo3",

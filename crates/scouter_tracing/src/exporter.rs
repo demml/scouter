@@ -1,23 +1,23 @@
 use std::collections::HashMap;
 
+use crate::error::TraceError;
+use crate::utils::Protocol;
 use opentelemetry_otlp::ExportConfig as OtlpExportConfig;
-use opentelemetry_otlp::HasHttpConfig;
-use opentelemetry_otlp::HttpExporterBuilderSet;
-use opentelemetry_otlp::SpanExporterBuilder;
+use opentelemetry_otlp::SpanExporter as OtlpSpanExporter;
 use opentelemetry_otlp::WithExportConfig;
 use opentelemetry_otlp::WithHttpConfig;
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use opentelemetry_proto::transform::common::tonic::ResourceAttributesWithSchema;
 use opentelemetry_proto::transform::trace::tonic::group_spans_by_resource_and_scope;
+use opentelemetry_sdk::trace::Sampler;
 use opentelemetry_sdk::{
     error::OTelSdkResult,
     trace::{SpanData, SpanExporter},
 };
+use opentelemetry_stdout::SpanExporter as OTelStdoutSpanExporter;
 use pyo3::prelude::*;
 use scouter_types::{records::TraceServerRecord, CompressionType};
 use std::time::Duration;
-
-use crate::utils::Protocol;
 
 #[derive(Debug)]
 pub struct ScouterSpanExporter {
@@ -110,24 +110,78 @@ impl HttpConfig {
 #[derive(Debug)]
 #[pyclass]
 pub struct HttpSpanExporter {
-    exporter: SpanExporterBuilder<HttpExporterBuilderSet>,
+    pub exporter: OtlpSpanExporter,
+
+    #[pyo3(get)]
+    pub sample_ratio: Option<f64>,
 }
 
 #[pymethods]
 impl HttpSpanExporter {
     #[new]
-    #[pyo3(signature = (export_config=None))]
-    pub fn new(export_config: Option<&ExportConfig>) -> Self {
-        let export_config = match export_config {
-            Some(cfg) => cfg.to_otel_config(),
-            None => OtlpExportConfig::default(),
-        };
+    #[pyo3(signature = (export_config=None, http_config=None, sample_ratio=None))]
+    pub fn new(
+        export_config: Option<&ExportConfig>,
+        http_config: Option<&HttpConfig>,
+        sample_ratio: Option<f64>,
+    ) -> Result<Self, TraceError> {
+        let export_config = export_config
+            .map(|cfg| cfg.to_otel_config())
+            .unwrap_or_default();
 
-        let exporter = opentelemetry_otlp::SpanExporter::builder()
+        let mut exporter = opentelemetry_otlp::SpanExporter::builder()
             .with_http()
-            .http_client_config()
             .with_export_config(export_config);
 
-        Self { exporter }
+        if let Some(http_config) = http_config {
+            if let Some(headers) = &http_config.headers {
+                exporter = exporter.with_headers(headers.clone());
+            }
+
+            if let Some(compression) = &http_config.compression {
+                let compression = compression.to_otel_compression()?;
+                exporter = exporter.with_compression(compression);
+            }
+        }
+
+        Ok(Self {
+            exporter: exporter.build()?,
+            sample_ratio,
+        })
+    }
+}
+
+impl HttpSpanExporter {
+    pub fn sampler(&self) -> Sampler {
+        self.sample_ratio
+            .map(Sampler::TraceIdRatioBased)
+            .unwrap_or(Sampler::AlwaysOn)
+    }
+}
+
+#[derive(Debug)]
+#[pyclass]
+pub struct StdoutSpanExporter {
+    pub exporter: OTelStdoutSpanExporter,
+    sample_ratio: Option<f64>,
+}
+
+#[pymethods]
+impl StdoutSpanExporter {
+    #[new]
+    pub fn new(sample_ratio: Option<f64>) -> Self {
+        let exporter = OTelStdoutSpanExporter::default();
+        StdoutSpanExporter {
+            exporter,
+            sample_ratio,
+        }
+    }
+}
+
+impl StdoutSpanExporter {
+    pub fn sampler(&self) -> Sampler {
+        self.sample_ratio
+            .map(Sampler::TraceIdRatioBased)
+            .unwrap_or(Sampler::AlwaysOn)
     }
 }

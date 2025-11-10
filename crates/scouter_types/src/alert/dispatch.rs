@@ -164,3 +164,13 @@ impl std::fmt::Display for CompressionType {
         }
     }
 }
+
+impl CompressionType {
+    pub fn to_otel_compression(&self) -> Result<opentelemetry_otlp::Compression, TypeError> {
+        match self {
+            CompressionType::Gzip => Ok(opentelemetry_otlp::Compression::Gzip),
+            CompressionType::Zstd => Ok(opentelemetry_otlp::Compression::Zstd),
+            _ => Err(TypeError::CompressionTypeNotSupported(self.to_string())),
+        }
+    }
+}

@@ -116,6 +116,12 @@ pub enum TypeError {
 
     #[error("Invalid dictionary key type. Dictionary keys must be strings, int, float or bool")]
     InvalidDictKeyType,
+
+    #[error("Invalid compressions type")]
+    InvalidCompressionTypeError,
+
+    #[error("Compression type not supported: {0}")]
+    CompressionTypeNotSupported(String),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for TypeError {
