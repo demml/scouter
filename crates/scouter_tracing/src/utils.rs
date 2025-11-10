@@ -140,10 +140,6 @@ pub(crate) fn capture_function_arguments<'py>(
     args: &Bound<'py, PyTuple>,
     kwargs: Option<&Bound<'py, PyDict>>,
 ) -> Result<Bound<'py, PyAny>, TraceError> {
-    println!("Capturing function arguments for function: {:?}", func);
-    println!("Positional args: {:?}", args);
-    println!("Keyword args: {:?}", kwargs);
-
     let sig = py_inspect(py).call_method1("signature", (func,))?;
     let bound_args = sig.call_method("bind", args, kwargs)?;
     bound_args.call_method0("apply_defaults")?;
