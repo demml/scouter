@@ -22,76 +22,41 @@ P = ParamSpec("P")
 R = TypeVar("R")
 
 
-_current_span: ContextVar[Optional[tracing.ActiveSpan]] = ContextVar(
-    "_current_active_span", default=None
-)
+init_tracer = tracing.init_tracer
+SpanKind = tracing.SpanKind
+FunctionType = tracing.FunctionType
+get_tracer = tracing.get_tracer
 
 
-# get rid of
-def _capture_function_inputs(
-    span: tracing.ActiveSpan,
-    func: Callable,
-    args: tuple,
-    kwargs: dict,
-    max_length: int = 1000,
-) -> None:
-    """
-    Capture function inputs as a simple dictionary mapping parameter names to values.
-    """
-    try:
-        sig = inspect.signature(func)
-        bound_args = sig.bind(*args, **kwargs)
-        bound_args.apply_defaults()
-        span.set_input(bound_args.arguments, max_length=max_length)
-
-    except Exception as e:
-        span.add_event(
-            "scouter.error.input_capture_error",
-            {"error": str(e)},
-        )
+# _current_span: ContextVar[Optional[tracing.ActiveSpan]] = ContextVar(
+#    "_current_active_span", default=None
+# )
 
 
-def _capture_function_outputs(
-    span: tracing.ActiveSpan,
-    output: Any,
-    max_length: int = 1000,
-) -> None:
-    """
-    Capture function outputs as a simple dictionary mapping parameter names to values.
-    """
-    try:
-        span.set_output(output, max_length=max_length)
-    except Exception as e:
-        span.add_event(
-            "scouter.error.output_capture_error",
-            {"error": str(e)},
-        )
+# def get_current_span() -> Optional[tracing.ActiveSpan]:
+#    """
+#    Get the currently active span.
+#
+#    This is a helper function to retrieve the currently active span when using the
+#    tracing decorator.
+#
+#    Returns:
+#        The currently active ActiveSpan, or None if no span is active.
+#
+#    Example:
+#        >>> @tracer.span("my_operation")
+#        ... def my_function():
+#        ...     span = get_current_span()
+#        ...     if span:
+#        ...         span.set_attribute("custom_key", "custom_value")
+#        ...         span.add_event("custom_event", {"detail": "some detail"})
+#    """
+#    return _current_span.get()
+#
 
-
-def get_current_span() -> Optional[tracing.ActiveSpan]:
-    """
-    Get the currently active span.
-
-    This is a helper function to retrieve the currently active span when using the
-    tracing decorator.
-
-    Returns:
-        The currently active ActiveSpan, or None if no span is active.
-
-    Example:
-        >>> @tracer.span("my_operation")
-        ... def my_function():
-        ...     span = get_current_span()
-        ...     if span:
-        ...         span.set_attribute("custom_key", "custom_value")
-        ...         span.add_event("custom_event", {"detail": "some detail"})
-    """
-    return _current_span.get()
-
-
-def set_current_span(span: Optional[tracing.ActiveSpan]) -> None:
-    """Set the current active span (internal use)."""
-    _current_span.set(span)
+# def set_current_span(span: Optional[tracing.ActiveSpan]) -> None:
+#    """Set the current active span (internal use)."""
+#    _current_span.set(span)
 
 
 class Tracer(tracing.BaseTracer):
@@ -99,35 +64,47 @@ class Tracer(tracing.BaseTracer):
 
     def span(
         self,
-        name: Optional[str] = None,
-        *,
-        kind: Optional[str] = None,
+        name: str,
+        kind: SpanKind = SpanKind.Internal,
         label: Optional[str] = None,
         attributes: Optional[dict[str, str]] = None,
         baggage: Optional[dict[str, str]] = None,
+        tags: Optional[dict[str, str]] = None,
+        parent_context_id: Optional[str] = None,
         max_length: int = 1000,
+        func_type: FunctionType = FunctionType.Sync,
         capture_last_stream_item: bool = False,
         join_stream_items: bool = False,
+        *args,
+        **kwargs,
     ) -> Callable[[Callable[P, R]], Callable[P, R]]:
         """Decorator to trace function execution with OpenTelemetry spans.
 
         Args:
             name (str):
                 The name of the span
-            kind (str):
-                The kind of span (e.g., "SERVER", "CLIENT"). Default is "CLIENT".
-            label (str):
-                The label of the span
-            attributes (dict[str, str]):
+            kind (SpanKind):
+                The kind of span (default: Internal)
+            label (Optional[str]):
+                An optional label for the span
+            attributes (Optional[dict[str, str]]):
                 Additional attributes to set on the span
-            baggage (dict[str, str]):
+            baggage (Optional[dict[str, str]]):
                 Baggage items to attach to the span
+            tags (Optional[dict[str, str]]):
+                Additional tags to set on the span
+            parent_context_id (Optional[str]):
+                Parent context ID for the span
             max_length (int):
-                Maximum length for serialized function inputs
+                Maximum length for input/output capture
+            func_type (FunctionType):
+                The type of function being decorated (sync, async, generator, async_generator)
             capture_last_stream_item (bool):
                 Whether to capture only the last item from streaming functions
             join_stream_items (bool):
                 Whether to join all stream items into a single string for output
+        Returns:
+            Callable[[Callable[P, R]], Callable[P, R]]:
         """
 
         def decorator(func: Callable[P, R]) -> Callable[P, R]:
@@ -303,20 +280,6 @@ class Tracer(tracing.BaseTracer):
         span.set_attribute("function.module", func.__module__)
         span.set_attribute("function.qualname", func.__qualname__)
 
-
-def get_tracer(name: str) -> Tracer:
-    """Get a Tracer instance by name.
-
-    Args:
-        name (str):
-            The name of the tracer/service.
-    """
-    return Tracer(name)
-
-
-init_tracer = tracing.init_tracer
-SpanKind = tracing.SpanKind
-FunctionType = tracing.FunctionType
 
 __all__ = [
     "Tracer",

@@ -576,7 +576,7 @@ impl BaseTracer {
     /// * `parent_context_id` - Optional parent context ID to link the span to (this is automatically set if not provided)
     /// * `max_length` - Maximum length of the serialized input (default: 1000)
     /// * `func_type` - Function type (sync or async)
-    #[pyo3(signature = (
+    #[pyo3(name="_start_decorated_as_current_span", signature = (
         func, 
         name, 
         kind=SpanKind::Internal, 
@@ -587,8 +587,8 @@ impl BaseTracer {
         parent_context_id=None, 
         max_length=1000, 
         func_type=FunctionType::Sync, 
-        *py_args, 
-        **py_kwargs
+        *args, 
+        **kwargs
     ))]
     fn start_decorated_as_current_span<'py>(
         &self,
@@ -599,19 +599,19 @@ impl BaseTracer {
         label: Option<String>,
         attributes: Option<HashMap<String, String>>,
         baggage: Option<HashMap<String, String>>,
-         tags: Option<HashMap<String, String>>,
+        tags: Option<HashMap<String, String>>,
         parent_context_id: Option<String>,
         max_length: usize,
         func_type: FunctionType,
-        py_args: &Bound<'_, PyTuple>,
-        py_kwargs: Option<&Bound<'_, PyDict>>,
+        args: &Bound<'_, PyTuple>,
+        kwargs: Option<&Bound<'_, PyDict>>,
     ) -> Result<ActiveSpan, TraceError> {
         let mut span =
             self.start_as_current_span(py, name, kind, label, attributes, baggage, tags, parent_context_id)?;
 
         set_function_attributes(func, &mut span)?;
         set_function_type_attribute(&func_type, &mut span)?;
-        let bound_args = capture_function_arguments(py, func, py_args, py_kwargs)?;
+        let bound_args = capture_function_arguments(py, func, args, kwargs)?;
         span.set_input(&bound_args, max_length)?;
 
         Ok(span)
@@ -675,10 +675,10 @@ pub fn get_tracer(name: String) -> BaseTracer {
     BaseTracer::new(name)
 }
 
-#[pyfunction]
-pub fn get_current_span_context(py: Python) -> PyResult<Option<String>> {
-    get_current_context_id(py)
-}
+//#[pyfunction]
+//pub fn get_current_span_context(py: Python) -> PyResult<Option<String>> {
+//    get_current_context_id(py)
+//}
 
 /// Helper function to force flush the tracer provider
 #[pyfunction]

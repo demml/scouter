@@ -11,43 +11,19 @@ R = TypeVar("R")
 class SpanKind:
     """Enumeration of span kinds."""
 
-    Internal = "Internal"
-    Server = "Server"
-    Client = "Client"
-    Producer = "Producer"
-    Consumer = "Consumer"
+    Internal: "SpanKind"
+    Server: "SpanKind"
+    Client: "SpanKind"
+    Producer: "SpanKind"
+    Consumer: "SpanKind"
 
 class FunctionType:
     """Enumeration of function types."""
 
-    Sync = "Sync"
-    Async = "Async"
-    Generator = "Generator"
-    AsyncGenerator = "AsyncGenerator"
-
-def get_current_span() -> Optional[ActiveSpan]:
-    """
-    Get the currently active span.
-
-    This is a helper function to retrieve the currently active span when using the
-    tracing decorator.
-
-    Returns:
-        The currently active ActiveSpan, or None if no span is active.
-
-    Example:
-        >>> @tracer.span("my_operation")
-        ... def my_function():
-        ...     span = get_current_span()
-        ...     if span:
-        ...         span.set_attribute("custom_key", "custom_value")
-        ...         span.add_event("custom_event", {"detail": "some detail"})
-    """
-    ...
-
-def set_current_span(span: Optional[ActiveSpan]) -> None:
-    """Set the current active span (internal use)."""
-    ...
+    Sync: "FunctionType"
+    Async: "FunctionType"
+    Generator: "FunctionType"
+    AsyncGenerator: "FunctionType"
 
 class Tracer(BaseTracer):
     """
@@ -68,14 +44,94 @@ class Tracer(BaseTracer):
 
     def span(
         self,
-        name: Optional[str] = None,
-        *,
-        kind: Optional[str] = None,
+        name: str,
+        kind: SpanKind = SpanKind.Internal,
+        label: Optional[str] = None,
         attributes: Optional[dict[str, str]] = None,
         baggage: Optional[dict[str, str]] = None,
+        tags: Optional[dict[str, str]] = None,
+        parent_context_id: Optional[str] = None,
+        max_length: int = 1000,
+        func_type: FunctionType = FunctionType.Sync,
+        capture_last_stream_item: bool = False,
+        join_stream_items: bool = False,
+        *args,
+        **kwargs,
     ) -> Callable[[Callable[P, R]], Callable[P, R]]:
-        """Decorator to trace function execution with OpenTelemetry spans."""
+        """Decorator to trace function execution with OpenTelemetry spans.
 
+        Args:
+            name (str):
+                The name of the span.
+            kind (SpanKind):
+                The kind of span (e.g., Internal, Server, Client).
+            label (Optional[str]):
+                An optional label for the span.
+            attributes (Optional[dict[str, str]]):
+                Optional attributes to set on the span.
+            baggage (Optional[dict[str, str]]):
+                Optional baggage items to attach to the span.
+            tags (Optional[dict[str, str]]):
+                Optional tags to set on the span.
+            parent_context_id (Optional[str]):
+                Optional parent span context ID.
+            max_length (int):
+                The maximum length for string inputs/outputs. Defaults to 1000.
+            func_type (FunctionType):
+                The type of function being decorated (Sync, Async, Generator, AsyncGenerator).
+            capture_last_stream_item (bool):
+                Whether to capture only the last item from a generator/async generator.
+            join_stream_items (bool):
+                Whether to join all items from a generator/async generator into a list.
+        Returns:
+            Callable[[Callable[P, R]], Callable[P, R]]:
+                A decorator that wraps the function with tracing logic.
+        """
+
+        ...
+
+    def _start_decorated_as_current_span(
+        self,
+        func: Callable[..., Any],
+        name: str,
+        kind: SpanKind = SpanKind.Internal,
+        label: Optional[str] = None,
+        attributes: Optional[dict[str, str]] = None,
+        baggage: Optional[dict[str, str]] = None,
+        tags: Optional[dict[str, str]] = None,
+        parent_context_id: Optional[str] = None,
+        max_length: int = 1000,
+        func_type: FunctionType = FunctionType.Sync,
+        *args,
+        **kwargs,
+    ) -> ActiveSpan:
+        """Context manager to start a new span as the current span for decorated functions.
+
+        Args:
+            func (Callable[..., Any]):
+                The function being decorated.
+            name (str):
+                The name of the span.
+            kind (SpanKind):
+                The kind of span (e.g., Internal, Server, Client).
+            label (Optional[str]):
+                An optional label for the span.
+            attributes (Optional[dict[str, str]]):
+                Optional attributes to set on the span.
+            baggage (Optional[dict[str, str]]):
+                Optional baggage items to attach to the span.
+            tags (Optional[dict[str, str]]):
+                Optional tags to set on the span.
+            parent_context_id (Optional[str]):
+                Optional parent span context ID.
+            max_length (int):
+                The maximum length for string inputs/outputs. Defaults to 1000.
+            func_type (FunctionType):
+                The type of function being decorated (Sync, Async, Generator, AsyncGenerator).
+        Returns:
+            ActiveSpan:
+                The active span context manager.
+        """
         ...
 
 def get_tracer(name: str) -> Tracer:

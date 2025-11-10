@@ -122,17 +122,17 @@ pub fn get_function_type(
 /// # Arguments
 /// * `py` - The Python GIL token
 /// * `func` - The Python function object
-/// * `py_args` - The positional arguments passed to the function
-/// * `py_kwargs` - The keyword arguments passed to the function
+/// * `args` - The positional arguments passed to the function
+/// * `kwargs` - The keyword arguments passed to the function
 /// Returns Result with Bound arguments or TraceError
 pub(crate) fn capture_function_arguments<'py>(
     py: Python<'py>,
     func: &Bound<'py, PyAny>,
-    py_args: &Bound<'py, PyTuple>,
-    py_kwargs: Option<&Bound<'py, PyDict>>,
+    args: &Bound<'py, PyTuple>,
+    kwargs: Option<&Bound<'py, PyDict>>,
 ) -> Result<Bound<'py, PyAny>, TraceError> {
     let sig = py_inspect(py).call_method1("signature", (func,))?;
-    let bound_args = sig.call_method1("bind", (py_args, py_kwargs))?;
+    let bound_args = sig.call_method1("bind", (args, kwargs))?;
     bound_args.call_method0("apply_defaults")?;
     Ok(bound_args)
 }

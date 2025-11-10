@@ -9,6 +9,8 @@ pub fn tracing(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<SpanKind>()?;
     m.add_class::<FunctionType>()?;
     m.add_function(wrap_pyfunction!(init_tracer, m)?)?;
+    m.add_function(wrap_pyfunction!(get_tracer, m)?)?;
+    m.add_function(wrap_pyfunction!(force_flush, m)?)?;
     //m.add_function(wrap_pyfunction!(get_tracer, m)?)?;
     Ok(())
 }
