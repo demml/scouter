@@ -1,32 +1,8 @@
-from scouter.tracing import TestSpanExporter, force_flush, get_tracer, init_tracer
-from pydantic import BaseModel
-from typing import Optional, Generator
+from typing import Generator, Optional
+
 import pytest
-import asyncio
 
-
-class ChatInput(BaseModel):
-    message: str
-    user_id: int
-
-
-class EventData(BaseModel):
-    foo: str
-    bar: int
-    baz: float
-
-
-@pytest.fixture(scope="session")
-def span_exporter():
-    """Create a fresh test span exporter for each test."""
-    return TestSpanExporter()
-
-
-@pytest.fixture(scope="session")
-def tracer(span_exporter):
-    """Initialize tracer with test exporter for each test."""
-    init_tracer(name="test-service", exporter=span_exporter)
-    return get_tracer("test-tracer")
+from .conftest import ChatInput
 
 
 def test_init_tracer(tracer, span_exporter):
@@ -152,19 +128,3 @@ def test_nested_decorated_functions(tracer, span_exporter):
     assert span_exporter.spans[1].parent_span_id is None
     assert span_exporter.spans[0].span_name == "inner_function"
     assert span_exporter.spans[1].span_name == "outer_function"
-
-
-@pytest.mark.asyncio
-async def test_async_decorator_basic(tracer, span_exporter):
-    span_exporter.clear()
-
-    @tracer.span("async_test_function")
-    async def async_test_function(x: int) -> int:
-        await asyncio.sleep(0.01)
-        return x * 2
-
-    result = await async_test_function(5)
-
-    assert result == 10
-    assert len(span_exporter.spans) == 1
-    assert span_exporter.spans[0].span_name == "async_test_function"
