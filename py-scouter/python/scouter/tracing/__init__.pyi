@@ -3,8 +3,9 @@
 """Tracing utilities for Scouter using OpenTelemetry."""
 
 from types import TracebackType
-from typing import Any, Callable, Optional, ParamSpec, TypeVar
+from typing import Any, Callable, Optional, ParamSpec, TypeVar, Dict
 from ..types import CompressionType
+import datetime
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -471,4 +472,77 @@ class HttpSpanExporter:
     @property
     def compression(self) -> Optional[CompressionType]:
         """Get the compression type used for exporting spans."""
+        ...
+
+class TraceRecord:
+    created_at: datetime.datetime
+    trace_id: str
+    space: str
+    name: str
+    version: str
+    scope: str
+    trace_state: str
+    start_time: datetime.datetime
+    end_time: datetime.datetime
+    duration_ms: int
+    status: str
+    root_span_id: str
+    attributes: Optional[dict]
+
+    def get_attributes(self) -> Dict[str, Any]: ...
+
+class TraceSpanRecord:
+    created_at: datetime.datetime
+    span_id: str
+    trace_id: str
+    parent_span_id: Optional[str]
+    space: str
+    name: str
+    version: str
+    scope: str
+    span_name: str
+    span_kind: str
+    start_time: datetime.datetime
+    end_time: datetime.datetime
+    duration_ms: int
+    status_code: str
+    status_message: str
+    attributes: dict
+    events: dict
+    links: dict
+
+    def get_attributes(self) -> Dict[str, Any]: ...
+    def get_events(self) -> Dict[str, Any]: ...
+    def get_links(self) -> Dict[str, Any]: ...
+    def __str__(self) -> str: ...
+
+class TraceBaggageRecord:
+    created_at: datetime.datetime
+    trace_id: str
+    scope: str
+    key: str
+    value: str
+    space: str
+    name: str
+    version: str
+
+class TestSpanExporter:
+    """Exporter for testing that collects spans in memory."""
+
+    def __init__(self) -> None:
+        """Initialize the TestSpanExporter."""
+
+    @property
+    def traces(self) -> list[TraceRecord]:
+        """Get the collected trace records."""
+        ...
+
+    @property
+    def spans(self) -> list[TraceSpanRecord]:
+        """Get the collected trace span records."""
+        ...
+
+    @property
+    def baggage(self) -> list[TraceBaggageRecord]:
+        """Get the collected trace baggage records."""
         ...

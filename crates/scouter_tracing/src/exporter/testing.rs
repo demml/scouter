@@ -1,3 +1,6 @@
+use crate::exporter::SpanExporterBuilder;
+use crate::exporter::TraceError;
+use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 /// Implementation for testing exporter used in unit testsuse opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use opentelemetry_proto::transform::common::tonic::ResourceAttributesWithSchema;
 use opentelemetry_proto::transform::trace::tonic::group_spans_by_resource_and_scope;
@@ -5,8 +8,6 @@ use opentelemetry_sdk::{
     error::OTelSdkResult,
     trace::{SpanData, SpanExporter},
 };
-
-use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use pyo3::prelude::*;
 use scouter_types::{records::TraceServerRecord, TraceBaggageRecord, TraceRecord, TraceSpanRecord};
 use std::sync::{Arc, RwLock};
@@ -18,7 +19,7 @@ pub struct TestRecords {
     pub baggage: Vec<TraceBaggageRecord>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 #[pyclass]
 pub struct TestSpanExporter {
     records: Arc<RwLock<TestRecords>>,
@@ -53,7 +54,34 @@ impl TestSpanExporter {
     }
 }
 
-impl SpanExporter for TestSpanExporter {
+impl SpanExporterBuilder for TestSpanExporter {
+    type Exporter = OtelTestSpanExporter;
+
+    fn sample_ratio(&self) -> Option<f64> {
+        Some(1.0)
+    }
+
+    fn batch_export(&self) -> bool {
+        false
+    }
+
+    fn build_exporter(&self) -> Result<Self::Exporter, TraceError> {
+        Ok(OtelTestSpanExporter::new(self.records.clone()))
+    }
+}
+
+#[derive(Debug)]
+pub struct OtelTestSpanExporter {
+    records: Arc<RwLock<TestRecords>>,
+}
+
+impl OtelTestSpanExporter {
+    pub fn new(records: Arc<RwLock<TestRecords>>) -> Self {
+        OtelTestSpanExporter { records }
+    }
+}
+
+impl SpanExporter for OtelTestSpanExporter {
     async fn export(&self, batch: Vec<SpanData>) -> OTelSdkResult {
         // Here you would implement the logic to export spans to Scouter
         let resource_spans =
@@ -72,7 +100,7 @@ impl SpanExporter for TestSpanExporter {
         let mut records = self.records.write().unwrap();
         records.traces.extend(traces);
         records.spans.extend(spans);
-        records.baggages.extend(baggage);
+        records.baggage.extend(baggage);
 
         Ok(())
     }

@@ -13,12 +13,14 @@ use pyo3::prelude::*;
 
 pub use http::HttpSpanExporter;
 pub use stdout::StdoutSpanExporter;
+pub use testing::TestSpanExporter;
 
 // Enum for handling different span exporter types
 #[derive(Debug)]
 pub enum SpanExporterNum {
     Http(HttpSpanExporter),
     Stdout(StdoutSpanExporter),
+    Testing(TestSpanExporter),
 }
 
 impl SpanExporterNum {
@@ -29,6 +31,9 @@ impl SpanExporterNum {
         } else if obj.is_instance_of::<StdoutSpanExporter>() {
             let exporter = obj.extract::<StdoutSpanExporter>()?;
             Ok(SpanExporterNum::Stdout(exporter))
+        } else if obj.is_instance_of::<TestSpanExporter>() {
+            let exporter = obj.extract::<TestSpanExporter>()?;
+            Ok(SpanExporterNum::Testing(exporter))
         } else {
             Err(TraceError::UnsupportedSpanExporterType)
         }
@@ -42,6 +47,7 @@ impl SpanExporterNum {
         match self {
             SpanExporterNum::Http(builder) => builder.build_provider(resource, scouter_exporter),
             SpanExporterNum::Stdout(builder) => builder.build_provider(resource, scouter_exporter),
+            SpanExporterNum::Testing(builder) => builder.build_provider(resource, scouter_exporter),
         }
     }
 }
