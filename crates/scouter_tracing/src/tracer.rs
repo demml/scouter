@@ -453,18 +453,18 @@ impl BaseTracer {
         tags: &Vec<HashMap<String, String>>,
     ) -> Vec<KeyValue> {
         let mut keyval_baggage: Vec<KeyValue> = baggage
-            .into_iter()
+            .iter()
             .flat_map(|baggage_map| {
                 baggage_map
-                    .into_iter()
+                    .iter()
                     .map(|(k, v)| KeyValue::new(k.clone(), v.clone()))
                     .collect::<Vec<KeyValue>>()
             })
             .collect();
 
         // add tags to baggage
-        tags.into_iter().for_each(|tag_map| {
-            tag_map.into_iter().for_each(|(k, v)| {
+        tags.iter().for_each(|tag_map| {
+            tag_map.iter().for_each(|(k, v)| {
                 keyval_baggage.push(KeyValue::new(
                     format!("{}.{}.{}", BAGGAGE_PREFIX, SCOUTER_TAG_PREFIX, k),
                     v.clone(),
