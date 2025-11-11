@@ -6,7 +6,6 @@ use crate::{json_to_pyobject, json_to_pyobject_value};
 use chrono::DateTime;
 use chrono::Utc;
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
-use opentelemetry_proto::tonic::common::v1::any_value::Value as ProtoAnyValue;
 use opentelemetry_proto::tonic::common::v1::AnyValue;
 use opentelemetry_proto::tonic::common::v1::KeyValue;
 use opentelemetry_proto::tonic::trace::v1::span::Event;
@@ -1045,9 +1044,11 @@ impl TraceServerRecord {
     #[allow(clippy::too_many_arguments)]
     pub fn convert_to_trace_record(
         &self,
+        trace_id: &str,
+        span_id: &str,
         span: &Span,
         scope_name: &str,
-        scope_attributes: &Vec<Attribute>,
+        attributes: &Vec<Attribute>,
         space: &str,
         name: &str,
         version: &str,
@@ -1056,8 +1057,8 @@ impl TraceServerRecord {
         duration_ms: i64,
     ) -> Result<TraceRecord, RecordError> {
         Ok(TraceRecord {
-            created_at: Self::get_trace_start_time_attribute(span, &start_time),
-            trace_id: hex::encode(&span.trace_id),
+            created_at: Self::get_trace_start_time_attribute(attributes, &start_time),
+            trace_id: trace_id.to_string(),
             space: space.to_owned(),
             name: name.to_owned(),
             version: version.to_owned(),
@@ -1071,29 +1072,28 @@ impl TraceServerRecord {
                 Some(status) => format!("{:?}", status),
                 None => "Unknown".to_string(),
             },
-            root_span_id: hex::encode(&span.span_id),
-            attributes: scope_attributes.clone(),
-            tags: Self::extract_tags(scope_attributes)?,
+            root_span_id: span_id.to_string(),
+            attributes: attributes.clone(),
+            tags: Self::extract_tags(attributes)?,
         })
     }
 
     /// Filter and extract trace start time attribute from span attributes
     /// This is a global scouter attribute that indicates the trace start time and is set across all spans
     pub fn get_trace_start_time_attribute(
-        span: &Span,
+        attributes: &Vec<Attribute>,
         start_time: &DateTime<Utc>,
     ) -> DateTime<Utc> {
-        for attr in &span.attributes {
+        for attr in attributes {
             if attr.key == TRACE_START_TIME_KEY {
-                if let Some(value) = &attr.value {
-                    if let Some(ProtoAnyValue::StringValue(s)) = &value.value {
-                        if let Ok(dt) = s.parse::<chrono::DateTime<chrono::Utc>>() {
-                            return dt;
-                        }
+                if let Value::String(s) = &attr.value {
+                    if let Ok(dt) = s.parse::<chrono::DateTime<chrono::Utc>>() {
+                        return dt;
                     }
                 }
             }
         }
+
         tracing::warn!(
             "Trace start time attribute not found or invalid, falling back to span start_time"
         );
@@ -1101,42 +1101,37 @@ impl TraceServerRecord {
     }
 
     pub fn convert_to_baggage_records(
-        span: &Span,
+        trace_id: &str,
+        attributes: &Vec<Attribute>,
         scope_name: &str,
         space: &str,
         name: &str,
         version: &str,
     ) -> Vec<TraceBaggageRecord> {
-        let baggage_kvs: Vec<(String, String)> = span
-            .attributes
+        let baggage_kvs: Vec<(String, String)> = attributes
             .iter()
             .filter_map(|attr| {
                 // Only process attributes with baggage prefix
                 if attr.key.starts_with(BAGGAGE_PREFIX) {
                     let clean_key = attr
                         .key
-                        .strip_prefix(BAGGAGE_PREFIX)
-                        .and_then(|stripped| stripped.strip_prefix('.').or(Some(stripped)))
+                        .strip_prefix(format!("{}.", BAGGAGE_PREFIX).as_str())
+                        .and_then(|stripped| Some(stripped.trim()))
                         .filter(|s| !s.is_empty())
                         .unwrap_or(&attr.key)
                         .to_string();
 
                     // Handle different value types from OpenTelemetry KeyValue
                     let value_string = match &attr.value {
-                        Some(any_value) => {
-                            // Convert AnyValue to string representation
-                            match &any_value.value {
-                                Some(ProtoAnyValue::StringValue(s)) => s.clone(),
-                                Some(ProtoAnyValue::IntValue(i)) => i.to_string(),
-                                Some(ProtoAnyValue::DoubleValue(d)) => d.to_string(),
-                                Some(ProtoAnyValue::BoolValue(b)) => b.to_string(),
-                                Some(ProtoAnyValue::BytesValue(bytes)) => {
-                                    String::from_utf8_lossy(bytes).to_string()
-                                }
-                                _ => format!("{:?}", any_value), // Fallback for complex types
-                            }
+                        Value::String(s) => s.clone(),
+                        Value::Number(n) => n.to_string(),
+                        Value::Bool(b) => b.to_string(),
+                        Value::Null => "null".to_string(),
+                        Value::Array(_) | Value::Object(_) => {
+                            // For complex types, use compact JSON representation
+                            serde_json::to_string(&attr.value)
+                                .unwrap_or_else(|_| format!("{:?}", attr.value))
                         }
-                        None => String::new(), // Handle missing values gracefully
                     };
 
                     Some((clean_key, value_string))
@@ -1149,8 +1144,8 @@ impl TraceServerRecord {
         baggage_kvs
             .into_iter()
             .map(|(key, value)| TraceBaggageRecord {
-                created_at: Self::get_trace_start_time_attribute(span, &Utc::now()),
-                trace_id: hex::encode(&span.trace_id),
+                created_at: Self::get_trace_start_time_attribute(attributes, &Utc::now()),
+                trace_id: trace_id.to_string(),
                 scope: scope_name.to_string(),
                 space: space.to_owned(),
                 name: name.to_owned(),
@@ -1165,6 +1160,8 @@ impl TraceServerRecord {
     #[allow(clippy::too_many_arguments)]
     pub fn convert_to_span_record(
         &self,
+        trace_id: &str,
+        span_id: &str,
         span: &Span,
         attributes: &Vec<Attribute>,
         scope_name: &str,
@@ -1184,8 +1181,8 @@ impl TraceServerRecord {
 
         Ok(TraceSpanRecord {
             created_at: start_time,
-            trace_id: hex::encode(&span.trace_id),
-            span_id: hex::encode(&span.span_id),
+            trace_id: trace_id.to_string(),
+            span_id: span_id.to_string(),
             parent_span_id,
             start_time,
             end_time,
@@ -1244,6 +1241,8 @@ impl TraceServerRecord {
 
                 for span in &scope_span.spans {
                     let attributes = Self::attributes_to_json_array(&span.attributes)?;
+                    let trace_id = hex::encode(&span.trace_id);
+                    let span_id = hex::encode(&span.span_id);
 
                     // no need to recalculate for every record type
                     let (start_time, end_time, duration_ms) =
@@ -1251,6 +1250,8 @@ impl TraceServerRecord {
 
                     // TraceRecord for upsert
                     trace_records.push(self.convert_to_trace_record(
+                        &trace_id,
+                        &span_id,
                         span,
                         scope_name,
                         &attributes,
@@ -1264,6 +1265,8 @@ impl TraceServerRecord {
 
                     // SpanRecord for insert
                     span_records.push(self.convert_to_span_record(
+                        &trace_id,
+                        &span_id,
                         span,
                         &attributes,
                         scope_name,
@@ -1277,7 +1280,12 @@ impl TraceServerRecord {
 
                     // BaggageRecords for insert
                     baggage_records.extend(Self::convert_to_baggage_records(
-                        span, scope_name, space, name, version,
+                        &trace_id,
+                        &attributes,
+                        scope_name,
+                        space,
+                        name,
+                        version,
                     ));
                 }
             }
@@ -1374,10 +1382,5 @@ pub struct Tag {
     #[pyo3(get)]
     pub key: String,
     #[pyo3(get)]
-    pub value: String,
-}
-
-pub struct Baggage {
-    pub key: String,
     pub value: String,
 }

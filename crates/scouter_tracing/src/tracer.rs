@@ -322,9 +322,8 @@ impl ActiveSpan {
             let context_token = inner.context_token.take();
 
             (context_id, trace_id, context_token)
-        }; // Lock is dropped here
+        };
 
-        // Now do operations that don't need the lock
         let store = get_trace_metadata_store();
         store.decrement_span_count(&trace_id)?;
 
