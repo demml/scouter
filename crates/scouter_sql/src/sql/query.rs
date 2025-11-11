@@ -102,6 +102,10 @@ const UPSERT_TRACE: &str = include_str!("scripts/trace/upsert_trace.sql");
 const INSERT_TRACE_SPAN: &str = include_str!("scripts/trace/insert_span.sql");
 const INSERT_TRACE_BAGGAGE: &str = include_str!("scripts/trace/insert_baggage.sql");
 
+// tags
+const INSERT_TAG: &str = include_str!("scripts/tag/insert_tags.sql");
+const GET_TAGS: &str = include_str!("scripts/tag/get_tags.sql");
+
 #[allow(dead_code)]
 pub enum Queries {
     GetSpcFeatures,
@@ -180,6 +184,10 @@ pub enum Queries {
     UpsertTrace,
     InsertTraceSpan,
     InsertTraceBaggage,
+
+    // tags
+    InsertTag,
+    GetTags,
 }
 
 impl Queries {
@@ -260,6 +268,9 @@ impl Queries {
             Queries::UpsertTrace => SqlQuery::new(UPSERT_TRACE),
             Queries::InsertTraceSpan => SqlQuery::new(INSERT_TRACE_SPAN),
             Queries::InsertTraceBaggage => SqlQuery::new(INSERT_TRACE_BAGGAGE),
+            // tags
+            Queries::InsertTag => SqlQuery::new(INSERT_TAG),
+            Queries::GetTags => SqlQuery::new(GET_TAGS),
         }
     }
 }

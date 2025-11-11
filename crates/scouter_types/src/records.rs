@@ -1383,6 +1383,7 @@ pub struct Tag {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[pyclass]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct TagRecord {
     #[pyo3(get)]
     pub created_at: DateTime<Utc>,
