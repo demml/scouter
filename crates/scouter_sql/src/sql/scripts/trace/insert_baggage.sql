@@ -1,21 +1,21 @@
 INSERT INTO scouter.trace_baggage (
     created_at,
-    trace_id, 
+    trace_id,
     scope,
     key,
-    value, 
-    space, 
-    name, 
+    value,
+    space,
+    name,
     version
 )
-SELECT 
+SELECT
     created_at,
-    trace_id, 
+    trace_id,
     scope,
     key,
-    value, 
-    space, 
-    name, 
+    value,
+    space,
+    name,
     version
 FROM UNNEST(
     $1::timestamptz[],  -- created_at
@@ -28,12 +28,12 @@ FROM UNNEST(
     $8::text[] -- version
 ) AS b(
     created_at,
-    trace_id, 
+    trace_id,
     scope,
     key,
-    value, 
-    space, 
-    name, 
+    value,
+    space,
+    name,
     version
 )
 ON CONFLICT (created_at, trace_id, scope, key) DO NOTHING;
