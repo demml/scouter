@@ -2,6 +2,7 @@ pub mod http;
 pub mod processor;
 pub mod scouter;
 pub mod stdout;
+pub mod testing;
 pub mod traits;
 
 use crate::error::TraceError;

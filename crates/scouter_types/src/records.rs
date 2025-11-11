@@ -1,4 +1,5 @@
 use crate::error::RecordError;
+use crate::json_to_pyobject;
 use crate::PyHelperFuncs;
 use crate::Status;
 use chrono::DateTime;
@@ -8,6 +9,7 @@ use opentelemetry_proto::tonic::common::v1::any_value::Value as ProtoAnyValue;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind;
 use opentelemetry_proto::tonic::trace::v1::Span;
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 use pyo3::IntoPyObjectExt;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -704,53 +706,135 @@ fn extract_records<T>(
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[pyclass]
 pub struct TraceRecord {
+    #[pyo3(get)]
     pub created_at: DateTime<Utc>,
+    #[pyo3(get)]
     pub trace_id: String,
+    #[pyo3(get)]
     pub space: String,
+    #[pyo3(get)]
     pub name: String,
+    #[pyo3(get)]
     pub version: String,
+    #[pyo3(get)]
     pub scope: String,
+    #[pyo3(get)]
     pub trace_state: String,
+    #[pyo3(get)]
     pub start_time: chrono::DateTime<Utc>,
+    #[pyo3(get)]
     pub end_time: chrono::DateTime<Utc>,
+    #[pyo3(get)]
     pub duration_ms: i64,
+    #[pyo3(get)]
     pub status: String,
+    #[pyo3(get)]
     pub root_span_id: String,
     pub attributes: Option<Value>,
 }
 
+#[pymethods]
+impl TraceRecord {
+    #[getter]
+    pub fn get_attributes<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyDict>, RecordError> {
+        let dict = PyDict::new(py);
+        if let Some(attrs) = &self.attributes {
+            json_to_pyobject(py, attrs, &dict)?;
+        }
+        Ok(dict)
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[pyclass]
 pub struct TraceSpanRecord {
+    #[pyo3(get)]
     pub created_at: chrono::DateTime<Utc>,
+    #[pyo3(get)]
     pub span_id: String,
+    #[pyo3(get)]
     pub trace_id: String,
+    #[pyo3(get)]
     pub parent_span_id: Option<String>,
+    #[pyo3(get)]
     pub space: String,
+    #[pyo3(get)]
     pub name: String,
+    #[pyo3(get)]
     pub version: String,
+    #[pyo3(get)]
     pub scope: String,
+    #[pyo3(get)]
     pub span_name: String,
+    #[pyo3(get)]
     pub span_kind: String,
+    #[pyo3(get)]
     pub start_time: chrono::DateTime<Utc>,
+    #[pyo3(get)]
     pub end_time: chrono::DateTime<Utc>,
+    #[pyo3(get)]
     pub duration_ms: i64,
+    #[pyo3(get)]
     pub status_code: String,
+    #[pyo3(get)]
     pub status_message: String,
     pub attributes: Value,
     pub events: Value,
     pub links: Value,
 }
 
+#[pymethods]
+impl TraceSpanRecord {
+    #[getter]
+    pub fn get_attributes<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyDict>, RecordError> {
+        let dict = PyDict::new(py);
+        json_to_pyobject(py, &self.attributes, &dict)?;
+
+        Ok(dict)
+    }
+
+    #[getter]
+    pub fn get_events<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyDict>, RecordError> {
+        let dict = PyDict::new(py);
+        json_to_pyobject(py, &self.events, &dict)?;
+
+        Ok(dict)
+    }
+
+    #[getter]
+    pub fn get_links<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyDict>, RecordError> {
+        let dict = PyDict::new(py);
+        json_to_pyobject(py, &self.links, &dict)?;
+
+        Ok(dict)
+    }
+
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        PyHelperFuncs::__str__(self)
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
+#[pyclass]
 pub struct TraceBaggageRecord {
+    #[pyo3(get)]
     pub created_at: DateTime<Utc>,
+    #[pyo3(get)]
     pub trace_id: String,
+    #[pyo3(get)]
     pub scope: String,
+    #[pyo3(get)]
     pub key: String,
+    #[pyo3(get)]
     pub value: String,
+    #[pyo3(get)]
     pub space: String,
+    #[pyo3(get)]
     pub name: String,
+    #[pyo3(get)]
     pub version: String,
 }
 
