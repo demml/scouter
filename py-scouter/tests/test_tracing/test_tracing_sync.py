@@ -1,4 +1,4 @@
-from scouter.tracing import init_tracer, get_tracer, TestSpanExporter, force_flush
+from scouter.tracing import TestSpanExporter, force_flush, get_tracer, init_tracer
 
 
 def test_init_tracer():

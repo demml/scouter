@@ -2,10 +2,11 @@
 
 """Tracing utilities for Scouter using OpenTelemetry."""
 
-from types import TracebackType
-from typing import Any, Callable, Optional, ParamSpec, TypeVar, Dict
-from ..types import CompressionType
 import datetime
+from types import TracebackType
+from typing import Any, Callable, Dict, Optional, ParamSpec, TypeVar
+
+from ..types import CompressionType
 
 P = ParamSpec("P")
 R = TypeVar("R")
