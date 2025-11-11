@@ -9,9 +9,7 @@ use opentelemetry_sdk::{
     trace::{SpanData, SpanExporter},
 };
 use pyo3::prelude::*;
-use scouter_types::error::RecordError;
 use scouter_types::{records::TraceServerRecord, TraceBaggageRecord, TraceRecord, TraceSpanRecord};
-use std::f32::consts::E;
 use std::sync::{Arc, RwLock};
 
 #[derive(Debug)]
@@ -94,6 +92,7 @@ impl SpanExporter for OtelTestSpanExporter {
         // Here you would implement the logic to export spans to Scouter
         let resource_spans =
             group_spans_by_resource_and_scope(batch, &ResourceAttributesWithSchema::default());
+
         let req = ExportTraceServiceRequest { resource_spans };
 
         let record = TraceServerRecord {

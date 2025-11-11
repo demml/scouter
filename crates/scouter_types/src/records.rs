@@ -1166,6 +1166,7 @@ impl TraceServerRecord {
     pub fn convert_to_span_record(
         &self,
         span: &Span,
+        attributes: &Vec<Attribute>,
         scope_name: &str,
         space: &str,
         name: &str,
@@ -1180,8 +1181,6 @@ impl TraceServerRecord {
         } else {
             None
         };
-
-        let span_attributes = Self::attributes_to_json_array(&span.attributes)?;
 
         Ok(TraceSpanRecord {
             created_at: start_time,
@@ -1207,7 +1206,7 @@ impl TraceServerRecord {
                 .as_ref()
                 .map(|s| s.message.clone())
                 .unwrap_or_default(),
-            attributes: span_attributes,
+            attributes: attributes.clone(),
             events: Self::events_to_json_array(&span.events)?,
             links: Self::links_to_json_array(&span.links)?,
             label: None,
@@ -1241,15 +1240,11 @@ impl TraceServerRecord {
         for resource_span in resource_spans {
             for scope_span in &resource_span.scope_spans {
                 // Pre-compute scope name and attributes to avoid repeated work
-                let (scope_name, scope_attributes) = match &scope_span.scope {
-                    Some(scope) => (
-                        scope.name.as_str(),
-                        &Self::attributes_to_json_array(&scope.attributes)?,
-                    ),
-                    None => ("", &vec![]),
-                };
+                let scope_name = &scope_span.scope.as_ref().map_or("", |s| &s.name);
 
                 for span in &scope_span.spans {
+                    let attributes = Self::attributes_to_json_array(&span.attributes)?;
+
                     // no need to recalculate for every record type
                     let (start_time, end_time, duration_ms) =
                         Self::extract_time(span.start_time_unix_nano, span.end_time_unix_nano);
@@ -1258,7 +1253,7 @@ impl TraceServerRecord {
                     trace_records.push(self.convert_to_trace_record(
                         span,
                         scope_name,
-                        scope_attributes,
+                        &attributes,
                         space,
                         name,
                         version,
@@ -1270,6 +1265,7 @@ impl TraceServerRecord {
                     // SpanRecord for insert
                     span_records.push(self.convert_to_span_record(
                         span,
+                        &attributes,
                         scope_name,
                         space,
                         name,

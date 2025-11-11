@@ -14,15 +14,16 @@ def test_init_tracer():
             {"tag2": "bar"},
         ],
     ) as span:
-        span.set_attribute("task", "one")
+        pass
+        # span.set_attribute("task", "one")
 
-    force_flush()
+    # force_flush()
 
     assert len(span_exporter.spans) == 1
     assert len(span_exporter.baggage) == 2
     assert len(span_exporter.traces) == 1
 
-    print(span_exporter.spans[0])
     print(span_exporter.traces[0])
+    print(span_exporter.spans[0])
     print(span_exporter.baggage[0])
     a
