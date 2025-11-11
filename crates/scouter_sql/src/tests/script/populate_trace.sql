@@ -1,6 +1,3 @@
--- Test data population script for Scouter tracing tables
--- This script creates realistic test data across multiple services and time periods
-
 DO $$
 DECLARE
     -- Configuration variables
@@ -97,17 +94,41 @@ BEGIN
             CASE WHEN v_has_error THEN 'error' ELSE 'ok' END,
             v_root_span_id,
             v_span_count,
-            jsonb_build_object(
-                'service.name', v_service_name,
-                'service.version', 'v1.0.0',
-                'deployment.environment', 'production',
-                'scouter.service.name', v_service_name,
-                'http.method', SPLIT_PART(v_operation, ' ', 1),
-                'http.route', SPLIT_PART(v_operation, ' ', 2),
-                'user.id', 'user-' || (1000 + RANDOM() * 9000)::INTEGER
+            -- CORRECTED: attributes JSONB must be an array of EAV objects
+            jsonb_build_array(
+                jsonb_build_object('key', 'service.name', 'value', v_service_name),
+                jsonb_build_object('key', 'service.version', 'value', 'v1.0.0'),
+                jsonb_build_object('key', 'deployment.environment', 'value', 'production'),
+                jsonb_build_object('key', 'scouter.service.name', 'value', v_service_name),
+                jsonb_build_object('key', 'http.method', 'value', SPLIT_PART(v_operation, ' ', 1)),
+                jsonb_build_object('key', 'http.route', 'value', SPLIT_PART(v_operation, ' ', 2)),
+                jsonb_build_object('key', 'user.id', 'value', 'user-' || (1000 + RANDOM() * 9000)::INTEGER::TEXT)
             ),
             v_current_time
         );
+
+        -- Generate 2-4 tags for the Trace entity
+        FOR k IN 1..(2 + (RANDOM() * 2)::INTEGER) LOOP
+            INSERT INTO scouter.tags (
+                created_at, entity_type, entity_id, key, value
+            ) VALUES (
+                v_current_time + (RANDOM() * INTERVAL '1 second'), -- slight jitter to created_at
+                'trace',
+                v_trace_id,
+                CASE 
+                    WHEN k = 1 THEN 'trace.tag.env'
+                    WHEN k = 2 THEN 'trace.tag.region'
+                    WHEN k = 3 THEN 'trace.tag.customer'
+                    ELSE 'trace.tag.custom'
+                END,
+                CASE 
+                    WHEN k = 1 THEN 'prod-' || (ARRAY['us', 'eu', 'asia'])[1 + (RANDOM() * 2)::INTEGER]
+                    WHEN k = 2 THEN (ARRAY['east', 'west'])[1 + (RANDOM() * 1)::INTEGER]
+                    WHEN k = 3 THEN 'cust-' || (1 + RANDOM() * 10)::INTEGER
+                    ELSE 'value-' || LPAD(k::TEXT, 2, '0')
+                END
+            );
+        END LOOP;
         
         -- Generate spans for this trace
         v_span_start := v_current_time;
@@ -130,7 +151,7 @@ BEGIN
                     WHEN RANDOM() < 0.7 THEN 'span-' || v_trace_id || '-' || (j-1)
                     ELSE v_root_span_id
                 END;
-            END;
+            END IF;
             
             -- Generate span duration (10-500ms for most spans)
             v_span_duration := CASE
@@ -175,29 +196,31 @@ BEGIN
                 v_span_duration,
                 v_span_status,
                 CASE WHEN v_span_status = 'error' THEN 'Internal server error' ELSE NULL END,
-                jsonb_build_object(
-                    'service.name', v_service_name,
-                    'span.kind', v_span_kind,
-                    'component', CASE 
+                -- CORRECTED: attributes JSONB must be an array of EAV objects
+                jsonb_build_array(
+                    jsonb_build_object('key', 'service.name', 'value', v_service_name),
+                    jsonb_build_object('key', 'span.kind', 'value', v_span_kind),
+                    jsonb_build_object('key', 'component', 'value', CASE 
                         WHEN v_span_kind = 'server' THEN 'http'
                         WHEN v_span_kind = 'client' THEN 'http-client'
                         WHEN v_span_kind = 'producer' THEN 'kafka'
                         WHEN v_span_kind = 'consumer' THEN 'kafka'
                         ELSE 'internal'
-                    END,
-                    'scouter.model.name', v_service_name || '-model',
-                    'scouter.feature.count', (5 + RANDOM() * 20)::INTEGER,
-                    'thread.id', (1000 + RANDOM() * 9000)::INTEGER
+                    END),
+                    jsonb_build_object('key', 'scouter.model.name', 'value', v_service_name || '-model'),
+                    jsonb_build_object('key', 'scouter.feature.count', 'value', (5 + RANDOM() * 20)::INTEGER::TEXT),
+                    jsonb_build_object('key', 'thread.id', 'value', (1000 + RANDOM() * 9000)::INTEGER::TEXT)
                 ),
                 CASE 
                     WHEN v_span_status = 'error' THEN jsonb_build_array(
                         jsonb_build_object(
                             'timestamp', EXTRACT(EPOCH FROM v_span_end)::BIGINT * 1000000000,
                             'name', 'exception',
-                            'attributes', jsonb_build_object(
-                                'exception.type', 'RuntimeError',
-                                'exception.message', 'Simulated error for testing',
-                                'exception.stacktrace', 'RuntimeError: Simulated error\n  at test.py:123'
+                            -- CORRECTED: nested attributes must also be an array of EAV objects
+                            'attributes', jsonb_build_array(
+                                jsonb_build_object('key', 'exception.type', 'value', 'RuntimeError'),
+                                jsonb_build_object('key', 'exception.message', 'value', 'Simulated error for testing'),
+                                jsonb_build_object('key', 'exception.stacktrace', 'value', 'RuntimeError: Simulated error\n  at test.py:123')
                             )
                         )
                     )
@@ -205,16 +228,38 @@ BEGIN
                         jsonb_build_object(
                             'timestamp', EXTRACT(EPOCH FROM v_span_start + (v_span_duration/2 || ' milliseconds')::INTERVAL)::BIGINT * 1000000000,
                             'name', 'processing.started',
-                            'attributes', jsonb_build_object(
-                                'stage', 'middleware',
-                                'processing.items', (1 + RANDOM() * 100)::INTEGER
+                            -- CORRECTED: nested attributes must also be an array of EAV objects
+                            'attributes', jsonb_build_array(
+                                jsonb_build_object('key', 'stage', 'value', 'middleware'),
+                                jsonb_build_object('key', 'processing.items', 'value', (1 + RANDOM() * 100)::INTEGER::TEXT)
                             )
                         )
                     )
                 END,
-                '[]'::jsonb,  -- Empty links for simplicity
+                '[]'::jsonb,  -- Empty links for simplicity (structure would be similar to events)
                 v_current_time
             );
+
+            -- Generate 1-3 tags for the Span entity (15% chance for tags)
+            IF RANDOM() < 0.15 THEN
+                FOR k IN 1..(1 + (RANDOM() * 2)::INTEGER) LOOP
+                    INSERT INTO scouter.tags (
+                        created_at, entity_type, entity_id, key, value
+                    ) VALUES (
+                        v_span_start + (RANDOM() * v_span_duration * 0.1 || ' milliseconds')::INTERVAL,
+                        'span',
+                        v_span_id,
+                        CASE 
+                            WHEN k = 1 THEN 'span.tag.host'
+                            ELSE 'span.tag.db.query'
+                        END,
+                        CASE 
+                            WHEN k = 1 THEN 'host-' || (1 + RANDOM() * 5)::INTEGER
+                            ELSE 'SELECT * FROM items WHERE id=' || (1000 + RANDOM() * 9000)::INTEGER
+                        END
+                    );
+                END LOOP;
+            END IF;
             
             -- Generate baggage for some spans (30% chance)
             IF RANDOM() < 0.3 THEN
@@ -263,6 +308,7 @@ BEGIN
     RAISE NOTICE '- Total traces: %', (SELECT COUNT(*) FROM scouter.traces);
     RAISE NOTICE '- Total spans: %', (SELECT COUNT(*) FROM scouter.spans);
     RAISE NOTICE '- Total baggage entries: %', (SELECT COUNT(*) FROM scouter.trace_baggage);
+    RAISE NOTICE '- Total tag entries: %', (SELECT COUNT(*) FROM scouter.tags); -- ADDED
     RAISE NOTICE '- Traces with errors: %', (SELECT COUNT(*) FROM scouter.traces WHERE status != 'ok');
     RAISE NOTICE '- Average spans per trace: %', (SELECT ROUND(AVG(span_count), 2) FROM scouter.traces);
     RAISE NOTICE '- Average trace duration: % ms', (SELECT ROUND(AVG(duration_ms), 2) FROM scouter.traces);

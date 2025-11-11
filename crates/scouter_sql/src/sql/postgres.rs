@@ -1,6 +1,6 @@
 use crate::sql::traits::{
     AlertSqlLogic, ArchiveSqlLogic, CustomMetricSqlLogic, LLMDriftSqlLogic, ObservabilitySqlLogic,
-    ProfileSqlLogic, PsiSqlLogic, SpcSqlLogic, TraceSqlLogic, UserSqlLogic,
+    ProfileSqlLogic, PsiSqlLogic, SpcSqlLogic, TagSqlLogic, TraceSqlLogic, UserSqlLogic,
 };
 
 use crate::sql::error::SqlError;
@@ -26,6 +26,7 @@ impl ObservabilitySqlLogic for PostgresClient {}
 impl AlertSqlLogic for PostgresClient {}
 impl ArchiveSqlLogic for PostgresClient {}
 impl TraceSqlLogic for PostgresClient {}
+impl TagSqlLogic for PostgresClient {}
 
 impl PostgresClient {
     /// Setup the application with the given database pool.
@@ -244,6 +245,9 @@ mod tests {
 
             DELETE
             FROM scouter.trace_baggage;
+
+            DELETE
+            FROM scouter.tags;
 
             # delete view
             DROP VIEW IF EXISTS scouter.trace_summary
@@ -1045,5 +1049,7 @@ mod tests {
     #[tokio::test]
     async fn test_postgres_tracing() {
         let pool = db_pool().await;
+        let script = std::fs::read_to_string("tests/script/populate_trace.sql").unwrap();
+        sqlx::query(&script).execute(&pool).await.unwrap();
     }
 }

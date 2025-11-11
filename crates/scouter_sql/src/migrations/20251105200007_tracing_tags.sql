@@ -55,7 +55,7 @@ CREATE TABLE IF NOT EXISTS scouter.spans (
     trace_id TEXT NOT NULL,
     parent_span_id TEXT,
     space TEXT NOT NULL,
-    name TEXT NOT NULL, 
+    name TEXT NOT NULL,
     version TEXT NOT NULL,
     scope TEXT NOT NULL,
     span_name TEXT NOT NULL,
