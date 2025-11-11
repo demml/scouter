@@ -32,3 +32,10 @@ class DataType:
     Numpy: "DataType"
     Arrow: "DataType"
     LLM: "DataType"
+
+class CompressionType:
+    NA: "CompressionType"
+    Gzip: "CompressionType"
+    Snappy: "CompressionType"
+    Lz4: "CompressionType"
+    Zstd: "CompressionType"

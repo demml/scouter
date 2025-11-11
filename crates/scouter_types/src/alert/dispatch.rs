@@ -130,7 +130,7 @@ pub enum TransportType {
 #[pyclass(eq)]
 #[derive(PartialEq, Clone, Debug, Serialize)]
 pub enum CompressionType {
-    None,
+    NA,
     Gzip,
     Snappy,
     Lz4,
@@ -142,7 +142,7 @@ impl FromStr for CompressionType {
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
-            "none" => Ok(CompressionType::None),
+            "none" => Ok(CompressionType::NA),
             "gzip" => Ok(CompressionType::Gzip),
             "snappy" => Ok(CompressionType::Snappy),
             "lz4" => Ok(CompressionType::Lz4),
@@ -156,7 +156,7 @@ impl FromStr for CompressionType {
 impl std::fmt::Display for CompressionType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            CompressionType::None => write!(f, "none"),
+            CompressionType::NA => write!(f, "none"),
             CompressionType::Gzip => write!(f, "gzip"),
             CompressionType::Snappy => write!(f, "snappy"),
             CompressionType::Lz4 => write!(f, "lz4"),

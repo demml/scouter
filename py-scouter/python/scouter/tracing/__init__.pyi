@@ -4,6 +4,7 @@
 
 from types import TracebackType
 from typing import Any, Callable, Optional, ParamSpec, TypeVar
+from ..types import CompressionType
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -19,6 +20,12 @@ def get_function_type(func: Callable[..., Any]) -> FunctionType:
             The determined function type.
     """
     ...
+
+class Protocol:
+    """Enumeration of protocols for HTTP exporting."""
+
+    HttpBinary: "Protocol"
+    HttpJson: "Protocol"
 
 class SpanKind:
     """Enumeration of span kinds."""
@@ -342,4 +349,62 @@ class StdoutSpanExporter:
     @property
     def sample_ratio(self) -> Optional[float]:
         """Get the sampling ratio."""
+        ...
+
+class HttpSpanExporter:
+    """Exporter that sends spans to an HTTP endpoint."""
+
+    def __init__(
+        self,
+        batch_export: bool = True,
+        export_config: Optional[ExportConfig] = None,
+        http_config: Optional[HttpConfig] = None,
+        sample_ratio: Optional[float] = None,
+    ) -> None:
+        """Initialize the HttpSpanExporter.
+
+        Args:
+            batch_export (bool):
+                Whether to use batch exporting. Defaults to True.
+            export_config (Optional[ExportConfig]):
+                Configuration for exporting spans.
+            http_config (Optional[HttpConfig]):
+                Configuration for the HTTP exporter.
+            sample_ratio (Optional[float]):
+                The sampling ratio for traces. If None, defaults to always sample.
+        """
+
+    @property
+    def sample_ratio(self) -> Optional[float]:
+        """Get the sampling ratio."""
+        ...
+
+    @property
+    def batch_export(self) -> bool:
+        """Get whether batch exporting is enabled."""
+        ...
+
+    @property
+    def endpoint(self) -> Optional[str]:
+        """Get the HTTP endpoint for exporting spans."""
+        ...
+
+    @property
+    def protocol(self) -> Protocol:
+        """Get the protocol used for exporting spans."""
+        ...
+
+    @property
+    def timeout(self) -> Optional[int]:
+        """Get the timeout for HTTP requests in seconds."""
+        ...
+
+    @property
+    def headers(self) -> Optional[dict[str, str]]:
+        """Get the HTTP headers used for exporting spans."""
+        ...
+
+    @property
+    def compression(self) -> Optional[CompressionType]:
+        """Get the compression type used for exporting spans."""
         ...

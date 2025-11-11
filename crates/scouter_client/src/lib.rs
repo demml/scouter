@@ -8,7 +8,7 @@ pub use drifter::scouter::PyDrifter;
 pub use profiler::scouter::DataProfiler;
 pub use scouter_settings::HTTPConfig;
 pub use scouter_types::{
-    alert::{Alert, Alerts},
+    alert::{Alert, Alerts, CompressionType},
     create_feature_map,
     cron::*,
     custom::{
