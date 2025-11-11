@@ -3,8 +3,8 @@ use crate::tracer::ActiveSpan;
 use opentelemetry::global::BoxedSpan;
 use opentelemetry::trace::SpanContext;
 use opentelemetry_otlp::ExportConfig as OtlpExportConfig;
-use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyModule, PyTuple};
+use pyo3::{prelude::*, IntoPyObjectExt};
 use scouter_types::records::{
     FUNCTION_MODULE, FUNCTION_NAME, FUNCTION_QUALNAME, FUNCTION_STREAMING, FUNCTION_TYPE,
 };
@@ -418,4 +418,18 @@ impl HttpConfig {
             compression,
         }
     }
+}
+
+pub fn format_traceback(py: Python, exc_tb: &Py<PyAny>) -> Result<String, TraceError> {
+    // Import the traceback module
+    let traceback_module = py.import("traceback")?;
+
+    // Use traceback.format_tb() to get a list of strings
+    let tb_lines = traceback_module.call_method1("format_tb", (exc_tb.bind(py),))?;
+
+    // Join the lines into a single string
+    let empty_string = "".into_bound_py_any(py)?;
+    let formatted = empty_string.call_method1("join", (tb_lines,))?;
+
+    Ok(formatted.extract::<String>()?)
 }

@@ -52,6 +52,13 @@ impl TestSpanExporter {
     pub fn baggage(&self) -> Vec<TraceBaggageRecord> {
         self.records.read().unwrap().baggage.clone()
     }
+
+    pub fn clear(&self) {
+        let mut records = self.records.write().unwrap();
+        records.traces.clear();
+        records.spans.clear();
+        records.baggage.clear();
+    }
 }
 
 impl Default for TestSpanExporter {

@@ -547,3 +547,7 @@ class TestSpanExporter:
     def baggage(self) -> list[TraceBaggageRecord]:
         """Get the collected trace baggage records."""
         ...
+
+    def clear(self) -> None:
+        """Clear all collected trace records."""
+        ...

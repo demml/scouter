@@ -63,10 +63,10 @@ class Tracer(tracing.BaseTracer):
         self,
         name: Optional[str] = None,
         kind: SpanKind = SpanKind.Internal,
+        attributes: List[dict[str, str]] = [],
+        baggage: List[dict[str, str]] = [],
+        tags: List[dict[str, str]] = [],
         label: Optional[str] = None,
-        attributes: Optional[dict[str, str]] = None,
-        baggage: Optional[dict[str, str]] = None,
-        tags: Optional[dict[str, str]] = None,
         parent_context_id: Optional[str] = None,
         max_length: int = 1000,
         capture_last_stream_item: bool = False,
@@ -81,14 +81,14 @@ class Tracer(tracing.BaseTracer):
                 The name of the span. If None, defaults to the function name.
             kind (SpanKind):
                 The kind of span (default: Internal)
+            attributes (List[dict[str, str]]):
+                Additional attributes to set on the span
+            baggage (List[dict[str, str]]):
+                Additional baggage to set on the span
+            tags (List[dict[str, str]]):
+                Additional tags to set on the span
             label (Optional[str]):
                 An optional label for the span
-            attributes (Optional[dict[str, str]]):
-                Additional attributes to set on the span
-            baggage (Optional[dict[str, str]]):
-                Baggage items to attach to the span
-            tags (Optional[dict[str, str]]):
-                Additional tags to set on the span
             parent_context_id (Optional[str]):
                 Parent context ID for the span
             max_length (int):
@@ -109,27 +109,30 @@ class Tracer(tracing.BaseTracer):
             span_name = name or f"{func.__module__}.{func.__qualname__}"
             function_type = get_function_type(func)
 
-            print(f"Decorating function '{span_name}' of type '{function_type}'")
             if function_type == FunctionType.AsyncGenerator:
 
                 @functools.wraps(func)
-                async def async_generator_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
+                async def async_generator_wrapper(
+                    *args: P.args, **kwargs: P.kwargs
+                ) -> Any:
                     async with self._start_decorated_as_current_span(
                         name=span_name,
                         func=func,
                         func_args=args,
                         kind=kind,
-                        label=label,
                         attributes=attributes,
                         baggage=baggage,
                         tags=tags,
+                        label=label,
                         parent_context_id=parent_context_id,
                         max_length=max_length,
                         func_type=function_type,
                         func_kwargs=kwargs,
                     ) as span:
                         try:
-                            async_gen_func = cast(Callable[P, AsyncGenerator[Any, None]], func)
+                            async_gen_func = cast(
+                                Callable[P, AsyncGenerator[Any, None]], func
+                            )
                             generator = async_gen_func(*args, **kwargs)
 
                             outputs = []
@@ -160,17 +163,19 @@ class Tracer(tracing.BaseTracer):
                         func=func,
                         func_args=args,
                         kind=kind,
-                        label=label,
                         attributes=attributes,
                         baggage=baggage,
                         tags=tags,
+                        label=label,
                         parent_context_id=parent_context_id,
                         max_length=max_length,
                         func_type=function_type,
                         func_kwargs=kwargs,
                     ) as span:
                         try:
-                            gen_func = cast(Callable[P, Generator[Any, None, None]], func)
+                            gen_func = cast(
+                                Callable[P, Generator[Any, None, None]], func
+                            )
                             generator = gen_func(*args, **kwargs)
                             results = []
 
@@ -201,10 +206,10 @@ class Tracer(tracing.BaseTracer):
                         func=func,
                         func_args=args,
                         kind=kind,
-                        label=label,
                         attributes=attributes,
                         baggage=baggage,
                         tags=tags,
+                        label=label,
                         parent_context_id=parent_context_id,
                         max_length=max_length,
                         func_type=function_type,
@@ -232,10 +237,10 @@ class Tracer(tracing.BaseTracer):
                         func=func,
                         func_args=args,
                         kind=kind,
-                        label=label,
                         attributes=attributes,
                         baggage=baggage,
                         tags=tags,
+                        label=label,
                         parent_context_id=parent_context_id,
                         max_length=max_length,
                         func_type=function_type,

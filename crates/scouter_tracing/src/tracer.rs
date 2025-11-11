@@ -9,9 +9,9 @@ use crate::error::TraceError;
 use crate::exporter::scouter::ScouterSpanExporter;
 use crate::exporter::SpanExporterNum;
 use crate::utils::{
-    capture_function_arguments, get_context_store, get_context_var, get_current_active_span,
-    get_current_context_id, set_current_span, set_function_attributes, set_function_type_attribute,
-    ActiveSpanInner, FunctionType, SpanKind,
+    capture_function_arguments, format_traceback, get_context_store, get_context_var,
+    get_current_active_span, get_current_context_id, set_current_span, set_function_attributes,
+    set_function_type_attribute, ActiveSpanInner, FunctionType, SpanKind,
 };
 use chrono::{DateTime, Utc};
 use opentelemetry::baggage::BaggageExt;
@@ -35,9 +35,9 @@ use scouter_types::{
     is_pydantic_basemodel, pydict_to_otel_keyvalue, pyobject_to_otel_value,
     pyobject_to_tracing_json,
 };
-
 use std::sync::{Arc, RwLock};
 use std::{collections::HashMap, sync::OnceLock};
+use tracing::{debug, instrument};
 
 /// Global static instance of the tracer provider.
 static TRACER_PROVIDER: OnceLock<SdkTracerProvider> = OnceLock::new();
@@ -275,12 +275,15 @@ impl ActiveSpan {
     }
 
     /// Sync context manager enter
+    #[instrument(skip_all)]
     fn __enter__<'py>(slf: PyRef<'py, Self>) -> PyResult<PyRef<'py, Self>> {
+        debug!("Entering span context: {}", slf.context_id()?);
         Ok(slf)
     }
 
     /// Sync context manager exit
     #[pyo3(signature = (exc_type=None, exc_val=None, exc_tb=None))]
+    #[instrument(skip_all)]
     fn __exit__(
         &mut self,
         py: Python<'_>,
@@ -288,6 +291,7 @@ impl ActiveSpan {
         exc_val: Option<Py<PyAny>>,
         exc_tb: Option<Py<PyAny>>,
     ) -> Result<bool, TraceError> {
+        debug!("Exiting span context: {}", self.context_id()?);
         let (context_id, trace_id, context_token) = {
             let mut inner = self
                 .inner
@@ -308,9 +312,11 @@ impl ActiveSpan {
                 }
 
                 if let Some(exc_tb) = exc_tb {
+                    // need to unpack the traceback object to string
+                    let tb = format_traceback(py, &exc_tb)?;
                     inner
                         .span
-                        .set_attribute(KeyValue::new("exception.traceback", exc_tb.to_string()));
+                        .set_attribute(KeyValue::new("exception.traceback", tb));
                 }
             }
 
@@ -490,6 +496,7 @@ impl BaseTracer {
     /// * `parent_context_id` - Optional parent context ID to link the span to (this is automatically set if not provided)
     #[pyo3(signature = (name, kind=SpanKind::Internal, attributes=vec![], baggage=vec![], tags=vec![], label=None,  parent_context_id=None))]
     #[allow(clippy::too_many_arguments)]
+    #[instrument(skip_all)]
     fn start_as_current_span(
         &self,
         py: Python<'_>,
@@ -501,6 +508,7 @@ impl BaseTracer {
         label: Option<String>,
         parent_context_id: Option<String>,
     ) -> Result<ActiveSpan, TraceError> {
+        debug!("Creating span: {}", name);
         // Get parent context if available
         let parent_id = parent_context_id.or_else(|| get_current_context_id(py).ok().flatten());
 
