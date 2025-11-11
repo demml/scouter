@@ -10,6 +10,7 @@ use opentelemetry_proto::tonic::common::v1::any_value::Value as ProtoAnyValue;
 use opentelemetry_proto::tonic::common::v1::AnyValue;
 use opentelemetry_proto::tonic::common::v1::KeyValue;
 use opentelemetry_proto::tonic::trace::v1::span::Event;
+use opentelemetry_proto::tonic::trace::v1::span::Link;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind;
 use opentelemetry_proto::tonic::trace::v1::Span;
 
@@ -738,17 +739,8 @@ pub struct TraceRecord {
     pub root_span_id: String,
     #[pyo3(get)]
     pub attributes: Vec<Attribute>,
-    pub tags: Value,
-}
-
-#[pymethods]
-impl TraceRecord {
-    #[getter]
-    pub fn get_tags<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyDict>, RecordError> {
-        let dict = PyDict::new(py);
-        json_to_pyobject(py, &self.tags, &dict)?;
-        Ok(dict)
-    }
+    #[pyo3(get)]
+    pub tags: Vec<Tag>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -788,7 +780,8 @@ pub struct TraceSpanRecord {
     pub attributes: Vec<Attribute>,
     #[pyo3(get)]
     pub events: Vec<SpanEvent>,
-    pub links: Value,
+    #[pyo3(get)]
+    pub links: Vec<SpanLink>,
     #[pyo3(get)]
     pub label: Option<String>,
     pub input: Value,
@@ -797,14 +790,6 @@ pub struct TraceSpanRecord {
 
 #[pymethods]
 impl TraceSpanRecord {
-    #[getter]
-    pub fn get_links<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyDict>, RecordError> {
-        let dict = PyDict::new(py);
-        json_to_pyobject(py, &self.links, &dict)?;
-
-        Ok(dict)
-    }
-
     #[getter]
     pub fn get_input<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyDict>, RecordError> {
         let dict = PyDict::new(py);
@@ -899,20 +884,75 @@ pub trait TraceRecordExt {
             .collect()
     }
 
-    /// this will extract tags from span attributes and return a Map
-    fn extract_tags(attributes: &Vec<KeyValue>) -> Result<Value, RecordError> {
-        let mut tags_map = serde_json::Map::new();
-        let pattern = format!("{}.{}", BAGGAGE_PREFIX, SCOUTER_TAG_PREFIX);
-        for attr in attributes {
-            if attr.key.starts_with(&pattern) {
-                if let Some(value) = &attr.value {
-                    if let Some(ProtoAnyValue::StringValue(s)) = &value.value {
-                        tags_map.insert(attr.key.clone(), Value::String(s.clone()));
-                    }
-                }
-            }
-        }
-        Ok(Value::Object(tags_map))
+    fn links_to_json_array(attributes: &Vec<Link>) -> Result<Vec<SpanLink>, RecordError> {
+        attributes
+            .iter()
+            .map(|kv| {
+                let attributes = Self::attributes_to_json_array(&kv.attributes)?;
+                Ok(SpanLink {
+                    trace_id: hex::encode(&kv.trace_id),
+                    span_id: hex::encode(&kv.span_id),
+                    trace_state: kv.trace_state.clone(),
+                    attributes,
+                    dropped_attributes_count: kv.dropped_attributes_count,
+                })
+            })
+            .collect()
+    }
+
+    //// Extracts scouter tags from OpenTelemetry span attributes.
+    ///
+    /// Tags are identified by the pattern `baggage.scouter.tracing.tag.<key>` and are
+    /// converted to a simplified Tag structure for easier processing and storage
+    ///
+    /// # Arguments
+    /// * `attributes` - Vector of OpenTelemetry attributes to search through
+    ///
+    /// # Returns
+    /// * `Result<Vec<Tag>, RecordError>` - Vector of extracted tags or error
+    fn extract_tags(attributes: &[Attribute]) -> Result<Vec<Tag>, RecordError> {
+        let pattern = format!("{}.{}.", BAGGAGE_PREFIX, SCOUTER_TAG_PREFIX);
+
+        let tags: Result<Vec<Tag>, RecordError> = attributes
+            .iter()
+            .filter_map(|attr| {
+                // Only process attributes that match our pattern
+                attr.key
+                    .strip_prefix(&pattern)
+                    .map(|tag_key| {
+                        // Skip empty tag keys for data integrity
+                        if tag_key.is_empty() {
+                            tracing::warn!(
+                                attribute_key = %attr.key,
+                                "Skipping tag with empty key after prefix removal"
+                            );
+                            return None;
+                        }
+
+                        let value = match &attr.value {
+                            Value::String(s) => s.clone(),
+                            Value::Number(n) => n.to_string(),
+                            Value::Bool(b) => b.to_string(),
+                            Value::Null => "null".to_string(),
+
+                            // tags should always be string:string
+                            Value::Array(_) | Value::Object(_) => {
+                                // For complex types, use compact JSON representation
+                                serde_json::to_string(&attr.value)
+                                    .unwrap_or_else(|_| format!("{:?}", attr.value))
+                            }
+                        };
+
+                        Some(Ok(Tag {
+                            key: tag_key.to_string(),
+                            value,
+                        }))
+                    })
+                    .flatten() // Flatten the Option<Option<Result<Tag, RecordError>>>
+            })
+            .collect();
+
+        tags
     }
 }
 
@@ -987,26 +1027,6 @@ impl TraceServerRecord {
             .unwrap_or("UNSPECIFIED")
             .to_string()
     }
-
-    fn get_trace_tags(span: &Span) -> Option<Value> {
-        let mut tags_map = serde_json::Map::new();
-        let pattern = format!("{}.{}", BAGGAGE_PREFIX, SCOUTER_TAG_PREFIX);
-        for attr in &span.attributes {
-            if attr.key.starts_with(&pattern) {
-                if let Some(value) = &attr.value {
-                    if let Some(ProtoAnyValue::StringValue(s)) = &value.value {
-                        tags_map.insert(attr.key.clone(), Value::String(s.clone()));
-                    }
-                }
-            }
-        }
-        if tags_map.is_empty() {
-            None
-        } else {
-            Some(Value::Object(tags_map))
-        }
-    }
-
     /// Convert to TraceRecord
     #[allow(clippy::too_many_arguments)]
     pub fn convert_to_trace_record(
@@ -1039,7 +1059,7 @@ impl TraceServerRecord {
             },
             root_span_id: hex::encode(&span.span_id),
             attributes: scope_attributes.clone(),
-            tags: Self::extract_tags(&span.attributes)?,
+            tags: Self::extract_tags(scope_attributes)?,
         })
     }
 
@@ -1175,7 +1195,7 @@ impl TraceServerRecord {
                 .unwrap_or_default(),
             attributes: span_attributes,
             events: Self::events_to_json_array(&span.events)?,
-            links: Self::keyvalue_to_json_array(&span.links)?,
+            links: Self::links_to_json_array(&span.links)?,
             label: None,
             input: Value::Null,
             output: Value::Null,
@@ -1323,8 +1343,27 @@ pub struct SpanEvent {
     pub dropped_attributes_count: u32,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[pyclass]
+pub struct SpanLink {
+    #[pyo3(get)]
+    pub trace_id: String,
+    #[pyo3(get)]
+    pub span_id: String,
+    #[pyo3(get)]
+    pub trace_state: String,
+    #[pyo3(get)]
+    pub attributes: Vec<Attribute>,
+    #[pyo3(get)]
+    pub dropped_attributes_count: u32,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[pyclass]
 pub struct Tag {
+    #[pyo3(get)]
     pub key: String,
+    #[pyo3(get)]
     pub value: String,
 }
 
