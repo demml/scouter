@@ -52,7 +52,7 @@ pub trait TraceSqlLogic {
             duration_ms.push(r.duration_ms);
             status.push(r.status.as_str());
             root_span_id.push(r.root_span_id.as_str());
-            attributes.push(r.attributes.clone());
+            attributes.push(Json(r.attributes.clone()));
         }
 
         let query_result = sqlx::query(&query.sql)
@@ -68,7 +68,7 @@ pub trait TraceSqlLogic {
             .bind(duration_ms)
             .bind(status)
             .bind(root_span_id)
-            .bind(Json(attributes))
+            .bind(attributes)
             .execute(pool)
             .await?;
 
@@ -107,6 +107,9 @@ pub trait TraceSqlLogic {
         let mut attributes = Vec::with_capacity(capacity);
         let mut events = Vec::with_capacity(capacity);
         let mut links = Vec::with_capacity(capacity);
+        let mut labels = Vec::with_capacity(capacity);
+        let mut input = Vec::with_capacity(capacity);
+        let mut output = Vec::with_capacity(capacity);
 
         // Single iteration for maximum efficiency
         for span in spans {
@@ -125,9 +128,12 @@ pub trait TraceSqlLogic {
             duration_ms.push(span.duration_ms);
             status_code.push(span.status_code.as_str());
             status_message.push(span.status_message.as_str());
-            attributes.push(span.attributes.clone());
-            events.push(span.events.clone());
-            links.push(span.links.clone());
+            attributes.push(Json(span.attributes.clone()));
+            events.push(Json(span.events.clone()));
+            links.push(Json(span.links.clone()));
+            labels.push(span.label.as_deref());
+            input.push(Json(span.input.clone()));
+            output.push(Json(span.output.clone()));
         }
 
         let query_result = sqlx::query(&query.sql)
@@ -149,6 +155,9 @@ pub trait TraceSqlLogic {
             .bind(Json(attributes))
             .bind(Json(events))
             .bind(Json(links))
+            .bind(labels)
+            .bind(Json(input))
+            .bind(Json(output))
             .execute(pool)
             .await?;
 
