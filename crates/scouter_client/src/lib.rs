@@ -37,7 +37,8 @@ pub use scouter_types::{
     LatencyMetrics, Metric, Metrics, ObservabilityMetrics, OpsGenieDispatchConfig, ProfileRequest,
     ProfileStatusRequest, PsiServerRecord, RecordType, RegisteredProfileResponse, RouteMetrics,
     ScouterResponse, ScouterServerError, ServerRecord, ServerRecords, SlackDispatchConfig,
-    SpcServerRecord, TimeInterval, UpdateAlertResponse, UpdateAlertStatus, VersionRequest,
+    SpcServerRecord, TimeInterval, TraceBaggageRecord, TraceRecord, TraceSpanRecord,
+    UpdateAlertResponse, UpdateAlertStatus, VersionRequest,
 };
 
 pub use crate::http::{PyScouterClient, ScouterClient};

@@ -23,6 +23,16 @@ init_tracer = tracing.init_tracer
 SpanKind = tracing.SpanKind
 FunctionType = tracing.FunctionType
 get_function_type = tracing.get_function_type
+ActiveSpan = tracing.ActiveSpan
+ExportConfig = tracing.ExportConfig
+HttpConfig = tracing.HttpConfig
+HttpSpanExporter = tracing.HttpSpanExporter
+StdoutSpanExporter = tracing.StdoutSpanExporter
+Protocol = tracing.Protocol
+TraceRecord = tracing.TraceRecord
+TraceSpanRecord = tracing.TraceSpanRecord
+TraceBaggageRecord = tracing.TraceBaggageRecord
+TestSpanExporter = tracing.TestSpanExporter
 
 
 def set_output(
@@ -102,7 +112,9 @@ class Tracer(tracing.BaseTracer):
             if function_type == FunctionType.AsyncGenerator:
 
                 @functools.wraps(func)
-                async def async_generator_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
+                async def async_generator_wrapper(
+                    *args: P.args, **kwargs: P.kwargs
+                ) -> Any:
                     async with self._start_decorated_as_current_span(
                         name=span_name,
                         func=func,
@@ -118,7 +130,9 @@ class Tracer(tracing.BaseTracer):
                         func_kwargs=kwargs,
                     ) as span:
                         try:
-                            async_gen_func = cast(Callable[P, AsyncGenerator[Any, None]], func)
+                            async_gen_func = cast(
+                                Callable[P, AsyncGenerator[Any, None]], func
+                            )
                             generator = async_gen_func(*args, **kwargs)
 
                             outputs = []
@@ -159,7 +173,9 @@ class Tracer(tracing.BaseTracer):
                         func_kwargs=kwargs,
                     ) as span:
                         try:
-                            gen_func = cast(Callable[P, Generator[Any, None, None]], func)
+                            gen_func = cast(
+                                Callable[P, Generator[Any, None, None]], func
+                            )
                             generator = gen_func(*args, **kwargs)
                             results = []
 
@@ -259,4 +275,14 @@ __all__ = [
     "get_tracer",
     "SpanKind",
     "FunctionType",
+    "ActiveSpan",
+    "ExportConfig",
+    "HttpConfig",
+    "HttpSpanExporter",
+    "StdoutSpanExporter",
+    "Protocol",
+    "TraceRecord",
+    "TraceSpanRecord",
+    "TraceBaggageRecord",
+    "TestSpanExporter",
 ]

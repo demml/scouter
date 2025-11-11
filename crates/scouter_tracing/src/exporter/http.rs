@@ -59,11 +59,7 @@ impl HttpSpanExporter {
 
         let headers = http_config.and_then(|cfg| cfg.headers.clone());
         let compression = if let Some(http_config) = http_config {
-            if let Some(compression) = &http_config.compression {
-                Some(compression.clone())
-            } else {
-                None
-            }
+            http_config.compression.clone()
         } else {
             None
         };

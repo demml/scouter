@@ -54,6 +54,12 @@ impl TestSpanExporter {
     }
 }
 
+impl Default for TestSpanExporter {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SpanExporterBuilder for TestSpanExporter {
     type Exporter = OtelTestSpanExporter;
 

@@ -180,18 +180,15 @@ def get_tracer(name: str) -> Tracer:
 
 def init_tracer(
     name: Optional[str] = None,
-    endpoint: Optional[str] = None,
-    sample_ratio: Optional[str] = None,
+    exporter: Optional[HttpSpanExporter | StdoutSpanExporter | TestSpanExporter] = None,
 ) -> None:
     """Initialize the tracer with the given service name.
 
     Args:
         name (Optional[str]):
             The name of the service for tracing.
-        endpoint (Optional[str]):
-            The endpoint for exporting traces.
-        sample_ratio (Optional[str]):
-            The sampling ratio for traces.
+        exporter (Optional[HttpSpanExporter | StdoutSpanExporter | TestSpanExporter]):
+            The span exporter to use. If None, defaults to StdoutSpanExporter.
     """
 
 class ActiveSpan:

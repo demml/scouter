@@ -1,5 +1,6 @@
 use pyo3::prelude::*;
-use scouter_tracing::exporter::{HttpSpanExporter, StdoutSpanExporter};
+use scouter_client::{TraceBaggageRecord, TraceRecord, TraceSpanRecord};
+use scouter_tracing::exporter::{HttpSpanExporter, StdoutSpanExporter, TestSpanExporter};
 use scouter_tracing::tracer::*;
 use scouter_tracing::utils::{
     get_function_type, ExportConfig, FunctionType, HttpConfig, Protocol, SpanKind,
@@ -16,6 +17,10 @@ pub fn tracing(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<HttpSpanExporter>()?;
     m.add_class::<StdoutSpanExporter>()?;
     m.add_class::<Protocol>()?;
+    m.add_class::<TraceRecord>()?;
+    m.add_class::<TraceSpanRecord>()?;
+    m.add_class::<TraceBaggageRecord>()?;
+    m.add_class::<TestSpanExporter>()?;
     m.add_function(wrap_pyfunction!(init_tracer, m)?)?;
     m.add_function(wrap_pyfunction!(force_flush, m)?)?;
     m.add_function(wrap_pyfunction!(get_function_type, m)?)?;

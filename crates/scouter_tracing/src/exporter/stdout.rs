@@ -5,7 +5,7 @@ use pyo3::prelude::*;
 use scouter_types::PyHelperFuncs;
 use serde::Serialize;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Default)]
 #[pyclass]
 pub struct StdoutSpanExporter {
     #[pyo3(get)]
@@ -27,15 +27,6 @@ impl StdoutSpanExporter {
 
     pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
-    }
-}
-
-impl Default for StdoutSpanExporter {
-    fn default() -> Self {
-        Self {
-            sample_ratio: None,
-            batch_export: false,
-        }
     }
 }
 
