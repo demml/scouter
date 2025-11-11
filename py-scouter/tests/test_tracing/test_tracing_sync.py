@@ -23,4 +23,6 @@ def test_init_tracer():
     assert len(span_exporter.traces) == 1
 
     print(span_exporter.spans[0])
+    print(span_exporter.traces[0])
+    print(span_exporter.baggage[0])
     a

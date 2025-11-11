@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::multiunzip;
 use scouter_types::{TraceBaggageRecord, TraceRecord, TraceSpanRecord};
-use sqlx::{postgres::PgQueryResult, Pool, Postgres};
+use sqlx::{postgres::PgQueryResult, types::Json, Pool, Postgres};
 use std::result::Result::Ok;
 
 #[async_trait]
@@ -68,7 +68,7 @@ pub trait TraceSqlLogic {
             .bind(duration_ms)
             .bind(status)
             .bind(root_span_id)
-            .bind(attributes)
+            .bind(Json(attributes))
             .execute(pool)
             .await?;
 
@@ -146,9 +146,9 @@ pub trait TraceSqlLogic {
             .bind(duration_ms)
             .bind(status_code)
             .bind(status_message)
-            .bind(attributes)
-            .bind(events)
-            .bind(links)
+            .bind(Json(attributes))
+            .bind(Json(events))
+            .bind(Json(links))
             .execute(pool)
             .await?;
 
