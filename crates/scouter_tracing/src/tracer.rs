@@ -449,8 +449,8 @@ impl BaseTracer {
     }
 
     fn create_baggage_items(
-        baggage: &Vec<HashMap<String, String>>,
-        tags: &Vec<HashMap<String, String>>,
+        baggage: &[HashMap<String, String>],
+        tags: &[HashMap<String, String>],
     ) -> Vec<KeyValue> {
         let mut keyval_baggage: Vec<KeyValue> = baggage
             .iter()
