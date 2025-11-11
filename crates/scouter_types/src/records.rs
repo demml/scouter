@@ -866,7 +866,7 @@ pub trait TraceRecordExt {
         Ok(serde_json::to_value(attributes).unwrap_or(Value::Array(vec![])))
     }
 
-    fn attributes_to_json_array(attributes: &Vec<KeyValue>) -> Result<Vec<Attribute>, RecordError> {
+    fn attributes_to_json_array(attributes: &[KeyValue]) -> Result<Vec<Attribute>, RecordError> {
         attributes
             .iter()
             .map(|kv| {
@@ -882,7 +882,7 @@ pub trait TraceRecordExt {
             .collect()
     }
 
-    fn events_to_json_array(attributes: &Vec<Event>) -> Result<Vec<SpanEvent>, RecordError> {
+    fn events_to_json_array(attributes: &[Event]) -> Result<Vec<SpanEvent>, RecordError> {
         attributes
             .iter()
             .map(|kv| {
@@ -897,7 +897,7 @@ pub trait TraceRecordExt {
             .collect()
     }
 
-    fn links_to_json_array(attributes: &Vec<Link>) -> Result<Vec<SpanLink>, RecordError> {
+    fn links_to_json_array(attributes: &[Link]) -> Result<Vec<SpanLink>, RecordError> {
         attributes
             .iter()
             .map(|kv| {
@@ -930,38 +930,35 @@ pub trait TraceRecordExt {
             .iter()
             .filter_map(|attr| {
                 // Only process attributes that match our pattern
-                attr.key
-                    .strip_prefix(&pattern)
-                    .map(|tag_key| {
-                        // Skip empty tag keys for data integrity
-                        if tag_key.is_empty() {
-                            tracing::warn!(
-                                attribute_key = %attr.key,
-                                "Skipping tag with empty key after prefix removal"
-                            );
-                            return None;
+                attr.key.strip_prefix(&pattern).and_then(|tag_key| {
+                    // Skip empty tag keys for data integrity
+                    if tag_key.is_empty() {
+                        tracing::warn!(
+                            attribute_key = %attr.key,
+                            "Skipping tag with empty key after prefix removal"
+                        );
+                        return None;
+                    }
+
+                    let value = match &attr.value {
+                        Value::String(s) => s.clone(),
+                        Value::Number(n) => n.to_string(),
+                        Value::Bool(b) => b.to_string(),
+                        Value::Null => "null".to_string(),
+
+                        // tags should always be string:string
+                        Value::Array(_) | Value::Object(_) => {
+                            // For complex types, use compact JSON representation
+                            serde_json::to_string(&attr.value)
+                                .unwrap_or_else(|_| format!("{:?}", attr.value))
                         }
+                    };
 
-                        let value = match &attr.value {
-                            Value::String(s) => s.clone(),
-                            Value::Number(n) => n.to_string(),
-                            Value::Bool(b) => b.to_string(),
-                            Value::Null => "null".to_string(),
-
-                            // tags should always be string:string
-                            Value::Array(_) | Value::Object(_) => {
-                                // For complex types, use compact JSON representation
-                                serde_json::to_string(&attr.value)
-                                    .unwrap_or_else(|_| format!("{:?}", attr.value))
-                            }
-                        };
-
-                        Some(Ok(Tag {
-                            key: tag_key.to_string(),
-                            value,
-                        }))
-                    })
-                    .flatten() // Flatten the Option<Option<Result<Tag, RecordError>>>
+                    Some(Ok(Tag {
+                        key: tag_key.to_string(),
+                        value,
+                    }))
+                })
             })
             .collect();
 
@@ -1116,8 +1113,7 @@ impl TraceServerRecord {
                     let clean_key = attr
                         .key
                         .strip_prefix(format!("{}.", BAGGAGE_PREFIX).as_str())
-                        .and_then(|stripped| Some(stripped.trim()))
-                        .filter(|s| !s.is_empty())
+                        .map(|stripped| stripped.trim())
                         .unwrap_or(&attr.key)
                         .to_string();
 
@@ -1203,7 +1199,7 @@ impl TraceServerRecord {
                 .as_ref()
                 .map(|s| s.message.clone())
                 .unwrap_or_default(),
-            attributes: attributes.clone(),
+            attributes: attributes.to_owned(),
             events: Self::events_to_json_array(&span.events)?,
             links: Self::links_to_json_array(&span.links)?,
             label: None,
