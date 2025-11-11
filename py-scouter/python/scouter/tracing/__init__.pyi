@@ -297,6 +297,7 @@ class BaseTracer:
         self,
         name: str,
         kind: Optional[SpanKind] = SpanKind.Internal,
+        label: Optional[str] = None,
         attributes: Optional[dict[str, str]] = None,
         baggage: Optional[dict[str, str]] = None,
         tags: Optional[dict[str, str]] = None,
@@ -309,6 +310,8 @@ class BaseTracer:
                 The name of the span.
             kind (Optional[SpanKind]):
                 The kind of span (e.g., "SERVER", "CLIENT").
+            label (Optional[str]):
+                An optional label for the span.
             attributes (Optional[dict[str, str]]):
                 Optional attributes to set on the span.
             baggage (Optional[dict[str, str]]):

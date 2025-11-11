@@ -40,21 +40,21 @@ pub trait SpanExporterBuilder {
         Self: Sized,
     {
         let exporter = self.build_exporter()?;
-        let use_simple = self.batch_export();
+        let use_batch = self.batch_export();
         let sampler = self.to_sampler();
 
         let mut builder = opentelemetry_sdk::trace::SdkTracerProvider::builder()
             .with_span_processor(EnrichSpanWithBaggageProcessor);
 
         // Add exporters based on configuration
-        if use_simple {
-            builder = builder
-                .with_simple_exporter(exporter)
-                .with_simple_exporter(scouter_exporter);
-        } else {
+        if use_batch {
             builder = builder
                 .with_batch_exporter(exporter)
                 .with_batch_exporter(scouter_exporter);
+        } else {
+            builder = builder
+                .with_simple_exporter(exporter)
+                .with_simple_exporter(scouter_exporter);
         }
 
         builder = builder.with_sampler(sampler).with_resource(resource);

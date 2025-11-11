@@ -33,6 +33,7 @@ TraceRecord = tracing.TraceRecord
 TraceSpanRecord = tracing.TraceSpanRecord
 TraceBaggageRecord = tracing.TraceBaggageRecord
 TestSpanExporter = tracing.TestSpanExporter
+force_flush = tracing.force_flush
 
 
 def set_output(
@@ -285,4 +286,5 @@ __all__ = [
     "TraceSpanRecord",
     "TraceBaggageRecord",
     "TestSpanExporter",
+    "force_flush",
 ]
