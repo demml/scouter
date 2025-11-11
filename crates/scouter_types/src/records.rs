@@ -1380,3 +1380,25 @@ pub struct Tag {
     #[pyo3(get)]
     pub value: String,
 }
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[pyclass]
+pub struct TagRecord {
+    #[pyo3(get)]
+    pub created_at: DateTime<Utc>,
+    #[pyo3(get)]
+    pub entity_type: String,
+    #[pyo3(get)]
+    pub entity_id: String,
+    #[pyo3(get)]
+    pub key: String,
+    #[pyo3(get)]
+    pub value: String,
+}
+
+#[pymethods]
+impl TagRecord {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
