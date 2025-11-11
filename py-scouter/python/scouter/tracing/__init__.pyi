@@ -351,6 +351,70 @@ class StdoutSpanExporter:
         """Get the sampling ratio."""
         ...
 
+class ExportConfig:
+    """Configuration for exporting spans."""
+
+    def __init__(
+        self,
+        endpoint: Optional[str],
+        protocol: Protocol = Protocol.HttpBinary,
+        timeout: Optional[int] = None,
+    ) -> None:
+        """Initialize the ExportConfig.
+
+        Args:
+            endpoint (Optional[str]):
+                The HTTP endpoint for exporting spans.
+            protocol (Protocol):
+                The protocol to use for exporting spans. Defaults to HttpBinary.
+            timeout (Optional[int]):
+                The timeout for HTTP requests in seconds.
+        """
+
+        ...
+
+    @property
+    def endpoint(self) -> Optional[str]:
+        """Get the HTTP endpoint for exporting spans."""
+        ...
+
+    @property
+    def protocol(self) -> Protocol:
+        """Get the protocol used for exporting spans."""
+        ...
+
+    @property
+    def timeout(self) -> Optional[int]:
+        """Get the timeout for HTTP requests in seconds."""
+        ...
+
+class HttpConfig:
+    """Configuration for HTTP exporting."""
+
+    def __init__(
+        self,
+        headers: Optional[dict[str, str]] = None,
+        compression: Optional[CompressionType] = None,
+    ) -> None:
+        """Initialize the HttpConfig.
+
+        Args:
+            headers (Optional[dict[str, str]]):
+                Optional HTTP headers to include in requests.
+            compression (Optional[CompressionType]):
+                Optional compression type for HTTP requests.
+        """
+
+    @property
+    def headers(self) -> Optional[dict[str, str]]:
+        """Get the HTTP headers."""
+        ...
+
+    @property
+    def compression(self) -> Optional[CompressionType]:
+        """Get the compression type."""
+        ...
+
 class HttpSpanExporter:
     """Exporter that sends spans to an HTTP endpoint."""
 

@@ -376,7 +376,8 @@ pub struct ExportConfig {
 #[pymethods]
 impl ExportConfig {
     #[new]
-    pub fn new(endpoint: Option<String>, protocol: Protocol, timeout: Option<u64>) -> Self {
+    #[pyo3(signature = (protocol=Protocol::HttpBinary,endpoint=None,  timeout=None))]
+    pub fn new(protocol: Protocol, endpoint: Option<String>, timeout: Option<u64>) -> Self {
         ExportConfig {
             endpoint,
             protocol,
