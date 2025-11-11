@@ -5993,6 +5993,7 @@ name = "scouter-types"
 version = "0.12.0"
 dependencies = [
  "approx 0.5.1",
+ "base64",
  "chrono",
  "colored_json",
  "cron",

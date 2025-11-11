@@ -140,22 +140,20 @@ CREATE TABLE IF NOT EXISTS scouter.trace_baggage (
     UNIQUE (created_at, trace_id, key, space, name, version)
 ) PARTITION BY RANGE (created_at);
 
-
-
-CREATE INDEX idx_baggage_entity_lookup 
+CREATE INDEX idx_baggage_entity_lookup
 ON scouter.trace_baggage (space, name, version, created_at DESC);
 
-CREATE INDEX idx_baggage_key_lookup 
+CREATE INDEX idx_baggage_key_lookup
 ON scouter.trace_baggage (key, created_at DESC);
 
-CREATE INDEX idx_baggage_trace_scope 
+CREATE INDEX idx_baggage_trace_scope
 ON scouter.trace_baggage (trace_id, scope, created_at DESC);
 
 
 -- Partitioning configuration
 SELECT scouter.create_parent(
     'scouter.traces',
-    'created_at', 
+    'created_at',
     '1 day'
 );
 

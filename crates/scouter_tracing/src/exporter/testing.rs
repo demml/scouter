@@ -9,7 +9,9 @@ use opentelemetry_sdk::{
     trace::{SpanData, SpanExporter},
 };
 use pyo3::prelude::*;
+use scouter_types::error::RecordError;
 use scouter_types::{records::TraceServerRecord, TraceBaggageRecord, TraceRecord, TraceSpanRecord};
+use std::f32::consts::E;
 use std::sync::{Arc, RwLock};
 
 #[derive(Debug)]
@@ -101,7 +103,9 @@ impl SpanExporter for OtelTestSpanExporter {
             version: "test_version".to_string(),
         };
 
-        let (traces, spans, baggage) = record.to_records();
+        let (traces, spans, baggage) = record
+            .to_records()
+            .map_err(|e| opentelemetry_sdk::error::OTelSdkError::InternalFailure(e.to_string()))?;
 
         let mut records = self.records.write().unwrap();
         records.traces.extend(traces);

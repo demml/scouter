@@ -1,11 +1,13 @@
 use crate::error::{ProfileError, TypeError, UtilError};
 use crate::FeatureMap;
 use crate::{CommonCrons, DriftType};
+use base64::prelude::*;
 use chrono::{DateTime, Utc};
 use colored_json::{Color, ColorMode, ColoredFormatter, PrettyFormatter, Styler};
 use opentelemetry::Key;
 use opentelemetry::KeyValue;
 use opentelemetry::Value as OTelValue;
+use opentelemetry_proto::tonic::common::v1::{any_value::Value as AnyValueVariant, AnyValue};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
@@ -291,6 +293,33 @@ pub fn pyobject_to_tracing_json(
     }
 }
 
+pub fn pyobject_to_otel_value(obj: &Bound<'_, PyAny>) -> Result<OTelValue, TypeError> {
+    if obj.is_instance_of::<PyBool>() {
+        let b = obj.extract::<bool>()?;
+        Ok(OTelValue::Bool(b))
+    } else if obj.is_instance_of::<PyInt>() {
+        let i = obj.extract::<i64>()?;
+        Ok(OTelValue::I64(i))
+    } else if obj.is_instance_of::<PyFloat>() {
+        let f = obj.extract::<f64>()?;
+        Ok(OTelValue::F64(f))
+    } else if obj.is_instance_of::<PyString>() {
+        let s = obj.extract::<String>()?;
+        Ok(OTelValue::String(opentelemetry::StringValue::from(s)))
+    } else if obj.is_instance_of::<PyList>() {
+        let list = obj.downcast::<PyList>()?;
+        pylist_to_otel_array(list)
+    } else if obj.is_none() {
+        // Convert None to string "null" since OTEL doesn't have null
+        Ok(OTelValue::String(opentelemetry::StringValue::from("null")))
+    } else {
+        let json_value = pyobject_to_json(obj)?;
+        Ok(OTelValue::String(opentelemetry::StringValue::from(
+            json_value.to_string(),
+        )))
+    }
+}
+
 fn flatten_nested_dict(
     obj: &Bound<'_, PyDict>,
     prefix: Option<String>,
@@ -319,35 +348,6 @@ fn flatten_nested_dict(
 
 pub fn pydict_to_otel_keyvalue(obj: &Bound<'_, PyDict>) -> Result<Vec<KeyValue>, TypeError> {
     flatten_nested_dict(obj, None)
-}
-
-/// Converts a Python object to an OpenTelemetry Value, preserving native types.
-fn pyobject_to_otel_value(obj: &Bound<'_, PyAny>) -> Result<OTelValue, TypeError> {
-    if obj.is_instance_of::<PyBool>() {
-        let b = obj.extract::<bool>()?;
-        Ok(OTelValue::Bool(b))
-    } else if obj.is_instance_of::<PyInt>() {
-        let i = obj.extract::<i64>()?;
-        Ok(OTelValue::I64(i))
-    } else if obj.is_instance_of::<PyFloat>() {
-        let f = obj.extract::<f64>()?;
-        Ok(OTelValue::F64(f))
-    } else if obj.is_instance_of::<PyString>() {
-        let s = obj.extract::<String>()?;
-        Ok(OTelValue::String(opentelemetry::StringValue::from(s)))
-    } else if obj.is_instance_of::<PyList>() {
-        let list = obj.downcast::<PyList>()?;
-        pylist_to_otel_array(list)
-    } else if obj.is_none() {
-        // Convert None to string "null" since OTEL doesn't have null
-        Ok(OTelValue::String(opentelemetry::StringValue::from("null")))
-    } else {
-        // Fallback: convert complex objects to JSON string
-        let json_value = pyobject_to_json(obj)?;
-        Ok(OTelValue::String(opentelemetry::StringValue::from(
-            json_value.to_string(),
-        )))
-    }
 }
 
 /// Converts a Python list to an OpenTelemetry Array, ensuring homogeneous types.
@@ -412,6 +412,45 @@ fn pylist_to_string_array(list: &Bound<'_, PyList>) -> Result<OTelValue, TypeErr
         strings.push(opentelemetry::StringValue::from(string_val));
     }
     Ok(OTelValue::Array(opentelemetry::Array::String(strings)))
+}
+
+/// Converts OpenTelemetry AnyValue to serde_json::Value
+///
+/// Handles all OpenTelemetry value types including nested arrays and key-value lists.
+/// Invalid floating point values (NaN, infinity) are converted to null for JSON compatibility.
+pub fn otel_value_to_serde_value(otel_value: &AnyValue) -> Value {
+    match &otel_value.value {
+        Some(variant) => match variant {
+            AnyValueVariant::BoolValue(b) => Value::Bool(*b),
+            AnyValueVariant::IntValue(i) => Value::Number(serde_json::Number::from(*i)),
+            AnyValueVariant::DoubleValue(d) => {
+                // Handle NaN and infinity cases gracefully
+                serde_json::Number::from_f64(*d)
+                    .map(Value::Number)
+                    .unwrap_or(Value::Null)
+            }
+            AnyValueVariant::StringValue(s) => Value::String(s.clone()),
+            AnyValueVariant::ArrayValue(array) => {
+                let values: Vec<Value> =
+                    array.values.iter().map(otel_value_to_serde_value).collect();
+                Value::Array(values)
+            }
+            AnyValueVariant::KvlistValue(kvlist) => {
+                let mut map = serde_json::Map::new();
+                for kv in &kvlist.values {
+                    if let Some(value) = &kv.value {
+                        map.insert(kv.key.clone(), otel_value_to_serde_value(value));
+                    }
+                }
+                Value::Object(map)
+            }
+            AnyValueVariant::BytesValue(bytes) => {
+                // Convert bytes to base64 string for JSON compatibility
+                Value::String(BASE64_STANDARD.encode(bytes))
+            }
+        },
+        None => Value::Null,
+    }
 }
 
 pub fn create_feature_map(

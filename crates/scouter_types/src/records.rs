@@ -1,13 +1,18 @@
 use crate::error::RecordError;
-use crate::json_to_pyobject;
+use crate::otel_value_to_serde_value;
 use crate::PyHelperFuncs;
 use crate::Status;
+use crate::{json_to_pyobject, json_to_pyobject_value};
 use chrono::DateTime;
 use chrono::Utc;
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use opentelemetry_proto::tonic::common::v1::any_value::Value as ProtoAnyValue;
+use opentelemetry_proto::tonic::common::v1::AnyValue;
+use opentelemetry_proto::tonic::common::v1::KeyValue;
+use opentelemetry_proto::tonic::trace::v1::span::Event;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind;
 use opentelemetry_proto::tonic::trace::v1::Span;
+
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use pyo3::IntoPyObjectExt;
@@ -16,7 +21,6 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
-
 pub const FUNCTION_TYPE: &str = "function.type";
 pub const FUNCTION_STREAMING: &str = "function.streaming";
 pub const FUNCTION_NAME: &str = "function.name";
@@ -732,17 +736,17 @@ pub struct TraceRecord {
     pub status: String,
     #[pyo3(get)]
     pub root_span_id: String,
-    pub attributes: Option<Value>,
+    #[pyo3(get)]
+    pub attributes: Vec<Attribute>,
+    pub tags: Value,
 }
 
 #[pymethods]
 impl TraceRecord {
     #[getter]
-    pub fn get_attributes<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyDict>, RecordError> {
+    pub fn get_tags<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyDict>, RecordError> {
         let dict = PyDict::new(py);
-        if let Some(attrs) = &self.attributes {
-            json_to_pyobject(py, attrs, &dict)?;
-        }
+        json_to_pyobject(py, &self.tags, &dict)?;
         Ok(dict)
     }
 }
@@ -780,34 +784,48 @@ pub struct TraceSpanRecord {
     pub status_code: String,
     #[pyo3(get)]
     pub status_message: String,
-    pub attributes: Value,
-    pub events: Value,
+    #[pyo3(get)]
+    pub attributes: Vec<Attribute>,
+    #[pyo3(get)]
+    pub events: Vec<SpanEvent>,
     pub links: Value,
+    #[pyo3(get)]
+    pub label: Option<String>,
+    pub input: Value,
+    pub output: Value,
 }
 
 #[pymethods]
 impl TraceSpanRecord {
     #[getter]
-    pub fn get_attributes<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyDict>, RecordError> {
-        let dict = PyDict::new(py);
-        json_to_pyobject(py, &self.attributes, &dict)?;
-
-        Ok(dict)
-    }
-
-    #[getter]
-    pub fn get_events<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyDict>, RecordError> {
-        let dict = PyDict::new(py);
-        json_to_pyobject(py, &self.events, &dict)?;
-
-        Ok(dict)
-    }
-
-    #[getter]
     pub fn get_links<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyDict>, RecordError> {
         let dict = PyDict::new(py);
         json_to_pyobject(py, &self.links, &dict)?;
 
+        Ok(dict)
+    }
+
+    #[getter]
+    pub fn get_input<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyDict>, RecordError> {
+        let dict = PyDict::new(py);
+        match &self.input {
+            Value::Null => {}
+            _ => {
+                json_to_pyobject(py, &self.input, &dict)?;
+            }
+        }
+        Ok(dict)
+    }
+
+    #[getter]
+    pub fn get_output<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyDict>, RecordError> {
+        let dict = PyDict::new(py);
+        match &self.output {
+            Value::Null => {}
+            _ => {
+                json_to_pyobject(py, &self.output, &dict)?;
+            }
+        }
         Ok(dict)
     }
 
@@ -844,6 +862,60 @@ pub type TraceRecords = (
     Vec<TraceBaggageRecord>,
 );
 
+pub trait TraceRecordExt {
+    /// this will convert a vector of KeyValue to a JSON  Array of objects
+    fn keyvalue_to_json_array<T: Serialize>(attributes: &Vec<T>) -> Result<Value, RecordError> {
+        Ok(serde_json::to_value(attributes).unwrap_or(Value::Array(vec![])))
+    }
+
+    fn attributes_to_json_array(attributes: &Vec<KeyValue>) -> Result<Vec<Attribute>, RecordError> {
+        attributes
+            .iter()
+            .map(|kv| {
+                let value = match &kv.value {
+                    Some(v) => otel_value_to_serde_value(v),
+                    None => Value::Null,
+                };
+                Ok(Attribute {
+                    key: kv.key.clone(),
+                    value,
+                })
+            })
+            .collect()
+    }
+
+    fn events_to_json_array(attributes: &Vec<Event>) -> Result<Vec<SpanEvent>, RecordError> {
+        attributes
+            .iter()
+            .map(|kv| {
+                let attributes = Self::attributes_to_json_array(&kv.attributes)?;
+                Ok(SpanEvent {
+                    name: kv.name.clone(),
+                    timestamp: DateTime::<Utc>::from_timestamp_nanos(kv.time_unix_nano as i64),
+                    attributes,
+                    dropped_attributes_count: kv.dropped_attributes_count,
+                })
+            })
+            .collect()
+    }
+
+    /// this will extract tags from span attributes and return a Map
+    fn extract_tags(attributes: &Vec<KeyValue>) -> Result<Value, RecordError> {
+        let mut tags_map = serde_json::Map::new();
+        let pattern = format!("{}.{}", BAGGAGE_PREFIX, SCOUTER_TAG_PREFIX);
+        for attr in attributes {
+            if attr.key.starts_with(&pattern) {
+                if let Some(value) = &attr.value {
+                    if let Some(ProtoAnyValue::StringValue(s)) = &value.value {
+                        tags_map.insert(attr.key.clone(), Value::String(s.clone()));
+                    }
+                }
+            }
+        }
+        Ok(Value::Object(tags_map))
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct TraceServerRecord {
     pub space: String,
@@ -851,6 +923,8 @@ pub struct TraceServerRecord {
     pub version: String,
     pub request: ExportTraceServiceRequest,
 }
+
+impl TraceRecordExt for TraceServerRecord {}
 
 impl TraceServerRecord {
     /// Safely convert OpenTelemetry timestamps to DateTime<Utc> and calculate duration
@@ -914,21 +988,40 @@ impl TraceServerRecord {
             .to_string()
     }
 
+    fn get_trace_tags(span: &Span) -> Option<Value> {
+        let mut tags_map = serde_json::Map::new();
+        let pattern = format!("{}.{}", BAGGAGE_PREFIX, SCOUTER_TAG_PREFIX);
+        for attr in &span.attributes {
+            if attr.key.starts_with(&pattern) {
+                if let Some(value) = &attr.value {
+                    if let Some(ProtoAnyValue::StringValue(s)) = &value.value {
+                        tags_map.insert(attr.key.clone(), Value::String(s.clone()));
+                    }
+                }
+            }
+        }
+        if tags_map.is_empty() {
+            None
+        } else {
+            Some(Value::Object(tags_map))
+        }
+    }
+
     /// Convert to TraceRecord
     #[allow(clippy::too_many_arguments)]
     pub fn convert_to_trace_record(
         &self,
         span: &Span,
         scope_name: &str,
-        scope_attributes: Option<Value>,
+        scope_attributes: &Vec<Attribute>,
         space: &str,
         name: &str,
         version: &str,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         duration_ms: i64,
-    ) -> TraceRecord {
-        TraceRecord {
+    ) -> Result<TraceRecord, RecordError> {
+        Ok(TraceRecord {
             created_at: Self::get_trace_start_time_attribute(span, &start_time),
             trace_id: hex::encode(&span.trace_id),
             space: space.to_owned(),
@@ -946,7 +1039,8 @@ impl TraceServerRecord {
             },
             root_span_id: hex::encode(&span.span_id),
             attributes: scope_attributes.clone(),
-        }
+            tags: Self::extract_tags(&span.attributes)?,
+        })
     }
 
     /// Filter and extract trace start time attribute from span attributes
@@ -1045,7 +1139,7 @@ impl TraceServerRecord {
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         duration_ms: i64,
-    ) -> TraceSpanRecord {
+    ) -> Result<TraceSpanRecord, RecordError> {
         // get parent span id (can be empty)
         let parent_span_id = if !span.parent_span_id.is_empty() {
             Some(hex::encode(&span.parent_span_id))
@@ -1053,7 +1147,9 @@ impl TraceServerRecord {
             None
         };
 
-        TraceSpanRecord {
+        let span_attributes = Self::attributes_to_json_array(&span.attributes)?;
+
+        Ok(TraceSpanRecord {
             created_at: start_time,
             trace_id: hex::encode(&span.trace_id),
             span_id: hex::encode(&span.span_id),
@@ -1077,13 +1173,16 @@ impl TraceServerRecord {
                 .as_ref()
                 .map(|s| s.message.clone())
                 .unwrap_or_default(),
-            attributes: serde_json::to_value(&span.attributes).unwrap_or(Value::Null),
-            events: serde_json::to_value(&span.events).unwrap_or(Value::Null),
-            links: serde_json::to_value(&span.links).unwrap_or(Value::Null),
-        }
+            attributes: span_attributes,
+            events: Self::events_to_json_array(&span.events)?,
+            links: Self::keyvalue_to_json_array(&span.links)?,
+            label: None,
+            input: Value::Null,
+            output: Value::Null,
+        })
     }
 
-    pub fn to_records(&self) -> TraceRecords {
+    pub fn to_records(&self) -> Result<TraceRecords, RecordError> {
         let resource_spans = &self.request.resource_spans;
 
         // Pre-calculate capacity to avoid reallocations
@@ -1111,9 +1210,9 @@ impl TraceServerRecord {
                 let (scope_name, scope_attributes) = match &scope_span.scope {
                     Some(scope) => (
                         scope.name.as_str(),
-                        serde_json::to_value(&scope.attributes).ok(),
+                        &Self::attributes_to_json_array(&scope.attributes)?,
                     ),
-                    None => ("", None),
+                    None => ("", &vec![]),
                 };
 
                 for span in &scope_span.spans {
@@ -1125,14 +1224,14 @@ impl TraceServerRecord {
                     trace_records.push(self.convert_to_trace_record(
                         span,
                         scope_name,
-                        scope_attributes.clone(),
+                        scope_attributes,
                         space,
                         name,
                         version,
                         start_time,
                         end_time,
                         duration_ms,
-                    ));
+                    )?);
 
                     // SpanRecord for insert
                     span_records.push(self.convert_to_span_record(
@@ -1144,7 +1243,7 @@ impl TraceServerRecord {
                         start_time,
                         end_time,
                         duration_ms,
-                    ));
+                    )?);
 
                     // BaggageRecords for insert
                     baggage_records.extend(Self::convert_to_baggage_records(
@@ -1154,7 +1253,7 @@ impl TraceServerRecord {
             }
         }
 
-        (trace_records, span_records, baggage_records)
+        Ok((trace_records, span_records, baggage_records))
     }
 }
 
@@ -1184,4 +1283,52 @@ impl MessageRecord {
             MessageRecord::TraceServerRecord(records) => records.space.clone(),
         }
     }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[pyclass]
+pub struct Attribute {
+    #[pyo3(get)]
+    pub key: String,
+    pub value: Value,
+}
+
+#[pymethods]
+impl Attribute {
+    #[getter]
+    pub fn get_value<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, RecordError> {
+        Ok(json_to_pyobject_value(py, &self.value)?.bind(py).clone())
+    }
+}
+
+impl Attribute {
+    pub fn from_otel_value(key: String, value: &AnyValue) -> Self {
+        Attribute {
+            key,
+            value: otel_value_to_serde_value(value),
+        }
+    }
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[pyclass]
+pub struct SpanEvent {
+    #[pyo3(get)]
+    pub timestamp: chrono::DateTime<Utc>,
+    #[pyo3(get)]
+    pub name: String,
+    #[pyo3(get)]
+    pub attributes: Vec<Attribute>,
+    #[pyo3(get)]
+    pub dropped_attributes_count: u32,
+}
+
+pub struct Tag {
+    pub key: String,
+    pub value: String,
+}
+
+pub struct Baggage {
+    pub key: String,
+    pub value: String,
 }

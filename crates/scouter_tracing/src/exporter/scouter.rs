@@ -29,7 +29,9 @@ impl SpanExporter for ScouterSpanExporter {
         };
         //let message_record = MessageRecord::TraceServerRecord(record);
 
-        let (_traces, _span, _baggage) = record.to_records();
+        let (_traces, _span, _baggage) = record
+            .to_records()
+            .map_err(|e| opentelemetry_sdk::error::OTelSdkError::InternalFailure(e.to_string()))?;
 
         Ok(())
     }
