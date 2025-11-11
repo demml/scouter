@@ -14,7 +14,7 @@ use crate::utils::{
     ActiveSpanInner, FunctionType, SpanKind,
 };
 use chrono::{DateTime, Utc};
-use opentelemetry::baggage::{self, BaggageExt};
+use opentelemetry::baggage::BaggageExt;
 use opentelemetry::trace::Tracer as OTelTracer;
 use opentelemetry::{
     global::{self, BoxedSpan, BoxedTracer},

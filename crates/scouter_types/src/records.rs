@@ -743,6 +743,13 @@ pub struct TraceRecord {
     pub tags: Vec<Tag>,
 }
 
+#[pymethods]
+impl TraceRecord {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[pyclass]
 pub struct TraceSpanRecord {
@@ -839,6 +846,13 @@ pub struct TraceBaggageRecord {
     pub name: String,
     #[pyo3(get)]
     pub version: String,
+}
+
+#[pymethods]
+impl TraceBaggageRecord {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
 }
 
 pub type TraceRecords = (
