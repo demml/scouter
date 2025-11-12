@@ -34,9 +34,11 @@ impl HttpConsumerManager {
                                     MessageHandler::insert_server_records(&db_pool, &records).await
                                 }
                                 MessageRecord::TraceServerRecord(trace_record) => {
-                                    println!("TraceServerRecord received: {:?}", trace_record);
-                                    Ok(())
-                                    //MessageHandler::insert_trace_server_record(&db_pool, &trace_record).await
+                                    MessageHandler::insert_trace_server_record(&db_pool, &trace_record).await
+
+                                }
+                                MessageRecord::TagServerRecord(tag_record) => {
+                                    MessageHandler::insert_tag_record(&db_pool, &tag_record).await
                                 }
                             };
 
@@ -49,6 +51,9 @@ impl HttpConsumerManager {
                                         counter!("records_inserted_from_http_consumer").absolute(server_records.len() as u64);
                                     }
                                     MessageRecord::TraceServerRecord(_) => {
+                                        counter!("records_inserted_from_http_consumer").absolute(1);
+                                    }
+                                    MessageRecord::TagServerRecord(_) => {
                                         counter!("records_inserted_from_http_consumer").absolute(1);
                                     }
                                 }
