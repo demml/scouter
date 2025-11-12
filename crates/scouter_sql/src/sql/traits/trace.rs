@@ -175,11 +175,8 @@ pub trait TraceSqlLogic {
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertTraceBaggage.get_query();
 
-        let (created_at, trace_id, scope, key, value, space, name, version): (
+        let (created_at, trace_id, scope, key, value): (
             Vec<DateTime<Utc>>,
-            Vec<&str>,
-            Vec<&str>,
-            Vec<&str>,
             Vec<&str>,
             Vec<&str>,
             Vec<&str>,
@@ -191,9 +188,6 @@ pub trait TraceSqlLogic {
                 b.scope.as_str(),
                 b.key.as_str(),
                 b.value.as_str(),
-                b.space.as_str(),
-                b.name.as_str(),
-                b.version.as_str(),
             )
         }));
 
@@ -203,9 +197,6 @@ pub trait TraceSqlLogic {
             .bind(scope)
             .bind(key)
             .bind(value)
-            .bind(space)
-            .bind(name)
-            .bind(version)
             .execute(pool)
             .await?;
 

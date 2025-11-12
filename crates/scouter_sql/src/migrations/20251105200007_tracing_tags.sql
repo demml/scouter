@@ -105,7 +105,7 @@ CREATE TABLE IF NOT EXISTS scouter.trace_baggage (
     scope TEXT NOT NULL,
     key TEXT NOT NULL,
     value TEXT NOT NULL,
-    PRIMARY KEY (created_at, trace_id, scope, key),
+    PRIMARY KEY (created_at, trace_id, scope, key)
 ) PARTITION BY RANGE (created_at);
 ;
 
