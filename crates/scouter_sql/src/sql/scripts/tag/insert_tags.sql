@@ -22,6 +22,6 @@ FROM UNNEST(
     entity_type,
     entity_id,
     key,
-    value,
+    value
 )
 ON CONFLICT (created_at, entity_type, entity_id, key) DO NOTHING;

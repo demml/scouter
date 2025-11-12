@@ -1,4 +1,5 @@
 SELECT
+created_at,
 entity_type,
 entity_id,
 key,

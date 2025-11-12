@@ -182,7 +182,7 @@ mod tests {
     use super::*;
     use crate::sql::schema::User;
     use chrono::Utc;
-    use potato_head::create_score_prompt;
+    use potato_head::{create_score_prompt, create_uuid7};
     use rand::Rng;
     use scouter_semver::VersionType;
     use scouter_settings::ObjectStorageSettings;
@@ -1271,5 +1271,39 @@ mod tests {
                 .unwrap();
 
         assert_eq!(retrieved_baggage.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_postgres_tags() {
+        let pool = db_pool().await;
+        let uid = create_uuid7();
+
+        let tag1 = TagRecord {
+            created_at: Utc::now(),
+            entity_id: uid.clone(),
+            entity_type: "service".to_string(),
+            key: "env".to_string(),
+            value: "production".to_string(),
+        };
+
+        let tag2 = TagRecord {
+            created_at: Utc::now(),
+            entity_id: uid.clone(),
+            entity_type: "service".to_string(),
+            key: "team".to_string(),
+            value: "backend".to_string(),
+        };
+
+        let result = PostgresClient::insert_tag_batch(&pool, &[tag1.clone(), tag2.clone()])
+            .await
+            .unwrap();
+
+        assert_eq!(result.rows_affected(), 2);
+
+        let tags = PostgresClient::get_tags(&pool, "service", &uid)
+            .await
+            .unwrap();
+
+        assert_eq!(tags.len(), 2);
     }
 }
