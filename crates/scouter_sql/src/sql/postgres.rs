@@ -1097,6 +1097,23 @@ mod tests {
 
         assert!(spans.len() == filtered_record.span_count.unwrap() as usize);
 
+        let start_time = filtered_record.created_at - chrono::Duration::hours(24);
+        let end_time = filtered_record.created_at + chrono::Duration::minutes(5);
+
         // make request for trace metrics
+        let trace_metrics = PostgresClient::get_trace_metrics(
+            &pool,
+            None,
+            None,
+            None,
+            start_time,
+            end_time,
+            "60 minutes",
+        )
+        .await
+        .unwrap();
+
+        // assert we have data points
+        assert!(trace_metrics.len() >= 10);
     }
 }

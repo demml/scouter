@@ -1,11 +1,11 @@
 SELECT
-    bucket_start as "bucket_start!",
-    trace_count as "trace_count!",
-    avg_duration_ms as "avg_duration_ms!",
-    p50_duration_ms as "p50_duration_ms",
-    p95_duration_ms as "p95_duration_ms",
-    p99_duration_ms as "p99_duration_ms",
-    error_rate as "error_rate!"
+    bucket_start,
+    trace_count,
+    avg_duration_ms,
+    p50_duration_ms,
+    p95_duration_ms,
+    p99_duration_ms,
+    error_rate
 FROM scouter.get_trace_metrics(
     $1, -- p_space: TEXT DEFAULT NULL
     $2, -- p_name: TEXT DEFAULT NULL

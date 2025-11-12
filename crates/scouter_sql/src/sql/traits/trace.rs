@@ -4,7 +4,7 @@ use crate::sql::query::Queries;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::multiunzip;
-use scouter_types::sql::{TraceFilters, TraceListItem, TraceSpan};
+use scouter_types::sql::{TraceFilters, TraceListItem, TraceMetricBucket, TraceSpan};
 use scouter_types::{TraceBaggageRecord, TraceRecord, TraceSpanRecord};
 use sqlx::{postgres::PgQueryResult, types::Json, Pool, Postgres};
 
@@ -280,9 +280,9 @@ pub trait TraceSqlLogic {
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         bucket_interval_str: &str,
-    ) -> Result<Vec<TraceSpan>, SqlError> {
+    ) -> Result<Vec<TraceMetricBucket>, SqlError> {
         let query = Queries::GetTraceMetrics.get_query();
-        let trace_items: Result<Vec<TraceSpan>, SqlError> = sqlx::query_as(&query.sql)
+        let trace_items: Result<Vec<TraceMetricBucket>, SqlError> = sqlx::query_as(&query.sql)
             .bind(space)
             .bind(name)
             .bind(version)

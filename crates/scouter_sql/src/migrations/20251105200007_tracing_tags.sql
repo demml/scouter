@@ -209,8 +209,8 @@ LEFT JOIN (
 LEFT JOIN (
     SELECT
         trace_id,
-        max(start_time) as start_time,
-        min(end_time) as end_time,
+        min(start_time) as start_time,
+        max(end_time) as end_time,
         AVG(duration_ms) as avg_span_duration,
         MAX(duration_ms) as max_span_duration,
         SUM(duration_ms) as total_span_duration
@@ -245,25 +245,28 @@ CREATE OR REPLACE FUNCTION scouter.get_trace_metrics(
 RETURNS TABLE (
     bucket_start TIMESTAMPTZ,
     trace_count BIGINT,
-    avg_duration_ms NUMERIC,
-    p50_duration_ms BIGINT,
-    p95_duration_ms BIGINT,
-    p99_duration_ms BIGINT,
-    error_rate NUMERIC
+    avg_duration_ms FLOAT8,
+    p50_duration_ms FLOAT8,
+    p95_duration_ms FLOAT8,
+    p99_duration_ms FLOAT8,
+    error_rate FLOAT8
 )
 LANGUAGE SQL
 STABLE
 AS $$
     SELECT
-        date_trunc(EXTRACT(EPOCH FROM p_bucket_interval)::text || ' seconds', ts.start_time) as bucket_start,
+        date_bin(
+            p_bucket_interval,
+            ts.start_time,
+            '2000-01-01 00:00:00'::TIMESTAMPTZ
+        ) as bucket_start,
         COUNT(*) as trace_count,
-        ROUND(AVG(ts.duration_ms), 2) as avg_duration_ms,
+        AVG(ts.duration_ms) as avg_duration_ms,
         PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY ts.duration_ms) as p50_duration_ms,
         PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ts.duration_ms) as p95_duration_ms,
         PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY ts.duration_ms) as p99_duration_ms,
-        ROUND(
-            COUNT(*) FILTER (WHERE ts.has_errors = true) * 100.0 / COUNT(*),
-            2
+        (
+            COUNT(*) FILTER (WHERE ts.has_errors = true) * 100.0 / COUNT(*)
         ) as error_rate
     FROM scouter.trace_summary ts
     WHERE
