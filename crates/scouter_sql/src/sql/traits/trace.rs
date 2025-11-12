@@ -4,9 +4,8 @@ use crate::sql::query::Queries;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::multiunzip;
-use scouter_types::sql::TraceFilters;
-use scouter_types::sql::TraceListItem;
-use scouter_types::{TraceBaggageRecord, TraceRecord, TraceSpan, TraceSpanRecord};
+use scouter_types::sql::{TraceFilters, TraceListItem, TraceSpan};
+use scouter_types::{TraceBaggageRecord, TraceRecord, TraceSpanRecord};
 use sqlx::{postgres::PgQueryResult, types::Json, Pool, Postgres};
 
 #[async_trait]
