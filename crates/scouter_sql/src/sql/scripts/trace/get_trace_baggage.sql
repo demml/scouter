@@ -1,0 +1,1 @@
+SELECT * FROM trace_baggage WHERE trace_id = $1;

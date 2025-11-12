@@ -169,7 +169,7 @@ pub trait TraceSqlLogic {
     /// # Arguments
     /// * `pool` - The database connection pool
     /// * `baggage` - The trace baggage records to insert
-    async fn insert_baggage_batch(
+    async fn insert_trace_baggage_batch(
         pool: &Pool<Postgres>,
         baggage: &[TraceBaggageRecord],
     ) -> Result<PgQueryResult, SqlError> {
@@ -210,6 +210,21 @@ pub trait TraceSqlLogic {
             .await?;
 
         Ok(query_result)
+    }
+
+    async fn get_trace_baggage_records(
+        pool: &Pool<Postgres>,
+        trace_id: &str,
+    ) -> Result<Vec<TraceBaggageRecord>, SqlError> {
+        let query = Queries::GetTraceBaggage.get_query();
+
+        let baggage_items: Result<Vec<TraceBaggageRecord>, SqlError> = sqlx::query_as(&query.sql)
+            .bind(trace_id)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError);
+
+        baggage_items
     }
 
     /// Attempts to retrieve paginated trace records from the database based on provided filters.

@@ -1250,5 +1250,21 @@ mod tests {
         let retrieved_trace = &traces[0];
         // assert span count is 2
         assert_eq!(retrieved_trace.span_count.unwrap(), 2);
+
+        let mut baggage = TraceBaggageRecord::default();
+        baggage.trace_id = trace_record.trace_id.clone();
+
+        let result = PostgresClient::insert_trace_baggage_batch(&pool, &[baggage.clone()])
+            .await
+            .unwrap();
+
+        assert_eq!(result.rows_affected(), 1);
+
+        let retrieved_baggage =
+            PostgresClient::get_trace_baggage_records(&pool, &trace_record.trace_id)
+                .await
+                .unwrap();
+
+        assert_eq!(retrieved_baggage.len(), 1);
     }
 }
