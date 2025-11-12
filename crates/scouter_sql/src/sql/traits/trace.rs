@@ -214,6 +214,13 @@ pub trait TraceSqlLogic {
         Ok(query_result)
     }
 
+
+    /// Attempts to retrieve paginated trace records from the database based on provided filters.
+    /// # Arguments
+    /// * `pool` - The database connection pool
+    /// * `filters` - The filters to apply for retrieving traces
+    /// # Returns
+    /// * A vector of `TraceListItem` matching the filters
     async fn get_traces_paginated(
         pool: &Pool<Postgres>,
         filters: TraceFilters,
@@ -241,4 +248,24 @@ pub trait TraceSqlLogic {
 
         trace_items
     }
+
+    /// Attempts to retrieve trace spans for a given trace ID.
+    /// # Arguments
+    /// * `pool` - The database connection pool
+    /// * `trace_id` - The trace ID to retrieve spans for
+    /// # Returns
+    /// * A vector of `TraceSpan` associated with the trace ID
+    async fn get_trace_spans(
+        pool: &Pool<Postgres>,
+        trace_id: &str,
+    ) -> Result<Vec<TraceSpan>, SqlError> {
+        let query = Queries::GetTraceSpans.get_query();
+        let trace_items: Result<Vec<TraceSpan>, SqlError> = sqlx::query_as(&query.sql)
+            .bind(trace_id)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError);
+
+        trace_items
+    };
 }
