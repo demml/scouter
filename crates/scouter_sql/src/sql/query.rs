@@ -101,6 +101,8 @@ const DELETE_USER: &str = include_str!("scripts/user/delete_user.sql");
 const UPSERT_TRACE: &str = include_str!("scripts/trace/upsert_trace.sql");
 const INSERT_TRACE_SPAN: &str = include_str!("scripts/trace/insert_span.sql");
 const INSERT_TRACE_BAGGAGE: &str = include_str!("scripts/trace/insert_baggage.sql");
+const GET_PAGINATED_TRACES: &str = include_str!("scripts/trace/get_paginated_traces.sql");
+const GET_TRACE_SPANS: &str = include_str!("scripts/trace/get_trace_spans.sql");
 
 // tags
 const INSERT_TAG: &str = include_str!("scripts/tag/insert_tags.sql");
@@ -184,6 +186,8 @@ pub enum Queries {
     UpsertTrace,
     InsertTraceSpan,
     InsertTraceBaggage,
+    GetPaginatedTraces,
+    GetTraceSpans,
 
     // tags
     InsertTag,
@@ -268,6 +272,8 @@ impl Queries {
             Queries::UpsertTrace => SqlQuery::new(UPSERT_TRACE),
             Queries::InsertTraceSpan => SqlQuery::new(INSERT_TRACE_SPAN),
             Queries::InsertTraceBaggage => SqlQuery::new(INSERT_TRACE_BAGGAGE),
+            Queries::GetPaginatedTraces => SqlQuery::new(GET_PAGINATED_TRACES),
+            Queries::GetTraceSpans => SqlQuery::new(GET_TRACE_SPANS),
             // tags
             Queries::InsertTag => SqlQuery::new(INSERT_TAG),
             Queries::GetTags => SqlQuery::new(GET_TAGS),

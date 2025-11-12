@@ -4,6 +4,8 @@ use crate::sql::query::Queries;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::multiunzip;
+use scouter_types::sql::TraceFilters;
+use scouter_types::sql::TraceListItem;
 use scouter_types::{TraceBaggageRecord, TraceRecord, TraceSpanRecord};
 use sqlx::{postgres::PgQueryResult, types::Json, Pool, Postgres};
 use std::result::Result::Ok;
@@ -210,5 +212,31 @@ pub trait TraceSqlLogic {
             .await?;
 
         Ok(query_result)
+    }
+
+    async fn get_traces_paginated(
+        pool: &Pool<Postgres>,
+        filters: TraceFilters,
+    ) -> Result<Vec<TraceListItem>, sqlx::Error> {
+        let default_start = Utc::now() - chrono::Duration::hours(24);
+        let default_end = Utc::now();
+
+        sqlx::query_as!(
+            TraceListItem,
+            include_str!("sql/scripts/trace/get_traces_paginated.sql"),
+            filters.space,
+            filters.name,
+            filters.version,
+            filters.service_name,
+            filters.has_errors,
+            filters.status,
+            filters.start_time.unwrap_or(default_start),
+            filters.end_time.unwrap_or(default_end),
+            filters.limit.unwrap_or(50),
+            filters.cursor_created_at,
+            filters.cursor_trace_id
+        )
+        .fetch_all(pool)
+        .await
     }
 }
