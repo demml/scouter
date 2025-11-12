@@ -43,7 +43,7 @@ pub struct TraceSpan {
     pub depth: i32,
     pub path: Vec<String>,
     pub root_span_id: String,
-    pub span_order: i64,
+    pub span_order: i32,
 }
 
 #[cfg(feature = "server")]
@@ -78,7 +78,7 @@ impl FromRow<'_, PgRow> for TraceSpan {
     }
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct TraceFilters {
     pub space: Option<String>,
     pub name: Option<String>,

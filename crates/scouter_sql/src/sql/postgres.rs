@@ -189,6 +189,7 @@ mod tests {
     use scouter_types::llm::PaginationRequest;
     use scouter_types::psi::{Bin, BinType, PsiDriftConfig, PsiFeatureDriftProfile};
     use scouter_types::spc::SpcDriftProfile;
+    use scouter_types::sql::TraceFilters;
     use scouter_types::*;
     use serde_json::Value;
     use sqlx::postgres::PgQueryResult;
@@ -238,13 +239,13 @@ mod tests {
             FROM scouter.llm_drift;
 
             DELETE
-            FROM scouter.traces;
-
-            DELETE
             FROM scouter.spans;
 
             DELETE
             FROM scouter.trace_baggage;
+
+            DELETE
+            FROM scouter.traces;
 
             DELETE
             FROM scouter.tags;
@@ -1041,5 +1042,61 @@ mod tests {
         let pool = db_pool().await;
         let script = std::fs::read_to_string("src/tests/script/populate_trace.sql").unwrap();
         sqlx::query(&script).execute(&pool).await.unwrap();
+        let mut filters = TraceFilters::default();
+
+        let first_batch = PostgresClient::get_traces_paginated(&pool, filters.clone())
+            .await
+            .unwrap();
+
+        assert_eq!(first_batch.len(), 50, "First batch should have 50 records");
+
+        // test pagination (get last record created_at and trace_id)
+        let last_record = first_batch.last().unwrap();
+        filters = filters.with_cursor(last_record.created_at, last_record.trace_id.clone());
+
+        let next_batch = PostgresClient::get_traces_paginated(&pool, filters.clone())
+            .await
+            .unwrap();
+
+        // should be another 50 records
+        assert_eq!(next_batch.len(), 50, "Next batch should have 50 records");
+
+        // assert next_batch first record timestamp is <= first_batch last record timestamp
+        let next_first_record = next_batch.first().unwrap();
+        assert!(
+            next_first_record.created_at <= last_record.created_at,
+            "Next batch first record timestamp is not less than or equal to last record timestamp"
+        );
+
+        // Filter records to find item with >5 spans
+        let filtered_record = first_batch
+            .iter()
+            .find(|record| record.span_count > Some(5))
+            .unwrap();
+
+        filters.cursor_created_at = None;
+        filters.cursor_trace_id = None;
+        filters.space = Some(filtered_record.space.clone());
+        filters.name = Some(filtered_record.name.clone());
+        filters.version = Some(filtered_record.version.clone());
+
+        let records = PostgresClient::get_traces_paginated(&pool, filters.clone())
+            .await
+            .unwrap();
+
+        // Records are randomly generated, so just assert we get some records back
+        assert!(
+            records.len() > 0,
+            "Should return records with specified filters"
+        );
+
+        // get spans for filtered trace
+        let spans = PostgresClient::get_trace_spans(&pool, &filtered_record.trace_id)
+            .await
+            .unwrap();
+
+        assert!(spans.len() == filtered_record.span_count.unwrap() as usize);
+
+        // make same request but specify space, name, version
     }
 }
