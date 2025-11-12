@@ -5,6 +5,8 @@ pub mod health;
 pub mod message;
 pub mod observability;
 pub mod profile;
+pub mod tags;
+pub mod trace;
 pub mod user;
 
 pub use alerts::get_alert_router;

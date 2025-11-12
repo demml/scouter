@@ -544,3 +544,24 @@ impl BinnedMetrics {
         BinnedMetrics { metrics: mapped }
     }
 }
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TagRequest {
+    pub entity_type: String,
+    pub entity_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TraceRequest {
+    pub trace_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TraceMetricsRequest {
+    pub space: Option<String>,
+    pub name: Option<String>,
+    pub version: Option<String>,
+    pub start_time: DateTime<Utc>,
+    pub end_time: DateTime<Utc>,
+    pub bucket_interval: String,
+}
