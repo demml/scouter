@@ -217,26 +217,28 @@ pub trait TraceSqlLogic {
     async fn get_traces_paginated(
         pool: &Pool<Postgres>,
         filters: TraceFilters,
-    ) -> Result<Vec<TraceListItem>, sqlx::Error> {
+    ) -> Result<Vec<TraceListItem>, SqlError> {
         let default_start = Utc::now() - chrono::Duration::hours(24);
         let default_end = Utc::now();
 
-        sqlx::query_as!(
-            TraceListItem,
-            include_str!("sql/scripts/trace/get_traces_paginated.sql"),
-            filters.space,
-            filters.name,
-            filters.version,
-            filters.service_name,
-            filters.has_errors,
-            filters.status,
-            filters.start_time.unwrap_or(default_start),
-            filters.end_time.unwrap_or(default_end),
-            filters.limit.unwrap_or(50),
-            filters.cursor_created_at,
-            filters.cursor_trace_id
-        )
-        .fetch_all(pool)
-        .await
+        let query = Queries::GetPaginatedTraces.get_query();
+
+        let trace_items: Result<Vec<TraceListItem>, SqlError> = sqlx::query_as(&query.sql)
+            .bind(filters.space)
+            .bind(filters.name)
+            .bind(filters.version)
+            .bind(filters.service_name)
+            .bind(filters.has_errors)
+            .bind(filters.status)
+            .bind(filters.start_time.unwrap_or(default_start))
+            .bind(filters.end_time.unwrap_or(default_end))
+            .bind(filters.limit.unwrap_or(50))
+            .bind(filters.cursor_created_at)
+            .bind(filters.cursor_trace_id)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError);
+
+        trace_items
     }
 }
