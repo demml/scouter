@@ -1,3 +1,5 @@
+pub mod sql;
+
 use crate::error::RecordError;
 use crate::otel_value_to_serde_value;
 use crate::PyHelperFuncs;
