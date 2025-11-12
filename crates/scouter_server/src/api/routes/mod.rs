@@ -16,4 +16,5 @@ pub use health::get_health_router;
 pub use message::get_message_router;
 pub use observability::get_observability_router;
 pub use profile::get_profile_router;
+pub use tags::get_tag_router;
 pub use user::get_user_router;

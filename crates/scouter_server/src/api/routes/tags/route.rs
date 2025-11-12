@@ -7,11 +7,11 @@ use axum::{
     routing::get,
     Json, Router,
 };
-use scouter_sql::sql::traits::AlertSqlLogic;
+use scouter_sql::sql::traits::TagSqlLogic;
 use scouter_sql::PostgresClient;
-use scouter_types::alert::Alerts;
-use scouter_types::contracts::{
-    DriftAlertRequest, ScouterServerError, UpdateAlertResponse, UpdateAlertStatus,
+use scouter_types::TagRequest;
+use scouter_types::{
+    contracts::ScouterServerError, InsertTagRequest, ScouterResponse, TagsResponse,
 };
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
@@ -19,64 +19,51 @@ use tracing::error;
 
 pub async fn get_tags(
     State(data): State<Arc<AppState>>,
-    Query(params): Query<DriftAlertRequest>,
-) -> Result<Json<Alerts>, (StatusCode, Json<ScouterServerError>)> {
-    let alerts = PostgresClient::get_drift_alerts(&data.db_pool, &params)
+    Query(params): Query<TagRequest>,
+) -> Result<Json<TagsResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let tags = PostgresClient::get_tags(&data.db_pool, &params.entity_type, &params.entity_id)
         .await
         .map_err(|e| {
-            error!("Failed to query drift alerts: {:?}", e);
+            error!("Failed to query tags: {:?}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::query_alerts_error(e)),
+                Json(ScouterServerError::query_tags_error(e)),
             )
         })?;
 
-    Ok(Json(Alerts {
-        alerts: alerts.clone(),
+    Ok(Json(TagsResponse { tags }))
+}
+
+pub async fn insert_tags(
+    State(data): State<Arc<AppState>>,
+    Json(body): Json<InsertTagRequest>,
+) -> Result<Json<ScouterResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let tags = PostgresClient::insert_tag_batch(&data.db_pool, &body.tags)
+        .await
+        .map_err(|e| {
+            error!("Failed to insert tags: {:?}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::insert_tags_error(e)),
+            )
+        })?;
+
+    Ok(Json(ScouterResponse {
+        status: "success".to_string(),
+        message: format!("Inserted {} tags", tags.rows_affected()),
     }))
 }
 
-pub async fn update_alert_status(
-    State(data): State<Arc<AppState>>,
-    Json(body): Json<UpdateAlertStatus>,
-) -> Result<Json<UpdateAlertResponse>, (StatusCode, Json<ScouterServerError>)> {
-    let query_result = PostgresClient::update_drift_alert_status(&data.db_pool, &body)
-        .await
-        .map_err(|e| {
-            error!("Failed to update drift alert status: {:?}", e);
-            (
-                StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::new(format!(
-                    "Failed to update drift alert status: {e:?}"
-                ))),
-            )
-        })?;
-
-    if query_result.active == body.active {
-        Ok(Json(UpdateAlertResponse { updated: true }))
-    } else {
-        Err((
-            StatusCode::BAD_REQUEST,
-            Json(ScouterServerError::new(format!(
-                "Failed to update drift alert status: {query_result:?}"
-            ))),
-        ))
-    }
-}
-
-pub async fn get_alert_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
+pub async fn get_tag_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
     let result = catch_unwind(AssertUnwindSafe(|| {
-        Router::new().route(
-            &format!("{prefix}/alerts"),
-            get(get_drift_alerts).put(update_alert_status),
-        )
+        Router::new().route(&format!("{prefix}/tags"), get(get_tags).post(insert_tags))
     }));
 
     match result {
         Ok(router) => Ok(router),
         Err(_) => {
             // panic
-            Err(anyhow::anyhow!("Failed to create drift router"))
+            Err(anyhow::anyhow!("Failed to create tag router"))
                 .context("Panic occurred while creating the router")
         }
     }

@@ -430,6 +430,15 @@ impl ScouterServerError {
         let msg = format!("Failed to query profile: {e}");
         ScouterServerError { error: msg }
     }
+    pub fn query_tags_error<T: Display>(e: T) -> Self {
+        let msg = format!("Failed to query tags: {e}");
+        ScouterServerError { error: msg }
+    }
+
+    pub fn insert_tags_error<T: Display>(e: T) -> Self {
+        let msg = format!("Failed to insert tags: {e}");
+        ScouterServerError { error: msg }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -550,6 +559,11 @@ impl BinnedMetrics {
 pub struct TagRequest {
     pub entity_type: String,
     pub entity_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct InsertTagRequest {
+    pub tags: Vec<TagRecord>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
