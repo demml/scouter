@@ -19,7 +19,7 @@ use scouter_sql::PostgresClient;
 use scouter_types::JwtToken;
 use scouter_types::{
     llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile},
-    AlertThreshold, CustomMetricServerRecord, LLMMetricRecord, PsiServerRecord,
+    AlertThreshold, CustomMetricServerRecord, LLMMetricRecord, MessageRecord, PsiServerRecord,
 };
 use scouter_types::{
     BoxedLLMDriftServerRecord, LLMDriftServerRecord, ServerRecord, ServerRecords, SpcServerRecord,
@@ -175,7 +175,7 @@ impl TestHelper {
         (array, features)
     }
 
-    pub fn get_spc_drift_records(&self, time_offset: Option<i64>) -> ServerRecords {
+    pub fn get_spc_drift_records(&self, time_offset: Option<i64>) -> MessageRecord {
         let mut records: Vec<ServerRecord> = Vec::new();
         let offset = time_offset.unwrap_or(0);
 
@@ -194,10 +194,10 @@ impl TestHelper {
             }
         }
 
-        ServerRecords::new(records)
+        MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub fn get_psi_drift_records(&self, time_offset: Option<i64>) -> ServerRecords {
+    pub fn get_psi_drift_records(&self, time_offset: Option<i64>) -> MessageRecord {
         let mut records: Vec<ServerRecord> = Vec::new();
         let offset = time_offset.unwrap_or(0);
 
@@ -219,10 +219,10 @@ impl TestHelper {
                 }
             }
         }
-        ServerRecords::new(records)
+        MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub fn get_custom_drift_records(&self, time_offset: Option<i64>) -> ServerRecords {
+    pub fn get_custom_drift_records(&self, time_offset: Option<i64>) -> MessageRecord {
         let mut records: Vec<ServerRecord> = Vec::new();
         let offset = time_offset.unwrap_or(0);
         for i in 0..2 {
@@ -240,10 +240,10 @@ impl TestHelper {
             }
         }
 
-        ServerRecords::new(records)
+        MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub fn get_llm_drift_records(&self, time_offset: Option<i64>) -> ServerRecords {
+    pub fn get_llm_drift_records(&self, time_offset: Option<i64>) -> MessageRecord {
         let mut records: Vec<ServerRecord> = Vec::new();
         let offset = time_offset.unwrap_or(0);
         let prompt = create_score_prompt(None);
@@ -276,10 +276,10 @@ impl TestHelper {
             }
         }
 
-        ServerRecords::new(records)
+        MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub fn get_llm_drift_metrics(&self, time_offset: Option<i64>) -> ServerRecords {
+    pub fn get_llm_drift_metrics(&self, time_offset: Option<i64>) -> MessageRecord {
         let mut records: Vec<ServerRecord> = Vec::new();
         let offset = time_offset.unwrap_or(0);
 
@@ -299,7 +299,7 @@ impl TestHelper {
             }
         }
 
-        ServerRecords::new(records)
+        MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
     pub async fn create_llm_drift_profile() -> LLMDriftProfile {
