@@ -50,12 +50,10 @@ impl HttpConsumerManager {
                                     MessageRecord::ServerRecords(server_records) => {
                                         counter!("records_inserted_from_http_consumer").absolute(server_records.len() as u64);
                                     }
-                                    MessageRecord::TraceServerRecord(_) => {
+                                    MessageRecord::TraceServerRecord(_) | MessageRecord::TagServerRecord(_) => {
                                         counter!("records_inserted_from_http_consumer").absolute(1);
                                     }
-                                    MessageRecord::TagServerRecord(_) => {
-                                        counter!("records_inserted_from_http_consumer").absolute(1);
-                                    }
+
                                 }
                                 counter!("messages_processed_from_http_consumer").increment(1);
                             }
