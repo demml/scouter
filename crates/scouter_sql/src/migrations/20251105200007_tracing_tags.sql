@@ -178,9 +178,9 @@ SELECT
     t.name,
     t.version,
     t.scope,
-    t.start_time,
-    t.end_time,
-    t.duration_ms,
+    span_stats.start_time,
+    span_stats.end_time,
+    EXTRACT(EPOCH FROM (span_stats.end_time - span_stats.start_time)) * 1000 AS duration_ms,
     t.status,
     t.span_count,
     t.created_at,
@@ -209,8 +209,11 @@ LEFT JOIN (
 LEFT JOIN (
     SELECT
         trace_id,
+        max(start_time) as start_time,
+        min(end_time) as end_time,
         AVG(duration_ms) as avg_span_duration,
-        MAX(duration_ms) as max_span_duration
+        MAX(duration_ms) as max_span_duration,
+        SUM(duration_ms) as total_span_duration
     FROM scouter.spans
     WHERE duration_ms IS NOT NULL
     AND created_at >= NOW() - INTERVAL '7 days'

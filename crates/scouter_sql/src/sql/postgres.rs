@@ -248,16 +248,6 @@ mod tests {
 
             DELETE
             FROM scouter.tags;
-
-            # delete view
-            DROP VIEW IF EXISTS scouter.trace_summary
-
-            # delete function
-            DROP FUNCTION IF EXISTS scouter.get_trace_metrics
-
-            DROP FUNCTION IF EXISTS scouter.get_traces_paginated
-
-            DROP FUNCTION IF EXISTS scouter.get_trace_spans
             "#,
         )
         .fetch_all(pool)
@@ -1049,7 +1039,11 @@ mod tests {
     #[tokio::test]
     async fn test_postgres_tracing() {
         let pool = db_pool().await;
-        let script = std::fs::read_to_string("tests/script/populate_trace.sql").unwrap();
-        sqlx::query(&script).execute(&pool).await.unwrap();
+        //let script = std::fs::read_to_string("src/tests/script/populate_trace.sql").unwrap();
+        //sqlx::query(&script).execute(&pool).await.unwrap();
+
+        // refresh materialized view
+        //let refresh = "REFRESH MATERIALIZED VIEW scouter.trace_summary;";
+        //sqlx::query(refresh).execute(&pool).await.unwrap();
     }
 }

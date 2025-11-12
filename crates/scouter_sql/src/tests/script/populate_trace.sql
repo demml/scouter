@@ -27,6 +27,9 @@ DECLARE
     i INTEGER;
     j INTEGER;
     k INTEGER;
+	v_baggage_created_at TIMESTAMPTZ;
+	v_baggage_sequence INTEGER := 0;
+	
     
     -- Trace variables
     v_trace_id TEXT;
@@ -58,6 +61,7 @@ BEGIN
         
         -- Random timestamp within the last week
         v_current_time := v_base_time + (RANDOM() * INTERVAL '7 days');
+		v_baggage_sequence := 0;
         
         -- Select random service and operation
         v_service_name := v_services[1 + (RANDOM() * (array_length(v_services, 1) - 1))::INTEGER];
@@ -260,10 +264,15 @@ BEGIN
                     );
                 END LOOP;
             END IF;
-            
+
             -- Generate baggage for some spans (30% chance)
             IF RANDOM() < 0.3 THEN
                 FOR k IN 1..(1 + (RANDOM() * 3)::INTEGER) LOOP
+                    
+                    -- Increment sequence and add 200ms per baggage entry
+                    v_baggage_sequence := v_baggage_sequence + 1;
+                    v_baggage_created_at := v_current_time + (v_baggage_sequence * INTERVAL '200 milliseconds');
+
                     INSERT INTO scouter.trace_baggage (
                         trace_id, scope, key, value, space, name, version, created_at
                     ) VALUES (
@@ -284,12 +293,11 @@ BEGIN
                         'production',
                         v_service_name,
                         'v1.0.0',
-                        v_current_time
+                        v_baggage_created_at
                     );
                 END LOOP;
             END IF;
         END LOOP;
-        
         -- Progress indicator
         IF i % 100 = 0 THEN
             RAISE NOTICE 'Generated % traces...', i;
