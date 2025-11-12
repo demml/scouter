@@ -163,12 +163,6 @@ pub struct TraceBaggageRecord {
     pub key: String,
     #[pyo3(get)]
     pub value: String,
-    #[pyo3(get)]
-    pub space: String,
-    #[pyo3(get)]
-    pub name: String,
-    #[pyo3(get)]
-    pub version: String,
 }
 
 #[pymethods]
@@ -425,9 +419,6 @@ impl TraceServerRecord {
         trace_id: &str,
         attributes: &Vec<Attribute>,
         scope_name: &str,
-        space: &str,
-        name: &str,
-        version: &str,
     ) -> Vec<TraceBaggageRecord> {
         let baggage_kvs: Vec<(String, String)> = attributes
             .iter()
@@ -467,9 +458,6 @@ impl TraceServerRecord {
                 created_at: Self::get_trace_start_time_attribute(attributes, &Utc::now()),
                 trace_id: trace_id.to_string(),
                 scope: scope_name.to_string(),
-                space: space.to_owned(),
-                name: name.to_owned(),
-                version: version.to_owned(),
                 key,
                 value,
             })
@@ -603,9 +591,6 @@ impl TraceServerRecord {
                         &trace_id,
                         &attributes,
                         scope_name,
-                        space,
-                        name,
-                        version,
                     ));
                 }
             }

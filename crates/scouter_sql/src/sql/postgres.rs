@@ -1251,8 +1251,13 @@ mod tests {
         // assert span count is 2
         assert_eq!(retrieved_trace.span_count.unwrap(), 2);
 
-        let mut baggage = TraceBaggageRecord::default();
-        baggage.trace_id = trace_record.trace_id.clone();
+        let baggage = TraceBaggageRecord {
+            created_at: Utc::now(),
+            trace_id: trace_record.trace_id.clone(),
+            scope: "test_scope".to_string(),
+            key: "user_id".to_string(),
+            value: "12345".to_string(),
+        };
 
         let result = PostgresClient::insert_trace_baggage_batch(&pool, &[baggage.clone()])
             .await

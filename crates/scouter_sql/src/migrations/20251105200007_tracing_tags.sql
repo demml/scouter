@@ -105,15 +105,9 @@ CREATE TABLE IF NOT EXISTS scouter.trace_baggage (
     scope TEXT NOT NULL,
     key TEXT NOT NULL,
     value TEXT NOT NULL,
-    space TEXT NOT NULL,
-    name TEXT NOT NULL,
-    version TEXT NOT NULL,
     PRIMARY KEY (created_at, trace_id, scope, key),
-    UNIQUE (created_at, trace_id, key, space, name, version)
 ) PARTITION BY RANGE (created_at);
-
-CREATE INDEX idx_baggage_entity_lookup
-ON scouter.trace_baggage (space, name, version, created_at DESC);
+;
 
 CREATE INDEX idx_baggage_key_lookup
 ON scouter.trace_baggage (key, created_at DESC);
