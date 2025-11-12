@@ -1,11 +1,11 @@
+use crate::sql::error::SqlError;
 use crate::sql::traits::{
     AlertSqlLogic, ArchiveSqlLogic, CustomMetricSqlLogic, LLMDriftSqlLogic, ObservabilitySqlLogic,
     ProfileSqlLogic, PsiSqlLogic, SpcSqlLogic, TagSqlLogic, TraceSqlLogic, UserSqlLogic,
 };
-
-use crate::sql::error::SqlError;
 use scouter_settings::DatabaseSettings;
-use scouter_types::{RecordType, ServerRecords, ToDriftRecords};
+use scouter_types::{RecordType, ServerRecords, TagRecord, ToDriftRecords, TraceServerRecord};
+use tokio::try_join;
 
 use sqlx::ConnectOptions;
 use sqlx::{postgres::PgConnectOptions, Pool, Postgres};
@@ -168,6 +168,69 @@ impl MessageHandler {
                 return Err(SqlError::UnsupportedBatchTypeError);
             }
         }
+
+        Ok(())
+    }
+
+    pub async fn insert_trace_server_record(
+        pool: &Pool<Postgres>,
+        records: &TraceServerRecord,
+    ) -> Result<(), SqlError> {
+        let (trace_batch, span_batch, baggage_batch) = records.to_records()?;
+
+        let all_tags: Vec<TagRecord> = trace_batch
+            .iter()
+            .flat_map(|trace| {
+                trace.tags.iter().map(|tag| TagRecord {
+                    created_at: trace.created_at,
+                    entity_type: "trace".to_string(),
+                    entity_id: trace.trace_id.clone(),
+                    key: tag.key.clone(),
+                    value: tag.value.clone(),
+                })
+            })
+            .collect();
+
+        let (trace_result, span_result, baggage_result, tag_result) = try_join!(
+            PostgresClient::upsert_trace_batch(pool, &trace_batch),
+            PostgresClient::insert_span_batch(pool, &span_batch),
+            PostgresClient::insert_trace_baggage_batch(pool, &baggage_batch),
+            async {
+                if !all_tags.is_empty() {
+                    PostgresClient::insert_tag_batch(pool, &all_tags).await
+                } else {
+                    Ok(sqlx::postgres::PgQueryResult::default())
+                }
+            }
+        )?;
+
+        debug!(
+            trace_rows = trace_result.rows_affected(),
+            span_rows = span_result.rows_affected(),
+            baggage_rows = baggage_result.rows_affected(),
+            tag_rows = tag_result.rows_affected(),
+            total_traces = trace_batch.len(),
+            total_spans = span_batch.len(),
+            total_baggage = baggage_batch.len(),
+            total_tags = all_tags.len(),
+            "Successfully inserted trace server records"
+        );
+        Ok(())
+    }
+
+    pub async fn insert_tag_record(
+        pool: &Pool<Postgres>,
+        record: &TagRecord,
+    ) -> Result<(), SqlError> {
+        let result = PostgresClient::insert_tag_batch(pool, &[record.clone()]).await?;
+
+        debug!(
+            rows_affected = result.rows_affected(),
+            entity_type = record.entity_type.as_str(),
+            entity_id = record.entity_id.as_str(),
+            key = record.key.as_str(),
+            "Successfully inserted tag record"
+        );
 
         Ok(())
     }

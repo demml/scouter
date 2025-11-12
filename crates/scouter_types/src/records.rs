@@ -2,6 +2,7 @@ use crate::error::RecordError;
 use crate::trace::TraceServerRecord;
 use crate::PyHelperFuncs;
 use crate::Status;
+use crate::TagRecord;
 use chrono::DateTime;
 use chrono::Utc;
 use pyo3::prelude::*;
@@ -690,6 +691,7 @@ fn extract_records<T>(
 pub enum MessageType {
     Server,
     Trace,
+    Tag,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -697,6 +699,7 @@ pub enum MessageType {
 pub enum MessageRecord {
     ServerRecords(ServerRecords),
     TraceServerRecord(TraceServerRecord),
+    TagServerRecord(TagRecord),
 }
 
 impl MessageRecord {
@@ -704,6 +707,7 @@ impl MessageRecord {
         match self {
             MessageRecord::ServerRecords(_) => MessageType::Server,
             MessageRecord::TraceServerRecord(_) => MessageType::Trace,
+            MessageRecord::TagServerRecord(_) => MessageType::Tag,
         }
     }
 
@@ -711,6 +715,7 @@ impl MessageRecord {
         match self {
             MessageRecord::ServerRecords(records) => records.space(),
             MessageRecord::TraceServerRecord(records) => records.space.clone(),
+            _ => "__missing__".to_string(),
         }
     }
 }
