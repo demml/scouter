@@ -18,7 +18,7 @@ pub trait TraceSqlLogic {
     /// * `traces` - The trace records to insert
     async fn upsert_trace_batch(
         pool: &Pool<Postgres>,
-        traces: &Vec<TraceRecord>,
+        traces: &[TraceRecord],
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::UpsertTrace.get_query();
         let capacity = traces.len();
@@ -82,7 +82,7 @@ pub trait TraceSqlLogic {
     /// * `spans` - The trace span records to insert
     async fn insert_span_batch(
         pool: &Pool<Postgres>,
-        spans: &Vec<TraceSpanRecord>,
+        spans: &[TraceSpanRecord],
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertTraceSpan.get_query();
         let capacity = spans.len();
@@ -152,12 +152,12 @@ pub trait TraceSqlLogic {
             .bind(duration_ms)
             .bind(status_code)
             .bind(status_message)
-            .bind(Json(attributes))
-            .bind(Json(events))
-            .bind(Json(links))
+            .bind(attributes)
+            .bind(events)
+            .bind(links)
             .bind(labels)
-            .bind(Json(input))
-            .bind(Json(output))
+            .bind(input)
+            .bind(output)
             .execute(pool)
             .await?;
 

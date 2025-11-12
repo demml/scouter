@@ -18,7 +18,6 @@ CREATE TABLE IF NOT EXISTS scouter.traces (
     span_count INTEGER DEFAULT 0,
     attributes JSONB DEFAULT '[]',
     archived BOOLEAN DEFAULT FALSE,
-
     PRIMARY KEY (created_at, trace_id, scope),
     UNIQUE (created_at, trace_id, space, name, version)
 ) PARTITION BY RANGE (created_at);
@@ -72,9 +71,7 @@ CREATE TABLE IF NOT EXISTS scouter.spans (
     output JSONB,
     label TEXT,
     archived BOOLEAN DEFAULT FALSE,
-    PRIMARY KEY (created_at, trace_id, span_id),
-    FOREIGN KEY (created_at, trace_id, scope)
-        REFERENCES scouter.traces (created_at, trace_id, scope)
+    PRIMARY KEY (created_at, trace_id, span_id)
 ) PARTITION BY RANGE (created_at);
 
 CREATE INDEX idx_spans_trace_hierarchy
@@ -94,7 +91,7 @@ ON scouter.spans (span_name, span_kind, duration_ms DESC)
 WHERE duration_ms IS NOT NULL;
 
 CREATE INDEX idx_spans_error_analysis
-ON scouter.spans (space, name, version, status_code, created_at DESC) 
+ON scouter.spans (space, name, version, status_code, created_at DESC)
 WHERE status_code != 'ok';
 
 CREATE INDEX idx_spans_parent_child

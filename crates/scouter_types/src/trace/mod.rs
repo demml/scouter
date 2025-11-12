@@ -151,6 +151,7 @@ impl TraceSpanRecord {
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[pyclass]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct TraceBaggageRecord {
     #[pyo3(get)]
     pub created_at: DateTime<Utc>,
@@ -614,7 +615,7 @@ impl TraceServerRecord {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, Serialize, Deserialize, Default)]
 #[pyclass]
 pub struct Attribute {
     #[pyo3(get)]

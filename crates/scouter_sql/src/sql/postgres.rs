@@ -198,15 +198,87 @@ mod tests {
     const SPACE: &str = "space";
     const NAME: &str = "name";
     const VERSION: &str = "1.0.0";
+    const SCOPE: &str = "scope";
 
-    //pub async fn insert_alerts() -> Result<(), anyhow::Error> {
-    //    // Run the SQL script to populate the database
-    //    let script = std::fs::read_to_string("tests/script/populate_trace.sql").unwrap();
+    fn random_trace_record() -> TraceRecord {
+        let mut rng = rand::rng();
+        let random_num = rng.random_range(0..1000);
+        let trace_id: String = (0..32)
+            .map(|_| format!("{:x}", rng.random_range(0..16)))
+            .collect();
+        let span_id: String = (0..16)
+            .map(|_| format!("{:x}", rng.random_range(0..16)))
+            .collect();
+        let created_at = Utc::now() + chrono::Duration::milliseconds(random_num);
 
-    //    sqlx::query(&script).execute(&self.pool).await.unwrap();
+        TraceRecord {
+            trace_id: trace_id.clone(),
+            created_at,
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
+            scope: SCOPE.to_string(),
+            trace_state: "running".to_string(),
+            start_time: created_at,
+            end_time: created_at + chrono::Duration::milliseconds(150),
+            duration_ms: 150,
+            status: "ok".to_string(),
+            root_span_id: span_id.clone(),
+            attributes: vec![Attribute::default()],
+            tags: vec![],
+        }
+    }
 
-    //    Ok(())
-    //}
+    fn random_span_record(trace_id: &str, parent_span_id: Option<&str>) -> TraceSpanRecord {
+        let mut rng = rand::rng();
+        let span_id: String = (0..16)
+            .map(|_| format!("{:x}", rng.random_range(0..16)))
+            .collect();
+
+        let random_offset_ms = rng.random_range(0..1000);
+        let duration_ms_val = rng.random_range(50..500);
+
+        let created_at = Utc::now() + chrono::Duration::milliseconds(random_offset_ms);
+        let start_time = created_at;
+        let end_time = start_time + chrono::Duration::milliseconds(duration_ms_val);
+
+        // --- Status and Kind ---
+        let status_code = if rng.random_bool(0.95) {
+            "STATUS_CODE_OK".to_string()
+        } else {
+            "STATUS_CODE_ERROR".to_string()
+        };
+        let span_kind_options = ["SERVER", "CLIENT", "INTERNAL", "PRODUCER", "CONSUMER"];
+        let span_kind = span_kind_options[rng.random_range(0..span_kind_options.len())].to_string();
+
+        TraceSpanRecord {
+            created_at,
+            span_id,
+            trace_id: trace_id.to_string(),
+            parent_span_id: parent_span_id.map(|s| s.to_string()),
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
+            scope: SCOPE.to_string(),
+            span_name: format!("{}_{}", "random_operation", rng.random_range(0..10)),
+            span_kind,
+            start_time,
+            end_time,
+            duration_ms: duration_ms_val,
+            status_code: status_code.clone(),
+            status_message: if status_code == "STATUS_CODE_ERROR" {
+                "Internal Server Error".to_string()
+            } else {
+                "OK".to_string()
+            },
+            attributes: vec![Attribute::default()],
+            events: vec![],
+            links: vec![],
+            label: None,
+            input: Value::default(),
+            output: Value::default(),
+        }
+    }
 
     pub async fn cleanup(pool: &Pool<Postgres>) {
         sqlx::raw_sql(
@@ -1115,5 +1187,68 @@ mod tests {
 
         // assert we have data points
         assert!(trace_metrics.len() >= 10);
+    }
+
+    #[tokio::test]
+    async fn test_postgres_tracing_insert() {
+        let pool = db_pool().await;
+
+        // create parent trace
+        let mut trace_record = random_trace_record();
+        let trace_id = trace_record.trace_id.clone();
+
+        // create spans
+        let root_span = random_span_record(&trace_id, None);
+        let child_span = random_span_record(&trace_id, Some(&root_span.span_id));
+
+        // set root span id in trace record
+        trace_record.root_span_id = root_span.span_id.clone();
+
+        // this should perform an insert
+        let result = PostgresClient::upsert_trace_batch(&pool, &[trace_record.clone()])
+            .await
+            .unwrap();
+
+        assert_eq!(result.rows_affected(), 1);
+
+        // this should perform an update (mainly just increasing span count)
+        let result = PostgresClient::upsert_trace_batch(&pool, &[trace_record.clone()])
+            .await
+            .unwrap();
+
+        assert_eq!(result.rows_affected(), 1);
+
+        // insert spans
+        let result =
+            PostgresClient::insert_span_batch(&pool, &[root_span.clone(), child_span.clone()])
+                .await
+                .unwrap();
+
+        assert_eq!(result.rows_affected(), 2);
+
+        // refresh materialized view
+        sqlx::query("REFRESH MATERIALIZED VIEW scouter.trace_summary;")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let inserted_created_at = trace_record.created_at;
+        let inserted_trace_id = trace_record.trace_id.clone();
+
+        let mut trace_filter = TraceFilters::new();
+
+        trace_filter.cursor_created_at = Some(inserted_created_at + chrono::Duration::days(1));
+        trace_filter.cursor_trace_id = Some(inserted_trace_id);
+        trace_filter.start_time = Some(inserted_created_at - chrono::Duration::minutes(5));
+        trace_filter.end_time = Some(inserted_created_at + chrono::Duration::days(1));
+
+        let traces = PostgresClient::get_traces_paginated(&pool, trace_filter)
+            .await
+            .unwrap();
+
+        assert_eq!(traces.len(), 1);
+        let retrieved_trace = &traces[0];
+        // assert span count is 2
+        assert_eq!(retrieved_trace.span_count.unwrap(), 2);
     }
 }

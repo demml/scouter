@@ -20,7 +20,7 @@ build.sql:
 
 .PHONY: test.sql
 test.sql:
-	cargo test -p scouter-sql test_postgres_tracing --all-features -- --nocapture --test-threads=1
+	cargo test -p scouter-sql test_postgres_tracing_insert --all-features -- --nocapture --test-threads=1
 
 .PHONY: test.server
 test.server:
