@@ -1097,6 +1097,6 @@ mod tests {
 
         assert!(spans.len() == filtered_record.span_count.unwrap() as usize);
 
-        // make same request but specify space, name, version
+        // make request for trace metrics
     }
 }

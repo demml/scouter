@@ -87,13 +87,14 @@ rand = "0.9.*"
 rayon = "1.*"
 redis = { version = "0.*", features = ["tokio-comp"] }
 reqwest = { version = "0.12.*", features = ["json", "multipart", "rustls-tls", "rustls-tls-native-roots", "blocking" ], default-features = false }
+rust_decimal = { version = "1.*" }
 rusty-logging="0.*"
 semver = "1.*"
 serde = { version = "1.*", features = ["derive"] }
 serde_json = "1.*"
 serde_qs = "0.*"
 simsimd = "6.5.*"
-sqlx = { version = "0.*", features = [ "runtime-tokio", "tls-native-tls", "postgres", "chrono", "json"] }
+sqlx = { version = "0.*", features = [ "runtime-tokio", "tls-native-tls", "postgres", "chrono", "json", "rust_decimal"] }
 strum = "0.*"
 strum_macros = "0.*"
 

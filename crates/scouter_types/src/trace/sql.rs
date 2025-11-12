@@ -1,5 +1,6 @@
 use crate::trace::{Attribute, SpanEvent, SpanLink};
 use chrono::{DateTime, Utc};
+use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 
 #[cfg(feature = "server")]
@@ -129,4 +130,16 @@ impl TraceFilters {
         self.limit = Some(limit);
         self
     }
+}
+
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
+#[derive(Debug, Serialize, Deserialize)]
+pub struct TraceMetricBucket {
+    pub bucket_start: DateTime<Utc>,
+    pub trace_count: i64,
+    pub avg_duration_ms: Decimal,
+    pub p50_duration_ms: Option<i64>,
+    pub p95_duration_ms: Option<i64>,
+    pub p99_duration_ms: Option<i64>,
+    pub error_rate: Decimal,
 }

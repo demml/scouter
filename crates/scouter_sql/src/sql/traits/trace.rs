@@ -265,4 +265,24 @@ pub trait TraceSqlLogic {
 
         trace_items
     }
+
+    /// Attempts to retrieve trace spans for a given trace ID.
+    /// # Arguments
+    /// * `pool` - The database connection pool
+    /// * `trace_id` - The trace ID to retrieve spans for
+    /// # Returns
+    /// * A vector of `TraceSpan` associated with the trace ID
+    async fn get_trace_metrics(
+        pool: &Pool<Postgres>,
+        trace_id: &str,
+    ) -> Result<Vec<TraceSpan>, SqlError> {
+        let query = Queries::GetTraceSpans.get_query();
+        let trace_items: Result<Vec<TraceSpan>, SqlError> = sqlx::query_as(&query.sql)
+            .bind(trace_id)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError);
+
+        trace_items
+    }
 }
