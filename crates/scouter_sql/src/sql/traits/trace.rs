@@ -6,9 +6,8 @@ use chrono::{DateTime, Utc};
 use itertools::multiunzip;
 use scouter_types::sql::TraceFilters;
 use scouter_types::sql::TraceListItem;
-use scouter_types::{TraceBaggageRecord, TraceRecord, TraceSpanRecord};
+use scouter_types::{TraceBaggageRecord, TraceRecord, TraceSpan, TraceSpanRecord};
 use sqlx::{postgres::PgQueryResult, types::Json, Pool, Postgres};
-use std::result::Result::Ok;
 
 #[async_trait]
 pub trait TraceSqlLogic {
@@ -214,7 +213,6 @@ pub trait TraceSqlLogic {
         Ok(query_result)
     }
 
-
     /// Attempts to retrieve paginated trace records from the database based on provided filters.
     /// # Arguments
     /// * `pool` - The database connection pool
@@ -267,5 +265,5 @@ pub trait TraceSqlLogic {
             .map_err(SqlError::SqlxError);
 
         trace_items
-    };
+    }
 }
