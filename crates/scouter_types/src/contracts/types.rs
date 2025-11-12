@@ -2,7 +2,8 @@ use std::fmt::Display;
 
 use crate::error::{ContractError, TypeError};
 use crate::llm::PaginationRequest;
-use crate::{CustomInterval, DriftProfile, Status};
+use crate::sql::{TraceListItem, TraceMetricBucket, TraceSpan};
+use crate::{CustomInterval, DriftProfile, Status, TagRecord, TraceBaggageRecord};
 use crate::{DriftType, PyHelperFuncs, TimeInterval};
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
@@ -564,4 +565,29 @@ pub struct TraceMetricsRequest {
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
     pub bucket_interval: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TracePaginationResponse {
+    pub items: Vec<TraceListItem>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TraceBaggageResponse {
+    pub baggage: Vec<TraceBaggageRecord>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TraceSpansResponse {
+    pub spans: Vec<TraceSpan>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TraceMetricsResponse {
+    pub metrics: Vec<TraceMetricBucket>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TagsResponse {
+    pub tags: Vec<TagRecord>,
 }

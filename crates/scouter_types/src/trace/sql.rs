@@ -5,7 +5,7 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "server")]
 use sqlx::{postgres::PgRow, FromRow, Row};
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct TraceListItem {
     pub trace_id: String,
@@ -25,7 +25,7 @@ pub struct TraceListItem {
     pub created_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TraceSpan {
     pub trace_id: String,
     pub span_id: String,
@@ -132,7 +132,7 @@ impl TraceFilters {
 }
 
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct TraceMetricBucket {
     pub bucket_start: DateTime<Utc>,
     pub trace_count: i64,
