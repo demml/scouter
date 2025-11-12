@@ -262,7 +262,7 @@ AS $$
         PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY ts.duration_ms) as p95_duration_ms,
         PERCENTILE_CONT(0.99) WITHIN GROUP (ORDER BY ts.duration_ms) as p99_duration_ms,
         ROUND(
-            COUNT(*) FILTER (WHERE ts.has_errors = true) * 100.0 / COUNT(*), 
+            COUNT(*) FILTER (WHERE ts.has_errors = true) * 100.0 / COUNT(*),
             2
         ) as error_rate
     FROM scouter.trace_summary ts

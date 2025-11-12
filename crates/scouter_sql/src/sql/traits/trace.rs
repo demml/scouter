@@ -274,11 +274,21 @@ pub trait TraceSqlLogic {
     /// * A vector of `TraceSpan` associated with the trace ID
     async fn get_trace_metrics(
         pool: &Pool<Postgres>,
-        trace_id: &str,
+        space: Option<&str>,
+        name: Option<&str>,
+        version: Option<&str>,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+        bucket_interval_str: &str,
     ) -> Result<Vec<TraceSpan>, SqlError> {
-        let query = Queries::GetTraceSpans.get_query();
+        let query = Queries::GetTraceMetrics.get_query();
         let trace_items: Result<Vec<TraceSpan>, SqlError> = sqlx::query_as(&query.sql)
-            .bind(trace_id)
+            .bind(space)
+            .bind(name)
+            .bind(version)
+            .bind(start_time)
+            .bind(end_time)
+            .bind(bucket_interval_str)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError);
