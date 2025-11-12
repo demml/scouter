@@ -435,6 +435,26 @@ impl ScouterServerError {
         ScouterServerError { error: msg }
     }
 
+    pub fn get_baggage_error<T: Display>(e: T) -> Self {
+        let msg = format!("Failed to get trace baggage records: {e}");
+        ScouterServerError { error: msg }
+    }
+
+    pub fn get_paginated_traces_error<T: Display>(e: T) -> Self {
+        let msg = format!("Failed to get paginated traces: {e}");
+        ScouterServerError { error: msg }
+    }
+
+    pub fn get_trace_spans_error<T: Display>(e: T) -> Self {
+        let msg = format!("Failed to get trace spans: {e}");
+        ScouterServerError { error: msg }
+    }
+
+    pub fn get_trace_metrics_error<T: Display>(e: T) -> Self {
+        let msg = format!("Failed to get trace metrics: {e}");
+        ScouterServerError { error: msg }
+    }
+
     pub fn insert_tags_error<T: Display>(e: T) -> Self {
         let msg = format!("Failed to insert tags: {e}");
         ScouterServerError { error: msg }

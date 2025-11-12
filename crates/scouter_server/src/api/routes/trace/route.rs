@@ -4,88 +4,113 @@ use anyhow::{Context, Result};
 use axum::{
     extract::{Query, State},
     http::StatusCode,
-    routing::get,
+    routing::{get, post},
     Json, Router,
 };
-use scouter_sql::sql::traits::AlertSqlLogic;
+use scouter_sql::sql::traits::TraceSqlLogic;
 use scouter_sql::PostgresClient;
-use scouter_types::alert::Alerts;
-use scouter_types::contracts::{
-    DriftAlertRequest, ScouterServerError, UpdateAlertResponse, UpdateAlertStatus,
+use scouter_types::{
+    contracts::ScouterServerError, sql::TraceFilters, TraceBaggageResponse, TraceMetricsRequest,
+    TraceMetricsResponse, TracePaginationResponse, TraceRequest, TraceSpansResponse,
 };
+
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
 use tracing::error;
-/// Retrieve drift alerts from the database
-///
-/// # Arguments
-///
-/// * `data` - Arc<AppState> - Application state
-/// * `params` - Query<DriftAlertRequest> - Query parameters
-///
-/// # Returns
-///
-/// * `Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)>` - Result of the request
-pub async fn get_drift_alerts(
+
+pub async fn get_trace_baggage(
     State(data): State<Arc<AppState>>,
-    Query(params): Query<DriftAlertRequest>,
-) -> Result<Json<Alerts>, (StatusCode, Json<ScouterServerError>)> {
-    let alerts = PostgresClient::get_drift_alerts(&data.db_pool, &params)
+    Query(params): Query<TraceRequest>,
+) -> Result<Json<TraceBaggageResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let baggage = PostgresClient::get_trace_baggage_records(&data.db_pool, &params.trace_id)
         .await
         .map_err(|e| {
-            error!("Failed to query drift alerts: {:?}", e);
+            error!("Failed to get trace baggage records: {:?}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::query_alerts_error(e)),
+                Json(ScouterServerError::get_baggage_error(e)),
             )
         })?;
 
-    Ok(Json(Alerts {
-        alerts: alerts.clone(),
-    }))
+    Ok(Json(TraceBaggageResponse { baggage }))
 }
 
-pub async fn update_alert_status(
+pub async fn get_paginated_traces(
     State(data): State<Arc<AppState>>,
-    Json(body): Json<UpdateAlertStatus>,
-) -> Result<Json<UpdateAlertResponse>, (StatusCode, Json<ScouterServerError>)> {
-    let query_result = PostgresClient::update_drift_alert_status(&data.db_pool, &body)
+    Json(body): Json<TraceFilters>,
+) -> Result<Json<TracePaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let items = PostgresClient::get_traces_paginated(&data.db_pool, body.clone())
         .await
         .map_err(|e| {
-            error!("Failed to update drift alert status: {:?}", e);
+            error!("Failed to get paginated traces: {:?}", e);
             (
                 StatusCode::INTERNAL_SERVER_ERROR,
-                Json(ScouterServerError::new(format!(
-                    "Failed to update drift alert status: {e:?}"
-                ))),
+                Json(ScouterServerError::get_paginated_traces_error(e)),
             )
         })?;
 
-    if query_result.active == body.active {
-        Ok(Json(UpdateAlertResponse { updated: true }))
-    } else {
-        Err((
-            StatusCode::BAD_REQUEST,
-            Json(ScouterServerError::new(format!(
-                "Failed to update drift alert status: {query_result:?}"
-            ))),
-        ))
-    }
+    Ok(Json(TracePaginationResponse { items }))
 }
 
-pub async fn get_alert_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
-    let result = catch_unwind(AssertUnwindSafe(|| {
-        Router::new().route(
-            &format!("{prefix}/alerts"),
-            get(get_drift_alerts).put(update_alert_status),
+pub async fn get_trace_spans(
+    State(data): State<Arc<AppState>>,
+    Query(params): Query<TraceRequest>,
+) -> Result<Json<TraceSpansResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let spans = PostgresClient::get_trace_spans(&data.db_pool, &params.trace_id)
+        .await
+        .map_err(|e| {
+            error!("Failed to get trace spans: {:?}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::get_trace_spans_error(e)),
+            )
+        })?;
+
+    Ok(Json(TraceSpansResponse { spans }))
+}
+
+pub async fn get_trace_metrics(
+    State(data): State<Arc<AppState>>,
+    Json(body): Json<TraceMetricsRequest>,
+) -> Result<Json<TraceMetricsResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let metrics = PostgresClient::get_trace_metrics(
+        &data.db_pool,
+        body.space.as_deref(),
+        body.name.as_deref(),
+        body.version.as_deref(),
+        body.start_time,
+        body.end_time,
+        &body.bucket_interval,
+    )
+    .await
+    .map_err(|e| {
+        error!("Failed to get trace spans: {:?}", e);
+        (
+            StatusCode::INTERNAL_SERVER_ERROR,
+            Json(ScouterServerError::get_trace_metrics_error(e)),
         )
+    })?;
+
+    Ok(Json(TraceMetricsResponse { metrics }))
+}
+
+pub async fn get_trace_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        Router::new()
+            .route(&format!("{prefix}/trace/baggage"), get(get_trace_baggage))
+            .route(
+                &format!("{prefix}/trace/paginated"),
+                post(get_paginated_traces),
+            )
+            .route(&format!("{prefix}/trace/spans"), get(get_trace_spans))
+            .route(&format!("{prefix}/trace/metrics"), post(get_trace_metrics))
     }));
 
     match result {
         Ok(router) => Ok(router),
         Err(_) => {
             // panic
-            Err(anyhow::anyhow!("Failed to create drift router"))
+            Err(anyhow::anyhow!("Failed to create tag router"))
                 .context("Panic occurred while creating the router")
         }
     }

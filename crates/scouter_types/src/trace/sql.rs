@@ -78,7 +78,7 @@ impl FromRow<'_, PgRow> for TraceSpan {
     }
 }
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default, Clone, Serialize, Deserialize)]
 pub struct TraceFilters {
     pub space: Option<String>,
     pub name: Option<String>,
