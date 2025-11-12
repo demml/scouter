@@ -1039,11 +1039,7 @@ mod tests {
     #[tokio::test]
     async fn test_postgres_tracing() {
         let pool = db_pool().await;
-        //let script = std::fs::read_to_string("src/tests/script/populate_trace.sql").unwrap();
-        //sqlx::query(&script).execute(&pool).await.unwrap();
-
-        // refresh materialized view
-        //let refresh = "REFRESH MATERIALIZED VIEW scouter.trace_summary;";
-        //sqlx::query(refresh).execute(&pool).await.unwrap();
+        let script = std::fs::read_to_string("src/tests/script/populate_trace.sql").unwrap();
+        sqlx::query(&script).execute(&pool).await.unwrap();
     }
 }

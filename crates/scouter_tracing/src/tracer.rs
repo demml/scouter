@@ -27,13 +27,11 @@ use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use pyo3::IntoPyObjectExt;
-use scouter_types::records::{
-    BAGGAGE_PREFIX, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL,
-    SCOUTER_TRACING_OUTPUT, SERVICE_NAME, TRACE_START_TIME_KEY,
-};
+
 use scouter_types::{
     is_pydantic_basemodel, pydict_to_otel_keyvalue, pyobject_to_otel_value,
-    pyobject_to_tracing_json,
+    pyobject_to_tracing_json, BAGGAGE_PREFIX, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT,
+    SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT, SERVICE_NAME, TRACE_START_TIME_KEY,
 };
 use std::sync::{Arc, RwLock};
 use std::{collections::HashMap, sync::OnceLock};

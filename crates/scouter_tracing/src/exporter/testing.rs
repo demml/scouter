@@ -9,7 +9,7 @@ use opentelemetry_sdk::{
     trace::{SpanData, SpanExporter},
 };
 use pyo3::prelude::*;
-use scouter_types::{records::TraceServerRecord, TraceBaggageRecord, TraceRecord, TraceSpanRecord};
+use scouter_types::{TraceBaggageRecord, TraceRecord, TraceServerRecord, TraceSpanRecord};
 use std::sync::{Arc, RwLock};
 
 #[derive(Debug)]

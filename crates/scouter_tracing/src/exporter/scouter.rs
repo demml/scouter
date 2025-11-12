@@ -5,8 +5,7 @@ use opentelemetry_sdk::{
     error::OTelSdkResult,
     trace::{SpanData, SpanExporter},
 };
-
-use scouter_types::records::TraceServerRecord;
+use scouter_types::TraceServerRecord;
 
 #[derive(Debug)]
 pub struct ScouterSpanExporter {

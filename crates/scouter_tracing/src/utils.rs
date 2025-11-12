@@ -5,10 +5,10 @@ use opentelemetry::trace::SpanContext;
 use opentelemetry_otlp::ExportConfig as OtlpExportConfig;
 use pyo3::types::{PyDict, PyModule, PyTuple};
 use pyo3::{prelude::*, IntoPyObjectExt};
-use scouter_types::records::{
+use scouter_types::CompressionType;
+use scouter_types::{
     FUNCTION_MODULE, FUNCTION_NAME, FUNCTION_QUALNAME, FUNCTION_STREAMING, FUNCTION_TYPE,
 };
-use scouter_types::CompressionType;
 use serde::Serialize;
 use std::collections::HashMap;
 use std::fmt::Display;

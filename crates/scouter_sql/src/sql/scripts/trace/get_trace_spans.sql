@@ -1,0 +1,19 @@
+SELECT
+    trace_id,
+    span_id,
+    parent_span_id,
+    span_name,
+    span_kind,
+    start_time,
+    end_time,
+    duration_ms,
+    status_code,
+    status_message,
+    attributes,
+    events,
+    links,
+    depth,
+    path,
+    root_span_id,
+    span_order
+FROM scouter.get_trace_spans($1);
