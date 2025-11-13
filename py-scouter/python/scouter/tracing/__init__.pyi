@@ -5,7 +5,7 @@
 import datetime
 from types import TracebackType
 from typing import Any, Callable, Dict, Optional, ParamSpec, TypeVar
-
+from ..transport import HTTPConfig, KafkaConfig, RabbitMQConfig, RedisConfig
 from ..types import CompressionType
 
 P = ParamSpec("P")
@@ -181,6 +181,9 @@ def get_tracer(name: str) -> Tracer:
 
 def init_tracer(
     name: Optional[str] = None,
+    transport_config: Optional[
+        HTTPConfig | KafkaConfig | RabbitMQConfig | RedisConfig
+    ] = None,
     exporter: Optional[HttpSpanExporter | StdoutSpanExporter | TestSpanExporter] = None,
 ) -> None:
     """Initialize the tracer with the given service name.
@@ -188,8 +191,19 @@ def init_tracer(
     Args:
         name (Optional[str]):
             The name of the service for tracing.
+        transport_config (Optional[HTTPConfig | KafkaConfig | RabbitMQConfig | RedisConfig]):
+            The transport configuration for exporting spans.
+                Types:
+                    - HTTPConfig: Configuration for HTTP exporting.
+                    - KafkaConfig: Configuration for Kafka exporting.
+                    - RabbitMQConfig: Configuration for RabbitMQ exporting.
+                    - RedisConfig: Configuration for Redis exporting.
         exporter (Optional[HttpSpanExporter | StdoutSpanExporter | TestSpanExporter]):
             The span exporter to use. If None, defaults to StdoutSpanExporter.
+                Types:
+                    - HttpSpanExporter: Exporter that sends spans to an HTTP endpoint.
+                    - StdoutSpanExporter: Exporter that outputs spans to standard output (stdout).
+                    - TestSpanExporter: Exporter for testing that collects spans in memory.
     """
 
 class ActiveSpan:
