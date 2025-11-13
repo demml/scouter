@@ -23,7 +23,7 @@ impl RedisMQSetup for TestHelper {
             ..Default::default()
         };
 
-        let mut producer = RedisProducer::new(config).await.unwrap();
+        let producer = RedisProducer::new(config).await.unwrap();
 
         tokio::spawn(async move {
             loop {

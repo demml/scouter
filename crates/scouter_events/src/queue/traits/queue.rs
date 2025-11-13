@@ -33,7 +33,7 @@ pub trait BackgroundTask: Send + Sync + 'static {
         &self,
         data_queue: Arc<ArrayQueue<Self::DataItem>>,
         processor: Arc<Self::Processor>,
-        mut producer: RustScouterProducer,
+        producer: RustScouterProducer,
         last_publish: Arc<RwLock<DateTime<Utc>>>,
         runtime: Arc<Runtime>,
         queue_capacity: usize,

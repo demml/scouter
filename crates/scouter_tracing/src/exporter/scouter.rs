@@ -3,12 +3,12 @@ use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use opentelemetry_proto::transform::common::tonic::ResourceAttributesWithSchema;
 use opentelemetry_proto::transform::trace::tonic::group_spans_by_resource_and_scope;
 use opentelemetry_sdk::{
-    error::OTelSdkResult,
+    error::{OTelSdkError, OTelSdkResult},
     trace::{SpanData, SpanExporter},
 };
 use scouter_events::producer::RustScouterProducer;
 use scouter_events::queue::types::TransportConfig;
-use scouter_types::TraceServerRecord;
+use scouter_types::{MessageRecord, TraceServerRecord};
 use std::fmt;
 
 pub struct ScouterSpanExporter {
@@ -49,7 +49,6 @@ impl ScouterSpanExporter {
 
 impl SpanExporter for ScouterSpanExporter {
     async fn export(&self, batch: Vec<SpanData>) -> OTelSdkResult {
-        // Here you would implement the logic to export spans to Scouter
         let resource_spans =
             group_spans_by_resource_and_scope(batch, &ResourceAttributesWithSchema::default());
         let req = ExportTraceServiceRequest { resource_spans };
@@ -59,11 +58,13 @@ impl SpanExporter for ScouterSpanExporter {
             name: self.name.clone(),
             version: self.version.clone(),
         };
-        //let message_record = MessageRecord::TraceServerRecord(record);
-
-        let (_traces, _span, _baggage) = record
-            .to_records()
-            .map_err(|e| opentelemetry_sdk::error::OTelSdkError::InternalFailure(e.to_string()))?;
+        let message = MessageRecord::TraceServerRecord(record);
+        self.producer.publish(message).await.map_err(|e| {
+            OTelSdkError::InternalFailure(format!(
+                "Failed to publish message to scouter: {}",
+                e.to_string()
+            ))
+        })?;
 
         Ok(())
     }

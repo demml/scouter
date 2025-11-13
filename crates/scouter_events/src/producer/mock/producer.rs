@@ -10,7 +10,7 @@ impl MockProducer {
         Ok(MockProducer {})
     }
 
-    pub async fn publish(&mut self, message: MessageRecord) -> Result<(), EventError> {
+    pub async fn publish(&self, message: MessageRecord) -> Result<(), EventError> {
         // Mock implementation, just log the message
         info!("MockProducer publishing message: {:?}", message);
         Ok(())

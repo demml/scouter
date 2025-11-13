@@ -34,8 +34,9 @@ pub enum ProducerEnum {
 }
 
 impl ProducerEnum {
-    pub async fn publish(&mut self, message: MessageRecord) -> Result<(), EventError> {
+    pub async fn publish(&self, message: MessageRecord) -> Result<(), EventError> {
         match self {
+            // this has mut
             ProducerEnum::HTTP(producer) => producer.publish(message).await,
             ProducerEnum::Mock(producer) => producer.publish(message).await,
             #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
@@ -120,7 +121,7 @@ impl RustScouterProducer {
         Ok(RustScouterProducer { producer })
     }
 
-    pub async fn publish(&mut self, message: MessageRecord) -> Result<(), EventError> {
+    pub async fn publish(&self, message: MessageRecord) -> Result<(), EventError> {
         debug!("message length: {}", message.len());
         self.producer.publish(message).await
     }

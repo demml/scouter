@@ -7,8 +7,10 @@ use reqwest::{Client, Response};
 use scouter_settings::HTTPConfig;
 use scouter_types::{JwtToken, MessageRecord, RequestType, Routes};
 use serde_json::Value;
+use std::sync::Arc;
+// Using tokio RwLock for async read/write access since this is run within a spawned task
+use tokio::sync::RwLock;
 use tracing::{debug, instrument};
-
 const TIMEOUT_SECS: u64 = 60;
 
 /// Create a new HTTP client that can be shared across different clients
@@ -27,7 +29,7 @@ pub fn build_http_client(settings: &HTTPConfig) -> Result<Client, EventError> {
 #[derive(Debug, Clone)]
 pub struct HTTPClient {
     client: Client,
-    config: HTTPConfig,
+    config: Arc<RwLock<HTTPConfig>>,
     base_path: String,
 }
 
@@ -37,7 +39,7 @@ impl HTTPClient {
 
         let mut api_client = HTTPClient {
             client,
-            config: config.clone(),
+            config: Arc::new(RwLock::new(config.clone())),
             base_path: format!("{}/{}", config.server_uri, "scouter"),
         };
 
@@ -60,19 +62,19 @@ impl HTTPClient {
 
         let response = response.json::<JwtToken>().await?;
 
-        self.config.auth_token = response.token;
+        self.config.write().await.auth_token = response.token;
 
         Ok(())
     }
 
-    fn update_token_from_response(&mut self, response: &Response) {
+    async fn update_token_from_response(&self, response: &Response) {
         if let Some(new_token) = response
             .headers()
             .get(header::AUTHORIZATION)
             .and_then(|h| h.to_str().ok())
             .and_then(|h| h.strip_prefix("Bearer "))
         {
-            self.config.auth_token = new_token.to_string();
+            self.config.write().await.auth_token = new_token.to_string();
         }
     }
 
@@ -87,6 +89,9 @@ impl HTTPClient {
         let headers = headers.unwrap_or_default();
 
         let url = format!("{}/{}", self.base_path, route.as_str());
+
+        let config_lock = self.config.read().await;
+
         let response = match request_type {
             RequestType::Get => {
                 let url = if let Some(query_string) = query_string {
@@ -98,7 +103,7 @@ impl HTTPClient {
                 self.client
                     .get(url)
                     .headers(headers)
-                    .bearer_auth(&self.config.auth_token)
+                    .bearer_auth(&config_lock.auth_token)
                     .send()
                     .await?
             }
@@ -107,7 +112,7 @@ impl HTTPClient {
                     .post(url)
                     .headers(headers)
                     .json(&body_params)
-                    .bearer_auth(&self.config.auth_token)
+                    .bearer_auth(&config_lock.auth_token)
                     .send()
                     .await?
             }
@@ -116,7 +121,7 @@ impl HTTPClient {
                     .put(url)
                     .headers(headers)
                     .json(&body_params)
-                    .bearer_auth(&self.config.auth_token)
+                    .bearer_auth(&config_lock.auth_token)
                     .send()
                     .await?
             }
@@ -129,7 +134,7 @@ impl HTTPClient {
                 self.client
                     .delete(url)
                     .headers(headers)
-                    .bearer_auth(&self.config.auth_token)
+                    .bearer_auth(&config_lock.auth_token)
                     .send()
                     .await?
             }
@@ -139,7 +144,7 @@ impl HTTPClient {
     }
 
     pub async fn request(
-        &mut self,
+        &self,
         route: Routes,
         request_type: RequestType,
         body_params: Option<Value>,
@@ -157,7 +162,7 @@ impl HTTPClient {
             .await?;
 
         // Check and update token if a new one was provided
-        self.update_token_from_response(&response);
+        self.update_token_from_response(&response).await;
 
         Ok(response)
     }
@@ -174,7 +179,7 @@ impl HTTPProducer {
         Ok(HTTPProducer { client })
     }
 
-    pub async fn publish(&mut self, message: MessageRecord) -> Result<(), EventError> {
+    pub async fn publish(&self, message: MessageRecord) -> Result<(), EventError> {
         let serialized_msg: Value = serde_json::to_value(&message)?;
 
         let response = self
