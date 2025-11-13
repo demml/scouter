@@ -727,6 +727,13 @@ impl MessageRecord {
         }
     }
 
+    pub fn is_empty(&self) -> bool {
+        match self {
+            MessageRecord::ServerRecords(records) => records.is_empty(),
+            _ => false,
+        }
+    }
+
     pub fn model_dump_json(&self) -> String {
         // serialize records to a string
         match self {

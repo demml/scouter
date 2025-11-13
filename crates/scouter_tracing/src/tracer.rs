@@ -143,11 +143,13 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
 /// * `sample_ratio` - Optional sampling ratio between 0.0 and 1.0. Defaults to always sampling.
 #[pyfunction]
 #[pyo3(signature = (name=None, transport_config=None, exporter=None))]
+#[instrument(skip_all)]
 pub fn init_tracer(
     name: Option<String>,
     transport_config: Option<&Bound<'_, PyAny>>,
     exporter: Option<&Bound<'_, PyAny>>,
 ) -> Result<(), TraceError> {
+    debug!("Initializing tracer");
     let name = name.unwrap_or_else(|| "scouter_service".to_string());
 
     let config = match transport_config {

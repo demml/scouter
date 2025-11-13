@@ -222,7 +222,7 @@ impl MessageHandler {
         pool: &Pool<Postgres>,
         record: &TagRecord,
     ) -> Result<(), SqlError> {
-        let result = PostgresClient::insert_tag_batch(pool, &[record.clone()]).await?;
+        let result = PostgresClient::insert_tag_batch(pool, std::slice::from_ref(record)).await?;
 
         debug!(
             rows_affected = result.rows_affected(),
@@ -1221,7 +1221,7 @@ mod tests {
 
         // Records are randomly generated, so just assert we get some records back
         assert!(
-            records.len() > 0,
+            !records.is_empty(),
             "Should return records with specified filters"
         );
 
@@ -1322,9 +1322,10 @@ mod tests {
             value: "12345".to_string(),
         };
 
-        let result = PostgresClient::insert_trace_baggage_batch(&pool, &[baggage.clone()])
-            .await
-            .unwrap();
+        let result =
+            PostgresClient::insert_trace_baggage_batch(&pool, std::slice::from_ref(&baggage))
+                .await
+                .unwrap();
 
         assert_eq!(result.rows_affected(), 1);
 
