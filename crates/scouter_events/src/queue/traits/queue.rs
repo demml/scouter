@@ -6,12 +6,12 @@ use crate::queue::bus::TaskState;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
+use scouter_state::app_state;
 use scouter_types::MessageRecord;
 use scouter_types::QueueExt;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::RwLock;
-use tokio::runtime::Runtime;
 use tokio::task::JoinHandle;
 use tokio::time::{sleep, Duration};
 use tokio_util::sync::CancellationToken;
@@ -35,7 +35,6 @@ pub trait BackgroundTask: Send + Sync + 'static {
         processor: Arc<Self::Processor>,
         producer: RustScouterProducer,
         last_publish: Arc<RwLock<DateTime<Utc>>>,
-        runtime: Arc<Runtime>,
         queue_capacity: usize,
         identifier: String,
         task_state: TaskState,
@@ -111,7 +110,9 @@ pub trait BackgroundTask: Send + Sync + 'static {
             debug!("Background task finished");
         };
 
-        let handle = runtime.spawn(async move { future.instrument(span).await });
+        let handle = app_state()
+            .handle()
+            .spawn(async move { future.instrument(span).await });
         Ok(handle)
     }
 }

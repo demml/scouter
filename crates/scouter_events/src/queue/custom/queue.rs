@@ -11,7 +11,6 @@ use scouter_types::custom::CustomDriftProfile;
 use scouter_types::Metrics;
 use std::sync::Arc;
 use std::sync::RwLock;
-use tokio::runtime;
 use tokio_util::sync::CancellationToken;
 
 /// The following code is a custom queue implementation for handling custom metrics.
@@ -39,7 +38,6 @@ impl CustomQueue {
     pub async fn new(
         drift_profile: CustomDriftProfile,
         config: TransportConfig,
-        runtime: Arc<runtime::Runtime>,
         task_state: &mut TaskState,
         identifier: String,
     ) -> Result<Self, EventError> {
@@ -65,7 +63,6 @@ impl CustomQueue {
             feature_queue,
             custom_queue.producer.clone(),
             custom_queue.last_publish.clone(),
-            runtime.clone(),
             custom_queue.capacity,
             identifier,
             task_state.clone(),

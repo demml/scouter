@@ -228,7 +228,9 @@ impl ActiveSpan {
     }
 
     #[pyo3(signature = (output, max_length=1000))]
+    #[instrument(skip_all)]
     fn set_output(&self, output: &Bound<'_, PyAny>, max_length: usize) -> Result<(), TraceError> {
+        debug!("Setting output on span");
         let value = pyobject_to_tracing_json(output, &max_length)?;
         self.with_inner_mut(|inner| {
             inner.span.set_attribute(KeyValue::new(

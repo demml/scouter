@@ -112,7 +112,9 @@ class Tracer(tracing.BaseTracer):
             if function_type == FunctionType.AsyncGenerator:
 
                 @functools.wraps(func)
-                async def async_generator_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
+                async def async_generator_wrapper(
+                    *args: P.args, **kwargs: P.kwargs
+                ) -> Any:
                     async with self._start_decorated_as_current_span(
                         name=span_name,
                         func=func,
@@ -128,7 +130,9 @@ class Tracer(tracing.BaseTracer):
                         func_kwargs=kwargs,
                     ) as span:
                         try:
-                            async_gen_func = cast(Callable[P, AsyncGenerator[Any, None]], func)
+                            async_gen_func = cast(
+                                Callable[P, AsyncGenerator[Any, None]], func
+                            )
                             generator = async_gen_func(*args, **kwargs)
 
                             outputs = []
@@ -169,7 +173,9 @@ class Tracer(tracing.BaseTracer):
                         func_kwargs=kwargs,
                     ) as span:
                         try:
-                            gen_func = cast(Callable[P, Generator[Any, None, None]], func)
+                            gen_func = cast(
+                                Callable[P, Generator[Any, None, None]], func
+                            )
                             generator = gen_func(*args, **kwargs)
                             results = []
 
@@ -192,6 +198,7 @@ class Tracer(tracing.BaseTracer):
                 return cast(Callable[P, R], generator_wrapper)
 
             elif function_type == FunctionType.Async:
+                print("Creating async wrapper")
 
                 @functools.wraps(func)
                 async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
@@ -210,6 +217,7 @@ class Tracer(tracing.BaseTracer):
                         func_kwargs=kwargs,
                     ) as span:
                         try:
+                            print("Calling async function")
                             async_func = cast(Callable[P, Awaitable[Any]], func)
                             result = await async_func(*args, **kwargs)
 

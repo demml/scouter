@@ -24,13 +24,12 @@ from scouter.drift import (
 )
 from scouter.llm import Agent, Prompt, Provider, Score
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
-from scouter.mock import MockConfig
 from scouter.queue import LLMRecord
 from scouter.util import FeatureMixin
 from scouter.tracing import TestSpanExporter, get_tracer, init_tracer
 
 logger = RustyLogger.get_logger(
-    LoggingConfig(log_level=LogLevel.Debug),
+    LoggingConfig(log_level=LogLevel.Info),
 )
 
 
@@ -38,7 +37,6 @@ def start_tracing():
     """Initialize tracer with test exporter for each test."""
     init_tracer(
         name="test-service",
-        transport_config=MockConfig(),
         exporter=TestSpanExporter(),
     )
     return get_tracer("test-tracer")
@@ -285,9 +283,12 @@ def create_http_app(profile_path: Path) -> FastAPI:
     app = FastAPI(lifespan=lifespan)
 
     @app.post("/predict", response_model=TestResponse)
-    @tracer.span("predict")
     async def predict(request: Request, payload: PredictRequest) -> TestResponse:
-        request.app.state.queue["spc"].insert(payload.to_features())
-        return TestResponse(message="success")
+        async with tracer.start_as_current_span("predict_span") as span:
+            span.set_attribute("feature_0", payload.feature_0)
+            request.app.state.queue["spc"].insert(payload.to_features())
+            return TestResponse(message="success")
+        # request.app.state.queue["spc"].insert(payload.to_features())
+        # return TestResponse(message="success")
 
     return app

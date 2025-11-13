@@ -8,15 +8,16 @@ use opentelemetry_sdk::{
 };
 use scouter_events::producer::RustScouterProducer;
 use scouter_events::queue::types::TransportConfig;
+use scouter_state::app_state;
 use scouter_types::{MessageRecord, TraceServerRecord};
 use std::fmt;
+use std::sync::Arc;
 use tracing::{error, instrument};
-
 pub struct ScouterSpanExporter {
     space: String,
     name: String,
     version: String,
-    producer: RustScouterProducer,
+    producer: Arc<RustScouterProducer>,
 }
 
 impl fmt::Debug for ScouterSpanExporter {
@@ -36,14 +37,14 @@ impl ScouterSpanExporter {
         version: String,
         transport_config: TransportConfig,
     ) -> Result<Self, TraceError> {
-        let producer = scouter_state::block_on_safe(async {
-            RustScouterProducer::new(transport_config).await
-        })?;
+        let producer = app_state()
+            .handle()
+            .block_on(async { RustScouterProducer::new(transport_config).await })?;
         Ok(ScouterSpanExporter {
             space,
             name,
             version,
-            producer,
+            producer: Arc::new(producer),
         })
     }
 }
@@ -51,23 +52,43 @@ impl ScouterSpanExporter {
 impl SpanExporter for ScouterSpanExporter {
     #[instrument(name = "ScouterSpanExporter::export", skip_all)]
     async fn export(&self, batch: Vec<SpanData>) -> OTelSdkResult {
-        let resource_spans =
-            group_spans_by_resource_and_scope(batch, &ResourceAttributesWithSchema::default());
-        let req = ExportTraceServiceRequest { resource_spans };
-        let record = TraceServerRecord {
-            request: req,
-            space: self.space.clone(),
-            name: self.name.clone(),
-            version: self.version.clone(),
-        };
-        let message = MessageRecord::TraceServerRecord(record);
-        self.producer.publish(message).await.map_err(|e| {
-            let msg = format!("Failed to publish message to scouter: {}", e);
-            error!("{}", msg);
-            OTelSdkError::InternalFailure(msg)
-        })?;
+        let producer = self.producer.clone(); // Requires RustScouterProducer: Clone
+        let space = self.space.clone();
+        let name = self.name.clone();
+        let version = self.version.clone();
 
-        Ok(())
+        let export_future = async move {
+            // Note: No explicit type annotation here
+            let resource_spans =
+                group_spans_by_resource_and_scope(batch, &ResourceAttributesWithSchema::default());
+            let req = ExportTraceServiceRequest { resource_spans };
+
+            // Note: `self` is consumed by the async move block.
+            let record = TraceServerRecord {
+                request: req,
+                space,
+                name,
+                version,
+            };
+            let message = MessageRecord::TraceServerRecord(record);
+
+            // This fallible call requires the block to resolve to a Result
+            producer.publish(message).await.map_err(|e| {
+                let msg = format!("Failed to publish message to scouter: {}", e);
+                error!("{}", msg);
+                OTelSdkError::InternalFailure(msg)
+            })?;
+
+            // Explicitly return the Ok(()) that the outer spawn expects
+            Ok(()) as Result<(), OTelSdkError>
+        };
+
+        let runtime_handle = app_state().handle();
+
+        runtime_handle
+            .spawn(export_future)
+            .await
+            .map_err(|e| OTelSdkError::InternalFailure(format!("Task spawn failed: {}", e)))?
     }
 
     fn shutdown(&mut self) -> OTelSdkResult {

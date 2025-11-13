@@ -23,18 +23,21 @@ pub struct TestRecords {
 #[pyclass]
 pub struct TestSpanExporter {
     records: Arc<RwLock<TestRecords>>,
+    batch_export: bool,
 }
 
 #[pymethods]
 impl TestSpanExporter {
     #[new]
-    pub fn new() -> Self {
+    #[pyo3(signature = (batch_export=true))]
+    pub fn new(batch_export: bool) -> Self {
         TestSpanExporter {
             records: Arc::new(RwLock::new(TestRecords {
                 traces: Vec::new(),
                 spans: Vec::new(),
                 baggage: Vec::new(),
             })),
+            batch_export,
         }
     }
 
@@ -63,7 +66,7 @@ impl TestSpanExporter {
 
 impl Default for TestSpanExporter {
     fn default() -> Self {
-        Self::new()
+        Self::new(true)
     }
 }
 
@@ -75,7 +78,7 @@ impl SpanExporterBuilder for TestSpanExporter {
     }
 
     fn batch_export(&self) -> bool {
-        false
+        self.batch_export
     }
 
     fn build_exporter(&self) -> Result<Self::Exporter, TraceError> {
