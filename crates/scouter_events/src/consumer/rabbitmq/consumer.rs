@@ -70,13 +70,13 @@ pub mod rabbitmq_consumer {
             Ok(Some(records)) => {
                 let result = match &records {
                     MessageRecord::ServerRecords(server_records) => {
-                        MessageHandler::insert_server_records(&db_pool, server_records).await
+                        MessageHandler::insert_server_records(db_pool, server_records).await
                     }
                     MessageRecord::TraceServerRecord(trace_record) => {
-                        MessageHandler::insert_trace_server_record(&db_pool, &trace_record).await
+                        MessageHandler::insert_trace_server_record(db_pool, trace_record).await
                     }
                     MessageRecord::TagServerRecord(tag_record) => {
-                        MessageHandler::insert_tag_record(&db_pool, &tag_record).await
+                        MessageHandler::insert_tag_record(db_pool, tag_record).await
                     }
                 };
 
