@@ -71,7 +71,7 @@ pub async fn get_trace_spans(
 
 pub async fn get_trace_metrics(
     State(data): State<Arc<AppState>>,
-    Json(body): Json<TraceMetricsRequest>,
+    Query(body): Query<TraceMetricsRequest>,
 ) -> Result<Json<TraceMetricsResponse>, (StatusCode, Json<ScouterServerError>)> {
     let metrics = PostgresClient::get_trace_metrics(
         &data.db_pool,
@@ -103,7 +103,7 @@ pub async fn get_trace_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
                 post(get_paginated_traces),
             )
             .route(&format!("{prefix}/trace/spans"), get(get_trace_spans))
-            .route(&format!("{prefix}/trace/metrics"), post(get_trace_metrics))
+            .route(&format!("{prefix}/trace/metrics"), get(get_trace_metrics))
     }));
 
     match result {
