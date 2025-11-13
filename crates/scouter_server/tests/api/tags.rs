@@ -53,7 +53,7 @@ async fn test_tags() {
 
     let query_string = serde_qs::to_string(&tag_request).unwrap();
     let request = Request::builder()
-        .uri(&format!("/scouter/tags?{query_string}"))
+        .uri(format!("/scouter/tags?{query_string}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();

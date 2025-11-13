@@ -62,7 +62,7 @@ impl SpanExporter for ScouterSpanExporter {
         };
         let message = MessageRecord::TraceServerRecord(record);
         self.producer.publish(message).await.map_err(|e| {
-            let msg = format!("Failed to publish message to scouter: {}", e.to_string());
+            let msg = format!("Failed to publish message to scouter: {}", e);
             error!("{}", msg);
             OTelSdkError::InternalFailure(msg)
         })?;

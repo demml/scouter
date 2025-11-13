@@ -94,7 +94,7 @@ async fn test_tracing() {
     let filtered_batch: TracePaginationResponse = serde_json::from_slice(&body).unwrap();
 
     assert!(
-        filtered_batch.items.len() > 0,
+        !filtered_batch.items.is_empty(),
         "Should return records with specified filters"
     );
 
@@ -105,7 +105,7 @@ async fn test_tracing() {
 
     let query_string = serde_qs::to_string(&params).unwrap();
     let request = Request::builder()
-        .uri(&format!("/scouter/trace/spans?{query_string}"))
+        .uri(format!("/scouter/trace/spans?{query_string}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();
@@ -116,13 +116,13 @@ async fn test_tracing() {
     let spans: TraceSpansResponse = serde_json::from_slice(&body).unwrap();
 
     assert!(
-        spans.spans.len() > 0,
+        !spans.spans.is_empty(),
         "Should return spans for the specified trace"
     );
 
     // send same request to get trace baggage
     let request = Request::builder()
-        .uri(&format!("/scouter/trace/baggage?{query_string}"))
+        .uri(format!("/scouter/trace/baggage?{query_string}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();
@@ -145,7 +145,7 @@ async fn test_tracing() {
 
     let query_string = serde_qs::to_string(&metrics_request).unwrap();
     let request = Request::builder()
-        .uri(&format!("/scouter/trace/metrics?{query_string}"))
+        .uri(format!("/scouter/trace/metrics?{query_string}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();
