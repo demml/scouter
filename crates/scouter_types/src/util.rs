@@ -286,10 +286,14 @@ pub fn pyobject_to_tracing_json(
     } else if obj.is_none() {
         Ok(Value::Null)
     } else {
-        // get type
-        let ty = obj.get_type();
-        println!("Unsupported type for tracing json conversion: {:?}", ty);
-        Err(TypeError::UnsupportedPyObjectType)
+        // return type as value
+        // tracing should not fail because of unsupported type
+        let ty = match obj.get_type().name() {
+            Ok(name) => name.to_string(),
+            Err(_) => "unknown".to_string(),
+        };
+
+        Ok(Value::String(ty))
     }
 }
 

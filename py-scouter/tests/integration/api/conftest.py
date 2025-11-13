@@ -24,12 +24,24 @@ from scouter.drift import (
 )
 from scouter.llm import Agent, Prompt, Provider, Score
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
+from scouter.mock import MockConfig
 from scouter.queue import LLMRecord
 from scouter.util import FeatureMixin
+from scouter.tracing import TestSpanExporter, get_tracer, init_tracer
 
 logger = RustyLogger.get_logger(
     LoggingConfig(log_level=LogLevel.Debug),
 )
+
+
+def start_tracing():
+    """Initialize tracer with test exporter for each test."""
+    init_tracer(
+        name="test-service",
+        transport_config=MockConfig(),
+        exporter=TestSpanExporter(),
+    )
+    return get_tracer("test-tracer")
 
 
 def create_coherence_evaluation_prompt() -> Prompt:
@@ -165,6 +177,7 @@ class ChatRequest(BaseModel):
 
 def create_kafka_app(profile_path: Path) -> FastAPI:
     config = KafkaConfig()
+    tracer = start_tracing()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -184,6 +197,7 @@ def create_kafka_app(profile_path: Path) -> FastAPI:
     app = FastAPI(lifespan=lifespan)
 
     @app.post("/predict", response_model=TestResponse)
+    @tracer.span("predict")
     async def predict(request: Request, payload: PredictRequest) -> TestResponse:
         print(f"Received payload: {request.app.state}")
         request.app.state.queue["spc"].insert(payload.to_features())
@@ -251,6 +265,7 @@ def create_kafka_llm_app(profile_path: Path) -> FastAPI:
 
 def create_http_app(profile_path: Path) -> FastAPI:
     config = HTTPConfig()
+    tracer = start_tracing()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -270,6 +285,7 @@ def create_http_app(profile_path: Path) -> FastAPI:
     app = FastAPI(lifespan=lifespan)
 
     @app.post("/predict", response_model=TestResponse)
+    @tracer.span("predict")
     async def predict(request: Request, payload: PredictRequest) -> TestResponse:
         request.app.state.queue["spc"].insert(payload.to_features())
         return TestResponse(message="success")

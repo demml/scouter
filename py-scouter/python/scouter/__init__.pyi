@@ -1,7 +1,7 @@
 # type: ignore
 
 from .alert import CustomMetricAlertConfig, PsiAlertConfig, SpcAlertConfig
-from .client import HTTPConfig, ScouterClient
+from .client import ScouterClient
 from .drift import (
     CustomDriftProfile,
     CustomMetric,
@@ -17,14 +17,12 @@ from .profile import DataProfile, DataProfiler
 from .queue import (
     Feature,
     Features,
-    KafkaConfig,
     Metric,
     Metrics,
     Queue,
-    RabbitMQConfig,
-    RedisConfig,
     ScouterQueue,
 )
+from .transport import HTTPConfig, KafkaConfig, RedisConfig, RabbitMQConfig
 from .types import CommonCrons
 
 __all__ = [

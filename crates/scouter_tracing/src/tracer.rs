@@ -215,6 +215,7 @@ impl ActiveSpan {
     /// * `input` - The input value (any Python object, but is often a dict)
     /// * `max_length` - Maximum length of the serialized input (default: 1000)
     #[pyo3(signature = (input, max_length=1000))]
+    #[instrument(skip_all)]
     fn set_input(&self, input: &Bound<'_, PyAny>, max_length: usize) -> Result<(), TraceError> {
         let value = pyobject_to_tracing_json(input, &max_length)?;
 

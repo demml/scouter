@@ -15,6 +15,7 @@ use std::fmt::Display;
 use std::sync::OnceLock;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
+use tracing::{debug, instrument};
 
 /// Global static instance of the context store.
 static CONTEXT_STORE: OnceLock<ContextStore> = OnceLock::new();
@@ -166,10 +167,12 @@ pub(crate) fn capture_function_arguments<'py>(
 /// * `span` - The ActiveSpan to set attributes on
 /// # Returns
 /// Result<(), TraceError>
+#[instrument(skip_all)]
 pub fn set_function_attributes(
     func: &Bound<'_, PyAny>,
     span: &mut ActiveSpan,
 ) -> Result<(), TraceError> {
+    debug!("Setting function attributes on span");
     let function_name = match func.getattr("__name__") {
         Ok(name) => name.extract::<String>()?,
         Err(_) => "<unknown>".to_string(),
@@ -192,10 +195,12 @@ pub fn set_function_attributes(
     Ok(())
 }
 
+#[instrument(skip_all)]
 pub(crate) fn set_function_type_attribute(
     func_type: &FunctionType,
     span: &mut ActiveSpan,
 ) -> Result<(), TraceError> {
+    debug!("Setting function type attribute on span");
     if func_type == &FunctionType::AsyncGenerator || func_type == &FunctionType::SyncGenerator {
         span.set_attribute_static(FUNCTION_STREAMING, "true".to_string())?;
     } else {

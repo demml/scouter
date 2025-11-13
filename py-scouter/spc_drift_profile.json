@@ -1,0 +1,83 @@
+{
+  "features": {
+    "feature_2": {
+      "id": "feature_2",
+      "center": -4.0041551599385885,
+      "one_ucl": -1.9982453006503351,
+      "one_lcl": -6.010065019226841,
+      "two_ucl": 0.007664558637918262,
+      "two_lcl": -8.015974878515095,
+      "three_ucl": 2.013574417926171,
+      "three_lcl": -10.021884737803347,
+      "timestamp": "2025-11-13T19:07:48.152137Z"
+    },
+    "feature_3": {
+      "id": "feature_3",
+      "center": -3.989770718493336,
+      "one_ucl": -1.9870274406298392,
+      "one_lcl": -5.992513996356832,
+      "two_ucl": 0.01571583723365766,
+      "two_lcl": -7.99525727422033,
+      "three_ucl": 2.018459115097155,
+      "three_lcl": -9.998000552083827,
+      "timestamp": "2025-11-13T19:07:48.152137Z"
+    },
+    "feature_0": {
+      "id": "feature_0",
+      "center": -4.008803505412184,
+      "one_ucl": -2.021815227951257,
+      "one_lcl": -5.995791782873112,
+      "two_ucl": -0.034826950490329356,
+      "two_lcl": -7.98278006033404,
+      "three_ucl": 1.9521613269705984,
+      "three_lcl": -9.969768337794967,
+      "timestamp": "2025-11-13T19:07:48.152094Z"
+    },
+    "feature_1": {
+      "id": "feature_1",
+      "center": -4.0168166462870145,
+      "one_ucl": -2.0330204321918766,
+      "one_lcl": -6.0006128603821525,
+      "two_ucl": -0.04922421809673905,
+      "two_lcl": -7.9844090744772895,
+      "three_ucl": 1.9345719959983985,
+      "three_lcl": -9.968205288572427,
+      "timestamp": "2025-11-13T19:07:48.152136Z"
+    }
+  },
+  "config": {
+    "sample_size": 25,
+    "sample": true,
+    "space": "scouter",
+    "name": "http_test",
+    "version": "0.1.0",
+    "alert_config": {
+      "rule": {
+        "rule": "8 16 4 8 2 4 1 1",
+        "zones_to_monitor": [
+          "Zone1",
+          "Zone2",
+          "Zone3",
+          "Zone4"
+        ]
+      },
+      "schedule": "0 0 0 * * *",
+      "features_to_monitor": [
+        "feature_0",
+        "feature_1",
+        "feature_2",
+        "feature_3"
+      ],
+      "dispatch_config": {
+        "Console": {
+          "enabled": true
+        }
+      }
+    },
+    "feature_map": {
+      "features": {}
+    },
+    "drift_type": "Spc"
+  },
+  "scouter_version": "0.12.0"
+}
