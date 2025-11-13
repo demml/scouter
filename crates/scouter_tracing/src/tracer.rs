@@ -27,6 +27,8 @@ use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use pyo3::IntoPyObjectExt;
+use scouter_events::queue::types::TransportConfig;
+use scouter_settings::http::HTTPConfig;
 
 use scouter_types::{
     is_pydantic_basemodel, pydict_to_otel_keyvalue, pyobject_to_otel_value,
@@ -140,20 +142,34 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
 /// * `endpoint` - Optional OTLP endpoint URL for exporting spans.
 /// * `sample_ratio` - Optional sampling ratio between 0.0 and 1.0. Defaults to always sampling.
 #[pyfunction]
-#[pyo3(signature = (name=None, exporter=None))]
-pub fn init_tracer(name: Option<String>, exporter: Option<&Bound<'_, PyAny>>) {
+#[pyo3(signature = (name=None, transport_config=None, exporter=None))]
+pub fn init_tracer(
+    name: Option<String>,
+    transport_config: Option<&Bound<'_, PyAny>>,
+    exporter: Option<&Bound<'_, PyAny>>,
+) -> Result<(), TraceError> {
     let name = name.unwrap_or_else(|| "scouter_service".to_string());
+
+    let config = match transport_config {
+        Some(config) => TransportConfig::from_py_config(config)?,
+        None => {
+            // default to http transport config
+            let config = HTTPConfig::default();
+            TransportConfig::Http(config)
+        }
+    };
 
     TRACER_PROVIDER.get_or_init(|| {
         let resource = Resource::builder()
             .with_attributes(vec![KeyValue::new(SERVICE_NAME, name.clone())])
             .build();
 
-        let scouter_export = ScouterSpanExporter {
-            space: "default".to_string(),
-            name: name.clone(),
-            version: "1.0.0".to_string(),
-        };
+        let scouter_export = ScouterSpanExporter::new(
+            "default".to_string(),
+            name.clone(),
+            "1.0.0".to_string(),
+            config,
+        );
 
         let span_exporter = if let Some(exporter) = exporter {
             SpanExporterNum::from_pyobject(exporter).expect("failed to convert exporter")
@@ -168,6 +184,8 @@ pub fn init_tracer(name: Option<String>, exporter: Option<&Bound<'_, PyAny>>) {
         global::set_tracer_provider(provider.clone());
         provider
     });
+
+    Ok(())
 }
 
 fn reset_current_context(py: Python, token: &Py<PyAny>) -> PyResult<()> {

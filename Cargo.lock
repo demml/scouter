@@ -5981,6 +5981,8 @@ dependencies = [
  "potato-head",
  "pyo3",
  "pyo3-async-runtimes",
+ "scouter-events",
+ "scouter-settings",
  "scouter-types",
  "serde",
  "serde_json",
