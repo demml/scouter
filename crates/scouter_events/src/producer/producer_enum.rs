@@ -14,7 +14,7 @@ pub use crate::producer::rabbitmq::RabbitMQConfig;
 use crate::queue::types::TransportConfig;
 
 use crate::error::EventError;
-use scouter_types::{MessageRecord, ServerRecords};
+use scouter_types::MessageRecord;
 use tracing::debug;
 
 #[derive(Clone)]

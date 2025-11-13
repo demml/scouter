@@ -6,8 +6,8 @@ use crate::queue::bus::TaskState;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use crossbeam_queue::ArrayQueue;
+use scouter_types::MessageRecord;
 use scouter_types::QueueExt;
-use scouter_types::ServerRecords;
 use std::fmt::Debug;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -21,7 +21,7 @@ pub trait FeatureQueue: Send + Sync {
     fn create_drift_records_from_batch<T: QueueExt>(
         &self,
         batch: Vec<T>,
-    ) -> Result<ServerRecords, FeatureQueueError>;
+    ) -> Result<MessageRecord, FeatureQueueError>;
 }
 
 pub trait BackgroundTask: Send + Sync + 'static {
@@ -142,7 +142,7 @@ pub trait QueueMethods {
     /// Publish the records to the producer
     /// Remember - everything flows down from python, so the async producers need
     /// to be called in a blocking manner
-    async fn publish(&mut self, records: ServerRecords) -> Result<(), EventError> {
+    async fn publish(&mut self, records: MessageRecord) -> Result<(), EventError> {
         let producer = self.get_producer();
         producer.publish(records).await
     }

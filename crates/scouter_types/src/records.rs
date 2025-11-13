@@ -726,4 +726,23 @@ impl MessageRecord {
             _ => 1,
         }
     }
+
+    pub fn model_dump_json(&self) -> String {
+        // serialize records to a string
+        match self {
+            MessageRecord::ServerRecords(records) => records.model_dump_json(),
+            MessageRecord::TraceServerRecord(record) => PyHelperFuncs::__json__(record),
+            MessageRecord::TagServerRecord(record) => PyHelperFuncs::__json__(record),
+        }
+    }
+}
+
+/// implement iterator for MEssageRecord to iterate over ServerRecords.records
+impl MessageRecord {
+    pub fn iter_server_records(&self) -> Option<impl Iterator<Item = &ServerRecord>> {
+        match self {
+            MessageRecord::ServerRecords(records) => Some(records.records.iter()),
+            _ => None,
+        }
+    }
 }

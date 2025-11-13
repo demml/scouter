@@ -7,7 +7,7 @@ use scouter_types::ServiceInfo;
 use scouter_events::producer::redis::{producer::redis_producer::RedisProducer, RedisConfig};
 use scouter_sql::sql::traits::SpcSqlLogic;
 use scouter_sql::PostgresClient;
-use scouter_types::{ServerRecord, ServerRecords, SpcServerRecord};
+use scouter_types::{MessageRecord, ServerRecord, ServerRecords, SpcServerRecord};
 use std::time::{Duration, Instant};
 use utils::TestHelper;
 
@@ -41,7 +41,10 @@ impl RedisMQSetup for TestHelper {
                 }
 
                 let server_records = ServerRecords { records };
-                producer.publish(server_records).await.unwrap();
+                producer
+                    .publish(MessageRecord::ServerRecords(server_records))
+                    .await
+                    .unwrap();
             }
         });
     }
