@@ -274,7 +274,7 @@ BEGIN
                     v_baggage_created_at := v_current_time + (v_baggage_sequence * INTERVAL '200 milliseconds');
 
                     INSERT INTO scouter.trace_baggage (
-                        trace_id, scope, key, value, space, name, version, created_at
+                        trace_id, scope, key, value, created_at
                     ) VALUES (
                         v_trace_id,
                         'distributed-tracing',
@@ -290,9 +290,6 @@ BEGIN
                             WHEN 3 THEN (ARRAY['control', 'variant-a', 'variant-b'])[1 + (RANDOM() * 2)::INTEGER]
                             ELSE 'value-' || k
                         END,
-                        'production',
-                        v_service_name,
-                        'v1.0.0',
                         v_baggage_created_at
                     );
                 END LOOP;

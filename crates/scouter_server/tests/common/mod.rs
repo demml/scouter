@@ -60,10 +60,22 @@ pub async fn cleanup(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> {
         FROM scouter.psi_drift;
 
         DELETE
+        FROM scouter.llm_drift_record;
+
+        DELETE
         FROM scouter.llm_drift;
 
         DELETE
-        FROM scouter.llm_drift_record;
+        FROM scouter.spans;
+
+        DELETE
+        FROM scouter.trace_baggage;
+
+        DELETE
+        FROM scouter.traces;
+
+        DELETE
+        FROM scouter.tags;
         "#,
     )
     .fetch_all(pool)
@@ -335,6 +347,16 @@ impl TestHelper {
         // Run the SQL script to populate the database
         let script = std::fs::read_to_string("tests/fixtures/populate_alerts.sql").unwrap();
 
+        sqlx::query(&script).execute(&self.pool).await.unwrap();
+
+        Ok(())
+    }
+
+    pub async fn generate_trace_data(&self) -> Result<(), anyhow::Error> {
+        //print current dir
+        println!("Current dir: {:?}", std::env::current_dir().unwrap());
+        let script =
+            std::fs::read_to_string("../scouter_sql/src/tests/script/populate_trace.sql").unwrap();
         sqlx::query(&script).execute(&self.pool).await.unwrap();
 
         Ok(())
