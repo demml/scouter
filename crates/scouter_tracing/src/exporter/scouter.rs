@@ -29,13 +29,15 @@ impl fmt::Debug for ScouterSpanExporter {
 }
 
 impl ScouterSpanExporter {
-    pub async fn new(
+    pub fn new(
         space: String,
         name: String,
         version: String,
         transport_config: TransportConfig,
     ) -> Result<Self, TraceError> {
-        let producer = RustScouterProducer::new(transport_config).await?;
+        let producer = scouter_state::block_on_safe(async {
+            RustScouterProducer::new(transport_config).await
+        })?;
         Ok(ScouterSpanExporter {
             space,
             name,

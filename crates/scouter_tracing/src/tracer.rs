@@ -159,17 +159,17 @@ pub fn init_tracer(
         }
     };
 
+    let scouter_export = ScouterSpanExporter::new(
+        "default".to_string(),
+        name.clone(),
+        "1.0.0".to_string(),
+        config,
+    )?;
+
     TRACER_PROVIDER.get_or_init(|| {
         let resource = Resource::builder()
             .with_attributes(vec![KeyValue::new(SERVICE_NAME, name.clone())])
             .build();
-
-        let scouter_export = ScouterSpanExporter::new(
-            "default".to_string(),
-            name.clone(),
-            "1.0.0".to_string(),
-            config,
-        );
 
         let span_exporter = if let Some(exporter) = exporter {
             SpanExporterNum::from_pyobject(exporter).expect("failed to convert exporter")

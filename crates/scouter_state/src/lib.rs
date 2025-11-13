@@ -5,6 +5,28 @@ use std::sync::OnceLock;
 use tokio::runtime::Runtime;
 use tracing::debug;
 
+use std::future::Future;
+
+static RUNTIME: OnceLock<Runtime> = OnceLock::new();
+
+fn get_runtime() -> &'static Runtime {
+    RUNTIME.get_or_init(|| {
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to create the static current-thread Tokio runtime")
+    })
+}
+
+/// Blocks on a future using the global current-thread runtime
+/// This is primarily used in non-async contexts where we need to call async code
+/// from sync code, such as in the ScouterSpanExporter. We use a current-thread
+/// runtime to avoid blocking the main thread and causing deadlocks.
+pub fn block_on_safe<F: Future>(future: F) -> F::Output {
+    get_runtime().block_on(future)
+}
+
+//TODO: revisit if we need this struct at all
 pub struct ScouterState {
     pub runtime: Arc<Runtime>,
 }
