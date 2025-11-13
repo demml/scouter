@@ -11,7 +11,8 @@ from scouter.client import (
     TimeInterval,
 )
 from scouter.drift import Drifter, SpcDriftConfig
-from scouter.queue import Feature, Features, KafkaConfig, ScouterQueue
+from scouter.queue import Feature, Features, ScouterQueue
+from scouter.transport import KafkaConfig
 from scouter.types import DriftType
 
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"
@@ -37,7 +38,10 @@ def test_spc_monitor_pandas_kafka(
 
     for record in records:
         features = Features(
-            features=[Feature.float(column_name, record[column_name]) for column_name in pandas_dataframe.columns]
+            features=[
+                Feature.float(column_name, record[column_name])
+                for column_name in pandas_dataframe.columns
+            ]
         )
         queue["a"].insert(features)
 
