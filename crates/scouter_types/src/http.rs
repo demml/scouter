@@ -27,6 +27,7 @@ pub enum Routes {
     Alerts,
     DownloadProfile,
     Healthcheck,
+    Message,
 }
 
 impl Routes {
@@ -44,6 +45,7 @@ impl Routes {
             Routes::DownloadProfile => "profile/download",
             Routes::Alerts => "alerts",
             Routes::Healthcheck => "healthcheck",
+            Routes::Message => "message",
         }
     }
 }

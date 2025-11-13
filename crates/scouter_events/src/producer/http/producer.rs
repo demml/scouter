@@ -5,7 +5,7 @@ use reqwest::header;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, Response};
 use scouter_settings::HTTPConfig;
-use scouter_types::{JwtToken, RequestType, Routes, ServerRecords};
+use scouter_types::{JwtToken, MessageRecord, RequestType, Routes};
 use serde_json::Value;
 use tracing::{debug, instrument};
 
@@ -174,13 +174,13 @@ impl HTTPProducer {
         Ok(HTTPProducer { client })
     }
 
-    pub async fn publish(&mut self, message: ServerRecords) -> Result<(), EventError> {
+    pub async fn publish(&mut self, message: MessageRecord) -> Result<(), EventError> {
         let serialized_msg: Value = serde_json::to_value(&message)?;
 
         let response = self
             .client
             .request(
-                Routes::Drift,
+                Routes::Message,
                 RequestType::Post,
                 Some(serialized_msg),
                 None,

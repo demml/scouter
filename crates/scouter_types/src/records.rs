@@ -718,4 +718,12 @@ impl MessageRecord {
             _ => "__missing__".to_string(),
         }
     }
+
+    pub fn len(&self) -> usize {
+        match self {
+            MessageRecord::ServerRecords(records) => records.len(),
+            MessageRecord::TraceServerRecord(_) => 1,
+            _ => 1,
+        }
+    }
 }
