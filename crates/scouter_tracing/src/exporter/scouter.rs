@@ -10,6 +10,7 @@ use scouter_events::producer::RustScouterProducer;
 use scouter_events::queue::types::TransportConfig;
 use scouter_types::{MessageRecord, TraceServerRecord};
 use std::fmt;
+use tracing::{error, instrument};
 
 pub struct ScouterSpanExporter {
     space: String,
@@ -48,6 +49,7 @@ impl ScouterSpanExporter {
 }
 
 impl SpanExporter for ScouterSpanExporter {
+    #[instrument(name = "ScouterSpanExporter::export", skip_all)]
     async fn export(&self, batch: Vec<SpanData>) -> OTelSdkResult {
         let resource_spans =
             group_spans_by_resource_and_scope(batch, &ResourceAttributesWithSchema::default());
@@ -60,10 +62,9 @@ impl SpanExporter for ScouterSpanExporter {
         };
         let message = MessageRecord::TraceServerRecord(record);
         self.producer.publish(message).await.map_err(|e| {
-            OTelSdkError::InternalFailure(format!(
-                "Failed to publish message to scouter: {}",
-                e.to_string()
-            ))
+            let msg = format!("Failed to publish message to scouter: {}", e.to_string());
+            error!("{}", msg);
+            OTelSdkError::InternalFailure(msg)
         })?;
 
         Ok(())
