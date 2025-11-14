@@ -459,6 +459,11 @@ impl ScouterServerError {
         let msg = format!("Failed to insert tags: {e}");
         ScouterServerError { error: msg }
     }
+
+    pub fn refresh_trace_summary_error<T: Display>(e: T) -> Self {
+        let msg = format!("Failed to refresh trace summary: {e}");
+        ScouterServerError { error: msg }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -587,11 +592,13 @@ pub struct InsertTagRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
 pub struct TraceRequest {
     pub trace_id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
 pub struct TraceMetricsRequest {
     pub space: Option<String>,
     pub name: Option<String>,
@@ -602,26 +609,31 @@ pub struct TraceMetricsRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
 pub struct TracePaginationResponse {
     pub items: Vec<TraceListItem>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
 pub struct TraceBaggageResponse {
     pub baggage: Vec<TraceBaggageRecord>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
 pub struct TraceSpansResponse {
     pub spans: Vec<TraceSpan>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
 pub struct TraceMetricsResponse {
     pub metrics: Vec<TraceMetricBucket>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
 pub struct TagsResponse {
     pub tags: Vec<TagRecord>,
 }

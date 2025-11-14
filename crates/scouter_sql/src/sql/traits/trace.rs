@@ -304,4 +304,12 @@ pub trait TraceSqlLogic {
 
         trace_items
     }
+
+    async fn refresh_trace_summary(pool: &Pool<Postgres>) -> Result<PgQueryResult, SqlError> {
+        let query_result = sqlx::query("REFRESH MATERIALIZED VIEW scouter.trace_summary;")
+            .execute(pool)
+            .await?;
+
+        Ok(query_result)
+    }
 }

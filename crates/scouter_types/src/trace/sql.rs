@@ -1,12 +1,13 @@
 use crate::trace::{Attribute, SpanEvent, SpanLink};
 use chrono::{DateTime, Utc};
+use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
-
 #[cfg(feature = "server")]
 use sqlx::{postgres::PgRow, FromRow, Row};
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
+#[pyclass]
 pub struct TraceListItem {
     pub trace_id: String,
     pub space: String,
@@ -27,6 +28,7 @@ pub struct TraceListItem {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[pyclass]
 pub struct TraceSpan {
     pub trace_id: String,
     pub span_id: String,
@@ -80,6 +82,7 @@ impl FromRow<'_, PgRow> for TraceSpan {
 }
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
+#[pyclass]
 pub struct TraceFilters {
     pub space: Option<String>,
     pub name: Option<String>,
@@ -134,6 +137,7 @@ impl TraceFilters {
 
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[pyclass]
 pub struct TraceMetricBucket {
     pub bucket_start: DateTime<Utc>,
     pub trace_count: i64,

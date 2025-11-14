@@ -6,7 +6,10 @@ use scouter_types::contracts::{
     DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
 };
 use scouter_types::http::{RequestType, Routes};
-use scouter_types::RegisteredProfileResponse;
+use scouter_types::sql::TraceFilters;
+use scouter_types::{
+    RegisteredProfileResponse, TracePaginationResponse, TraceRequest, TraceSpansResponse,
+};
 
 use crate::http::HTTPClient;
 use scouter_types::{
@@ -156,6 +159,76 @@ impl ScouterClient {
         } else {
             Ok(false)
         }
+    }
+
+    pub fn get_paginated_traces(
+        &self,
+        request: &TraceFilters,
+    ) -> Result<TracePaginationResponse, ClientError> {
+        let response = self.client.request(
+            Routes::PaginatedTraces,
+            RequestType::Put,
+            Some(serde_json::to_value(request).unwrap()),
+            None,
+            None,
+        )?;
+
+        if !response.status().is_success() {
+            error!(
+                "Failed to get paginated traces. Status: {:?}",
+                response.status()
+            );
+            return Err(ClientError::GetPaginatedTracesError);
+        }
+
+        // Get response body
+        let body = response.bytes()?;
+
+        // Parse JSON response
+        let response: TracePaginationResponse = serde_json::from_slice(&body)?;
+        Ok(response)
+    }
+
+    pub fn refresh_trace_summary(&self) -> Result<bool, ClientError> {
+        let response = self.client.request(
+            Routes::RefreshTraceSummary,
+            RequestType::Get,
+            None,
+            None,
+            None,
+        )?;
+        if !response.status().is_success() {
+            error!(
+                "Failed to refresh trace summary. Status: {:?}",
+                response.status()
+            );
+            return Err(ClientError::RefreshTraceSummaryError);
+        }
+
+        Ok(true)
+    }
+
+    pub fn get_trace_spans(&self, trace_id: &str) -> Result<TraceSpansResponse, ClientError> {
+        let trace_request = TraceRequest {
+            trace_id: trace_id.to_string(),
+        };
+        let response = self.client.request(
+            Routes::TraceSpans,
+            RequestType::Get,
+            Some(serde_json::to_value(&trace_request).unwrap()),
+            None,
+            None,
+        )?;
+        if !response.status().is_success() {
+            error!("Failed to get trace spans. Status: {:?}", response.status());
+            return Err(ClientError::GetTraceSpansError);
+        }
+
+        // Get response body
+        let body = response.bytes()?;
+        // Parse JSON response
+        let response: TraceSpansResponse = serde_json::from_slice(&body)?;
+        Ok(response)
     }
 }
 
@@ -320,6 +393,20 @@ impl PyScouterClient {
         PyHelperFuncs::save_to_json(profile, path.clone(), &filename)?;
 
         Ok(path.map_or(filename, |p| p.to_string_lossy().to_string()))
+    }
+
+    /// Update the status of a profile
+    ///
+    /// # Arguments
+    /// * `request` - A profile status request object
+    ///
+    /// # Returns
+    /// * `Ok(())` if the profile status was updated successfully
+    pub fn update_paginated_traces(
+        &self,
+        request: ProfileStatusRequest,
+    ) -> Result<bool, ClientError> {
+        self.client.update_profile_status(&request)
     }
 }
 
