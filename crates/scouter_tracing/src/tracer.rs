@@ -159,6 +159,7 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
     version=None
 ))]
 #[instrument(skip_all)]
+#[allow(clippy::too_many_arguments)]
 pub fn init_tracer(
     py: Python,
     service_name: String,

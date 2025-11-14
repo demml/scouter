@@ -4,7 +4,6 @@ use crate::sql::traits::{
     ProfileSqlLogic, PsiSqlLogic, SpcSqlLogic, TagSqlLogic, TraceSqlLogic, UserSqlLogic,
 };
 use scouter_settings::DatabaseSettings;
-use scouter_types::deduplicate_and_merge_traces;
 use scouter_types::{RecordType, ServerRecords, TagRecord, ToDriftRecords, TraceServerRecord};
 use sqlx::ConnectOptions;
 use sqlx::{postgres::PgConnectOptions, Pool, Postgres};
@@ -326,7 +325,7 @@ mod tests {
             start_time,
             end_time,
             duration_ms: duration_ms_val,
-            status_code: status_code.clone(),
+            status_code,
             status_message: if status_code == 2 {
                 "Internal Server Error".to_string()
             } else {
