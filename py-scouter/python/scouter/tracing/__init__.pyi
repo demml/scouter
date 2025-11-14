@@ -394,10 +394,6 @@ class BaseTracer:
         """
         ...
 
-    def force_flush(self) -> None:
-        """Force flush the tracer's exporter."""
-        ...
-
 class StdoutSpanExporter:
     """Exporter that outputs spans to standard output (stdout)."""
 
@@ -424,6 +420,10 @@ class StdoutSpanExporter:
     def sample_ratio(self) -> Optional[float]:
         """Get the sampling ratio."""
         ...
+
+def flush_tracer() -> None:
+    """Force flush the tracer's exporter."""
+    ...
 
 class ExportConfig:
     """Configuration for exporting spans."""
