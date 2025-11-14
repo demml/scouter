@@ -75,7 +75,7 @@ num-traits = "0.*"
 object_store = { version = "0.*", features = ["aws", "azure", "gcp" ] }
 opentelemetry = { version = "0.*" }
 opentelemetry-stdout = "0.*"
-opentelemetry_sdk = { version = "0.*", features = ["trace", "rt-tokio", "experimental_trace_batch_span_processor_with_async_runtime"] }
+opentelemetry_sdk = { version = "0.*", features = ["trace"] }
 opentelemetry-proto = { version = "0.*" }
 opentelemetry-otlp = { version = "0.*" }
 parquet = { version = ">=55.*", features = ["arrow"] }

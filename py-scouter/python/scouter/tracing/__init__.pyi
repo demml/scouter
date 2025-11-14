@@ -4,12 +4,22 @@
 
 import datetime
 from types import TracebackType
-from typing import Any, Callable, Dict, Optional, ParamSpec, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Optional,
+    ParamSpec,
+    TypeVar,
+    Union,
+    TypeAlias,
+)
 from ..transport import HTTPConfig, KafkaConfig, RabbitMQConfig, RedisConfig
 from ..types import CompressionType
 
 P = ParamSpec("P")
 R = TypeVar("R")
+SerializedType: TypeAlias = Union[str, int, float, dict, list]
 
 def get_function_type(func: Callable[..., Any]) -> FunctionType:
     """Determine the function type (sync, async, generator, async generator).
@@ -268,13 +278,13 @@ class ActiveSpan:
         """Get the context ID of the active span."""
         ...
 
-    def set_attribute(self, key: str, value: str) -> None:
+    def set_attribute(self, key: str, value: SerializedType) -> None:
         """Set an attribute on the active span.
 
         Args:
             key (str):
                 The attribute key.
-            value (str):
+            value (SerializedType):
                 The attribute value.
         """
         ...
@@ -340,7 +350,7 @@ class ActiveSpan:
         """Exit the span context."""
         ...
 
-    def __aenter__(self) -> "ActiveSpan":
+    async def __aenter__(self) -> "ActiveSpan":
         """Enter the async span context."""
         ...
 
@@ -623,3 +633,7 @@ class TestSpanExporter:
     def clear(self) -> None:
         """Clear all collected trace records."""
         ...
+
+def shutdown_tracer() -> None:
+    """Shutdown the tracer and flush any remaining spans."""
+    ...

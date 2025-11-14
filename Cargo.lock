@@ -4218,8 +4218,6 @@ dependencies = [
  "percent-encoding",
  "rand 0.9.2",
  "thiserror 2.0.17",
- "tokio",
- "tokio-stream",
 ]
 
 [[package]]

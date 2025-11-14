@@ -1,4 +1,4 @@
-use crate::exporter::TraceError;
+use crate::{exporter::TraceError, tracer::flush_tracer};
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
 use opentelemetry_proto::transform::common::tonic::ResourceAttributesWithSchema;
 use opentelemetry_proto::transform::trace::tonic::group_spans_by_resource_and_scope;
@@ -12,7 +12,7 @@ use scouter_state::app_state;
 use scouter_types::{MessageRecord, TraceServerRecord};
 use std::fmt;
 use std::sync::Arc;
-use tracing::{error, instrument};
+use tracing::{error, info, instrument};
 pub struct ScouterSpanExporter {
     space: String,
     name: String,
@@ -93,6 +93,9 @@ impl SpanExporter for ScouterSpanExporter {
 
     fn shutdown(&mut self) -> OTelSdkResult {
         // Clean up resources if necessary
+        info!("Shutting down ScouterSpanExporter");
+        flush_tracer()
+            .map_err(|e| OTelSdkError::InternalFailure(format!("Failed to flush tracer: {}", e)))?;
         Ok(())
     }
 }

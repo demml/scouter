@@ -31,6 +31,7 @@ use pyo3::IntoPyObjectExt;
 use scouter_events::queue::types::TransportConfig;
 use scouter_settings::http::HTTPConfig;
 
+use scouter_state::app_state;
 use scouter_types::{
     is_pydantic_basemodel, pydict_to_otel_keyvalue, pyobject_to_otel_value,
     pyobject_to_tracing_json, BAGGAGE_PREFIX, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT,
@@ -38,7 +39,7 @@ use scouter_types::{
 };
 use std::sync::{Arc, RwLock};
 use std::{collections::HashMap, sync::OnceLock};
-use tracing::{debug, instrument};
+use tracing::{debug, info, instrument};
 
 /// Global static instance of the tracer provider.
 static TRACER_PROVIDER: OnceLock<SdkTracerProvider> = OnceLock::new();
@@ -552,7 +553,7 @@ impl BaseTracer {
         label: Option<String>,
         parent_context_id: Option<String>,
     ) -> Result<ActiveSpan, TraceError> {
-        debug!("Creating span: {}", name);
+        info!("Creating span: {}", name);
         // Get parent context if available
         let parent_id = parent_context_id.or_else(|| get_current_context_id(py).ok().flatten());
 
@@ -676,6 +677,14 @@ impl BaseTracer {
         let span = get_current_active_span(py)?;
         Ok(span)
     }
+
+    pub fn shutdown(&self) -> Result<(), TraceError> {
+        let provider = TRACER_PROVIDER.get().ok_or_else(|| {
+            TraceError::InitializationError("Tracer provider not initialized".to_string())
+        })?;
+        provider.shutdown()?;
+        Ok(())
+    }
 }
 
 impl BaseTracer {
@@ -713,5 +722,15 @@ pub fn flush_tracer() -> Result<(), TraceError> {
         TraceError::InitializationError("Tracer provider not initialized".to_string())
     })?;
     provider.force_flush()?;
+    Ok(())
+}
+
+#[pyfunction]
+pub fn shutdown_tracer() -> Result<(), TraceError> {
+    info!("Shutting down tracer");
+    let provider = TRACER_PROVIDER.get().ok_or_else(|| {
+        TraceError::InitializationError("Tracer provider not initialized".to_string())
+    })?;
+    provider.shutdown()?;
     Ok(())
 }

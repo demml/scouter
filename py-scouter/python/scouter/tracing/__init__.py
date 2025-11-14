@@ -34,6 +34,7 @@ TraceSpanRecord = tracing.TraceSpanRecord
 TraceBaggageRecord = tracing.TraceBaggageRecord
 TestSpanExporter = tracing.TestSpanExporter
 flush_tracer = tracing.flush_tracer
+shutdown_tracer = tracing.shutdown_tracer
 
 
 def set_output(
