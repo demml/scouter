@@ -1,6 +1,4 @@
 import time
-
-import asyncio
 from fastapi.testclient import TestClient
 from scouter.client import DriftRequest, ScouterClient, TimeInterval
 from scouter.types import DriftType
