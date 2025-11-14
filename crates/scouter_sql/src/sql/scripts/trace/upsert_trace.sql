@@ -29,7 +29,7 @@ SELECT
     status_code,
     status_message,
     root_span_id,
-    1 as span_count,
+    span_count,
     attributes
 FROM UNNEST(
     $1::timestamptz[],  -- created_at
@@ -45,7 +45,8 @@ FROM UNNEST(
     $11::integer[],       -- status_code
     $12::text[],       -- status_message
     $13::text[],       -- root_span_id
-    $14::jsonb[]       -- attributes
+    $14::integer[],    -- span_count
+    $15::jsonb[]       -- attributes
 ) AS t(
         created_at,
         trace_id,
@@ -60,6 +61,7 @@ FROM UNNEST(
         status_code,
         status_message,
         root_span_id,
+        span_count,
         attributes
     )
 ON CONFLICT (created_at, trace_id, scope) DO UPDATE SET
@@ -69,6 +71,6 @@ ON CONFLICT (created_at, trace_id, scope) DO UPDATE SET
     status_code = EXCLUDED.status_code,
     status_message = EXCLUDED.status_message,
     attributes = scouter.traces.attributes || EXCLUDED.attributes,
-    span_count = scouter.traces.span_count + 1,
+    span_count = scouter.traces.span_count + EXCLUDED.span_count,
     trace_state = EXCLUDED.trace_state,
     updated_at = NOW();

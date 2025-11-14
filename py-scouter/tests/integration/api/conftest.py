@@ -12,6 +12,7 @@ from scouter import (  # type: ignore[attr-defined]
     Queue,
     ScouterQueue,
 )
+import asyncio
 from scouter.alert import AlertThreshold, LLMAlertConfig, SpcAlertConfig
 from scouter.client import ScouterClient
 from scouter.drift import (
@@ -291,14 +292,21 @@ def create_http_app(profile_path: Path) -> FastAPI:
 
     app = FastAPI(lifespan=lifespan)
 
-    @tracer.span("inner")
-    async def inner(feature_1: float, feature_2: float) -> InnerResponse:
+    @tracer.span("nested1")
+    async def nested1(feature_1: float, feature_2: float) -> InnerResponse:
+        await asyncio.sleep(0.05)
+        return InnerResponse(sum=feature_1 + feature_2)
+
+    @tracer.span("nested2")
+    async def nested2(feature_1: float, feature_2: float) -> InnerResponse:
+        await asyncio.sleep(0.05)
         return InnerResponse(sum=feature_1 + feature_2)
 
     @app.post("/predict", response_model=TestResponse)
     @tracer.span("predict", baggage=[{"zoo": "bat"}], tags=[{"foo": "bar"}])
     async def predict(request: Request, payload: PredictRequest) -> TestResponse:
-        await inner(payload.feature_1, payload.feature_2)
+        await nested1(payload.feature_1, payload.feature_2)
+        await nested2(payload.feature_3, payload.feature_0)
         request.app.state.queue["spc"].insert(payload.to_features())
         return TestResponse(message="success")
 

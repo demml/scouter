@@ -176,9 +176,7 @@ impl MessageHandler {
         pool: &Pool<Postgres>,
         records: &TraceServerRecord,
     ) -> Result<(), SqlError> {
-        let (raw_trace_batch, span_batch, baggage_batch) = records.to_records()?;
-
-        let trace_batch = deduplicate_and_merge_traces(raw_trace_batch);
+        let (trace_batch, span_batch, baggage_batch) = records.to_records()?;
 
         let all_tags: Vec<TagRecord> = trace_batch
             .iter()
@@ -192,16 +190,6 @@ impl MessageHandler {
                 })
             })
             .collect();
-
-        //print first span in batch
-        if let Some(first_span) = span_batch.first() {
-            info!("First span in batch input: {:?}", first_span.input);
-            info!("First span in batch output: {:?}", first_span.output);
-            info!(
-                "First span in batch attributes: {:?}",
-                first_span.attributes
-            );
-        }
 
         let (trace_result, span_result, baggage_result, tag_result) = try_join!(
             PostgresClient::upsert_trace_batch(pool, &trace_batch),
@@ -297,7 +285,9 @@ mod tests {
             start_time: created_at,
             end_time: created_at + chrono::Duration::milliseconds(150),
             duration_ms: 150,
-            status: "ok".to_string(),
+            status_code: 0,
+            span_count: 1,
+            status_message: "OK".to_string(),
             root_span_id: span_id.clone(),
             attributes: vec![Attribute::default()],
             tags: vec![],
@@ -318,11 +308,7 @@ mod tests {
         let end_time = start_time + chrono::Duration::milliseconds(duration_ms_val);
 
         // --- Status and Kind ---
-        let status_code = if rng.random_bool(0.95) {
-            "STATUS_CODE_OK".to_string()
-        } else {
-            "STATUS_CODE_ERROR".to_string()
-        };
+        let status_code = if rng.random_bool(0.95) { 0 } else { 2 };
         let span_kind_options = ["SERVER", "CLIENT", "INTERNAL", "PRODUCER", "CONSUMER"];
         let span_kind = span_kind_options[rng.random_range(0..span_kind_options.len())].to_string();
 
@@ -341,7 +327,7 @@ mod tests {
             end_time,
             duration_ms: duration_ms_val,
             status_code: status_code.clone(),
-            status_message: if status_code == "STATUS_CODE_ERROR" {
+            status_message: if status_code == 2 {
                 "Internal Server Error".to_string()
             } else {
                 "OK".to_string()

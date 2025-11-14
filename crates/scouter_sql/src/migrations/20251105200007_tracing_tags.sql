@@ -195,7 +195,7 @@ LEFT JOIN (
         trace_id,
         COUNT(*) as error_count
     FROM scouter.spans
-    WHERE status_code != 'ok'
+    WHERE status_code != 2
     AND created_at >= NOW() - INTERVAL '7 days'
     GROUP BY trace_id
 ) error_spans ON t.trace_id = error_spans.trace_id

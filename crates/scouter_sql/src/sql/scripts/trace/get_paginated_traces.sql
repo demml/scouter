@@ -22,10 +22,9 @@ FROM scouter.get_traces_paginated(
     $4,  -- p_service_name
     $5,  -- p_has_errors
     $6,  -- p_status_code
-    $7,  -- p_status_message
-    $8,  -- p_start_time
-    $9,  -- p_end_time
-    $10, -- p_limit
-    $11, -- p_cursor_created_at
-    $12  -- p_cursor_trace_id
+    $7,  -- p_start_time
+    $8,  -- p_end_time
+    $9,  -- p_limit
+    $10, -- p_cursor_created_at
+    $11  -- p_cursor_trace_id
 );

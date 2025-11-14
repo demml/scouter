@@ -306,7 +306,7 @@ impl ActiveSpan {
     /// Set the status of the span
     /// # Arguments
     /// * `status` - The status string ("ok", "error", or "unset")
-    /// * `description` - Optional description for the status (tyically used with error)
+    /// * `description` - Optional description for the status (typically used with error)
     fn set_status(&self, status: String, description: Option<String>) -> Result<(), TraceError> {
         let otel_status = match status.to_lowercase().as_str() {
             "ok" => Status::Ok,

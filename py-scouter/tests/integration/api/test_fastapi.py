@@ -92,7 +92,6 @@ def test_api_http(http_scouter_server):
                     feature_3=1.0,
                 ).model_dump(),
             )
-            time.sleep(0.1)
         assert response.status_code == 200
         time.sleep(10)
         client.wait_shutdown()

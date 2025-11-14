@@ -63,7 +63,7 @@ pub struct TraceRecord {
     #[pyo3(get)]
     pub root_span_id: String,
     #[pyo3(get)]
-    pub span_count: usize,
+    pub span_count: i32,
     #[pyo3(get)]
     pub attributes: Vec<Attribute>,
     #[pyo3(get)]
@@ -107,8 +107,7 @@ impl TraceRecord {
                 existing_attr_keys.insert(attr.key.clone());
             }
         }
-
-        self.span_count += 1;
+        self.span_count += other.span_count;
 
         let mut existing_tag_keys: std::collections::HashSet<String> =
             self.tags.iter().map(|t| t.key.clone()).collect();
@@ -134,7 +133,7 @@ pub fn deduplicate_and_merge_traces(raw_traces: Vec<TraceRecord>) -> Vec<TraceRe
 
     for trace in raw_traces {
         let key = TraceKey {
-            created_at: trace.created_at, // You might need to adjust this key if created_at changes
+            created_at: trace.created_at,
             trace_id: trace.trace_id.clone(),
             scope: trace.scope.clone(),
         };
@@ -257,7 +256,6 @@ pub type TraceRecords = (
 );
 
 pub trait TraceRecordExt {
-    /// this will convert a vector of KeyValue to a JSON  Array of objects
     fn keyvalue_to_json_array<T: Serialize>(attributes: &Vec<T>) -> Result<Value, RecordError> {
         Ok(serde_json::to_value(attributes).unwrap_or(Value::Array(vec![])))
     }
@@ -441,10 +439,7 @@ impl TraceServerRecord {
         for attr in attributes {
             if attr.key == SCOUTER_TRACING_INPUT {
                 if let Value::String(s) = &attr.value {
-                    // Attempt to parse the string value as JSON
                     input = serde_json::from_str(s).unwrap_or_else(|e| {
-                        // Log a warning if JSON parsing fails, but keep the string value
-                        // or fall back to null, depending on desired robustness.
                         tracing::warn!(
                             key = SCOUTER_TRACING_INPUT,
                             error = %e,
@@ -456,7 +451,6 @@ impl TraceServerRecord {
                 }
             } else if attr.key == SCOUTER_TRACING_OUTPUT {
                 if let Value::String(s) = &attr.value {
-                    // Attempt to parse the string value as JSON
                     output = serde_json::from_str(s)
                         .unwrap_or_else(|e| {
                             tracing::warn!(
@@ -713,6 +707,12 @@ impl TraceServerRecord {
             }
         }
 
+        // sort traces by start_time ascending to ensure deterministic merging (we want later spans to update earlier ones)
+        trace_records.sort_by_key(|trace| trace.start_time);
+        let mut trace_records = deduplicate_and_merge_traces(trace_records);
+
+        // shrink trace_records to fit after deduplication
+        trace_records.shrink_to_fit();
         Ok((trace_records, span_records, baggage_records))
     }
 }
