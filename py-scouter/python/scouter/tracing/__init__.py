@@ -103,7 +103,7 @@ class Tracer(tracing.BaseTracer):
             Callable[[Callable[P, R]], Callable[P, R]]:
         """
 
-        # I'd prefere this entire decorator to be rust, but creating this type of decorator in rust
+        # I'd prefer this entire decorator to be rust, but creating this type of decorator in rust
         # is a little bit of a pain when dealing with async
         def decorator(func: Callable[P, R]) -> Callable[P, R]:
             span_name = name or f"{func.__module__}.{func.__qualname__}"

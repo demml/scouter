@@ -6,6 +6,7 @@ pub mod testing;
 pub mod traits;
 
 use crate::error::TraceError;
+use crate::exporter::processor::BatchConfig;
 use crate::exporter::scouter::ScouterSpanExporter;
 use crate::exporter::traits::SpanExporterBuilder;
 use opentelemetry_sdk::Resource;
@@ -43,11 +44,18 @@ impl SpanExporterNum {
         &self,
         resource: Resource,
         scouter_exporter: ScouterSpanExporter,
+        batch_config: Option<BatchConfig>,
     ) -> Result<opentelemetry_sdk::trace::SdkTracerProvider, TraceError> {
         match self {
-            SpanExporterNum::Http(builder) => builder.build_provider(resource, scouter_exporter),
-            SpanExporterNum::Stdout(builder) => builder.build_provider(resource, scouter_exporter),
-            SpanExporterNum::Testing(builder) => builder.build_provider(resource, scouter_exporter),
+            SpanExporterNum::Http(builder) => {
+                builder.build_provider(resource, scouter_exporter, batch_config)
+            }
+            SpanExporterNum::Stdout(builder) => {
+                builder.build_provider(resource, scouter_exporter, batch_config)
+            }
+            SpanExporterNum::Testing(builder) => {
+                builder.build_provider(resource, scouter_exporter, batch_config)
+            }
         }
     }
 }

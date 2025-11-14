@@ -6,6 +6,7 @@
 // This data can then be pulled inside of OpsML's UI for trace correlation and analysis.
 
 use crate::error::TraceError;
+use crate::exporter::processor::BatchConfig;
 use crate::exporter::scouter::ScouterSpanExporter;
 use crate::exporter::SpanExporterNum;
 use crate::utils::{
@@ -44,6 +45,8 @@ static TRACER_PROVIDER: OnceLock<SdkTracerProvider> = OnceLock::new();
 
 // Add trace metadata store
 static TRACE_METADATA_STORE: OnceLock<TraceMetadataStore> = OnceLock::new();
+
+const MISSING: &str = "unknown";
 
 #[derive(Clone)]
 struct TraceMetadata {
@@ -138,21 +141,37 @@ fn get_trace_metadata_store() -> &'static TraceMetadataStore {
 /// This sets up the tracer provider with the specified service name, endpoint, and sampling ratio.
 /// If no endpoint is provided, spans will be exported to stdout for debugging purposes.
 /// # Arguments
-/// * `name` - Optional service name for the tracer. Defaults to "scouter_service
-/// * `endpoint` - Optional OTLP endpoint URL for exporting spans.
-/// * `sample_ratio` - Optional sampling ratio between 0.0 and 1.0. Defaults to always sampling.
+/// * `service_name` - Optional service name for the tracer. Defaults to "scouter_service
+/// * `transport_config` - Optional transport configuration for the Scouter exporter
+/// * `exporter` - Optional span exporter to use instead of the default HTTP exporter
+/// * `batch_config` - Optional batch configuration for span exporting
+/// * `space` - Optional space name for Scouter
+/// * `name` - Optional name for Scouter
+/// * `version` - Optional version for Scouter
 #[pyfunction]
-#[pyo3(signature = (name=None, transport_config=None, exporter=None))]
+#[pyo3(signature = (
+    service_name="scouter_service".to_string(),
+    transport_config=None,
+    exporter=None,
+    batch_config=None,
+    space=None,
+    name=None,
+    version=None
+))]
 #[instrument(skip_all)]
 pub fn init_tracer(
-    name: Option<String>,
+    py: Python,
+    service_name: String,
     transport_config: Option<&Bound<'_, PyAny>>,
     exporter: Option<&Bound<'_, PyAny>>,
+    batch_config: Option<Py<BatchConfig>>,
+    space: Option<String>,
+    name: Option<String>,
+    version: Option<String>,
 ) -> Result<(), TraceError> {
     debug!("Initializing tracer");
-    let name = name.unwrap_or_else(|| "scouter_service".to_string());
 
-    let config = match transport_config {
+    let transport_config = match transport_config {
         Some(config) => TransportConfig::from_py_config(config)?,
         None => {
             // default to http transport config
@@ -161,16 +180,20 @@ pub fn init_tracer(
         }
     };
 
+    let batch_config = batch_config
+        .map(|bc| bc.extract::<BatchConfig>(py))
+        .transpose()?;
+
     let scouter_export = ScouterSpanExporter::new(
-        "default".to_string(),
-        name.clone(),
-        "1.0.0".to_string(),
-        config,
+        space.unwrap_or_else(|| MISSING.to_string()),
+        name.unwrap_or_else(|| MISSING.to_string()),
+        version.unwrap_or_else(|| MISSING.to_string()),
+        transport_config,
     )?;
 
     TRACER_PROVIDER.get_or_init(|| {
         let resource = Resource::builder()
-            .with_attributes(vec![KeyValue::new(SERVICE_NAME, name.clone())])
+            .with_attributes(vec![KeyValue::new(SERVICE_NAME, service_name)])
             .build();
 
         let span_exporter = if let Some(exporter) = exporter {
@@ -180,7 +203,7 @@ pub fn init_tracer(
         };
 
         let provider = span_exporter
-            .build_provider(resource, scouter_export)
+            .build_provider(resource, scouter_export, batch_config)
             .expect("failed to build tracer provider");
 
         global::set_tracer_provider(provider.clone());
@@ -685,7 +708,7 @@ impl BaseTracer {
 
 /// Helper function to force flush the tracer provider
 #[pyfunction]
-pub fn force_flush() -> Result<(), TraceError> {
+pub fn flush_tracer() -> Result<(), TraceError> {
     let provider = TRACER_PROVIDER.get().ok_or_else(|| {
         TraceError::InitializationError("Tracer provider not initialized".to_string())
     })?;

@@ -1,10 +1,12 @@
 use crate::error::TraceError;
+use crate::exporter::processor::BatchConfig;
 use crate::exporter::processor::EnrichSpanWithBaggageProcessor;
 use crate::exporter::scouter::ScouterSpanExporter;
+use opentelemetry_sdk::runtime;
+use opentelemetry_sdk::trace::span_processor_with_async_runtime::BatchSpanProcessor;
 use opentelemetry_sdk::trace::Sampler;
 use opentelemetry_sdk::trace::SpanExporter;
 use opentelemetry_sdk::Resource;
-
 /// Common interface for all span exporter builders
 pub trait SpanExporterBuilder {
     type Exporter: SpanExporter + 'static;
@@ -35,6 +37,7 @@ pub trait SpanExporterBuilder {
         &self,
         resource: Resource,
         scouter_exporter: ScouterSpanExporter,
+        batch_config: Option<BatchConfig>,
     ) -> Result<opentelemetry_sdk::trace::SdkTracerProvider, TraceError>
     where
         Self: Sized,
@@ -46,11 +49,20 @@ pub trait SpanExporterBuilder {
         let mut builder = opentelemetry_sdk::trace::SdkTracerProvider::builder()
             .with_span_processor(EnrichSpanWithBaggageProcessor);
 
-        // Add exporters based on configuration
         if use_batch {
+            let config = batch_config.unwrap_or_default();
+
+            let exporter_batch_processor = BatchSpanProcessor::builder(exporter, runtime::Tokio)
+                .with_batch_config(config.to_otlp_config())
+                .build();
+            let scouter_batch_processor =
+                BatchSpanProcessor::builder(scouter_exporter, runtime::Tokio)
+                    .with_batch_config(config.to_otlp_config())
+                    .build();
+
             builder = builder
-                .with_batch_exporter(exporter)
-                .with_batch_exporter(scouter_exporter);
+                .with_span_processor(exporter_batch_processor)
+                .with_span_processor(scouter_batch_processor);
         } else {
             builder = builder
                 .with_simple_exporter(exporter)

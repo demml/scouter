@@ -26,20 +26,11 @@ from scouter.llm import Agent, Prompt, Provider, Score
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.queue import LLMRecord
 from scouter.util import FeatureMixin
-from scouter.tracing import TestSpanExporter, get_tracer, init_tracer
+from scouter.tracing import TestSpanExporter, get_tracer, init_tracer, force_flush
 
 logger = RustyLogger.get_logger(
     LoggingConfig(log_level=LogLevel.Info),
 )
-
-
-def start_tracing():
-    """Initialize tracer with test exporter for each test."""
-    init_tracer(
-        name="test-service",
-        exporter=TestSpanExporter(),
-    )
-    return get_tracer("test-tracer")
 
 
 def create_coherence_evaluation_prompt() -> Prompt:
@@ -175,12 +166,12 @@ class ChatRequest(BaseModel):
 
 def create_kafka_app(profile_path: Path) -> FastAPI:
     config = KafkaConfig()
-    tracer = start_tracing()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         logger.info("Starting up FastAPI app")
 
+        init_tracer(name="test-service", exporter=TestSpanExporter())
         app.state.queue = ScouterQueue.from_path(
             path={"spc": profile_path},
             transport_config=config,
@@ -191,8 +182,10 @@ def create_kafka_app(profile_path: Path) -> FastAPI:
         # Shutdown the queue
         app.state.queue.shutdown()
         app.state.queue = None
+        force_flush()
 
     app = FastAPI(lifespan=lifespan)
+    tracer = get_tracer("test-tracer")
 
     @app.post("/predict", response_model=TestResponse)
     @tracer.span("predict")
@@ -263,12 +256,12 @@ def create_kafka_llm_app(profile_path: Path) -> FastAPI:
 
 def create_http_app(profile_path: Path) -> FastAPI:
     config = HTTPConfig()
-    tracer = start_tracing()
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         logger.info("Starting up FastAPI app")
 
+        init_tracer(name="test-service", exporter=TestSpanExporter())
         app.state.queue = ScouterQueue.from_path(
             path={"spc": profile_path},
             transport_config=config,
@@ -279,8 +272,10 @@ def create_http_app(profile_path: Path) -> FastAPI:
         # Shutdown the queue
         app.state.queue.shutdown()
         app.state.queue = None
+        force_flush()
 
     app = FastAPI(lifespan=lifespan)
+    tracer = get_tracer("test-tracer")
 
     @app.post("/predict", response_model=TestResponse)
     async def predict(request: Request, payload: PredictRequest) -> TestResponse:

@@ -179,31 +179,85 @@ def get_tracer(name: str) -> Tracer:
     """
     ...
 
+class BatchConfig:
+    """Configuration for batch exporting of spans."""
+
+    def __init__(
+        self,
+        max_queue_size: int = 2048,
+        scheduled_delay_ms: int = 5000,
+        max_export_batch_size: int = 512,
+        export_timeout_ms: int = 30000,
+    ) -> None:
+        """Initialize the BatchConfig.
+
+        Args:
+            max_queue_size (int):
+                The maximum queue size for spans. Defaults to 2048.
+            scheduled_delay_ms (int):
+                The delay in milliseconds between export attempts. Defaults to 5000.
+            max_export_batch_size (int):
+                The maximum batch size for exporting spans. Defaults to 512.
+            export_timeout_ms (int):
+                The timeout in milliseconds for exporting spans. Defaults to 30000.
+        """
+        ...
+
 def init_tracer(
-    name: Optional[str] = None,
-    transport_config: Optional[
-        HTTPConfig | KafkaConfig | RabbitMQConfig | RedisConfig
-    ] = None,
-    exporter: Optional[HttpSpanExporter | StdoutSpanExporter | TestSpanExporter] = None,
+    service_name: str = "scouter_service",
+    transport_config: HTTPConfig
+    | KafkaConfig
+    | RabbitMQConfig
+    | RedisConfig = HTTPConfig(),
+    exporter: HttpSpanExporter
+    | StdoutSpanExporter
+    | TestSpanExporter = StdoutSpanExporter(),  # noqa: F821
+    batch_config: Optional[BatchConfig] = None,
+    profile_space: Optional[str] = None,
+    profile_name: Optional[str] = None,
+    profile_version: Optional[str] = None,
 ) -> None:
-    """Initialize the tracer with the given service name.
+    """Initialize the tracer for a service with specific transport and exporter configurations.
+
+    This function configures a service tracer, allowing for the specification of
+    the service name, the transport mechanism for exporting spans, and the chosen
+    span exporter.
 
     Args:
-        name (Optional[str]):
-            The name of the service for tracing.
-        transport_config (Optional[HTTPConfig | KafkaConfig | RabbitMQConfig | RedisConfig]):
-            The transport configuration for exporting spans.
-                Types:
-                    - HTTPConfig: Configuration for HTTP exporting.
-                    - KafkaConfig: Configuration for Kafka exporting.
-                    - RabbitMQConfig: Configuration for RabbitMQ exporting.
-                    - RedisConfig: Configuration for Redis exporting.
-        exporter (Optional[HttpSpanExporter | StdoutSpanExporter | TestSpanExporter]):
-            The span exporter to use. If None, defaults to StdoutSpanExporter.
-                Types:
-                    - HttpSpanExporter: Exporter that sends spans to an HTTP endpoint.
-                    - StdoutSpanExporter: Exporter that outputs spans to standard output (stdout).
-                    - TestSpanExporter: Exporter for testing that collects spans in memory.
+        service_name (str):
+            The **required** name of the service this tracer is associated with.
+            This is typically a logical identifier for the application or component.
+        transport_config (HTTPConfig | KafkaConfig | RabbitMQConfig | RedisConfig | None):
+            The configuration detailing how spans should be sent out.
+            If **None**, a default `HTTPConfig` will be used.
+
+            The supported configuration types are:
+            * `HTTPConfig`: Configuration for exporting via HTTP/gRPC.
+            * `KafkaConfig`: Configuration for exporting to a Kafka topic.
+            * `RabbitMQConfig`: Configuration for exporting to a RabbitMQ queue.
+            * `RedisConfig`: Configuration for exporting to a Redis stream or channel.
+        exporter (HttpSpanExporter | StdoutSpanExporter | TestSpanExporter | None):
+            The span exporter implementation to use.
+            If **None**, a default `StdoutSpanExporter` is used.
+
+            Available exporters:
+            * `HttpSpanExporter`: Sends spans to an HTTP endpoint (e.g., an OpenTelemetry collector).
+            * `StdoutSpanExporter`: Writes spans directly to standard output for debugging.
+            * `TestSpanExporter`: Collects spans in memory, primarily for unit testing.
+        batch_config (BatchConfig | None):
+            Configuration for the batching process. If provided, spans will be queued
+            and exported in batches according to these settings. If `None`, and the
+            exporter supports batching, default batch settings will be applied.
+
+    Drift Profile Association (Optional):
+        Use these parameters to associate the tracer with a specific drift profile.
+
+        profile_space (str | None):
+            The space for the drift profile.
+        profile_name (str | None):
+            A name of the associated drift profile or service.
+        profile_version (str | None):
+            The version of the drift profile.
     """
 
 class ActiveSpan:
@@ -338,6 +392,10 @@ class BaseTracer:
         Returns:
             ActiveSpan:
         """
+        ...
+
+    def force_flush(self) -> None:
+        """Force flush the tracer's exporter."""
         ...
 
 class StdoutSpanExporter:
