@@ -17,7 +17,6 @@ CREATE TABLE IF NOT EXISTS scouter.traces (
     status_message TEXT,
     root_span_id TEXT,
     span_count INTEGER DEFAULT 0,
-    attributes JSONB DEFAULT '[]',
     archived BOOLEAN DEFAULT FALSE,
     PRIMARY KEY (created_at, trace_id, scope),
     UNIQUE (created_at, trace_id, space, name, version)

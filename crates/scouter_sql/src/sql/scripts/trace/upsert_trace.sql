@@ -12,8 +12,7 @@ INSERT INTO scouter.traces (
     status_code,
     status_message,
     root_span_id,
-    span_count,
-    attributes
+    span_count
 )
 SELECT
     created_at,
@@ -29,8 +28,7 @@ SELECT
     status_code,
     status_message,
     root_span_id,
-    span_count,
-    attributes
+    span_count
 FROM UNNEST(
     $1::timestamptz[],  -- created_at
     $2::text[],        -- trace_id
@@ -45,8 +43,7 @@ FROM UNNEST(
     $11::integer[],       -- status_code
     $12::text[],       -- status_message
     $13::text[],       -- root_span_id
-    $14::integer[],    -- span_count
-    $15::jsonb[]       -- attributes
+    $14::integer[]    -- span_count
 ) AS t(
         created_at,
         trace_id,
@@ -61,8 +58,7 @@ FROM UNNEST(
         status_code,
         status_message,
         root_span_id,
-        span_count,
-        attributes
+        span_count
     )
 ON CONFLICT (created_at, trace_id, scope) DO UPDATE SET
     -- Only updating fields that can change over time
@@ -70,7 +66,6 @@ ON CONFLICT (created_at, trace_id, scope) DO UPDATE SET
     duration_ms = EXTRACT(EPOCH FROM (EXCLUDED.end_time - scouter.traces.start_time)) * 1000,
     status_code = EXCLUDED.status_code,
     status_message = EXCLUDED.status_message,
-    attributes = scouter.traces.attributes || EXCLUDED.attributes,
     span_count = scouter.traces.span_count + EXCLUDED.span_count,
     trace_state = EXCLUDED.trace_state,
     updated_at = NOW();

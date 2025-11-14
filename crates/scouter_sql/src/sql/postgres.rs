@@ -288,7 +288,6 @@ mod tests {
             span_count: 1,
             status_message: "OK".to_string(),
             root_span_id: span_id.clone(),
-            attributes: vec![Attribute::default()],
             tags: vec![],
         }
     }
