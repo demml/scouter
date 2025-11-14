@@ -32,6 +32,7 @@ from scouter.tracing import (
     init_tracer,
     flush_tracer,
     shutdown_tracer,
+    BatchConfig,
 )
 
 logger = RustyLogger.get_logger(
@@ -166,6 +167,10 @@ class PredictRequest(BaseModel, FeatureMixin):
     feature_3: float
 
 
+class InnerResponse(BaseModel):
+    sum: float
+
+
 class ChatRequest(BaseModel):
     question: str
 
@@ -262,12 +267,17 @@ def create_kafka_llm_app(profile_path: Path) -> FastAPI:
 
 def create_http_app(profile_path: Path) -> FastAPI:
     config = HTTPConfig()
+    init_tracer(
+        service_name="test-service",
+        exporter=TestSpanExporter(batch_export=True),
+        batch_config=BatchConfig(scheduled_delay_ms=200),
+    )
+    tracer = get_tracer("test-tracer")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         logger.info("Starting up FastAPI app")
 
-        init_tracer(service_name="test-service", exporter=TestSpanExporter())
         app.state.queue = ScouterQueue.from_path(
             path={"spc": profile_path},
             transport_config=config,
@@ -280,15 +290,16 @@ def create_http_app(profile_path: Path) -> FastAPI:
         shutdown_tracer()
 
     app = FastAPI(lifespan=lifespan)
-    tracer = get_tracer("test-tracer")
+
+    @tracer.span("inner")
+    async def inner(feature_1: float, feature_2: float) -> InnerResponse:
+        return InnerResponse(sum=feature_1 + feature_2)
 
     @app.post("/predict", response_model=TestResponse)
+    @tracer.span("predict", baggage=[{"zoo": "bat"}], tags=[{"foo": "bar"}])
     async def predict(request: Request, payload: PredictRequest) -> TestResponse:
-        with tracer.start_as_current_span("predict_span") as span:
-            span.set_attribute("feature_0", payload.feature_0)
-            request.app.state.queue["spc"].insert(payload.to_features())
-            return TestResponse(message="success")
-        # request.app.state.queue["spc"].insert(payload.to_features())
-        # return TestResponse(message="success")
+        await inner(payload.feature_1, payload.feature_2)
+        request.app.state.queue["spc"].insert(payload.to_features())
+        return TestResponse(message="success")
 
     return app

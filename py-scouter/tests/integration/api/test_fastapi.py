@@ -1,5 +1,6 @@
 import time
 
+import asyncio
 from fastapi.testclient import TestClient
 from scouter.client import DriftRequest, ScouterClient, TimeInterval
 from scouter.types import DriftType
@@ -91,6 +92,7 @@ def test_api_http(http_scouter_server):
                     feature_3=1.0,
                 ).model_dump(),
             )
+            time.sleep(0.1)
         assert response.status_code == 200
         time.sleep(10)
         client.wait_shutdown()

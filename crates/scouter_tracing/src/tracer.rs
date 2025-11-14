@@ -31,7 +31,6 @@ use pyo3::IntoPyObjectExt;
 use scouter_events::queue::types::TransportConfig;
 use scouter_settings::http::HTTPConfig;
 
-use scouter_state::app_state;
 use scouter_types::{
     is_pydantic_basemodel, pydict_to_otel_keyvalue, pyobject_to_otel_value,
     pyobject_to_tracing_json, BAGGAGE_PREFIX, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT,
@@ -242,7 +241,6 @@ impl ActiveSpan {
     #[instrument(skip_all)]
     fn set_input(&self, input: &Bound<'_, PyAny>, max_length: usize) -> Result<(), TraceError> {
         let value = pyobject_to_tracing_json(input, &max_length)?;
-
         self.with_inner_mut(|inner| {
             inner.span.set_attribute(KeyValue::new(
                 SCOUTER_TRACING_INPUT,
@@ -553,7 +551,6 @@ impl BaseTracer {
         label: Option<String>,
         parent_context_id: Option<String>,
     ) -> Result<ActiveSpan, TraceError> {
-        info!("Creating span: {}", name);
         // Get parent context if available
         let parent_id = parent_context_id.or_else(|| get_current_context_id(py).ok().flatten());
 

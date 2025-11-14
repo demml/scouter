@@ -18,7 +18,7 @@ class EventData(BaseModel):
 @pytest.fixture(scope="session")
 def span_exporter():
     """Create a fresh test span exporter for each test."""
-    return TestSpanExporter()
+    return TestSpanExporter(batch_export=False)
 
 
 @pytest.fixture(scope="session")

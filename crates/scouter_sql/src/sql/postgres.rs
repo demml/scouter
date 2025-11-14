@@ -4,12 +4,12 @@ use crate::sql::traits::{
     ProfileSqlLogic, PsiSqlLogic, SpcSqlLogic, TagSqlLogic, TraceSqlLogic, UserSqlLogic,
 };
 use scouter_settings::DatabaseSettings;
+use scouter_types::deduplicate_and_merge_traces;
 use scouter_types::{RecordType, ServerRecords, TagRecord, ToDriftRecords, TraceServerRecord};
-use tokio::try_join;
-
 use sqlx::ConnectOptions;
 use sqlx::{postgres::PgConnectOptions, Pool, Postgres};
 use std::result::Result::Ok;
+use tokio::try_join;
 use tracing::{debug, error, info, instrument};
 
 #[derive(Debug, Clone)]
@@ -176,7 +176,9 @@ impl MessageHandler {
         pool: &Pool<Postgres>,
         records: &TraceServerRecord,
     ) -> Result<(), SqlError> {
-        let (trace_batch, span_batch, baggage_batch) = records.to_records()?;
+        let (raw_trace_batch, span_batch, baggage_batch) = records.to_records()?;
+
+        let trace_batch = deduplicate_and_merge_traces(raw_trace_batch);
 
         let all_tags: Vec<TagRecord> = trace_batch
             .iter()
@@ -190,6 +192,16 @@ impl MessageHandler {
                 })
             })
             .collect();
+
+        //print first span in batch
+        if let Some(first_span) = span_batch.first() {
+            info!("First span in batch input: {:?}", first_span.input);
+            info!("First span in batch output: {:?}", first_span.output);
+            info!(
+                "First span in batch attributes: {:?}",
+                first_span.attributes
+            );
+        }
 
         let (trace_result, span_result, baggage_result, tag_result) = try_join!(
             PostgresClient::upsert_trace_batch(pool, &trace_batch),

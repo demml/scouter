@@ -35,6 +35,7 @@ TraceBaggageRecord = tracing.TraceBaggageRecord
 TestSpanExporter = tracing.TestSpanExporter
 flush_tracer = tracing.flush_tracer
 shutdown_tracer = tracing.shutdown_tracer
+BatchConfig = tracing.BatchConfig
 
 
 def set_output(
@@ -199,7 +200,6 @@ class Tracer(tracing.BaseTracer):
                 return cast(Callable[P, R], generator_wrapper)
 
             elif function_type == FunctionType.Async:
-                print("Creating async wrapper")
 
                 @functools.wraps(func)
                 async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
@@ -218,7 +218,6 @@ class Tracer(tracing.BaseTracer):
                         func_kwargs=kwargs,
                     ) as span:
                         try:
-                            print("Calling async function")
                             async_func = cast(Callable[P, Awaitable[Any]], func)
                             result = await async_func(*args, **kwargs)
 
@@ -289,4 +288,5 @@ __all__ = [
     "TraceBaggageRecord",
     "TestSpanExporter",
     "flush_tracer",
+    "BatchConfig",
 ]

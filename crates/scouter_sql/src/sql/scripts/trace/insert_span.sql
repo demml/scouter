@@ -57,7 +57,7 @@ FROM UNNEST(
     $11::timestamptz[], -- start_time
     $12::timestamptz[], -- end_time
     $13::bigint[],     -- duration_ms
-    $14::text[],       -- status_code
+    $14::integer[],    -- status_code
     $15::text[],       -- status_message
     $16::jsonb[],      -- attributes
     $18::jsonb[],      -- events

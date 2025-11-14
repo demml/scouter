@@ -13,11 +13,12 @@ use opentelemetry_proto::tonic::trace::v1::span::Event;
 use opentelemetry_proto::tonic::trace::v1::span::Link;
 use opentelemetry_proto::tonic::trace::v1::span::SpanKind;
 use opentelemetry_proto::tonic::trace::v1::Span;
-
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
+use std::cmp::{max, min};
+use std::collections::HashMap;
 
 pub const FUNCTION_TYPE: &str = "function.type";
 pub const FUNCTION_STREAMING: &str = "function.streaming";
@@ -56,9 +57,13 @@ pub struct TraceRecord {
     #[pyo3(get)]
     pub duration_ms: i64,
     #[pyo3(get)]
-    pub status: String,
+    pub status_code: i32,
+    #[pyo3(get)]
+    pub status_message: String,
     #[pyo3(get)]
     pub root_span_id: String,
+    #[pyo3(get)]
+    pub span_count: usize,
     #[pyo3(get)]
     pub attributes: Vec<Attribute>,
     #[pyo3(get)]
@@ -70,6 +75,79 @@ impl TraceRecord {
     pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
     }
+}
+
+impl TraceRecord {
+    /// Merges data from another TraceRecord belonging to the same trace.
+    /// This is crucial for updating a trace record as more spans arrive.
+    pub fn merge(&mut self, other: &TraceRecord) {
+        // 1. Update the overall trace time bounds
+        self.start_time = min(self.start_time, other.start_time);
+        self.end_time = max(self.end_time, other.end_time);
+
+        // 2. Recalculate duration based on new time bounds
+        if self.end_time > self.start_time {
+            self.duration_ms = (self.end_time - self.start_time).num_milliseconds();
+        } else {
+            // Handle edge case where end_time may not be set yet (duration = 0)
+            self.duration_ms = 0;
+        }
+
+        if self.status_code != 2 && other.status_code == 2 {
+            self.status_code = 2;
+        }
+
+        // 4. Merge attributes and tags, avoiding duplicates
+        let mut existing_attr_keys: std::collections::HashSet<String> =
+            self.attributes.iter().map(|a| a.key.clone()).collect();
+
+        for attr in &other.attributes {
+            if !existing_attr_keys.contains(&attr.key) {
+                self.attributes.push(attr.clone());
+                existing_attr_keys.insert(attr.key.clone());
+            }
+        }
+
+        self.span_count += 1;
+
+        let mut existing_tag_keys: std::collections::HashSet<String> =
+            self.tags.iter().map(|t| t.key.clone()).collect();
+
+        for tag in &other.tags {
+            if !existing_tag_keys.contains(&tag.key) {
+                self.tags.push(tag.clone());
+                existing_tag_keys.insert(tag.key.clone());
+            }
+        }
+    }
+}
+
+#[derive(Hash, Eq, PartialEq, Clone)]
+struct TraceKey {
+    created_at: chrono::DateTime<chrono::Utc>, // Or whatever your created_at type is
+    trace_id: String,
+    scope: String,
+}
+
+pub fn deduplicate_and_merge_traces(raw_traces: Vec<TraceRecord>) -> Vec<TraceRecord> {
+    let mut merged_traces: HashMap<TraceKey, TraceRecord> = HashMap::new();
+
+    for trace in raw_traces {
+        let key = TraceKey {
+            created_at: trace.created_at, // You might need to adjust this key if created_at changes
+            trace_id: trace.trace_id.clone(),
+            scope: trace.scope.clone(),
+        };
+
+        merged_traces
+            .entry(key)
+            .and_modify(|existing_trace| {
+                existing_trace.merge(&trace);
+            })
+            .or_insert(trace);
+    }
+
+    merged_traces.into_values().collect()
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
@@ -102,7 +180,7 @@ pub struct TraceSpanRecord {
     #[pyo3(get)]
     pub duration_ms: i64,
     #[pyo3(get)]
-    pub status_code: String,
+    pub status_code: i32,
     #[pyo3(get)]
     pub status_message: String,
     #[pyo3(get)]
@@ -355,6 +433,45 @@ impl TraceServerRecord {
             .unwrap_or("UNSPECIFIED")
             .to_string()
     }
+
+    fn extract_input_output(attributes: &[Attribute]) -> (Value, Value) {
+        let mut input = Value::Null;
+        let mut output = Value::Null;
+
+        for attr in attributes {
+            if attr.key == SCOUTER_TRACING_INPUT {
+                if let Value::String(s) = &attr.value {
+                    // Attempt to parse the string value as JSON
+                    input = serde_json::from_str(s).unwrap_or_else(|e| {
+                        // Log a warning if JSON parsing fails, but keep the string value
+                        // or fall back to null, depending on desired robustness.
+                        tracing::warn!(
+                            key = SCOUTER_TRACING_INPUT,
+                            error = %e,
+                            value = s,
+                            "Failed to parse input attribute as JSON, falling back to string value."
+                        );
+                        Value::String(s.clone()) // Or Value::Null
+                    });
+                }
+            } else if attr.key == SCOUTER_TRACING_OUTPUT {
+                if let Value::String(s) = &attr.value {
+                    // Attempt to parse the string value as JSON
+                    output = serde_json::from_str(s)
+                        .unwrap_or_else(|e| {
+                            tracing::warn!(
+                                key = SCOUTER_TRACING_OUTPUT,
+                                error = %e,
+                                value = s,
+                                "Failed to parse output attribute as JSON, falling back to string value."
+                            );
+                            Value::String(s.clone()) // Or Value::Null
+                        });
+                }
+            }
+        }
+        (input, output)
+    }
     /// Convert to TraceRecord
     #[allow(clippy::too_many_arguments)]
     pub fn convert_to_trace_record(
@@ -382,14 +499,16 @@ impl TraceServerRecord {
             start_time,
             end_time,
             duration_ms,
-            // More efficient status formatting
-            status: match &span.status {
-                Some(status) => format!("{:?}", status),
-                None => "Unknown".to_string(),
-            },
+            status_code: span.status.as_ref().map(|s| s.code).unwrap_or_else(|| 0),
+            status_message: span
+                .status
+                .as_ref()
+                .map(|s| s.message.clone())
+                .unwrap_or_default(),
             root_span_id: span_id.to_string(),
             attributes: attributes.clone(),
             tags: Self::extract_tags(attributes)?,
+            span_count: 1,
         })
     }
 
@@ -487,6 +606,8 @@ impl TraceServerRecord {
             None
         };
 
+        let (input, output) = Self::extract_input_output(attributes);
+
         Ok(TraceSpanRecord {
             created_at: start_time,
             trace_id: trace_id.to_string(),
@@ -501,11 +622,7 @@ impl TraceServerRecord {
             scope: scope_name.to_string(),
             span_name: span.name.clone(),
             span_kind: Self::span_kind_to_string(span.kind),
-            status_code: span
-                .status
-                .as_ref()
-                .map(|s| s.code.to_string())
-                .unwrap_or_else(|| "Unset".to_string()),
+            status_code: span.status.as_ref().map(|s| s.code).unwrap_or_else(|| 0),
             status_message: span
                 .status
                 .as_ref()
@@ -515,8 +632,8 @@ impl TraceServerRecord {
             events: Self::events_to_json_array(&span.events)?,
             links: Self::links_to_json_array(&span.links)?,
             label: None,
-            input: Value::Null,
-            output: Value::Null,
+            input,
+            output,
         })
     }
 

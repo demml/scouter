@@ -13,6 +13,7 @@ from typing import (
     TypeVar,
     Union,
     TypeAlias,
+    List,
 )
 from ..transport import HTTPConfig, KafkaConfig, RabbitMQConfig, RedisConfig
 from ..types import CompressionType
@@ -77,13 +78,12 @@ class Tracer(BaseTracer):
         self,
         name: Optional[str] = None,
         kind: SpanKind = SpanKind.Internal,
+        attributes: List[dict[str, str]] = [],
+        baggage: List[dict[str, str]] = [],
+        tags: List[dict[str, str]] = [],
         label: Optional[str] = None,
-        attributes: Optional[dict[str, str]] = None,
-        baggage: Optional[dict[str, str]] = None,
-        tags: Optional[dict[str, str]] = None,
         parent_context_id: Optional[str] = None,
         max_length: int = 1000,
-        func_type: FunctionType = FunctionType.Sync,
         capture_last_stream_item: bool = False,
         join_stream_items: bool = False,
         *args,
@@ -197,7 +197,6 @@ class BatchConfig:
         max_queue_size: int = 2048,
         scheduled_delay_ms: int = 5000,
         max_export_batch_size: int = 512,
-        export_timeout_ms: int = 30000,
     ) -> None:
         """Initialize the BatchConfig.
 
@@ -208,8 +207,6 @@ class BatchConfig:
                 The delay in milliseconds between export attempts. Defaults to 5000.
             max_export_batch_size (int):
                 The maximum batch size for exporting spans. Defaults to 512.
-            export_timeout_ms (int):
-                The timeout in milliseconds for exporting spans. Defaults to 30000.
         """
         ...
 
@@ -612,8 +609,13 @@ class TraceBaggageRecord:
 class TestSpanExporter:
     """Exporter for testing that collects spans in memory."""
 
-    def __init__(self) -> None:
-        """Initialize the TestSpanExporter."""
+    def __init__(self, batch_export: bool = True) -> None:
+        """Initialize the TestSpanExporter.
+
+        Args:
+            batch_export (bool):
+                Whether to use batch exporting. Defaults to True.
+        """
 
     @property
     def traces(self) -> list[TraceRecord]:

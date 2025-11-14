@@ -34,7 +34,8 @@ pub trait TraceSqlLogic {
         let mut start_time = Vec::with_capacity(capacity);
         let mut end_time = Vec::with_capacity(capacity);
         let mut duration_ms = Vec::with_capacity(capacity);
-        let mut status = Vec::with_capacity(capacity);
+        let mut status_code = Vec::with_capacity(capacity);
+        let mut status_message = Vec::with_capacity(capacity);
         let mut root_span_id = Vec::with_capacity(capacity);
         let mut attributes = Vec::with_capacity(capacity);
 
@@ -50,7 +51,8 @@ pub trait TraceSqlLogic {
             start_time.push(r.start_time);
             end_time.push(r.end_time);
             duration_ms.push(r.duration_ms);
-            status.push(r.status.as_str());
+            status_code.push(r.status_code);
+            status_message.push(r.status_message.clone());
             root_span_id.push(r.root_span_id.as_str());
             attributes.push(Json(r.attributes.clone()));
         }
@@ -66,7 +68,8 @@ pub trait TraceSqlLogic {
             .bind(start_time)
             .bind(end_time)
             .bind(duration_ms)
-            .bind(status)
+            .bind(status_code)
+            .bind(status_message)
             .bind(root_span_id)
             .bind(attributes)
             .execute(pool)
@@ -126,7 +129,7 @@ pub trait TraceSqlLogic {
             start_time.push(span.start_time);
             end_time.push(span.end_time);
             duration_ms.push(span.duration_ms);
-            status_code.push(span.status_code.as_str());
+            status_code.push(span.status_code);
             status_message.push(span.status_message.as_str());
             attributes.push(Json(span.attributes.clone()));
             events.push(Json(span.events.clone()));
@@ -239,7 +242,7 @@ pub trait TraceSqlLogic {
             .bind(filters.version)
             .bind(filters.service_name)
             .bind(filters.has_errors)
-            .bind(filters.status)
+            .bind(filters.status_code)
             .bind(filters.start_time.unwrap_or(default_start))
             .bind(filters.end_time.unwrap_or(default_end))
             .bind(filters.limit.unwrap_or(50))
