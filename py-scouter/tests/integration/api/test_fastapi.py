@@ -1,6 +1,6 @@
 import time
 from fastapi.testclient import TestClient
-from scouter.client import DriftRequest, ScouterClient, TimeInterval
+from scouter.client import DriftRequest, ScouterClient, TimeInterval, TraceFilters
 from scouter.types import DriftType
 
 from tests.integration.api.conftest import PredictRequest
@@ -116,3 +116,8 @@ def test_api_http(http_scouter_server):
 
     # delete the drift_path
     drift_path.unlink()
+
+    # get traces
+    traces = scouter_client.get_paginated_traces(
+        TraceFilters(),
+    )

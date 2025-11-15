@@ -638,11 +638,25 @@ pub struct TracePaginationResponse {
     pub items: Vec<TraceListItem>,
 }
 
+#[pymethods]
+impl TracePaginationResponse {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass]
 pub struct TraceBaggageResponse {
     #[pyo3(get)]
     pub baggage: Vec<TraceBaggageRecord>,
+}
+
+#[pymethods]
+impl TraceBaggageResponse {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -652,11 +666,24 @@ pub struct TraceSpansResponse {
     pub spans: Vec<TraceSpan>,
 }
 
+#[pymethods]
+impl TraceSpansResponse {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass]
 pub struct TraceMetricsResponse {
     #[pyo3(get)]
     pub metrics: Vec<TraceMetricBucket>,
+}
+#[pymethods]
+impl TraceMetricsResponse {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -664,4 +691,11 @@ pub struct TraceMetricsResponse {
 pub struct TagsResponse {
     #[pyo3(get)]
     pub tags: Vec<TagRecord>,
+}
+
+#[pymethods]
+impl TagsResponse {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
 }

@@ -1,4 +1,5 @@
 use crate::trace::{Attribute, SpanEvent, SpanLink};
+use crate::PyHelperFuncs;
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
 use serde::{Deserialize, Serialize};
@@ -42,6 +43,12 @@ pub struct TraceListItem {
     #[pyo3(get)]
     pub created_at: DateTime<Utc>,
 }
+#[pymethods]
+impl TraceListItem {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[pyclass]
@@ -80,6 +87,13 @@ pub struct TraceSpan {
     pub root_span_id: String,
     #[pyo3(get)]
     pub span_order: i32,
+}
+
+#[pymethods]
+impl TraceSpan {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
 }
 
 #[cfg(feature = "server")]
@@ -238,4 +252,11 @@ pub struct TraceMetricBucket {
     pub p99_duration_ms: Option<f64>,
     #[pyo3(get)]
     pub error_rate: f64,
+}
+
+#[pymethods]
+impl TraceMetricBucket {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
 }
