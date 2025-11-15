@@ -3,7 +3,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from scouter.client import HTTPConfig
+from scouter.transport import HTTPConfig
 from scouter.llm import Agent, Prompt
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.queue import LLMRecord, Queue, ScouterQueue

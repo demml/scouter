@@ -8,10 +8,10 @@ import pandas as pd
 from scouter.client import (
     BinnedPsiFeatureMetrics,
     DriftRequest,
-    HTTPConfig,
     ScouterClient,
     TimeInterval,
 )
+from scouter.transport import HTTPConfig
 from scouter.drift import Drifter, PsiDriftConfig
 from scouter.queue import Features, ScouterQueue
 from scouter.types import DriftType
