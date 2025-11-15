@@ -1294,7 +1294,7 @@ mod tests {
         let inserted_created_at = trace_record.created_at;
         let inserted_trace_id = trace_record.trace_id.clone();
 
-        let mut trace_filter = TraceFilters::new();
+        let mut trace_filter = TraceFilters::default();
 
         trace_filter.cursor_created_at = Some(inserted_created_at + chrono::Duration::days(1));
         trace_filter.cursor_trace_id = Some(inserted_trace_id);
