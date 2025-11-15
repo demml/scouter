@@ -353,7 +353,7 @@ RETURNS TABLE (
     start_time TIMESTAMPTZ,
     end_time TIMESTAMPTZ,
     duration_ms BIGINT,
-    status_code TEXT,
+    status_code INTEGER,
     status_message TEXT,
     attributes JSONB,
     events JSONB,
@@ -361,9 +361,9 @@ RETURNS TABLE (
     depth INTEGER,
     path TEXT[],
     root_span_id TEXT,
-    span_order INTEGER,
     input JSONB,
-    output JSONB
+    output JSONB,
+    span_order INTEGER
 )
 LANGUAGE SQL
 STABLE

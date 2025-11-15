@@ -74,7 +74,7 @@ pub struct TraceSpan {
     #[pyo3(get)]
     pub duration_ms: Option<i64>,
     #[pyo3(get)]
-    pub status_code: String,
+    pub status_code: i32,
     #[pyo3(get)]
     pub status_message: Option<String>,
     #[pyo3(get)]

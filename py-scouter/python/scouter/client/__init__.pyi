@@ -144,6 +144,8 @@ class TraceSpan:
     path: List[str]
     root_span_id: str
     span_order: int
+    input: Any
+    output: Any
 
 class TracePaginationResponse:
     """Response structure for paginated trace list requests."""
@@ -187,7 +189,7 @@ class TraceMetricsRequest:
             end_time:
                 End time boundary (UTC)
             bucket_interval:
-                The time interval for metric aggregation buckets (e.g., '1h', '30m')
+                The time interval for metric aggregation buckets (e.g., '1 minutes', '30 minutes')
             space:
                 Model space filter
             name:

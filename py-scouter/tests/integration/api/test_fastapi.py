@@ -1,6 +1,12 @@
 import time
 from fastapi.testclient import TestClient
-from scouter.client import DriftRequest, ScouterClient, TimeInterval, TraceFilters
+from scouter.client import (
+    DriftRequest,
+    ScouterClient,
+    TimeInterval,
+    TraceFilters,
+    TraceMetricsRequest,
+)
 from scouter.types import DriftType
 
 from tests.integration.api.conftest import PredictRequest
@@ -126,7 +132,7 @@ def test_api_http(http_scouter_server):
     )
 
     print(traces)
-
+    first_trace = traces.items[0]
     assert len(traces.items) >= 0
     trace_id = traces.items[0].trace_id
 
@@ -134,7 +140,16 @@ def test_api_http(http_scouter_server):
     trace_spans = scouter_client.get_trace_spans(trace_id)
 
     assert len(trace_spans.spans) == 3
+    print(trace_spans.spans[0].input)
+    print(trace_spans.spans[0].output)
 
-    print(trace_spans)
+    trace_metrics = scouter_client.get_trace_metrics(
+        TraceMetricsRequest(
+            start_time=first_trace.start_time,
+            end_time=first_trace.end_time,
+            bucket_interval="1 minutes",
+        )
+    )
 
+    print(trace_metrics)
     a
