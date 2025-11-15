@@ -9,43 +9,76 @@ use sqlx::{postgres::PgRow, FromRow, Row};
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 #[pyclass]
 pub struct TraceListItem {
+    #[pyo3(get)]
     pub trace_id: String,
+    #[pyo3(get)]
     pub space: String,
+    #[pyo3(get)]
     pub name: String,
+    #[pyo3(get)]
     pub version: String,
+    #[pyo3(get)]
     pub scope: String,
+    #[pyo3(get)]
     pub service_name: Option<String>,
+    #[pyo3(get)]
     pub root_operation: Option<String>,
+    #[pyo3(get)]
     pub start_time: DateTime<Utc>,
+    #[pyo3(get)]
     pub end_time: Option<DateTime<Utc>>,
+    #[pyo3(get)]
     pub duration_ms: Option<i64>,
+    #[pyo3(get)]
     pub status_code: i32,
+    #[pyo3(get)]
     pub status_message: Option<String>,
+    #[pyo3(get)]
     pub span_count: Option<i32>,
+    #[pyo3(get)]
     pub has_errors: bool,
+    #[pyo3(get)]
     pub error_count: i64,
+    #[pyo3(get)]
     pub created_at: DateTime<Utc>,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[pyclass]
 pub struct TraceSpan {
+    #[pyo3(get)]
     pub trace_id: String,
+    #[pyo3(get)]
     pub span_id: String,
+    #[pyo3(get)]
     pub parent_span_id: Option<String>,
+    #[pyo3(get)]
     pub span_name: String,
+    #[pyo3(get)]
     pub span_kind: Option<String>,
+    #[pyo3(get)]
     pub start_time: DateTime<Utc>,
+    #[pyo3(get)]
     pub end_time: Option<DateTime<Utc>>,
+    #[pyo3(get)]
     pub duration_ms: Option<i64>,
+    #[pyo3(get)]
     pub status_code: String,
+    #[pyo3(get)]
     pub status_message: Option<String>,
+    #[pyo3(get)]
     pub attributes: Vec<Attribute>,
+    #[pyo3(get)]
     pub events: Vec<SpanEvent>,
+    #[pyo3(get)]
     pub links: Vec<SpanLink>,
+    #[pyo3(get)]
     pub depth: i32,
+    #[pyo3(get)]
     pub path: Vec<String>,
+    #[pyo3(get)]
     pub root_span_id: String,
+    #[pyo3(get)]
     pub span_order: i32,
 }
 
@@ -84,16 +117,27 @@ impl FromRow<'_, PgRow> for TraceSpan {
 #[derive(Debug, Default, Clone, Serialize, Deserialize)]
 #[pyclass]
 pub struct TraceFilters {
+    #[pyo3(get, set)]
     pub space: Option<String>,
+    #[pyo3(get, set)]
     pub name: Option<String>,
+    #[pyo3(get, set)]
     pub version: Option<String>,
+    #[pyo3(get, set)]
     pub service_name: Option<String>,
+    #[pyo3(get, set)]
     pub has_errors: Option<bool>,
+    #[pyo3(get, set)]
     pub status_code: Option<i32>,
+    #[pyo3(get, set)]
     pub start_time: Option<DateTime<Utc>>,
+    #[pyo3(get, set)]
     pub end_time: Option<DateTime<Utc>>,
+    #[pyo3(get, set)]
     pub limit: Option<i32>,
+    #[pyo3(get, set)]
     pub cursor_created_at: Option<DateTime<Utc>>,
+    #[pyo3(get, set)]
     pub cursor_trace_id: Option<String>,
 }
 
@@ -139,11 +183,18 @@ impl TraceFilters {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[pyclass]
 pub struct TraceMetricBucket {
+    #[pyo3(get)]
     pub bucket_start: DateTime<Utc>,
+    #[pyo3(get)]
     pub trace_count: i64,
+    #[pyo3(get)]
     pub avg_duration_ms: f64,
+    #[pyo3(get)]
     pub p50_duration_ms: Option<f64>,
+    #[pyo3(get)]
     pub p95_duration_ms: Option<f64>,
+    #[pyo3(get)]
     pub p99_duration_ms: Option<f64>,
+    #[pyo3(get)]
     pub error_rate: f64,
 }

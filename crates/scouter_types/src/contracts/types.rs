@@ -611,29 +611,34 @@ pub struct TraceMetricsRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass]
 pub struct TracePaginationResponse {
+    #[pyo3(get)]
     pub items: Vec<TraceListItem>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass]
 pub struct TraceBaggageResponse {
+    #[pyo3(get)]
     pub baggage: Vec<TraceBaggageRecord>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass]
 pub struct TraceSpansResponse {
+    #[pyo3(get)]
     pub spans: Vec<TraceSpan>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass]
 pub struct TraceMetricsResponse {
+    #[pyo3(get)]
     pub metrics: Vec<TraceMetricBucket>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass]
 pub struct TagsResponse {
+    #[pyo3(get)]
     pub tags: Vec<TagRecord>,
 }
