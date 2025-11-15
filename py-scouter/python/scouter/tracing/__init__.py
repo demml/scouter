@@ -53,6 +53,7 @@ TagsResponse = tracing.TagsResponse
 TagRecord = tracing.TagRecord
 
 
+# TODO: Move this to Rust
 def set_output(
     span: tracing.ActiveSpan,
     outputs: List[Any],
@@ -62,7 +63,6 @@ def set_output(
 ) -> None:
     """Helper to set output attribute on span with length check."""
 
-    print(f"Outputs: {outputs}")
     if capture_last_stream_item and outputs:
         span.set_output(outputs[-1], max_length)
 
