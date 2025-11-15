@@ -181,3 +181,15 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  otel-collector:
+    build:
+      context: .
+      dockerfile: ./docker/dev/otel/Dockerfile
+    container_name: otel_collector
+    ports:
+      - "4318:4318"
+      - "4317:4317"
+    restart: unless-stopped
+    environment:
+      - OTEL_LOG_LEVEL=debug
