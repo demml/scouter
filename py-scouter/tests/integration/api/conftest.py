@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 from textwrap import dedent
@@ -12,7 +13,6 @@ from scouter import (  # type: ignore[attr-defined]
     Queue,
     ScouterQueue,
 )
-import asyncio
 from scouter.alert import AlertThreshold, LLMAlertConfig, SpcAlertConfig
 from scouter.client import ScouterClient
 from scouter.drift import (
@@ -26,15 +26,15 @@ from scouter.drift import (
 from scouter.llm import Agent, Prompt, Provider, Score
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.queue import LLMRecord
-from scouter.util import FeatureMixin
 from scouter.tracing import (
+    BatchConfig,
     TestSpanExporter,
+    flush_tracer,
     get_tracer,
     init_tracer,
-    flush_tracer,
     shutdown_tracer,
-    BatchConfig,
 )
+from scouter.util import FeatureMixin
 
 logger = RustyLogger.get_logger(
     LoggingConfig(log_level=LogLevel.Info),

@@ -171,9 +171,7 @@ def polars_dataframe(array: NDArray, feature_names: list[str]) -> YieldFixture:
 
 
 @pytest.fixture(scope="function")
-def categorical_polars_dataframe(
-    cat_feature_names: list[str], nrow: int
-) -> YieldFixture:
+def categorical_polars_dataframe(cat_feature_names: list[str], nrow: int) -> YieldFixture:
     import polars as pl
 
     ints = np.random.randint(1, 4, nrow).reshape(-1, 1)
@@ -186,12 +184,7 @@ def categorical_polars_dataframe(
 
     df = pl.from_numpy(array, schema=cat_feature_names)
 
-    df = df.with_columns(
-        [
-            pl.col(column_name).cast(str).cast(pl.Categorical)
-            for column_name in cat_feature_names
-        ]
-    )
+    df = df.with_columns([pl.col(column_name).cast(str).cast(pl.Categorical) for column_name in cat_feature_names])
 
     yield df
 
@@ -199,9 +192,7 @@ def categorical_polars_dataframe(
 
 
 @pytest.fixture(scope="function")
-def polars_dataframe_multi_dtype(
-    polars_dataframe, categorical_polars_dataframe
-) -> YieldFixture:
+def polars_dataframe_multi_dtype(polars_dataframe, categorical_polars_dataframe) -> YieldFixture:
     import polars as pl
 
     df = pl.concat([polars_dataframe, categorical_polars_dataframe], how="horizontal")
@@ -212,9 +203,7 @@ def polars_dataframe_multi_dtype(
 
 
 @pytest.fixture(scope="function")
-def polars_dataframe_multi_dtype_drift(
-    polars_dataframe_multi_dtype, cat_feature_names
-) -> YieldFixture:
+def polars_dataframe_multi_dtype_drift(polars_dataframe_multi_dtype, cat_feature_names) -> YieldFixture:
     import polars as pl
 
     # Create a copy and modify the first categorical column to simulate drift
@@ -222,12 +211,7 @@ def polars_dataframe_multi_dtype_drift(
 
     # Scale the first categorical column
     first_cat_col = cat_feature_names[0]
-    df = df.with_columns(
-        (pl.col(first_cat_col).cast(pl.Int32) + 3)
-        .cast(str)
-        .cast(pl.Categorical)
-        .alias(first_cat_col)
-    )
+    df = df.with_columns((pl.col(first_cat_col).cast(pl.Int32) + 3).cast(str).cast(pl.Categorical).alias(first_cat_col))
 
     yield df
     cleanup()

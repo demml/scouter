@@ -1,4 +1,5 @@
 import time
+
 from fastapi.testclient import TestClient
 from scouter.client import (
     DriftRequest,
@@ -23,9 +24,7 @@ def _test_api_kafka(kafka_scouter_server):
     scouter_client = ScouterClient()
 
     # create the drift profile
-    profile = create_and_register_drift_profile(
-        client=scouter_client, name="kafka_test"
-    )
+    profile = create_and_register_drift_profile(client=scouter_client, name="kafka_test")
     drift_path = profile.save_to_json()
 
     # Create FastAPI app
@@ -45,7 +44,7 @@ def _test_api_kafka(kafka_scouter_server):
                 ).model_dump(),
             )
         assert response.status_code == 200
-        time.sleep(10)
+        time.sleep(5)
         client.wait_shutdown()
 
     request = DriftRequest(
@@ -70,6 +69,12 @@ def _test_api_kafka(kafka_scouter_server):
 
     # delete the drift_path
     drift_path.unlink()
+
+    traces = scouter_client.get_paginated_traces(
+        TraceFilters(limit=10),
+    )
+
+    assert len(traces.items) >= 0
 
 
 def test_api_http(http_scouter_server):
@@ -131,7 +136,6 @@ def test_api_http(http_scouter_server):
         TraceFilters(limit=10),
     )
 
-    print(traces)
     first_trace = traces.items[0]
     assert len(traces.items) >= 0
     trace_id = traces.items[0].trace_id
@@ -140,10 +144,10 @@ def test_api_http(http_scouter_server):
     trace_spans = scouter_client.get_trace_spans(trace_id)
 
     assert len(trace_spans.spans) == 3
-    print(trace_spans.spans[0].input)
-    print(trace_spans.spans[0].output)
+    assert trace_spans.spans[0].input["payload"]["feature_0"] == 1.0
+    assert trace_spans.spans[0].output["message"] == "success"
 
-    trace_metrics = scouter_client.get_trace_metrics(
+    scouter_client.get_trace_metrics(
         TraceMetricsRequest(
             start_time=first_trace.start_time,
             end_time=first_trace.end_time,
@@ -151,5 +155,11 @@ def test_api_http(http_scouter_server):
         )
     )
 
-    print(trace_metrics)
-    a
+    # get tags
+    tags_response = scouter_client.get_tags(entity_type="trace", entity_id=trace_id)
+    assert len(tags_response.tags) >= 0
+
+    # assert tag key and value
+    tag = tags_response.tags[0]
+    assert tag.key == "foo"
+    assert tag.value == "bar"

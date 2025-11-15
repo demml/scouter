@@ -8,13 +8,14 @@ from typing import (
     Any,
     Callable,
     Dict,
+    List,
     Optional,
     ParamSpec,
+    TypeAlias,
     TypeVar,
     Union,
-    TypeAlias,
-    List,
 )
+
 from ..transport import HTTPConfig, KafkaConfig, RabbitMQConfig, RedisConfig
 from ..types import CompressionType
 
@@ -212,13 +213,8 @@ class BatchConfig:
 
 def init_tracer(
     service_name: str = "scouter_service",
-    transport_config: HTTPConfig
-    | KafkaConfig
-    | RabbitMQConfig
-    | RedisConfig = HTTPConfig(),
-    exporter: HttpSpanExporter
-    | StdoutSpanExporter
-    | TestSpanExporter = StdoutSpanExporter(),  # noqa: F821
+    transport_config: HTTPConfig | KafkaConfig | RabbitMQConfig | RedisConfig = HTTPConfig(),
+    exporter: HttpSpanExporter | StdoutSpanExporter | TestSpanExporter = StdoutSpanExporter(),  # noqa: F821
     batch_config: Optional[BatchConfig] = None,
     profile_space: Optional[str] = None,
     profile_name: Optional[str] = None,
