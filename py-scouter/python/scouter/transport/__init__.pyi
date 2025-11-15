@@ -1,3 +1,4 @@
+# pylint: disable=dangerous-default-value
 from typing import Dict, Optional
 
 from ..logging import LogLevel
@@ -211,7 +212,8 @@ class RedisConfig:
         Args:
             address (str):
                 Redis address.
-                If not provided, the value of the REDIS_ADDR environment variable is used and defaults to "redis://localhost:6379".
+                If not provided, the value of the REDIS_ADDR environment variable is used and defaults to
+                "redis://localhost:6379".
 
             channel (str):
                 Redis channel to publish messages to.

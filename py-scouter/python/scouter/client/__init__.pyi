@@ -5,6 +5,15 @@ from typing import Any, Dict, List, Optional
 from ..transport import HTTPConfig
 from ..types import DriftType
 
+class TagRecord:
+    """Represents a single tag record associated with an entity."""
+
+    created_at: datetime.datetime
+    entity_type: str
+    entity_id: str
+    key: str
+    value: str
+
 class Attribute:
     """Represents a key-value attribute associated with a span."""
 
@@ -208,15 +217,6 @@ class TagsResponse:
 
     tags: List[TagRecord]
 
-class TagRecord:
-    """Represents a single tag record associated with an entity."""
-
-    created_at: datetime.datetime
-    entity_type: str
-    entity_id: str
-    key: str
-    value: str
-
 class TimeInterval:
     FiveMinutes: "TimeInterval"
     FifteenMinutes: "TimeInterval"
@@ -404,7 +404,6 @@ class ScouterClient:
         Returns:
             TracePaginationResponse
         """
-        ...
 
     def refresh_trace_summary(self) -> bool:
         """Refresh trace summary cache
@@ -412,7 +411,6 @@ class ScouterClient:
         Returns:
             boolean
         """
-        ...
 
     def get_trace_spans(self, trace_id: str) -> TraceSpansResponse:
         """Get trace spans
@@ -424,7 +422,6 @@ class ScouterClient:
         Returns:
             TraceSpansResponse
         """
-        ...
 
     def get_trace_baggage(self, trace_id: str) -> TraceBaggageResponse:
         """Get trace baggage
@@ -436,7 +433,6 @@ class ScouterClient:
         Returns:
             TraceBaggageResponse
         """
-        ...
 
     def get_trace_metrics(self, request: TraceMetricsRequest) -> TraceMetricsResponse:
         """Get trace metrics
@@ -448,7 +444,6 @@ class ScouterClient:
         Returns:
             TraceMetricsResponse
         """
-        ...
 
     def get_tags(self, entity_type: str, entity_id: str) -> TagsResponse:
         """Get tags for an entity
@@ -462,7 +457,6 @@ class ScouterClient:
         Returns:
             TagsResponse
         """
-        ...
 
 class BinnedMetricStats:
     avg: float
