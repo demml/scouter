@@ -361,7 +361,9 @@ RETURNS TABLE (
     depth INTEGER,
     path TEXT[],
     root_span_id TEXT,
-    span_order INTEGER
+    span_order INTEGER,
+    input JSONB,
+    output JSONB
 )
 LANGUAGE SQL
 STABLE
@@ -384,9 +386,11 @@ AS $$
             s.links,
             0 as depth,
             ARRAY[s.span_id] as path,
-            s.span_id as root_span_id
+            s.span_id as root_span_id,
+            s.input,
+            s.output
         FROM scouter.spans s
-        WHERE s.trace_id = p_trace_id 
+        WHERE s.trace_id = p_trace_id
           AND s.parent_span_id IS NULL
         
         UNION ALL
@@ -407,7 +411,9 @@ AS $$
             s.links,
             st.depth + 1,
             st.path || s.span_id,
-            st.root_span_id
+            st.root_span_id,
+            s.input,
+            s.output
         FROM scouter.spans s
         INNER JOIN span_tree st ON s.parent_span_id = st.span_id
         WHERE s.trace_id = p_trace_id AND st.depth < 20
@@ -429,6 +435,8 @@ AS $$
         st.depth,
         st.path,
         st.root_span_id,
+        st.input,
+        st.output,
         ROW_NUMBER() OVER (ORDER BY path) as span_order
     FROM span_tree st
     ORDER BY path;

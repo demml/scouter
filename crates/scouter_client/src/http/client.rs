@@ -169,16 +169,18 @@ impl ScouterClient {
     ) -> Result<TracePaginationResponse, ClientError> {
         let response = self.client.request(
             Routes::PaginatedTraces,
-            RequestType::Put,
+            RequestType::Post,
             Some(serde_json::to_value(request).unwrap()),
             None,
             None,
         )?;
 
         if !response.status().is_success() {
+            let status_code = response.status();
+            let err_msg = response.text().unwrap_or_default();
             error!(
-                "Failed to get paginated traces. Status: {:?}",
-                response.status()
+                "Failed to get paginated traces. Status: {:?}, Error: {}",
+                status_code, err_msg
             );
             return Err(ClientError::GetPaginatedTracesError);
         }
@@ -214,11 +216,14 @@ impl ScouterClient {
         let trace_request = TraceRequest {
             trace_id: trace_id.to_string(),
         };
+
+        let query_string = serde_qs::to_string(&trace_request)?;
+
         let response = self.client.request(
             Routes::TraceSpans,
             RequestType::Get,
-            Some(serde_json::to_value(&trace_request).unwrap()),
             None,
+            Some(query_string),
             None,
         )?;
         if !response.status().is_success() {
@@ -237,11 +242,12 @@ impl ScouterClient {
         &self,
         request: TraceMetricsRequest,
     ) -> Result<TraceMetricsResponse, ClientError> {
+        let query_string = serde_qs::to_string(&request)?;
         let response = self.client.request(
             Routes::TraceMetrics,
             RequestType::Get,
-            Some(serde_json::to_value(&request).unwrap()),
             None,
+            Some(query_string),
             None,
         )?;
         if !response.status().is_success() {
@@ -263,11 +269,12 @@ impl ScouterClient {
         let trace_request = TraceRequest {
             trace_id: trace_id.to_string(),
         };
+        let query_string = serde_qs::to_string(&trace_request)?;
         let response = self.client.request(
             Routes::TraceBaggage,
             RequestType::Get,
-            Some(serde_json::to_value(&trace_request).unwrap()),
             None,
+            Some(query_string),
             None,
         )?;
         if !response.status().is_success() {

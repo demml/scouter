@@ -243,7 +243,7 @@ mod tests {
 
     use super::*;
     use crate::sql::schema::User;
-    use chrono::Utc;
+    use chrono::{Duration, Utc};
     use potato_head::{create_score_prompt, create_uuid7};
     use rand::Rng;
     use scouter_semver::VersionType;
@@ -1294,12 +1294,13 @@ mod tests {
         let inserted_created_at = trace_record.created_at;
         let inserted_trace_id = trace_record.trace_id.clone();
 
-        let mut trace_filter = TraceFilters::default();
-
-        trace_filter.cursor_created_at = Some(inserted_created_at + chrono::Duration::days(1));
-        trace_filter.cursor_trace_id = Some(inserted_trace_id);
-        trace_filter.start_time = Some(inserted_created_at - chrono::Duration::minutes(5));
-        trace_filter.end_time = Some(inserted_created_at + chrono::Duration::days(1));
+        let trace_filter = TraceFilters {
+            cursor_created_at: Some(inserted_created_at + Duration::days(1)),
+            cursor_trace_id: Some(inserted_trace_id),
+            start_time: Some(inserted_created_at - Duration::minutes(5)),
+            end_time: Some(inserted_created_at + Duration::days(1)),
+            ..TraceFilters::default()
+        };
 
         let traces = PostgresClient::get_traces_paginated(&pool, trace_filter)
             .await

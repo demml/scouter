@@ -1,8 +1,12 @@
+use crate::error::TypeError;
+use crate::json_to_pyobject_value;
 use crate::trace::{Attribute, SpanEvent, SpanLink};
 use crate::PyHelperFuncs;
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
+use pyo3::IntoPyObjectExt;
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 #[cfg(feature = "server")]
 use sqlx::{postgres::PgRow, FromRow, Row};
 
@@ -87,12 +91,28 @@ pub struct TraceSpan {
     pub root_span_id: String,
     #[pyo3(get)]
     pub span_order: i32,
+    pub input: Value,
+    pub output: Value,
 }
 
 #[pymethods]
 impl TraceSpan {
     pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
+    }
+
+    #[getter]
+    pub fn input<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
+        Ok(json_to_pyobject_value(py, &self.input)?
+            .into_bound_py_any(py)?
+            .clone())
+    }
+
+    #[getter]
+    pub fn output<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
+        Ok(json_to_pyobject_value(py, &self.output)?
+            .into_bound_py_any(py)?
+            .clone())
     }
 }
 
@@ -124,6 +144,8 @@ impl FromRow<'_, PgRow> for TraceSpan {
             path: row.try_get("path")?,
             root_span_id: row.try_get("root_span_id")?,
             span_order: row.try_get("span_order")?,
+            input: row.try_get("input")?,
+            output: row.try_get("output")?,
         })
     }
 }
@@ -156,6 +178,7 @@ pub struct TraceFilters {
 }
 
 #[pymethods]
+#[allow(clippy::too_many_arguments)]
 impl TraceFilters {
     #[new]
     #[pyo3(signature = (

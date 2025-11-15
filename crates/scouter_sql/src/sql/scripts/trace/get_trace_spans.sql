@@ -15,5 +15,7 @@ SELECT
     depth,
     path,
     root_span_id,
-    span_order
+    span_order,
+    input,
+    output
 FROM scouter.get_trace_spans($1);

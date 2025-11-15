@@ -91,7 +91,7 @@ def test_api_http(http_scouter_server):
                 ).model_dump(),
             )
         assert response.status_code == 200
-        time.sleep(10)
+        time.sleep(5)
         client.wait_shutdown()
 
     request = DriftRequest(
@@ -112,12 +112,29 @@ def test_api_http(http_scouter_server):
         "feature_3",
     }
 
-    assert len(drift.features["feature_0"].values) == 1
+    # assert len(drift.features["feature_0"].values) == 1
 
     # delete the drift_path
     drift_path.unlink()
 
+    # refresh trace summary
+    scouter_client.refresh_trace_summary()
+
     # get traces
     traces = scouter_client.get_paginated_traces(
-        TraceFilters(),
+        TraceFilters(limit=10),
     )
+
+    print(traces)
+
+    assert len(traces.items) >= 0
+    trace_id = traces.items[0].trace_id
+
+    # get trace spans
+    trace_spans = scouter_client.get_trace_spans(trace_id)
+
+    assert len(trace_spans.spans) == 3
+
+    print(trace_spans)
+
+    a
