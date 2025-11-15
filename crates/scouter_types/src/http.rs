@@ -32,6 +32,8 @@ pub enum Routes {
     TraceBaggage,
     TraceSpans,
     RefreshTraceSummary,
+    TraceMetrics,
+    Tags,
 }
 
 impl Routes {
@@ -54,6 +56,8 @@ impl Routes {
             Routes::TraceBaggage => "trace/baggage",
             Routes::TraceSpans => "trace/spans",
             Routes::RefreshTraceSummary => "trace/refresh-summary",
+            Routes::TraceMetrics => "trace/metrics",
+            Routes::Tags => "tags",
         }
     }
 }

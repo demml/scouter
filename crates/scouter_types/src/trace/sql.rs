@@ -141,11 +141,52 @@ pub struct TraceFilters {
     pub cursor_trace_id: Option<String>,
 }
 
+#[pymethods]
 impl TraceFilters {
-    pub fn new() -> Self {
-        Self::default()
+    #[new]
+    #[pyo3(signature = (
+        space=None,
+        name=None,
+        version=None,
+        service_name=None,
+        has_errors=None,
+        status_code=None,
+        start_time=None,
+        end_time=None,
+        limit=None,
+        cursor_created_at=None,
+        cursor_trace_id=None,
+    ))]
+    pub fn new(
+        space: Option<String>,
+        name: Option<String>,
+        version: Option<String>,
+        service_name: Option<String>,
+        has_errors: Option<bool>,
+        status_code: Option<i32>,
+        start_time: Option<DateTime<Utc>>,
+        end_time: Option<DateTime<Utc>>,
+        limit: Option<i32>,
+        cursor_created_at: Option<DateTime<Utc>>,
+        cursor_trace_id: Option<String>,
+    ) -> Self {
+        TraceFilters {
+            space,
+            name,
+            version,
+            service_name,
+            has_errors,
+            status_code,
+            start_time,
+            end_time,
+            limit,
+            cursor_created_at,
+            cursor_trace_id,
+        }
     }
+}
 
+impl TraceFilters {
     pub fn with_space(mut self, space: impl Into<String>) -> Self {
         self.space = Some(space.into());
         self

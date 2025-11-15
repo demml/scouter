@@ -581,13 +581,13 @@ impl BinnedMetrics {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TagRequest {
+pub struct TagsRequest {
     pub entity_type: String,
     pub entity_id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct InsertTagRequest {
+pub struct InsertTagsRequest {
     pub tags: Vec<TagRecord>,
 }
 
@@ -606,6 +606,29 @@ pub struct TraceMetricsRequest {
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
     pub bucket_interval: String,
+}
+
+#[pymethods]
+impl TraceMetricsRequest {
+    #[new]
+    #[pyo3(signature = (start_time, end_time, bucket_interval,space=None, name=None, version=None))]
+    pub fn new(
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+        bucket_interval: String,
+        space: Option<String>,
+        name: Option<String>,
+        version: Option<String>,
+    ) -> Self {
+        TraceMetricsRequest {
+            space,
+            name,
+            version,
+            start_time,
+            end_time,
+            bucket_interval,
+        }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

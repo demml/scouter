@@ -107,6 +107,12 @@ pub enum ClientError {
 
     #[error("Failed to get trace metrics")]
     GetTraceMetricsError,
+
+    #[error("Failed to get trace baggage")]
+    GetTraceBaggageError,
+
+    #[error("Failed to get tags")]
+    GetTagsError,
 }
 
 impl From<ClientError> for PyErr {
