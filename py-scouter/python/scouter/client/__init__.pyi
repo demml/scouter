@@ -40,7 +40,6 @@ class TraceBaggageRecord:
 class TraceFilters:
     """A struct for filtering traces, generated from Rust pyclass."""
 
-    # Read/Write properties due to #[pyo3(get, set)]
     space: Optional[str]
     name: Optional[str]
     version: Optional[str]
@@ -128,7 +127,6 @@ class TraceListItem:
 class TraceSpan:
     """Detailed information for a single span within a trace."""
 
-    # Read-only properties due to #[pyo3(get)]
     trace_id: str
     span_id: str
     parent_span_id: Optional[str]
@@ -150,25 +148,21 @@ class TraceSpan:
 class TracePaginationResponse:
     """Response structure for paginated trace list requests."""
 
-    # Read-only property due to #[pyo3(get)]
     items: List[TraceListItem]
 
 class TraceSpansResponse:
     """Response structure containing a list of spans for a trace."""
 
-    # Read-only property due to #[pyo3(get)]
     spans: List[TraceSpan]
 
 class TraceBaggageResponse:
     """Response structure containing trace baggage records."""
 
-    # Read-only property due to #[pyo3(get)]
     baggage: List[TraceBaggageRecord]
 
 class TraceMetricsRequest:
     """Request payload for fetching trace metrics."""
 
-    # Properties (mutable by default)
     space: Optional[str]
     name: Optional[str]
     version: Optional[str]
@@ -205,19 +199,16 @@ class TraceMetricsRequest:
 class TraceMetricsResponse:
     """Response structure containing aggregated trace metrics."""
 
-    # Read-only property due to #[pyo3(get)]
     metrics: List[TraceMetricBucket]
 
 class TagsResponse:
     """Response structure containing a list of tag records."""
 
-    # Read-only property due to #[pyo3(get)]
     tags: List[TagRecord]
 
 class TagRecord:
     """Represents a single tag record associated with an entity."""
 
-    # Read-only properties due to #[pyo3(get)]
     created_at: datetime.datetime
     entity_type: str
     entity_id: str
@@ -407,7 +398,73 @@ class ScouterClient:
             Path to downloaded profile
         """
 
-    def get_paginated_traces(self, request: Any) -> Any: ...
+    def get_paginated_traces(self, filters: TraceFilters) -> TracePaginationResponse:
+        """Get paginated traces
+        Args:
+            filters:
+                TraceFilters object
+        Returns:
+            TracePaginationResponse
+        """
+        ...
+
+    def refresh_trace_summary(self) -> bool:
+        """Refresh trace summary cache
+
+        Returns:
+            boolean
+        """
+        ...
+
+    def get_trace_spans(self, trace_id: str) -> TraceSpansResponse:
+        """Get trace spans
+
+        Args:
+            trace_id:
+                Trace ID
+
+        Returns:
+            TraceSpansResponse
+        """
+        ...
+
+    def get_trace_baggage(self, trace_id: str) -> TraceBaggageResponse:
+        """Get trace baggage
+
+        Args:
+            trace_id:
+                Trace ID
+
+        Returns:
+            TraceBaggageResponse
+        """
+        ...
+
+    def get_trace_metrics(self, request: TraceMetricsRequest) -> TraceMetricsResponse:
+        """Get trace metrics
+
+        Args:
+            request:
+                TraceMetricsRequest
+
+        Returns:
+            TraceMetricsResponse
+        """
+        ...
+
+    def get_tags(self, entity_type: str, entity_id: str) -> TagsResponse:
+        """Get tags for an entity
+
+        Args:
+            entity_type:
+                Entity type
+            entity_id:
+                Entity ID
+
+        Returns:
+            TagsResponse
+        """
+        ...
 
 class BinnedMetricStats:
     avg: float

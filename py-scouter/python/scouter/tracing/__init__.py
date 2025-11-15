@@ -36,6 +36,21 @@ TestSpanExporter = tracing.TestSpanExporter
 flush_tracer = tracing.flush_tracer
 shutdown_tracer = tracing.shutdown_tracer
 BatchConfig = tracing.BatchConfig
+Attribute = tracing.Attribute
+SpanEvent = tracing.SpanEvent
+SpanLink = tracing.SpanLink
+TraceBaggageRecord = tracing.TraceBaggageRecord
+TraceFilters = tracing.TraceFilters
+TraceMetricBucket = tracing.TraceMetricBucket
+TraceListItem = tracing.TraceListItem
+TraceSpan = tracing.TraceSpan
+TracePaginationResponse = tracing.TracePaginationResponse
+TraceSpansResponse = tracing.TraceSpansResponse
+TraceBaggageResponse = tracing.TraceBaggageResponse
+TraceMetricsRequest = tracing.TraceMetricsRequest
+TraceMetricsResponse = tracing.TraceMetricsResponse
+TagsResponse = tracing.TagsResponse
+TagRecord = tracing.TagRecord
 
 
 def set_output(
