@@ -1,3 +1,4 @@
+use crate::exporter::ExporterType;
 use crate::exporter::SpanExporterBuilder;
 use crate::exporter::TraceError;
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
@@ -72,6 +73,10 @@ impl Default for TestSpanExporter {
 
 impl SpanExporterBuilder for TestSpanExporter {
     type Exporter = OtelTestSpanExporter;
+
+    fn export_type(&self) -> ExporterType {
+        ExporterType::Testing
+    }
 
     fn sample_ratio(&self) -> Option<f64> {
         Some(1.0)
