@@ -1,5 +1,6 @@
 import time
-from .conftest import get_traces_from_jaeger
+
+from .conftest import get_traces_from_jaeger  # type: ignore
 
 
 def test_tracer_http(setup_tracer_http):

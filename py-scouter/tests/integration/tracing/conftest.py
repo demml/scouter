@@ -1,5 +1,7 @@
 # type: ignore
 
+from datetime import datetime, timedelta
+
 import pytest
 import requests
 from scouter.mock import ScouterTestServer
@@ -11,7 +13,6 @@ from scouter.tracing import (
     init_tracer,
     shutdown_tracer,
 )
-from datetime import datetime, timedelta
 
 
 @pytest.fixture()
