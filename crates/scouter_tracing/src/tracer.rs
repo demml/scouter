@@ -775,7 +775,6 @@ pub fn shutdown_tracer() -> Result<(), TraceError> {
         tracing::warn!("Tracer provider was already shut down or never initialized.");
     }
 
-    // You might also want to clear your TRACE_METADATA_STORE here if it's relevant to provider lifetime:
     get_trace_metadata_store().clear_all()?;
 
     Ok(())
