@@ -199,9 +199,9 @@ pub fn pyobject_to_json(obj: &Bound<'_, PyAny>) -> Result<Value, TypeError> {
         let dict = obj.downcast::<PyDict>()?;
         let mut map = serde_json::Map::new();
         for (key, value) in dict.iter() {
-            let key_str = pyobject_to_json(&key)?;
+            let key_str = key.extract::<String>()?;
             let json_value = pyobject_to_json(&value)?;
-            map.insert(key_str.to_string(), json_value);
+            map.insert(key_str, json_value);
         }
         Ok(Value::Object(map))
     } else if obj.is_instance_of::<PyList>() {

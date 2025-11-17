@@ -17,7 +17,6 @@ CREATE TABLE IF NOT EXISTS scouter.traces (
     status_message TEXT,
     root_span_id TEXT,
     span_count INTEGER DEFAULT 0,
-    attributes JSONB DEFAULT '[]',
     archived BOOLEAN DEFAULT FALSE,
     PRIMARY KEY (created_at, trace_id, scope),
     UNIQUE (created_at, trace_id, space, name, version)
@@ -354,7 +353,7 @@ RETURNS TABLE (
     start_time TIMESTAMPTZ,
     end_time TIMESTAMPTZ,
     duration_ms BIGINT,
-    status_code TEXT,
+    status_code INTEGER,
     status_message TEXT,
     attributes JSONB,
     events JSONB,
@@ -362,6 +361,8 @@ RETURNS TABLE (
     depth INTEGER,
     path TEXT[],
     root_span_id TEXT,
+    input JSONB,
+    output JSONB,
     span_order INTEGER
 )
 LANGUAGE SQL
@@ -385,9 +386,11 @@ AS $$
             s.links,
             0 as depth,
             ARRAY[s.span_id] as path,
-            s.span_id as root_span_id
+            s.span_id as root_span_id,
+            s.input,
+            s.output
         FROM scouter.spans s
-        WHERE s.trace_id = p_trace_id 
+        WHERE s.trace_id = p_trace_id
           AND s.parent_span_id IS NULL
         
         UNION ALL
@@ -408,7 +411,9 @@ AS $$
             s.links,
             st.depth + 1,
             st.path || s.span_id,
-            st.root_span_id
+            st.root_span_id,
+            s.input,
+            s.output
         FROM scouter.spans s
         INNER JOIN span_tree st ON s.parent_span_id = st.span_id
         WHERE s.trace_id = p_trace_id AND st.depth < 20
@@ -430,6 +435,8 @@ AS $$
         st.depth,
         st.path,
         st.root_span_id,
+        st.input,
+        st.output,
         ROW_NUMBER() OVER (ORDER BY path) as span_order
     FROM span_tree st
     ORDER BY path;

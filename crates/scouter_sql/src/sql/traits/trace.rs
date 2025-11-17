@@ -38,7 +38,6 @@ pub trait TraceSqlLogic {
         let mut status_message = Vec::with_capacity(capacity);
         let mut root_span_id = Vec::with_capacity(capacity);
         let mut span_count = Vec::with_capacity(capacity);
-        let mut attributes = Vec::with_capacity(capacity);
 
         // Single-pass extraction for performance
         for r in traces {
@@ -56,7 +55,6 @@ pub trait TraceSqlLogic {
             status_message.push(r.status_message.clone());
             root_span_id.push(r.root_span_id.as_str());
             span_count.push(r.span_count);
-            attributes.push(Json(r.attributes.clone()));
         }
 
         let query_result = sqlx::query(&query.sql)
@@ -74,7 +72,6 @@ pub trait TraceSqlLogic {
             .bind(status_message)
             .bind(root_span_id)
             .bind(span_count)
-            .bind(attributes)
             .execute(pool)
             .await?;
 
@@ -306,5 +303,13 @@ pub trait TraceSqlLogic {
             .map_err(SqlError::SqlxError);
 
         trace_items
+    }
+
+    async fn refresh_trace_summary(pool: &Pool<Postgres>) -> Result<PgQueryResult, SqlError> {
+        let query_result = sqlx::query("REFRESH MATERIALIZED VIEW scouter.trace_summary;")
+            .execute(pool)
+            .await?;
+
+        Ok(query_result)
     }
 }

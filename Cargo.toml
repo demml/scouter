@@ -77,7 +77,7 @@ opentelemetry = { version = "0.*" }
 opentelemetry-stdout = "0.*"
 opentelemetry_sdk = { version = "0.*", features = ["trace"] }
 opentelemetry-proto = { version = "0.*" }
-opentelemetry-otlp = { version = "0.*" }
+opentelemetry-otlp = { version = "0.*", features = ["grpc-tonic"] }
 parquet = { version = ">=55.*", features = ["arrow"] }
 password-auth = "1.*"
 potato-head = "0.*"

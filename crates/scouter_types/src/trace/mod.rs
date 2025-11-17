@@ -65,8 +65,6 @@ pub struct TraceRecord {
     #[pyo3(get)]
     pub span_count: i32,
     #[pyo3(get)]
-    pub attributes: Vec<Attribute>,
-    #[pyo3(get)]
     pub tags: Vec<Tag>,
 }
 
@@ -97,16 +95,6 @@ impl TraceRecord {
             self.status_code = 2;
         }
 
-        // 4. Merge attributes and tags, avoiding duplicates
-        let mut existing_attr_keys: std::collections::HashSet<String> =
-            self.attributes.iter().map(|a| a.key.clone()).collect();
-
-        for attr in &other.attributes {
-            if !existing_attr_keys.contains(&attr.key) {
-                self.attributes.push(attr.clone());
-                existing_attr_keys.insert(attr.key.clone());
-            }
-        }
         self.span_count += other.span_count;
 
         let mut existing_tag_keys: std::collections::HashSet<String> =
@@ -500,7 +488,6 @@ impl TraceServerRecord {
                 .map(|s| s.message.clone())
                 .unwrap_or_default(),
             root_span_id: span_id.to_string(),
-            attributes: attributes.clone(),
             tags: Self::extract_tags(attributes)?,
             span_count: 1,
         })
@@ -731,6 +718,10 @@ impl Attribute {
     pub fn get_value<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, RecordError> {
         Ok(json_to_pyobject_value(py, &self.value)?.bind(py).clone())
     }
+
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
 }
 
 impl Attribute {
@@ -755,6 +746,13 @@ pub struct SpanEvent {
     pub dropped_attributes_count: u32,
 }
 
+#[pymethods]
+impl SpanEvent {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[pyclass]
 pub struct SpanLink {
@@ -770,6 +768,13 @@ pub struct SpanLink {
     pub dropped_attributes_count: u32,
 }
 
+#[pymethods]
+impl SpanLink {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[pyclass]
 pub struct Tag {
@@ -777,6 +782,13 @@ pub struct Tag {
     pub key: String,
     #[pyo3(get)]
     pub value: String,
+}
+
+#[pymethods]
+impl Tag {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
