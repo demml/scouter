@@ -1,4 +1,5 @@
 import time
+from .conftest import get_traces_from_jaeger
 
 
 def test_tracer_http(setup_tracer_http):
@@ -21,3 +22,6 @@ def test_tracer_http(setup_tracer_http):
         with tracer.start_as_current_span("main_span"):
             task_one()
             task_two()
+
+    traces = get_traces_from_jaeger("tracing-http")
+    assert len(traces) > 0

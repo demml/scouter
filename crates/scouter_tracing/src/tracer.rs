@@ -9,6 +9,7 @@ use crate::error::TraceError;
 use crate::exporter::processor::BatchConfig;
 use crate::exporter::scouter::ScouterSpanExporter;
 use crate::exporter::SpanExporterNum;
+use crate::utils::BoxedSpan;
 use crate::utils::{
     capture_function_arguments, format_traceback, get_context_store, get_context_var,
     get_current_active_span, get_current_context_id, set_current_span, set_function_attributes,
@@ -17,11 +18,12 @@ use crate::utils::{
 use chrono::{DateTime, Utc};
 use opentelemetry::baggage::BaggageExt;
 use opentelemetry::trace::Tracer as OTelTracer;
+use opentelemetry::trace::TracerProvider;
 use opentelemetry::{
-    global::{self, BoxedSpan, BoxedTracer},
     trace::{Span, Status, TraceContextExt},
     Context as OtelContext, KeyValue,
 };
+use opentelemetry_sdk::trace::SdkTracer;
 use opentelemetry_sdk::trace::SdkTracerProvider;
 use opentelemetry_sdk::Resource;
 use potato_head::create_uuid7;
@@ -41,10 +43,21 @@ use std::{collections::HashMap, sync::OnceLock};
 use tracing::{debug, info, instrument};
 
 /// Global static instance of the tracer provider.
-static TRACER_PROVIDER: OnceLock<SdkTracerProvider> = OnceLock::new();
+static TRACER_PROVIDER_STORE: OnceLock<Arc<RwLock<Option<SdkTracerProvider>>>> = OnceLock::new();
 
 // Add trace metadata store
 static TRACE_METADATA_STORE: OnceLock<TraceMetadataStore> = OnceLock::new();
+
+fn get_tracer_provider_store() -> &'static Arc<RwLock<Option<SdkTracerProvider>>> {
+    TRACER_PROVIDER_STORE.get_or_init(|| Arc::new(RwLock::new(None)))
+}
+
+fn get_tracer_provider() -> Result<Arc<RwLock<Option<SdkTracerProvider>>>, TraceError> {
+    TRACER_PROVIDER_STORE.get().cloned().ok_or_else(|| {
+        // This should only happen if the store itself hasn't been initialized by get_tracer_provider_store
+        TraceError::InitializationError("Tracer provider store not initialized".to_string())
+    })
+}
 
 const MISSING: &str = "unknown";
 
@@ -131,6 +144,14 @@ impl TraceMetadataStore {
 
         Ok(())
     }
+
+    fn clear_all(&self) -> Result<(), TraceError> {
+        self.inner
+            .write()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?
+            .clear();
+        Ok(())
+    }
 }
 
 fn get_trace_metadata_store() -> &'static TraceMetadataStore {
@@ -192,24 +213,33 @@ pub fn init_tracer(
         transport_config,
     )?;
 
-    TRACER_PROVIDER.get_or_init(|| {
-        let resource = Resource::builder()
-            .with_attributes(vec![KeyValue::new(SERVICE_NAME, service_name)])
-            .build();
+    let provider_store = get_tracer_provider_store();
 
-        let span_exporter = if let Some(exporter) = exporter {
-            SpanExporterNum::from_pyobject(exporter).expect("failed to convert exporter")
-        } else {
-            SpanExporterNum::default()
-        };
+    let mut store_guard = provider_store
+        .write()
+        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
 
-        let provider = span_exporter
-            .build_provider(resource, scouter_export, batch_config)
-            .expect("failed to build tracer provider");
+    if store_guard.is_some() {
+        return Err(TraceError::InitializationError(
+            "Tracer provider already initialized. Call shutdown_tracer() first.".to_string(),
+        ));
+    }
 
-        global::set_tracer_provider(provider.clone());
-        provider
-    });
+    let resource = Resource::builder()
+        .with_attributes(vec![KeyValue::new(SERVICE_NAME, service_name.clone())])
+        .build();
+
+    let span_exporter = if let Some(exporter) = exporter {
+        SpanExporterNum::from_pyobject(exporter).expect("failed to convert exporter")
+    } else {
+        SpanExporterNum::default()
+    };
+
+    let provider = span_exporter
+        .build_provider(resource, scouter_export, batch_config)
+        .expect("failed to build tracer provider");
+
+    *store_guard = Some(provider);
 
     Ok(())
 }
@@ -450,7 +480,7 @@ impl ActiveSpan {
 /// The main Tracer class
 #[pyclass(subclass)]
 pub struct BaseTracer {
-    tracer: BoxedTracer,
+    tracer: SdkTracer,
 }
 
 impl BaseTracer {
@@ -523,9 +553,9 @@ impl BaseTracer {
 impl BaseTracer {
     #[new]
     #[pyo3(signature = (name))]
-    fn new(name: String) -> Self {
-        let tracer = global::tracer(name.clone());
-        BaseTracer { tracer }
+    fn new(name: String) -> Result<Self, TraceError> {
+        let tracer = get_tracer(name)?;
+        Ok(BaseTracer { tracer })
     }
 
     /// Start a span and set it as the current span
@@ -571,11 +601,13 @@ impl BaseTracer {
         };
 
         // Create span with the final context (this consumes final_ctx)
-        let mut span = self
-            .tracer
-            .span_builder(name.clone())
-            .with_kind(kind.to_otel_span_kind())
-            .start_with_context(&self.tracer, &final_ctx);
+
+        let mut span = BoxedSpan::new(
+            self.tracer
+                .span_builder(name.clone())
+                .with_kind(kind.to_otel_span_kind())
+                .start_with_context(&self.tracer, &final_ctx),
+        );
 
         attributes.iter().for_each(|attr_map| {
             attr_map.iter().for_each(|(k, v)| {
@@ -677,11 +709,7 @@ impl BaseTracer {
     }
 
     pub fn shutdown(&self) -> Result<(), TraceError> {
-        let provider = TRACER_PROVIDER.get().ok_or_else(|| {
-            TraceError::InitializationError("Tracer provider not initialized".to_string())
-        })?;
-        provider.shutdown()?;
-        Ok(())
+        shutdown_tracer()
     }
 }
 
@@ -716,19 +744,55 @@ impl BaseTracer {
 /// Helper function to force flush the tracer provider
 #[pyfunction]
 pub fn flush_tracer() -> Result<(), TraceError> {
-    let provider = TRACER_PROVIDER.get().ok_or_else(|| {
-        TraceError::InitializationError("Tracer provider not initialized".to_string())
+    let store = get_tracer_provider_store();
+
+    let provider_guard = store
+        .read()
+        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+
+    let provider = provider_guard.as_ref().ok_or_else(|| {
+        TraceError::InitializationError(
+            "Tracer provider not initialized or already shut down".to_string(),
+        )
     })?;
     provider.force_flush()?;
+
     Ok(())
 }
 
 #[pyfunction]
 pub fn shutdown_tracer() -> Result<(), TraceError> {
     info!("Shutting down tracer");
-    let provider = TRACER_PROVIDER.get().ok_or_else(|| {
-        TraceError::InitializationError("Tracer provider not initialized".to_string())
-    })?;
-    provider.shutdown()?;
+
+    let store_arc = get_tracer_provider()?;
+    let mut store_guard = store_arc
+        .write()
+        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+
+    if let Some(provider) = store_guard.take() {
+        provider.shutdown()?;
+    } else {
+        tracing::warn!("Tracer provider was already shut down or never initialized.");
+    }
+
+    // You might also want to clear your TRACE_METADATA_STORE here if it's relevant to provider lifetime:
+    get_trace_metadata_store().clear_all()?;
+
     Ok(())
+}
+
+fn get_tracer(name: String) -> Result<SdkTracer, TraceError> {
+    let store = get_tracer_provider_store();
+
+    let provider_guard = store
+        .read()
+        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+
+    let provider = provider_guard.as_ref().ok_or_else(|| {
+        TraceError::InitializationError(
+            "Tracer provider not initialized or already shut down".to_string(),
+        )
+    })?;
+
+    Ok(provider.tracer(name))
 }

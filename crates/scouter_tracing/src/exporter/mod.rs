@@ -80,6 +80,7 @@ impl SpanExporterNum {
             SpanExporterNum::Noop(builder) => {
                 builder.build_provider(resource, scouter_exporter, batch_config)
             }
+            // tonic requires a tokio runtime to start the background channel
             SpanExporterNum::Grpc(builder) => app_state().block_on(async {
                 builder.build_provider(resource, scouter_exporter, batch_config)
             }),
