@@ -28,6 +28,12 @@ pub enum Routes {
     DownloadProfile,
     Healthcheck,
     Message,
+    PaginatedTraces,
+    TraceBaggage,
+    TraceSpans,
+    RefreshTraceSummary,
+    TraceMetrics,
+    Tags,
 }
 
 impl Routes {
@@ -46,6 +52,12 @@ impl Routes {
             Routes::Alerts => "alerts",
             Routes::Healthcheck => "healthcheck",
             Routes::Message => "message",
+            Routes::PaginatedTraces => "trace/paginated",
+            Routes::TraceBaggage => "trace/baggage",
+            Routes::TraceSpans => "trace/spans",
+            Routes::RefreshTraceSummary => "trace/refresh-summary",
+            Routes::TraceMetrics => "trace/metrics",
+            Routes::Tags => "tags",
         }
     }
 }

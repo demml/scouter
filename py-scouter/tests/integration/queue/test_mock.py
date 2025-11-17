@@ -3,10 +3,11 @@ import tempfile
 from pathlib import Path
 
 import pandas as pd
-from scouter.client import HTTPConfig, ScouterClient
+from scouter.client import ScouterClient
 from scouter.drift import Drifter, PsiDriftConfig
 from scouter.mock import MockConfig
 from scouter.queue import Feature, Features, ScouterQueue
+from scouter.transport import HTTPConfig
 
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"
 

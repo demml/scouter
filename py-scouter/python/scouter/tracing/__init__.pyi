@@ -8,13 +8,14 @@ from typing import (
     Any,
     Callable,
     Dict,
+    List,
     Optional,
     ParamSpec,
+    TypeAlias,
     TypeVar,
     Union,
-    TypeAlias,
-    List,
 )
+
 from ..transport import HTTPConfig, KafkaConfig, RabbitMQConfig, RedisConfig
 from ..types import CompressionType
 
@@ -212,13 +213,8 @@ class BatchConfig:
 
 def init_tracer(
     service_name: str = "scouter_service",
-    transport_config: HTTPConfig
-    | KafkaConfig
-    | RabbitMQConfig
-    | RedisConfig = HTTPConfig(),
-    exporter: HttpSpanExporter
-    | StdoutSpanExporter
-    | TestSpanExporter = StdoutSpanExporter(),  # noqa: F821
+    transport_config: HTTPConfig | KafkaConfig | RabbitMQConfig | RedisConfig = HTTPConfig(),
+    exporter: HttpSpanExporter | StdoutSpanExporter | TestSpanExporter = StdoutSpanExporter(),  # noqa: F821
     batch_config: Optional[BatchConfig] = None,
     profile_space: Optional[str] = None,
     profile_name: Optional[str] = None,
@@ -547,6 +543,75 @@ class HttpSpanExporter:
     @property
     def headers(self) -> Optional[dict[str, str]]:
         """Get the HTTP headers used for exporting spans."""
+        ...
+
+    @property
+    def compression(self) -> Optional[CompressionType]:
+        """Get the compression type used for exporting spans."""
+        ...
+
+class GrpcConfig:
+    """Configuration for gRPC exporting."""
+
+    def __init__(self, compression: Optional[CompressionType] = None) -> None:
+        """Initialize the GrpcConfig.
+
+        Args:
+            compression (Optional[CompressionType]):
+                Optional compression type for gRPC requests.
+        """
+
+    @property
+    def compression(self) -> Optional[CompressionType]:
+        """Get the compression type."""
+        ...
+
+class GrpcSpanExporter:
+    """Exporter that sends spans to a gRPC endpoint."""
+
+    def __init__(
+        self,
+        batch_export: bool = True,
+        export_config: Optional[ExportConfig] = None,
+        grpc_config: Optional[GrpcConfig] = None,
+        sample_ratio: Optional[float] = None,
+    ) -> None:
+        """Initialize the GrpcSpanExporter.
+
+        Args:
+            batch_export (bool):
+                Whether to use batch exporting. Defaults to True.
+            export_config (Optional[ExportConfig]):
+                Configuration for exporting spans.
+            grpc_config (Optional[GrpcConfig]):
+                Configuration for the gRPC exporter.
+            sample_ratio (Optional[float]):
+                The sampling ratio for traces. If None, defaults to always sample.
+        """
+
+    @property
+    def sample_ratio(self) -> Optional[float]:
+        """Get the sampling ratio."""
+        ...
+
+    @property
+    def batch_export(self) -> bool:
+        """Get whether batch exporting is enabled."""
+        ...
+
+    @property
+    def endpoint(self) -> Optional[str]:
+        """Get the gRPC endpoint for exporting spans."""
+        ...
+
+    @property
+    def protocol(self) -> Protocol:
+        """Get the protocol used for exporting spans."""
+        ...
+
+    @property
+    def timeout(self) -> Optional[int]:
+        """Get the timeout for gRPC requests in seconds."""
         ...
 
     @property

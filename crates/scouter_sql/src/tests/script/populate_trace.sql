@@ -83,7 +83,7 @@ BEGIN
         INSERT INTO scouter.traces (
             trace_id, space, name, version, scope, trace_state,
             start_time, end_time, duration_ms, status_code, root_span_id, -- CHANGED: status -> status_code
-            span_count, attributes, created_at
+            span_count, created_at
         ) VALUES (
             v_trace_id,
             'production',
@@ -97,16 +97,6 @@ BEGIN
             CASE WHEN v_has_error THEN 2 ELSE 1 END, -- CHANGED: 'error'/'ok' -> 2/1 (OTel status codes)
             v_root_span_id,
             v_span_count,
-            -- CORRECTED: attributes JSONB must be an array of EAV objects
-            jsonb_build_array(
-                jsonb_build_object('key', 'service.name', 'value', v_service_name),
-                jsonb_build_object('key', 'service.version', 'value', 'v1.0.0'),
-                jsonb_build_object('key', 'deployment.environment', 'value', 'production'),
-                jsonb_build_object('key', 'scouter.service.name', 'value', v_service_name),
-                jsonb_build_object('key', 'http.method', 'value', SPLIT_PART(v_operation, ' ', 1)),
-                jsonb_build_object('key', 'http.route', 'value', SPLIT_PART(v_operation, ' ', 2)),
-                jsonb_build_object('key', 'user.id', 'value', 'user-' || (1000 + RANDOM() * 9000)::INTEGER::TEXT)
-            ),
             v_current_time
         );
 

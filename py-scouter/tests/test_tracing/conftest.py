@@ -1,7 +1,7 @@
 import pytest
 from pydantic import BaseModel
-from scouter.tracing import TestSpanExporter, get_tracer, init_tracer
 from scouter.mock import MockConfig
+from scouter.tracing import TestSpanExporter, get_tracer, init_tracer
 
 
 class ChatInput(BaseModel):

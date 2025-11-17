@@ -312,6 +312,8 @@ impl SpcDriftProfile {
     pub fn model_validate(data: &Bound<'_, PyDict>) -> SpcDriftProfile {
         let json_value = pyobject_to_json(data).unwrap();
 
+        println!("JSON Value: {:?}", json_value);
+
         let string = serde_json::to_string(&json_value).unwrap();
         serde_json::from_str(&string).expect("Failed to load drift profile")
     }

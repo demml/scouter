@@ -9,9 +9,9 @@ use axum::{
 };
 use scouter_sql::sql::traits::TagSqlLogic;
 use scouter_sql::PostgresClient;
-use scouter_types::TagRequest;
+use scouter_types::TagsRequest;
 use scouter_types::{
-    contracts::ScouterServerError, InsertTagRequest, ScouterResponse, TagsResponse,
+    contracts::ScouterServerError, InsertTagsRequest, ScouterResponse, TagsResponse,
 };
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
@@ -19,7 +19,7 @@ use tracing::error;
 
 pub async fn get_tags(
     State(data): State<Arc<AppState>>,
-    Query(params): Query<TagRequest>,
+    Query(params): Query<TagsRequest>,
 ) -> Result<Json<TagsResponse>, (StatusCode, Json<ScouterServerError>)> {
     let tags = PostgresClient::get_tags(&data.db_pool, &params.entity_type, &params.entity_id)
         .await
@@ -36,7 +36,7 @@ pub async fn get_tags(
 
 pub async fn insert_tags(
     State(data): State<Arc<AppState>>,
-    Json(body): Json<InsertTagRequest>,
+    Json(body): Json<InsertTagsRequest>,
 ) -> Result<Json<ScouterResponse>, (StatusCode, Json<ScouterServerError>)> {
     let tags = PostgresClient::insert_tag_batch(&data.db_pool, &body.tags)
         .await

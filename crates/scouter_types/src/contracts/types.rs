@@ -459,6 +459,11 @@ impl ScouterServerError {
         let msg = format!("Failed to insert tags: {e}");
         ScouterServerError { error: msg }
     }
+
+    pub fn refresh_trace_summary_error<T: Display>(e: T) -> Self {
+        let msg = format!("Failed to refresh trace summary: {e}");
+        ScouterServerError { error: msg }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -576,22 +581,24 @@ impl BinnedMetrics {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TagRequest {
+pub struct TagsRequest {
     pub entity_type: String,
     pub entity_id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct InsertTagRequest {
+pub struct InsertTagsRequest {
     pub tags: Vec<TagRecord>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
 pub struct TraceRequest {
     pub trace_id: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
 pub struct TraceMetricsRequest {
     pub space: Option<String>,
     pub name: Option<String>,
@@ -601,27 +608,94 @@ pub struct TraceMetricsRequest {
     pub bucket_interval: String,
 }
 
+#[pymethods]
+impl TraceMetricsRequest {
+    #[new]
+    #[pyo3(signature = (start_time, end_time, bucket_interval,space=None, name=None, version=None))]
+    pub fn new(
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+        bucket_interval: String,
+        space: Option<String>,
+        name: Option<String>,
+        version: Option<String>,
+    ) -> Self {
+        TraceMetricsRequest {
+            space,
+            name,
+            version,
+            start_time,
+            end_time,
+            bucket_interval,
+        }
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
 pub struct TracePaginationResponse {
+    #[pyo3(get)]
     pub items: Vec<TraceListItem>,
 }
 
+#[pymethods]
+impl TracePaginationResponse {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
 pub struct TraceBaggageResponse {
+    #[pyo3(get)]
     pub baggage: Vec<TraceBaggageRecord>,
 }
 
+#[pymethods]
+impl TraceBaggageResponse {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
 pub struct TraceSpansResponse {
+    #[pyo3(get)]
     pub spans: Vec<TraceSpan>,
 }
 
-#[derive(Serialize, Deserialize, Debug, Clone)]
-pub struct TraceMetricsResponse {
-    pub metrics: Vec<TraceMetricBucket>,
+#[pymethods]
+impl TraceSpansResponse {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
+pub struct TraceMetricsResponse {
+    #[pyo3(get)]
+    pub metrics: Vec<TraceMetricBucket>,
+}
+#[pymethods]
+impl TraceMetricsResponse {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
 pub struct TagsResponse {
+    #[pyo3(get)]
     pub tags: Vec<TagRecord>,
+}
+
+#[pymethods]
+impl TagsResponse {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
 }

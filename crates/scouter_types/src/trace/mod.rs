@@ -718,6 +718,10 @@ impl Attribute {
     pub fn get_value<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, RecordError> {
         Ok(json_to_pyobject_value(py, &self.value)?.bind(py).clone())
     }
+
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
 }
 
 impl Attribute {
@@ -742,6 +746,13 @@ pub struct SpanEvent {
     pub dropped_attributes_count: u32,
 }
 
+#[pymethods]
+impl SpanEvent {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[pyclass]
 pub struct SpanLink {
@@ -757,6 +768,13 @@ pub struct SpanLink {
     pub dropped_attributes_count: u32,
 }
 
+#[pymethods]
+impl SpanLink {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[pyclass]
 pub struct Tag {
@@ -764,6 +782,13 @@ pub struct Tag {
     pub key: String,
     #[pyo3(get)]
     pub value: String,
+}
+
+#[pymethods]
+impl Tag {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
