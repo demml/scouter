@@ -21,15 +21,14 @@ DECLARE
     ];
     
     v_span_kinds TEXT[] := ARRAY['server', 'client', 'producer', 'consumer', 'internal'];
-    v_status_codes TEXT[] := ARRAY['ok', 'error', 'timeout', 'cancelled'];
     
     -- Loop variables
     i INTEGER;
     j INTEGER;
     k INTEGER;
-	v_baggage_created_at TIMESTAMPTZ;
-	v_baggage_sequence INTEGER := 0;
-	
+    v_baggage_created_at TIMESTAMPTZ;
+    v_baggage_sequence INTEGER := 0;
+    
     
     -- Trace variables
     v_trace_id TEXT;
@@ -47,7 +46,7 @@ DECLARE
     v_span_start TIMESTAMPTZ;
     v_span_end TIMESTAMPTZ;
     v_span_duration BIGINT;
-    v_span_status TEXT;
+    v_span_status_code INTEGER; -- Use INTEGER for OTel status code
     v_span_kind TEXT;
     
 BEGIN
@@ -61,7 +60,7 @@ BEGIN
         
         -- Random timestamp within the last week
         v_current_time := v_base_time + (RANDOM() * INTERVAL '7 days');
-		v_baggage_sequence := 0;
+        v_baggage_sequence := 0;
         
         -- Select random service and operation
         v_service_name := v_services[1 + (RANDOM() * (array_length(v_services, 1) - 1))::INTEGER];
@@ -83,8 +82,8 @@ BEGIN
         -- Insert trace record
         INSERT INTO scouter.traces (
             trace_id, space, name, version, scope, trace_state,
-            start_time, end_time, duration_ms, status, root_span_id,
-            span_count, attributes, created_at
+            start_time, end_time, duration_ms, status_code, root_span_id, -- CHANGED: status -> status_code
+            span_count, created_at
         ) VALUES (
             v_trace_id,
             'production',
@@ -95,19 +94,9 @@ BEGIN
             v_current_time,
             v_current_time + (v_trace_duration || ' milliseconds')::INTERVAL,
             v_trace_duration,
-            CASE WHEN v_has_error THEN 'error' ELSE 'ok' END,
+            CASE WHEN v_has_error THEN 2 ELSE 1 END, -- CHANGED: 'error'/'ok' -> 2/1 (OTel status codes)
             v_root_span_id,
             v_span_count,
-            -- CORRECTED: attributes JSONB must be an array of EAV objects
-            jsonb_build_array(
-                jsonb_build_object('key', 'service.name', 'value', v_service_name),
-                jsonb_build_object('key', 'service.version', 'value', 'v1.0.0'),
-                jsonb_build_object('key', 'deployment.environment', 'value', 'production'),
-                jsonb_build_object('key', 'scouter.service.name', 'value', v_service_name),
-                jsonb_build_object('key', 'http.method', 'value', SPLIT_PART(v_operation, ' ', 1)),
-                jsonb_build_object('key', 'http.route', 'value', SPLIT_PART(v_operation, ' ', 2)),
-                jsonb_build_object('key', 'user.id', 'value', 'user-' || (1000 + RANDOM() * 9000)::INTEGER::TEXT)
-            ),
             v_current_time
         );
 
@@ -168,10 +157,10 @@ BEGIN
             v_span_end := v_span_start + (v_span_duration || ' milliseconds')::INTERVAL;
             
             -- Determine span status
-            v_span_status := CASE
-                WHEN v_has_error AND j = v_span_count THEN 'error'  -- Last span gets the error
-                WHEN v_has_error AND RANDOM() < 0.1 THEN 'error'    -- 10% chance other spans error
-                ELSE 'ok'
+            v_span_status_code := CASE -- CHANGED: variable name to status_code
+                WHEN v_has_error AND j = v_span_count THEN 2  -- Last span gets the error (2)
+                WHEN v_has_error AND RANDOM() < 0.1 THEN 2    -- 10% chance other spans error (2)
+                ELSE 1                                         -- Otherwise OK (1)
             END;
             
             -- Random span kind
@@ -198,8 +187,8 @@ BEGIN
                 v_span_start,
                 v_span_end,
                 v_span_duration,
-                v_span_status,
-                CASE WHEN v_span_status = 'error' THEN 'Internal server error' ELSE NULL END,
+                v_span_status_code, -- CHANGED: use integer status code
+                CASE WHEN v_span_status_code = 2 THEN 'Internal server error' ELSE NULL END, -- Use integer status code
                 -- CORRECTED: attributes JSONB must be an array of EAV objects
                 jsonb_build_array(
                     jsonb_build_object('key', 'service.name', 'value', v_service_name),
@@ -216,7 +205,7 @@ BEGIN
                     jsonb_build_object('key', 'thread.id', 'value', (1000 + RANDOM() * 9000)::INTEGER::TEXT)
                 ),
                 CASE 
-                    WHEN v_span_status = 'error' THEN jsonb_build_array(
+                    WHEN v_span_status_code = 2 THEN jsonb_build_array( -- Use integer status code
                         jsonb_build_object(
                             'timestamp', EXTRACT(EPOCH FROM v_span_end)::BIGINT * 1000000000,
                             'name', 'exception',
@@ -304,6 +293,7 @@ BEGIN
     RAISE NOTICE 'Successfully generated % traces with spans and baggage', v_num_traces;
     
     -- Refresh materialized view to include new data
+    -- Note: This is where a CONCURRENTLY refresh should be used in production
     REFRESH MATERIALIZED VIEW scouter.trace_summary;
     
     RAISE NOTICE 'Refreshed trace_summary materialized view';
@@ -313,8 +303,8 @@ BEGIN
     RAISE NOTICE '- Total traces: %', (SELECT COUNT(*) FROM scouter.traces);
     RAISE NOTICE '- Total spans: %', (SELECT COUNT(*) FROM scouter.spans);
     RAISE NOTICE '- Total baggage entries: %', (SELECT COUNT(*) FROM scouter.trace_baggage);
-    RAISE NOTICE '- Total tag entries: %', (SELECT COUNT(*) FROM scouter.tags); -- ADDED
-    RAISE NOTICE '- Traces with errors: %', (SELECT COUNT(*) FROM scouter.traces WHERE status != 'ok');
+    RAISE NOTICE '- Total tag entries: %', (SELECT COUNT(*) FROM scouter.tags);
+    RAISE NOTICE '- Traces with errors (status_code = 2): %', (SELECT COUNT(*) FROM scouter.traces WHERE status_code = 2); -- CHANGED
     RAISE NOTICE '- Average spans per trace: %', (SELECT ROUND(AVG(span_count), 2) FROM scouter.traces);
     RAISE NOTICE '- Average trace duration: % ms', (SELECT ROUND(AVG(duration_ms), 2) FROM scouter.traces);
     

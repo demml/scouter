@@ -5,11 +5,10 @@ use crate::sql::traits::{
 };
 use scouter_settings::DatabaseSettings;
 use scouter_types::{RecordType, ServerRecords, TagRecord, ToDriftRecords, TraceServerRecord};
-use tokio::try_join;
-
 use sqlx::ConnectOptions;
 use sqlx::{postgres::PgConnectOptions, Pool, Postgres};
 use std::result::Result::Ok;
+use tokio::try_join;
 use tracing::{debug, error, info, instrument};
 
 #[derive(Debug, Clone)]
@@ -222,7 +221,7 @@ impl MessageHandler {
         pool: &Pool<Postgres>,
         record: &TagRecord,
     ) -> Result<(), SqlError> {
-        let result = PostgresClient::insert_tag_batch(pool, &[record.clone()]).await?;
+        let result = PostgresClient::insert_tag_batch(pool, std::slice::from_ref(record)).await?;
 
         debug!(
             rows_affected = result.rows_affected(),
@@ -244,7 +243,7 @@ mod tests {
 
     use super::*;
     use crate::sql::schema::User;
-    use chrono::Utc;
+    use chrono::{Duration, Utc};
     use potato_head::{create_score_prompt, create_uuid7};
     use rand::Rng;
     use scouter_semver::VersionType;
@@ -285,9 +284,10 @@ mod tests {
             start_time: created_at,
             end_time: created_at + chrono::Duration::milliseconds(150),
             duration_ms: 150,
-            status: "ok".to_string(),
+            status_code: 0,
+            span_count: 1,
+            status_message: "OK".to_string(),
             root_span_id: span_id.clone(),
-            attributes: vec![Attribute::default()],
             tags: vec![],
         }
     }
@@ -306,11 +306,7 @@ mod tests {
         let end_time = start_time + chrono::Duration::milliseconds(duration_ms_val);
 
         // --- Status and Kind ---
-        let status_code = if rng.random_bool(0.95) {
-            "STATUS_CODE_OK".to_string()
-        } else {
-            "STATUS_CODE_ERROR".to_string()
-        };
+        let status_code = if rng.random_bool(0.95) { 0 } else { 2 };
         let span_kind_options = ["SERVER", "CLIENT", "INTERNAL", "PRODUCER", "CONSUMER"];
         let span_kind = span_kind_options[rng.random_range(0..span_kind_options.len())].to_string();
 
@@ -328,8 +324,8 @@ mod tests {
             start_time,
             end_time,
             duration_ms: duration_ms_val,
-            status_code: status_code.clone(),
-            status_message: if status_code == "STATUS_CODE_ERROR" {
+            status_code,
+            status_message: if status_code == 2 {
                 "Internal Server Error".to_string()
             } else {
                 "OK".to_string()
@@ -1221,7 +1217,7 @@ mod tests {
 
         // Records are randomly generated, so just assert we get some records back
         assert!(
-            records.len() > 0,
+            !records.is_empty(),
             "Should return records with specified filters"
         );
 
@@ -1298,12 +1294,13 @@ mod tests {
         let inserted_created_at = trace_record.created_at;
         let inserted_trace_id = trace_record.trace_id.clone();
 
-        let mut trace_filter = TraceFilters::new();
-
-        trace_filter.cursor_created_at = Some(inserted_created_at + chrono::Duration::days(1));
-        trace_filter.cursor_trace_id = Some(inserted_trace_id);
-        trace_filter.start_time = Some(inserted_created_at - chrono::Duration::minutes(5));
-        trace_filter.end_time = Some(inserted_created_at + chrono::Duration::days(1));
+        let trace_filter = TraceFilters {
+            cursor_created_at: Some(inserted_created_at + Duration::days(1)),
+            cursor_trace_id: Some(inserted_trace_id),
+            start_time: Some(inserted_created_at - Duration::minutes(5)),
+            end_time: Some(inserted_created_at + Duration::days(1)),
+            ..TraceFilters::default()
+        };
 
         let traces = PostgresClient::get_traces_paginated(&pool, trace_filter)
             .await
@@ -1322,9 +1319,10 @@ mod tests {
             value: "12345".to_string(),
         };
 
-        let result = PostgresClient::insert_trace_baggage_batch(&pool, &[baggage.clone()])
-            .await
-            .unwrap();
+        let result =
+            PostgresClient::insert_trace_baggage_batch(&pool, std::slice::from_ref(&baggage))
+                .await
+                .unwrap();
 
         assert_eq!(result.rows_affected(), 1);
 

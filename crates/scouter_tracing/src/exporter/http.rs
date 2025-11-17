@@ -2,6 +2,7 @@ use std::collections::HashMap;
 
 use crate::error::TraceError;
 use crate::exporter::traits::SpanExporterBuilder;
+use crate::exporter::ExporterType;
 use crate::utils::{ExportConfig, HttpConfig, Protocol};
 use opentelemetry_otlp::ExportConfig as OtlpExportConfig;
 use opentelemetry_otlp::SpanExporter as OtlpSpanExporter;
@@ -82,6 +83,10 @@ impl HttpSpanExporter {
 
 impl SpanExporterBuilder for HttpSpanExporter {
     type Exporter = OtlpSpanExporter;
+
+    fn export_type(&self) -> ExporterType {
+        ExporterType::Http
+    }
 
     fn sample_ratio(&self) -> Option<f64> {
         self.sample_ratio

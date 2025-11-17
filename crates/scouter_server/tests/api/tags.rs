@@ -6,7 +6,7 @@ use axum::{
 use chrono::Utc;
 use http_body_util::BodyExt;
 use potato_head::create_uuid7;
-use scouter_types::{InsertTagRequest, TagRecord, TagRequest, TagsResponse};
+use scouter_types::{InsertTagsRequest, TagRecord, TagsRequest, TagsResponse};
 
 #[tokio::test]
 async fn test_tags() {
@@ -29,7 +29,7 @@ async fn test_tags() {
         key: "version".to_string(),
         value: "1.0.0".to_string(),
     };
-    let tag_record = InsertTagRequest {
+    let tag_record = InsertTagsRequest {
         tags: vec![tag1, tag2],
     };
 
@@ -46,14 +46,14 @@ async fn test_tags() {
     assert_eq!(response.status(), StatusCode::OK);
 
     // retrieve tags
-    let tag_request = TagRequest {
+    let tag_request = TagsRequest {
         entity_type: "service".to_string(),
         entity_id: uid.clone(),
     };
 
     let query_string = serde_qs::to_string(&tag_request).unwrap();
     let request = Request::builder()
-        .uri(&format!("/scouter/tags?{query_string}"))
+        .uri(format!("/scouter/tags?{query_string}"))
         .method("GET")
         .body(Body::empty())
         .unwrap();
