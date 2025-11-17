@@ -91,8 +91,8 @@ pub struct TraceSpan {
     pub root_span_id: String,
     #[pyo3(get)]
     pub span_order: i32,
-    pub input: Value,
-    pub output: Value,
+    pub input: Option<Value>,
+    pub output: Option<Value>,
 }
 
 #[pymethods]
@@ -103,14 +103,22 @@ impl TraceSpan {
 
     #[getter]
     pub fn input<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
-        Ok(json_to_pyobject_value(py, &self.input)?
+        let input = match &self.input {
+            Some(v) => v,
+            None => &Value::Null,
+        };
+        Ok(json_to_pyobject_value(py, input)?
             .into_bound_py_any(py)?
             .clone())
     }
 
     #[getter]
     pub fn output<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TypeError> {
-        Ok(json_to_pyobject_value(py, &self.output)?
+        let output = match &self.output {
+            Some(v) => v,
+            None => &Value::Null,
+        };
+        Ok(json_to_pyobject_value(py, output)?
             .into_bound_py_any(py)?
             .clone())
     }
@@ -125,6 +133,8 @@ impl FromRow<'_, PgRow> for TraceSpan {
             serde_json::from_value(row.try_get("events")?).unwrap_or_default();
         let links: Vec<SpanLink> =
             serde_json::from_value(row.try_get("links")?).unwrap_or_default();
+        let input: Option<Value> = row.try_get("input")?;
+        let output: Option<Value> = row.try_get("output")?;
 
         Ok(TraceSpan {
             trace_id: row.try_get("trace_id")?,
@@ -144,8 +154,8 @@ impl FromRow<'_, PgRow> for TraceSpan {
             path: row.try_get("path")?,
             root_span_id: row.try_get("root_span_id")?,
             span_order: row.try_get("span_order")?,
-            input: row.try_get("input")?,
-            output: row.try_get("output")?,
+            input,
+            output,
         })
     }
 }
