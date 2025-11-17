@@ -11,9 +11,9 @@ from scouter.client import (
     ScouterClient,
     TimeInterval,
 )
-from scouter.transport import HTTPConfig
 from scouter.drift import Drifter, PsiDriftConfig
 from scouter.queue import Features, ScouterQueue
+from scouter.transport import HTTPConfig
 from scouter.types import DriftType
 
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"

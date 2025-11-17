@@ -425,6 +425,21 @@ impl HttpConfig {
     }
 }
 
+#[derive(Debug)]
+#[pyclass]
+pub struct GrpcConfig {
+    #[pyo3(get)]
+    pub compression: Option<CompressionType>,
+}
+
+#[pymethods]
+impl GrpcConfig {
+    #[new]
+    pub fn new(compression: Option<CompressionType>) -> Self {
+        GrpcConfig { compression }
+    }
+}
+
 pub fn format_traceback(py: Python, exc_tb: &Py<PyAny>) -> Result<String, TraceError> {
     // Import the traceback module
     let traceback_module = py.import("traceback")?;

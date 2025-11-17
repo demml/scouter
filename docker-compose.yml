@@ -155,6 +155,7 @@ services:
       - rabbitmq
       - init-kafka
       - redis
+      - otel-collector
     build:
       context: .
       dockerfile: ./docker/dev/postgres/Dockerfile
@@ -182,6 +183,13 @@ services:
       timeout: 5s
       retries: 5
 
+  jaeger:
+    image: jaegertracing/all-in-one:latest
+    ports:
+      - "6831:6831/udp"
+      - "16686:16686"
+      - "14268:14268"
+
   otel-collector:
     build:
       context: .
@@ -193,3 +201,5 @@ services:
     restart: unless-stopped
     environment:
       - OTEL_LOG_LEVEL=debug
+    depends_on:
+      - jaeger

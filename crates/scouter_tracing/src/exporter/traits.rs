@@ -49,7 +49,6 @@ pub trait SpanExporterBuilder {
 
         // if either the exporter or batch_config indicates batch, use batch
         let use_batch = self.batch_export() || batch_config.is_some();
-
         let sampler = self.to_sampler();
 
         let mut builder = opentelemetry_sdk::trace::SdkTracerProvider::builder()

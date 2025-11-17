@@ -550,6 +550,75 @@ class HttpSpanExporter:
         """Get the compression type used for exporting spans."""
         ...
 
+class GrpcConfig:
+    """Configuration for gRPC exporting."""
+
+    def __init__(self, compression: Optional[CompressionType] = None) -> None:
+        """Initialize the GrpcConfig.
+
+        Args:
+            compression (Optional[CompressionType]):
+                Optional compression type for gRPC requests.
+        """
+
+    @property
+    def compression(self) -> Optional[CompressionType]:
+        """Get the compression type."""
+        ...
+
+class GrpcSpanExporter:
+    """Exporter that sends spans to a gRPC endpoint."""
+
+    def __init__(
+        self,
+        batch_export: bool = True,
+        export_config: Optional[ExportConfig] = None,
+        grpc_config: Optional[GrpcConfig] = None,
+        sample_ratio: Optional[float] = None,
+    ) -> None:
+        """Initialize the GrpcSpanExporter.
+
+        Args:
+            batch_export (bool):
+                Whether to use batch exporting. Defaults to True.
+            export_config (Optional[ExportConfig]):
+                Configuration for exporting spans.
+            grpc_config (Optional[GrpcConfig]):
+                Configuration for the gRPC exporter.
+            sample_ratio (Optional[float]):
+                The sampling ratio for traces. If None, defaults to always sample.
+        """
+
+    @property
+    def sample_ratio(self) -> Optional[float]:
+        """Get the sampling ratio."""
+        ...
+
+    @property
+    def batch_export(self) -> bool:
+        """Get whether batch exporting is enabled."""
+        ...
+
+    @property
+    def endpoint(self) -> Optional[str]:
+        """Get the gRPC endpoint for exporting spans."""
+        ...
+
+    @property
+    def protocol(self) -> Protocol:
+        """Get the protocol used for exporting spans."""
+        ...
+
+    @property
+    def timeout(self) -> Optional[int]:
+        """Get the timeout for gRPC requests in seconds."""
+        ...
+
+    @property
+    def compression(self) -> Optional[CompressionType]:
+        """Get the compression type used for exporting spans."""
+        ...
+
 class TraceRecord:
     created_at: datetime.datetime
     trace_id: str

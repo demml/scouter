@@ -1,3 +1,4 @@
+pub mod grpc;
 pub mod http;
 pub mod noop;
 pub mod processor;
@@ -13,8 +14,10 @@ use crate::exporter::scouter::ScouterSpanExporter;
 use crate::exporter::traits::SpanExporterBuilder;
 use opentelemetry_sdk::Resource;
 use pyo3::prelude::*;
+use scouter_state::app_state;
 use tracing::debug;
 
+pub use grpc::GrpcSpanExporter;
 pub use http::HttpSpanExporter;
 pub use stdout::StdoutSpanExporter;
 pub use testing::TestSpanExporter;
@@ -25,6 +28,7 @@ pub enum ExporterType {
     Stdout,
     Testing,
     Noop,
+    Grpc,
 }
 
 // Enum for handling different span exporter types
@@ -34,6 +38,7 @@ pub enum SpanExporterNum {
     Stdout(StdoutSpanExporter),
     Testing(TestSpanExporter),
     Noop(NoopSpanExporter),
+    Grpc(GrpcSpanExporter),
 }
 
 impl SpanExporterNum {
@@ -41,6 +46,9 @@ impl SpanExporterNum {
         if obj.is_instance_of::<HttpSpanExporter>() {
             let exporter = obj.extract::<HttpSpanExporter>()?;
             Ok(SpanExporterNum::Http(exporter))
+        } else if obj.is_instance_of::<GrpcSpanExporter>() {
+            let exporter = obj.extract::<GrpcSpanExporter>()?;
+            Ok(SpanExporterNum::Grpc(exporter))
         } else if obj.is_instance_of::<StdoutSpanExporter>() {
             let exporter = obj.extract::<StdoutSpanExporter>()?;
             Ok(SpanExporterNum::Stdout(exporter))
@@ -72,6 +80,9 @@ impl SpanExporterNum {
             SpanExporterNum::Noop(builder) => {
                 builder.build_provider(resource, scouter_exporter, batch_config)
             }
+            SpanExporterNum::Grpc(builder) => app_state().block_on(async {
+                builder.build_provider(resource, scouter_exporter, batch_config)
+            }),
         }
     }
 }

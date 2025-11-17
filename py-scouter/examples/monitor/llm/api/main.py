@@ -3,10 +3,10 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from scouter.transport import HTTPConfig
 from scouter.llm import Agent, Prompt
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.queue import LLMRecord, Queue, ScouterQueue
+from scouter.transport import HTTPConfig
 
 from .assets.prompts import prompt_state
 from .models import Answer, Question
