@@ -36,6 +36,7 @@ jobs:
             feature: kafka
 
     runs-on: ${{ matrix.os}}
+    container: ${{ matrix.container_image != null && matrix.container_image || null }}
 
     steps:
       - name: Checkout repository
