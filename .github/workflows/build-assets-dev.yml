@@ -6,8 +6,6 @@ permissions:
 
 on:
   pull_request:
-    branches:
-      - 171/image-refactor
 
 env:
   INTERPRETER: "3.12"
