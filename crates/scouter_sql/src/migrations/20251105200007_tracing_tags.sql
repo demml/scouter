@@ -13,10 +13,10 @@ CREATE TABLE IF NOT EXISTS scouter.traces (
     start_time TIMESTAMPTZ NOT NULL,
     end_time TIMESTAMPTZ,
     duration_ms BIGINT,
-    status TEXT NOT NULL DEFAULT 'ok',
+    status_code INTEGER DEFAULT 0,
+    status_message TEXT,
     root_span_id TEXT,
     span_count INTEGER DEFAULT 0,
-    attributes JSONB DEFAULT '[]',
     archived BOOLEAN DEFAULT FALSE,
     PRIMARY KEY (created_at, trace_id, scope),
     UNIQUE (created_at, trace_id, space, name, version)
@@ -31,8 +31,8 @@ CREATE INDEX idx_traces_created_at
 ON scouter.traces (created_at DESC, space, name, version);
 
 CREATE INDEX idx_traces_status_time
-ON scouter.traces (status, created_at DESC)
-WHERE status != 'ok';
+ON scouter.traces (status_code, created_at DESC)
+WHERE status_code != 2;
 
 CREATE INDEX idx_traces_duration_analysis
 ON scouter.traces (space, name, version, duration_ms DESC)
@@ -40,11 +40,11 @@ WHERE duration_ms IS NOT NULL;
 
 CREATE INDEX idx_traces_time_covering
 ON scouter.traces (created_at DESC, space, name, version)
-INCLUDE (trace_id, start_time, end_time, duration_ms, status, span_count);
+INCLUDE (trace_id, start_time, end_time, duration_ms, status_code, span_count);
 
 CREATE INDEX idx_traces_entity_covering
 ON scouter.traces (space, name, version, created_at DESC)
-INCLUDE (trace_id, start_time, end_time, duration_ms, status, span_count);
+INCLUDE (trace_id, start_time, end_time, duration_ms, status_code, span_count);
 
 -- Spans table - stores individual span data
 CREATE TABLE IF NOT EXISTS scouter.spans (
@@ -62,7 +62,7 @@ CREATE TABLE IF NOT EXISTS scouter.spans (
     start_time TIMESTAMPTZ NOT NULL,
     end_time TIMESTAMPTZ,
     duration_ms BIGINT,
-    status_code TEXT NOT NULL DEFAULT 'ok',
+    status_code INTEGER DEFAULT 0,
     status_message TEXT,
     attributes JSONB DEFAULT '[]',
     events JSONB DEFAULT '[]',
@@ -92,7 +92,7 @@ WHERE duration_ms IS NOT NULL;
 
 CREATE INDEX idx_spans_error_analysis
 ON scouter.spans (space, name, version, status_code, created_at DESC)
-WHERE status_code != 'ok';
+WHERE status_code != 2;
 
 CREATE INDEX idx_spans_parent_child
 ON scouter.spans (parent_span_id, span_id)
@@ -159,7 +159,7 @@ SELECT scouter.create_parent(
 );
 
 
-UPDATE scouter.part_config SET retention = '30 days' 
+UPDATE scouter.part_config SET retention = '30 days'
 WHERE parent_table IN ('scouter.traces', 'scouter.spans', 'scouter.trace_baggage');
 
 CREATE MATERIALIZED VIEW IF NOT EXISTS scouter.trace_summary AS
@@ -172,13 +172,14 @@ SELECT
     span_stats.start_time,
     span_stats.end_time,
     EXTRACT(EPOCH FROM (span_stats.end_time - span_stats.start_time)) * 1000 AS duration_ms,
-    t.status,
+    t.status_code,
+    t.status_message,
     t.span_count,
     t.created_at,
     t.service_name,
     root_span.span_name as root_operation,
     root_span.span_kind as root_span_kind,
-    CASE WHEN t.status != 'ok' THEN true ELSE false END as has_errors,
+    CASE WHEN t.status_code != 2 THEN true ELSE false END as has_errors,
     COALESCE(error_spans.error_count, 0) as error_count,
     span_stats.avg_span_duration,
     span_stats.max_span_duration
@@ -193,7 +194,7 @@ LEFT JOIN (
         trace_id,
         COUNT(*) as error_count
     FROM scouter.spans
-    WHERE status_code != 'ok'
+    WHERE status_code != 2
     AND created_at >= NOW() - INTERVAL '7 days'
     GROUP BY trace_id
 ) error_spans ON t.trace_id = error_spans.trace_id
@@ -277,7 +278,7 @@ CREATE OR REPLACE FUNCTION scouter.get_traces_paginated(
     p_version TEXT DEFAULT NULL,
     p_service_name TEXT DEFAULT NULL,
     p_has_errors BOOLEAN DEFAULT NULL,
-    p_status TEXT DEFAULT NULL,
+    p_status_code INTEGER DEFAULT NULL,
     p_start_time TIMESTAMPTZ DEFAULT NOW() - INTERVAL '24 hours',
     p_end_time TIMESTAMPTZ DEFAULT NOW(),
     p_limit INTEGER DEFAULT 50,
@@ -295,7 +296,8 @@ RETURNS TABLE (
     start_time TIMESTAMPTZ,
     end_time TIMESTAMPTZ,
     duration_ms BIGINT,
-    status TEXT,
+    status_code INTEGER,
+    status_message TEXT,
     span_count INTEGER,
     has_errors BOOLEAN,
     error_count BIGINT,
@@ -315,7 +317,8 @@ AS $$
         ts.start_time,
         ts.end_time,
         ts.duration_ms,
-        ts.status,
+        ts.status_code,
+        ts.status_message,
         ts.span_count,
         ts.has_errors,
         ts.error_count,
@@ -328,7 +331,7 @@ AS $$
         AND (p_version IS NULL OR ts.version = p_version)
         AND (p_service_name IS NULL OR ts.service_name = p_service_name)
         AND (p_has_errors IS NULL OR ts.has_errors = p_has_errors)
-        AND (p_status IS NULL OR ts.status = p_status)
+        AND (p_status_code IS NULL OR ts.status_code = p_status_code)
         AND ts.start_time >= p_start_time
         AND ts.start_time <= p_end_time
         AND (
@@ -350,7 +353,7 @@ RETURNS TABLE (
     start_time TIMESTAMPTZ,
     end_time TIMESTAMPTZ,
     duration_ms BIGINT,
-    status_code TEXT,
+    status_code INTEGER,
     status_message TEXT,
     attributes JSONB,
     events JSONB,
@@ -358,14 +361,16 @@ RETURNS TABLE (
     depth INTEGER,
     path TEXT[],
     root_span_id TEXT,
+    input JSONB,
+    output JSONB,
     span_order INTEGER
 )
 LANGUAGE SQL
 STABLE
 AS $$
     WITH RECURSIVE span_tree AS (
- 
-        SELECT 
+
+        SELECT
             s.trace_id,
             s.span_id,
             s.parent_span_id,
@@ -381,9 +386,11 @@ AS $$
             s.links,
             0 as depth,
             ARRAY[s.span_id] as path,
-            s.span_id as root_span_id
+            s.span_id as root_span_id,
+            s.input,
+            s.output
         FROM scouter.spans s
-        WHERE s.trace_id = p_trace_id 
+        WHERE s.trace_id = p_trace_id
           AND s.parent_span_id IS NULL
         
         UNION ALL
@@ -404,7 +411,9 @@ AS $$
             s.links,
             st.depth + 1,
             st.path || s.span_id,
-            st.root_span_id
+            st.root_span_id,
+            s.input,
+            s.output
         FROM scouter.spans s
         INNER JOIN span_tree st ON s.parent_span_id = st.span_id
         WHERE s.trace_id = p_trace_id AND st.depth < 20
@@ -426,6 +435,8 @@ AS $$
         st.depth,
         st.path,
         st.root_span_id,
+        st.input,
+        st.output,
         ROW_NUMBER() OVER (ORDER BY path) as span_order
     FROM span_tree st
     ORDER BY path;

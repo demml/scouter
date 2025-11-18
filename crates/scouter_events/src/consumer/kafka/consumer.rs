@@ -53,9 +53,11 @@ pub mod kafka_consumer {
                                             MessageHandler::insert_server_records(&db_pool, &records).await
                                         }
                                         MessageRecord::TraceServerRecord(trace_record) => {
-                                            println!("TraceServerRecord received: {:?}", trace_record);
-                                            Ok(())
-                                            //MessageHandler::insert_trace_server_record(&db_pool, &trace_record).await
+                                            MessageHandler::insert_trace_server_record(&db_pool, &trace_record).await
+
+                                        }
+                                        MessageRecord::TagServerRecord(tag_record) => {
+                                            MessageHandler::insert_tag_record(&db_pool, &tag_record).await
                                         }
                                     };
 

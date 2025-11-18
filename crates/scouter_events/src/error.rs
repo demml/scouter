@@ -178,6 +178,9 @@ pub enum EventError {
 
     #[error("Failed to acquire read lock: {0}")]
     ReadLockError(String),
+
+    #[error("Poison error occurred")]
+    PoisonError(String),
 }
 
 #[derive(Error, Debug)]
