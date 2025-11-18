@@ -35,7 +35,7 @@ Because you deploy services that need to be monitored, and you want to be alerte
 - **Modular Design** - Use what you need, leave what you don't
 - **Alerting and Monitoring** - Built-in alerting integrations with `Slack` and `OpsGenie` to notify you and your team when an alert is triggered
 - **Data Retention** - Built-in data retention policies to keep your database clean and performant
-  
+
 <sup>
 Scouter is written in Rust and is exposed via a Python API built with PyO3.
 </sup>

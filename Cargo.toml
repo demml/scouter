@@ -34,11 +34,12 @@ scouter-settings = { path = "crates/scouter_settings", version = "0.12.0" }
 scouter-dataframe = { path = "crates/scouter_dataframe", version = "0.12.0" }
 scouter-state = { path = "crates/scouter_state", version = "0.12.0" }
 scouter-sql = { path = "crates/scouter_sql", version = "0.12.0" }
+scouter-tracing = { path = "crates/scouter_tracing", version = "0.12.0" }
 scouter-types = { path = "crates/scouter_types", version = "0.12.0" }
 scouter-mocks = { path = "crates/scouter_mocks" }
 
 anyhow = "1.*"
-axum = ">=0.8, <1.0"
+axum = { version = "0.*", features = ["macros"] }
 axum-extra = { version =  ">=0.10, <1.0", features = ["cookie"] }
 approx = "0.5.1"
 arrow = { version = "55.2.0" }
@@ -53,6 +54,7 @@ datafusion = { version = "49.*", features = ["parquet"] }
 futures-util = { version = "0.*" }
 flume = "0.11.*"
 futures = "0.*"
+hex = "0.*"
 include_dir = "0.*"
 indicatif = "0.*"
 itertools = "0.*"
@@ -71,10 +73,16 @@ noisy_float = "0.*"
 numpy = "0.*"
 num-traits = "0.*"
 object_store = { version = "0.*", features = ["aws", "azure", "gcp" ] }
+opentelemetry = { version = "0.*" }
+opentelemetry-stdout = "0.*"
+opentelemetry_sdk = { version = "0.*", features = ["trace"] }
+opentelemetry-proto = { version = "0.*" }
+opentelemetry-otlp = { version = "0.*", features = ["grpc-tonic"] }
 parquet = { version = ">=55.*", features = ["arrow"] }
 password-auth = "1.*"
 potato-head = "0.*"
-pyo3 = { version = "0.*", features = ["abi3-py310", "chrono", "anyhow", "extension-module"] }
+pyo3 = { version = "0.26", features = ["abi3-py310", "chrono", "anyhow", "extension-module"] }
+pyo3-async-runtimes = { version = "0.*", features = ["tokio-runtime"] }
 rand = "0.9.*"
 rayon = "1.*"
 redis = { version = "0.*", features = ["tokio-comp"] }

@@ -6,7 +6,7 @@ use ndarray::Array2;
 use scouter_drift::spc::monitor::SpcMonitor;
 use scouter_types::spc::SpcDriftProfile;
 use scouter_types::QueueExt;
-use scouter_types::{Feature, ServerRecords};
+use scouter_types::{Feature, MessageRecord, ServerRecords};
 use std::collections::HashMap;
 use tracing::instrument;
 use tracing::{debug, error};
@@ -117,7 +117,7 @@ impl FeatureQueue for SpcFeatureQueue {
     fn create_drift_records_from_batch<T: QueueExt>(
         &self,
         batch: Vec<T>,
-    ) -> Result<ServerRecords, FeatureQueueError> {
+    ) -> Result<MessageRecord, FeatureQueueError> {
         // clones the empty map (so we don't need to recreate it on each call)
         let mut queue = self.empty_queue.clone();
 
@@ -125,7 +125,9 @@ impl FeatureQueue for SpcFeatureQueue {
             self.insert(elem.features(), &mut queue)?;
         }
 
-        self.create_drift_records(queue)
+        Ok(MessageRecord::ServerRecords(
+            self.create_drift_records(queue)?,
+        ))
     }
 }
 
@@ -201,7 +203,7 @@ mod tests {
             .create_drift_records_from_batch(batch_features)
             .unwrap();
 
-        assert_eq!(records.records.len(), 3);
+        assert_eq!(records.len(), 3);
 
         // serialize records
         let json_records = records.model_dump_json();

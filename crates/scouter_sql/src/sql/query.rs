@@ -78,6 +78,7 @@ const UPDATE_DRIFT_PROFILE: &str = include_str!("scripts/profile/update_drift_pr
 const DEACTIVATE_DRIFT_PROFILES: &str =
     include_str!("scripts/profile/deactivate_drift_profiles.sql");
 const GET_PROFILE_VERSIONS: &str = include_str!("scripts/profile/get_profile_versions.sql");
+const LIST_DRIFT_PROFILES: &str = include_str!("scripts/profile/list_drift_profiles.sql");
 
 // alert
 const INSERT_DRIFT_ALERT: &str = include_str!("scripts/alert/insert_drift_alert.sql");
@@ -95,6 +96,19 @@ const UPDATE_USER: &str = include_str!("scripts/user/update_user.sql");
 const GET_USERS: &str = include_str!("scripts/user/get_users.sql");
 const LAST_ADMIN: &str = include_str!("scripts/user/last_admin.sql");
 const DELETE_USER: &str = include_str!("scripts/user/delete_user.sql");
+
+// trace
+const UPSERT_TRACE: &str = include_str!("scripts/trace/upsert_trace.sql");
+const INSERT_TRACE_SPAN: &str = include_str!("scripts/trace/insert_span.sql");
+const INSERT_TRACE_BAGGAGE: &str = include_str!("scripts/trace/insert_baggage.sql");
+const GET_PAGINATED_TRACES: &str = include_str!("scripts/trace/get_paginated_traces.sql");
+const GET_TRACE_SPANS: &str = include_str!("scripts/trace/get_trace_spans.sql");
+const GET_TRACE_METRICS: &str = include_str!("scripts/trace/get_trace_metrics.sql");
+const GET_TRACE_BAGGAGE: &str = include_str!("scripts/trace/get_trace_baggage.sql");
+
+// tags
+const INSERT_TAG: &str = include_str!("scripts/tag/insert_tags.sql");
+const GET_TAGS: &str = include_str!("scripts/tag/get_tags.sql");
 
 #[allow(dead_code)]
 pub enum Queries {
@@ -168,6 +182,20 @@ pub enum Queries {
 
     // profile
     GetProfileVersions,
+    ListDriftProfiles,
+
+    //trace
+    UpsertTrace,
+    InsertTraceSpan,
+    InsertTraceBaggage,
+    GetPaginatedTraces,
+    GetTraceSpans,
+    GetTraceMetrics,
+    GetTraceBaggage,
+
+    // tags
+    InsertTag,
+    GetTags,
 }
 
 impl Queries {
@@ -209,6 +237,7 @@ impl Queries {
             Queries::UpdateCustomEntities => SqlQuery::new(UPDATE_CUSTOM_ENTITIES),
             Queries::UpdateSpcEntities => SqlQuery::new(UPDATE_SPC_ENTITIES),
             Queries::GetProfileVersions => SqlQuery::new(GET_PROFILE_VERSIONS),
+            Queries::ListDriftProfiles => SqlQuery::new(LIST_DRIFT_PROFILES),
 
             Queries::InsertUser => SqlQuery::new(INSERT_USER),
             Queries::GetUser => SqlQuery::new(GET_USER),
@@ -243,6 +272,17 @@ impl Queries {
             Queries::InsertSpcDriftRecordBatch => SqlQuery::new(INSERT_SPC_DRIFT_RECORD_BATCH),
             Queries::InsertBinCountsBatch => SqlQuery::new(INSERT_BIN_COUNTS_BATCH),
             Queries::UpdateLLMDriftTask => SqlQuery::new(UPDATE_LLM_DRIFT_TASK),
+            // trace
+            Queries::UpsertTrace => SqlQuery::new(UPSERT_TRACE),
+            Queries::InsertTraceSpan => SqlQuery::new(INSERT_TRACE_SPAN),
+            Queries::InsertTraceBaggage => SqlQuery::new(INSERT_TRACE_BAGGAGE),
+            Queries::GetPaginatedTraces => SqlQuery::new(GET_PAGINATED_TRACES),
+            Queries::GetTraceSpans => SqlQuery::new(GET_TRACE_SPANS),
+            Queries::GetTraceMetrics => SqlQuery::new(GET_TRACE_METRICS),
+            Queries::GetTraceBaggage => SqlQuery::new(GET_TRACE_BAGGAGE),
+            // tags
+            Queries::InsertTag => SqlQuery::new(INSERT_TAG),
+            Queries::GetTags => SqlQuery::new(GET_TAGS),
         }
     }
 }

@@ -66,7 +66,7 @@ async fn test_storage_integration_cloud() {
     for records in [short_term_records, long_term_records].iter() {
         let body = serde_json::to_string(records).unwrap();
         let request = Request::builder()
-            .uri("/scouter/drift")
+            .uri("/scouter/message")
             .method("POST")
             .header(header::CONTENT_TYPE, "application/json")
             .body(Body::from(body))

@@ -178,6 +178,9 @@ pub enum EventError {
 
     #[error("Failed to acquire read lock: {0}")]
     ReadLockError(String),
+
+    #[error("Poison error occurred")]
+    PoisonError(String),
 }
 
 #[derive(Error, Debug)]
@@ -187,9 +190,6 @@ pub enum PyEventError {
 
     #[error(transparent)]
     PyErr(#[from] pyo3::PyErr),
-
-    #[error("Invalid compressions type")]
-    InvalidCompressionTypeError,
 
     #[error(transparent)]
     TypeError(#[from] scouter_types::error::TypeError),

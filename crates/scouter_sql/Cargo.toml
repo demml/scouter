@@ -14,7 +14,7 @@ description = "Sql library to use with scouter-server"
 [dependencies]
 scouter-dataframe = { workspace = true }
 scouter-settings = { workspace = true }
-scouter-types = { workspace = true }
+scouter-types = { workspace = true, features = ["server"] }
 scouter-semver =  { workspace = true }
 anyhow = {workspace = true}
 async-trait = { workspace = true }

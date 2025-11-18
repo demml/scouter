@@ -1,19 +1,15 @@
+use crate::sql::error::SqlError;
 use crate::sql::traits::{
     AlertSqlLogic, ArchiveSqlLogic, CustomMetricSqlLogic, LLMDriftSqlLogic, ObservabilitySqlLogic,
-    ProfileSqlLogic, PsiSqlLogic, SpcSqlLogic, UserSqlLogic,
+    ProfileSqlLogic, PsiSqlLogic, SpcSqlLogic, TagSqlLogic, TraceSqlLogic, UserSqlLogic,
 };
-
-use crate::sql::error::SqlError;
 use scouter_settings::DatabaseSettings;
-use scouter_types::{RecordType, ServerRecords, ToDriftRecords};
-
+use scouter_types::{RecordType, ServerRecords, TagRecord, ToDriftRecords, TraceServerRecord};
 use sqlx::ConnectOptions;
 use sqlx::{postgres::PgConnectOptions, Pool, Postgres};
 use std::result::Result::Ok;
+use tokio::try_join;
 use tracing::{debug, error, info, instrument};
-
-// TODO: Explore refactoring and breaking this out into multiple client types (i.e., spc, psi, etc.)
-// Postgres client is one of the lowest-level abstractions so it may not be worth it, as it could make server logic annoying. Worth exploring though.
 
 #[derive(Debug, Clone)]
 #[allow(dead_code)]
@@ -28,6 +24,8 @@ impl ProfileSqlLogic for PostgresClient {}
 impl ObservabilitySqlLogic for PostgresClient {}
 impl AlertSqlLogic for PostgresClient {}
 impl ArchiveSqlLogic for PostgresClient {}
+impl TraceSqlLogic for PostgresClient {}
+impl TagSqlLogic for PostgresClient {}
 
 impl PostgresClient {
     /// Setup the application with the given database pool.
@@ -172,6 +170,69 @@ impl MessageHandler {
 
         Ok(())
     }
+
+    pub async fn insert_trace_server_record(
+        pool: &Pool<Postgres>,
+        records: &TraceServerRecord,
+    ) -> Result<(), SqlError> {
+        let (trace_batch, span_batch, baggage_batch) = records.to_records()?;
+
+        let all_tags: Vec<TagRecord> = trace_batch
+            .iter()
+            .flat_map(|trace| {
+                trace.tags.iter().map(|tag| TagRecord {
+                    created_at: trace.created_at,
+                    entity_type: "trace".to_string(),
+                    entity_id: trace.trace_id.clone(),
+                    key: tag.key.clone(),
+                    value: tag.value.clone(),
+                })
+            })
+            .collect();
+
+        let (trace_result, span_result, baggage_result, tag_result) = try_join!(
+            PostgresClient::upsert_trace_batch(pool, &trace_batch),
+            PostgresClient::insert_span_batch(pool, &span_batch),
+            PostgresClient::insert_trace_baggage_batch(pool, &baggage_batch),
+            async {
+                if !all_tags.is_empty() {
+                    PostgresClient::insert_tag_batch(pool, &all_tags).await
+                } else {
+                    Ok(sqlx::postgres::PgQueryResult::default())
+                }
+            }
+        )?;
+
+        debug!(
+            trace_rows = trace_result.rows_affected(),
+            span_rows = span_result.rows_affected(),
+            baggage_rows = baggage_result.rows_affected(),
+            tag_rows = tag_result.rows_affected(),
+            total_traces = trace_batch.len(),
+            total_spans = span_batch.len(),
+            total_baggage = baggage_batch.len(),
+            total_tags = all_tags.len(),
+            "Successfully inserted trace server records"
+        );
+        Ok(())
+    }
+
+    pub async fn insert_tag_record(
+        pool: &Pool<Postgres>,
+        record: &TagRecord,
+    ) -> Result<(), SqlError> {
+        let result = PostgresClient::insert_tag_batch(pool, std::slice::from_ref(record)).await?;
+
+        debug!(
+            rows_affected = result.rows_affected(),
+            entity_type = record.entity_type.as_str(),
+            entity_id = record.entity_id.as_str(),
+            key = record.key.as_str(),
+            "Successfully inserted tag record"
+        );
+
+        Ok(())
+    }
 }
 
 /// Runs database integratino tests
@@ -182,14 +243,15 @@ mod tests {
 
     use super::*;
     use crate::sql::schema::User;
-    use chrono::Utc;
-    use potato_head::create_score_prompt;
+    use chrono::{Duration, Utc};
+    use potato_head::{create_score_prompt, create_uuid7};
     use rand::Rng;
     use scouter_semver::VersionType;
     use scouter_settings::ObjectStorageSettings;
     use scouter_types::llm::PaginationRequest;
     use scouter_types::psi::{Bin, BinType, PsiDriftConfig, PsiFeatureDriftProfile};
     use scouter_types::spc::SpcDriftProfile;
+    use scouter_types::sql::TraceFilters;
     use scouter_types::*;
     use serde_json::Value;
     use sqlx::postgres::PgQueryResult;
@@ -198,6 +260,84 @@ mod tests {
     const SPACE: &str = "space";
     const NAME: &str = "name";
     const VERSION: &str = "1.0.0";
+    const SCOPE: &str = "scope";
+
+    fn random_trace_record() -> TraceRecord {
+        let mut rng = rand::rng();
+        let random_num = rng.random_range(0..1000);
+        let trace_id: String = (0..32)
+            .map(|_| format!("{:x}", rng.random_range(0..16)))
+            .collect();
+        let span_id: String = (0..16)
+            .map(|_| format!("{:x}", rng.random_range(0..16)))
+            .collect();
+        let created_at = Utc::now() + chrono::Duration::milliseconds(random_num);
+
+        TraceRecord {
+            trace_id: trace_id.clone(),
+            created_at,
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
+            scope: SCOPE.to_string(),
+            trace_state: "running".to_string(),
+            start_time: created_at,
+            end_time: created_at + chrono::Duration::milliseconds(150),
+            duration_ms: 150,
+            status_code: 0,
+            span_count: 1,
+            status_message: "OK".to_string(),
+            root_span_id: span_id.clone(),
+            tags: vec![],
+        }
+    }
+
+    fn random_span_record(trace_id: &str, parent_span_id: Option<&str>) -> TraceSpanRecord {
+        let mut rng = rand::rng();
+        let span_id: String = (0..16)
+            .map(|_| format!("{:x}", rng.random_range(0..16)))
+            .collect();
+
+        let random_offset_ms = rng.random_range(0..1000);
+        let duration_ms_val = rng.random_range(50..500);
+
+        let created_at = Utc::now() + chrono::Duration::milliseconds(random_offset_ms);
+        let start_time = created_at;
+        let end_time = start_time + chrono::Duration::milliseconds(duration_ms_val);
+
+        // --- Status and Kind ---
+        let status_code = if rng.random_bool(0.95) { 0 } else { 2 };
+        let span_kind_options = ["SERVER", "CLIENT", "INTERNAL", "PRODUCER", "CONSUMER"];
+        let span_kind = span_kind_options[rng.random_range(0..span_kind_options.len())].to_string();
+
+        TraceSpanRecord {
+            created_at,
+            span_id,
+            trace_id: trace_id.to_string(),
+            parent_span_id: parent_span_id.map(|s| s.to_string()),
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
+            scope: SCOPE.to_string(),
+            span_name: format!("{}_{}", "random_operation", rng.random_range(0..10)),
+            span_kind,
+            start_time,
+            end_time,
+            duration_ms: duration_ms_val,
+            status_code,
+            status_message: if status_code == 2 {
+                "Internal Server Error".to_string()
+            } else {
+                "OK".to_string()
+            },
+            attributes: vec![Attribute::default()],
+            events: vec![],
+            links: vec![],
+            label: None,
+            input: Value::default(),
+            output: Value::default(),
+        }
+    }
 
     pub async fn cleanup(pool: &Pool<Postgres>) {
         sqlx::raw_sql(
@@ -228,6 +368,18 @@ mod tests {
 
             DELETE
             FROM scouter.llm_drift;
+
+            DELETE
+            FROM scouter.spans;
+
+            DELETE
+            FROM scouter.trace_baggage;
+
+            DELETE
+            FROM scouter.traces;
+
+            DELETE
+            FROM scouter.tags;
             "#,
         )
         .fetch_all(pool)
@@ -248,6 +400,8 @@ mod tests {
     pub async fn insert_profile_to_db(
         pool: &Pool<Postgres>,
         profile: &DriftProfile,
+        active: bool,
+        deactivate_others: bool,
     ) -> PgQueryResult {
         let base_args = profile.get_base_args();
         let version = PostgresClient::get_next_profile_version(
@@ -260,9 +414,16 @@ mod tests {
         .await
         .unwrap();
 
-        let result = PostgresClient::insert_drift_profile(pool, profile, &base_args, &version)
-            .await
-            .unwrap();
+        let result = PostgresClient::insert_drift_profile(
+            pool,
+            profile,
+            &base_args,
+            &version,
+            &active,
+            &deactivate_others,
+        )
+        .await
+        .unwrap();
 
         result
     }
@@ -430,7 +591,7 @@ mod tests {
         let mut spc_profile = SpcDriftProfile::default();
         let profile = DriftProfile::Spc(spc_profile.clone());
 
-        let result = insert_profile_to_db(&pool, &profile).await;
+        let result = insert_profile_to_db(&pool, &profile, false, false).await;
         assert_eq!(result.rows_affected(), 1);
 
         spc_profile.scouter_version = "test".to_string();
@@ -577,7 +738,7 @@ mod tests {
                 ..Default::default()
             },
         ));
-        let _ = insert_profile_to_db(&pool, profile).await;
+        let _ = insert_profile_to_db(&pool, profile, false, false).await;
 
         for feature in 0..num_features {
             for bin in 0..=num_bins {
@@ -1005,5 +1166,205 @@ mod tests {
         .unwrap();
         //
         assert_eq!(binned_records.metrics.len(), 2);
+    }
+
+    #[tokio::test]
+    async fn test_postgres_tracing() {
+        let pool = db_pool().await;
+        let script = std::fs::read_to_string("src/tests/script/populate_trace.sql").unwrap();
+        sqlx::query(&script).execute(&pool).await.unwrap();
+        let mut filters = TraceFilters::default();
+
+        let first_batch = PostgresClient::get_traces_paginated(&pool, filters.clone())
+            .await
+            .unwrap();
+
+        assert_eq!(first_batch.len(), 50, "First batch should have 50 records");
+
+        // test pagination (get last record created_at and trace_id)
+        let last_record = first_batch.last().unwrap();
+        filters = filters.with_cursor(last_record.created_at, last_record.trace_id.clone());
+
+        let next_batch = PostgresClient::get_traces_paginated(&pool, filters.clone())
+            .await
+            .unwrap();
+
+        // should be another 50 records
+        assert_eq!(next_batch.len(), 50, "Next batch should have 50 records");
+
+        // assert next_batch first record timestamp is <= first_batch last record timestamp
+        let next_first_record = next_batch.first().unwrap();
+        assert!(
+            next_first_record.created_at <= last_record.created_at,
+            "Next batch first record timestamp is not less than or equal to last record timestamp"
+        );
+
+        // Filter records to find item with >5 spans
+        let filtered_record = first_batch
+            .iter()
+            .find(|record| record.span_count > Some(5))
+            .unwrap();
+
+        filters.cursor_created_at = None;
+        filters.cursor_trace_id = None;
+        filters.space = Some(filtered_record.space.clone());
+        filters.name = Some(filtered_record.name.clone());
+        filters.version = Some(filtered_record.version.clone());
+
+        let records = PostgresClient::get_traces_paginated(&pool, filters.clone())
+            .await
+            .unwrap();
+
+        // Records are randomly generated, so just assert we get some records back
+        assert!(
+            !records.is_empty(),
+            "Should return records with specified filters"
+        );
+
+        // get spans for filtered trace
+        let spans = PostgresClient::get_trace_spans(&pool, &filtered_record.trace_id)
+            .await
+            .unwrap();
+
+        assert!(spans.len() == filtered_record.span_count.unwrap() as usize);
+
+        let start_time = filtered_record.created_at - chrono::Duration::hours(24);
+        let end_time = filtered_record.created_at + chrono::Duration::minutes(5);
+
+        // make request for trace metrics
+        let trace_metrics = PostgresClient::get_trace_metrics(
+            &pool,
+            None,
+            None,
+            None,
+            start_time,
+            end_time,
+            "60 minutes",
+        )
+        .await
+        .unwrap();
+
+        // assert we have data points
+        assert!(trace_metrics.len() >= 10);
+    }
+
+    #[tokio::test]
+    async fn test_postgres_tracing_insert() {
+        let pool = db_pool().await;
+
+        // create parent trace
+        let mut trace_record = random_trace_record();
+        let trace_id = trace_record.trace_id.clone();
+
+        // create spans
+        let root_span = random_span_record(&trace_id, None);
+        let child_span = random_span_record(&trace_id, Some(&root_span.span_id));
+
+        // set root span id in trace record
+        trace_record.root_span_id = root_span.span_id.clone();
+
+        // this should perform an insert
+        let result = PostgresClient::upsert_trace_batch(&pool, &[trace_record.clone()])
+            .await
+            .unwrap();
+
+        assert_eq!(result.rows_affected(), 1);
+
+        // this should perform an update (mainly just increasing span count)
+        let result = PostgresClient::upsert_trace_batch(&pool, &[trace_record.clone()])
+            .await
+            .unwrap();
+
+        assert_eq!(result.rows_affected(), 1);
+
+        // insert spans
+        let result =
+            PostgresClient::insert_span_batch(&pool, &[root_span.clone(), child_span.clone()])
+                .await
+                .unwrap();
+
+        assert_eq!(result.rows_affected(), 2);
+
+        // refresh materialized view
+        sqlx::query("REFRESH MATERIALIZED VIEW scouter.trace_summary;")
+            .execute(&pool)
+            .await
+            .unwrap();
+
+        let inserted_created_at = trace_record.created_at;
+        let inserted_trace_id = trace_record.trace_id.clone();
+
+        let trace_filter = TraceFilters {
+            cursor_created_at: Some(inserted_created_at + Duration::days(1)),
+            cursor_trace_id: Some(inserted_trace_id),
+            start_time: Some(inserted_created_at - Duration::minutes(5)),
+            end_time: Some(inserted_created_at + Duration::days(1)),
+            ..TraceFilters::default()
+        };
+
+        let traces = PostgresClient::get_traces_paginated(&pool, trace_filter)
+            .await
+            .unwrap();
+
+        assert_eq!(traces.len(), 1);
+        let retrieved_trace = &traces[0];
+        // assert span count is 2
+        assert_eq!(retrieved_trace.span_count.unwrap(), 2);
+
+        let baggage = TraceBaggageRecord {
+            created_at: Utc::now(),
+            trace_id: trace_record.trace_id.clone(),
+            scope: "test_scope".to_string(),
+            key: "user_id".to_string(),
+            value: "12345".to_string(),
+        };
+
+        let result =
+            PostgresClient::insert_trace_baggage_batch(&pool, std::slice::from_ref(&baggage))
+                .await
+                .unwrap();
+
+        assert_eq!(result.rows_affected(), 1);
+
+        let retrieved_baggage =
+            PostgresClient::get_trace_baggage_records(&pool, &trace_record.trace_id)
+                .await
+                .unwrap();
+
+        assert_eq!(retrieved_baggage.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn test_postgres_tags() {
+        let pool = db_pool().await;
+        let uid = create_uuid7();
+
+        let tag1 = TagRecord {
+            created_at: Utc::now(),
+            entity_id: uid.clone(),
+            entity_type: "service".to_string(),
+            key: "env".to_string(),
+            value: "production".to_string(),
+        };
+
+        let tag2 = TagRecord {
+            created_at: Utc::now(),
+            entity_id: uid.clone(),
+            entity_type: "service".to_string(),
+            key: "team".to_string(),
+            value: "backend".to_string(),
+        };
+
+        let result = PostgresClient::insert_tag_batch(&pool, &[tag1.clone(), tag2.clone()])
+            .await
+            .unwrap();
+
+        assert_eq!(result.rows_affected(), 2);
+
+        let tags = PostgresClient::get_tags(&pool, "service", &uid)
+            .await
+            .unwrap();
+
+        assert_eq!(tags.len(), 2);
     }
 }

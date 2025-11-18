@@ -1,6 +1,8 @@
 use crate::error::RecordError;
+use crate::trace::TraceServerRecord;
 use crate::PyHelperFuncs;
 use crate::Status;
+use crate::TagRecord;
 use chrono::DateTime;
 use chrono::Utc;
 use pyo3::prelude::*;
@@ -10,6 +12,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
+
 #[pyclass(eq)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub enum RecordType {
@@ -20,6 +23,7 @@ pub enum RecordType {
     Custom,
     LLMDrift,
     LLMMetric,
+    Trace,
 }
 
 impl Display for RecordType {
@@ -31,6 +35,7 @@ impl Display for RecordType {
             RecordType::Custom => write!(f, "custom"),
             RecordType::LLMDrift => write!(f, "llm_drift"),
             RecordType::LLMMetric => write!(f, "llm_metric"),
+            RecordType::Trace => write!(f, "trace"),
         }
     }
 }
@@ -558,7 +563,6 @@ impl ServerRecords {
             Err(RecordError::EmptyServerRecordsError)
         }
     }
-
     // Helper function to load records from bytes. Used by scouter-server consumers
     //
     // # Arguments
@@ -682,4 +686,70 @@ fn extract_records<T>(
     }
 
     Ok(records)
+}
+
+pub enum MessageType {
+    Server,
+    Trace,
+    Tag,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum MessageRecord {
+    ServerRecords(ServerRecords),
+    TraceServerRecord(TraceServerRecord),
+    TagServerRecord(TagRecord),
+}
+
+impl MessageRecord {
+    pub fn record_type(&self) -> MessageType {
+        match self {
+            MessageRecord::ServerRecords(_) => MessageType::Server,
+            MessageRecord::TraceServerRecord(_) => MessageType::Trace,
+            MessageRecord::TagServerRecord(_) => MessageType::Tag,
+        }
+    }
+
+    pub fn space(&self) -> String {
+        match self {
+            MessageRecord::ServerRecords(records) => records.space(),
+            MessageRecord::TraceServerRecord(records) => records.space.clone(),
+            _ => "__missing__".to_string(),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        match self {
+            MessageRecord::ServerRecords(records) => records.len(),
+            MessageRecord::TraceServerRecord(_) => 1,
+            _ => 1,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        match self {
+            MessageRecord::ServerRecords(records) => records.is_empty(),
+            _ => false,
+        }
+    }
+
+    pub fn model_dump_json(&self) -> String {
+        // serialize records to a string
+        match self {
+            MessageRecord::ServerRecords(records) => records.model_dump_json(),
+            MessageRecord::TraceServerRecord(record) => PyHelperFuncs::__json__(record),
+            MessageRecord::TagServerRecord(record) => PyHelperFuncs::__json__(record),
+        }
+    }
+}
+
+/// implement iterator for MEssageRecord to iterate over ServerRecords.records
+impl MessageRecord {
+    pub fn iter_server_records(&self) -> Option<impl Iterator<Item = &ServerRecord>> {
+        match self {
+            MessageRecord::ServerRecords(records) => Some(records.records.iter()),
+            _ => None,
+        }
+    }
 }

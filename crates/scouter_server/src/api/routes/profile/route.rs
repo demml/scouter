@@ -2,8 +2,8 @@ use scouter_types::contracts::{
     GetProfileRequest, ProfileRequest, ProfileStatusRequest, RegisteredProfileResponse,
     ScouterResponse, ScouterServerError,
 };
-
-use scouter_types::DriftProfile;
+use scouter_types::ListedProfile;
+use scouter_types::{DriftProfile, ListProfilesRequest};
 
 use axum::{
     extract::{Query, State},
@@ -83,12 +83,22 @@ pub async fn insert_drift_profile(
         }
     };
 
-    match PostgresClient::insert_drift_profile(&data.db_pool, &body, &base_args, &version).await {
+    match PostgresClient::insert_drift_profile(
+        &data.db_pool,
+        &body,
+        &base_args,
+        &version,
+        &request.active,
+        &request.deactivate_others,
+    )
+    .await
+    {
         Ok(_) => Ok(Json(RegisteredProfileResponse {
             space: base_args.space,
             name: base_args.name,
             version: version.to_string(),
             status: "success".to_string(),
+            active: request.active,
         })),
         Err(e) => {
             error!("Failed to insert drift profile: {:?}", e);
@@ -213,6 +223,54 @@ pub async fn get_profile(
         }
     }
 }
+
+/// Retrieve a drift profile from the database
+///
+/// # Arguments
+///
+/// * `data` - Arc<AppState> - Application state
+/// * `params` - Query<ServiceInfo> - Query parameters
+///
+/// # Returns
+///
+/// * `Result<impl IntoResponse, (StatusCode, Json<serde_json::Value>)>` - Result of the request
+#[instrument(skip_all)]
+#[axum::debug_handler]
+pub async fn list_profiles(
+    State(data): State<Arc<AppState>>,
+    Extension(perms): Extension<UserPermissions>,
+    Json(request): Json<ListProfilesRequest>,
+) -> Result<Json<Vec<ListedProfile>>, (StatusCode, Json<ScouterServerError>)> {
+    if !perms.has_read_permission(&request.space) {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(ScouterServerError::permission_denied()),
+        ));
+    }
+
+    let profile_value = match PostgresClient::list_drift_profiles(&data.db_pool, &request).await {
+        Ok(profiles) => {
+            if profiles.is_empty() {
+                return Err((
+                    StatusCode::NOT_FOUND,
+                    Json(ScouterServerError::new(
+                        "No drift profiles found".to_string(),
+                    )),
+                ));
+            }
+            profiles
+        }
+        Err(e) => {
+            error!("Failed to query drift profiles: {:?}", e);
+            return Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::query_profile_error(e)),
+            ));
+        }
+    };
+
+    Ok(Json(profile_value))
+}
 /// Update drift profile status
 ///
 /// # Arguments
@@ -275,6 +333,7 @@ pub async fn get_profile_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
                 &format!("{prefix}/profile/status"),
                 put(update_drift_profile_status),
             )
+            .route(&format!("{prefix}/profiles"), post(list_profiles))
     }));
 
     match result {

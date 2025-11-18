@@ -446,6 +446,8 @@ impl PsiDriftProfile {
                 pre_tag: None,
                 build_tag: None,
             },
+            active: false,
+            deactivate_others: false,
         })
     }
 }

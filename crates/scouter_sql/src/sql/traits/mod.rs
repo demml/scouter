@@ -6,6 +6,8 @@ pub mod observability;
 pub mod profile;
 pub mod psi;
 pub mod spc;
+pub mod tag;
+pub mod trace;
 pub mod user;
 
 pub use alert::AlertSqlLogic;
@@ -16,4 +18,6 @@ pub use observability::ObservabilitySqlLogic;
 pub use profile::ProfileSqlLogic;
 pub use psi::PsiSqlLogic;
 pub use spc::SpcSqlLogic;
+pub use tag::TagSqlLogic;
+pub use trace::TraceSqlLogic;
 pub use user::UserSqlLogic;
