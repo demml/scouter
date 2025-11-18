@@ -46,12 +46,22 @@ jobs:
       - name: Install Rocky Deps
         if: matrix.container_image == 'rockylinux:9'
         run: |
-          # Use standard yum/dnf for dependency installation on Rocky
-          sudo dnf install -y --allowerasing gcc make curl pkgconf openssl-devel wget perl pkg-config
-          # Install Rust via rustup (no need for the source command inside the script block)
+          dnf install -y --allowerasing gcc make curl pkgconf openssl-devel wget perl pkg-config
+
+          # Install Rust via rustup
           curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+          # Add Rust to PATH for subsequent steps
           echo "$HOME/.cargo/bin" >> $GITHUB_PATH
-          # Note: The PATH update will apply to subsequent steps.
+
+          # Source for this step
+          source $HOME/.cargo/env
+
+          echo "Installing CMake 3.26.4..."
+          curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-aarch64.sh -o cmake.sh
+          chmod +x cmake.sh
+          ./cmake.sh --skip-license --prefix=/usr/local
+          cmake --version
 
       - name: Update apt repositories (Linux)
         if: contains(matrix.os, 'ubuntu') && matrix.container_image == null
@@ -63,7 +73,7 @@ jobs:
         run: |
           rustup override set stable
           rustup update
-          rustup target add ${{ matrix.TARGET }}
+          rustup target add ${{ matrix.target }}
           rustup component add rust-src
 
       - name: Build binaries
