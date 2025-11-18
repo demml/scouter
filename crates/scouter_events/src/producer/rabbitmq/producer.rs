@@ -7,7 +7,7 @@ pub mod rabbitmq_producer {
         types::FieldTable,
         BasicProperties, Channel, ChannelState, Connection, ConnectionProperties,
     };
-    use scouter_types::ServerRecords;
+    use scouter_types::MessageRecord;
     use tracing::{debug, error, info};
 
     #[derive(Clone)]
@@ -46,11 +46,11 @@ pub mod rabbitmq_producer {
             Ok(channel)
         }
 
-        pub async fn publish(&self, message: ServerRecords) -> Result<(), EventError> {
+        pub async fn publish(&self, message: MessageRecord) -> Result<(), EventError> {
             let mut retries = self.config.max_retries;
 
             loop {
-                match self._publish(message.clone()).await {
+                match self._publish(&message).await {
                     Ok(_) => break,
                     Err(e) => {
                         retries -= 1;
@@ -64,8 +64,8 @@ pub mod rabbitmq_producer {
             Ok(())
         }
 
-        pub async fn _publish(&self, message: ServerRecords) -> Result<(), EventError> {
-            let serialized_msg = serde_json::to_string(&message).unwrap().into_bytes();
+        pub async fn _publish(&self, message: &MessageRecord) -> Result<(), EventError> {
+            let serialized_msg = serde_json::to_string(message).unwrap().into_bytes();
 
             debug!("Publishing message to RabbitMQ");
 

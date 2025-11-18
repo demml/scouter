@@ -1,4 +1,5 @@
 # type: ignore
+# pylint: disable=dangerous-default-value
 import functools
 from typing import (
     Any,
@@ -25,6 +26,8 @@ FunctionType = tracing.FunctionType
 get_function_type = tracing.get_function_type
 ActiveSpan = tracing.ActiveSpan
 ExportConfig = tracing.ExportConfig
+GrpcConfig = tracing.GrpcConfig
+GrpcSpanExporter = tracing.GrpcSpanExporter
 HttpConfig = tracing.HttpConfig
 HttpSpanExporter = tracing.HttpSpanExporter
 StdoutSpanExporter = tracing.StdoutSpanExporter
@@ -33,9 +36,12 @@ TraceRecord = tracing.TraceRecord
 TraceSpanRecord = tracing.TraceSpanRecord
 TraceBaggageRecord = tracing.TraceBaggageRecord
 TestSpanExporter = tracing.TestSpanExporter
-force_flush = tracing.force_flush
+flush_tracer = tracing.flush_tracer
+shutdown_tracer = tracing.shutdown_tracer
+BatchConfig = tracing.BatchConfig
 
 
+# TODO: Move this to Rust
 def set_output(
     span: tracing.ActiveSpan,
     outputs: List[Any],
@@ -45,7 +51,6 @@ def set_output(
 ) -> None:
     """Helper to set output attribute on span with length check."""
 
-    print(f"Outputs: {outputs}")
     if capture_last_stream_item and outputs:
         span.set_output(outputs[-1], max_length)
 
@@ -71,7 +76,6 @@ class Tracer(tracing.BaseTracer):
         max_length: int = 1000,
         capture_last_stream_item: bool = False,
         join_stream_items: bool = False,
-        *args,
         **kwargs,
     ) -> Callable[[Callable[P, R]], Callable[P, R]]:
         """Decorator to trace function execution with OpenTelemetry spans.
@@ -93,17 +97,17 @@ class Tracer(tracing.BaseTracer):
                 Parent context ID for the span
             max_length (int):
                 Maximum length for input/output capture
-            func_type (FunctionType):
-                The type of function being decorated (sync, async, generator, async_generator)
             capture_last_stream_item (bool):
                 Whether to capture only the last item from streaming functions
             join_stream_items (bool):
                 Whether to join all stream items into a single string for output
+            **kwargs:
+                Additional keyword arguments
         Returns:
             Callable[[Callable[P, R]], Callable[P, R]]:
         """
 
-        # I'd prefere this entire decorator to be rust, but creating this type of decorator in rust
+        # I'd prefer this entire decorator to be rust, but creating this type of decorator in rust
         # is a little bit of a pain when dealing with async
         def decorator(func: Callable[P, R]) -> Callable[P, R]:
             span_name = name or f"{func.__module__}.{func.__qualname__}"
@@ -150,7 +154,7 @@ class Tracer(tracing.BaseTracer):
 
                 return cast(Callable[P, R], async_generator_wrapper)
 
-            elif function_type == FunctionType.SyncGenerator:
+            if function_type == FunctionType.SyncGenerator:
 
                 @functools.wraps(func)
                 def generator_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
@@ -191,7 +195,7 @@ class Tracer(tracing.BaseTracer):
 
                 return cast(Callable[P, R], generator_wrapper)
 
-            elif function_type == FunctionType.Async:
+            if function_type == FunctionType.Async:
 
                 @functools.wraps(func)
                 async def async_wrapper(*args: P.args, **kwargs: P.kwargs) -> Any:
@@ -222,33 +226,31 @@ class Tracer(tracing.BaseTracer):
 
                 return cast(Callable[P, R], async_wrapper)
 
-            else:
+            @functools.wraps(func)
+            def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
+                with self._start_decorated_as_current_span(
+                    name=span_name,
+                    func=func,
+                    func_args=args,
+                    kind=kind,
+                    attributes=attributes,
+                    baggage=baggage,
+                    tags=tags,
+                    label=label,
+                    parent_context_id=parent_context_id,
+                    max_length=max_length,
+                    func_type=function_type,
+                    func_kwargs=kwargs,
+                ) as span:
+                    try:
+                        result = func(*args, **kwargs)
+                        span.set_output(result, max_length)
+                        return result
+                    except Exception as e:
+                        span.set_attribute("error.type", type(e).__name__)
+                        raise
 
-                @functools.wraps(func)
-                def sync_wrapper(*args: P.args, **kwargs: P.kwargs) -> R:
-                    with self._start_decorated_as_current_span(
-                        name=span_name,
-                        func=func,
-                        func_args=args,
-                        kind=kind,
-                        attributes=attributes,
-                        baggage=baggage,
-                        tags=tags,
-                        label=label,
-                        parent_context_id=parent_context_id,
-                        max_length=max_length,
-                        func_type=function_type,
-                        func_kwargs=kwargs,
-                    ) as span:
-                        try:
-                            result = func(*args, **kwargs)
-                            span.set_output(result, max_length)
-                            return result
-                        except Exception as e:
-                            span.set_attribute("error.type", type(e).__name__)
-                            raise
-
-                return cast(Callable[P, R], sync_wrapper)
+            return cast(Callable[P, R], sync_wrapper)
 
         return decorator
 
@@ -271,6 +273,8 @@ __all__ = [
     "FunctionType",
     "ActiveSpan",
     "ExportConfig",
+    "GrpcConfig",
+    "GrpcSpanExporter",
     "HttpConfig",
     "HttpSpanExporter",
     "StdoutSpanExporter",
@@ -279,5 +283,6 @@ __all__ = [
     "TraceSpanRecord",
     "TraceBaggageRecord",
     "TestSpanExporter",
-    "force_flush",
+    "flush_tracer",
+    "BatchConfig",
 ]

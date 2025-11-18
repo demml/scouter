@@ -3,12 +3,8 @@ use scouter_drift::{error::DriftError, LLMEvaluator};
 use scouter_state::app_state;
 use scouter_types::llm::{LLMDriftConfig, LLMDriftMetric, LLMDriftProfile};
 use scouter_types::{LLMMetricRecord, LLMRecord};
-use std::sync::Arc;
-
 /// Using "ClientLLMDrifter" to avoid confusion with the server-side LLMDrifter
-pub struct ClientLLMDrifter {
-    pub runtime: Arc<tokio::runtime::Runtime>,
-}
+pub struct ClientLLMDrifter {}
 
 impl Default for ClientLLMDrifter {
     fn default() -> Self {
@@ -18,8 +14,7 @@ impl Default for ClientLLMDrifter {
 
 impl ClientLLMDrifter {
     pub fn new() -> Self {
-        let runtime = app_state().start_runtime();
-        Self { runtime }
+        Self {}
     }
 
     pub fn create_drift_profile(
@@ -46,7 +41,7 @@ impl ClientLLMDrifter {
         data: Vec<LLMRecord>,
         profile: &LLMDriftProfile,
     ) -> Result<Vec<LLMMetricRecord>, DriftError> {
-        let results = self.runtime.block_on(async move {
+        let results = app_state().handle().block_on(async move {
             let mut results = Vec::new();
             for record in data {
                 let metrics = Self::compute_drift_single(&record, profile).await?;

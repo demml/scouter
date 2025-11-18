@@ -14,6 +14,7 @@ from .scouter import (  # type: ignore
     profile,
     queue,
     tracing,
+    transport,
     types,
 )
 from .version import __version__
@@ -37,31 +38,27 @@ LLMDriftConfig = drift.LLMDriftConfig
 LLMDriftProfile = drift.LLMDriftProfile
 
 
-# Profile imports - direct from Rust extension
+# Profile imports
 DataProfiler = profile.DataProfiler
 DataProfile = profile.DataProfile
 
-# Queue imports - direct from Rust extension
+# Queue imports
 ScouterQueue = queue.ScouterQueue
 Queue = queue.Queue
-KafkaConfig = queue.KafkaConfig
-RabbitMQConfig = queue.RabbitMQConfig
-RedisConfig = queue.RedisConfig
 Feature = queue.Feature
 Features = queue.Features
 Metric = queue.Metric
 Metrics = queue.Metrics
 
-# Type imports - direct from Rust extension
+# Type imports
 CommonCrons = types.CommonCrons
 
-# Alert imports - direct from Rust extension
+# Alert imports
 PsiAlertConfig = alert.PsiAlertConfig
 SpcAlertConfig = alert.SpcAlertConfig
 CustomMetricAlertConfig = alert.CustomMetricAlertConfig
 
-# Client imports - direct from Rust extension
-HTTPConfig = client.HTTPConfig
+# Client imports
 ScouterClient = client.ScouterClient
 
 # Evaluate imports
@@ -69,6 +66,12 @@ LLMEvalMetric = evaluate.LLMEvalMetric
 LLMEvalResults = evaluate.LLMEvalResults
 LLMEvalRecord = evaluate.LLMEvalRecord
 evaluate_llm = evaluate.evaluate_llm
+
+# transport imports
+HTTPConfig = transport.HTTPConfig
+KafkaConfig = transport.KafkaConfig
+RabbitMQConfig = transport.RabbitMQConfig
+RedisConfig = transport.RedisConfig
 
 __all__ = [
     "__version__",

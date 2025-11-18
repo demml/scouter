@@ -14,7 +14,6 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use tokio::task::JoinSet;
 use tracing::{debug, instrument};
-
 /// Main orchestration function that decides which execution path to take
 /// # Arguments
 /// * `workflow`: The workflow to execute.
@@ -101,11 +100,10 @@ pub fn evaluate_llm(
     metrics: Vec<LLMEvalMetric>,
     config: Option<EvaluationConfig>,
 ) -> Result<LLMEvalResults, EvaluationError> {
-    let runtime = app_state().start_runtime();
     let config = Arc::new(config.unwrap_or_default());
 
     // Create runtime and execute evaluation pipeline
-    let mut results = runtime.block_on(async {
+    let mut results = app_state().handle().block_on(async {
         let workflow = workflow_from_eval_metrics(metrics, "LLM Evaluation").await?;
         async_evaluate_llm(workflow, records, &config).await
     })?;

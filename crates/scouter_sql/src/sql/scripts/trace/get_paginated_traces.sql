@@ -9,7 +9,8 @@ SELECT
     start_time,
     end_time,
     duration_ms,
-    status,
+    status_code,
+    status_message,
     span_count,
     has_errors,
     error_count,
@@ -20,7 +21,7 @@ FROM scouter.get_traces_paginated(
     $3,  -- p_version
     $4,  -- p_service_name
     $5,  -- p_has_errors
-    $6,  -- p_status
+    $6,  -- p_status_code
     $7,  -- p_start_time
     $8,  -- p_end_time
     $9,  -- p_limit

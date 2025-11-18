@@ -1,3 +1,4 @@
+import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
 from textwrap import dedent
@@ -25,10 +26,18 @@ from scouter.drift import (
 from scouter.llm import Agent, Prompt, Provider, Score
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.queue import LLMRecord
+from scouter.tracing import (
+    BatchConfig,
+    TestSpanExporter,
+    flush_tracer,
+    get_tracer,
+    init_tracer,
+    shutdown_tracer,
+)
 from scouter.util import FeatureMixin
 
 logger = RustyLogger.get_logger(
-    LoggingConfig(log_level=LogLevel.Debug),
+    LoggingConfig(log_level=LogLevel.Info),
 )
 
 
@@ -159,6 +168,10 @@ class PredictRequest(BaseModel, FeatureMixin):
     feature_3: float
 
 
+class InnerResponse(BaseModel):
+    sum: float
+
+
 class ChatRequest(BaseModel):
     question: str
 
@@ -170,6 +183,7 @@ def create_kafka_app(profile_path: Path) -> FastAPI:
     async def lifespan(app: FastAPI):
         logger.info("Starting up FastAPI app")
 
+        init_tracer(service_name="test-service", exporter=TestSpanExporter())
         app.state.queue = ScouterQueue.from_path(
             path={"spc": profile_path},
             transport_config=config,
@@ -180,10 +194,13 @@ def create_kafka_app(profile_path: Path) -> FastAPI:
         # Shutdown the queue
         app.state.queue.shutdown()
         app.state.queue = None
+        flush_tracer()
 
     app = FastAPI(lifespan=lifespan)
+    tracer = get_tracer("test-tracer")
 
     @app.post("/predict", response_model=TestResponse)
+    @tracer.span("predict")
     async def predict(request: Request, payload: PredictRequest) -> TestResponse:
         print(f"Received payload: {request.app.state}")
         request.app.state.queue["spc"].insert(payload.to_features())
@@ -251,6 +268,12 @@ def create_kafka_llm_app(profile_path: Path) -> FastAPI:
 
 def create_http_app(profile_path: Path) -> FastAPI:
     config = HTTPConfig()
+    init_tracer(
+        service_name="test-service",
+        exporter=TestSpanExporter(batch_export=True),
+        batch_config=BatchConfig(scheduled_delay_ms=200),
+    )
+    tracer = get_tracer("test-tracer")
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
@@ -264,13 +287,26 @@ def create_http_app(profile_path: Path) -> FastAPI:
 
         logger.info("Shutting down FastAPI app")
         # Shutdown the queue
-        app.state.queue.shutdown()
         app.state.queue = None
+        shutdown_tracer()
 
     app = FastAPI(lifespan=lifespan)
 
+    @tracer.span("nested1")
+    async def nested1(feature_1: float, feature_2: float) -> InnerResponse:
+        await asyncio.sleep(0.05)
+        return InnerResponse(sum=feature_1 + feature_2)
+
+    @tracer.span("nested2")
+    async def nested2(feature_1: float, feature_2: float) -> InnerResponse:
+        await asyncio.sleep(0.05)
+        return InnerResponse(sum=feature_1 + feature_2)
+
     @app.post("/predict", response_model=TestResponse)
+    @tracer.span("predict", baggage=[{"zoo": "bat"}], tags=[{"foo": "bar"}])
     async def predict(request: Request, payload: PredictRequest) -> TestResponse:
+        await nested1(payload.feature_1, payload.feature_2)
+        await nested2(payload.feature_3, payload.feature_0)
         request.app.state.queue["spc"].insert(payload.to_features())
         return TestResponse(message="success")
 

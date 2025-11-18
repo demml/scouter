@@ -140,7 +140,7 @@ async fn test_spc_server_records() {
     let body = serde_json::to_string(&records).unwrap();
 
     let request = Request::builder()
-        .uri("/scouter/drift")
+        .uri("/scouter/message")
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body))
@@ -227,7 +227,7 @@ async fn test_psi_server_records() {
     let body = serde_json::to_string(&records).unwrap();
 
     let request = Request::builder()
-        .uri("/scouter/drift")
+        .uri("/scouter/message")
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body))
@@ -306,7 +306,7 @@ async fn test_custom_server_records() {
     let body = serde_json::to_string(&records).unwrap();
 
     let request = Request::builder()
-        .uri("/scouter/drift")
+        .uri("/scouter/message")
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body))
@@ -383,7 +383,7 @@ fn test_llm_server_records() {
     let body = serde_json::to_string(&records).unwrap();
     //
     let request = Request::builder()
-        .uri("/scouter/drift")
+        .uri("/scouter/message")
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body))

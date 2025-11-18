@@ -69,7 +69,7 @@ async fn test_data_archive_spc() {
     for records in [short_term_records, long_term_records].iter() {
         let body = serde_json::to_string(records).unwrap();
         let request = Request::builder()
-            .uri("/scouter/drift")
+            .uri("/scouter/message")
             .method("POST")
             .header(header::CONTENT_TYPE, "application/json")
             .body(Body::from(body))
@@ -183,7 +183,7 @@ async fn test_data_archive_psi() {
     for records in [short_term_records, long_term_records].iter() {
         let body = serde_json::to_string(records).unwrap();
         let request = Request::builder()
-            .uri("/scouter/drift")
+            .uri("/scouter/message")
             .method("POST")
             .header(header::CONTENT_TYPE, "application/json")
             .body(Body::from(body))
@@ -286,7 +286,7 @@ async fn test_data_archive_custom() {
     for records in [short_term_records, medium_term_records, long_term_records].iter() {
         let body = serde_json::to_string(records).unwrap();
         let request = Request::builder()
-            .uri("/scouter/drift")
+            .uri("/scouter/message")
             .method("POST")
             .header(header::CONTENT_TYPE, "application/json")
             .body(Body::from(body))
@@ -408,7 +408,7 @@ fn test_data_archive_llm_drift_record() {
     for records in [short_term_records, long_term_records].iter() {
         let body = serde_json::to_string(records).unwrap();
         let request = Request::builder()
-            .uri("/scouter/drift")
+            .uri("/scouter/message")
             .method("POST")
             .header(header::CONTENT_TYPE, "application/json")
             .body(Body::from(body))
@@ -511,7 +511,7 @@ fn test_data_archive_llm_drift_metrics() {
     for records in [short_term_records, long_term_records, mid_term_records].iter() {
         let body = serde_json::to_string(records).unwrap();
         let request = Request::builder()
-            .uri("/scouter/drift")
+            .uri("/scouter/message")
             .method("POST")
             .header(header::CONTENT_TYPE, "application/json")
             .body(Body::from(body))

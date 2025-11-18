@@ -1,5 +1,6 @@
 import pytest
 from pydantic import BaseModel
+from scouter.mock import MockConfig
 from scouter.tracing import TestSpanExporter, get_tracer, init_tracer
 
 
@@ -17,11 +18,15 @@ class EventData(BaseModel):
 @pytest.fixture(scope="session")
 def span_exporter():
     """Create a fresh test span exporter for each test."""
-    return TestSpanExporter()
+    return TestSpanExporter(batch_export=False)
 
 
 @pytest.fixture(scope="session")
 def tracer(span_exporter):
     """Initialize tracer with test exporter for each test."""
-    init_tracer(name="test-service", exporter=span_exporter)
+    init_tracer(
+        name="test-service",
+        transport_config=MockConfig(),
+        exporter=span_exporter,
+    )
     return get_tracer("test-tracer")

@@ -4,7 +4,9 @@ use core::result::Result::Ok;
 use scouter_types::BoxedLLMDriftServerRecord;
 use scouter_types::LLMRecord;
 use scouter_types::QueueExt;
-use scouter_types::{llm::LLMDriftProfile, LLMDriftServerRecord, ServerRecord, ServerRecords};
+use scouter_types::{
+    llm::LLMDriftProfile, LLMDriftServerRecord, MessageRecord, ServerRecord, ServerRecords,
+};
 use tracing::instrument;
 pub struct LLMRecordQueue {
     drift_profile: LLMDriftProfile,
@@ -70,7 +72,7 @@ impl FeatureQueue for LLMRecordQueue {
     fn create_drift_records_from_batch<T: QueueExt>(
         &self,
         batch: Vec<T>,
-    ) -> Result<ServerRecords, FeatureQueueError> {
+    ) -> Result<MessageRecord, FeatureQueueError> {
         // clones the empty map (so we don't need to recreate it on each call)
         let mut queue = self.empty_queue.clone();
 
@@ -78,7 +80,9 @@ impl FeatureQueue for LLMRecordQueue {
             self.insert(elem.llm_records(), &mut queue)?;
         }
 
-        self.create_drift_records(queue)
+        Ok(MessageRecord::ServerRecords(
+            self.create_drift_records(queue)?,
+        ))
     }
 }
 
@@ -143,6 +147,6 @@ mod tests {
             .unwrap();
 
         // empty should be excluded
-        assert_eq!(records.records.len(), 1);
+        assert_eq!(records.len(), 1);
     }
 }

@@ -1,7 +1,8 @@
 use crate::error::TraceError;
 use crate::tracer::ActiveSpan;
-use opentelemetry::global::BoxedSpan;
+use opentelemetry::global::ObjectSafeSpan;
 use opentelemetry::trace::SpanContext;
+use opentelemetry::{trace, KeyValue};
 use opentelemetry_otlp::ExportConfig as OtlpExportConfig;
 use pyo3::types::{PyDict, PyModule, PyTuple};
 use pyo3::{prelude::*, IntoPyObjectExt};
@@ -10,11 +11,15 @@ use scouter_types::{
     FUNCTION_MODULE, FUNCTION_NAME, FUNCTION_QUALNAME, FUNCTION_STREAMING, FUNCTION_TYPE,
 };
 use serde::Serialize;
+use std::borrow::Cow;
 use std::collections::HashMap;
+use std::fmt;
 use std::fmt::Display;
 use std::sync::OnceLock;
 use std::sync::{Arc, RwLock};
 use std::time::Duration;
+use std::time::SystemTime;
+use tracing::{debug, instrument};
 
 /// Global static instance of the context store.
 static CONTEXT_STORE: OnceLock<ContextStore> = OnceLock::new();
@@ -166,10 +171,12 @@ pub(crate) fn capture_function_arguments<'py>(
 /// * `span` - The ActiveSpan to set attributes on
 /// # Returns
 /// Result<(), TraceError>
+#[instrument(skip_all)]
 pub fn set_function_attributes(
     func: &Bound<'_, PyAny>,
     span: &mut ActiveSpan,
 ) -> Result<(), TraceError> {
+    debug!("Setting function attributes on span");
     let function_name = match func.getattr("__name__") {
         Ok(name) => name.extract::<String>()?,
         Err(_) => "<unknown>".to_string(),
@@ -192,10 +199,12 @@ pub fn set_function_attributes(
     Ok(())
 }
 
+#[instrument(skip_all)]
 pub(crate) fn set_function_type_attribute(
     func_type: &FunctionType,
     span: &mut ActiveSpan,
 ) -> Result<(), TraceError> {
+    debug!("Setting function type attribute on span");
     if func_type == &FunctionType::AsyncGenerator || func_type == &FunctionType::SyncGenerator {
         span.set_attribute_static(FUNCTION_STREAMING, "true".to_string())?;
     } else {
@@ -420,6 +429,21 @@ impl HttpConfig {
     }
 }
 
+#[derive(Debug)]
+#[pyclass]
+pub struct GrpcConfig {
+    #[pyo3(get)]
+    pub compression: Option<CompressionType>,
+}
+
+#[pymethods]
+impl GrpcConfig {
+    #[new]
+    pub fn new(compression: Option<CompressionType>) -> Self {
+        GrpcConfig { compression }
+    }
+}
+
 pub fn format_traceback(py: Python, exc_tb: &Py<PyAny>) -> Result<String, TraceError> {
     // Import the traceback module
     let traceback_module = py.import("traceback")?;
@@ -432,4 +456,86 @@ pub fn format_traceback(py: Python, exc_tb: &Py<PyAny>) -> Result<String, TraceE
     let formatted = empty_string.call_method1("join", (tb_lines,))?;
 
     Ok(formatted.extract::<String>()?)
+}
+
+/// This re-implements a boxed span from opentelemetry since BoxedSpan::new is not public
+pub struct BoxedSpan(Box<dyn ObjectSafeSpan + Send + Sync>);
+
+impl BoxedSpan {
+    pub(crate) fn new<T>(span: T) -> Self
+    where
+        T: ObjectSafeSpan + Send + Sync + 'static,
+    {
+        BoxedSpan(Box::new(span))
+    }
+}
+
+impl fmt::Debug for BoxedSpan {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("BoxedSpan")
+    }
+}
+
+impl trace::Span for BoxedSpan {
+    /// Records events at a specific time in the context of a given `Span`.
+    ///
+    /// Note that the OpenTelemetry project documents certain ["standard event names and
+    /// keys"](https://github.com/open-telemetry/opentelemetry-specification/tree/v0.5.0/specification/trace/semantic_conventions/README.md)
+    /// which have prescribed semantic meanings.
+    fn add_event_with_timestamp<T>(
+        &mut self,
+        name: T,
+        timestamp: SystemTime,
+        attributes: Vec<KeyValue>,
+    ) where
+        T: Into<Cow<'static, str>>,
+    {
+        self.0
+            .add_event_with_timestamp(name.into(), timestamp, attributes)
+    }
+
+    /// Returns the `SpanContext` for the given `Span`.
+    fn span_context(&self) -> &trace::SpanContext {
+        self.0.span_context()
+    }
+
+    /// Returns true if this `Span` is recording information like events with the `add_event`
+    /// operation, attributes using `set_attributes`, status with `set_status`, etc.
+    fn is_recording(&self) -> bool {
+        self.0.is_recording()
+    }
+
+    /// Sets a single `Attribute` where the attribute properties are passed as arguments.
+    ///
+    /// Note that the OpenTelemetry project documents certain ["standard
+    /// attributes"](https://github.com/open-telemetry/opentelemetry-specification/tree/v0.5.0/specification/trace/semantic_conventions/README.md)
+    /// that have prescribed semantic meanings.
+    fn set_attribute(&mut self, attribute: KeyValue) {
+        self.0.set_attribute(attribute)
+    }
+
+    /// Sets the status of the `Span`. If used, this will override the default `Span`
+    /// status, which is `Unset`.
+    fn set_status(&mut self, status: trace::Status) {
+        self.0.set_status(status)
+    }
+
+    /// Updates the `Span`'s name.
+    fn update_name<T>(&mut self, new_name: T)
+    where
+        T: Into<Cow<'static, str>>,
+    {
+        self.0.update_name(new_name.into())
+    }
+
+    /// Adds a link to this span
+    ///
+    fn add_link(&mut self, span_context: trace::SpanContext, attributes: Vec<KeyValue>) {
+        self.0.add_link(span_context, attributes)
+    }
+
+    /// Finishes the span with given timestamp.
+    fn end_with_timestamp(&mut self, timestamp: SystemTime) {
+        self.0.end_with_timestamp(timestamp);
+    }
 }

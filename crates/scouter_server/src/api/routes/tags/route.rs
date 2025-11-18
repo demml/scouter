@@ -1,0 +1,70 @@
+use crate::api::state::AppState;
+
+use anyhow::{Context, Result};
+use axum::{
+    extract::{Query, State},
+    http::StatusCode,
+    routing::get,
+    Json, Router,
+};
+use scouter_sql::sql::traits::TagSqlLogic;
+use scouter_sql::PostgresClient;
+use scouter_types::TagsRequest;
+use scouter_types::{
+    contracts::ScouterServerError, InsertTagsRequest, ScouterResponse, TagsResponse,
+};
+use std::panic::{catch_unwind, AssertUnwindSafe};
+use std::sync::Arc;
+use tracing::error;
+
+pub async fn get_tags(
+    State(data): State<Arc<AppState>>,
+    Query(params): Query<TagsRequest>,
+) -> Result<Json<TagsResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let tags = PostgresClient::get_tags(&data.db_pool, &params.entity_type, &params.entity_id)
+        .await
+        .map_err(|e| {
+            error!("Failed to query tags: {:?}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::query_tags_error(e)),
+            )
+        })?;
+
+    Ok(Json(TagsResponse { tags }))
+}
+
+pub async fn insert_tags(
+    State(data): State<Arc<AppState>>,
+    Json(body): Json<InsertTagsRequest>,
+) -> Result<Json<ScouterResponse>, (StatusCode, Json<ScouterServerError>)> {
+    let tags = PostgresClient::insert_tag_batch(&data.db_pool, &body.tags)
+        .await
+        .map_err(|e| {
+            error!("Failed to insert tags: {:?}", e);
+            (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::insert_tags_error(e)),
+            )
+        })?;
+
+    Ok(Json(ScouterResponse {
+        status: "success".to_string(),
+        message: format!("Inserted {} tags", tags.rows_affected()),
+    }))
+}
+
+pub async fn get_tag_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
+    let result = catch_unwind(AssertUnwindSafe(|| {
+        Router::new().route(&format!("{prefix}/tags"), get(get_tags).post(insert_tags))
+    }));
+
+    match result {
+        Ok(router) => Ok(router),
+        Err(_) => {
+            // panic
+            Err(anyhow::anyhow!("Failed to create tag router"))
+                .context("Panic occurred while creating the router")
+        }
+    }
+}

@@ -5,6 +5,8 @@ pub mod health;
 pub mod message;
 pub mod observability;
 pub mod profile;
+pub mod tags;
+pub mod trace;
 pub mod user;
 
 pub use alerts::get_alert_router;
@@ -14,4 +16,6 @@ pub use health::get_health_router;
 pub use message::get_message_router;
 pub use observability::get_observability_router;
 pub use profile::get_profile_router;
+pub use tags::get_tag_router;
+pub use trace::get_trace_router;
 pub use user::get_user_router;

@@ -9,13 +9,13 @@ lints:
 # build for kafka
 .PHONY: build.kafka
 build.kafka:
-	docker compose down
+	docker compose down -v
 	docker compose up -d --build init-kafka --wait
 
 # For tests that need postgres
 .PHONY: build.sql
 build.sql:
-	docker compose down
+	docker compose down -v
 	docker compose up --build postgres --wait
 
 .PHONY: test.sql
@@ -92,7 +92,7 @@ test: build.all_backends test.needs_sql test.unit build.shutdown
 ###### Server tests
 .PHONY: build.all_backends
 build.all_backends:
-	docker compose down
+	docker compose down -v
 	docker compose up --build server-backends --wait
 
 .PHONE: start.server
@@ -105,7 +105,7 @@ start.server: stop.server build.all_backends
 
 .PHONY: build.shutdown_backends
 build.shutdown:
-	docker compose down
+	docker compose down -v
 
 .PHONE: stop.server
 stop.server:
