@@ -19,7 +19,6 @@ jobs:
       fail-fast: false
       matrix:
         target: [aarch64-unknown-linux-gnu]
-        feature: [kafka]
         include:
           - os: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
@@ -27,6 +26,7 @@ jobs:
             container_image: rockylinux:9
             tag: rocky
             archive_name_suffix: -rocky
+            feature: kafka
 
           - os: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
@@ -34,6 +34,7 @@ jobs:
             container_image: null
             tag: ubuntu
             archive_name_suffix: ""
+            feature: kafka
 
     env:
       TARGET: ${{ matrix.target }}
@@ -83,7 +84,7 @@ jobs:
         id: prepare
         shell: bash
         run: |
-          # FIX: Create the unique base name including target, feature, and suffix
+          # Create the unique base name including target, feature, and suffix
           ARTIFACT_BASE_NAME="${{ env.BINARY_NAME }}-${{ env.TARGET }}-${{ env.FEATURE }}${{ env.ARCHIVE_SUFFIX }}"
           ARTIFACT_ARCHIVE_NAME="${ARTIFACT_BASE_NAME}.${{ env.ARCHIVE_EXT }}"
 
@@ -94,8 +95,11 @@ jobs:
 
           # Create archive
           cd release-bin
-          # All Linux targets use tar.gz
-          tar -czf ../${ARTIFACT_ARCHIVE_NAME} ./* echo "ARTIFACT_BASE_NAME=${ARTIFACT_BASE_NAME}" >> $GITHUB_OUTPUT
+          # This command must be on its own line
+          tar -czf ../${ARTIFACT_ARCHIVE_NAME} ./*
+
+          # Now, echo the outputs to $GITHUB_OUTPUT on new lines
+          echo "ARTIFACT_BASE_NAME=${ARTIFACT_BASE_NAME}" >> $GITHUB_OUTPUT
           echo "ARTIFACT_ARCHIVE_NAME=${ARTIFACT_ARCHIVE_NAME}" >> $GITHUB_OUTPUT
 
       - name: Upload artifact
@@ -104,8 +108,6 @@ jobs:
           name: ${{ steps.prepare.outputs.ARTIFACT_BASE_NAME }}
           path: ${{ steps.prepare.outputs.ARTIFACT_ARCHIVE_NAME }}
           retention-days: 1
-
-  # --------------------------------------------------------------------------------------------------
 
   publish-docker-images-arm64:
     needs: build
