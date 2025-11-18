@@ -4174,6 +4174,8 @@ dependencies = [
  "prost",
  "reqwest",
  "thiserror 2.0.17",
+ "tokio",
+ "tonic",
  "tracing",
 ]
 
@@ -5981,10 +5983,14 @@ dependencies = [
  "potato-head",
  "pyo3",
  "pyo3-async-runtimes",
+ "scouter-events",
+ "scouter-settings",
+ "scouter-state",
  "scouter-types",
  "serde",
  "serde_json",
  "thiserror 2.0.17",
+ "tokio",
  "tracing",
 ]
 
@@ -6008,6 +6014,7 @@ dependencies = [
  "scouter-state",
  "serde",
  "serde_json",
+ "sqlx",
  "statrs",
  "strum",
  "strum_macros",

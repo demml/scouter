@@ -27,6 +27,7 @@ serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 potato-head = { workspace = true }
 pyo3 = {workspace = true }
+sqlx = { workspace = true, optional = true }
 strum = { workspace = true }
 strum_macros = { workspace = true }
 thiserror = { workspace = true }
@@ -36,6 +37,7 @@ statrs = { workspace = true }
 
 [features]
 mock = ["potato-head/mock"]
+server = ["sqlx"]
 
 [dev-dependencies]
 tempfile = { workspace = true }

@@ -1,10 +1,10 @@
 use crate::error::TraceError;
 use crate::exporter::traits::SpanExporterBuilder;
+use crate::exporter::ExporterType;
 use opentelemetry_stdout::SpanExporter as OTelStdoutSpanExporter;
 use pyo3::prelude::*;
 use scouter_types::PyHelperFuncs;
 use serde::Serialize;
-
 #[derive(Debug, Clone, Serialize, Default)]
 #[pyclass]
 pub struct StdoutSpanExporter {
@@ -32,6 +32,10 @@ impl StdoutSpanExporter {
 
 impl SpanExporterBuilder for StdoutSpanExporter {
     type Exporter = OTelStdoutSpanExporter;
+
+    fn export_type(&self) -> ExporterType {
+        ExporterType::Stdout
+    }
 
     fn sample_ratio(&self) -> Option<f64> {
         self.sample_ratio

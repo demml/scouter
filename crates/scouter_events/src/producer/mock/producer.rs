@@ -1,6 +1,6 @@
 use crate::error::EventError;
 use crate::producer::mock::MockConfig;
-use scouter_types::ServerRecords;
+use scouter_types::MessageRecord;
 use tracing::info;
 
 #[derive(Debug, Clone)]
@@ -10,7 +10,7 @@ impl MockProducer {
         Ok(MockProducer {})
     }
 
-    pub async fn publish(&mut self, message: ServerRecords) -> Result<(), EventError> {
+    pub async fn publish(&self, message: MessageRecord) -> Result<(), EventError> {
         // Mock implementation, just log the message
         info!("MockProducer publishing message: {:?}", message);
         Ok(())

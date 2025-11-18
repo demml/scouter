@@ -1,6 +1,3 @@
--- Test data population script for Scouter tracing tables
--- This script creates realistic test data across multiple services and time periods
-
 DO $$
 DECLARE
     -- Configuration variables
@@ -24,12 +21,14 @@ DECLARE
     ];
     
     v_span_kinds TEXT[] := ARRAY['server', 'client', 'producer', 'consumer', 'internal'];
-    v_status_codes TEXT[] := ARRAY['ok', 'error', 'timeout', 'cancelled'];
     
     -- Loop variables
     i INTEGER;
     j INTEGER;
     k INTEGER;
+    v_baggage_created_at TIMESTAMPTZ;
+    v_baggage_sequence INTEGER := 0;
+    
     
     -- Trace variables
     v_trace_id TEXT;
@@ -47,7 +46,7 @@ DECLARE
     v_span_start TIMESTAMPTZ;
     v_span_end TIMESTAMPTZ;
     v_span_duration BIGINT;
-    v_span_status TEXT;
+    v_span_status_code INTEGER; -- Use INTEGER for OTel status code
     v_span_kind TEXT;
     
 BEGIN
@@ -61,6 +60,7 @@ BEGIN
         
         -- Random timestamp within the last week
         v_current_time := v_base_time + (RANDOM() * INTERVAL '7 days');
+        v_baggage_sequence := 0;
         
         -- Select random service and operation
         v_service_name := v_services[1 + (RANDOM() * (array_length(v_services, 1) - 1))::INTEGER];
@@ -82,8 +82,8 @@ BEGIN
         -- Insert trace record
         INSERT INTO scouter.traces (
             trace_id, space, name, version, scope, trace_state,
-            start_time, end_time, duration_ms, status, root_span_id,
-            span_count, attributes, created_at
+            start_time, end_time, duration_ms, status_code, root_span_id, -- CHANGED: status -> status_code
+            span_count, created_at
         ) VALUES (
             v_trace_id,
             'production',
@@ -94,20 +94,34 @@ BEGIN
             v_current_time,
             v_current_time + (v_trace_duration || ' milliseconds')::INTERVAL,
             v_trace_duration,
-            CASE WHEN v_has_error THEN 'error' ELSE 'ok' END,
+            CASE WHEN v_has_error THEN 2 ELSE 1 END, -- CHANGED: 'error'/'ok' -> 2/1 (OTel status codes)
             v_root_span_id,
             v_span_count,
-            jsonb_build_object(
-                'service.name', v_service_name,
-                'service.version', 'v1.0.0',
-                'deployment.environment', 'production',
-                'scouter.service.name', v_service_name,
-                'http.method', SPLIT_PART(v_operation, ' ', 1),
-                'http.route', SPLIT_PART(v_operation, ' ', 2),
-                'user.id', 'user-' || (1000 + RANDOM() * 9000)::INTEGER
-            ),
             v_current_time
         );
+
+        -- Generate 2-4 tags for the Trace entity
+        FOR k IN 1..(2 + (RANDOM() * 2)::INTEGER) LOOP
+            INSERT INTO scouter.tags (
+                created_at, entity_type, entity_id, key, value
+            ) VALUES (
+                v_current_time + (RANDOM() * INTERVAL '1 second'), -- slight jitter to created_at
+                'trace',
+                v_trace_id,
+                CASE 
+                    WHEN k = 1 THEN 'trace.tag.env'
+                    WHEN k = 2 THEN 'trace.tag.region'
+                    WHEN k = 3 THEN 'trace.tag.customer'
+                    ELSE 'trace.tag.custom'
+                END,
+                CASE 
+                    WHEN k = 1 THEN 'prod-' || (ARRAY['us', 'eu', 'asia'])[1 + (RANDOM() * 2)::INTEGER]
+                    WHEN k = 2 THEN (ARRAY['east', 'west'])[1 + (RANDOM() * 1)::INTEGER]
+                    WHEN k = 3 THEN 'cust-' || (1 + RANDOM() * 10)::INTEGER
+                    ELSE 'value-' || LPAD(k::TEXT, 2, '0')
+                END
+            );
+        END LOOP;
         
         -- Generate spans for this trace
         v_span_start := v_current_time;
@@ -130,7 +144,7 @@ BEGIN
                     WHEN RANDOM() < 0.7 THEN 'span-' || v_trace_id || '-' || (j-1)
                     ELSE v_root_span_id
                 END;
-            END;
+            END IF;
             
             -- Generate span duration (10-500ms for most spans)
             v_span_duration := CASE
@@ -143,10 +157,10 @@ BEGIN
             v_span_end := v_span_start + (v_span_duration || ' milliseconds')::INTERVAL;
             
             -- Determine span status
-            v_span_status := CASE
-                WHEN v_has_error AND j = v_span_count THEN 'error'  -- Last span gets the error
-                WHEN v_has_error AND RANDOM() < 0.1 THEN 'error'    -- 10% chance other spans error
-                ELSE 'ok'
+            v_span_status_code := CASE -- CHANGED: variable name to status_code
+                WHEN v_has_error AND j = v_span_count THEN 2  -- Last span gets the error (2)
+                WHEN v_has_error AND RANDOM() < 0.1 THEN 2    -- 10% chance other spans error (2)
+                ELSE 1                                         -- Otherwise OK (1)
             END;
             
             -- Random span kind
@@ -173,31 +187,33 @@ BEGIN
                 v_span_start,
                 v_span_end,
                 v_span_duration,
-                v_span_status,
-                CASE WHEN v_span_status = 'error' THEN 'Internal server error' ELSE NULL END,
-                jsonb_build_object(
-                    'service.name', v_service_name,
-                    'span.kind', v_span_kind,
-                    'component', CASE 
+                v_span_status_code, -- CHANGED: use integer status code
+                CASE WHEN v_span_status_code = 2 THEN 'Internal server error' ELSE NULL END, -- Use integer status code
+                -- CORRECTED: attributes JSONB must be an array of EAV objects
+                jsonb_build_array(
+                    jsonb_build_object('key', 'service.name', 'value', v_service_name),
+                    jsonb_build_object('key', 'span.kind', 'value', v_span_kind),
+                    jsonb_build_object('key', 'component', 'value', CASE 
                         WHEN v_span_kind = 'server' THEN 'http'
                         WHEN v_span_kind = 'client' THEN 'http-client'
                         WHEN v_span_kind = 'producer' THEN 'kafka'
                         WHEN v_span_kind = 'consumer' THEN 'kafka'
                         ELSE 'internal'
-                    END,
-                    'scouter.model.name', v_service_name || '-model',
-                    'scouter.feature.count', (5 + RANDOM() * 20)::INTEGER,
-                    'thread.id', (1000 + RANDOM() * 9000)::INTEGER
+                    END),
+                    jsonb_build_object('key', 'scouter.model.name', 'value', v_service_name || '-model'),
+                    jsonb_build_object('key', 'scouter.feature.count', 'value', (5 + RANDOM() * 20)::INTEGER::TEXT),
+                    jsonb_build_object('key', 'thread.id', 'value', (1000 + RANDOM() * 9000)::INTEGER::TEXT)
                 ),
                 CASE 
-                    WHEN v_span_status = 'error' THEN jsonb_build_array(
+                    WHEN v_span_status_code = 2 THEN jsonb_build_array( -- Use integer status code
                         jsonb_build_object(
                             'timestamp', EXTRACT(EPOCH FROM v_span_end)::BIGINT * 1000000000,
                             'name', 'exception',
-                            'attributes', jsonb_build_object(
-                                'exception.type', 'RuntimeError',
-                                'exception.message', 'Simulated error for testing',
-                                'exception.stacktrace', 'RuntimeError: Simulated error\n  at test.py:123'
+                            -- CORRECTED: nested attributes must also be an array of EAV objects
+                            'attributes', jsonb_build_array(
+                                jsonb_build_object('key', 'exception.type', 'value', 'RuntimeError'),
+                                jsonb_build_object('key', 'exception.message', 'value', 'Simulated error for testing'),
+                                jsonb_build_object('key', 'exception.stacktrace', 'value', 'RuntimeError: Simulated error\n  at test.py:123')
                             )
                         )
                     )
@@ -205,22 +221,49 @@ BEGIN
                         jsonb_build_object(
                             'timestamp', EXTRACT(EPOCH FROM v_span_start + (v_span_duration/2 || ' milliseconds')::INTERVAL)::BIGINT * 1000000000,
                             'name', 'processing.started',
-                            'attributes', jsonb_build_object(
-                                'stage', 'middleware',
-                                'processing.items', (1 + RANDOM() * 100)::INTEGER
+                            -- CORRECTED: nested attributes must also be an array of EAV objects
+                            'attributes', jsonb_build_array(
+                                jsonb_build_object('key', 'stage', 'value', 'middleware'),
+                                jsonb_build_object('key', 'processing.items', 'value', (1 + RANDOM() * 100)::INTEGER::TEXT)
                             )
                         )
                     )
                 END,
-                '[]'::jsonb,  -- Empty links for simplicity
+                '[]'::jsonb,  -- Empty links for simplicity (structure would be similar to events)
                 v_current_time
             );
-            
+
+            -- Generate 1-3 tags for the Span entity (15% chance for tags)
+            IF RANDOM() < 0.15 THEN
+                FOR k IN 1..(1 + (RANDOM() * 2)::INTEGER) LOOP
+                    INSERT INTO scouter.tags (
+                        created_at, entity_type, entity_id, key, value
+                    ) VALUES (
+                        v_span_start + (RANDOM() * v_span_duration * 0.1 || ' milliseconds')::INTERVAL,
+                        'span',
+                        v_span_id,
+                        CASE 
+                            WHEN k = 1 THEN 'span.tag.host'
+                            ELSE 'span.tag.db.query'
+                        END,
+                        CASE 
+                            WHEN k = 1 THEN 'host-' || (1 + RANDOM() * 5)::INTEGER
+                            ELSE 'SELECT * FROM items WHERE id=' || (1000 + RANDOM() * 9000)::INTEGER
+                        END
+                    );
+                END LOOP;
+            END IF;
+
             -- Generate baggage for some spans (30% chance)
             IF RANDOM() < 0.3 THEN
                 FOR k IN 1..(1 + (RANDOM() * 3)::INTEGER) LOOP
+                    
+                    -- Increment sequence and add 200ms per baggage entry
+                    v_baggage_sequence := v_baggage_sequence + 1;
+                    v_baggage_created_at := v_current_time + (v_baggage_sequence * INTERVAL '200 milliseconds');
+
                     INSERT INTO scouter.trace_baggage (
-                        trace_id, scope, key, value, space, name, version, created_at
+                        trace_id, scope, key, value, created_at
                     ) VALUES (
                         v_trace_id,
                         'distributed-tracing',
@@ -236,15 +279,11 @@ BEGIN
                             WHEN 3 THEN (ARRAY['control', 'variant-a', 'variant-b'])[1 + (RANDOM() * 2)::INTEGER]
                             ELSE 'value-' || k
                         END,
-                        'production',
-                        v_service_name,
-                        'v1.0.0',
-                        v_current_time
+                        v_baggage_created_at
                     );
                 END LOOP;
             END IF;
         END LOOP;
-        
         -- Progress indicator
         IF i % 100 = 0 THEN
             RAISE NOTICE 'Generated % traces...', i;
@@ -254,6 +293,7 @@ BEGIN
     RAISE NOTICE 'Successfully generated % traces with spans and baggage', v_num_traces;
     
     -- Refresh materialized view to include new data
+    -- Note: This is where a CONCURRENTLY refresh should be used in production
     REFRESH MATERIALIZED VIEW scouter.trace_summary;
     
     RAISE NOTICE 'Refreshed trace_summary materialized view';
@@ -263,7 +303,8 @@ BEGIN
     RAISE NOTICE '- Total traces: %', (SELECT COUNT(*) FROM scouter.traces);
     RAISE NOTICE '- Total spans: %', (SELECT COUNT(*) FROM scouter.spans);
     RAISE NOTICE '- Total baggage entries: %', (SELECT COUNT(*) FROM scouter.trace_baggage);
-    RAISE NOTICE '- Traces with errors: %', (SELECT COUNT(*) FROM scouter.traces WHERE status != 'ok');
+    RAISE NOTICE '- Total tag entries: %', (SELECT COUNT(*) FROM scouter.tags);
+    RAISE NOTICE '- Traces with errors (status_code = 2): %', (SELECT COUNT(*) FROM scouter.traces WHERE status_code = 2); -- CHANGED
     RAISE NOTICE '- Average spans per trace: %', (SELECT ROUND(AVG(span_count), 2) FROM scouter.traces);
     RAISE NOTICE '- Average trace duration: % ms', (SELECT ROUND(AVG(duration_ms), 2) FROM scouter.traces);
     

@@ -11,7 +11,6 @@ use scouter_types::psi::PsiDriftProfile;
 use scouter_types::Features;
 use std::sync::Arc;
 use std::sync::RwLock;
-use tokio::runtime;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 
@@ -29,7 +28,6 @@ impl PsiQueue {
     pub async fn new(
         drift_profile: PsiDriftProfile,
         config: TransportConfig,
-        runtime: Arc<runtime::Runtime>,
         task_state: &mut TaskState,
         identifier: String,
     ) -> Result<Self, EventError> {
@@ -54,7 +52,6 @@ impl PsiQueue {
             feature_queue,
             psi_queue.producer.clone(),
             psi_queue.last_publish.clone(),
-            runtime.clone(),
             PSI_MAX_QUEUE_SIZE,
             identifier,
             task_state.clone(),

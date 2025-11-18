@@ -1,3 +1,4 @@
+use crate::exporter::ExporterType;
 use crate::exporter::SpanExporterBuilder;
 use crate::exporter::TraceError;
 use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
@@ -9,7 +10,7 @@ use opentelemetry_sdk::{
     trace::{SpanData, SpanExporter},
 };
 use pyo3::prelude::*;
-use scouter_types::{records::TraceServerRecord, TraceBaggageRecord, TraceRecord, TraceSpanRecord};
+use scouter_types::{TraceBaggageRecord, TraceRecord, TraceServerRecord, TraceSpanRecord};
 use std::sync::{Arc, RwLock};
 
 #[derive(Debug)]
@@ -23,18 +24,21 @@ pub struct TestRecords {
 #[pyclass]
 pub struct TestSpanExporter {
     records: Arc<RwLock<TestRecords>>,
+    batch_export: bool,
 }
 
 #[pymethods]
 impl TestSpanExporter {
     #[new]
-    pub fn new() -> Self {
+    #[pyo3(signature = (batch_export=true))]
+    pub fn new(batch_export: bool) -> Self {
         TestSpanExporter {
             records: Arc::new(RwLock::new(TestRecords {
                 traces: Vec::new(),
                 spans: Vec::new(),
                 baggage: Vec::new(),
             })),
+            batch_export,
         }
     }
 
@@ -63,19 +67,23 @@ impl TestSpanExporter {
 
 impl Default for TestSpanExporter {
     fn default() -> Self {
-        Self::new()
+        Self::new(true)
     }
 }
 
 impl SpanExporterBuilder for TestSpanExporter {
     type Exporter = OtelTestSpanExporter;
 
+    fn export_type(&self) -> ExporterType {
+        ExporterType::Testing
+    }
+
     fn sample_ratio(&self) -> Option<f64> {
         Some(1.0)
     }
 
     fn batch_export(&self) -> bool {
-        false
+        self.batch_export
     }
 
     fn build_exporter(&self) -> Result<Self::Exporter, TraceError> {

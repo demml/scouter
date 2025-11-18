@@ -252,6 +252,7 @@ impl ScouterSetupComponents {
     }
 
     /// Get that database going!
+    #[instrument(skip_all)]
     async fn setup_database(db_settings: &DatabaseSettings) -> AnyhowResult<Pool<Postgres>> {
         let db_pool = PostgresClient::create_db_pool(db_settings)
             .await

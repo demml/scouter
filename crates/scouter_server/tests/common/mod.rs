@@ -19,7 +19,7 @@ use scouter_sql::PostgresClient;
 use scouter_types::JwtToken;
 use scouter_types::{
     llm::{LLMAlertConfig, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile},
-    AlertThreshold, CustomMetricServerRecord, LLMMetricRecord, PsiServerRecord,
+    AlertThreshold, CustomMetricServerRecord, LLMMetricRecord, MessageRecord, PsiServerRecord,
 };
 use scouter_types::{
     BoxedLLMDriftServerRecord, LLMDriftServerRecord, ServerRecord, ServerRecords, SpcServerRecord,
@@ -60,10 +60,22 @@ pub async fn cleanup(pool: &Pool<Postgres>) -> Result<(), anyhow::Error> {
         FROM scouter.psi_drift;
 
         DELETE
+        FROM scouter.llm_drift_record;
+
+        DELETE
         FROM scouter.llm_drift;
 
         DELETE
-        FROM scouter.llm_drift_record;
+        FROM scouter.spans;
+
+        DELETE
+        FROM scouter.trace_baggage;
+
+        DELETE
+        FROM scouter.traces;
+
+        DELETE
+        FROM scouter.tags;
         "#,
     )
     .fetch_all(pool)
@@ -175,7 +187,7 @@ impl TestHelper {
         (array, features)
     }
 
-    pub fn get_spc_drift_records(&self, time_offset: Option<i64>) -> ServerRecords {
+    pub fn get_spc_drift_records(&self, time_offset: Option<i64>) -> MessageRecord {
         let mut records: Vec<ServerRecord> = Vec::new();
         let offset = time_offset.unwrap_or(0);
 
@@ -194,10 +206,10 @@ impl TestHelper {
             }
         }
 
-        ServerRecords::new(records)
+        MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub fn get_psi_drift_records(&self, time_offset: Option<i64>) -> ServerRecords {
+    pub fn get_psi_drift_records(&self, time_offset: Option<i64>) -> MessageRecord {
         let mut records: Vec<ServerRecord> = Vec::new();
         let offset = time_offset.unwrap_or(0);
 
@@ -219,10 +231,10 @@ impl TestHelper {
                 }
             }
         }
-        ServerRecords::new(records)
+        MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub fn get_custom_drift_records(&self, time_offset: Option<i64>) -> ServerRecords {
+    pub fn get_custom_drift_records(&self, time_offset: Option<i64>) -> MessageRecord {
         let mut records: Vec<ServerRecord> = Vec::new();
         let offset = time_offset.unwrap_or(0);
         for i in 0..2 {
@@ -240,10 +252,10 @@ impl TestHelper {
             }
         }
 
-        ServerRecords::new(records)
+        MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub fn get_llm_drift_records(&self, time_offset: Option<i64>) -> ServerRecords {
+    pub fn get_llm_drift_records(&self, time_offset: Option<i64>) -> MessageRecord {
         let mut records: Vec<ServerRecord> = Vec::new();
         let offset = time_offset.unwrap_or(0);
         let prompt = create_score_prompt(None);
@@ -276,10 +288,10 @@ impl TestHelper {
             }
         }
 
-        ServerRecords::new(records)
+        MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
-    pub fn get_llm_drift_metrics(&self, time_offset: Option<i64>) -> ServerRecords {
+    pub fn get_llm_drift_metrics(&self, time_offset: Option<i64>) -> MessageRecord {
         let mut records: Vec<ServerRecord> = Vec::new();
         let offset = time_offset.unwrap_or(0);
 
@@ -299,7 +311,7 @@ impl TestHelper {
             }
         }
 
-        ServerRecords::new(records)
+        MessageRecord::ServerRecords(ServerRecords::new(records))
     }
 
     pub async fn create_llm_drift_profile() -> LLMDriftProfile {
@@ -335,6 +347,16 @@ impl TestHelper {
         // Run the SQL script to populate the database
         let script = std::fs::read_to_string("tests/fixtures/populate_alerts.sql").unwrap();
 
+        sqlx::query(&script).execute(&self.pool).await.unwrap();
+
+        Ok(())
+    }
+
+    pub async fn generate_trace_data(&self) -> Result<(), anyhow::Error> {
+        //print current dir
+        println!("Current dir: {:?}", std::env::current_dir().unwrap());
+        let script =
+            std::fs::read_to_string("../scouter_sql/src/tests/script/populate_trace.sql").unwrap();
         sqlx::query(&script).execute(&self.pool).await.unwrap();
 
         Ok(())
