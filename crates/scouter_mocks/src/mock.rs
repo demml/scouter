@@ -3,6 +3,7 @@ use potato_head::LLMTestServer;
 use pyo3::prelude::*;
 use std::path::PathBuf;
 use thiserror::Error;
+use tracing::instrument;
 
 #[cfg(feature = "server")]
 use scouter_server::{start_server_in_background, stop_server};
@@ -90,6 +91,7 @@ impl ScouterTestServer {
         }
     }
 
+    #[instrument(name = "start_mock_server", skip_all)]
     fn start_server(&mut self) -> PyResult<()> {
         #[cfg(feature = "server")]
         {

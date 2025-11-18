@@ -1,8 +1,13 @@
 use crate::error::{ProfileError, TypeError, UtilError};
 use crate::FeatureMap;
 use crate::{CommonCrons, DriftType};
+use base64::prelude::*;
 use chrono::{DateTime, Utc};
 use colored_json::{Color, ColorMode, ColoredFormatter, PrettyFormatter, Styler};
+use opentelemetry::Key;
+use opentelemetry::KeyValue;
+use opentelemetry::Value as OTelValue;
+use opentelemetry_proto::tonic::common::v1::{any_value::Value as AnyValueVariant, AnyValue};
 use pyo3::exceptions::PyRuntimeError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString};
@@ -189,7 +194,7 @@ pub fn json_to_pyobject_value(py: Python, value: &Value) -> PyResult<Py<PyAny>> 
     })
 }
 
-pub fn pyobject_to_json(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
+pub fn pyobject_to_json(obj: &Bound<'_, PyAny>) -> Result<Value, TypeError> {
     if obj.is_instance_of::<PyDict>() {
         let dict = obj.downcast::<PyDict>()?;
         let mut map = serde_json::Map::new();
@@ -221,7 +226,234 @@ pub fn pyobject_to_json(obj: &Bound<'_, PyAny>) -> PyResult<Value> {
     } else if obj.is_none() {
         Ok(Value::Null)
     } else {
-        Err(PyRuntimeError::new_err("Unsupported type"))
+        Err(TypeError::UnsupportedPyObjectType)
+    }
+}
+
+/// Converts a Python object to a tracing-compatible JSON Map, handling Pydantic BaseModel objects.
+/// This will also truncate long string values to the specified max_length.
+pub fn pyobject_to_tracing_json(
+    obj: &Bound<'_, PyAny>,
+    max_length: &usize,
+) -> Result<Value, TypeError> {
+    // check if object is pydantic basemodel
+    let py = obj.py();
+
+    if is_pydantic_basemodel(py, obj)? {
+        let dict = obj.call_method0("model_dump")?;
+        return pyobject_to_tracing_json(&dict, max_length);
+    }
+    if obj.is_instance_of::<PyDict>() {
+        let dict = obj.downcast::<PyDict>()?;
+        let mut map = serde_json::Map::new();
+        for (key, value) in dict.iter() {
+            let key = pyobject_to_tracing_json(&key, max_length)?;
+            // match key to string
+            let key_str = match key {
+                Value::String(s) => s,
+                Value::Number(n) => n.to_string(),
+                Value::Bool(b) => b.to_string(),
+                _ => return Err(TypeError::InvalidDictKeyType),
+            };
+            let json_value = pyobject_to_tracing_json(&value, max_length)?;
+            map.insert(key_str.to_string(), json_value);
+        }
+        Ok(Value::Object(map))
+    } else if obj.is_instance_of::<PyList>() {
+        let list = obj.downcast::<PyList>()?;
+        let mut vec = Vec::new();
+        for item in list.iter() {
+            vec.push(pyobject_to_tracing_json(&item, max_length)?);
+        }
+        Ok(Value::Array(vec))
+    } else if obj.is_instance_of::<PyString>() {
+        let s = obj.extract::<String>()?;
+        let truncated = if s.len() > *max_length {
+            format!("{}...[truncated]", &s[..*max_length])
+        } else {
+            s
+        };
+        Ok(Value::String(truncated))
+    } else if obj.is_instance_of::<PyFloat>() {
+        let f = obj.extract::<f64>()?;
+        Ok(json!(f))
+    } else if obj.is_instance_of::<PyBool>() {
+        let b = obj.extract::<bool>()?;
+        Ok(json!(b))
+    } else if obj.is_instance_of::<PyInt>() {
+        let i = obj.extract::<i64>()?;
+        Ok(json!(i))
+    } else if obj.is_none() {
+        Ok(Value::Null)
+    } else {
+        // return type as value
+        // tracing should not fail because of unsupported type
+        let ty = match obj.get_type().name() {
+            Ok(name) => name.to_string(),
+            Err(_) => "unknown".to_string(),
+        };
+
+        Ok(Value::String(ty))
+    }
+}
+
+pub fn pyobject_to_otel_value(obj: &Bound<'_, PyAny>) -> Result<OTelValue, TypeError> {
+    if obj.is_instance_of::<PyBool>() {
+        let b = obj.extract::<bool>()?;
+        Ok(OTelValue::Bool(b))
+    } else if obj.is_instance_of::<PyInt>() {
+        let i = obj.extract::<i64>()?;
+        Ok(OTelValue::I64(i))
+    } else if obj.is_instance_of::<PyFloat>() {
+        let f = obj.extract::<f64>()?;
+        Ok(OTelValue::F64(f))
+    } else if obj.is_instance_of::<PyString>() {
+        let s = obj.extract::<String>()?;
+        Ok(OTelValue::String(opentelemetry::StringValue::from(s)))
+    } else if obj.is_instance_of::<PyList>() {
+        let list = obj.downcast::<PyList>()?;
+        pylist_to_otel_array(list)
+    } else if obj.is_none() {
+        // Convert None to string "null" since OTEL doesn't have null
+        Ok(OTelValue::String(opentelemetry::StringValue::from("null")))
+    } else {
+        let json_value = pyobject_to_json(obj)?;
+        Ok(OTelValue::String(opentelemetry::StringValue::from(
+            json_value.to_string(),
+        )))
+    }
+}
+
+fn flatten_nested_dict(
+    obj: &Bound<'_, PyDict>,
+    prefix: Option<String>,
+) -> Result<Vec<KeyValue>, TypeError> {
+    let mut result = Vec::new();
+
+    for (key, value) in obj.iter() {
+        let key_str = key.extract::<String>()?;
+        let full_key = if let Some(ref p) = prefix {
+            format!("{}.{}", p, key_str)
+        } else {
+            key_str
+        };
+
+        if value.is_instance_of::<PyDict>() {
+            let nested_dict = value.downcast::<PyDict>()?;
+            result.extend(flatten_nested_dict(nested_dict, Some(full_key))?);
+        } else {
+            let otel_value = pyobject_to_otel_value(&value)?;
+            result.push(KeyValue::new(Key::new(full_key), otel_value));
+        }
+    }
+
+    Ok(result)
+}
+
+pub fn pydict_to_otel_keyvalue(obj: &Bound<'_, PyDict>) -> Result<Vec<KeyValue>, TypeError> {
+    flatten_nested_dict(obj, None)
+}
+
+/// Converts a Python list to an OpenTelemetry Array, ensuring homogeneous types.
+fn pylist_to_otel_array(list: &Bound<'_, PyList>) -> Result<OTelValue, TypeError> {
+    if list.is_empty() {
+        // Return empty string array for empty lists
+        return Ok(OTelValue::Array(opentelemetry::Array::String(Vec::new())));
+    }
+
+    // Check first element to determine array type
+    let first_item = list.get_item(0)?;
+
+    if first_item.is_instance_of::<PyBool>() {
+        let mut bools = Vec::new();
+        for item in list.iter() {
+            if item.is_instance_of::<PyBool>() {
+                bools.push(item.extract::<bool>()?);
+            } else {
+                // Mixed types - fall back to string array
+                return pylist_to_string_array(list);
+            }
+        }
+        Ok(OTelValue::Array(opentelemetry::Array::Bool(bools)))
+    } else if first_item.is_instance_of::<PyInt>() {
+        let mut ints = Vec::new();
+        for item in list.iter() {
+            if item.is_instance_of::<PyInt>() {
+                ints.push(item.extract::<i64>()?);
+            } else {
+                // Mixed types - fall back to string array
+                return pylist_to_string_array(list);
+            }
+        }
+        Ok(OTelValue::Array(opentelemetry::Array::I64(ints)))
+    } else if first_item.is_instance_of::<PyFloat>() {
+        let mut floats = Vec::new();
+        for item in list.iter() {
+            if item.is_instance_of::<PyFloat>() {
+                floats.push(item.extract::<f64>()?);
+            } else {
+                // Mixed types - fall back to string array
+                return pylist_to_string_array(list);
+            }
+        }
+        Ok(OTelValue::Array(opentelemetry::Array::F64(floats)))
+    } else {
+        // Default to string array for strings and mixed types
+        pylist_to_string_array(list)
+    }
+}
+
+/// Converts a Python list to a string array (fallback for mixed types).
+fn pylist_to_string_array(list: &Bound<'_, PyList>) -> Result<OTelValue, TypeError> {
+    let mut strings = Vec::new();
+    for item in list.iter() {
+        let string_val = if item.is_instance_of::<PyString>() {
+            item.extract::<String>()?
+        } else {
+            // Convert other types to JSON string representation
+            pyobject_to_json(&item)?.to_string()
+        };
+        strings.push(opentelemetry::StringValue::from(string_val));
+    }
+    Ok(OTelValue::Array(opentelemetry::Array::String(strings)))
+}
+
+/// Converts OpenTelemetry AnyValue to serde_json::Value
+///
+/// Handles all OpenTelemetry value types including nested arrays and key-value lists.
+/// Invalid floating point values (NaN, infinity) are converted to null for JSON compatibility.
+pub fn otel_value_to_serde_value(otel_value: &AnyValue) -> Value {
+    match &otel_value.value {
+        Some(variant) => match variant {
+            AnyValueVariant::BoolValue(b) => Value::Bool(*b),
+            AnyValueVariant::IntValue(i) => Value::Number(serde_json::Number::from(*i)),
+            AnyValueVariant::DoubleValue(d) => {
+                // Handle NaN and infinity cases gracefully
+                serde_json::Number::from_f64(*d)
+                    .map(Value::Number)
+                    .unwrap_or(Value::Null)
+            }
+            AnyValueVariant::StringValue(s) => Value::String(s.clone()),
+            AnyValueVariant::ArrayValue(array) => {
+                let values: Vec<Value> =
+                    array.values.iter().map(otel_value_to_serde_value).collect();
+                Value::Array(values)
+            }
+            AnyValueVariant::KvlistValue(kvlist) => {
+                let mut map = serde_json::Map::new();
+                for kv in &kvlist.values {
+                    if let Some(value) = &kv.value {
+                        map.insert(kv.key.clone(), otel_value_to_serde_value(value));
+                    }
+                }
+                Value::Object(map)
+            }
+            AnyValueVariant::BytesValue(bytes) => {
+                // Convert bytes to base64 string for JSON compatibility
+                Value::String(BASE64_STANDARD.encode(bytes))
+            }
+        },
+        None => Value::Null,
     }
 }
 
@@ -270,11 +502,13 @@ pub fn create_feature_map(
 /// # Returns
 /// * `Ok(bool)` - `true` if the object is a Pydantic model
 /// * `Err(TypeError)` - if there was an error importing Pydantic or checking
-pub fn is_pydantic_model(py: Python, obj: &Bound<'_, PyAny>) -> Result<bool, TypeError> {
+pub fn is_pydantic_basemodel(py: Python, obj: &Bound<'_, PyAny>) -> Result<bool, TypeError> {
     let pydantic = match py.import("pydantic") {
         Ok(module) => module,
-        Err(e) => return Err(TypeError::FailedToImportPydantic(e.to_string())),
+        // return false if pydantic cannot be imported
+        Err(_) => return Ok(false),
     };
+
     let basemodel = pydantic.getattr("BaseModel")?;
 
     // check if context is a pydantic model
@@ -283,6 +517,17 @@ pub fn is_pydantic_model(py: Python, obj: &Bound<'_, PyAny>) -> Result<bool, Typ
         .map_err(|e| TypeError::FailedToCheckPydanticModel(e.to_string()))?;
 
     Ok(is_basemodel)
+}
+
+pub fn is_pydict(obj: &Bound<'_, PyAny>) -> bool {
+    obj.is_instance_of::<PyDict>()
+}
+
+/// Helper for converting a pydantic model to a pyobject (pydict)
+/// we are keeping the type as Bound<'py, PyAny> so that is is compatible with pyobject_to_json
+pub fn pydantic_to_value<'py>(obj: &Bound<'py, PyAny>) -> Result<Value, TypeError> {
+    let dict = obj.call_method0("model_dump")?;
+    pyobject_to_json(&dict)
 }
 
 #[derive(PartialEq, Debug)]

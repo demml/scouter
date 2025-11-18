@@ -9,7 +9,7 @@ pub mod kafka_consumer {
     use rdkafka::message::Message;
     use scouter_settings::KafkaSettings;
     use scouter_sql::MessageHandler;
-    use scouter_types::ServerRecords;
+    use scouter_types::MessageRecord;
     use sqlx::Pool;
     use sqlx::Postgres;
     use std::collections::HashMap;
@@ -47,22 +47,30 @@ pub mod kafka_consumer {
                                     continue;
                                 }
 
-                                if let Ok(Some(records)) = process_message(&msg).await {
-                                    if let Err(e) = MessageHandler::insert_server_records(&db_pool,&records).await {
+                                if let Ok(Some(record)) = process_message(&msg).await {
+                                    let result = match record {
+                                        MessageRecord::ServerRecords(records) => {
+                                            MessageHandler::insert_server_records(&db_pool, &records).await
+                                        }
+                                        MessageRecord::TraceServerRecord(trace_record) => {
+                                            MessageHandler::insert_trace_server_record(&db_pool, &trace_record).await
+
+                                        }
+                                        MessageRecord::TagServerRecord(tag_record) => {
+                                            MessageHandler::insert_tag_record(&db_pool, &tag_record).await
+                                        }
+                                    };
+
+                                    if let Err(e) = result {
                                         error!("Worker {}: Error handling message: {}", id, e);
                                         counter!("db_insert_errors").increment(1);
                                     } else {
-                                        counter!("records_inserted")
-                                            .absolute(records.records.len() as u64);
                                         counter!("messages_processed").increment(1);
                                         consumer
                                             .commit_message(&msg, CommitMode::Async)
                                             .map_err(|e| {
-                                                error!(
-                                                    "Worker {}: Failed to commit message: {}",
-                                                    id, e
-                                                );
-                                               counter!("consumer_errors").increment(1);
+                                                error!("Worker {}: Failed to commit message: {}", id, e);
+                                                counter!("consumer_errors").increment(1);
                                             })
                                             .unwrap_or(());
                                     }
@@ -135,7 +143,7 @@ pub mod kafka_consumer {
 
     pub async fn process_message(
         message: &BorrowedMessage<'_>,
-    ) -> Result<Option<ServerRecords>, EventError> {
+    ) -> Result<Option<MessageRecord>, EventError> {
         let payload = match message.payload_view::<str>() {
             None => {
                 error!("No payload received");
@@ -148,14 +156,14 @@ pub mod kafka_consumer {
             }
         };
 
-        let records: ServerRecords = match serde_json::from_str(payload) {
-            Ok(records) => records,
+        let record: MessageRecord = match serde_json::from_str(payload) {
+            Ok(record) => record,
             Err(e) => {
                 error!("Failed to deserialize message: {:?}", e);
                 return Ok(None);
             }
         };
 
-        Ok(Some(records))
+        Ok(Some(record))
     }
 }

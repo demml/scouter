@@ -110,6 +110,18 @@ pub enum TypeError {
 
     #[error("Failed to import pydantic module. Error: {0}")]
     FailedToImportPydantic(String),
+
+    #[error("Unsupported Python object type for conversion")]
+    UnsupportedPyObjectType,
+
+    #[error("Invalid dictionary key type. Dictionary keys must be strings, int, float or bool")]
+    InvalidDictKeyType,
+
+    #[error("Invalid compressions type")]
+    InvalidCompressionTypeError,
+
+    #[error("Compression type not supported: {0}")]
+    CompressionTypeNotSupported(String),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for TypeError {

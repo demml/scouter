@@ -14,14 +14,20 @@ description = "Client and server contract for scouter"
 [dependencies]
 scouter-semver = { workspace = true }
 scouter-state = { workspace = true }
+base64 = { workspace = true }
 chrono = { workspace = true }
 colored_json = { workspace = true }
 cron = { workspace = true }
+hex = { workspace = true }
+opentelemetry = { workspace = true }
+opentelemetry-proto = { workspace = true }
+opentelemetry-otlp = { workspace = true }
 rayon = { workspace = true }
 serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true }
 potato-head = { workspace = true }
 pyo3 = {workspace = true }
+sqlx = { workspace = true, optional = true }
 strum = { workspace = true }
 strum_macros = { workspace = true }
 thiserror = { workspace = true }
@@ -31,6 +37,7 @@ statrs = { workspace = true }
 
 [features]
 mock = ["potato-head/mock"]
+server = ["sqlx"]
 
 [dev-dependencies]
 tempfile = { workspace = true }

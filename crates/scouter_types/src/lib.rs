@@ -1,17 +1,17 @@
 pub mod alert;
 pub mod archive;
 pub mod contracts;
-pub mod error;
-pub mod eval;
-
 pub mod custom;
 pub mod drift;
+pub mod error;
+pub mod eval;
 pub mod http;
 pub mod llm;
 pub mod psi;
 pub mod queue;
 pub mod records;
 pub mod spc;
+pub mod trace;
 pub mod util;
 
 pub use alert::*;
@@ -21,4 +21,5 @@ pub use drift::*;
 pub use http::*;
 pub use queue::types::*;
 pub use records::*;
+pub use trace::*;
 pub use util::*;

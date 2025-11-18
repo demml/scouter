@@ -95,6 +95,24 @@ pub enum ClientError {
 
     #[error("Failed to parse JWT token from response: {0}")]
     ParseJwtTokenError(String),
+
+    #[error("Failed to get paginated traces")]
+    GetPaginatedTracesError,
+
+    #[error("Failed to refresh trace summary")]
+    RefreshTraceSummaryError,
+
+    #[error("Failed to get trace spans")]
+    GetTraceSpansError,
+
+    #[error("Failed to get trace metrics")]
+    GetTraceMetricsError,
+
+    #[error("Failed to get trace baggage")]
+    GetTraceBaggageError,
+
+    #[error("Failed to get tags")]
+    GetTagsError,
 }
 
 impl From<ClientError> for PyErr {

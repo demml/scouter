@@ -2,48 +2,10 @@ use crate::error::PyEventError;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use rusty_logging::logger::LogLevel;
-use scouter_types::TransportType;
+use scouter_types::{CompressionType, TransportType};
 use std::collections::HashMap;
 use std::env;
 use std::str::FromStr;
-
-#[pyclass(eq)]
-#[derive(PartialEq, Clone, Debug)]
-pub enum CompressionType {
-    None,
-    Gzip,
-    Snappy,
-    Lz4,
-    Zstd,
-}
-
-impl FromStr for CompressionType {
-    type Err = PyEventError;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "none" => Ok(CompressionType::None),
-            "gzip" => Ok(CompressionType::Gzip),
-            "snappy" => Ok(CompressionType::Snappy),
-            "lz4" => Ok(CompressionType::Lz4),
-            "zstd" => Ok(CompressionType::Zstd),
-            _ => Err(PyEventError::InvalidCompressionTypeError),
-        }
-    }
-}
-
-// impl display
-impl std::fmt::Display for CompressionType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            CompressionType::None => write!(f, "none"),
-            CompressionType::Gzip => write!(f, "gzip"),
-            CompressionType::Snappy => write!(f, "snappy"),
-            CompressionType::Lz4 => write!(f, "lz4"),
-            CompressionType::Zstd => write!(f, "zstd"),
-        }
-    }
-}
 
 fn add_kafka_args(
     brokers: String,
