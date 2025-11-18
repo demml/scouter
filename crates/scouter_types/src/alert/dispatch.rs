@@ -1,8 +1,9 @@
 use crate::drift::DriftArgs;
+use crate::error::TypeError;
 use pyo3::{prelude::*, IntoPyObjectExt};
 use serde::{Deserialize, Serialize};
 use std::fmt::Display;
-
+use std::str::FromStr;
 #[pyclass]
 #[derive(Debug, PartialEq, Serialize, Deserialize, Clone)]
 pub struct ConsoleDispatchConfig {
@@ -124,4 +125,52 @@ pub enum TransportType {
     Http,
     Redis,
     Mock,
+}
+
+#[pyclass(eq)]
+#[derive(PartialEq, Clone, Debug, Serialize)]
+pub enum CompressionType {
+    NA,
+    Gzip,
+    Snappy,
+    Lz4,
+    Zstd,
+}
+
+impl FromStr for CompressionType {
+    type Err = TypeError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "none" => Ok(CompressionType::NA),
+            "gzip" => Ok(CompressionType::Gzip),
+            "snappy" => Ok(CompressionType::Snappy),
+            "lz4" => Ok(CompressionType::Lz4),
+            "zstd" => Ok(CompressionType::Zstd),
+            _ => Err(TypeError::InvalidCompressionTypeError),
+        }
+    }
+}
+
+// impl display
+impl std::fmt::Display for CompressionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            CompressionType::NA => write!(f, "none"),
+            CompressionType::Gzip => write!(f, "gzip"),
+            CompressionType::Snappy => write!(f, "snappy"),
+            CompressionType::Lz4 => write!(f, "lz4"),
+            CompressionType::Zstd => write!(f, "zstd"),
+        }
+    }
+}
+
+impl CompressionType {
+    pub fn to_otel_compression(&self) -> Result<opentelemetry_otlp::Compression, TypeError> {
+        match self {
+            CompressionType::Gzip => Ok(opentelemetry_otlp::Compression::Gzip),
+            CompressionType::Zstd => Ok(opentelemetry_otlp::Compression::Zstd),
+            _ => Err(TypeError::CompressionTypeNotSupported(self.to_string())),
+        }
+    }
 }

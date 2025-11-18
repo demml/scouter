@@ -8,7 +8,7 @@ pub use drifter::scouter::PyDrifter;
 pub use profiler::scouter::DataProfiler;
 pub use scouter_settings::HTTPConfig;
 pub use scouter_types::{
-    alert::{Alert, Alerts},
+    alert::{Alert, Alerts, CompressionType},
     create_feature_map,
     cron::*,
     custom::{
@@ -30,14 +30,18 @@ pub use scouter_types::{
         SpcDriftFeature, SpcDriftFeatures, SpcDriftProfile, SpcFeatureAlert, SpcFeatureAlerts,
         SpcFeatureDriftProfile,
     },
-    AlertDispatchType, AlertThreshold, BinnedMetric, BinnedMetricStats, BinnedMetrics,
+    sql::{TraceFilters, TraceListItem, TraceMetricBucket, TraceSpan},
+    AlertDispatchType, AlertThreshold, Attribute, BinnedMetric, BinnedMetricStats, BinnedMetrics,
     ConsoleDispatchConfig, CustomMetricServerRecord, DataType, DriftAlertRequest, DriftProfile,
     DriftRequest, DriftType, EntityType, Feature, FeatureMap, Features, GetProfileRequest,
     LLMDriftRecordPaginationRequest, LLMDriftServerRecord, LLMMetricRecord, LLMRecord,
     LatencyMetrics, Metric, Metrics, ObservabilityMetrics, OpsGenieDispatchConfig, ProfileRequest,
     ProfileStatusRequest, PsiServerRecord, RecordType, RegisteredProfileResponse, RouteMetrics,
     ScouterResponse, ScouterServerError, ServerRecord, ServerRecords, SlackDispatchConfig,
-    SpcServerRecord, TimeInterval, UpdateAlertResponse, UpdateAlertStatus, VersionRequest,
+    SpanEvent, SpanLink, SpcServerRecord, TagRecord, TagsResponse, TimeInterval,
+    TraceBaggageRecord, TraceBaggageResponse, TraceMetricsRequest, TraceMetricsResponse,
+    TracePaginationResponse, TraceRecord, TraceSpanRecord, TraceSpansResponse, UpdateAlertResponse,
+    UpdateAlertStatus, VersionRequest,
 };
 
 pub use crate::http::{PyScouterClient, ScouterClient};

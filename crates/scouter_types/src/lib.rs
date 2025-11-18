@@ -11,6 +11,7 @@ pub mod psi;
 pub mod queue;
 pub mod records;
 pub mod spc;
+pub mod trace;
 pub mod util;
 
 pub use alert::*;
@@ -20,4 +21,5 @@ pub use drift::*;
 pub use http::*;
 pub use queue::types::*;
 pub use records::*;
+pub use trace::*;
 pub use util::*;

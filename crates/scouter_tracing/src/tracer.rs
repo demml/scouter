@@ -6,45 +6,60 @@
 // This data can then be pulled inside of OpsML's UI for trace correlation and analysis.
 
 use crate::error::TraceError;
-use crate::exporter::ScouterSpanExporter;
+use crate::exporter::processor::BatchConfig;
+use crate::exporter::scouter::ScouterSpanExporter;
+use crate::exporter::SpanExporterNum;
+use crate::utils::BoxedSpan;
 use crate::utils::{
-    capture_function_arguments, get_context_store, get_context_var, get_current_active_span,
-    get_current_context_id, set_current_span, set_function_attributes, set_function_type_attribute,
-    ActiveSpanInner, FunctionType, SpanKind,
+    capture_function_arguments, format_traceback, get_context_store, get_context_var,
+    get_current_active_span, get_current_context_id, set_current_span, set_function_attributes,
+    set_function_type_attribute, ActiveSpanInner, FunctionType, SpanKind,
 };
 use chrono::{DateTime, Utc};
 use opentelemetry::baggage::BaggageExt;
 use opentelemetry::trace::Tracer as OTelTracer;
-use opentelemetry::Context;
+use opentelemetry::trace::TracerProvider;
 use opentelemetry::{
-    global::{self, BoxedSpan, BoxedTracer},
     trace::{Span, Status, TraceContextExt},
     Context as OtelContext, KeyValue,
 };
-use opentelemetry_otlp::{Protocol, WithExportConfig};
-use opentelemetry_sdk::error::OTelSdkResult;
+use opentelemetry_sdk::trace::SdkTracer;
 use opentelemetry_sdk::trace::SdkTracerProvider;
-use opentelemetry_sdk::trace::SpanProcessor;
-use opentelemetry_sdk::{trace::Sampler, Resource};
+use opentelemetry_sdk::Resource;
 use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use pyo3::IntoPyObjectExt;
-use scouter_types::records::{
-    BAGGAGE_PREFIX, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT, SCOUTER_TRACING_LABEL,
-    SCOUTER_TRACING_OUTPUT, SERVICE_NAME, TRACE_START_TIME_KEY,
-};
-use scouter_types::{is_pydantic_basemodel, pydict_to_otel_keyvalue, pyobject_to_tracing_json};
+use scouter_events::queue::types::TransportConfig;
+use scouter_settings::http::HTTPConfig;
 
+use scouter_types::{
+    is_pydantic_basemodel, pydict_to_otel_keyvalue, pyobject_to_otel_value,
+    pyobject_to_tracing_json, BAGGAGE_PREFIX, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT,
+    SCOUTER_TRACING_LABEL, SCOUTER_TRACING_OUTPUT, SERVICE_NAME, TRACE_START_TIME_KEY,
+};
 use std::sync::{Arc, RwLock};
-use std::time::Duration;
 use std::{collections::HashMap, sync::OnceLock};
+use tracing::{debug, info, instrument};
 
 /// Global static instance of the tracer provider.
-static TRACER_PROVIDER: OnceLock<SdkTracerProvider> = OnceLock::new();
+static TRACER_PROVIDER_STORE: OnceLock<Arc<RwLock<Option<SdkTracerProvider>>>> = OnceLock::new();
 
 // Add trace metadata store
 static TRACE_METADATA_STORE: OnceLock<TraceMetadataStore> = OnceLock::new();
+
+fn get_tracer_provider_store() -> &'static Arc<RwLock<Option<SdkTracerProvider>>> {
+    TRACER_PROVIDER_STORE.get_or_init(|| Arc::new(RwLock::new(None)))
+}
+
+fn get_tracer_provider() -> Result<Arc<RwLock<Option<SdkTracerProvider>>>, TraceError> {
+    TRACER_PROVIDER_STORE.get().cloned().ok_or_else(|| {
+        // This should only happen if the store itself hasn't been initialized by get_tracer_provider_store
+        TraceError::InitializationError("Tracer provider store not initialized".to_string())
+    })
+}
+
+const MISSING: &str = "unknown";
 
 #[derive(Clone)]
 struct TraceMetadata {
@@ -129,94 +144,104 @@ impl TraceMetadataStore {
 
         Ok(())
     }
+
+    fn clear_all(&self) -> Result<(), TraceError> {
+        self.inner
+            .write()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?
+            .clear();
+        Ok(())
+    }
 }
 
 fn get_trace_metadata_store() -> &'static TraceMetadataStore {
     TRACE_METADATA_STORE.get_or_init(TraceMetadataStore::new)
 }
 
-// This is taken from the opentelemetry examples for adding baggage to spans
-#[derive(Debug)]
-struct EnrichSpanWithBaggageProcessor;
-
-impl SpanProcessor for EnrichSpanWithBaggageProcessor {
-    fn force_flush(&self) -> OTelSdkResult {
-        Ok(())
-    }
-
-    fn shutdown_with_timeout(&self, _timeout: Duration) -> OTelSdkResult {
-        Ok(())
-    }
-
-    fn on_start(&self, span: &mut opentelemetry_sdk::trace::Span, cx: &Context) {
-        for (kk, vv) in cx.baggage().iter() {
-            span.set_attribute(KeyValue::new(kk.clone(), vv.0.clone()));
-        }
-    }
-
-    fn on_end(&self, _span: opentelemetry_sdk::trace::SpanData) {}
-}
-
 /// Global initialization function for the tracer.
 /// This sets up the tracer provider with the specified service name, endpoint, and sampling ratio.
 /// If no endpoint is provided, spans will be exported to stdout for debugging purposes.
 /// # Arguments
-/// * `name` - Optional service name for the tracer. Defaults to "scouter_service
-/// * `endpoint` - Optional OTLP endpoint URL for exporting spans.
-/// * `sample_ratio` - Optional sampling ratio between 0.0 and 1.0. Defaults to always sampling.
+/// * `service_name` - Optional service name for the tracer. Defaults to "scouter_service
+/// * `transport_config` - Optional transport configuration for the Scouter exporter
+/// * `exporter` - Optional span exporter to use instead of the default HTTP exporter
+/// * `batch_config` - Optional batch configuration for span exporting
+/// * `space` - Optional space name for Scouter
+/// * `name` - Optional name for Scouter
+/// * `version` - Optional version for Scouter
 #[pyfunction]
-#[pyo3(signature = (name=None, endpoint=None, sample_ratio=None))]
-pub fn init_tracer(name: Option<String>, endpoint: Option<String>, sample_ratio: Option<f64>) {
-    let name = name.unwrap_or_else(|| "scouter_service".to_string());
+#[pyo3(signature = (
+    service_name="scouter_service".to_string(),
+    transport_config=None,
+    exporter=None,
+    batch_config=None,
+    space=None,
+    name=None,
+    version=None
+))]
+#[instrument(skip_all)]
+#[allow(clippy::too_many_arguments)]
+pub fn init_tracer(
+    py: Python,
+    service_name: String,
+    transport_config: Option<&Bound<'_, PyAny>>,
+    exporter: Option<&Bound<'_, PyAny>>,
+    batch_config: Option<Py<BatchConfig>>,
+    space: Option<String>,
+    name: Option<String>,
+    version: Option<String>,
+) -> Result<(), TraceError> {
+    debug!("Initializing tracer");
 
-    TRACER_PROVIDER.get_or_init(|| {
-        let resource = Resource::builder()
-            .with_attributes(vec![KeyValue::new(SERVICE_NAME, name.clone())])
-            .build();
+    let transport_config = match transport_config {
+        Some(config) => TransportConfig::from_py_config(config)?,
+        None => {
+            // default to http transport config
+            let config = HTTPConfig::default();
+            TransportConfig::Http(config)
+        }
+    };
 
-        let sampler = sample_ratio
-            .map(Sampler::TraceIdRatioBased)
-            .unwrap_or(Sampler::AlwaysOn);
+    let batch_config = batch_config
+        .map(|bc| bc.extract::<BatchConfig>(py))
+        .transpose()?;
 
-        let scouter_export = ScouterSpanExporter {
-            space: "default".to_string(),
-            name: name.clone(),
-            version: "1.0.0".to_string(),
-        };
+    let scouter_export = ScouterSpanExporter::new(
+        space.unwrap_or_else(|| MISSING.to_string()),
+        name.unwrap_or_else(|| MISSING.to_string()),
+        version.unwrap_or_else(|| MISSING.to_string()),
+        transport_config,
+    )?;
 
-        let provider = match endpoint {
-            Some(endpoint_url) => {
-                let otlp_exporter = opentelemetry_otlp::SpanExporter::builder()
-                    .with_http()
-                    .with_endpoint(endpoint_url)
-                    .with_protocol(Protocol::HttpBinary)
-                    .build()
-                    .expect("Failed to create OTLP exporter");
+    let provider_store = get_tracer_provider_store();
 
-                opentelemetry_sdk::trace::SdkTracerProvider::builder()
-                    .with_span_processor(EnrichSpanWithBaggageProcessor)
-                    .with_batch_exporter(otlp_exporter)
-                    .with_batch_exporter(scouter_export)
-                    .with_sampler(sampler)
-                    .with_resource(resource)
-                    .build()
-            }
-            None => {
-                let stdout_exporter = opentelemetry_stdout::SpanExporter::default();
+    let mut store_guard = provider_store
+        .write()
+        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
 
-                opentelemetry_sdk::trace::SdkTracerProvider::builder()
-                    .with_span_processor(EnrichSpanWithBaggageProcessor)
-                    .with_simple_exporter(stdout_exporter)
-                    .with_simple_exporter(scouter_export)
-                    .with_sampler(sampler)
-                    .with_resource(resource)
-                    .build()
-            }
-        };
+    if store_guard.is_some() {
+        return Err(TraceError::InitializationError(
+            "Tracer provider already initialized. Call shutdown_tracer() first.".to_string(),
+        ));
+    }
 
-        global::set_tracer_provider(provider.clone());
-        provider
-    });
+    let resource = Resource::builder()
+        .with_attributes(vec![KeyValue::new(SERVICE_NAME, service_name.clone())])
+        .build();
+
+    let span_exporter = if let Some(exporter) = exporter {
+        SpanExporterNum::from_pyobject(exporter).expect("failed to convert exporter")
+    } else {
+        SpanExporterNum::default()
+    };
+
+    let provider = span_exporter
+        .build_provider(resource, scouter_export, batch_config)
+        .expect("failed to build tracer provider");
+
+    *store_guard = Some(provider);
+
+    Ok(())
 }
 
 fn reset_current_context(py: Python, token: &Py<PyAny>) -> PyResult<()> {
@@ -244,9 +269,9 @@ impl ActiveSpan {
     /// * `input` - The input value (any Python object, but is often a dict)
     /// * `max_length` - Maximum length of the serialized input (default: 1000)
     #[pyo3(signature = (input, max_length=1000))]
+    #[instrument(skip_all)]
     fn set_input(&self, input: &Bound<'_, PyAny>, max_length: usize) -> Result<(), TraceError> {
         let value = pyobject_to_tracing_json(input, &max_length)?;
-
         self.with_inner_mut(|inner| {
             inner.span.set_attribute(KeyValue::new(
                 SCOUTER_TRACING_INPUT,
@@ -256,7 +281,9 @@ impl ActiveSpan {
     }
 
     #[pyo3(signature = (output, max_length=1000))]
+    #[instrument(skip_all)]
     fn set_output(&self, output: &Bound<'_, PyAny>, max_length: usize) -> Result<(), TraceError> {
+        debug!("Setting output on span");
         let value = pyobject_to_tracing_json(output, &max_length)?;
         self.with_inner_mut(|inner| {
             inner.span.set_attribute(KeyValue::new(
@@ -270,7 +297,8 @@ impl ActiveSpan {
     /// # Arguments
     /// * `key` - The attribute key
     /// * `value` - The attribute value
-    pub fn set_attribute(&self, key: String, value: String) -> Result<(), TraceError> {
+    pub fn set_attribute(&self, key: String, value: Bound<'_, PyAny>) -> Result<(), TraceError> {
+        let value = pyobject_to_otel_value(&value)?;
         self.with_inner_mut(|inner| inner.span.set_attribute(KeyValue::new(key, value)))
     }
 
@@ -309,7 +337,7 @@ impl ActiveSpan {
     /// Set the status of the span
     /// # Arguments
     /// * `status` - The status string ("ok", "error", or "unset")
-    /// * `description` - Optional description for the status (tyically used with error)
+    /// * `description` - Optional description for the status (typically used with error)
     fn set_status(&self, status: String, description: Option<String>) -> Result<(), TraceError> {
         let otel_status = match status.to_lowercase().as_str() {
             "ok" => Status::Ok,
@@ -321,12 +349,15 @@ impl ActiveSpan {
     }
 
     /// Sync context manager enter
+    #[instrument(skip_all)]
     fn __enter__<'py>(slf: PyRef<'py, Self>) -> PyResult<PyRef<'py, Self>> {
+        debug!("Entering span context: {}", slf.context_id()?);
         Ok(slf)
     }
 
     /// Sync context manager exit
     #[pyo3(signature = (exc_type=None, exc_val=None, exc_tb=None))]
+    #[instrument(skip_all)]
     fn __exit__(
         &mut self,
         py: Python<'_>,
@@ -334,6 +365,7 @@ impl ActiveSpan {
         exc_val: Option<Py<PyAny>>,
         exc_tb: Option<Py<PyAny>>,
     ) -> Result<bool, TraceError> {
+        debug!("Exiting span context: {}", self.context_id()?);
         let (context_id, trace_id, context_token) = {
             let mut inner = self
                 .inner
@@ -354,9 +386,11 @@ impl ActiveSpan {
                 }
 
                 if let Some(exc_tb) = exc_tb {
+                    // need to unpack the traceback object to string
+                    let tb = format_traceback(py, &exc_tb)?;
                     inner
                         .span
-                        .set_attribute(KeyValue::new("exception.traceback", exc_tb.to_string()));
+                        .set_attribute(KeyValue::new("exception.traceback", tb));
                 }
             }
 
@@ -368,9 +402,8 @@ impl ActiveSpan {
             let context_token = inner.context_token.take();
 
             (context_id, trace_id, context_token)
-        }; // Lock is dropped here
+        };
 
-        // Now do operations that don't need the lock
         let store = get_trace_metadata_store();
         store.decrement_span_count(&trace_id)?;
 
@@ -447,7 +480,7 @@ impl ActiveSpan {
 /// The main Tracer class
 #[pyclass(subclass)]
 pub struct BaseTracer {
-    tracer: BoxedTracer,
+    tracer: SdkTracer,
 }
 
 impl BaseTracer {
@@ -488,15 +521,41 @@ impl BaseTracer {
         self.increment_span_count(&trace_id)?;
         Ok(())
     }
+
+    fn create_baggage_items(
+        baggage: &[HashMap<String, String>],
+        tags: &[HashMap<String, String>],
+    ) -> Vec<KeyValue> {
+        let mut keyval_baggage: Vec<KeyValue> = baggage
+            .iter()
+            .flat_map(|baggage_map| {
+                baggage_map
+                    .iter()
+                    .map(|(k, v)| KeyValue::new(k.clone(), v.clone()))
+                    .collect::<Vec<KeyValue>>()
+            })
+            .collect();
+
+        // add tags to baggage
+        tags.iter().for_each(|tag_map| {
+            tag_map.iter().for_each(|(k, v)| {
+                keyval_baggage.push(KeyValue::new(
+                    format!("{}.{}.{}", BAGGAGE_PREFIX, SCOUTER_TAG_PREFIX, k),
+                    v.clone(),
+                ));
+            });
+        });
+        keyval_baggage
+    }
 }
 
 #[pymethods]
 impl BaseTracer {
     #[new]
     #[pyo3(signature = (name))]
-    fn new(name: String) -> Self {
-        let tracer = global::tracer(name.clone());
-        BaseTracer { tracer }
+    fn new(name: String) -> Result<Self, TraceError> {
+        let tracer = get_tracer(name)?;
+        Ok(BaseTracer { tracer })
     }
 
     /// Start a span and set it as the current span
@@ -509,17 +568,18 @@ impl BaseTracer {
     /// * `baggage` - Optional baggage items as a dictionary
     /// * `tags` - Optional tags to prefix baggage items with as a dictionary
     /// * `parent_context_id` - Optional parent context ID to link the span to (this is automatically set if not provided)
-    #[pyo3(signature = (name, kind=SpanKind::Internal, label=None, attributes=None, baggage=None, tags=None, parent_context_id=None))]
+    #[pyo3(signature = (name, kind=SpanKind::Internal, attributes=vec![], baggage=vec![], tags=vec![], label=None,  parent_context_id=None))]
     #[allow(clippy::too_many_arguments)]
+    #[instrument(skip_all)]
     fn start_as_current_span(
         &self,
         py: Python<'_>,
         name: String,
         kind: SpanKind,
+        attributes: Vec<HashMap<String, String>>,
+        baggage: Vec<HashMap<String, String>>,
+        tags: Vec<HashMap<String, String>>,
         label: Option<String>,
-        attributes: Option<HashMap<String, String>>,
-        baggage: Option<HashMap<String, String>>,
-        tags: Option<HashMap<String, String>>,
         parent_context_id: Option<String>,
     ) -> Result<ActiveSpan, TraceError> {
         // Get parent context if available
@@ -531,27 +591,29 @@ impl BaseTracer {
             .map(|parent_span_ctx| OtelContext::current().with_remote_span_context(parent_span_ctx))
             .unwrap_or_else(OtelContext::current);
 
-        // Need to update the context with baggage items
-        let final_ctx = baggage
-            .map(|baggage_items| {
-                let keyvals = Self::create_baggage_items(baggage_items, tags);
-                base_ctx.with_baggage(keyvals)
-            })
-            .unwrap_or(base_ctx);
+        // convert baggage items to vec of KeyValue
+        let baggage_items = Self::create_baggage_items(&baggage, &tags);
+
+        let final_ctx = if !baggage_items.is_empty() {
+            base_ctx.with_baggage(baggage_items)
+        } else {
+            base_ctx
+        };
 
         // Create span with the final context (this consumes final_ctx)
-        let mut span = self
-            .tracer
-            .span_builder(name.clone())
-            .with_kind(kind.to_otel_span_kind())
-            .start_with_context(&self.tracer, &final_ctx);
 
-        // Add custom attributes
-        if let Some(attrs) = attributes {
-            for (key, value) in attrs {
-                span.set_attribute(KeyValue::new(key, value));
-            }
-        }
+        let mut span = BoxedSpan::new(
+            self.tracer
+                .span_builder(name.clone())
+                .with_kind(kind.to_otel_span_kind())
+                .start_with_context(&self.tracer, &final_ctx),
+        );
+
+        attributes.iter().for_each(|attr_map| {
+            attr_map.iter().for_each(|(k, v)| {
+                span.set_attribute(KeyValue::new(k.clone(), v.clone()));
+            });
+        });
 
         // set label if provided
         if let Some(label) = label {
@@ -590,10 +652,10 @@ impl BaseTracer {
         func,
         func_args,
         kind=SpanKind::Internal,
+        attributes=vec![],
+        baggage=vec![],
+        tags=vec![],
         label=None,
-        attributes=None,
-        baggage=None,
-        tags=None,
         parent_context_id=None,
         max_length=1000,
         func_type=FunctionType::Sync,
@@ -607,10 +669,10 @@ impl BaseTracer {
         func: &Bound<'py, PyAny>,
         func_args: &Bound<'_, PyTuple>,
         kind: SpanKind,
+        attributes: Vec<HashMap<String, String>>,
+        baggage: Vec<HashMap<String, String>>,
+        tags: Vec<HashMap<String, String>>,
         label: Option<String>,
-        attributes: Option<HashMap<String, String>>,
-        baggage: Option<HashMap<String, String>>,
-        tags: Option<HashMap<String, String>>,
         parent_context_id: Option<String>,
         max_length: usize,
         func_type: FunctionType,
@@ -620,10 +682,10 @@ impl BaseTracer {
             py,
             name,
             kind,
-            label,
             attributes,
             baggage,
             tags,
+            label,
             parent_context_id,
         )?;
 
@@ -644,6 +706,10 @@ impl BaseTracer {
     pub fn current_span<'py>(&self, py: Python<'py>) -> Result<Bound<'py, PyAny>, TraceError> {
         let span = get_current_active_span(py)?;
         Ok(span)
+    }
+
+    pub fn shutdown(&self) -> Result<(), TraceError> {
+        shutdown_tracer()
     }
 }
 
@@ -667,38 +733,6 @@ impl BaseTracer {
         Ok(())
     }
 
-    fn create_baggage_items(
-        baggage: HashMap<String, String>,
-        tags: Option<HashMap<String, String>>,
-    ) -> Vec<KeyValue> {
-        let baggage_items = if let Some(tags) = tags {
-            // need to add scouter.tag.<key> = <value> to baggage
-            baggage
-                .into_iter()
-                .chain(
-                    tags.into_iter()
-                        .map(|(k, v)| (format!("{}.{}", SCOUTER_TAG_PREFIX, k), v)),
-                )
-                .collect()
-        } else {
-            baggage
-        };
-
-        let keyvals: Vec<KeyValue> = baggage_items
-            .into_iter()
-            .map(|(k, v)| {
-                let baggage_key = if k == TRACE_START_TIME_KEY {
-                    k // Don't prefix system keys
-                } else {
-                    format!("{}.{}", BAGGAGE_PREFIX, k)
-                };
-                KeyValue::new(baggage_key, v)
-            })
-            .collect();
-
-        keyvals
-    }
-
     fn set_context_id(&self, span: &mut BoxedSpan) -> Result<String, TraceError> {
         let context_id = format!("span_{}", create_uuid7());
         Self::setup_trace_metadata(self, span)?;
@@ -709,10 +743,55 @@ impl BaseTracer {
 
 /// Helper function to force flush the tracer provider
 #[pyfunction]
-pub fn force_flush() -> Result<(), TraceError> {
-    let provider = TRACER_PROVIDER.get().ok_or_else(|| {
-        TraceError::InitializationError("Tracer provider not initialized".to_string())
+pub fn flush_tracer() -> Result<(), TraceError> {
+    let store = get_tracer_provider_store();
+
+    let provider_guard = store
+        .read()
+        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+
+    let provider = provider_guard.as_ref().ok_or_else(|| {
+        TraceError::InitializationError(
+            "Tracer provider not initialized or already shut down".to_string(),
+        )
     })?;
     provider.force_flush()?;
+
     Ok(())
+}
+
+#[pyfunction]
+pub fn shutdown_tracer() -> Result<(), TraceError> {
+    info!("Shutting down tracer");
+
+    let store_arc = get_tracer_provider()?;
+    let mut store_guard = store_arc
+        .write()
+        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+
+    if let Some(provider) = store_guard.take() {
+        provider.shutdown()?;
+    } else {
+        tracing::warn!("Tracer provider was already shut down or never initialized.");
+    }
+
+    get_trace_metadata_store().clear_all()?;
+
+    Ok(())
+}
+
+fn get_tracer(name: String) -> Result<SdkTracer, TraceError> {
+    let store = get_tracer_provider_store();
+
+    let provider_guard = store
+        .read()
+        .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+
+    let provider = provider_guard.as_ref().ok_or_else(|| {
+        TraceError::InitializationError(
+            "Tracer provider not initialized or already shut down".to_string(),
+        )
+    })?;
+
+    Ok(provider.tracer(name))
 }

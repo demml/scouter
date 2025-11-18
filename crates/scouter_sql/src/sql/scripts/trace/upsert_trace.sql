@@ -1,34 +1,34 @@
 INSERT INTO scouter.traces (
     created_at,
-    trace_id, 
-    space, 
-    name, 
-    version, 
+    trace_id,
+    space,
+    name,
+    version,
     scope,
     trace_state,
-    start_time, 
-    end_time, 
-    duration_ms, 
-    status,
+    start_time,
+    end_time,
+    duration_ms,
+    status_code,
+    status_message,
     root_span_id,
-    span_count,
-    attributes
+    span_count
 )
-SELECT 
+SELECT
     created_at,
-    trace_id, 
-    space, 
-    name, 
-    version, 
-    scope, 
-    trace_state, 
-    start_time, 
-    end_time, 
-    duration_ms, 
-    status, 
-    root_span_id, 
-    1 as span_count,
-    attributes
+    trace_id,
+    space,
+    name,
+    version,
+    scope,
+    trace_state,
+    start_time,
+    end_time,
+    duration_ms,
+    status_code,
+    status_message,
+    root_span_id,
+    span_count
 FROM UNNEST(
     $1::timestamptz[],  -- created_at
     $2::text[],        -- trace_id
@@ -40,28 +40,32 @@ FROM UNNEST(
     $8::timestamptz[], -- start_time
     $9::timestamptz[], -- end_time
     $10::bigint[],      -- duration_ms
-    $11::text[],       -- status
-    $12::text[],       -- root_span_id
-    $13::jsonb[]       -- attributes
+    $11::integer[],       -- status_code
+    $12::text[],       -- status_message
+    $13::text[],       -- root_span_id
+    $14::integer[]    -- span_count
 ) AS t(
         created_at,
-        trace_id, 
-        space, 
-        name, 
-        version, 
-        scope, 
-        trace_state, 
-        start_time, 
-        end_time, 
-        duration_ms, 
-        status, 
-        root_span_id, 
-        attributes
+        trace_id,
+        space,
+        name,
+        version,
+        scope,
+        trace_state,
+        start_time,
+        end_time,
+        duration_ms,
+        status_code,
+        status_message,
+        root_span_id,
+        span_count
     )
 ON CONFLICT (created_at, trace_id, scope) DO UPDATE SET
+    -- Only updating fields that can change over time
     end_time = EXCLUDED.end_time,
-    duration_ms = EXCLUDED.duration_ms,
-    status = EXCLUDED.status,
-    span_count = scouter.traces.span_count + 1, 
+    duration_ms = EXTRACT(EPOCH FROM (EXCLUDED.end_time - scouter.traces.start_time)) * 1000,
+    status_code = EXCLUDED.status_code,
+    status_message = EXCLUDED.status_message,
+    span_count = scouter.traces.span_count + EXCLUDED.span_count,
     trace_state = EXCLUDED.trace_state,
     updated_at = NOW();

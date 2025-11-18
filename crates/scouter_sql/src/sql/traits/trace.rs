@@ -4,9 +4,9 @@ use crate::sql::query::Queries;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::multiunzip;
+use scouter_types::sql::{TraceFilters, TraceListItem, TraceMetricBucket, TraceSpan};
 use scouter_types::{TraceBaggageRecord, TraceRecord, TraceSpanRecord};
-use sqlx::{postgres::PgQueryResult, Pool, Postgres};
-use std::result::Result::Ok;
+use sqlx::{postgres::PgQueryResult, types::Json, Pool, Postgres};
 
 #[async_trait]
 pub trait TraceSqlLogic {
@@ -18,7 +18,7 @@ pub trait TraceSqlLogic {
     /// * `traces` - The trace records to insert
     async fn upsert_trace_batch(
         pool: &Pool<Postgres>,
-        traces: &Vec<TraceRecord>,
+        traces: &[TraceRecord],
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::UpsertTrace.get_query();
         let capacity = traces.len();
@@ -34,9 +34,10 @@ pub trait TraceSqlLogic {
         let mut start_time = Vec::with_capacity(capacity);
         let mut end_time = Vec::with_capacity(capacity);
         let mut duration_ms = Vec::with_capacity(capacity);
-        let mut status = Vec::with_capacity(capacity);
+        let mut status_code = Vec::with_capacity(capacity);
+        let mut status_message = Vec::with_capacity(capacity);
         let mut root_span_id = Vec::with_capacity(capacity);
-        let mut attributes = Vec::with_capacity(capacity);
+        let mut span_count = Vec::with_capacity(capacity);
 
         // Single-pass extraction for performance
         for r in traces {
@@ -50,9 +51,10 @@ pub trait TraceSqlLogic {
             start_time.push(r.start_time);
             end_time.push(r.end_time);
             duration_ms.push(r.duration_ms);
-            status.push(r.status.as_str());
+            status_code.push(r.status_code);
+            status_message.push(r.status_message.clone());
             root_span_id.push(r.root_span_id.as_str());
-            attributes.push(r.attributes.clone());
+            span_count.push(r.span_count);
         }
 
         let query_result = sqlx::query(&query.sql)
@@ -66,9 +68,10 @@ pub trait TraceSqlLogic {
             .bind(start_time)
             .bind(end_time)
             .bind(duration_ms)
-            .bind(status)
+            .bind(status_code)
+            .bind(status_message)
             .bind(root_span_id)
-            .bind(attributes)
+            .bind(span_count)
             .execute(pool)
             .await?;
 
@@ -82,7 +85,7 @@ pub trait TraceSqlLogic {
     /// * `spans` - The trace span records to insert
     async fn insert_span_batch(
         pool: &Pool<Postgres>,
-        spans: &Vec<TraceSpanRecord>,
+        spans: &[TraceSpanRecord],
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertTraceSpan.get_query();
         let capacity = spans.len();
@@ -107,6 +110,9 @@ pub trait TraceSqlLogic {
         let mut attributes = Vec::with_capacity(capacity);
         let mut events = Vec::with_capacity(capacity);
         let mut links = Vec::with_capacity(capacity);
+        let mut labels = Vec::with_capacity(capacity);
+        let mut input = Vec::with_capacity(capacity);
+        let mut output = Vec::with_capacity(capacity);
 
         // Single iteration for maximum efficiency
         for span in spans {
@@ -123,11 +129,14 @@ pub trait TraceSqlLogic {
             start_time.push(span.start_time);
             end_time.push(span.end_time);
             duration_ms.push(span.duration_ms);
-            status_code.push(span.status_code.as_str());
+            status_code.push(span.status_code);
             status_message.push(span.status_message.as_str());
-            attributes.push(span.attributes.clone());
-            events.push(span.events.clone());
-            links.push(span.links.clone());
+            attributes.push(Json(span.attributes.clone()));
+            events.push(Json(span.events.clone()));
+            links.push(Json(span.links.clone()));
+            labels.push(span.label.as_deref());
+            input.push(Json(span.input.clone()));
+            output.push(Json(span.output.clone()));
         }
 
         let query_result = sqlx::query(&query.sql)
@@ -149,6 +158,9 @@ pub trait TraceSqlLogic {
             .bind(attributes)
             .bind(events)
             .bind(links)
+            .bind(labels)
+            .bind(input)
+            .bind(output)
             .execute(pool)
             .await?;
 
@@ -160,17 +172,14 @@ pub trait TraceSqlLogic {
     /// # Arguments
     /// * `pool` - The database connection pool
     /// * `baggage` - The trace baggage records to insert
-    async fn insert_baggage_batch(
+    async fn insert_trace_baggage_batch(
         pool: &Pool<Postgres>,
         baggage: &[TraceBaggageRecord],
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertTraceBaggage.get_query();
 
-        let (created_at, trace_id, scope, key, value, space, name, version): (
+        let (created_at, trace_id, scope, key, value): (
             Vec<DateTime<Utc>>,
-            Vec<&str>,
-            Vec<&str>,
-            Vec<&str>,
             Vec<&str>,
             Vec<&str>,
             Vec<&str>,
@@ -182,9 +191,6 @@ pub trait TraceSqlLogic {
                 b.scope.as_str(),
                 b.key.as_str(),
                 b.value.as_str(),
-                b.space.as_str(),
-                b.name.as_str(),
-                b.version.as_str(),
             )
         }));
 
@@ -194,9 +200,113 @@ pub trait TraceSqlLogic {
             .bind(scope)
             .bind(key)
             .bind(value)
+            .execute(pool)
+            .await?;
+
+        Ok(query_result)
+    }
+
+    async fn get_trace_baggage_records(
+        pool: &Pool<Postgres>,
+        trace_id: &str,
+    ) -> Result<Vec<TraceBaggageRecord>, SqlError> {
+        let query = Queries::GetTraceBaggage.get_query();
+
+        let baggage_items: Result<Vec<TraceBaggageRecord>, SqlError> = sqlx::query_as(&query.sql)
+            .bind(trace_id)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError);
+
+        baggage_items
+    }
+
+    /// Attempts to retrieve paginated trace records from the database based on provided filters.
+    /// # Arguments
+    /// * `pool` - The database connection pool
+    /// * `filters` - The filters to apply for retrieving traces
+    /// # Returns
+    /// * A vector of `TraceListItem` matching the filters
+    async fn get_traces_paginated(
+        pool: &Pool<Postgres>,
+        filters: TraceFilters,
+    ) -> Result<Vec<TraceListItem>, SqlError> {
+        let default_start = Utc::now() - chrono::Duration::hours(24);
+        let default_end = Utc::now();
+
+        let query = Queries::GetPaginatedTraces.get_query();
+
+        let trace_items: Result<Vec<TraceListItem>, SqlError> = sqlx::query_as(&query.sql)
+            .bind(filters.space)
+            .bind(filters.name)
+            .bind(filters.version)
+            .bind(filters.service_name)
+            .bind(filters.has_errors)
+            .bind(filters.status_code)
+            .bind(filters.start_time.unwrap_or(default_start))
+            .bind(filters.end_time.unwrap_or(default_end))
+            .bind(filters.limit.unwrap_or(50))
+            .bind(filters.cursor_created_at)
+            .bind(filters.cursor_trace_id)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError);
+
+        trace_items
+    }
+
+    /// Attempts to retrieve trace spans for a given trace ID.
+    /// # Arguments
+    /// * `pool` - The database connection pool
+    /// * `trace_id` - The trace ID to retrieve spans for
+    /// # Returns
+    /// * A vector of `TraceSpan` associated with the trace ID
+    async fn get_trace_spans(
+        pool: &Pool<Postgres>,
+        trace_id: &str,
+    ) -> Result<Vec<TraceSpan>, SqlError> {
+        let query = Queries::GetTraceSpans.get_query();
+        let trace_items: Result<Vec<TraceSpan>, SqlError> = sqlx::query_as(&query.sql)
+            .bind(trace_id)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError);
+
+        trace_items
+    }
+
+    /// Attempts to retrieve trace spans for a given trace ID.
+    /// # Arguments
+    /// * `pool` - The database connection pool
+    /// * `trace_id` - The trace ID to retrieve spans for
+    /// # Returns
+    /// * A vector of `TraceSpan` associated with the trace ID
+    async fn get_trace_metrics(
+        pool: &Pool<Postgres>,
+        space: Option<&str>,
+        name: Option<&str>,
+        version: Option<&str>,
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+        bucket_interval_str: &str,
+    ) -> Result<Vec<TraceMetricBucket>, SqlError> {
+        let query = Queries::GetTraceMetrics.get_query();
+        let trace_items: Result<Vec<TraceMetricBucket>, SqlError> = sqlx::query_as(&query.sql)
             .bind(space)
             .bind(name)
             .bind(version)
+            .bind(start_time)
+            .bind(end_time)
+            .bind(bucket_interval_str)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError);
+
+        trace_items
+    }
+
+    async fn refresh_trace_summary(pool: &Pool<Postgres>) -> Result<PgQueryResult, SqlError> {
+        let query_result = sqlx::query("REFRESH MATERIALIZED VIEW scouter.trace_summary;")
             .execute(pool)
             .await?;
 

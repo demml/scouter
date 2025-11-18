@@ -2,11 +2,26 @@
 
 """Tracing utilities for Scouter using OpenTelemetry."""
 
+import datetime
 from types import TracebackType
-from typing import Any, Callable, Optional, ParamSpec, TypeVar
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Optional,
+    ParamSpec,
+    TypeAlias,
+    TypeVar,
+    Union,
+)
+
+from ..transport import HTTPConfig, KafkaConfig, RabbitMQConfig, RedisConfig
+from ..types import CompressionType
 
 P = ParamSpec("P")
 R = TypeVar("R")
+SerializedType: TypeAlias = Union[str, int, float, dict, list]
 
 def get_function_type(func: Callable[..., Any]) -> FunctionType:
     """Determine the function type (sync, async, generator, async generator).
@@ -19,6 +34,12 @@ def get_function_type(func: Callable[..., Any]) -> FunctionType:
             The determined function type.
     """
     ...
+
+class Protocol:
+    """Enumeration of protocols for HTTP exporting."""
+
+    HttpBinary: "Protocol"
+    HttpJson: "Protocol"
 
 class SpanKind:
     """Enumeration of span kinds."""
@@ -58,13 +79,12 @@ class Tracer(BaseTracer):
         self,
         name: Optional[str] = None,
         kind: SpanKind = SpanKind.Internal,
+        attributes: List[dict[str, str]] = [],
+        baggage: List[dict[str, str]] = [],
+        tags: List[dict[str, str]] = [],
         label: Optional[str] = None,
-        attributes: Optional[dict[str, str]] = None,
-        baggage: Optional[dict[str, str]] = None,
-        tags: Optional[dict[str, str]] = None,
         parent_context_id: Optional[str] = None,
         max_length: int = 1000,
-        func_type: FunctionType = FunctionType.Sync,
         capture_last_stream_item: bool = False,
         join_stream_items: bool = False,
         *args,
@@ -170,20 +190,77 @@ def get_tracer(name: str) -> Tracer:
     """
     ...
 
+class BatchConfig:
+    """Configuration for batch exporting of spans."""
+
+    def __init__(
+        self,
+        max_queue_size: int = 2048,
+        scheduled_delay_ms: int = 5000,
+        max_export_batch_size: int = 512,
+    ) -> None:
+        """Initialize the BatchConfig.
+
+        Args:
+            max_queue_size (int):
+                The maximum queue size for spans. Defaults to 2048.
+            scheduled_delay_ms (int):
+                The delay in milliseconds between export attempts. Defaults to 5000.
+            max_export_batch_size (int):
+                The maximum batch size for exporting spans. Defaults to 512.
+        """
+        ...
+
 def init_tracer(
-    name: Optional[str] = None,
-    endpoint: Optional[str] = None,
-    sample_ratio: Optional[str] = None,
+    service_name: str = "scouter_service",
+    transport_config: HTTPConfig | KafkaConfig | RabbitMQConfig | RedisConfig = HTTPConfig(),
+    exporter: HttpSpanExporter | StdoutSpanExporter | TestSpanExporter = StdoutSpanExporter(),  # noqa: F821
+    batch_config: Optional[BatchConfig] = None,
+    profile_space: Optional[str] = None,
+    profile_name: Optional[str] = None,
+    profile_version: Optional[str] = None,
 ) -> None:
-    """Initialize the tracer with the given service name.
+    """Initialize the tracer for a service with specific transport and exporter configurations.
+
+    This function configures a service tracer, allowing for the specification of
+    the service name, the transport mechanism for exporting spans, and the chosen
+    span exporter.
 
     Args:
-        name (Optional[str]):
-            The name of the service for tracing.
-        endpoint (Optional[str]):
-            The endpoint for exporting traces.
-        sample_ratio (Optional[str]):
-            The sampling ratio for traces.
+        service_name (str):
+            The **required** name of the service this tracer is associated with.
+            This is typically a logical identifier for the application or component.
+        transport_config (HTTPConfig | KafkaConfig | RabbitMQConfig | RedisConfig | None):
+            The configuration detailing how spans should be sent out.
+            If **None**, a default `HTTPConfig` will be used.
+
+            The supported configuration types are:
+            * `HTTPConfig`: Configuration for exporting via HTTP/gRPC.
+            * `KafkaConfig`: Configuration for exporting to a Kafka topic.
+            * `RabbitMQConfig`: Configuration for exporting to a RabbitMQ queue.
+            * `RedisConfig`: Configuration for exporting to a Redis stream or channel.
+        exporter (HttpSpanExporter | StdoutSpanExporter | TestSpanExporter | None):
+            The span exporter implementation to use.
+            If **None**, a default `StdoutSpanExporter` is used.
+
+            Available exporters:
+            * `HttpSpanExporter`: Sends spans to an HTTP endpoint (e.g., an OpenTelemetry collector).
+            * `StdoutSpanExporter`: Writes spans directly to standard output for debugging.
+            * `TestSpanExporter`: Collects spans in memory, primarily for unit testing.
+        batch_config (BatchConfig | None):
+            Configuration for the batching process. If provided, spans will be queued
+            and exported in batches according to these settings. If `None`, and the
+            exporter supports batching, default batch settings will be applied.
+
+    Drift Profile Association (Optional):
+        Use these parameters to associate the tracer with a specific drift profile.
+
+        profile_space (str | None):
+            The space for the drift profile.
+        profile_name (str | None):
+            A name of the associated drift profile or service.
+        profile_version (str | None):
+            The version of the drift profile.
     """
 
 class ActiveSpan:
@@ -194,13 +271,13 @@ class ActiveSpan:
         """Get the context ID of the active span."""
         ...
 
-    def set_attribute(self, key: str, value: str) -> None:
+    def set_attribute(self, key: str, value: SerializedType) -> None:
         """Set an attribute on the active span.
 
         Args:
             key (str):
                 The attribute key.
-            value (str):
+            value (SerializedType):
                 The attribute value.
         """
         ...
@@ -266,7 +343,7 @@ class ActiveSpan:
         """Exit the span context."""
         ...
 
-    def __aenter__(self) -> "ActiveSpan":
+    async def __aenter__(self) -> "ActiveSpan":
         """Enter the async span context."""
         ...
 
@@ -292,6 +369,7 @@ class BaseTracer:
         self,
         name: str,
         kind: Optional[SpanKind] = SpanKind.Internal,
+        label: Optional[str] = None,
         attributes: Optional[dict[str, str]] = None,
         baggage: Optional[dict[str, str]] = None,
         tags: Optional[dict[str, str]] = None,
@@ -304,6 +382,8 @@ class BaseTracer:
                 The name of the span.
             kind (Optional[SpanKind]):
                 The kind of span (e.g., "SERVER", "CLIENT").
+            label (Optional[str]):
+                An optional label for the span.
             attributes (Optional[dict[str, str]]):
                 Optional attributes to set on the span.
             baggage (Optional[dict[str, str]]):
@@ -316,3 +396,311 @@ class BaseTracer:
             ActiveSpan:
         """
         ...
+
+class StdoutSpanExporter:
+    """Exporter that outputs spans to standard output (stdout)."""
+
+    def __init__(
+        self,
+        batch_export: bool = False,
+        sample_ratio: Optional[float] = None,
+    ) -> None:
+        """Initialize the StdoutSpanExporter.
+
+        Args:
+            batch_export (bool):
+                Whether to use batch exporting. Defaults to False.
+            sample_ratio (Optional[float]):
+                The sampling ratio for traces. If None, defaults to always sample.
+        """
+
+    @property
+    def batch_export(self) -> bool:
+        """Get whether batch exporting is enabled."""
+        ...
+
+    @property
+    def sample_ratio(self) -> Optional[float]:
+        """Get the sampling ratio."""
+        ...
+
+def flush_tracer() -> None:
+    """Force flush the tracer's exporter."""
+    ...
+
+class ExportConfig:
+    """Configuration for exporting spans."""
+
+    def __init__(
+        self,
+        endpoint: Optional[str],
+        protocol: Protocol = Protocol.HttpBinary,
+        timeout: Optional[int] = None,
+    ) -> None:
+        """Initialize the ExportConfig.
+
+        Args:
+            endpoint (Optional[str]):
+                The HTTP endpoint for exporting spans.
+            protocol (Protocol):
+                The protocol to use for exporting spans. Defaults to HttpBinary.
+            timeout (Optional[int]):
+                The timeout for HTTP requests in seconds.
+        """
+
+        ...
+
+    @property
+    def endpoint(self) -> Optional[str]:
+        """Get the HTTP endpoint for exporting spans."""
+        ...
+
+    @property
+    def protocol(self) -> Protocol:
+        """Get the protocol used for exporting spans."""
+        ...
+
+    @property
+    def timeout(self) -> Optional[int]:
+        """Get the timeout for HTTP requests in seconds."""
+        ...
+
+class HttpConfig:
+    """Configuration for HTTP exporting."""
+
+    def __init__(
+        self,
+        headers: Optional[dict[str, str]] = None,
+        compression: Optional[CompressionType] = None,
+    ) -> None:
+        """Initialize the HttpConfig.
+
+        Args:
+            headers (Optional[dict[str, str]]):
+                Optional HTTP headers to include in requests.
+            compression (Optional[CompressionType]):
+                Optional compression type for HTTP requests.
+        """
+
+    @property
+    def headers(self) -> Optional[dict[str, str]]:
+        """Get the HTTP headers."""
+        ...
+
+    @property
+    def compression(self) -> Optional[CompressionType]:
+        """Get the compression type."""
+        ...
+
+class HttpSpanExporter:
+    """Exporter that sends spans to an HTTP endpoint."""
+
+    def __init__(
+        self,
+        batch_export: bool = True,
+        export_config: Optional[ExportConfig] = None,
+        http_config: Optional[HttpConfig] = None,
+        sample_ratio: Optional[float] = None,
+    ) -> None:
+        """Initialize the HttpSpanExporter.
+
+        Args:
+            batch_export (bool):
+                Whether to use batch exporting. Defaults to True.
+            export_config (Optional[ExportConfig]):
+                Configuration for exporting spans.
+            http_config (Optional[HttpConfig]):
+                Configuration for the HTTP exporter.
+            sample_ratio (Optional[float]):
+                The sampling ratio for traces. If None, defaults to always sample.
+        """
+
+    @property
+    def sample_ratio(self) -> Optional[float]:
+        """Get the sampling ratio."""
+        ...
+
+    @property
+    def batch_export(self) -> bool:
+        """Get whether batch exporting is enabled."""
+        ...
+
+    @property
+    def endpoint(self) -> Optional[str]:
+        """Get the HTTP endpoint for exporting spans."""
+        ...
+
+    @property
+    def protocol(self) -> Protocol:
+        """Get the protocol used for exporting spans."""
+        ...
+
+    @property
+    def timeout(self) -> Optional[int]:
+        """Get the timeout for HTTP requests in seconds."""
+        ...
+
+    @property
+    def headers(self) -> Optional[dict[str, str]]:
+        """Get the HTTP headers used for exporting spans."""
+        ...
+
+    @property
+    def compression(self) -> Optional[CompressionType]:
+        """Get the compression type used for exporting spans."""
+        ...
+
+class GrpcConfig:
+    """Configuration for gRPC exporting."""
+
+    def __init__(self, compression: Optional[CompressionType] = None) -> None:
+        """Initialize the GrpcConfig.
+
+        Args:
+            compression (Optional[CompressionType]):
+                Optional compression type for gRPC requests.
+        """
+
+    @property
+    def compression(self) -> Optional[CompressionType]:
+        """Get the compression type."""
+        ...
+
+class GrpcSpanExporter:
+    """Exporter that sends spans to a gRPC endpoint."""
+
+    def __init__(
+        self,
+        batch_export: bool = True,
+        export_config: Optional[ExportConfig] = None,
+        grpc_config: Optional[GrpcConfig] = None,
+        sample_ratio: Optional[float] = None,
+    ) -> None:
+        """Initialize the GrpcSpanExporter.
+
+        Args:
+            batch_export (bool):
+                Whether to use batch exporting. Defaults to True.
+            export_config (Optional[ExportConfig]):
+                Configuration for exporting spans.
+            grpc_config (Optional[GrpcConfig]):
+                Configuration for the gRPC exporter.
+            sample_ratio (Optional[float]):
+                The sampling ratio for traces. If None, defaults to always sample.
+        """
+
+    @property
+    def sample_ratio(self) -> Optional[float]:
+        """Get the sampling ratio."""
+        ...
+
+    @property
+    def batch_export(self) -> bool:
+        """Get whether batch exporting is enabled."""
+        ...
+
+    @property
+    def endpoint(self) -> Optional[str]:
+        """Get the gRPC endpoint for exporting spans."""
+        ...
+
+    @property
+    def protocol(self) -> Protocol:
+        """Get the protocol used for exporting spans."""
+        ...
+
+    @property
+    def timeout(self) -> Optional[int]:
+        """Get the timeout for gRPC requests in seconds."""
+        ...
+
+    @property
+    def compression(self) -> Optional[CompressionType]:
+        """Get the compression type used for exporting spans."""
+        ...
+
+class TraceRecord:
+    created_at: datetime.datetime
+    trace_id: str
+    space: str
+    name: str
+    version: str
+    scope: str
+    trace_state: str
+    start_time: datetime.datetime
+    end_time: datetime.datetime
+    duration_ms: int
+    status: str
+    root_span_id: str
+    attributes: Optional[dict]
+
+    def get_attributes(self) -> Dict[str, Any]: ...
+
+class TraceSpanRecord:
+    created_at: datetime.datetime
+    span_id: str
+    trace_id: str
+    parent_span_id: Optional[str]
+    space: str
+    name: str
+    version: str
+    scope: str
+    span_name: str
+    span_kind: str
+    start_time: datetime.datetime
+    end_time: datetime.datetime
+    duration_ms: int
+    status_code: str
+    status_message: str
+    attributes: dict
+    events: dict
+    links: dict
+
+    def get_attributes(self) -> Dict[str, Any]: ...
+    def get_events(self) -> Dict[str, Any]: ...
+    def get_links(self) -> Dict[str, Any]: ...
+    def __str__(self) -> str: ...
+
+class TraceBaggageRecord:
+    created_at: datetime.datetime
+    trace_id: str
+    scope: str
+    key: str
+    value: str
+    space: str
+    name: str
+    version: str
+
+class TestSpanExporter:
+    """Exporter for testing that collects spans in memory."""
+
+    def __init__(self, batch_export: bool = True) -> None:
+        """Initialize the TestSpanExporter.
+
+        Args:
+            batch_export (bool):
+                Whether to use batch exporting. Defaults to True.
+        """
+
+    @property
+    def traces(self) -> list[TraceRecord]:
+        """Get the collected trace records."""
+        ...
+
+    @property
+    def spans(self) -> list[TraceSpanRecord]:
+        """Get the collected trace span records."""
+        ...
+
+    @property
+    def baggage(self) -> list[TraceBaggageRecord]:
+        """Get the collected trace baggage records."""
+        ...
+
+    def clear(self) -> None:
+        """Clear all collected trace records."""
+        ...
+
+def shutdown_tracer() -> None:
+    """Shutdown the tracer and flush any remaining spans."""
+    ...

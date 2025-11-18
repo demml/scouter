@@ -39,6 +39,12 @@ pub enum TraceError {
 
     #[error("Invalid function type: {0}")]
     InvalidFunctionType(String),
+
+    #[error("Unsupported SpanExporter type")]
+    UnsupportedSpanExporterType,
+
+    #[error(transparent)]
+    EventError(#[from] scouter_events::error::EventError),
 }
 
 impl<'a> From<pyo3::DowncastError<'a, 'a>> for TraceError {

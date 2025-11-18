@@ -18,7 +18,6 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::Arc;
 use std::sync::RwLock;
-use tokio::runtime;
 use tokio::sync::mpsc::UnboundedReceiver;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, instrument};
@@ -52,7 +51,6 @@ impl QueueNum {
     pub async fn new(
         transport_config: TransportConfig,
         drift_profile: DriftProfile,
-        runtime: Arc<runtime::Runtime>,
         task_state: &mut TaskState,
     ) -> Result<Self, EventError> {
         let identifier = drift_profile.identifier();
@@ -62,25 +60,14 @@ impl QueueNum {
                 Ok(QueueNum::Spc(queue))
             }
             DriftProfile::Psi(psi_profile) => {
-                let queue = PsiQueue::new(
-                    psi_profile,
-                    transport_config,
-                    runtime,
-                    task_state,
-                    identifier,
-                )
-                .await?;
+                let queue =
+                    PsiQueue::new(psi_profile, transport_config, task_state, identifier).await?;
                 Ok(QueueNum::Psi(queue))
             }
             DriftProfile::Custom(custom_profile) => {
-                let queue = CustomQueue::new(
-                    custom_profile,
-                    transport_config,
-                    runtime,
-                    task_state,
-                    identifier,
-                )
-                .await?;
+                let queue =
+                    CustomQueue::new(custom_profile, transport_config, task_state, identifier)
+                        .await?;
                 Ok(QueueNum::Custom(queue))
             }
             DriftProfile::LLM(llm_profile) => {
@@ -169,7 +156,6 @@ async fn spawn_queue_event_handler(
     mut event_rx: UnboundedReceiver<Event>,
     transport_config: TransportConfig,
     drift_profile: DriftProfile,
-    runtime: Arc<runtime::Runtime>,
     id: String,
     mut task_state: TaskState,
     cancellation_token: CancellationToken,
@@ -181,14 +167,13 @@ async fn spawn_queue_event_handler(
     // - Custom - will also create a background task
     // - LLM
     // event loops are used to monitor the background tasks of both custom and PSI queues
-    let mut queue =
-        match QueueNum::new(transport_config, drift_profile, runtime, &mut task_state).await {
-            Ok(q) => q,
-            Err(e) => {
-                error!("Failed to initialize queue {}: {}", id, e);
-                return Err(e);
-            }
-        };
+    let mut queue = match QueueNum::new(transport_config, drift_profile, &mut task_state).await {
+        Ok(q) => q,
+        Err(e) => {
+            error!("Failed to initialize queue {}: {}", id, e);
+            return Err(e);
+        }
+    };
 
     task_state.set_event_running(true);
     debug!("Event loop for queue {} set to running", id);
@@ -256,7 +241,6 @@ async fn spawn_queue_event_handler(
 #[pyclass]
 pub struct ScouterQueue {
     queues: HashMap<String, Py<QueueBus>>,
-    _shared_runtime: Arc<tokio::runtime::Runtime>,
     transport_config: TransportConfig,
     pub queue_state: Arc<HashMap<String, TaskState>>,
 }
@@ -287,9 +271,7 @@ impl ScouterQueue {
         path: HashMap<String, PathBuf>,
         transport_config: &Bound<'_, PyAny>,
     ) -> Result<Self, PyEventError> {
-        // create a tokio runtime to run the background tasks
-        let shared_runtime = app_state().start_runtime();
-        ScouterQueue::from_path_rs(py, path, transport_config, shared_runtime, false)
+        ScouterQueue::from_path_rs(py, path, transport_config, false)
     }
 
     /// Get a queue by its alias
@@ -386,7 +368,6 @@ impl ScouterQueue {
         py: Python,
         path: HashMap<String, PathBuf>,
         transport_config: &Bound<'_, PyAny>,
-        shared_runtime: Arc<tokio::runtime::Runtime>,
         wait_for_startup: bool,
     ) -> Result<Self, PyEventError> {
         debug!("Creating ScouterQueue from path");
@@ -416,17 +397,16 @@ impl ScouterQueue {
             let cloned_cancellation_token = cancellation_token.clone();
 
             // queue args
-            let clone_runtime = shared_runtime.clone();
+            let runtime_handle = app_state().handle();
             let id_clone = id.clone();
             let cloned_event_state = event_state.clone();
 
             // Spawn the task without waiting for initialization
-            let handle = shared_runtime.spawn(async move {
+            let handle = runtime_handle.spawn(async move {
                 match spawn_queue_event_handler(
                     event_rx,
                     cloned_config,
                     drift_profile,
-                    clone_runtime,
                     id_clone,
                     cloned_event_state,
                     cloned_cancellation_token,
@@ -459,8 +439,6 @@ impl ScouterQueue {
 
         Ok(ScouterQueue {
             queues,
-            // need to keep the runtime alive for the life of ScouterQueue
-            _shared_runtime: shared_runtime,
             transport_config: config,
             queue_state: Arc::new(queue_state),
         })

@@ -1,12 +1,10 @@
 use crate::error::RecordError;
+use crate::trace::TraceServerRecord;
 use crate::PyHelperFuncs;
 use crate::Status;
+use crate::TagRecord;
 use chrono::DateTime;
 use chrono::Utc;
-use opentelemetry_proto::tonic::collector::trace::v1::ExportTraceServiceRequest;
-use opentelemetry_proto::tonic::common::v1::any_value::Value as ProtoAnyValue;
-use opentelemetry_proto::tonic::trace::v1::span::SpanKind;
-use opentelemetry_proto::tonic::trace::v1::Span;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use serde::{Deserialize, Serialize};
@@ -14,19 +12,6 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
-
-pub const FUNCTION_TYPE: &str = "function.type";
-pub const FUNCTION_STREAMING: &str = "function.streaming";
-pub const FUNCTION_NAME: &str = "function.name";
-pub const FUNCTION_MODULE: &str = "function.module";
-pub const FUNCTION_QUALNAME: &str = "function.qualname";
-pub const SCOUTER_TRACING_INPUT: &str = "scouter.tracing.input";
-pub const SCOUTER_TRACING_OUTPUT: &str = "scouter.tracing.output";
-pub const SCOUTER_TRACING_LABEL: &str = "scouter.tracing.label";
-pub const SERVICE_NAME: &str = "service.name";
-pub const SCOUTER_TAG_PREFIX: &str = "scouter.tracing.tag";
-pub const BAGGAGE_PREFIX: &str = "baggage";
-pub const TRACE_START_TIME_KEY: &str = "scouter.tracing.start_time";
 
 #[pyclass(eq)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
@@ -703,380 +688,10 @@ fn extract_records<T>(
     Ok(records)
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
-pub struct TraceRecord {
-    pub created_at: DateTime<Utc>,
-    pub trace_id: String,
-    pub space: String,
-    pub name: String,
-    pub version: String,
-    pub scope: String,
-    pub trace_state: String,
-    pub start_time: chrono::DateTime<Utc>,
-    pub end_time: chrono::DateTime<Utc>,
-    pub duration_ms: i64,
-    pub status: String,
-    pub root_span_id: String,
-    pub attributes: Option<Value>,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
-pub struct TraceSpanRecord {
-    pub created_at: chrono::DateTime<Utc>,
-    pub span_id: String,
-    pub trace_id: String,
-    pub parent_span_id: Option<String>,
-    pub space: String,
-    pub name: String,
-    pub version: String,
-    pub scope: String,
-    pub span_name: String,
-    pub span_kind: String,
-    pub start_time: chrono::DateTime<Utc>,
-    pub end_time: chrono::DateTime<Utc>,
-    pub duration_ms: i64,
-    pub status_code: String,
-    pub status_message: String,
-    pub attributes: Value,
-    pub events: Value,
-    pub links: Value,
-}
-
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
-pub struct TraceBaggageRecord {
-    pub created_at: DateTime<Utc>,
-    pub trace_id: String,
-    pub scope: String,
-    pub key: String,
-    pub value: String,
-    pub space: String,
-    pub name: String,
-    pub version: String,
-}
-
-pub type TraceRecords = (
-    Vec<TraceRecord>,
-    Vec<TraceSpanRecord>,
-    Vec<TraceBaggageRecord>,
-);
-
-#[derive(Clone, Debug, Serialize, Deserialize, Default)]
-pub struct TraceServerRecord {
-    pub space: String,
-    pub name: String,
-    pub version: String,
-    pub request: ExportTraceServiceRequest,
-}
-
-impl TraceServerRecord {
-    /// Safely convert OpenTelemetry timestamps to DateTime<Utc> and calculate duration
-    ///
-    /// # Arguments
-    /// * `start_time` - Start timestamp in nanoseconds since Unix epoch
-    /// * `end_time` - End timestamp in nanoseconds since Unix epoch
-    ///
-    /// # Returns
-    /// Tuple of (start_time, end_time, duration_ms) with proper error handling
-    fn extract_time(start_time: u64, end_time: u64) -> (DateTime<Utc>, DateTime<Utc>, i64) {
-        // Safe timestamp conversion with bounds checking
-        let start_dt = Self::safe_timestamp_conversion(start_time);
-        let end_dt = Self::safe_timestamp_conversion(end_time);
-
-        // Calculate duration with overflow protection
-        let duration_ms = if end_time >= start_time {
-            let duration_nanos = end_time.saturating_sub(start_time);
-            (duration_nanos / 1_000_000).min(i64::MAX as u64) as i64
-        } else {
-            tracing::warn!(
-                start_time = start_time,
-                end_time = end_time,
-                "Invalid timestamp order detected in trace span"
-            );
-            0
-        };
-
-        (start_dt, end_dt, duration_ms)
-    }
-
-    /// Safely convert u64 nanosecond timestamp to DateTime<Utc>
-    fn safe_timestamp_conversion(timestamp_nanos: u64) -> DateTime<Utc> {
-        if timestamp_nanos <= i64::MAX as u64 {
-            DateTime::from_timestamp_nanos(timestamp_nanos as i64)
-        } else {
-            let seconds = timestamp_nanos / 1_000_000_000;
-            let nanoseconds = (timestamp_nanos % 1_000_000_000) as u32;
-
-            DateTime::from_timestamp(seconds as i64, nanoseconds).unwrap_or_else(|| {
-                tracing::warn!(
-                    timestamp = timestamp_nanos,
-                    seconds = seconds,
-                    nanoseconds = nanoseconds,
-                    "Failed to convert large timestamp, falling back to current time"
-                );
-                Utc::now()
-            })
-        }
-    }
-
-    /// Safely convert span kind i32 to string with proper error handling
-    fn span_kind_to_string(kind: i32) -> String {
-        SpanKind::try_from(kind)
-            .map(|sk| {
-                sk.as_str_name()
-                    .strip_prefix("SPAN_KIND_")
-                    .unwrap_or(sk.as_str_name())
-            })
-            .unwrap_or("UNSPECIFIED")
-            .to_string()
-    }
-
-    /// Convert to TraceRecord
-    #[allow(clippy::too_many_arguments)]
-    pub fn convert_to_trace_record(
-        &self,
-        span: &Span,
-        scope_name: &str,
-        scope_attributes: Option<Value>,
-        space: &str,
-        name: &str,
-        version: &str,
-        start_time: DateTime<Utc>,
-        end_time: DateTime<Utc>,
-        duration_ms: i64,
-    ) -> TraceRecord {
-        TraceRecord {
-            created_at: Self::get_trace_start_time_attribute(span, &start_time),
-            trace_id: hex::encode(&span.trace_id),
-            space: space.to_owned(),
-            name: name.to_owned(),
-            version: version.to_owned(),
-            scope: scope_name.to_string(),
-            trace_state: span.trace_state.clone(),
-            start_time,
-            end_time,
-            duration_ms,
-            // More efficient status formatting
-            status: match &span.status {
-                Some(status) => format!("{:?}", status),
-                None => "Unknown".to_string(),
-            },
-            root_span_id: hex::encode(&span.span_id),
-            attributes: scope_attributes.clone(),
-        }
-    }
-
-    /// Filter and extract trace start time attribute from span attributes
-    /// This is a global scouter attribute that indicates the trace start time and is set across all spans
-    pub fn get_trace_start_time_attribute(
-        span: &Span,
-        start_time: &DateTime<Utc>,
-    ) -> DateTime<Utc> {
-        for attr in &span.attributes {
-            if attr.key == TRACE_START_TIME_KEY {
-                if let Some(value) = &attr.value {
-                    if let Some(ProtoAnyValue::StringValue(s)) = &value.value {
-                        if let Ok(dt) = s.parse::<chrono::DateTime<chrono::Utc>>() {
-                            return dt;
-                        }
-                    }
-                }
-            }
-        }
-        tracing::warn!(
-            "Trace start time attribute not found or invalid, falling back to span start_time"
-        );
-        *start_time
-    }
-
-    pub fn convert_to_baggage_records(
-        span: &Span,
-        scope_name: &str,
-        space: &str,
-        name: &str,
-        version: &str,
-    ) -> Vec<TraceBaggageRecord> {
-        let baggage_kvs: Vec<(String, String)> = span
-            .attributes
-            .iter()
-            .filter_map(|attr| {
-                // Only process attributes with baggage prefix
-                if attr.key.starts_with(BAGGAGE_PREFIX) {
-                    let clean_key = attr
-                        .key
-                        .strip_prefix(BAGGAGE_PREFIX)
-                        .and_then(|stripped| stripped.strip_prefix('.').or(Some(stripped)))
-                        .filter(|s| !s.is_empty())
-                        .unwrap_or(&attr.key)
-                        .to_string();
-
-                    // Handle different value types from OpenTelemetry KeyValue
-                    let value_string = match &attr.value {
-                        Some(any_value) => {
-                            // Convert AnyValue to string representation
-                            match &any_value.value {
-                                Some(ProtoAnyValue::StringValue(s)) => s.clone(),
-                                Some(ProtoAnyValue::IntValue(i)) => i.to_string(),
-                                Some(ProtoAnyValue::DoubleValue(d)) => d.to_string(),
-                                Some(ProtoAnyValue::BoolValue(b)) => b.to_string(),
-                                Some(ProtoAnyValue::BytesValue(bytes)) => {
-                                    String::from_utf8_lossy(bytes).to_string()
-                                }
-                                _ => format!("{:?}", any_value), // Fallback for complex types
-                            }
-                        }
-                        None => String::new(), // Handle missing values gracefully
-                    };
-
-                    Some((clean_key, value_string))
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        baggage_kvs
-            .into_iter()
-            .map(|(key, value)| TraceBaggageRecord {
-                created_at: Self::get_trace_start_time_attribute(span, &Utc::now()),
-                trace_id: hex::encode(&span.trace_id),
-                scope: scope_name.to_string(),
-                space: space.to_owned(),
-                name: name.to_owned(),
-                version: version.to_owned(),
-                key,
-                value,
-            })
-            .collect()
-    }
-
-    /// Convert to TraceRecord
-    #[allow(clippy::too_many_arguments)]
-    pub fn convert_to_span_record(
-        &self,
-        span: &Span,
-        scope_name: &str,
-        space: &str,
-        name: &str,
-        version: &str,
-        start_time: DateTime<Utc>,
-        end_time: DateTime<Utc>,
-        duration_ms: i64,
-    ) -> TraceSpanRecord {
-        // get parent span id (can be empty)
-        let parent_span_id = if !span.parent_span_id.is_empty() {
-            Some(hex::encode(&span.parent_span_id))
-        } else {
-            None
-        };
-
-        TraceSpanRecord {
-            created_at: start_time,
-            trace_id: hex::encode(&span.trace_id),
-            span_id: hex::encode(&span.span_id),
-            parent_span_id,
-            start_time,
-            end_time,
-            duration_ms,
-            space: space.to_owned(),
-            name: name.to_owned(),
-            version: version.to_owned(),
-            scope: scope_name.to_string(),
-            span_name: span.name.clone(),
-            span_kind: Self::span_kind_to_string(span.kind),
-            status_code: span
-                .status
-                .as_ref()
-                .map(|s| s.code.to_string())
-                .unwrap_or_else(|| "Unset".to_string()),
-            status_message: span
-                .status
-                .as_ref()
-                .map(|s| s.message.clone())
-                .unwrap_or_default(),
-            attributes: serde_json::to_value(&span.attributes).unwrap_or(Value::Null),
-            events: serde_json::to_value(&span.events).unwrap_or(Value::Null),
-            links: serde_json::to_value(&span.links).unwrap_or(Value::Null),
-        }
-    }
-
-    pub fn to_records(&self) -> TraceRecords {
-        let resource_spans = &self.request.resource_spans;
-
-        // Pre-calculate capacity to avoid reallocations
-        let estimated_capacity: usize = resource_spans
-            .iter()
-            .map(|rs| {
-                rs.scope_spans
-                    .iter()
-                    .map(|ss| ss.spans.len())
-                    .sum::<usize>()
-            })
-            .sum();
-
-        let mut trace_records: Vec<TraceRecord> = Vec::with_capacity(estimated_capacity);
-        let mut span_records: Vec<TraceSpanRecord> = Vec::with_capacity(estimated_capacity);
-        let mut baggage_records: Vec<TraceBaggageRecord> = Vec::new();
-
-        let space = &self.space;
-        let name = &self.name;
-        let version = &self.version;
-
-        for resource_span in resource_spans {
-            for scope_span in &resource_span.scope_spans {
-                // Pre-compute scope name and attributes to avoid repeated work
-                let (scope_name, scope_attributes) = match &scope_span.scope {
-                    Some(scope) => (
-                        scope.name.as_str(),
-                        serde_json::to_value(&scope.attributes).ok(),
-                    ),
-                    None => ("", None),
-                };
-
-                for span in &scope_span.spans {
-                    // no need to recalculate for every record type
-                    let (start_time, end_time, duration_ms) =
-                        Self::extract_time(span.start_time_unix_nano, span.end_time_unix_nano);
-
-                    // TraceRecord for upsert
-                    trace_records.push(self.convert_to_trace_record(
-                        span,
-                        scope_name,
-                        scope_attributes.clone(),
-                        space,
-                        name,
-                        version,
-                        start_time,
-                        end_time,
-                        duration_ms,
-                    ));
-
-                    // SpanRecord for insert
-                    span_records.push(self.convert_to_span_record(
-                        span,
-                        scope_name,
-                        space,
-                        name,
-                        version,
-                        start_time,
-                        end_time,
-                        duration_ms,
-                    ));
-
-                    // BaggageRecords for insert
-                    baggage_records.extend(Self::convert_to_baggage_records(
-                        span, scope_name, space, name, version,
-                    ));
-                }
-            }
-        }
-
-        (trace_records, span_records, baggage_records)
-    }
-}
-
 pub enum MessageType {
     Server,
     Trace,
+    Tag,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1084,6 +699,7 @@ pub enum MessageType {
 pub enum MessageRecord {
     ServerRecords(ServerRecords),
     TraceServerRecord(TraceServerRecord),
+    TagServerRecord(TagRecord),
 }
 
 impl MessageRecord {
@@ -1091,6 +707,7 @@ impl MessageRecord {
         match self {
             MessageRecord::ServerRecords(_) => MessageType::Server,
             MessageRecord::TraceServerRecord(_) => MessageType::Trace,
+            MessageRecord::TagServerRecord(_) => MessageType::Tag,
         }
     }
 
@@ -1098,6 +715,41 @@ impl MessageRecord {
         match self {
             MessageRecord::ServerRecords(records) => records.space(),
             MessageRecord::TraceServerRecord(records) => records.space.clone(),
+            _ => "__missing__".to_string(),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        match self {
+            MessageRecord::ServerRecords(records) => records.len(),
+            MessageRecord::TraceServerRecord(_) => 1,
+            _ => 1,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        match self {
+            MessageRecord::ServerRecords(records) => records.is_empty(),
+            _ => false,
+        }
+    }
+
+    pub fn model_dump_json(&self) -> String {
+        // serialize records to a string
+        match self {
+            MessageRecord::ServerRecords(records) => records.model_dump_json(),
+            MessageRecord::TraceServerRecord(record) => PyHelperFuncs::__json__(record),
+            MessageRecord::TagServerRecord(record) => PyHelperFuncs::__json__(record),
+        }
+    }
+}
+
+/// implement iterator for MEssageRecord to iterate over ServerRecords.records
+impl MessageRecord {
+    pub fn iter_server_records(&self) -> Option<impl Iterator<Item = &ServerRecord>> {
+        match self {
+            MessageRecord::ServerRecords(records) => Some(records.records.iter()),
+            _ => None,
         }
     }
 }

@@ -21,11 +21,14 @@ opentelemetry-proto = { workspace = true }
 potato-head = { workspace = true }
 pyo3 = { workspace = true }
 pyo3-async-runtimes = { workspace = true }
+scouter-events = { workspace = true }
+scouter-settings = { workspace = true }
+scouter-state = { workspace = true }
 scouter-types = { workspace = true }
 serde = { workspace = true }
 serde_json = { workspace = true }
-thiserror = { workspace = true }
 tokio = { workspace = true }
+thiserror = { workspace = true }
 tracing = { workspace = true }
 
 [profile.release]
