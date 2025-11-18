@@ -120,17 +120,16 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        target: [aarch64-unknown-linux-gnu]
-        feature: [kafka]
         include:
-          - image: "ubuntu"
-            tag_suffix: "ubuntu"
-            archive_name_suffix: ""
+          - image: ubuntu
+            tag_suffix: ubuntu
+            artifact: scouter-server-aarch64-unknown-linux-gnu-kafka
+            feature: kafka
 
-          - image: "rocky"
-            tag_suffix: "rocky-minimal"
-            archive_name_suffix: "-rocky"
-
+          - image: rocky
+            tag_suffix: rocky-minimal
+            artifact: scouter-server-aarch64-unknown-linux-gnu-kafka-rocky
+            feature: kafka
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -144,7 +143,7 @@ jobs:
       - name: Download ARM64 Linux binary artifact
         uses: actions/download-artifact@v4
         with:
-          name: ${{ env.BINARY_NAME }}-${{ matrix.target }}-${{ matrix.feature }}${{ matrix.archive_name_suffix }}
+          name: ${{ matrix.artifact }}
           path: ./artifacts
 
       - name: List downloaded files
@@ -152,18 +151,13 @@ jobs:
 
       - name: Extract binary
         run: |
-          # FIX: Use the full artifact name base to find the file
-          ARTIFACT_BASE_NAME="${{ env.BINARY_NAME }}-${{ matrix.target }}-${{ matrix.feature }}${{ matrix.archive_name_suffix }}"
-          archive="./artifacts/${ARTIFACT_BASE_NAME}.tar.gz"
-
+          archive="./artifacts/${{ matrix.artifact }}.tar.gz"
           if [ -f "$archive" ]; then
             mkdir -p binary
             tar -xzf "$archive" -C ./binary
-            # FIX: Use the correct binary name 'scouter-server'
-            chmod +x ./binary/${{ env.BINARY_NAME }}
+            chmod +x ./binary/scouter-server
           else
             echo "ARM64 binary $archive not found, skipping this build"
-            # It's better to just skip, as the 'needs: build' should ensure the artifact exists
             exit 1
           fi
 
@@ -187,7 +181,7 @@ jobs:
           push: true
           platforms: linux/arm64
           build-args: |
-            SCOUTER_SERVER_BINARY_PATH=./binary/${{ env.BINARY_NAME }}
+            SCOUTER_SERVER_BINARY=./binary/${{ env.BINARY_NAME }}
           tags: |
             demml/scouter:${{ matrix.tag_suffix }}-arm64-${{ steps.set-version.outputs.VERSION }}-${{ matrix.feature }}
           cache-from: type=gha
