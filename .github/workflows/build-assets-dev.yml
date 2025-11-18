@@ -21,15 +21,13 @@ jobs:
       fail-fast: false
       matrix:
         target: [aarch64-unknown-linux-gnu]
-        feature: [kafka, rabbitmq]
+        feature: [kafka]
         include:
-          # Linux builds (aarch64) - Assumes self-hosted ubuntu-22.04-arm runner
           - os: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
             archive_ext: tar.gz
             container_image: rockylinux:9
             tag: rocky
-            # This suffix is used to differentiate the artifact name in the docker job
             archive_name_suffix: -rocky
 
           - os: ubuntu-22.04-arm
@@ -37,13 +35,12 @@ jobs:
             archive_ext: tar.gz
             container_image: null
             tag: ubuntu
-            archive_name_suffix: "" # No suffix for the standard build
+            archive_name_suffix: ""
 
     env:
       TARGET: ${{ matrix.target }}
       FEATURE: ${{ matrix.feature }}
       ARCHIVE_EXT: ${{ matrix.archive_ext }}
-      # Use the suffix to create the archive name consistently
       ARCHIVE_SUFFIX: ${{ matrix.archive_name_suffix }}
 
     runs-on: ${{ matrix.os}}
@@ -115,12 +112,12 @@ jobs:
   publish-docker-images-arm64:
     needs: build
     name: Publish ARM64 Docker images - ${{ matrix.image }} - ${{ matrix.feature }}
-    runs-on: ubuntu-22.04 # Standard GitHub x86_64 runner, using QEMU
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
         target: [aarch64-unknown-linux-gnu]
-        feature: [kafka, rabbitmq]
+        feature: [kafka]
         include:
           - image: "ubuntu"
             tag_suffix: "ubuntu"
@@ -143,7 +140,6 @@ jobs:
       - name: Download ARM64 Linux binary artifact
         uses: actions/download-artifact@v4
         with:
-          # FIX: Constructs the exact artifact name from the build job's output
           name: ${{ env.BINARY_NAME }}-${{ matrix.target }}-${{ matrix.feature }}${{ matrix.archive_name_suffix }}
           path: ./artifacts
 
@@ -160,11 +156,11 @@ jobs:
             mkdir -p binary
             tar -xzf "$archive" -C ./binary
             # FIX: Use the correct binary name 'scouter-server'
-            chmod +x ./binary/${{ env.BINARY_NAME }} 
+            chmod +x ./binary/${{ env.BINARY_NAME }}
           else
             echo "ARM64 binary $archive not found, skipping this build"
             # It's better to just skip, as the 'needs: build' should ensure the artifact exists
-            exit 1 
+            exit 1
           fi
 
       - name: Set version tag
