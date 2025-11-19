@@ -18,120 +18,177 @@ env:
   BINARY_NAME: "scouter-server"
 
 jobs:
+  generate-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+    steps:
+      - id: set-matrix
+        run: |
+          if [[ "${{ github.event_name }}" == "pull_request" || "${{ github.event_name }}" == "push" ]]; then
+            # Minimal matrix for PRs - just 2 fast builds
+            MATRIX_JSON='{
+              "include": [
+                {
+                  "os": "ubuntu-22.04",
+                  "target": "x86_64-unknown-linux-gnu",
+                  "target_name": "x86_64-linux-gnu",
+                  "archive_ext": "tar.gz",
+                  "container_image": null,
+                  "tag": "ubuntu",
+                  "archive_name_suffix": "",
+                  "feature": "kafka"
+                },
+                {
+                  "os": "ubuntu-22.04-arm",
+                  "target": "aarch64-unknown-linux-gnu",
+                  "target_name": "aarch64-linux-gnu",
+                  "archive_ext": "tar.gz",
+                  "container_image": "rockylinux:9",
+                  "tag": "rocky",
+                  "archive_name_suffix": "-rocky",
+                  "feature": "kafka"
+                }
+              ]
+            }'
+          else
+            # Full matrix for releases and main branch
+            MATRIX_JSON='{
+              "include": [
+                {
+                  "os": "ubuntu-22.04-arm",
+                  "target": "aarch64-unknown-linux-gnu",
+                  "target_name": "aarch64-linux-gnu",
+                  "archive_ext": "tar.gz",
+                  "container_image": "rockylinux:9",
+                  "tag": "rocky",
+                  "archive_name_suffix": "-rocky",
+                  "feature": "kafka"
+                },
+                {
+                  "os": "ubuntu-22.04-arm",
+                  "target": "aarch64-unknown-linux-gnu",
+                  "target_name": "aarch64-linux-gnu",
+                  "archive_ext": "tar.gz",
+                  "container_image": null,
+                  "tag": "ubuntu",
+                  "archive_name_suffix": "",
+                  "feature": "kafka"
+                },
+                {
+                  "os": "ubuntu-22.04-arm",
+                  "target": "aarch64-unknown-linux-gnu",
+                  "target_name": "aarch64-linux-gnu",
+                  "archive_ext": "tar.gz",
+                  "container_image": "rockylinux:9",
+                  "tag": "rocky",
+                  "archive_name_suffix": "-rocky",
+                  "feature": "rabbitmq"
+                },
+                {
+                  "os": "ubuntu-22.04-arm",
+                  "target": "aarch64-unknown-linux-gnu",
+                  "target_name": "aarch64-linux-gnu",
+                  "archive_ext": "tar.gz",
+                  "container_image": null,
+                  "tag": "ubuntu",
+                  "archive_name_suffix": "",
+                  "feature": "rabbitmq"
+                },
+                {
+                  "os": "ubuntu-22.04-arm",
+                  "target": "aarch64-unknown-linux-gnu",
+                  "target_name": "aarch64-linux-gnu",
+                  "archive_ext": "tar.gz",
+                  "container_image": "rockylinux:9",
+                  "tag": "rocky",
+                  "archive_name_suffix": "-rocky",
+                  "feature": "redis_events"
+                },
+                {
+                  "os": "ubuntu-22.04-arm",
+                  "target": "aarch64-unknown-linux-gnu",
+                  "target_name": "aarch64-linux-gnu",
+                  "archive_ext": "tar.gz",
+                  "container_image": null,
+                  "tag": "ubuntu",
+                  "archive_name_suffix": "",
+                  "feature": "redis_events"
+                },
+                {
+                  "os": "ubuntu-22.04",
+                  "target": "x86_64-unknown-linux-gnu",
+                  "target_name": "x86_64-linux-gnu",
+                  "archive_ext": "tar.gz",
+                  "container_image": "rockylinux:9",
+                  "tag": "rocky",
+                  "archive_name_suffix": "-rocky",
+                  "feature": "kafka"
+                },
+                {
+                  "os": "ubuntu-22.04",
+                  "target": "x86_64-unknown-linux-gnu",
+                  "target_name": "x86_64-linux-gnu",
+                  "archive_ext": "tar.gz",
+                  "container_image": null,
+                  "tag": "ubuntu",
+                  "archive_name_suffix": "",
+                  "feature": "kafka"
+                },
+                {
+                  "os": "ubuntu-22.04",
+                  "target": "x86_64-unknown-linux-gnu",
+                  "target_name": "x86_64-linux-gnu",
+                  "archive_ext": "tar.gz",
+                  "container_image": "rockylinux:9",
+                  "tag": "rocky",
+                  "archive_name_suffix": "-rocky",
+                  "feature": "rabbitmq"
+                },
+                {
+                  "os": "ubuntu-22.04",
+                  "target": "x86_64-unknown-linux-gnu",
+                  "target_name": "x86_64-linux-gnu",
+                  "archive_ext": "tar.gz",
+                  "container_image": null,
+                  "tag": "ubuntu",
+                  "archive_name_suffix": "",
+                  "feature": "rabbitmq"
+                },
+                {
+                  "os": "ubuntu-22.04",
+                  "target": "x86_64-unknown-linux-gnu",
+                  "target_name": "x86_64-linux-gnu",
+                  "archive_ext": "tar.gz",
+                  "container_image": "rockylinux:9",
+                  "tag": "rocky",
+                  "archive_name_suffix": "-rocky",
+                  "feature": "redis_events"
+                },
+                {
+                  "os": "ubuntu-22.04",
+                  "target": "x86_64-unknown-linux-gnu",
+                  "target_name": "x86_64-linux-gnu",
+                  "archive_ext": "tar.gz",
+                  "container_image": null,
+                  "tag": "ubuntu",
+                  "archive_name_suffix": "",
+                  "feature": "redis_events"
+                }
+              ]
+            }'
+          fi
+
+          # Remove whitespace and newlines for compact JSON
+          MATRIX_JSON=$(echo "$MATRIX_JSON" | jq -c .)
+          echo "matrix=$MATRIX_JSON" >> $GITHUB_OUTPUT
+
   build:
+    needs: generate-matrix
     name: build - ${{ matrix.target }} - ${{ matrix.feature }} - ${{ matrix.tag }}
     strategy:
       fail-fast: false
-      matrix:
-        include:
-          - os: ubuntu-22.04-arm
-            target: aarch64-unknown-linux-gnu
-            target_name: aarch64-linux-gnu
-            archive_ext: tar.gz
-            container_image: rockylinux:9
-            tag: rocky
-            archive_name_suffix: -rocky
-            feature: kafka
-
-          - os: ubuntu-22.04-arm
-            target: aarch64-unknown-linux-gnu
-            target_name: aarch64-linux-gnu
-            archive_ext: tar.gz
-            container_image: null
-            tag: ubuntu
-            archive_name_suffix: ""
-            feature: kafka
-
-          - os: ubuntu-22.04-arm
-            target: aarch64-unknown-linux-gnu
-            target_name: aarch64-linux-gnu
-            archive_ext: tar.gz
-            container_image: rockylinux:9
-            tag: rocky
-            archive_name_suffix: -rocky
-            feature: rabbitmq
-
-          - os: ubuntu-22.04-arm
-            target: aarch64-unknown-linux-gnu
-            target_name: aarch64-linux-gnu
-            archive_ext: tar.gz
-            container_image: null
-            tag: ubuntu
-            archive_name_suffix: ""
-            feature: rabbitmq
-
-          - os: ubuntu-22.04-arm
-            target: aarch64-unknown-linux-gnu
-            target_name: aarch64-linux-gnu
-            archive_ext: tar.gz
-            container_image: rockylinux:9
-            tag: rocky
-            archive_name_suffix: -rocky
-            feature: redis_events
-
-          - os: ubuntu-22.04-arm
-            target: aarch64-unknown-linux-gnu
-            target_name: aarch64-linux-gnu
-            archive_ext: tar.gz
-            container_image: null
-            tag: ubuntu
-            archive_name_suffix: ""
-            feature: redis_events
-
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            target_name: x86_64-linux-gnu
-            archive_ext: tar.gz
-            container_image: rockylinux:9
-            tag: rocky
-            archive_name_suffix: -rocky
-            feature: kafka
-
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            target_name: x86_64-linux-gnu
-            archive_ext: tar.gz
-            container_image: null
-            tag: ubuntu
-            archive_name_suffix: ""
-            feature: kafka
-
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            target_name: x86_64-linux-gnu
-            archive_ext: tar.gz
-            container_image: rockylinux:9
-            tag: rocky
-            archive_name_suffix: -rocky
-            feature: rabbitmq
-
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            target_name: x86_64-linux-gnu
-            archive_ext: tar.gz
-            container_image: null
-            tag: ubuntu
-            archive_name_suffix: ""
-            feature: rabbitmq
-
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            target_name: x86_64-linux-gnu
-            archive_ext: tar.gz
-            container_image: rockylinux:9
-            tag: rocky
-            archive_name_suffix: -rocky
-            feature: redis_events
-
-          - os: ubuntu-22.04
-            target: x86_64-unknown-linux-gnu
-            target_name: x86_64-linux-gnu
-            archive_ext: tar.gz
-            container_image: null
-            tag: ubuntu
-            archive_name_suffix: ""
-            feature: redis_events
-
+      matrix: ${{ fromJSON(needs.generate-matrix.outputs.matrix) }}
     runs-on: ${{ matrix.os}}
     container: ${{ matrix.container_image != null && matrix.container_image || null }}
 
