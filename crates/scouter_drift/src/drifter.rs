@@ -226,16 +226,23 @@ pub mod drift_executor {
         use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
         use scouter_settings::DatabaseSettings;
         use scouter_sql::PostgresClient;
-        use scouter_types::DriftAlertRequest;
+        use scouter_types::spc::SpcFeatureDriftProfile;
+        use scouter_types::{
+            spc::{SpcAlertConfig, SpcAlertRule, SpcDriftConfig, SpcDriftProfile},
+            AlertDispatchConfig, DriftAlertRequest,
+        };
+        use scouter_types::{CommonCrons, ProfileArgs};
+        use semver::Version;
         use sqlx::{postgres::Postgres, Pool};
+        use std::collections::HashMap;
 
         pub async fn cleanup(pool: &Pool<Postgres>) {
             sqlx::raw_sql(
                 r#"
-                DELETE 
+                DELETE
                 FROM scouter.spc_drift;
 
-                DELETE 
+                DELETE
                 FROM scouter.observability_metric;
 
                 DELETE
@@ -272,14 +279,88 @@ pub mod drift_executor {
 
             cleanup(&db_pool).await;
 
+            let alert_config = SpcAlertConfig {
+                rule: SpcAlertRule::default(),
+                schedule: CommonCrons::EveryDay.cron().to_string(),
+                features_to_monitor: vec!["col_1".to_string(), "col_3".to_string()],
+                dispatch_config: AlertDispatchConfig::default(),
+            };
+
+            let config = SpcDriftConfig::new(
+                Some("statworld".to_string()),
+                Some("test_app".to_string()),
+                Some("0.1.0".to_string()),
+                Some(true),
+                Some(25),
+                Some(alert_config),
+                None,
+            )
+            .unwrap();
+
+            let col1_profile = SpcFeatureDriftProfile {
+                id: "col_1".to_string(),
+                center: -3.997113080300062,
+                one_ucl: -1.9742384896265417,
+                one_lcl: -6.019987670973582,
+                two_ucl: 0.048636101046978464,
+                two_lcl: -8.042862261647102,
+                three_ucl: 2.071510691720498,
+                three_lcl: -10.065736852320622,
+                timestamp: Utc::now(),
+            };
+
+            let col3_profile = SpcFeatureDriftProfile {
+                id: "col_3".to_string(),
+                center: -3.937652409303277,
+                one_ucl: -2.0275656995100224,
+                one_lcl: -5.8477391190965315,
+                two_ucl: -0.1174789897167674,
+                two_lcl: -7.757825828889787,
+                three_ucl: 1.7926077200764872,
+                three_lcl: -9.66791253868304,
+                timestamp: Utc::now(),
+            };
+
+            let drift_profile = DriftProfile::Spc(SpcDriftProfile {
+                config,
+                features: HashMap::from([
+                    (col1_profile.id.clone(), col1_profile),
+                    (col3_profile.id.clone(), col3_profile),
+                ]),
+                scouter_version: "0.1.0".to_string(),
+            });
+
+            let profile_args = ProfileArgs {
+                space: "statworld".to_string(),
+                name: "test_app".to_string(),
+                version: Some("0.1.0".to_string()),
+                schedule: "* * * * * *".to_string(),
+                scouter_version: "0.1.0".to_string(),
+                drift_type: DriftType::Spc,
+            };
+
+            let version = Version::new(0, 1, 0);
+            PostgresClient::insert_drift_profile(
+                &db_pool,
+                &drift_profile,
+                &profile_args,
+                &version,
+                &true,
+                &true,
+            )
+            .await
+            .unwrap();
+
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+
             let mut populate_path =
                 std::env::current_dir().expect("Failed to get current directory");
             populate_path.push("src/scripts/populate_spc.sql");
-
             let script = std::fs::read_to_string(populate_path).unwrap();
-            sqlx::raw_sql(&script).execute(&db_pool).await.unwrap();
 
+            sqlx::raw_sql(&script).execute(&db_pool).await.unwrap();
             let mut drift_executor = DriftExecutor::new(&db_pool);
+            tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
             drift_executor.poll_for_tasks().await.unwrap();
 
@@ -314,6 +395,7 @@ pub mod drift_executor {
 
             let script = std::fs::read_to_string(populate_path).unwrap();
             sqlx::raw_sql(&script).execute(&db_pool).await.unwrap();
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
             let mut drift_executor = DriftExecutor::new(&db_pool);
 
@@ -357,6 +439,7 @@ pub mod drift_executor {
             script = script.replace("{{skew_factor}}", &skew_factor.to_string());
             script = script.replace("{{apply_skew}}", &apply_skew.to_string());
             sqlx::raw_sql(&script).execute(&db_pool).await.unwrap();
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
             let mut drift_executor = DriftExecutor::new(&db_pool);
 
@@ -412,6 +495,7 @@ pub mod drift_executor {
             script = script.replace("{{skew_factor}}", &skew_factor.to_string());
             script = script.replace("{{apply_skew}}", &apply_skew.to_string());
             sqlx::raw_sql(&script).execute(&db_pool).await.unwrap();
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
             let mut drift_executor = DriftExecutor::new(&db_pool);
 
@@ -447,6 +531,7 @@ pub mod drift_executor {
 
             let script = std::fs::read_to_string(populate_path).unwrap();
             sqlx::raw_sql(&script).execute(&db_pool).await.unwrap();
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
             let mut drift_executor = DriftExecutor::new(&db_pool);
 
