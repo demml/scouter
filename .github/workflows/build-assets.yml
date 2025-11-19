@@ -8,74 +8,184 @@ on:
   push:
     branches:
       - main
-
+  pull_request:
   release:
     types: [published]
 
 env:
   INTERPRETER: "3.12"
   RUSTFLAGS: "-C debuginfo=0"
+  BINARY_NAME: "scouter-server"
 
 jobs:
   build:
-    name: Build ${{ matrix.os }}-${{ matrix.arch }} (${{ matrix.feature }})
+    name: build - ${{ matrix.target }} - ${{ matrix.feature }} - ${{ matrix.tag }}
     strategy:
       fail-fast: false
       matrix:
         include:
-          # Linux builds
-          - os: ubuntu-22.04
-            arch: amd64
-            target: x86_64-unknown-linux-gnu
-            archive_ext: tar.gz
-            feature: kafka
-          - os: ubuntu-22.04
-            arch: amd64
-            target: x86_64-unknown-linux-gnu
-            archive_ext: tar.gz
-            feature: rabbitmq
           - os: ubuntu-22.04-arm
-            arch: arm64
             target: aarch64-unknown-linux-gnu
+            target_name: aarch64-linux-gnu
             archive_ext: tar.gz
+            container_image: rockylinux:9
+            tag: rocky
+            archive_name_suffix: -rocky
             feature: kafka
+
           - os: ubuntu-22.04-arm
-            arch: arm64
             target: aarch64-unknown-linux-gnu
+            target_name: aarch64-linux-gnu
             archive_ext: tar.gz
+            container_image: null
+            tag: ubuntu
+            archive_name_suffix: ""
+            feature: kafka
+
+          - os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            target_name: aarch64-linux-gnu
+            archive_ext: tar.gz
+            container_image: rockylinux:9
+            tag: rocky
+            archive_name_suffix: -rocky
             feature: rabbitmq
 
-          # macOS builds
-          - os: macos-latest
-            arch: arm64
-            target: aarch64-apple-darwin
-            archive_ext: zip
-            feature: kafka
-          - os: macos-latest
-            arch: arm64
-            target: aarch64-apple-darwin
-            archive_ext: zip
+          - os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            target_name: aarch64-linux-gnu
+            archive_ext: tar.gz
+            container_image: null
+            tag: ubuntu
+            archive_name_suffix: ""
             feature: rabbitmq
-          - os: macos-13
-            arch: amd64
-            target: x86_64-apple-darwin
-            archive_ext: zip
+
+          - os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            target_name: aarch64-linux-gnu
+            archive_ext: tar.gz
+            container_image: rockylinux:9
+            tag: rocky
+            archive_name_suffix: -rocky
+            feature: redis_events
+
+          - os: ubuntu-22.04-arm
+            target: aarch64-unknown-linux-gnu
+            target_name: aarch64-linux-gnu
+            archive_ext: tar.gz
+            container_image: null
+            tag: ubuntu
+            archive_name_suffix: ""
+            feature: redis_events
+
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            target_name: x86_64-linux-gnu
+            archive_ext: tar.gz
+            container_image: rockylinux:9
+            tag: rocky
+            archive_name_suffix: -rocky
             feature: kafka
-          - os: macos-13
-            arch: amd64
-            target: x86_64-apple-darwin
-            archive_ext: zip
+
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            target_name: x86_64-linux-gnu
+            archive_ext: tar.gz
+            container_image: null
+            tag: ubuntu
+            archive_name_suffix: ""
+            feature: kafka
+
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            target_name: x86_64-linux-gnu
+            archive_ext: tar.gz
+            container_image: rockylinux:9
+            tag: rocky
+            archive_name_suffix: -rocky
             feature: rabbitmq
-    env:
-      TARGET: ${{ matrix.target }}
+
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            target_name: x86_64-linux-gnu
+            archive_ext: tar.gz
+            container_image: null
+            tag: ubuntu
+            archive_name_suffix: ""
+            feature: rabbitmq
+
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            target_name: x86_64-linux-gnu
+            archive_ext: tar.gz
+            container_image: rockylinux:9
+            tag: rocky
+            archive_name_suffix: -rocky
+            feature: redis_events
+
+          - os: ubuntu-22.04
+            target: x86_64-unknown-linux-gnu
+            target_name: x86_64-linux-gnu
+            archive_ext: tar.gz
+            container_image: null
+            tag: ubuntu
+            archive_name_suffix: ""
+            feature: redis_events
 
     runs-on: ${{ matrix.os}}
+    container: ${{ matrix.container_image != null && matrix.container_image || null }}
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Install Rocky Deps ARM64
+        if: matrix.container_image == 'rockylinux:9' && contains(matrix.os, 'ubuntu-22.04-arm')
+        run: |
+          dnf install -y --allowerasing gcc make curl pkgconf openssl-devel wget perl pkg-config
+
+          # Install Rust via rustup
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+          # Add Rust to PATH for subsequent steps
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+          # Source for this step
+          source $HOME/.cargo/env
+
+          echo "Installing CMake 3.26.4..."
+          curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-aarch64.sh -o cmake.sh
+          chmod +x cmake.sh
+          ./cmake.sh --skip-license --prefix=/usr/local
+          cmake --version
+
+      - name: Install Rocky Deps AMD64
+        if: matrix.container_image == 'rockylinux:9' && !contains(matrix.os, 'ubuntu-22.04-arm')
+        run: |
+          dnf install -y --allowerasing gcc make curl pkgconf openssl-devel wget perl pkg-config
+
+          # Install Rust via rustup
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+          # Add Rust to PATH for subsequent steps
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+          # Source for this step
+          source $HOME/.cargo/env
+
+          echo "Installing CMake 3.26.4..."
+          curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-x86_64.sh -o cmake.sh
+          chmod +x cmake.sh
+          ./cmake.sh --skip-license --prefix=/usr/local
+          cmake --version
+
+      - name: Update apt repositories (Linux)
+        if: contains(matrix.os, 'ubuntu') && matrix.container_image == null
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y build-essential
 
       - name: Set up Rust
         run: |
@@ -84,181 +194,126 @@ jobs:
           rustup target add ${{ matrix.target }}
           rustup component add rust-src
 
-      - name: Install dependencies (Linux)
-        if: contains(matrix.os, 'linux')
-        run: |
-          sudo apt-get update -y
-          sudo apt-get install -y build-essential
-
       - name: Build binaries
         run: |
+          # Ensure -p is used for the correct package
           cargo build -p scouter-server \
             --release \
             --target ${{ matrix.target }} \
             --features ${{ matrix.feature }}
 
-      - name: Prepare binary directory
+      - name: Prepare and Archive binary
+        id: prepare
         shell: bash
         run: |
-          mkdir -p release-bin
-          cp target/${{ matrix.target }}/release/scouter-server release-bin/scouter-server-${{ matrix.feature }}
-          chmod +x release-bin/scouter-server-${{ matrix.feature }}
+          # Create the unique base name including target, feature, and suffix
+          ARTIFACT_BASE_NAME="${{ env.BINARY_NAME }}-${{ matrix.target_name }}-${{ matrix.feature }}${{ matrix.archive_name_suffix }}"
+          ARTIFACT_ARCHIVE_NAME="${ARTIFACT_BASE_NAME}.${{ matrix.archive_ext }}"
 
-      - name: Create archive
-        shell: bash
-        run: |
+          mkdir -p release-bin
+          # Copy the binary from the target directory
+          cp target/${{ matrix.target }}/release/${{ env.BINARY_NAME }} release-bin/
+          chmod +x release-bin/${{ env.BINARY_NAME }}
+
+          # Create archive
           cd release-bin
-          if [[ "${{ matrix.archive_ext }}" == "zip" ]]; then
-            zip -r ../scouter-server-${{ matrix.target }}-${{ matrix.feature }}.zip ./*
-          else
-            tar -czf ../scouter-server-${{ matrix.target }}-${{ matrix.feature }}.tar.gz ./*
-          fi
+          # This command must be on its own line
+          tar -czf ../${ARTIFACT_ARCHIVE_NAME} ./*
+
+          # Now, echo the outputs to $GITHUB_OUTPUT on new lines
+          echo "ARTIFACT_BASE_NAME=${ARTIFACT_BASE_NAME}" >> $GITHUB_OUTPUT
+          echo "ARTIFACT_ARCHIVE_NAME=${ARTIFACT_ARCHIVE_NAME}" >> $GITHUB_OUTPUT
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: scouter-server-${{ matrix.target }}-${{ matrix.feature }}
-          path: |
-            scouter-server-${{ matrix.target }}-${{ matrix.feature }}.${{ matrix.archive_ext }}
+          name: ${{ steps.prepare.outputs.ARTIFACT_BASE_NAME }}
+          path: ${{ steps.prepare.outputs.ARTIFACT_ARCHIVE_NAME }}
           retention-days: 1
 
-  publish-docker-images:
-    #if: github.event_name == 'release'
+  publish-docker-images-arm64:
+    if: github.event_name == 'release'
     needs: build
-    name: Publish scouter base images to Dockerhub
+    name: Publish ARM64 Docker images - ${{ matrix.image }} - ${{ matrix.feature }}
     runs-on: ubuntu-22.04
     strategy:
+      fail-fast: false
       matrix:
         include:
-          # Kafka amd64 images
-          - image: "ubuntu"
-            tag_suffix: "ubuntu"
-            feature: "kafka"
-            target: x86_64-unknown-linux-gnu
-            arch: "amd64"
-          - image: "alpine"
-            tag_suffix: "alpine"
-            feature: "kafka"
-            target: x86_64-unknown-linux-gnu
-            arch: "amd64"
-          - image: "scratch"
-            tag_suffix: "scratch"
-            feature: "kafka"
-            target: x86_64-unknown-linux-gnu
-            arch: "amd64"
-          - image: "debian"
-            tag_suffix: "debian"
-            feature: "kafka"
-            target: x86_64-unknown-linux-gnu
-            arch: "amd64"
-          - image: "distroless"
-            tag_suffix: "distroless"
-            feature: "kafka"
-            target: x86_64-unknown-linux-gnu
-            arch: "amd64"
+          - image: ubuntu
+            tag_suffix: ubuntu
+            artifact: scouter-server-aarch64-linux-gnu-kafka
+            feature: kafka
 
-          # RabbitMQ amd64 images
-          - image: "ubuntu"
-            tag_suffix: "ubuntu"
-            feature: "rabbitmq"
-            target: x86_64-unknown-linux-gnu
-            arch: "amd64"
-          - image: "alpine"
-            tag_suffix: "alpine"
-            feature: "rabbitmq"
-            target: x86_64-unknown-linux-gnu
-            arch: "amd64"
-          - image: "scratch"
-            tag_suffix: "scratch"
-            feature: "rabbitmq"
-            target: x86_64-unknown-linux-gnu
-            arch: "amd64"
-          - image: "debian"
-            tag_suffix: "debian"
-            feature: "rabbitmq"
-            target: x86_64-unknown-linux-gnu
-            arch: "amd64"
-          - image: "distroless"
-            tag_suffix: "distroless"
-            feature: "rabbitmq"
-            target: x86_64-unknown-linux-gnu
-            arch: "amd64"
+          - image: debian
+            tag_suffix: debian
+            artifact: scouter-server-aarch64-linux-gnu-kafka
+            feature: kafka
 
-          # Kafka arm64 images
-          - image: "ubuntu"
-            tag_suffix: "ubuntu"
-            feature: "kafka"
-            target: aarch64-unknown-linux-gnu
-            arch: "arm64"
-          - image: "alpine"
-            tag_suffix: "alpine"
-            feature: "kafka"
-            target: aarch64-unknown-linux-gnu
-            arch: "arm64"
-          - image: "scratch"
-            tag_suffix: "scratch"
-            feature: "kafka"
-            target: aarch64-unknown-linux-gnu
-            arch: "arm64"
-          - image: "debian"
-            tag_suffix: "debian"
-            feature: "kafka"
-            target: aarch64-unknown-linux-gnu
-            arch: "arm64"
-          - image: "distroless"
-            tag_suffix: "distroless"
-            feature: "kafka"
-            target: aarch64-unknown-linux-gnu
-            arch: "arm64"
+          - image: rocky
+            tag_suffix: rocky-minimal
+            artifact: scouter-server-aarch64-linux-gnu-kafka-rocky
+            feature: kafka
 
-          # RabbitMQ arm64 images
-          - image: "ubuntu"
-            tag_suffix: "ubuntu"
-            feature: "rabbitmq"
-            target: aarch64-unknown-linux-gnu
-            arch: "arm64"
-          - image: "alpine"
-            tag_suffix: "alpine"
-            feature: "rabbitmq"
-            target: aarch64-unknown-linux-gnu
-            arch: "arm64"
-          - image: "scratch"
-            tag_suffix: "scratch"
-            feature: "rabbitmq"
-            target: aarch64-unknown-linux-gnu
-            arch: "arm64"
-          - image: "debian"
-            tag_suffix: "debian"
-            feature: "rabbitmq"
-            target: aarch64-unknown-linux-gnu
-            arch: "arm64"
-          - image: "distroless"
-            tag_suffix: "distroless"
-            feature: "rabbitmq"
-            target: aarch64-unknown-linux-gnu
-            arch: "arm64"
+          - image: ubuntu
+            tag_suffix: ubuntu
+            artifact: scouter-server-aarch64-linux-gnu-redis
+            feature: redis
 
+          - image: debian
+            tag_suffix: debian
+            artifact: scouter-server-aarch64-linux-gnu-redis
+            feature: redis
+
+          - image: rocky
+            tag_suffix: rocky-minimal
+            artifact: scouter-server-aarch64-linux-gnu-redis-rocky
+            feature: redis
+
+          - image: ubuntu
+            tag_suffix: ubuntu
+            artifact: scouter-server-aarch64-linux-gnu-rabbitmq
+            feature: rabbitmq
+
+          - image: debian
+            tag_suffix: debian
+            artifact: scouter-server-aarch64-linux-gnu-rabbitmq
+            feature: rabbitmq
+
+          - image: rocky
+            tag_suffix: rocky-minimal
+            artifact: scouter-server-aarch64-linux-gnu-rabbitmq-rocky
+            feature: rabbitmq
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
 
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Download binary artifact
+      - name: Download ARM64 Linux binary artifact
         uses: actions/download-artifact@v4
         with:
-          name: scouter-server-${{ matrix.target }}-${{ matrix.feature }}
+          name: ${{ matrix.artifact }}
           path: ./artifacts
+
+      - name: List downloaded files
+        run: ls -la ./artifacts
 
       - name: Extract binary
         run: |
-          mkdir -p binary
-          tar -xzf ./artifacts/scouter-server-${{ matrix.target }}-${{ matrix.feature }}.tar.gz -C ./binary
-
-      - name: Set up binary permissions
-        run: |
-          chmod +x ./binary/scouter-server-${{ matrix.feature }}
+          archive="./artifacts/${{ matrix.artifact }}.tar.gz"
+          if [ -f "$archive" ]; then
+            mkdir -p binary
+            tar -xzf "$archive" -C ./binary
+            chmod +x ./binary/scouter-server
+          else
+            echo "ARM64 binary $archive not found, skipping this build"
+            exit 1
+          fi
 
       - name: Set version tag
         id: set-version
@@ -275,24 +330,138 @@ jobs:
           username: ${{ secrets.DOCKER_USERNAME }}
           password: ${{ secrets.DOCKER_PASSWORD }}
 
-      - name: Build and push images
+      - name: Build and push ARM64 image
         uses: docker/build-push-action@v5
         with:
           context: .
           file: docker/official/${{ matrix.image }}/Dockerfile
           push: true
-          platforms: linux/${{ matrix.arch }}
+          platforms: linux/arm64
           build-args: |
-            SCOUTER_SERVER_BINARY=./binary/scouter-server-${{ matrix.feature }}
+            SCOUTER_SERVER_BINARY=./binary/${{ env.BINARY_NAME }}
+            TINI_BIN=tini-arm64
           tags: |
-            demml/scouter:${{ matrix.tag_suffix }}-${{ matrix.arch }}-${{ matrix.feature }}-${{ steps.set-version.outputs.VERSION }}
-            demml/scouter:${{ matrix.tag_suffix }}-${{ matrix.arch }}-${{ matrix.feature }}-latest
+            demml/scouter:${{ matrix.tag_suffix }}-arm64-${{ steps.set-version.outputs.VERSION }}-${{ matrix.feature }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  publish-docker-images-amd64:
+    if: github.event_name == 'release'
+    needs: build
+    name: Publish AMD64 Docker images - ${{ matrix.image }} - ${{ matrix.feature }}
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: ubuntu
+            tag_suffix: ubuntu
+            artifact: scouter-server-x86_64-linux-gnu-kafka
+            feature: kafka
+
+          - image: debian
+            tag_suffix: debian
+            artifact: scouter-server-x86_64-linux-gnu-kafka
+            feature: kafka
+
+          - image: rocky
+            tag_suffix: rocky-minimal
+            artifact: scouter-server-x86_64-linux-gnu-kafka-rocky
+            feature: kafka
+
+          - image: ubuntu
+            tag_suffix: ubuntu
+            artifact: scouter-server-x86_64-linux-gnu-redis
+            feature: redis
+
+          - image: debian
+            tag_suffix: debian
+            artifact: scouter-server-x86_64-linux-gnu-redis
+            feature: redis
+
+          - image: rocky
+            tag_suffix: rocky-minimal
+            artifact: scouter-server-x86_64-linux-gnu-redis-rocky
+            feature: redis
+
+          - image: ubuntu
+            tag_suffix: ubuntu
+            artifact: scouter-server-x86_64-linux-gnu-rabbitmq
+            feature: rabbitmq
+
+          - image: debian
+            tag_suffix: debian
+            artifact: scouter-server-x86_64-linux-gnu-rabbitmq
+            feature: rabbitmq
+
+          - image: rocky
+            tag_suffix: rocky-minimal
+            artifact: scouter-server-x86_64-linux-gnu-rabbitmq-rocky
+            feature: rabbitmq
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Download ARM64 Linux binary artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ matrix.artifact }}
+          path: ./artifacts
+
+      - name: List downloaded files
+        run: ls -la ./artifacts
+
+      - name: Extract binary
+        run: |
+          archive="./artifacts/${{ matrix.artifact }}.tar.gz"
+          if [ -f "$archive" ]; then
+            mkdir -p binary
+            tar -xzf "$archive" -C ./binary
+            chmod +x ./binary/scouter-server
+          else
+            echo "ARM64 binary $archive not found, skipping this build"
+            exit 1
+          fi
+
+      - name: Set version tag
+        id: set-version
+        run: |
+          if [[ "${{ github.event_name }}" == "release" ]]; then
+            echo "VERSION=${{ github.event.release.tag_name }}" >> $GITHUB_OUTPUT
+          else
+            echo "VERSION=latest" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build and push AMD64 image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: docker/official/${{ matrix.image }}/Dockerfile
+          push: true
+          platforms: linux/amd64
+          build-args: |
+            SCOUTER_SERVER_BINARY=./binary/${{ env.BINARY_NAME }}
+            TINI_BIN=tini-amd64
+          tags: |
+            demml/scouter:${{ matrix.tag_suffix }}-amd64-${{ steps.set-version.outputs.VERSION }}-${{ matrix.feature }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
   release-binary-assets:
     if: github.event_name == 'release'
-    needs: [build, publish-docker-images]
+    needs: [build, publish-docker-images-arm64, publish-docker-images-amd64]
     runs-on: ubuntu-latest
 
     steps:
