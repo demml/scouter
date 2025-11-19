@@ -19,6 +19,17 @@ LLMDriftMetric = drift.LLMDriftMetric
 LLMDriftConfig = drift.LLMDriftConfig
 LLMDriftProfile = drift.LLMDriftProfile
 Drifter = drift.Drifter
+QuantileBinning = drift.QuantileBinning
+EqualWidthBinning = drift.EqualWidthBinning
+Manual = drift.Manual
+SquareRoot = drift.SquareRoot
+Sturges = drift.Sturges
+Rice = drift.Rice
+Doane = drift.Doane
+Scott = drift.Scott
+TerrellScott = drift.TerrellScott
+FreedmanDiaconis = drift.FreedmanDiaconis
+
 
 __all__ = [
     "FeatureMap",
@@ -37,4 +48,14 @@ __all__ = [
     "LLMDriftConfig",
     "LLMDriftProfile",
     "Drifter",
+    "QuantileBinning",
+    "EqualWidthBinning",
+    "Manual",
+    "SquareRoot",
+    "Sturges",
+    "Rice",
+    "Doane",
+    "Scott",
+    "TerrellScott",
+    "FreedmanDiaconis",
 ]

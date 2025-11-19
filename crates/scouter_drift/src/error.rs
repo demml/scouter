@@ -79,6 +79,12 @@ pub enum DriftError {
     #[error("Categorical feature specified in drift config: {0}, not present in data")]
     CategoricalFeatureMissingError(String),
 
+    #[error("Empty Array Detected: {0}")]
+    EmptyArrayError(String),
+
+    #[error("Failed to compute binning edges: {0}")]
+    BinningError(String),
+
     #[error("Failed to deserialize: {0}")]
     SerdeJsonError(#[from] serde_json::Error),
 

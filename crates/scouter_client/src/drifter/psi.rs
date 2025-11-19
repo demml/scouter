@@ -83,7 +83,7 @@ impl PsiDrifter {
         drift_config: &PsiDriftConfig,
     ) -> Result<PsiDriftProfile, DriftError>
     where
-        F: Float + Sync + FromPrimitive + Default + PartialOrd,
+        F: Float + Sync + FromPrimitive + Default,
         F: Into<f64>,
         F: numpy::Element,
     {

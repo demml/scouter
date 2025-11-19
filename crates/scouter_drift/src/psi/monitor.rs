@@ -36,37 +36,6 @@ impl PsiMonitor {
             .count()
     }
 
-    fn compute_deciles<F>(&self, column_vector: &ArrayView1<F>) -> Result<[F; 9], DriftError>
-    where
-        F: Float + Default,
-        F: Into<f64>,
-    {
-        // TODO: Explore using ndarray_stats quantiles instead of manual computation
-        if column_vector.len() < 10 {
-            return Err(DriftError::NotEnoughDecileValuesError);
-        }
-
-        let sorted_column_vector = column_vector
-            .iter()
-            .sorted_by(|a, b| a.partial_cmp(b).unwrap()) // Use partial_cmp and unwrap since we assume no NaNs
-            .cloned()
-            .collect_vec();
-
-        let n = sorted_column_vector.len();
-        let mut deciles: [F; 9] = Default::default();
-
-        for i in 1..=9 {
-            let index = ((i as f32 * (n as f32 - 1.0)) / 10.0).floor() as usize;
-            deciles[i - 1] = sorted_column_vector[index];
-        }
-        let decile_vec: [F; 9] = deciles
-            .to_vec()
-            .try_into()
-            .map_err(|_| DriftError::ConvertDecileToArray)?;
-
-        Ok(decile_vec)
-    }
-
     fn create_categorical_bins<F>(&self, column_vector: &ArrayView<F, Ix1>) -> Vec<Bin>
     where
         F: Float + FromPrimitive + Default + Sync,
@@ -91,25 +60,32 @@ impl PsiMonitor {
             .collect()
     }
 
-    fn create_numeric_bins<F>(&self, column_vector: &ArrayView1<F>) -> Result<Vec<Bin>, DriftError>
+    fn create_numeric_bins<F>(
+        &self,
+        column_vector: &ArrayView1<F>,
+        drift_config: &PsiDriftConfig,
+    ) -> Result<Vec<Bin>, DriftError>
     where
         F: Float + FromPrimitive + Default + Sync,
         F: Into<f64>,
     {
-        let deciles = self.compute_deciles(column_vector)?;
+        let edges = drift_config
+            .binning_strategy
+            .compute_edges(column_vector)
+            .map_err(|e| DriftError::BinningError(e.to_string()))?;
 
-        let bins: Vec<Bin> = (0..=deciles.len())
+        let bins: Vec<Bin> = (0..=edges.len())
             .into_par_iter()
             .map(|decile| {
                 let lower = if decile == 0 {
                     F::neg_infinity()
                 } else {
-                    deciles[decile - 1]
+                    edges[decile - 1]
                 };
-                let upper = if decile == deciles.len() {
+                let upper = if decile == edges.len() {
                     F::infinity()
                 } else {
-                    deciles[decile]
+                    edges[decile]
                 };
                 let bin_count = self.compute_bin_count(column_vector, &lower.into(), &upper.into());
                 Bin {
@@ -143,7 +119,10 @@ impl PsiMonitor {
             }
             _ => {
                 // Process as continuous
-                Ok((self.create_numeric_bins(column_vector)?, BinType::Numeric))
+                Ok((
+                    self.create_numeric_bins(column_vector, drift_config)?,
+                    BinType::Numeric,
+                ))
             }
         }
     }
@@ -166,6 +145,19 @@ impl PsiMonitor {
             timestamp: chrono::Utc::now(),
             bin_type,
         })
+    }
+
+    fn clean_column_vector<F>(column_vector: &ArrayView<F, Ix1>) -> Array<F, Ix1>
+    where
+        F: Float,
+    {
+        Array1::from(
+            column_vector
+                .iter()
+                .filter(|&&x| x.is_finite())
+                .cloned()
+                .collect::<Vec<F>>(),
+        )
     }
 
     pub fn create_2d_drift_profile<F>(
@@ -193,9 +185,17 @@ impl PsiMonitor {
             .collect_vec()
             .into_par_iter()
             .map(|(column_vector, feature_name)| {
+                let clean_column_vector = Self::clean_column_vector(&column_vector);
+
+                if clean_column_vector.is_empty() {
+                    return Err(DriftError::EmptyArrayError(
+                        format!("PSI drift profile creation failure, unable to create psi feature drift profile for {feature_name}")
+                    ));
+                }
+
                 self.create_psi_feature_drift_profile(
                     feature_name.to_string(),
-                    &column_vector,
+                    &clean_column_vector.view(),
                     drift_config,
                 )
             })
@@ -480,28 +480,6 @@ mod tests {
     }
 
     #[test]
-    fn test_compute_deciles_with_unsorted_input() {
-        let psi_monitor = PsiMonitor::default();
-
-        let unsorted_vector = Array::from_vec(vec![
-            120.0, 1.0, 33.0, 71.0, 15.0, 59.0, 8.0, 62.0, 4.0, 21.0, 10.0, 2.0, 344.0, 437.0,
-            53.0, 39.0, 83.0, 6.0, 4.30, 2.0,
-        ]);
-
-        let column_view = unsorted_vector.view();
-
-        let result = psi_monitor.compute_deciles(&column_view);
-
-        let expected_deciles: [f64; 9] = [2.0, 4.0, 6.0, 10.0, 21.0, 39.0, 59.0, 71.0, 120.0];
-
-        assert_eq!(
-            result.unwrap().as_ref(),
-            expected_deciles.as_ref(),
-            "Deciles computed incorrectly for unsorted input"
-        );
-    }
-
-    #[test]
     fn test_create_bins_non_categorical() {
         let psi_monitor = PsiMonitor::default();
 
@@ -510,7 +488,10 @@ mod tests {
             53.0, 39.0, 83.0, 6.0, 4.30, 2.0,
         ]);
 
-        let result = psi_monitor.create_numeric_bins(&ArrayView::from(&non_categorical_data));
+        let result = psi_monitor.create_numeric_bins(
+            &ArrayView::from(&non_categorical_data),
+            &PsiDriftConfig::default(),
+        );
 
         assert!(result.is_ok());
         let bins = result.unwrap();
@@ -597,5 +578,25 @@ mod tests {
             .features
             .values()
             .for_each(|value| assert!(*value > 0.0));
+    }
+
+    #[test]
+    fn test_empty_array() {
+        let features = vec!["feature_1".to_string()];
+
+        let data = Array::<f64, _>::zeros((0, 1));
+
+        let monitor = PsiMonitor::default();
+
+        let profile =
+            monitor.create_2d_drift_profile(&features, &data.view(), &PsiDriftConfig::default());
+
+        assert!(profile.is_err());
+        match profile.unwrap_err() {
+            DriftError::EmptyArrayError(msg) => {
+                assert_eq!(msg, "PSI drift profile creation failure, unable to create psi feature drift profile for feature_1");
+            }
+            _ => panic!("Expected EmptyArrayError"),
+        }
     }
 }

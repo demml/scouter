@@ -41,6 +41,9 @@ pub enum TypeError {
     #[error("Invalid alert dispatch configuration")]
     InvalidDispatchConfigError,
 
+    #[error("Invalid equal width binning method")]
+    InvalidEqualWidthBinningMethodError,
+
     #[error("Missing space argument")]
     MissingSpaceError,
 
@@ -95,6 +98,21 @@ pub enum TypeError {
 
     #[error("Unsupported metrics type. Metrics must be a list of Metric instances or a dictionary of key value pairs. Received: {0}")]
     UnsupportedMetricsTypeError(String),
+
+    #[error("{0}")]
+    InvalidParameterError(String),
+
+    #[error("{0}")]
+    InvalidBinCountError(String),
+
+    #[error("{0}")]
+    InvalidValueError(String),
+
+    #[error("Empty Array Detected: {0}")]
+    EmptyArrayError(String),
+
+    #[error("Invalid binning strategy")]
+    InvalidBinningStrategyError,
 
     #[error("Unsupported status. Status must be one of: All, Pending or Processed. Received: {0}")]
     InvalidStatusError(String),
@@ -233,6 +251,9 @@ pub enum ProfileError {
 
     #[error("{0}")]
     PyError(String),
+
+    #[error("Invalid binning strategy")]
+    InvalidBinningStrategyError,
 
     #[error("Missing evaluation workflow")]
     MissingWorkflowError,

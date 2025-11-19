@@ -7,7 +7,7 @@ use scouter_types::{
     Feature, MessageRecord, PsiServerRecord, QueueExt, ServerRecord, ServerRecords,
 };
 use std::collections::HashMap;
-use tracing::{debug, error, instrument};
+use tracing::{debug, error, info, instrument};
 
 pub struct PsiFeatureQueue {
     pub drift_profile: PsiDriftProfile,
@@ -136,6 +136,14 @@ impl PsiFeatureQueue {
                             )
                         })?;
 
+                        if !value.is_finite() {
+                            info!(
+                                "Non finite value detected for {}, value will not be inserted into queue",
+                                feature.name()
+                            );
+                            continue;
+                        }
+
                         Self::process_numeric_queue(queue, value, bins)?
                     }
                     BinType::Category => {
@@ -246,10 +254,17 @@ mod tests {
             features_to_monitor: features.clone(),
             ..Default::default()
         };
-        let config = PsiDriftConfig::new("name", "repo", DEFAULT_VERSION, alert_config, None, None);
+
+        let config = PsiDriftConfig {
+            space: "name".to_string(),
+            name: "repo".to_string(),
+            version: DEFAULT_VERSION.to_string(),
+            alert_config,
+            ..Default::default()
+        };
 
         let profile = monitor
-            .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
+            .create_2d_drift_profile(&features, &array.view(), &config)
             .unwrap();
         assert_eq!(profile.features.len(), 3);
 
@@ -524,5 +539,72 @@ mod tests {
         // We have 3 features, the 3 features are numeric in nature and thus should have 10 bins assigned per due to our current decile approach.
         // Each record contains information for a given feature bin pair and this we should see a vec of len 30
         assert_eq!(drift_records.len(), 30);
+    }
+
+    #[test]
+    fn test_feature_queue_insert_numeric_non_finite() {
+        let min = 1.0;
+        let max = 87.0;
+        let mut array = Array::random((1030, 3), Uniform::new(min, max));
+
+        // Ensure that each column has at least one `1.0` and one `87.0`
+        for col in 0..3 {
+            array[[0, col]] = min;
+            array[[1, col]] = max;
+        }
+
+        let features = vec![
+            "feature_1".to_string(),
+            "feature_2".to_string(),
+            "feature_3".to_string(),
+        ];
+
+        let monitor = PsiMonitor::new();
+
+        let alert_config = PsiAlertConfig {
+            features_to_monitor: features.clone(),
+            ..Default::default()
+        };
+
+        let config = PsiDriftConfig {
+            space: "name".to_string(),
+            name: "repo".to_string(),
+            version: DEFAULT_VERSION.to_string(),
+            alert_config,
+            ..Default::default()
+        };
+
+        let profile = monitor
+            .create_2d_drift_profile(&features, &array.view(), &config)
+            .unwrap();
+        assert_eq!(profile.features.len(), 3);
+
+        let feature_queue = PsiFeatureQueue::new(profile);
+
+        assert_eq!(feature_queue.empty_queue.len(), 3);
+
+        let mut batch_features = Vec::new();
+        let non_finite_values = [f64::INFINITY, f64::NEG_INFINITY, f64::NAN];
+
+        for i in 0..9 {
+            let one = Feature::float("feature_1".to_string(), min);
+            // Randomly select a non-finite value for feature_2
+            let two = Feature::float("feature_2".to_string(), non_finite_values[i % 3]);
+            let three = Feature::float("feature_3".to_string(), max);
+            let features = Features {
+                features: vec![one, two, three],
+                entity_type: EntityType::Feature,
+            };
+            batch_features.push(features);
+        }
+
+        let mut queue = feature_queue.empty_queue.clone();
+        for feature in batch_features {
+            feature_queue.insert(&feature.features, &mut queue).unwrap();
+        }
+
+        assert_eq!(*queue.get("feature_1").unwrap().get(&1).unwrap(), 9);
+        assert!((1..=10).all(|bin| *queue.get("feature_2").unwrap().get(&bin).unwrap() == 0));
+        assert_eq!(*queue.get("feature_3").unwrap().get(&10).unwrap(), 9);
     }
 }

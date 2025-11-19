@@ -33,6 +33,16 @@ FeatureMap = drift.FeatureMap
 CustomMetric = drift.CustomMetric
 CustomDriftProfile = drift.CustomDriftProfile
 CustomMetricDriftConfig = drift.CustomMetricDriftConfig
+QuantileBinning = drift.QuantileBinning
+EqualWidthBinning = drift.EqualWidthBinning
+Manual = drift.Manual
+SquareRoot = drift.SquareRoot
+Sturges = drift.Sturges
+Rice = drift.Rice
+Doane = drift.Doane
+Scott = drift.Scott
+TerrellScott = drift.TerrellScott
+FreedmanDiaconis = drift.FreedmanDiaconis
 LLMDriftMetric = drift.LLMDriftMetric
 LLMDriftConfig = drift.LLMDriftConfig
 LLMDriftProfile = drift.LLMDriftProfile
@@ -114,6 +124,16 @@ __all__ = [
     # Client - from Rust extension
     "HTTPConfig",
     "ScouterClient",
+    "QuantileBinning",
+    "EqualWidthBinning",
+    "Manual",
+    "SquareRoot",
+    "Sturges",
+    "Rice",
+    "Doane",
+    "Scott",
+    "TerrellScott",
+    "FreedmanDiaconis",
     # Evaluate - from Python wrappers
     "LLMEvalMetric",
     "LLMEvalResults",

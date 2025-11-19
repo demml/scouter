@@ -6,11 +6,21 @@ from .drift import (
     CustomDriftProfile,
     CustomMetric,
     CustomMetricDriftConfig,
+    Doane,
     Drifter,
+    EqualWidthBinning,
+    FreedmanDiaconis,
+    Manual,
     PsiDriftConfig,
     PsiDriftProfile,
+    QuantileBinning,
+    Rice,
+    Scott,
     SpcDriftConfig,
     SpcDriftProfile,
+    SquareRoot,
+    Sturges,
+    TerrellScott,
 )
 from .evaluate import LLMEvalMetric, LLMEvalRecord, LLMEvalResults, evaluate_llm
 from .profile import DataProfile, DataProfiler
@@ -50,6 +60,16 @@ __all__ = [
     # Client
     "HTTPConfig",
     "ScouterClient",
+    "QuantileBinning",
+    "EqualWidthBinning",
+    "Manual",
+    "SquareRoot",
+    "Sturges",
+    "Rice",
+    "Doane",
+    "Scott",
+    "TerrellScott",
+    "FreedmanDiaconis",
     # Evaluate
     "LLMEvalMetric",
     "LLMEvalResults",

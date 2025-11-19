@@ -199,12 +199,18 @@ async fn test_psi_server_records() {
         ..Default::default()
     };
 
-    let config = PsiDriftConfig::new(SPACE, NAME, VERSION, alert_config, None, None);
+    let config = PsiDriftConfig {
+        space: SPACE.to_string(),
+        name: NAME.to_string(),
+        version: VERSION.to_string(),
+        alert_config,
+        ..Default::default()
+    };
 
     let monitor = PsiMonitor::new();
 
     let profile = monitor
-        .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
+        .create_2d_drift_profile(&features, &array.view(), &config)
         .unwrap();
 
     let request = profile.create_profile_request().unwrap();
