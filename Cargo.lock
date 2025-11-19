@@ -5735,6 +5735,7 @@ dependencies = [
  "scouter-settings",
  "scouter-sql",
  "scouter-types",
+ "semver",
  "serde",
  "serde_json",
  "sqlx",
