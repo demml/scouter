@@ -7,12 +7,18 @@ ENV LANGUAGE=en_US.UTF-8
 ENV PROJECT_HOME=/app
 ARG USER_NAME=scouter_user
 
+ARG TINI_BIN=tini-amd64
+ENV TINI_VERSION=v0.19.0
 
 RUN microdnf update -y \
   && microdnf install -y \
     shadow-utils \
-    tini \
+    curl \
     ca-certificates \
+  \
+  && TINI_URL="https://github.com/krallin/tini/releases/download/${TINI_VERSION}/${TINI_BIN}"; \
+  curl -fsSL "$TINI_URL" -o /usr/local/bin/tini; \
+  chmod +x /usr/local/bin/tini \
   \
   && groupadd --system ${USER_NAME} \
   && useradd --system --gid ${USER_NAME} --no-create-home ${USER_NAME} \
@@ -26,7 +32,6 @@ RUN microdnf update -y \
 WORKDIR ${PROJECT_HOME}
 
 ARG SCOUTER_SERVER_BINARY
-
 
 COPY ${SCOUTER_SERVER_BINARY} /usr/local/bin/scouter-server
 
