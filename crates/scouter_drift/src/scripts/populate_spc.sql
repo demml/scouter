@@ -160,9 +160,9 @@ VALUES
             "feature_map": {
               "features": {}
             },
-            "drift_type": "SPC"
+            "drift_type": "Spc"
           },
-        "scouter_version": "0.1.0"
+          "scouter_version": "0.1.0"
         }',
         'Spc',
         false,
@@ -217,7 +217,7 @@ VALUES
             "sample": true,
             "name": "test_app",
             "space": "mathworld",
-            "version": "0.1.0",
+            "version": "0.2.0",
             "alert_config": {
               "rule": {
                 "rule": "8 16 4 8 2 4 1 1",
@@ -243,12 +243,13 @@ VALUES
           },
           "scouter_version": "0.3.3"
         }',
-        'SPC',
+        'Spc',
         true,
         '0 0 0 * * *',
         timezone('utc', now() - interval '2 days'),
         timezone('utc', now() - interval '3 days')
     );
+
 
 INSERT INTO scouter.spc_drift (created_at, name, space, feature, value, version)
 VALUES

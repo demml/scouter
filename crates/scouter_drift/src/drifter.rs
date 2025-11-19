@@ -232,10 +232,10 @@ pub mod drift_executor {
         pub async fn cleanup(pool: &Pool<Postgres>) {
             sqlx::raw_sql(
                 r#"
-                DELETE 
+                DELETE
                 FROM scouter.spc_drift;
 
-                DELETE 
+                DELETE
                 FROM scouter.observability_metric;
 
                 DELETE
@@ -278,8 +278,8 @@ pub mod drift_executor {
 
             let script = std::fs::read_to_string(populate_path).unwrap();
             sqlx::raw_sql(&script).execute(&db_pool).await.unwrap();
-
             let mut drift_executor = DriftExecutor::new(&db_pool);
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
             drift_executor.poll_for_tasks().await.unwrap();
 
@@ -314,6 +314,7 @@ pub mod drift_executor {
 
             let script = std::fs::read_to_string(populate_path).unwrap();
             sqlx::raw_sql(&script).execute(&db_pool).await.unwrap();
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
             let mut drift_executor = DriftExecutor::new(&db_pool);
 
@@ -357,6 +358,7 @@ pub mod drift_executor {
             script = script.replace("{{skew_factor}}", &skew_factor.to_string());
             script = script.replace("{{apply_skew}}", &apply_skew.to_string());
             sqlx::raw_sql(&script).execute(&db_pool).await.unwrap();
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
             let mut drift_executor = DriftExecutor::new(&db_pool);
 
@@ -412,6 +414,7 @@ pub mod drift_executor {
             script = script.replace("{{skew_factor}}", &skew_factor.to_string());
             script = script.replace("{{apply_skew}}", &apply_skew.to_string());
             sqlx::raw_sql(&script).execute(&db_pool).await.unwrap();
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
             let mut drift_executor = DriftExecutor::new(&db_pool);
 
@@ -447,6 +450,7 @@ pub mod drift_executor {
 
             let script = std::fs::read_to_string(populate_path).unwrap();
             sqlx::raw_sql(&script).execute(&db_pool).await.unwrap();
+            tokio::time::sleep(tokio::time::Duration::from_millis(10)).await;
 
             let mut drift_executor = DriftExecutor::new(&db_pool);
 
