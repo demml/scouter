@@ -282,7 +282,7 @@ pub mod drift_executor {
             let alert_config = SpcAlertConfig {
                 rule: SpcAlertRule::default(),
                 schedule: CommonCrons::EveryDay.cron().to_string(),
-                features_to_monitor: vec!["col_1".to_string(), "col_3".to_string()].into(),
+                features_to_monitor: vec!["col_1".to_string(), "col_3".to_string()],
                 dispatch_config: AlertDispatchConfig::default(),
             };
 
