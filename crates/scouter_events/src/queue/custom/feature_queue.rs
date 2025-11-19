@@ -1,6 +1,7 @@
 use crate::error::FeatureQueueError;
 use crate::queue::traits::FeatureQueue;
 use core::result::Result::Ok;
+use scouter_types::MessageRecord;
 use scouter_types::Metric;
 use scouter_types::QueueExt;
 use scouter_types::{
@@ -86,7 +87,7 @@ impl FeatureQueue for CustomMetricFeatureQueue {
     fn create_drift_records_from_batch<T: QueueExt>(
         &self,
         batch: Vec<T>,
-    ) -> Result<ServerRecords, FeatureQueueError> {
+    ) -> Result<MessageRecord, FeatureQueueError> {
         // clones the empty map (so we don't need to recreate it on each call)
         let mut queue = self.empty_queue.clone();
 
@@ -94,7 +95,9 @@ impl FeatureQueue for CustomMetricFeatureQueue {
             self.insert(elem.metrics(), &mut queue)?;
         }
 
-        self.create_drift_records(queue)
+        Ok(MessageRecord::ServerRecords(
+            self.create_drift_records(queue)?,
+        ))
     }
 }
 
@@ -102,10 +105,8 @@ impl FeatureQueue for CustomMetricFeatureQueue {
 mod tests {
 
     use super::*;
-    use scouter_types::custom::{
-        AlertThreshold, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig,
-    };
-    use scouter_types::EntityType;
+    use scouter_types::custom::{CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig};
+    use scouter_types::{AlertThreshold, EntityType};
     use scouter_types::{Metric, Metrics};
 
     #[test]
@@ -126,7 +127,7 @@ mod tests {
         )
         .unwrap();
         let profile =
-            CustomDriftProfile::new(custom_config, vec![metric1, metric2, metric3], None).unwrap();
+            CustomDriftProfile::new(custom_config, vec![metric1, metric2, metric3]).unwrap();
         let feature_queue = CustomMetricFeatureQueue::new(profile);
 
         assert_eq!(feature_queue.empty_queue.len(), 3);
@@ -149,10 +150,10 @@ mod tests {
             .unwrap();
 
         // empty should be excluded
-        assert_eq!(records.records.len(), 2);
+        assert_eq!(records.len(), 2);
 
         // check average of mae
-        for record in records.records.iter() {
+        for record in records.iter_server_records().unwrap() {
             if let ServerRecord::Custom(custom_record) = record {
                 assert!(custom_record.metric.contains("ma"));
                 assert_eq!(custom_record.value, 12.0);

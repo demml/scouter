@@ -1,17 +1,18 @@
 use crate::error::DataFrameError;
 use crate::parquet::traits::ParquetFrame;
+use crate::parquet::utils::ParquetHelper;
 use crate::sql::helper::get_binned_psi_drift_records_query;
 use crate::storage::ObjectStore;
 use arrow::array::AsArray;
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow_array::array::{
-    ListArray, StringArray, StringViewArray, StructArray, TimestampNanosecondArray, UInt64Array,
+    ListArray, StringArray, StructArray, TimestampNanosecondArray, UInt64Array,
 };
 use arrow_array::types::{Float32Type, UInt64Type};
 use arrow_array::Array;
 use arrow_array::RecordBatch;
 use async_trait::async_trait;
-use chrono::{DateTime, TimeZone, Utc};
+use chrono::{DateTime, Utc};
 use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
@@ -130,32 +131,6 @@ impl PsiDataFrame {
 
         Ok(batch)
     }
-}
-
-/// Extraction logic to get feature from a return record batch
-fn extract_feature(batch: &RecordBatch) -> Result<String, DataFrameError> {
-    let feature_array = batch
-        .column(0)
-        .as_any()
-        .downcast_ref::<StringViewArray>()
-        .ok_or_else(|| DataFrameError::GetColumnError("feature"))?;
-    Ok(feature_array.value(0).to_string())
-}
-
-/// Extraction logic to get created_at from a return record batch
-fn extract_created_at(batch: &RecordBatch) -> Result<Vec<DateTime<Utc>>, DataFrameError> {
-    let created_at_list = batch
-        .column(1)
-        .as_any()
-        .downcast_ref::<ListArray>()
-        .ok_or_else(|| DataFrameError::GetColumnError("created_at"))?;
-
-    let created_at_array = created_at_list.value(0);
-    Ok(created_at_array
-        .as_primitive::<arrow::datatypes::TimestampNanosecondType>()
-        .iter()
-        .filter_map(|ts| ts.map(|t| Utc.timestamp_nanos(t)))
-        .collect())
 }
 
 /// Extraction logic to get bin proportions from a return record batch
@@ -293,8 +268,10 @@ fn process_psi_record_batch(
     batch: &RecordBatch,
 ) -> Result<FeatureBinProportionResult, DataFrameError> {
     Ok(FeatureBinProportionResult {
-        feature: extract_feature(batch)?,
-        created_at: extract_created_at(batch)?,
+        feature: ParquetHelper::extract_feature_array(batch)?
+            .value(0)
+            .to_string(),
+        created_at: ParquetHelper::extract_created_at(batch)?,
         bin_proportions: extract_bin_proportions(batch)?,
         overall_proportions: extract_overall_proportions(batch)?,
     })

@@ -6,7 +6,8 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-version = "0.6.4"
+license = "MIT"
+version = "0.12.0"
 description = ""
 authors = [
     {name = "Thorrester", email = "<support@demmlai.com>"},
@@ -39,6 +40,7 @@ dev = [
     'pyarrow>=18.0.0',
     "httpx>=0.28.1",
     "pytest-benchmark>=5.0.1",
+    "pytest-asyncio>=0.23.8",
 ]
 docs = [
     "mkdocs-material >= 9.5.4, < 10.0.0",
@@ -97,9 +99,8 @@ omit = [
 
 [tool.mypy]
 # platform configuration
-python_version = "3.9"
+python_version = "3.10"
 platform = "linux"
-mypy_path = "stubs"
 ignore_missing_imports = true
 plugins = [
     "numpy.typing.mypy_plugin",
@@ -107,6 +108,7 @@ plugins = [
 exclude = [
     "python/scouter/utils/comparison/*",
 ]
+files = ["python/scouter", "tests", "examples"]
 
 [build-system]
 requires = ["maturin>=1.4,<2.0"]
@@ -115,4 +117,3 @@ build-backend = "maturin"
 [tool.maturin]
 python-source = "python"
 module-name = "scouter.scouter"
-cargo-extra-args = "--features extension-module"

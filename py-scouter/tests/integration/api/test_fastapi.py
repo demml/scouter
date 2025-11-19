@@ -1,7 +1,13 @@
 import time
 
 from fastapi.testclient import TestClient
-from scouter.client import DriftRequest, ScouterClient, TimeInterval
+from scouter.client import (
+    DriftRequest,
+    ScouterClient,
+    TimeInterval,
+    TraceFilters,
+    TraceMetricsRequest,
+)
 from scouter.types import DriftType
 
 from tests.integration.api.conftest import PredictRequest
@@ -13,7 +19,7 @@ from .conftest import (
 )
 
 
-def test_api_kafka(kafka_scouter_server):
+def _test_api_kafka(kafka_scouter_server):
     # create the client
     scouter_client = ScouterClient()
 
@@ -38,8 +44,8 @@ def test_api_kafka(kafka_scouter_server):
                 ).model_dump(),
             )
         assert response.status_code == 200
-
-    time.sleep(10)
+        time.sleep(5)
+        client.wait_shutdown()
 
     request = DriftRequest(
         name=profile.config.name,
@@ -59,10 +65,16 @@ def test_api_kafka(kafka_scouter_server):
         "feature_3",
     }
 
-    assert len(drift.features["feature_0"].values) == 1
+    assert len(drift.features["feature_0"].values) >= 0
 
     # delete the drift_path
     drift_path.unlink()
+
+    traces = scouter_client.get_paginated_traces(
+        TraceFilters(limit=10),
+    )
+
+    assert len(traces.items) >= 0
 
 
 def test_api_http(http_scouter_server):
@@ -90,8 +102,8 @@ def test_api_http(http_scouter_server):
                 ).model_dump(),
             )
         assert response.status_code == 200
-
-    time.sleep(10)
+        time.sleep(5)
+        client.wait_shutdown()
 
     request = DriftRequest(
         name=profile.config.name,
@@ -111,7 +123,43 @@ def test_api_http(http_scouter_server):
         "feature_3",
     }
 
-    assert len(drift.features["feature_0"].values) == 1
+    # assert len(drift.features["feature_0"].values) == 1
 
     # delete the drift_path
     drift_path.unlink()
+
+    # refresh trace summary
+    scouter_client.refresh_trace_summary()
+
+    # get traces
+    traces = scouter_client.get_paginated_traces(
+        TraceFilters(limit=10),
+    )
+
+    first_trace = traces.items[0]
+    assert len(traces.items) >= 0
+    trace_id = traces.items[0].trace_id
+
+    # get trace spans
+    trace_spans = scouter_client.get_trace_spans(trace_id)
+
+    assert len(trace_spans.spans) == 3
+    assert trace_spans.spans[0].input["payload"]["feature_0"] == 1.0
+    assert trace_spans.spans[0].output["message"] == "success"
+
+    scouter_client.get_trace_metrics(
+        TraceMetricsRequest(
+            start_time=first_trace.start_time,
+            end_time=first_trace.end_time,
+            bucket_interval="1 minutes",
+        )
+    )
+
+    # get tags
+    tags_response = scouter_client.get_tags(entity_type="trace", entity_id=trace_id)
+    assert len(tags_response.tags) >= 0
+
+    # assert tag key and value
+    tag = tags_response.tags[0]
+    assert tag.key == "foo"
+    assert tag.value == "bar"

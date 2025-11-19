@@ -11,7 +11,8 @@ from scouter.client import (
     TimeInterval,
 )
 from scouter.drift import Drifter, SpcDriftConfig
-from scouter.queue import Feature, Features, KafkaConfig, ScouterQueue
+from scouter.queue import Feature, Features, ScouterQueue
+from scouter.transport import KafkaConfig
 from scouter.types import DriftType
 
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"
@@ -41,8 +42,8 @@ def test_spc_monitor_pandas_kafka(
         )
         queue["a"].insert(features)
 
+    time.sleep(15)
     queue.shutdown()
-    time.sleep(10)
 
     binned_records: BinnedSpcFeatureMetrics = client.get_binned_drift(
         DriftRequest(

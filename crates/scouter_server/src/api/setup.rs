@@ -1,5 +1,6 @@
 use crate::api::archive::DataArchiver;
-use crate::api::drift_manager::BackgroundDriftManager;
+use crate::api::polling::drift_poller::BackgroundDriftManager;
+use crate::api::polling::llm_poller::BackgroundLLMDriftManager;
 use anyhow::{Context, Result as AnyhowResult};
 use flume::Sender;
 use password_auth::generate_hash;
@@ -31,7 +32,7 @@ use scouter_events::consumer::redis::RedisConsumerManager;
 
 use scouter_events::consumer::http::consumer::HttpConsumerManager;
 use scouter_settings::events::HttpConsumerSettings;
-use scouter_types::ServerRecords;
+use scouter_types::MessageRecord;
 
 use crate::api::task_manager::TaskManager;
 
@@ -39,12 +40,12 @@ pub struct ScouterSetupComponents {
     pub server_config: Arc<ScouterServerConfig>,
     pub db_pool: Pool<Postgres>,
     pub task_manager: TaskManager,
-    pub http_consumer_tx: Sender<ServerRecords>,
+    pub http_consumer_tx: Sender<MessageRecord>,
 }
 
 impl ScouterSetupComponents {
     pub async fn new() -> AnyhowResult<Self> {
-        let config = Arc::new(ScouterServerConfig::default());
+        let config = Arc::new(ScouterServerConfig::new().await);
 
         // start logging
         let logging = Self::setup_logging().await;
@@ -64,6 +65,7 @@ impl ScouterSetupComponents {
         )
         .await?;
 
+        // If kafka is enabled, set up the kafka consumer
         if config.kafka_enabled() {
             #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
             Self::setup_kafka(
@@ -74,6 +76,7 @@ impl ScouterSetupComponents {
             .await?;
         }
 
+        // If rabbitmq is enabled, set up the rabbitmq consumer
         if config.rabbitmq_enabled() {
             #[cfg(feature = "rabbitmq")]
             Self::setup_rabbitmq(
@@ -84,6 +87,7 @@ impl ScouterSetupComponents {
             .await?;
         }
 
+        // If redis is enabled, set up the redis consumer
         if config.redis_enabled() {
             #[cfg(feature = "redis_events")]
             Self::setup_redis(
@@ -94,6 +98,17 @@ impl ScouterSetupComponents {
             .await?;
         }
 
+        // If LLM is enabled, set up the LLM drift workers
+        if config.llm_enabled() {
+            Self::setup_background_llm_drift_workers(
+                &db_pool,
+                &config.polling_settings,
+                tokio_shutdown_rx.clone(),
+            )
+            .await?;
+        }
+
+        // Set up the background drift workers
         Self::setup_background_drift_workers(
             &db_pool,
             &config.polling_settings,
@@ -237,6 +252,7 @@ impl ScouterSetupComponents {
     }
 
     /// Get that database going!
+    #[instrument(skip_all)]
     async fn setup_database(db_settings: &DatabaseSettings) -> AnyhowResult<Pool<Postgres>> {
         let db_pool = PostgresClient::create_db_pool(db_settings)
             .await
@@ -368,6 +384,30 @@ impl ScouterSetupComponents {
     ) -> AnyhowResult<()> {
         BackgroundDriftManager::start_workers(db_pool, poll_settings, shutdown_rx).await?;
         info!("✅ Started background workers");
+
+        Ok(())
+    }
+
+    /// Helper to setup the background LLM drift worker
+    /// This worker will continually run and check if there are any drift records to process
+    /// and will run the LLM drift evaluation jobs
+    ///
+    /// Arguments:
+    /// * `db_client` - The database client to use for the worker
+    /// * `db_settings` - The database settings to use for the worker
+    /// * `poll_settings` - The polling settings to use for the worker
+    /// * `shutdown_rx` - The shutdown receiver to use for the worker
+    ///
+    /// Returns:
+    /// * `AnyhowResult<()>` - The result of the setup
+    #[instrument(skip_all)]
+    async fn setup_background_llm_drift_workers(
+        db_pool: &Pool<Postgres>,
+        poll_settings: &PollingSettings,
+        shutdown_rx: tokio::sync::watch::Receiver<()>,
+    ) -> AnyhowResult<()> {
+        BackgroundLLMDriftManager::start_workers(db_pool, poll_settings, shutdown_rx).await?;
+        info!("✅ Started background llm workers");
 
         Ok(())
     }

@@ -1,15 +1,16 @@
 #![allow(clippy::useless_conversion)]
 use crate::custom::alert::{CustomMetric, CustomMetricAlertConfig};
 use crate::error::{ProfileError, TypeError};
-use crate::util::{json_to_pyobject, pyobject_to_json};
+use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version};
 use crate::ProfileRequest;
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
-    ProfileFuncs, DEFAULT_VERSION, MISSING,
+    PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
 };
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use scouter_semver::VersionType;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -92,12 +93,12 @@ impl CustomMetricDriftConfig {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -142,14 +143,31 @@ pub struct CustomDriftProfile {
     pub scouter_version: String,
 }
 
+impl Default for CustomDriftProfile {
+    fn default() -> Self {
+        Self {
+            config: CustomMetricDriftConfig::new(
+                MISSING,
+                MISSING,
+                DEFAULT_VERSION,
+                25,
+                CustomMetricAlertConfig::default(),
+                None,
+            )
+            .unwrap(),
+            metrics: HashMap::new(),
+            scouter_version: scouter_version(),
+        }
+    }
+}
+
 #[pymethods]
 impl CustomDriftProfile {
     #[new]
-    #[pyo3(signature = (config, metrics, scouter_version=None))]
+    #[pyo3(signature = (config, metrics))]
     pub fn new(
         mut config: CustomMetricDriftConfig,
         metrics: Vec<CustomMetric>,
-        scouter_version: Option<String>,
     ) -> Result<Self, ProfileError> {
         if metrics.is_empty() {
             return Err(TypeError::NoMetricsError.into());
@@ -159,23 +177,21 @@ impl CustomDriftProfile {
 
         let metric_vals = metrics.iter().map(|m| (m.name.clone(), m.value)).collect();
 
-        let scouter_version = scouter_version.unwrap_or(env!("CARGO_PKG_VERSION").to_string());
-
         Ok(Self {
             config,
             metrics: metric_vals,
-            scouter_version,
+            scouter_version: scouter_version(),
         })
     }
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
 
     pub fn model_dump(&self, py: Python) -> Result<Py<PyDict>, ProfileError> {
@@ -196,7 +212,7 @@ impl CustomDriftProfile {
     // Convert python dict into a drift profile
     #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ProfileError> {
-        Ok(ProfileFuncs::save_to_json(
+        Ok(PyHelperFuncs::save_to_json(
             self,
             path,
             FileName::CustomDriftProfile.to_str(),
@@ -268,10 +284,24 @@ impl CustomDriftProfile {
 
     /// Create a profile request from the profile
     pub fn create_profile_request(&self) -> Result<ProfileRequest, TypeError> {
+        let version: Option<String> = if self.config.version == DEFAULT_VERSION {
+            None
+        } else {
+            Some(self.config.version.clone())
+        };
+
         Ok(ProfileRequest {
             space: self.config.space.clone(),
             profile: self.model_dump_json(),
             drift_type: self.config.drift_type.clone(),
+            version_request: VersionRequest {
+                version,
+                version_type: VersionType::Minor,
+                pre_tag: None,
+                build_tag: None,
+            },
+            active: false,
+            deactivate_others: false,
         })
     }
 }
@@ -281,7 +311,7 @@ impl ProfileBaseArgs for CustomDriftProfile {
         ProfileArgs {
             name: self.config.name.clone(),
             space: self.config.space.clone(),
-            version: self.config.version.clone(),
+            version: Some(self.config.version.clone()),
             schedule: self.config.alert_config.schedule.clone(),
             scouter_version: self.scouter_version.clone(),
             drift_type: self.config.drift_type.clone(),
@@ -296,7 +326,7 @@ impl ProfileBaseArgs for CustomDriftProfile {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::custom::alert::AlertThreshold;
+    use crate::AlertThreshold;
     use crate::{AlertDispatchConfig, OpsGenieDispatchConfig, SlackDispatchConfig};
 
     #[test]
@@ -362,7 +392,7 @@ mod tests {
             CustomMetric::new("accuracy", 0.85, AlertThreshold::Below, None).unwrap(),
         ];
 
-        let profile = CustomDriftProfile::new(drift_config, custom_metrics, None).unwrap();
+        let profile = CustomDriftProfile::new(drift_config, custom_metrics).unwrap();
         let _: Value =
             serde_json::from_str(&profile.model_dump_json()).expect("Failed to parse actual JSON");
 

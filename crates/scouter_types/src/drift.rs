@@ -1,10 +1,11 @@
 use crate::custom::CustomDriftProfile;
 use crate::error::ProfileError;
+use crate::llm::profile::LLMDriftProfile;
 use crate::psi::PsiDriftProfile;
 use crate::spc::SpcDriftProfile;
 use crate::util::ProfileBaseArgs;
 use crate::{AlertDispatchConfig, ProfileArgs};
-use crate::{FileName, ProfileFuncs};
+use crate::{FileName, PyHelperFuncs};
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use serde::{Deserialize, Serialize};
@@ -20,6 +21,7 @@ pub enum DriftType {
     Spc,
     Psi,
     Custom,
+    LLM,
 }
 
 #[pymethods]
@@ -30,6 +32,7 @@ impl DriftType {
             "spc" => Some(DriftType::Spc),
             "psi" => Some(DriftType::Psi),
             "custom" => Some(DriftType::Custom),
+            "llm" => Some(DriftType::LLM),
             _ => None,
         }
     }
@@ -40,6 +43,7 @@ impl DriftType {
             DriftType::Spc => "Spc",
             DriftType::Psi => "Psi",
             DriftType::Custom => "Custom",
+            DriftType::LLM => "LLM",
         }
     }
 }
@@ -52,6 +56,7 @@ impl FromStr for DriftType {
             "spc" => Ok(DriftType::Spc),
             "psi" => Ok(DriftType::Psi),
             "custom" => Ok(DriftType::Custom),
+            "llm" => Ok(DriftType::LLM),
             _ => Err(ProfileError::InvalidDriftTypeError),
         }
     }
@@ -63,6 +68,7 @@ impl Display for DriftType {
             DriftType::Spc => write!(f, "Spc"),
             DriftType::Psi => write!(f, "Psi"),
             DriftType::Custom => write!(f, "Custom"),
+            DriftType::LLM => write!(f, "LLM"),
         }
     }
 }
@@ -74,13 +80,13 @@ pub struct DriftArgs {
     pub dispatch_config: AlertDispatchConfig,
 }
 
-// Generic enum to be used on scouter server
 #[pyclass]
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub enum DriftProfile {
     Spc(SpcDriftProfile),
     Psi(PsiDriftProfile),
     Custom(CustomDriftProfile),
+    LLM(LLMDriftProfile),
 }
 
 #[pymethods]
@@ -91,6 +97,7 @@ impl DriftProfile {
             DriftProfile::Spc(profile) => Ok(profile.clone().into_bound_py_any(py)?),
             DriftProfile::Psi(profile) => Ok(profile.clone().into_bound_py_any(py)?),
             DriftProfile::Custom(profile) => Ok(profile.clone().into_bound_py_any(py)?),
+            DriftProfile::LLM(profile) => Ok(profile.clone().into_bound_py_any(py)?),
         }
     }
 }
@@ -121,6 +128,10 @@ impl DriftProfile {
                 let profile = serde_json::from_str(&profile)?;
                 Ok(DriftProfile::Custom(profile))
             }
+            DriftType::LLM => {
+                let profile = serde_json::from_str(&profile)?;
+                Ok(DriftProfile::LLM(profile))
+            }
         }
     }
 
@@ -130,6 +141,7 @@ impl DriftProfile {
             DriftProfile::Spc(profile) => profile.get_base_args(),
             DriftProfile::Psi(profile) => profile.get_base_args(),
             DriftProfile::Custom(profile) => profile.get_base_args(),
+            DriftProfile::LLM(profile) => profile.get_base_args(),
         }
     }
 
@@ -138,6 +150,7 @@ impl DriftProfile {
             DriftProfile::Spc(profile) => profile.to_value(),
             DriftProfile::Psi(profile) => profile.to_value(),
             DriftProfile::Custom(profile) => profile.to_value(),
+            DriftProfile::LLM(profile) => profile.to_value(),
         }
     }
 
@@ -167,6 +180,10 @@ impl DriftProfile {
                 let profile = serde_json::from_value(body)?;
                 Ok(DriftProfile::Custom(profile))
             }
+            DriftType::LLM => {
+                let profile = serde_json::from_value(body)?;
+                Ok(DriftProfile::LLM(profile))
+            }
         }
     }
 
@@ -187,6 +204,10 @@ impl DriftProfile {
                 let profile = profile.extract::<CustomDriftProfile>()?;
                 Ok(DriftProfile::Custom(profile))
             }
+            DriftType::LLM => {
+                let profile = profile.extract::<LLMDriftProfile>()?;
+                Ok(DriftProfile::LLM(profile))
+            }
         }
     }
 
@@ -204,16 +225,24 @@ impl DriftProfile {
         }
     }
 
+    pub fn get_llm_profile(&self) -> Result<&LLMDriftProfile, ProfileError> {
+        match self {
+            DriftProfile::LLM(profile) => Ok(profile),
+            _ => Err(ProfileError::InvalidDriftTypeError),
+        }
+    }
+
     pub fn drift_type(&self) -> DriftType {
         match self {
             DriftProfile::Spc(_) => DriftType::Spc,
             DriftProfile::Psi(_) => DriftType::Psi,
             DriftProfile::Custom(_) => DriftType::Custom,
+            DriftProfile::LLM(_) => DriftType::LLM,
         }
     }
 
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ProfileError> {
-        Ok(ProfileFuncs::save_to_json(
+        Ok(PyHelperFuncs::save_to_json(
             self,
             path,
             FileName::DriftProfile.to_str(),
@@ -236,6 +265,44 @@ impl DriftProfile {
         let profile = std::fs::read_to_string(&path)?;
         let profile_value: Value = serde_json::from_str(&profile).unwrap();
         DriftProfile::from_value(profile_value)
+    }
+
+    pub fn version(&self) -> Option<String> {
+        match self {
+            DriftProfile::Spc(profile) => Some(profile.config.version.clone()),
+            DriftProfile::Psi(profile) => Some(profile.config.version.clone()),
+            DriftProfile::Custom(profile) => Some(profile.config.version.clone()),
+            DriftProfile::LLM(profile) => Some(profile.config.version.clone()),
+        }
+    }
+
+    pub fn identifier(&self) -> String {
+        match self {
+            DriftProfile::Spc(profile) => {
+                format!(
+                    "{}/{}/v{}/spc",
+                    profile.config.space, profile.config.name, profile.config.version
+                )
+            }
+            DriftProfile::Psi(profile) => {
+                format!(
+                    "{}/{}/v{}/psi",
+                    profile.config.space, profile.config.name, profile.config.version
+                )
+            }
+            DriftProfile::Custom(profile) => {
+                format!(
+                    "{}/{}/v{}/custom",
+                    profile.config.space, profile.config.name, profile.config.version
+                )
+            }
+            DriftProfile::LLM(profile) => {
+                format!(
+                    "{}/{}/v{}/llm",
+                    profile.config.space, profile.config.name, profile.config.version
+                )
+            }
+        }
     }
 }
 

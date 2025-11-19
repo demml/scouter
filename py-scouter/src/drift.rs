@@ -29,5 +29,13 @@ pub fn drift(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Scott>()?;
     m.add_class::<TerrellScott>()?;
     m.add_class::<FreedmanDiaconis>()?;
+
+    // LLM Drift
+    m.add_class::<LLMDriftConfig>()?;
+    m.add_class::<LLMDriftProfile>()?;
+    m.add_class::<LLMDriftMetric>()?;
+    m.add_class::<LLMDriftMap>()?;
+    m.add_class::<LLMMetricRecord>()?;
+
     Ok(())
 }

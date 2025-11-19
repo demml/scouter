@@ -4,7 +4,7 @@ use core::result::Result::Ok;
 use scouter_drift::psi::monitor::PsiMonitor;
 use scouter_types::{
     psi::{Bin, BinType, PsiDriftProfile},
-    Feature, PsiServerRecord, QueueExt, ServerRecord, ServerRecords,
+    Feature, MessageRecord, PsiServerRecord, QueueExt, ServerRecord, ServerRecords,
 };
 use std::collections::HashMap;
 use tracing::{debug, error, info, instrument};
@@ -202,14 +202,17 @@ impl FeatureQueue for PsiFeatureQueue {
     fn create_drift_records_from_batch<T: QueueExt>(
         &self,
         batch: Vec<T>,
-    ) -> Result<ServerRecords, FeatureQueueError> {
+    ) -> Result<MessageRecord, FeatureQueueError> {
         // clones the empty map (so we don't need to recreate it on each call)
         let mut queue = self.empty_queue.clone();
 
         for elem in batch {
             self.insert(elem.features(), &mut queue)?;
         }
-        self.create_drift_records(queue)
+
+        Ok(MessageRecord::ServerRecords(
+            self.create_drift_records(queue)?,
+        ))
     }
 }
 
@@ -535,7 +538,7 @@ mod tests {
 
         // We have 3 features, the 3 features are numeric in nature and thus should have 10 bins assigned per due to our current decile approach.
         // Each record contains information for a given feature bin pair and this we should see a vec of len 30
-        assert_eq!(drift_records.records.len(), 30);
+        assert_eq!(drift_records.len(), 30);
     }
 
     #[test]

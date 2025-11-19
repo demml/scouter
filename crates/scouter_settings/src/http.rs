@@ -1,5 +1,5 @@
 use pyo3::prelude::*;
-use scouter_types::ProfileFuncs;
+use scouter_types::PyHelperFuncs;
 use scouter_types::TransportType;
 use serde::Serialize;
 
@@ -58,7 +58,7 @@ impl HTTPConfig {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 

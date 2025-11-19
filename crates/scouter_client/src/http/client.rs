@@ -6,11 +6,17 @@ use scouter_types::contracts::{
     DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
 };
 use scouter_types::http::{RequestType, Routes};
+use scouter_types::sql::TraceFilters;
+use scouter_types::{
+    RegisteredProfileResponse, TagsRequest, TagsResponse, TraceBaggageResponse,
+    TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse, TraceRequest,
+    TraceSpansResponse,
+};
 
 use crate::http::HTTPClient;
 use scouter_types::{
-    alert::Alert, custom::BinnedCustomMetrics, psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures,
-    DriftProfile, DriftType, ProfileFuncs,
+    alert::Alert, psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures, BinnedMetrics, DriftProfile,
+    DriftType, PyHelperFuncs,
 };
 use std::path::PathBuf;
 use tracing::{debug, error};
@@ -30,7 +36,10 @@ impl ScouterClient {
     }
 
     /// Insert a profile into the scouter server
-    pub fn insert_profile(&self, request: &ProfileRequest) -> Result<bool, ClientError> {
+    pub fn insert_profile(
+        &self,
+        request: &ProfileRequest,
+    ) -> Result<RegisteredProfileResponse, ClientError> {
         let response = self.client.request(
             Routes::Profile,
             RequestType::Post,
@@ -40,7 +49,11 @@ impl ScouterClient {
         )?;
 
         if response.status().is_success() {
-            Ok(true)
+            let body = response.bytes()?;
+            let profile_response: RegisteredProfileResponse = serde_json::from_slice(&body)?;
+
+            debug!("Profile inserted successfully: {:?}", profile_response);
+            Ok(profile_response)
         } else {
             Err(ClientError::InsertProfileError)
         }
@@ -149,6 +162,158 @@ impl ScouterClient {
             Ok(false)
         }
     }
+
+    fn get_paginated_traces(
+        &self,
+        request: &TraceFilters,
+    ) -> Result<TracePaginationResponse, ClientError> {
+        let response = self.client.request(
+            Routes::PaginatedTraces,
+            RequestType::Post,
+            Some(serde_json::to_value(request).unwrap()),
+            None,
+            None,
+        )?;
+
+        if !response.status().is_success() {
+            let status_code = response.status();
+            let err_msg = response.text().unwrap_or_default();
+            error!(
+                "Failed to get paginated traces. Status: {:?}, Error: {}",
+                status_code, err_msg
+            );
+            return Err(ClientError::GetPaginatedTracesError);
+        }
+
+        // Get response body
+        let body = response.bytes()?;
+
+        // Parse JSON response
+        let response: TracePaginationResponse = serde_json::from_slice(&body)?;
+        Ok(response)
+    }
+
+    fn refresh_trace_summary(&self) -> Result<bool, ClientError> {
+        let response = self.client.request(
+            Routes::RefreshTraceSummary,
+            RequestType::Get,
+            None,
+            None,
+            None,
+        )?;
+        if !response.status().is_success() {
+            error!(
+                "Failed to refresh trace summary. Status: {:?}",
+                response.status()
+            );
+            return Err(ClientError::RefreshTraceSummaryError);
+        }
+
+        Ok(true)
+    }
+
+    fn get_trace_spans(&self, trace_id: &str) -> Result<TraceSpansResponse, ClientError> {
+        let trace_request = TraceRequest {
+            trace_id: trace_id.to_string(),
+        };
+
+        let query_string = serde_qs::to_string(&trace_request)?;
+
+        let response = self.client.request(
+            Routes::TraceSpans,
+            RequestType::Get,
+            None,
+            Some(query_string),
+            None,
+        )?;
+        if !response.status().is_success() {
+            error!("Failed to get trace spans. Status: {:?}", response.status());
+            return Err(ClientError::GetTraceSpansError);
+        }
+
+        // Get response body
+        let body = response.bytes()?;
+        // Parse JSON response
+        let response: TraceSpansResponse = serde_json::from_slice(&body)?;
+        Ok(response)
+    }
+
+    fn get_trace_metrics(
+        &self,
+        request: TraceMetricsRequest,
+    ) -> Result<TraceMetricsResponse, ClientError> {
+        let query_string = serde_qs::to_string(&request)?;
+        let response = self.client.request(
+            Routes::TraceMetrics,
+            RequestType::Get,
+            None,
+            Some(query_string),
+            None,
+        )?;
+        if !response.status().is_success() {
+            error!(
+                "Failed to get trace metrics. Status: {:?}",
+                response.status()
+            );
+            return Err(ClientError::GetTraceMetricsError);
+        }
+
+        // Get response body
+        let body = response.bytes()?;
+        // Parse JSON response
+        let response: TraceMetricsResponse = serde_json::from_slice(&body)?;
+        Ok(response)
+    }
+
+    fn get_trace_baggage(&self, trace_id: &str) -> Result<TraceBaggageResponse, ClientError> {
+        let trace_request = TraceRequest {
+            trace_id: trace_id.to_string(),
+        };
+        let query_string = serde_qs::to_string(&trace_request)?;
+        let response = self.client.request(
+            Routes::TraceBaggage,
+            RequestType::Get,
+            None,
+            Some(query_string),
+            None,
+        )?;
+        if !response.status().is_success() {
+            error!(
+                "Failed to get trace baggage. Status: {:?}",
+                response.status()
+            );
+            return Err(ClientError::GetTraceBaggageError);
+        }
+
+        // Get response body
+        let body = response.bytes()?;
+        // Parse JSON response
+        let response: TraceBaggageResponse = serde_json::from_slice(&body)?;
+        Ok(response)
+    }
+
+    fn get_tags(&self, tag_request: TagsRequest) -> Result<TagsResponse, ClientError> {
+        let query_string = serde_qs::to_string(&tag_request)?;
+
+        let response = self.client.request(
+            Routes::Tags,
+            RequestType::Get,
+            None,
+            Some(query_string),
+            None,
+        )?;
+
+        if !response.status().is_success() {
+            error!("Failed to get tags. Status: {:?}", response.status());
+            return Err(ClientError::GetTagsError);
+        }
+
+        let body = response.bytes()?;
+
+        let tags_response: TagsResponse = serde_json::from_slice(&body)?;
+
+        Ok(tags_response)
+    }
 }
 
 #[pyclass(name = "ScouterClient")]
@@ -193,7 +358,17 @@ impl PyScouterClient {
             .call_method0("create_profile_request")?
             .extract::<ProfileRequest>()?;
 
-        self.client.insert_profile(&request)?;
+        let profile_response = self.client.insert_profile(&request)?;
+
+        // update config args
+        profile.call_method1(
+            "update_config_args",
+            (
+                Some(profile_response.space),
+                Some(profile_response.name),
+                Some(profile_response.version),
+            ),
+        )?;
 
         debug!("Profile inserted successfully");
         if set_active {
@@ -270,6 +445,9 @@ impl PyScouterClient {
             DriftType::Custom => {
                 PyScouterClient::get_custom_binned_drift(py, &self.client.client, drift_request)
             }
+            DriftType::LLM => {
+                PyScouterClient::get_llm_metric_binned_drift(py, &self.client.client, drift_request)
+            }
         }
     }
 
@@ -296,9 +474,74 @@ impl PyScouterClient {
 
         let profile = self.client.get_drift_profile(request)?;
 
-        ProfileFuncs::save_to_json(profile, path.clone(), &filename)?;
+        PyHelperFuncs::save_to_json(profile, path.clone(), &filename)?;
 
         Ok(path.map_or(filename, |p| p.to_string_lossy().to_string()))
+    }
+
+    /// Get paginated traces from the scouter server
+    /// # Arguments
+    /// * `filters` - A trace filters object
+    /// # Returns
+    /// * A trace pagination response object
+    pub fn get_paginated_traces(
+        &self,
+        filters: TraceFilters,
+    ) -> Result<TracePaginationResponse, ClientError> {
+        self.client.get_paginated_traces(&filters)
+    }
+
+    /// Refresh the trace summary on the scouter server
+    pub fn refresh_trace_summary(&self) -> Result<bool, ClientError> {
+        self.client.refresh_trace_summary()
+    }
+
+    /// Get trace spans for a given trace ID
+    /// # Arguments
+    /// * `trace_id` - The ID of the trace
+    /// # Returns
+    /// * A trace spans response object
+    pub fn get_trace_spans(&self, trace_id: &str) -> Result<TraceSpansResponse, ClientError> {
+        self.client.get_trace_spans(trace_id)
+    }
+
+    /// Get trace metrics for a given trace metrics request
+    /// # Arguments
+    /// * `trace_id` - The ID of the trace
+    /// # Returns
+    /// * A trace baggage response object
+    pub fn get_trace_baggage(&self, trace_id: &str) -> Result<TraceBaggageResponse, ClientError> {
+        self.client.get_trace_baggage(trace_id)
+    }
+
+    /// Get trace metrics for a given trace metrics request
+    /// # Arguments
+    /// * `request` - A trace metrics request object
+    /// # Returns
+    /// * A trace metrics response object
+    pub fn get_trace_metrics(
+        &self,
+        request: TraceMetricsRequest,
+    ) -> Result<TraceMetricsResponse, ClientError> {
+        self.client.get_trace_metrics(request)
+    }
+
+    /// Get tags for a given entity type and ID
+    /// # Arguments
+    /// * `entity_type` - The type of the entity
+    /// * `entity_id` - The ID of the entity
+    /// # Returns
+    /// * A tags response object
+    pub fn get_tags(
+        &self,
+        entity_type: String,
+        entity_id: String,
+    ) -> Result<TagsResponse, ClientError> {
+        let tag_request = TagsRequest {
+            entity_type,
+            entity_id,
+        };
+        self.client.get_tags(tag_request)
     }
 }
 
@@ -381,7 +624,33 @@ impl PyScouterClient {
 
         let body = response.bytes()?;
 
-        let results: BinnedCustomMetrics = serde_json::from_slice(&body)?;
+        let results: BinnedMetrics = serde_json::from_slice(&body)?;
+
+        Ok(results.into_bound_py_any(py).unwrap())
+    }
+
+    fn get_llm_metric_binned_drift<'py>(
+        py: Python<'py>,
+        client: &HTTPClient,
+        drift_request: DriftRequest,
+    ) -> Result<Bound<'py, PyAny>, ClientError> {
+        let query_string = serde_qs::to_string(&drift_request)?;
+
+        let response = client.request(
+            Routes::LLMDrift,
+            RequestType::Get,
+            None,
+            Some(query_string),
+            None,
+        )?;
+
+        if response.status().is_client_error() || response.status().is_server_error() {
+            return Err(ClientError::GetDriftDataError);
+        }
+
+        let body = response.bytes()?;
+
+        let results: BinnedMetrics = serde_json::from_slice(&body)?;
 
         Ok(results.into_bound_py_any(py).unwrap())
     }

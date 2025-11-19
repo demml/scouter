@@ -1,4 +1,6 @@
-name: 'Auto Assign PR'
+name: "Auto Assign PR"
+permissions:
+  contents: read
 on:
   pull_request:
     types: [opened, ready_for_review]
@@ -9,4 +11,4 @@ jobs:
     steps:
       - uses: kentaro-m/auto-assign-action@v1.2.5
         with:
-          configuration-path: '.github/reviewer_config.yml'
+          configuration-path: ".github/reviewer_config.yml"

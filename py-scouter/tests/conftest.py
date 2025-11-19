@@ -1,4 +1,5 @@
 import shutil
+import uuid
 from typing import Generator, TypeVar
 
 import numpy as np
@@ -16,7 +17,7 @@ from scouter.drift import CustomMetricDriftConfig, PsiDriftConfig, SpcDriftConfi
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 
 # Sets up logging for tests
-RustyLogger.setup_logging(LoggingConfig(log_level=LogLevel.Debug))
+RustyLogger.setup_logging(LoggingConfig(log_level=LogLevel.Info))
 
 T = TypeVar("T")
 YieldFixture = Generator[T, None, None]
@@ -98,8 +99,8 @@ def cat_feature_names() -> YieldFixture[list[str]]:
 @pytest.fixture(scope="function")
 def drift_config() -> YieldFixture[SpcDriftConfig]:
     config = SpcDriftConfig(
-        name="test",
-        space="test",
+        name=uuid.uuid4().hex,
+        space=uuid.uuid4().hex,
     )
     yield config
 

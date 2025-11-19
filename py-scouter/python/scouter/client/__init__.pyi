@@ -2,40 +2,220 @@ import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from ..transport import HTTPConfig
 from ..types import DriftType
 
-class HTTPConfig:
-    server_uri: str
-    username: str
-    password: str
-    auth_token: str
+class TagRecord:
+    """Represents a single tag record associated with an entity."""
+
+    created_at: datetime.datetime
+    entity_type: str
+    entity_id: str
+    key: str
+    value: str
+
+class Attribute:
+    """Represents a key-value attribute associated with a span."""
+
+    key: str
+    value: str
+
+class SpanEvent:
+    """Represents an event within a span."""
+
+    timestamp: datetime.datetime
+    name: str
+    attributes: List[Attribute]
+    dropped_attributes_count: int
+
+class SpanLink:
+    """Represents a link to another span."""
+
+    trace_id: str
+    span_id: str
+    trace_state: str
+    attributes: List[Attribute]
+    dropped_attributes_count: int
+
+class TraceBaggageRecord:
+    """Represents a single baggage record associated with a trace."""
+
+    created_at: datetime.datetime
+    trace_id: str
+    scope: str
+    key: str
+    value: str
+
+class TraceFilters:
+    """A struct for filtering traces, generated from Rust pyclass."""
+
+    space: Optional[str]
+    name: Optional[str]
+    version: Optional[str]
+    service_name: Optional[str]
+    has_errors: Optional[bool]
+    status_code: Optional[int]
+    start_time: Optional[datetime.datetime]
+    end_time: Optional[datetime.datetime]
+    limit: Optional[int]
+    cursor_created_at: Optional[datetime.datetime]
+    cursor_trace_id: Optional[str]
 
     def __init__(
         self,
-        server_uri: Optional[str] = None,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        auth_token: Optional[str] = None,
+        space: Optional[str] = None,
+        name: Optional[str] = None,
+        version: Optional[str] = None,
+        service_name: Optional[str] = None,
+        has_errors: Optional[bool] = None,
+        status_code: Optional[int] = None,
+        start_time: Optional[datetime.datetime] = None,
+        end_time: Optional[datetime.datetime] = None,
+        limit: Optional[int] = None,
+        cursor_created_at: Optional[datetime.datetime] = None,
+        cursor_trace_id: Optional[str] = None,
     ) -> None:
-        """HTTP configuration to use with the HTTPProducer.
+        """Initialize trace filters.
 
         Args:
-            server_uri:
-                URL of the HTTP server to publish messages to.
-                If not provided, the value of the HTTP_server_uri environment variable is used.
-
-            username:
-                Username for basic authentication.
-
-            password:
-                Password for basic authentication.
-
-            auth_token:
-                Authorization token to use for authentication.
-
+            space:
+                Model space filter
+            name:
+                Model name filter
+            version:
+                Model version filter
+            service_name:
+                Service name filter
+            has_errors:
+                Filter by presence of errors
+            status_code:
+                Filter by root span status code
+            start_time:
+                Start time boundary (UTC)
+            end_time:
+                End time boundary (UTC)
+            limit:
+                Maximum number of results to return
+            cursor_created_at:
+                Pagination cursor: created at timestamp
+            cursor_trace_id:
+                Pagination cursor: trace ID
         """
 
-    def __str__(self): ...
+class TraceMetricBucket:
+    """Represents aggregated trace metrics for a specific time bucket."""
+
+    bucket_start: datetime.datetime
+    trace_count: int
+    avg_duration_ms: float
+    p50_duration_ms: Optional[float]
+    p95_duration_ms: Optional[float]
+    p99_duration_ms: Optional[float]
+    error_rate: float
+
+class TraceListItem:
+    """Represents a summary item for a trace in a list view."""
+
+    trace_id: str
+    space: str
+    name: str
+    version: str
+    scope: str
+    service_name: Optional[str]
+    root_operation: Optional[str]
+    start_time: datetime.datetime
+    end_time: Optional[datetime.datetime]
+    duration_ms: Optional[int]
+    status_code: int
+    status_message: Optional[str]
+    span_count: Optional[int]
+    has_errors: bool
+    error_count: int
+    created_at: datetime.datetime
+
+class TraceSpan:
+    """Detailed information for a single span within a trace."""
+
+    trace_id: str
+    span_id: str
+    parent_span_id: Optional[str]
+    span_name: str
+    span_kind: Optional[str]
+    start_time: datetime.datetime
+    end_time: Optional[datetime.datetime]
+    duration_ms: Optional[int]
+    status_code: str
+    status_message: Optional[str]
+    attributes: List[Attribute]
+    events: List[SpanEvent]
+    links: List[SpanLink]
+    depth: int
+    path: List[str]
+    root_span_id: str
+    span_order: int
+    input: Any
+    output: Any
+
+class TracePaginationResponse:
+    """Response structure for paginated trace list requests."""
+
+    items: List[TraceListItem]
+
+class TraceSpansResponse:
+    """Response structure containing a list of spans for a trace."""
+
+    spans: List[TraceSpan]
+
+class TraceBaggageResponse:
+    """Response structure containing trace baggage records."""
+
+    baggage: List[TraceBaggageRecord]
+
+class TraceMetricsRequest:
+    """Request payload for fetching trace metrics."""
+
+    space: Optional[str]
+    name: Optional[str]
+    version: Optional[str]
+    start_time: datetime.datetime
+    end_time: datetime.datetime
+    bucket_interval: str
+
+    def __init__(
+        self,
+        start_time: datetime.datetime,
+        end_time: datetime.datetime,
+        bucket_interval: str,
+        space: Optional[str] = None,
+        name: Optional[str] = None,
+        version: Optional[str] = None,
+    ) -> None:
+        """Initialize trace metrics request.
+
+        Args:
+            start_time:
+                Start time boundary (UTC)
+            end_time:
+                End time boundary (UTC)
+            bucket_interval:
+                The time interval for metric aggregation buckets (e.g., '1 minutes', '30 minutes')
+            space:
+                Model space filter
+            name:
+                Model name filter
+            version:
+                Model version filter
+        """
+
+class TraceMetricsResponse:
+    """Response structure containing aggregated trace metrics."""
+
+    metrics: List[TraceMetricBucket]
+
+class TagsResponse:
+    """Response structure containing a list of tag records."""
+
+    tags: List[TagRecord]
 
 class TimeInterval:
     FiveMinutes: "TimeInterval"
@@ -165,7 +345,7 @@ class ScouterClient:
                 DriftRequest object
 
         Returns:
-            Drift map of type BinnedCustomMetrics | BinnedPsiFeatureMetrics | BinnedSpcFeatureMetrics
+            Drift map of type BinnedMetrics | BinnedPsiFeatureMetrics | BinnedSpcFeatureMetrics
         """
 
     def register_profile(self, profile: Any, set_active: bool = False) -> bool:
@@ -216,24 +396,87 @@ class ScouterClient:
             Path to downloaded profile
         """
 
-class BinnedCustomMetricStats:
+    def get_paginated_traces(self, filters: TraceFilters) -> TracePaginationResponse:
+        """Get paginated traces
+        Args:
+            filters:
+                TraceFilters object
+        Returns:
+            TracePaginationResponse
+        """
+
+    def refresh_trace_summary(self) -> bool:
+        """Refresh trace summary cache
+
+        Returns:
+            boolean
+        """
+
+    def get_trace_spans(self, trace_id: str) -> TraceSpansResponse:
+        """Get trace spans
+
+        Args:
+            trace_id:
+                Trace ID
+
+        Returns:
+            TraceSpansResponse
+        """
+
+    def get_trace_baggage(self, trace_id: str) -> TraceBaggageResponse:
+        """Get trace baggage
+
+        Args:
+            trace_id:
+                Trace ID
+
+        Returns:
+            TraceBaggageResponse
+        """
+
+    def get_trace_metrics(self, request: TraceMetricsRequest) -> TraceMetricsResponse:
+        """Get trace metrics
+
+        Args:
+            request:
+                TraceMetricsRequest
+
+        Returns:
+            TraceMetricsResponse
+        """
+
+    def get_tags(self, entity_type: str, entity_id: str) -> TagsResponse:
+        """Get tags for an entity
+
+        Args:
+            entity_type:
+                Entity type
+            entity_id:
+                Entity ID
+
+        Returns:
+            TagsResponse
+        """
+
+class BinnedMetricStats:
     avg: float
     lower_bound: float
     upper_bound: float
 
     def __str__(self) -> str: ...
 
-class BinnedCustomMetric:
+class BinnedMetric:
     metric: str
     created_at: List[datetime.datetime]
-    stats: List[BinnedCustomMetricStats]
+    stats: List[BinnedMetricStats]
 
     def __str__(self) -> str: ...
 
-class BinnedCustomMetrics:
+class BinnedMetrics:
     @property
-    def metrics(self) -> Dict[str, BinnedCustomMetric]: ...
+    def metrics(self) -> Dict[str, BinnedMetric]: ...
     def __str__(self) -> str: ...
+    def __getitem__(self, key: str) -> Optional[BinnedMetric]: ...
 
 class BinnedPsiMetric:
     created_at: List[datetime.datetime]
@@ -244,7 +487,7 @@ class BinnedPsiMetric:
     def __str__(self) -> str: ...
 
 class BinnedPsiFeatureMetrics:
-    features: Dict[str, BinnedCustomMetric]
+    features: Dict[str, BinnedMetric]
 
     def __str__(self) -> str: ...
 

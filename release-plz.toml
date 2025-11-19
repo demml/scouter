@@ -38,6 +38,10 @@ name = "scouter-settings"
 publish = true
 
 [[package]]
+name = "scouter-semver"
+publish = true
+
+[[package]]
 name = "scouter-types"
 publish = true
 
@@ -47,5 +51,13 @@ publish = true
 
 [[package]]
 name = "scouter-client"
+publish = true
+
+[[package]]
+name = "scouter-evaluate"
+publish = true
+
+[[package]]
+name = "scouter-state"
 publish = true
 

@@ -4,16 +4,12 @@ import datetime
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
-from ..client import HTTPConfig
-from ..logging import LogLevel
+from typing_extensions import Protocol, TypeAlias
+
+from ..llm import Prompt
 from ..mock import MockConfig
 from ..observe import ObservabilityMetrics
-
-class TransportType:
-    Kafka = "TransportType"
-    RabbitMQ = "TransportType"
-    Redis = "TransportType"
-    HTTP = "TransportType"
+from ..transport import HTTPConfig, KafkaConfig, RabbitMQConfig, RedisConfig
 
 class EntityType:
     Feature = "EntityType"
@@ -24,186 +20,6 @@ class RecordType:
     Psi = "RecordType"
     Observability = "RecordType"
     Custom = "RecordType"
-
-class KafkaConfig:
-    brokers: str
-    topic: str
-    compression_type: str
-    message_timeout_ms: int
-    message_max_bytes: int
-    log_level: LogLevel
-    config: Dict[str, str]
-    max_retries: int
-    transport_type: TransportType
-
-    def __init__(
-        self,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        brokers: Optional[str] = None,
-        topic: Optional[str] = None,
-        compression_type: Optional[str] = None,
-        message_timeout_ms: int = 600_000,
-        message_max_bytes: int = 2097164,
-        log_level: LogLevel = LogLevel.Info,
-        config: Dict[str, str] = {},
-        max_retries: int = 3,
-    ) -> None:
-        """Kafka configuration for connecting to and publishing messages to Kafka brokers.
-
-        This configuration supports both authenticated (SASL) and unauthenticated connections.
-        When credentials are provided, SASL authentication is automatically enabled with
-        secure defaults.
-
-        Authentication Priority (first match wins):
-            1. Direct parameters (username/password)
-            2. Environment variables (KAFKA_USERNAME/KAFKA_PASSWORD)
-            3. Configuration dictionary (sasl.username/sasl.password)
-
-        SASL Security Defaults:
-            - security.protocol: "SASL_SSL" (override via KAFKA_SECURITY_PROTOCOL env var)
-            - sasl.mechanism: "PLAIN" (override via KAFKA_SASL_MECHANISM env var)
-
-        Args:
-            username:
-                SASL username for authentication.
-                Fallback: KAFKA_USERNAME environment variable.
-            password:
-                SASL password for authentication.
-                Fallback: KAFKA_PASSWORD environment variable.
-            brokers:
-                Comma-separated list of Kafka broker addresses (host:port).
-                Fallback: KAFKA_BROKERS environment variable.
-                Default: "localhost:9092"
-            topic:
-                Target Kafka topic for message publishing.
-                Fallback: KAFKA_TOPIC environment variable.
-                Default: "scouter_monitoring"
-            compression_type:
-                Message compression algorithm.
-                Options: "none", "gzip", "snappy", "lz4", "zstd"
-                Default: "gzip"
-            message_timeout_ms:
-                Maximum time to wait for message delivery (milliseconds).
-                Default: 600000 (10 minutes)
-            message_max_bytes:
-                Maximum message size in bytes.
-                Default: 2097164 (~2MB)
-            log_level:
-                Logging verbosity for the Kafka producer.
-                Default: LogLevel.Info
-            config:
-                Additional Kafka producer configuration parameters.
-                See: https://kafka.apache.org/documentation/#producerconfigs
-                Note: Direct parameters take precedence over config dictionary values.
-            max_retries:
-                Maximum number of retry attempts for failed message deliveries.
-                Default: 3
-
-        Examples:
-            Basic usage (unauthenticated):
-            ```python
-            config = KafkaConfig(
-                brokers="kafka1:9092,kafka2:9092",
-                topic="my_topic"
-            )
-            ```
-
-            SASL authentication:
-            ```python
-            config = KafkaConfig(
-                username="my_user",
-                password="my_password",
-                brokers="secure-kafka:9093",
-                topic="secure_topic"
-            )
-            ```
-
-            Advanced configuration:
-            ```python
-            config = KafkaConfig(
-                brokers="kafka:9092",
-                compression_type="lz4",
-                config={
-                    "acks": "all",
-                    "batch.size": "32768",
-                    "linger.ms": "10"
-                }
-            )
-            ```
-        """
-
-    def __str__(self): ...
-
-class RabbitMQConfig:
-    address: str
-    queue: str
-    max_retries: int
-    transport_type: TransportType
-
-    def __init__(
-        self,
-        host: Optional[str] = None,
-        port: Optional[int] = None,
-        username: Optional[str] = None,
-        password: Optional[str] = None,
-        queue: Optional[str] = None,
-        max_retries: int = 3,
-    ) -> None:
-        """RabbitMQ configuration to use with the RabbitMQProducer.
-
-        Args:
-            host:
-                RabbitMQ host.
-                If not provided, the value of the RABBITMQ_HOST environment variable is used.
-
-            port:
-                RabbitMQ port.
-                If not provided, the value of the RABBITMQ_PORT environment variable is used.
-
-            username:
-                RabbitMQ username.
-                If not provided, the value of the RABBITMQ_USERNAME environment variable is used.
-
-            password:
-                RabbitMQ password.
-                If not provided, the value of the RABBITMQ_PASSWORD environment variable is used.
-
-            queue:
-                RabbitMQ queue to publish messages to.
-                If not provided, the value of the RABBITMQ_QUEUE environment variable is used.
-
-            max_retries:
-                Maximum number of retries to attempt when publishing messages.
-                Default is 3.
-        """
-
-    def __str__(self): ...
-
-class RedisConfig:
-    address: str
-    channel: str
-    transport_type: TransportType
-
-    def __init__(
-        self,
-        address: Optional[str] = None,
-        chanel: Optional[str] = None,
-    ) -> None:
-        """Redis configuration to use with a Redis producer
-
-        Args:
-            address (str):
-                Redis address.
-                If not provided, the value of the REDIS_ADDR environment variable is used and defaults to "redis://localhost:6379".
-
-            channel (str):
-                Redis channel to publish messages to.
-
-                If not provided, the value of the REDIS_CHANNEL environment variable is used and defaults to "scouter_monitoring".
-        """
-
-    def __str__(self): ...
 
 class ServerRecord:
     Spc: "ServerRecord"
@@ -601,26 +417,30 @@ class Metrics:
 class Queue:
     """Individual queue associated with a drift profile"""
 
-    def insert(self, entity: Union[Features, Metrics]) -> None:
+    def insert(self, entity: Union[Features, Metrics, LLMRecord]) -> None:
         """Insert a record into the queue
 
         Args:
             entity:
                 Entity to insert into the queue.
-                Can be an instance for Features or Metrics
+                Can be an instance for Features, Metrics, or LLMRecord.
 
         Example:
             ```python
             features = Features(
                 features=[
-                    Feature.int("feature_1", 1),
-                    Feature.float("feature_2", 2.0),
-                    Feature.string("feature_3", "value"),
+                    Feature("feature_1", 1),
+                    Feature("feature_2", 2.0),
+                    Feature("feature_3", "value"),
                 ]
             )
-            queue.insert(Features(features))
+            queue.insert(features)
             ```
         """
+
+    @property
+    def identifier(self) -> str:
+        """Return the identifier of the queue"""
 
 class ScouterQueue:
     """Main queue class for Scouter. Publishes drift records to the configured transport"""
@@ -661,9 +481,9 @@ class ScouterQueue:
             queue["psi"].insert(
                 Features(
                     features=[
-                        Feature.int("feature_1", 1),
-                        Feature.float("feature_2", 2.0),
-                        Feature.string("feature_3", "value"),
+                        Feature("feature_1", 1),
+                        Feature("feature_2", 2.0),
+                        Feature("feature_3", "value"),
                     ]
                 )
             )
@@ -687,3 +507,81 @@ class ScouterQueue:
         self,
     ) -> Union[KafkaConfig, RabbitMQConfig, RedisConfig, HTTPConfig, MockConfig]:
         """Return the transport configuration used by the queue"""
+
+class BaseModel(Protocol):
+    """Protocol for pydantic BaseModel to ensure compatibility with context"""
+
+    def model_dump(self) -> Dict[str, Any]:
+        """Dump the model as a dictionary"""
+        ...
+
+    def model_dump_json(self) -> str:
+        """Dump the model as a JSON string"""
+        ...
+
+    def __str__(self) -> str:
+        """String representation of the model"""
+        ...
+
+SerializedType: TypeAlias = Union[str, int, float, dict, list]
+Context: TypeAlias = Union[Dict[str, Any], BaseModel]
+
+class LLMRecord:
+    """LLM record containing context tied to a Large Language Model interaction
+    that is used to evaluate drift in LLM responses.
+
+
+    Examples:
+        >>> record = LLMRecord(
+        ...     context={
+        ...         "input": "What is the capital of France?",
+        ...         "response": "Paris is the capital of France."
+        ...     },
+        ... )
+        >>> print(record.context["input"])
+        "What is the capital of France?"
+    """
+
+    prompt: Optional[Prompt]
+    """Optional prompt configuration associated with this record."""
+
+    entity_type: EntityType
+    """Type of entity, always EntityType.LLM for LLMRecord instances."""
+
+    def __init__(
+        self,
+        context: Context,
+        prompt: Optional[Prompt | SerializedType] = None,
+    ) -> None:
+        """Creates a new LLM record to associate with an `LLMDriftProfile`.
+        The record is sent to the `Scouter` server via the `ScouterQueue` and is
+        then used to inject context into the evaluation prompts.
+
+        Args:
+            context:
+                Additional context information as a dictionary or a pydantic BaseModel. During evaluation,
+                this will be merged with the input and response data and passed to the assigned
+                evaluation prompts. So if you're evaluation prompts expect additional context via
+                bound variables (e.g., `${foo}`), you can pass that here as key value pairs.
+                {"foo": "bar"}
+            prompt:
+                Optional prompt configuration associated with this record. Can be a Potatohead Prompt or
+                a JSON-serializable type.
+
+        Raises:
+            TypeError: If context is not a dict or a pydantic BaseModel.
+
+        """
+        ...
+
+    @property
+    def context(self) -> Dict[str, Any]:
+        """Get the contextual information.
+
+        Returns:
+            The context data as a Python object (deserialized from JSON).
+
+        Raises:
+            TypeError: If the stored JSON cannot be converted to a Python object.
+        """
+        ...

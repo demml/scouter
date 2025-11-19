@@ -10,12 +10,12 @@ pub mod kafka_producer {
         ClientConfig,
     };
     use rusty_logging::logger::LogLevel;
-    use scouter_types::ServerRecords;
+    use scouter_types::MessageRecord;
     use std::result::Result::Ok;
 
     use std::collections::HashMap;
     use std::time::Duration;
-    use tracing::info;
+    use tracing::{debug, info};
 
     #[derive(Clone)]
     pub struct KafkaProducer {
@@ -30,11 +30,11 @@ pub mod kafka_producer {
             Ok(KafkaProducer { config, producer })
         }
 
-        pub async fn publish(&self, message: ServerRecords) -> Result<(), EventError> {
+        pub async fn publish(&self, message: MessageRecord) -> Result<(), EventError> {
             let mut retries = self.config.max_retries;
 
             loop {
-                match self._publish(message.clone()).await {
+                match self._publish(&message).await {
                     Ok(_) => {
                         break;
                     }
@@ -46,7 +46,7 @@ pub mod kafka_producer {
                     }
                 }
             }
-
+            debug!("Published {} records to Kafka", message.len());
             Ok(())
         }
 
@@ -84,8 +84,8 @@ pub mod kafka_producer {
             Ok(producer)
         }
 
-        pub async fn _publish(&self, message: ServerRecords) -> Result<(), EventError> {
-            let serialized_msg = serde_json::to_string(&message).unwrap();
+        pub async fn _publish(&self, message: &MessageRecord) -> Result<(), EventError> {
+            let serialized_msg = serde_json::to_string(message).unwrap();
 
             let record: FutureRecord<'_, (), String> =
                 FutureRecord::to(&self.config.topic).payload(&serialized_msg);

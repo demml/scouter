@@ -10,7 +10,7 @@ The Scouter Queue is the primary interface for sending real-time data to the Sco
 
 ## How it works
 
-(1) **Scouter Queue**: The user creates a Scouter Queue by using the `from_path` operation which accepts a hashmap of paths to the queue files. The Scouter Queue will create a new queue for each path and start a background worker that will read from the queue and send the data to the Scouter server. The `from_path` operation also accepts a transport configuration that is used to setup the specific transport producer for the queue (kafka, rabbitmq, etc.).
+(1) **Scouter Queue**: The user creates a `ScouterQueue` by using the `from_path` operation which accepts a hashmap of paths to the queue files. The ScouterQueue will create a new queue for each path and start a background worker that will read from the queue and send the data to the Scouter server. The `from_path` operation also accepts a transport configuration that is used to setup the specific transport producer for the queue (kafka, rabbitmq, etc.).
 
 ```rust
 
@@ -19,6 +19,7 @@ pub struct ScouterQueue {
     queues: HashMap<String, Py<QueueBus>>,
     _shared_runtime: Arc<tokio::runtime::Runtime>,
     completion_rxs: HashMap<String, oneshot::Receiver<()>>,
+    pub queue_state: Arc<HashMap<String, TaskState>>,
 }
 
 #[staticmethod]
@@ -41,33 +42,66 @@ class ScouterQueue:
     )
 ```
 
-(2) **QueueBus**: The QueueBus is the primary channeling system for sending messages from the Scouter Queue to the background producer worker. For each profile, a QueueBus is created with an unbounded sender (tx) and receiver (rx) along with a shutdown sender and receiver. Tx and Rx are built via `tokio::sync:mpsc` and the shutdown channel is built via `tokio::sync::oneshot`. The QueueBus is responsible for holding the tx and shutdown tx senders, while passing the rx and shutdown rx receivers to the background worker.
+(2) For each `DriftProfile`, a spawned `event_handler` will be created that uses `Tokio::select` to keep track of received events (`Event enum`). Received events from the parent python thread are passed to the `event_handler`, which is then inserted into a `queue`. If the queue capacity has been reached, the events are published via the configured transport. In the case of `Psi` and `Custom` drift profiles, an additional `background_handler` is created that publishes events from the queue every 30 seconds. This is done in order to minimize any data loss if an app fails or to handle cases where an api may be receiving low amounts of traffic, which may cause the queue to have to wait awhile to fill up.
+
+(3) For every `DriftProfile` a `TaskState` will be created that keeps track of the `event_handler` and `background_handler` tasks.The `TaskState` is used in shutdown functions to cancel spawned tasks via a `Tokio` `CancellationToken`.
+
+The following is used to spawn the event handler:
+
+```rust
+#[allow(clippy::too_many_arguments)]
+async fn spawn_queue_event_handler(
+    mut event_rx: UnboundedReceiver<Event>,
+    transport_config: TransportConfig,
+    drift_profile: DriftProfile,
+    runtime: Arc<runtime::Runtime>,
+    id: String,
+    mut task_state: TaskState,
+    cancellation_token: CancellationToken,
+) -> Result<(), EventError>
+```
+
+For `Psi` and `Custom` profiles, the background polling task is spawned as follows:
+
+```rust
+pub trait BackgroundTask: Send + Sync + 'static {
+    type DataItem: QueueExt + Send + Sync + 'static;
+    type Processor: FeatureQueue + Send + Sync + 'static;
+
+    #[allow(clippy::too_many_arguments)]
+    fn start_background_task(
+        &self,
+        data_queue: Arc<ArrayQueue<Self::DataItem>>,
+        processor: Arc<Self::Processor>,
+        mut producer: RustScouterProducer,
+        last_publish: Arc<RwLock<DateTime<Utc>>>,
+        runtime: Arc<Runtime>,
+        queue_capacity: usize,
+        identifier: String,
+        task_state: TaskState,
+        cancellation_token: CancellationToken,
+    ) -> Result<JoinHandle<()>, EventError>
+}
+```
+
+
+(4) **QueueBus**: Everything discussed so far has focused on the Rust background tasks that run independent of the python runtime. So how do we bridge the gap and get events to rust from python. For every `DriftProfile`, a `QueueBus` is created that exposes an `insert` method to the user. This method will accept any of the allowed data types for monitoring (`Features`, `Metrics`, `LLMRecord`). The data types are extracted and published as an `Event` enum to the event channel, which is then read by the event receiver (`tokio::sync:mpsc`) embedded within the rust `event_handler`. This publishing happends asynchronously, which allows the user on the python side to continue accepting api requests without impacting latency. On the rust side, the event receiver will then process the event and add it to the background queue.
 
 ```rust
 #[pyclass(name = "Queue")]
 pub struct QueueBus {
-    tx: UnboundedSender<Event>,
-    shutdown_tx: Option<oneshot::Sender<()>>,
+    pub task_state: TaskState,
+
+    #[pyo3(get)]
+    pub identifier: String,
+
 }
-```
+``` 
 
-(3) **Background Queue**: The background queue is started within a spawned runtime via a `handle_queue_events` async function. The background queue will create a new producer based on the provided TransportConfig and drift profile. It will then start a continuous loop using a tokio::select! macro to listen for events from the queue and shutdown signals. The background queue will also handle any errors that occur during the processing of events and will log them to the console. Note - errors are logged and not returned to the user. This is to ensure that the background queue does not block the main thread and can continue to process events.
+(5) **Error Handling**: Errors are logged and not returned to the user. This is to ensure that the spawned tasks do not block the main thread and can continue to process events. As a user, it's important to monitor these logs. 
 
-```rust
-#[allow(clippy::too_many_arguments)]
-async fn handle_queue_events(
-    mut rx: UnboundedReceiver<Event>,
-    mut shutdown_rx: oneshot::Receiver<()>,
-    drift_profile: DriftProfile,
-    config: TransportConfig,
-    id: String,
-    queue_runtime: Arc<tokio::runtime::Runtime>,
-    startup_tx: oneshot::Sender<()>,
-    completion_tx: oneshot::Sender<()>,
-) -> Result<(), EventError>
-```
 
-(4) **Queue Insert**: After the `ScouterQueue` is created, the user can insert events into the queue by accessing the queue directly through its alias and calling the `insert` method. The insert method expects either a `Features` object or a `Metrics` object (for custom metrics). Note - Scouter also provided a `FeatureMixin` class that can be used to convert a python object into a `Features` object. This is useful for converting a Pydantic BaseModel into a `Features` object. The `FeatureMixin` class is not required, but it is recommended for ease of use.
+(6) **Queue Insert**: After the `ScouterQueue` is created, the user can insert events into the queue by accessing the queue directly through its alias and calling the `insert` method. The insert method expects either a `Features` object, a `Metrics` object (for custom metrics) or an `LLMRecord` object (for llm as a judge workflows). Note - Scouter also provides a `FeatureMixin` class that can be used to convert a python object into a `Features` object. This is useful for converting a Pydantic BaseModel into a `Features` object. The `FeatureMixin` class is not required, but it is recommended for ease of use.
 
 ```rust
 #[pyclass]
@@ -107,19 +141,42 @@ impl Feature {
     }
 
     pub fn __str__(&self) -> String {
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 
 
+
+#[pyclass]
+#[derive(Clone, Serialize, Debug)]
+pub struct Metric {
+    pub name: String,
+    pub value: f64,
+}
+
 #[pymethods]
 impl Metric {
     #[new]
-    pub fn new(name: String, value: f64) -> Self {
-        Metric { name, value }
+    pub fn new(name: String, value: Bound<'_, PyAny>) -> Self {
+        let value = if value.is_instance_of::<PyFloat>() {
+            value.extract::<f64>().unwrap()
+        } else if value.is_instance_of::<PyInt>() {
+            value.extract::<i64>().unwrap() as f64
+        } else {
+            panic!(
+                "Unsupported metric type: {}",
+                value.get_type().name().unwrap()
+            );
+        };
+        let lowercase_name = name.to_lowercase();
+        Metric {
+            name: lowercase_name,
+            value,
+        }
     }
+
     pub fn __str__(&self) -> String {
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 
@@ -133,6 +190,83 @@ pub struct Metrics {
     pub entity_type: EntityType,
 }
 
+
+#[pyclass]
+#[derive(Clone, Serialize, Debug)]
+pub struct LLMRecord {
+    pub uid: String,
+
+    pub space: String,
+
+    pub name: String,
+
+    pub version: String,
+
+    pub created_at: DateTime<Utc>,
+
+    pub context: Value,
+
+    pub score: Value,
+
+    pub prompt: Option<Value>,
+
+    #[pyo3(get)]
+    pub entity_type: EntityType,
+}
+
+#[pymethods]
+impl LLMRecord {
+    #[new]
+    #[pyo3(signature = (
+        context,
+        prompt=None,
+    ))]
+
+    /// Creates a new LLMRecord instance.
+    /// The context is either a python dictionary or a pydantic basemodel.
+    pub fn new(
+        py: Python<'_>,
+        context: Bound<'_, PyAny>,
+        prompt: Option<Bound<'_, PyAny>>,
+    ) -> Result<Self, TypeError> {
+        // check if context is a PyDict or PyObject(Pydantic model)
+        let context_val = if context.is_instance_of::<PyDict>() {
+            pyobject_to_json(&context)?
+        } else if is_pydantic_basemodel(py, &context)? {
+            // Dump pydantic model to dictionary
+            let model = context.call_method0("model_dump")?;
+
+            // Serialize the dictionary to JSON
+            pyobject_to_json(&model)?
+        } else {
+            Err(TypeError::MustBeDictOrBaseModel)?
+        };
+
+        let prompt: Option<Value> = match prompt {
+            Some(p) => {
+                if p.is_instance_of::<Prompt>() {
+                    let prompt = p.extract::<Prompt>()?;
+                    Some(serde_json::to_value(prompt)?)
+                } else {
+                    Some(pyobject_to_json(&p)?)
+                }
+            }
+            None => None,
+        };
+
+        Ok(LLMRecord {
+            uid: create_uuid7(),
+            created_at: Utc::now(),
+            space: String::new(),
+            name: String::new(),
+            version: String::new(),
+            context: context_val,
+            score: Value::Null,
+            prompt,
+            entity_type: EntityType::LLM,
+        })
+    }
+}
 ```
 
 ### Python example
@@ -154,7 +288,7 @@ class PredictRequest(BaseModel):
 queue = ScouterQueue.from_path(...)
 queue["alias"].insert(request.to_features())
 
-# or
+# or for custom metrics
 
 queue["alias"].insert(
     Metrics(
@@ -164,10 +298,21 @@ queue["alias"].insert(
         ],
     )
 )
+
+# or for LLMRecords
+
+queue["alias"].insert(
+    LLMRecord(
+        context={
+            "input": bound_prompt.message[0].unwrap(),
+            "response": response.result,
+        },
+    )
+)
 ```
 
 ---
 
 *Version: 1.0*  
-*Last Updated: 2025-04-29*  
+*Last Updated: 2025-08-25*  
 *Component Owner: Steven Forrester*

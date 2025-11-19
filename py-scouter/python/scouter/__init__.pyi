@@ -1,7 +1,7 @@
 # type: ignore
 
 from .alert import CustomMetricAlertConfig, PsiAlertConfig, SpcAlertConfig
-from .client import HTTPConfig, ScouterClient
+from .client import ScouterClient
 from .drift import (
     CustomDriftProfile,
     CustomMetric,
@@ -22,18 +22,10 @@ from .drift import (
     Sturges,
     TerrellScott,
 )
+from .evaluate import LLMEvalMetric, LLMEvalRecord, LLMEvalResults, evaluate_llm
 from .profile import DataProfile, DataProfiler
-from .queue import (
-    Feature,
-    Features,
-    KafkaConfig,
-    Metric,
-    Metrics,
-    Queue,
-    RabbitMQConfig,
-    RedisConfig,
-    ScouterQueue,
-)
+from .queue import Feature, Features, Metric, Metrics, Queue, ScouterQueue
+from .transport import HTTPConfig, KafkaConfig, RabbitMQConfig, RedisConfig
 from .types import CommonCrons
 
 __all__ = [
@@ -78,4 +70,9 @@ __all__ = [
     "Scott",
     "TerrellScott",
     "FreedmanDiaconis",
+    # Evaluate
+    "LLMEvalMetric",
+    "LLMEvalResults",
+    "LLMEvalRecord",
+    "evaluate_llm",
 ]

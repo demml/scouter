@@ -1,20 +1,120 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::TaskRequest;
 
+use crate::sql::error::SqlError;
+use crate::sql::schema::VersionResult;
+use async_trait::async_trait;
 use chrono::Utc;
 use cron::Schedule;
-
-use crate::sql::error::SqlError;
-use async_trait::async_trait;
-use scouter_types::{DriftProfile, DriftTaskInfo, GetProfileRequest, ProfileStatusRequest};
+use scouter_semver::VersionArgs;
+use scouter_semver::VersionType;
+use scouter_semver::{VersionParser, VersionValidator};
+use scouter_types::{
+    DriftProfile, DriftTaskInfo, GetProfileRequest, ListProfilesRequest, ListedProfile,
+    ProfileArgs, ProfileStatusRequest,
+};
+use semver::Version;
 use serde_json::Value;
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::result::Result::Ok;
 use std::str::FromStr;
 use tracing::{error, instrument};
 
+pub fn add_version_bounds(builder: &mut String, version: &str) -> Result<(), SqlError> {
+    let version_bounds = VersionParser::get_version_to_search(version)?;
+
+    // construct lower bound (already validated)
+    builder.push_str(
+        format!(
+            " AND (major >= {} AND minor >= {} and patch >= {})",
+            version_bounds.lower_bound.major,
+            version_bounds.lower_bound.minor,
+            version_bounds.lower_bound.patch
+        )
+        .as_str(),
+    );
+
+    if !version_bounds.no_upper_bound {
+        // construct upper bound based on number of components
+        if version_bounds.num_parts == 1 {
+            builder
+                .push_str(format!(" AND (major < {})", version_bounds.upper_bound.major).as_str());
+        } else if version_bounds.num_parts == 2
+            || version_bounds.num_parts == 3 && version_bounds.parser_type == VersionParser::Tilde
+            || version_bounds.num_parts == 3 && version_bounds.parser_type == VersionParser::Caret
+        {
+            builder.push_str(
+                format!(
+                    " AND (major = {} AND minor < {})",
+                    version_bounds.upper_bound.major, version_bounds.upper_bound.minor
+                )
+                .as_str(),
+            );
+        } else {
+            builder.push_str(
+                format!(
+                    " AND (major = {} AND minor = {} AND patch < {})",
+                    version_bounds.upper_bound.major,
+                    version_bounds.upper_bound.minor,
+                    version_bounds.upper_bound.patch
+                )
+                .as_str(),
+            );
+        }
+    }
+    Ok(())
+}
+
 #[async_trait]
 pub trait ProfileSqlLogic {
+    /// Get profile versions
+    #[instrument(skip_all)]
+    async fn get_next_profile_version(
+        pool: &Pool<Postgres>,
+        args: &ProfileArgs,
+        version_type: VersionType,
+        pre_tag: Option<String>,
+        build_tag: Option<String>,
+    ) -> Result<Version, SqlError> {
+        let mut version_query = Queries::GetProfileVersions.get_query().sql;
+
+        if let Some(version) = &args.version {
+            add_version_bounds(&mut version_query, version)?;
+        }
+        version_query.push_str(" ORDER BY created_at DESC LIMIT 20;");
+
+        let cards: Vec<VersionResult> = sqlx::query_as(&version_query)
+            .bind(&args.space)
+            .bind(&args.name)
+            .fetch_all(pool)
+            .await?;
+
+        let versions = cards
+            .iter()
+            .map(|c| c.to_version())
+            .collect::<Result<Vec<Version>, SqlError>>()?;
+
+        // sort semvers
+        let versions = VersionValidator::sort_semver_versions(versions, true)?;
+
+        if versions.is_empty() {
+            return match &args.version {
+                Some(version_str) => Ok(VersionValidator::clean_version(version_str)?),
+                None => Ok(Version::new(0, 1, 0)),
+            };
+        }
+
+        let base_version = versions.first().unwrap().to_string();
+
+        let args = VersionArgs {
+            version: base_version,
+            version_type,
+            pre: pre_tag,
+            build: build_tag,
+        };
+
+        Ok(VersionValidator::bump_version(&args)?)
+    }
     /// Insert a drift profile into the database
     ///
     /// # Arguments
@@ -28,14 +128,14 @@ pub trait ProfileSqlLogic {
     async fn insert_drift_profile(
         pool: &Pool<Postgres>,
         drift_profile: &DriftProfile,
+        base_args: &ProfileArgs,
+        version: &Version,
+        active: &bool,
+        deactivate_others: &bool,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertDriftProfile.get_query();
-        let base_args = drift_profile.get_base_args();
-
         let current_time = Utc::now();
-
         let schedule = Schedule::from_str(&base_args.schedule)?;
-
         let next_run = match schedule.upcoming(Utc).take(1).next() {
             Some(next_run) => next_run,
             None => {
@@ -43,20 +143,56 @@ pub trait ProfileSqlLogic {
             }
         };
 
-        sqlx::query(&query.sql)
-            .bind(base_args.name)
-            .bind(base_args.space)
-            .bind(base_args.version)
-            .bind(base_args.scouter_version)
+        // Need to convert version to postgres type
+        let major = version.major as i32;
+        let minor = version.minor as i32;
+        let patch = version.patch as i32;
+        let pre: Option<String> = version.pre.to_string().parse().ok();
+        let build: Option<String> = version.build.to_string().parse().ok();
+
+        let result = sqlx::query(&query.sql)
+            .bind(&base_args.space)
+            .bind(&base_args.name)
+            .bind(major)
+            .bind(minor)
+            .bind(patch)
+            .bind(pre)
+            .bind(build)
+            .bind(version.to_string())
+            .bind(&base_args.scouter_version)
             .bind(drift_profile.to_value())
             .bind(base_args.drift_type.to_string())
-            .bind(false)
-            .bind(base_args.schedule)
+            .bind(active)
+            .bind(&base_args.schedule)
             .bind(next_run)
             .bind(current_time)
             .execute(pool)
             .await
-            .map_err(SqlError::SqlxError)
+            .map_err(SqlError::SqlxError)?;
+
+        // Only want to deactivate other profiles if this one is active and deactivate_others is true
+        if *active && *deactivate_others {
+            let query = Queries::DeactivateDriftProfiles.get_query();
+
+            let query_result = sqlx::query(&query.sql)
+                .bind(&base_args.name)
+                .bind(&base_args.space)
+                .bind(&base_args.version)
+                .bind(base_args.drift_type.to_string())
+                .execute(pool)
+                .await
+                .map_err(SqlError::SqlxError);
+
+            match query_result {
+                Ok(_) => Ok(result), // return original result
+                Err(e) => {
+                    error!("Failed to deactivate other drift profiles: {:?}", e);
+                    Err(e)
+                }
+            }
+        } else {
+            Ok(result)
+        }
     }
 
     /// Update a drift profile in the database
@@ -125,6 +261,33 @@ pub trait ProfileSqlLogic {
             .fetch_optional(pool)
             .await
             .map_err(SqlError::SqlxError)
+    }
+
+    async fn list_drift_profiles(
+        pool: &Pool<Postgres>,
+        args: &ListProfilesRequest,
+    ) -> Result<Vec<ListedProfile>, SqlError> {
+        let profile_query = Queries::ListDriftProfiles.get_query().sql;
+
+        let records: Vec<(bool, Value)> = sqlx::query_as(&profile_query)
+            .bind(&args.space)
+            .bind(&args.name)
+            .bind(&args.version)
+            .fetch_all(pool)
+            .await
+            .map_err(SqlError::SqlxError)?;
+
+        let listed_profiles: Vec<ListedProfile> = records
+            .into_iter()
+            .map(|(active, value)| -> Result<ListedProfile, SqlError> {
+                Ok(ListedProfile {
+                    profile: DriftProfile::from_value(value)?,
+                    active,
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(listed_profiles)
     }
 
     /// Update the drift profile run dates in the database

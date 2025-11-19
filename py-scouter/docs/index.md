@@ -4,15 +4,15 @@
   <br>
 </h1>
 
-<h2 align="center"><b>Quality Control for Machine Learning Observability and Monitoring</b></h2>
+<h2 align="center"><b>Quality Control for Machine Learning Monitoring</b></h2>
 
 ## **What is it?**
 
 `Scouter` is a developer-first monitoring toolkit for machine learning workflows (data, models, genai workflows and more). It is designed to be easy to use, flexible, performant, and extensible, allowing you to customize it to fit your specific needs. It's built on top of the `Rust` programming language and uses `Postgres` as its primary data store.
 
-## Check our current roadmap and tasks
+## **Why Use It?**
 
-[open tasks](https://docs.google.com/spreadsheets/d/1xU0RqYpFwnaj1cuNhTnd-2W8iQm7lBXw99O0Nh9oh0A/edit?usp=sharing)
+Because you deploy services that need to be monitored, and you want to be alerted when something is wrong.
 
 
 ### Developer-First Experience

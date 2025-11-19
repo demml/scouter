@@ -1,5 +1,6 @@
 use crate::error::EventError;
 use crate::producer::RustScouterProducer;
+use crate::queue::bus::TaskState;
 use crate::queue::psi::feature_queue::PsiFeatureQueue;
 use crate::queue::traits::{BackgroundTask, QueueMethods};
 use crate::queue::types::TransportConfig;
@@ -10,8 +11,7 @@ use scouter_types::psi::PsiDriftProfile;
 use scouter_types::Features;
 use std::sync::Arc;
 use std::sync::RwLock;
-use tokio::runtime;
-use tokio::sync::watch;
+use tokio_util::sync::CancellationToken;
 use tracing::debug;
 
 const PSI_MAX_QUEUE_SIZE: usize = 1000;
@@ -21,7 +21,6 @@ pub struct PsiQueue {
     feature_queue: Arc<PsiFeatureQueue>,
     producer: RustScouterProducer,
     last_publish: Arc<RwLock<DateTime<Utc>>>,
-    stop_tx: Option<watch::Sender<()>>,
     capacity: usize,
 }
 
@@ -29,7 +28,8 @@ impl PsiQueue {
     pub async fn new(
         drift_profile: PsiDriftProfile,
         config: TransportConfig,
-        runtime: Arc<runtime::Runtime>,
+        task_state: &mut TaskState,
+        identifier: String,
     ) -> Result<Self, EventError> {
         // ArrayQueue size is based on the max PSI queue size
 
@@ -37,44 +37,42 @@ impl PsiQueue {
         let feature_queue = Arc::new(PsiFeatureQueue::new(drift_profile));
         let last_publish: Arc<RwLock<DateTime<Utc>>> = Arc::new(RwLock::new(Utc::now()));
         let producer = RustScouterProducer::new(config).await?;
-
-        debug!("Creating PSI Queue");
-
-        let (stop_tx, stop_rx) = watch::channel(());
+        let cancellation_token = CancellationToken::new();
 
         let psi_queue = PsiQueue {
             queue: queue.clone(),
             feature_queue: feature_queue.clone(),
             producer,
             last_publish,
-            stop_tx: Some(stop_tx),
             capacity: PSI_MAX_QUEUE_SIZE,
         };
 
-        debug!("Starting Background Task");
-        psi_queue.start_background_worker(queue, feature_queue, stop_rx, runtime)?;
+        let handle = psi_queue.start_background_task(
+            queue,
+            feature_queue,
+            psi_queue.producer.clone(),
+            psi_queue.last_publish.clone(),
+            PSI_MAX_QUEUE_SIZE,
+            identifier,
+            task_state.clone(),
+            cancellation_token.clone(),
+        )?;
+
+        task_state.add_background_abort_handle(handle);
+        task_state.add_background_cancellation_token(cancellation_token);
+
+        debug!("Created PSI Queue with capacity: {}", PSI_MAX_QUEUE_SIZE);
 
         Ok(psi_queue)
     }
+}
 
-    fn start_background_worker(
-        &self,
-        metrics_queue: Arc<ArrayQueue<Features>>,
-        feature_queue: Arc<PsiFeatureQueue>,
-        stop_rx: watch::Receiver<()>,
-        rt: Arc<tokio::runtime::Runtime>,
-    ) -> Result<(), EventError> {
-        self.start_background_task(
-            metrics_queue,
-            feature_queue,
-            self.producer.clone(),
-            self.last_publish.clone(),
-            rt.clone(),
-            stop_rx,
-            PSI_MAX_QUEUE_SIZE,
-            "Psi Background Polling",
-        )
-    }
+/// Psi requires a background timed-task as a secondary processing mechanism
+/// i.e. Its possible that queue insertion is slow, and so we need a background
+/// task to process the queue at a regular interval
+impl BackgroundTask for PsiQueue {
+    type DataItem = Features;
+    type Processor = PsiFeatureQueue;
 }
 
 #[async_trait]
@@ -110,17 +108,8 @@ impl QueueMethods for PsiQueue {
     async fn flush(&mut self) -> Result<(), EventError> {
         // publish any remaining drift records
         self.try_publish(self.queue()).await?;
-        if let Some(stop_tx) = self.stop_tx.take() {
-            let _ = stop_tx.send(());
-        }
-        self.producer.flush().await
-    }
-}
+        self.producer.flush().await?;
 
-/// Psi requires a background timed-task as a secondary processing mechanism
-/// i.e. Its possible that queue insertion is slow, and so we need a background
-/// task to process the queue at a regular interval
-impl BackgroundTask for PsiQueue {
-    type DataItem = Features;
-    type Processor = PsiFeatureQueue;
+        Ok(())
+    }
 }

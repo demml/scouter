@@ -15,6 +15,12 @@ def kafka_scouter_server():
 
 
 @pytest.fixture()
+def kafka_scouter_openai_server():
+    with ScouterTestServer(kafka=True, openai=True) as server:
+        yield server
+
+
+@pytest.fixture()
 def rabbitmq_scouter_server():
     with ScouterTestServer(rabbit_mq=True) as server:
         yield server

@@ -1,10 +1,10 @@
 #![allow(clippy::useless_conversion)]
 use crate::error::{ProfileError, TypeError};
 use crate::spc::alert::SpcAlertConfig;
-use crate::util::{json_to_pyobject, pyobject_to_json};
+use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, ProfileArgs, ProfileBaseArgs,
-    ProfileFuncs, ProfileRequest, MISSING,
+    ProfileRequest, PyHelperFuncs, MISSING,
 };
 
 use chrono::{DateTime, Utc};
@@ -12,6 +12,8 @@ use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
+use crate::{VersionRequest, DEFAULT_VERSION};
+use scouter_semver::VersionType;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
@@ -72,7 +74,7 @@ pub struct SpcFeatureDriftProfile {
 /// * `alert_rule` - The alerting rule to use for monitoring
 ///
 #[pyclass]
-#[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
 pub struct SpcDriftConfig {
     #[pyo3(get, set)]
     pub sample_size: usize,
@@ -99,6 +101,21 @@ pub struct SpcDriftConfig {
     #[pyo3(get, set)]
     #[serde(default = "default_drift_type")]
     pub drift_type: DriftType,
+}
+
+impl Default for SpcDriftConfig {
+    fn default() -> Self {
+        Self {
+            sample_size: 25,
+            sample: true,
+            space: MISSING.to_string(),
+            name: MISSING.to_string(),
+            version: DEFAULT_VERSION.to_string(),
+            alert_config: SpcAlertConfig::default(),
+            feature_map: FeatureMap::default(),
+            drift_type: DriftType::Spc,
+        }
+    }
 }
 
 fn default_drift_type() -> DriftType {
@@ -159,12 +176,12 @@ impl SpcDriftConfig {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
 
     // update the arguments of the drift config
@@ -255,16 +272,11 @@ pub struct SpcDriftProfile {
 }
 
 impl SpcDriftProfile {
-    pub fn new(
-        features: HashMap<String, SpcFeatureDriftProfile>,
-        config: SpcDriftConfig,
-        scouter_version: Option<String>,
-    ) -> Self {
-        let scouter_version = scouter_version.unwrap_or(env!("CARGO_PKG_VERSION").to_string());
+    pub fn new(features: HashMap<String, SpcFeatureDriftProfile>, config: SpcDriftConfig) -> Self {
         Self {
             features,
             config,
-            scouter_version,
+            scouter_version: scouter_version(),
         }
     }
 }
@@ -273,12 +285,12 @@ impl SpcDriftProfile {
 impl SpcDriftProfile {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
     #[allow(clippy::useless_conversion)]
     pub fn model_dump(&self, py: Python) -> Result<Py<PyDict>, ProfileError> {
@@ -300,6 +312,8 @@ impl SpcDriftProfile {
     pub fn model_validate(data: &Bound<'_, PyDict>) -> SpcDriftProfile {
         let json_value = pyobject_to_json(data).unwrap();
 
+        println!("JSON Value: {:?}", json_value);
+
         let string = serde_json::to_string(&json_value).unwrap();
         serde_json::from_str(&string).expect("Failed to load drift profile")
     }
@@ -313,7 +327,7 @@ impl SpcDriftProfile {
     // Convert python dict into a drift profile
     #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ProfileError> {
-        Ok(ProfileFuncs::save_to_json(
+        Ok(PyHelperFuncs::save_to_json(
             self,
             path,
             FileName::SpcDriftProfile.to_str(),
@@ -356,10 +370,24 @@ impl SpcDriftProfile {
 
     /// Create a profile request from the profile
     pub fn create_profile_request(&self) -> Result<ProfileRequest, TypeError> {
+        let version: Option<String> = if self.config.version == DEFAULT_VERSION {
+            None
+        } else {
+            Some(self.config.version.clone())
+        };
+
         Ok(ProfileRequest {
             space: self.config.space.clone(),
             profile: self.model_dump_json(),
             drift_type: self.config.drift_type.clone(),
+            version_request: VersionRequest {
+                version,
+                version_type: VersionType::Minor,
+                pre_tag: None,
+                build_tag: None,
+            },
+            active: false,
+            deactivate_others: false,
         })
     }
 }
@@ -370,7 +398,7 @@ impl ProfileBaseArgs for SpcDriftProfile {
         ProfileArgs {
             name: self.config.name.clone(),
             space: self.config.space.clone(),
-            version: self.config.version.clone(),
+            version: Some(self.config.version.clone()),
             schedule: self.config.alert_config.schedule.clone(),
             scouter_version: self.scouter_version.clone(),
             drift_type: self.config.drift_type.clone(),

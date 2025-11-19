@@ -24,6 +24,7 @@ use tracing::{info, instrument};
 /// # Returns
 ///
 /// The main server router
+#[instrument(skip_all)]
 pub async fn create_app() -> Result<(Router, Arc<AppState>), anyhow::Error> {
     // setup logging, soft fail if it fails
 
@@ -73,6 +74,7 @@ pub async fn start_server() -> Result<(), anyhow::Error> {
     Ok(())
 }
 
+#[instrument(skip_all)]
 pub fn start_server_in_background() -> Arc<Mutex<Option<JoinHandle<()>>>> {
     let handle = Arc::new(Mutex::new(None));
     let handle_clone = handle.clone();

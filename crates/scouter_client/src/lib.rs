@@ -8,13 +8,17 @@ pub use drifter::scouter::PyDrifter;
 pub use profiler::scouter::DataProfiler;
 pub use scouter_settings::HTTPConfig;
 pub use scouter_types::{
-    alert::{Alert, Alerts},
+    alert::{Alert, Alerts, CompressionType},
     create_feature_map,
     cron::*,
     custom::{
-        AlertThreshold, BinnedCustomMetric, BinnedCustomMetricStats, BinnedCustomMetrics,
         CustomDriftProfile, CustomMetric, CustomMetricAlertCondition, CustomMetricAlertConfig,
         CustomMetricDriftConfig,
+    },
+    eval::LLMEvalMetric,
+    llm::{
+        LLMAlertConfig, LLMDriftConfig, LLMDriftMap, LLMDriftMetric, LLMDriftProfile,
+        LLMMetricAlertCondition, PaginationCursor, PaginationResponse,
     },
     psi::{
         Bin, BinnedPsiFeatureMetrics, BinnedPsiMetric, PsiAlertConfig, PsiChiSquareThreshold,
@@ -26,14 +30,18 @@ pub use scouter_types::{
         SpcDriftFeature, SpcDriftFeatures, SpcDriftProfile, SpcFeatureAlert, SpcFeatureAlerts,
         SpcFeatureDriftProfile,
     },
-    AlertDispatchType, ConsoleDispatchConfig, CustomMetricServerRecord, DataType, Doane,
-    DriftAlertRequest, DriftProfile, DriftRequest, DriftType, EntityType, EqualWidthBinning,
-    Feature, FeatureMap, Features, FreedmanDiaconis, GetProfileRequest, LatencyMetrics, Manual,
-    Metric, Metrics, ObservabilityMetrics, OpsGenieDispatchConfig, ProfileRequest,
-    ProfileStatusRequest, PsiServerRecord, QuantileBinning, RecordType, Rice, RouteMetrics, Scott,
-    ScouterResponse, ScouterServerError, ServerRecord, ServerRecords, SlackDispatchConfig,
-    SpcServerRecord, SquareRoot, Sturges, TerrellScott, TimeInterval, UpdateAlertResponse,
-    UpdateAlertStatus,
+    sql::{TraceFilters, TraceListItem, TraceMetricBucket, TraceSpan},
+    AlertDispatchType, AlertThreshold, Attribute, BinnedMetric, BinnedMetricStats, BinnedMetrics,
+    ConsoleDispatchConfig, CustomMetricServerRecord, DataType, Doane, DriftAlertRequest,
+    DriftProfile, DriftRequest, DriftType, EntityType, EqualWidthBinning, Feature, FeatureMap,
+    Features, FreedmanDiaconis, GetProfileRequest, LatencyMetrics, Manual, Metric, Metrics,
+    ObservabilityMetrics, OpsGenieDispatchConfig, ProfileRequest, ProfileStatusRequest,
+    PsiServerRecord, QuantileBinning, RecordType, RegisteredProfileResponse, Rice, RouteMetrics,
+    Scott, ScouterResponse, ScouterServerError, ServerRecord, ServerRecords, SlackDispatchConfig,
+    SpanEvent, SpanLink, SpcServerRecord, SquareRoot, Sturges, TagRecord, TagsResponse,
+    TerrellScott, TimeInterval, TraceBaggageRecord, TraceBaggageResponse, TraceMetricsRequest,
+    TraceMetricsResponse, TracePaginationResponse, TraceRecord, TraceSpanRecord,
+    TraceSpansResponse, UpdateAlertResponse, UpdateAlertStatus, VersionRequest,
 };
 
 pub use crate::http::{PyScouterClient, ScouterClient};
@@ -47,9 +55,10 @@ pub use scouter_events::error::PyEventError;
 pub use scouter_events::producer::{
     kafka::KafkaConfig, mock::MockConfig, rabbitmq::RabbitMQConfig, redis::RedisConfig,
 };
+pub use scouter_events::queue::bus::TaskState;
 pub use scouter_events::queue::{
-    custom::CustomMetricFeatureQueue, psi::PsiFeatureQueue, spc::SpcFeatureQueue, QueueBus,
-    ScouterQueue,
+    custom::CustomMetricFeatureQueue, llm::LLMRecordQueue, psi::PsiFeatureQueue,
+    spc::SpcFeatureQueue, QueueBus, ScouterQueue,
 };
 
 pub use scouter_observability::Observer;
@@ -64,3 +73,9 @@ pub use scouter_drift::error::DriftError;
 pub use scouter_events::error::EventError;
 pub use scouter_profile::error::DataProfileError;
 pub use scouter_types::error::{ContractError, ProfileError, RecordError, TypeError, UtilError};
+
+pub use scouter_evaluate::{
+    error::EvaluationError,
+    llm::{async_evaluate_llm, evaluate_llm, workflow_from_eval_metrics},
+    types::{EvaluationConfig, LLMEvalRecord, LLMEvalResults, LLMEvalTaskResult},
+};

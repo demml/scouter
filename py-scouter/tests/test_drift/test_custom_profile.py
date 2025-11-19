@@ -32,7 +32,7 @@ def test_custom_profile(custom_metric_drift_config: CustomMetricDriftConfig):
         "name": "test",
         "space": "test",
         "sample_size": 25,
-        "version": "0.1.0",
+        "version": "0.0.0",
     }
 
     assert profile.model_dump()["metrics"] == {"accuracy": 0.75}

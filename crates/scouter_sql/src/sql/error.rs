@@ -1,4 +1,5 @@
 use scouter_dataframe::error::DataFrameError;
+use scouter_types::error::ProfileError;
 use scouter_types::error::RecordError;
 use sqlx::Error as SqlxError;
 use thiserror::Error;
@@ -14,8 +15,14 @@ pub enum SqlError {
     #[error(transparent)]
     RecordError(#[from] RecordError),
 
-    #[error("Invalid record type")]
-    InvalidRecordTypeError,
+    #[error("Invalid record type: {0}")]
+    InvalidRecordTypeError(String),
+
+    #[error(transparent)]
+    SemverError(#[from] semver::Error),
+
+    #[error(transparent)]
+    VersionError(#[from] scouter_semver::error::VersionError),
 
     #[error("Begin datetime must be before end datetime")]
     InvalidDateRangeError,
@@ -37,4 +44,7 @@ pub enum SqlError {
 
     #[error("Record batch type is not supported")]
     UnsupportedBatchTypeError,
+
+    #[error(transparent)]
+    ProfileError(#[from] ProfileError),
 }

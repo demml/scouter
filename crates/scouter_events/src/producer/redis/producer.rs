@@ -5,7 +5,9 @@ pub mod redis_producer {
     use redis::aio::{MultiplexedConnection, PubSub};
     use redis::AsyncCommands;
     use redis::Client;
-    use scouter_types::ServerRecords;
+    use scouter_types::MessageRecord;
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
     use tracing::debug;
 
     pub struct RedisMessageBroker {
@@ -35,7 +37,8 @@ pub mod redis_producer {
 
     #[derive(Clone)]
     pub struct RedisProducer {
-        pub connection: MultiplexedConnection,
+        // we dont want to make publish take a &mut self, so we use a mutex here
+        pub connection: Arc<Mutex<MultiplexedConnection>>,
         pub channel: String,
         pub max_retries: usize,
     }
@@ -52,7 +55,7 @@ pub mod redis_producer {
         pub async fn new(config: RedisConfig) -> Result<Self, EventError> {
             let broker = RedisMessageBroker::new(&config.address)?;
             Ok(Self {
-                connection: broker.get_async_connection().await?,
+                connection: Arc::new(Mutex::new(broker.get_async_connection().await?)),
                 channel: config.channel.clone(),
                 max_retries: 3,
             })
@@ -66,11 +69,11 @@ pub mod redis_producer {
         ///
         /// # Returns
         /// * `Result<(), EventError>` - The result of the operation
-        pub async fn publish(&mut self, message: ServerRecords) -> Result<(), EventError> {
+        pub async fn publish(&self, message: MessageRecord) -> Result<(), EventError> {
             let mut retries = self.max_retries;
 
             loop {
-                match self._publish(message.clone()).await {
+                match self._publish(&message).await {
                     Ok(_) => break,
                     Err(e) => {
                         retries -= 1;
@@ -85,12 +88,13 @@ pub mod redis_producer {
         }
 
         /// Async publish to Redis
-        pub async fn _publish(&mut self, message: ServerRecords) -> Result<(), EventError> {
-            let serialized_msg = serde_json::to_string(&message).unwrap().into_bytes();
+        pub async fn _publish(&self, message: &MessageRecord) -> Result<(), EventError> {
+            let serialized_msg = serde_json::to_string(message).unwrap().into_bytes();
 
             debug!("Publishing message to Redis");
-            let _: () = self
-                .connection
+            let mut conn = self.connection.lock().await;
+
+            let _: () = conn
                 .publish(&self.channel, &serialized_msg)
                 .await
                 .map_err(EventError::RedisError)?;

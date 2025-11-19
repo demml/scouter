@@ -14,7 +14,7 @@ pub use crate::producer::rabbitmq::RabbitMQConfig;
 use crate::queue::types::TransportConfig;
 
 use crate::error::EventError;
-use scouter_types::ServerRecords;
+use scouter_types::MessageRecord;
 use tracing::debug;
 
 #[derive(Clone)]
@@ -34,8 +34,9 @@ pub enum ProducerEnum {
 }
 
 impl ProducerEnum {
-    pub async fn publish(&mut self, message: ServerRecords) -> Result<(), EventError> {
+    pub async fn publish(&self, message: MessageRecord) -> Result<(), EventError> {
         match self {
+            // this has mut
             ProducerEnum::HTTP(producer) => producer.publish(message).await,
             ProducerEnum::Mock(producer) => producer.publish(message).await,
             #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
@@ -106,8 +107,8 @@ impl RustScouterProducer {
                 }
             }
             TransportConfig::Http(config) => {
-                let producer = HTTPProducer::new(config).await?;
                 debug!("Creating HTTP producer");
+                let producer = HTTPProducer::new(config).await?;
                 ProducerEnum::HTTP(producer)
             }
             TransportConfig::Mock(config) => {
@@ -120,7 +121,7 @@ impl RustScouterProducer {
         Ok(RustScouterProducer { producer })
     }
 
-    pub async fn publish(&mut self, message: ServerRecords) -> Result<(), EventError> {
+    pub async fn publish(&self, message: MessageRecord) -> Result<(), EventError> {
         debug!("message length: {}", message.len());
         self.producer.publish(message).await
     }

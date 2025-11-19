@@ -1,0 +1,32 @@
+[package]
+name = "scouter-mocks"
+version = { workspace = true }
+edition = "2021"
+
+[dependencies]
+pyo3 = { workspace = true }
+mockito = { workspace = true, optional = true }
+potato-head = { workspace = true , features = ["mock"] }
+reqwest = { workspace = true, optional = true }
+scouter-client = { workspace = true }
+scouter-server = { workspace = true , optional = true, features = ["kafka", "rabbitmq", "redis_events"] }
+serde_json = { workspace = true, optional = true }
+thiserror = { workspace = true }
+tracing = { workspace = true }
+tokio = { workspace = true, optional = true }
+
+[features]
+default = []
+server = [
+    "tokio",
+    "reqwest",
+    "mockito",
+    "serde_json",
+    "scouter-server",
+]
+
+[profile.release]
+lto = "fat"
+codegen-units = 1
+strip = true
+debug = false

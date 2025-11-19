@@ -1,13 +1,30 @@
 use std::fmt::Display;
 
-use crate::error::ContractError;
-use crate::CustomInterval;
-use crate::{DriftType, TimeInterval};
+use crate::error::{ContractError, TypeError};
+use crate::llm::PaginationRequest;
+use crate::sql::{TraceListItem, TraceMetricBucket, TraceSpan};
+use crate::{CustomInterval, DriftProfile, Status, TagRecord, TraceBaggageRecord};
+use crate::{DriftType, PyHelperFuncs, TimeInterval};
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
+use scouter_semver::VersionType;
 use serde::Deserialize;
 use serde::Serialize;
+use std::collections::BTreeMap;
 use tracing::error;
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ListProfilesRequest {
+    pub space: String,
+    pub name: String,
+    pub version: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct ListedProfile {
+    pub profile: DriftProfile,
+    pub active: bool,
+}
 
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -99,12 +116,38 @@ impl DriftRequest {
     }
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct VersionRequest {
+    pub version: Option<String>,
+    pub version_type: VersionType,
+    pub pre_tag: Option<String>,
+    pub build_tag: Option<String>,
+}
+
+impl Default for VersionRequest {
+    fn default() -> Self {
+        VersionRequest {
+            version: None,
+            version_type: VersionType::Minor,
+            pre_tag: None,
+            build_tag: None,
+        }
+    }
+}
+
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ProfileRequest {
     pub space: String,
     pub drift_type: DriftType,
     pub profile: String,
+    pub version_request: VersionRequest,
+
+    #[serde(default)]
+    pub active: bool,
+
+    #[serde(default)]
+    pub deactivate_others: bool,
 }
 
 #[pyclass]
@@ -177,6 +220,13 @@ impl DriftAlertRequest {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ServiceInfo {
+    pub space: String,
+    pub name: String,
+    pub version: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LLMServiceInfo {
     pub space: String,
     pub name: String,
     pub version: String,
@@ -380,6 +430,40 @@ impl ScouterServerError {
         let msg = format!("Failed to query profile: {e}");
         ScouterServerError { error: msg }
     }
+    pub fn query_tags_error<T: Display>(e: T) -> Self {
+        let msg = format!("Failed to query tags: {e}");
+        ScouterServerError { error: msg }
+    }
+
+    pub fn get_baggage_error<T: Display>(e: T) -> Self {
+        let msg = format!("Failed to get trace baggage records: {e}");
+        ScouterServerError { error: msg }
+    }
+
+    pub fn get_paginated_traces_error<T: Display>(e: T) -> Self {
+        let msg = format!("Failed to get paginated traces: {e}");
+        ScouterServerError { error: msg }
+    }
+
+    pub fn get_trace_spans_error<T: Display>(e: T) -> Self {
+        let msg = format!("Failed to get trace spans: {e}");
+        ScouterServerError { error: msg }
+    }
+
+    pub fn get_trace_metrics_error<T: Display>(e: T) -> Self {
+        let msg = format!("Failed to get trace metrics: {e}");
+        ScouterServerError { error: msg }
+    }
+
+    pub fn insert_tags_error<T: Display>(e: T) -> Self {
+        let msg = format!("Failed to insert tags: {e}");
+        ScouterServerError { error: msg }
+    }
+
+    pub fn refresh_trace_summary_error<T: Display>(e: T) -> Self {
+        let msg = format!("Failed to refresh trace summary: {e}");
+        ScouterServerError { error: msg }
+    }
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -395,6 +479,223 @@ impl ScouterResponse {
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct RegisteredProfileResponse {
+    pub space: String,
+    pub name: String,
+    pub version: String,
+    pub status: String,
+    pub active: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UpdateAlertResponse {
     pub updated: bool,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct LLMDriftRecordPaginationRequest {
+    pub service_info: ServiceInfo,
+    pub status: Option<Status>,
+    pub pagination: PaginationRequest,
+}
+
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct BinnedMetricStats {
+    #[pyo3(get)]
+    pub avg: f64,
+
+    #[pyo3(get)]
+    pub lower_bound: f64,
+
+    #[pyo3(get)]
+    pub upper_bound: f64,
+}
+
+#[pymethods]
+impl BinnedMetricStats {
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        PyHelperFuncs::__str__(self)
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct BinnedMetric {
+    #[pyo3(get)]
+    pub metric: String,
+
+    #[pyo3(get)]
+    pub created_at: Vec<DateTime<Utc>>,
+
+    #[pyo3(get)]
+    pub stats: Vec<BinnedMetricStats>,
+}
+
+#[pymethods]
+impl BinnedMetric {
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        PyHelperFuncs::__str__(self)
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
+pub struct BinnedMetrics {
+    #[pyo3(get)]
+    pub metrics: BTreeMap<String, BinnedMetric>,
+}
+
+#[pymethods]
+impl BinnedMetrics {
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        PyHelperFuncs::__str__(self)
+    }
+
+    pub fn __getitem__<'py>(
+        &self,
+        py: Python<'py>,
+        key: &str,
+    ) -> Result<Option<Py<BinnedMetric>>, TypeError> {
+        match self.metrics.get(key) {
+            Some(metric) => {
+                let metric = Py::new(py, metric.clone())?;
+                Ok(Some(metric))
+            }
+            None => Ok(None),
+        }
+    }
+}
+
+impl BinnedMetrics {
+    pub fn from_vec(metrics: Vec<BinnedMetric>) -> Self {
+        let mapped: BTreeMap<String, BinnedMetric> = metrics
+            .into_iter()
+            .map(|metric| (metric.metric.clone(), metric))
+            .collect();
+        BinnedMetrics { metrics: mapped }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct TagsRequest {
+    pub entity_type: String,
+    pub entity_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+pub struct InsertTagsRequest {
+    pub tags: Vec<TagRecord>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
+pub struct TraceRequest {
+    pub trace_id: String,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
+pub struct TraceMetricsRequest {
+    pub space: Option<String>,
+    pub name: Option<String>,
+    pub version: Option<String>,
+    pub start_time: DateTime<Utc>,
+    pub end_time: DateTime<Utc>,
+    pub bucket_interval: String,
+}
+
+#[pymethods]
+impl TraceMetricsRequest {
+    #[new]
+    #[pyo3(signature = (start_time, end_time, bucket_interval,space=None, name=None, version=None))]
+    pub fn new(
+        start_time: DateTime<Utc>,
+        end_time: DateTime<Utc>,
+        bucket_interval: String,
+        space: Option<String>,
+        name: Option<String>,
+        version: Option<String>,
+    ) -> Self {
+        TraceMetricsRequest {
+            space,
+            name,
+            version,
+            start_time,
+            end_time,
+            bucket_interval,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
+pub struct TracePaginationResponse {
+    #[pyo3(get)]
+    pub items: Vec<TraceListItem>,
+}
+
+#[pymethods]
+impl TracePaginationResponse {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
+pub struct TraceBaggageResponse {
+    #[pyo3(get)]
+    pub baggage: Vec<TraceBaggageRecord>,
+}
+
+#[pymethods]
+impl TraceBaggageResponse {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
+pub struct TraceSpansResponse {
+    #[pyo3(get)]
+    pub spans: Vec<TraceSpan>,
+}
+
+#[pymethods]
+impl TraceSpansResponse {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
+pub struct TraceMetricsResponse {
+    #[pyo3(get)]
+    pub metrics: Vec<TraceMetricBucket>,
+}
+#[pymethods]
+impl TraceMetricsResponse {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
+pub struct TagsResponse {
+    #[pyo3(get)]
+    pub tags: Vec<TagRecord>,
+}
+
+#[pymethods]
+impl TagsResponse {
+    pub fn __str__(&self) -> String {
+        PyHelperFuncs::__str__(self)
+    }
 }

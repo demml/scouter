@@ -5,7 +5,7 @@ use axum::{
     body::Body,
     http::{header, Request, StatusCode},
 };
-
+use potato_head::LLMTestServer;
 use scouter_drift::spc::SpcMonitor;
 use scouter_types::spc::SpcAlertConfig;
 use scouter_types::spc::SpcDriftConfig;
@@ -13,17 +13,19 @@ use scouter_types::DriftType;
 
 use http_body_util::BodyExt;
 use scouter_drift::psi::PsiMonitor;
-use scouter_types::contracts::{
-    DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
-};
+use scouter_types::contracts::{DriftRequest, GetProfileRequest, ProfileStatusRequest};
 use scouter_types::custom::{
-    AlertThreshold, BinnedCustomMetrics, CustomDriftProfile, CustomMetric, CustomMetricAlertConfig,
-    CustomMetricDriftConfig,
+    CustomDriftProfile, CustomMetric, CustomMetricAlertConfig, CustomMetricDriftConfig,
 };
+use scouter_types::llm::PaginationRequest;
+use scouter_types::llm::PaginationResponse;
 use scouter_types::psi::BinnedPsiFeatureMetrics;
 use scouter_types::psi::{PsiAlertConfig, PsiDriftConfig};
 use scouter_types::spc::SpcDriftFeatures;
-use scouter_types::TimeInterval;
+use scouter_types::{
+    AlertThreshold, BinnedMetrics, LLMDriftRecordPaginationRequest, LLMDriftServerRecord,
+    ServiceInfo, TimeInterval,
+};
 use tokio::time::sleep;
 
 #[tokio::test]
@@ -48,11 +50,7 @@ async fn test_create_spc_profile() {
         .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
         .unwrap();
 
-    let request = ProfileRequest {
-        space: profile.config.space.clone(),
-        profile: profile.model_dump_json(),
-        drift_type: DriftType::Spc,
-    };
+    let request = profile.create_profile_request().unwrap();
 
     let body = serde_json::to_string(&request).unwrap();
 
@@ -73,11 +71,7 @@ async fn test_create_spc_profile() {
 
     assert_eq!(profile.config.sample_size, 100);
 
-    let request = ProfileRequest {
-        space: profile.config.space.clone(),
-        profile: profile.model_dump_json(),
-        drift_type: DriftType::Spc,
-    };
+    let request = profile.create_profile_request().unwrap();
 
     let body = serde_json::to_string(&request).unwrap();
 
@@ -146,7 +140,7 @@ async fn test_spc_server_records() {
     let body = serde_json::to_string(&records).unwrap();
 
     let request = Request::builder()
-        .uri("/scouter/drift")
+        .uri("/scouter/message")
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body))
@@ -219,11 +213,7 @@ async fn test_psi_server_records() {
         .create_2d_drift_profile(&features, &array.view(), &config)
         .unwrap();
 
-    let request = ProfileRequest {
-        space: profile.config.space.clone(),
-        profile: profile.model_dump_json(),
-        drift_type: DriftType::Psi,
-    };
+    let request = profile.create_profile_request().unwrap();
 
     let body = serde_json::to_string(&request).unwrap();
 
@@ -243,7 +233,7 @@ async fn test_psi_server_records() {
     let body = serde_json::to_string(&records).unwrap();
 
     let request = Request::builder()
-        .uri("/scouter/drift")
+        .uri("/scouter/message")
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body))
@@ -301,13 +291,9 @@ async fn test_custom_server_records() {
     let alert_threshold = AlertThreshold::Above;
     let metric1 = CustomMetric::new("metric1", 1.0, alert_threshold.clone(), None).unwrap();
     let metric2 = CustomMetric::new("metric2", 1.0, alert_threshold, None).unwrap();
-    let profile = CustomDriftProfile::new(config, vec![metric1, metric2], None).unwrap();
+    let profile = CustomDriftProfile::new(config, vec![metric1, metric2]).unwrap();
 
-    let request = ProfileRequest {
-        space: profile.config.space.clone(),
-        profile: profile.model_dump_json(),
-        drift_type: DriftType::Custom,
-    };
+    let request = profile.create_profile_request().unwrap();
 
     let body = serde_json::to_string(&request).unwrap();
     let request = Request::builder()
@@ -326,7 +312,7 @@ async fn test_custom_server_records() {
     let body = serde_json::to_string(&records).unwrap();
 
     let request = Request::builder()
-        .uri("/scouter/drift")
+        .uri("/scouter/message")
         .method("POST")
         .header(header::CONTENT_TYPE, "application/json")
         .body(Body::from(body))
@@ -368,7 +354,115 @@ async fn test_custom_server_records() {
 
     let val = response.into_body().collect().await.unwrap().to_bytes();
 
-    let results: BinnedCustomMetrics = serde_json::from_slice(&val).unwrap();
+    let results: BinnedMetrics = serde_json::from_slice(&val).unwrap();
 
     assert!(!results.metrics.is_empty());
+}
+
+#[test]
+fn test_llm_server_records() {
+    let runtime = tokio::runtime::Runtime::new().unwrap();
+    let mut mock = LLMTestServer::new();
+    mock.start_server().unwrap();
+
+    let helper = runtime.block_on(async { TestHelper::new(false, false).await.unwrap() });
+    let profile = runtime.block_on(async { TestHelper::create_llm_drift_profile().await });
+
+    let request = profile.create_profile_request().unwrap();
+
+    let body = serde_json::to_string(&request).unwrap();
+    let request = Request::builder()
+        .uri("/scouter/profile")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let response = runtime.block_on(async { helper.send_oneshot(request).await });
+
+    //assert response
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // populate the server with LLM drift records
+    let records = helper.get_llm_drift_records(None);
+
+    let body = serde_json::to_string(&records).unwrap();
+    //
+    let request = Request::builder()
+        .uri("/scouter/message")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+
+    let response = runtime.block_on(async { helper.send_oneshot(request).await });
+
+    assert_eq!(response.status(), StatusCode::OK);
+    //
+    //// Sleep for 2 seconds to allow the http consumer time to process all server records sent above.
+    runtime.block_on(async { sleep(Duration::from_secs(5)).await });
+
+    // get drift records
+    let params = DriftRequest {
+        space: SPACE.to_string(),
+        name: NAME.to_string(),
+        version: VERSION.to_string(),
+        time_interval: TimeInterval::FiveMinutes,
+        max_data_points: 100,
+        drift_type: DriftType::LLM,
+        ..Default::default()
+    };
+
+    let query_string = serde_qs::to_string(&params).unwrap();
+
+    let request = Request::builder()
+        .uri(format!("/scouter/drift/llm?{query_string}"))
+        .method("GET")
+        .body(Body::empty())
+        .unwrap();
+
+    let response = runtime.block_on(async { helper.send_oneshot(request).await });
+
+    //assert response
+    assert_eq!(response.status(), StatusCode::OK);
+
+    // collect body into serde Value
+
+    let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
+
+    let results: BinnedMetrics = serde_json::from_slice(&val).unwrap();
+
+    assert!(!results.metrics.is_empty());
+
+    // get drift records by page
+    let request = LLMDriftRecordPaginationRequest {
+        service_info: ServiceInfo {
+            space: SPACE.to_string(),
+            name: NAME.to_string(),
+            version: VERSION.to_string(),
+        },
+        status: None,
+        pagination: PaginationRequest {
+            limit: 10,
+            cursor: None,
+        },
+    };
+
+    let body = serde_json::to_string(&request).unwrap();
+
+    let request = Request::builder()
+        .uri("/scouter/drift/llm/records")
+        .method("POST")
+        .header(header::CONTENT_TYPE, "application/json")
+        .body(Body::from(body))
+        .unwrap();
+    let response = runtime.block_on(async { helper.send_oneshot(request).await });
+    let val = runtime.block_on(async { response.into_body().collect().await.unwrap().to_bytes() });
+
+    let records: PaginationResponse<LLMDriftServerRecord> = serde_json::from_slice(&val).unwrap();
+    assert!(!records.items.is_empty());
+    assert!(records.has_more);
+
+    mock.stop_server().unwrap();
+    TestHelper::cleanup_storage();
 }

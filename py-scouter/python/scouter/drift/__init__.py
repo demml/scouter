@@ -1,4 +1,6 @@
 # type: ignore
+# pylint: disable=no-name-in-module
+
 from .. import drift
 
 FeatureMap = drift.FeatureMap
@@ -13,6 +15,9 @@ PsiDriftMap = drift.PsiDriftMap
 CustomMetricDriftConfig = drift.CustomMetricDriftConfig
 CustomMetric = drift.CustomMetric
 CustomDriftProfile = drift.CustomDriftProfile
+LLMDriftMetric = drift.LLMDriftMetric
+LLMDriftConfig = drift.LLMDriftConfig
+LLMDriftProfile = drift.LLMDriftProfile
 Drifter = drift.Drifter
 QuantileBinning = drift.QuantileBinning
 EqualWidthBinning = drift.EqualWidthBinning
@@ -39,6 +44,9 @@ __all__ = [
     "CustomMetricDriftConfig",
     "CustomMetric",
     "CustomDriftProfile",
+    "LLMDriftMetric",
+    "LLMDriftConfig",
+    "LLMDriftProfile",
     "Drifter",
     "QuantileBinning",
     "EqualWidthBinning",

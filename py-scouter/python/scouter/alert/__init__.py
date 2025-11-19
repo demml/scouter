@@ -18,6 +18,8 @@ SlackDispatchConfig = alert.SlackDispatchConfig
 PsiNormalThreshold = alert.PsiNormalThreshold
 PsiChiSquareThreshold = alert.PsiChiSquareThreshold
 PsiFixedThreshold = alert.PsiFixedThreshold
+LLMMetricAlertCondition = alert.LLMMetricAlertCondition
+LLMAlertConfig = alert.LLMAlertConfig
 
 
 __all__ = [
@@ -38,4 +40,6 @@ __all__ = [
     "PsiNormalThreshold",
     "PsiChiSquareThreshold",
     "PsiFixedThreshold",
+    "LLMMetricAlertCondition",
+    "LLMAlertConfig",
 ]

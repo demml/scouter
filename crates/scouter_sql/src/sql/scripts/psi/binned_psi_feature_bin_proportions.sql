@@ -1,6 +1,6 @@
 WITH feature_bin_total AS (
      SELECT 
-        date_bin('$1 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
+        date_bin(($1 || ' minutes')::interval, created_at, TIMESTAMP '1970-01-01') as created_at,
         name,
         space,
         version,
@@ -19,7 +19,7 @@ WITH feature_bin_total AS (
 
 feature_total AS (
     SELECT 
-        date_bin('$1 minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
+        date_bin(($1 || ' minutes')::interval, created_at, TIMESTAMP '1970-01-01') as created_at,
         name,
         space,
         version,

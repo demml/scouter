@@ -4,16 +4,18 @@ use crate::binning::quantile::QuantileBinning;
 use crate::binning::strategy::BinningStrategy;
 use crate::error::{ProfileError, TypeError};
 use crate::psi::alert::PsiAlertConfig;
-use crate::util::{json_to_pyobject, pyobject_to_json};
+use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version};
 use crate::ProfileRequest;
+use crate::VersionRequest;
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, ProfileArgs, ProfileBaseArgs,
-    ProfileFuncs, DEFAULT_VERSION, MISSING,
+    PyHelperFuncs, DEFAULT_VERSION, MISSING,
 };
 use chrono::Utc;
 use core::fmt::Debug;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
+use scouter_semver::VersionType;
 use serde::de::{self, MapAccess, Visitor};
 use serde::ser::SerializeStruct;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
@@ -129,12 +131,12 @@ impl PsiDriftConfig {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
 
     #[allow(clippy::too_many_arguments)]
@@ -405,16 +407,11 @@ pub struct PsiDriftProfile {
 }
 
 impl PsiDriftProfile {
-    pub fn new(
-        features: HashMap<String, PsiFeatureDriftProfile>,
-        config: PsiDriftConfig,
-        scouter_version: Option<String>,
-    ) -> Self {
-        let scouter_version = scouter_version.unwrap_or(env!("CARGO_PKG_VERSION").to_string());
+    pub fn new(features: HashMap<String, PsiFeatureDriftProfile>, config: PsiDriftConfig) -> Self {
         Self {
             features,
             config,
-            scouter_version,
+            scouter_version: scouter_version(),
         }
     }
 }
@@ -423,12 +420,12 @@ impl PsiDriftProfile {
 impl PsiDriftProfile {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
     // TODO dry this out
     #[allow(clippy::useless_conversion)]
@@ -471,7 +468,7 @@ impl PsiDriftProfile {
     // Convert python dict into a drift profile
     #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ProfileError> {
-        Ok(ProfileFuncs::save_to_json(
+        Ok(PyHelperFuncs::save_to_json(
             self,
             path,
             FileName::PsiDriftProfile.to_str(),
@@ -501,10 +498,24 @@ impl PsiDriftProfile {
 
     /// Create a profile request from the profile
     pub fn create_profile_request(&self) -> Result<ProfileRequest, TypeError> {
+        let version: Option<String> = if self.config.version == DEFAULT_VERSION {
+            None
+        } else {
+            Some(self.config.version.clone())
+        };
+
         Ok(ProfileRequest {
             space: self.config.space.clone(),
             profile: self.model_dump_json(),
             drift_type: self.config.drift_type.clone(),
+            version_request: VersionRequest {
+                version,
+                version_type: VersionType::Minor,
+                pre_tag: None,
+                build_tag: None,
+            },
+            active: false,
+            deactivate_others: false,
         })
     }
 }
@@ -541,12 +552,12 @@ impl PsiDriftMap {
 impl PsiDriftMap {
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
 
     #[staticmethod]
@@ -557,7 +568,7 @@ impl PsiDriftMap {
 
     #[pyo3(signature = (path=None))]
     pub fn save_to_json(&self, path: Option<PathBuf>) -> Result<PathBuf, ProfileError> {
-        Ok(ProfileFuncs::save_to_json(
+        Ok(PyHelperFuncs::save_to_json(
             self,
             path,
             FileName::PsiDriftMap.to_str(),
@@ -572,7 +583,7 @@ impl ProfileBaseArgs for PsiDriftProfile {
         ProfileArgs {
             name: self.config.name.clone(),
             space: self.config.space.clone(),
-            version: self.config.version.clone(),
+            version: Some(self.config.version.clone()),
             schedule: self.config.alert_config.schedule.clone(),
             scouter_version: self.scouter_version.clone(),
             drift_type: self.config.drift_type.clone(),

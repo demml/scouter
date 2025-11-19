@@ -95,7 +95,9 @@ def test_data_pyarrow_mixed_type(
 
     drifter = Drifter()
 
-    profile: PsiDriftProfile = drifter.create_drift_profile(arrow_table, psi_drift_config_with_categorical_features)
+    profile: PsiDriftProfile = drifter.create_drift_profile(
+        arrow_table, psi_drift_config_with_categorical_features
+    )
     drift_map = drifter.compute_drift(arrow_table, profile)
 
     assert len(drift_map.features) == 6
@@ -139,7 +141,9 @@ def test_update_psi_drift_config(
     original_binning_strategy = profile.config.binning_strategy
 
     profile.update_config_args(
-        space="some_other_space", name="some_other_name", binning_strategy=EqualWidthBinning(method=SquareRoot())
+        space="some_other_space",
+        name="some_other_name",
+        binning_strategy=EqualWidthBinning(method=SquareRoot()),
     )
     assert profile.config.space != original_space
     assert profile.config.name != original_name

@@ -4,9 +4,6 @@ from .. import queue  # noqa: F401
 
 ScouterQueue = queue.ScouterQueue
 Queue = queue.Queue
-KafkaConfig = queue.KafkaConfig
-RabbitMQConfig = queue.RabbitMQConfig
-RedisConfig = queue.RedisConfig
 SpcServerRecord = queue.SpcServerRecord
 PsiServerRecord = queue.PsiServerRecord
 CustomMetricServerRecord = queue.CustomMetricServerRecord
@@ -18,14 +15,12 @@ RecordType = queue.RecordType
 Metric = queue.Metric
 Metrics = queue.Metrics
 EntityType = queue.EntityType
+LLMRecord = queue.LLMRecord
 
 
 __all__ = [
     "ScouterQueue",
     "Queue",
-    "KafkaConfig",
-    "RabbitMQConfig",
-    "RedisConfig",
     "SpcServerRecord",
     "PsiServerRecord",
     "CustomMetricServerRecord",
@@ -37,4 +32,5 @@ __all__ = [
     "Metric",
     "Metrics",
     "EntityType",
+    "LLMRecord",
 ]

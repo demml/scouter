@@ -10,13 +10,15 @@ use axum::{
 use scouter_auth::permission::UserPermissions;
 use scouter_drift::psi::PsiDrifter;
 use scouter_settings::ScouterServerConfig;
-use scouter_sql::sql::traits::{CustomMetricSqlLogic, ProfileSqlLogic, SpcSqlLogic};
+use scouter_sql::sql::traits::{
+    CustomMetricSqlLogic, LLMDriftSqlLogic, ProfileSqlLogic, SpcSqlLogic,
+};
 use scouter_sql::PostgresClient;
 use scouter_types::{
-    custom::BinnedCustomMetrics,
+    llm::PaginationResponse,
     psi::{BinnedPsiFeatureMetrics, PsiDriftProfile},
     spc::SpcDriftFeatures,
-    DriftType, ServerRecords,
+    BinnedMetrics, DriftType, LLMDriftRecordPaginationRequest, LLMDriftServerRecord, MessageRecord,
 };
 use scouter_types::{DriftRequest, GetProfileRequest, ScouterResponse, ScouterServerError};
 use sqlx::{Pool, Postgres};
@@ -145,7 +147,7 @@ pub async fn get_custom_drift(
     State(data): State<Arc<AppState>>,
     Query(params): Query<DriftRequest>,
     Extension(perms): Extension<UserPermissions>,
-) -> Result<Json<BinnedCustomMetrics>, (StatusCode, Json<ScouterServerError>)> {
+) -> Result<Json<BinnedMetrics>, (StatusCode, Json<ScouterServerError>)> {
     // validate time window
 
     if !perms.has_read_permission(&params.space) {
@@ -176,11 +178,85 @@ pub async fn get_custom_drift(
     }
 }
 
+/// This route is used to get the latest LLM drift records by page
+#[instrument(skip_all)]
+pub async fn get_llm_drift_records(
+    State(data): State<Arc<AppState>>,
+    Extension(perms): Extension<UserPermissions>,
+    Json(params): Json<LLMDriftRecordPaginationRequest>,
+) -> Result<Json<PaginationResponse<LLMDriftServerRecord>>, (StatusCode, Json<ScouterServerError>)>
+{
+    // validate time window
+
+    if !perms.has_read_permission(&params.service_info.space) {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(ScouterServerError::permission_denied()),
+        ));
+    }
+
+    let metrics = PostgresClient::get_llm_drift_records_pagination(
+        &data.db_pool,
+        &params.service_info,
+        params.status,
+        params.pagination,
+    )
+    .await;
+
+    match metrics {
+        Ok(metrics) => Ok(Json(metrics)),
+        Err(e) => {
+            error!("Failed to query drift records: {:?}", e);
+
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::query_records_error(e)),
+            ))
+        }
+    }
+}
+
+#[instrument(skip_all)]
+pub async fn get_llm_drift_metrics(
+    State(data): State<Arc<AppState>>,
+    Query(params): Query<DriftRequest>,
+    Extension(perms): Extension<UserPermissions>,
+) -> Result<Json<BinnedMetrics>, (StatusCode, Json<ScouterServerError>)> {
+    // validate time window
+
+    if !perms.has_read_permission(&params.space) {
+        return Err((
+            StatusCode::FORBIDDEN,
+            Json(ScouterServerError::permission_denied()),
+        ));
+    }
+
+    let metrics = PostgresClient::get_binned_llm_metric_values(
+        &data.db_pool,
+        &params,
+        &data.config.database_settings.retention_period,
+        &data.config.storage_settings,
+    )
+    .await;
+
+    match metrics {
+        Ok(metrics) => Ok(Json(metrics)),
+        Err(e) => {
+            error!("Failed to query drift records: {:?}", e);
+
+            Err((
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(ScouterServerError::query_records_error(e)),
+            ))
+        }
+    }
+}
+
 #[instrument(skip_all)]
 pub async fn insert_drift(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
-    Json(body): Json<ServerRecords>,
+    Json(body): Json<MessageRecord>,
 ) -> Result<Json<ScouterResponse>, (StatusCode, Json<ScouterServerError>)> {
     if !perms.has_write_permission(&body.space()) {
         return Err((
@@ -210,6 +286,11 @@ pub async fn get_drift_router(prefix: &str) -> Result<Router<Arc<AppState>>> {
             .route(&format!("{prefix}/drift/spc"), get(get_spc_drift))
             .route(&format!("{prefix}/drift/custom"), get(get_custom_drift))
             .route(&format!("{prefix}/drift/psi"), get(get_psi_drift))
+            .route(&format!("{prefix}/drift/llm"), get(get_llm_drift_metrics))
+            .route(
+                &format!("{prefix}/drift/llm/records"),
+                post(get_llm_drift_records),
+            )
     }));
 
     match result {

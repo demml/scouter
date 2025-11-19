@@ -1,11 +1,14 @@
 use crate::error::RecordError;
-use crate::ProfileFuncs;
+use crate::trace::TraceServerRecord;
+use crate::PyHelperFuncs;
+use crate::Status;
+use crate::TagRecord;
 use chrono::DateTime;
 use chrono::Utc;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
-
 use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
@@ -18,6 +21,9 @@ pub enum RecordType {
     Psi,
     Observability,
     Custom,
+    LLMDrift,
+    LLMMetric,
+    Trace,
 }
 
 impl Display for RecordType {
@@ -27,6 +33,9 @@ impl Display for RecordType {
             RecordType::Psi => write!(f, "psi"),
             RecordType::Observability => write!(f, "observability"),
             RecordType::Custom => write!(f, "custom"),
+            RecordType::LLMDrift => write!(f, "llm_drift"),
+            RecordType::LLMMetric => write!(f, "llm_metric"),
+            RecordType::Trace => write!(f, "trace"),
         }
     }
 }
@@ -69,12 +78,16 @@ impl SpcServerRecord {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
+    }
+
+    pub fn get_record_type(&self) -> RecordType {
+        RecordType::Spc
     }
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
 
     pub fn to_dict(&self) -> HashMap<String, String> {
@@ -138,12 +151,147 @@ impl PsiServerRecord {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
+    }
+
+    pub fn get_record_type(&self) -> RecordType {
+        RecordType::Psi
     }
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LLMDriftServerRecord {
+    #[pyo3(get)]
+    pub created_at: chrono::DateTime<Utc>,
+
+    #[pyo3(get)]
+    pub space: String,
+
+    #[pyo3(get)]
+    pub name: String,
+
+    #[pyo3(get)]
+    pub version: String,
+
+    pub prompt: Option<Value>,
+
+    pub context: Value,
+
+    pub status: Status,
+
+    pub id: i64,
+
+    pub uid: String,
+
+    pub score: Value,
+
+    pub updated_at: Option<DateTime<Utc>>,
+
+    pub processing_started_at: Option<DateTime<Utc>>,
+
+    pub processing_ended_at: Option<DateTime<Utc>>,
+
+    pub processing_duration: Option<i32>,
+}
+
+#[pymethods]
+impl LLMDriftServerRecord {
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        PyHelperFuncs::__str__(self)
+    }
+
+    pub fn get_record_type(&self) -> RecordType {
+        RecordType::LLMDrift
+    }
+
+    pub fn model_dump_json(&self) -> String {
+        // serialize the struct to a string
+        PyHelperFuncs::__json__(self)
+    }
+}
+
+impl LLMDriftServerRecord {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new_rs(
+        space: String,
+        name: String,
+        version: String,
+        prompt: Option<Value>,
+        context: Value,
+        created_at: DateTime<Utc>,
+        uid: String,
+        score: Value,
+    ) -> Self {
+        Self {
+            created_at,
+            space,
+            name,
+            version,
+            prompt,
+            context,
+            status: Status::Pending,
+            id: 0, // This is a placeholder, as the ID will be set by the database
+            uid,
+            score,
+            updated_at: None,
+            processing_started_at: None,
+            processing_ended_at: None,
+            processing_duration: None,
+        }
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct BoxedLLMDriftServerRecord {
+    pub record: Box<LLMDriftServerRecord>,
+}
+
+impl BoxedLLMDriftServerRecord {
+    pub fn new(record: LLMDriftServerRecord) -> Self {
+        Self {
+            record: Box::new(record),
+        }
+    }
+}
+
+#[pyclass]
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LLMMetricRecord {
+    #[pyo3(get)]
+    pub record_uid: String,
+
+    #[pyo3(get)]
+    pub created_at: chrono::DateTime<Utc>,
+
+    #[pyo3(get)]
+    pub space: String,
+
+    #[pyo3(get)]
+    pub name: String,
+
+    #[pyo3(get)]
+    pub version: String,
+
+    #[pyo3(get)]
+    pub metric: String,
+
+    #[pyo3(get)]
+    pub value: f64,
+}
+
+#[pymethods]
+impl LLMMetricRecord {
+    pub fn __str__(&self) -> String {
+        // serialize the struct to a string
+        PyHelperFuncs::__str__(self)
     }
 }
 
@@ -185,12 +333,16 @@ impl CustomMetricServerRecord {
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 
     pub fn model_dump_json(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
+    }
+
+    pub fn get_record_type(&self) -> RecordType {
+        RecordType::Custom
     }
 
     pub fn to_dict(&self) -> HashMap<String, String> {
@@ -272,12 +424,16 @@ pub struct ObservabilityMetrics {
 impl ObservabilityMetrics {
     pub fn model_dump_json(&self) -> String {
         // serialize records to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
+    }
+
+    pub fn get_record_type(&self) -> RecordType {
+        RecordType::Observability
     }
 }
 
@@ -288,39 +444,55 @@ pub enum ServerRecord {
     Psi(PsiServerRecord),
     Custom(CustomMetricServerRecord),
     Observability(ObservabilityMetrics),
+    LLMDrift(BoxedLLMDriftServerRecord),
+    LLMMetric(LLMMetricRecord),
 }
 
 #[pymethods]
 impl ServerRecord {
     #[new]
     pub fn new(record: &Bound<'_, PyAny>) -> Result<Self, RecordError> {
-        if let Ok(spc_record) = record.extract::<SpcServerRecord>() {
-            return Ok(ServerRecord::Spc(spc_record));
-        }
+        let record_type = record
+            .call_method0("get_record_type")?
+            .extract::<RecordType>()?;
 
-        if let Ok(psi_record) = record.extract::<PsiServerRecord>() {
-            return Ok(ServerRecord::Psi(psi_record));
-        }
+        match record_type {
+            RecordType::Spc => {
+                let spc_record = record.extract::<SpcServerRecord>()?;
+                Ok(ServerRecord::Spc(spc_record))
+            }
+            RecordType::Psi => {
+                let psi_record = record.extract::<PsiServerRecord>()?;
+                Ok(ServerRecord::Psi(psi_record))
+            }
+            RecordType::Custom => {
+                let custom_record = record.extract::<CustomMetricServerRecord>()?;
+                Ok(ServerRecord::Custom(custom_record))
+            }
+            RecordType::Observability => {
+                let observability_record = record.extract::<ObservabilityMetrics>()?;
+                Ok(ServerRecord::Observability(observability_record))
+            }
+            RecordType::LLMDrift => {
+                let llm_drift_record = record.extract::<LLMDriftServerRecord>()?;
+                Ok(ServerRecord::LLMDrift(BoxedLLMDriftServerRecord::new(
+                    llm_drift_record,
+                )))
+            }
 
-        if let Ok(custom_record) = record.extract::<CustomMetricServerRecord>() {
-            return Ok(ServerRecord::Custom(custom_record));
+            _ => Err(RecordError::InvalidDriftTypeError),
         }
-
-        if let Ok(observability_record) = record.extract::<ObservabilityMetrics>() {
-            return Ok(ServerRecord::Observability(observability_record));
-        }
-
-        // If none of the extractions succeeded, return an error
-        Err(RecordError::ExtractionError)
     }
 
     #[getter]
-    pub fn record(&self, py: Python) -> Result<PyObject, RecordError> {
+    pub fn record(&self, py: Python) -> Result<Py<PyAny>, RecordError> {
         match self {
             ServerRecord::Spc(record) => Ok(record.clone().into_py_any(py)?),
             ServerRecord::Psi(record) => Ok(record.clone().into_py_any(py)?),
             ServerRecord::Custom(record) => Ok(record.clone().into_py_any(py)?),
             ServerRecord::Observability(record) => Ok(record.clone().into_py_any(py)?),
+            ServerRecord::LLMDrift(record) => Ok(record.record.clone().into_py_any(py)?),
+            ServerRecord::LLMMetric(record) => Ok(record.clone().into_py_any(py)?),
         }
     }
 
@@ -330,6 +502,8 @@ impl ServerRecord {
             ServerRecord::Psi(record) => record.space.clone(),
             ServerRecord::Custom(record) => record.space.clone(),
             ServerRecord::Observability(record) => record.space.clone(),
+            ServerRecord::LLMDrift(record) => record.record.space.clone(),
+            ServerRecord::LLMMetric(record) => record.space.clone(),
         }
     }
 
@@ -340,6 +514,19 @@ impl ServerRecord {
             ServerRecord::Psi(record) => record.__str__(),
             ServerRecord::Custom(record) => record.__str__(),
             ServerRecord::Observability(record) => record.__str__(),
+            ServerRecord::LLMDrift(record) => record.record.__str__(),
+            ServerRecord::LLMMetric(record) => record.__str__(),
+        }
+    }
+
+    pub fn get_record_type(&self) -> RecordType {
+        match self {
+            ServerRecord::Spc(_) => RecordType::Spc,
+            ServerRecord::Psi(_) => RecordType::Psi,
+            ServerRecord::Custom(_) => RecordType::Custom,
+            ServerRecord::Observability(_) => RecordType::Observability,
+            ServerRecord::LLMDrift(_) => RecordType::LLMDrift,
+            ServerRecord::LLMMetric(_) => RecordType::LLMMetric,
         }
     }
 }
@@ -359,29 +546,23 @@ impl ServerRecords {
     }
     pub fn model_dump_json(&self) -> String {
         // serialize records to a string
-        ProfileFuncs::__json__(self)
+        PyHelperFuncs::__json__(self)
     }
 
     pub fn __str__(&self) -> String {
         // serialize the struct to a string
-        ProfileFuncs::__str__(self)
+        PyHelperFuncs::__str__(self)
     }
 }
 
 impl ServerRecords {
     pub fn record_type(&self) -> Result<RecordType, RecordError> {
         if let Some(first) = self.records.first() {
-            match first {
-                ServerRecord::Spc(_) => Ok(RecordType::Spc),
-                ServerRecord::Psi(_) => Ok(RecordType::Psi),
-                ServerRecord::Custom(_) => Ok(RecordType::Custom),
-                ServerRecord::Observability(_) => Ok(RecordType::Observability),
-            }
+            Ok(first.get_record_type())
         } else {
             Err(RecordError::EmptyServerRecordsError)
         }
     }
-
     // Helper function to load records from bytes. Used by scouter-server consumers
     //
     // # Arguments
@@ -442,6 +623,8 @@ pub trait ToDriftRecords {
     fn to_observability_drift_records(&self) -> Result<Vec<ObservabilityMetrics>, RecordError>;
     fn to_psi_drift_records(&self) -> Result<Vec<PsiServerRecord>, RecordError>;
     fn to_custom_metric_drift_records(&self) -> Result<Vec<CustomMetricServerRecord>, RecordError>;
+    fn to_llm_drift_records(&self) -> Result<Vec<LLMDriftServerRecord>, RecordError>;
+    fn to_llm_metric_records(&self) -> Result<Vec<LLMMetricRecord>, RecordError>;
 }
 impl ToDriftRecords for ServerRecords {
     fn to_spc_drift_records(&self) -> Result<Vec<SpcServerRecord>, RecordError> {
@@ -471,6 +654,20 @@ impl ToDriftRecords for ServerRecords {
             _ => None,
         })
     }
+
+    fn to_llm_drift_records(&self) -> Result<Vec<LLMDriftServerRecord>, RecordError> {
+        extract_records(self, |record| match record {
+            ServerRecord::LLMDrift(inner) => Some(*inner.record.clone()),
+            _ => None,
+        })
+    }
+
+    fn to_llm_metric_records(&self) -> Result<Vec<LLMMetricRecord>, RecordError> {
+        extract_records(self, |record| match record {
+            ServerRecord::LLMMetric(inner) => Some(inner.clone()),
+            _ => None,
+        })
+    }
 }
 
 // Helper function to extract records of a specific type
@@ -489,4 +686,70 @@ fn extract_records<T>(
     }
 
     Ok(records)
+}
+
+pub enum MessageType {
+    Server,
+    Trace,
+    Tag,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum MessageRecord {
+    ServerRecords(ServerRecords),
+    TraceServerRecord(TraceServerRecord),
+    TagServerRecord(TagRecord),
+}
+
+impl MessageRecord {
+    pub fn record_type(&self) -> MessageType {
+        match self {
+            MessageRecord::ServerRecords(_) => MessageType::Server,
+            MessageRecord::TraceServerRecord(_) => MessageType::Trace,
+            MessageRecord::TagServerRecord(_) => MessageType::Tag,
+        }
+    }
+
+    pub fn space(&self) -> String {
+        match self {
+            MessageRecord::ServerRecords(records) => records.space(),
+            MessageRecord::TraceServerRecord(records) => records.space.clone(),
+            _ => "__missing__".to_string(),
+        }
+    }
+
+    pub fn len(&self) -> usize {
+        match self {
+            MessageRecord::ServerRecords(records) => records.len(),
+            MessageRecord::TraceServerRecord(_) => 1,
+            _ => 1,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        match self {
+            MessageRecord::ServerRecords(records) => records.is_empty(),
+            _ => false,
+        }
+    }
+
+    pub fn model_dump_json(&self) -> String {
+        // serialize records to a string
+        match self {
+            MessageRecord::ServerRecords(records) => records.model_dump_json(),
+            MessageRecord::TraceServerRecord(record) => PyHelperFuncs::__json__(record),
+            MessageRecord::TagServerRecord(record) => PyHelperFuncs::__json__(record),
+        }
+    }
+}
+
+/// implement iterator for MEssageRecord to iterate over ServerRecords.records
+impl MessageRecord {
+    pub fn iter_server_records(&self) -> Option<impl Iterator<Item = &ServerRecord>> {
+        match self {
+            MessageRecord::ServerRecords(records) => Some(records.records.iter()),
+            _ => None,
+        }
+    }
 }

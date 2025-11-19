@@ -1,11 +1,15 @@
 pub mod alert;
 pub mod client;
 pub mod drift;
+pub mod evaluate;
+pub mod llm;
 pub mod logging;
 pub mod mock;
 pub mod observe;
 pub mod profile;
 pub mod queue;
+pub mod tracing;
+pub mod transport;
 pub mod types;
 
 use pyo3::prelude::*;
@@ -23,6 +27,10 @@ fn scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_wrapped(wrap_pymodule!(profile::profile))?;
     m.add_wrapped(wrap_pymodule!(observe::observe))?;
     m.add_wrapped(wrap_pymodule!(mock::mock))?;
+    m.add_wrapped(wrap_pymodule!(llm::llm))?;
+    m.add_wrapped(wrap_pymodule!(evaluate::evaluate))?;
+    m.add_wrapped(wrap_pymodule!(tracing::tracing))?;
+    m.add_wrapped(wrap_pymodule!(transport::transport))?;
 
     Ok(())
 }

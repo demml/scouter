@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [lib]
 name = "scouter"
-crate-type = ["cdylib", "rlib"]
+crate-type = ["cdylib"]
 
 [dependencies]
 
@@ -16,18 +16,20 @@ num-traits = { workspace = true }
 ndarray-stats = { workspace = true }
 reqwest = { workspace = true, optional = true }
 rusty-logging = { workspace = true }
+potato-head = { workspace = true, features = ["mock"] }
 scouter-client = { workspace = true }
 scouter-server = { workspace = true , optional = true, features = ["kafka", "rabbitmq", "redis_events"] }
+scouter-mocks = { workspace = true}
+scouter-tracing = { workspace = true }
 thiserror = { workspace = true }
 tokio = { workspace = true,  optional = true }
 tracing-subscriber = { workspace = true }
 time = "0.*"
 tracing = { workspace = true }
 
-
 [features]
 default = []
-server = ["scouter-server", "tokio", "reqwest"]
+server = ["scouter-server", "tokio", "reqwest", "scouter-mocks/server"]
 
 [profile.release]
 lto = "fat"

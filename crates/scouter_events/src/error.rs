@@ -1,9 +1,9 @@
 use futures::io;
 use pyo3::PyErr;
-use thiserror::Error;
 
 #[cfg(any(feature = "kafka", feature = "kafka-vendored"))]
 use rdkafka::error::KafkaError;
+use thiserror::Error;
 
 use crate::queue::bus::Event;
 
@@ -125,6 +125,9 @@ pub enum EventError {
     #[error("Queue not supported for metrics entity")]
     QueueNotSupportedMetricsError,
 
+    #[error("Queue not supported for LLM entity")]
+    QueueNotSupportedLLMError,
+
     #[error("Failed to signal startup")]
     SignalStartupError,
 
@@ -154,6 +157,30 @@ pub enum EventError {
 
     #[error("Failed to initialize QueueBus")]
     InitializationError,
+
+    #[error(transparent)]
+    JoinError(#[from] tokio::task::JoinError),
+
+    #[error("Event task failed to start")]
+    EventTaskFailedToStartError,
+
+    #[error("Background task failed to start")]
+    BackgroundTaskFailedToStartError,
+
+    #[error("Event task read error")]
+    EventTaskReadError,
+
+    #[error("Missing background tx channel")]
+    BackgroundTxMissingError,
+
+    #[error("Missing event tx channel")]
+    EventTxMissingError,
+
+    #[error("Failed to acquire read lock: {0}")]
+    ReadLockError(String),
+
+    #[error("Poison error occurred")]
+    PoisonError(String),
 }
 
 #[derive(Error, Debug)]
@@ -163,9 +190,6 @@ pub enum PyEventError {
 
     #[error(transparent)]
     PyErr(#[from] pyo3::PyErr),
-
-    #[error("Invalid compressions type")]
-    InvalidCompressionTypeError,
 
     #[error(transparent)]
     TypeError(#[from] scouter_types::error::TypeError),
@@ -184,6 +208,9 @@ pub enum PyEventError {
 
     #[error("Failed to convert TransportConfig type to py object: {0}")]
     ConvertToPyError(#[source] pyo3::PyErr),
+
+    #[error("Failed to clear all queues. Pending events exist")]
+    PendingEventsError,
 }
 impl From<PyEventError> for PyErr {
     fn from(err: PyEventError) -> PyErr {

@@ -5,7 +5,7 @@ After you've saved and registered your profile with the Scouter Server, you're a
 
 It is expected that you have already created and registered your profile with the Scouter Server. In addition, your profile should either be saved or downloaded to a local path. The ScouterQueue will load the profile from the local path and use it to setup the background queue and producer.
 
-### Setting up the ScouterQueue
+## Setting up the ScouterQueue
 
 In this step we will attach the ScouterQueue to the FastAPI app state via the lifespan
 
@@ -36,7 +36,7 @@ app = FastAPI(lifespan=lifespan)
 3. The shutdown method will stop the background queue and producer. It is important to call this method when the application is shutting down to ensure that all events are processed and sent to the Scouter server.
 
 
-### Available Transport Configs
+## Available Transport Configs
 
 In addition to the HTTP transport config, Scouter also support the following transport/producers:
 
@@ -46,7 +46,7 @@ In addition to the HTTP transport config, Scouter also support the following tra
 
 For more information on how to configure these transports, please refer to the [queue](../api/queue.md) documentation and the server documentation.
 
-### Inserting data
+## Inserting data
 
 There are a variety of ways in which you can configure your api to send data. In this case, we're going to keep it simple and add the insertion logic in with the api prediction route.
 
@@ -93,13 +93,26 @@ request.to_features()
 ```
 2. Access the queue from the app state using the assigned alias and insert
 
-In the above logic, we access the queue via the request.app.state and the corresponding alias. We then call the insert method with the features we want to send to the Scouter server. This is a simple exchange of data, as the ScouterQueue will pass the features through a channel to a background worker that is running independently on a separate thread. In our benchmarks, inserting data is extremely fast (<1us), so you can expect minimal overhead in your API response time. However, if you want to move the insertion logic to a background task, you can use the `BackgroundTasks` from FastAPI to do so.
+In the above logic, we access the queue via the `request.app.state` and the corresponding alias ("psi"). We then call the insert method with the features we want to send to the Scouter server. This is a simple exchange of data, as the ScouterQueue will pass the features through a channel to a background worker that is running independently on a separate thread. In our benchmarks, inserting data is extremely fast (<1us), so you can expect minimal overhead in your API response time. However, if you want to move the insertion logic to a background task, you can use the `BackgroundTasks` from FastAPI to do so.
 
+### What Queues Expect
+As you can see in the above example, the `ScouterQueue` expects either a `Features` object, a `Metrics` object or an `LLMRecord` object. Both of these objects are designed to be flexible and can be created in a variety of ways. 
 
-#### What Queues Expect
-As you can see in the above example, the `ScouterQueue` expects either a `Features` object or a `Metrics` object. Both of these objects designed to be flexible and can be created in a variety of ways. The `Features` object is used for PSI and SPC monitoring, where you are monitoring 'features', and the `Metrics` object is used for custom metrics that you want to monitor.
+### When to use `Features` vs `Metrics` vs `LLMRecord`?
+
+| `type`  | `Description` | `Associated Profiles` |
+|---------|----------------|-----------------------|
+| `Features` | Used for PSI and SPC monitoring, where you are monitoring 'features' | `PsiDriftProfile`, `SpcDriftProfile` |
+| `Metrics` | Used for custom metrics that you want to monitor | `CustomMetricProfile` |
+| `LLMRecord` | Used for LLM monitoring, where you are monitoring the performance of LLM services | `LLMDriftProfile` |
+
+### How to create `Features`, `Metrics` and `LLMRecord` objects?
+
+#### Features
 
 The `Features` object can be created from a dictionary of key-value pairs, where the keys are the feature names (string) and the values are the feature values (float, int, string). **Note** - these types should correspond to the types that were inferred while creating a drift profile (i.e. if `feat1` was inferred as a `float`, then you should pass a `float` value for `feat1` when inserting data). You can also create a `Features` object by passing a list of `Feature` objects, where each `Feature` object represents a single feature with a name and value.
+
+**Using a list of features**
 
 ```python
 from scouter.queue import Features, Feature
@@ -111,6 +124,11 @@ features = Features(
         Feature("feature_3", "value"),
     ]
 )
+```
+
+**Using a dictionary (pydantic model)**
+
+```python
 
 # Passing a dictionary (pydantic model) of features
 class MyFeatures(BaseModel):
@@ -127,35 +145,86 @@ my_features = MyFeatures(
 features = Features(my_features.model_dump())
 ```
 
-`Scouter` also comes with a `FeatureMixin`, that can be used to automatically convert a Pydantic model to a `Features` object. This is useful when you want to send the entire model as features without manually creating the `Features` object.
+**Using a FeatureMixin**
+
+`Scouter` also comes with a `FeatureMixin`, that can be used to automatically convert a Pydantic model to a `Features` object. This is useful when you want to send the entire model as features without manually creating the `Features` object
 
 ```python
 from scouter.util import FeatureMixin
+
 class MyFeatures(FeatureMixin, BaseModel):
     feature1: int
     feature2: float
-    feature3: str   
+    feature3: str
 
 my_features = MyFeatures(
     feature1=1,
     feature2=2.0,
     feature3="value",
 )
+
 features = my_features.to_features()
 ```
+
+#### Metrics
+
 `Metrics` also follow a similar pattern to `Features`.
 
+**Using a list of metrics**
+
 ```python
+from scouter.queue import Metrics, Metric
+
+# Supply a list of metrics
 Metrics(
     [
         Metric("metric_1", 1),
         Metric("metric_2", 2.0),
     ]
 )
+```
 
-my_metrics = MyMetrics(metric_1=1, metric_2=2.0)
+**Using a dictionary (pydantic model)**
+
+When using a dictionary, the key should match the metric name in your profile.
+
+```python
+from scouter.queue import Metrics, Metric
+from pydantic import BaseModel  
+
+class MyMetrics(BaseModel):
+    mae: int
+    mape: float
+
+my_metrics = MyMetrics(mae=1, mape=2.0)
 Metrics(my_metrics.model_dump())
 ```
+
+
+#### LLMRecord
+The `LLMRecord` object is used to send LLM records to the Scouter server for monitoring. It contains the input, response, and context of the LLM service. You can create an `LLMRecord` object by passing the input, response, and context as parameters.
+
+**Note**
+
+ Input, response and context should be serializable types (i.e. strings, numbers, lists, dictionaries). If you want to send more complex objects, you can use the `to_json` method to convert them to a JSON string. In addition, all of these fields will be injected into your LLM metric prompts on the server side, so if your prompts expect `${input}` or `${response}`, you can use these fields to populate them.
+
+```python
+
+record = LLMRecord(
+    input="What is the capital of France?",
+    response="Paris is the capital of France.",
+    context={"foo": "bar"}
+)
+```
+
+LLMRecord Arguments
+
+| `Argument` | `Type` | `Description` |
+|------------|--------|----------------|
+| `input` | `str | int | float | dict | list` | The input to the LLM service. This could be something like a user question |
+| `response` | `str | int | float | dict | list` | The response from the LLM service. This could be something like the answer to the user question |
+| `context` | `Dict[str, Any]` | The context for the LLM service (if any). The keys should map to the context variables in your LLM metric prompts |
+| `prompt` | `Prompt str | int | float | dict | list` | The prompt used to generate the response |
 
 ### Ready to go!
 
