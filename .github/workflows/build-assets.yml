@@ -1,4 +1,4 @@
-name: Build Dev Assets
+name: Build Assets
 
 permissions:
   pull-requests: write
@@ -67,7 +67,7 @@ jobs:
             container_image: rockylinux:9
             tag: rocky
             archive_name_suffix: -rocky
-            feature: redis
+            feature: redis_events
 
           - os: ubuntu-22.04-arm
             target: aarch64-unknown-linux-gnu
@@ -76,7 +76,7 @@ jobs:
             container_image: null
             tag: ubuntu
             archive_name_suffix: ""
-            feature: redis
+            feature: redis_events
 
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
@@ -121,7 +121,7 @@ jobs:
             container_image: rockylinux:9
             tag: rocky
             archive_name_suffix: -rocky
-            feature: redis
+            feature: redis_events
 
           - os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
@@ -130,7 +130,7 @@ jobs:
             container_image: null
             tag: ubuntu
             archive_name_suffix: ""
-            feature: redis
+            feature: redis_events
 
     runs-on: ${{ matrix.os}}
     container: ${{ matrix.container_image != null && matrix.container_image || null }}
@@ -141,8 +141,8 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install Rocky Deps
-        if: matrix.container_image == 'rockylinux:9'
+      - name: Install Rocky Deps ARM64
+        if: matrix.container_image == 'rockylinux:9' && contains(matrix.os, 'ubuntu-22.04-arm')
         run: |
           dnf install -y --allowerasing gcc make curl pkgconf openssl-devel wget perl pkg-config
 
@@ -157,6 +157,26 @@ jobs:
 
           echo "Installing CMake 3.26.4..."
           curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-aarch64.sh -o cmake.sh
+          chmod +x cmake.sh
+          ./cmake.sh --skip-license --prefix=/usr/local
+          cmake --version
+
+      - name: Install Rocky Deps AMD64
+        if: matrix.container_image == 'rockylinux:9' && !contains(matrix.os, 'ubuntu-22.04-arm')
+        run: |
+          dnf install -y --allowerasing gcc make curl pkgconf openssl-devel wget perl pkg-config
+
+          # Install Rust via rustup
+          curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+
+          # Add Rust to PATH for subsequent steps
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+          # Source for this step
+          source $HOME/.cargo/env
+
+          echo "Installing CMake 3.26.4..."
+          curl -L https://github.com/Kitware/CMake/releases/download/v3.26.4/cmake-3.26.4-linux-x86_64.sh -o cmake.sh
           chmod +x cmake.sh
           ./cmake.sh --skip-license --prefix=/usr/local
           cmake --version
