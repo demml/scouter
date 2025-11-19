@@ -17,6 +17,7 @@ scouter-settings = { workspace = true }
 scouter-sql = { workspace = true, optional = true }
 scouter-types = { workspace = true }
 
+futures = { workspace = true }
 pyo3 = { workspace = true }
 serde = { workspace = true }
 itertools = { workspace = true }

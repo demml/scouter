@@ -34,14 +34,14 @@ pub use scouter_types::{
     AlertDispatchType, AlertThreshold, Attribute, BinnedMetric, BinnedMetricStats, BinnedMetrics,
     ConsoleDispatchConfig, CustomMetricServerRecord, DataType, Doane, DriftAlertRequest,
     DriftProfile, DriftRequest, DriftType, EntityType, EqualWidthBinning, Feature, FeatureMap,
-    Features, FreedmanDiaconis, GetProfileRequest, LatencyMetrics, Manual, Metric, Metrics,
-    ObservabilityMetrics, OpsGenieDispatchConfig, ProfileRequest, ProfileStatusRequest,
-    PsiServerRecord, QuantileBinning, RecordType, RegisteredProfileResponse, Rice, RouteMetrics,
-    Scott, ScouterResponse, ScouterServerError, ServerRecord, ServerRecords, SlackDispatchConfig,
-    SpanEvent, SpanLink, SpcServerRecord, SquareRoot, Sturges, TagRecord, TagsResponse,
-    TerrellScott, TimeInterval, TraceBaggageRecord, TraceBaggageResponse, TraceMetricsRequest,
-    TraceMetricsResponse, TracePaginationResponse, TraceRecord, TraceSpanRecord,
-    TraceSpansResponse, UpdateAlertResponse, UpdateAlertStatus, VersionRequest,
+    Features, FreedmanDiaconis, GetProfileRequest, LLMMetricRecord, LLMRecord, LatencyMetrics,
+    Manual, Metric, Metrics, ObservabilityMetrics, OpsGenieDispatchConfig, ProfileRequest,
+    ProfileStatusRequest, PsiServerRecord, QuantileBinning, RecordType, RegisteredProfileResponse,
+    Rice, RouteMetrics, Scott, ScouterResponse, ScouterServerError, ServerRecord, ServerRecords,
+    SlackDispatchConfig, SpanEvent, SpanLink, SpcServerRecord, SquareRoot, Sturges, TagRecord,
+    TagsResponse, TerrellScott, TimeInterval, TraceBaggageRecord, TraceBaggageResponse,
+    TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse, TraceRecord,
+    TraceSpanRecord, TraceSpansResponse, UpdateAlertResponse, UpdateAlertStatus, VersionRequest,
 };
 
 pub use crate::http::{PyScouterClient, ScouterClient};
