@@ -63,8 +63,8 @@ metrics = { version = "0.*", default-features = false }
 metrics-exporter-prometheus = { version = "0.*", default-features = false }
 mimalloc = { version = "*", features = ["secure"] }
 mockito = "1.*"
-ndarray = { version = "0.*", features = ["rayon"] }
-ndarray-rand = "0.*"
+ndarray = { version = "0.16.1", features = ["rayon"] }
+ndarray-rand = "0.15"
 ndarray-stats = "0.*"
 noisy_float = "0.*"
 numpy = "0.*"
