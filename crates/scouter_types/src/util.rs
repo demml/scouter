@@ -560,7 +560,7 @@ pub trait ValidateAlertConfig {
     }
 }
 
-#[pyclass(eq)]
+#[pyclass(eq, name = "ScouterDataType")]
 #[derive(PartialEq, Debug)]
 pub enum DataType {
     Pandas,

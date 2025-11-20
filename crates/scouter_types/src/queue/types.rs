@@ -87,7 +87,7 @@ impl StringFeature {
     }
 }
 
-#[pyclass]
+#[pyclass(name = "QueueFeature")]
 #[derive(Clone, Serialize, Deserialize, Debug)]
 pub enum Feature {
     Int(IntFeature),
