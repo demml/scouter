@@ -1,10 +1,6 @@
 use crate::error::EvaluationError;
 use crate::types::{EvaluationConfig, LLMEvalRecord, LLMEvalResults, LLMEvalTaskResult};
 use itertools::iproduct;
-use linfa::{traits::*, Dataset};
-use linfa_clustering::Dbscan;
-use linfa_reduction::Pca;
-use ndarray::{Array1, Array2};
 use num_traits::FromPrimitive;
 use potato_head::{
     Embedder, EmbeddingInput, PyEmbedder, Score, StructuredOutput, TaskStatus, Workflow,
@@ -278,14 +274,6 @@ pub fn compute_mean(vec: &[f32]) -> Option<f64> {
     }
 }
 
-/// Uses the DBSCAN algorithm to cluster the provided data
-/// Returns an array where each element corresponds to the cluster ID of the respective data point
-pub fn cluster(data: &Array2<f64>) -> Result<Array1<Option<usize>>, EvaluationError> {
-    let min_points = 3;
-    let clusters = Dbscan::params(min_points).transform(data)?;
-    Ok(clusters)
-}
-
 pub fn compute_similarity(
     targets: &Vec<String>,
     embeddings: &BTreeMap<String, Vec<f32>>,
@@ -330,28 +318,4 @@ pub fn post_process(results: &mut LLMEvalResults, config: &Arc<EvaluationConfig>
             &mut task_result.similarity_scores,
         );
     });
-}
-
-/// Reduced the dimensionality of the data using PCA.
-/// This is needed to visualize the clusters in 2D space.
-/// # Arguments
-/// * `data` - The input data to reduce.
-/// * `cluster_ids` - The cluster IDs for each data point.
-pub fn reduce_dimensions(
-    data: &Array2<f64>,
-    cluster_ids: &[i32],
-) -> Result<Array2<f64>, EvaluationError> {
-    let ds = Dataset::new(
-        data.clone(),
-        Array2::from_shape_vec(
-            (data.nrows(), 1),
-            cluster_ids.iter().map(|&x| x as f64).collect(),
-        )
-        .unwrap(),
-    );
-
-    let embedding = Pca::params(2).whiten(false).fit(&ds)?;
-
-    let prediction = embedding.predict(&ds);
-    Ok(prediction)
 }

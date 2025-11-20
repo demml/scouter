@@ -39,12 +39,6 @@ pub enum EvaluationError {
     NoResultsFound,
 
     #[error(transparent)]
-    ClusteringError(#[from] linfa_clustering::DbscanParamsError),
-
-    #[error(transparent)]
-    ReductionError(#[from] linfa_reduction::ReductionError),
-
-    #[error(transparent)]
     ShapeError(#[from] ndarray::ShapeError),
 
     #[error(transparent)]
