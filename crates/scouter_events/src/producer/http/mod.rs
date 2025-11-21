@@ -1,3 +1,3 @@
 pub mod producer;
 
-pub use producer::{HTTPClient, HTTPProducer};
+pub use producer::{HttpClient, HttpProducer};

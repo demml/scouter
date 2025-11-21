@@ -13,7 +13,7 @@ use scouter_types::{
     TraceSpansResponse,
 };
 
-use crate::http::HTTPClient;
+use crate::http::HttpClient;
 use scouter_types::{
     alert::Alert, psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures, BinnedMetrics, DriftProfile,
     DriftType, PyHelperFuncs,
@@ -25,12 +25,12 @@ pub const DOWNLOAD_CHUNK_SIZE: usize = 1024 * 1024 * 5;
 
 #[derive(Debug, Clone)]
 pub struct ScouterClient {
-    client: HTTPClient,
+    client: HttpClient,
 }
 
 impl ScouterClient {
     pub fn new(config: Option<HttpConfig>) -> Result<Self, ClientError> {
-        let client = HTTPClient::new(config.unwrap_or_default())?;
+        let client = HttpClient::new(config.unwrap_or_default())?;
 
         Ok(ScouterClient { client })
     }
@@ -548,7 +548,7 @@ impl PyScouterClient {
 impl PyScouterClient {
     fn get_spc_binned_drift<'py>(
         py: Python<'py>,
-        client: &HTTPClient,
+        client: &HttpClient,
         drift_request: DriftRequest,
     ) -> Result<Bound<'py, PyAny>, ClientError> {
         let query_string = serde_qs::to_string(&drift_request)?;
@@ -573,7 +573,7 @@ impl PyScouterClient {
     }
     fn get_psi_binned_drift<'py>(
         py: Python<'py>,
-        client: &HTTPClient,
+        client: &HttpClient,
         drift_request: DriftRequest,
     ) -> Result<Bound<'py, PyAny>, ClientError> {
         let query_string = serde_qs::to_string(&drift_request)?;
@@ -605,7 +605,7 @@ impl PyScouterClient {
 
     fn get_custom_binned_drift<'py>(
         py: Python<'py>,
-        client: &HTTPClient,
+        client: &HttpClient,
         drift_request: DriftRequest,
     ) -> Result<Bound<'py, PyAny>, ClientError> {
         let query_string = serde_qs::to_string(&drift_request)?;
@@ -631,7 +631,7 @@ impl PyScouterClient {
 
     fn get_llm_metric_binned_drift<'py>(
         py: Python<'py>,
-        client: &HTTPClient,
+        client: &HttpClient,
         drift_request: DriftRequest,
     ) -> Result<Bound<'py, PyAny>, ClientError> {
         let query_string = serde_qs::to_string(&drift_request)?;

@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::error::TraceError;
 use crate::exporter::traits::SpanExporterBuilder;
 use crate::exporter::ExporterType;
-use crate::utils::{ExportConfig, HttpConfig, Protocol};
+use crate::utils::{ExportConfig, HttpConfig, OtelProtocol};
 use opentelemetry_otlp::ExportConfig as OtlpExportConfig;
 use opentelemetry_otlp::SpanExporter as OtlpSpanExporter;
 use opentelemetry_otlp::WithExportConfig;
@@ -26,7 +26,7 @@ pub struct HttpSpanExporter {
     endpoint: Option<String>,
 
     #[pyo3(get)]
-    protocol: Protocol,
+    protocol: OtelProtocol,
 
     #[pyo3(get)]
     timeout: Option<u64>,
@@ -55,7 +55,7 @@ impl HttpSpanExporter {
                 config.timeout,
             )
         } else {
-            (None, Protocol::default(), None)
+            (None, OtelProtocol::default(), None)
         };
 
         let headers = http_config.and_then(|cfg| cfg.headers.clone());

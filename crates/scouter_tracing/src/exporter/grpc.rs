@@ -1,7 +1,7 @@
 use crate::error::TraceError;
 use crate::exporter::traits::SpanExporterBuilder;
 use crate::exporter::ExporterType;
-use crate::utils::{ExportConfig, GrpcConfig, Protocol};
+use crate::utils::{ExportConfig, GrpcConfig, OtelProtocol};
 use opentelemetry_otlp::ExportConfig as OtlpExportConfig;
 use opentelemetry_otlp::SpanExporter as OtlpSpanExporter;
 use opentelemetry_otlp::WithExportConfig;
@@ -24,7 +24,7 @@ pub struct GrpcSpanExporter {
     endpoint: Option<String>,
 
     #[pyo3(get)]
-    protocol: Protocol,
+    protocol: OtelProtocol,
 
     #[pyo3(get)]
     timeout: Option<u64>,
@@ -50,7 +50,7 @@ impl GrpcSpanExporter {
                 config.timeout,
             )
         } else {
-            (None, Protocol::default(), None)
+            (None, OtelProtocol::default(), None)
         };
 
         let compression = if let Some(grpc_config) = grpc_config {

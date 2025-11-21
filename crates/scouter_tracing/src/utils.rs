@@ -362,11 +362,11 @@ pub enum OtelProtocol {
     HttpJson,
 }
 
-impl Protocol {
+impl OtelProtocol {
     pub fn to_otel_protocol(&self) -> opentelemetry_otlp::Protocol {
         match self {
-            Protocol::HttpBinary => opentelemetry_otlp::Protocol::HttpBinary,
-            Protocol::HttpJson => opentelemetry_otlp::Protocol::HttpJson,
+            OtelProtocol::HttpBinary => opentelemetry_otlp::Protocol::HttpBinary,
+            OtelProtocol::HttpJson => opentelemetry_otlp::Protocol::HttpJson,
         }
     }
 }
@@ -377,7 +377,7 @@ pub struct ExportConfig {
     #[pyo3(get)]
     pub endpoint: Option<String>,
     #[pyo3(get)]
-    pub protocol: Protocol,
+    pub protocol: OtelProtocol,
     #[pyo3(get)]
     pub timeout: Option<u64>,
 }
@@ -385,8 +385,8 @@ pub struct ExportConfig {
 #[pymethods]
 impl ExportConfig {
     #[new]
-    #[pyo3(signature = (protocol=Protocol::HttpBinary,endpoint=None,  timeout=None))]
-    pub fn new(protocol: Protocol, endpoint: Option<String>, timeout: Option<u64>) -> Self {
+    #[pyo3(signature = (protocol=OtelProtocol::HttpBinary,endpoint=None,  timeout=None))]
+    pub fn new(protocol: OtelProtocol, endpoint: Option<String>, timeout: Option<u64>) -> Self {
         ExportConfig {
             endpoint,
             protocol,

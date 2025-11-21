@@ -170,7 +170,7 @@ impl HttpClient {
 
 #[derive(Debug, Clone)]
 pub struct HttpProducer {
-    client: HTTPClient,
+    client: HttpClient,
 }
 
 impl HttpProducer {

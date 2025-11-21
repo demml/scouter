@@ -33,12 +33,12 @@ pub struct HttpClient {
     auth_token: Arc<RwLock<String>>,
 }
 
-impl HTTPClient {
+impl HttpClient {
     pub fn new(config: HttpConfig) -> Result<Self, ClientError> {
         let client = build_http_client(&config)?;
-        debug!("HTTPClient created with base path: {}", config.server_uri);
+        debug!("HttpClient created with base path: {}", config.server_uri);
 
-        let api_client = HTTPClient {
+        let api_client = HttpClient {
             client,
             auth_token: Arc::new(RwLock::new(String::new())),
             base_path: format!("{}/{}", config.server_uri, "scouter"),
