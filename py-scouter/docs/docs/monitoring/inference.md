@@ -31,7 +31,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(lifespan=lifespan)
 ```
 
-1. The ScouterQueue `from_path` staticmethod expect's a dictionary of paths where keys are aliases and values are paths to the local profile. 
+1. The ScouterQueue `from_path` staticmethod expect's a dictionary of paths where keys are aliases and values are paths to the local profile.
 2. The transport config is used to setup the specific transport producer for the queue (kafka, rabbitmq, etc.). In this case we are using the HTTP transport config.
 3. The shutdown method will stop the background queue and producer. It is important to call this method when the application is shutting down to ensure that all events are processed and sent to the Scouter server.
 
@@ -44,7 +44,7 @@ In addition to the HTTP transport config, Scouter also support the following tra
 - **RabbitMQ**: `from_path(path, transport_config=RabbitMQConfig())`
 - **Redis**: `from_path(path, transport_config=RedisConfig())`
 
-For more information on how to configure these transports, please refer to the [queue](../api/queue.md) documentation and the server documentation.
+For more information on how to configure these transports, please refer to the [queue](/scouter/docs/api/scouter/) documentation and the server documentation.
 
 ## Inserting data
 
@@ -96,7 +96,7 @@ request.to_features()
 In the above logic, we access the queue via the `request.app.state` and the corresponding alias ("psi"). We then call the insert method with the features we want to send to the Scouter server. This is a simple exchange of data, as the ScouterQueue will pass the features through a channel to a background worker that is running independently on a separate thread. In our benchmarks, inserting data is extremely fast (<1us), so you can expect minimal overhead in your API response time. However, if you want to move the insertion logic to a background task, you can use the `BackgroundTasks` from FastAPI to do so.
 
 ### What Queues Expect
-As you can see in the above example, the `ScouterQueue` expects either a `Features` object, a `Metrics` object or an `LLMRecord` object. Both of these objects are designed to be flexible and can be created in a variety of ways. 
+As you can see in the above example, the `ScouterQueue` expects either a `Features` object, a `Metrics` object or an `LLMRecord` object. Both of these objects are designed to be flexible and can be created in a variety of ways.
 
 ### When to use `Features` vs `Metrics` vs `LLMRecord`?
 
@@ -190,7 +190,7 @@ When using a dictionary, the key should match the metric name in your profile.
 
 ```python
 from scouter.queue import Metrics, Metric
-from pydantic import BaseModel  
+from pydantic import BaseModel
 
 class MyMetrics(BaseModel):
     mae: int
@@ -228,4 +228,4 @@ LLMRecord Arguments
 
 ### Ready to go!
 
-And that's all you need to get started for real-time model monitoring with Scouter. For more technical discussion on the ScouterQueue, please refer to the [ScouterQueue](../specs/ts-component-scouter-queue.md) documentation.
+And that's all you need to get started for real-time model monitoring with Scouter. For more technical discussion on the ScouterQueue, please refer to the [ScouterQueue](/scouter/docs/specs/ts-component-scouter-queue/) documentation.

@@ -81,8 +81,8 @@ async fn test_data_archive_spc() {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    // Sleep for 2 seconds to allow the http consumer time to process all server records sent above.
-    sleep(Duration::from_secs(2)).await;
+    // Sleep for 5 seconds to allow the http consumer time to process all server records sent above.
+    sleep(Duration::from_secs(5)).await;
 
     let record = archive_old_data(&helper.pool, &helper.config)
         .await
@@ -304,8 +304,8 @@ async fn test_data_archive_custom() {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    // Sleep for 3 seconds to allow the http consumer time to process all server records sent above.
-    sleep(Duration::from_secs(3)).await;
+    // Sleep for 5 seconds to allow the http consumer time to process all server records sent above.
+    sleep(Duration::from_secs(5)).await;
 
     let record = archive_old_data(&helper.pool, &helper.config)
         .await
@@ -426,8 +426,8 @@ fn test_data_archive_llm_drift_record() {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    // Sleep for 2 seconds to allow the http consumer time to process all server records sent above.
-    runtime.block_on(async { sleep(Duration::from_secs(2)).await });
+    // Sleep for 5 seconds to allow the http consumer time to process all server records sent above.
+    runtime.block_on(async { sleep(Duration::from_secs(5)).await });
 
     let record = runtime.block_on(async {
         archive_old_data(&helper.pool, &helper.config)
@@ -529,9 +529,8 @@ fn test_data_archive_llm_drift_metrics() {
         assert_eq!(response.status(), StatusCode::OK);
     }
 
-    // Sleep for 2 seconds to allow the http consumer time to process all server records sent above.
-    runtime.block_on(async { sleep(Duration::from_secs(3)).await });
-
+    // Sleep for 5 seconds to allow the http consumer time to process all server records sent above.
+    runtime.block_on(async { sleep(Duration::from_secs(5)).await });
     let record = runtime.block_on(async {
         archive_old_data(&helper.pool, &helper.config)
             .await

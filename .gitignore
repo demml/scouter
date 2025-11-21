@@ -90,3 +90,4 @@ py-scouter/python/scouter/llm/openai/_openai.pyi
 py-scouter/python/scouter/llm/gemini/_gemini.pyi
 py-scouter/python/scouter/evaluate/_evaluate.pyi
 
+py-scouter/python/scouter/stubs.pyi

@@ -47,7 +47,7 @@ import pandas as pd
 import uvicorn
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
-from scouter import (  # type: ignore
+from scouter import (
     CommonCrons,
     Drifter,
     HTTPConfig,

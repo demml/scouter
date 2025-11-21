@@ -24,14 +24,14 @@ Accepted environment variables are:
   - `gs://<bucket-name>` for Google Cloud Storage
   - `az://<container-name>` for Azure Blob Storage
   -  `./scouter-storage` for local storage (default if not set)
-  
+
 - `AWS_REGION`: The AWS region for the object storage provider. This is only required if the `SCOUTER_STORAGE_URI` is set to `s3://<bucket-name>`. It defaults to `us-east-1` if not set.
 
 In addition to `ObjectStorageSettings`, `DatabaseSettings` now takes on an additional environment variable `DATA_RETENTION_PERIOD` which indicates how long data should be retained in the database before moving it to long-term storage. Note this is only for **copying** data to long-term storage. The actual deletion of data is still handled by `pgCron`. The default value is 60 days.
 
 ## Component Architecture
 
-<img src="../assets/scouter-data-retention.png" alt="Data Archive Architecture" style="display: block; margin: 0 auto;" width="1000"/>
+<img src="/scouter/docs/specs/assets/scouter-data-retention.png" alt="Data Archive Architecture" style="display: block; margin: 0 auto;" width="1000"/>
 
 ## Implementation Details
 
@@ -58,7 +58,7 @@ pub async fn write_parquet(
    &self,
    rpath: &str,
    records: ServerRecords,
-) -> Result<(), DataFrameError> 
+) -> Result<(), DataFrameError>
 ```
 
 ```rust
@@ -147,6 +147,6 @@ async fn update_entities_to_archived(
 
 ---
 
-*Version: 1.0*  
-*Last Updated: 2025-04-23*  
+*Version: 1.0*
+*Last Updated: 2025-04-23*
 *Component Owner: Steven Forrester*

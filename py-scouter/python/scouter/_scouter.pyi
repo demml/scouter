@@ -1,5 +1,5 @@
 # pylint: disable=dangerous-default-value,redefined-builtin,missing-param-doc
-
+# python/scouter/_scouter.pyi
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import TracebackType

@@ -69,9 +69,9 @@ nav:
           - Theory: "docs/monitoring/spc/theory.md"
       - Custom Metric:
           - Overview: "docs/monitoring/custom/quickstart.md"
-      - LLM:
-          - Overview: "docs/monitoring/llm/overview.md"
-          - Evaluation: "docs/monitoring/llm/evaluation.md"
+      - GenAI:
+          - Overview: "docs/monitoring/genai/overview.md"
+          - Evaluation: "docs/monitoring/genai/evaluation.md"
       - Get to the Queue!:
           - Inference: "docs/monitoring/inference.md"
   - Profiling:
@@ -81,17 +81,7 @@ nav:
       - Archive: "docs/specs/ts-component-data-archive.md"
       - Queue: "docs/specs/ts-component-scouter-queue.md"
   - API Documentation:
-      - Alert: "docs/api/alert.md"
-      - Client: "docs/api/client.md"
-      - Drift: "docs/api/drift.md"
-      - Profile: "docs/api/profile.md"
-      - Evaluate: "docs/api/evaluate.md"
-      - LLM:
-          - LLM: "docs/api/llm/llm.md"
-          - OpenAI: "docs/api/llm/openai.md"
-          - Google: "docs/api/llm/google.md"
-      - Queue: "docs/api/queue.md"
-      - Types: "docs/api/types.md"
+      - API: "docs/api/stubs.md"
 
 markdown_extensions:
   - tables
@@ -132,8 +122,15 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
-          options.extras:
-            source_suffix: ".pyi"
+          paths: ["python"]
+          options:
+            separate_signature: true
+            filters: ["!^_"]
+            docstring_options:
+              ignore_init_summary: true
+            docstring_style: google
+            merge_init_into_class: true
+            show_signature_annotations: true
 
 extra_css:
   - docs/css/custom.css
