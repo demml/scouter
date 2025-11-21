@@ -1,5 +1,5 @@
 use crate::error::EvaluationError;
-use crate::util::{cluster, parse_embedder, post_process, reduce_dimensions};
+use crate::util::{parse_embedder, post_process};
 use ndarray::Array2;
 use potato_head::{create_uuid7, Embedder, PyHelperFuncs, Score};
 use pyo3::prelude::*;
@@ -152,12 +152,6 @@ impl LLMEvalResults {
             }
         }
 
-        // Build array dataset for clustering/dimensionality reduction
-        if config.cluster {
-            self.build_array_dataset()?;
-            self.perform_clustering_and_reduction()?;
-        }
-
         Ok(())
     }
 
@@ -166,44 +160,6 @@ impl LLMEvalResults {
         if self.array_dataset.is_none() {
             self.array_dataset = Some(ArrayDataset::from_results(self)?);
         }
-        Ok(())
-    }
-
-    /// Perform clustering and dimensionality reduction on the dataset
-    fn perform_clustering_and_reduction(&mut self) -> Result<(), EvaluationError> {
-        let dataset = self.array_dataset.as_mut().unwrap();
-
-        // Skip if insufficient data
-        if dataset.data.nrows() < 5 {
-            tracing::warn!("Insufficient data for clustering (need at least 5 points)");
-            return Ok(());
-        }
-
-        // Cluster the data
-        let clusters = cluster(&dataset.data)?;
-        dataset.clusters = clusters
-            .iter()
-            .map(|&a| match a {
-                Some(v) => v as i32,
-                None => -1,
-            })
-            .collect();
-
-        // Reduce dimensions if we have enough data
-        let reduced = reduce_dimensions(&dataset.data, &dataset.clusters)?;
-
-        if reduced.ncols() >= 2 {
-            let x = reduced.column(0).to_vec();
-            let y = reduced.column(1).to_vec();
-
-            self.cluster_data = Some(ClusterData::new(
-                x,
-                y,
-                dataset.clusters.clone(),
-                dataset.idx_map.clone(),
-            ));
-        }
-
         Ok(())
     }
 }

@@ -38,7 +38,7 @@ class ScouterQueue:
     @staticmethod
     def from_path(
         path: Dict[str, Path],
-        transport_config: Union[KafkaConfig, RabbitMQConfig, HTTPConfig],
+        transport_config: Union[KafkaConfig, RabbitMQConfig, HttpConfig],
     )
 ```
 

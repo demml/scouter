@@ -28,6 +28,7 @@ DECLARE
     k INTEGER;
     v_baggage_created_at TIMESTAMPTZ;
     v_baggage_sequence INTEGER := 0;
+    v_tag_offset_ms INTEGER;
     
     
     -- Trace variables
@@ -234,19 +235,21 @@ BEGIN
             );
 
             -- Generate 1-3 tags for the Span entity (15% chance for tags)
+            v_tag_offset_ms := 0;
             IF RANDOM() < 0.15 THEN
                 FOR k IN 1..(1 + (RANDOM() * 2)::INTEGER) LOOP
+                    v_tag_offset_ms := v_tag_offset_ms + 1;
                     INSERT INTO scouter.tags (
                         created_at, entity_type, entity_id, key, value
                     ) VALUES (
-                        v_span_start + (RANDOM() * v_span_duration * 0.1 || ' milliseconds')::INTERVAL,
+                        v_span_start + (v_tag_offset_ms || ' milliseconds')::INTERVAL,
                         'span',
                         v_span_id,
-                        CASE 
+                        CASE
                             WHEN k = 1 THEN 'span.tag.host'
                             ELSE 'span.tag.db.query'
                         END,
-                        CASE 
+                        CASE
                             WHEN k = 1 THEN 'host-' || (1 + RANDOM() * 5)::INTEGER
                             ELSE 'SELECT * FROM items WHERE id=' || (1000 + RANDOM() * 9000)::INTEGER
                         END

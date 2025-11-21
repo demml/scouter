@@ -31,7 +31,7 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use pyo3::IntoPyObjectExt;
 use scouter_events::queue::types::TransportConfig;
-use scouter_settings::http::HTTPConfig;
+use scouter_settings::http::HttpConfig;
 
 use scouter_types::{
     is_pydantic_basemodel, pydict_to_otel_keyvalue, pyobject_to_otel_value,
@@ -197,7 +197,7 @@ pub fn init_tracer(
         Some(config) => TransportConfig::from_py_config(config)?,
         None => {
             // default to http transport config
-            let config = HTTPConfig::default();
+            let config = HttpConfig::default();
             TransportConfig::Http(config)
         }
     };
@@ -708,6 +708,7 @@ impl BaseTracer {
         Ok(span)
     }
 
+    // remove?
     pub fn shutdown(&self) -> Result<(), TraceError> {
         shutdown_tracer()
     }

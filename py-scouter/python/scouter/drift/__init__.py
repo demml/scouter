@@ -1,35 +1,33 @@
-# type: ignore
-# pylint: disable=no-name-in-module
+# mypy: disable-error-code="attr-defined"
 
-from .. import drift
-
-FeatureMap = drift.FeatureMap
-SpcFeatureDriftProfile = drift.SpcFeatureDriftProfile
-SpcDriftConfig = drift.SpcDriftConfig
-SpcDriftProfile = drift.SpcDriftProfile
-SpcFeatureDrift = drift.SpcFeatureDrift
-SpcDriftMap = drift.SpcDriftMap
-PsiDriftConfig = drift.PsiDriftConfig
-PsiDriftProfile = drift.PsiDriftProfile
-PsiDriftMap = drift.PsiDriftMap
-CustomMetricDriftConfig = drift.CustomMetricDriftConfig
-CustomMetric = drift.CustomMetric
-CustomDriftProfile = drift.CustomDriftProfile
-LLMDriftMetric = drift.LLMDriftMetric
-LLMDriftConfig = drift.LLMDriftConfig
-LLMDriftProfile = drift.LLMDriftProfile
-Drifter = drift.Drifter
-QuantileBinning = drift.QuantileBinning
-EqualWidthBinning = drift.EqualWidthBinning
-Manual = drift.Manual
-SquareRoot = drift.SquareRoot
-Sturges = drift.Sturges
-Rice = drift.Rice
-Doane = drift.Doane
-Scott = drift.Scott
-TerrellScott = drift.TerrellScott
-FreedmanDiaconis = drift.FreedmanDiaconis
-
+from .._scouter import (
+    CustomDriftProfile,
+    CustomMetric,
+    CustomMetricDriftConfig,
+    Doane,
+    Drifter,
+    EqualWidthBinning,
+    FeatureMap,
+    FreedmanDiaconis,
+    LLMDriftConfig,
+    LLMDriftMetric,
+    LLMDriftProfile,
+    Manual,
+    PsiDriftConfig,
+    PsiDriftMap,
+    PsiDriftProfile,
+    QuantileBinning,
+    Rice,
+    Scott,
+    SpcDriftConfig,
+    SpcDriftMap,
+    SpcDriftProfile,
+    SpcFeatureDrift,
+    SpcFeatureDriftProfile,
+    SquareRoot,
+    Sturges,
+    TerrellScott,
+)
 
 __all__ = [
     "FeatureMap",

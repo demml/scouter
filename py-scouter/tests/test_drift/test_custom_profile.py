@@ -1,10 +1,10 @@
-from scouter import (  # type: ignore
+from scouter.alert import AlertThreshold
+from scouter.drift import (
     CustomDriftProfile,
     CustomMetric,
     CustomMetricDriftConfig,
     Drifter,
 )
-from scouter.alert import AlertThreshold
 
 
 def test_custom_profile(custom_metric_drift_config: CustomMetricDriftConfig):

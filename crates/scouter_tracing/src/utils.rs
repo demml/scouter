@@ -356,17 +356,17 @@ pub(crate) struct ActiveSpanInner {
 
 #[pyclass(eq)]
 #[derive(PartialEq, Clone, Debug, Default, Serialize)]
-pub enum Protocol {
+pub enum OtelProtocol {
     #[default]
     HttpBinary,
     HttpJson,
 }
 
-impl Protocol {
+impl OtelProtocol {
     pub fn to_otel_protocol(&self) -> opentelemetry_otlp::Protocol {
         match self {
-            Protocol::HttpBinary => opentelemetry_otlp::Protocol::HttpBinary,
-            Protocol::HttpJson => opentelemetry_otlp::Protocol::HttpJson,
+            OtelProtocol::HttpBinary => opentelemetry_otlp::Protocol::HttpBinary,
+            OtelProtocol::HttpJson => opentelemetry_otlp::Protocol::HttpJson,
         }
     }
 }
@@ -377,7 +377,7 @@ pub struct ExportConfig {
     #[pyo3(get)]
     pub endpoint: Option<String>,
     #[pyo3(get)]
-    pub protocol: Protocol,
+    pub protocol: OtelProtocol,
     #[pyo3(get)]
     pub timeout: Option<u64>,
 }
@@ -385,8 +385,8 @@ pub struct ExportConfig {
 #[pymethods]
 impl ExportConfig {
     #[new]
-    #[pyo3(signature = (protocol=Protocol::HttpBinary,endpoint=None,  timeout=None))]
-    pub fn new(protocol: Protocol, endpoint: Option<String>, timeout: Option<u64>) -> Self {
+    #[pyo3(signature = (protocol=OtelProtocol::HttpBinary,endpoint=None,  timeout=None))]
+    pub fn new(protocol: OtelProtocol, endpoint: Option<String>, timeout: Option<u64>) -> Self {
         ExportConfig {
             endpoint,
             protocol,
@@ -408,7 +408,7 @@ impl ExportConfig {
 
 #[derive(Debug)]
 #[pyclass]
-pub struct HttpConfig {
+pub struct OtelHttpConfig {
     #[pyo3(get)]
     pub headers: Option<HashMap<String, String>>,
     #[pyo3(get)]
@@ -416,13 +416,13 @@ pub struct HttpConfig {
 }
 
 #[pymethods]
-impl HttpConfig {
+impl OtelHttpConfig {
     #[new]
     pub fn new(
         headers: Option<HashMap<String, String>>,
         compression: Option<CompressionType>,
     ) -> Self {
-        HttpConfig {
+        OtelHttpConfig {
             headers,
             compression,
         }

@@ -7,13 +7,13 @@ from scouter.client import ScouterClient
 from scouter.drift import Drifter, PsiDriftConfig
 from scouter.mock import MockConfig
 from scouter.queue import Feature, Features, ScouterQueue
-from scouter.transport import HTTPConfig
+from scouter.transport import HttpConfig
 
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"
 
 
 def test_mock_config(
-    mock_environment,  # this will mock the HTTPConfig import
+    mock_environment,  # this will mock the HttpConfig import
     http_scouter_server,
     pandas_dataframe: pd.DataFrame,
     psi_drift_config: PsiDriftConfig,
@@ -29,7 +29,7 @@ def test_mock_config(
 
         ### Workflow
         # 1. Create a ScouterQueue from path
-        queue = ScouterQueue.from_path({"a": path}, HTTPConfig())
+        queue = ScouterQueue.from_path({"a": path}, HttpConfig())
 
     # 2. Simulate records
     records = pandas_dataframe.to_dict(orient="records")

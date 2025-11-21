@@ -1,13 +1,11 @@
-"""Scouter: ML monitoring and drift detection library."""
-
-# pylint: disable=no-name-in-module,import-error
-
-from .scouter import (  # type: ignore
+# mypy: disable-error-code="attr-defined"
+# pylint: disable=no-name-in-module
+from . import (
     alert,
     client,
     drift,
     evaluate,
-    llm,
+    genai,
     logging,
     mock,
     observe,
@@ -16,114 +14,89 @@ from .scouter import (  # type: ignore
     tracing,
     transport,
     types,
+    util,
 )
-from .version import __version__
-
-# Drift imports
-Drifter = drift.Drifter
-SpcDriftConfig = drift.SpcDriftConfig
-SpcDriftProfile = drift.SpcDriftProfile
-SpcFeatureDriftProfile = drift.SpcFeatureDriftProfile
-SpcFeatureDrift = drift.SpcFeatureDrift
-SpcDriftMap = drift.SpcDriftMap
-PsiDriftConfig = drift.PsiDriftConfig
-PsiDriftProfile = drift.PsiDriftProfile
-PsiDriftMap = drift.PsiDriftMap
-FeatureMap = drift.FeatureMap
-CustomMetric = drift.CustomMetric
-CustomDriftProfile = drift.CustomDriftProfile
-CustomMetricDriftConfig = drift.CustomMetricDriftConfig
-QuantileBinning = drift.QuantileBinning
-EqualWidthBinning = drift.EqualWidthBinning
-Manual = drift.Manual
-SquareRoot = drift.SquareRoot
-Sturges = drift.Sturges
-Rice = drift.Rice
-Doane = drift.Doane
-Scott = drift.Scott
-TerrellScott = drift.TerrellScott
-FreedmanDiaconis = drift.FreedmanDiaconis
-LLMDriftMetric = drift.LLMDriftMetric
-LLMDriftConfig = drift.LLMDriftConfig
-LLMDriftProfile = drift.LLMDriftProfile
-
-
-# Profile imports
-DataProfiler = profile.DataProfiler
-DataProfile = profile.DataProfile
-
-# Queue imports
-ScouterQueue = queue.ScouterQueue
-Queue = queue.Queue
-Feature = queue.Feature
-Features = queue.Features
-Metric = queue.Metric
-Metrics = queue.Metrics
-
-# Type imports
-CommonCrons = types.CommonCrons
-
-# Alert imports
-PsiAlertConfig = alert.PsiAlertConfig
-SpcAlertConfig = alert.SpcAlertConfig
-CustomMetricAlertConfig = alert.CustomMetricAlertConfig
-
-# Client imports
-ScouterClient = client.ScouterClient
-
-# Evaluate imports
-LLMEvalMetric = evaluate.LLMEvalMetric
-LLMEvalResults = evaluate.LLMEvalResults
-LLMEvalRecord = evaluate.LLMEvalRecord
-evaluate_llm = evaluate.evaluate_llm
-
-# transport imports
-HTTPConfig = transport.HTTPConfig
-KafkaConfig = transport.KafkaConfig
-RabbitMQConfig = transport.RabbitMQConfig
-RedisConfig = transport.RedisConfig
+from ._scouter import (
+    CommonCrons,
+    CustomDriftProfile,
+    CustomMetric,
+    CustomMetricAlertConfig,
+    CustomMetricDriftConfig,
+    DataProfile,
+    DataProfiler,
+    Doane,
+    Drifter,
+    EqualWidthBinning,
+    FeatureMap,
+    Features,
+    FreedmanDiaconis,
+    HttpConfig,
+    KafkaConfig,
+    LLMDriftConfig,
+    LLMDriftMetric,
+    LLMDriftProfile,
+    LLMEvalMetric,
+    LLMEvalRecord,
+    LLMEvalResults,
+    Manual,
+    Metric,
+    Metrics,
+    PsiAlertConfig,
+    PsiDriftConfig,
+    PsiDriftMap,
+    PsiDriftProfile,
+    QuantileBinning,
+    Queue,
+)
+from ._scouter import QueueFeature as Feature
+from ._scouter import (
+    RabbitMQConfig,
+    RedisConfig,
+    Rice,
+    Scott,
+    ScouterClient,
+    ScouterQueue,
+    SpcAlertConfig,
+    SpcDriftConfig,
+    SpcDriftMap,
+    SpcDriftProfile,
+    SpcFeatureDrift,
+    SpcFeatureDriftProfile,
+    SquareRoot,
+    Sturges,
+    TerrellScott,
+    evaluate_llm,
+)
 
 __all__ = [
-    "__version__",
-    # Drift - from Python wrappers
+    "alert",
+    "client",
+    "drift",
+    "evaluate",
+    "genai",
+    "logging",
+    "mock",
+    "observe",
+    "profile",
+    "queue",
+    "tracing",
+    "transport",
+    "types",
+    "util",
+    # top-level imports
     "Drifter",
     "SpcDriftConfig",
     "SpcDriftProfile",
-    "PsiDriftConfig",
-    "PsiDriftProfile",
-    "PsiDriftMap",
-    "CustomMetric",
-    "CustomDriftProfile",
-    "CustomMetricDriftConfig",
-    "LLMDriftMetric",
-    "LLMDriftConfig",
-    "LLMDriftProfile",
-    "FeatureMap",
     "SpcFeatureDriftProfile",
     "SpcFeatureDrift",
     "SpcDriftMap",
-    # Profile - from Rust extension
-    "DataProfiler",
-    "DataProfile",
-    # Queue - from Rust extension
-    "ScouterQueue",
-    "Queue",
-    "KafkaConfig",
-    "RabbitMQConfig",
-    "RedisConfig",
-    "Feature",
-    "Features",
-    "Metric",
-    "Metrics",
-    # Types - from Rust extension
-    "CommonCrons",
-    # Alert - from Rust extension
-    "PsiAlertConfig",
-    "SpcAlertConfig",
-    "CustomMetricAlertConfig",
-    # Client - from Rust extension
-    "HTTPConfig",
-    "ScouterClient",
+    "PsiDriftConfig",
+    "PsiDriftProfile",
+    "PsiDriftMap",
+    "FeatureMap",
+    "CustomMetric",
+    "CustomDriftProfile",
+    "CustomMetricDriftConfig",
     "QuantileBinning",
     "EqualWidthBinning",
     "Manual",
@@ -134,22 +107,28 @@ __all__ = [
     "Scott",
     "TerrellScott",
     "FreedmanDiaconis",
-    # Evaluate - from Python wrappers
+    "LLMDriftMetric",
+    "LLMDriftConfig",
+    "LLMDriftProfile",
+    "DataProfiler",
+    "DataProfile",
+    "ScouterQueue",
+    "Queue",
+    "Feature",
+    "Features",
+    "Metric",
+    "Metrics",
+    "CommonCrons",
+    "PsiAlertConfig",
+    "SpcAlertConfig",
+    "CustomMetricAlertConfig",
+    "ScouterClient",
     "LLMEvalMetric",
     "LLMEvalResults",
     "LLMEvalRecord",
     "evaluate_llm",
-    # Submodules - for advanced usage
-    "alert",
-    "client",
-    "llm",
-    "logging",
-    "mock",
-    "observe",
-    "profile",
-    "queue",
-    "types",
-    "drift",
-    "evaluate",
-    "tracing",
+    "HttpConfig",
+    "KafkaConfig",
+    "RabbitMQConfig",
+    "RedisConfig",
 ]

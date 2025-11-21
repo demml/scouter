@@ -7,12 +7,7 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
-from scouter import (  # type: ignore[attr-defined]
-    HTTPConfig,
-    KafkaConfig,
-    Queue,
-    ScouterQueue,
-)
+from scouter import HttpConfig, KafkaConfig, Queue, ScouterQueue
 from scouter.alert import AlertThreshold, LLMAlertConfig, SpcAlertConfig
 from scouter.client import ScouterClient
 from scouter.drift import (
@@ -23,7 +18,7 @@ from scouter.drift import (
     SpcDriftConfig,
     SpcDriftProfile,
 )
-from scouter.llm import Agent, Prompt, Provider, Score
+from scouter.genai import Agent, Prompt, Provider, Score
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.queue import LLMRecord
 from scouter.tracing import (
@@ -267,7 +262,7 @@ def create_kafka_llm_app(profile_path: Path) -> FastAPI:
 
 
 def create_http_app(profile_path: Path) -> FastAPI:
-    config = HTTPConfig()
+    config = HttpConfig()
     init_tracer(
         service_name="test-service",
         exporter=TestSpanExporter(batch_export=True),

@@ -1,10 +1,6 @@
 import pytest
 from numpy.typing import NDArray
-from scouter import (  # type: ignore[attr-defined]
-    Drifter,
-    SpcDriftConfig,
-    SpcDriftProfile,
-)
+from scouter.drift import Drifter, SpcDriftConfig, SpcDriftProfile
 
 
 def test_monitor_f64(array: NDArray, drift_config: SpcDriftConfig):

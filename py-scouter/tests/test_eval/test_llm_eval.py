@@ -7,8 +7,8 @@ from scouter.evaluate import (  # type: ignore
     LLMEvalResults,
     evaluate_llm,
 )
-from scouter.llm import Embedder, Provider  # type: ignore
-from scouter.llm.openai import OpenAIEmbeddingConfig  # type: ignore
+from scouter.genai import Embedder, Provider  # type: ignore
+from scouter.genai.openai import OpenAIEmbeddingConfig  # type: ignore
 from scouter.mock import LLMTestServer
 
 

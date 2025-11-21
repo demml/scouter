@@ -5,7 +5,7 @@ import pytest
 from pydantic import BaseModel
 from scouter.alert import AlertThreshold
 from scouter.drift import Drifter, LLMDriftConfig, LLMDriftMetric, LLMDriftProfile
-from scouter.llm import Agent, Prompt, Score, Task, Workflow
+from scouter.genai import Agent, Prompt, Score, Task, Workflow
 from scouter.mock import LLMTestServer
 from scouter.queue import LLMRecord
 

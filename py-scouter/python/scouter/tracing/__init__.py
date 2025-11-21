@@ -1,4 +1,3 @@
-# type: ignore
 # pylint: disable=dangerous-default-value
 import functools
 from typing import (
@@ -14,36 +13,35 @@ from typing import (
     cast,
 )
 
-from .. import tracing
+from .._scouter import (
+    ActiveSpan,
+    BaseTracer,
+    BatchConfig,
+    ExportConfig,
+    FunctionType,
+    GrpcConfig,
+    GrpcSpanExporter,
+    HttpSpanExporter,
+    OtelHttpConfig,
+    OtelProtocol,
+    SpanKind,
+    StdoutSpanExporter,
+    TestSpanExporter,
+    TraceBaggageRecord,
+    TraceRecord,
+    TraceSpanRecord,
+    flush_tracer,
+    get_function_type,
+    init_tracer,
+    shutdown_tracer,
+)
 
 P = ParamSpec("P")
 R = TypeVar("R")
 
 
-init_tracer = tracing.init_tracer
-SpanKind = tracing.SpanKind
-FunctionType = tracing.FunctionType
-get_function_type = tracing.get_function_type
-ActiveSpan = tracing.ActiveSpan
-ExportConfig = tracing.ExportConfig
-GrpcConfig = tracing.GrpcConfig
-GrpcSpanExporter = tracing.GrpcSpanExporter
-HttpConfig = tracing.HttpConfig
-HttpSpanExporter = tracing.HttpSpanExporter
-StdoutSpanExporter = tracing.StdoutSpanExporter
-Protocol = tracing.Protocol
-TraceRecord = tracing.TraceRecord
-TraceSpanRecord = tracing.TraceSpanRecord
-TraceBaggageRecord = tracing.TraceBaggageRecord
-TestSpanExporter = tracing.TestSpanExporter
-flush_tracer = tracing.flush_tracer
-shutdown_tracer = tracing.shutdown_tracer
-BatchConfig = tracing.BatchConfig
-
-
-# TODO: Move this to Rust
 def set_output(
-    span: tracing.ActiveSpan,
+    span: ActiveSpan,
     outputs: List[Any],
     max_length: int,
     capture_last_stream_item: bool = False,
@@ -61,8 +59,22 @@ def set_output(
         span.set_output(outputs, max_length)
 
 
-class Tracer(tracing.BaseTracer):
-    """Extended tracer with decorator support for all function types."""
+class Tracer(BaseTracer):
+    """
+    Extended tracer with decorator support.
+
+    This class extends the Rust BaseTracer to provide Python-friendly
+    decorator functionality for tracing spans.
+
+    Examples:
+        >>> from scouter.tracing import init_tracer, get_tracer
+        >>> init_tracer(name="my-service")
+        >>> tracer = get_tracer("my-service")
+        >>>
+        >>> @tracer.span("operation_name")
+        ... def my_function():
+        ...     return "result"
+    """
 
     def span(
         self,
@@ -267,22 +279,23 @@ def get_tracer(name: str) -> Tracer:
 
 __all__ = [
     "Tracer",
-    "init_tracer",
     "get_tracer",
+    "init_tracer",
     "SpanKind",
     "FunctionType",
     "ActiveSpan",
     "ExportConfig",
     "GrpcConfig",
     "GrpcSpanExporter",
-    "HttpConfig",
+    "OtelHttpConfig",
     "HttpSpanExporter",
     "StdoutSpanExporter",
-    "Protocol",
+    "OtelProtocol",
     "TraceRecord",
     "TraceSpanRecord",
     "TraceBaggageRecord",
     "TestSpanExporter",
     "flush_tracer",
     "BatchConfig",
+    "shutdown_tracer",
 ]

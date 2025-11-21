@@ -1,36 +1,36 @@
-# type: ignore
+# mypy: disable-error-code="attr-defined"
 
-from .. import client  # noqa: F401
-
-TimeInterval = client.TimeInterval
-DriftRequest = client.DriftRequest
-ScouterClient = client.ScouterClient
-BinnedMetricStats = client.BinnedMetricStats
-BinnedMetric = client.BinnedMetric
-BinnedMetrics = client.BinnedMetrics
-BinnedPsiMetric = client.BinnedPsiMetric
-BinnedPsiFeatureMetrics = client.BinnedPsiFeatureMetrics
-SpcDriftFeature = client.SpcDriftFeature
-BinnedSpcFeatureMetrics = client.BinnedSpcFeatureMetrics
-ProfileStatusRequest = client.ProfileStatusRequest
-Alert = client.Alert
-DriftAlertRequest = client.DriftAlertRequest
-GetProfileRequest = client.GetProfileRequest
-Attribute = client.Attribute
-SpanEvent = client.SpanEvent
-SpanLink = client.SpanLink
-TraceBaggageRecord = client.TraceBaggageRecord
-TraceFilters = client.TraceFilters
-TraceMetricBucket = client.TraceMetricBucket
-TraceListItem = client.TraceListItem
-TraceSpan = client.TraceSpan
-TracePaginationResponse = client.TracePaginationResponse
-TraceSpansResponse = client.TraceSpansResponse
-TraceBaggageResponse = client.TraceBaggageResponse
-TraceMetricsRequest = client.TraceMetricsRequest
-TraceMetricsResponse = client.TraceMetricsResponse
-TagsResponse = client.TagsResponse
-TagRecord = client.TagRecord
+from .._scouter import (
+    Alert,
+    Attribute,
+    BinnedMetric,
+    BinnedMetrics,
+    BinnedMetricStats,
+    BinnedPsiFeatureMetrics,
+    BinnedPsiMetric,
+    BinnedSpcFeatureMetrics,
+    DriftAlertRequest,
+    DriftRequest,
+    GetProfileRequest,
+    ProfileStatusRequest,
+    ScouterClient,
+    SpanEvent,
+    SpanLink,
+    SpcDriftFeature,
+    TagRecord,
+    TagsResponse,
+    TimeInterval,
+    TraceBaggageRecord,
+    TraceBaggageResponse,
+    TraceFilters,
+    TraceListItem,
+    TraceMetricBucket,
+    TraceMetricsRequest,
+    TraceMetricsResponse,
+    TracePaginationResponse,
+    TraceSpan,
+    TraceSpansResponse,
+)
 
 __all__ = [
     "TimeInterval",

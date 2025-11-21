@@ -6,7 +6,7 @@ pub mod profiler;
 
 pub use drifter::scouter::PyDrifter;
 pub use profiler::scouter::DataProfiler;
-pub use scouter_settings::HTTPConfig;
+pub use scouter_settings::HttpConfig;
 pub use scouter_types::{
     alert::{Alert, Alerts, CompressionType},
     create_feature_map,
@@ -34,14 +34,15 @@ pub use scouter_types::{
     AlertDispatchType, AlertThreshold, Attribute, BinnedMetric, BinnedMetricStats, BinnedMetrics,
     ConsoleDispatchConfig, CustomMetricServerRecord, DataType, Doane, DriftAlertRequest,
     DriftProfile, DriftRequest, DriftType, EntityType, EqualWidthBinning, Feature, FeatureMap,
-    Features, FreedmanDiaconis, GetProfileRequest, LLMMetricRecord, LLMRecord, LatencyMetrics,
-    Manual, Metric, Metrics, ObservabilityMetrics, OpsGenieDispatchConfig, ProfileRequest,
-    ProfileStatusRequest, PsiServerRecord, QuantileBinning, RecordType, RegisteredProfileResponse,
-    Rice, RouteMetrics, Scott, ScouterResponse, ScouterServerError, ServerRecord, ServerRecords,
-    SlackDispatchConfig, SpanEvent, SpanLink, SpcServerRecord, SquareRoot, Sturges, TagRecord,
-    TagsResponse, TerrellScott, TimeInterval, TraceBaggageRecord, TraceBaggageResponse,
-    TraceMetricsRequest, TraceMetricsResponse, TracePaginationResponse, TraceRecord,
-    TraceSpanRecord, TraceSpansResponse, UpdateAlertResponse, UpdateAlertStatus, VersionRequest,
+    Features, FreedmanDiaconis, GetProfileRequest, LLMDriftRecordPaginationRequest,
+    LLMDriftServerRecord, LLMMetricRecord, LLMRecord, LatencyMetrics, Manual, Metric, Metrics,
+    ObservabilityMetrics, OpsGenieDispatchConfig, ProfileRequest, ProfileStatusRequest,
+    PsiServerRecord, QuantileBinning, RecordType, RegisteredProfileResponse, Rice, RouteMetrics,
+    Scott, ScouterResponse, ScouterServerError, ServerRecord, ServerRecords, SlackDispatchConfig,
+    SpanEvent, SpanLink, SpcServerRecord, SquareRoot, Sturges, TagRecord, TagsResponse,
+    TerrellScott, TimeInterval, TraceBaggageRecord, TraceBaggageResponse, TraceMetricsRequest,
+    TraceMetricsResponse, TracePaginationResponse, TraceRecord, TraceSpanRecord,
+    TraceSpansResponse, UpdateAlertResponse, UpdateAlertStatus, VersionRequest,
 };
 
 pub use crate::http::{PyScouterClient, ScouterClient};
@@ -78,4 +79,13 @@ pub use scouter_evaluate::{
     error::EvaluationError,
     llm::{async_evaluate_llm, evaluate_llm, workflow_from_eval_metrics},
     types::{EvaluationConfig, LLMEvalRecord, LLMEvalResults, LLMEvalTaskResult},
+};
+pub use scouter_tracing::exporter::{
+    processor::BatchConfig, GrpcSpanExporter, HttpSpanExporter, StdoutSpanExporter,
+    TestSpanExporter,
+};
+pub use scouter_tracing::tracer::*;
+pub use scouter_tracing::utils::{
+    get_function_type, ExportConfig, FunctionType, GrpcConfig, OtelHttpConfig, OtelProtocol,
+    SpanKind,
 };

@@ -3,7 +3,7 @@ from pathlib import Path
 from scouter.alert import AlertThreshold
 from scouter.client import ScouterClient
 from scouter.drift import LLMDriftConfig, LLMDriftMetric, LLMDriftProfile
-from scouter.llm import Prompt, Score
+from scouter.genai import Prompt, Score
 
 
 def create_reformulation_evaluation_prompt():

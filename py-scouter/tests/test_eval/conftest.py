@@ -1,5 +1,5 @@
 import pytest
-from scouter.llm import Prompt, Score
+from scouter.genai import Prompt, Score
 
 
 @pytest.fixture

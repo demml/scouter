@@ -1,8 +1,9 @@
-# type: ignore
-from .. import mock
+# mypy: disable-error-code="attr-defined"
 
-ScouterTestServer = mock.ScouterTestServer
-MockConfig = mock.MockConfig
-LLMTestServer = mock.LLMTestServer
+from .._scouter import LLMTestServer, MockConfig, ScouterTestServer
 
-__all__ = ["ScouterTestServer", "MockConfig", "LLMTestServer"]
+__all__ = [
+    "ScouterTestServer",
+    "MockConfig",
+    "LLMTestServer",
+]

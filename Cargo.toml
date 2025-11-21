@@ -59,15 +59,12 @@ include_dir = "0.*"
 indicatif = "0.*"
 itertools = "0.*"
 jsonwebtoken = "9.*"
-linfa = {git = "https://github.com/demml/linfa", branch = "deps/ndarray"}
-linfa-clustering = {git = "https://github.com/demml/linfa", branch = "deps/ndarray"}
-linfa-reduction = {git = "https://github.com/demml/linfa", branch = "deps/ndarray"}
 metrics = { version = "0.*", default-features = false }
 metrics-exporter-prometheus = { version = "0.*", default-features = false }
 mimalloc = { version = "*", features = ["secure"] }
 mockito = "1.*"
-ndarray = { version = "0.*", features = ["rayon"] }
-ndarray-rand = "0.*"
+ndarray = { version = "0.16.1", features = ["rayon"] }
+ndarray-rand = "0.15"
 ndarray-stats = "0.*"
 noisy_float = "0.*"
 numpy = "0.*"

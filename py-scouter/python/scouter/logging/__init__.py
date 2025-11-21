@@ -1,11 +1,6 @@
-# type: ignore
+# mypy: disable-error-code="attr-defined"
 
-from .. import logging  # noqa: F401
-
-LogLevel = logging.LogLevel
-WriteLevel = logging.WriteLevel
-LoggingConfig = logging.LoggingConfig
-RustyLogger = logging.RustyLogger
+from .._scouter import LoggingConfig, LogLevel, RustyLogger, WriteLevel
 
 __all__ = [
     "LogLevel",

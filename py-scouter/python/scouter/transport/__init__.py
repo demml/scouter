@@ -1,14 +1,9 @@
-# type: ignore
+# mypy: disable-error-code="attr-defined"
 
-from .. import transport  # noqa: F401
-
-HTTPConfig = transport.HTTPConfig
-KafkaConfig = transport.KafkaConfig
-RabbitMQConfig = transport.RabbitMQConfig
-RedisConfig = transport.RedisConfig
+from .._scouter import HttpConfig, KafkaConfig, RabbitMQConfig, RedisConfig
 
 __all__ = [
-    "HTTPConfig",
+    "HttpConfig",
     "KafkaConfig",
     "RabbitMQConfig",
     "RedisConfig",

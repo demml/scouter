@@ -1,7 +1,7 @@
 #![allow(clippy::useless_conversion)]
 use crate::error::ClientError;
 use pyo3::{prelude::*, IntoPyObjectExt};
-use scouter_settings::http::HTTPConfig;
+use scouter_settings::http::HttpConfig;
 use scouter_types::contracts::{
     DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
 };
@@ -13,7 +13,7 @@ use scouter_types::{
     TraceSpansResponse,
 };
 
-use crate::http::HTTPClient;
+use crate::http::HttpClient;
 use scouter_types::{
     alert::Alert, psi::BinnedPsiFeatureMetrics, spc::SpcDriftFeatures, BinnedMetrics, DriftProfile,
     DriftType, PyHelperFuncs,
@@ -25,12 +25,12 @@ pub const DOWNLOAD_CHUNK_SIZE: usize = 1024 * 1024 * 5;
 
 #[derive(Debug, Clone)]
 pub struct ScouterClient {
-    client: HTTPClient,
+    client: HttpClient,
 }
 
 impl ScouterClient {
-    pub fn new(config: Option<HTTPConfig>) -> Result<Self, ClientError> {
-        let client = HTTPClient::new(config.unwrap_or_default())?;
+    pub fn new(config: Option<HttpConfig>) -> Result<Self, ClientError> {
+        let client = HttpClient::new(config.unwrap_or_default())?;
 
         Ok(ScouterClient { client })
     }
@@ -325,9 +325,9 @@ impl PyScouterClient {
     #[new]
     #[pyo3(signature = (config=None))]
     pub fn new(config: Option<&Bound<'_, PyAny>>) -> Result<Self, ClientError> {
-        let config = config.map_or(Ok(HTTPConfig::default()), |unwrapped| {
-            if unwrapped.is_instance_of::<HTTPConfig>() {
-                unwrapped.extract::<HTTPConfig>()
+        let config = config.map_or(Ok(HttpConfig::default()), |unwrapped| {
+            if unwrapped.is_instance_of::<HttpConfig>() {
+                unwrapped.extract::<HttpConfig>()
             } else {
                 Err(ClientError::InvalidConfigTypeError.into())
             }
@@ -548,7 +548,7 @@ impl PyScouterClient {
 impl PyScouterClient {
     fn get_spc_binned_drift<'py>(
         py: Python<'py>,
-        client: &HTTPClient,
+        client: &HttpClient,
         drift_request: DriftRequest,
     ) -> Result<Bound<'py, PyAny>, ClientError> {
         let query_string = serde_qs::to_string(&drift_request)?;
@@ -573,7 +573,7 @@ impl PyScouterClient {
     }
     fn get_psi_binned_drift<'py>(
         py: Python<'py>,
-        client: &HTTPClient,
+        client: &HttpClient,
         drift_request: DriftRequest,
     ) -> Result<Bound<'py, PyAny>, ClientError> {
         let query_string = serde_qs::to_string(&drift_request)?;
@@ -605,7 +605,7 @@ impl PyScouterClient {
 
     fn get_custom_binned_drift<'py>(
         py: Python<'py>,
-        client: &HTTPClient,
+        client: &HttpClient,
         drift_request: DriftRequest,
     ) -> Result<Bound<'py, PyAny>, ClientError> {
         let query_string = serde_qs::to_string(&drift_request)?;
@@ -631,7 +631,7 @@ impl PyScouterClient {
 
     fn get_llm_metric_binned_drift<'py>(
         py: Python<'py>,
-        client: &HTTPClient,
+        client: &HttpClient,
         drift_request: DriftRequest,
     ) -> Result<Bound<'py, PyAny>, ClientError> {
         let query_string = serde_qs::to_string(&drift_request)?;

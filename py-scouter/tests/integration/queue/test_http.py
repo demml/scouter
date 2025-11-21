@@ -13,7 +13,7 @@ from scouter.client import (
 )
 from scouter.drift import Drifter, PsiDriftConfig
 from scouter.queue import Features, ScouterQueue
-from scouter.transport import HTTPConfig
+from scouter.transport import HttpConfig
 from scouter.types import DriftType
 
 semver = f"{random.randint(0, 10)}.{random.randint(0, 10)}.{random.randint(0, 100)}"
@@ -35,7 +35,7 @@ def test_psi_monitor_pandas_http(
 
         ### Workflow
         # 1. Create a ScouterQueue from path
-        queue = ScouterQueue.from_path({"a": path}, HTTPConfig())
+        queue = ScouterQueue.from_path({"a": path}, HttpConfig())
 
     # 2. Simulate records
     records = pandas_dataframe.to_dict(orient="records")

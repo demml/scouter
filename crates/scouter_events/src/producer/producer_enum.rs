@@ -7,7 +7,7 @@ pub use crate::producer::rabbitmq::RabbitMQProducer;
 #[cfg(feature = "redis_events")]
 use crate::producer::redis::RedisProducer;
 
-pub use crate::producer::http::HTTPProducer;
+pub use crate::producer::http::HttpProducer;
 pub use crate::producer::kafka::KafkaConfig;
 pub use crate::producer::mock::{MockConfig, MockProducer};
 pub use crate::producer::rabbitmq::RabbitMQConfig;
@@ -19,7 +19,7 @@ use tracing::debug;
 
 #[derive(Clone)]
 pub enum ProducerEnum {
-    HTTP(HTTPProducer),
+    HTTP(HttpProducer),
 
     Mock(MockProducer),
 
@@ -108,7 +108,7 @@ impl RustScouterProducer {
             }
             TransportConfig::Http(config) => {
                 debug!("Creating HTTP producer");
-                let producer = HTTPProducer::new(config).await?;
+                let producer = HttpProducer::new(config).await?;
                 ProducerEnum::HTTP(producer)
             }
             TransportConfig::Mock(config) => {
