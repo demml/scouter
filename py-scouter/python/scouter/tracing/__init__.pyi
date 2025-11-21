@@ -16,7 +16,7 @@ from typing import (
     Union,
 )
 
-from ..transport import HTTPConfig, KafkaConfig, RabbitMQConfig, RedisConfig
+from ..transport import HttpConfig, KafkaConfig, RabbitMQConfig, RedisConfig
 from ..types import CompressionType
 
 P = ParamSpec("P")
@@ -35,11 +35,11 @@ def get_function_type(func: Callable[..., Any]) -> FunctionType:
     """
     ...
 
-class Protocol:
+class OtelProtocol:
     """Enumeration of protocols for HTTP exporting."""
 
-    HttpBinary: "Protocol"
-    HttpJson: "Protocol"
+    HttpBinary: "OtelProtocol"
+    HttpJson: "OtelProtocol"
 
 class SpanKind:
     """Enumeration of span kinds."""
@@ -213,8 +213,13 @@ class BatchConfig:
 
 def init_tracer(
     service_name: str = "scouter_service",
-    transport_config: HTTPConfig | KafkaConfig | RabbitMQConfig | RedisConfig = HTTPConfig(),
-    exporter: HttpSpanExporter | StdoutSpanExporter | TestSpanExporter = StdoutSpanExporter(),  # noqa: F821
+    transport_config: HttpConfig
+    | KafkaConfig
+    | RabbitMQConfig
+    | RedisConfig = HttpConfig(),
+    exporter: HttpSpanExporter
+    | StdoutSpanExporter
+    | TestSpanExporter = StdoutSpanExporter(),  # noqa: F821
     batch_config: Optional[BatchConfig] = None,
     profile_space: Optional[str] = None,
     profile_name: Optional[str] = None,
@@ -230,12 +235,12 @@ def init_tracer(
         service_name (str):
             The **required** name of the service this tracer is associated with.
             This is typically a logical identifier for the application or component.
-        transport_config (HTTPConfig | KafkaConfig | RabbitMQConfig | RedisConfig | None):
+        transport_config (HttpConfig | KafkaConfig | RabbitMQConfig | RedisConfig | None):
             The configuration detailing how spans should be sent out.
-            If **None**, a default `HTTPConfig` will be used.
+            If **None**, a default `HttpConfig` will be used.
 
             The supported configuration types are:
-            * `HTTPConfig`: Configuration for exporting via HTTP/gRPC.
+            * `HttpConfig`: Configuration for exporting via HTTP/gRPC.
             * `KafkaConfig`: Configuration for exporting to a Kafka topic.
             * `RabbitMQConfig`: Configuration for exporting to a RabbitMQ queue.
             * `RedisConfig`: Configuration for exporting to a Redis stream or channel.
@@ -434,7 +439,7 @@ class ExportConfig:
     def __init__(
         self,
         endpoint: Optional[str],
-        protocol: Protocol = Protocol.HttpBinary,
+        protocol: OtelProtocol = OtelProtocol.HttpBinary,
         timeout: Optional[int] = None,
     ) -> None:
         """Initialize the ExportConfig.
@@ -456,7 +461,7 @@ class ExportConfig:
         ...
 
     @property
-    def protocol(self) -> Protocol:
+    def protocol(self) -> OtelProtocol:
         """Get the protocol used for exporting spans."""
         ...
 
@@ -465,7 +470,7 @@ class ExportConfig:
         """Get the timeout for HTTP requests in seconds."""
         ...
 
-class HttpConfig:
+class OtelHttpConfig:
     """Configuration for HTTP exporting."""
 
     def __init__(
@@ -473,7 +478,7 @@ class HttpConfig:
         headers: Optional[dict[str, str]] = None,
         compression: Optional[CompressionType] = None,
     ) -> None:
-        """Initialize the HttpConfig.
+        """Initialize the OtelHttpConfig.
 
         Args:
             headers (Optional[dict[str, str]]):
@@ -499,7 +504,7 @@ class HttpSpanExporter:
         self,
         batch_export: bool = True,
         export_config: Optional[ExportConfig] = None,
-        http_config: Optional[HttpConfig] = None,
+        http_config: Optional[OtelHttpConfig] = None,
         sample_ratio: Optional[float] = None,
     ) -> None:
         """Initialize the HttpSpanExporter.
@@ -509,7 +514,7 @@ class HttpSpanExporter:
                 Whether to use batch exporting. Defaults to True.
             export_config (Optional[ExportConfig]):
                 Configuration for exporting spans.
-            http_config (Optional[HttpConfig]):
+            http_config (Optional[OtelHttpConfig]):
                 Configuration for the HTTP exporter.
             sample_ratio (Optional[float]):
                 The sampling ratio for traces. If None, defaults to always sample.
@@ -531,7 +536,7 @@ class HttpSpanExporter:
         ...
 
     @property
-    def protocol(self) -> Protocol:
+    def protocol(self) -> OtelProtocol:
         """Get the protocol used for exporting spans."""
         ...
 
@@ -605,7 +610,7 @@ class GrpcSpanExporter:
         ...
 
     @property
-    def protocol(self) -> Protocol:
+    def protocol(self) -> OtelProtocol:
         """Get the protocol used for exporting spans."""
         ...
 

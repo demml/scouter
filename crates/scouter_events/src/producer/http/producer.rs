@@ -4,7 +4,7 @@ use crate::error::EventError;
 use reqwest::header;
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Client, Response};
-use scouter_settings::HTTPConfig;
+use scouter_settings::HttpConfig;
 use scouter_types::{JwtToken, MessageRecord, RequestType, Routes};
 use serde_json::Value;
 use std::sync::Arc;
@@ -14,7 +14,7 @@ use tracing::{debug, instrument};
 const TIMEOUT_SECS: u64 = 60;
 
 /// Create a new HTTP client that can be shared across different clients
-pub fn build_http_client(settings: &HTTPConfig) -> Result<Client, EventError> {
+pub fn build_http_client(settings: &HttpConfig) -> Result<Client, EventError> {
     let mut headers = HeaderMap::new();
 
     headers.insert("Username", HeaderValue::from_str(&settings.username)?);
@@ -27,17 +27,17 @@ pub fn build_http_client(settings: &HTTPConfig) -> Result<Client, EventError> {
 }
 
 #[derive(Debug, Clone)]
-pub struct HTTPClient {
+pub struct HttpClient {
     client: Client,
-    config: Arc<RwLock<HTTPConfig>>,
+    config: Arc<RwLock<HttpConfig>>,
     base_path: String,
 }
 
-impl HTTPClient {
-    pub async fn new(config: HTTPConfig) -> Result<Self, EventError> {
+impl HttpClient {
+    pub async fn new(config: HttpConfig) -> Result<Self, EventError> {
         let client = build_http_client(&config)?;
 
-        let mut api_client = HTTPClient {
+        let mut api_client = HttpClient {
             client,
             config: Arc::new(RwLock::new(config.clone())),
             base_path: format!("{}/{}", config.server_uri, "scouter"),
@@ -169,14 +169,14 @@ impl HTTPClient {
 }
 
 #[derive(Debug, Clone)]
-pub struct HTTPProducer {
+pub struct HttpProducer {
     client: HTTPClient,
 }
 
-impl HTTPProducer {
-    pub async fn new(config: HTTPConfig) -> Result<Self, EventError> {
-        let client = HTTPClient::new(config).await?;
-        Ok(HTTPProducer { client })
+impl HttpProducer {
+    pub async fn new(config: HttpConfig) -> Result<Self, EventError> {
+        let client = HttpClient::new(config).await?;
+        Ok(HttpProducer { client })
     }
 
     pub async fn publish(&self, message: MessageRecord) -> Result<(), EventError> {

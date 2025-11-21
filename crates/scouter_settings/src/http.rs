@@ -5,7 +5,7 @@ use serde::Serialize;
 
 #[pyclass]
 #[derive(Debug, Clone, Serialize)]
-pub struct HTTPConfig {
+pub struct HttpConfig {
     #[pyo3(get, set)]
     pub server_uri: String,
 
@@ -23,7 +23,7 @@ pub struct HTTPConfig {
 }
 
 #[pymethods]
-impl HTTPConfig {
+impl HttpConfig {
     #[new]
     #[pyo3(signature = (server_uri=None, username=None, password=None, auth_token=None))]
     pub fn new(
@@ -47,7 +47,7 @@ impl HTTPConfig {
             std::env::var("SCOUTER_AUTH_TOKEN").unwrap_or_else(|_| "".to_string())
         });
 
-        HTTPConfig {
+        HttpConfig {
             server_uri,
             username,
             password,
@@ -62,9 +62,9 @@ impl HTTPConfig {
     }
 }
 
-impl Default for HTTPConfig {
+impl Default for HttpConfig {
     fn default() -> Self {
-        HTTPConfig {
+        HttpConfig {
             server_uri: std::env::var("SCOUTER_SERVER_URI")
                 .unwrap_or_else(|_| "http://localhost:8000".to_string()),
             username: std::env::var("SCOUTER_USERNAME").unwrap_or_else(|_| "guest".to_string()),

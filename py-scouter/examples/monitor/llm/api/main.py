@@ -6,7 +6,7 @@ from fastapi import FastAPI, Request
 from scouter.llm import Agent, Prompt
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.queue import LLMRecord, Queue, ScouterQueue
-from scouter.transport import HTTPConfig
+from scouter.transport import HttpConfig
 
 from .assets.prompts import prompt_state
 from .models import Answer, Question
@@ -22,7 +22,7 @@ async def lifespan(app: FastAPI):
 
     app.state.queue = ScouterQueue.from_path(
         path={"llm": Path("api/assets/llm_drift_profile.json")},
-        transport_config=HTTPConfig(),
+        transport_config=HttpConfig(),
     )
     app.state.prompt_state = prompt_state
 

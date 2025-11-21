@@ -9,7 +9,7 @@ class TransportType:
     Redis = "TransportType"
     HTTP = "TransportType"
 
-class HTTPConfig:
+class HttpConfig:
     server_uri: str
     username: str
     password: str

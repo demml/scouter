@@ -9,7 +9,7 @@ from typing_extensions import Protocol, TypeAlias
 from ..llm import Prompt
 from ..mock import MockConfig
 from ..observe import ObservabilityMetrics
-from ..transport import HTTPConfig, KafkaConfig, RabbitMQConfig, RedisConfig
+from ..transport import HttpConfig, KafkaConfig, RabbitMQConfig, RedisConfig
 
 class EntityType:
     Feature = "EntityType"
@@ -38,7 +38,9 @@ class ServerRecord:
     @property
     def record(
         self,
-    ) -> Union[SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics]:
+    ) -> Union[
+        SpcServerRecord, PsiServerRecord, CustomMetricServerRecord, ObservabilityMetrics
+    ]:
         """Return the drift server record."""
 
 class ServerRecords:
@@ -452,7 +454,7 @@ class ScouterQueue:
             KafkaConfig,
             RabbitMQConfig,
             RedisConfig,
-            HTTPConfig,
+            HttpConfig,
         ],
     ) -> ScouterQueue:
         """Initializes Scouter queue from one or more drift profile paths
@@ -461,9 +463,9 @@ class ScouterQueue:
             path (Dict[str, Path]):
                 Dictionary of drift profile paths.
                 Each key is a user-defined alias for accessing a queue
-            transport_config (Union[KafkaConfig, RabbitMQConfig, RedisConfig, HTTPConfig]):
+            transport_config (Union[KafkaConfig, RabbitMQConfig, RedisConfig, HttpConfig]):
                 Transport configuration for the queue publisher
-                Can be KafkaConfig, RabbitMQConfig RedisConfig, or HTTPConfig
+                Can be KafkaConfig, RabbitMQConfig RedisConfig, or HttpConfig
 
         Example:
             ```python
@@ -505,7 +507,7 @@ class ScouterQueue:
     @property
     def transport_config(
         self,
-    ) -> Union[KafkaConfig, RabbitMQConfig, RedisConfig, HTTPConfig, MockConfig]:
+    ) -> Union[KafkaConfig, RabbitMQConfig, RedisConfig, HttpConfig, MockConfig]:
         """Return the transport configuration used by the queue"""
 
 class BaseModel(Protocol):

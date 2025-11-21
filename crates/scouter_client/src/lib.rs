@@ -6,7 +6,7 @@ pub mod profiler;
 
 pub use drifter::scouter::PyDrifter;
 pub use profiler::scouter::DataProfiler;
-pub use scouter_settings::HTTPConfig;
+pub use scouter_settings::HttpConfig;
 pub use scouter_types::{
     alert::{Alert, Alerts, CompressionType},
     create_feature_map,

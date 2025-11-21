@@ -14,14 +14,14 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from pydantic import BaseModel
-from scouter import ScouterQueue, HTTPConfig
+from scouter import ScouterQueue, HttpConfig
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     app.state.queue = ScouterQueue.from_path( #(1)
         path={"psi": profile_path},
-        transport_config=HTTPConfig(), #(2)
+        transport_config=HttpConfig(), #(2)
     )
     yield
     # Shutdown the queue

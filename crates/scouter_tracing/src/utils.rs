@@ -356,7 +356,7 @@ pub(crate) struct ActiveSpanInner {
 
 #[pyclass(eq)]
 #[derive(PartialEq, Clone, Debug, Default, Serialize)]
-pub enum Protocol {
+pub enum OtelProtocol {
     #[default]
     HttpBinary,
     HttpJson,

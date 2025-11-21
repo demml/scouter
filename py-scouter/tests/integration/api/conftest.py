@@ -8,7 +8,7 @@ import pandas as pd
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
 from scouter import (  # type: ignore[attr-defined]
-    HTTPConfig,
+    HttpConfig,
     KafkaConfig,
     Queue,
     ScouterQueue,
@@ -267,7 +267,7 @@ def create_kafka_llm_app(profile_path: Path) -> FastAPI:
 
 
 def create_http_app(profile_path: Path) -> FastAPI:
-    config = HTTPConfig()
+    config = HttpConfig()
     init_tracer(
         service_name="test-service",
         exporter=TestSpanExporter(batch_export=True),

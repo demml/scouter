@@ -15,7 +15,7 @@ use crate::events::HttpConsumerSettings;
 pub use auth::AuthSettings;
 pub use database::DatabaseSettings;
 pub use events::{KafkaSettings, RabbitMQSettings, RedisSettings};
-pub use http::HTTPConfig;
+pub use http::HttpConfig;
 pub use llm::LLMSettings;
 pub use polling::PollingSettings;
 pub use storage::ObjectStorageSettings;

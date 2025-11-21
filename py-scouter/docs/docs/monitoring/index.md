@@ -135,7 +135,7 @@ if __name__ == "__main__":
 
         fast_app.state.queue = ScouterQueue.from_path( #(6)
             path={"psi": profile_path},
-            transport_config=HTTPConfig(), #(7)
+            transport_config=HttpConfig(), #(7)
         )
         yield
 
@@ -159,7 +159,7 @@ if __name__ == "__main__":
 4. `DriftConfig` is a required argument to all drift types. It helps define how the drift profile is created and how the drift detection job is scheduled. Refer to the [DriftConfig](#) section for more information
 5. The `register_profile` method is used to register the drift profile with the Scouter server. The `set_active` argument tells the server to schedule the drift detection job based on the configuration in the `DriftConfig` object. If set to `False`, the profile will not be scheduled for drift detection. You can always set this to true later
 6. Here we setup the ScouterQueue within our FastApi lifespan and attach it to the application's state. You can load and set as many queues as you like. Each profile is given an alias that you can use to access later on
-7. The `HTTPConfig` class sets the transport configuration to send direct HTTP requests to the Scouter server from items in the queue. In production, you may want to use a different transport configuration, such as `KafkaConfig` or `RabbitMQ`, depending on your needs.
+7. The `HttpConfig` class sets the transport configuration to send direct HTTP requests to the Scouter server from items in the queue. In production, you may want to use a different transport configuration, such as `KafkaConfig` or `RabbitMQ`, depending on your needs.
 8. Insert data into the ScouterQueue using a specific alias
 
 !!!success

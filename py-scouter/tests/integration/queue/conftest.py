@@ -19,10 +19,10 @@ class MockEnvironment:
 @pytest.fixture
 def mock_environment() -> Iterator[MockEnvironment]:
     """
-    Fixture that patches HTTPConfig with MockConfig for testing.
+    Fixture that patches HttpConfig with MockConfig for testing.
 
     Yields:
         MockEnvironment: Contains the mock configuration.
     """
-    with mock.patch("tests.integration.queue.test_mock.HTTPConfig", MockConfig):
+    with mock.patch("tests.integration.queue.test_mock.HttpConfig", MockConfig):
         yield MockEnvironment(mock_config=MockConfig())

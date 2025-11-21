@@ -5,7 +5,7 @@ use crate::producer::rabbitmq::RabbitMQConfig;
 use crate::producer::redis::RedisConfig;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
-use scouter_settings::HTTPConfig;
+use scouter_settings::HttpConfig;
 use scouter_types::TransportType;
 use tracing::error;
 
@@ -13,7 +13,7 @@ use tracing::error;
 pub enum TransportConfig {
     RabbitMQ(RabbitMQConfig),
     Kafka(KafkaConfig),
-    Http(HTTPConfig),
+    Http(HttpConfig),
     Redis(RedisConfig),
     Mock(MockConfig),
 }
@@ -46,7 +46,7 @@ impl TransportConfig {
                 Ok(TransportConfig::Kafka(kafka_config))
             }
             TransportType::Http => {
-                let http_config = config.extract::<HTTPConfig>()?;
+                let http_config = config.extract::<HttpConfig>()?;
                 Ok(TransportConfig::Http(http_config))
             }
             TransportType::Redis => {

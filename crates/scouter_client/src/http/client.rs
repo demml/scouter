@@ -1,7 +1,7 @@
 #![allow(clippy::useless_conversion)]
 use crate::error::ClientError;
 use pyo3::{prelude::*, IntoPyObjectExt};
-use scouter_settings::http::HTTPConfig;
+use scouter_settings::http::HttpConfig;
 use scouter_types::contracts::{
     DriftAlertRequest, DriftRequest, GetProfileRequest, ProfileRequest, ProfileStatusRequest,
 };
@@ -29,7 +29,7 @@ pub struct ScouterClient {
 }
 
 impl ScouterClient {
-    pub fn new(config: Option<HTTPConfig>) -> Result<Self, ClientError> {
+    pub fn new(config: Option<HttpConfig>) -> Result<Self, ClientError> {
         let client = HTTPClient::new(config.unwrap_or_default())?;
 
         Ok(ScouterClient { client })
@@ -325,9 +325,9 @@ impl PyScouterClient {
     #[new]
     #[pyo3(signature = (config=None))]
     pub fn new(config: Option<&Bound<'_, PyAny>>) -> Result<Self, ClientError> {
-        let config = config.map_or(Ok(HTTPConfig::default()), |unwrapped| {
-            if unwrapped.is_instance_of::<HTTPConfig>() {
-                unwrapped.extract::<HTTPConfig>()
+        let config = config.map_or(Ok(HttpConfig::default()), |unwrapped| {
+            if unwrapped.is_instance_of::<HttpConfig>() {
+                unwrapped.extract::<HttpConfig>()
             } else {
                 Err(ClientError::InvalidConfigTypeError.into())
             }

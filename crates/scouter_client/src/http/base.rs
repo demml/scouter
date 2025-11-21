@@ -4,7 +4,7 @@ use crate::error::ClientError;
 use reqwest::blocking::{Client, Response};
 use reqwest::header::AUTHORIZATION;
 use reqwest::header::{HeaderMap, HeaderValue};
-use scouter_settings::http::HTTPConfig;
+use scouter_settings::http::HttpConfig;
 use scouter_types::http::{JwtToken, RequestType, Routes};
 use serde_json::Value;
 use std::sync::Arc;
@@ -14,7 +14,7 @@ use tracing::{debug, error, instrument};
 const TIMEOUT_SECS: u64 = 60;
 
 /// Create a new HTTP client that can be shared across different clients
-pub fn build_http_client(settings: &HTTPConfig) -> Result<Client, ClientError> {
+pub fn build_http_client(settings: &HttpConfig) -> Result<Client, ClientError> {
     let mut headers = HeaderMap::new();
 
     headers.insert("Username", HeaderValue::from_str(&settings.username)?);
@@ -27,14 +27,14 @@ pub fn build_http_client(settings: &HTTPConfig) -> Result<Client, ClientError> {
 }
 
 #[derive(Debug, Clone)]
-pub struct HTTPClient {
+pub struct HttpClient {
     client: Client,
     base_path: String,
     auth_token: Arc<RwLock<String>>,
 }
 
 impl HTTPClient {
-    pub fn new(config: HTTPConfig) -> Result<Self, ClientError> {
+    pub fn new(config: HttpConfig) -> Result<Self, ClientError> {
         let client = build_http_client(&config)?;
         debug!("HTTPClient created with base path: {}", config.server_uri);
 

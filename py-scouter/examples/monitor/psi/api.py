@@ -12,7 +12,7 @@ from scouter import (  # type: ignore
     Drifter,
     Feature,
     Features,
-    HTTPConfig,
+    HttpConfig,
     PsiAlertConfig,
     PsiDriftConfig,
     ScouterClient,
@@ -113,7 +113,7 @@ if __name__ == "__main__":
     profile_path = create_psi_profile()
 
     # Setup the FastAPI app
-    config = HTTPConfig()
+    config = HttpConfig()
 
     # Setup api lifespan
     @asynccontextmanager

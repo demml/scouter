@@ -81,7 +81,7 @@ pub enum ClientError {
     #[error(transparent)]
     SerdeJsonError(#[from] serde_json::Error),
 
-    #[error("Invalid config type. Expected HTTPConfig")]
+    #[error("Invalid config type. Expected HttpConfig")]
     InvalidConfigTypeError,
 
     #[error("Failed to get drift data")]

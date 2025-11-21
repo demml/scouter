@@ -78,7 +78,7 @@ LLMEvalRecord = evaluate.LLMEvalRecord
 evaluate_llm = evaluate.evaluate_llm
 
 # transport imports
-HTTPConfig = transport.HTTPConfig
+HttpConfig = transport.HttpConfig
 KafkaConfig = transport.KafkaConfig
 RabbitMQConfig = transport.RabbitMQConfig
 RedisConfig = transport.RedisConfig
@@ -122,7 +122,7 @@ __all__ = [
     "SpcAlertConfig",
     "CustomMetricAlertConfig",
     # Client - from Rust extension
-    "HTTPConfig",
+    "HttpConfig",
     "ScouterClient",
     "QuantileBinning",
     "EqualWidthBinning",
