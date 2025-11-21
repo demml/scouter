@@ -7,12 +7,7 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
-from scouter import (
-    HttpConfig,
-    KafkaConfig,
-    Queue,
-    ScouterQueue,
-)
+from scouter import HttpConfig, KafkaConfig, Queue, ScouterQueue
 from scouter.alert import AlertThreshold, LLMAlertConfig, SpcAlertConfig
 from scouter.client import ScouterClient
 from scouter.drift import (

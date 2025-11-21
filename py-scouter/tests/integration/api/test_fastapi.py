@@ -24,9 +24,7 @@ def _test_api_kafka(kafka_scouter_server):
     scouter_client = ScouterClient()
 
     # create the drift profile
-    profile = create_and_register_drift_profile(
-        client=scouter_client, name="kafka_test"
-    )
+    profile = create_and_register_drift_profile(client=scouter_client, name="kafka_test")
     drift_path = profile.save_to_json()
 
     # Create FastAPI app
