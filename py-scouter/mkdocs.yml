@@ -81,7 +81,7 @@ nav:
       - Archive: "docs/specs/ts-component-data-archive.md"
       - Queue: "docs/specs/ts-component-scouter-queue.md"
   - API Documentation:
-      - API: "docs/api/scouter.md"
+      - API: "docs/api/stubs.md"
 
 markdown_extensions:
   - tables
