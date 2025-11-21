@@ -1,18 +1,17 @@
 # mypy: disable-error-code="attr-defined"
 
 from .._scouter import (
-    Distinct,
-    Quantiles,
-    Histogram,
-    NumericStats,
     CharStats,
-    WordStats,
-    StringStats,
-    FeatureProfile,
     DataProfile,
     DataProfiler,
+    Distinct,
+    FeatureProfile,
+    Histogram,
+    NumericStats,
+    Quantiles,
+    StringStats,
+    WordStats,
 )
-
 
 __all__ = [
     "Distinct",
