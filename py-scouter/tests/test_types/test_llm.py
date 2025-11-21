@@ -1,4 +1,4 @@
-from scouter.llm.google import GeminiSettings
+from scouter.genai.google import GeminiSettings
 
 
 def test_settings():

@@ -118,7 +118,9 @@ def test_multi_type_drift(
     drift_config: SpcDriftConfig,
 ):
     drifter = Drifter()
-    profile: SpcDriftProfile = drifter.create_drift_profile(polars_dataframe_multi_dtype, drift_config)
+    profile: SpcDriftProfile = drifter.create_drift_profile(
+        polars_dataframe_multi_dtype, drift_config
+    )
 
     drift_map = drifter.compute_drift(polars_dataframe_multi_dtype_drift, profile)
     assert len(drift_map.features) == 6
@@ -126,10 +128,14 @@ def test_multi_type_drift(
     drift_map.to_numpy()
 
 
-def test_only_string_drift(pandas_categorical_dataframe: pd.DataFrame, drift_config: SpcDriftConfig):
+def test_only_string_drift(
+    pandas_categorical_dataframe: pd.DataFrame, drift_config: SpcDriftConfig
+):
     drifter = Drifter()
 
-    profile: SpcDriftProfile = drifter.create_drift_profile(pandas_categorical_dataframe, drift_config)
+    profile: SpcDriftProfile = drifter.create_drift_profile(
+        pandas_categorical_dataframe, drift_config
+    )
 
     drift_map = drifter.compute_drift(pandas_categorical_dataframe, profile)
 
@@ -151,7 +157,9 @@ def test_data_pyarrow_mixed_type(
 
 
 def test_drift_config_alert_kwargs():
-    alert_config = SpcAlertConfig(dispatch_config=SlackDispatchConfig(channel="scouter"))
+    alert_config = SpcAlertConfig(
+        dispatch_config=SlackDispatchConfig(channel="scouter")
+    )
     config = SpcDriftConfig(
         name="test",
         space="test",

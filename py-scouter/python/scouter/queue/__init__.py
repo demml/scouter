@@ -1,21 +1,21 @@
-# type: ignore
+# mypy: disable-error-code="attr-defined"
 
-from .. import queue  # noqa: F401
-
-ScouterQueue = queue.ScouterQueue
-Queue = queue.Queue
-SpcServerRecord = queue.SpcServerRecord
-PsiServerRecord = queue.PsiServerRecord
-CustomMetricServerRecord = queue.CustomMetricServerRecord
-ServerRecord = queue.ServerRecord
-ServerRecords = queue.ServerRecords
-Feature = queue.Feature
-Features = queue.Features
-RecordType = queue.RecordType
-Metric = queue.Metric
-Metrics = queue.Metrics
-EntityType = queue.EntityType
-LLMRecord = queue.LLMRecord
+from .._scouter import (
+    ScouterQueue,
+    Queue,
+    SpcServerRecord,
+    PsiServerRecord,
+    CustomMetricServerRecord,
+    ServerRecord,
+    ServerRecords,
+    QueueFeature as Feature,
+    Features,
+    RecordType,
+    Metric,
+    Metrics,
+    EntityType,
+    LLMRecord,
+)
 
 
 __all__ = [

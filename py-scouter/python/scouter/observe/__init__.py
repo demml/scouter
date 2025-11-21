@@ -1,6 +1,11 @@
-# type: ignore
+# mypy: disable-error-code="attr-defined"
 
-from ..observe import LatencyMetrics, ObservabilityMetrics, Observer, RouteMetrics
+from .._scouter import (
+    LatencyMetrics,
+    RouteMetrics,
+    ObservabilityMetrics,
+    Observer,
+)
 
 __all__ = [
     "LatencyMetrics",

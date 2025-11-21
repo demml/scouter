@@ -14,36 +14,37 @@ from typing import (
     cast,
 )
 
-from .. import tracing
+
+from .._scouter import (
+    init_tracer,
+    SpanKind,
+    FunctionType,
+    get_function_type,
+    ActiveSpan,
+    ExportConfig,
+    GrpcConfig,
+    GrpcSpanExporter,
+    OtelHttpConfig,
+    HttpSpanExporter,
+    StdoutSpanExporter,
+    OtelProtocol,
+    TraceRecord,
+    TraceSpanRecord,
+    TraceBaggageRecord,
+    TestSpanExporter,
+    flush_tracer,
+    shutdown_tracer,
+    BatchConfig,
+    BaseTracer,
+)
+
 
 P = ParamSpec("P")
 R = TypeVar("R")
 
 
-init_tracer = tracing.init_tracer
-SpanKind = tracing.SpanKind
-FunctionType = tracing.FunctionType
-get_function_type = tracing.get_function_type
-ActiveSpan = tracing.ActiveSpan
-ExportConfig = tracing.ExportConfig
-GrpcConfig = tracing.GrpcConfig
-GrpcSpanExporter = tracing.GrpcSpanExporter
-OtelHttpConfig = tracing.OtelHttpConfig
-HttpSpanExporter = tracing.HttpSpanExporter
-StdoutSpanExporter = tracing.StdoutSpanExporter
-Protocol = tracing.Protocol
-TraceRecord = tracing.TraceRecord
-TraceSpanRecord = tracing.TraceSpanRecord
-TraceBaggageRecord = tracing.TraceBaggageRecord
-TestSpanExporter = tracing.TestSpanExporter
-flush_tracer = tracing.flush_tracer
-shutdown_tracer = tracing.shutdown_tracer
-BatchConfig = tracing.BatchConfig
-
-
-# TODO: Move this to Rust
 def set_output(
-    span: tracing.ActiveSpan,
+    span: ActiveSpan,
     outputs: List[Any],
     max_length: int,
     capture_last_stream_item: bool = False,
@@ -61,7 +62,7 @@ def set_output(
         span.set_output(outputs, max_length)
 
 
-class Tracer(tracing.BaseTracer):
+class Tracer(BaseTracer):
     """Extended tracer with decorator support for all function types."""
 
     def span(
@@ -284,11 +285,12 @@ __all__ = [
     "OtelHttpConfig",
     "HttpSpanExporter",
     "StdoutSpanExporter",
-    "Protocol",
+    "OtelProtocol",
     "TraceRecord",
     "TraceSpanRecord",
     "TraceBaggageRecord",
     "TestSpanExporter",
     "flush_tracer",
     "BatchConfig",
+    "shutdown_tracer",
 ]

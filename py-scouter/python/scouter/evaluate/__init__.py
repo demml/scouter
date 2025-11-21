@@ -1,12 +1,13 @@
-# type: ignore
-from .. import evaluate
+# mypy: disable-error-code="attr-defined"
 
-LLMEvalTaskResult = evaluate.LLMEvalTaskResult
-LLMEvalMetric = evaluate.LLMEvalMetric
-LLMEvalResults = evaluate.LLMEvalResults
-LLMEvalRecord = evaluate.LLMEvalRecord
-evaluate_llm = evaluate.evaluate_llm
-EvaluationConfig = evaluate.EvaluationConfig
+from .._scouter import (
+    LLMEvalTaskResult,
+    LLMEvalMetric,
+    LLMEvalResults,
+    LLMEvalRecord,
+    evaluate_llm,
+    EvaluationConfig,
+)
 
 __all__ = [
     "LLMEvalTaskResult",

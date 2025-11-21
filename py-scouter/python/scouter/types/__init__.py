@@ -1,9 +1,11 @@
-# type: ignore
-from .. import types
+# mypy: disable-error-code="attr-defined"
 
-CommonCrons = types.CommonCrons
-DataType = types.ScouterDataType
-DriftType = types.DriftType
+from .._scouter import (
+    DriftType,
+    CommonCrons,
+    ScouterDataType,
+)
+
 
 __all__ = [
     "DriftType",

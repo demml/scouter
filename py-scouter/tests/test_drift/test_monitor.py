@@ -1,6 +1,6 @@
 import pytest
 from numpy.typing import NDArray
-from scouter import (  # type: ignore[attr-defined]
+from scouter.drift import (
     Drifter,
     SpcDriftConfig,
     SpcDriftProfile,
@@ -32,7 +32,9 @@ def test_monitor_f32(array: NDArray, drift_config: SpcDriftConfig):
 
 def test_monitor_polars(polars_dataframe, drift_config: SpcDriftConfig):
     scouter = Drifter()
-    profile: SpcDriftProfile = scouter.create_drift_profile(polars_dataframe, drift_config)
+    profile: SpcDriftProfile = scouter.create_drift_profile(
+        polars_dataframe, drift_config
+    )
 
     # assert features are relatively centered
     assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)
@@ -42,7 +44,9 @@ def test_monitor_polars(polars_dataframe, drift_config: SpcDriftConfig):
 
 def test_monitor_pandas(pandas_dataframe, drift_config: SpcDriftConfig):
     scouter = Drifter()
-    profile: SpcDriftProfile = scouter.create_drift_profile(pandas_dataframe, drift_config)
+    profile: SpcDriftProfile = scouter.create_drift_profile(
+        pandas_dataframe, drift_config
+    )
 
     # assert features are relatively centered
     assert profile.features["feature_0"].center == pytest.approx(1.5, 0.1)

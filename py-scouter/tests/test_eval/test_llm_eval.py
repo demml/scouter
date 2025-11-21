@@ -7,12 +7,14 @@ from scouter.evaluate import (  # type: ignore
     LLMEvalResults,
     evaluate_llm,
 )
-from scouter.llm import Embedder, Provider  # type: ignore
-from scouter.llm.openai import OpenAIEmbeddingConfig  # type: ignore
+from scouter.genai import Embedder, Provider  # type: ignore
+from scouter.genai.openai import OpenAIEmbeddingConfig  # type: ignore
 from scouter.mock import LLMTestServer
 
 
-def test_llm_eval_no_embedding(reformulation_evaluation_prompt, relevancy_evaluation_prompt) -> None:
+def test_llm_eval_no_embedding(
+    reformulation_evaluation_prompt, relevancy_evaluation_prompt
+) -> None:
     with LLMTestServer():
         records = []
         for i in range(10):
@@ -49,7 +51,9 @@ def test_llm_eval_no_embedding(reformulation_evaluation_prompt, relevancy_evalua
         assert isinstance(result_polars_df, pl.DataFrame)
 
 
-def test_llm_eval_embedding(reformulation_evaluation_prompt, relevancy_evaluation_prompt) -> None:
+def test_llm_eval_embedding(
+    reformulation_evaluation_prompt, relevancy_evaluation_prompt
+) -> None:
     with LLMTestServer():
         records = []
 
