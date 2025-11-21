@@ -26,12 +26,12 @@ class CommonCrons:
     def get_next(self) -> str:
         """Return the next cron time"""
 
-class DataType:
-    Pandas: "DataType"
-    Polars: "DataType"
-    Numpy: "DataType"
-    Arrow: "DataType"
-    LLM: "DataType"
+class ScouterDataType:
+    Pandas: "ScouterDataType"
+    Polars: "ScouterDataType"
+    Numpy: "ScouterDataType"
+    Arrow: "ScouterDataType"
+    LLM: "ScouterDataType"
 
 class CompressionType:
     NA: "CompressionType"

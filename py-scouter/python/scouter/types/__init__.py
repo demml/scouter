@@ -2,11 +2,11 @@
 from .. import types
 
 CommonCrons = types.CommonCrons
-DataType = types.DataType
+DataType = types.ScouterDataType
 DriftType = types.DriftType
 
 __all__ = [
     "DriftType",
     "CommonCrons",
-    "DataType",
+    "ScouterDataType",
 ]
