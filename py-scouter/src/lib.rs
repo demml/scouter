@@ -15,7 +15,7 @@ pub mod types;
 use pyo3::prelude::*;
 
 #[pymodule]
-fn scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
+fn _scouter(m: &Bound<'_, PyModule>) -> PyResult<()> {
     queue::add_queue_module(m)?;
     logging::add_logging_module(m)?;
     client::add_client_module(m)?;

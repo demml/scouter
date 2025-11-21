@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::error::TraceError;
 use crate::exporter::traits::SpanExporterBuilder;
 use crate::exporter::ExporterType;
-use crate::utils::{ExportConfig, HttpConfig, OtelProtocol};
+use crate::utils::{ExportConfig, OtelHttpConfig, OtelProtocol};
 use opentelemetry_otlp::ExportConfig as OtlpExportConfig;
 use opentelemetry_otlp::SpanExporter as OtlpSpanExporter;
 use opentelemetry_otlp::WithExportConfig;
@@ -45,7 +45,7 @@ impl HttpSpanExporter {
     pub fn new(
         batch_export: bool,
         export_config: Option<&ExportConfig>,
-        http_config: Option<&HttpConfig>,
+        http_config: Option<&OtelHttpConfig>,
         sample_ratio: Option<f64>,
     ) -> Result<Self, TraceError> {
         let (endpoint, protocol, timeout) = if let Some(config) = export_config {

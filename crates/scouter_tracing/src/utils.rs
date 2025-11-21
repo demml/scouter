@@ -408,7 +408,7 @@ impl ExportConfig {
 
 #[derive(Debug)]
 #[pyclass]
-pub struct HttpConfig {
+pub struct OtelHttpConfig {
     #[pyo3(get)]
     pub headers: Option<HashMap<String, String>>,
     #[pyo3(get)]
@@ -416,13 +416,13 @@ pub struct HttpConfig {
 }
 
 #[pymethods]
-impl HttpConfig {
+impl OtelHttpConfig {
     #[new]
     pub fn new(
         headers: Option<HashMap<String, String>>,
         compression: Option<CompressionType>,
     ) -> Self {
-        HttpConfig {
+        OtelHttpConfig {
             headers,
             compression,
         }

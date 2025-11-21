@@ -6,7 +6,8 @@ use scouter_tracing::exporter::{
 };
 use scouter_tracing::tracer::*;
 use scouter_tracing::utils::{
-    get_function_type, ExportConfig, FunctionType, GrpcConfig, HttpConfig, OtelProtocol, SpanKind,
+    get_function_type, ExportConfig, FunctionType, GrpcConfig, OtelHttpConfig, OtelProtocol,
+    SpanKind,
 };
 
 pub fn add_tracing_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
@@ -17,7 +18,7 @@ pub fn add_tracing_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<ExportConfig>()?;
     m.add_class::<GrpcConfig>()?;
     m.add_class::<GrpcSpanExporter>()?;
-    m.add_class::<HttpConfig>()?;
+    m.add_class::<OtelHttpConfig>()?;
     m.add_class::<HttpSpanExporter>()?;
     m.add_class::<StdoutSpanExporter>()?;
     m.add_class::<OtelProtocol>()?;
