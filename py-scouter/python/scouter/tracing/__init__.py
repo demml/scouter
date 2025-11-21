@@ -1,4 +1,3 @@
-# type: ignore
 # pylint: disable=dangerous-default-value
 import functools
 from typing import (
@@ -61,7 +60,21 @@ def set_output(
 
 
 class Tracer(BaseTracer):
-    """Extended tracer with decorator support for all function types."""
+    """
+    Extended tracer with decorator support.
+
+    This class extends the Rust BaseTracer to provide Python-friendly
+    decorator functionality for tracing spans.
+
+    Examples:
+        >>> from scouter.tracing import init_tracer, get_tracer
+        >>> init_tracer(name="my-service")
+        >>> tracer = get_tracer("my-service")
+        >>>
+        >>> @tracer.span("operation_name")
+        ... def my_function():
+        ...     return "result"
+    """
 
     def span(
         self,
@@ -266,8 +279,8 @@ def get_tracer(name: str) -> Tracer:
 
 __all__ = [
     "Tracer",
-    "init_tracer",
     "get_tracer",
+    "init_tracer",
     "SpanKind",
     "FunctionType",
     "ActiveSpan",

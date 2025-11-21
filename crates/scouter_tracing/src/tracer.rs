@@ -708,6 +708,7 @@ impl BaseTracer {
         Ok(span)
     }
 
+    // remove?
     pub fn shutdown(&self) -> Result<(), TraceError> {
         shutdown_tracer()
     }

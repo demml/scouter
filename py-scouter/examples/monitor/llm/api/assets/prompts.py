@@ -1,6 +1,6 @@
 from pydantic import BaseModel, ConfigDict
-from scouter.llm import Agent, Prompt, Provider
-from scouter.llm.google import GeminiSettings, GenerationConfig, ThinkingConfig
+from scouter.genai import Agent, Prompt, Provider
+from scouter.genai.google import GeminiSettings, GenerationConfig, ThinkingConfig
 
 # take user input and reformulate it into a question for the LLM
 reformulation_template = """

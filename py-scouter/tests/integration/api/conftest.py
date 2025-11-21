@@ -23,7 +23,7 @@ from scouter.drift import (
     SpcDriftConfig,
     SpcDriftProfile,
 )
-from scouter.llm import Agent, Prompt, Provider, Score
+from scouter.genai import Agent, Prompt, Provider, Score
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
 from scouter.queue import LLMRecord
 from scouter.tracing import (

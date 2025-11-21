@@ -1,3 +1,5 @@
+# pylint: disable=dangerous-default-value,redefined-builtin,missing-param-doc
+
 from datetime import datetime, timedelta
 from pathlib import Path
 from types import TracebackType
@@ -18,7 +20,7 @@ from typing import (
 )
 
 SerializedType: TypeAlias = Union[str, int, float, dict, list]
-Context: TypeAlias = Union[Dict[str, Any], BaseModel]
+Context: TypeAlias = Union[Dict[str, Any], "BaseModel"]
 
 P = ParamSpec("P")
 R = TypeVar("R")
@@ -26,17 +28,13 @@ R = TypeVar("R")
 # __scouter.tracing____
 ########################
 
-def get_function_type(func: Callable[..., Any]) -> FunctionType:
+def get_function_type(func: Callable[..., Any]) -> "FunctionType":
     """Determine the function type (sync, async, generator, async generator).
 
     Args:
         func (Callable[..., Any]):
             The function to analyze.
-    Returns:
-        FunctionType:
-            The determined function type.
     """
-    ...
 
 class OtelProtocol:
     """Enumeration of protocols for HTTP exporting."""
@@ -58,139 +56,8 @@ class FunctionType:
 
     Sync: "FunctionType"
     Async: "FunctionType"
-    Generator: "FunctionType"
+    SyncGenerator: "FunctionType"
     AsyncGenerator: "FunctionType"
-
-class Tracer(BaseTracer):
-    """
-    Extended tracer with decorator support.
-
-    This class extends the Rust BaseTracer to provide Python-friendly
-    decorator functionality for tracing spans.
-
-    Examples:
-        >>> from scouter.tracing import init_tracer, get_tracer
-        >>> init_tracer(name="my-service")
-        >>> tracer = get_tracer("my-service")
-        >>>
-        >>> @tracer.span("operation_name")
-        ... def my_function():
-        ...     return "result"
-    """
-
-    def span(
-        self,
-        name: Optional[str] = None,
-        kind: SpanKind = SpanKind.Internal,
-        attributes: List[dict[str, str]] = [],
-        baggage: List[dict[str, str]] = [],
-        tags: List[dict[str, str]] = [],
-        label: Optional[str] = None,
-        parent_context_id: Optional[str] = None,
-        max_length: int = 1000,
-        capture_last_stream_item: bool = False,
-        join_stream_items: bool = False,
-        *args,
-        **kwargs,
-    ) -> Callable[[Callable[P, R]], Callable[P, R]]:
-        """Decorator to trace function execution with OpenTelemetry spans.
-
-        Args:
-            name (Optional[str]):
-                The name of the span. If None, defaults to the function name.
-            kind (SpanKind):
-                The kind of span (e.g., Internal, Server, Client).
-            label (Optional[str]):
-                An optional label for the span.
-            attributes (Optional[dict[str, str]]):
-                Optional attributes to set on the span.
-            baggage (Optional[dict[str, str]]):
-                Optional baggage items to attach to the span.
-            tags (Optional[dict[str, str]]):
-                Optional tags to set on the span.
-            parent_context_id (Optional[str]):
-                Optional parent span context ID.
-            max_length (int):
-                The maximum length for string inputs/outputs. Defaults to 1000.
-            func_type (FunctionType):
-                The type of function being decorated (Sync, Async, Generator, AsyncGenerator).
-            capture_last_stream_item (bool):
-                Whether to capture only the last item from a generator/async generator.
-            join_stream_items (bool):
-                Whether to join all items from a generator/async generator into a list.
-        Returns:
-            Callable[[Callable[P, R]], Callable[P, R]]:
-                A decorator that wraps the function with tracing logic.
-        """
-
-        ...
-
-    def _start_decorated_as_current_span(
-        self,
-        name: Optional[str],
-        func: Callable[..., Any],
-        func_args: tuple[Any, ...],
-        kind: SpanKind = SpanKind.Internal,
-        label: Optional[str] = None,
-        attributes: Optional[dict[str, str]] = None,
-        baggage: Optional[dict[str, str]] = None,
-        tags: Optional[dict[str, str]] = None,
-        parent_context_id: Optional[str] = None,
-        max_length: int = 1000,
-        func_type: FunctionType = FunctionType.Sync,
-        func_kwargs: Optional[dict[str, Any]] = None,
-    ) -> ActiveSpan:
-        """Context manager to start a new span as the current span for decorated functions.
-
-        Args:
-            name (Optional[str]):
-                The name of the span. If None, defaults to the function name.
-            func (Callable[..., Any]):
-                The function being decorated.
-            func_args (tuple[Any, ...]):
-                The positional arguments passed to the function.
-            kind (SpanKind):
-                The kind of span (e.g., Internal, Server, Client).
-            label (Optional[str]):
-                An optional label for the span.
-            attributes (Optional[dict[str, str]]):
-                Optional attributes to set on the span.
-            baggage (Optional[dict[str, str]]):
-                Optional baggage items to attach to the span.
-            tags (Optional[dict[str, str]]):
-                Optional tags to set on the span.
-            parent_context_id (Optional[str]):
-                Optional parent span context ID.
-            max_length (int):
-                The maximum length for string inputs/outputs. Defaults to 1000.
-            func_type (FunctionType):
-                The type of function being decorated (Sync, Async, Generator, AsyncGenerator).
-            func_kwargs (Optional[dict[str, Any]]):
-                The keyword arguments passed to the function.
-        Returns:
-            ActiveSpan:
-                The active span context manager.
-        """
-        ...
-
-    @property
-    def current_span(self) -> ActiveSpan:
-        """Get the current active span, if any.
-        This will return an Error if no span is active.
-
-        Returns:
-            ActiveSpan:
-                The current active span.
-        """
-        ...
-
-def get_tracer(name: str) -> Tracer:
-    """Get a Tracer instance by name.
-
-    Args:
-        name (str):
-            The name of the tracer/service.
-    """
 
 class BatchConfig:
     """Configuration for batch exporting of spans."""
@@ -211,7 +78,6 @@ class BatchConfig:
             max_export_batch_size (int):
                 The maximum batch size for exporting spans. Defaults to 512.
         """
-        ...
 
 def init_tracer(
     service_name: str = "scouter_service",
@@ -387,7 +253,62 @@ class BaseTracer:
         Returns:
             ActiveSpan:
         """
-        ...
+
+    def _start_decorated_as_current_span(
+        self,
+        name: Optional[str],
+        func: Callable[..., Any],
+        func_args: tuple[Any, ...],
+        kind: SpanKind = SpanKind.Internal,
+        label: Optional[str] = None,
+        attributes: List[dict[str, str]] = [],
+        baggage: List[dict[str, str]] = [],
+        tags: List[dict[str, str]] = [],
+        parent_context_id: Optional[str] = None,
+        max_length: int = 1000,
+        func_type: FunctionType = FunctionType.Sync,
+        func_kwargs: Optional[dict[str, Any]] = None,
+    ) -> ActiveSpan:
+        """Context manager to start a new span as the current span for decorated functions.
+
+        Args:
+            name (Optional[str]):
+                The name of the span. If None, defaults to the function name.
+            func (Callable[..., Any]):
+                The function being decorated.
+            func_args (tuple[Any, ...]):
+                The positional arguments passed to the function.
+            kind (SpanKind):
+                The kind of span (e.g., Internal, Server, Client).
+            label (Optional[str]):
+                An optional label for the span.
+            attributes (Optional[dict[str, str]]):
+                Optional attributes to set on the span.
+            baggage (Optional[dict[str, str]]):
+                Optional baggage items to attach to the span.
+            tags (Optional[dict[str, str]]):
+                Optional tags to set on the span.
+            parent_context_id (Optional[str]):
+                Optional parent span context ID.
+            max_length (int):
+                The maximum length for string inputs/outputs. Defaults to 1000.
+            func_type (FunctionType):
+                The type of function being decorated (Sync, Async, Generator, AsyncGenerator).
+            func_kwargs (Optional[dict[str, Any]]):
+                The keyword arguments passed to the function.
+        Returns:
+            ActiveSpan:
+                The active span context manager.
+        """
+
+    def current_span(self) -> ActiveSpan:
+        """Get the current active span.
+
+        Returns:
+            ActiveSpan:
+                The current active span.
+                Raises an error if no active span exists.
+        """
 
 class StdoutSpanExporter:
     """Exporter that outputs spans to standard output (stdout)."""
@@ -437,22 +358,17 @@ class ExportConfig:
                 The timeout for HTTP requests in seconds.
         """
 
-        ...
-
     @property
     def endpoint(self) -> Optional[str]:
         """Get the HTTP endpoint for exporting spans."""
-        ...
 
     @property
     def protocol(self) -> OtelProtocol:
         """Get the protocol used for exporting spans."""
-        ...
 
     @property
     def timeout(self) -> Optional[int]:
         """Get the timeout for HTTP requests in seconds."""
-        ...
 
 class OtelHttpConfig:
     """Configuration for HTTP span exporting."""
@@ -474,12 +390,10 @@ class OtelHttpConfig:
     @property
     def headers(self) -> Optional[dict[str, str]]:
         """Get the HTTP headers."""
-        ...
 
     @property
     def compression(self) -> Optional[CompressionType]:
         """Get the compression type."""
-        ...
 
 class HttpSpanExporter:
     """Exporter that sends spans to an HTTP endpoint."""
@@ -507,37 +421,30 @@ class HttpSpanExporter:
     @property
     def sample_ratio(self) -> Optional[float]:
         """Get the sampling ratio."""
-        ...
 
     @property
     def batch_export(self) -> bool:
         """Get whether batch exporting is enabled."""
-        ...
 
     @property
     def endpoint(self) -> Optional[str]:
         """Get the HTTP endpoint for exporting spans."""
-        ...
 
     @property
     def protocol(self) -> OtelProtocol:
         """Get the protocol used for exporting spans."""
-        ...
 
     @property
     def timeout(self) -> Optional[int]:
         """Get the timeout for HTTP requests in seconds."""
-        ...
 
     @property
     def headers(self) -> Optional[dict[str, str]]:
         """Get the HTTP headers used for exporting spans."""
-        ...
 
     @property
     def compression(self) -> Optional[CompressionType]:
         """Get the compression type used for exporting spans."""
-        ...
 
 class GrpcConfig:
     """Configuration for gRPC exporting."""
@@ -553,7 +460,6 @@ class GrpcConfig:
     @property
     def compression(self) -> Optional[CompressionType]:
         """Get the compression type."""
-        ...
 
 class GrpcSpanExporter:
     """Exporter that sends spans to a gRPC endpoint."""
@@ -581,32 +487,26 @@ class GrpcSpanExporter:
     @property
     def sample_ratio(self) -> Optional[float]:
         """Get the sampling ratio."""
-        ...
 
     @property
     def batch_export(self) -> bool:
         """Get whether batch exporting is enabled."""
-        ...
 
     @property
     def endpoint(self) -> Optional[str]:
         """Get the gRPC endpoint for exporting spans."""
-        ...
 
     @property
     def protocol(self) -> OtelProtocol:
         """Get the protocol used for exporting spans."""
-        ...
 
     @property
     def timeout(self) -> Optional[int]:
         """Get the timeout for gRPC requests in seconds."""
-        ...
 
     @property
     def compression(self) -> Optional[CompressionType]:
         """Get the compression type used for exporting spans."""
-        ...
 
 class TraceRecord:
     created_at: datetime
@@ -2646,7 +2546,7 @@ class PsiAlertConfig:
 class SpcAlertConfig:
     def __init__(
         self,
-        rule: SpcAlertRule = SpcAlertRule(),
+        rule: Optional[SpcAlertRule] = None,
         dispatch_config: Optional[SlackDispatchConfig | OpsGenieDispatchConfig] = None,
         schedule: Optional[str | CommonCrons] = None,
         features_to_monitor: List[str] = [],
@@ -4121,14 +4021,6 @@ class Metric:
     def __str__(self) -> str:
         """Return the string representation of the metric"""
 
-    @property
-    def metrics(self) -> List[Metric]:
-        """Return the list of metrics"""
-
-    @property
-    def entity_type(self) -> EntityType:
-        """Return the entity type"""
-
 class Metrics:
     def __init__(self, metrics: List[Metric] | Dict[str, Union[int, float]]) -> None:
         """Initialize metrics
@@ -4167,6 +4059,14 @@ class Metrics:
 
     def __str__(self) -> str:
         """Return the string representation of the metrics"""
+
+    @property
+    def metrics(self) -> List["Metric"]:
+        """Return the list of metrics"""
+
+    @property
+    def entity_type(self) -> EntityType:
+        """Return the entity type"""
 
 class Queue:
     """Individual queue associated with a drift profile"""
@@ -4208,7 +4108,7 @@ class ScouterQueue:
             RedisConfig,
             HttpConfig,
         ],
-    ) -> ScouterQueue:
+    ) -> "ScouterQueue":
         """Initializes Scouter queue from one or more drift profile paths
 
         Args:
@@ -4267,15 +4167,12 @@ class BaseModel(Protocol):
 
     def model_dump(self) -> Dict[str, Any]:
         """Dump the model as a dictionary"""
-        ...
 
     def model_dump_json(self) -> str:
         """Dump the model as a JSON string"""
-        ...
 
     def __str__(self) -> str:
         """String representation of the model"""
-        ...
 
 class LLMRecord:
     """LLM record containing context tied to a Large Language Model interaction
@@ -4323,7 +4220,6 @@ class LLMRecord:
             TypeError: If context is not a dict or a pydantic BaseModel.
 
         """
-        ...
 
     @property
     def context(self) -> Dict[str, Any]:
@@ -4335,7 +4231,6 @@ class LLMRecord:
         Raises:
             TypeError: If the stored JSON cannot be converted to a Python object.
         """
-        ...
 
 class LLMTestServer:
     """
@@ -6639,4 +6534,23 @@ __all__ = [
     "DriftType",
     "CommonCrons",
     "ScouterDataType",
+    # tracer
+    "init_tracer",
+    "SpanKind",
+    "FunctionType",
+    "ActiveSpan",
+    "ExportConfig",
+    "GrpcConfig",
+    "GrpcSpanExporter",
+    "OtelHttpConfig",
+    "HttpSpanExporter",
+    "StdoutSpanExporter",
+    "OtelProtocol",
+    "TraceRecord",
+    "TraceSpanRecord",
+    "TraceBaggageRecord",
+    "TestSpanExporter",
+    "flush_tracer",
+    "BatchConfig",
+    "shutdown_tracer",
 ]

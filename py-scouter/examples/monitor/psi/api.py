@@ -7,18 +7,13 @@ import pandas as pd
 import uvicorn
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
-from scouter import (  # type: ignore
-    CommonCrons,
-    Drifter,
-    Feature,
-    Features,
-    HttpConfig,
-    PsiAlertConfig,
-    PsiDriftConfig,
-    ScouterClient,
-    ScouterQueue,
-)
+from scouter.alert import PsiAlertConfig
+from scouter.client import ScouterClient
+from scouter.drift import Drifter, PsiDriftConfig
 from scouter.logging import LoggingConfig, LogLevel, RustyLogger
+from scouter.queue import Feature, Features, ScouterQueue
+from scouter.transport import HttpConfig
+from scouter.types import CommonCrons
 from scouter.util import FeatureMixin
 
 logger = RustyLogger.get_logger(
