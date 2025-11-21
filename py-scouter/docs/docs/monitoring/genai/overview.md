@@ -74,7 +74,7 @@ metric = LLMDriftMetric(
 
 When defining prompts for LLM metrics, ensure they include the following:
 
-- **Input Parameters:**  
+- **Input Parameters:**
     - Each prompt must include at least one named parameter. An error will be raised if the prompt does not include a parameter
     (e.g., `${input}`, `${response}`, `${user_query}`). This is what you will insert into the `ScouterQueue` at runtime as context and will be bound to your prompt.
     - Named parameters must follow the `${parameter_name}` format.
@@ -230,17 +230,17 @@ profile = LLMDriftProfile(
 
 When creating prompts for LLM Drift Profiles and workflows, the following requirements must be met:
 
-- **Input Parameters:**  
-  
-  -Each evaluation prompt must include at least one named parameter that will be injected at runtime.  
+- **Input Parameters:**
 
-- **Score Response Format:**  
+  -Each evaluation prompt must include at least one named parameter that will be injected at runtime.
+
+- **Score Response Format:**
   All evaluation prompts must use the `Score` response format. The prompt should instruct the model to return a JSON object matching the `Score` schema:
 
     - `score`: An integer value (typically 1–5) representing the evaluation result.
     - `reason`: A brief explanation for the score.
 
-- **Workflow Tasks:**  
+- **Workflow Tasks:**
 
     - The first tasks in a workflow must use prompts that include a named parameter.
     - The final tasks in a workflow must return a `Score` object as their response.
@@ -255,7 +255,7 @@ When creating prompts for LLM Drift Profiles and workflows, the following requir
 
 ## Inserting LLM Drift Data
 
-For a general detailed guide on the `ScouterQueue`, and how to insert data for real-time monitoring in your service, please refer to the [Inference documentation](../inference.md). While the general insertion logic is similar for all drift types, there are a few specific considerations for LLM drift profiles.
+For a general detailed guide on the `ScouterQueue`, and how to insert data for real-time monitoring in your service, please refer to the [Inference documentation](/scouter/docs/monitoring/inference/). While the general insertion logic is similar for all drift types, there are a few specific considerations for LLM drift profiles.
 
 ### LLM Drift Data Insertion
 
@@ -282,19 +282,19 @@ queue["my_llm_service"].insert(record)
 
 Scouter is designed to evaluate LLM metrics asynchronously on the server, ensuring your application's performance is not impacted. Here’s how the process works:
 
-1. **Record Ingestion:**  
+1. **Record Ingestion:**
    When you insert an `LLMRecord`, it is sent to the Scouter server.
 
-2. **Profile Retrieval:**  
+2. **Profile Retrieval:**
    Upon receiving the record, the server retrieves the associated drift profile, which specifies the metrics and workflow to execute.
 
-3. **Prompt Injection & Workflow Execution:**  
+3. **Prompt Injection & Workflow Execution:**
    The server injects the `context` from the `LLMRecord` into the prompts defined in the workflow. It then runs the workflow according to your configuration.
 
-4. **Metric Extraction:**  
+4. **Metric Extraction:**
    After executing the workflow, the server extracts the `Score` object from the relevant tasks as defined by your `LLMDriftMetric`s.
 
-5. **Result Storage & Alerting:**  
+5. **Result Storage & Alerting:**
    The results are stored in the llm metric table. The system then periodically polls these results based on your alerting schedule. If a score falls below the defined threshold, Scouter triggers an alert and sends it to your configured alerting channel.
 
 This asynchronous evaluation ensures that metric calculation is robust and does not interfere with your service’s real-time performance.

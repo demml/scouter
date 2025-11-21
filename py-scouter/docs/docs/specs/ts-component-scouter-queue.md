@@ -6,7 +6,7 @@ The Scouter Queue is the primary interface for sending real-time data to the Sco
 
 ## Component Architecture
 
-<img src="../assets/scouter-queue.png" alt="Scouter Queue Architecture" style="display: block; margin: 0 auto;" width="500"/>
+<img src="/scouter/docs/specs/assets/scouter-queue.png" alt="Scouter Queue Architecture" style="display: block; margin: 0 auto;" width="500"/>
 
 ## How it works
 
@@ -96,9 +96,9 @@ pub struct QueueBus {
     pub identifier: String,
 
 }
-``` 
+```
 
-(5) **Error Handling**: Errors are logged and not returned to the user. This is to ensure that the spawned tasks do not block the main thread and can continue to process events. As a user, it's important to monitor these logs. 
+(5) **Error Handling**: Errors are logged and not returned to the user. This is to ensure that the spawned tasks do not block the main thread and can continue to process events. As a user, it's important to monitor these logs.
 
 
 (6) **Queue Insert**: After the `ScouterQueue` is created, the user can insert events into the queue by accessing the queue directly through its alias and calling the `insert` method. The insert method expects either a `Features` object, a `Metrics` object (for custom metrics) or an `LLMRecord` object (for llm as a judge workflows). Note - Scouter also provides a `FeatureMixin` class that can be used to convert a python object into a `Features` object. This is useful for converting a Pydantic BaseModel into a `Features` object. The `FeatureMixin` class is not required, but it is recommended for ease of use.
@@ -293,7 +293,7 @@ queue["alias"].insert(request.to_features())
 queue["alias"].insert(
     Metrics(
         [
-            Metric("mape", 1.0), 
+            Metric("mape", 1.0),
             Metric("mae", 2.0)
         ],
     )
@@ -313,6 +313,6 @@ queue["alias"].insert(
 
 ---
 
-*Version: 1.0*  
-*Last Updated: 2025-08-25*  
+*Version: 1.0*
+*Last Updated: 2025-08-25*
 *Component Owner: Steven Forrester*

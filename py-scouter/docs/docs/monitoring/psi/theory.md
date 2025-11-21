@@ -84,7 +84,7 @@ $$PSI = (0.2 - 0.16) \ln\left(\frac{0.2}{0.16}\right) + (0.3 - 0.28) \ln\left(\f
 
 ## Binning Strategies
 
-Currently, scouter PSI supports the decile binning approach, which is widely recognized as an industry standard and has shown to provide optimal performance in most use cases.  
+Currently, scouter PSI supports the decile binning approach, which is widely recognized as an industry standard and has shown to provide optimal performance in most use cases.
 We are actively working on expanding the library to support additional binning strategies, offering more flexibility to handle various scenarios.
 
 
