@@ -1,13 +1,9 @@
 use pyo3::prelude::*;
-use scouter_client::{TraceBaggageRecord, TraceRecord, TraceSpanRecord};
-use scouter_tracing::exporter::processor::BatchConfig;
-use scouter_tracing::exporter::{
-    GrpcSpanExporter, HttpSpanExporter, StdoutSpanExporter, TestSpanExporter,
-};
-use scouter_tracing::tracer::*;
-use scouter_tracing::utils::{
-    get_function_type, ExportConfig, FunctionType, GrpcConfig, OtelHttpConfig, OtelProtocol,
-    SpanKind,
+use scouter_client::{
+    flush_tracer, get_function_type, init_tracer, shutdown_tracer, ActiveSpan, BaseTracer,
+    BatchConfig, ExportConfig, FunctionType, GrpcConfig, GrpcSpanExporter, HttpSpanExporter,
+    OtelHttpConfig, OtelProtocol, SpanKind, StdoutSpanExporter, TestSpanExporter,
+    TraceBaggageRecord, TraceRecord, TraceSpanRecord,
 };
 
 pub fn add_tracing_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
