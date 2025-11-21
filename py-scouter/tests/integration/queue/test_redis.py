@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pandas as pd
 import polars as pl
-from scouter import (  # type: ignore
+from scouter import (
     Drifter,
     Feature,
     Features,
@@ -47,7 +47,10 @@ def test_psi_monitor_pandas_redis(
     records = pandas_dataframe.to_dict(orient="records")
     for record in records:
         features = Features(
-            features=[Feature(column_name, record[column_name]) for column_name in pandas_dataframe.columns]
+            features=[
+                Feature(column_name, record[column_name])
+                for column_name in pandas_dataframe.columns
+            ]
         )
         # 3. Send records to Scouter
         queue["a"].insert(features)
@@ -95,19 +98,21 @@ def test_psi_monitor_polars_categorical_http(
 
     # 2. Simulate records
     records = polars_dataframe_multi_dtype.to_dicts()
-    categorical_features = psi_drift_config_with_categorical_features.categorical_features
+    categorical_features = (
+        psi_drift_config_with_categorical_features.categorical_features
+    )
 
     for record in records:
         keys = record.keys()
-        features = []
+        feature_vec = []
 
         for key in keys:
             if key in categorical_features:
-                features.append(Feature.categorical(key, record[key]))
+                feature_vec.append(Feature.categorical(key, record[key]))
             else:
-                features.append(Feature.float(key, record[key]))
+                feature_vec.append(Feature.float(key, record[key]))
 
-        features = Features(features=features)
+        features = Features(features=feature_vec)
         # 3. Send records to Scouter
         queue["a"].insert(features)
 

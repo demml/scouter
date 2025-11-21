@@ -45,7 +45,9 @@ def test_llm_record():
     # Test error - provide no input or response
     with pytest.raises(
         TypeError,
-        match=re.escape("LLMRecord.__new__() missing 1 required positional argument: 'context'"),
+        match=re.escape(
+            "LLMRecord.__new__() missing 1 required positional argument: 'context'"
+        ),
     ):
         LLMRecord()
 
@@ -70,6 +72,8 @@ def test_llm_record():
     # pass incorrect type for context
     with pytest.raises(
         RuntimeError,
-        match=re.escape("Invalid context type. Context must be a PyDict or a Pydantic BaseModel"),
+        match=re.escape(
+            "Invalid context type. Context must be a PyDict or a Pydantic BaseModel"
+        ),
     ):
         LLMRecord(context="This is a string, not a dict or pydantic model")

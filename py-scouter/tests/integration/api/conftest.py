@@ -7,7 +7,7 @@ import numpy as np
 import pandas as pd
 from fastapi import FastAPI, Request
 from pydantic import BaseModel
-from scouter import (  # type: ignore[attr-defined]
+from scouter import (
     HttpConfig,
     KafkaConfig,
     Queue,
