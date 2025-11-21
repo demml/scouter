@@ -7,10 +7,8 @@ use ::potato_head::{
 pub mod google;
 pub mod openai;
 use pyo3::prelude::*;
-use pyo3::wrap_pymodule;
 
-#[pymodule]
-pub fn llm(m: &Bound<'_, PyModule>) -> PyResult<()> {
+pub fn add_genai_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<Provider>()?;
     m.add_class::<PyAgent>()?;
     m.add_class::<PyWorkflow>()?;
@@ -35,7 +33,7 @@ pub fn llm(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<TaskStatus>()?;
     m.add_class::<PyAgentResponse>()?;
     m.add_class::<PyEmbedder>()?;
-    m.add_wrapped(wrap_pymodule!(google::google))?;
-    m.add_wrapped(wrap_pymodule!(openai::openai))?;
+    google::add_google_module(m)?;
+    openai::add_openai_module(m)?;
     Ok(())
 }

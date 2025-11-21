@@ -9,8 +9,7 @@ use scouter_tracing::utils::{
     get_function_type, ExportConfig, FunctionType, GrpcConfig, HttpConfig, OtelProtocol, SpanKind,
 };
 
-#[pymodule]
-pub fn tracing(m: &Bound<'_, PyModule>) -> PyResult<()> {
+pub fn add_tracing_module(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<BaseTracer>()?;
     m.add_class::<ActiveSpan>()?;
     m.add_class::<SpanKind>()?;
