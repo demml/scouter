@@ -60,6 +60,7 @@ uv.sub.pre.tag:
 prep.pre.patch: uv.pre.patch uv.sub.pre.tag
 
 build.docs:
+	uv run python scripts/create_stubs.py
 	uv run mkdocs build
 
 serve.docs:
