@@ -69,9 +69,9 @@ nav:
           - Theory: "docs/monitoring/spc/theory.md"
       - Custom Metric:
           - Overview: "docs/monitoring/custom/quickstart.md"
-      - LLM:
-          - Overview: "docs/monitoring/llm/overview.md"
-          - Evaluation: "docs/monitoring/llm/evaluation.md"
+      - GenAI:
+          - Overview: "docs/monitoring/genai/overview.md"
+          - Evaluation: "docs/monitoring/genai/evaluation.md"
       - Get to the Queue!:
           - Inference: "docs/monitoring/inference.md"
   - Profiling:
@@ -122,8 +122,15 @@ plugins:
   - mkdocstrings:
       handlers:
         python:
-          options.extras:
-            source_suffix: ".pyi"
+          paths: ["python"]
+          options:
+            separate_signature: true
+            filters: ["!^_"]
+            docstring_options:
+              ignore_init_summary: true
+            docstring_style: google
+            merge_init_into_class: true
+            show_signature_annotations: true
 
 extra_css:
   - docs/css/custom.css

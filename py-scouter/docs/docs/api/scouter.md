@@ -1,1 +1,1 @@
-::: scouter._scouter
+::: scouter.stubs

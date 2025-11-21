@@ -63,11 +63,11 @@ build.docs:
 	uv run mkdocs build
 
 serve.docs:
-	uv run python scripts/build_docs.py
+	uv run python scripts/create_stubs.py
 	uv run mkdocs serve
 
 publish.docs:
-	uv run python scripts/build_docs.py
+	uv run python scripts/create_stubs.py
 	uv run mkdocs gh-deploy --force
 
 
