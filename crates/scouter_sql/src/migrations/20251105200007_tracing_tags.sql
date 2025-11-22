@@ -340,7 +340,7 @@ AS $$
             (ts.created_at = p_cursor_created_at AND ts.trace_id < p_cursor_trace_id)
         )
     ORDER BY ts.created_at DESC, ts.trace_id DESC
-    LIMIT p_limit;
+    LIMIT p_limit + 1;
 $$;
 
 CREATE OR REPLACE FUNCTION scouter.get_trace_spans(p_trace_id TEXT)

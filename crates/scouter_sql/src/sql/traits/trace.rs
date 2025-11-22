@@ -5,7 +5,9 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::multiunzip;
 use scouter_types::sql::{TraceFilters, TraceListItem, TraceMetricBucket, TraceSpan};
-use scouter_types::{TraceBaggageRecord, TraceRecord, TraceSpanRecord};
+use scouter_types::{
+    TraceBaggageRecord, TraceCursor, TracePaginationResponse, TraceRecord, TraceSpanRecord,
+};
 use sqlx::{postgres::PgQueryResult, types::Json, Pool, Postgres};
 
 #[async_trait]
@@ -230,13 +232,14 @@ pub trait TraceSqlLogic {
     async fn get_traces_paginated(
         pool: &Pool<Postgres>,
         filters: TraceFilters,
-    ) -> Result<Vec<TraceListItem>, SqlError> {
+    ) -> Result<TracePaginationResponse, SqlError> {
         let default_start = Utc::now() - chrono::Duration::hours(24);
         let default_end = Utc::now();
+        let limit = filters.limit.unwrap_or(50);
 
         let query = Queries::GetPaginatedTraces.get_query();
 
-        let trace_items: Result<Vec<TraceListItem>, SqlError> = sqlx::query_as(&query.sql)
+        let mut items: Vec<TraceListItem> = sqlx::query_as(&query.sql)
             .bind(filters.space)
             .bind(filters.name)
             .bind(filters.version)
@@ -245,14 +248,33 @@ pub trait TraceSqlLogic {
             .bind(filters.status_code)
             .bind(filters.start_time.unwrap_or(default_start))
             .bind(filters.end_time.unwrap_or(default_end))
-            .bind(filters.limit.unwrap_or(50))
+            .bind(limit)
             .bind(filters.cursor_created_at)
             .bind(filters.cursor_trace_id)
             .fetch_all(pool)
             .await
-            .map_err(SqlError::SqlxError);
+            .map_err(SqlError::SqlxError)?;
 
-        trace_items
+        let has_next = items.len() > limit as usize;
+
+        if has_next {
+            items.pop();
+        }
+
+        let next_cursor = if has_next {
+            items.last().map(|last_item| TraceCursor {
+                created_at: last_item.created_at,
+                trace_id: last_item.trace_id.clone(),
+            })
+        } else {
+            None
+        };
+
+        Ok(TracePaginationResponse {
+            items,
+            has_next,
+            next_cursor,
+        })
     }
 
     /// Attempts to retrieve trace spans for a given trace ID.

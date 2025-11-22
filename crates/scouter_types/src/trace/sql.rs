@@ -2,6 +2,7 @@ use crate::error::TypeError;
 use crate::json_to_pyobject_value;
 use crate::trace::{Attribute, SpanEvent, SpanLink};
 use crate::PyHelperFuncs;
+use crate::TraceCursor;
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
@@ -263,6 +264,19 @@ impl TraceFilters {
 
     pub fn limit(mut self, limit: i32) -> Self {
         self.limit = Some(limit);
+        self
+    }
+
+    pub fn next_page(&self, cursor: &TraceCursor) -> Self {
+        let mut next = self.clone();
+        next.cursor_created_at = Some(cursor.created_at);
+        next.cursor_trace_id = Some(cursor.trace_id.clone());
+        next
+    }
+
+    pub fn first_page(mut self) -> Self {
+        self.cursor_created_at = None;
+        self.cursor_trace_id = None;
         self
     }
 }
