@@ -636,6 +636,33 @@ impl TraceMetricsRequest {
 pub struct TracePaginationResponse {
     #[pyo3(get)]
     pub items: Vec<TraceListItem>,
+
+    #[pyo3(get)]
+    pub has_next: bool,
+
+    #[pyo3(get)]
+    pub next_cursor: Option<TraceCursor>,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone)]
+#[pyclass]
+pub struct TraceCursor {
+    #[pyo3(get)]
+    pub created_at: DateTime<Utc>,
+
+    #[pyo3(get)]
+    pub trace_id: String,
+}
+
+#[pymethods]
+impl TraceCursor {
+    #[new]
+    pub fn new(created_at: DateTime<Utc>, trace_id: String) -> Self {
+        TraceCursor {
+            created_at,
+            trace_id,
+        }
+    }
 }
 
 #[pymethods]
