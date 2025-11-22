@@ -40,8 +40,8 @@ async fn test_tracing() {
         "First batch should have 50 records"
     );
 
-    let last_record = first_batch.items.last().unwrap();
-    filters = filters.with_cursor(last_record.created_at, last_record.trace_id.clone());
+    let last_record_cursor = &first_batch.next_cursor.unwrap();
+    filters = filters.next_page(&last_record_cursor);
 
     let body = serde_json::to_string(&filters).unwrap();
     let request = Request::builder()
@@ -64,7 +64,7 @@ async fn test_tracing() {
 
     let next_first_record = second_batch.items.first().unwrap();
     assert!(
-        next_first_record.created_at <= last_record.created_at,
+        next_first_record.created_at <= last_record_cursor.created_at,
         "Next batch first record timestamp is not less than or equal to last record timestamp"
     );
 
