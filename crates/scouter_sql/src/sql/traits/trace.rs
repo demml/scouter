@@ -252,6 +252,7 @@ pub trait TraceSqlLogic {
             .bind(limit)
             .bind(filters.cursor_created_at)
             .bind(filters.cursor_trace_id)
+            .bind(direction)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError)?;
