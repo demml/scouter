@@ -1207,6 +1207,17 @@ mod tests {
             "Next batch first record timestamp is not less than or equal to last record timestamp"
         );
 
+        // test pagination for previous
+        filters = filters.previous_page(&next_batch.previous_cursor.unwrap());
+        let previous_batch = PostgresClient::get_traces_paginated(&pool, filters.clone())
+            .await
+            .unwrap();
+        assert_eq!(
+            previous_batch.items.len(),
+            50,
+            "Previous batch should have 50 records"
+        );
+
         // Filter records to find item with >5 spans
         let filtered_record = first_batch
             .items
