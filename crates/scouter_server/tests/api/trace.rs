@@ -41,7 +41,7 @@ async fn test_tracing() {
     );
 
     let last_record_cursor = &first_batch.next_cursor.unwrap();
-    filters = filters.next_page(&last_record_cursor);
+    filters = filters.next_page(last_record_cursor);
 
     let body = serde_json::to_string(&filters).unwrap();
     let request = Request::builder()
