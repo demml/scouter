@@ -236,6 +236,7 @@ pub trait TraceSqlLogic {
         let default_start = Utc::now() - chrono::Duration::hours(24);
         let default_end = Utc::now();
         let limit = filters.limit.unwrap_or(50);
+        let direction = filters.direction.as_deref().unwrap_or("next");
 
         let query = Queries::GetPaginatedTraces.get_query();
 
@@ -255,25 +256,70 @@ pub trait TraceSqlLogic {
             .await
             .map_err(SqlError::SqlxError)?;
 
-        let has_next = items.len() > limit as usize;
+        let has_more = items.len() > limit as usize;
 
-        if has_next {
+        // Remove the extra item
+        if has_more {
             items.pop();
         }
 
-        let next_cursor = if has_next {
-            items.last().map(|last_item| TraceCursor {
-                created_at: last_item.created_at,
-                trace_id: last_item.trace_id.clone(),
-            })
-        } else {
-            None
+        // Determine next/previous based on direction
+        let (has_next, next_cursor, has_previous, previous_cursor) = match direction {
+            "next" => {
+                // Forward pagination
+                let next_cursor = if has_more {
+                    items.last().map(|last| TraceCursor {
+                        created_at: last.created_at,
+                        trace_id: last.trace_id.clone(),
+                    })
+                } else {
+                    None
+                };
+
+                let previous_cursor = items.first().map(|first| TraceCursor {
+                    created_at: first.created_at,
+                    trace_id: first.trace_id.clone(),
+                });
+
+                (
+                    has_more,
+                    next_cursor,
+                    filters.cursor_created_at.is_some(),
+                    previous_cursor,
+                )
+            }
+            "previous" => {
+                // Backward pagination
+                let previous_cursor = if has_more {
+                    items.first().map(|first| TraceCursor {
+                        created_at: first.created_at,
+                        trace_id: first.trace_id.clone(),
+                    })
+                } else {
+                    None
+                };
+
+                let next_cursor = items.last().map(|last| TraceCursor {
+                    created_at: last.created_at,
+                    trace_id: last.trace_id.clone(),
+                });
+
+                (
+                    filters.cursor_created_at.is_some(),
+                    next_cursor,
+                    has_more,
+                    previous_cursor,
+                )
+            }
+            _ => (false, None, false, None),
         };
 
         Ok(TracePaginationResponse {
             items,
             has_next,
             next_cursor,
+            has_previous,
+            previous_cursor,
         })
     }
 

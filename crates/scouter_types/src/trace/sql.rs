@@ -186,6 +186,8 @@ pub struct TraceFilters {
     pub cursor_created_at: Option<DateTime<Utc>>,
     #[pyo3(get, set)]
     pub cursor_trace_id: Option<String>,
+    #[pyo3(get, set)]
+    pub direction: Option<String>,
 }
 
 #[pymethods]
@@ -230,6 +232,7 @@ impl TraceFilters {
             limit,
             cursor_created_at,
             cursor_trace_id,
+            direction: None,
         }
     }
 }
@@ -267,16 +270,23 @@ impl TraceFilters {
         self
     }
 
-    pub fn next_page(&self, cursor: &TraceCursor) -> Self {
-        let mut next = self.clone();
-        next.cursor_created_at = Some(cursor.created_at);
-        next.cursor_trace_id = Some(cursor.trace_id.clone());
-        next
+    pub fn next_page(mut self, cursor: &TraceCursor) -> Self {
+        self.cursor_created_at = Some(cursor.created_at);
+        self.cursor_trace_id = Some(cursor.trace_id.clone());
+        self.direction = Some("next".to_string());
+        self
     }
 
     pub fn first_page(mut self) -> Self {
         self.cursor_created_at = None;
         self.cursor_trace_id = None;
+        self
+    }
+
+    pub fn previous_page(mut self, cursor: &TraceCursor) -> Self {
+        self.cursor_created_at = Some(cursor.created_at);
+        self.cursor_trace_id = Some(cursor.trace_id.clone());
+        self.direction = Some("previous".to_string());
         self
     }
 }

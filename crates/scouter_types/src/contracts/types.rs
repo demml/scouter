@@ -642,6 +642,12 @@ pub struct TracePaginationResponse {
 
     #[pyo3(get)]
     pub next_cursor: Option<TraceCursor>,
+
+    #[pyo3(get)]
+    pub has_previous: bool,
+
+    #[pyo3(get)]
+    pub previous_cursor: Option<TraceCursor>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
