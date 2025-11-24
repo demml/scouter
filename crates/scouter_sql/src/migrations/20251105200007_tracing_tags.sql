@@ -283,7 +283,8 @@ CREATE OR REPLACE FUNCTION scouter.get_traces_paginated(
     p_end_time TIMESTAMPTZ DEFAULT NOW(),
     p_limit INTEGER DEFAULT 50,
     p_cursor_created_at TIMESTAMPTZ DEFAULT NULL,
-    p_cursor_trace_id TEXT DEFAULT NULL
+    p_cursor_trace_id TEXT DEFAULT NULL,
+    p_direction TEXT DEFAULT 'next' -- 'next' or 'previous'
 )
 RETURNS TABLE (
     trace_id TEXT,
@@ -306,41 +307,62 @@ RETURNS TABLE (
 LANGUAGE SQL
 STABLE
 AS $$
-    SELECT
-        ts.trace_id,
-        ts.space,
-        ts.name,
-        ts.version,
-        ts.scope,
-        ts.service_name,
-        ts.root_operation,
-        ts.start_time,
-        ts.end_time,
-        ts.duration_ms,
-        ts.status_code,
-        ts.status_message,
-        ts.span_count,
-        ts.has_errors,
-        ts.error_count,
-        ts.created_at
-    FROM scouter.trace_summary ts
-    WHERE
-
-        (p_space IS NULL OR ts.space = p_space)
-        AND (p_name IS NULL OR ts.name = p_name)
-        AND (p_version IS NULL OR ts.version = p_version)
-        AND (p_service_name IS NULL OR ts.service_name = p_service_name)
-        AND (p_has_errors IS NULL OR ts.has_errors = p_has_errors)
-        AND (p_status_code IS NULL OR ts.status_code = p_status_code)
-        AND ts.start_time >= p_start_time
-        AND ts.start_time <= p_end_time
-        AND (
-            p_cursor_created_at IS NULL OR
-            ts.created_at < p_cursor_created_at OR
-            (ts.created_at = p_cursor_created_at AND ts.trace_id < p_cursor_trace_id)
-        )
-    ORDER BY ts.created_at DESC, ts.trace_id DESC
-    LIMIT p_limit;
+    -- Forward pagination (next)
+    SELECT * FROM (
+        SELECT
+            ts.trace_id,
+            ts.space,
+            ts.name,
+            ts.version,
+            ts.scope,
+            ts.service_name,
+            ts.root_operation,
+            ts.start_time,
+            ts.end_time,
+            ts.duration_ms,
+            ts.status_code,
+            ts.status_message,
+            ts.span_count,
+            ts.has_errors,
+            ts.error_count,
+            ts.created_at
+        FROM scouter.trace_summary ts
+        WHERE
+            (p_space IS NULL OR ts.space = p_space)
+            AND (p_name IS NULL OR ts.name = p_name)
+            AND (p_version IS NULL OR ts.version = p_version)
+            AND (p_service_name IS NULL OR ts.service_name = p_service_name)
+            AND (p_has_errors IS NULL OR ts.has_errors = p_has_errors)
+            AND (p_status_code IS NULL OR ts.status_code = p_status_code)
+            AND ts.start_time >= p_start_time
+            AND ts.start_time <= p_end_time
+            AND (
+                -- Forward pagination: get records LESS than cursor
+                (p_direction = 'next' AND (
+                    p_cursor_created_at IS NULL OR
+                    ts.created_at < p_cursor_created_at OR
+                    (ts.created_at = p_cursor_created_at AND ts.trace_id < p_cursor_trace_id)
+                ))
+                OR
+                -- Backward pagination: get records GREATER than cursor
+                (p_direction = 'previous' AND (
+                    p_cursor_created_at IS NULL OR
+                    ts.created_at > p_cursor_created_at OR
+                    (ts.created_at = p_cursor_created_at AND ts.trace_id > p_cursor_trace_id)
+                ))
+            )
+        ORDER BY
+            CASE WHEN p_direction = 'next' THEN ts.created_at END DESC,
+            CASE WHEN p_direction = 'next' THEN ts.trace_id END DESC,
+            CASE WHEN p_direction = 'previous' THEN ts.created_at END ASC,
+            CASE WHEN p_direction = 'previous' THEN ts.trace_id END ASC
+        LIMIT p_limit + 1
+    ) sub
+    ORDER BY
+        CASE WHEN p_direction = 'next' THEN created_at END DESC,
+        CASE WHEN p_direction = 'next' THEN trace_id END DESC,
+        CASE WHEN p_direction = 'previous' THEN created_at END DESC,
+        CASE WHEN p_direction = 'previous' THEN trace_id END DESC;
 $$;
 
 CREATE OR REPLACE FUNCTION scouter.get_trace_spans(p_trace_id TEXT)

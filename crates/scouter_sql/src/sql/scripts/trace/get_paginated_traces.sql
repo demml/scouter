@@ -26,5 +26,6 @@ FROM scouter.get_traces_paginated(
     $8,  -- p_end_time
     $9,  -- p_limit
     $10, -- p_cursor_created_at
-    $11  -- p_cursor_trace_id
+    $11, -- p_cursor_trace_id
+    $12  -- p_direction
 );
