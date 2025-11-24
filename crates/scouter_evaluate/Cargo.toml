@@ -5,6 +5,8 @@ edition = { workspace = true }
 repository = { workspace = true }
 description = "LLM Evaluation logic for Scouter"
 
+license = "MIT"
+
 [lib]
 doctest = false
 
