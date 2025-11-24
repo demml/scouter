@@ -314,17 +314,17 @@ jobs:
 
           - image: ubuntu
             tag_suffix: ubuntu
-            artifact: scouter-server-aarch64-linux-gnu-redis
+            artifact: scouter-server-aarch64-linux-gnu-redis_events
             feature: redis
 
           - image: debian
             tag_suffix: debian
-            artifact: scouter-server-aarch64-linux-gnu-redis
+            artifact: scouter-server-aarch64-linux-gnu-redis_events
             feature: redis
 
           - image: rocky
             tag_suffix: rocky-minimal
-            artifact: scouter-server-aarch64-linux-gnu-redis-rocky
+            artifact: scouter-server-aarch64-linux-gnu-redis_events-rocky
             feature: redis
 
           - image: ubuntu
@@ -428,17 +428,17 @@ jobs:
 
           - image: ubuntu
             tag_suffix: ubuntu
-            artifact: scouter-server-x86_64-linux-gnu-redis
+            artifact: scouter-server-x86_64-linux-gnu-redis_events
             feature: redis
 
           - image: debian
             tag_suffix: debian
-            artifact: scouter-server-x86_64-linux-gnu-redis
+            artifact: scouter-server-x86_64-linux-gnu-redis_events
             feature: redis
 
           - image: rocky
             tag_suffix: rocky-minimal
-            artifact: scouter-server-x86_64-linux-gnu-redis-rocky
+            artifact: scouter-server-x86_64-linux-gnu-redis_events-rocky
             feature: redis
 
           - image: ubuntu
