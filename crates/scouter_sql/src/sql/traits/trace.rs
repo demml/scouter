@@ -5,7 +5,9 @@ use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use itertools::multiunzip;
 use scouter_types::sql::{TraceFilters, TraceListItem, TraceMetricBucket, TraceSpan};
-use scouter_types::{TraceBaggageRecord, TraceRecord, TraceSpanRecord};
+use scouter_types::{
+    TraceBaggageRecord, TraceCursor, TracePaginationResponse, TraceRecord, TraceSpanRecord,
+};
 use sqlx::{postgres::PgQueryResult, types::Json, Pool, Postgres};
 
 #[async_trait]
@@ -230,13 +232,15 @@ pub trait TraceSqlLogic {
     async fn get_traces_paginated(
         pool: &Pool<Postgres>,
         filters: TraceFilters,
-    ) -> Result<Vec<TraceListItem>, SqlError> {
+    ) -> Result<TracePaginationResponse, SqlError> {
         let default_start = Utc::now() - chrono::Duration::hours(24);
         let default_end = Utc::now();
+        let limit = filters.limit.unwrap_or(50);
+        let direction = filters.direction.as_deref().unwrap_or("next");
 
         let query = Queries::GetPaginatedTraces.get_query();
 
-        let trace_items: Result<Vec<TraceListItem>, SqlError> = sqlx::query_as(&query.sql)
+        let mut items: Vec<TraceListItem> = sqlx::query_as(&query.sql)
             .bind(filters.space)
             .bind(filters.name)
             .bind(filters.version)
@@ -245,14 +249,79 @@ pub trait TraceSqlLogic {
             .bind(filters.status_code)
             .bind(filters.start_time.unwrap_or(default_start))
             .bind(filters.end_time.unwrap_or(default_end))
-            .bind(filters.limit.unwrap_or(50))
+            .bind(limit)
             .bind(filters.cursor_created_at)
             .bind(filters.cursor_trace_id)
+            .bind(direction)
             .fetch_all(pool)
             .await
-            .map_err(SqlError::SqlxError);
+            .map_err(SqlError::SqlxError)?;
 
-        trace_items
+        let has_more = items.len() > limit as usize;
+
+        // Remove the extra item
+        if has_more {
+            items.pop();
+        }
+
+        // Determine next/previous based on direction
+        let (has_next, next_cursor, has_previous, previous_cursor) = match direction {
+            "next" => {
+                // Forward pagination
+                let next_cursor = if has_more {
+                    items.last().map(|last| TraceCursor {
+                        created_at: last.created_at,
+                        trace_id: last.trace_id.clone(),
+                    })
+                } else {
+                    None
+                };
+
+                let previous_cursor = items.first().map(|first| TraceCursor {
+                    created_at: first.created_at,
+                    trace_id: first.trace_id.clone(),
+                });
+
+                (
+                    has_more,
+                    next_cursor,
+                    filters.cursor_created_at.is_some(),
+                    previous_cursor,
+                )
+            }
+            "previous" => {
+                // Backward pagination
+                let previous_cursor = if has_more {
+                    items.first().map(|first| TraceCursor {
+                        created_at: first.created_at,
+                        trace_id: first.trace_id.clone(),
+                    })
+                } else {
+                    None
+                };
+
+                let next_cursor = items.last().map(|last| TraceCursor {
+                    created_at: last.created_at,
+                    trace_id: last.trace_id.clone(),
+                });
+
+                (
+                    filters.cursor_created_at.is_some(),
+                    next_cursor,
+                    has_more,
+                    previous_cursor,
+                )
+            }
+            _ => (false, None, false, None),
+        };
+
+        Ok(TracePaginationResponse {
+            items,
+            has_next,
+            next_cursor,
+            has_previous,
+            previous_cursor,
+        })
     }
 
     /// Attempts to retrieve trace spans for a given trace ID.

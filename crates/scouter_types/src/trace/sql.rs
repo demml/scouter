@@ -2,6 +2,7 @@ use crate::error::TypeError;
 use crate::json_to_pyobject_value;
 use crate::trace::{Attribute, SpanEvent, SpanLink};
 use crate::PyHelperFuncs;
+use crate::TraceCursor;
 use chrono::{DateTime, Utc};
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
@@ -185,6 +186,8 @@ pub struct TraceFilters {
     pub cursor_created_at: Option<DateTime<Utc>>,
     #[pyo3(get, set)]
     pub cursor_trace_id: Option<String>,
+    #[pyo3(get, set)]
+    pub direction: Option<String>,
 }
 
 #[pymethods]
@@ -229,6 +232,7 @@ impl TraceFilters {
             limit,
             cursor_created_at,
             cursor_trace_id,
+            direction: None,
         }
     }
 }
@@ -263,6 +267,26 @@ impl TraceFilters {
 
     pub fn limit(mut self, limit: i32) -> Self {
         self.limit = Some(limit);
+        self
+    }
+
+    pub fn next_page(mut self, cursor: &TraceCursor) -> Self {
+        self.cursor_created_at = Some(cursor.created_at);
+        self.cursor_trace_id = Some(cursor.trace_id.clone());
+        self.direction = Some("next".to_string());
+        self
+    }
+
+    pub fn first_page(mut self) -> Self {
+        self.cursor_created_at = None;
+        self.cursor_trace_id = None;
+        self
+    }
+
+    pub fn previous_page(mut self, cursor: &TraceCursor) -> Self {
+        self.cursor_created_at = Some(cursor.created_at);
+        self.cursor_trace_id = Some(cursor.trace_id.clone());
+        self.direction = Some("previous".to_string());
         self
     }
 }

@@ -1179,28 +1179,48 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(first_batch.len(), 50, "First batch should have 50 records");
+        assert_eq!(
+            first_batch.items.len(),
+            50,
+            "First batch should have 50 records"
+        );
 
         // test pagination (get last record created_at and trace_id)
-        let last_record = first_batch.last().unwrap();
-        filters = filters.with_cursor(last_record.created_at, last_record.trace_id.clone());
+        let last_record = first_batch.next_cursor.unwrap();
+        filters = filters.next_page(&last_record);
 
         let next_batch = PostgresClient::get_traces_paginated(&pool, filters.clone())
             .await
             .unwrap();
 
         // should be another 50 records
-        assert_eq!(next_batch.len(), 50, "Next batch should have 50 records");
+        assert_eq!(
+            next_batch.items.len(),
+            50,
+            "Next batch should have 50 records"
+        );
 
         // assert next_batch first record timestamp is <= first_batch last record timestamp
-        let next_first_record = next_batch.first().unwrap();
+        let next_first_record = next_batch.items.first().unwrap();
         assert!(
             next_first_record.created_at <= last_record.created_at,
             "Next batch first record timestamp is not less than or equal to last record timestamp"
         );
 
+        // test pagination for previous
+        filters = filters.previous_page(&next_batch.previous_cursor.unwrap());
+        let previous_batch = PostgresClient::get_traces_paginated(&pool, filters.clone())
+            .await
+            .unwrap();
+        assert_eq!(
+            previous_batch.items.len(),
+            50,
+            "Previous batch should have 50 records"
+        );
+
         // Filter records to find item with >5 spans
         let filtered_record = first_batch
+            .items
             .iter()
             .find(|record| record.span_count > Some(5))
             .unwrap();
@@ -1217,7 +1237,7 @@ mod tests {
 
         // Records are randomly generated, so just assert we get some records back
         assert!(
-            !records.is_empty(),
+            !records.items.is_empty(),
             "Should return records with specified filters"
         );
 
@@ -1306,8 +1326,8 @@ mod tests {
             .await
             .unwrap();
 
-        assert_eq!(traces.len(), 1);
-        let retrieved_trace = &traces[0];
+        assert_eq!(traces.items.len(), 1);
+        let retrieved_trace = &traces.items[0];
         // assert span count is 2
         assert_eq!(retrieved_trace.span_count.unwrap(), 2);
 

@@ -39,7 +39,7 @@ pub async fn get_paginated_traces(
     State(data): State<Arc<AppState>>,
     Json(body): Json<TraceFilters>,
 ) -> Result<Json<TracePaginationResponse>, (StatusCode, Json<ScouterServerError>)> {
-    let items = PostgresClient::get_traces_paginated(&data.db_pool, body.clone())
+    let pagination_response = PostgresClient::get_traces_paginated(&data.db_pool, body.clone())
         .await
         .map_err(|e| {
             error!("Failed to get paginated traces: {:?}", e);
@@ -49,7 +49,7 @@ pub async fn get_paginated_traces(
             )
         })?;
 
-    Ok(Json(TracePaginationResponse { items }))
+    Ok(Json(pagination_response))
 }
 
 pub async fn get_trace_spans(
