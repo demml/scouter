@@ -15,6 +15,7 @@ use crate::utils::{
     get_current_active_span, get_current_context_id, set_current_span, set_function_attributes,
     set_function_type_attribute, ActiveSpanInner, FunctionType, SpanKind,
 };
+
 use chrono::{DateTime, Utc};
 use opentelemetry::baggage::BaggageExt;
 use opentelemetry::trace::Tracer as OTelTracer;
@@ -33,6 +34,7 @@ use pyo3::IntoPyObjectExt;
 use scouter_events::queue::types::TransportConfig;
 use scouter_settings::http::HttpConfig;
 
+use opentelemetry::global::get_text_map_propagator;
 use scouter_types::{
     is_pydantic_basemodel, pydict_to_otel_keyvalue, pyobject_to_otel_value,
     pyobject_to_tracing_json, BAGGAGE_PREFIX, SCOUTER_TAG_PREFIX, SCOUTER_TRACING_INPUT,
@@ -795,4 +797,39 @@ fn get_tracer(name: String) -> Result<SdkTracer, TraceError> {
     })?;
 
     Ok(provider.tracer(name))
+}
+
+#[pyfunction]
+pub fn get_tracing_headers_from_current_span(
+    py: Python<'_>,
+) -> Result<HashMap<String, String>, TraceError> {
+    // 1. Get the current active span PyAny reference (ActiveSpan PyO3 object)
+    let current_span_py = get_current_active_span(py)?;
+
+    // 2. Try to downcast the PyAny to your ActiveSpan struct
+    let active_span_ref = current_span_py
+        .extract::<PyRef<ActiveSpan>>()
+        .map_err(|e| TraceError::DowncastError(format!("Failed to extract ActiveSpan: {}", e)))?;
+
+    // 3. Extract the underlying OpenTelemetry Span Context
+    let otel_span_context = {
+        let inner_guard = active_span_ref
+            .inner
+            .read()
+            .map_err(|e| TraceError::PoisonError(e.to_string()))?;
+
+        // Retrieve the non-remote span context from the active span
+        inner_guard.span.span_context().clone()
+    };
+
+    let context_to_propagate = OtelContext::current().with_remote_span_context(otel_span_context);
+
+    let headers: HashMap<String, String> = get_text_map_propagator(|propagator| {
+        let mut headers = HashMap::new();
+        // The propagator reference is passed into the closure, and we call the method on it.
+        propagator.inject_context(&context_to_propagate, &mut headers);
+        headers // Return the map from the closure
+    });
+
+    Ok(headers)
 }
