@@ -429,7 +429,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn test_postgres() {
+    async fn test_postgres_start() {
         let _pool = db_pool().await;
     }
 
