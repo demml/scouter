@@ -19,10 +19,10 @@ pub trait AlertSqlLogic {
     ///
     /// # Arguments
     ///
-    /// * `name` - The name of the service to insert the alert for
-    /// * `space` - The name of the space to insert the alert for
-    /// * `version` - The version of the service to insert the alert for
+    /// * `task_info` - The drift task info containing entity_id
+    /// * `entity_name` - The name of the entity
     /// * `alert` - The alert to insert into the database
+    /// * `drift_type` - The type of drift alert
     ///
     async fn insert_drift_alert(
         pool: &Pool<Postgres>,
@@ -34,9 +34,7 @@ pub trait AlertSqlLogic {
         let query = Queries::InsertDriftAlert.get_query();
 
         let query_result = sqlx::query(&query.sql)
-            .bind(&task_info.name)
-            .bind(&task_info.space)
-            .bind(&task_info.version)
+            .bind(task_info.id)
             .bind(entity_name)
             .bind(serde_json::to_value(alert).unwrap())
             .bind(drift_type.to_string())
@@ -74,9 +72,7 @@ pub trait AlertSqlLogic {
         // convert limit timestamp to string if it exists, leave as None if not
 
         let result: Result<Vec<AlertWrapper>, SqlError> = sqlx::query_as(&query)
-            .bind(&params.version)
-            .bind(&params.name)
-            .bind(&params.space)
+            .bind(params.entity_id)
             .bind(params.limit_datetime)
             .fetch_all(pool)
             .await

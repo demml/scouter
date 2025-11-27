@@ -187,9 +187,7 @@ impl ProfileStatusRequest {
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftAlertRequest {
-    pub name: String,
-    pub space: String,
-    pub version: String,
+    pub uid: String,
     pub limit_datetime: Option<DateTime<Utc>>,
     pub active: Option<bool>,
     pub limit: Option<i32>,
@@ -198,20 +196,15 @@ pub struct DriftAlertRequest {
 #[pymethods]
 impl DriftAlertRequest {
     #[new]
-    #[pyo3(signature = (name, space, version, active=false, limit_datetime=None, limit=None))]
+    #[pyo3(signature = (uid, active=false, limit_datetime=None, limit=None))]
     pub fn new(
-        name: String,
-        space: String,
-        version: String,
+        uid: String,
         active: bool,
         limit_datetime: Option<DateTime<Utc>>,
         limit: Option<i32>,
     ) -> Self {
         DriftAlertRequest {
-            name,
-            space,
-            version,
-            limit_datetime,
+            uid,
             active: Some(active),
             limit,
         }
@@ -237,6 +230,7 @@ pub struct DriftTaskInfo {
     pub space: String,
     pub name: String,
     pub version: String,
+    pub id: i32,
     pub uid: String,
     pub drift_type: DriftType,
 }
@@ -483,6 +477,7 @@ pub struct RegisteredProfileResponse {
     pub space: String,
     pub name: String,
     pub version: String,
+    pub uid: String,
     pub status: String,
     pub active: bool,
 }

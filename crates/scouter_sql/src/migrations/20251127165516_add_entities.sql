@@ -110,6 +110,7 @@ BEGIN
         END IF;
 
         -- Drop Old Columns
+        BEGIN
             EXECUTE format('ALTER TABLE %s DROP COLUMN IF EXISTS space, DROP COLUMN IF EXISTS name, DROP COLUMN IF EXISTS version CASCADE', tbl);
         EXCEPTION WHEN OTHERS THEN
             RAISE NOTICE 'Constraints dropping handled via CASCADE or manual cleanup for %', tbl;

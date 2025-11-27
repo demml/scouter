@@ -93,7 +93,8 @@ pub async fn insert_drift_profile(
     )
     .await
     {
-        Ok(_) => Ok(Json(RegisteredProfileResponse {
+        Ok(entity_uid) => Ok(Json(RegisteredProfileResponse {
+            uid: entity_uid,
             space: base_args.space,
             name: base_args.name,
             version: version.to_string(),

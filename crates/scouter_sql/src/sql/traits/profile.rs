@@ -123,7 +123,7 @@ pub trait ProfileSqlLogic {
     ///
     /// # Returns
     ///
-    /// * `Result<PgQueryResult, SqlError>` - Result of the query
+    /// * `Result<String, SqlError>` - Result of the query returning the entity_uid
     #[instrument(skip_all)]
     async fn insert_drift_profile(
         pool: &Pool<Postgres>,
@@ -132,7 +132,7 @@ pub trait ProfileSqlLogic {
         version: &Version,
         active: &bool,
         deactivate_others: &bool,
-    ) -> Result<PgQueryResult, SqlError> {
+    ) -> Result<String, SqlError> {
         let query = Queries::InsertDriftProfile.get_query();
         let current_time = Utc::now();
         let schedule = Schedule::from_str(&base_args.schedule)?;
@@ -166,9 +166,11 @@ pub trait ProfileSqlLogic {
             .bind(&base_args.schedule)
             .bind(next_run)
             .bind(current_time)
-            .execute(pool)
+            .fetch_one(pool)
             .await
             .map_err(SqlError::SqlxError)?;
+
+        let entity_uid: String = result.get("entity_uid");
 
         // Only want to deactivate other profiles if this one is active and deactivate_others is true
         if *active && *deactivate_others {
@@ -184,14 +186,14 @@ pub trait ProfileSqlLogic {
                 .map_err(SqlError::SqlxError);
 
             match query_result {
-                Ok(_) => Ok(result), // return original result
+                Ok(_) => Ok(entity_uid), // return original result
                 Err(e) => {
                     error!("Failed to deactivate other drift profiles: {:?}", e);
                     Err(e)
                 }
             }
         } else {
-            Ok(result)
+            Ok(entity_uid)
         }
     }
 
