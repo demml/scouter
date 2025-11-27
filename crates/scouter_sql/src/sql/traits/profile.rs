@@ -381,4 +381,23 @@ pub trait ProfileSqlLogic {
             }
         }
     }
+
+    /// Get entity ID from UID
+    /// # Arguments
+    /// * `uid` - The UID of the entity
+    /// # Returns
+    /// * `Result<i32, SqlError>` - Result of the query returning the entity ID
+    async fn get_entity_id_from_uid(pool: &Pool<Postgres>, uid: &str) -> Result<i32, SqlError> {
+        let query = Queries::GetEntityIdFromUid.get_query();
+
+        let result = sqlx::query(&query.sql)
+            .bind(uid)
+            .fetch_one(pool)
+            .await
+            .map_err(SqlError::SqlxError)?;
+
+        let id: i32 = result.get("id");
+
+        Ok(id)
+    }
 }

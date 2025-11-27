@@ -205,6 +205,7 @@ impl DriftAlertRequest {
     ) -> Self {
         DriftAlertRequest {
             uid,
+            limit_datetime,
             active: Some(active),
             limit,
         }

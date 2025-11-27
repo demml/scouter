@@ -30,6 +30,7 @@ flume = { workspace = true }
 metrics = { workspace = true }
 metrics-exporter-prometheus = { workspace = true }
 mimalloc = { workspace = true }
+mini-moka = { workspace = true }
 password-auth = { workspace = true }
 potato-head = { workspace = true }
 rand = { workspace = true }

@@ -56,6 +56,7 @@ pub trait AlertSqlLogic {
     async fn get_drift_alerts(
         pool: &Pool<Postgres>,
         params: &DriftAlertRequest,
+        id: i32,
     ) -> Result<Vec<Alert>, SqlError> {
         let mut query = Queries::GetDriftAlerts.get_query().sql;
 
@@ -69,10 +70,8 @@ pub trait AlertSqlLogic {
             query.push_str(&format!(" LIMIT {limit}"));
         }
 
-        // convert limit timestamp to string if it exists, leave as None if not
-
         let result: Result<Vec<AlertWrapper>, SqlError> = sqlx::query_as(&query)
-            .bind(params.entity_id)
+            .bind(id)
             .bind(params.limit_datetime)
             .fetch_all(pool)
             .await
