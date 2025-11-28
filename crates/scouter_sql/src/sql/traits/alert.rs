@@ -5,7 +5,7 @@ use scouter_types::contracts::{DriftAlertRequest, UpdateAlertStatus};
 
 use crate::sql::error::SqlError;
 use scouter_types::alert::Alert;
-use scouter_types::{DriftTaskInfo, DriftType};
+use scouter_types::DriftType;
 
 use sqlx::{postgres::PgQueryResult, Pool, Postgres};
 use std::collections::BTreeMap;
@@ -26,7 +26,7 @@ pub trait AlertSqlLogic {
     ///
     async fn insert_drift_alert(
         pool: &Pool<Postgres>,
-        task_info: &DriftTaskInfo,
+        entity_id: &i32,
         entity_name: &str,
         alert: &BTreeMap<String, String>,
         drift_type: &DriftType,
@@ -34,7 +34,7 @@ pub trait AlertSqlLogic {
         let query = Queries::InsertDriftAlert.get_query();
 
         let query_result = sqlx::query(&query.sql)
-            .bind(task_info.id)
+            .bind(entity_id)
             .bind(entity_name)
             .bind(serde_json::to_value(alert).unwrap())
             .bind(drift_type.to_string())
@@ -49,6 +49,7 @@ pub trait AlertSqlLogic {
     /// # Arguments
     ///
     /// * `params` - The drift alert request parameters
+    /// * `id` - The entity ID to filter alerts
     ///
     /// # Returns
     ///
@@ -80,6 +81,12 @@ pub trait AlertSqlLogic {
         result.map(|result| result.into_iter().map(|wrapper| wrapper.0).collect())
     }
 
+    /// Update drift alert status in the database
+    ////
+    /// # Arguments
+    ///// * `params` - The update alert status parameters
+    /// # Returns
+    //// * `Result<UpdateAlertResult, SqlError>` - Result of the update operation
     async fn update_drift_alert_status(
         pool: &Pool<Postgres>,
         params: &UpdateAlertStatus,

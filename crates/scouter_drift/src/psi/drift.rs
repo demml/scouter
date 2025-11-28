@@ -184,7 +184,7 @@ pub mod psi_drifter {
         pub async fn check_for_alerts(
             &self,
             db_pool: &Pool<Postgres>,
-            previous_run: DateTime<Utc>,
+            previous_run: &DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             // Check if there are any feature profiles to monitor
             let profiles_to_monitor = self.get_monitored_profiles();
@@ -195,7 +195,7 @@ pub mod psi_drifter {
 
             // Fetch, if any, target feature distributions
             let Some(target_feature_distributions) = self
-                .resolve_target_feature_distributions(&previous_run, db_pool)
+                .resolve_target_feature_distributions(previous_run, db_pool)
                 .await?
             else {
                 return Ok(None);

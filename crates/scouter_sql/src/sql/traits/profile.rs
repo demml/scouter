@@ -10,8 +10,8 @@ use scouter_semver::VersionArgs;
 use scouter_semver::VersionType;
 use scouter_semver::{VersionParser, VersionValidator};
 use scouter_types::{
-    DriftProfile, DriftTaskInfo, GetProfileRequest, ListProfilesRequest, ListedProfile,
-    ProfileArgs, ProfileStatusRequest,
+    DriftProfile, GetProfileRequest, ListProfilesRequest, ListedProfile, ProfileArgs,
+    ProfileStatusRequest,
 };
 use semver::Version;
 use serde_json::Value;
@@ -151,6 +151,7 @@ pub trait ProfileSqlLogic {
         let build: Option<String> = version.build.to_string().parse().ok();
 
         let result = sqlx::query(&query.sql)
+            // Binds $1 through $15 remain the same
             .bind(&base_args.space)
             .bind(&base_args.name)
             .bind(major)
@@ -166,35 +167,13 @@ pub trait ProfileSqlLogic {
             .bind(&base_args.schedule)
             .bind(next_run)
             .bind(current_time)
+            .bind(deactivate_others)
             .fetch_one(pool)
             .await
             .map_err(SqlError::SqlxError)?;
 
         let entity_uid: String = result.get("entity_uid");
-
-        // Only want to deactivate other profiles if this one is active and deactivate_others is true
-        if *active && *deactivate_others {
-            let query = Queries::DeactivateDriftProfiles.get_query();
-
-            let query_result = sqlx::query(&query.sql)
-                .bind(&base_args.name)
-                .bind(&base_args.space)
-                .bind(&base_args.version)
-                .bind(base_args.drift_type.to_string())
-                .execute(pool)
-                .await
-                .map_err(SqlError::SqlxError);
-
-            match query_result {
-                Ok(_) => Ok(entity_uid), // return original result
-                Err(e) => {
-                    error!("Failed to deactivate other drift profiles: {:?}", e);
-                    Err(e)
-                }
-            }
-        } else {
-            Ok(entity_uid)
-        }
+        Ok(entity_uid)
     }
 
     /// Update a drift profile in the database
@@ -209,16 +188,14 @@ pub trait ProfileSqlLogic {
     async fn update_drift_profile(
         pool: &Pool<Postgres>,
         drift_profile: &DriftProfile,
+        entity_id: i32,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::UpdateDriftProfile.get_query();
-        let base_args = drift_profile.get_base_args();
 
         sqlx::query(&query.sql)
             .bind(drift_profile.to_value())
-            .bind(base_args.drift_type.to_string())
-            .bind(base_args.name)
-            .bind(base_args.space)
-            .bind(base_args.version)
+            .bind(drift_profile.drift_type().to_string())
+            .bind(entity_id)
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError)
@@ -234,13 +211,12 @@ pub trait ProfileSqlLogic {
     async fn get_drift_profile(
         pool: &Pool<Postgres>,
         request: &GetProfileRequest,
+        entity_id: i32,
     ) -> Result<Option<Value>, SqlError> {
         let query = Queries::GetDriftProfile.get_query();
 
         let result = sqlx::query(&query.sql)
-            .bind(&request.name)
-            .bind(&request.space)
-            .bind(&request.version)
+            .bind(entity_id)
             .bind(request.drift_type.to_string())
             .fetch_optional(pool)
             .await
@@ -306,7 +282,7 @@ pub trait ProfileSqlLogic {
     #[instrument(skip_all)]
     async fn update_drift_profile_run_dates(
         pool: &Pool<Postgres>,
-        task_info: &DriftTaskInfo,
+        entity_id: &i32,
         schedule: &str,
     ) -> Result<(), SqlError> {
         let query = Queries::UpdateDriftProfileRunDates.get_query();
@@ -322,7 +298,7 @@ pub trait ProfileSqlLogic {
 
         let query_result = sqlx::query(&query.sql)
             .bind(next_run)
-            .bind(&task_info.uid)
+            .bind(entity_id)
             .execute(pool)
             .await
             .map_err(SqlError::SqlxError);

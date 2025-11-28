@@ -214,9 +214,9 @@ impl LLMDrifter {
     pub async fn check_for_alerts(
         &self,
         db_pool: &Pool<Postgres>,
-        previous_run: DateTime<Utc>,
+        previous_run: &DateTime<Utc>,
     ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
-        let metric_map = self.get_metric_map(&previous_run, db_pool).await?;
+        let metric_map = self.get_metric_map(previous_run, db_pool).await?;
 
         match metric_map {
             Some(metric_map) => {

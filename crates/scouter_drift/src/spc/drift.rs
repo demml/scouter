@@ -222,10 +222,10 @@ pub mod spc_drifter {
         pub async fn check_for_alerts(
             &self,
             db_client: &Pool<Postgres>,
-            previous_run: DateTime<Utc>,
+            previous_run: &DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             // Compute drift
-            let (drift_array, keys) = self.compute_drift(&previous_run, db_client).await?;
+            let (drift_array, keys) = self.compute_drift(previous_run, db_client).await?;
 
             // if drift array is empty, return early
             if drift_array.is_empty() {

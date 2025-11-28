@@ -5,9 +5,9 @@ pub mod drift_executor {
     use crate::{custom::CustomDrifter, llm::LLMDrifter, psi::PsiDrifter, spc::SpcDrifter};
     use chrono::{DateTime, Utc};
 
-    use scouter_sql::sql::traits::{AlertSqlLogic, ProfileSqlLogic};
+    use scouter_sql::sql::traits::{profile, AlertSqlLogic, ProfileSqlLogic};
     use scouter_sql::{sql::schema::TaskRequest, PostgresClient};
-    use scouter_types::{DriftProfile, DriftTaskInfo, DriftType};
+    use scouter_types::{drift, DriftProfile, DriftTaskInfo, DriftType};
     use sqlx::{Pool, Postgres};
     use std::collections::BTreeMap;
     use std::result::Result;
@@ -27,7 +27,7 @@ pub mod drift_executor {
         pub async fn check_for_alerts(
             &self,
             db_pool: &Pool<Postgres>,
-            previous_run: DateTime<Utc>,
+            previous_run: &DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             match self {
                 Drifter::SpcDrifter(drifter) => {
@@ -99,7 +99,7 @@ pub mod drift_executor {
         pub async fn _process_task(
             &mut self,
             profile: DriftProfile,
-            previous_run: DateTime<Utc>,
+            previous_run: &DateTime<Utc>,
         ) -> Result<Option<Vec<BTreeMap<String, String>>>, DriftError> {
             // match Drifter enum
 
@@ -119,20 +119,12 @@ pub mod drift_executor {
                 return Ok(None);
             };
 
-            let task_info = DriftTaskInfo {
-                space: task.space.clone(),
-                name: task.name.clone(),
-                version: task.version.clone(),
-                uid: task.uid.clone(),
-                drift_type: DriftType::from_str(&task.drift_type).unwrap(),
-            };
-
             info!(
-                "Processing drift task for profile: {}/{}/{} and type {}",
-                task.space, task.name, task.version, task.drift_type
+                "Processing drift task for profile: {} and type {}",
+                task.uid, task.drift_type
             );
 
-            self.process_task(&task, &task_info).await?;
+            self.process_task(&task).await?;
 
             // Update the run dates while still holding the lock
             PostgresClient::update_drift_profile_run_dates(
@@ -150,24 +142,20 @@ pub mod drift_executor {
         async fn process_task(
             &mut self,
             task: &TaskRequest,
-            task_info: &DriftTaskInfo,
+            //task: &TaskRequest,
+            //task_info: &DriftTaskInfo,
         ) -> Result<(), DriftError> {
-            // get the drift type
-            let drift_type = DriftType::from_str(&task.drift_type).inspect_err(|e| {
-                error!("Error converting drift type: {:?}", e);
-            })?;
-
             // get the drift profile
-            let profile = DriftProfile::from_str(drift_type.clone(), task.profile.clone())
-                .inspect_err(|e| {
+            let profile =
+                DriftProfile::from_str(&task.drift_type, &task.profile).inspect_err(|e| {
                     error!(
                         "Error converting drift profile for type {:?}: {:?}",
-                        drift_type, e
+                        &task.drift_type, e
                     );
                 })?;
 
             // check for alerts
-            match self._process_task(profile, task.previous_run).await {
+            match self._process_task(profile, &task.previous_run).await {
                 Ok(Some(alerts)) => {
                     info!("Drift task processed successfully with alerts");
 
@@ -175,10 +163,10 @@ pub mod drift_executor {
                     for alert in alerts {
                         PostgresClient::insert_drift_alert(
                             &self.db_pool,
-                            task_info,
+                            &task.entity_id,
                             alert.get("entity_name").unwrap_or(&"NA".to_string()),
                             &alert,
-                            &drift_type,
+                            &task.drift_type,
                         )
                         .await
                         .map_err(|e| {

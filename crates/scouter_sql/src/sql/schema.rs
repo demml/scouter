@@ -3,6 +3,7 @@ use chrono::{DateTime, Utc};
 use potato_head::create_uuid7;
 use scouter_types::psi::DistributionData;
 use scouter_types::BoxedLLMDriftServerRecord;
+use scouter_types::DriftType;
 use scouter_types::LLMDriftServerRecord;
 use scouter_types::{
     alert::Alert, get_utc_datetime, psi::FeatureBinProportionResult, BinnedMetric,
@@ -15,6 +16,7 @@ use serde_json::Value;
 use sqlx::{postgres::PgRow, Error, FromRow, Row};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
+use std::str::FromStr;
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct DriftRecord {
@@ -107,11 +109,9 @@ impl<'r> FromRow<'r, PgRow> for AlertWrapper {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TaskRequest {
-    pub name: String,
-    pub space: String,
-    pub version: String,
+    pub entity_id: i32,
     pub profile: String,
-    pub drift_type: String,
+    pub drift_type: DriftType,
     pub previous_run: DateTime<Utc>,
     pub schedule: String,
     pub uid: String,
@@ -120,13 +120,12 @@ pub struct TaskRequest {
 impl<'r> FromRow<'r, PgRow> for TaskRequest {
     fn from_row(row: &'r PgRow) -> Result<Self, Error> {
         let profile: serde_json::Value = row.try_get("profile")?;
+        let drift_type: String = row.try_get("drift_type")?;
 
         Ok(TaskRequest {
-            name: row.try_get("name")?,
-            space: row.try_get("space")?,
-            version: row.try_get("version")?,
+            entity_id: row.try_get("entity_id")?,
             profile: profile.to_string(),
-            drift_type: row.try_get("drift_type")?,
+            drift_type: DriftType::from_str(&drift_type).map_err(|e| Error::Decode(e.into()))?,
             previous_run: row.try_get("previous_run")?,
             schedule: row.try_get("schedule")?,
             uid: row.try_get("uid")?,

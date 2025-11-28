@@ -231,7 +231,6 @@ pub struct DriftTaskInfo {
     pub space: String,
     pub name: String,
     pub version: String,
-    pub id: i32,
     pub uid: String,
     pub drift_type: DriftType,
 }
@@ -247,7 +246,7 @@ pub struct ObservabilityMetricRequest {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct UpdateAlertStatus {
-    pub id: i32,
+    pub id: i32, // this is the unique id for the alert record, not entity_id
     pub active: bool,
     pub space: String,
 }

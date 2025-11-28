@@ -4,4 +4,4 @@ SET previous_run = next_run,
     status       = 'pending',
     processing_started_at = null,
     updated_at   = CURRENT_TIMESTAMP
-WHERE uid= $2
+WHERE entity_id = $2;
