@@ -585,7 +585,7 @@ mod tests {
         assert_eq!(new_args, args);
 
         let profile_str = profile.to_value().to_string();
-        DriftProfile::from_str(DriftType::Spc, profile_str).unwrap();
+        DriftProfile::from_str(&DriftType::Spc, &profile_str).unwrap();
     }
 
     #[test]
