@@ -420,25 +420,6 @@ pub fn llm_drift_metric_from_row(row: &PgRow) -> Result<BoxedLLMDriftServerRecor
     })
 }
 
-pub struct LLMRecordWrapper(pub LLMRecord);
-
-impl<'r> FromRow<'r, PgRow> for LLMRecordWrapper {
-    fn from_row(row: &'r PgRow) -> Result<Self, sqlx::Error> {
-        let llm_record = LLMRecord {
-            uid: row.try_get("uid")?,
-            created_at: row.try_get("created_at")?,
-            space: row.try_get("space")?,
-            name: row.try_get("name")?,
-            version: row.try_get("version")?,
-            context: row.try_get("context")?,
-            prompt: row.try_get("prompt")?,
-            score: row.try_get("score")?,
-            entity_type: EntityType::LLM,
-        };
-        Ok(Self(llm_record))
-    }
-}
-
 #[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
 pub struct VersionResult {
     pub created_at: DateTime<Utc>,

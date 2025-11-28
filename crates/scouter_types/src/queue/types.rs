@@ -364,25 +364,25 @@ impl Metrics {
     }
 }
 
+#[derive(Clone, Serialize, Debug)]
+pub struct LLMTaskRecord {
+    pub uid: String,
+    pub entity_id: String,
+    pub created_at: DateTime<Utc>,
+    pub context: Value,
+    pub score: Value,
+    pub prompt: Option<Value>,
+}
+
 #[pyclass]
 #[derive(Clone, Serialize, Debug)]
 pub struct LLMRecord {
     pub uid: String,
-
-    pub space: String,
-
-    pub name: String,
-
-    pub version: String,
-
+    pub entity_id: String,
     pub created_at: DateTime<Utc>,
-
     pub context: Value,
-
     pub score: Value,
-
     pub prompt: Option<Value>,
-
     #[pyo3(get)]
     pub entity_type: EntityType,
 }

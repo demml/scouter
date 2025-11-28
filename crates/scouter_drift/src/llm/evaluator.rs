@@ -3,7 +3,7 @@ use crate::error::DriftError;
 use potato_head::ResponseLogProbs;
 use potato_head::{calculate_weighted_score, Score, StructuredOutput, TaskStatus, Workflow};
 use scouter_types::llm::LLMDriftProfile;
-use scouter_types::{LLMMetricRecord, LLMRecord};
+use scouter_types::{LLMMetricRecord, LLMRecord, LLMTaskRecord};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;
@@ -108,7 +108,7 @@ impl LLMEvaluator {
 
     #[instrument(skip_all)]
     pub async fn process_drift_record(
-        record: &LLMRecord,
+        record: &LLMTaskRecord,
         profile: &LLMDriftProfile,
     ) -> Result<LLMEvalResult, DriftError> {
         debug!("Processing workflow");

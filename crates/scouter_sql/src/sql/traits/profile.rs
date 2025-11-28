@@ -210,14 +210,14 @@ pub trait ProfileSqlLogic {
     /// # Returns
     async fn get_drift_profile(
         pool: &Pool<Postgres>,
-        request: &GetProfileRequest,
-        entity_id: i32,
+        entity_id: &i32,
+        drift_type: &DriftType,
     ) -> Result<Option<Value>, SqlError> {
         let query = Queries::GetDriftProfile.get_query();
 
         let result = sqlx::query(&query.sql)
             .bind(entity_id)
-            .bind(request.drift_type.to_string())
+            .bind(drift_type.to_string())
             .fetch_optional(pool)
             .await
             .map_err(SqlError::SqlxError)?;

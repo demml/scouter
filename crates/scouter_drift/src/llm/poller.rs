@@ -5,7 +5,7 @@ use potato_head::Score;
 use scouter_sql::sql::traits::{LLMDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::llm::LLMDriftProfile;
-use scouter_types::{DriftType, GetProfileRequest, LLMRecord, Status};
+use scouter_types::{DriftType, GetProfileRequest, LLMRecord, LLMTaskRecord, Status};
 use sqlx::{Pool, Postgres};
 use std::collections::HashMap;
 use std::time::Duration;
@@ -28,7 +28,7 @@ impl LLMPoller {
     #[instrument(skip_all)]
     pub async fn process_drift_record(
         &mut self,
-        record: &LLMRecord,
+        record: &LLMTaskRecord,
         profile: &LLMDriftProfile,
     ) -> Result<(HashMap<String, Score>, Option<i32>), DriftError> {
         debug!("Processing workflow");
@@ -59,21 +59,19 @@ impl LLMPoller {
             return Ok(false);
         };
 
-        info!(
-            "Processing llm drift record for profile: {}/{}/{}",
-            task.space, task.name, task.version
-        );
+        info!("Processing llm drift record for profile: {}", task.uid);
 
         // get get/load profile and reset agents
-        let request = GetProfileRequest {
-            space: task.space.clone(),
-            name: task.name.clone(),
-            version: task.version.clone(),
-            drift_type: DriftType::LLM,
-        };
+        //let request = GetProfileRequest {
+        //    space: task.space.clone(),
+        //    name: task.name.clone(),
+        //    version: task.version.clone(),
+        //    drift_type: DriftType::LLM,
+        //};
 
         let mut llm_profile = if let Some(profile) =
-            PostgresClient::get_drift_profile(&self.db_pool, &request).await?
+            PostgresClient::get_drift_profile(&self.db_pool, &task.entity_id, &DriftType::LLM)
+                .await?
         {
             let llm_profile: LLMDriftProfile =
                 serde_json::from_value(profile).inspect_err(|e| {
@@ -81,10 +79,7 @@ impl LLMPoller {
                 })?;
             llm_profile
         } else {
-            error!(
-                "No LLM drift profile found for {}/{}/{}",
-                task.space, task.name, task.version
-            );
+            error!("No LLM drift profile found for {}", task.uid);
             return Ok(false);
         };
         let mut retry_count = 0;

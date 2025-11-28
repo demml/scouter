@@ -10,7 +10,7 @@ use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::contracts::{DriftRequest, ServiceInfo};
-use scouter_types::LLMRecord;
+use scouter_types::LLMTaskRecord;
 use scouter_types::{
     llm::{PaginationCursor, PaginationRequest, PaginationResponse},
     BinnedMetrics, LLMDriftServerRecord, RecordType,
@@ -401,9 +401,9 @@ pub trait LLMDriftSqlLogic {
     /// Retrieves the next pending LLM drift task from drift_records.
     async fn get_pending_llm_drift_record(
         pool: &Pool<Postgres>,
-    ) -> Result<Option<LLMRecord>, SqlError> {
+    ) -> Result<Option<LLMTaskRecord>, SqlError> {
         let query = Queries::GetPendingLLMDriftTask.get_query();
-        let result: Option<LLMRecordWrapper> = sqlx::query_as(&query.sql)
+        let result: Option<LLMTaskRecord> = sqlx::query_as(&query.sql)
             .fetch_optional(pool)
             .await
             .map_err(SqlError::SqlxError)?;

@@ -1,9 +1,11 @@
 WITH selected_task AS (
     SELECT
         uid,
+        entity_id,
         created_at,
         context,
-        prompt
+        prompt,
+        score
     FROM scouter.llm_drift_record
     WHERE 1=1
         AND status = 'pending'
