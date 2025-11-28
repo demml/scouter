@@ -5,7 +5,7 @@ use crate::sql::helper::get_binned_custom_metric_values_query;
 use crate::storage::ObjectStore;
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
 use arrow_array::array::{Float64Array, StringArray, TimestampNanosecondArray};
-use arrow_array::RecordBatch;
+use arrow_array::{Int32Array, RecordBatch};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use datafusion::dataframe::DataFrame;
@@ -74,9 +74,7 @@ impl CustomMetricDataFrame {
                 DataType::Timestamp(TimeUnit::Nanosecond, None),
                 false,
             ),
-            Field::new("space", DataType::Utf8, false),
-            Field::new("name", DataType::Utf8, false),
-            Field::new("version", DataType::Utf8, false),
+            Field::new("entity_id", DataType::Int32, false),
             Field::new("metric", DataType::Utf8, false),
             Field::new("value", DataType::Float64, false),
         ]));
@@ -98,22 +96,14 @@ impl CustomMetricDataFrame {
                 .iter()
                 .map(|r| r.created_at.timestamp_nanos_opt().unwrap_or_default()),
         );
-
-        let space_array = StringArray::from_iter_values(records.iter().map(|r| r.space.as_str()));
-        let name_array = StringArray::from_iter_values(records.iter().map(|r| r.name.as_str()));
-        let version_array =
-            StringArray::from_iter_values(records.iter().map(|r| r.version.as_str()));
+        let entity_id_array = Int32Array::from_iter_values(records.iter().map(|r| r.entity_id));
         let metric_array = StringArray::from_iter_values(records.iter().map(|r| r.metric.as_str()));
-
         let value_array = Float64Array::from_iter_values(records.iter().map(|r| r.value));
-
         let batch = RecordBatch::try_new(
             self.schema.clone(),
             vec![
                 Arc::new(created_at_array),
-                Arc::new(space_array),
-                Arc::new(name_array),
-                Arc::new(version_array),
+                Arc::new(entity_id_array),
                 Arc::new(metric_array),
                 Arc::new(value_array),
             ],

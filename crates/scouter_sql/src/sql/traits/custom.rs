@@ -1,6 +1,7 @@
 use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
 use crate::sql::schema::BinnedMetricWrapper;
+use crate::sql::traits::EntitySqlLogic;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -15,7 +16,10 @@ use std::collections::HashMap;
 use tracing::{debug, instrument};
 
 #[async_trait]
-pub trait CustomMetricSqlLogic {
+pub trait CustomMetricSqlLogic: EntitySqlLogic {
+    /// Inserts a batch of custom metric values into the database
+    /// - This is an event route, so we need to get the entity_id from the uid
+    #[instrument(skip_all)]
     async fn insert_custom_metric_values_batch(
         pool: &Pool<Postgres>,
         records: &[CustomMetricServerRecord],
@@ -23,6 +27,8 @@ pub trait CustomMetricSqlLogic {
         if records.is_empty() {
             return Err(SqlError::EmptyBatchError);
         }
+
+        let entity_id = PostgresClient::get_entity_id_from_uid(pool, &records[0].uid).await?;
 
         let query = Queries::InsertCustomMetricValuesBatch.get_query();
 

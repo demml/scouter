@@ -5,7 +5,7 @@ use crate::sql::utils::pg_rows_to_server_records;
 use chrono::{DateTime, Utc};
 
 use crate::sql::error::SqlError;
-use scouter_types::{RecordType, ServerRecords};
+use scouter_types::{InternalServerRecords, RecordType, ServerRecords};
 
 use sqlx::{Pool, Postgres};
 
@@ -64,7 +64,7 @@ pub trait ArchiveSqlLogic {
         end_timestamp: &DateTime<Utc>,
         record_type: &RecordType,
         db_pool: &Pool<Postgres>,
-    ) -> Result<ServerRecords, SqlError> {
+    ) -> Result<InternalServerRecords, SqlError> {
         let query = match record_type {
             RecordType::Spc => Queries::GetSpcDataForArchive.get_query(),
             RecordType::Psi => Queries::GetBinCountDataForArchive.get_query(),

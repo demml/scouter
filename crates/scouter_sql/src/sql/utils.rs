@@ -36,12 +36,10 @@ fn psi_record_from_row(row: &PgRow) -> Result<PsiServerRecord, SqlError> {
 }
 
 /// Helper for converting a row to a `ustomMetricServerRecord`.
-fn custom_record_from_row(row: &PgRow) -> Result<CustomMetricServerRecord, SqlError> {
-    Ok(CustomMetricServerRecord {
+fn custom_record_from_row(row: &PgRow) -> Result<CustomMetricInternalRecord, SqlError> {
+    Ok(CustomMetricInternalRecord {
         created_at: row.try_get("created_at")?,
-        name: row.try_get("name")?,
-        space: row.try_get("space")?,
-        version: row.try_get("version")?,
+        entity_id: row.try_get("entity_id")?,
         metric: row.try_get("metric")?,
         value: row.try_get("value")?,
     })
@@ -51,9 +49,7 @@ fn llm_drift_metric_from_row(row: &PgRow) -> Result<LLMMetricRecord, SqlError> {
     Ok(LLMMetricRecord {
         record_uid: row.try_get("record_uid")?,
         created_at: row.try_get("created_at")?,
-        space: row.try_get("space")?,
-        name: row.try_get("name")?,
-        version: row.try_get("version")?,
+        entity_id: row.try_get("entity_id")?,
         metric: row.try_get("metric")?,
         value: row.try_get("value")?,
     })

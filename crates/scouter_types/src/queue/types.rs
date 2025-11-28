@@ -378,7 +378,6 @@ pub struct LLMTaskRecord {
 #[derive(Clone, Serialize, Debug)]
 pub struct LLMRecord {
     pub uid: String,
-    pub entity_id: String,
     pub created_at: DateTime<Utc>,
     pub context: Value,
     pub score: Value,
@@ -430,9 +429,6 @@ impl LLMRecord {
         Ok(LLMRecord {
             uid: create_uuid7(),
             created_at: Utc::now(),
-            space: String::new(),
-            name: String::new(),
-            version: String::new(),
             context: context_val,
             score: Value::Null,
             prompt,
@@ -456,9 +452,6 @@ impl LLMRecord {
             entity_type: EntityType::LLM,
             uid: create_uuid7(),
             created_at: Utc::now(),
-            space: String::new(),
-            name: String::new(),
-            version: String::new(),
             score: Value::Null,
         }
     }

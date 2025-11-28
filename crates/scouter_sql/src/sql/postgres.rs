@@ -261,6 +261,7 @@ mod tests {
     const NAME: &str = "name";
     const VERSION: &str = "1.0.0";
     const SCOPE: &str = "scope";
+    const UID: &str = "test";
 
     fn random_trace_record() -> TraceRecord {
         let mut rng = rand::rng();
@@ -402,7 +403,7 @@ mod tests {
         profile: &DriftProfile,
         active: bool,
         deactivate_others: bool,
-    ) -> PgQueryResult {
+    ) -> String {
         let base_args = profile.get_base_args();
         let version = PostgresClient::get_next_profile_version(
             pool,
@@ -438,23 +439,16 @@ mod tests {
         let pool = db_pool().await;
 
         let timestamp = Utc::now();
+        let entity_id = 9999;
 
         for _ in 0..10 {
-            let task_info = DriftTaskInfo {
-                space: SPACE.to_string(),
-                name: NAME.to_string(),
-                version: VERSION.to_string(),
-                uid: "test".to_string(),
-                drift_type: DriftType::Spc,
-            };
-
             let alert = (0..10)
                 .map(|i| (i.to_string(), i.to_string()))
                 .collect::<BTreeMap<String, String>>();
 
             let result = PostgresClient::insert_drift_alert(
                 &pool,
-                &task_info,
+                &entity_id,
                 "test",
                 &alert,
                 &DriftType::Spc,
@@ -467,45 +461,39 @@ mod tests {
 
         // get alerts
         let alert_request = DriftAlertRequest {
-            space: SPACE.to_string(),
-            name: NAME.to_string(),
-            version: VERSION.to_string(),
+            uid: UID.to_string(),
             active: Some(true),
             limit: None,
             limit_datetime: None,
         };
 
-        let alerts = PostgresClient::get_drift_alerts(&pool, &alert_request)
+        let alerts = PostgresClient::get_drift_alerts(&pool, &alert_request, &entity_id)
             .await
             .unwrap();
         assert!(alerts.len() > 5);
 
         // get alerts limit 1
         let alert_request = DriftAlertRequest {
-            space: SPACE.to_string(),
-            name: NAME.to_string(),
-            version: VERSION.to_string(),
+            uid: UID.to_string(),
             active: Some(true),
             limit: Some(1),
             limit_datetime: None,
         };
 
-        let alerts = PostgresClient::get_drift_alerts(&pool, &alert_request)
+        let alerts = PostgresClient::get_drift_alerts(&pool, &alert_request, &entity_id)
             .await
             .unwrap();
         assert_eq!(alerts.len(), 1);
 
         // get alerts limit timestamp
         let alert_request = DriftAlertRequest {
-            space: SPACE.to_string(),
-            name: NAME.to_string(),
-            version: VERSION.to_string(),
+            uid: UID.to_string(),
             active: Some(true),
             limit: None,
             limit_datetime: Some(timestamp),
         };
 
-        let alerts = PostgresClient::get_drift_alerts(&pool, &alert_request)
+        let alerts = PostgresClient::get_drift_alerts(&pool, &alert_request, &entity_id)
             .await
             .unwrap();
         assert!(alerts.len() > 5);
@@ -591,29 +579,28 @@ mod tests {
         let mut spc_profile = SpcDriftProfile::default();
         let profile = DriftProfile::Spc(spc_profile.clone());
 
-        let result = insert_profile_to_db(&pool, &profile, false, false).await;
-        assert_eq!(result.rows_affected(), 1);
+        let uid = insert_profile_to_db(&pool, &profile, false, false).await;
+        assert!(!uid.is_empty());
+
+        let entity_id = PostgresClient::get_entity_id_from_uid(&pool, &uid)
+            .await
+            .unwrap();
 
         spc_profile.scouter_version = "test".to_string();
 
-        let result =
-            PostgresClient::update_drift_profile(&pool, &DriftProfile::Spc(spc_profile.clone()))
-                .await
-                .unwrap();
-
-        assert_eq!(result.rows_affected(), 1);
-
-        let profile = PostgresClient::get_drift_profile(
+        let result = PostgresClient::update_drift_profile(
             &pool,
-            &GetProfileRequest {
-                name: spc_profile.config.name.clone(),
-                space: spc_profile.config.space.clone(),
-                version: spc_profile.config.version.clone(),
-                drift_type: DriftType::Spc,
-            },
+            &DriftProfile::Spc(spc_profile.clone()),
+            &entity_id,
         )
         .await
         .unwrap();
+
+        assert_eq!(result.rows_affected(), 1);
+
+        let profile = PostgresClient::get_drift_profile(&pool, &entity_id, &DriftType::Spc)
+            .await
+            .unwrap();
 
         let deserialized = serde_json::from_value::<SpcDriftProfile>(profile.unwrap()).unwrap();
 
@@ -817,9 +804,7 @@ mod tests {
             for j in 0..25 {
                 let record = CustomMetricServerRecord {
                     created_at: Utc::now() + chrono::Duration::microseconds(j as i64),
-                    space: SPACE.to_string(),
-                    name: NAME.to_string(),
-                    version: VERSION.to_string(),
+                    uid: UID.to_string(),
                     metric: format!("metric{i}"),
                     value: rand::rng().random_range(0..10) as f64,
                 };
@@ -834,9 +819,7 @@ mod tests {
         // insert random record to test has statistics funcs handle single record
         let record = CustomMetricServerRecord {
             created_at: Utc::now(),
-            space: SPACE.to_string(),
-            name: NAME.to_string(),
-            version: VERSION.to_string(),
+            uid: UID.to_string(),
             metric: "metric3".to_string(),
             value: rand::rng().random_range(0..10) as f64,
         };

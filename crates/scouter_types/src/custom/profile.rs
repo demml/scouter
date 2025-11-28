@@ -32,6 +32,9 @@ pub struct CustomMetricDriftConfig {
     pub version: String,
 
     #[pyo3(get, set)]
+    pub uid: String,
+
+    #[pyo3(get, set)]
     pub alert_config: CustomMetricAlertConfig,
 
     #[pyo3(get, set)]
@@ -77,6 +80,7 @@ impl CustomMetricDriftConfig {
             space: space.to_string(),
             name: name.to_string(),
             version: version.to_string(),
+            uid: MISSING.to_string(),
             alert_config,
             drift_type: DriftType::Custom,
         })

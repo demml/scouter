@@ -1,4 +1,4 @@
-SELECT 
+SELECT
     entity_id,
     MIN(created_at) as begin_timestamp,
     MAX(created_at) as end_timestamp
