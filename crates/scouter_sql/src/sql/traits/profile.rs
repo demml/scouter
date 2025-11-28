@@ -376,4 +376,27 @@ pub trait ProfileSqlLogic {
 
         Ok(id)
     }
+
+    async fn get_entity_id_from_space_name_version_drift_type(
+        pool: &Pool<Postgres>,
+        space: &str,
+        name: &str,
+        version: &str,
+        drift_type: &str,
+    ) -> Result<i32, SqlError> {
+        let query = Queries::GetEntityIdFromSpaceNameVersionDriftType.get_query();
+
+        let result = sqlx::query(&query.sql)
+            .bind(space)
+            .bind(name)
+            .bind(version)
+            .bind(drift_type)
+            .fetch_one(pool)
+            .await
+            .map_err(SqlError::SqlxError)?;
+
+        let id: i32 = result.get("id");
+
+        Ok(id)
+    }
 }

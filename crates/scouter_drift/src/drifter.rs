@@ -5,14 +5,14 @@ pub mod drift_executor {
     use crate::{custom::CustomDrifter, llm::LLMDrifter, psi::PsiDrifter, spc::SpcDrifter};
     use chrono::{DateTime, Utc};
 
-    use scouter_sql::sql::traits::{profile, AlertSqlLogic, ProfileSqlLogic};
+    use scouter_sql::sql::traits::{AlertSqlLogic, ProfileSqlLogic};
     use scouter_sql::{sql::schema::TaskRequest, PostgresClient};
-    use scouter_types::{drift, DriftProfile, DriftTaskInfo, DriftType};
+    use scouter_types::DriftProfile;
     use sqlx::{Pool, Postgres};
     use std::collections::BTreeMap;
     use std::result::Result;
     use std::result::Result::Ok;
-    use std::str::FromStr;
+
     use tracing::{debug, error, info, instrument, span, Instrument, Level};
 
     #[allow(clippy::enum_variant_names)]
@@ -129,7 +129,7 @@ pub mod drift_executor {
             // Update the run dates while still holding the lock
             PostgresClient::update_drift_profile_run_dates(
                 &self.db_pool,
-                &task_info,
+                &task.entity_id,
                 &task.schedule,
             )
             .instrument(span!(Level::INFO, "Update Run Dates"))
@@ -219,7 +219,7 @@ pub mod drift_executor {
             spc::{SpcAlertConfig, SpcAlertRule, SpcDriftConfig, SpcDriftProfile},
             AlertDispatchConfig, DriftAlertRequest,
         };
-        use scouter_types::{CommonCrons, ProfileArgs};
+        use scouter_types::{CommonCrons, DriftType, ProfileArgs};
         use semver::Version;
         use sqlx::{postgres::Postgres, Pool};
         use std::collections::HashMap;
@@ -354,14 +354,22 @@ pub mod drift_executor {
 
             // get alerts from db
             let request = DriftAlertRequest {
-                space: "statworld".to_string(),
-                name: "test_app".to_string(),
-                version: "0.1.0".to_string(),
                 limit_datetime: None,
                 active: None,
                 limit: None,
+                uid: "statworld|test_app|0.1.0|spc".to_string(),
             };
-            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request)
+            let entity_id = PostgresClient::get_entity_id_from_space_name_version_drift_type(
+                &db_pool,
+                "statworld",
+                "test_app",
+                "0.1.0",
+                &DriftType::Spc.to_string(),
+            )
+            .await
+            .unwrap();
+
+            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request, &entity_id)
                 .await
                 .unwrap();
             assert!(!alerts.is_empty());
@@ -391,14 +399,23 @@ pub mod drift_executor {
 
             // get alerts from db
             let request = DriftAlertRequest {
-                space: "statworld".to_string(),
-                name: "test_app".to_string(),
-                version: "0.1.0".to_string(),
+                uid: "statworld|test_app|0.1.0|spc".to_string(),
                 limit_datetime: None,
                 active: None,
                 limit: None,
             };
-            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request)
+
+            let entity_id = PostgresClient::get_entity_id_from_space_name_version_drift_type(
+                &db_pool,
+                "statworld",
+                "test_app",
+                "0.1.0",
+                &DriftType::Spc.to_string(),
+            )
+            .await
+            .unwrap();
+
+            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request, &entity_id)
                 .await
                 .unwrap();
 
@@ -435,14 +452,23 @@ pub mod drift_executor {
 
             // get alerts from db
             let request = DriftAlertRequest {
-                space: "scouter".to_string(),
-                name: "model".to_string(),
-                version: "0.1.0".to_string(),
+                uid: "scouter|model|0.1.0|spc".to_string(),
                 limit_datetime: None,
                 active: None,
                 limit: None,
             };
-            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request)
+
+            let entity_id = PostgresClient::get_entity_id_from_space_name_version_drift_type(
+                &db_pool,
+                "scouter",
+                "model",
+                "0.1.0",
+                &DriftType::Psi.to_string(),
+            )
+            .await
+            .unwrap();
+
+            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request, &entity_id)
                 .await
                 .unwrap();
 
@@ -491,14 +517,23 @@ pub mod drift_executor {
 
             // get alerts from db
             let request = DriftAlertRequest {
-                space: "scouter".to_string(),
-                name: "model".to_string(),
-                version: "0.1.0".to_string(),
+                uid: "scouter|model|0.1.0|spc".to_string(),
                 limit_datetime: None,
                 active: None,
                 limit: None,
             };
-            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request)
+
+            let entity_id = PostgresClient::get_entity_id_from_space_name_version_drift_type(
+                &db_pool,
+                "scouter",
+                "model",
+                "0.1.0",
+                &DriftType::Psi.to_string(),
+            )
+            .await
+            .unwrap();
+
+            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request, &entity_id)
                 .await
                 .unwrap();
 
@@ -527,14 +562,23 @@ pub mod drift_executor {
 
             // get alerts from db
             let request = DriftAlertRequest {
-                space: "scouter".to_string(),
-                name: "model".to_string(),
-                version: "0.1.0".to_string(),
+                uid: "scouter|model|0.1.0|custom".to_string(),
                 limit_datetime: None,
                 active: None,
                 limit: None,
             };
-            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request)
+
+            let entity_id = PostgresClient::get_entity_id_from_space_name_version_drift_type(
+                &db_pool,
+                "scouter",
+                "model",
+                "0.1.0",
+                &DriftType::Custom.to_string(),
+            )
+            .await
+            .unwrap();
+
+            let alerts = PostgresClient::get_drift_alerts(&db_pool, &request, &entity_id)
                 .await
                 .unwrap();
 

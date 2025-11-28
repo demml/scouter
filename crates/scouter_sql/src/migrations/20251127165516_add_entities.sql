@@ -18,31 +18,16 @@ CREATE TABLE IF NOT EXISTS scouter.entities (
     space TEXT NOT NULL,
     name TEXT NOT NULL,
     version TEXT NOT NULL,
+    drift_type TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE (space, name, version)
+    UNIQUE (space, name, version, drift_type)
 );
 
-CREATE INDEX idx_entities_lookup ON scouter.entities (space, name, version);
+CREATE INDEX idx_entities_lookup ON scouter.entities (space, name, version, drift_type);
 
-INSERT INTO scouter.entities (space, name, version)
-SELECT DISTINCT space, name, version FROM scouter.drift_profile
-UNION
-SELECT DISTINCT space, name, version FROM scouter.traces
-UNION
-SELECT DISTINCT space, name, version FROM scouter.spans
-UNION
-SELECT DISTINCT space, name, version FROM scouter.observability_metric
-UNION
-SELECT DISTINCT space, name, version FROM scouter.llm_drift
-UNION
-SELECT DISTINCT space, name, version FROM scouter.psi_drift
-UNION
-SELECT DISTINCT space, name, version FROM scouter.custom_drift
-UNION
-SELECT DISTINCT space, name, version FROM scouter.spc_drift
-UNION
-SELECT DISTINCT space, name, version FROM scouter.drift_alert
-ON CONFLICT (space, name, version) DO NOTHING;
+INSERT INTO scouter.entities (space, name, version, drift_type)
+SELECT DISTINCT space, name, version, drift_type FROM scouter.drift_profile
+ON CONFLICT (space, name, version, drift_type) DO NOTHING;
 
 
 UPDATE scouter.entities e

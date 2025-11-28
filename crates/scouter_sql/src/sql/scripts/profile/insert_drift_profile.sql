@@ -1,9 +1,9 @@
 -- Combined INSERT and DEACTIVATION (Queries::InsertDriftProfile)
 WITH entity_insert AS (
     -- 1. Get/Create the Entity ID
-    INSERT INTO scouter.entities (space, name, version)
-    VALUES ($1, $2, $8)
-    ON CONFLICT (space, name, version) 
+    INSERT INTO scouter.entities (space, name, version, drift_type)
+    VALUES ($1, $2, $8, $11)
+    ON CONFLICT (space, name, version, drift_type) 
     DO UPDATE SET space = EXCLUDED.space
     RETURNING id, uid
 ),
@@ -12,7 +12,7 @@ deactivate_older AS (
     -- This block only executes if the active flag is true and deactivate_others is true
     SELECT 1 AS status
     FROM scouter.entities e_current
-    WHERE e_current.space = $1 AND e_current.name = $2 
+    WHERE e_current.space = $1 AND e_current.name = $2
     AND $12 IS TRUE AND $16 IS TRUE -- Conditional execution logic
     LIMIT 1 -- Only need to execute this once
 ),

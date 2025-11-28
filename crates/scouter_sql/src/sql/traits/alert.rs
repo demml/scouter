@@ -57,7 +57,7 @@ pub trait AlertSqlLogic {
     async fn get_drift_alerts(
         pool: &Pool<Postgres>,
         params: &DriftAlertRequest,
-        id: i32,
+        entity_id: &i32,
     ) -> Result<Vec<Alert>, SqlError> {
         let mut query = Queries::GetDriftAlerts.get_query().sql;
 
@@ -72,7 +72,7 @@ pub trait AlertSqlLogic {
         }
 
         let result: Result<Vec<AlertWrapper>, SqlError> = sqlx::query_as(&query)
-            .bind(id)
+            .bind(entity_id)
             .bind(params.limit_datetime)
             .fetch_all(pool)
             .await
