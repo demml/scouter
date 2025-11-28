@@ -30,7 +30,9 @@ pub async fn get_drift_alerts(
     State(data): State<Arc<AppState>>,
     Query(params): Query<DriftAlertRequest>,
 ) -> Result<Json<Alerts>, (StatusCode, Json<ScouterServerError>)> {
-    let alerts = PostgresClient::get_drift_alerts(&data.db_pool, &params)
+    let entity_id = data.get_entity_id_for_request(&params.uid).await?;
+
+    let alerts = PostgresClient::get_drift_alerts(&data.db_pool, &params, &entity_id)
         .await
         .map_err(|e| {
             error!("Failed to query drift alerts: {:?}", e);
