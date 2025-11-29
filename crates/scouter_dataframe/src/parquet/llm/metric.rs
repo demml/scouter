@@ -4,14 +4,14 @@ use crate::parquet::types::BinnedTableName;
 use crate::sql::helper::get_binned_llm_metric_values_query;
 use crate::storage::ObjectStore;
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
-use arrow_array::array::{Float64Array, StringArray, TimestampNanosecondArray};
+use arrow_array::array::{Float64Array, Int32Array, StringArray, TimestampNanosecondArray};
 use arrow_array::RecordBatch;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::{LLMMetricRecord, ServerRecords, StorageType, ToDriftRecords};
+use scouter_types::{InternalServerRecords, LLMMetricInternalRecord, StorageType, ToDriftRecords};
 use std::sync::Arc;
 
 pub struct LLMMetricDataFrame {
@@ -25,7 +25,10 @@ impl ParquetFrame for LLMMetricDataFrame {
         LLMMetricDataFrame::new(storage_settings)
     }
 
-    async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError> {
+    async fn get_dataframe(
+        &self,
+        records: InternalServerRecords,
+    ) -> Result<DataFrame, DataFrameError> {
         let records = records.to_llm_metric_records()?;
         let batch = self.build_batch(records)?;
 
@@ -53,11 +56,9 @@ impl ParquetFrame for LLMMetricDataFrame {
         bin: &f64,
         start_time: &DateTime<Utc>,
         end_time: &DateTime<Utc>,
-        space: &str,
-        name: &str,
-        version: &str,
+        entity_id: &i32,
     ) -> String {
-        get_binned_llm_metric_values_query(bin, start_time, end_time, space, name, version)
+        get_binned_llm_metric_values_query(bin, start_time, end_time, entity_id)
     }
 
     fn table_name(&self) -> String {
@@ -74,11 +75,9 @@ impl LLMMetricDataFrame {
                 false,
             ),
             Field::new("record_uid", DataType::Utf8, false),
-            Field::new("space", DataType::Utf8, false),
-            Field::new("name", DataType::Utf8, false),
-            Field::new("version", DataType::Utf8, false),
             Field::new("metric", DataType::Utf8, false),
             Field::new("value", DataType::Float64, false),
+            Field::new("entity_id", DataType::Int32, false),
         ]));
 
         let object_store = ObjectStore::new(storage_settings)?;
@@ -89,7 +88,10 @@ impl LLMMetricDataFrame {
         })
     }
 
-    fn build_batch(&self, records: Vec<LLMMetricRecord>) -> Result<RecordBatch, DataFrameError> {
+    fn build_batch(
+        &self,
+        records: Vec<LLMMetricInternalRecord>,
+    ) -> Result<RecordBatch, DataFrameError> {
         let created_at_array = TimestampNanosecondArray::from_iter_values(
             records
                 .iter()
@@ -97,10 +99,7 @@ impl LLMMetricDataFrame {
         );
         let record_uid_array =
             StringArray::from_iter_values(records.iter().map(|r| r.record_uid.as_str()));
-        let space_array = StringArray::from_iter_values(records.iter().map(|r| r.space.as_str()));
-        let name_array = StringArray::from_iter_values(records.iter().map(|r| r.name.as_str()));
-        let version_array =
-            StringArray::from_iter_values(records.iter().map(|r| r.version.as_str()));
+        let entity_id_array = Int32Array::from_iter_values(records.iter().map(|r| r.entity_id));
         let metric_array = StringArray::from_iter_values(records.iter().map(|r| r.metric.as_str()));
 
         let value_array = Float64Array::from_iter_values(records.iter().map(|r| r.value));
@@ -110,11 +109,9 @@ impl LLMMetricDataFrame {
             vec![
                 Arc::new(created_at_array),
                 Arc::new(record_uid_array),
-                Arc::new(space_array),
-                Arc::new(name_array),
-                Arc::new(version_array),
                 Arc::new(metric_array),
                 Arc::new(value_array),
+                Arc::new(entity_id_array),
             ],
         )?;
 

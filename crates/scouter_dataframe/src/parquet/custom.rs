@@ -59,11 +59,9 @@ impl ParquetFrame for CustomMetricDataFrame {
         bin: &f64,
         start_time: &DateTime<Utc>,
         end_time: &DateTime<Utc>,
-        space: &str,
-        name: &str,
-        version: &str,
+        entity_id: &i32,
     ) -> String {
-        get_binned_custom_metric_values_query(bin, start_time, end_time, space, name, version)
+        get_binned_custom_metric_values_query(bin, start_time, end_time, entity_id)
     }
 
     fn table_name(&self) -> String {

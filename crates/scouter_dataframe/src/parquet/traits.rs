@@ -85,9 +85,7 @@ pub trait ParquetFrame {
         bin: &f64,
         start_time: &DateTime<Utc>,
         end_time: &DateTime<Utc>,
-        space: &str,
-        name: &str,
-        version: &str,
+        entity_id: &i32,
     ) -> String;
 
     /// Load storage files into parquet table for querying
@@ -154,14 +152,11 @@ pub trait ParquetFrame {
         bin: &f64,
         start_time: &DateTime<Utc>,
         end_time: &DateTime<Utc>,
-        space: &str,
-        name: &str,
-        version: &str,
+        entity_id: &i32,
     ) -> Result<DataFrame, DataFrameError> {
         // Register the data at path
         let ctx = self.register_table(path, &self.table_name()).await?;
-        let sql = self.get_binned_sql(bin, start_time, end_time, space, name, version);
-
+        let sql = self.get_binned_sql(bin, start_time, end_time, entity_id);
         let df = ctx.sql(&sql).await?;
 
         Ok(df)
