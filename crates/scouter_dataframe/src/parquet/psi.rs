@@ -9,15 +9,16 @@ use arrow_array::array::{
     ListArray, StringArray, StructArray, TimestampNanosecondArray, UInt64Array,
 };
 use arrow_array::types::{Float32Type, UInt64Type};
-use arrow_array::Array;
 use arrow_array::RecordBatch;
+use arrow_array::{Array, Int32Array};
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
 use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{
-    psi::FeatureBinProportionResult, PsiServerRecord, ServerRecords, StorageType, ToDriftRecords,
+    psi::FeatureBinProportionResult, InternalServerRecords, PsiInternalRecord, StorageType,
+    ToDriftRecords,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -34,7 +35,10 @@ impl ParquetFrame for PsiDataFrame {
         PsiDataFrame::new(storage_settings)
     }
 
-    async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError> {
+    async fn get_dataframe(
+        &self,
+        records: InternalServerRecords,
+    ) -> Result<DataFrame, DataFrameError> {
         let records = records.to_psi_drift_records()?;
         let batch = self.build_batch(records)?;
 
@@ -81,9 +85,7 @@ impl PsiDataFrame {
                 DataType::Timestamp(TimeUnit::Nanosecond, None),
                 false,
             ),
-            Field::new("space", DataType::Utf8, false),
-            Field::new("name", DataType::Utf8, false),
-            Field::new("version", DataType::Utf8, false),
+            Field::new("entity_id", DataType::Int32, false),
             Field::new("feature", DataType::Utf8, false),
             Field::new("bin_id", DataType::UInt64, false),
             Field::new("bin_count", DataType::UInt64, false),
@@ -98,17 +100,14 @@ impl PsiDataFrame {
     }
 
     /// Create and arrow RecordBatch from the given records
-    fn build_batch(&self, records: Vec<PsiServerRecord>) -> Result<RecordBatch, DataFrameError> {
+    fn build_batch(&self, records: Vec<PsiInternalRecord>) -> Result<RecordBatch, DataFrameError> {
         let created_at_array = TimestampNanosecondArray::from_iter_values(
             records
                 .iter()
                 .map(|r| r.created_at.timestamp_nanos_opt().unwrap_or_default()),
         );
 
-        let space_array = StringArray::from_iter_values(records.iter().map(|r| r.space.as_str()));
-        let name_array = StringArray::from_iter_values(records.iter().map(|r| r.name.as_str()));
-        let version_array =
-            StringArray::from_iter_values(records.iter().map(|r| r.version.as_str()));
+        let entity_id_array = Int32Array::from_iter_values(records.iter().map(|r| r.entity_id));
         let feature_array =
             StringArray::from_iter_values(records.iter().map(|r| r.feature.as_str()));
 
@@ -120,9 +119,7 @@ impl PsiDataFrame {
             self.schema.clone(),
             vec![
                 Arc::new(created_at_array),
-                Arc::new(space_array),
-                Arc::new(name_array),
-                Arc::new(version_array),
+                Arc::new(entity_id_array),
                 Arc::new(feature_array),
                 Arc::new(bin_id_array),
                 Arc::new(bin_count_array),
