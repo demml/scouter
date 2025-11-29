@@ -18,7 +18,6 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use tracing::debug;
 
 /// Python class for a monitoring profile
 ///
@@ -92,6 +91,9 @@ pub struct SpcDriftConfig {
     pub version: String,
 
     #[pyo3(get, set)]
+    pub uid: String,
+
+    #[pyo3(get, set)]
     pub alert_config: SpcAlertConfig,
 
     #[pyo3(get)]
@@ -110,6 +112,7 @@ impl Default for SpcDriftConfig {
             sample: true,
             space: MISSING.to_string(),
             name: MISSING.to_string(),
+            uid: MISSING.to_string(),
             version: DEFAULT_VERSION.to_string(),
             alert_config: SpcAlertConfig::default(),
             feature_map: FeatureMap::default(),
@@ -126,11 +129,11 @@ fn default_drift_type() -> DriftType {
 #[allow(clippy::too_many_arguments)]
 impl SpcDriftConfig {
     #[new]
-    #[pyo3(signature = (space=None, name=None, version=None, sample=None, sample_size=None, alert_config=None, config_path=None))]
+    #[pyo3(signature = (space=MISSING, name=MISSING, version=DEFAULT_VERSION, sample=None, sample_size=None, alert_config=None, config_path=None))]
     pub fn new(
-        space: Option<String>,
-        name: Option<String>,
-        version: Option<String>,
+        space: &str,
+        name: &str,
+        version: &str,
         sample: Option<bool>,
         sample_size: Option<usize>,
         alert_config: Option<SpcAlertConfig>,
@@ -141,24 +144,17 @@ impl SpcDriftConfig {
             return config;
         }
 
-        let name = name.unwrap_or(MISSING.to_string());
-        let space = space.unwrap_or(MISSING.to_string());
-
-        if name == MISSING || space == MISSING {
-            debug!("Name and space were not provided. Defaulting to __missing__");
-        }
-
         let sample = sample.unwrap_or(true);
         let sample_size = sample_size.unwrap_or(25);
-        let version = version.unwrap_or("0.1.0".to_string());
         let alert_config = alert_config.unwrap_or_default();
 
         Ok(Self {
             sample_size,
             sample,
-            name,
-            space,
-            version,
+            name: name.to_string(),
+            space: space.to_string(),
+            version: version.to_string(),
+            uid: MISSING.to_string(),
             alert_config,
             feature_map: FeatureMap::default(),
             drift_type: DriftType::Spc,
@@ -419,7 +415,7 @@ mod tests {
     #[test]
     fn test_drift_config() {
         let mut drift_config =
-            SpcDriftConfig::new(None, None, None, None, None, None, None).unwrap();
+            SpcDriftConfig::new(MISSING, MISSING, DEFAULT_VERSION, None, None, None, None).unwrap();
         assert_eq!(drift_config.sample_size, 25);
         assert!(drift_config.sample);
         assert_eq!(drift_config.name, "__missing__");

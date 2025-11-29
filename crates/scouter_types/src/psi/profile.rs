@@ -43,6 +43,9 @@ pub struct PsiDriftConfig {
     #[pyo3(get, set)]
     pub version: String,
 
+    #[pyo3(get)]
+    pub uid: String,
+
     #[pyo3(get, set)]
     pub alert_config: PsiAlertConfig,
 
@@ -102,8 +105,6 @@ impl PsiDriftConfig {
             }
         };
 
-        println!("{binning_strategy:#?}");
-
         if name == MISSING || space == MISSING {
             debug!("Name and space were not provided. Defaulting to __missing__");
         }
@@ -112,6 +113,7 @@ impl PsiDriftConfig {
             name: name.to_string(),
             space: space.to_string(),
             version: version.to_string(),
+            uid: MISSING.to_string(),
             alert_config,
             categorical_features,
             feature_map: FeatureMap::default(),
@@ -211,6 +213,7 @@ impl Default for PsiDriftConfig {
             name: "__missing__".to_string(),
             space: "__missing__".to_string(),
             version: DEFAULT_VERSION.to_string(),
+            uid: MISSING.to_string(),
             feature_map: FeatureMap::default(),
             alert_config: PsiAlertConfig::default(),
             drift_type: DriftType::Psi,
