@@ -1,14 +1,14 @@
 -- Combined INSERT and DEACTIVATION (Queries::InsertDriftProfile)
 WITH entity_insert AS (
-    -- 1. Get/Create the Entity ID
+    -- Get/Create the Entity ID
     INSERT INTO scouter.entities (space, name, version, drift_type)
     VALUES ($1, $2, $8, $11)
-    ON CONFLICT (space, name, version, drift_type) 
+    ON CONFLICT (space, name, version, drift_type)
     DO UPDATE SET space = EXCLUDED.space
     RETURNING id, uid
 ),
 deactivate_older AS (
-    -- 2. Deactivate existing profiles if required ($12=active, $16=deactivate_others)
+    -- Deactivate existing profiles if required ($12=active, $16=deactivate_others)
     -- This block only executes if the active flag is true and deactivate_others is true
     SELECT 1 AS status
     FROM scouter.entities e_current
@@ -17,13 +17,13 @@ deactivate_older AS (
     LIMIT 1 -- Only need to execute this once
 ),
 deactivation_update AS (
-    -- 3. Perform the mass update if conditions are met
+    -- Perform mass update if conditions are met
     UPDATE scouter.drift_profile dp
     SET active = FALSE,
         updated_at = CURRENT_TIMESTAMP
     FROM entity_insert ei, deactivate_older d
     WHERE dp.entity_id IN (
-        -- Select all entity IDs matching the space/name of the new entity, 
+        -- Select all entity IDs matching the space/name of the new entity,
         -- but excluding the new specific version's ID (which may not exist yet)
         SELECT id FROM scouter.entities e_siblings
         WHERE e_siblings.space = $1
@@ -54,7 +54,7 @@ INSERT INTO scouter.drift_profile (
     created_at,
     updated_at
 )
-SELECT 
+SELECT
     entity_insert.uid,
     entity_insert.id,
     $3,

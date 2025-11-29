@@ -10,8 +10,7 @@ use scouter_semver::VersionArgs;
 use scouter_semver::VersionType;
 use scouter_semver::{VersionParser, VersionValidator};
 use scouter_types::{
-    DriftProfile, GetProfileRequest, ListProfilesRequest, ListedProfile, ProfileArgs,
-    ProfileStatusRequest,
+    DriftProfile, DriftType, ListProfilesRequest, ListedProfile, ProfileArgs, ProfileStatusRequest,
 };
 use semver::Version;
 use serde_json::Value;
@@ -68,6 +67,14 @@ pub fn add_version_bounds(builder: &mut String, version: &str) -> Result<(), Sql
 #[async_trait]
 pub trait ProfileSqlLogic {
     /// Get profile versions
+    /// Determines the next version based on existing versions in the database
+    /// # Arguments
+    /// * `args` - The profile arguments containing space, name, and version
+    /// * `version_type` - The type of version bump (major, minor, patch)
+    /// * `pre_tag` - Optional pre-release tag
+    /// * `build_tag` - Optional build metadata
+    /// # Returns
+    /// * `Result<Version, SqlError>` - Result of the query returning
     #[instrument(skip_all)]
     async fn get_next_profile_version(
         pool: &Pool<Postgres>,
@@ -151,7 +158,6 @@ pub trait ProfileSqlLogic {
         let build: Option<String> = version.build.to_string().parse().ok();
 
         let result = sqlx::query(&query.sql)
-            // Binds $1 through $15 remain the same
             .bind(&base_args.space)
             .bind(&base_args.name)
             .bind(major)
