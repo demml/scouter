@@ -1,6 +1,7 @@
 use crate::sql::query::Queries;
 use crate::sql::schema::FeatureBinProportionResultWrapper;
 use crate::sql::schema::FeatureDistributionWrapper;
+use crate::sql::traits::entity;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -11,7 +12,7 @@ use itertools::multiunzip;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::psi::FeatureDistributions;
 use scouter_types::{
-    psi::FeatureBinProportionResult, DriftRequest, PsiServerRecord, RecordType, ServiceInfo,
+    psi::FeatureBinProportionResult, DriftRequest, PsiRecord, RecordType, ServiceInfo,
 };
 use sqlx::{postgres::PgQueryResult, Pool, Postgres};
 use std::collections::BTreeMap;
@@ -29,7 +30,8 @@ pub trait PsiSqlLogic {
     /// * A result containing the query result or an error
     async fn insert_bin_counts_batch(
         pool: &Pool<Postgres>,
-        records: &[PsiServerRecord],
+        records: &[PsiRecord],
+        entity_id: i32,
     ) -> Result<PgQueryResult, SqlError> {
         if records.is_empty() {
             return Err(SqlError::EmptyBatchError);
@@ -37,20 +39,16 @@ pub trait PsiSqlLogic {
 
         let query = Queries::InsertBinCountsBatch.get_query();
 
-        let (created_ats, names, spaces, versions, features, bin_ids, bin_counts): (
+        let (created_ats, entity_ids, features, bin_ids, bin_counts): (
             Vec<DateTime<Utc>>,
-            Vec<&str>,
-            Vec<&str>,
-            Vec<&str>,
+            Vec<i32>,
             Vec<&str>,
             Vec<i64>,
             Vec<i64>,
         ) = multiunzip(records.iter().map(|r| {
             (
                 r.created_at,
-                r.name.as_str(),
-                r.space.as_str(),
-                r.version.as_str(),
+                entity_id,
                 r.feature.as_str(),
                 r.bin_id as i64,
                 r.bin_count as i64,
@@ -59,9 +57,7 @@ pub trait PsiSqlLogic {
 
         sqlx::query(&query.sql)
             .bind(created_ats)
-            .bind(names)
-            .bind(spaces)
-            .bind(versions)
+            .bind(entity_ids)
             .bind(features)
             .bind(bin_ids)
             .bind(bin_counts)
