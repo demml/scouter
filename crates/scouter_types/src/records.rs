@@ -271,6 +271,22 @@ impl LLMDriftInternalRecord {
             entity_id,
         }
     }
+
+    pub fn to_public_record(&self) -> LLMDriftRecord {
+        LLMDriftRecord {
+            created_at: self.created_at,
+            uid: self.uid.clone(),
+            prompt: self.prompt.clone(),
+            context: self.context.clone(),
+            status: self.status.clone(),
+            id: self.id,
+            score: self.score.clone(),
+            updated_at: self.updated_at,
+            processing_started_at: self.processing_started_at,
+            processing_ended_at: self.processing_ended_at,
+            processing_duration: self.processing_duration,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]

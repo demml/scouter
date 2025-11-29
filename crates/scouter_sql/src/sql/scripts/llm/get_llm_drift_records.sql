@@ -12,4 +12,4 @@ SELECT
     processing_duration
 FROM scouter.llm_drift_record
 WHERE 1=1
-  AND entity_id = $1;
+  AND entity_id = $1

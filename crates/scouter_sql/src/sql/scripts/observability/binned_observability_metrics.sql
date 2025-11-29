@@ -5,9 +5,7 @@ WITH subquery1 AS (
     FROM scouter.observability_metric
     WHERE 1=1
         AND created_at > CURRENT_TIMESTAMP - (interval '1 minute' * $2)
-        AND space = $4
-        AND name = $3
-        AND version = $5
+        AND entity_id = $3
 ),
 
 subquery2 AS (
@@ -28,23 +26,23 @@ subquery2 AS (
 
 expanded_status_codes as (
 
-SELECT 
+SELECT
 	created_at,
 	route_name,
 	jsonb_object_agg(status, count) as aggregated_map
 from (
 
-	select 
+	select
 		created_at,
 		route_name,
 		(status_code).key as status,
 		sum(((status_code).value::text)::integer) as count
 	from (
-		select 
+		select
 			created_at,
 			route_name,
 			jsonb_each_text(status_codes) as status_code
-			
+
 		from subquery2
 		)
 	group by
@@ -83,7 +81,7 @@ subquery3 AS (
             error_latency
         FROM subquery2
     ) as flattened
-    GROUP BY 
+    GROUP BY
         created_at,
         route_name
 ),
@@ -121,5 +119,5 @@ SELECT
     array_agg(avg_error_latency ORDER BY created_at DESC) as error_latency,
     array_agg(status_counts ORDER BY created_at DESC) as status_counts
 FROM joined
-GROUP BY 
+GROUP BY
     route_name;

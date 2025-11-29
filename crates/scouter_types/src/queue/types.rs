@@ -365,6 +365,7 @@ impl Metrics {
 }
 
 #[derive(Clone, Serialize, Debug)]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct LLMTaskRecord {
     pub uid: String,
     pub entity_id: String,
