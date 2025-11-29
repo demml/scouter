@@ -8,7 +8,7 @@ use crate::storage::ObjectStore;
 use chrono::{DateTime, Utc};
 use datafusion::prelude::DataFrame;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::{RecordType, ServerRecords, StorageType};
+use scouter_types::{InternalServerRecords, RecordType, StorageType};
 use tracing::instrument;
 
 pub enum ParquetDataFrame {
@@ -54,7 +54,7 @@ impl ParquetDataFrame {
     pub async fn write_parquet(
         &self,
         rpath: &str,
-        records: ServerRecords,
+        records: InternalServerRecords,
     ) -> Result<(), DataFrameError> {
         let rpath = &self.resolve_path(rpath);
 
@@ -168,8 +168,8 @@ mod tests {
     use rand::Rng;
     use scouter_settings::ObjectStorageSettings;
     use scouter_types::{
-        BoxedLLMDriftServerRecord, CustomMetricServerRecord, LLMDriftServerRecord, LLMMetricRecord,
-        PsiServerRecord, ServerRecord, ServerRecords, SpcServerRecord, Status,
+        BoxedLLMDriftInternalRecord, InternalServerRecord, InternalServerRecords,
+        LLMDriftInternalRecord, LLMMetricRecord, PsiInternalRecord, SpcInternalRecord, Status,
     };
     use serde_json::Map;
     use serde_json::Value;
@@ -195,11 +195,9 @@ mod tests {
         // create records
         for i in 0..3 {
             for _ in 0..50 {
-                let record = LLMDriftServerRecord {
+                let record = LLMDriftInternalRecord {
                     created_at: Utc::now() + chrono::Duration::hours(i),
-                    space: "test".to_string(),
-                    name: "test".to_string(),
-                    version: "1.0".to_string(),
+                    entity_id: rand::rng().random_range(0..100),
                     prompt: Some(prompt.model_dump_value()),
                     context: serde_json::Value::Object(Map::new()),
                     score: Value::Null,
@@ -212,12 +210,12 @@ mod tests {
                     processing_duration: None,
                 };
 
-                let boxed_record = BoxedLLMDriftServerRecord::new(record);
-                batch.push(ServerRecord::LLMDrift(boxed_record));
+                let boxed_record = BoxedLLMDriftInternalRecord::new(record);
+                batch.push(InternalServerRecord::LLMDrift(boxed_record));
             }
         }
 
-        let records = ServerRecords::new(batch);
+        let records = InternalServerRecords::new(batch);
         let rpath = "llm_drift";
         df.write_parquet(rpath, records.clone()).await.unwrap();
 
@@ -258,7 +256,7 @@ mod tests {
         // create records
         for i in 0..3 {
             for j in 0..50 {
-                let record = ServerRecord::LLMMetric(LLMMetricRecord {
+                let record = InternalServerRecord::LLMMetric(LLMMetricRecord {
                     record_uid: format!("record_uid_{i}_{j}"),
                     created_at: Utc::now() + chrono::Duration::hours(i),
                     name: "test".to_string(),

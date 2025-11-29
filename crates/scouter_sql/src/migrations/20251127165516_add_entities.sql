@@ -121,6 +121,9 @@ END $$;
 -- STEP 4: CLEANUP OLD COLUMNS & CONSTRAINTS
 -- =================================================================
 
+-- Drop uid form llm_drift_record
+ALTER TABLE scouter.llm_drift_record DROP COLUMN IF EXISTS uid;
+
 -- 1. Observability Metric
 DROP INDEX IF EXISTS scouter.observability_metric_created_at_space_name_version_idx;
 ALTER TABLE scouter.observability_metric DROP CONSTRAINT IF EXISTS observability_metric_created_at_name_space_version_key;

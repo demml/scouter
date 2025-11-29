@@ -12,7 +12,9 @@ use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
 
-use scouter_types::{CustomMetricServerRecord, ServerRecords, StorageType, ToDriftRecords};
+use scouter_types::{
+    CustomMetricInternalRecord, InternalServerRecords, StorageType, ToDriftRecords,
+};
 use std::sync::Arc;
 
 pub struct CustomMetricDataFrame {
@@ -26,7 +28,10 @@ impl ParquetFrame for CustomMetricDataFrame {
         CustomMetricDataFrame::new(storage_settings)
     }
 
-    async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError> {
+    async fn get_dataframe(
+        &self,
+        records: InternalServerRecords,
+    ) -> Result<DataFrame, DataFrameError> {
         let records = records.to_custom_metric_drift_records()?;
         let batch = self.build_batch(records)?;
 
@@ -89,7 +94,7 @@ impl CustomMetricDataFrame {
 
     fn build_batch(
         &self,
-        records: Vec<CustomMetricServerRecord>,
+        records: Vec<CustomMetricInternalRecord>,
     ) -> Result<RecordBatch, DataFrameError> {
         let created_at_array = TimestampNanosecondArray::from_iter_values(
             records
