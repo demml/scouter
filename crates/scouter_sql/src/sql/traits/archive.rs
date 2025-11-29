@@ -5,7 +5,7 @@ use crate::sql::utils::pg_rows_to_server_records;
 use chrono::{DateTime, Utc};
 
 use crate::sql::error::SqlError;
-use scouter_types::{InternalServerRecords, RecordType, ServerRecords};
+use scouter_types::{InternalServerRecords, RecordType};
 
 use sqlx::{Pool, Postgres};
 

@@ -124,9 +124,7 @@ pub fn get_binned_psi_drift_records_query(
         r#"WITH feature_bin_total AS (
         SELECT
             date_bin('{} minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
-            name,
-            space,
-            version,
+            entity_id,
             feature,
             bin_id,
             SUM(bin_count) AS bin_total_count
@@ -135,7 +133,7 @@ pub fn get_binned_psi_drift_records_query(
             1=1
             AND created_at between TIMESTAMP '{}' AND TIMESTAMP '{}'
             AND entity_id = {}
-        GROUP BY 1, 2, 3, 4, 5, 6
+        GROUP BY 1, 2, 3, 4
     ),
 
     feature_total AS (
