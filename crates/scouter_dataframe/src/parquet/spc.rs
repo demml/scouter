@@ -5,7 +5,7 @@ use crate::sql::helper::get_binned_spc_drift_records_query;
 use crate::storage::ObjectStore;
 use arrow::array::AsArray;
 use arrow::datatypes::{DataType, Field, Schema, TimeUnit};
-use arrow_array::array::{Float64Array, StringArray, TimestampNanosecondArray};
+use arrow_array::array::{Float64Array, Int32Array, StringArray, TimestampNanosecondArray};
 use arrow_array::RecordBatch;
 use async_trait::async_trait;
 use chrono::{DateTime, TimeZone, Utc};
@@ -13,7 +13,7 @@ use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::spc::{SpcDriftFeature, SpcDriftFeatures};
-use scouter_types::{ServerRecords, SpcServerRecord};
+use scouter_types::{InternalServerRecords, SpcInternalRecord};
 use scouter_types::{StorageType, ToDriftRecords};
 use std::collections::BTreeMap;
 use std::sync::Arc;
@@ -29,7 +29,10 @@ impl ParquetFrame for SpcDataFrame {
         SpcDataFrame::new(storage_settings)
     }
 
-    async fn get_dataframe(&self, records: ServerRecords) -> Result<DataFrame, DataFrameError> {
+    async fn get_dataframe(
+        &self,
+        records: InternalServerRecords,
+    ) -> Result<DataFrame, DataFrameError> {
         let records = records.to_spc_drift_records()?;
         let batch = self.build_batch(records)?;
 
@@ -57,11 +60,9 @@ impl ParquetFrame for SpcDataFrame {
         bin: &f64,
         start_time: &DateTime<Utc>,
         end_time: &DateTime<Utc>,
-        space: &str,
-        name: &str,
-        version: &str,
+        entity_id: &i32,
     ) -> String {
-        get_binned_spc_drift_records_query(bin, start_time, end_time, space, name, version)
+        get_binned_spc_drift_records_query(bin, start_time, end_time, entity_id)
     }
 
     fn table_name(&self) -> String {
@@ -76,9 +77,7 @@ impl SpcDataFrame {
                 DataType::Timestamp(TimeUnit::Nanosecond, None),
                 false,
             ),
-            Field::new("space", DataType::Utf8, false),
-            Field::new("name", DataType::Utf8, false),
-            Field::new("version", DataType::Utf8, false),
+            Field::new("entity_id", DataType::Int32, false),
             Field::new("feature", DataType::Utf8, false),
             Field::new("value", DataType::Float64, false),
         ]));
@@ -93,16 +92,14 @@ impl SpcDataFrame {
 
     pub fn build_batch(
         &self,
-        records: Vec<SpcServerRecord>,
+        records: Vec<SpcInternalRecord>,
     ) -> Result<RecordBatch, DataFrameError> {
         let created_at = TimestampNanosecondArray::from_iter_values(
             records
                 .iter()
                 .map(|r| r.created_at.timestamp_nanos_opt().unwrap_or_default()),
         );
-        let space = StringArray::from_iter_values(records.iter().map(|r| r.space.as_str()));
-        let name = StringArray::from_iter_values(records.iter().map(|r| r.name.as_str()));
-        let version = StringArray::from_iter_values(records.iter().map(|r| r.version.as_str()));
+        let entity_id = Int32Array::from_iter_values(records.iter().map(|r| r.entity_id));
         let feature = StringArray::from_iter_values(records.iter().map(|r| r.feature.as_str()));
         let value = Float64Array::from_iter_values(records.iter().map(|r| r.value));
 
@@ -110,9 +107,7 @@ impl SpcDataFrame {
             self.schema.clone(),
             vec![
                 Arc::new(created_at),
-                Arc::new(space),
-                Arc::new(name),
-                Arc::new(version),
+                Arc::new(entity_id),
                 Arc::new(feature),
                 Arc::new(value),
             ],

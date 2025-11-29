@@ -6,9 +6,7 @@ pub fn get_binned_custom_metric_values_query(
     bin: &f64,
     start_time: &DateTime<Utc>,
     end_time: &DateTime<Utc>,
-    space: &str,
-    name: &str,
-    version: &str,
+    entity_id: &i32,
 ) -> String {
     format!(
         r#"WITH subquery1 AS (
@@ -17,12 +15,10 @@ pub fn get_binned_custom_metric_values_query(
         metric,
         value
     FROM binned_custom_metric
-    WHERE 
+    WHERE
         1=1
         AND created_at between TIMESTAMP '{}' AND TIMESTAMP '{}'
-        AND space = '{}'
-        AND name = '{}'
-        AND version = '{}'
+        AND entity_id = {}
     ),
 
 subquery2 AS (
@@ -32,7 +28,7 @@ subquery2 AS (
         avg(value) as average,
         stddev(value) as standard_dev
     FROM subquery1
-    GROUP BY 
+    GROUP BY
         created_at,
         metric
 ),
@@ -49,7 +45,7 @@ subquery3 AS (
     FROM subquery2
 )
 
-SELECT 
+SELECT
     metric,
     array_agg(created_at) as created_at,
     array_agg(stats) as stats
@@ -58,9 +54,7 @@ GROUP BY metric;"#,
         bin,
         start_time.to_rfc3339(),
         end_time.to_rfc3339(),
-        space,
-        name,
-        version
+        entity_id
     )
 }
 
@@ -68,9 +62,7 @@ pub fn get_binned_llm_metric_values_query(
     bin: &f64,
     start_time: &DateTime<Utc>,
     end_time: &DateTime<Utc>,
-    space: &str,
-    name: &str,
-    version: &str,
+    entity_id: &i32,
 ) -> String {
     format!(
         r#"WITH subquery1 AS (
@@ -79,12 +71,10 @@ pub fn get_binned_llm_metric_values_query(
         metric,
         value
     FROM binned_llm_metric
-    WHERE 
+    WHERE
         1=1
         AND created_at between TIMESTAMP '{}' AND TIMESTAMP '{}'
-        AND space = '{}'
-        AND name = '{}'
-        AND version = '{}'
+        AND entity_id = {}
     ),
 
 subquery2 AS (
@@ -94,7 +84,7 @@ subquery2 AS (
         avg(value) as average,
         stddev(value) as standard_dev
     FROM subquery1
-    GROUP BY 
+    GROUP BY
         created_at,
         metric
 ),
@@ -111,7 +101,7 @@ subquery3 AS (
     FROM subquery2
 )
 
-SELECT 
+SELECT
     metric,
     array_agg(created_at) as created_at,
     array_agg(stats) as stats
@@ -120,9 +110,7 @@ GROUP BY metric;"#,
         bin,
         start_time.to_rfc3339(),
         end_time.to_rfc3339(),
-        space,
-        name,
-        version
+        entity_id
     )
 }
 
@@ -130,13 +118,11 @@ pub fn get_binned_psi_drift_records_query(
     bin: &f64,
     start_time: &DateTime<Utc>,
     end_time: &DateTime<Utc>,
-    space: &str,
-    name: &str,
-    version: &str,
+    entity_id: &i32,
 ) -> String {
     format!(
         r#"WITH feature_bin_total AS (
-        SELECT 
+        SELECT
             date_bin('{} minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
             name,
             space,
@@ -145,35 +131,29 @@ pub fn get_binned_psi_drift_records_query(
             bin_id,
             SUM(bin_count) AS bin_total_count
         FROM binned_psi
-        WHERE 
+        WHERE
             1=1
             AND created_at between TIMESTAMP '{}' AND TIMESTAMP '{}'
-            AND space = '{}'
-            AND name = '{}'
-            AND version = '{}'
+            AND entity_id = {}
         GROUP BY 1, 2, 3, 4, 5, 6
     ),
 
     feature_total AS (
-        SELECT 
+        SELECT
             date_bin('{} minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
-            name,
-            space,
-            version,
+            entity_id,
             feature,
             cast(SUM(bin_count) as float) AS feature_total_count
         FROM binned_psi
-        WHERE 
+        WHERE
             1=1
             AND created_at between TIMESTAMP '{}' AND TIMESTAMP '{}'
-            AND space = '{}'
-            AND name = '{}'
-            AND version = '{}'
-        GROUP BY 1, 2, 3, 4, 5
+            AND entity_id = {}
+        GROUP BY 1, 2, 3
     ),
 
     feature_bin_proportions AS (
-        SELECT 
+        SELECT
             b.created_at,
             b.feature,
             f.feature_total_count,
@@ -181,18 +161,16 @@ pub fn get_binned_psi_drift_records_query(
             cast(b.bin_total_count as float) / f.feature_total_count AS proportion
         FROM feature_bin_total b
         JOIN feature_total f
-            ON f.feature = b.feature 
-            AND f.version = b.version 
-            AND f.space = b.space
-            AND f.name = b.name
+            ON f.feature = b.feature
+            AND f.entity_id = b.entity_id
             AND f.created_at = b.created_at
     ),
 
     overall_agg as (
-        SELECT 
+        SELECT
             feature,
             struct(
-                array_agg(bin_id) as bin_id, 
+                array_agg(bin_id) as bin_id,
                 array_agg(proportion) as proportion
             ) as bins
         FROM feature_bin_proportions
@@ -201,17 +179,17 @@ pub fn get_binned_psi_drift_records_query(
     ),
 
     bin_agg as (
-        SELECT 
+        SELECT
             feature,
             created_at,
             struct(
-                array_agg(bin_id) as bin_id, 
+                array_agg(bin_id) as bin_id,
                 array_agg(proportion) as proportion
             ) AS bin_proportions
         FROM feature_bin_proportions
         WHERE feature_total_count > 1
-        GROUP BY 
-            feature, 
+        GROUP BY
+            feature,
             created_at
     ),
 
@@ -225,7 +203,7 @@ pub fn get_binned_psi_drift_records_query(
     GROUP BY feature
     )
 
-    SELECT 
+    SELECT
         feature_agg.feature,
         created_at,
         bin_proportions,
@@ -236,15 +214,11 @@ pub fn get_binned_psi_drift_records_query(
         bin,
         start_time.to_rfc3339(),
         end_time.to_rfc3339(),
-        space,
-        name,
-        version,
+        entity_id,
         bin,
         start_time.to_rfc3339(),
         end_time.to_rfc3339(),
-        space,
-        name,
-        version
+        entity_id,
     )
 }
 
@@ -252,9 +226,7 @@ pub fn get_binned_spc_drift_records_query(
     bin: &f64,
     start_time: &DateTime<Utc>,
     end_time: &DateTime<Utc>,
-    space: &str,
-    name: &str,
-    version: &str,
+    entity_id: &i32,
 ) -> String {
     let start_year = start_time.year();
     let start_month = start_time.month();
@@ -270,10 +242,8 @@ pub fn get_binned_spc_drift_records_query(
         r#"WITH subquery1 AS (
         SELECT
             date_bin('{} minutes', created_at, TIMESTAMP '1970-01-01') as created_at,
-            name,
-            space,
+            entity_id,
             feature,
-            version,
             value
         FROM binned_spc
         WHERE
@@ -289,26 +259,20 @@ pub fn get_binned_spc_drift_records_query(
             (year < {end_year} OR month < {end_month} OR day < {end_day} OR hour <= {end_hour})
             -- Regular filters (inclusive)
             AND created_at between TIMESTAMP '{}' AND TIMESTAMP '{}'
-            AND space = '{}'
-            AND name = '{}'
-            AND version = '{}'
+            AND entity_id = {}
         ),
 
         subquery2 AS (
             SELECT
                 created_at,
-                name,
-                space,
+                entity_id,
                 feature,
-                version,
                 avg(value) as value
             FROM subquery1
-            GROUP BY 
+            GROUP BY
                 created_at,
-                name,
-                space,
-                feature,
-                version
+                entity_id,
+                feature
         )
 
         SELECT
@@ -316,13 +280,11 @@ pub fn get_binned_spc_drift_records_query(
         array_agg(created_at ORDER BY created_at DESC) as created_at,
         array_agg(value ORDER BY created_at DESC) as values
         FROM subquery2
-        GROUP BY 
+        GROUP BY
         feature;"#,
         bin,
         start_time.to_rfc3339(),
         end_time.to_rfc3339(),
-        space,
-        name,
-        version
+        entity_id
     )
 }
