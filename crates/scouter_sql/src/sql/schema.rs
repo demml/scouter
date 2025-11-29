@@ -1,18 +1,15 @@
 use crate::sql::error::SqlError;
 use chrono::{DateTime, Utc};
-use potato_head::create_uuid7;
 use scouter_types::psi::DistributionData;
-use scouter_types::BoxedLLMDriftServerRecord;
+use scouter_types::BoxedLLMDriftInternalRecord;
 use scouter_types::DriftType;
-use scouter_types::LLMDriftServerRecord;
+use scouter_types::LLMDriftInternalRecord;
 use scouter_types::{
     alert::Alert, get_utc_datetime, psi::FeatureBinProportionResult, BinnedMetric,
     BinnedMetricStats, RecordType,
 };
-use scouter_types::{EntityType, LLMRecord};
 use semver::{BuildMetadata, Prerelease, Version};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use sqlx::{postgres::PgRow, Error, FromRow, Row};
 use std::collections::BTreeMap;
 use std::collections::HashMap;
@@ -325,97 +322,13 @@ pub struct UpdateAlertResult {
     pub updated_at: DateTime<Utc>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, FromRow)]
-pub struct LLMDriftServerSQLRecord {
-    pub uid: String,
-
-    pub created_at: chrono::DateTime<Utc>,
-
-    pub space: String,
-
-    pub name: String,
-
-    pub version: String,
-
-    pub prompt: Option<Value>,
-
-    pub context: Value,
-
-    pub score: Value,
-
-    pub status: String,
-
-    pub id: i64,
-
-    pub updated_at: Option<DateTime<Utc>>,
-
-    pub processing_started_at: Option<DateTime<Utc>>,
-
-    pub processing_ended_at: Option<DateTime<Utc>>,
-
-    pub processing_duration: Option<i32>,
-}
-
-impl LLMDriftServerSQLRecord {
-    /// Method use when server receives a record from the client
-    pub fn from_server_record(record: &LLMDriftServerRecord) -> Self {
-        LLMDriftServerSQLRecord {
-            created_at: record.created_at,
-            space: record.space.clone(),
-            name: record.name.clone(),
-            version: record.version.clone(),
-            prompt: record.prompt.clone(),
-            context: record.context.clone(),
-            score: record.score.clone(),
-            status: record.status.to_string(),
-            id: 0,               // This is a placeholder, as the ID will be set by the database
-            uid: create_uuid7(), // This is also a placeholder, as the UID will be set by the database
-            updated_at: None,
-            processing_started_at: None,
-            processing_ended_at: None,
-            processing_duration: None, // This will be set when the record is processed
-        }
-    }
-}
-
-impl From<LLMDriftServerSQLRecord> for LLMDriftServerRecord {
-    fn from(sql_record: LLMDriftServerSQLRecord) -> Self {
-        Self {
-            id: sql_record.id,
-            created_at: sql_record.created_at,
-            space: sql_record.space,
-            name: sql_record.name,
-            version: sql_record.version,
-            context: sql_record.context,
-            score: sql_record.score,
-            prompt: sql_record.prompt,
-            status: sql_record.status.parse().unwrap_or_default(), // Handle parsing appropriately
-            processing_started_at: sql_record.processing_started_at,
-            processing_ended_at: sql_record.processing_ended_at,
-            processing_duration: sql_record.processing_duration,
-            updated_at: sql_record.updated_at,
-            uid: sql_record.uid,
-        }
-    }
-}
-
 /// Converts a `PgRow` to a `BoxedLLMDriftServerRecord`
 /// Conversion is done by first converting the row to an `LLMDriftServerSQLRecord`
 /// and then converting that to an `LLMDriftServerRecord`.
-pub fn llm_drift_record_from_row(row: &PgRow) -> Result<BoxedLLMDriftServerRecord, SqlError> {
-    let sql_record = LLMDriftServerSQLRecord::from_row(row)?;
-    let record = LLMDriftServerRecord::from(sql_record);
+pub fn llm_drift_record_from_row(row: &PgRow) -> Result<BoxedLLMDriftInternalRecord, SqlError> {
+    let record = LLMDriftInternalRecord::from_row(row)?;
 
-    Ok(BoxedLLMDriftServerRecord {
-        record: Box::new(record),
-    })
-}
-
-pub fn llm_drift_metric_from_row(row: &PgRow) -> Result<BoxedLLMDriftServerRecord, SqlError> {
-    let sql_record = LLMDriftServerSQLRecord::from_row(row)?;
-    let record = LLMDriftServerRecord::from(sql_record);
-
-    Ok(BoxedLLMDriftServerRecord {
+    Ok(BoxedLLMDriftInternalRecord {
         record: Box::new(record),
     })
 }

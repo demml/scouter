@@ -5,6 +5,7 @@ use crate::Status;
 use crate::TagRecord;
 use chrono::DateTime;
 use chrono::Utc;
+use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pyo3::IntoPyObjectExt;
 use serde::{Deserialize, Serialize};
@@ -12,7 +13,6 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
-
 #[pyclass(eq)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub enum RecordType {
@@ -237,12 +237,14 @@ impl BoxedLLMDriftRecord {
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
+#[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct LLMDriftInternalRecord {
     pub created_at: chrono::DateTime<Utc>,
     pub entity_id: i32,
     pub uid: String,
     pub prompt: Option<Value>,
     pub context: Value,
+    #[cfg_attr(feature = "server", sqlx(try_from = "String"))]
     pub status: Status,
     pub id: i64,
     pub score: Value,
@@ -250,6 +252,25 @@ pub struct LLMDriftInternalRecord {
     pub processing_started_at: Option<DateTime<Utc>>,
     pub processing_ended_at: Option<DateTime<Utc>>,
     pub processing_duration: Option<i32>,
+}
+
+impl LLMDriftInternalRecord {
+    pub fn from_server_record(record: &LLMDriftRecord, entity_id: i32) -> Self {
+        Self {
+            created_at: record.created_at,
+            prompt: record.prompt.clone(),
+            context: record.context.clone(),
+            score: record.score.clone(),
+            status: record.status.clone(),
+            id: 0,
+            uid: create_uuid7(),
+            updated_at: None,
+            processing_started_at: None,
+            processing_ended_at: None,
+            processing_duration: None,
+            entity_id,
+        }
+    }
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
