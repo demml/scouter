@@ -1,24 +1,8 @@
-use crate::sql::query::Queries;
-use crate::sql::schema::TaskRequest;
-
 use crate::sql::error::SqlError;
-use crate::sql::schema::VersionResult;
+use crate::sql::query::Queries;
 use async_trait::async_trait;
-use chrono::Utc;
-use cron::Schedule;
-use scouter_semver::VersionArgs;
-use scouter_semver::VersionType;
-use scouter_semver::{VersionParser, VersionValidator};
-use scouter_types::{
-    DriftProfile, GetProfileRequest, ListProfilesRequest, ListedProfile, ProfileArgs,
-    ProfileStatusRequest,
-};
-use semver::Version;
-use serde_json::Value;
-use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
+use sqlx::{Pool, Postgres, Row};
 use std::result::Result::Ok;
-use std::str::FromStr;
-use tracing::{error, instrument};
 
 #[async_trait]
 pub trait EntitySqlLogic {
