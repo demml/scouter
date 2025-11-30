@@ -18,7 +18,7 @@ use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{
     psi::FeatureBinProportionResult, InternalServerRecords, PsiInternalRecord, StorageType,
-    ToDriftRecords,
+    ToInternalDriftRecords,
 };
 use std::collections::BTreeMap;
 use std::sync::Arc;

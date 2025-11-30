@@ -11,8 +11,8 @@ use chrono::{DateTime, Utc};
 use datafusion::dataframe::DataFrame;
 use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
-
-use scouter_types::{InternalServerRecords, LLMDriftInternalRecord, StorageType, ToDriftRecords};
+use scouter_types::ToInternalDriftRecords;
+use scouter_types::{InternalServerRecords, LLMDriftInternalRecord, StorageType};
 use std::sync::Arc;
 
 pub struct LLMDriftDataFrame {

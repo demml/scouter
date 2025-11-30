@@ -14,7 +14,7 @@ use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::spc::{SpcDriftFeature, SpcDriftFeatures};
 use scouter_types::{InternalServerRecords, SpcInternalRecord};
-use scouter_types::{StorageType, ToDriftRecords};
+use scouter_types::{StorageType, ToInternalDriftRecords};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 

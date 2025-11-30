@@ -13,7 +13,7 @@ use datafusion::prelude::SessionContext;
 use scouter_settings::ObjectStorageSettings;
 
 use scouter_types::{
-    CustomMetricInternalRecord, InternalServerRecords, StorageType, ToDriftRecords,
+    CustomMetricInternalRecord, InternalServerRecords, StorageType, ToInternalDriftRecords,
 };
 use std::sync::Arc;
 
