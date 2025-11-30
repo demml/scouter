@@ -75,6 +75,7 @@ impl ScouterSetupComponents {
             Self::setup_kafka(
                 config.kafka_settings.as_ref().unwrap(),
                 &db_pool,
+                &entity_cache,
                 &mut task_manager,
             )
             .await?;
@@ -127,6 +128,7 @@ impl ScouterSetupComponents {
             db_pool,
             task_manager,
             http_consumer_tx: http_consumer_manager.tx,
+            entity_cache,
         })
     }
 
@@ -282,6 +284,7 @@ impl ScouterSetupComponents {
     async fn setup_kafka(
         settings: &KafkaSettings,
         db_pool: &Pool<Postgres>,
+        entity_cache: &EntityCache,
         task_manager: &mut TaskManager,
     ) -> AnyhowResult<()> {
         let num_consumers = settings.num_workers;
@@ -290,9 +293,17 @@ impl ScouterSetupComponents {
             let consumer = create_kafka_consumer(settings, None).await?;
             let kafka_pool = db_pool.clone();
             let shutdown_rx = task_manager.get_shutdown_receiver();
+            let entity_cache = entity_cache.clone();
 
             task_manager.spawn(async move {
-                KafkaConsumerManager::start_worker(id, consumer, kafka_pool, shutdown_rx).await;
+                KafkaConsumerManager::start_worker(
+                    id,
+                    consumer,
+                    kafka_pool,
+                    entity_cache,
+                    shutdown_rx,
+                )
+                .await;
             });
         }
 
@@ -361,8 +372,14 @@ impl ScouterSetupComponents {
             let entity_cache = entity_cache.clone();
 
             task_manager.spawn(async move {
-                HttpConsumerManager::start_worker(id, consumer, db_pool_clone, worker_shutdown_rx)
-                    .await;
+                HttpConsumerManager::start_worker(
+                    id,
+                    consumer,
+                    db_pool_clone,
+                    entity_cache,
+                    worker_shutdown_rx,
+                )
+                .await;
             });
         }
 

@@ -176,7 +176,6 @@ impl MessageHandler {
     }
 
     pub async fn insert_trace_server_record(
-        &self,
         pool: &Pool<Postgres>,
         records: &TraceServerRecord,
         entity_cache: &EntityCache,
