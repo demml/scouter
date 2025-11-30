@@ -1,6 +1,4 @@
 use crate::sql::query::Queries;
-use crate::sql::schema::FeatureDistributionWrapper;
-use crate::sql::traits::entity;
 use crate::sql::utils::split_custom_interval;
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -12,7 +10,7 @@ use scouter_settings::ObjectStorageSettings;
 use scouter_types::psi::FeatureDistributions;
 use scouter_types::{
     psi::{FeatureBinProportionResult, FeatureDistributionRow},
-    DriftRequest, PsiRecord, RecordType, ServiceInfo,
+    DriftRequest, PsiRecord, RecordType,
 };
 
 use sqlx::{postgres::PgQueryResult, Pool, Postgres};
