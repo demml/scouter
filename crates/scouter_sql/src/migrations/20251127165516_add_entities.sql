@@ -185,7 +185,9 @@ INCLUDE (trace_id, start_time, end_time, duration_ms, status_code, span_count);
 
 -- SPANS
 CREATE INDEX idx_spans_entity_lookup ON scouter.spans (entity_id, created_at DESC) WHERE entity_id IS NOT NULL;
-CREATE INDEX idx_spans_error_analysis ON scouter.spans (entity_id, status_code, created_at DESC) WHERE status_code != 2;
+CREATE INDEX idx_spans_error_analysis ON scouter.spans (entity_id, status_code, created_at DESC) WHERE status_code = 2;
+CREATE INDEX idx_spans_parent_tree ON scouter.spans (parent_span_id, trace_id)
+WHERE parent_span_id IS NOT NULL;
 
 -- LLM DRIFT
 CREATE INDEX idx_llm_drift_lookup ON scouter.llm_drift (created_at, entity_id, metric);
@@ -319,7 +321,7 @@ CREATE OR REPLACE FUNCTION scouter.get_traces_paginated(
 )
 RETURNS TABLE (
     trace_id TEXT,
-    entity_id INTEGER, -- Added
+    entity_id INTEGER,
     space TEXT,
     name TEXT,
     version TEXT,
@@ -393,7 +395,10 @@ AS $$
         CASE WHEN p_direction = 'previous' THEN trace_id END DESC;
 $$;
 
-CREATE OR REPLACE FUNCTION scouter.get_trace_spans(p_trace_id TEXT)
+CREATE OR REPLACE FUNCTION scouter.get_trace_spans(
+    p_trace_id TEXT,
+    p_entity_id INTEGER DEFAULT NULL
+)
 RETURNS TABLE (
     trace_id TEXT,
     span_id TEXT,
@@ -419,6 +424,7 @@ LANGUAGE SQL
 STABLE
 AS $$
     WITH RECURSIVE span_tree AS (
+        -- Anchor: Find root spans (no parent)
         SELECT
             s.trace_id,
             s.span_id,
@@ -441,7 +447,11 @@ AS $$
         FROM scouter.spans s
         WHERE s.trace_id = p_trace_id
           AND s.parent_span_id IS NULL
+          AND (p_entity_id IS NULL OR s.entity_id = p_entity_id)
+
         UNION ALL
+
+        -- Recursive: Walk down the span tree
         SELECT
             s.trace_id,
             s.span_id,
@@ -463,7 +473,9 @@ AS $$
             s.output
         FROM scouter.spans s
         INNER JOIN span_tree st ON s.parent_span_id = st.span_id
-        WHERE s.trace_id = p_trace_id AND st.depth < 20
+        WHERE s.trace_id = p_trace_id
+          AND st.depth < 20
+          AND (p_entity_id IS NULL OR s.entity_id = p_entity_id)
     )
     SELECT
         st.trace_id,

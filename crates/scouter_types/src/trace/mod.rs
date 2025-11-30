@@ -41,11 +41,7 @@ pub struct TraceRecord {
     #[pyo3(get)]
     pub trace_id: String,
     #[pyo3(get)]
-    pub space: String,
-    #[pyo3(get)]
-    pub name: String,
-    #[pyo3(get)]
-    pub version: String,
+    pub uid: Option<String>,
     #[pyo3(get)]
     pub scope: String,
     #[pyo3(get)]
@@ -149,11 +145,7 @@ pub struct TraceSpanRecord {
     #[pyo3(get)]
     pub parent_span_id: Option<String>,
     #[pyo3(get)]
-    pub space: String,
-    #[pyo3(get)]
-    pub name: String,
-    #[pyo3(get)]
-    pub version: String,
+    pub uid: Option<String>,
     #[pyo3(get)]
     pub scope: String,
     #[pyo3(get)]
@@ -350,9 +342,7 @@ pub trait TraceRecordExt {
 
 #[derive(Clone, Debug, Serialize, Deserialize, Default)]
 pub struct TraceServerRecord {
-    pub space: String,
-    pub name: String,
-    pub version: String,
+    pub uid: Option<String>,
     pub request: ExportTraceServiceRequest,
 }
 
@@ -459,13 +449,11 @@ impl TraceServerRecord {
     pub fn convert_to_trace_record(
         &self,
         trace_id: &str,
+        uid: Option<String>,
         span_id: &str,
         span: &Span,
         scope_name: &str,
         attributes: &Vec<Attribute>,
-        space: &str,
-        name: &str,
-        version: &str,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         duration_ms: i64,
@@ -473,9 +461,7 @@ impl TraceServerRecord {
         Ok(TraceRecord {
             created_at: Self::get_trace_start_time_attribute(attributes, &start_time),
             trace_id: trace_id.to_string(),
-            space: space.to_owned(),
-            name: name.to_owned(),
-            version: version.to_owned(),
+            uid,
             scope: scope_name.to_string(),
             trace_state: span.trace_state.clone(),
             start_time,
@@ -573,9 +559,7 @@ impl TraceServerRecord {
         span: &Span,
         attributes: &Vec<Attribute>,
         scope_name: &str,
-        space: &str,
-        name: &str,
-        version: &str,
+        uid: Option<String>,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         duration_ms: i64,
@@ -597,9 +581,7 @@ impl TraceServerRecord {
             start_time,
             end_time,
             duration_ms,
-            space: space.to_owned(),
-            name: name.to_owned(),
-            version: version.to_owned(),
+            uid,
             scope: scope_name.to_string(),
             span_name: span.name.clone(),
             span_kind: Self::span_kind_to_string(span.kind),
@@ -636,9 +618,7 @@ impl TraceServerRecord {
         let mut span_records: Vec<TraceSpanRecord> = Vec::with_capacity(estimated_capacity);
         let mut baggage_records: Vec<TraceBaggageRecord> = Vec::new();
 
-        let space = &self.space;
-        let name = &self.name;
-        let version = &self.version;
+        let uid = &self.uid;
 
         for resource_span in resource_spans {
             for scope_span in &resource_span.scope_spans {
@@ -657,13 +637,11 @@ impl TraceServerRecord {
                     // TraceRecord for upsert
                     trace_records.push(self.convert_to_trace_record(
                         &trace_id,
+                        uid.clone(),
                         &span_id,
                         span,
                         scope_name,
                         &attributes,
-                        space,
-                        name,
-                        version,
                         start_time,
                         end_time,
                         duration_ms,
@@ -676,9 +654,7 @@ impl TraceServerRecord {
                         span,
                         &attributes,
                         scope_name,
-                        space,
-                        name,
-                        version,
+                        uid.clone(),
                         start_time,
                         end_time,
                         duration_ms,

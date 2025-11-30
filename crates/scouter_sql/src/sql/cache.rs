@@ -29,4 +29,21 @@ impl EntityCache {
             }
         }
     }
+
+    pub async fn get_optional_entity_id_from_uid(
+        &self,
+        uid: &str,
+    ) -> Result<Option<i32>, ServerError> {
+        match self.cache.get(uid) {
+            Some(cached_id) => Ok(Some(cached_id)),
+            None => {
+                let entity_id =
+                    PostgresClient::get_optional_entity_id_from_uid(&self.db_pool, uid).await?;
+                if let Some(id) = entity_id {
+                    self.cache.insert(uid.to_string(), id);
+                }
+                Ok(entity_id)
+            }
+        }
+    }
 }

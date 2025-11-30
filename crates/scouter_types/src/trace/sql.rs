@@ -165,11 +165,7 @@ impl FromRow<'_, PgRow> for TraceSpan {
 #[pyclass]
 pub struct TraceFilters {
     #[pyo3(get, set)]
-    pub space: Option<String>,
-    #[pyo3(get, set)]
-    pub name: Option<String>,
-    #[pyo3(get, set)]
-    pub version: Option<String>,
+    pub uid: Option<String>,
     #[pyo3(get, set)]
     pub service_name: Option<String>,
     #[pyo3(get, set)]
@@ -195,9 +191,7 @@ pub struct TraceFilters {
 impl TraceFilters {
     #[new]
     #[pyo3(signature = (
-        space=None,
-        name=None,
-        version=None,
+        uid=None,
         service_name=None,
         has_errors=None,
         status_code=None,
@@ -208,9 +202,7 @@ impl TraceFilters {
         cursor_trace_id=None,
     ))]
     pub fn new(
-        space: Option<String>,
-        name: Option<String>,
-        version: Option<String>,
+        uid: Option<String>,
         service_name: Option<String>,
         has_errors: Option<bool>,
         status_code: Option<i32>,
@@ -221,9 +213,7 @@ impl TraceFilters {
         cursor_trace_id: Option<String>,
     ) -> Self {
         TraceFilters {
-            space,
-            name,
-            version,
+            uid,
             service_name,
             has_errors,
             status_code,
@@ -238,8 +228,8 @@ impl TraceFilters {
 }
 
 impl TraceFilters {
-    pub fn with_space(mut self, space: impl Into<String>) -> Self {
-        self.space = Some(space.into());
+    pub fn with_uid(mut self, uid: impl Into<String>) -> Self {
+        self.uid = Some(uid.into());
         self
     }
 

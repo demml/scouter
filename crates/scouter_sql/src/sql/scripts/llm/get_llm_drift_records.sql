@@ -1,5 +1,5 @@
 SELECT
-    entity_id,
+    uid,
     created_at,
     context,
     prompt,

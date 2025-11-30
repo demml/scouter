@@ -202,17 +202,15 @@ pub trait LLMDriftSqlLogic {
 
     async fn get_llm_metric_values(
         pool: &Pool<Postgres>,
-        service_info: &ServiceInfo,
         limit_datetime: &DateTime<Utc>,
         metrics: &[String],
+        entity_id: &i32,
     ) -> Result<HashMap<String, f64>, SqlError> {
         let query = Queries::GetLLMMetricValues.get_query();
 
         let records = sqlx::query(&query.sql)
             .bind(limit_datetime)
-            .bind(&service_info.space)
-            .bind(&service_info.name)
-            .bind(&service_info.version)
+            .bind(entity_id)
             .bind(metrics)
             .fetch_all(pool)
             .await

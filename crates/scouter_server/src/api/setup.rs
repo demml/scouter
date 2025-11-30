@@ -9,8 +9,8 @@ use scouter_auth::util::generate_recovery_codes_with_hashes;
 use scouter_settings::{
     DatabaseSettings, KafkaSettings, PollingSettings, RabbitMQSettings, ScouterServerConfig,
 };
-use scouter_sql::sql::schema::User;
 use scouter_sql::sql::traits::UserSqlLogic;
+use scouter_sql::sql::{cache::EntityCache, schema::User};
 use scouter_sql::PostgresClient;
 use sqlx::{Pool, Postgres};
 use std::str::FromStr;
@@ -41,6 +41,7 @@ pub struct ScouterSetupComponents {
     pub db_pool: Pool<Postgres>,
     pub task_manager: TaskManager,
     pub http_consumer_tx: Sender<MessageRecord>,
+    pub entity_cache: EntityCache,
 }
 
 impl ScouterSetupComponents {
@@ -54,6 +55,8 @@ impl ScouterSetupComponents {
         }
 
         let db_pool = Self::setup_database(&config.database_settings).await?;
+        // entity cache for quick entity id lookups
+        let entity_cache = EntityCache::new(db_pool.clone(), 1000);
 
         let mut task_manager = TaskManager::new();
         let tokio_shutdown_rx = task_manager.get_shutdown_receiver();
@@ -61,6 +64,7 @@ impl ScouterSetupComponents {
         let http_consumer_manager = Self::setup_http_consumer_manager(
             &config.http_consumer_settings,
             &db_pool,
+            &entity_cache,
             &mut task_manager,
         )
         .await?;
@@ -344,6 +348,7 @@ impl ScouterSetupComponents {
     async fn setup_http_consumer_manager(
         settings: &HttpConsumerSettings,
         db_pool: &Pool<Postgres>,
+        entity_cache: &EntityCache,
         task_manager: &mut TaskManager,
     ) -> AnyhowResult<HttpConsumerManager> {
         let (tx, rx) = flume::bounded(1000);
@@ -353,6 +358,7 @@ impl ScouterSetupComponents {
             let consumer = rx.clone();
             let worker_shutdown_rx = task_manager.get_shutdown_receiver();
             let db_pool_clone = db_pool.clone();
+            let entity_cache = entity_cache.clone();
 
             task_manager.spawn(async move {
                 HttpConsumerManager::start_worker(id, consumer, db_pool_clone, worker_shutdown_rx)

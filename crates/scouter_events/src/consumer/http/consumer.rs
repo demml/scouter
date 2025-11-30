@@ -17,6 +17,7 @@ impl HttpConsumerManager {
         id: usize,
         consumer: Receiver<MessageRecord>,
         db_pool: Pool<Postgres>,
+        entity_cache: EntityCache,
         mut shutdown: watch::Receiver<()>,
     ) {
         loop {
@@ -31,10 +32,10 @@ impl HttpConsumerManager {
                             let result = match &records {
 
                                 MessageRecord::ServerRecords(records) => {
-                                    MessageHandler::insert_server_records(&db_pool, records).await
+                                    MessageHandler::insert_server_records(&db_pool, records, &entity_cache).await
                                 }
                                 MessageRecord::TraceServerRecord(trace_record) => {
-                                    MessageHandler::insert_trace_server_record(&db_pool, trace_record).await
+                                    MessageHandler::insert_trace_server_record(&db_pool, trace_record, &entity_cache).await
 
                                 }
                                 MessageRecord::TagServerRecord(tag_record) => {

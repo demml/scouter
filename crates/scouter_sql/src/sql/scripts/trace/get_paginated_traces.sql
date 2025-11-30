@@ -16,16 +16,14 @@ SELECT
     error_count,
     created_at
 FROM scouter.get_traces_paginated(
-    $1,  -- p_space
-    $2,  -- p_name
-    $3,  -- p_version
-    $4,  -- p_service_name
-    $5,  -- p_has_errors
-    $6,  -- p_status_code
-    $7,  -- p_start_time
-    $8,  -- p_end_time
-    $9,  -- p_limit
-    $10, -- p_cursor_created_at
-    $11, -- p_cursor_trace_id
-    $12  -- p_direction
+    $1,  -- p_entity_id
+    $2,  -- p_service_name
+    $3,  -- p_has_errors
+    $4,  -- p_status_code
+    $5,  -- p_start_time
+    $6,  -- p_end_time
+    $7,  -- p_limit
+    $8, -- p_cursor_created_at
+    $9, -- p_cursor_trace_id
+    $10  -- p_direction
 );

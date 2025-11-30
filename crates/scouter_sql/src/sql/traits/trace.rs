@@ -1,5 +1,6 @@
 use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
+use crate::sql::traits::entity;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};
@@ -21,6 +22,7 @@ pub trait TraceSqlLogic {
     async fn upsert_trace_batch(
         pool: &Pool<Postgres>,
         traces: &[TraceRecord],
+        entity_id: Option<&i32>,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::UpsertTrace.get_query();
         let capacity = traces.len();
@@ -28,9 +30,7 @@ pub trait TraceSqlLogic {
         // Pre-allocate vectors for each field for batch efficiency
         let mut created_at = Vec::with_capacity(capacity);
         let mut trace_id = Vec::with_capacity(capacity);
-        let mut space = Vec::with_capacity(capacity);
-        let mut name = Vec::with_capacity(capacity);
-        let mut version = Vec::with_capacity(capacity);
+        let mut entity_id_vec = Vec::with_capacity(capacity);
         let mut scope = Vec::with_capacity(capacity);
         let mut trace_state = Vec::with_capacity(capacity);
         let mut start_time = Vec::with_capacity(capacity);
@@ -45,9 +45,7 @@ pub trait TraceSqlLogic {
         for r in traces {
             created_at.push(r.created_at);
             trace_id.push(r.trace_id.as_str());
-            space.push(r.space.as_str());
-            name.push(r.name.as_str());
-            version.push(r.version.as_str());
+            entity_id_vec.push(entity_id);
             scope.push(r.scope.as_str());
             trace_state.push(r.trace_state.as_str());
             start_time.push(r.start_time);
@@ -62,9 +60,7 @@ pub trait TraceSqlLogic {
         let query_result = sqlx::query(&query.sql)
             .bind(created_at)
             .bind(trace_id)
-            .bind(space)
-            .bind(name)
-            .bind(version)
+            .bind(entity_id_vec)
             .bind(scope)
             .bind(trace_state)
             .bind(start_time)
@@ -88,6 +84,7 @@ pub trait TraceSqlLogic {
     async fn insert_span_batch(
         pool: &Pool<Postgres>,
         spans: &[TraceSpanRecord],
+        entity_id: Option<&i32>,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertTraceSpan.get_query();
         let capacity = spans.len();
@@ -98,9 +95,7 @@ pub trait TraceSqlLogic {
         let mut span_id = Vec::with_capacity(capacity);
         let mut trace_id = Vec::with_capacity(capacity);
         let mut parent_span_id = Vec::with_capacity(capacity);
-        let mut space = Vec::with_capacity(capacity);
-        let mut name = Vec::with_capacity(capacity);
-        let mut version = Vec::with_capacity(capacity);
+        let mut entity_id_vec = Vec::with_capacity(capacity);
         let mut scope = Vec::with_capacity(capacity);
         let mut span_name = Vec::with_capacity(capacity);
         let mut span_kind = Vec::with_capacity(capacity);
@@ -122,9 +117,7 @@ pub trait TraceSqlLogic {
             span_id.push(span.span_id.as_str());
             trace_id.push(span.trace_id.as_str());
             parent_span_id.push(span.parent_span_id.as_deref());
-            space.push(span.space.as_str());
-            name.push(span.name.as_str());
-            version.push(span.version.as_str());
+            entity_id_vec.push(entity_id);
             scope.push(span.scope.as_str());
             span_name.push(span.span_name.as_str());
             span_kind.push(span.span_kind.as_str());
@@ -146,9 +139,7 @@ pub trait TraceSqlLogic {
             .bind(span_id)
             .bind(trace_id)
             .bind(parent_span_id)
-            .bind(space)
-            .bind(name)
-            .bind(version)
+            .bind(entity_id_vec)
             .bind(scope)
             .bind(span_name)
             .bind(span_kind)
@@ -232,6 +223,7 @@ pub trait TraceSqlLogic {
     async fn get_traces_paginated(
         pool: &Pool<Postgres>,
         filters: TraceFilters,
+        entity_id: Option<&i32>,
     ) -> Result<TracePaginationResponse, SqlError> {
         let default_start = Utc::now() - chrono::Duration::hours(24);
         let default_end = Utc::now();
@@ -241,9 +233,7 @@ pub trait TraceSqlLogic {
         let query = Queries::GetPaginatedTraces.get_query();
 
         let mut items: Vec<TraceListItem> = sqlx::query_as(&query.sql)
-            .bind(filters.space)
-            .bind(filters.name)
-            .bind(filters.version)
+            .bind(entity_id)
             .bind(filters.service_name)
             .bind(filters.has_errors)
             .bind(filters.status_code)
@@ -333,10 +323,12 @@ pub trait TraceSqlLogic {
     async fn get_trace_spans(
         pool: &Pool<Postgres>,
         trace_id: &str,
+        entity_id: Option<&i32>,
     ) -> Result<Vec<TraceSpan>, SqlError> {
         let query = Queries::GetTraceSpans.get_query();
         let trace_items: Result<Vec<TraceSpan>, SqlError> = sqlx::query_as(&query.sql)
             .bind(trace_id)
+            .bind(entity_id)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError);
@@ -352,18 +344,14 @@ pub trait TraceSqlLogic {
     /// * A vector of `TraceSpan` associated with the trace ID
     async fn get_trace_metrics(
         pool: &Pool<Postgres>,
-        space: Option<&str>,
-        name: Option<&str>,
-        version: Option<&str>,
+        entity_id: Option<&i32>,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         bucket_interval_str: &str,
     ) -> Result<Vec<TraceMetricBucket>, SqlError> {
         let query = Queries::GetTraceMetrics.get_query();
         let trace_items: Result<Vec<TraceMetricBucket>, SqlError> = sqlx::query_as(&query.sql)
-            .bind(space)
-            .bind(name)
-            .bind(version)
+            .bind(entity_id)
             .bind(start_time)
             .bind(end_time)
             .bind(bucket_interval_str)

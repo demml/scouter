@@ -25,6 +25,20 @@ pub trait EntitySqlLogic {
         Ok(id)
     }
 
+    async fn get_optional_entity_id_from_uid(
+        pool: &Pool<Postgres>,
+        uid: &str,
+    ) -> Result<Option<i32>, SqlError> {
+        let query = Queries::GetEntityIdFromUid.get_query();
+
+        sqlx::query(&query.sql)
+            .bind(uid)
+            .fetch_optional(pool)
+            .await
+            .map_err(SqlError::SqlxError)
+            .map(|row| row.map(|r| r.get("id")))
+    }
+
     async fn get_entity_id_from_space_name_version_drift_type(
         pool: &Pool<Postgres>,
         space: &str,
