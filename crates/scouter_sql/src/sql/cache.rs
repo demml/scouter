@@ -1,3 +1,12 @@
+/// This is a global Cache oncelock for accessing the entity_id cache.
+/// We found that we we're clonging an passing the same cache across multiple functions.
+/// It's easier just to use it as a global oncelock
+pub use error::StateError;
+use std::future::Future;
+use std::sync::{Arc, OnceLock};
+use tokio::runtime::{Handle, Runtime};
+use tracing::debug;
+
 use mini_moka::sync::Cache;
 use scouter_sql::sql::traits::EntitySqlLogic;
 use scouter_sql::PostgresClient;
@@ -46,4 +55,18 @@ impl EntityCache {
             }
         }
     }
+}
+
+// Global instance of the application state manager
+static INSTANCE: OnceLock<EntityCache> = OnceLock::new();
+
+pub fn init_entity_cache(pool: Pool<Postgres>, max_capacity: usize) {
+    let cache = EntityCache::new(pool, max_capacity);
+    INSTANCE
+        .set(cache)
+        .expect("EntityCache has already been initialized");
+}
+
+pub fn entity_cache() -> &'static EntityCache {
+    INSTANCE.get().expect("EntityCache is not initialized")
 }

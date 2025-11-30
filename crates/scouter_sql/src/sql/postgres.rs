@@ -1,4 +1,4 @@
-use crate::sql::cache::EntityCache;
+use crate::sql::cache::{entity_cache, EntityCache};
 use crate::sql::error::SqlError;
 use crate::sql::traits::{
     AlertSqlLogic, ArchiveSqlLogic, CustomMetricSqlLogic, LLMDriftSqlLogic, ObservabilitySqlLogic,
@@ -89,11 +89,10 @@ impl MessageHandler {
     pub async fn insert_server_records(
         pool: &Pool<Postgres>,
         records: &ServerRecords,
-        entity_cache: &EntityCache,
     ) -> Result<(), SqlError> {
         debug!("Inserting server records: {:?}", records.record_type()?);
 
-        let entity_id = entity_cache.get_entity_id_from_uid(records.uid()).await?;
+        let entity_id = entity_cache().get_entity_id_from_uid(records.uid()).await?;
 
         match records.record_type()? {
             RecordType::Spc => {
@@ -178,9 +177,8 @@ impl MessageHandler {
     pub async fn insert_trace_server_record(
         pool: &Pool<Postgres>,
         records: &TraceServerRecord,
-        entity_cache: &EntityCache,
     ) -> Result<(), SqlError> {
-        let entity_id = entity_cache
+        let entity_id = entity_cache()
             .get_optional_entity_id_from_uid(records.uid())
             .await?;
 

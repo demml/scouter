@@ -16,6 +16,7 @@ thiserror = { workspace = true }
 tokio = { workspace = true}
 tracing = { workspace = true }
 
+
 [profile.release]
 lto = "fat"
 codegen-units = 1

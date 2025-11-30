@@ -59,7 +59,7 @@ pub mod redis_consumer {
         pub async fn start_workers(
             redis_settings: &RedisSettings,
             db_pool: &Pool<Postgres>,
-            entity_cache: &EntityCache,
+
             shutdown_rx: watch::Receiver<()>,
         ) -> Result<Self, EventError> {
             let num_consumers = redis_settings.num_consumers;
@@ -71,17 +71,9 @@ pub mod redis_consumer {
                 info!("Redis worker {}: Created consumer", id);
                 let redis_db_pool = db_pool.clone();
                 let worker_shutdown_rx = shutdown_rx.clone();
-                let entity_cache = entity_cache.clone();
 
                 workers.push(tokio::spawn(async move {
-                    Self::start_worker(
-                        id,
-                        consumer,
-                        redis_db_pool,
-                        entity_cache,
-                        worker_shutdown_rx,
-                    )
-                    .await;
+                    Self::start_worker(id, consumer, redis_db_pool, worker_shutdown_rx).await;
                 }));
             }
 
@@ -94,7 +86,7 @@ pub mod redis_consumer {
             id: usize,
             consumer: RedisConsumer,
             db_pool: Pool<Postgres>,
-            entity_cache: &EntityCache,
+
             mut shutdown: watch::Receiver<()>, // Accept receiver
         ) {
             // Convert PubSub into a stream of messages
@@ -112,7 +104,7 @@ pub mod redis_consumer {
                     maybe_msg = message_stream.next() => {
                         match maybe_msg {
                             Some(msg) => {
-                                handle_message(id, msg, &db_pool, entity_cache).await;
+                                handle_message(id, msg, &db_pool).await;
                             }
                             None => {
                                 info!("Worker {}: No more messages", id);
@@ -124,12 +116,7 @@ pub mod redis_consumer {
         }
     }
 
-    async fn handle_message(
-        id: usize,
-        msg: Msg,
-        db_pool: &Pool<Postgres>,
-        entity_cache: &EntityCache,
-    ) {
+    async fn handle_message(id: usize, msg: Msg, db_pool: &Pool<Postgres>) {
         // Check message size
         let payload: RedisResult<String> = msg.get_payload();
 
@@ -153,15 +140,10 @@ pub mod redis_consumer {
             Ok(Some(records)) => {
                 let result = match &records {
                     MessageRecord::ServerRecords(records) => {
-                        MessageHandler::insert_server_records(db_pool, records, entity_cache).await
+                        MessageHandler::insert_server_records(db_pool, records).await
                     }
                     MessageRecord::TraceServerRecord(trace_record) => {
-                        MessageHandler::insert_trace_server_record(
-                            db_pool,
-                            trace_record,
-                            entity_cache,
-                        )
-                        .await
+                        MessageHandler::insert_trace_server_record(db_pool, trace_record).await
                     }
                     MessageRecord::TagServerRecord(tag_record) => {
                         MessageHandler::insert_tag_record(db_pool, tag_record).await

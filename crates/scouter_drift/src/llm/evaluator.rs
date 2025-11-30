@@ -90,7 +90,7 @@ impl LLMEvaluator {
                 let record = LLMMetricRecord {
                     record_uid: record_uid.to_string(),
                     created_at: chrono::Utc::now(),
-                    uid: profile.config.uid.clone()
+                    uid: profile.config.uid.clone(),
                     metric: task_id.clone(),
                     value,
                 };

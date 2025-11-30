@@ -30,7 +30,6 @@ pub mod rabbitmq_consumer {
             id: usize,
             mut consumer: Consumer,
             db_pool: Pool<Postgres>,
-            entity_cache: EntityCache,
             mut shutdown: watch::Receiver<()>, // Accept receiver
         ) {
             loop {
@@ -42,7 +41,7 @@ pub mod rabbitmq_consumer {
                     delivery = consumer.next() => {
                         match delivery {
                             Some(Ok(msg)) => {
-                                handle_message(id, msg, &db_pool, &entity_cache).await;
+                                handle_message(id, msg, &db_pool).await;
                             }
                             Some(Err(e)) => {
                                 error!("Worker {}: RabbitMQ error: {}", id, e);
@@ -58,12 +57,7 @@ pub mod rabbitmq_consumer {
         }
     }
 
-    async fn handle_message(
-        id: usize,
-        msg: Delivery,
-        db_pool: &Pool<Postgres>,
-        entity_cache: &EntityCache,
-    ) {
+    async fn handle_message(id: usize, msg: Delivery, db_pool: &Pool<Postgres>) {
         // Check message size
         if msg.data.len() > MAX_MESSAGE_SIZE {
             error!("Worker {}: Message too large: {:?}", id, msg.data.len());
@@ -76,16 +70,10 @@ pub mod rabbitmq_consumer {
             Ok(Some(records)) => {
                 let result = match &records {
                     MessageRecord::ServerRecords(server_records) => {
-                        MessageHandler::insert_server_records(db_pool, server_records, entity_cache)
-                            .await
+                        MessageHandler::insert_server_records(db_pool, server_records).await
                     }
                     MessageRecord::TraceServerRecord(trace_record) => {
-                        MessageHandler::insert_trace_server_record(
-                            db_pool,
-                            trace_record,
-                            entity_cache,
-                        )
-                        .await
+                        MessageHandler::insert_trace_server_record(db_pool, trace_record).await
                     }
                     MessageRecord::TagServerRecord(tag_record) => {
                         MessageHandler::insert_tag_record(db_pool, tag_record).await

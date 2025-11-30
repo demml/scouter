@@ -10,7 +10,7 @@ use scouter_settings::{
     DatabaseSettings, KafkaSettings, PollingSettings, RabbitMQSettings, ScouterServerConfig,
 };
 use scouter_sql::sql::traits::UserSqlLogic;
-use scouter_sql::sql::{cache::EntityCache, schema::User};
+use scouter_sql::sql::{cache::init_entity_cache, cache::EntityCache, schema::User};
 use scouter_sql::PostgresClient;
 use sqlx::{Pool, Postgres};
 use std::str::FromStr;
@@ -41,7 +41,6 @@ pub struct ScouterSetupComponents {
     pub db_pool: Pool<Postgres>,
     pub task_manager: TaskManager,
     pub http_consumer_tx: Sender<MessageRecord>,
-    pub entity_cache: EntityCache,
 }
 
 impl ScouterSetupComponents {
@@ -64,7 +63,6 @@ impl ScouterSetupComponents {
         let http_consumer_manager = Self::setup_http_consumer_manager(
             &config.http_consumer_settings,
             &db_pool,
-            &entity_cache,
             &mut task_manager,
         )
         .await?;
@@ -75,7 +73,6 @@ impl ScouterSetupComponents {
             Self::setup_kafka(
                 config.kafka_settings.as_ref().unwrap(),
                 &db_pool,
-                &entity_cache,
                 &mut task_manager,
             )
             .await?;
@@ -128,7 +125,6 @@ impl ScouterSetupComponents {
             db_pool,
             task_manager,
             http_consumer_tx: http_consumer_manager.tx,
-            entity_cache,
         })
     }
 
@@ -266,6 +262,9 @@ impl ScouterSetupComponents {
 
         Self::initialize_default_user(&db_pool).await?;
 
+        // setup entity cache
+        init_entity_cache(db_pool.clone(), 1000);
+
         Ok(db_pool)
     }
 
@@ -284,7 +283,6 @@ impl ScouterSetupComponents {
     async fn setup_kafka(
         settings: &KafkaSettings,
         db_pool: &Pool<Postgres>,
-        entity_cache: &EntityCache,
         task_manager: &mut TaskManager,
     ) -> AnyhowResult<()> {
         let num_consumers = settings.num_workers;
@@ -293,17 +291,9 @@ impl ScouterSetupComponents {
             let consumer = create_kafka_consumer(settings, None).await?;
             let kafka_pool = db_pool.clone();
             let shutdown_rx = task_manager.get_shutdown_receiver();
-            let entity_cache = entity_cache.clone();
 
             task_manager.spawn(async move {
-                KafkaConsumerManager::start_worker(
-                    id,
-                    consumer,
-                    kafka_pool,
-                    entity_cache,
-                    shutdown_rx,
-                )
-                .await;
+                KafkaConsumerManager::start_worker(id, consumer, kafka_pool, shutdown_rx).await;
             });
         }
 
@@ -335,6 +325,7 @@ impl ScouterSetupComponents {
             let consumer = create_rabbitmq_consumer(settings).await?;
             let rabbit_db_pool = db_pool.clone();
             let shutdown_rx = task_manager.get_shutdown_receiver();
+
             task_manager.spawn(async move {
                 RabbitMQConsumerManager::start_worker(id, consumer, rabbit_db_pool, shutdown_rx)
                     .await;
@@ -359,7 +350,7 @@ impl ScouterSetupComponents {
     async fn setup_http_consumer_manager(
         settings: &HttpConsumerSettings,
         db_pool: &Pool<Postgres>,
-        entity_cache: &EntityCache,
+
         task_manager: &mut TaskManager,
     ) -> AnyhowResult<HttpConsumerManager> {
         let (tx, rx) = flume::bounded(1000);
@@ -369,17 +360,10 @@ impl ScouterSetupComponents {
             let consumer = rx.clone();
             let worker_shutdown_rx = task_manager.get_shutdown_receiver();
             let db_pool_clone = db_pool.clone();
-            let entity_cache = entity_cache.clone();
 
             task_manager.spawn(async move {
-                HttpConsumerManager::start_worker(
-                    id,
-                    consumer,
-                    db_pool_clone,
-                    entity_cache,
-                    worker_shutdown_rx,
-                )
-                .await;
+                HttpConsumerManager::start_worker(id, consumer, db_pool_clone, worker_shutdown_rx)
+                    .await;
             });
         }
 
@@ -427,6 +411,7 @@ impl ScouterSetupComponents {
     async fn setup_background_llm_drift_workers(
         db_pool: &Pool<Postgres>,
         poll_settings: &PollingSettings,
+
         shutdown_rx: tokio::sync::watch::Receiver<()>,
     ) -> AnyhowResult<()> {
         BackgroundLLMDriftManager::start_workers(db_pool, poll_settings, shutdown_rx).await?;
@@ -450,6 +435,7 @@ impl ScouterSetupComponents {
     pub async fn setup_redis(
         settings: &scouter_settings::RedisSettings,
         db_pool: &Pool<Postgres>,
+
         shutdown_rx: tokio::sync::watch::Receiver<()>,
     ) -> AnyhowResult<()> {
         RedisConsumerManager::start_workers(settings, db_pool, shutdown_rx).await?;
