@@ -178,34 +178,6 @@ pub struct BinProportion {
     pub proportion: f64,
 }
 
-#[derive(Debug)]
-pub struct FeatureBinProportionResultWrapper(pub FeatureBinProportionResult);
-
-impl<'r> FromRow<'r, PgRow> for FeatureBinProportionResultWrapper {
-    fn from_row(row: &'r PgRow) -> Result<Self, Error> {
-        // Extract the bin_proportions as a Vec of tuples
-        let bin_proportions_json: Vec<serde_json::Value> = row.try_get("bin_proportions")?;
-
-        // Convert the Vec of tuples into a Vec of BinProportion structs
-        let bin_proportions: Vec<BTreeMap<usize, f64>> = bin_proportions_json
-            .into_iter()
-            .map(|json| serde_json::from_value(json).unwrap_or_default())
-            .collect();
-
-        let overall_proportions_json: serde_json::Value = row.try_get("overall_proportions")?;
-        let overall_proportions: BTreeMap<usize, f64> =
-            serde_json::from_value(overall_proportions_json).unwrap_or_default();
-
-        Ok(FeatureBinProportionResultWrapper(
-            FeatureBinProportionResult {
-                feature: row.try_get("feature")?,
-                created_at: row.try_get("created_at")?,
-                bin_proportions,
-                overall_proportions,
-            },
-        ))
-    }
-}
 #[derive(Debug, Clone, FromRow)]
 pub struct Entity {
     pub space: String,

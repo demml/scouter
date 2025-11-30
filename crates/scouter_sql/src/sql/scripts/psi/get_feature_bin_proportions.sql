@@ -52,7 +52,7 @@ filtered_feature_total AS (
   */
   WHERE ft.feature_total_count > (10 * pbc.bin_count)
 ),
-     
+
 feature_bin_proportions AS (
   SELECT b.feature,
       f.feature_total_count,

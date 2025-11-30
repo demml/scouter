@@ -1,5 +1,4 @@
 use crate::sql::query::Queries;
-use crate::sql::schema::FeatureBinProportionResultWrapper;
 use crate::sql::schema::FeatureDistributionWrapper;
 use crate::sql::traits::entity;
 use crate::sql::utils::split_custom_interval;
@@ -12,8 +11,10 @@ use itertools::multiunzip;
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::psi::FeatureDistributions;
 use scouter_types::{
-    psi::FeatureBinProportionResult, DriftRequest, PsiRecord, RecordType, ServiceInfo,
+    psi::{FeatureBinProportionResult, FeatureDistributionRow},
+    DriftRequest, PsiRecord, RecordType, ServiceInfo,
 };
+
 use sqlx::{postgres::PgQueryResult, Pool, Postgres};
 use std::collections::BTreeMap;
 use tracing::{debug, instrument};
@@ -79,6 +80,7 @@ pub trait PsiSqlLogic {
         pool: &Pool<Postgres>,
         params: &DriftRequest,
         minutes: i32,
+        entity_id: &i32,
     ) -> Result<Vec<FeatureBinProportionResult>, SqlError> {
         let bin = minutes as f64 / params.max_data_points as f64;
         let query = Queries::GetBinnedPsiFeatureBins.get_query();
@@ -86,15 +88,10 @@ pub trait PsiSqlLogic {
         let binned: Vec<FeatureBinProportionResult> = sqlx::query_as(&query.sql)
             .bind(bin)
             .bind(minutes)
-            .bind(&params.name)
-            .bind(&params.space)
-            .bind(&params.version)
+            .bind(entity_id)
             .fetch_all(pool)
             .await
-            .map_err(SqlError::SqlxError)?
-            .into_iter()
-            .map(|wrapper: FeatureBinProportionResultWrapper| wrapper.0)
-            .collect();
+            .map_err(SqlError::SqlxError)?;
 
         Ok(binned)
     }
@@ -117,20 +114,13 @@ pub trait PsiSqlLogic {
         end: DateTime<Utc>,
         minutes: i32,
         storage_settings: &ObjectStorageSettings,
+        entity_id: &i32,
     ) -> Result<Vec<FeatureBinProportionResult>, SqlError> {
         let path = format!("{}/{}/{}/psi", params.space, params.name, params.version);
         let bin = minutes as f64 / params.max_data_points as f64;
 
         let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::Psi)?
-            .get_binned_metrics(
-                &path,
-                &bin,
-                &begin,
-                &end,
-                &params.space,
-                &params.name,
-                &params.version,
-            )
+            .get_binned_metrics(&path, &bin, &begin, &end, entity_id)
             .await?;
 
         Ok(dataframe_to_psi_drift_features(archived_df).await?)
@@ -183,11 +173,12 @@ pub trait PsiSqlLogic {
         params: &DriftRequest,
         retention_period: &i32,
         storage_settings: &ObjectStorageSettings,
+        entity_id: &i32,
     ) -> Result<Vec<FeatureBinProportionResult>, SqlError> {
         if !params.has_custom_interval() {
             debug!("No custom interval provided, using default");
             let minutes = params.time_interval.to_minutes();
-            return Self::get_records(pool, params, minutes).await;
+            return Self::get_records(pool, params, minutes, entity_id).await;
         }
 
         debug!("Custom interval provided, using custom interval");
@@ -197,7 +188,7 @@ pub trait PsiSqlLogic {
 
         // Get current records if available
         if let Some(minutes) = timestamps.current_minutes {
-            let current_results = Self::get_records(pool, params, minutes).await?;
+            let current_results = Self::get_records(pool, params, minutes, entity_id).await?;
             Self::merge_feature_results(current_results, &mut feature_map)?;
         }
 
@@ -210,6 +201,7 @@ pub trait PsiSqlLogic {
                     archive_end,
                     archived_minutes,
                     storage_settings,
+                    entity_id,
                 )
                 .await?;
 
@@ -221,27 +213,20 @@ pub trait PsiSqlLogic {
 
     async fn get_feature_distributions(
         pool: &Pool<Postgres>,
-        service_info: &ServiceInfo,
         limit_datetime: &DateTime<Utc>,
         features_to_monitor: &[String],
+        entity_id: &i32,
     ) -> Result<FeatureDistributions, SqlError> {
         let query = Queries::GetFeatureBinProportions.get_query();
 
-        let feature_distributions: Vec<FeatureDistributionWrapper> = sqlx::query_as(&query.sql)
-            .bind(&service_info.name)
-            .bind(&service_info.space)
-            .bind(&service_info.version)
+        let rows: Vec<FeatureDistributionRow> = sqlx::query_as(&query.sql)
+            .bind(entity_id)
             .bind(limit_datetime)
             .bind(features_to_monitor)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError)?;
 
-        let distributions = feature_distributions
-            .into_iter()
-            .map(|wrapper| (wrapper.0, wrapper.1))
-            .collect();
-
-        Ok(FeatureDistributions { distributions })
+        Ok(FeatureDistributions::from_rows(rows))
     }
 }

@@ -615,3 +615,42 @@ impl FeatureDistributions {
         self.distributions.is_empty()
     }
 }
+
+#[derive(Debug)]
+pub struct FeatureDistributionRow {
+    pub feature: String,
+    pub distribution: DistributionData,
+}
+
+#[cfg(feature = "server")]
+impl<'r> sqlx::FromRow<'r, sqlx::postgres::PgRow> for FeatureDistributionRow {
+    fn from_row(row: &'r sqlx::postgres::PgRow) -> Result<Self, sqlx::Error> {
+        use sqlx::Row;
+
+        let feature: String = row.try_get("feature")?;
+        let sample_size: i64 = row.try_get("sample_size")?;
+        let bins_json: serde_json::Value = row.try_get("bins")?;
+        let bins: BTreeMap<usize, f64> =
+            serde_json::from_value(bins_json).map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
+
+        Ok(FeatureDistributionRow {
+            feature,
+            distribution: DistributionData {
+                sample_size: sample_size as u64,
+                bins,
+            },
+        })
+    }
+}
+
+impl FeatureDistributions {
+    /// Convert from a vector of rows into the final structure
+    pub fn from_rows(rows: Vec<FeatureDistributionRow>) -> Self {
+        let distributions = rows
+            .into_iter()
+            .map(|row| (row.feature, row.distribution))
+            .collect();
+
+        FeatureDistributions { distributions }
+    }
+}
