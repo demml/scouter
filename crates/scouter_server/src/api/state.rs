@@ -3,7 +3,7 @@ use flume::Sender;
 use mini_moka::sync::Cache;
 use scouter_auth::auth::AuthManager;
 use scouter_settings::ScouterServerConfig;
-use scouter_sql::sql::traits::ProfileSqlLogic;
+use scouter_sql::sql::{cache::EntityCache, traits::ProfileSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::contracts::ScouterServerError;
 use scouter_types::MessageRecord;
@@ -18,7 +18,7 @@ pub struct AppState {
     pub task_manager: TaskManager,
     pub config: Arc<ScouterServerConfig>,
     pub http_consumer_tx: Sender<MessageRecord>,
-    pub profile_id_cache: Cache<String, i32>,
+    pub entity_cache: EntityCache,
 }
 
 impl AppState {
@@ -30,14 +30,7 @@ impl AppState {
 
     /// Get profile ID from UID with caching
     pub async fn get_entity_id_from_uid(&self, uid: &str) -> Result<i32, ServerError> {
-        match self.profile_id_cache.get(uid) {
-            Some(cached_id) => Ok(cached_id),
-            None => {
-                let profile_id = PostgresClient::get_entity_id_from_uid(&self.db_pool, uid).await?;
-                self.profile_id_cache.insert(uid.to_string(), profile_id);
-                Ok(profile_id)
-            }
-        }
+        self.entity_cache.get_entity_id_from_uid(uid).await
     }
 
     pub async fn get_entity_id_for_request(

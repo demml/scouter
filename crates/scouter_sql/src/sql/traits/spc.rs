@@ -9,7 +9,7 @@ use scouter_dataframe::parquet::{dataframe_to_spc_drift_features, ParquetDataFra
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{
     spc::{SpcDriftFeature, SpcDriftFeatures},
-    DriftRequest, RecordType, ServiceInfo, SpcRecord,
+    DriftRequest, RecordType, SpcRecord,
 };
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::collections::BTreeMap;
@@ -21,6 +21,7 @@ pub trait SpcSqlLogic {
     /// # Arguments
     /// * `pool` - The database connection pool
     /// * `records` - The SPC drift records to insert
+    /// * `entity_id` - The entity ID associated with the records
     /// # Returns
     /// * A result containing the query result or an error
     async fn insert_spc_drift_records_batch(
@@ -55,8 +56,12 @@ pub trait SpcSqlLogic {
             .map_err(SqlError::SqlxError)
     }
 
-    // Queries the database for all features under a service
-    // Private method that'll be used to run drift retrieval in parallel
+    // Queries the database for all features under an entity
+    /// # Arguments
+    /// * `pool` - The database connection pool
+    /// * `entity_id` - The entity ID to filter features
+    /// # Returns
+    /// * A vector of feature names
     async fn get_spc_features(
         pool: &Pool<Postgres>,
         entity_id: &i32,
@@ -78,13 +83,11 @@ pub trait SpcSqlLogic {
     /// Get SPC drift records
     ///
     /// # Arguments
-    ///
-    /// * `service_info` - The service to get drift records for
     /// * `limit_datetime` - The limit datetime to get drift records for
     /// * `features_to_monitor` - The features to monitor
+    /// * `entity_id` - The entity ID to filter records
     async fn get_spc_drift_records(
         pool: &Pool<Postgres>,
-        service_info: &ServiceInfo,
         limit_datetime: &DateTime<Utc>,
         features_to_monitor: &[String],
         entity_id: &i32,
@@ -126,6 +129,8 @@ pub trait SpcSqlLogic {
     /// # Arguments
     /// * `pool` - The database connection pool
     /// * `params` - The drift request parameters
+    /// * `minutes` - The number of minutes to bin the data
+    /// * `entity_id` - The entity ID to filter records
     ///
     /// # Returns
     /// * SpcDriftFeatures
@@ -189,6 +194,7 @@ pub trait SpcSqlLogic {
     /// * `end` - The end time of the time window
     /// * `minutes` - The number of minutes to bin the data
     /// * `storage_settings` - The object storage settings
+    /// * `entity_id` - The entity ID to filter records
     ///
     /// # Returns
     /// * A vector of drift records

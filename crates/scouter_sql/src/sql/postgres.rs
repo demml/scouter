@@ -1,3 +1,4 @@
+use crate::sql::cache::EntityCache;
 use crate::sql::error::SqlError;
 use crate::sql::traits::{
     AlertSqlLogic, ArchiveSqlLogic, CustomMetricSqlLogic, LLMDriftSqlLogic, ObservabilitySqlLogic,
@@ -80,16 +81,24 @@ impl PostgresClient {
     }
 }
 
-pub struct MessageHandler {}
+pub struct MessageHandler {
+    entity_cache: EntityCache,
+}
 
 impl MessageHandler {
     const DEFAULT_BATCH_SIZE: usize = 500;
     #[instrument(skip_all)]
     pub async fn insert_server_records(
+        &self,
         pool: &Pool<Postgres>,
         records: &ServerRecords,
     ) -> Result<(), SqlError> {
         debug!("Inserting server records: {:?}", records.record_type()?);
+
+        let entity_id = self
+            .entity_cache
+            .get_entity_id_from_uid(records.uid())
+            .await?;
 
         match records.record_type()? {
             RecordType::Spc => {
@@ -97,7 +106,7 @@ impl MessageHandler {
                 debug!("SPC record count: {}", spc_records.len());
 
                 for chunk in spc_records.chunks(Self::DEFAULT_BATCH_SIZE) {
-                    PostgresClient::insert_spc_drift_records_batch(pool, chunk)
+                    PostgresClient::insert_spc_drift_records_batch(pool, chunk, &entity_id)
                         .await
                         .map_err(|e| {
                             error!("Failed to insert SPC drift records batch: {:?}", e);
@@ -111,7 +120,7 @@ impl MessageHandler {
                 debug!("PSI record count: {}", psi_records.len());
 
                 for chunk in psi_records.chunks(Self::DEFAULT_BATCH_SIZE) {
-                    PostgresClient::insert_bin_counts_batch(pool, chunk)
+                    PostgresClient::insert_bin_counts_batch(pool, chunk, &entity_id)
                         .await
                         .map_err(|e| {
                             error!("Failed to insert PSI drift records batch: {:?}", e);
@@ -124,7 +133,7 @@ impl MessageHandler {
                 debug!("Custom record count: {}", custom_records.len());
 
                 for chunk in custom_records.chunks(Self::DEFAULT_BATCH_SIZE) {
-                    PostgresClient::insert_custom_metric_values_batch(pool, chunk)
+                    PostgresClient::insert_custom_metric_values_batch(pool, chunk, &entity_id)
                         .await
                         .map_err(|e| {
                             error!("Failed to insert custom metric records batch: {:?}", e);
@@ -137,7 +146,7 @@ impl MessageHandler {
                 debug!("LLM Drift record count: {:?}", records.len());
                 let records = records.to_llm_drift_records()?;
                 for record in records.iter() {
-                    let _ = PostgresClient::insert_llm_drift_record(pool, record)
+                    let _ = PostgresClient::insert_llm_drift_record(pool, record, &entity_id)
                         .await
                         .map_err(|e| {
                             error!("Failed to insert LLM drift record: {:?}", e);
@@ -150,7 +159,7 @@ impl MessageHandler {
                 let llm_metric_records = records.to_llm_metric_records()?;
 
                 for chunk in llm_metric_records.chunks(Self::DEFAULT_BATCH_SIZE) {
-                    PostgresClient::insert_llm_metric_values_batch(pool, chunk)
+                    PostgresClient::insert_llm_metric_values_batch(pool, chunk, &entity_id)
                         .await
                         .map_err(|e| {
                             error!("Failed to insert LLM metric records batch: {:?}", e);

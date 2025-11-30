@@ -27,12 +27,11 @@ pub trait CustomMetricSqlLogic {
     async fn insert_custom_metric_values_batch(
         pool: &Pool<Postgres>,
         records: &[CustomMetricRecord],
+        entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
         if records.is_empty() {
             return Err(SqlError::EmptyBatchError);
         }
-
-        let entity_id = PostgresClient::get_entity_id_from_uid(pool, &records[0].uid).await?;
 
         let query = Queries::InsertCustomMetricValuesBatch.get_query();
 
@@ -44,7 +43,7 @@ pub trait CustomMetricSqlLogic {
         ) = multiunzip(
             records
                 .iter()
-                .map(|r| (r.created_at, r.metric.as_str(), r.value, &entity_id)),
+                .map(|r| (r.created_at, r.metric.as_str(), r.value, entity_id)),
         );
 
         sqlx::query(&query.sql)
