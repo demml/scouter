@@ -9,7 +9,7 @@ use scouter_dataframe::parquet::{dataframe_to_spc_drift_features, ParquetDataFra
 use scouter_settings::ObjectStorageSettings;
 use scouter_types::{
     spc::{SpcDriftFeature, SpcDriftFeatures},
-    DriftRequest, RecordType, ServiceInfo, SpcServerRecord,
+    DriftRequest, RecordType, ServiceInfo, SpcRecord,
 };
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
 use std::collections::BTreeMap;
@@ -25,7 +25,8 @@ pub trait SpcSqlLogic {
     /// * A result containing the query result or an error
     async fn insert_spc_drift_records_batch(
         pool: &Pool<Postgres>,
-        records: &[SpcServerRecord],
+        records: &[SpcRecord],
+        entity_id: i32,
     ) -> Result<PgQueryResult, SqlError> {
         if records.is_empty() {
             return Err(SqlError::EmptyBatchError);
@@ -33,29 +34,20 @@ pub trait SpcSqlLogic {
 
         let query = Queries::InsertSpcDriftRecordBatch.get_query();
 
-        let (created_ats, names, spaces, versions, features, values): (
+        let (created_ats, entity_ids, features, values): (
             Vec<DateTime<Utc>>,
-            Vec<&str>,
-            Vec<&str>,
-            Vec<&str>,
+            Vec<i32>,
             Vec<&str>,
             Vec<f64>,
-        ) = multiunzip(records.iter().map(|r| {
-            (
-                r.created_at,
-                r.name.as_str(),
-                r.space.as_str(),
-                r.version.as_str(),
-                r.feature.as_str(),
-                r.value,
-            )
-        }));
+        ) = multiunzip(
+            records
+                .iter()
+                .map(|r| (r.created_at, entity_id, r.feature.as_str(), r.value)),
+        );
 
         sqlx::query(&query.sql)
             .bind(created_ats)
-            .bind(names)
-            .bind(spaces)
-            .bind(versions)
+            .bind(entity_ids)
             .bind(features)
             .bind(values)
             .execute(pool)

@@ -7,10 +7,8 @@ WITH subquery AS (
     where
         1=1
         AND created_at > $1
-        AND space =$3
-        AND name = $2
-        AND version = $4
-        AND feature = ANY($5)
+        AND entity_id = $2
+        AND feature = ANY($3)
 ),
 aggregated AS (
     SELECT
