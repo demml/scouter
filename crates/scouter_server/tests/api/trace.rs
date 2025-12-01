@@ -76,9 +76,7 @@ async fn test_tracing() {
 
     filters.cursor_created_at = None;
     filters.cursor_trace_id = None;
-    filters.space = Some(filtered_record.space.clone());
-    filters.name = Some(filtered_record.name.clone());
-    filters.version = Some(filtered_record.version.clone());
+    filters.service_name = Some(filtered_record.service_name.clone());
 
     let body = serde_json::to_string(&filters).unwrap();
     let request = Request::builder()
@@ -101,6 +99,7 @@ async fn test_tracing() {
     // now get spans for one of the traces
     let params = TraceRequest {
         trace_id: filtered_batch.items.first().unwrap().trace_id.clone(),
+        service_name: None,
     };
 
     let query_string = serde_qs::to_string(&params).unwrap();
@@ -135,9 +134,7 @@ async fn test_tracing() {
 
     // make request for trace metrics
     let metrics_request = TraceMetricsRequest {
-        space: None,
-        name: None,
-        version: None,
+        service_name: None,
         start_time,
         end_time,
         bucket_interval: "60 minutes".to_string(),

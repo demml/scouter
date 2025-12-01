@@ -23,36 +23,16 @@ async fn test_create_spc_profile() {
 
     let (array, features) = helper.get_data();
     let alert_config = SpcAlertConfig::default();
-    let config = SpcDriftConfig::new(
-        Some(SPACE.to_string()),
-        Some(NAME.to_string()),
-        None,
-        None,
-        None,
-        Some(alert_config),
-        None,
-    );
-
+    let config = SpcDriftConfig::new(SPACE, NAME, VERSION, None, None, Some(alert_config), None);
     let monitor = SpcMonitor::new();
 
     let mut profile = monitor
         .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
         .unwrap();
 
-    let request = profile.create_profile_request().unwrap();
-    let body = serde_json::to_string(&request).unwrap();
-
-    let request = Request::builder()
-        .uri("/scouter/profile")
-        .method("POST")
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(body))
-        .unwrap();
-
-    let response = helper.send_oneshot(request).await;
-
-    //assert response
-    assert_eq!(response.status(), StatusCode::OK);
+    let _uid = helper
+        .register_drift_profile(profile.create_profile_request().unwrap())
+        .await;
 
     // update profile
     profile.config.sample_size = 100;
