@@ -5,7 +5,7 @@ use potato_head::Score;
 use scouter_sql::sql::traits::{LLMDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::llm::LLMDriftProfile;
-use scouter_types::{DriftType, LLMTaskRecord, Status};
+use scouter_types::{LLMTaskRecord, Status};
 use sqlx::{Pool, Postgres};
 use std::collections::HashMap;
 use std::time::Duration;
@@ -66,8 +66,7 @@ impl LLMPoller {
         info!("Processing llm drift record for profile: {}", task.uid);
 
         let mut llm_profile = if let Some(profile) =
-            PostgresClient::get_drift_profile(&self.db_pool, &task.entity_id, &DriftType::LLM)
-                .await?
+            PostgresClient::get_drift_profile(&self.db_pool, &task.entity_id).await?
         {
             let llm_profile: LLMDriftProfile =
                 serde_json::from_value(profile).inspect_err(|e| {

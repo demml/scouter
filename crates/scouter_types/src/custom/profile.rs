@@ -2,7 +2,7 @@
 use crate::custom::alert::{CustomMetric, CustomMetricAlertConfig};
 use crate::error::{ProfileError, TypeError};
 use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version};
-use crate::ProfileRequest;
+use crate::{ConfigExt, ProfileRequest};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FileName, ProfileArgs, ProfileBaseArgs,
     PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
@@ -40,6 +40,20 @@ pub struct CustomMetricDriftConfig {
     #[pyo3(get, set)]
     #[serde(default = "default_drift_type")]
     pub drift_type: DriftType,
+}
+
+impl ConfigExt for CustomMetricDriftConfig {
+    fn space(&self) -> &str {
+        &self.space
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn version(&self) -> &str {
+        &self.version
+    }
 }
 
 fn default_drift_type() -> DriftType {
@@ -311,6 +325,12 @@ impl CustomDriftProfile {
 }
 
 impl ProfileBaseArgs for CustomDriftProfile {
+    type Config = CustomMetricDriftConfig;
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
+
     fn get_base_args(&self) -> ProfileArgs {
         ProfileArgs {
             name: self.config.name.clone(),

@@ -1,7 +1,7 @@
 #![allow(clippy::useless_conversion)]
 use crate::error::{ProfileError, TypeError};
 use crate::spc::alert::SpcAlertConfig;
-use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version};
+use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version, ConfigExt};
 use crate::{
     DispatchDriftConfig, DriftArgs, DriftType, FeatureMap, FileName, ProfileArgs, ProfileBaseArgs,
     ProfileRequest, PyHelperFuncs, MISSING,
@@ -103,6 +103,20 @@ pub struct SpcDriftConfig {
     #[pyo3(get, set)]
     #[serde(default = "default_drift_type")]
     pub drift_type: DriftType,
+}
+
+impl ConfigExt for SpcDriftConfig {
+    fn space(&self) -> &str {
+        &self.space
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn version(&self) -> &str {
+        &self.version
+    }
 }
 
 impl Default for SpcDriftConfig {
@@ -389,6 +403,11 @@ impl SpcDriftProfile {
 }
 
 impl ProfileBaseArgs for SpcDriftProfile {
+    type Config = SpcDriftConfig;
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
     /// Get the base arguments for the profile (convenience method on the server)
     fn get_base_args(&self) -> ProfileArgs {
         ProfileArgs {

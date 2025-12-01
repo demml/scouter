@@ -598,7 +598,7 @@ mod tests {
 
         assert_eq!(result.rows_affected(), 1);
 
-        let profile = PostgresClient::get_drift_profile(&pool, &entity_id, &DriftType::Spc)
+        let profile = PostgresClient::get_drift_profile(&pool, &entity_id)
             .await
             .unwrap();
 
@@ -662,12 +662,9 @@ mod tests {
         let binned_records = PostgresClient::get_binned_spc_drift_records(
             &pool,
             &DriftRequest {
-                space: SPACE.to_string(),
-                name: NAME.to_string(),
-                version: VERSION.to_string(),
+                uid: UID.to_string(),
                 time_interval: TimeInterval::FiveMinutes,
                 max_data_points: 10,
-                drift_type: DriftType::Spc,
                 ..Default::default()
             },
             &DatabaseSettings::default().retention_period,
@@ -764,12 +761,9 @@ mod tests {
         let binned_records = PostgresClient::get_binned_psi_drift_records(
             &pool,
             &DriftRequest {
-                space: SPACE.to_string(),
-                name: NAME.to_string(),
-                version: VERSION.to_string(),
+                uid: UID.to_string(),
                 time_interval: TimeInterval::OneHour,
                 max_data_points: 1000,
-                drift_type: DriftType::Psi,
                 ..Default::default()
             },
             &DatabaseSettings::default().retention_period,
@@ -834,12 +828,10 @@ mod tests {
         let binned_records = PostgresClient::get_binned_custom_drift_records(
             &pool,
             &DriftRequest {
-                space: SPACE.to_string(),
-                name: NAME.to_string(),
-                version: VERSION.to_string(),
+                uid: UID.to_string(),
                 time_interval: TimeInterval::OneHour,
                 max_data_points: 1000,
-                drift_type: DriftType::Custom,
+
                 ..Default::default()
             },
             &DatabaseSettings::default().retention_period,
@@ -1089,12 +1081,9 @@ mod tests {
         let binned_records = PostgresClient::get_binned_llm_metric_values(
             &pool,
             &DriftRequest {
-                space: SPACE.to_string(),
-                name: NAME.to_string(),
-                version: VERSION.to_string(),
+                uid: UID.to_string(),
                 time_interval: TimeInterval::OneHour,
                 max_data_points: 1000,
-                drift_type: DriftType::LLM,
                 ..Default::default()
             },
             &DatabaseSettings::default().retention_period,

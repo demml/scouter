@@ -542,8 +542,26 @@ pub struct ProfileArgs {
 
 // trait to implement on all profile types
 pub trait ProfileBaseArgs {
+    type Config: ConfigExt;
+
+    fn config(&self) -> &Self::Config;
     fn get_base_args(&self) -> ProfileArgs;
     fn to_value(&self) -> serde_json::Value;
+    fn space(&self) -> &str {
+        self.config().space()
+    }
+    fn name(&self) -> &str {
+        self.config().name()
+    }
+    fn version(&self) -> &str {
+        self.config().version()
+    }
+}
+
+pub trait ConfigExt {
+    fn space(&self) -> &str;
+    fn name(&self) -> &str;
+    fn version(&self) -> &str;
 }
 
 pub trait ValidateAlertConfig {

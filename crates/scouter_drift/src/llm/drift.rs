@@ -3,7 +3,7 @@ use chrono::{DateTime, Utc};
 use scouter_dispatch::AlertDispatcher;
 use scouter_sql::sql::traits::LLMDriftSqlLogic;
 use scouter_sql::{sql::cache::entity_cache, PostgresClient};
-use scouter_types::contracts::ServiceInfo;
+use scouter_types::ProfileBaseArgs;
 use scouter_types::{custom::ComparisonMetricAlert, llm::LLMDriftProfile, AlertThreshold};
 use sqlx::{Pool, Postgres};
 use std::collections::{BTreeMap, HashMap};
@@ -11,20 +11,12 @@ use tracing::error;
 use tracing::info;
 
 pub struct LLMDrifter {
-    service_info: ServiceInfo,
     profile: LLMDriftProfile,
 }
 
 impl LLMDrifter {
     pub fn new(profile: LLMDriftProfile) -> Self {
-        Self {
-            service_info: ServiceInfo {
-                name: profile.config.name.clone(),
-                space: profile.config.space.clone(),
-                version: profile.config.version.clone(),
-            },
-            profile,
-        }
+        Self { profile }
     }
 
     pub async fn get_observed_llm_metric_values(
@@ -48,9 +40,9 @@ impl LLMDrifter {
                 .inspect_err(|e| {
                     let msg = format!(
                         "Error: Unable to obtain llm metric data from DB for {}/{}/{}: {}",
-                        self.service_info.space,
-                        self.service_info.name,
-                        self.service_info.version,
+                        self.profile.space(),
+                        self.profile.name(),
+                        self.profile.version(),
                         e
                     );
                     error!(msg);
@@ -70,7 +62,7 @@ impl LLMDrifter {
         if metric_map.is_empty() {
             info!(
                 "No llm metric data was found for {}/{}/{}. Skipping alert processing.",
-                self.service_info.space, self.service_info.name, self.service_info.version,
+                self.profile.config.space, self.profile.config.name, self.profile.config.version,
             );
             return Ok(None);
         }
@@ -151,7 +143,7 @@ impl LLMDrifter {
         if metric_alerts.is_empty() {
             info!(
                 "No alerts to process for {}/{}/{}",
-                self.service_info.space, self.service_info.name, self.service_info.version
+                self.profile.config.space, self.profile.config.name, self.profile.config.version
             );
             return Ok(None);
         }
@@ -159,7 +151,10 @@ impl LLMDrifter {
         let alert_dispatcher = AlertDispatcher::new(&self.profile.config).inspect_err(|e| {
             let msg = format!(
                 "Error creating alert dispatcher for {}/{}/{}: {}",
-                self.service_info.space, self.service_info.name, self.service_info.version, e
+                self.profile.space(),
+                self.profile.name(),
+                self.profile.version(),
+                e
             );
             error!(msg);
         })?;
@@ -171,9 +166,9 @@ impl LLMDrifter {
                 .inspect_err(|e| {
                     let msg = format!(
                         "Error processing alerts for {}/{}/{}: {}",
-                        self.service_info.space,
-                        self.service_info.name,
-                        self.service_info.version,
+                        self.profile.space(),
+                        self.profile.name(),
+                        self.profile.version(),
                         e
                     );
                     error!(msg);
@@ -226,9 +221,9 @@ impl LLMDrifter {
                 let alerts = self.generate_alerts(&metric_map).await.inspect_err(|e| {
                     let msg = format!(
                         "Error generating alerts for {}/{}/{}: {}",
-                        self.service_info.space,
-                        self.service_info.name,
-                        self.service_info.version,
+                        self.profile.space(),
+                        self.profile.name(),
+                        self.profile.version(),
                         e
                     );
                     error!(msg);

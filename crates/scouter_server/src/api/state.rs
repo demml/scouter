@@ -1,11 +1,11 @@
 use crate::api::{error::ServerError, task_manager::TaskManager};
 
+use axum::http::StatusCode;
 use axum::Json;
 use flume::Sender;
 use scouter_auth::auth::AuthManager;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::sql::cache::entity_cache;
-use scouter_sql::sql::cache::EntityCache;
 use scouter_types::contracts::ScouterServerError;
 use scouter_types::MessageRecord;
 use sqlx::{Pool, Postgres};
@@ -18,7 +18,6 @@ pub struct AppState {
     pub task_manager: TaskManager,
     pub config: Arc<ScouterServerConfig>,
     pub http_consumer_tx: Sender<MessageRecord>,
-    pub entity_cache: EntityCache,
 }
 
 impl AppState {
@@ -36,14 +35,14 @@ impl AppState {
     pub async fn get_entity_id_for_request(
         &self,
         uid: &String,
-    ) -> Result<i32, (ServerError, Json<ScouterServerError>)> {
+    ) -> Result<i32, (StatusCode, Json<ScouterServerError>)> {
         match self.get_entity_id_from_uid(uid).await {
             Ok(profile_id) => Ok(profile_id),
             Err(e) => {
                 let error_msg = e.to_string();
                 error!("Failed to get entity ID from UID: {:?}", e);
                 Err((
-                    e,
+                    StatusCode::INTERNAL_SERVER_ERROR,
                     Json(ScouterServerError::new(format!(
                         "Failed to get entity ID from UID: {error_msg}"
                     ))),

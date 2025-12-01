@@ -434,8 +434,10 @@ impl PyScouterClient {
         &self,
         py: Python<'py>,
         drift_request: DriftRequest,
+        drift_type: DriftType,
     ) -> Result<Bound<'py, PyAny>, ClientError> {
-        match drift_request.drift_type {
+        // get drift type
+        match drift_type {
             DriftType::Spc => {
                 PyScouterClient::get_spc_binned_drift(py, &self.client.client, drift_request)
             }

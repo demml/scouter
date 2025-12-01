@@ -154,7 +154,7 @@ pub trait CustomMetricSqlLogic {
         storage_settings: &ObjectStorageSettings,
         entity_id: &i32,
     ) -> Result<BinnedMetrics, SqlError> {
-        let path = format!("{}/{}/{}/custom", params.space, params.name, params.version);
+        let path = format!("{}/custom", params.uid);
         let bin = minutes as f64 / params.max_data_points as f64;
         let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::Custom)?
             .get_binned_metrics(&path, &bin, &begin, &end, &entity_id)

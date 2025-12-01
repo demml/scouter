@@ -114,7 +114,7 @@ pub trait PsiSqlLogic {
         storage_settings: &ObjectStorageSettings,
         entity_id: &i32,
     ) -> Result<Vec<FeatureBinProportionResult>, SqlError> {
-        let path = format!("{}/{}/{}/psi", params.space, params.name, params.version);
+        let path = format!("{}/psi", params.uid);
         let bin = minutes as f64 / params.max_data_points as f64;
 
         let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::Psi)?

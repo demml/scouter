@@ -10,7 +10,7 @@ use scouter_semver::VersionArgs;
 use scouter_semver::VersionType;
 use scouter_semver::{VersionParser, VersionValidator};
 use scouter_types::{
-    DriftProfile, DriftType, ListProfilesRequest, ListedProfile, ProfileArgs, ProfileStatusRequest,
+    DriftProfile, ListProfilesRequest, ListedProfile, ProfileArgs, ProfileStatusRequest,
 };
 use semver::Version;
 use serde_json::Value;
@@ -217,13 +217,11 @@ pub trait ProfileSqlLogic {
     async fn get_drift_profile(
         pool: &Pool<Postgres>,
         entity_id: &i32,
-        drift_type: &DriftType,
     ) -> Result<Option<Value>, SqlError> {
         let query = Queries::GetDriftProfile.get_query();
 
         let result = sqlx::query(&query.sql)
             .bind(entity_id)
-            .bind(drift_type.to_string())
             .fetch_optional(pool)
             .await
             .map_err(SqlError::SqlxError)?;

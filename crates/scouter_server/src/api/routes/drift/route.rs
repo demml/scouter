@@ -10,15 +10,16 @@ use axum::{
 use scouter_auth::permission::UserPermissions;
 use scouter_drift::psi::PsiDrifter;
 use scouter_settings::ScouterServerConfig;
-use scouter_sql::sql::traits::{
-    CustomMetricSqlLogic, LLMDriftSqlLogic, ProfileSqlLogic, SpcSqlLogic,
+use scouter_sql::sql::{
+    cache::entity_cache,
+    traits::{CustomMetricSqlLogic, LLMDriftSqlLogic, ProfileSqlLogic, SpcSqlLogic},
 };
 use scouter_sql::PostgresClient;
 use scouter_types::{
     llm::PaginationResponse,
     psi::{BinnedPsiFeatureMetrics, PsiDriftProfile},
     spc::SpcDriftFeatures,
-    BinnedMetrics, DriftType, LLMDriftRecordPaginationRequest, LLMDriftServerRecord, MessageRecord,
+    BinnedMetrics, DriftType, LLMDriftRecord, LLMDriftRecordPaginationRequest, MessageRecord,
 };
 use scouter_types::{DriftRequest, GetProfileRequest, ScouterResponse, ScouterServerError};
 use sqlx::{Pool, Postgres};
@@ -43,11 +44,14 @@ pub async fn get_spc_drift(
         ));
     }
 
+    let entity_id = data.get_entity_id_for_request(&params.uid).await?;
+
     let query_result = PostgresClient::get_binned_spc_drift_records(
         &data.db_pool,
         &params,
         &data.config.database_settings.retention_period,
         &data.config.storage_settings,
+        &entity_id,
     )
     .await;
 
@@ -72,14 +76,9 @@ async fn get_binned_psi_feature_metrics(
 ) -> Result<BinnedPsiFeatureMetrics, ServerError> {
     debug!("Querying drift records: {:?}", params);
 
-    let profile_request = GetProfileRequest {
-        name: params.name.clone(),
-        space: params.space.clone(),
-        version: params.version.clone(),
-        drift_type: DriftType::Psi,
-    };
+    let entity_id = entity_cache().get_entity_id_from_uid(&params.uid).await?;
 
-    let value = PostgresClient::get_drift_profile(db_pool, &profile_request)
+    let value = PostgresClient::get_drift_profile(db_pool, &entity_id)
         .await
         .inspect_err(|e| {
             error!("Failed to get drift profile: {:?}", e);
@@ -99,6 +98,7 @@ async fn get_binned_psi_feature_metrics(
             db_pool,
             &config.database_settings.retention_period,
             &config.storage_settings,
+            &entity_id,
         )
         .await
         .inspect_err(|e| {
@@ -157,11 +157,13 @@ pub async fn get_custom_drift(
         ));
     }
 
+    let entity_id = data.get_entity_id_for_request(&params.uid).await?;
     let metrics = PostgresClient::get_binned_custom_drift_records(
         &data.db_pool,
         &params,
         &data.config.database_settings.retention_period,
         &data.config.storage_settings,
+        &entity_id,
     )
     .await;
 
@@ -184,8 +186,7 @@ pub async fn get_llm_drift_records(
     State(data): State<Arc<AppState>>,
     Extension(perms): Extension<UserPermissions>,
     Json(params): Json<LLMDriftRecordPaginationRequest>,
-) -> Result<Json<PaginationResponse<LLMDriftServerRecord>>, (StatusCode, Json<ScouterServerError>)>
-{
+) -> Result<Json<PaginationResponse<LLMDriftRecord>>, (StatusCode, Json<ScouterServerError>)> {
     // validate time window
 
     if !perms.has_read_permission(&params.service_info.space) {
@@ -195,9 +196,13 @@ pub async fn get_llm_drift_records(
         ));
     }
 
+    let entity_id = data
+        .get_entity_id_for_request(&params.service_info.uid)
+        .await?;
+
     let metrics = PostgresClient::get_llm_drift_records_pagination(
         &data.db_pool,
-        &params.service_info,
+        &entity_id,
         params.status,
         params.pagination,
     )
@@ -231,11 +236,14 @@ pub async fn get_llm_drift_metrics(
         ));
     }
 
+    let entity_id = data.get_entity_id_for_request(&params.uid).await?;
+
     let metrics = PostgresClient::get_binned_llm_metric_values(
         &data.db_pool,
         &params,
         &data.config.database_settings.retention_period,
         &data.config.storage_settings,
+        &entity_id,
     )
     .await;
 

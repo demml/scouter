@@ -305,10 +305,7 @@ pub trait LLMDriftSqlLogic {
         entity_id: &i32,
     ) -> Result<BinnedMetrics, SqlError> {
         debug!("Getting archived LLM metrics for params: {:?}", params);
-        let path = format!(
-            "{}/{}/{}/llm_metric",
-            params.space, params.name, params.version
-        );
+        let path = format!("{}/llm_metric", params.uid);
         let bin = minutes as f64 / params.max_data_points as f64;
         let archived_df = ParquetDataFrame::new(storage_settings, &RecordType::LLMMetric)?
             .get_binned_metrics(&path, &bin, &begin, &end, entity_id)

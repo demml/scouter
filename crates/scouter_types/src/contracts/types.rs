@@ -52,12 +52,12 @@ impl GetProfileRequest {
 #[pyclass]
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct DriftRequest {
+    // this is the uid for a specific space, name, version, drift_type profile
+    pub uid: String,
+    // This is the space name. Used for permission checks
     pub space: String,
-    pub name: String,
-    pub version: String,
     pub time_interval: TimeInterval,
     pub max_data_points: i32,
-    pub drift_type: DriftType,
     pub begin_custom_datetime: Option<DateTime<Utc>>,
     pub end_custom_datetime: Option<DateTime<Utc>>,
 }
@@ -65,15 +65,13 @@ pub struct DriftRequest {
 #[pymethods]
 impl DriftRequest {
     #[new]
-    #[pyo3(signature = (name, space, version, time_interval, max_data_points, drift_type, begin_datetime=None, end_datetime=None))]
+    #[pyo3(signature = (uid, space, time_interval, max_data_points, begin_datetime=None, end_datetime=None))]
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        name: String,
+        uid: String,
         space: String,
-        version: String,
         time_interval: TimeInterval,
         max_data_points: i32,
-        drift_type: DriftType,
         begin_datetime: Option<DateTime<Utc>>,
         end_datetime: Option<DateTime<Utc>>,
     ) -> Result<Self, ContractError> {
@@ -84,12 +82,10 @@ impl DriftRequest {
         };
 
         Ok(DriftRequest {
-            name,
+            uid,
             space,
-            version,
             time_interval,
             max_data_points,
-            drift_type,
             begin_custom_datetime: custom_interval.as_ref().map(|interval| interval.start),
             end_custom_datetime: custom_interval.as_ref().map(|interval| interval.end),
         })
@@ -215,8 +211,7 @@ impl DriftAlertRequest {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ServiceInfo {
     pub space: String,
-    pub name: String,
-    pub version: String,
+    pub uid: String,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]

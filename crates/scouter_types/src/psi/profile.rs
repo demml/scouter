@@ -4,7 +4,7 @@ use crate::binning::quantile::QuantileBinning;
 use crate::binning::strategy::BinningStrategy;
 use crate::error::{ProfileError, TypeError};
 use crate::psi::alert::PsiAlertConfig;
-use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version};
+use crate::util::{json_to_pyobject, pyobject_to_json, scouter_version, ConfigExt};
 use crate::ProfileRequest;
 use crate::VersionRequest;
 use crate::{
@@ -61,6 +61,20 @@ pub struct PsiDriftConfig {
     pub categorical_features: Option<Vec<String>>,
 
     pub binning_strategy: BinningStrategy,
+}
+
+impl ConfigExt for PsiDriftConfig {
+    fn space(&self) -> &str {
+        &self.space
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn version(&self) -> &str {
+        &self.version
+    }
 }
 
 fn default_drift_type() -> DriftType {
@@ -581,6 +595,11 @@ impl PsiDriftMap {
 
 // TODO dry this out
 impl ProfileBaseArgs for PsiDriftProfile {
+    type Config = PsiDriftConfig;
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
     /// Get the base arguments for the profile (convenience method on the server)
     fn get_base_args(&self) -> ProfileArgs {
         ProfileArgs {

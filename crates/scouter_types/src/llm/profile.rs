@@ -1,7 +1,7 @@
 use crate::error::{ProfileError, TypeError};
 use crate::llm::alert::LLMAlertConfig;
 use crate::llm::alert::LLMDriftMetric;
-use crate::util::{json_to_pyobject, pyobject_to_json};
+use crate::util::{json_to_pyobject, pyobject_to_json, ConfigExt};
 use crate::ProfileRequest;
 use crate::{scouter_version, LLMMetricRecord};
 use crate::{
@@ -49,6 +49,20 @@ pub struct LLMDriftConfig {
     #[pyo3(get, set)]
     #[serde(default = "default_drift_type")]
     pub drift_type: DriftType,
+}
+
+impl ConfigExt for LLMDriftConfig {
+    fn space(&self) -> &str {
+        &self.space
+    }
+
+    fn name(&self) -> &str {
+        &self.name
+    }
+
+    fn version(&self) -> &str {
+        &self.version
+    }
 }
 
 fn default_drift_type() -> DriftType {
@@ -604,6 +618,11 @@ impl LLMDriftProfile {
 }
 
 impl ProfileBaseArgs for LLMDriftProfile {
+    type Config = LLMDriftConfig;
+
+    fn config(&self) -> &Self::Config {
+        &self.config
+    }
     fn get_base_args(&self) -> ProfileArgs {
         ProfileArgs {
             name: self.config.name.clone(),
