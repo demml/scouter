@@ -4,10 +4,7 @@ use scouter_types::psi::DistributionData;
 use scouter_types::BoxedLLMDriftInternalRecord;
 use scouter_types::DriftType;
 use scouter_types::LLMDriftInternalRecord;
-use scouter_types::{
-    alert::Alert, get_utc_datetime, psi::FeatureBinProportionResult, BinnedMetric,
-    BinnedMetricStats, RecordType,
-};
+use scouter_types::{alert::Alert, get_utc_datetime, BinnedMetric, BinnedMetricStats, RecordType};
 use semver::{BuildMetadata, Prerelease, Version};
 use serde::{Deserialize, Serialize};
 use sqlx::{postgres::PgRow, Error, FromRow, Row};

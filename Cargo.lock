@@ -5728,6 +5728,7 @@ dependencies = [
  "chrono",
  "cron",
  "itertools 0.14.0",
+ "mini-moka",
  "potato-head",
  "rand 0.9.2",
  "scouter-dataframe",

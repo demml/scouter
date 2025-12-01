@@ -8,7 +8,7 @@ pub mod spc_drifter {
     use ndarray::ArrayView2;
     use scouter_dispatch::AlertDispatcher;
     use scouter_sql::sql::traits::SpcSqlLogic;
-    use scouter_sql::PostgresClient;
+    use scouter_sql::{sql::cache::entity_cache, PostgresClient};
     use scouter_types::contracts::ServiceInfo;
     use scouter_types::spc::{SpcDriftFeatures, SpcDriftProfile, TaskAlerts};
     use sqlx::{Pool, Postgres};
@@ -84,11 +84,14 @@ pub mod spc_drifter {
             limit_datetime: &DateTime<Utc>,
             features_to_monitor: &[String],
         ) -> Result<SpcDriftArray, DriftError> {
+            let entity_id = entity_cache()
+                .get_entity_id_from_uid(&self.profile.config.uid)
+                .await?;
             let records = PostgresClient::get_spc_drift_records(
                 db_pool,
-                &self.service_info,
                 limit_datetime,
                 features_to_monitor,
+                &entity_id,
             )
             .await?;
             SpcDriftArray::new(records)

@@ -368,7 +368,7 @@ impl Metrics {
 #[cfg_attr(feature = "server", derive(sqlx::FromRow))]
 pub struct LLMTaskRecord {
     pub uid: String,
-    pub entity_id: String,
+    pub entity_id: i32,
     pub created_at: DateTime<Utc>,
     pub context: Value,
     pub score: Value,

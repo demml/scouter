@@ -664,15 +664,15 @@ impl ServerRecords {
 
     /// gets the uid from the first record type found in the records
     /// This is a helper for consumers that need to get an entity_id associated with the given uid
-    pub fn uid(&self) -> Result<String, RecordError> {
+    pub fn uid(&self) -> Result<&String, RecordError> {
         if let Some(first) = self.records.first() {
             match first {
-                ServerRecord::Spc(inner) => Ok(inner.uid.clone()),
-                ServerRecord::Psi(inner) => Ok(inner.uid.clone()),
-                ServerRecord::Custom(inner) => Ok(inner.uid.clone()),
-                ServerRecord::Observability(inner) => Ok(inner.uid.clone()),
-                ServerRecord::LLMDrift(inner) => Ok(inner.record.uid.clone()),
-                ServerRecord::LLMMetric(inner) => Ok(inner.uid.clone()),
+                ServerRecord::Spc(inner) => Ok(&inner.uid),
+                ServerRecord::Psi(inner) => Ok(&inner.uid),
+                ServerRecord::Custom(inner) => Ok(&inner.uid),
+                ServerRecord::Observability(inner) => Ok(&inner.uid),
+                ServerRecord::LLMDrift(inner) => Ok(&inner.record.uid),
+                ServerRecord::LLMMetric(inner) => Ok(&inner.uid),
             }
         } else {
             Err(RecordError::EmptyServerRecordsError)

@@ -213,6 +213,7 @@ pub mod drift_executor {
         use super::*;
         use rusty_logging::logger::{LogLevel, LoggingConfig, RustyLogger};
         use scouter_settings::DatabaseSettings;
+        use scouter_sql::sql::traits::EntitySqlLogic;
         use scouter_sql::PostgresClient;
         use scouter_types::spc::SpcFeatureDriftProfile;
         use scouter_types::{
@@ -275,9 +276,9 @@ pub mod drift_executor {
             };
 
             let config = SpcDriftConfig::new(
-                Some("statworld".to_string()),
-                Some("test_app".to_string()),
-                Some("0.1.0".to_string()),
+                "statworld",
+                "test_app",
+                "0.1.0",
                 Some(true),
                 Some(25),
                 Some(alert_config),

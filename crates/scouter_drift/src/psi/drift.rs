@@ -9,12 +9,13 @@ pub mod psi_drifter {
     use scouter_dispatch::AlertDispatcher;
     use scouter_settings::ObjectStorageSettings;
     use scouter_sql::sql::traits::PsiSqlLogic;
-    use scouter_sql::PostgresClient;
+    use scouter_sql::{sql::cache::entity_cache, PostgresClient};
     use scouter_types::contracts::{DriftRequest, ServiceInfo};
     use scouter_types::psi::{
         BinnedPsiFeatureMetrics, BinnedPsiMetric, FeatureDistributions, PsiDriftProfile,
         PsiFeatureAlert, PsiFeatureAlerts, PsiFeatureDriftProfile,
     };
+
     use sqlx::{Pool, Postgres};
     use std::collections::{BTreeMap, HashMap};
     use tracing::info;
@@ -52,11 +53,14 @@ pub mod psi_drifter {
             limit_datetime: &DateTime<Utc>,
             db_pool: &Pool<Postgres>,
         ) -> Result<Option<FeatureDistributions>, DriftError> {
+            let entity_id = entity_cache()
+                .get_entity_id_from_uid(&self.profile.config.uid)
+                .await?;
             let feature_distributions = PostgresClient::get_feature_distributions(
                 db_pool,
-                &self.service_info,
                 limit_datetime,
                 &self.profile.config.alert_config.features_to_monitor,
+                &entity_id,
             )
             .await
             .inspect_err(|e| {
@@ -260,6 +264,7 @@ pub mod psi_drifter {
             db_pool: &Pool<Postgres>,
             retention_period: &i32,
             storage_settings: &ObjectStorageSettings,
+            entity_id: &i32,
         ) -> Result<BinnedPsiFeatureMetrics, DriftError> {
             debug!(
                 "Getting binned drift map for {}/{}/{}",
@@ -270,6 +275,7 @@ pub mod psi_drifter {
                 drift_request,
                 retention_period,
                 storage_settings,
+                entity_id,
             )
             .await?;
 

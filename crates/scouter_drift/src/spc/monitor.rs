@@ -9,7 +9,7 @@ use num_traits::{Float, FromPrimitive, Num};
 use rayon::prelude::*;
 use scouter_types::{
     spc::{SpcDriftConfig, SpcDriftProfile, SpcFeatureDriftProfile},
-    ServerRecord, ServerRecords, SpcServerRecord,
+    ServerRecord, ServerRecords, SpcRecord,
 };
 use std::collections::HashMap;
 use std::fmt::Debug;
@@ -422,10 +422,8 @@ impl SpcMonitor {
             let sample = sample_data.column(i);
 
             sample.iter().for_each(|value| {
-                let record = SpcServerRecord::new(
-                    drift_profile.config.space.clone(),
-                    drift_profile.config.name.clone(),
-                    drift_profile.config.version.clone(),
+                let record = SpcRecord::new(
+                    drift_profile.config.uid.clone(),
                     feature.to_string(),
                     *value,
                 );
@@ -504,9 +502,9 @@ mod tests {
         let alert_config = SpcAlertConfig::default();
         let monitor = SpcMonitor::new();
         let config = SpcDriftConfig::new(
-            Some("name".to_string()),
-            Some("repo".to_string()),
-            None,
+            "space",
+            "name",
+            "1.0.0",
             None,
             None,
             Some(alert_config),
@@ -556,9 +554,9 @@ mod tests {
         let monitor = SpcMonitor::new();
         let alert_config = SpcAlertConfig::default();
         let config = SpcDriftConfig::new(
-            Some("repo".to_string()),
-            Some("name".to_string()),
-            None,
+            "space",
+            "name",
+            "1.0.0",
             None,
             None,
             Some(alert_config),
@@ -572,8 +570,8 @@ mod tests {
 
         let args = profile.get_base_args();
         assert_eq!(args.name, "name");
-        assert_eq!(args.space, "repo");
-        assert_eq!(args.version, Some("0.1.0".to_string()));
+        assert_eq!(args.space, "space");
+        assert_eq!(args.version, Some("1.0.0".to_string()));
         assert_eq!(args.schedule, "0 0 0 * * *");
 
         let value = profile.to_value();
@@ -600,9 +598,9 @@ mod tests {
         ];
         let alert_config = SpcAlertConfig::default();
         let config = SpcDriftConfig::new(
-            Some("name".to_string()),
-            Some("repo".to_string()),
-            None,
+            "space",
+            "name",
+            "1.0.0",
             None,
             None,
             Some(alert_config),
@@ -649,9 +647,9 @@ mod tests {
             ..Default::default()
         };
         let config = SpcDriftConfig::new(
-            Some("name".to_string()),
-            Some("repo".to_string()),
-            None,
+            "space",
+            "name",
+            "1.0.0",
             None,
             None,
             Some(alert_config),
@@ -686,9 +684,9 @@ mod tests {
 
         let alert_config = SpcAlertConfig::default();
         let config = SpcDriftConfig::new(
-            Some("name".to_string()),
-            Some("repo".to_string()),
-            None,
+            "space",
+            "name",
+            "1.0.0",
             None,
             None,
             Some(alert_config),

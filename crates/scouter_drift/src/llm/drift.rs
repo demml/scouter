@@ -2,7 +2,7 @@ use crate::error::DriftError;
 use chrono::{DateTime, Utc};
 use scouter_dispatch::AlertDispatcher;
 use scouter_sql::sql::traits::LLMDriftSqlLogic;
-use scouter_sql::PostgresClient;
+use scouter_sql::{sql::cache::entity_cache, PostgresClient};
 use scouter_types::contracts::ServiceInfo;
 use scouter_types::{custom::ComparisonMetricAlert, llm::LLMDriftProfile, AlertThreshold};
 use sqlx::{Pool, Postgres};
@@ -32,6 +32,9 @@ impl LLMDrifter {
         limit_datetime: &DateTime<Utc>,
         db_pool: &Pool<Postgres>,
     ) -> Result<HashMap<String, f64>, DriftError> {
+        let entity_id = entity_cache()
+            .get_entity_id_from_uid(&self.profile.config.uid)
+            .await?;
         let metrics: Vec<String> = self
             .profile
             .metrics
@@ -39,20 +42,20 @@ impl LLMDrifter {
             .map(|metric| metric.name.clone())
             .collect();
 
-        Ok(PostgresClient::get_llm_metric_values(
-            db_pool,
-            &self.service_info,
-            limit_datetime,
-            &metrics,
+        Ok(
+            PostgresClient::get_llm_metric_values(db_pool, limit_datetime, &metrics, &entity_id)
+                .await
+                .inspect_err(|e| {
+                    let msg = format!(
+                        "Error: Unable to obtain llm metric data from DB for {}/{}/{}: {}",
+                        self.service_info.space,
+                        self.service_info.name,
+                        self.service_info.version,
+                        e
+                    );
+                    error!(msg);
+                })?,
         )
-        .await
-        .inspect_err(|e| {
-            let msg = format!(
-                "Error: Unable to obtain llm metric data from DB for {}/{}/{}: {}",
-                self.service_info.space, self.service_info.name, self.service_info.version, e
-            );
-            error!(msg);
-        })?)
     }
 
     pub async fn get_metric_map(

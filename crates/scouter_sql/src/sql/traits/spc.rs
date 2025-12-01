@@ -27,7 +27,7 @@ pub trait SpcSqlLogic {
     async fn insert_spc_drift_records_batch(
         pool: &Pool<Postgres>,
         records: &[SpcRecord],
-        entity_id: i32,
+        entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
         if records.is_empty() {
             return Err(SqlError::EmptyBatchError);

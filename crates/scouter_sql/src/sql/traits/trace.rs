@@ -1,6 +1,5 @@
 use crate::sql::error::SqlError;
 use crate::sql::query::Queries;
-use crate::sql::traits::entity;
 
 use async_trait::async_trait;
 use chrono::{DateTime, Utc};

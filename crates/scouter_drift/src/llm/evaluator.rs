@@ -3,7 +3,7 @@ use crate::error::DriftError;
 use potato_head::ResponseLogProbs;
 use potato_head::{calculate_weighted_score, Score, StructuredOutput, TaskStatus, Workflow};
 use scouter_types::llm::LLMDriftProfile;
-use scouter_types::{LLMMetricRecord, LLMRecord, LLMTaskRecord};
+use scouter_types::{LLMMetricRecord, LLMTaskRecord};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::sync::RwLock;

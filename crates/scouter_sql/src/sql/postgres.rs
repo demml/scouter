@@ -1,4 +1,4 @@
-use crate::sql::cache::{entity_cache, EntityCache};
+use crate::sql::cache::entity_cache;
 use crate::sql::error::SqlError;
 use crate::sql::traits::{
     AlertSqlLogic, ArchiveSqlLogic, CustomMetricSqlLogic, LLMDriftSqlLogic, ObservabilitySqlLogic,
@@ -92,7 +92,9 @@ impl MessageHandler {
     ) -> Result<(), SqlError> {
         debug!("Inserting server records: {:?}", records.record_type()?);
 
-        let entity_id = entity_cache().get_entity_id_from_uid(records.uid()).await?;
+        let entity_id = entity_cache()
+            .get_entity_id_from_uid(records.uid()?)
+            .await?;
 
         match records.record_type()? {
             RecordType::Spc => {
@@ -178,9 +180,15 @@ impl MessageHandler {
         pool: &Pool<Postgres>,
         records: &TraceServerRecord,
     ) -> Result<(), SqlError> {
-        let entity_id = entity_cache()
-            .get_optional_entity_id_from_uid(records.uid())
-            .await?;
+        let entity_id = if let Some(uid) = &records.uid {
+            entity_cache()
+                .get_optional_entity_id_from_uid(uid)
+                .await
+                .ok()
+                .flatten()
+        } else {
+            None
+        };
 
         let (trace_batch, span_batch, baggage_batch) = records.to_records()?;
 
@@ -262,9 +270,7 @@ mod tests {
     use scouter_types::sql::TraceFilters;
     use scouter_types::*;
     use serde_json::Value;
-    use sqlx::postgres::PgQueryResult;
     use std::collections::BTreeMap;
-    use std::f64::consts::E;
 
     const SPACE: &str = "space";
     const NAME: &str = "name";
@@ -287,7 +293,7 @@ mod tests {
         TraceRecord {
             trace_id: trace_id.clone(),
             created_at,
-            uid: UID.to_string(),
+            uid: Some(UID.to_string()),
             scope: SCOPE.to_string(),
             trace_state: "running".to_string(),
             start_time: created_at,
@@ -324,7 +330,7 @@ mod tests {
             span_id,
             trace_id: trace_id.to_string(),
             parent_span_id: parent_span_id.map(|s| s.to_string()),
-            uid: UID.to_string(),
+            uid: Some(UID.to_string()),
             scope: SCOPE.to_string(),
             span_name: format!("{}_{}", "random_operation", rng.random_range(0..10)),
             span_kind,
@@ -524,7 +530,7 @@ mod tests {
         };
 
         let result =
-            PostgresClient::insert_spc_drift_records_batch(&pool, &[record1, record2], &entity_id)
+            PostgresClient::insert_spc_drift_records_batch(&pool, &[record1, record2], &ENTITY_ID)
                 .await
                 .unwrap();
 
@@ -543,7 +549,7 @@ mod tests {
             bin_count: 1,
         };
 
-        let record2 = PsirRecord {
+        let record2 = PsiRecord {
             created_at: Utc::now(),
             uid: UID.to_string(),
             feature: "test2".to_string(),
@@ -967,14 +973,10 @@ mod tests {
         .unwrap();
 
         // query processed tasks
-        let processed_tasks = PostgresClient::get_llm_drift_records(
-            &pool,
-            &service_info,
-            None,
-            Some(Status::Processed),
-        )
-        .await
-        .unwrap();
+        let processed_tasks =
+            PostgresClient::get_llm_drift_records(&pool, None, Some(Status::Processed), &ENTITY_ID)
+                .await
+                .unwrap();
 
         // assert not empty
         assert_eq!(processed_tasks.len(), 1);
@@ -1038,14 +1040,10 @@ mod tests {
             cursor: Some(next_cursor),
         };
 
-        let paginated_features = PostgresClient::get_llm_drift_records_pagination(
-            &pool,
-            &service_info,
-            None,
-            pagination,
-        )
-        .await
-        .unwrap();
+        let paginated_features =
+            PostgresClient::get_llm_drift_records_pagination(&pool, &ENTITY_ID, None, pagination)
+                .await
+                .unwrap();
 
         assert_eq!(paginated_features.items.len(), 5);
         assert!(paginated_features.next_cursor.is_none());
@@ -1178,7 +1176,7 @@ mod tests {
             &filtered_record.space,
             &filtered_record.name,
             &filtered_record.version,
-            TRACE,
+            "trace",
         )
         .await
         .unwrap();

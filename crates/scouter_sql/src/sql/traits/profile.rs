@@ -194,7 +194,7 @@ pub trait ProfileSqlLogic {
     async fn update_drift_profile(
         pool: &Pool<Postgres>,
         drift_profile: &DriftProfile,
-        entity_id: i32,
+        entity_id: &i32,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::UpdateDriftProfile.get_query();
 

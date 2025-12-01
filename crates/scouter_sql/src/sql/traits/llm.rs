@@ -8,12 +8,12 @@ use itertools::multiunzip;
 use scouter_dataframe::parquet::BinnedMetricsExtractor;
 use scouter_dataframe::parquet::ParquetDataFrame;
 use scouter_settings::ObjectStorageSettings;
-use scouter_types::contracts::{DriftRequest, ServiceInfo};
+use scouter_types::contracts::DriftRequest;
 use scouter_types::{
     llm::{PaginationCursor, PaginationRequest, PaginationResponse},
     BinnedMetrics, LLMDriftRecord, RecordType,
 };
-use scouter_types::{LLMDriftInternalRecord, LLMRecord, LLMTaskRecord};
+use scouter_types::{LLMDriftInternalRecord, LLMTaskRecord};
 use scouter_types::{LLMMetricRecord, Status};
 use sqlx::types::Json;
 use sqlx::{postgres::PgQueryResult, Pool, Postgres, Row};
@@ -390,7 +390,7 @@ pub trait LLMDriftSqlLogic {
     #[instrument(skip_all)]
     async fn update_llm_drift_record_status(
         pool: &Pool<Postgres>,
-        record: &LLMRecord,
+        record: &LLMTaskRecord,
         status: Status,
         workflow_duration: Option<i32>, // Duration in seconds
     ) -> Result<(), SqlError> {
