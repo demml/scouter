@@ -18,15 +18,9 @@ pub struct TraceListItem {
     #[pyo3(get)]
     pub trace_id: String,
     #[pyo3(get)]
-    pub space: String,
-    #[pyo3(get)]
-    pub name: String,
-    #[pyo3(get)]
-    pub version: String,
+    pub service_name: String,
     #[pyo3(get)]
     pub scope: String,
-    #[pyo3(get)]
-    pub service_name: Option<String>,
     #[pyo3(get)]
     pub root_operation: Option<String>,
     #[pyo3(get)]

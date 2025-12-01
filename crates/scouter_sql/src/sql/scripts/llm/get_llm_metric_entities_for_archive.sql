@@ -1,9 +1,11 @@
 SELECT
-    entity_id,
-    MIN(created_at) as begin_timestamp,
-    MAX(created_at) as end_timestamp
-FROM scouter.llm_drift
+    sd.entity_id,
+    e.uid as entity_uid,
+    MIN(sd.created_at) as begin_timestamp,
+    MAX(sd.created_at) as end_timestamp
+FROM scouter.llm_drift sd
+INNER JOIN scouter.entities e ON sd.entity_id = e.id
 WHERE 1=1
-    AND created_at < CURRENT_TIMESTAMP - ($1 || ' days')::interval
-    AND archived = false
-GROUP BY entity_id;
+    AND sd.created_at < CURRENT_TIMESTAMP - ($1 || ' days')::interval
+    AND sd.archived = false
+GROUP BY sd.entity_id, e.uid;

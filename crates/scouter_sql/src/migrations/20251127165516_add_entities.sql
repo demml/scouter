@@ -431,7 +431,6 @@ CREATE OR REPLACE FUNCTION scouter.get_traces_paginated(
 )
 RETURNS TABLE (
     trace_id TEXT,
-    service_id INTEGER,
     service_name TEXT,
     scope TEXT,
     root_operation TEXT,

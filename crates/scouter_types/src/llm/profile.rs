@@ -10,8 +10,8 @@ use crate::{
 };
 use core::fmt::Debug;
 use potato_head::prompt::ResponseType;
-use potato_head::Task;
 use potato_head::Workflow;
+use potato_head::{create_uuid7, Task};
 use potato_head::{Agent, Prompt};
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -102,7 +102,7 @@ impl LLMDriftConfig {
             sample_rate,
             space: space.to_string(),
             name: name.to_string(),
-            uid: MISSING.to_string(),
+            uid: create_uuid7(),
             version: version.to_string(),
             alert_config,
             drift_type: DriftType::LLM,

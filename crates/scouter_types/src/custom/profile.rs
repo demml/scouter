@@ -8,6 +8,7 @@ use crate::{
     PyHelperFuncs, VersionRequest, DEFAULT_VERSION, MISSING,
 };
 use core::fmt::Debug;
+use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use scouter_semver::VersionType;
@@ -94,7 +95,7 @@ impl CustomMetricDriftConfig {
             space: space.to_string(),
             name: name.to_string(),
             version: version.to_string(),
-            uid: MISSING.to_string(),
+            uid: create_uuid7(),
             alert_config,
             drift_type: DriftType::Custom,
         })

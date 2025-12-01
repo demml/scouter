@@ -583,14 +583,13 @@ pub struct InsertTagsRequest {
 #[pyclass]
 pub struct TraceRequest {
     pub trace_id: String,
+    pub service_name: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 #[pyclass]
 pub struct TraceMetricsRequest {
-    pub space: Option<String>,
-    pub name: Option<String>,
-    pub version: Option<String>,
+    pub service_name: Option<String>,
     pub start_time: DateTime<Utc>,
     pub end_time: DateTime<Utc>,
     pub bucket_interval: String,
@@ -599,19 +598,15 @@ pub struct TraceMetricsRequest {
 #[pymethods]
 impl TraceMetricsRequest {
     #[new]
-    #[pyo3(signature = (start_time, end_time, bucket_interval,space=None, name=None, version=None))]
+    #[pyo3(signature = (start_time, end_time, bucket_interval,service_name=None))]
     pub fn new(
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         bucket_interval: String,
-        space: Option<String>,
-        name: Option<String>,
-        version: Option<String>,
+        service_name: Option<String>,
     ) -> Self {
         TraceMetricsRequest {
-            space,
-            name,
-            version,
+            service_name,
             start_time,
             end_time,
             bucket_interval,

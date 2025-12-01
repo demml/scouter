@@ -95,4 +95,29 @@ pub trait EntitySqlLogic {
 
         Ok((uid, id))
     }
+
+    async fn get_uid_from_args(
+        pool: &Pool<Postgres>,
+        space: &str,
+        name: &str,
+        version: &str,
+        drift_type: &str,
+    ) -> Result<String, SqlError> {
+        let query = format!(
+            "SELECT uid FROM entities WHERE space = $1 AND name = $2 AND version = $3 AND drift_type = $4;"
+        );
+
+        let result = sqlx::query(&query)
+            .bind(space)
+            .bind(name)
+            .bind(version)
+            .bind(drift_type)
+            .fetch_one(pool)
+            .await
+            .map_err(SqlError::SqlxError)?;
+
+        let uid: String = result.get("uid");
+
+        Ok(uid)
+    }
 }

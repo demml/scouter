@@ -1103,7 +1103,7 @@ mod tests {
         sqlx::query(&script).execute(&pool).await.unwrap();
         let mut filters = TraceFilters::default();
 
-        let first_batch = PostgresClient::get_traces_paginated(&pool, filters.clone(), None)
+        let first_batch = PostgresClient::get_traces_paginated(&pool, filters.clone())
             .await
             .unwrap();
 
@@ -1117,7 +1117,7 @@ mod tests {
         let last_record = first_batch.next_cursor.unwrap();
         filters = filters.next_page(&last_record);
 
-        let next_batch = PostgresClient::get_traces_paginated(&pool, filters.clone(), None)
+        let next_batch = PostgresClient::get_traces_paginated(&pool, filters.clone())
             .await
             .unwrap();
 
@@ -1137,7 +1137,7 @@ mod tests {
 
         // test pagination for previous
         filters = filters.previous_page(&next_batch.previous_cursor.unwrap());
-        let previous_batch = PostgresClient::get_traces_paginated(&pool, filters.clone(), None)
+        let previous_batch = PostgresClient::get_traces_paginated(&pool, filters.clone())
             .await
             .unwrap();
         assert_eq!(
@@ -1156,20 +1156,9 @@ mod tests {
         filters.cursor_created_at = None;
         filters.cursor_trace_id = None;
 
-        let entity_id = PostgresClient::get_entity_id_from_space_name_version_drift_type(
-            &pool,
-            &filtered_record.space,
-            &filtered_record.name,
-            &filtered_record.version,
-            "trace",
-        )
-        .await
-        .unwrap();
-
-        let records =
-            PostgresClient::get_traces_paginated(&pool, filters.clone(), Some(&entity_id))
-                .await
-                .unwrap();
+        let records = PostgresClient::get_traces_paginated(&pool, filters.clone())
+            .await
+            .unwrap();
 
         // Records are randomly generated, so just assert we get some records back
         assert!(
@@ -1178,10 +1167,13 @@ mod tests {
         );
 
         // get spans for filtered trace
-        let spans =
-            PostgresClient::get_trace_spans(&pool, &filtered_record.trace_id, Some(&entity_id))
-                .await
-                .unwrap();
+        let spans = PostgresClient::get_trace_spans(
+            &pool,
+            &filtered_record.trace_id,
+            Some(&filtered_record.service_name),
+        )
+        .await
+        .unwrap();
 
         assert!(spans.len() == filtered_record.span_count.unwrap() as usize);
 
@@ -1253,7 +1245,7 @@ mod tests {
             ..TraceFilters::default()
         };
 
-        let traces = PostgresClient::get_traces_paginated(&pool, trace_filter, None)
+        let traces = PostgresClient::get_traces_paginated(&pool, trace_filter)
             .await
             .unwrap();
 

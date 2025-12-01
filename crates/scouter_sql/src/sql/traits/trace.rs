@@ -220,7 +220,6 @@ pub trait TraceSqlLogic {
     async fn get_traces_paginated(
         pool: &Pool<Postgres>,
         filters: TraceFilters,
-        entity_id: Option<&i32>,
     ) -> Result<TracePaginationResponse, SqlError> {
         let default_start = Utc::now() - chrono::Duration::hours(24);
         let default_end = Utc::now();
@@ -230,7 +229,6 @@ pub trait TraceSqlLogic {
         let query = Queries::GetPaginatedTraces.get_query();
 
         let mut items: Vec<TraceListItem> = sqlx::query_as(&query.sql)
-            .bind(entity_id)
             .bind(filters.service_name)
             .bind(filters.has_errors)
             .bind(filters.status_code)
@@ -320,12 +318,12 @@ pub trait TraceSqlLogic {
     async fn get_trace_spans(
         pool: &Pool<Postgres>,
         trace_id: &str,
-        entity_id: Option<&i32>,
+        service_name: Option<&str>,
     ) -> Result<Vec<TraceSpan>, SqlError> {
         let query = Queries::GetTraceSpans.get_query();
         let trace_items: Result<Vec<TraceSpan>, SqlError> = sqlx::query_as(&query.sql)
             .bind(trace_id)
-            .bind(entity_id)
+            .bind(service_name)
             .fetch_all(pool)
             .await
             .map_err(SqlError::SqlxError);
@@ -341,14 +339,14 @@ pub trait TraceSqlLogic {
     /// * A vector of `TraceSpan` associated with the trace ID
     async fn get_trace_metrics(
         pool: &Pool<Postgres>,
-        entity_id: Option<&i32>,
+        service_name: Option<&str>,
         start_time: DateTime<Utc>,
         end_time: DateTime<Utc>,
         bucket_interval_str: &str,
     ) -> Result<Vec<TraceMetricBucket>, SqlError> {
         let query = Queries::GetTraceMetrics.get_query();
         let trace_items: Result<Vec<TraceMetricBucket>, SqlError> = sqlx::query_as(&query.sql)
-            .bind(entity_id)
+            .bind(service_name)
             .bind(start_time)
             .bind(end_time)
             .bind(bucket_interval_str)

@@ -6,6 +6,7 @@ use crate::sql::schema::VersionResult;
 use async_trait::async_trait;
 use chrono::Utc;
 use cron::Schedule;
+use potato_head::create_uuid7;
 use scouter_semver::VersionArgs;
 use scouter_semver::VersionType;
 use scouter_semver::{VersionParser, VersionValidator};
@@ -158,21 +159,32 @@ pub trait ProfileSqlLogic {
         let build: Option<String> = version.build.to_string().parse().ok();
 
         let result = sqlx::query(&query.sql)
+            // 1. Entity UID (for entity_insert) -> $1
+            .bind(create_uuid7())
+            // 2-3. Entity Identity (for entity_insert & deactivation logic) -> $2, $3
             .bind(&base_args.space)
             .bind(&base_args.name)
+            // 4-8. Version Components (for drift_profile insert) -> $4 to $8
             .bind(major)
             .bind(minor)
             .bind(patch)
             .bind(pre)
             .bind(build)
-            .bind(version.to_string())
+            // 9-11. String/JSON values -> $9 to $11
+            .bind(version.to_string()) // Full Version String
             .bind(&base_args.scouter_version)
-            .bind(drift_profile.to_value())
+            .bind(drift_profile.to_value()) // Profile JSON
+            // 12. Drift Type (for entity_insert & deactivation logic) -> $12
             .bind(base_args.drift_type.to_string())
+            // 13. Active Flag (for deactivation logic & drift_profile insert) -> $13
             .bind(active)
+            // 14. Schedule -> $14
             .bind(&base_args.schedule)
+            // 15. Next Run -> $15
             .bind(next_run)
+            // 16. Current Time (for previous_run/timestamps) -> $16
             .bind(current_time)
+            // 17. Deactivate Others Flag (for deactivation logic) -> $17
             .bind(deactivate_others)
             .fetch_one(pool)
             .await

@@ -17,7 +17,7 @@ use scouter_types::{
     custom::{CustomDriftProfile, CustomMetric, CustomMetricDriftConfig},
     psi::{BinnedPsiFeatureMetrics, PsiAlertConfig, PsiDriftConfig},
     spc::{SpcAlertConfig, SpcDriftConfig, SpcDriftFeatures},
-    AlertThreshold, BinnedMetrics, DriftType, RecordType,
+    AlertThreshold, BinnedMetrics, RecordType,
 };
 use sqlx::types::chrono::Utc;
 use tokio::time::{sleep, Duration};
@@ -28,43 +28,25 @@ async fn test_data_archive_spc() {
 
     let (array, features) = helper.get_data();
     let alert_config = SpcAlertConfig::default();
-    let config = SpcDriftConfig::new(
-        Some(SPACE.to_string()),
-        Some(NAME.to_string()),
-        None,
-        None,
-        None,
-        Some(alert_config),
-        None,
-    );
+    let config = SpcDriftConfig::new(SPACE, NAME, VERSION, None, None, Some(alert_config), None);
 
     let monitor = SpcMonitor::new();
 
-    let profile = monitor
+    let mut profile = monitor
         .create_2d_drift_profile(&features, &array.view(), &config.unwrap())
         .unwrap();
 
-    let request = profile.create_profile_request().unwrap();
+    let uid = helper
+        .register_drift_profile(profile.create_profile_request().unwrap())
+        .await;
 
-    let body = serde_json::to_string(&request).unwrap();
-
-    let request = Request::builder()
-        .uri("/scouter/profile")
-        .method("POST")
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(body))
-        .unwrap();
-
-    let response = helper.send_oneshot(request).await;
-
-    //assert response
-    assert_eq!(response.status(), StatusCode::OK);
+    profile.config.uid = uid.clone();
 
     // 10 day old records
-    let long_term_records = helper.get_spc_drift_records(Some(10));
+    let long_term_records = helper.get_spc_drift_records(Some(10), &profile.config.uid);
 
     // 0 day old records
-    let short_term_records = helper.get_spc_drift_records(None);
+    let short_term_records = helper.get_spc_drift_records(None, &profile.config.uid);
 
     for records in [short_term_records, long_term_records].iter() {
         let body = serde_json::to_string(records).unwrap();
@@ -93,7 +75,7 @@ async fn test_data_archive_spc() {
     assert!(!record.custom);
 
     let df = ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::Spc).unwrap();
-    let path = format!("{SPACE}/{NAME}/{VERSION}/spc");
+    let path = format!("{}/spc", profile.config.uid);
 
     let canonical_path = format!("{}/{}", df.storage_root(), path);
     let data_path = object_store::path::Path::from(canonical_path);
@@ -103,10 +85,8 @@ async fn test_data_archive_spc() {
 
     let params = DriftRequest {
         space: SPACE.to_string(),
-        name: NAME.to_string(),
-        version: VERSION.to_string(),
+        uid: profile.config.uid.clone(),
         max_data_points: 100,
-        drift_type: DriftType::Spc,
         begin_custom_datetime: Some(Utc::now() - chrono::Duration::days(15)),
         end_custom_datetime: Some(Utc::now()),
         ..Default::default()
@@ -160,31 +140,21 @@ async fn test_data_archive_psi() {
 
     let monitor = PsiMonitor::new();
 
-    let profile = monitor
+    let mut profile = monitor
         .create_2d_drift_profile(&features, &array.view(), &config)
         .unwrap();
 
-    let request = profile.create_profile_request().unwrap();
+    let uid = helper
+        .register_drift_profile(profile.create_profile_request().unwrap())
+        .await;
 
-    let body = serde_json::to_string(&request).unwrap();
-
-    let request = Request::builder()
-        .uri("/scouter/profile")
-        .method("POST")
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(body))
-        .unwrap();
-
-    let response = helper.send_oneshot(request).await;
-
-    //assert response
-    assert_eq!(response.status(), StatusCode::OK);
+    profile.config.uid = uid.clone();
 
     // 10 day old records
-    let long_term_records = helper.get_psi_drift_records(Some(10));
+    let long_term_records = helper.get_psi_drift_records(Some(10), &profile.config.uid);
 
     // 0 day old records
-    let short_term_records = helper.get_psi_drift_records(None);
+    let short_term_records = helper.get_psi_drift_records(None, &profile.config.uid);
 
     for records in [short_term_records, long_term_records].iter() {
         let body = serde_json::to_string(records).unwrap();
@@ -213,7 +183,7 @@ async fn test_data_archive_psi() {
     assert!(!record.custom);
 
     let df = ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::Psi).unwrap();
-    let path = format!("{SPACE}/{NAME}/{VERSION}/psi");
+    let path = format!("{}/psi", profile.config.uid);
 
     let canonical_path = format!("{}/{}", df.storage_root(), path);
     let data_path = object_store::path::Path::from(canonical_path);
@@ -223,10 +193,8 @@ async fn test_data_archive_psi() {
 
     let params = DriftRequest {
         space: SPACE.to_string(),
-        name: NAME.to_string(),
-        version: VERSION.to_string(),
+        uid: profile.config.uid.clone(),
         max_data_points: 100,
-        drift_type: DriftType::Psi,
         begin_custom_datetime: Some(Utc::now() - chrono::Duration::days(15)),
         end_custom_datetime: Some(Utc::now()),
         ..Default::default()
@@ -263,31 +231,22 @@ async fn test_data_archive_custom() {
     let alert_threshold = AlertThreshold::Above;
     let metric1 = CustomMetric::new("metric_1", 1.0, alert_threshold.clone(), None).unwrap();
     let metric2 = CustomMetric::new("metric_2", 1.0, alert_threshold, None).unwrap();
-    let profile = CustomDriftProfile::new(config, vec![metric1, metric2]).unwrap();
+    let mut profile = CustomDriftProfile::new(config, vec![metric1, metric2]).unwrap();
 
-    let request = profile.create_profile_request().unwrap();
+    let uid = helper
+        .register_drift_profile(profile.create_profile_request().unwrap())
+        .await;
 
-    let body = serde_json::to_string(&request).unwrap();
-    let request = Request::builder()
-        .uri("/scouter/profile")
-        .method("POST")
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(body))
-        .unwrap();
-
-    let response = helper.send_oneshot(request).await;
-
-    //assert response
-    assert_eq!(response.status(), StatusCode::OK);
+    profile.config.uid = uid.clone();
 
     // 20 day old records
-    let long_term_records = helper.get_custom_drift_records(Some(20));
+    let long_term_records = helper.get_custom_drift_records(Some(20), &profile.config.uid);
 
     // 10 day old records
-    let medium_term_records = helper.get_custom_drift_records(Some(10));
+    let medium_term_records = helper.get_custom_drift_records(Some(10), &profile.config.uid);
 
     // 0 day old records
-    let short_term_records = helper.get_custom_drift_records(None);
+    let short_term_records = helper.get_custom_drift_records(None, &profile.config.uid);
 
     for records in [short_term_records, medium_term_records, long_term_records].iter() {
         let body = serde_json::to_string(records).unwrap();
@@ -316,7 +275,7 @@ async fn test_data_archive_custom() {
     assert!(record.custom);
 
     let df = ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::Custom).unwrap();
-    let path = format!("{SPACE}/{NAME}/{VERSION}/custom");
+    let path = format!("{}/custom", profile.config.uid);
 
     let canonical_path = format!("{}/{}", df.storage_root(), path);
     let data_path = object_store::path::Path::from(canonical_path);
@@ -326,10 +285,8 @@ async fn test_data_archive_custom() {
 
     let params = DriftRequest {
         space: SPACE.to_string(),
-        name: NAME.to_string(),
-        version: VERSION.to_string(),
+        uid: profile.config.uid.clone(),
         max_data_points: 100,
-        drift_type: DriftType::Custom,
         begin_custom_datetime: Some(Utc::now() - chrono::Duration::days(15)),
         end_custom_datetime: Some(Utc::now()),
         ..Default::default()
@@ -386,30 +343,23 @@ fn test_data_archive_llm_drift_record() {
     )
     .unwrap();
     let llm_metrics = vec![metric1, metric2];
-    let profile = runtime
+    let mut profile = runtime
         .block_on(async { LLMDriftProfile::from_metrics(config, llm_metrics).await })
         .unwrap();
 
-    let request = profile.create_profile_request().unwrap();
+    let uid = runtime.block_on(async {
+        helper
+            .register_drift_profile(profile.create_profile_request().unwrap())
+            .await
+    });
 
-    let body = serde_json::to_string(&request).unwrap();
-    let request = Request::builder()
-        .uri("/scouter/profile")
-        .method("POST")
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(body))
-        .unwrap();
-
-    let response = runtime.block_on(async { helper.send_oneshot(request).await });
-
-    //assert response
-    assert_eq!(response.status(), StatusCode::OK);
+    profile.config.uid = uid.clone();
 
     // 10 day old records
-    let long_term_records = helper.get_llm_drift_records(Some(10));
+    let long_term_records = helper.get_llm_drift_records(Some(10), &profile.config.uid);
 
     // 0 day old records
-    let short_term_records = helper.get_llm_drift_records(None);
+    let short_term_records = helper.get_llm_drift_records(None, &profile.config.uid);
 
     for records in [short_term_records, long_term_records].iter() {
         let body = serde_json::to_string(records).unwrap();
@@ -442,7 +392,7 @@ fn test_data_archive_llm_drift_record() {
     assert!(record.llm_drift);
 
     let df = ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::LLMDrift).unwrap();
-    let path = format!("{SPACE}/{NAME}/{VERSION}/llm_drift");
+    let path = format!("{}/llm_drift", profile.config.uid);
 
     let canonical_path = format!("{}/{}", df.storage_root(), path);
     let data_path = object_store::path::Path::from(canonical_path);
@@ -486,33 +436,26 @@ fn test_data_archive_llm_drift_metrics() {
     )
     .unwrap();
     let llm_metrics = vec![metric1, metric2];
-    let profile = runtime
+    let mut profile = runtime
         .block_on(async { LLMDriftProfile::from_metrics(config, llm_metrics).await })
         .unwrap();
 
-    let request = profile.create_profile_request().unwrap();
+    let uid = runtime.block_on(async {
+        helper
+            .register_drift_profile(profile.create_profile_request().unwrap())
+            .await
+    });
 
-    let body = serde_json::to_string(&request).unwrap();
-    let request = Request::builder()
-        .uri("/scouter/profile")
-        .method("POST")
-        .header(header::CONTENT_TYPE, "application/json")
-        .body(Body::from(body))
-        .unwrap();
-
-    let response = runtime.block_on(async { helper.send_oneshot(request).await });
-
-    //assert response
-    assert_eq!(response.status(), StatusCode::OK);
+    profile.config.uid = uid.clone();
 
     // 20 day old records
-    let long_term_records = helper.get_llm_drift_metrics(Some(20));
+    let long_term_records = helper.get_llm_drift_metrics(Some(20), &profile.config.uid);
 
     // 10 day old records
-    let mid_term_records = helper.get_llm_drift_metrics(Some(10));
+    let mid_term_records = helper.get_llm_drift_metrics(Some(10), &profile.config.uid);
 
     // 0 day old records
-    let short_term_records = helper.get_llm_drift_metrics(None);
+    let short_term_records = helper.get_llm_drift_metrics(None, &profile.config.uid);
 
     for records in [short_term_records, long_term_records, mid_term_records].iter() {
         let body = serde_json::to_string(records).unwrap();
@@ -545,7 +488,7 @@ fn test_data_archive_llm_drift_metrics() {
 
     let df =
         ParquetDataFrame::new(&helper.config.storage_settings, &RecordType::LLMMetric).unwrap();
-    let path = format!("{SPACE}/{NAME}/{VERSION}/llm_metric");
+    let path = format!("{}/llm_metric", profile.config.uid);
 
     let canonical_path = format!("{}/{}", df.storage_root(), path);
     let data_path = object_store::path::Path::from(canonical_path);
@@ -557,10 +500,8 @@ fn test_data_archive_llm_drift_metrics() {
 
     let params = DriftRequest {
         space: SPACE.to_string(),
-        name: NAME.to_string(),
-        version: VERSION.to_string(),
+        uid: profile.config.uid.clone(),
         max_data_points: 100,
-        drift_type: DriftType::LLM,
         begin_custom_datetime: Some(Utc::now() - chrono::Duration::days(30)),
         end_custom_datetime: Some(Utc::now()),
         ..Default::default()

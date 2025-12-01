@@ -13,6 +13,7 @@ use crate::{
 };
 use chrono::Utc;
 use core::fmt::Debug;
+use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use scouter_semver::VersionType;
@@ -127,7 +128,7 @@ impl PsiDriftConfig {
             name: name.to_string(),
             space: space.to_string(),
             version: version.to_string(),
-            uid: MISSING.to_string(),
+            uid: create_uuid7(),
             alert_config,
             categorical_features,
             feature_map: FeatureMap::default(),

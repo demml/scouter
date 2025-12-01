@@ -9,6 +9,7 @@ use crate::{
 
 use chrono::{DateTime, Utc};
 use core::fmt::Debug;
+use potato_head::create_uuid7;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 
@@ -168,7 +169,7 @@ impl SpcDriftConfig {
             name: name.to_string(),
             space: space.to_string(),
             version: version.to_string(),
-            uid: MISSING.to_string(),
+            uid: create_uuid7(),
             alert_config,
             feature_map: FeatureMap::default(),
             drift_type: DriftType::Spc,

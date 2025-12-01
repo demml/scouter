@@ -178,13 +178,14 @@ pub struct BinProportion {
 #[derive(Debug, Clone, FromRow)]
 pub struct Entity {
     pub entity_id: i32,
+    pub entity_uid: String,
     pub begin_timestamp: DateTime<Utc>,
     pub end_timestamp: DateTime<Utc>,
 }
 
 impl Entity {
     pub fn get_write_path(&self, record_type: &RecordType) -> String {
-        format!("{}/{}", self.uid, record_type)
+        format!("{}/{}", self.entity_uid, record_type)
     }
 }
 
