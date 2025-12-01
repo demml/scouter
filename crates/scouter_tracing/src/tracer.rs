@@ -59,8 +59,6 @@ fn get_tracer_provider() -> Result<Arc<RwLock<Option<SdkTracerProvider>>>, Trace
     })
 }
 
-const MISSING: &str = "unknown";
-
 #[derive(Clone)]
 struct TraceMetadata {
     start_time: DateTime<Utc>,
