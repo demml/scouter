@@ -61,4 +61,38 @@ pub trait EntitySqlLogic {
 
         Ok(id)
     }
+
+    /// Helper function to create a new entity
+    /// # Arguments
+    /// * `space` - The space of the entity
+    /// * `name` - The name of the entity
+    /// * `version` - The version of the entity
+    /// * `drift_type` - The drift type of the entity
+    /// # Returns
+    /// * `Result<String, SqlError>` - Result of the insert returning the new
+    async fn create_entity(
+        pool: &Pool<Postgres>,
+        space: &str,
+        name: &str,
+        version: &str,
+        drift_type: &str,
+    ) -> Result<(String, i32), SqlError> {
+        let query = format!(
+            "INSERT INTO entities (space, name, version, drift_type) VALUES ($1, $2, $3, $4) ON CONFLICT (space, name, version, drift_type) DO NOTHING RETURNING id, uid;"
+        );
+
+        let result = sqlx::query(&query)
+            .bind(space)
+            .bind(name)
+            .bind(version)
+            .bind(drift_type)
+            .fetch_one(pool)
+            .await
+            .map_err(SqlError::SqlxError)?;
+
+        let uid: String = result.get("uid");
+        let id: i32 = result.get("id");
+
+        Ok((uid, id))
+    }
 }

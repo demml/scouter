@@ -3,8 +3,8 @@ pub mod utils;
 use crate::utils::setup_logging;
 
 use scouter_sql::sql::traits::SpcSqlLogic;
-use scouter_sql::PostgresClient;
-use scouter_types::{ServerRecord, ServerRecords, ServiceInfo, SpcServerRecord};
+use scouter_sql::{sql::traits::EntitySqlLogic, PostgresClient};
+use scouter_types::{ServerRecord, ServerRecords, ServiceInfo, SpcRecord};
 use std::time::{Duration, Instant};
 use utils::TestHelper;
 
@@ -16,13 +16,13 @@ use rdkafka::{
 };
 
 trait KafkaSetup {
-    async fn start_background_producer(&self);
+    async fn start_background_producer(&self, entity_uid: &str);
 
     //async fn start_background_consumer(&self) -> tokio::sync::watch::Sender<()>;
 }
 
 impl KafkaSetup for TestHelper {
-    async fn start_background_producer(&self) {
+    async fn start_background_producer(&self, entity_uid: &str) {
         let kafka_brokers =
             std::env::var("KAFKA_BROKERS").unwrap_or_else(|_| "localhost:9092".to_owned());
 
@@ -35,17 +35,16 @@ impl KafkaSetup for TestHelper {
             .expect("Producer creation error");
 
         let topic_name = self.config.kafka_settings.as_ref().unwrap().topics[0].clone();
+        let entity_uid = entity_uid.to_string();
         tokio::spawn(async move {
             loop {
                 let mut records = Vec::new();
                 for i in 0..15 {
-                    let record = ServerRecord::Spc(SpcServerRecord {
+                    let record = ServerRecord::Spc(SpcRecord {
                         created_at: chrono::Utc::now(),
-                        name: "test".to_string(),
-                        space: "test".to_string(),
                         feature: "feature".to_string(),
                         value: i as f64,
-                        version: "1.0.0".to_string(),
+                        uid: entity_uid.clone(),
                     });
                     records.push(record);
                 }
@@ -97,7 +96,24 @@ async fn main() {
 
     let helper = TestHelper::new().await;
 
-    helper.start_background_producer().await;
+    let service_info = ServiceInfo {
+        space: "test".to_string(),
+        name: "test".to_string(),
+        version: "1.0.0".to_string(),
+    };
+
+    // create entity in the database before starting consumer
+    let (entity_uid, entity_id) = PostgresClient::create_entity(
+        &helper.db_pool,
+        service_info.space.as_str(),
+        service_info.name.as_str(),
+        service_info.version.as_str(),
+        "spc",
+    )
+    .await
+    .unwrap();
+
+    helper.start_background_producer(&entity_uid).await;
 
     let start = Instant::now();
 
@@ -105,16 +121,11 @@ async fn main() {
         if start.elapsed() < Duration::from_secs(15) {
             // Warming up
         } else {
-            let service_info = ServiceInfo {
-                space: "test".to_string(),
-                name: "test".to_string(),
-                version: "1.0.0".to_string(),
-            };
             let records = PostgresClient::get_spc_drift_records(
                 &helper.db_pool,
-                &service_info,
                 &timestamp,
                 &["feature".to_string()],
+                &entity_id,
             )
             .await
             .unwrap();
