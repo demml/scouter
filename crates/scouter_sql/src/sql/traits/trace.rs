@@ -21,7 +21,6 @@ pub trait TraceSqlLogic {
     async fn upsert_trace_batch(
         pool: &Pool<Postgres>,
         traces: &[TraceRecord],
-        entity_id: Option<&i32>,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::UpsertTrace.get_query();
         let capacity = traces.len();
@@ -29,7 +28,7 @@ pub trait TraceSqlLogic {
         // Pre-allocate vectors for each field for batch efficiency
         let mut created_at = Vec::with_capacity(capacity);
         let mut trace_id = Vec::with_capacity(capacity);
-        let mut entity_id_vec = Vec::with_capacity(capacity);
+        let mut service_name = Vec::with_capacity(capacity);
         let mut scope = Vec::with_capacity(capacity);
         let mut trace_state = Vec::with_capacity(capacity);
         let mut start_time = Vec::with_capacity(capacity);
@@ -44,7 +43,7 @@ pub trait TraceSqlLogic {
         for r in traces {
             created_at.push(r.created_at);
             trace_id.push(r.trace_id.as_str());
-            entity_id_vec.push(entity_id);
+            service_name.push(r.service_name.as_str());
             scope.push(r.scope.as_str());
             trace_state.push(r.trace_state.as_str());
             start_time.push(r.start_time);
@@ -59,7 +58,7 @@ pub trait TraceSqlLogic {
         let query_result = sqlx::query(&query.sql)
             .bind(created_at)
             .bind(trace_id)
-            .bind(entity_id_vec)
+            .bind(service_name)
             .bind(scope)
             .bind(trace_state)
             .bind(start_time)

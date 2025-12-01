@@ -1,5 +1,6 @@
 use crate::error::RecordError;
 use crate::trace::TraceServerRecord;
+use crate::DriftType;
 use crate::PyHelperFuncs;
 use crate::Status;
 use crate::TagRecord;
@@ -13,6 +14,7 @@ use serde_json::Value;
 use std::collections::HashMap;
 use std::collections::HashSet;
 use std::fmt::Display;
+
 #[pyclass(eq)]
 #[derive(Debug, Serialize, Deserialize, Clone, Default, PartialEq)]
 pub enum RecordType {
@@ -24,6 +26,19 @@ pub enum RecordType {
     LLMDrift,
     LLMMetric,
     Trace,
+}
+
+impl RecordType {
+    pub fn to_drift_type(&self) -> &str {
+        match self {
+            RecordType::Spc => DriftType::Spc.to_string(),
+            RecordType::Psi => DriftType::Psi.to_string(),
+            RecordType::Custom => DriftType::Custom.to_string(),
+            RecordType::LLMDrift => DriftType::LLM.to_string(),
+            RecordType::LLMMetric => DriftType::LLM.to_string(),
+            _ => "unknown",
+        }
+    }
 }
 
 impl Display for RecordType {

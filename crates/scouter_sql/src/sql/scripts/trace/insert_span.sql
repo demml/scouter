@@ -1,3 +1,4 @@
+-- Insert spans with service_id resolution
 INSERT INTO scouter.spans (
     created_at,
     span_id,
@@ -17,7 +18,9 @@ INSERT INTO scouter.spans (
     links,
     label,
     input,
-    output
+    output,
+    service_name,
+    service_id
 )
 SELECT
     created_at,
@@ -38,7 +41,9 @@ SELECT
     links,
     label,
     input,
-    output
+    output,
+    service_name,
+    scouter.get_or_create_service_id(service_name) as service_id
 FROM UNNEST(
     $1::timestamptz[],  -- created_at
     $2::text[],        -- span_id
@@ -58,15 +63,14 @@ FROM UNNEST(
     $16::jsonb[],      -- links
     $17::text[],       -- label
     $18::jsonb[],      -- input
-    $19::jsonb[]       -- output
+    $19::jsonb[],      -- output
+    $20::text[]        -- service_name
 ) AS s(
     created_at,
     span_id,
     trace_id,
     parent_span_id,
-    space,
-    name,
-    version,
+    entity_id,
     scope,
     span_name,
     span_kind,
@@ -80,6 +84,7 @@ FROM UNNEST(
     links,
     label,
     input,
-    output
+    output,
+    service_name
 )
 ON CONFLICT (created_at, trace_id, span_id) DO NOTHING;

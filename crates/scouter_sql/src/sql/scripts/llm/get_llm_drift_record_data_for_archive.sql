@@ -1,6 +1,7 @@
 SELECT
     id,
     created_at,
+    entity_uid,
     entity_id,
     context,
     prompt,

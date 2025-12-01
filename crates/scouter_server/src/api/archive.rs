@@ -5,7 +5,7 @@ use scouter_dataframe::parquet::dataframe::ParquetDataFrame;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::sql::traits::ArchiveSqlLogic;
 use scouter_sql::{sql::schema::Entity, PostgresClient};
-use scouter_types::{ArchiveRecord, DriftType, RecordType, ServerRecords};
+use scouter_types::{ArchiveRecord, DriftType, InternalServerRecords, RecordType};
 use sqlx::{Pool, Postgres};
 use std::sync::Arc;
 use strum::IntoEnumIterator;
@@ -84,7 +84,7 @@ async fn get_data_to_archive(
     db_pool: &Pool<Postgres>,
     record_type: &RecordType,
     entity: &Entity,
-) -> Result<ServerRecords, ServerError> {
+) -> Result<InternalServerRecords, ServerError> {
     // get the data from the database
     let data = PostgresClient::get_data_to_archive(
         &entity.space,

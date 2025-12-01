@@ -41,7 +41,7 @@ pub struct TraceRecord {
     #[pyo3(get)]
     pub trace_id: String,
     #[pyo3(get)]
-    pub uid: Option<String>,
+    pub service_name: String,
     #[pyo3(get)]
     pub scope: String,
     #[pyo3(get)]
@@ -449,7 +449,6 @@ impl TraceServerRecord {
     pub fn convert_to_trace_record(
         &self,
         trace_id: &str,
-        uid: Option<String>,
         span_id: &str,
         span: &Span,
         scope_name: &str,
@@ -461,7 +460,7 @@ impl TraceServerRecord {
         Ok(TraceRecord {
             created_at: Self::get_trace_start_time_attribute(attributes, &start_time),
             trace_id: trace_id.to_string(),
-            uid,
+            service_name: Self::get_service_name_attribute(attributes, "unknown"),
             scope: scope_name.to_string(),
             trace_state: span.trace_state.clone(),
             start_time,
@@ -499,6 +498,22 @@ impl TraceServerRecord {
             "Trace start time attribute not found or invalid, falling back to span start_time"
         );
         *start_time
+    }
+
+    pub fn get_service_name_attribute(attributes: &Vec<Attribute>, default: &str) -> String {
+        for attr in attributes {
+            if attr.key == SERVICE_NAME {
+                if let Value::String(s) = &attr.value {
+                    return s.clone();
+                }
+            }
+        }
+
+        tracing::warn!(
+            "Service name attribute not found, falling back to default: {}",
+            default
+        );
+        default.to_string()
     }
 
     pub fn convert_to_baggage_records(
@@ -637,7 +652,6 @@ impl TraceServerRecord {
                     // TraceRecord for upsert
                     trace_records.push(self.convert_to_trace_record(
                         &trace_id,
-                        uid.clone(),
                         &span_id,
                         span,
                         scope_name,
