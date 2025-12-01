@@ -212,9 +212,14 @@ impl ScouterClient {
         Ok(true)
     }
 
-    fn get_trace_spans(&self, trace_id: &str) -> Result<TraceSpansResponse, ClientError> {
+    fn get_trace_spans(
+        &self,
+        trace_id: &str,
+        service_name: Option<&str>,
+    ) -> Result<TraceSpansResponse, ClientError> {
         let trace_request = TraceRequest {
             trace_id: trace_id.to_string(),
+            service_name: service_name.map(|s| s.to_string()),
         };
 
         let query_string = serde_qs::to_string(&trace_request)?;
@@ -268,6 +273,7 @@ impl ScouterClient {
     fn get_trace_baggage(&self, trace_id: &str) -> Result<TraceBaggageResponse, ClientError> {
         let trace_request = TraceRequest {
             trace_id: trace_id.to_string(),
+            service_name: None,
         };
         let query_string = serde_qs::to_string(&trace_request)?;
         let response = self.client.request(
@@ -503,8 +509,12 @@ impl PyScouterClient {
     /// * `trace_id` - The ID of the trace
     /// # Returns
     /// * A trace spans response object
-    pub fn get_trace_spans(&self, trace_id: &str) -> Result<TraceSpansResponse, ClientError> {
-        self.client.get_trace_spans(trace_id)
+    pub fn get_trace_spans(
+        &self,
+        trace_id: &str,
+        service_name: Option<&str>,
+    ) -> Result<TraceSpansResponse, ClientError> {
+        self.client.get_trace_spans(trace_id, service_name)
     }
 
     /// Get trace metrics for a given trace metrics request
