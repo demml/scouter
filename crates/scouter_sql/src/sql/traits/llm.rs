@@ -65,7 +65,6 @@ pub trait LLMDriftSqlLogic {
             Vec<&str>,
             Vec<&i32>,
             Vec<&str>,
-            Vec<&str>,
             Vec<f64>,
         ) = multiunzip(records.iter().map(|r| {
             (

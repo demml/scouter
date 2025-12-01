@@ -180,16 +180,6 @@ impl MessageHandler {
         pool: &Pool<Postgres>,
         records: &TraceServerRecord,
     ) -> Result<(), SqlError> {
-        let entity_id = if let Some(uid) = &records.uid {
-            entity_cache()
-                .get_optional_entity_id_from_uid(uid)
-                .await
-                .ok()
-                .flatten()
-        } else {
-            None
-        };
-
         let (trace_batch, span_batch, baggage_batch) = records.to_records()?;
 
         let all_tags: Vec<TagRecord> = trace_batch
@@ -206,8 +196,8 @@ impl MessageHandler {
             .collect();
 
         let (trace_result, span_result, baggage_result, tag_result) = try_join!(
-            PostgresClient::upsert_trace_batch(pool, &trace_batch, entity_id.as_ref()),
-            PostgresClient::insert_span_batch(pool, &span_batch, entity_id.as_ref()),
+            PostgresClient::upsert_trace_batch(pool, &trace_batch),
+            PostgresClient::insert_span_batch(pool, &span_batch),
             PostgresClient::insert_trace_baggage_batch(pool, &baggage_batch),
             async {
                 if !all_tags.is_empty() {
@@ -293,7 +283,7 @@ mod tests {
         TraceRecord {
             trace_id: trace_id.clone(),
             created_at,
-            uid: Some(UID.to_string()),
+            service_name: format!("service_{}", random_num % 10),
             scope: SCOPE.to_string(),
             trace_state: "running".to_string(),
             start_time: created_at,
@@ -307,7 +297,11 @@ mod tests {
         }
     }
 
-    fn random_span_record(trace_id: &str, parent_span_id: Option<&str>) -> TraceSpanRecord {
+    fn random_span_record(
+        trace_id: &str,
+        parent_span_id: Option<&str>,
+        service_name: &str,
+    ) -> TraceSpanRecord {
         let mut rng = rand::rng();
         let span_id: String = (0..16)
             .map(|_| format!("{:x}", rng.random_range(0..16)))
@@ -330,7 +324,7 @@ mod tests {
             span_id,
             trace_id: trace_id.to_string(),
             parent_span_id: parent_span_id.map(|s| s.to_string()),
-            uid: Some(UID.to_string()),
+            service_name: service_name.to_string(),
             scope: SCOPE.to_string(),
             span_name: format!("{}_{}", "random_operation", rng.random_range(0..10)),
             span_kind,
@@ -1224,34 +1218,32 @@ mod tests {
         let trace_id = trace_record.trace_id.clone();
 
         // create spans
-        let root_span = random_span_record(&trace_id, None);
-        let child_span = random_span_record(&trace_id, Some(&root_span.span_id));
+        let root_span = random_span_record(&trace_id, None, &trace_record.service_name);
+        let child_span =
+            random_span_record(&trace_id, Some(&root_span.span_id), &root_span.service_name);
 
         // set root span id in trace record
         trace_record.root_span_id = root_span.span_id.clone();
 
         // this should perform an insert
-        let result = PostgresClient::upsert_trace_batch(&pool, &[trace_record.clone()], None)
+        let result = PostgresClient::upsert_trace_batch(&pool, &[trace_record.clone()])
             .await
             .unwrap();
 
         assert_eq!(result.rows_affected(), 1);
 
         // this should perform an update (mainly just increasing span count)
-        let result = PostgresClient::upsert_trace_batch(&pool, &[trace_record.clone()], None)
+        let result = PostgresClient::upsert_trace_batch(&pool, &[trace_record.clone()])
             .await
             .unwrap();
 
         assert_eq!(result.rows_affected(), 1);
 
         // insert spans
-        let result = PostgresClient::insert_span_batch(
-            &pool,
-            &[root_span.clone(), child_span.clone()],
-            None,
-        )
-        .await
-        .unwrap();
+        let result =
+            PostgresClient::insert_span_batch(&pool, &[root_span.clone(), child_span.clone()])
+                .await
+                .unwrap();
 
         assert_eq!(result.rows_affected(), 2);
 

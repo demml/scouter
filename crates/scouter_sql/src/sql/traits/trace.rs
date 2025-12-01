@@ -82,7 +82,6 @@ pub trait TraceSqlLogic {
     async fn insert_span_batch(
         pool: &Pool<Postgres>,
         spans: &[TraceSpanRecord],
-        entity_id: Option<&i32>,
     ) -> Result<PgQueryResult, SqlError> {
         let query = Queries::InsertTraceSpan.get_query();
         let capacity = spans.len();
@@ -93,7 +92,6 @@ pub trait TraceSqlLogic {
         let mut span_id = Vec::with_capacity(capacity);
         let mut trace_id = Vec::with_capacity(capacity);
         let mut parent_span_id = Vec::with_capacity(capacity);
-        let mut entity_id_vec = Vec::with_capacity(capacity);
         let mut scope = Vec::with_capacity(capacity);
         let mut span_name = Vec::with_capacity(capacity);
         let mut span_kind = Vec::with_capacity(capacity);
@@ -108,6 +106,7 @@ pub trait TraceSqlLogic {
         let mut labels = Vec::with_capacity(capacity);
         let mut input = Vec::with_capacity(capacity);
         let mut output = Vec::with_capacity(capacity);
+        let mut service_name = Vec::with_capacity(capacity);
 
         // Single iteration for maximum efficiency
         for span in spans {
@@ -115,7 +114,6 @@ pub trait TraceSqlLogic {
             span_id.push(span.span_id.as_str());
             trace_id.push(span.trace_id.as_str());
             parent_span_id.push(span.parent_span_id.as_deref());
-            entity_id_vec.push(entity_id);
             scope.push(span.scope.as_str());
             span_name.push(span.span_name.as_str());
             span_kind.push(span.span_kind.as_str());
@@ -130,6 +128,7 @@ pub trait TraceSqlLogic {
             labels.push(span.label.as_deref());
             input.push(Json(span.input.clone()));
             output.push(Json(span.output.clone()));
+            service_name.push(span.service_name.as_str());
         }
 
         let query_result = sqlx::query(&query.sql)
@@ -137,7 +136,6 @@ pub trait TraceSqlLogic {
             .bind(span_id)
             .bind(trace_id)
             .bind(parent_span_id)
-            .bind(entity_id_vec)
             .bind(scope)
             .bind(span_name)
             .bind(span_kind)
@@ -152,6 +150,7 @@ pub trait TraceSqlLogic {
             .bind(labels)
             .bind(input)
             .bind(output)
+            .bind(service_name)
             .execute(pool)
             .await?;
 
