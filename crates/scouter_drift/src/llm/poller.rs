@@ -2,7 +2,6 @@
 use crate::error::DriftError;
 use crate::llm::evaluator::LLMEvaluator;
 use potato_head::Score;
-use scouter_sql::sql::cache::entity_cache;
 use scouter_sql::sql::traits::{LLMDriftSqlLogic, ProfileSqlLogic};
 use scouter_sql::PostgresClient;
 use scouter_types::llm::LLMDriftProfile;
@@ -36,15 +35,15 @@ impl LLMPoller {
 
         match LLMEvaluator::process_drift_record(record, profile).await {
             Ok((metrics, score_map, workflow_duration)) => {
-                let entity_id = entity_cache()
-                    .get_entity_id_from_uid(&profile.config.uid)
-                    .await?;
-
-                PostgresClient::insert_llm_metric_values_batch(&self.db_pool, &metrics, &entity_id)
-                    .await
-                    .inspect_err(|e| {
-                        error!("Failed to insert LLM metric values: {:?}", e);
-                    })?;
+                PostgresClient::insert_llm_metric_values_batch(
+                    &self.db_pool,
+                    &metrics,
+                    &record.entity_id,
+                )
+                .await
+                .inspect_err(|e| {
+                    error!("Failed to insert LLM metric values: {:?}", e);
+                })?;
 
                 return Ok((score_map, workflow_duration));
             }
@@ -65,14 +64,6 @@ impl LLMPoller {
         };
 
         info!("Processing llm drift record for profile: {}", task.uid);
-
-        // get get/load profile and reset agents
-        //let request = GetProfileRequest {
-        //    space: task.space.clone(),
-        //    name: task.name.clone(),
-        //    version: task.version.clone(),
-        //    drift_type: DriftType::LLM,
-        //};
 
         let mut llm_profile = if let Some(profile) =
             PostgresClient::get_drift_profile(&self.db_pool, &task.entity_id, &DriftType::LLM)

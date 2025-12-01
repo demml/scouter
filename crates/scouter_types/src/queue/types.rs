@@ -460,6 +460,17 @@ impl LLMRecord {
     pub fn __str__(&self) -> String {
         PyHelperFuncs::__str__(self)
     }
+
+    pub fn to_task_record(&self, uid: &str) -> LLMTaskRecord {
+        LLMTaskRecord {
+            uid: uid.to_string(),
+            entity_id: 0,
+            created_at: self.created_at.clone(),
+            context: self.context.clone(),
+            score: self.score.clone(),
+            prompt: self.prompt.clone(),
+        }
+    }
 }
 
 #[derive(Debug)]
