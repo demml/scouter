@@ -19,9 +19,9 @@ use scouter_types::{
     llm::PaginationResponse,
     psi::{BinnedPsiFeatureMetrics, PsiDriftProfile},
     spc::SpcDriftFeatures,
-    BinnedMetrics, DriftType, LLMDriftRecord, LLMDriftRecordPaginationRequest, MessageRecord,
+    BinnedMetrics, LLMDriftRecord, LLMDriftRecordPaginationRequest, MessageRecord,
 };
-use scouter_types::{DriftRequest, GetProfileRequest, ScouterResponse, ScouterServerError};
+use scouter_types::{DriftRequest, ScouterResponse, ScouterServerError};
 use sqlx::{Pool, Postgres};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
@@ -263,16 +263,8 @@ pub async fn get_llm_drift_metrics(
 #[instrument(skip_all)]
 pub async fn insert_drift(
     State(data): State<Arc<AppState>>,
-    Extension(perms): Extension<UserPermissions>,
     Json(body): Json<MessageRecord>,
 ) -> Result<Json<ScouterResponse>, (StatusCode, Json<ScouterServerError>)> {
-    if !perms.has_write_permission(&body.space()) {
-        return Err((
-            StatusCode::FORBIDDEN,
-            Json(ScouterServerError::permission_denied()),
-        ));
-    }
-
     match data.http_consumer_tx.send_async(body).await {
         Ok(_) => Ok(Json(ScouterResponse {
             status: "success".to_string(),

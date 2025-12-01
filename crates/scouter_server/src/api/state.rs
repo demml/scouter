@@ -6,8 +6,8 @@ use flume::Sender;
 use scouter_auth::auth::AuthManager;
 use scouter_settings::ScouterServerConfig;
 use scouter_sql::sql::cache::entity_cache;
-use scouter_types::contracts::ScouterServerError;
 use scouter_types::MessageRecord;
+use scouter_types::{contracts::ScouterServerError, DriftType};
 use sqlx::{Pool, Postgres};
 use std::sync::Arc;
 use tracing::error;
@@ -46,6 +46,46 @@ impl AppState {
                     Json(ScouterServerError::new(format!(
                         "Failed to get entity ID from UID: {error_msg}"
                     ))),
+                ))
+            }
+        }
+    }
+
+    pub async fn get_entity_id_from_space_name_version_drift_type(
+        &self,
+        space: &String,
+        name: &String,
+        version: &String,
+        drift_type: &DriftType,
+    ) -> Result<i32, ServerError> {
+        Ok(entity_cache()
+            .get_entity_id_from_space_name_version_drift_type(space, name, version, drift_type)
+            .await?)
+    }
+
+    pub async fn get_entity_id_for_request_from_args(
+        &self,
+        space: &String,
+        name: &String,
+        version: &String,
+        drift_type: &DriftType,
+    ) -> Result<i32, (StatusCode, Json<ScouterServerError>)> {
+        match self
+            .get_entity_id_from_space_name_version_drift_type(space, name, version, drift_type)
+            .await
+        {
+            Ok(profile_id) => Ok(profile_id),
+            Err(e) => {
+                let error_msg = e.to_string();
+                error!(
+                    "Failed to get entity ID from space, name, version, drift_type: {:?}",
+                    e
+                );
+                Err((
+                    StatusCode::INTERNAL_SERVER_ERROR,
+                    Json(ScouterServerError::new(format!(
+                    "Failed to get entity ID from space, name, version, drift_type: {error_msg}"
+                ))),
                 ))
             }
         }

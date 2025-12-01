@@ -2,6 +2,7 @@ use crate::sql::error::SqlError;
 use crate::sql::traits::EntitySqlLogic;
 use crate::PostgresClient;
 use mini_moka::sync::Cache;
+use scouter_types::DriftType;
 use sqlx::{Pool, Postgres};
 use std::sync::OnceLock;
 
@@ -48,6 +49,26 @@ impl EntityCache {
                 Ok(entity_id)
             }
         }
+    }
+
+    /// helper for getting entity id from space, name, version, drift_type
+    pub async fn get_entity_id_from_space_name_version_drift_type(
+        &self,
+        space: &String,
+        name: &String,
+        version: &String,
+        drift_type: &DriftType,
+    ) -> Result<i32, SqlError> {
+        let id = PostgresClient::get_entity_id_from_space_name_version_drift_type(
+            &self.pool,
+            space,
+            name,
+            version,
+            drift_type.to_string(),
+        )
+        .await?;
+
+        Ok(id)
     }
 }
 

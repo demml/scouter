@@ -304,6 +304,15 @@ impl DriftProfile {
             }
         }
     }
+
+    pub fn uid(&self) -> &String {
+        match self {
+            DriftProfile::Spc(profile) => &profile.config.uid,
+            DriftProfile::Psi(profile) => &profile.config.uid,
+            DriftProfile::Custom(profile) => &profile.config.uid,
+            DriftProfile::LLM(profile) => &profile.config.uid,
+        }
+    }
 }
 
 impl Default for DriftProfile {

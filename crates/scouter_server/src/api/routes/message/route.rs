@@ -1,7 +1,6 @@
 use crate::api::state::AppState;
 use anyhow::{Context, Result};
-use axum::{extract::State, http::StatusCode, routing::post, Extension, Json, Router};
-use scouter_auth::permission::UserPermissions;
+use axum::{extract::State, http::StatusCode, routing::post, Json, Router};
 use scouter_types::{MessageRecord, ScouterResponse, ScouterServerError};
 use std::panic::{catch_unwind, AssertUnwindSafe};
 use std::sync::Arc;
@@ -10,16 +9,8 @@ use tracing::instrument;
 #[instrument(skip_all)]
 pub async fn insert_message(
     State(data): State<Arc<AppState>>,
-    Extension(perms): Extension<UserPermissions>,
     Json(body): Json<MessageRecord>,
 ) -> Result<Json<ScouterResponse>, (StatusCode, Json<ScouterServerError>)> {
-    if !perms.has_write_permission(&body.space()) {
-        return Err((
-            StatusCode::FORBIDDEN,
-            Json(ScouterServerError::permission_denied()),
-        ));
-    }
-
     match data.http_consumer_tx.send_async(body).await {
         Ok(_) => Ok(Json(ScouterResponse {
             status: "success".to_string(),

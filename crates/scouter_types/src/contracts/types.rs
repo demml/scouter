@@ -232,9 +232,7 @@ pub struct DriftTaskInfo {
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct ObservabilityMetricRequest {
-    pub name: String,
-    pub space: String,
-    pub version: String,
+    pub uid: String,
     pub time_interval: String,
     pub max_data_points: i32,
 }
